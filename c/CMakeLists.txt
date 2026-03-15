@@ -1,0 +1,67 @@
+cmake_minimum_required(VERSION 3.16)
+project(aether-protocol C)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+
+# Find libsodium
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBSODIUM REQUIRED libsodium)
+
+# Add the library
+add_library(aether-protocol STATIC
+    src/protocol.c
+    src/security.c
+    src/transport_inprocess.c
+)
+
+target_include_directories(aether-protocol
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${LIBSODIUM_INCLUDE_DIRS}
+)
+
+target_link_directories(aether-protocol
+    PUBLIC
+        ${LIBSODIUM_LIBRARY_DIRS}
+)
+
+target_link_libraries(aether-protocol
+    PUBLIC
+        pthread
+    PRIVATE
+        ${LIBSODIUM_LIBRARIES}
+)
+
+# Add the demo executable
+add_executable(aether-demo
+    src/demo.c
+)
+
+target_include_directories(aether-demo
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_include_directories(aether-demo
+    PRIVATE
+        ${LIBSODIUM_INCLUDE_DIRS}
+)
+
+target_link_directories(aether-demo
+    PRIVATE
+        ${LIBSODIUM_LIBRARY_DIRS}
+)
+
+target_link_libraries(aether-demo
+    PRIVATE
+        aether-protocol
+        ${LIBSODIUM_LIBRARIES}
+        pthread
+)
+
+# Optional: Add tests directory
+enable_testing()
+add_subdirectory(tests EXCLUDE_FROM_ALL)

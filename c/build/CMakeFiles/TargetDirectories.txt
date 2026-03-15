@@ -1,0 +1,9 @@
+/Users/admin/Code/Dev/aether-protocol/c/build/CMakeFiles/aether-protocol.dir
+/Users/admin/Code/Dev/aether-protocol/c/build/CMakeFiles/aether-demo.dir
+/Users/admin/Code/Dev/aether-protocol/c/build/CMakeFiles/test.dir
+/Users/admin/Code/Dev/aether-protocol/c/build/CMakeFiles/edit_cache.dir
+/Users/admin/Code/Dev/aether-protocol/c/build/CMakeFiles/rebuild_cache.dir
+/Users/admin/Code/Dev/aether-protocol/c/build/tests/CMakeFiles/test-protocol.dir
+/Users/admin/Code/Dev/aether-protocol/c/build/tests/CMakeFiles/test.dir
+/Users/admin/Code/Dev/aether-protocol/c/build/tests/CMakeFiles/edit_cache.dir
+/Users/admin/Code/Dev/aether-protocol/c/build/tests/CMakeFiles/rebuild_cache.dir

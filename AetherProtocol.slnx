@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Aether.Demo.Console/Aether.Demo.Console.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Aether.Core/Aether.Core.csproj" />
+    <Project Path="src/Aether.Security/Aether.Security.csproj" />
+    <Project Path="src/Aether.Transport/Aether.Transport.csproj" />
+  </Folder>
+</Solution>
