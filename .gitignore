@@ -41,3 +41,36 @@ desktop.ini
 TestResults/
 *.trx
 coverage/
+
+## C/CMake build artifacts
+build/
+c/build/
+*.o
+*.a
+*.so
+*.dylib
+
+## Rust
+target/
+
+## Node
+node_modules/
+dist/
+
+## Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+
+## Go
+go/bin/
+
+## Kotlin
+kotlin/.gradle/
+kotlin/build/
+
+## Swift
+swift/.build/
+swift/.swiftpm/

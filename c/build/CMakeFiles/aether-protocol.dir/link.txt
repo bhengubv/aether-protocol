@@ -1,2 +1,0 @@
-/usr/bin/ar qc libaether-protocol.a "CMakeFiles/aether-protocol.dir/src/protocol.c.o" "CMakeFiles/aether-protocol.dir/src/security.c.o" "CMakeFiles/aether-protocol.dir/src/transport_inprocess.c.o"
-/usr/bin/ranlib libaether-protocol.a
