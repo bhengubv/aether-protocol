@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/Users/admin/Code/Dev/aether-protocol/c/build/cmake_install.cmake",
-		"/Users/admin/Code/Dev/aether-protocol/c/build/tests/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

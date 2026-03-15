@@ -1,1 +1,0 @@
-/usr/bin/cc  -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names "CMakeFiles/test-protocol.dir/test_protocol.c.o" -o test-protocol   -L/opt/homebrew/Cellar/libsodium/1.0.21/lib  -Wl,-rpath,/opt/homebrew/Cellar/libsodium/1.0.21/lib ../libaether-protocol.a -lpthread -lsodium
