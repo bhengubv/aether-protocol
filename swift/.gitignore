@@ -1,0 +1,46 @@
+# Xcode
+.DS_Store
+*.xcworkspace/
+*.xcodeproj/
+build/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.swiftpm/xcode/
+
+# Swift Package Manager
+.build/
+*.xcframework
+
+# Derived Data
+DerivedData/
+*.hmap
+
+# Local packages
+.swiftpm/
+
+# Debugging
+*.dSYM
+*.dsym
+
+# Misc
+.env
+.env.local
+.vscode/
+*.swiftlint.yml~
+
+# OS
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# IDE
+.idea/
+*.iml
+.project
+.classpath
+
+# Dependencies
+Packages/
+Package.resolved

@@ -1,0 +1,94 @@
+// SPDX-License-Identifier: MIT
+
+namespace Aether.Protocol;
+
+/// <summary>
+/// Defines the type of mesh packet being transmitted.
+/// </summary>
+public enum PacketType : byte
+{
+    RouteRequest = 1,
+    RouteReply = 2,
+    Data = 3,
+    Ack = 4,
+    SosBroadcast = 5,
+    SosAck = 6,
+    ChannelMessage = 7,
+    ChunkRequest = 8,
+    ChunkData = 9,
+    Heartbeat = 10,
+    StreamAnnounce = 11,
+    StreamSegment = 12,
+    StreamSubscribe = 13,
+    StreamUnsubscribe = 14,
+    VoicePtt = 15,
+    VoiceCall = 16,
+    VoiceSignaling = 17,
+    DtnBundle = 18,
+    DtnCustodyAck = 19,
+    DtnDeliveryReceipt = 20,
+    PresenceBeacon = 21,
+    PresenceQuery = 22,
+    ProfileSync = 23
+}
+
+/// <summary>
+/// The core packet transmitted across the Aether mesh network.
+/// Every piece of data — route discovery, messages, SOS broadcasts, voice,
+/// streaming, DTN bundles — travels as a MeshPacket.
+/// </summary>
+public sealed class MeshPacket
+{
+    /// <summary>Unique identifier for this packet.</summary>
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    /// <summary>The type of packet, determining how the payload is interpreted.</summary>
+    public PacketType Type { get; set; }
+
+    /// <summary>Universal Hash ID of the source node.</summary>
+    public string SourceUhid { get; set; } = string.Empty;
+
+    /// <summary>Universal Hash ID of the destination node. Empty or "*" for broadcast.</summary>
+    public string DestinationUhid { get; set; } = string.Empty;
+
+    /// <summary>Time-to-live: decremented at each hop. Packet is dropped when TTL reaches 0.</summary>
+    public int Ttl { get; set; } = 7;
+
+    /// <summary>Priority level (higher = more urgent). SOS packets use priority 255.</summary>
+    public byte Priority { get; set; }
+
+    /// <summary>The packet payload. Interpretation depends on <see cref="Type"/>.</summary>
+    public byte[] Payload { get; set; } = [];
+
+    /// <summary>UTC timestamp when this packet was created.</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Cryptographic signature over the packet contents, produced by the source node.</summary>
+    public byte[] Signature { get; set; } = [];
+
+    /// <summary>Random nonce to prevent replay attacks. Must be unique per packet.</summary>
+    public byte[] PacketNonce { get; set; } = [];
+
+    /// <summary>Unix timestamp in milliseconds, used for age-based deduplication.</summary>
+    public long TimestampMs { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    /// <summary>Protocol version. Current version is 2.</summary>
+    public byte ProtocolVersion { get; set; } = 2;
+
+    /// <summary>
+    /// Returns true if this packet has exceeded the maximum allowed age.
+    /// </summary>
+    public bool IsExpired(int maxAgeSeconds = 300)
+    {
+        var ageMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - TimestampMs;
+        return ageMs > maxAgeSeconds * 1000L;
+    }
+
+    /// <summary>
+    /// Returns true if the packet can still be forwarded (TTL > 0).
+    /// </summary>
+    public bool CanForward => Ttl > 0;
+
+    public override string ToString() =>
+        $"[{Type}] {Id:N} src={SourceUhid} dst={DestinationUhid} ttl={Ttl} pri={Priority} ver={ProtocolVersion}";
+}

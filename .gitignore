@@ -1,0 +1,43 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+## Build
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+## OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Test results
+TestResults/
+*.trx
+coverage/
