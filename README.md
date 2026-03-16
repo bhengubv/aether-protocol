@@ -1,39 +1,56 @@
-# Aether
+```
+     ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
+     ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
+     ╩ ╩ ╚═╝  ╩  ╩ ╩ ╚═╝ ╩╚═
+     mesh networking protocol
+```
 
-Share files, messages, and streams with people nearby. No WiFi. No mobile data. No sign-up.
-
-Phones talk directly over Bluetooth and WiFi. Messages hop from device to device until they arrive. Everything is end-to-end encrypted. There is no server.
-
-Think AirDrop — except it works with everyone, on every platform, even when nobody has internet.
+Share files, messages, and streams with people nearby. No WiFi. No mobile data. No sign-up. Like AirDrop, except it works with everyone, on every platform.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-Built in 8 languages so it runs everywhere — phones, laptops, tablets, even microcontrollers.
+## What can you do with it?
 
-## Your Phone, Your Rules
+**Share lecture notes without spending data.**
 
-The obvious question: "other people's data hops through my phone?"
+You're in a study group. Someone has past papers on their phone. Aether sends them directly to your device over Bluetooth — no hotspot, no WhatsApp group, no file size limit. If someone in the group is out of range, the file hops through other devices until it reaches them. Messages wait up to 72 hours for a route if needed.
 
-Yes — like passing a sealed envelope. You carry it, but you can't open it, and you can't pretend you wrote it.
+```
+  [You] ──BLE──▶ [Friend] ──WiFi──▶ [Friend's Friend]
+    notes.pdf           relayed, encrypted
+```
 
-- **Can't read it** — every message is encrypted with AES-256-GCM inside a Signal Protocol session (X3DH key exchange + Double Ratchet). Only the recipient has the key.
-- **Can't impersonate** — every node has an Ed25519 identity key. Every packet is signed. Forge one and the network drops it.
-- **Nothing stored** — keys are ephemeral. Once a message is delivered, the relay forgets it existed. No metadata lingers.
-- **No accounts** — no server, no phone number, no email, no tracking. You generate a keypair and you're on the network.
+**Find out what's happening around you.**
 
-Same encryption as Signal and WhatsApp. Except there's no server in the middle.
+You're at a campus event or a festival. Aether discovers other devices nearby over Bluetooth and WiFi Direct — no app feed, no algorithm. You see what's actually around you, not what's promoted.
 
-## What You Can Build With It
+**Send an SOS when there's no signal.**
 
-- **Study groups** — share lecture notes, past papers, slides across campus. Mesh relay means nobody spends data. Messages wait up to 72 hours for a route (DTN store-and-forward).
-- **Events** — discover what's happening nearby, found by the network, not an algorithm. Devices announce proximity over BLE and WiFi Direct — no cloud, no feed.
-- **Safety** — SOS broadcast hits every phone in range, no cell tower needed. Flood algorithm, not routed — it reaches everyone within the mesh.
-- **Private channels** — for your floor, your society, your crew. Membership-verified, channel-encrypted. Nobody outside the group can read or inject messages.
-- **Marketplace** — sell textbooks to people walking distance away. Proximity discovery via geohash means you see what's nearby, not what's promoted.
+Your phone has no reception. Aether broadcasts an emergency message to every device in range, and those devices pass it on. No cell tower needed.
 
-## How It Works
+```
+          ╭── [Phone B]
+         ╱
+  [SOS!] ───── [Phone C] ──── [Phone E]
+         ╲
+          ╰── [Phone D]
+
+  Flood: reaches every device in range
+```
+
+**Create private group channels.**
+
+A channel for your res floor, your society, your project team. Only verified members can read or send messages. No server stores the conversation.
+
+**Sell things to people nearby.**
+
+List a textbook for sale. People walking within range of the mesh see it. No marketplace account, no listing fees — just proximity.
+
+## How it works
+
+Devices talk directly to each other using Bluetooth, WiFi Direct, or NearLink. No internet connection, no server, no central infrastructure.
 
 ```
     [Alice]              [Bob]               [Charlie]            [Diana]
@@ -47,15 +64,38 @@ Same encryption as Signal and WhatsApp. Except there's no server in the middle.
        |  No internet. No servers. No ISP. Just devices talking.     |
 ```
 
-The protocol picks the right transport per packet. Small control messages go over BLE. Bulk transfers use WiFi Direct. NearLink when available. You can add your own — implement `ITransportService` and the transport manager slots it in automatically.
+When a message can't reach its destination directly, it hops through other devices. Those relay devices can't read what they're carrying — every message is encrypted with AES-256-GCM inside a Signal Protocol session (X3DH key exchange + Double Ratchet). Every packet is signed with Ed25519 identity keys. Forged packets are dropped by the network.
 
-Routing is AODV with a twist: every route reply (RREP) is signed by the destination node's Ed25519 key. No node can claim to be a destination it isn't.
+No accounts, no phone numbers, no emails. You generate a keypair and you're on the network.
 
-When there's no live route, packets don't die. DTN store-and-forward holds them for up to 72 hours, carrying messages across gaps in the mesh until a path opens up.
+```
+  ┌─────────────────────────────────┐
+  │         Your Application        │
+  ├─────────────────────────────────┤
+  │   Messaging · Streaming · Voice │
+  ├─────────────────────────────────┤
+  │  Security: Signal Protocol      │
+  │  AES-256-GCM · Ed25519 · X3DH  │
+  ├─────────────────────────────────┤
+  │  Routing: AODV + DTN            │
+  ├─────────────────────────────────┤
+  │  Transport: BLE · WiFi · NearLink│
+  └─────────────────────────────────┘
+```
 
-Voice and streaming work too — adaptive bitrate adjusts to mesh conditions, jitter buffering smooths out multi-hop latency, and group voice sessions are supported natively.
+**Routing** — AODV with signed route replies. Every route reply is signed by the destination's Ed25519 key, so no device can pretend to be a destination it isn't.
+
+**Store-and-forward** — When there's no live route, packets are held for up to 72 hours until a path opens up.
+
+**Transport selection** — The protocol picks the right transport per packet. Small control messages go over BLE. Bulk transfers use WiFi Direct. NearLink when available.
+
+**Voice and streaming** — Adaptive bitrate adjusts to mesh conditions. Jitter buffering handles multi-hop latency. Group voice is supported.
+
+**Replay protection** — Nonce deduplication with a 5-minute timestamp freshness window.
 
 ## Implementations
+
+Aether is built in 8 languages so it runs on phones, laptops, tablets, and microcontrollers. All implementations produce wire-compatible packets — a message encrypted by the Rust node can be relayed by the Python node and decrypted by the Swift node.
 
 | Language | Directory | Status |
 |----------|-----------|--------|
@@ -68,8 +108,6 @@ Voice and streaming work too — adaptive bitrate adjusts to mesh conditions, ji
 | Swift | `swift/` | Complete |
 | C | `c/` | Complete |
 
-All implementations produce wire-compatible packets. A message encrypted by the Rust node can be decrypted by the Swift node, relayed by the Python node, and delivered by the C node.
-
 ## Quickstart
 
 ```bash
@@ -77,7 +115,7 @@ git clone https://github.com/bhengubv/aether-protocol.git
 cd aether-protocol
 ```
 
-Then pick your language:
+Each demo creates simulated mesh nodes, establishes encrypted sessions, and demonstrates multi-hop message relay — real cryptography, no network hardware required.
 
 **C#** (.NET 10 SDK)
 ```bash
@@ -118,8 +156,6 @@ cd swift && swift run aether-demo
 ```bash
 cd c && mkdir -p build && cd build && cmake .. && make && ./aether-demo
 ```
-
-Each demo creates simulated mesh nodes, establishes encrypted sessions, and demonstrates multi-hop message relay — all with real cryptography, no network hardware required.
 
 ## Project Structure
 
@@ -173,10 +209,10 @@ Register it in DI and `TransportManager` will automatically include it in transp
 
 | Protocol | Limitation | Aether Advantage |
 |----------|-----------|-----------------|
-| **Briar** | Android-only, Tor-dependent | Cross-platform, pure mesh — no internet fallback needed |
+| **Briar** | Android-only, Tor-dependent | Cross-platform, pure mesh |
 | **Meshtastic** | LoRa only (30 kbps max) | Multi-transport (BLE + WiFi + NearLink), voice and streaming capable |
 | **Reticulum** | Python, small community | 8 languages, wire-compatible across all of them |
-| **libp2p** | Assumes internet backbone | True offline-first, works with zero infrastructure |
+| **libp2p** | Assumes internet backbone | Offline-first, works with zero infrastructure |
 | **Yggdrasil** | Overlay network, needs internet | Physical-layer mesh, works without internet |
 
 ## Extension Points
@@ -200,7 +236,3 @@ See [SECURITY.md](SECURITY.md) for responsible disclosure policy.
 ## License
 
 MIT License. See [LICENSE](LICENSE).
-
----
-
-Built by [The Other Bhengu (Pty) Ltd t/a The Geek and Bhengu B.V.](https://thegeeknetwork.co.za)
