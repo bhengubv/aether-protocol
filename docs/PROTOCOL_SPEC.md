@@ -18,6 +18,8 @@
 7. [Security Model](#7-security-model)
 8. [SOS Broadcast](#8-sos-broadcast)
 9. [DTN Store-and-Forward](#9-dtn-store-and-forward)
+10. [Video Streaming](#10-video-streaming)
+11. [Watch Together](#11-watch-together)
 
 ---
 
@@ -141,6 +143,14 @@ Note: The payload itself is NOT included in the signed data; its SHA-256 hash is
 | 24    | TipPacket         | Unicast       | Node tipping (settled via LedgerAPI) |
 | 25    | PreKeyRequest     | Unicast       | Request peer's pre-key bundle |
 | 26    | PreKeyResponse    | Unicast       | Pre-key bundle delivery |
+| 27    | VideoCall         | Unicast       | Encrypted video frame (H.264/H.265/VP8 NAL unit) |
+| 28    | VideoSignaling    | Unicast       | Video call setup: offer, answer, reject, bye, codec negotiation |
+| 29    | WatchSync         | Unicast       | Synchronized playback command: play, pause, seek, speed |
+| 30    | WatchReaction     | Multicast     | Timestamped emoji or voice reaction during watch-together |
+| 31    | VideoFrame        | Unicast/SFU   | Group video frame (SFU relay distributes to participants) |
+| 32    | ScreenShare       | Unicast       | Screen share frame (same pipeline as video, flagged separately) |
+| 33    | WatchChunkRequest | Unicast       | Priority chunk request biased to playback position |
+| 34    | TorrentMetadata   | Multicast     | BitTorrent .torrent file or magnet link metadata exchange |
 
 ### 2.5. Node Capabilities
 
@@ -156,6 +166,8 @@ Nodes advertise their capabilities as a bitfield:
 | 5   | 32    | Streaming   | Live streaming relay capable |
 | 6   | 64    | Voice       | Voice call relay capable |
 | 7   | 128   | DtnCarrier  | DTN store-and-forward carrier |
+| 8   | 256   | NearLink    | NearLink transport available |
+| 9   | 512   | Video       | Video encoding/decoding capable |
 
 ---
 
@@ -692,6 +704,242 @@ When the intended recipient receives a DTN bundle:
 
 ---
 
+## 10. Video Streaming
+
+Aether supports three video modes: peer-to-peer video calls, group video (unlimited participants with dynamic topology), and live broadcast. All video frames are encrypted with Signal Protocol and signed with Ed25519.
+
+### 10.1. Transport Capability Matrix
+
+Before initiating a video call, the originator queries the transport layer to determine the best available connection to the peer. The transport determines what quality of video is possible:
+
+| Transport | Video Support | Max Resolution | Recommended Codec | Max Bitrate | Watch-Together |
+|-----------|--------------|----------------|-------------------|-------------|----------------|
+| BLE | No (audio-only) | — | — | 64 Kbps | Sync packets only |
+| NearLink | Light | 360p | H.265 | 800 Kbps | SharedFile + StreamFromHost |
+| WiFi Direct | Full | 1080p | H.264 | 3000 Kbps | All modes |
+| Internet | Full | 720p | H.264 | 1500 Kbps | All modes |
+| CircleLink | No (audio-only) | — | — | 64 Kbps | Sync packets only |
+
+If the only available transport is BLE or CircleLink, the video call service automatically downgrades to a voice call.
+
+### 10.2. Video Codecs
+
+| Enum Value | Codec | Use Case |
+|------------|-------|----------|
+| 0 | H.264 | Default. Widely supported, good compression. |
+| 1 | H.265 | Better compression. Used on NearLink (bandwidth-constrained). |
+| 2 | VP8 | Royalty-free alternative. |
+
+### 10.3. Video Resolutions
+
+| Enum Value | Resolution | Typical Bitrate |
+|------------|-----------|-----------------|
+| 0 | AudioOnly | 64 Kbps (Opus) |
+| 1 | 360p | 800 Kbps |
+| 2 | 480p | 1200 Kbps |
+| 3 | 720p | 1500 Kbps |
+| 4 | 1080p | 3000 Kbps |
+
+### 10.4. P2P Video Call Flow
+
+1. **Capability check**: Originator queries `GetVideoCapabilityAsync(peerUhid)` to determine the best transport, max resolution, and recommended codec.
+2. **Offer**: Originator sends a `VideoSignaling` packet (type 28) with `SignalType = Offer`, including preferred codec, max resolution, and max bitrate.
+3. **Answer/Reject**: Callee responds with `SignalType = Answer` (negotiating codec to lowest common denominator) or `SignalType = Reject`.
+4. **Active call**: Both nodes exchange `VideoCall` packets (type 27) containing H.264/H.265/VP8 NAL units. Each frame includes a sequence number for jitter buffer ordering and a keyframe flag.
+5. **Screen share**: Either party can toggle screen sharing. `VideoSignaling` with `SignalType = ScreenShareStart/Stop` notifies the peer. Screen share frames use `PacketType.ScreenShare` (type 32) but the same processing pipeline.
+6. **End call**: Either party sends `VideoSignaling` with `SignalType = Bye`.
+
+All signaling and frame payloads are encrypted with Signal Protocol (X3DH session). The encrypted payload is serialized as JSON-encoded `EncryptedPayload` within the `MeshPacket.Payload` field.
+
+### 10.5. Video Call State Machine
+
+```
+  Initiating ──► Ringing ──► Active ──► Ended
+                   │                      ▲
+                   ├──► Rejected ─────────┘
+                   └──► Failed ───────────┘
+```
+
+States: `Initiating(0)`, `Ringing(1)`, `Active(2)`, `OnHold(3)`, `Ended(4)`, `Failed(5)`, `Rejected(6)`.
+
+### 10.6. Group Video
+
+Group video sessions support unlimited participants. The topology is dynamically selected based on participant count:
+
+- **FullMesh** (2-3 participants): Each participant sends one stream to every other participant. Simple, low latency.
+- **SFU** (4+ participants, threshold: `SfuThresholdParticipants = 4`): One node is elected as the SFU relay. Each participant sends one stream to the relay, which distributes it to all others. The relay node earns tips via the incentive layer.
+
+Topology switches are automatic: when the 4th participant joins, the session transitions from FullMesh to SFU. When participants leave and the count drops below 4, it transitions back.
+
+Group video frames use `PacketType.VideoFrame` (type 31). In SFU mode, frames are sent to the relay node's UHID, which re-broadcasts them.
+
+### 10.7. Jitter Buffer
+
+The video jitter buffer operates independently from the voice jitter buffer (which handles 20ms Opus frames):
+
+- **Range**: 60ms minimum, 500ms maximum.
+- **Adaptive depth**: Tracks inter-frame jitter via Exponential Moving Average (EMA). Buffer depth = 2× jitter estimate, clamped to [60, 500] ms.
+- **Keyframe-aware dropping**: When the buffer overflows, non-keyframe (P/B) frames are dropped first. I-frames (keyframes) are never dropped — they are required for decoder recovery.
+- **Gap handling**: When a sequence gap is detected, the buffer skips to the next available keyframe rather than waiting indefinitely.
+
+### 10.8. Video Signaling Types
+
+| Enum Value | Type | Description |
+|------------|------|-------------|
+| 0 | Offer | Video call initiation with codec/resolution preference |
+| 1 | Answer | Call acceptance with negotiated parameters |
+| 2 | Reject | Call rejection |
+| 3 | Bye | Call termination |
+| 4 | Upgrade | Request higher quality (e.g., transport improved) |
+| 5 | Downgrade | Request lower quality (e.g., bandwidth drop) |
+| 6 | ScreenShareStart | Peer began sharing screen |
+| 7 | ScreenShareStop | Peer stopped sharing screen |
+
+### 10.9. Encryption Model
+
+| Mode | Encryption | Key Distribution |
+|------|-----------|-----------------|
+| P2P video call | Signal Protocol per frame | X3DH key agreement |
+| Group video | Group channel key (AES-GCM) | Distributed via Signal Protocol at session creation |
+| Screen share | Same as parent call mode | Inherited from video call session |
+
+---
+
+## 11. Watch Together
+
+Watch Together enables synchronized media playback across a group of mesh peers. The host has exclusive control over playback (play, pause, seek, speed). Sync commands include wall clock timestamps for RTT compensation.
+
+### 11.1. Watch Modes
+
+| Enum Value | Mode | Data Flow | Transport Requirement |
+|------------|------|-----------|----------------------|
+| 0 | SharedFile | Sync packets only (< 100 bytes each) | Any (works over BLE) |
+| 1 | StreamFromHost | P2P chunk transfer (reuses P2pContentService) | WiFi Direct or Internet |
+| 2 | BitTorrent | Mesh + external swarm via gateway nodes | WiFi Direct or Internet |
+
+### 11.2. SharedFile Mode
+
+Both participants have the same file (matched by SHA-256 content hash). Only `WatchSync` packets are exchanged. This is the most bandwidth-efficient mode and works over BLE.
+
+1. Host creates a watch session with `contentHash` (SHA-256 of the file).
+2. Participants join and report `IsReady = true` when their player is loaded.
+3. Session starts when ALL participants report ready.
+4. Host sends play/pause/seek/speed commands as `WatchSync` packets (type 29).
+5. Receivers apply RTT compensation: `adjustedPosition = commandPosition + (wallClockNow - commandWallClock) / 2`.
+
+### 11.3. StreamFromHost Mode
+
+Only the host has the file. The host generates a `ContentManifest` (reusing the P2P content system) and participants download chunks via the mesh.
+
+- Chunk selection uses `SequentialFromPosition` strategy (not `RarestFirst`): prioritizes chunks ahead of the current playback position, then backfills for seeding.
+- Buffer target: 30 seconds ahead (`WatchTogetherBufferAheadSeconds`).
+- Auto-pause: If ANY participant's buffer drops below 10 seconds (`WatchTogetherMinBufferSeconds`), the session auto-pauses all participants with a `BufferUnderrun` sync command. Playback resumes when all participants have sufficient buffer (`BufferReady`).
+- As viewers download chunks, they become seeders for other viewers (BitTorrent-style swarming within the mesh).
+
+### 11.4. BitTorrent Mode
+
+A participant shares a `.torrent` file or magnet link in the group chat. The `TorrentMetadata` packet (type 34) distributes the torrent info to all session participants.
+
+**Mesh-to-Swarm Bridge:**
+- Gateway nodes (nodes with internet) download pieces from the external BitTorrent swarm.
+- Gateway nodes re-encrypt downloaded pieces for mesh distribution and seed to mesh peers.
+- Mesh peers without internet receive pieces from gateway nodes and from each other.
+- The P2P content engine translates between BitTorrent's piece model and Aether's chunk model.
+
+Once enough content is buffered, watch-together playback begins using the same sync protocol as SharedFile mode.
+
+### 11.5. Watch Session State Machine
+
+```
+  WaitingForReady ──► Playing ◄──► Paused
+        │                │           │
+        │                ▼           │
+        │            Buffering ──────┘
+        │                │
+        └────────────► Ended
+```
+
+States: `WaitingForReady(0)`, `Buffering(1)`, `Playing(2)`, `Paused(3)`, `Ended(4)`.
+
+### 11.6. Sync Command Types
+
+| Enum Value | Type | Description |
+|------------|------|-------------|
+| 0 | Play | Resume playback at specified position |
+| 1 | Pause | Pause at specified position |
+| 2 | Seek | Jump to specified position |
+| 3 | Speed | Change playback speed |
+| 4 | BufferUnderrun | Auto-pause — a participant's buffer is critically low |
+| 5 | BufferReady | Resume — all participants have sufficient buffer |
+
+### 11.7. RTT Compensation
+
+Sync commands include a `WallClockMs` field (Unix epoch milliseconds). When a receiver processes a sync command:
+
+1. `rtt = receiverWallClock - commandWallClock`
+2. `networkDelay = rtt / 2`
+3. For Play and BufferReady commands: `adjustedPosition = commandPosition + networkDelay`
+4. For Pause and Seek commands: position is applied exactly (no adjustment needed since playback is stopping/jumping).
+
+This ensures all participants are synchronized within half the network RTT.
+
+### 11.8. Reactions
+
+Participants can react to the content during playback:
+
+- **Emoji reactions**: `WatchReaction` packet (type 30) with `Type = Emoji`, carrying the emoji string and the media position at the time of reaction.
+- **Voice comments**: `WatchReaction` packet with `Type = VoiceComment`, carrying Opus-encoded audio data (maximum 10 seconds). Voice data is included in the reaction's `VoiceData` field.
+
+Reactions are broadcast to all session participants. They are timestamped to the media position, allowing replay-synchronized display.
+
+### 11.9. ChipIn — Group Content Acquisition
+
+ChipIn enables group members to pool funds (in ZAR, settled via SDPKT wallets through LedgerAPI) to collectively acquire content for group watching.
+
+**State machine:**
+```
+  Collecting ──► Funded ──► Purchasing ──► Acquired
+       │                        │
+       └── (timeout) ──► Failed/Refunded
+```
+
+States: `Collecting(0)`, `Funded(1)`, `Purchasing(2)`, `Acquired(3)`, `Failed(4)`, `Refunded(5)`.
+
+**Flow:**
+1. Initiator creates a `ChipInPool` with target amount and content description.
+2. Participants contribute amounts via SDPKT wallet transactions.
+3. When `CollectedAmount >= TargetAmount`, state transitions to `Funded`.
+4. The system acquires the content (e.g., initiates a BitTorrent download).
+5. Once content is available, state transitions to `Acquired` and watch-together can begin.
+
+Each contribution is recorded with a SDPKT transaction ID for audit trail.
+
+### 11.10. Encryption Model
+
+| Mode | Encryption | Key Distribution |
+|------|-----------|-----------------|
+| Watch sync commands | Channel/conversation key | Existing Signal Protocol session |
+| Content chunks (StreamFromHost) | Content key per manifest | Distributed via Signal Protocol |
+| BitTorrent pieces | Re-encrypted on ingest | Gateway downloads cleartext from swarm, encrypts for mesh |
+| Watch reactions | Session key | Derived from conversation key |
+
+### 11.11. Feature Flags
+
+All video and watch-together features are gated behind feature flags (all disabled by default):
+
+| Flag | Parent | Description |
+|------|--------|-------------|
+| AETHER_VIDEO_CALL | AETHER_VOICE | P2P and group video calling |
+| AETHER_VIDEO_GROUP | AETHER_VIDEO_CALL | Multi-party video sessions |
+| AETHER_SCREEN_SHARE | AETHER_VIDEO_CALL | Screen sharing in video calls |
+| AETHER_WATCH_TOGETHER | AETHER_CONTENT_P2P | Synchronized media playback |
+| AETHER_WATCH_REACTIONS | AETHER_WATCH_TOGETHER | Emoji and voice reactions |
+| AETHER_TORRENT_INGEST | AETHER_CONTENT_P2P | BitTorrent file acceptance for mesh distribution |
+
+Feature flags have parent dependencies: a child flag can only be enabled if its parent is also enabled. This allows progressive rollout.
+
+---
+
 ## Appendix A: Constants Reference
 
 All protocol constants are defined in `ProtocolConstants` and are reproduced here for reference:
@@ -784,6 +1032,19 @@ All protocol constants are defined in `ProtocolConstants` and are reproduced her
 | BleAudioBitrateKbps        | 64    |
 | WifiDirectVideoBitrateKbps  | 500   |
 
+### Video
+| Constant                       | Value |
+|--------------------------------|-------|
+| VideoFrameDurationMs           | 33    |
+| VideoJitterBufferMinMs         | 60    |
+| VideoJitterBufferMaxMs         | 500   |
+| WatchTogetherBufferAheadSeconds| 30    |
+| WatchTogetherMinBufferSeconds  | 10    |
+| NearLink360pBitrateKbps       | 800   |
+| Internet1080pBitrateKbps      | 3000  |
+| SfuThresholdParticipants       | 4     |
+| ScreenShareFrameDurationMs     | 100   |
+
 ---
 
 ## Appendix B: Glossary
@@ -800,6 +1061,9 @@ All protocol constants are defined in `ProtocolConstants` and are reproduced her
 | **Gateway** | A mesh node that has internet connectivity and bridges mesh traffic to/from IP-based services. |
 | **HKDF** | HMAC-based Key Derivation Function. Used to derive multiple keys from a single shared secret. |
 | **Pre-key bundle** | A published set of keys allowing a sender to establish an encrypted session without the recipient being online. |
+| **SFU** | Selective Forwarding Unit. A relay node that receives one video stream from each sender and distributes it to all other participants, reducing per-node upload bandwidth. |
+| **ChipIn** | Group funding mechanism where participants pool SDPKT funds to collectively acquire content for group watching. |
+| **NAL** | Network Abstraction Layer. The encapsulation format used by H.264 and H.265 codecs to packetize video frames. |
 
 ---
 
