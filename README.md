@@ -48,6 +48,10 @@ A channel for your res floor, your society, your project team. Only verified mem
 
 List a textbook for sale. People walking within range of the mesh see it. No marketplace account, no listing fees — just proximity.
 
+**Watch a movie together, across the mesh.**
+
+Your group has a movie night. Someone has the file. Aether syncs playback across every device — play, pause, seek — all in lockstep. If only some people have the file, the mesh distributes it in real-time as a P2P stream. Everyone chips in via SDPKT to buy it if nobody has it.
+
 ## How it works
 
 Devices talk directly to each other using Bluetooth, WiFi Direct, or NearLink. No internet connection, no server, no central infrastructure.
@@ -72,7 +76,8 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
   ┌─────────────────────────────────┐
   │         Your Application        │
   ├─────────────────────────────────┤
-  │   Messaging · Streaming · Voice │
+  │ Messaging · Streaming · Voice   │
+  │ Video · Watch Together          │
   ├─────────────────────────────────┤
   │  Security: Signal Protocol      │
   │  AES-256-GCM · Ed25519 · X3DH  │
@@ -89,7 +94,7 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
 
 **Transport selection** — The protocol picks the right transport per packet. Small control messages go over BLE. Bulk transfers use WiFi Direct. NearLink when available.
 
-**Voice and streaming** — Adaptive bitrate adjusts to mesh conditions. Jitter buffering handles multi-hop latency. Group voice is supported.
+**Voice, video, and streaming** — Video calls with codec negotiation (H.264/H.265/VP8), transport-aware quality selection, group video with auto SFU relay, synchronized watch-together with RTT compensation, and adaptive bitrate streaming.
 
 **Replay protection** — Nonce deduplication with a 5-minute timestamp freshness window.
 
@@ -365,6 +370,8 @@ What's built and what's next.
 - Packet serialization (wire-compatible across all languages)
 - SOS broadcast flood
 - Voice and streaming with adaptive bitrate
+- Video calls (P2P and group) with transport-aware codec negotiation
+- Watch Together: synchronized playback, BitTorrent ingest, ChipIn group funding
 - In-process transport simulator for development
 
 **In progress:**
@@ -389,7 +396,7 @@ aether-protocol/
     Aether.Transport/     Transport abstractions, NearLink, in-process simulator
     Aether.Messaging/     Message handling and relay
     Aether.Storage/       DTN store-and-forward persistence
-    Aether.Streaming/     Adaptive bitrate streaming
+    Aether.Streaming/     Adaptive bitrate streaming, video models and interfaces
     Aether.Voice/         Voice calls and group voice
     Aether.Content/       Content verification and chunked transfer
   samples/
@@ -436,6 +443,7 @@ Register it in DI and `TransportManager` will automatically include it in transp
 | **Reticulum** | Python, small community | 8 languages, wire-compatible across all of them |
 | **libp2p** | Assumes internet backbone | Offline-first, works with zero infrastructure |
 | **Yggdrasil** | Overlay network, needs internet | Physical-layer mesh, works without internet |
+| **Signal** | No mesh, requires internet | Works offline, P2P, mesh relay, same E2E encryption |
 
 ## Extension Points
 
