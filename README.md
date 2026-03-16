@@ -115,47 +115,269 @@ git clone https://github.com/bhengubv/aether-protocol.git
 cd aether-protocol
 ```
 
-Each demo creates simulated mesh nodes, establishes encrypted sessions, and demonstrates multi-hop message relay — real cryptography, no network hardware required.
+### C# (.NET 10 SDK)
 
-**C#** (.NET 10 SDK)
 ```bash
 dotnet run --project samples/Aether.Demo.Console
 ```
 
-**Rust** (1.70+)
+The demo walks you through 8 steps: generating Ed25519 identity keys for three nodes (Alice, Bob, Charlie), establishing Signal Protocol sessions, sending encrypted messages, relaying a message through Charlie (who can't read it), showing the binary wire format, and demonstrating forward secrecy across 5 consecutive messages. Output is colour-coded and pauses between steps.
+
+**Send a message in C#:**
+
+```csharp
+// Establish a Signal Protocol session
+var aliceSignal = new SignalProtocolService();
+var bobSignal = new SignalProtocolService();
+
+var bobBundle = await bobSignal.GeneratePreKeyBundleAsync("bob");
+await aliceSignal.ProcessPreKeyBundleAsync(bobBundle);
+
+// Encrypt and send
+var encrypted = await aliceSignal.EncryptAsync("bob",
+    Encoding.UTF8.GetBytes("Hello Bob"));
+
+// Create a signed packet
+var packet = new MeshPacket
+{
+    Type = PacketType.Data,
+    SourceUhid = "alice",
+    DestinationUhid = "bob",
+    Payload = SerializeEncryptedPayload(encrypted),
+    Ttl = 7
+};
+var wireBytes = PacketSerializer.Serialize(packet);
+await transport.SendAsync("bob", wireBytes);
+```
+
+### Rust (1.70+)
+
 ```bash
 cd rust && cargo run
 ```
 
-**TypeScript** (Node 18+, tsx)
+The demo generates identity keys for two nodes, exchanges pre-key bundles, establishes encrypted sessions, sends encrypted messages in both directions, creates and signs mesh packets, verifies signatures, and serializes packets to binary wire format. It also demonstrates the in-process transport layer.
+
+**Send a message in Rust:**
+
+```rust
+let mut alice = SignalProtocolService::new();
+let mut bob = SignalProtocolService::new();
+
+let alice_bundle = alice.generate_pre_key_bundle("alice")?;
+bob.process_pre_key_bundle(&alice_bundle)?;
+
+let bob_bundle = bob.generate_pre_key_bundle("bob")?;
+alice.process_pre_key_bundle(&bob_bundle)?;
+
+let encrypted = alice.encrypt("bob", b"Hello Bob!")?;
+let decrypted = bob.decrypt("alice", &encrypted)?;
+```
+
+### TypeScript (Node 18+, tsx)
+
 ```bash
 cd typescript && npm install && npm run dev
 ```
 
-**Python** (3.10+)
+The demo creates two nodes in a simulated network, generates Ed25519 keys, establishes Signal Protocol sessions, creates and signs a packet, serializes it to C#-compatible binary format, encrypts a secret message, decrypts it on the other node, sends it through the transport, and verifies the round-trip.
+
+**Send a message in TypeScript:**
+
+```typescript
+const signal = new SignalProtocol();
+const bundle = await signal.generatePreKeyBundle("my-node");
+// Exchange bundle with peer
+await signal.processPreKeyBundle(peerBundle);
+
+const plaintext = new TextEncoder().encode("Hello!");
+const encrypted = await signal.encrypt("peer-node", plaintext);
+
+const packet = MeshPacket.create(PacketType.Data, "my-node");
+packet.destinationUhid = "peer-node";
+packet.payload = encrypted;
+
+const keyPair = Ed25519Service.generateKeyPair();
+signPacket(packet, keyPair.privateKey);
+
+const serialized = PacketSerializer.serialize(packet);
+await transport.sendAsync("peer-node", serialized);
+```
+
+### Python (3.10+)
+
 ```bash
 cd python && pip install -e . && python3 demo.py
 ```
 
-**Go** (1.22+)
+The demo runs 8 demonstrations: Ed25519 key generation and tamper detection, node creation with capabilities, Signal Protocol X3DH key exchange, AES-256-GCM encryption and decryption, packet serialization, packet signing with replay detection, in-process transport, and a full end-to-end flow combining all layers.
+
+**Send a message in Python:**
+
+```python
+alice_signal = SignalProtocolService()
+bob_signal = SignalProtocolService()
+
+bob_bundle = await bob_signal.generate_pre_key_bundle("bob")
+await alice_signal.process_pre_key_bundle(bob_bundle)
+
+encrypted = await alice_signal.encrypt("bob", b"Hello Bob!")
+
+packet = MeshPacket(
+    type=PacketType.Data,
+    source_uhid="alice",
+    destination_uhid="bob",
+    payload=encrypted.ciphertext,
+    ttl=7
+)
+signing_service.sign_packet(packet, alice_private_key)
+
+serialized = PacketSerializer.serialize(packet)
+await transport.send_async("bob", serialized)
+```
+
+### Go (1.22+)
+
 ```bash
 cd go && go run ./cmd/demo/main.go
 ```
 
-**Kotlin** (JDK 17+, Gradle 8+)
+The demo runs 5 demonstrations: packet serialization round-trips, Ed25519 signing with tamper detection, Signal Protocol session establishment with encrypted messaging in both directions, in-process transport between two peers, and nonce deduplication for replay protection.
+
+**Send a message in Go:**
+
+```go
+alice, _ := security.NewSignalProtocolService()
+bob, _ := security.NewSignalProtocolService()
+
+aliceBundle, _ := alice.GeneratePreKeyBundle("alice")
+bob.ProcessPreKeyBundle(aliceBundle)
+
+bobBundle, _ := bob.GeneratePreKeyBundle("bob")
+alice.ProcessPreKeyBundle(bobBundle)
+
+encrypted, _ := alice.Encrypt("bob", []byte("Hello Bob!"))
+decrypted, _ := bob.Decrypt("alice", encrypted)
+```
+
+### Kotlin (JDK 17+, Gradle 8+)
+
 ```bash
 cd kotlin && ./gradlew run
 ```
 
-**Swift** (5.9+, macOS 13+ / iOS 16+)
+The demo walks through 11 steps: key generation, node creation with capabilities, Signal Protocol initialization, pre-key bundle exchange, session establishment, packet creation and signing, serialization, deserialization with signature verification, end-to-end encryption with key ratcheting, replay attack detection, and in-process transport.
+
+**Send a message in Kotlin:**
+
+```kotlin
+val aliceSignal = SignalProtocol()
+val bobSignal = SignalProtocol()
+
+val bobBundle = bobSignal.generatePreKeyBundle("bob")
+aliceSignal.processPreKeyBundle(bobBundle)
+
+val aliceBundle = aliceSignal.generatePreKeyBundle("alice")
+bobSignal.processPreKeyBundle(aliceBundle)
+
+val encrypted = aliceSignal.encrypt("bob", "Hello Bob!".toByteArray())
+val decrypted = bobSignal.decrypt("alice", encrypted)
+```
+
+### Swift (5.9+, macOS 13+ / iOS 16+)
+
 ```bash
 cd swift && swift run aether-demo
 ```
 
-**C** (CMake 3.16+, C11, libsodium)
+The demo runs 5 tests: packet serialization round-trips, Ed25519 signing with tamper rejection, Signal Protocol session establishment with AES-256-GCM encryption, in-process transport message delivery, and a full end-to-end flow where Alice signs a packet and Bob verifies it after transport.
+
+**Send a message in Swift:**
+
+```swift
+let aliceSignal = SignalProtocolService()
+let bobSignal = SignalProtocolService()
+
+let bobBundle = try await bobSignal.generatePreKeyBundle(localUhid: "bob")
+try await aliceSignal.processPreKeyBundle(bobBundle)
+
+var packet = MeshPacket(
+    type: .data,
+    sourceUhid: "alice",
+    destinationUhid: "bob",
+    ttl: 7,
+    payload: "Hello Bob!".data(using: .utf8)!
+)
+
+let signer = await PacketSigningService(
+    privateKey: alicePrivateKey, publicKey: alicePublicKey)
+try await signer.signPacket(&packet)
+
+let serialized = PacketSerializer.serialize(packet)
+await transport.sendAsync(peerUhid: "bob", data: serialized)
+```
+
+### C (CMake 3.16+, C11, libsodium)
+
 ```bash
 cd c && mkdir -p build && cd build && cmake .. && make && ./aether-demo
 ```
+
+The demo runs 7 demonstrations: Ed25519 key generation, packet creation and signing, serialization to binary wire format, deserialization with integrity checks, AES-256-GCM encryption and decryption, HMAC-SHA256 message authentication, and HKDF-SHA256 key derivation.
+
+**Send a message in C:**
+
+```c
+aether_mesh_packet_t *packet = aether_packet_new();
+packet->type = AETHER_PACKET_TYPE_DATA;
+packet->ttl = 7;
+
+aether_packet_set_source_uhid(packet, "alice");
+aether_packet_set_destination_uhid(packet, "bob");
+aether_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
+
+// Sign
+size_t signable_len = 0;
+uint8_t *signable = aether_packet_get_signable_data(packet, &signable_len);
+uint8_t signature[64];
+aether_ed25519_sign(private_key, signable, signable_len, signature);
+aether_packet_set_signature(packet, signature, 64);
+free(signable);
+
+// Serialize and send
+uint8_t buffer[2048];
+int size = aether_packet_serialize(packet, buffer, sizeof(buffer));
+// send buffer[0..size-1] over transport
+
+aether_packet_free(packet);
+```
+
+## Roadmap
+
+What's built and what's next.
+
+**Done:**
+- Signal Protocol (X3DH + Double Ratchet) across all 8 languages
+- Ed25519 packet signing and verification
+- AES-256-GCM encryption
+- AODV routing with signed route replies
+- DTN store-and-forward (72h)
+- Packet serialization (wire-compatible across all languages)
+- SOS broadcast flood
+- Voice and streaming with adaptive bitrate
+- In-process transport simulator for development
+
+**In progress:**
+- BLE GATT transport — real Bluetooth Low Energy communication
+- Wi-Fi Direct transport — direct device-to-device over WiFi
+- Double Ratchet full implementation — complete forward secrecy with header encryption
+
+**Open for contribution:**
+- NearLink transport implementation
+- Android and iOS integration examples
+- Performance benchmarks across languages
+- Additional transport backends (LoRa, ultrasonic, etc.)
+- Protocol fuzzing and security audits
 
 ## Project Structure
 
