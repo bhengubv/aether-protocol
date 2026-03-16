@@ -99,6 +99,25 @@ public static class ProtocolConstants
     /// <summary>Voice codec frame duration (ms).</summary>
     public const int VoiceFrameDurationMs = 20;
 
+    // ── Video (Phase 7) ───────────────────────────────────────────────
+    /// <summary>Target video frame duration at 30fps (ms).</summary>
+    public const int VideoFrameDurationMs = 33;
+
+    /// <summary>Minimum video jitter buffer depth (ms).</summary>
+    public const int VideoJitterBufferMinMs = 60;
+
+    /// <summary>Maximum video jitter buffer depth (ms).</summary>
+    public const int VideoJitterBufferMaxMs = 500;
+
+    /// <summary>Watch-together target buffer ahead of playback (seconds).</summary>
+    public const int WatchBufferAheadSeconds = 30;
+
+    /// <summary>Watch-together minimum buffer before auto-pause (seconds).</summary>
+    public const int WatchMinBufferSeconds = 10;
+
+    /// <summary>Participant count at which group video switches from FullMesh to SFU.</summary>
+    public const int SfuThresholdParticipants = 4;
+
     // ── Content verification ─────────────────────────────────────────
     /// <summary>Default chunk size for content transfer (bytes).</summary>
     public const int DefaultChunkSizeBytes = 8_192;

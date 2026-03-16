@@ -6,35 +6,37 @@ use uuid::Uuid;
 
 /// Node capabilities bitfield
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Capabilities(u8);
+pub struct Capabilities(u16);
 
 impl Capabilities {
-    pub const BLE: u8 = 1;
-    pub const WIFI_DIRECT: u8 = 2;
-    pub const GATEWAY: u8 = 4;
-    pub const RELAY: u8 = 8;
-    pub const SOS: u8 = 16;
-    pub const STREAMING: u8 = 32;
-    pub const VOICE: u8 = 64;
-    pub const DTN_CARRIER: u8 = 128;
+    pub const BLE: u16 = 1;
+    pub const WIFI_DIRECT: u16 = 2;
+    pub const GATEWAY: u16 = 4;
+    pub const RELAY: u16 = 8;
+    pub const SOS: u16 = 16;
+    pub const STREAMING: u16 = 32;
+    pub const VOICE: u16 = 64;
+    pub const DTN_CARRIER: u16 = 128;
+    pub const NEAR_LINK: u16 = 256;
+    pub const VIDEO: u16 = 512;
 
-    pub fn new(value: u8) -> Self {
+    pub fn new(value: u16) -> Self {
         Capabilities(value)
     }
 
-    pub fn value(&self) -> u8 {
+    pub fn value(&self) -> u16 {
         self.0
     }
 
-    pub fn has(&self, capability: u8) -> bool {
+    pub fn has(&self, capability: u16) -> bool {
         (self.0 & capability) != 0
     }
 
-    pub fn set(&mut self, capability: u8) {
+    pub fn set(&mut self, capability: u16) {
         self.0 |= capability;
     }
 
-    pub fn clear(&mut self, capability: u8) {
+    pub fn clear(&mut self, capability: u16) {
         self.0 &= !capability;
     }
 }
@@ -47,7 +49,7 @@ pub struct PeerInfo {
     pub last_seen: SystemTime,
     pub hop_count: u32,
     pub reliability_score: i32,
-    pub capabilities: u8,
+    pub capabilities: u16,
 }
 
 impl PeerInfo {
