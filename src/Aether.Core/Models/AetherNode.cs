@@ -17,7 +17,8 @@ public enum NodeCapabilities : ushort
     Streaming = 32,
     Voice = 64,
     DtnCarrier = 128,
-    NearLink = 256
+    NearLink = 256,
+    Video = 512
 }
 
 /// <summary>

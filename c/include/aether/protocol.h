@@ -42,21 +42,31 @@ typedef enum {
     AETHER_PACKET_TYPE_PROFILE_SYNC          = 23,
     AETHER_PACKET_TYPE_TIP_PACKET            = 24,
     AETHER_PACKET_TYPE_PREKEY_REQUEST        = 25,
-    AETHER_PACKET_TYPE_PREKEY_RESPONSE       = 26
+    AETHER_PACKET_TYPE_PREKEY_RESPONSE       = 26,
+    AETHER_PACKET_TYPE_VIDEO_CALL            = 27,
+    AETHER_PACKET_TYPE_VIDEO_SIGNALING       = 28,
+    AETHER_PACKET_TYPE_WATCH_SYNC            = 29,
+    AETHER_PACKET_TYPE_WATCH_REACTION        = 30,
+    AETHER_PACKET_TYPE_VIDEO_FRAME           = 31,
+    AETHER_PACKET_TYPE_SCREEN_SHARE          = 32,
+    AETHER_PACKET_TYPE_WATCH_CHUNK_REQUEST   = 33,
+    AETHER_PACKET_TYPE_TORRENT_METADATA      = 34
 } aether_packet_type_t;
 
 /**
  * Node capabilities bitfield.
  */
 typedef enum {
-    AETHER_CAP_BLE              = 0x01,
-    AETHER_CAP_WIFI_DIRECT      = 0x02,
-    AETHER_CAP_GATEWAY          = 0x04,
-    AETHER_CAP_RELAY            = 0x08,
-    AETHER_CAP_SOS              = 0x10,
-    AETHER_CAP_STREAMING        = 0x20,
-    AETHER_CAP_VOICE            = 0x40,
-    AETHER_CAP_DTN_CARRIER      = 0x80
+    AETHER_CAP_BLE              = 0x001,
+    AETHER_CAP_WIFI_DIRECT      = 0x002,
+    AETHER_CAP_GATEWAY          = 0x004,
+    AETHER_CAP_RELAY            = 0x008,
+    AETHER_CAP_SOS              = 0x010,
+    AETHER_CAP_STREAMING        = 0x020,
+    AETHER_CAP_VOICE            = 0x040,
+    AETHER_CAP_DTN_CARRIER      = 0x080,
+    AETHER_CAP_NEAR_LINK        = 0x100,
+    AETHER_CAP_VIDEO            = 0x200
 } aether_capabilities_t;
 
 /**

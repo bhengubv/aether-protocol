@@ -38,6 +38,14 @@ const (
 	TipPacket          PacketType = 24
 	PreKeyRequest      PacketType = 25
 	PreKeyResponse     PacketType = 26
+	VideoCallPkt       PacketType = 27
+	VideoSignaling     PacketType = 28
+	WatchSync          PacketType = 29
+	WatchReaction      PacketType = 30
+	VideoFrame         PacketType = 31
+	ScreenShare        PacketType = 32
+	WatchChunkRequest  PacketType = 33
+	TorrentMetadata    PacketType = 34
 )
 
 // MeshPacket is the core packet transmitted across the Aether mesh network.
@@ -167,6 +175,22 @@ func (pt PacketType) String() string {
 		return "PreKeyRequest"
 	case PreKeyResponse:
 		return "PreKeyResponse"
+	case VideoCallPkt:
+		return "VideoCall"
+	case VideoSignaling:
+		return "VideoSignaling"
+	case WatchSync:
+		return "WatchSync"
+	case WatchReaction:
+		return "WatchReaction"
+	case VideoFrame:
+		return "VideoFrame"
+	case ScreenShare:
+		return "ScreenShare"
+	case WatchChunkRequest:
+		return "WatchChunkRequest"
+	case TorrentMetadata:
+		return "TorrentMetadata"
 	default:
 		return "Unknown"
 	}

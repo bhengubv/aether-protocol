@@ -36,6 +36,14 @@ class PacketType(IntEnum):
     TipPacket = 24
     PreKeyRequest = 25
     PreKeyResponse = 26
+    VideoCall = 27
+    VideoSignaling = 28
+    WatchSync = 29
+    WatchReaction = 30
+    VideoFrame = 31
+    ScreenShare = 32
+    WatchChunkRequest = 33
+    TorrentMetadata = 34
 
 
 @dataclass

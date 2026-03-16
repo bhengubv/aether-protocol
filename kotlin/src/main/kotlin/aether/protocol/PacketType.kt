@@ -29,7 +29,18 @@ enum class PacketType(val value: Byte) {
     DtnDeliveryReceipt(20),
     PresenceBeacon(21),
     PresenceQuery(22),
-    ProfileSync(23);
+    ProfileSync(23),
+    TipPacket(24),
+    PreKeyRequest(25),
+    PreKeyResponse(26),
+    VideoCall(27),
+    VideoSignaling(28),
+    WatchSync(29),
+    WatchReaction(30),
+    VideoFrame(31),
+    ScreenShare(32),
+    WatchChunkRequest(33),
+    TorrentMetadata(34);
 
     companion object {
         fun fromValue(value: Byte): PacketType? = values().find { it.value == value }

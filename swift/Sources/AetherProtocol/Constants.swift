@@ -100,11 +100,19 @@ public enum PacketType: UInt8, Codable {
     case tipPacket = 24
     case preKeyRequest = 25
     case preKeyResponse = 26
+    case videoCall = 27
+    case videoSignaling = 28
+    case watchSync = 29
+    case watchReaction = 30
+    case videoFrame = 31
+    case screenShare = 32
+    case watchChunkRequest = 33
+    case torrentMetadata = 34
 }
 
 /// Node capabilities as a bitfield.
 public struct NodeCapabilities: OptionSet {
-    public let rawValue: UInt8
+    public let rawValue: UInt16
 
     public static let ble = NodeCapabilities(rawValue: 1)
     public static let wifiDirect = NodeCapabilities(rawValue: 2)
@@ -114,8 +122,10 @@ public struct NodeCapabilities: OptionSet {
     public static let streaming = NodeCapabilities(rawValue: 32)
     public static let voice = NodeCapabilities(rawValue: 64)
     public static let dtnCarrier = NodeCapabilities(rawValue: 128)
+    public static let nearLink = NodeCapabilities(rawValue: 256)
+    public static let video = NodeCapabilities(rawValue: 512)
 
-    public init(rawValue: UInt8) {
+    public init(rawValue: UInt16) {
         self.rawValue = rawValue
     }
 }

@@ -5,17 +5,19 @@ package models
 import "time"
 
 // NodeCapabilities is a bitfield representing node capabilities.
-type NodeCapabilities byte
+type NodeCapabilities uint16
 
 const (
-	CapabilityBLE       NodeCapabilities = 1 << iota // Bluetooth Low Energy transport available
-	CapabilityWifiDirect                             // Wi-Fi Direct transport available
-	CapabilityGateway                                // Internet gateway
-	CapabilityRelay                                  // Willing to relay packets
-	CapabilitySos                                    // SOS broadcast capable
-	CapabilityStreaming                              // Live streaming relay capable
-	CapabilityVoice                                  // Voice call relay capable
-	CapabilityDtnCarrier                             // DTN store-and-forward carrier
+	CapabilityBLE        NodeCapabilities = 1 << iota // Bluetooth Low Energy transport available
+	CapabilityWifiDirect                              // Wi-Fi Direct transport available
+	CapabilityGateway                                 // Internet gateway
+	CapabilityRelay                                   // Willing to relay packets
+	CapabilitySos                                     // SOS broadcast capable
+	CapabilityStreaming                               // Live streaming relay capable
+	CapabilityVoice                                   // Voice call relay capable
+	CapabilityDtnCarrier                              // DTN store-and-forward carrier
+	CapabilityNearLink                                // NearLink transport available
+	CapabilityVideo                                   // Video call capable
 )
 
 // AetherNode represents a node in the mesh network.

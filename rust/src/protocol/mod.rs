@@ -36,6 +36,14 @@ pub enum PacketType {
     TipPacket = 24,
     PreKeyRequest = 25,
     PreKeyResponse = 26,
+    VideoCall = 27,
+    VideoSignaling = 28,
+    WatchSync = 29,
+    WatchReaction = 30,
+    VideoFrame = 31,
+    ScreenShare = 32,
+    WatchChunkRequest = 33,
+    TorrentMetadata = 34,
 }
 
 impl PacketType {
@@ -67,6 +75,14 @@ impl PacketType {
             24 => Some(PacketType::TipPacket),
             25 => Some(PacketType::PreKeyRequest),
             26 => Some(PacketType::PreKeyResponse),
+            27 => Some(PacketType::VideoCall),
+            28 => Some(PacketType::VideoSignaling),
+            29 => Some(PacketType::WatchSync),
+            30 => Some(PacketType::WatchReaction),
+            31 => Some(PacketType::VideoFrame),
+            32 => Some(PacketType::ScreenShare),
+            33 => Some(PacketType::WatchChunkRequest),
+            34 => Some(PacketType::TorrentMetadata),
             _ => None,
         }
     }

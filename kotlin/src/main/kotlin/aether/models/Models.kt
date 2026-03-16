@@ -16,7 +16,9 @@ data class NodeCapabilities(
     val sos: Boolean = false,
     val streaming: Boolean = false,
     val voice: Boolean = false,
-    val dtnCarrier: Boolean = false
+    val dtnCarrier: Boolean = false,
+    val nearLink: Boolean = false,
+    val video: Boolean = false
 ) {
     /**
      * Converts to a bitfield integer representation.
@@ -31,6 +33,8 @@ data class NodeCapabilities(
         if (streaming) bits = bits or 32
         if (voice) bits = bits or 64
         if (dtnCarrier) bits = bits or 128
+        if (nearLink) bits = bits or 256
+        if (video) bits = bits or 512
         return bits
     }
 
@@ -47,7 +51,9 @@ data class NodeCapabilities(
                 sos = (bits and 16) != 0,
                 streaming = (bits and 32) != 0,
                 voice = (bits and 64) != 0,
-                dtnCarrier = (bits and 128) != 0
+                dtnCarrier = (bits and 128) != 0,
+                nearLink = (bits and 256) != 0,
+                video = (bits and 512) != 0
             )
         }
     }

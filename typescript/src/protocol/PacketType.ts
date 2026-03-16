@@ -27,6 +27,17 @@ export enum PacketType {
   PresenceBeacon = 21,
   PresenceQuery = 22,
   ProfileSync = 23,
+  TipPacket = 24,
+  PreKeyRequest = 25,
+  PreKeyResponse = 26,
+  VideoCall = 27,
+  VideoSignaling = 28,
+  WatchSync = 29,
+  WatchReaction = 30,
+  VideoFrame = 31,
+  ScreenShare = 32,
+  WatchChunkRequest = 33,
+  TorrentMetadata = 34,
 }
 
 export function packetTypeToString(type: PacketType): string {
@@ -77,6 +88,28 @@ export function packetTypeToString(type: PacketType): string {
       return "PresenceQuery";
     case PacketType.ProfileSync:
       return "ProfileSync";
+    case PacketType.TipPacket:
+      return "TipPacket";
+    case PacketType.PreKeyRequest:
+      return "PreKeyRequest";
+    case PacketType.PreKeyResponse:
+      return "PreKeyResponse";
+    case PacketType.VideoCall:
+      return "VideoCall";
+    case PacketType.VideoSignaling:
+      return "VideoSignaling";
+    case PacketType.WatchSync:
+      return "WatchSync";
+    case PacketType.WatchReaction:
+      return "WatchReaction";
+    case PacketType.VideoFrame:
+      return "VideoFrame";
+    case PacketType.ScreenShare:
+      return "ScreenShare";
+    case PacketType.WatchChunkRequest:
+      return "WatchChunkRequest";
+    case PacketType.TorrentMetadata:
+      return "TorrentMetadata";
     default:
       return `Unknown(${type})`;
   }
