@@ -164,15 +164,25 @@ impl AetherNode {
     }
 }
 
-/// Pre-key bundle for session establishment
+/// Pre-key bundle published by a node so others can initiate Signal sessions
+/// toward it asynchronously.
+///
+/// Two identity keys per node — Ed25519 for signing and X25519 for ECDH.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreKeyBundle {
     pub uhid: String,
+    /// Long-term Ed25519 identity public key (32 bytes).
     pub identity_key: Vec<u8>,
+    /// Long-term X25519 identity public key (32 bytes raw, RFC 7748).
+    #[serde(default)]
+    pub identity_key_x25519: Vec<u8>,
     pub pre_key_id: i32,
+    /// One-time pre-key X25519 public key (32 bytes raw).
     pub pre_key: Vec<u8>,
     pub signed_pre_key_id: i32,
+    /// Signed pre-key X25519 public key (32 bytes raw).
     pub signed_pre_key: Vec<u8>,
+    /// Ed25519 signature over signed_pre_key (64 bytes).
     pub signed_pre_key_signature: Vec<u8>,
 }
 
@@ -180,6 +190,7 @@ impl PreKeyBundle {
     pub fn new(
         uhid: String,
         identity_key: Vec<u8>,
+        identity_key_x25519: Vec<u8>,
         pre_key_id: i32,
         pre_key: Vec<u8>,
         signed_pre_key_id: i32,
@@ -189,6 +200,7 @@ impl PreKeyBundle {
         PreKeyBundle {
             uhid,
             identity_key,
+            identity_key_x25519,
             pre_key_id,
             pre_key,
             signed_pre_key_id,
@@ -198,7 +210,11 @@ impl PreKeyBundle {
     }
 }
 
-/// Signal Protocol session state
+/// Signal Protocol session state.
+///
+/// On the initiator side, `pending_pre_key_message` is true until the first
+/// outbound message is sent. While true, the next encrypt() emits a PreKey
+/// message carrying the four `initiator_*` fields below.
 #[derive(Debug, Clone)]
 pub struct SignalSession {
     pub peer_uhid: String,
@@ -211,6 +227,12 @@ pub struct SignalSession {
     pub skipped_message_keys: std::collections::HashMap<u32, Vec<u8>>,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
+
+    pub pending_pre_key_message: bool,
+    pub initiator_identity_key_x25519: Vec<u8>,
+    pub initiator_ephemeral_key_x25519: Vec<u8>,
+    pub used_signed_pre_key_id: i32,
+    pub used_one_time_pre_key_id: i32,
 }
 
 impl SignalSession {
@@ -227,11 +249,21 @@ impl SignalSession {
             skipped_message_keys: std::collections::HashMap::new(),
             created_at: now,
             updated_at: now,
+            pending_pre_key_message: false,
+            initiator_identity_key_x25519: Vec::new(),
+            initiator_ephemeral_key_x25519: Vec::new(),
+            used_signed_pre_key_id: 0,
+            used_one_time_pre_key_id: 0,
         }
     }
 }
 
-/// Encrypted payload for Signal Protocol messages
+/// Wire-level encrypted payload.
+///
+/// When `message_type` is 1 (PreKey message — the first message from an
+/// initiator before a session is established on the responder side), the
+/// four `initiator_*` fields carry the data the responder needs to run X3DH
+/// on its side. On normal session messages those fields are None/0.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedPayload {
     pub ciphertext: Vec<u8>,
@@ -240,6 +272,19 @@ pub struct EncryptedPayload {
     pub sender_uhid: String,
     pub counter: u32,
     pub encrypted_at: u64,
+
+    /// PreKey messages: initiator's long-term X25519 identity public key (32 bytes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initiator_identity_key_x25519: Option<Vec<u8>>,
+    /// PreKey messages: initiator's ephemeral X25519 public key (32 bytes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initiator_ephemeral_key_x25519: Option<Vec<u8>>,
+    /// PreKey messages: SignedPreKeyId from the recipient bundle the initiator consumed.
+    #[serde(default)]
+    pub used_signed_pre_key_id: i32,
+    /// PreKey messages: one-time PreKeyId from the recipient bundle the initiator consumed.
+    #[serde(default)]
+    pub used_one_time_pre_key_id: i32,
 }
 
 impl EncryptedPayload {
@@ -262,6 +307,10 @@ impl EncryptedPayload {
             sender_uhid,
             counter,
             encrypted_at,
+            initiator_identity_key_x25519: None,
+            initiator_ephemeral_key_x25519: None,
+            used_signed_pre_key_id: 0,
+            used_one_time_pre_key_id: 0,
         }
     }
 }
