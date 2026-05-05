@@ -89,8 +89,9 @@ final class SosBroadcastServiceTests: XCTestCase {
         let alertsNow = await svc.getActiveAlerts().count
         XCTAssertEqual(alertsNow, alertsAfter)
 
-        // touch pkt to silence "never mutated" warnings
-        pkt.ttl = pkt.ttl
+        // pkt is intentionally read but not mutated after first handle — discard
+        // to silence the "never mutated" warning without a self-assignment.
+        _ = pkt.ttl
     }
 
     func test_handle_ignoresSelfOriginated() async {
