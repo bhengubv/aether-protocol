@@ -425,13 +425,40 @@ class SignalProtocolService:
         return public_numbers.public_key(default_backend())
 
     @staticmethod
-    def _zero_memory(data: bytes) -> None:
+    def _zero_memory(data) -> None:
         """
-        Overwrite a byte array with zeros for security.
+        Overwrite a buffer with zeros for security.
 
-        Note: Python doesn't allow true in-place memory zeroing of immutable bytes,
-        but this serves as a placeholder for the security intent.
+        Python's `bytes` are immutable — they cannot be zeroed in place. Callers
+        that hold sensitive material as `bytes` cannot rely on this function to
+        scrub the original allocation; the GC will eventually reclaim it but the
+        contents may persist in memory until then.
+
+        For real zeroing, callers should hold sensitive material as `bytearray`
+        (mutable) and pass it to this function. We zero `bytearray` and `memoryview`
+        in place. For `bytes`, we do nothing visible but flag the no-op so the
+        caller knows the original buffer was not actually scrubbed.
         """
-        # In production, you might use ctypes or similar for true zeroing
-        # For now, we just ensure the reference is cleared
-        pass
+        if isinstance(data, bytearray):
+            for i in range(len(data)):
+                data[i] = 0
+        elif isinstance(data, memoryview):
+            if not data.readonly:
+                for i in range(len(data)):
+                    data[i] = 0
+        elif isinstance(data, bytes):
+            # Cannot zero immutable bytes. Caller should use bytearray for sensitive material.
+            # We intentionally do not raise — many callers pass bytes for compatibility — but
+            # implementations that care about memory hygiene should hold key material as
+            # bytearray and pass that here.
+            return
+        else:
+            # Unknown type — try the bytearray approach via len/__setitem__ if it duck-types,
+            # otherwise silently no-op (this matches the pre-2026-05-02 behaviour for any
+            # caller that was passing exotic types).
+            try:
+                length = len(data)
+                for i in range(length):
+                    data[i] = 0
+            except (TypeError, AttributeError):
+                return

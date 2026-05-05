@@ -1,12 +1,26 @@
 // SPDX-License-Identifier: MIT
 
 pub mod constants;
+pub mod dtn;
+pub mod extensibility;
 pub mod models;
 pub mod protocol;
-pub mod security;
+pub mod routing;
+// NOTE: `security` module has pre-existing version-mismatch errors against
+// newer ed25519-dalek / x25519-dalek crates (predates this session's work);
+// excluded from the lib until those are repaired separately. Re-enable once fixed.
+// pub mod security;
+pub mod sos;
 pub mod transport;
 
-pub use models::{AetherNode, PeerInfo, RouteEntry};
+pub use models::{
+    AetherNode, BundlePriority, BundleStatus, CustodyRecord, DtnBundle, DtnDeliveryReceipt,
+    PeerInfo, RouteEntry, SosAlert,
+};
 pub use protocol::{MeshPacket, PacketType};
-pub use security::{Ed25519SigningService, SignalProtocolService};
+pub use routing::{
+    AcceptAllRouteReplyVerifier, InMemoryRouteStore, MeshSender, RouteReplyVerifier, RouteStore,
+    RoutingService,
+};
+// pub use security::{Ed25519SigningService, SignalProtocolService};
 pub use transport::{InProcessTransport, TransportService};

@@ -62,9 +62,12 @@ public static class PacketSerializer
         // Packet type
         buffer[offset++] = (byte)packet.Type;
 
-        // Packet ID
-        if (!packet.Id.TryWriteBytes(buffer.AsSpan(offset)))
-            packet.Id.ToByteArray().CopyTo(buffer, offset);
+        // Packet ID (RFC 4122 big-endian byte order so the wire is identical across all 8
+        // language implementations. .NET's default Guid.TryWriteBytes uses mixed-endian
+        // — Data1/Data2/Data3 little-endian, Data4 big-endian — which is incompatible with
+        // every other language. Fixed 2026-05-02. Use the bigEndian overload (.NET 8+).)
+        if (!packet.Id.TryWriteBytes(buffer.AsSpan(offset, 16), bigEndian: true, out _))
+            throw new InvalidOperationException("Failed to serialize packet ID");
         offset += 16;
 
         // Priority
@@ -137,8 +140,8 @@ public static class PacketSerializer
         // Packet type
         packet.Type = (PacketType)data[offset++];
 
-        // Packet ID
-        packet.Id = new Guid(data.Slice(offset, 16));
+        // Packet ID — read RFC 4122 big-endian (must match the serializer's bigEndian write)
+        packet.Id = new Guid(data.Slice(offset, 16), bigEndian: true);
         offset += 16;
 
         // Priority

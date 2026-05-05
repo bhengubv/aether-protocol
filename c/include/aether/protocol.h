@@ -80,7 +80,7 @@ typedef struct {
     int64_t  timestamp_ms;                             // 8 bytes
     uint8_t  protocol_version;                         // 1 byte
     uint8_t  type;                                     // 1 byte
-    uint8_t  ttl;                                      // 1 byte
+    int32_t  ttl;                                      // 4 bytes (wire is little-endian int32; was uint8_t — truncation bug fixed 2026-05-02)
     uint8_t  priority;                                 // 1 byte
 
     // Variable-length fields (pointers + lengths)

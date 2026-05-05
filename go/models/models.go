@@ -187,6 +187,9 @@ type SosAlert struct {
 	// Originator's UHID
 	SenderUhid string
 
+	// Caller-defined alert category — "sos", "panic", "medical", "fire", etc.
+	BroadcastType string
+
 	// Alert message
 	Message string
 
@@ -197,6 +200,33 @@ type SosAlert struct {
 	// Geohash of sender
 	Geohash string
 
-	// Alert timestamp
+	// Alert timestamp (origination)
 	Timestamp time.Time
+
+	// Local time the alert was received (or originated locally)
+	ReceivedAt time.Time
+}
+
+// CustodyRecord captures a DTN custody transfer between two nodes.
+type CustodyRecord struct {
+	ID            string
+	BundleID      string
+	FromUhid      string
+	ToUhid        string
+	Accepted      bool
+	TransferredAt time.Time
+}
+
+// DtnDeliveryReceipt is sent back to the original sender once a bundle is delivered.
+type DtnDeliveryReceipt struct {
+	BundleID              string
+	RecipientUhid         string
+	TotalHops             int32
+	TotalCustodyTransfers int32
+	DeliveredAt           time.Time
+}
+
+// IsExpired returns true if the bundle has exceeded its TTL.
+func (b *DtnBundle) IsExpired() bool {
+	return time.Now().After(b.ExpiresAt)
 }

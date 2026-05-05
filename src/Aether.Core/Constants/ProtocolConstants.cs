@@ -36,6 +36,15 @@ public static class ProtocolConstants
     /// <summary>How long a DTN custody transfer can remain pending (seconds).</summary>
     public const int DtnCustodyTimeoutSeconds = 3_600;
 
+    /// <summary>Maximum number of copies of a DTN bundle that may exist concurrently in the mesh.</summary>
+    public const int DtnMaxCopies = 3;
+
+    /// <summary>Maximum number of DTN bundles a single node will hold in custody.</summary>
+    public const int DtnMaxBundlesPerNode = 50;
+
+    /// <summary>Default scan interval for the DTN delivery loop (seconds).</summary>
+    public const int DtnScanIntervalSeconds = 60;
+
     // ── Beacon and heartbeat intervals ───────────────────────────────
     /// <summary>Interval between presence beacon broadcasts (ms).</summary>
     public const int PresenceBeaconIntervalMs = 15_000;
@@ -131,6 +140,9 @@ public static class ProtocolConstants
 
     /// <summary>How long SOS state remains active after broadcast (seconds).</summary>
     public const int SosActiveWindowSeconds = 3_600;
+
+    /// <summary>Maximum SOS broadcasts a single node may originate per rolling hour. Floods abuse-protection.</summary>
+    public const int MaxSosBroadcastsPerHour = 3;
 
     // ── Geohash ──────────────────────────────────────────────────────
     /// <summary>Default geohash precision for full-privacy nodes (characters).</summary>

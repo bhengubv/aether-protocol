@@ -19,6 +19,7 @@
 // Routing parameters
 #define AETHER_DEFAULT_TTL           7
 #define AETHER_SOS_TTL               15
+#define AETHER_DTN_TTL               30
 #define AETHER_ROUTE_TIMEOUT_MS      5000
 #define AETHER_ROUTE_EXPIRY_SECONDS  300
 
@@ -44,7 +45,10 @@
 #define AETHER_BLE_MAX_PAYLOAD_BYTES      1024
 
 // SOS parameters
-#define AETHER_SOS_PRIORITY              999
+// AETHER_SOS_PRIORITY: byte value used in mesh_packet.priority for emergency packets.
+// Was originally 999 — invalid for a uint8_t; corrected to 255 to match the
+// C# reference (ProtocolConstants.SosPriority).
+#define AETHER_SOS_PRIORITY              255
 #define AETHER_MAX_SOS_BROADCASTS_PER_HOUR 3
 
 // DTN parameters

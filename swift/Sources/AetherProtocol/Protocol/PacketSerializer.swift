@@ -107,9 +107,9 @@ public enum PacketSerializer {
         let priority = data[offset]
         offset += 1
 
-        // TTL (Int32, little-endian)
+        // TTL (Int32, little-endian) — keep as Int32, do not narrow (was a UInt8 truncation bug)
         let ttlBytes = data.subdata(in: offset ..< offset + 4)
-        let ttl = UInt8(Int32(littleEndian: ttlBytes.withUnsafeBytes { $0.load(as: Int32.self) }))
+        let ttl = Int32(littleEndian: ttlBytes.withUnsafeBytes { $0.load(as: Int32.self) })
         offset += 4
 
         // TimestampMs (Int64, little-endian)

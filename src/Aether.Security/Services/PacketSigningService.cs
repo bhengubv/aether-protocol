@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
@@ -90,7 +91,13 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
 
     /// <summary>
     /// Builds the canonical byte array that is signed/verified for a packet.
-    /// Format: PacketNonce || TimestampMs || Type || SourceUhid || DestUhid || SHA256(Payload) || Ttl || Priority
+    /// Wire format (must match every other language implementation's signable-data layout):
+    ///   Nonce(8) || TimestampMs(8 LE i64) || Type(4 LE i32) || SourceLen(4 LE i32) || Source ||
+    ///   DestLen(4 LE i32) || Dest || SHA256(Payload)(32) || Ttl(4 LE i32) || Priority(4 LE i32)
+    ///
+    /// Pre-2026-05-02 this method used big-endian + 1-byte Type/Priority, which broke
+    /// signature interop with every other language. Fixed to little-endian + 4-byte i32s
+    /// to match Go / Python / Rust / Kotlin / Swift / TS / C.
     /// </summary>
     internal static byte[] BuildSignableData(MeshPacket packet)
     {
@@ -98,15 +105,15 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
         var sourceBytes = Encoding.UTF8.GetBytes(packet.SourceUhid);
         var destBytes = Encoding.UTF8.GetBytes(packet.DestinationUhid);
 
-        // PacketNonce(8) + TimestampMs(8) + Type(1) + SourceLen(4) + Source + DestLen(4) + Dest + PayloadHash(32) + Ttl(4) + Priority(1)
+        // Nonce(8) + TimestampMs(8) + Type(4) + SourceLen(4) + Source + DestLen(4) + Dest + PayloadHash(32) + Ttl(4) + Priority(4)
         var totalLength = packet.PacketNonce.Length
-            + 8  // TimestampMs
-            + 1  // Type
+            + 8  // TimestampMs (i64 LE)
+            + 4  // Type (i32 LE)
             + 4 + sourceBytes.Length
             + 4 + destBytes.Length
             + 32 // SHA256 hash
-            + 4  // Ttl
-            + 1; // Priority
+            + 4  // Ttl (i32 LE)
+            + 4; // Priority (i32 LE)
 
         var buffer = new byte[totalLength];
         var offset = 0;
@@ -115,27 +122,22 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
         Buffer.BlockCopy(packet.PacketNonce, 0, buffer, offset, packet.PacketNonce.Length);
         offset += packet.PacketNonce.Length;
 
-        // TimestampMs (big-endian)
-        BitConverter.TryWriteBytes(buffer.AsSpan(offset, 8), packet.TimestampMs);
-        if (BitConverter.IsLittleEndian)
-            Array.Reverse(buffer, offset, 8);
+        // TimestampMs (8 bytes, little-endian int64)
+        BinaryPrimitives.WriteInt64LittleEndian(buffer.AsSpan(offset, 8), packet.TimestampMs);
         offset += 8;
 
-        // Type
-        buffer[offset++] = (byte)packet.Type;
+        // Type (4 bytes, little-endian int32 — was 1 byte, fixed 2026-05-02 to match other languages)
+        BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset, 4), (int)packet.Type);
+        offset += 4;
 
-        // SourceUhid (length-prefixed)
-        BitConverter.TryWriteBytes(buffer.AsSpan(offset, 4), sourceBytes.Length);
-        if (BitConverter.IsLittleEndian)
-            Array.Reverse(buffer, offset, 4);
+        // SourceUhid (4-byte LE length + UTF-8 bytes)
+        BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset, 4), sourceBytes.Length);
         offset += 4;
         Buffer.BlockCopy(sourceBytes, 0, buffer, offset, sourceBytes.Length);
         offset += sourceBytes.Length;
 
-        // DestinationUhid (length-prefixed)
-        BitConverter.TryWriteBytes(buffer.AsSpan(offset, 4), destBytes.Length);
-        if (BitConverter.IsLittleEndian)
-            Array.Reverse(buffer, offset, 4);
+        // DestinationUhid (4-byte LE length + UTF-8 bytes)
+        BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset, 4), destBytes.Length);
         offset += 4;
         Buffer.BlockCopy(destBytes, 0, buffer, offset, destBytes.Length);
         offset += destBytes.Length;
@@ -144,14 +146,13 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
         Buffer.BlockCopy(payloadHash, 0, buffer, offset, 32);
         offset += 32;
 
-        // Ttl (big-endian)
-        BitConverter.TryWriteBytes(buffer.AsSpan(offset, 4), packet.Ttl);
-        if (BitConverter.IsLittleEndian)
-            Array.Reverse(buffer, offset, 4);
+        // Ttl (4 bytes, little-endian int32)
+        BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset, 4), packet.Ttl);
         offset += 4;
 
-        // Priority
-        buffer[offset] = packet.Priority;
+        // Priority (4 bytes, little-endian int32 — was 1 byte, fixed 2026-05-02 to match other languages)
+        BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset, 4), packet.Priority);
+        offset += 4;
 
         return buffer;
     }

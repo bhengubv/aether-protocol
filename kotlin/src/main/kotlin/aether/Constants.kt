@@ -39,7 +39,10 @@ object AetherConstants {
     const val AETHER_BLE_SERVICE_UUID = "A3E71001-0001-0000-000000000000"
 
     // SOS
-    const val SOS_PRIORITY = 999
+    // SOS_PRIORITY: byte value used in MeshPacket.priority for emergency packets.
+    // Was originally 999 — invalid for a single byte; corrected to 255 to match the
+    // C# reference (ProtocolConstants.SosPriority).
+    const val SOS_PRIORITY: Int = 255
     const val MAX_SOS_BROADCASTS_PER_HOUR = 3
 
     // DTN

@@ -23,30 +23,36 @@ public struct AetherNode: Equatable, Codable {
 }
 
 /// Information about a peer in the mesh.
-public struct PeerInfo: Equatable, Codable {
+public struct PeerInfo: Equatable, Codable, Sendable {
     public let uhid: String
     public let lastSeen: Date
     public let hopCount: Int
     public let reliabilityScore: Int
     public let capabilities: UInt8
+    public let geohash: String?
+    public let isBlocked: Bool
 
     public init(
         uhid: String,
         lastSeen: Date = Date(),
         hopCount: Int = 0,
         reliabilityScore: Int = 50,
-        capabilities: UInt8 = 0
+        capabilities: UInt8 = 0,
+        geohash: String? = nil,
+        isBlocked: Bool = false
     ) {
         self.uhid = uhid
         self.lastSeen = lastSeen
         self.hopCount = hopCount
         self.reliabilityScore = reliabilityScore
         self.capabilities = capabilities
+        self.geohash = geohash
+        self.isBlocked = isBlocked
     }
 }
 
 /// Route table entry.
-public struct RouteEntry: Equatable, Codable {
+public struct RouteEntry: Equatable, Codable, Sendable {
     public let destination: String
     public let nextHop: String
     public let hopCount: Int
@@ -218,4 +224,104 @@ public struct SosBroadcastPayload: Codable {
         self.longitude = longitude
         self.geohash = geohash
     }
+}
+
+// ─────────────────────────────────────────────────────────
+// DTN status / priority enums + custody record
+// ─────────────────────────────────────────────────────────
+
+public enum BundleStatus: Int32, Codable, Sendable {
+    case pending = 0
+    case inCustody = 1
+    case delivered = 2
+    case expired = 3
+    case failed = 4
+}
+
+public enum BundlePriority: Int32, Codable, Sendable {
+    case low = 0
+    case normal = 1
+    case high = 2
+    case sos = 3
+}
+
+/// Record of a custody transfer between two nodes.
+public struct CustodyRecord: Equatable, Codable, Sendable {
+    public let id: UUID
+    public let bundleId: UUID
+    public let fromUhid: String
+    public let toUhid: String
+    public let accepted: Bool
+    public let transferredAt: Date
+
+    public init(
+        id: UUID = UUID(),
+        bundleId: UUID,
+        fromUhid: String,
+        toUhid: String,
+        accepted: Bool,
+        transferredAt: Date = Date()
+    ) {
+        self.id = id
+        self.bundleId = bundleId
+        self.fromUhid = fromUhid
+        self.toUhid = toUhid
+        self.accepted = accepted
+        self.transferredAt = transferredAt
+    }
+}
+
+extension DtnBundle {
+    public var isExpired: Bool { Date() >= expiresAt }
+}
+
+// ─────────────────────────────────────────────────────────
+// SOS observed/local alert
+// ─────────────────────────────────────────────────────────
+
+/// An SOS alert observed on the mesh — locally originated or received.
+public struct SosAlert: Equatable, Codable, Sendable {
+    public let id: UUID
+    public let senderUhid: String
+    public let broadcastType: String
+    public let message: String?
+    public let latitude: Double
+    public let longitude: Double
+    public let geohash: String?
+    public let receivedAt: Date
+
+    public init(
+        id: UUID = UUID(),
+        senderUhid: String,
+        broadcastType: String = "sos",
+        message: String? = nil,
+        latitude: Double = 0,
+        longitude: Double = 0,
+        geohash: String? = nil,
+        receivedAt: Date = Date()
+    ) {
+        self.id = id
+        self.senderUhid = senderUhid
+        self.broadcastType = broadcastType
+        self.message = message
+        self.latitude = latitude
+        self.longitude = longitude
+        self.geohash = geohash
+        self.receivedAt = receivedAt
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Capability bit constants (matches NodeCapabilities elsewhere)
+// ─────────────────────────────────────────────────────────
+
+public enum NodeCapabilityBits {
+    public static let ble: UInt8 = 1
+    public static let wifiDirect: UInt8 = 2
+    public static let gateway: UInt8 = 4
+    public static let relay: UInt8 = 8
+    public static let sos: UInt8 = 16
+    public static let streaming: UInt8 = 32
+    public static let voice: UInt8 = 64
+    public static let dtnCarrier: UInt8 = 128
 }

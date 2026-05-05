@@ -25,7 +25,10 @@ AES_GCM_NONCE_SIZE = 12
 AES_GCM_TAG_SIZE = 16
 
 # SOS constants
-SOS_PRIORITY = 999
+# SOS_PRIORITY: byte value used in MeshPacket.priority for emergency packets.
+# Was originally 999 — invalid for a single byte; corrected to 255 to match the
+# C# reference (ProtocolConstants.SosPriority).
+SOS_PRIORITY = 255
 MAX_SOS_BROADCASTS_PER_HOUR = 3
 
 # DTN constants

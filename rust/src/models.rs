@@ -50,6 +50,8 @@ pub struct PeerInfo {
     pub hop_count: u32,
     pub reliability_score: i32,
     pub capabilities: u16,
+    pub geohash: Option<String>,
+    pub is_blocked: bool,
 }
 
 impl PeerInfo {
@@ -61,18 +63,22 @@ impl PeerInfo {
             hop_count: 0,
             reliability_score: 50,
             capabilities: 0,
+            geohash: None,
+            is_blocked: false,
         }
     }
 }
 
-/// A route entry in the routing table
+/// A route entry in the routing table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RouteEntry {
     pub destination_uhid: String,
     pub next_hop_uhid: String,
     pub hop_count: u32,
     pub quality_score: u8,
+    /// Unix-epoch seconds at which this route expires.
     pub expires_at: u64,
+    /// Unix-epoch seconds at which this route was last refreshed.
     pub last_updated: u64,
 }
 
@@ -260,17 +266,69 @@ impl EncryptedPayload {
     }
 }
 
-/// DTN Bundle for store-and-forward delivery
+/// Lifecycle state of a DTN bundle.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BundleStatus {
+    Pending = 0,
+    InCustody = 1,
+    Delivered = 2,
+    Expired = 3,
+    Failed = 4,
+}
+
+impl BundleStatus {
+    pub fn from_u8(value: u8) -> Self {
+        match value {
+            1 => BundleStatus::InCustody,
+            2 => BundleStatus::Delivered,
+            3 => BundleStatus::Expired,
+            4 => BundleStatus::Failed,
+            _ => BundleStatus::Pending,
+        }
+    }
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
+    }
+}
+
+/// Priority class influencing replication aggressiveness.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BundlePriority {
+    Low = 0,
+    Normal = 1,
+    High = 2,
+    Sos = 3,
+}
+
+impl BundlePriority {
+    pub fn from_u8(value: u8) -> Self {
+        match value {
+            2 => BundlePriority::High,
+            3 => BundlePriority::Sos,
+            0 => BundlePriority::Low,
+            _ => BundlePriority::Normal,
+        }
+    }
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
+    }
+}
+
+/// DTN Bundle for store-and-forward delivery.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DtnBundle {
     pub id: Uuid,
     pub sender_uhid: String,
     pub recipient_uhid: String,
     pub encrypted_payload: Vec<u8>,
-    pub priority: u8,
-    pub status: u8,
+    pub priority: BundlePriority,
+    pub status: BundleStatus,
     pub copy_count: i32,
     pub max_copies: i32,
+    pub sender_geohash: Option<String>,
+    pub recipient_last_geohash: Option<String>,
     pub hop_count: i32,
     pub created_at: u64,
     pub expires_at: u64,
@@ -281,7 +339,7 @@ impl DtnBundle {
         sender_uhid: String,
         recipient_uhid: String,
         encrypted_payload: Vec<u8>,
-        priority: u8,
+        priority: BundlePriority,
         ttl_hours: u64,
     ) -> Self {
         let now = SystemTime::now()
@@ -295,9 +353,11 @@ impl DtnBundle {
             recipient_uhid,
             encrypted_payload,
             priority,
-            status: 0, // Pending
+            status: BundleStatus::Pending,
             copy_count: 1,
             max_copies: 3,
+            sender_geohash: None,
+            recipient_last_geohash: None,
             hop_count: 0,
             created_at: now,
             expires_at: now + (ttl_hours * 3600),
@@ -311,4 +371,38 @@ impl DtnBundle {
             .as_secs();
         now >= self.expires_at
     }
+}
+
+/// Record of a custody transfer between two nodes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustodyRecord {
+    pub id: Uuid,
+    pub bundle_id: Uuid,
+    pub from_uhid: String,
+    pub to_uhid: String,
+    pub accepted: bool,
+    pub transferred_at: u64,
+}
+
+/// Receipt sent back to the sender once a bundle is delivered.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DtnDeliveryReceipt {
+    pub bundle_id: Uuid,
+    pub recipient_uhid: String,
+    pub total_hops: i32,
+    pub total_custody_transfers: i32,
+    pub delivered_at: u64,
+}
+
+/// An SOS alert observed on the mesh — locally originated or received.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SosAlert {
+    pub id: Uuid,
+    pub sender_uhid: String,
+    pub broadcast_type: String,
+    pub message: Option<String>,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub geohash: Option<String>,
+    pub received_at: u64,
 }
