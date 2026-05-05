@@ -361,23 +361,35 @@ aether_packet_free(packet);
 
 What's built and what's next.
 
-**Done:**
-- Signal Protocol (X3DH + Double Ratchet) across all 8 languages
+**Done (cryptographic primitives, all 8 languages):**
 - Ed25519 packet signing and verification
 - AES-256-GCM encryption
+- HKDF / HMAC key derivation
+- Packet serialization (wire format; cross-language interop has known gaps — see Caveats below)
+- In-process transport simulator (for development and tests)
+- Signal-Protocol-shaped session API surface (X3DH + ratchet methods exposed; see Caveats — current implementations use static-static DH, not full X3DH ephemeral)
+
+**Spec'd but NOT yet implemented in any language (despite earlier docs claiming otherwise):**
 - AODV routing with signed route replies
 - DTN store-and-forward (72h)
-- Packet serialization (wire-compatible across all languages)
 - SOS broadcast flood
 - Voice and streaming with adaptive bitrate
 - Video calls (P2P and group) with transport-aware codec negotiation
 - Watch Together: synchronized playback, BitTorrent ingest, ChipIn group funding
-- In-process transport simulator for development
+- Full X3DH (ephemeral pre-key) — current code uses static-static DH
 
 **In progress:**
 - BLE GATT transport — real Bluetooth Low Energy communication
 - Wi-Fi Direct transport — direct device-to-device over WiFi
 - Double Ratchet full implementation — complete forward secrecy with header encryption
+
+**Caveats — known wire-compat gaps under audit (2026-05-02):**
+- C# `Guid` byte order is mixed-endian; the other 7 languages use RFC4122 big-endian. Same packet has different `Id` bytes between C# and the rest.
+- C# `PacketSigningService.BuildSignableData` uses big-endian + 1-byte Type; spec and the other 7 languages use little-endian + 4-byte LE Type. Signatures don't verify across the C# boundary.
+- Rust pre-key bundles use X25519; the other languages use P-256. Pre-key bundles do not interop.
+- Three different ratchet constructions across languages (HKDF vs HMAC, different salts).
+
+These are tracked in the private repo's session-state TODO; remediation will be a coordinated cross-language pass with a fixture-based interop test.
 
 **Open for contribution:**
 - NearLink transport implementation

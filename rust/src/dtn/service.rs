@@ -1,0 +1,354 @@
+// SPDX-License-Identifier: MIT
+
+//! Default DTN service. Three-tier delivery:
+//! direct mesh send → DTN epidemic replication → backend relay.
+
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
+
+use crate::constants::{DEFAULT_TTL, DTN_BUNDLE_TTL_HOURS, DTN_MAX_BUNDLES_PER_NODE, DTN_MAX_COPIES};
+use crate::extensibility::{BackendClient, IncentiveProvider, NoopBackendClient, NoopIncentiveProvider};
+use crate::models::{BundlePriority, BundleStatus, CustodyRecord, DtnBundle};
+use crate::protocol::{MeshPacket, PacketType};
+use crate::routing::sender::MeshSender;
+
+use super::store::{BundleStore, InMemoryBundleStore};
+use super::strategy::{GeohashEpidemicStrategy, ReplicationStrategy};
+
+const DTN_TTL: i32 = 30;
+
+/// JSON wire envelope for a DTN bundle. Cross-language stable.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BundleWire {
+    id: Uuid,
+    sender_uhid: String,
+    recipient_uhid: String,
+    encrypted_payload: Vec<u8>,
+    priority: u8,
+    status: u8,
+    copy_count: i32,
+    max_copies: i32,
+    sender_geohash: Option<String>,
+    recipient_last_geohash: Option<String>,
+    hop_count: i32,
+    created_at_ms: i64,
+    expires_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CustodyAckWire {
+    bundle_id: Uuid,
+    accepted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DeliveryReceiptWire {
+    bundle_id: Uuid,
+    recipient_uhid: String,
+    total_hops: i32,
+    total_custody_transfers: i32,
+    delivered_at_ms: i64,
+}
+
+pub struct DtnService {
+    sender: Arc<dyn MeshSender>,
+    store: Arc<dyn BundleStore>,
+    strategy: Arc<dyn ReplicationStrategy>,
+    incentives: Arc<dyn IncentiveProvider>,
+    backend: Arc<dyn BackendClient>,
+}
+
+impl DtnService {
+    /// Construct a service with the given sender. All other dependencies use defaults.
+    pub fn new(sender: Arc<dyn MeshSender>) -> Self {
+        Self::with_dependencies(
+            sender,
+            Arc::new(InMemoryBundleStore::new()),
+            Arc::new(GeohashEpidemicStrategy),
+            Arc::new(NoopIncentiveProvider),
+            Arc::new(NoopBackendClient),
+        )
+    }
+
+    pub fn with_dependencies(
+        sender: Arc<dyn MeshSender>,
+        store: Arc<dyn BundleStore>,
+        strategy: Arc<dyn ReplicationStrategy>,
+        incentives: Arc<dyn IncentiveProvider>,
+        backend: Arc<dyn BackendClient>,
+    ) -> Self {
+        Self {
+            sender,
+            store,
+            strategy,
+            incentives,
+            backend,
+        }
+    }
+
+    /// Create a new bundle. Attempts immediate mesh delivery, falls back to backend relay,
+    /// otherwise stays in the store for the next scan.
+    pub async fn create_bundle(
+        &self,
+        recipient_uhid: &str,
+        encrypted_payload: Vec<u8>,
+        priority: BundlePriority,
+        recipient_last_geohash: Option<String>,
+    ) -> DtnBundle {
+        let mut bundle = DtnBundle::new(
+            self.sender.local_uhid(),
+            recipient_uhid.to_string(),
+            encrypted_payload,
+            priority,
+            DTN_BUNDLE_TTL_HOURS,
+        );
+        bundle.max_copies = DTN_MAX_COPIES as i32;
+        bundle.sender_geohash = self.sender.local_geohash();
+        bundle.recipient_last_geohash = recipient_last_geohash;
+        self.store.save(bundle.clone()).await;
+
+        if self.try_direct_delivery(&bundle).await {
+            let mut delivered = bundle.clone();
+            delivered.status = BundleStatus::Delivered;
+            self.store.save(delivered.clone()).await;
+            return delivered;
+        }
+        bundle
+    }
+
+    /// Pump a received DTN-related packet into the service.
+    pub async fn handle(&self, packet: &MeshPacket) {
+        match packet.packet_type {
+            PacketType::DtnBundle => self.handle_bundle(packet).await,
+            PacketType::DtnCustodyAck => self.handle_custody_ack(packet).await,
+            PacketType::DtnDeliveryReceipt => self.handle_delivery_receipt(packet).await,
+            _ => {}
+        }
+    }
+
+    /// Run one delivery scan: retry direct delivery for active bundles, then replicate.
+    pub async fn run_delivery_scan(&self) {
+        let active = self.store.get_active().await;
+        if active.is_empty() {
+            return;
+        }
+        let peers = self.sender.connected_peers();
+        let local_geohash = self.sender.local_geohash();
+
+        for mut bundle in active.into_iter() {
+            if bundle.status == BundleStatus::Delivered || bundle.is_expired() {
+                continue;
+            }
+            if self.try_direct_delivery(&bundle).await {
+                bundle.status = BundleStatus::Delivered;
+                self.store.save(bundle).await;
+                continue;
+            }
+            if peers.is_empty() || bundle.copy_count >= bundle.max_copies {
+                continue;
+            }
+            let targets =
+                self.strategy
+                    .select_targets(&bundle, &peers, local_geohash.as_deref());
+            for target in targets.into_iter() {
+                if bundle.copy_count >= bundle.max_copies {
+                    break;
+                }
+                let pkt = self.bundle_packet(&bundle);
+                if self.sender.send(&pkt, &target).await {
+                    bundle.copy_count += 1;
+                    self.store.save(bundle.clone()).await;
+                    self.incentives
+                        .record_relay(&self.sender.local_uhid(), &pkt)
+                        .await;
+                }
+            }
+        }
+    }
+
+    pub async fn expire_stale(&self) -> usize {
+        self.store.expire_stale().await
+    }
+
+    pub async fn get_active_bundles(&self) -> Vec<DtnBundle> {
+        self.store.get_active().await
+    }
+
+    async fn try_direct_delivery(&self, bundle: &DtnBundle) -> bool {
+        let pkt = self.bundle_packet(bundle);
+        for peer in self.sender.connected_peers().iter() {
+            if peer.uhid == bundle.recipient_uhid {
+                if self.sender.send(&pkt, &bundle.recipient_uhid).await {
+                    return true;
+                }
+                break;
+            }
+        }
+        self.backend.sync_dtn_bundle(bundle).await
+    }
+
+    fn bundle_packet(&self, bundle: &DtnBundle) -> MeshPacket {
+        let mut pkt = MeshPacket::new(PacketType::DtnBundle, self.sender.local_uhid());
+        pkt.id = bundle.id;
+        pkt.destination_uhid = bundle.recipient_uhid.clone();
+        pkt.ttl = DTN_TTL;
+        pkt.priority = bundle.priority.as_u8();
+        pkt.payload = encode_bundle(bundle);
+        pkt
+    }
+
+    async fn handle_bundle(&self, packet: &MeshPacket) {
+        let bundle = match decode_bundle(&packet.payload) {
+            Some(b) => b,
+            None => return,
+        };
+
+        if bundle.recipient_uhid == self.sender.local_uhid() {
+            let mut delivered = bundle.clone();
+            delivered.status = BundleStatus::Delivered;
+            self.store.save(delivered.clone()).await;
+            self.send_delivery_receipt(&delivered).await;
+            return;
+        }
+
+        if self.store.get_active_count().await >= DTN_MAX_BUNDLES_PER_NODE as usize {
+            self.send_custody_ack(&bundle.id, &packet.source_uhid, false).await;
+            return;
+        }
+
+        let mut accepted = bundle.clone();
+        accepted.status = BundleStatus::InCustody;
+        accepted.hop_count += 1;
+        self.store.save(accepted.clone()).await;
+        self.store
+            .save_custody(CustodyRecord {
+                id: Uuid::new_v4(),
+                bundle_id: bundle.id,
+                from_uhid: packet.source_uhid.clone(),
+                to_uhid: self.sender.local_uhid(),
+                accepted: true,
+                transferred_at: unix_secs(),
+            })
+            .await;
+        self.send_custody_ack(&bundle.id, &packet.source_uhid, true).await;
+        self.incentives
+            .record_relay(&self.sender.local_uhid(), packet)
+            .await;
+    }
+
+    async fn handle_custody_ack(&self, packet: &MeshPacket) {
+        let ack: CustodyAckWire = match serde_json::from_slice(&packet.payload) {
+            Ok(a) => a,
+            Err(_) => return,
+        };
+        if !ack.accepted {
+            return;
+        }
+        if let Some(mut bundle) = self.store.get(&ack.bundle_id).await {
+            bundle.copy_count += 1;
+            self.store.save(bundle).await;
+        }
+    }
+
+    async fn handle_delivery_receipt(&self, packet: &MeshPacket) {
+        let receipt: DeliveryReceiptWire = match serde_json::from_slice(&packet.payload) {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+        if let Some(mut bundle) = self.store.get(&receipt.bundle_id).await {
+            bundle.status = BundleStatus::Delivered;
+            self.store.save(bundle).await;
+        }
+    }
+
+    async fn send_custody_ack(&self, bundle_id: &Uuid, to_uhid: &str, accepted: bool) {
+        if to_uhid.is_empty() {
+            return;
+        }
+        let body = match serde_json::to_vec(&CustodyAckWire {
+            bundle_id: *bundle_id,
+            accepted,
+        }) {
+            Ok(b) => b,
+            Err(_) => return,
+        };
+        let mut pkt = MeshPacket::new(PacketType::DtnCustodyAck, self.sender.local_uhid());
+        pkt.destination_uhid = to_uhid.to_string();
+        pkt.ttl = DEFAULT_TTL;
+        pkt.payload = body;
+        self.sender.send(&pkt, to_uhid).await;
+    }
+
+    async fn send_delivery_receipt(&self, bundle: &DtnBundle) {
+        if bundle.sender_uhid.is_empty() || bundle.sender_uhid == self.sender.local_uhid() {
+            return;
+        }
+        let custody = self.store.get_custody_records(&bundle.id).await;
+        let body = match serde_json::to_vec(&DeliveryReceiptWire {
+            bundle_id: bundle.id,
+            recipient_uhid: bundle.recipient_uhid.clone(),
+            total_hops: bundle.hop_count,
+            total_custody_transfers: custody.len() as i32,
+            delivered_at_ms: unix_millis(),
+        }) {
+            Ok(b) => b,
+            Err(_) => return,
+        };
+        let mut pkt = MeshPacket::new(PacketType::DtnDeliveryReceipt, self.sender.local_uhid());
+        pkt.destination_uhid = bundle.sender_uhid.clone();
+        pkt.ttl = DEFAULT_TTL;
+        pkt.payload = body;
+        self.sender.send(&pkt, &bundle.sender_uhid).await;
+    }
+}
+
+fn encode_bundle(bundle: &DtnBundle) -> Vec<u8> {
+    let wire = BundleWire {
+        id: bundle.id,
+        sender_uhid: bundle.sender_uhid.clone(),
+        recipient_uhid: bundle.recipient_uhid.clone(),
+        encrypted_payload: bundle.encrypted_payload.clone(),
+        priority: bundle.priority.as_u8(),
+        status: bundle.status.as_u8(),
+        copy_count: bundle.copy_count,
+        max_copies: bundle.max_copies,
+        sender_geohash: bundle.sender_geohash.clone(),
+        recipient_last_geohash: bundle.recipient_last_geohash.clone(),
+        hop_count: bundle.hop_count,
+        created_at_ms: (bundle.created_at as i64) * 1000,
+        expires_at_ms: (bundle.expires_at as i64) * 1000,
+    };
+    serde_json::to_vec(&wire).unwrap_or_default()
+}
+
+fn decode_bundle(payload: &[u8]) -> Option<DtnBundle> {
+    let wire: BundleWire = serde_json::from_slice(payload).ok()?;
+    Some(DtnBundle {
+        id: wire.id,
+        sender_uhid: wire.sender_uhid,
+        recipient_uhid: wire.recipient_uhid,
+        encrypted_payload: wire.encrypted_payload,
+        priority: BundlePriority::from_u8(wire.priority),
+        status: BundleStatus::from_u8(wire.status),
+        copy_count: wire.copy_count,
+        max_copies: wire.max_copies,
+        sender_geohash: wire.sender_geohash,
+        recipient_last_geohash: wire.recipient_last_geohash,
+        hop_count: wire.hop_count,
+        created_at: (wire.created_at_ms / 1000) as u64,
+        expires_at: (wire.expires_at_ms / 1000) as u64,
+    })
+}
+
+fn unix_secs() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+}
+
+fn unix_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
