@@ -4,9 +4,11 @@ package aether.security
 
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair
 import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
+import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
+import java.security.SecureRandom
 
 /**
  * Ed25519 signing service using BouncyCastle.
@@ -26,10 +28,7 @@ object Ed25519Service {
      */
     fun generateKeyPair(): Pair<ByteArray, ByteArray> {
         val generator = Ed25519KeyPairGenerator()
-        generator.init(org.bouncycastle.crypto.KeyGenerationParameters(
-            org.bouncycastle.crypto.SecureRandom(),
-            256
-        ))
+        generator.init(Ed25519KeyGenerationParameters(SecureRandom()))
 
         val keyPair = generator.generateKeyPair()
         val privateKey = (keyPair.private as Ed25519PrivateKeyParameters).encoded

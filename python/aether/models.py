@@ -1,9 +1,28 @@
 """Core data models for the Aether mesh networking protocol."""
 
 from dataclasses import dataclass, field
+from enum import IntEnum, IntFlag
 from typing import Optional
-from datetime import datetime
-from uuid import UUID
+from datetime import datetime, timedelta
+from uuid import UUID, uuid4
+
+from aether import constants
+
+
+class NodeCapabilities(IntFlag):
+    """Bitfield representing node capabilities."""
+
+    NONE = 0
+    BLE = 1
+    WIFI_DIRECT = 2
+    GATEWAY = 4
+    RELAY = 8
+    SOS = 16
+    STREAMING = 32
+    VOICE = 64
+    DTN_CARRIER = 128
+    NEAR_LINK = 256
+    VIDEO = 512
 
 
 @dataclass
@@ -17,6 +36,7 @@ class PeerInfo:
     hop_count: Optional[int] = None
     geohash: Optional[str] = None
     capabilities: int = 0  # Bitfield of node capabilities
+    is_blocked: bool = False
 
 
 @dataclass
@@ -28,6 +48,10 @@ class RouteEntry:
     hop_count: int
     expires_at: datetime
     quality_score: int = 50  # Range: 0-100
+
+    @property
+    def is_expired(self) -> bool:
+        return datetime.utcnow() >= self.expires_at
 
 
 @dataclass
@@ -55,3 +79,85 @@ class AetherNode:
         if route is None or route.expires_at <= datetime.utcnow():
             return None
         return route
+
+
+class BundleStatus(IntEnum):
+    """Lifecycle state of a DTN bundle."""
+
+    PENDING = 0
+    IN_CUSTODY = 1
+    DELIVERED = 2
+    EXPIRED = 3
+    FAILED = 4
+
+
+class BundlePriority(IntEnum):
+    """Priority class influencing replication aggressiveness."""
+
+    LOW = 0
+    NORMAL = 1
+    HIGH = 2
+    SOS = 3
+
+
+@dataclass
+class DtnBundle:
+    """A delay-tolerant network bundle. Store-and-forward unit."""
+
+    sender_uhid: str
+    recipient_uhid: str
+    encrypted_payload: bytes
+    id: UUID = field(default_factory=uuid4)
+    priority: BundlePriority = BundlePriority.NORMAL
+    status: BundleStatus = BundleStatus.PENDING
+    copy_count: int = 1
+    max_copies: int = constants.DTN_MAX_COPIES
+    sender_geohash: Optional[str] = None
+    recipient_last_geohash: Optional[str] = None
+    hop_count: int = 0
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    expires_at: datetime = field(
+        default_factory=lambda: datetime.utcnow()
+        + timedelta(hours=constants.DTN_BUNDLE_TTL_HOURS)
+    )
+
+    @property
+    def is_expired(self) -> bool:
+        return datetime.utcnow() >= self.expires_at
+
+
+@dataclass
+class CustodyRecord:
+    """Record of a custody transfer between two nodes."""
+
+    bundle_id: UUID
+    from_uhid: str
+    to_uhid: str
+    accepted: bool
+    id: UUID = field(default_factory=uuid4)
+    transferred_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class DtnDeliveryReceipt:
+    """Receipt sent back to the original sender once a bundle is delivered."""
+
+    bundle_id: UUID
+    recipient_uhid: str
+    total_hops: int
+    total_custody_transfers: int
+    delivered_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class SosAlert:
+    """An SOS alert observed on the mesh — locally originated or received."""
+
+    sender_uhid: str
+    broadcast_type: str = "sos"
+    message: Optional[str] = None
+    latitude: float = 0.0
+    longitude: float = 0.0
+    geohash: Optional[str] = None
+    id: UUID = field(default_factory=uuid4)
+    received_at: datetime = field(default_factory=datetime.utcnow)

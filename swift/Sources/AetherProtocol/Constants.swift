@@ -5,8 +5,9 @@ import Foundation
 /// Protocol-level constants matching the Aether specification.
 public struct ProtocolConstants {
     // MARK: - Routing
-    public static let defaultTtl: UInt8 = 7
-    public static let sosTtl: UInt8 = 15
+    // Wire format is Int32 LE; constants typed Int32 so they assign directly into MeshPacket.ttl.
+    public static let defaultTtl: Int32 = 7
+    public static let sosTtl: Int32 = 15
     public static let routeTimeoutMs: Int = 5000
     public static let routeExpirySeconds: Int = 300
 

@@ -64,6 +64,48 @@ public interface IAetherBackendClient
     /// <returns>The pre-key bundle bytes, or null if unavailable.</returns>
     Task<byte[]?> FetchPreKeyBundleAsync(string targetUhid, CancellationToken cancellationToken = default)
         => Task.FromResult<byte[]?>(null);
+
+    /// <summary>
+    /// Optional fallback path for DTN bundles when no peer-to-peer route is available.
+    /// Backend implementations can store-and-forward the bundle until the recipient
+    /// reconnects. The default no-op returns false (offline-only mesh, no backend relay).
+    /// </summary>
+    /// <param name="bundle">The bundle to relay.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the backend accepted custody of the bundle for relay.</returns>
+    Task<bool> SyncDtnBundleAsync(Aether.Models.DtnBundle bundle, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
+
+    /// <summary>
+    /// Optional cloud path for SOS broadcasts. Mirrors mesh flooding so the alert reaches
+    /// emergency operators even if the originator has internet but the mesh has no carriers.
+    /// The default no-op returns false (mesh-only SOS).
+    /// </summary>
+    /// <param name="alert">The SOS alert to mirror to the backend.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the backend accepted the alert.</returns>
+    Task<bool> SyncSosAsync(Aether.Models.SosAlert alert, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
+
+    /// <summary>
+    /// Optional cloud-relay path for 1-to-1 messages when no peer-to-peer route is
+    /// available and DTN cannot accept custody. Used by the messaging layer as the
+    /// third send tier (mesh route → DTN → backend relay → fail). The default no-op
+    /// returns false, meaning the message stays in the outbox for retry.
+    /// </summary>
+    /// <param name="senderUhid">UHID of the sender.</param>
+    /// <param name="recipientUhid">UHID of the recipient.</param>
+    /// <param name="encryptedContent">Opaque ciphertext to relay.</param>
+    /// <param name="priority">Original packet priority.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the backend accepted the message for relay.</returns>
+    Task<bool> RelayMessageAsync(
+        string senderUhid,
+        string recipientUhid,
+        byte[] encryptedContent,
+        byte priority,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
 }
 
 /// <summary>

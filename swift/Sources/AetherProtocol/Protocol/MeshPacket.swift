@@ -19,7 +19,9 @@ public struct MeshPacket: Equatable {
     public var destinationUhid: String
 
     /// Time-to-live: decremented at each hop. Packet is dropped when TTL reaches 0.
-    public var ttl: UInt8
+    /// Wire format is 4-byte little-endian Int32; the model field matches that width
+    /// to avoid silent truncation on values > 255 (was a `UInt8` bug, fixed 2026-05-02).
+    public var ttl: Int32
 
     /// Priority level (higher = more urgent). SOS packets use priority 255.
     public var priority: UInt8
@@ -47,7 +49,7 @@ public struct MeshPacket: Equatable {
         type: PacketType,
         sourceUhid: String = "",
         destinationUhid: String = "",
-        ttl: UInt8 = ProtocolConstants.defaultTtl,
+        ttl: Int32 = ProtocolConstants.defaultTtl,
         priority: UInt8 = 0,
         payload: Data = Data(),
         createdAt: Date = Date(),

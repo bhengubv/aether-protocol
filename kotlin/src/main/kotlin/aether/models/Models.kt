@@ -196,4 +196,68 @@ data class DtnBundle(
         result = 31 * result + expiresAt.hashCode()
         return result
     }
+
+    fun isExpired(): Boolean = Instant.now() >= expiresAt
 }
+
+// ─────────────────────────────────────────────────────────
+// DTN extras (status / priority enums + custody + receipt)
+// ─────────────────────────────────────────────────────────
+
+enum class BundleStatus(val value: Int) {
+    Pending(0),
+    InCustody(1),
+    Delivered(2),
+    Expired(3),
+    Failed(4);
+
+    companion object {
+        fun fromValue(value: Int): BundleStatus = values().first { it.value == value }
+    }
+}
+
+enum class BundlePriority(val value: Int) {
+    Low(0),
+    Normal(1),
+    High(2),
+    Sos(3);
+
+    companion object {
+        fun fromValue(value: Int): BundlePriority = values().first { it.value == value }
+    }
+}
+
+/** A single custody-transfer record. */
+data class CustodyRecord(
+    val bundleId: java.util.UUID,
+    val fromUhid: String,
+    val toUhid: String,
+    val accepted: Boolean,
+    val id: java.util.UUID = java.util.UUID.randomUUID(),
+    val transferredAt: Instant = Instant.now()
+)
+
+/** Receipt sent back to the original sender once a bundle is delivered. */
+data class DtnDeliveryReceipt(
+    val bundleId: java.util.UUID,
+    val recipientUhid: String,
+    val totalHops: Int,
+    val totalCustodyTransfers: Int,
+    val deliveredAt: Instant = Instant.now()
+)
+
+// ─────────────────────────────────────────────────────────
+// SOS
+// ─────────────────────────────────────────────────────────
+
+/** An SOS alert observed on the mesh — locally originated or received. */
+data class SosAlert(
+    val senderUhid: String,
+    val broadcastType: String = "sos",
+    val message: String? = null,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val geohash: String? = null,
+    val id: java.util.UUID = java.util.UUID.randomUUID(),
+    val receivedAt: Instant = Instant.now()
+)

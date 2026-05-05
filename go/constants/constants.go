@@ -4,9 +4,10 @@ package constants
 
 // Routing constants
 const (
-	DefaultTtl      int32 = 7
-	SosTtl          int32 = 15
-	RouteTimeoutMs  int32 = 5000
+	DefaultTtl         int32 = 7
+	SosTtl             int32 = 15
+	DtnTtl             int32 = 30
+	RouteTimeoutMs     int32 = 5000
 	RouteExpirySeconds int32 = 300
 )
 
@@ -34,8 +35,11 @@ const (
 
 // SOS constants
 const (
-	SosPriority              byte  = 999
-	MaxSosBroadcastsPerHour  int32 = 3
+	// SosPriority is the priority value for SOS packets (max byte value).
+	// Was originally declared as 999 which did not fit in a byte; corrected
+	// to 255 to match the C# reference (ProtocolConstants.SosPriority).
+	SosPriority             byte  = 255
+	MaxSosBroadcastsPerHour int32 = 3
 )
 
 // DTN constants

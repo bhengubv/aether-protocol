@@ -12,8 +12,10 @@ pub const DEFAULT_TTL: i32 = 7;
 /// Time-to-live for SOS broadcast packets
 pub const SOS_TTL: i32 = 15;
 
-/// Priority level for SOS packets
-pub const SOS_PRIORITY: u8 = 999;
+/// Priority level for SOS packets (max byte value).
+/// Was originally 999 — invalid for a u8; corrected to 255 to match the
+/// C# reference (ProtocolConstants.SosPriority).
+pub const SOS_PRIORITY: u8 = 255;
 
 /// Maximum packet age in seconds
 pub const MAX_PACKET_AGE_SECONDS: u64 = 300;

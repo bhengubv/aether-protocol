@@ -4,10 +4,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if !defined(_WIN32)
+// arpa/inet.h was historically included for htons/htonl helpers, but the actual
+// serializer uses its own little-endian helpers below. Skip on Windows where the
+// header doesn't exist; non-Windows builds keep it as a no-op include for parity.
 #include <arpa/inet.h>
+#endif
 
 #include "aether/protocol.h"
 #include "aether/security.h"
+
+// ─── Cross-platform "current time in milliseconds since epoch" ─────
+// MSVC's CRT does not expose POSIX `clock_gettime`. Use timespec_get (C11)
+// which is available on every platform's stdc11 runtime.
+static int aether_now_timespec(struct timespec *ts) {
+    return timespec_get(ts, TIME_UTC) == TIME_UTC ? 0 : -1;
+}
+#define clock_gettime(_clk, _ts) aether_now_timespec(_ts)
+#ifndef CLOCK_REALTIME
+#define CLOCK_REALTIME 0
+#endif
 
 /**
  * Helper: Read little-endian uint16
@@ -294,9 +310,9 @@ aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data,
     if (offset >= data_len) goto error;
     packet->priority = data[offset++];
 
-    // TTL [4]
+    // TTL [4] — wire is little-endian int32; field is now int32_t, do not narrow to uint8_t
     if (offset + 4 > data_len) goto error;
-    packet->ttl = (uint8_t)read_le_i32(&data[offset]);
+    packet->ttl = read_le_i32(&data[offset]);
     offset += 4;
 
     // TimestampMs [8]

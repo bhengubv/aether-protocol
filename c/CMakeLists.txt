@@ -14,6 +14,9 @@ add_library(aether-protocol STATIC
     src/protocol.c
     src/security.c
     src/transport_inprocess.c
+    src/routing.c
+    src/dtn.c
+    src/sos.c
 )
 
 target_include_directories(aether-protocol
