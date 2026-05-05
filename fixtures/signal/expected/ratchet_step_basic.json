@@ -1,0 +1,6 @@
+{
+  "$schema": "Expected outputs for the ratchet_step_basic case. Validates HMAC-SHA256 with single-byte domain separation per Signal Double-Ratchet §5.1.",
+
+  "message_key_hex": "8f39ba53cc4c256791c114e80b5a44dde6f6fedb7b7b5dd8632da469798c41b0",
+  "next_chain_key_hex": "ad40e434449ee8d805faefd7c264a2e80e5b4d39683f54f4252127907be8ca07"
+}

@@ -19,7 +19,11 @@ var transportLogger = loggerFactory.CreateLogger<InProcessTransportService>();
 var signalLogger = loggerFactory.CreateLogger<SignalProtocolService>();
 var packetSigningLogger = loggerFactory.CreateLogger<PacketSigningService>();
 
-Console.Clear();
+// Console.Clear is safe interactively but throws when stdin is redirected
+// (CI runs, piped runs). Skip it in that case so the demo's smoke-test mode
+// still works.
+if (!Console.IsInputRedirected)
+    Console.Clear();
 PrintBanner();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -81,21 +85,35 @@ var testPacket = new MeshPacket
     Priority = 1
 };
 
-// Sign the packet payload with Alice's private key
-var signableBytes = PacketSerializer.Serialize(testPacket);
+// IMPORTANT for readers: the signature is NOT computed over the wire bytes.
+// It's computed over a separate canonical "signable data" buffer constructed
+// by PacketSigningService.BuildSignableData (see docs/PROTOCOL_SPEC.md §2.4).
+// Using the wire bytes for signing was an earlier-version bug that broke
+// cross-language signature verification — fixed 2026-05-02 / 2026-05-05.
+//
+// First populate the per-packet signing inputs (nonce + timestamp), then
+// compute the signable bytes, then sign.
+testPacket.PacketNonce = System.Security.Cryptography.RandomNumberGenerator.GetBytes(8);
+testPacket.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+var signableBytes = PacketSigningService.BuildSignableData(testPacket);
 var packetSignature = Ed25519SigningService.Sign(alicePrivKey, signableBytes);
 testPacket.Signature = packetSignature;
 
 PrintNode("Alice", ConsoleColor.Cyan,
     $"Signed packet {testPacket.Id.ToString()[..8]}... ({packetSignature.Length} byte Ed25519 signature)");
+PrintInfo($"Wire size: {PacketSerializer.Serialize(testPacket).Length} bytes; signable size: {signableBytes.Length} bytes — these are intentionally different (see PROTOCOL_SPEC.md §2.4).");
 
-// Bob verifies
-var signatureValid = Ed25519SigningService.Verify(alicePubKey, signableBytes, packetSignature);
+// Bob verifies — Bob reconstructs the signable bytes from the received
+// packet (the deserialized fields), independently of the wire bytes that
+// arrived, and checks the signature against that.
+var signableBytesAtReceiver = PacketSigningService.BuildSignableData(testPacket);
+var signatureValid = Ed25519SigningService.Verify(alicePubKey, signableBytesAtReceiver, packetSignature);
 PrintNode("Bob", ConsoleColor.Green,
     $"Signature verification: {(signatureValid ? "VALID" : "INVALID")}");
 
 // Tamper and re-verify
-var tamperedBytes = (byte[])signableBytes.Clone();
+var tamperedBytes = (byte[])signableBytesAtReceiver.Clone();
 tamperedBytes[0] ^= 0xFF; // flip one byte
 var tamperResult = Ed25519SigningService.Verify(alicePubKey, tamperedBytes, packetSignature);
 PrintWarning($"Tampered packet verification: {(tamperResult ? "VALID (BAD!)" : "REJECTED")} — forgery detected!");
@@ -122,24 +140,31 @@ PrintDetail($"  Signed pre-key: {Hex(bobBundle.SignedPreKey)}");
 PrintDetail($"  One-time key  : {Hex(bobBundle.PreKey)}");
 PrintDetail($"  SPK signature : {Hex(bobBundle.SignedPreKeySignature)}");
 
-// Alice processes Bob's bundle to establish outbound session
-PrintNode("Alice", ConsoleColor.Cyan, "Processing Bob's PreKeyBundle via X3DH...");
+// Alice processes Bob's bundle to establish her outbound session.
+// Real X3DH is asymmetric: only the initiator (Alice) processes a bundle.
+// The responder (Bob) auto-establishes his session when he receives Alice's
+// first PreKey message (Step 5 below).
+PrintNode("Alice", ConsoleColor.Cyan, "Processing Bob's PreKeyBundle via X3DH (4 DHs, X25519)...");
 await aliceSignal.ProcessPreKeyBundleAsync(bobBundle);
 
 var aliceHasSession = aliceSignal.HasSession(bobUhid);
 PrintNode("Alice", ConsoleColor.Cyan,
     $"Session with Bob: {(aliceHasSession ? "ESTABLISHED" : "FAILED")}");
 
-// Bob processes Alice's bundle for the reverse direction
-var aliceBundle = await aliceSignal.GeneratePreKeyBundleAsync(aliceUhid);
-await bobSignal.ProcessPreKeyBundleAsync(aliceBundle);
+// Alice still publishes a bundle so Bob (or anyone else) could initiate
+// to her later. Bob does NOT process it here — responder-side session
+// establishment happens automatically on first PreKey message receipt.
+PrintNode("Alice", ConsoleColor.Cyan, "Publishing Alice's own PreKeyBundle for future inbound sessions...");
+_ = await aliceSignal.GeneratePreKeyBundleAsync(aliceUhid);
 
 PrintNode("Bob", ConsoleColor.Green,
-    $"Session with Alice: {(bobSignal.HasSession(aliceUhid) ? "ESTABLISHED" : "FAILED")}");
+    $"Session with Alice: {(bobSignal.HasSession(aliceUhid) ? "ESTABLISHED" : "PENDING (auto-establishes on Alice's first message)")}");
 
 Console.WriteLine();
-PrintInfo("X3DH derives a shared secret from 2 Diffie-Hellman exchanges (P-256 ECDH).");
-PrintInfo("The shared secret seeds a Double Ratchet for forward secrecy per message.");
+PrintInfo("X3DH derives a shared secret from 4 Diffie-Hellman exchanges (X25519 ECDH):");
+PrintInfo("  DH1 = IK_A·SPK_B   DH2 = EK_A·IK_B   DH3 = EK_A·SPK_B   DH4 = EK_A·OPK_B");
+PrintInfo("EK is a fresh ephemeral keypair — it gives forward secrecy to the session.");
+PrintInfo("HKDF over DH1||DH2||DH3||DH4 yields the root key; chain keys ratchet via HMAC.");
 Pause();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -347,8 +372,8 @@ Console.WriteLine("""
   ║   [1] Ed25519 identity key generation                            ║
   ║   [2] In-process mesh transport with 3 simulated nodes           ║
   ║   [3] Packet signing with forgery detection                      ║
-  ║   [4] X3DH session establishment (Signal Protocol)               ║
-  ║   [5] AES-256-GCM end-to-end encrypted messaging                ║
+  ║   [4] X3DH session establishment (X25519, 4 DHs, forward secret) ║
+  ║   [5] AES-256-GCM end-to-end encrypted messaging                 ║
   ║   [6] Multi-hop relay (Charlie cannot read Alice's message)      ║
   ║   [7] Binary wire serialization (compact, efficient)             ║
   ║   [8] Forward secrecy via chain key ratchet                      ║
@@ -430,6 +455,9 @@ static void PrintWarning(string message)
 
 static void Pause()
 {
+    if (Console.IsInputRedirected)
+        return; // CI / piped — don't block on a keypress that won't come.
+
     Console.ForegroundColor = ConsoleColor.DarkGray;
     Console.WriteLine("\n  Press any key to continue...");
     Console.ResetColor();
@@ -437,7 +465,13 @@ static void Pause()
 }
 
 // ─── Minimal JSON serialization for EncryptedPayload ─────────────────────────
-// (Avoids adding System.Text.Json dependency for the payload record)
+// (Avoids adding System.Text.Json dependency for the payload record.)
+//
+// The PreKey-message fields (ik, ek, spki, opki) are only populated on the
+// first message after X3DH session establishment. They carry the initiator's
+// X25519 identity + ephemeral keys plus the bundle ids the initiator
+// consumed, so the responder can mirror the X3DH on its side and derive the
+// same root key. Subsequent messages omit them.
 
 static byte[] SerializeEncryptedPayload(EncryptedPayload p)
 {
@@ -447,7 +481,15 @@ static byte[] SerializeEncryptedPayload(EncryptedPayload p)
         n = Convert.ToBase64String(p.Nonce),
         t = p.MessageType,
         s = p.SenderUhid,
-        k = p.Counter
+        k = p.Counter,
+        ik = p.InitiatorIdentityKeyX25519 == null
+            ? null
+            : Convert.ToBase64String(p.InitiatorIdentityKeyX25519),
+        ek = p.InitiatorEphemeralKeyX25519 == null
+            ? null
+            : Convert.ToBase64String(p.InitiatorEphemeralKeyX25519),
+        spki = p.UsedSignedPreKeyId,
+        opki = p.UsedOneTimePreKeyId,
     };
     return Encoding.UTF8.GetBytes(JsonSerializer.Serialize(obj));
 }
@@ -456,10 +498,23 @@ static EncryptedPayload DeserializeEncryptedPayload(byte[] data)
 {
     using var doc = JsonDocument.Parse(data);
     var root = doc.RootElement;
+    byte[]? initiatorIK = null;
+    byte[]? initiatorEK = null;
+    if (root.TryGetProperty("ik", out var ikElem) && ikElem.ValueKind == JsonValueKind.String)
+        initiatorIK = Convert.FromBase64String(ikElem.GetString()!);
+    if (root.TryGetProperty("ek", out var ekElem) && ekElem.ValueKind == JsonValueKind.String)
+        initiatorEK = Convert.FromBase64String(ekElem.GetString()!);
+    var spki = root.TryGetProperty("spki", out var spkiElem) ? spkiElem.GetInt32() : 0;
+    var opki = root.TryGetProperty("opki", out var opkiElem) ? opkiElem.GetInt32() : 0;
+
     return new EncryptedPayload(
         Ciphertext: Convert.FromBase64String(root.GetProperty("c").GetString()!),
         Nonce: Convert.FromBase64String(root.GetProperty("n").GetString()!),
         MessageType: root.GetProperty("t").GetInt32(),
         SenderUhid: root.GetProperty("s").GetString()!,
-        Counter: root.GetProperty("k").GetInt32());
+        Counter: root.GetProperty("k").GetInt32(),
+        InitiatorIdentityKeyX25519: initiatorIK,
+        InitiatorEphemeralKeyX25519: initiatorEK,
+        UsedSignedPreKeyId: spki,
+        UsedOneTimePreKeyId: opki);
 }

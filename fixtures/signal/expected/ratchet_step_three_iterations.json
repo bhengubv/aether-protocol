@@ -1,0 +1,12 @@
+{
+  "$schema": "Expected outputs for three sequential Double-Ratchet steps. Each step: msgKey = HMAC-SHA256(chainKey, 0x01); nextChainKey = HMAC-SHA256(chainKey, 0x02). step_n_chain_key_after_hex feeds the next step.",
+
+  "step_0_message_key_hex": "c4ede064b5f2a51225b2175e5b84fb73f9cec689ac3d912ac4878f7ebeab0149",
+  "step_0_chain_key_after_hex": "ed50b271f4852277c8218e209858d8bd32a3228a9e4fb6b5a16fb9b4755c53bc",
+
+  "step_1_message_key_hex": "3ae0b32b3396b3b5f1c391a554ee4c04807763728ff759e94fe5d0774e65bafb",
+  "step_1_chain_key_after_hex": "470f794f516bce1286d94b5a9757e3499e3e330bac1232f758e5f573d5b8c937",
+
+  "step_2_message_key_hex": "fc7bd5543fbc88b5bfacfeb8e88a5ebd1203efa49a30ef9015ce6c6e0673357d",
+  "step_2_chain_key_after_hex": "34a3eea9d044bb8b97f03405d13fa887c10a040cd8b1878135bd2b65a13c0b9c"
+}
