@@ -213,8 +213,43 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
 
     public IAetherProtocolBuilder AddHealthChecks()
     {
-        // Health checks are registered by the follow-up commit that adds the
-        // four IHealthCheck implementations under HealthChecks/.
+        // Register the four protocol-level checks. The host is expected to
+        // have called services.AddHealthChecks() beforehand (which adds
+        // HealthCheckService); we register HealthCheckRegistration entries
+        // that the standard pipeline picks up.
+        Services.AddSingleton(sp => HealthChecks.RoutingHealthCheck.Create(sp));
+        Services.AddSingleton(sp => HealthChecks.DtnHealthCheck.Create(sp));
+        Services.AddSingleton(sp => HealthChecks.SignalProtocolHealthCheck.Create(sp));
+        Services.AddSingleton(sp => HealthChecks.MessagingOutboxHealthCheck.Create(sp));
+
+        Services.AddSingleton<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration>(
+            sp => new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+                "aether-routing",
+                sp.GetRequiredService<HealthChecks.RoutingHealthCheck>(),
+                failureStatus: null,
+                tags: new[] { "aether", "routing" }));
+
+        Services.AddSingleton<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration>(
+            sp => new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+                "aether-dtn",
+                sp.GetRequiredService<HealthChecks.DtnHealthCheck>(),
+                failureStatus: null,
+                tags: new[] { "aether", "dtn" }));
+
+        Services.AddSingleton<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration>(
+            sp => new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+                "aether-signal",
+                sp.GetRequiredService<HealthChecks.SignalProtocolHealthCheck>(),
+                failureStatus: null,
+                tags: new[] { "aether", "signal" }));
+
+        Services.AddSingleton<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration>(
+            sp => new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+                "aether-messaging-outbox",
+                sp.GetRequiredService<HealthChecks.MessagingOutboxHealthCheck>(),
+                failureStatus: null,
+                tags: new[] { "aether", "messaging" }));
+
         return this;
     }
 }
