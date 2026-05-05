@@ -140,6 +140,63 @@ bool aether_hkdf_sha256(const uint8_t *salt,
                        uint8_t *out_okm);
 
 /**
+ * X25519 key agreement primitives (RFC 7748).
+ *
+ * Used for the X3DH key exchange in the Signal Protocol layer. Public-key
+ * wire format: raw 32-byte little-endian Montgomery u-coordinate per RFC
+ * 7748 §6.1. No SEC1 prefix, no compressed/uncompressed flag — same encoding
+ * every Signal-Protocol-style implementation uses across the cross-language
+ * family.
+ */
+
+/** X25519 public key size in bytes. */
+#define AETHER_X25519_PUBLIC_KEY_SIZE 32U
+/** X25519 private key size in bytes. */
+#define AETHER_X25519_PRIVATE_KEY_SIZE 32U
+/** X25519 shared-secret size in bytes (output of one DH op). */
+#define AETHER_X25519_SHARED_SECRET_SIZE 32U
+
+/**
+ * Generate a fresh X25519 keypair.
+ *
+ * Output buffers (caller-allocated):
+ *   out_private: AETHER_X25519_PRIVATE_KEY_SIZE bytes
+ *   out_public:  AETHER_X25519_PUBLIC_KEY_SIZE bytes
+ *
+ * Returns: true on success.
+ */
+bool aether_x25519_generate_keypair(uint8_t *out_private,
+                                    uint8_t *out_public);
+
+/**
+ * Compute the X25519 ECDH shared secret. Returns 32 raw shared-secret bytes
+ * suitable for direct concatenation into an HKDF input.
+ *
+ * RFC 7748 §6.1 mandates that implementations check the result is not the
+ * all-zero point — that's a small-subgroup attack indicator via a low-order
+ * remote public key. This function returns false in that case.
+ *
+ * Output buffer (caller-allocated):
+ *   out_shared: AETHER_X25519_SHARED_SECRET_SIZE bytes
+ *
+ * Returns: true on success, false on the all-zero case or invalid pointers.
+ */
+bool aether_x25519_agree(const uint8_t *local_private,
+                         const uint8_t *remote_public,
+                         uint8_t *out_shared);
+
+/**
+ * Derive the X25519 public key from a raw private key (priv * Basepoint).
+ *
+ * Output buffer (caller-allocated):
+ *   out_public: AETHER_X25519_PUBLIC_KEY_SIZE bytes
+ *
+ * Returns: true on success.
+ */
+bool aether_x25519_derive_public(const uint8_t *private_key,
+                                 uint8_t *out_public);
+
+/**
  * Zero sensitive memory (constant-time, not optimized away).
  * Used for key material cleanup.
  */
