@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using Aether.Constants;
+using Aether.Diagnostics;
 using Aether.Extensibility;
 using Aether.Models;
 using Aether.Protocol;
@@ -145,8 +146,13 @@ public sealed class DtnService : IDtnService
         }
     }
 
-    public Task<int> ExpireStaleAsync(CancellationToken cancellationToken = default)
-        => _store.ExpireStaleAsync(cancellationToken);
+    public async Task<int> ExpireStaleAsync(CancellationToken cancellationToken = default)
+    {
+        var expired = await _store.ExpireStaleAsync(cancellationToken).ConfigureAwait(false);
+        if (expired > 0)
+            AetherTelemetry.DtnBundlesExpired.Add(expired);
+        return expired;
+    }
 
     public Task<IReadOnlyList<DtnBundle>> GetActiveBundlesAsync(CancellationToken cancellationToken = default)
         => _store.GetActiveAsync(cancellationToken);
@@ -194,6 +200,7 @@ public sealed class DtnService : IDtnService
         {
             bundle.Status = BundleStatus.Delivered;
             await _store.SaveAsync(bundle, cancellationToken).ConfigureAwait(false);
+            AetherTelemetry.DtnBundlesDelivered.Add(1);
             _logger.LogDebug("DTN bundle {Id} delivered locally — {Hops} hops", bundle.Id, bundle.HopCount);
             await SendDeliveryReceiptAsync(bundle, cancellationToken).ConfigureAwait(false);
             return;
@@ -205,6 +212,13 @@ public sealed class DtnService : IDtnService
             await SendCustodyAckAsync(bundle.Id, packet.SourceUhid, accepted: false, cancellationToken).ConfigureAwait(false);
             _logger.LogDebug("DTN custody refused for {Id} — at capacity ({Count})", bundle.Id, activeCount);
             return;
+        }
+
+        using var custodyActivity = AetherTelemetry.ActivitySource.StartActivity("Aether.Dtn.Custody");
+        if (custodyActivity is not null)
+        {
+            custodyActivity.SetTag("aether.bundle.id", bundle.Id);
+            custodyActivity.SetTag("aether.recipient.uhid", AetherTelemetry.SanitizeUhid(bundle.RecipientUhid));
         }
 
         bundle.Status = BundleStatus.InCustody;
@@ -221,6 +235,7 @@ public sealed class DtnService : IDtnService
         await SendCustodyAckAsync(bundle.Id, packet.SourceUhid, accepted: true, cancellationToken).ConfigureAwait(false);
         await _incentives.RecordRelayAsync(_sender.LocalUhid, packet, cancellationToken).ConfigureAwait(false);
 
+        AetherTelemetry.DtnBundlesAccepted.Add(1);
         _logger.LogDebug("DTN custody accepted for {Id} from {From} hops={Hops}",
             bundle.Id, packet.SourceUhid, bundle.HopCount);
     }
@@ -271,6 +286,7 @@ public sealed class DtnService : IDtnService
         {
             bundle.Status = BundleStatus.Delivered;
             await _store.SaveAsync(bundle, cancellationToken).ConfigureAwait(false);
+            AetherTelemetry.DtnBundlesDelivered.Add(1);
         }
 
         _logger.LogDebug("DTN delivery receipt — bundle {Id} delivered after {Hops} hops, {Transfers} custody transfers",

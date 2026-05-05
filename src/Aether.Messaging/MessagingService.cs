@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json;
+using Aether.Diagnostics;
 using Aether.Dtn;
 using Aether.Extensibility;
 using Aether.Messaging.Models;
@@ -87,6 +88,7 @@ public sealed class MessagingService : IMessagingService
             message.Status = MessageStatus.Pending;
             await _store.SaveAsync(message, cancellationToken).ConfigureAwait(false);
             SessionRequired?.Invoke(this, message.RecipientUhid);
+            AetherTelemetry.MessagingMessagesQueued.Add(1);
             _logger.LogDebug("Message {Id} queued — no Signal session with {Recipient}",
                 message.Id, message.RecipientUhid);
             return false;
@@ -173,6 +175,7 @@ public sealed class MessagingService : IMessagingService
             if (await _sender.SendAsync(packet, route.NextHopUhid, cancellationToken).ConfigureAwait(false))
             {
                 await _store.UpdateStatusAsync(message.Id, MessageStatus.Sent, cancellationToken).ConfigureAwait(false);
+                AetherTelemetry.MessagingMessagesSent.Add(1);
                 _logger.LogDebug("Message {Id} sent via mesh next-hop {Hop}", message.Id, route.NextHopUhid);
                 return true;
             }
@@ -188,6 +191,8 @@ public sealed class MessagingService : IMessagingService
                     : BundlePriority.Normal;
                 await _dtn.CreateBundleAsync(message.RecipientUhid, message.EncryptedContent, priority, recipientLastGeohash: null, cancellationToken).ConfigureAwait(false);
                 await _store.UpdateStatusAsync(message.Id, MessageStatus.Sent, cancellationToken).ConfigureAwait(false);
+                AetherTelemetry.MessagingDtnFallback.Add(1);
+                AetherTelemetry.MessagingMessagesSent.Add(1);
                 _logger.LogDebug("Message {Id} accepted as DTN bundle for {Recipient}", message.Id, message.RecipientUhid);
                 return true;
             }
@@ -205,6 +210,7 @@ public sealed class MessagingService : IMessagingService
                 if (await _backend.RelayMessageAsync(message.SenderUhid, message.RecipientUhid, message.EncryptedContent, message.Priority, cancellationToken).ConfigureAwait(false))
                 {
                     await _store.UpdateStatusAsync(message.Id, MessageStatus.Sent, cancellationToken).ConfigureAwait(false);
+                    AetherTelemetry.MessagingMessagesSent.Add(1);
                     _logger.LogDebug("Message {Id} accepted by backend relay for {Recipient}", message.Id, message.RecipientUhid);
                     return true;
                 }

@@ -2,6 +2,7 @@
 
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using Aether.Diagnostics;
 using Aether.Security.Models;
 using Microsoft.Extensions.Logging;
 
@@ -222,87 +223,112 @@ public sealed class SignalProtocolService : ISignalProtocolService
         ArgumentException.ThrowIfNullOrEmpty(peerUhid);
         ArgumentNullException.ThrowIfNull(plaintext);
 
-        if (!_sessions.TryGetValue(peerUhid, out var session))
-            throw new InvalidOperationException(
-                $"No session established with peer {LogSanitizer.SanitizeUhid(peerUhid)}");
-
-        var senderUhid = _localUhid ?? throw new InvalidOperationException(
-            "Local UHID is not set. Call GeneratePreKeyBundleAsync(localUhid) " +
-            "or SetLocalUhid(localUhid) before encrypting.");
-
-        // Lazy CKs initialization for the initiator's first send: the X3DH
-        // setup placed DHs and DHr but did not derive CKs (the Double
-        // Ratchet defers it until first send to avoid an extra KDF step
-        // when no message is ever sent on a session).
-        if (session.SendChainKey is null)
-        {
-            if (session.RemoteEphemeralPub is null)
-                throw new InvalidOperationException(
-                    "Cannot derive sending chain: peer's ratchet public key is unknown.");
-            DhRatchetSendOnly(session, session.RemoteEphemeralPub);
-        }
-
-        byte[]? messageKey = null;
+        // Activity is null when no listener is subscribed — the BCL fast-path.
+        // Tags are only built once we know we'll record them.
+        using var activity = AetherTelemetry.ActivitySource.StartActivity("Aether.Encrypt");
+        var stopwatch = ValueStopwatch.StartNew();
         try
         {
-            (session.SendChainKey, messageKey) = RatchetChainKey(session.SendChainKey!);
+            if (!_sessions.TryGetValue(peerUhid, out var session))
+                throw new InvalidOperationException(
+                    $"No session established with peer {LogSanitizer.SanitizeUhid(peerUhid)}");
 
-            var nonce = RandomNumberGenerator.GetBytes(AesNonceSize);
-            var ciphertext = new byte[plaintext.Length];
-            var tag = new byte[AesTagSize];
+            var senderUhid = _localUhid ?? throw new InvalidOperationException(
+                "Local UHID is not set. Call GeneratePreKeyBundleAsync(localUhid) " +
+                "or SetLocalUhid(localUhid) before encrypting.");
 
-            using var aes = new AesGcm(messageKey, AesTagSize);
-            aes.Encrypt(nonce, plaintext, ciphertext, tag);
-
-            var combined = new byte[ciphertext.Length + AesTagSize];
-            Buffer.BlockCopy(ciphertext, 0, combined, 0, ciphertext.Length);
-            Buffer.BlockCopy(tag, 0, combined, ciphertext.Length, AesTagSize);
-
-            var counter = session.SendCounter++;
-            var ratchetPub = (byte[])session.MyEphemeralPub.Clone();
-
-            // PreKey message? First message after initiator-side X3DH.
-            // Carries X3DH metadata so the responder can mirror the DHs.
-            if (session.PendingPreKeyMessage)
+            // Lazy CKs initialization for the initiator's first send: the X3DH
+            // setup placed DHs and DHr but did not derive CKs (the Double
+            // Ratchet defers it until first send to avoid an extra KDF step
+            // when no message is ever sent on a session).
+            if (session.SendChainKey is null)
             {
-                var preKey = new EncryptedPayload(
-                    Ciphertext: combined,
-                    Nonce: nonce,
-                    MessageType: 1,
-                    SenderUhid: senderUhid,
-                    Counter: counter,
-                    InitiatorIdentityKeyX25519: (byte[])session.InitiatorIdentityKeyX25519.Clone(),
-                    // Backward-compat field — equals SenderEphemeralKeyX25519 on the first message
-                    // because the initiator's X3DH ephemeral becomes its first DH-ratchet pubkey.
-                    InitiatorEphemeralKeyX25519: ratchetPub,
-                    UsedSignedPreKeyId: session.UsedSignedPreKeyId,
-                    UsedOneTimePreKeyId: session.UsedOneTimePreKeyId,
-                    SenderEphemeralKeyX25519: ratchetPub,
-                    PreviousChainCount: session.PreviousChainCount);
-
-                session.PendingPreKeyMessage = false;
-
-                _logger.LogDebug("Encrypted PreKey msg for {Peer}, counter={Counter}",
-                    LogSanitizer.SanitizeUhid(peerUhid), counter);
-                return Task.FromResult(preKey);
+                if (session.RemoteEphemeralPub is null)
+                    throw new InvalidOperationException(
+                        "Cannot derive sending chain: peer's ratchet public key is unknown.");
+                DhRatchetSendOnly(session, session.RemoteEphemeralPub);
             }
 
-            _logger.LogDebug("Encrypted msg for {Peer}, counter={Counter}",
-                LogSanitizer.SanitizeUhid(peerUhid), counter);
+            byte[]? messageKey = null;
+            try
+            {
+                (session.SendChainKey, messageKey) = RatchetChainKey(session.SendChainKey!);
 
-            return Task.FromResult(new EncryptedPayload(
-                Ciphertext: combined,
-                Nonce: nonce,
-                MessageType: 0,
-                SenderUhid: senderUhid,
-                Counter: counter,
-                SenderEphemeralKeyX25519: ratchetPub,
-                PreviousChainCount: session.PreviousChainCount));
+                var nonce = RandomNumberGenerator.GetBytes(AesNonceSize);
+                var ciphertext = new byte[plaintext.Length];
+                var tag = new byte[AesTagSize];
+
+                using var aes = new AesGcm(messageKey, AesTagSize);
+                aes.Encrypt(nonce, plaintext, ciphertext, tag);
+
+                var combined = new byte[ciphertext.Length + AesTagSize];
+                Buffer.BlockCopy(ciphertext, 0, combined, 0, ciphertext.Length);
+                Buffer.BlockCopy(tag, 0, combined, ciphertext.Length, AesTagSize);
+
+                var counter = session.SendCounter++;
+                var ratchetPub = (byte[])session.MyEphemeralPub.Clone();
+
+                // PreKey message? First message after initiator-side X3DH.
+                // Carries X3DH metadata so the responder can mirror the DHs.
+                if (session.PendingPreKeyMessage)
+                {
+                    var preKey = new EncryptedPayload(
+                        Ciphertext: combined,
+                        Nonce: nonce,
+                        MessageType: 1,
+                        SenderUhid: senderUhid,
+                        Counter: counter,
+                        InitiatorIdentityKeyX25519: (byte[])session.InitiatorIdentityKeyX25519.Clone(),
+                        // Backward-compat field — equals SenderEphemeralKeyX25519 on the first message
+                        // because the initiator's X3DH ephemeral becomes its first DH-ratchet pubkey.
+                        InitiatorEphemeralKeyX25519: ratchetPub,
+                        UsedSignedPreKeyId: session.UsedSignedPreKeyId,
+                        UsedOneTimePreKeyId: session.UsedOneTimePreKeyId,
+                        SenderEphemeralKeyX25519: ratchetPub,
+                        PreviousChainCount: session.PreviousChainCount);
+
+                    session.PendingPreKeyMessage = false;
+
+                    if (activity is not null)
+                    {
+                        activity.SetTag("aether.peer.uhid", LogSanitizer.SanitizeUhid(peerUhid));
+                        activity.SetTag("aether.message.type", 1);
+                        activity.SetTag("aether.message.counter", counter);
+                    }
+                    AetherTelemetry.MessagesEncrypted.Add(1);
+                    _logger.LogDebug("Encrypted PreKey msg for {Peer}, counter={Counter}",
+                        LogSanitizer.SanitizeUhid(peerUhid), counter);
+                    return Task.FromResult(preKey);
+                }
+
+                if (activity is not null)
+                {
+                    activity.SetTag("aether.peer.uhid", LogSanitizer.SanitizeUhid(peerUhid));
+                    activity.SetTag("aether.message.type", 0);
+                    activity.SetTag("aether.message.counter", counter);
+                }
+                AetherTelemetry.MessagesEncrypted.Add(1);
+                _logger.LogDebug("Encrypted msg for {Peer}, counter={Counter}",
+                    LogSanitizer.SanitizeUhid(peerUhid), counter);
+
+                return Task.FromResult(new EncryptedPayload(
+                    Ciphertext: combined,
+                    Nonce: nonce,
+                    MessageType: 0,
+                    SenderUhid: senderUhid,
+                    Counter: counter,
+                    SenderEphemeralKeyX25519: ratchetPub,
+                    PreviousChainCount: session.PreviousChainCount));
+            }
+            finally
+            {
+                if (messageKey != null)
+                    CryptographicOperations.ZeroMemory(messageKey);
+            }
         }
         finally
         {
-            if (messageKey != null)
-                CryptographicOperations.ZeroMemory(messageKey);
+            AetherTelemetry.EncryptLatency.Record(stopwatch.GetElapsedMilliseconds());
         }
     }
 
@@ -312,105 +338,126 @@ public sealed class SignalProtocolService : ISignalProtocolService
         ArgumentException.ThrowIfNullOrEmpty(peerUhid);
         ArgumentNullException.ThrowIfNull(payload);
 
-        // Every Double-Ratchet message carries the sender's current ratchet
-        // public key. Fall back to InitiatorEphemeralKeyX25519 for backward
-        // compatibility with older PreKey messages from peers that haven't
-        // upgraded to the new wire envelope.
-        var senderRatchetPub = payload.SenderEphemeralKeyX25519
-            ?? payload.InitiatorEphemeralKeyX25519;
-
-        // PreKey message? Establish the responder-side session via mirrored X3DH.
-        if (payload.MessageType == 1)
-        {
-            if (payload.InitiatorIdentityKeyX25519 == null || senderRatchetPub == null)
-                throw new CryptographicException(
-                    "PreKey message missing initiator key material " +
-                    "(InitiatorIdentityKeyX25519 and SenderEphemeralKeyX25519 / InitiatorEphemeralKeyX25519).");
-            EstablishResponderSession(peerUhid, payload, senderRatchetPub);
-        }
-
-        if (!_sessions.TryGetValue(peerUhid, out var session))
-            throw new InvalidOperationException(
-                $"No session established with peer {LogSanitizer.SanitizeUhid(peerUhid)}");
-
-        if (senderRatchetPub == null)
-            throw new CryptographicException(
-                "Message missing SenderEphemeralKeyX25519 — required for the Double Ratchet.");
-
-        // DH-ratchet step? Triggered when the peer's ratchet public key changes.
-        if (session.RemoteEphemeralPub == null
-            || !ConstantTimeEquals(senderRatchetPub, session.RemoteEphemeralPub))
-        {
-            // First, derive any skipped keys from the previous receive chain
-            // (the chain keyed by the OLD RemoteEphemeralPub). Then ratchet.
-            SkipMessageKeys(session, payload.PreviousChainCount);
-            DhRatchetReceive(session, senderRatchetPub);
-        }
-
-        byte[]? messageKey = null;
+        using var activity = AetherTelemetry.ActivitySource.StartActivity("Aether.Decrypt");
+        var stopwatch = ValueStopwatch.StartNew();
         try
         {
-            // Skipped key cached for this (DHr_pub, counter) pair?
-            var skippedKey = SkippedKey(senderRatchetPub, payload.Counter);
-            if (session.SkippedMessageKeys.TryGetValue(skippedKey, out var cached))
+            // Every Double-Ratchet message carries the sender's current ratchet
+            // public key. Fall back to InitiatorEphemeralKeyX25519 for backward
+            // compatibility with older PreKey messages from peers that haven't
+            // upgraded to the new wire envelope.
+            var senderRatchetPub = payload.SenderEphemeralKeyX25519
+                ?? payload.InitiatorEphemeralKeyX25519;
+
+            // PreKey message? Establish the responder-side session via mirrored X3DH.
+            if (payload.MessageType == 1)
             {
-                session.SkippedMessageKeys.Remove(skippedKey);
-                messageKey = cached;
+                if (payload.InitiatorIdentityKeyX25519 == null || senderRatchetPub == null)
+                    throw new CryptographicException(
+                        "PreKey message missing initiator key material " +
+                        "(InitiatorIdentityKeyX25519 and SenderEphemeralKeyX25519 / InitiatorEphemeralKeyX25519).");
+                EstablishResponderSession(peerUhid, payload, senderRatchetPub);
             }
-            else
+
+            if (!_sessions.TryGetValue(peerUhid, out var session))
+                throw new InvalidOperationException(
+                    $"No session established with peer {LogSanitizer.SanitizeUhid(peerUhid)}");
+
+            if (senderRatchetPub == null)
+                throw new CryptographicException(
+                    "Message missing SenderEphemeralKeyX25519 — required for the Double Ratchet.");
+
+            // DH-ratchet step? Triggered when the peer's ratchet public key changes.
+            if (session.RemoteEphemeralPub == null
+                || !ConstantTimeEquals(senderRatchetPub, session.RemoteEphemeralPub))
             {
-                if (session.RecvChainKey == null)
-                    throw new CryptographicException(
-                        "Receive chain not initialized (DH-ratchet step missing).");
+                // First, derive any skipped keys from the previous receive chain
+                // (the chain keyed by the OLD RemoteEphemeralPub). Then ratchet.
+                SkipMessageKeys(session, payload.PreviousChainCount);
+                DhRatchetReceive(session, senderRatchetPub);
 
-                var gap = payload.Counter - session.RecvCounter;
-                if (gap > MaxSkippedKeys)
-                    throw new CryptographicException(
-                        $"Message counter gap ({gap}) exceeds maximum ({MaxSkippedKeys}). " +
-                        "Session must be re-established.");
+                using var ratchetActivity = AetherTelemetry.ActivitySource.StartActivity("Aether.DhRatchet.Step");
+                if (ratchetActivity is not null)
+                    ratchetActivity.SetTag("aether.peer.uhid", LogSanitizer.SanitizeUhid(peerUhid));
+                AetherTelemetry.DhRatchetSteps.Add(1);
+            }
 
-                // Skip ahead, caching intermediate keys.
-                while (session.RecvCounter < payload.Counter)
+            byte[]? messageKey = null;
+            try
+            {
+                // Skipped key cached for this (DHr_pub, counter) pair?
+                var skippedKey = SkippedKey(senderRatchetPub, payload.Counter);
+                if (session.SkippedMessageKeys.TryGetValue(skippedKey, out var cached))
                 {
-                    byte[]? skipKey = null;
-                    try
+                    session.SkippedMessageKeys.Remove(skippedKey);
+                    messageKey = cached;
+                }
+                else
+                {
+                    if (session.RecvChainKey == null)
+                        throw new CryptographicException(
+                            "Receive chain not initialized (DH-ratchet step missing).");
+
+                    var gap = payload.Counter - session.RecvCounter;
+                    if (gap > MaxSkippedKeys)
+                        throw new CryptographicException(
+                            $"Message counter gap ({gap}) exceeds maximum ({MaxSkippedKeys}). " +
+                            "Session must be re-established.");
+
+                    // Skip ahead, caching intermediate keys.
+                    while (session.RecvCounter < payload.Counter)
                     {
-                        (session.RecvChainKey, skipKey) = RatchetChainKey(session.RecvChainKey!);
-                        session.SkippedMessageKeys[SkippedKey(senderRatchetPub, session.RecvCounter)] = skipKey;
-                        skipKey = null;
-                        session.RecvCounter++;
+                        byte[]? skipKey = null;
+                        try
+                        {
+                            (session.RecvChainKey, skipKey) = RatchetChainKey(session.RecvChainKey!);
+                            session.SkippedMessageKeys[SkippedKey(senderRatchetPub, session.RecvCounter)] = skipKey;
+                            skipKey = null;
+                            session.RecvCounter++;
+                        }
+                        finally
+                        {
+                            if (skipKey != null)
+                                CryptographicOperations.ZeroMemory(skipKey);
+                        }
                     }
-                    finally
-                    {
-                        if (skipKey != null)
-                            CryptographicOperations.ZeroMemory(skipKey);
-                    }
+
+                    (session.RecvChainKey, messageKey) = RatchetChainKey(session.RecvChainKey!);
+                    session.RecvCounter++;
                 }
 
-                (session.RecvChainKey, messageKey) = RatchetChainKey(session.RecvChainKey!);
-                session.RecvCounter++;
+                if (payload.Ciphertext.Length < AesTagSize)
+                    throw new CryptographicException("Ciphertext too short.");
+
+                var ciphertextLength = payload.Ciphertext.Length - AesTagSize;
+                var ciphertext = payload.Ciphertext.AsSpan(0, ciphertextLength);
+                var tag = payload.Ciphertext.AsSpan(ciphertextLength, AesTagSize);
+                var plaintext = new byte[ciphertextLength];
+
+                using var aes = new AesGcm(messageKey, AesTagSize);
+                aes.Decrypt(payload.Nonce, ciphertext, tag, plaintext);
+
+                if (activity is not null)
+                {
+                    activity.SetTag("aether.peer.uhid", LogSanitizer.SanitizeUhid(peerUhid));
+                    activity.SetTag("aether.message.type", payload.MessageType);
+                    activity.SetTag("aether.message.counter", payload.Counter);
+                }
+                AetherTelemetry.MessagesDecrypted.Add(1);
+                _logger.LogDebug("Decrypted msg from {Peer}, counter={Counter}",
+                    LogSanitizer.SanitizeUhid(peerUhid), payload.Counter);
+
+                return Task.FromResult(plaintext);
             }
-
-            if (payload.Ciphertext.Length < AesTagSize)
-                throw new CryptographicException("Ciphertext too short.");
-
-            var ciphertextLength = payload.Ciphertext.Length - AesTagSize;
-            var ciphertext = payload.Ciphertext.AsSpan(0, ciphertextLength);
-            var tag = payload.Ciphertext.AsSpan(ciphertextLength, AesTagSize);
-            var plaintext = new byte[ciphertextLength];
-
-            using var aes = new AesGcm(messageKey, AesTagSize);
-            aes.Decrypt(payload.Nonce, ciphertext, tag, plaintext);
-
-            _logger.LogDebug("Decrypted msg from {Peer}, counter={Counter}",
-                LogSanitizer.SanitizeUhid(peerUhid), payload.Counter);
-
-            return Task.FromResult(plaintext);
+            finally
+            {
+                if (messageKey != null)
+                    CryptographicOperations.ZeroMemory(messageKey);
+            }
         }
         finally
         {
-            if (messageKey != null)
-                CryptographicOperations.ZeroMemory(messageKey);
+            AetherTelemetry.DecryptLatency.Record(stopwatch.GetElapsedMilliseconds());
         }
     }
 
@@ -555,6 +602,10 @@ public sealed class SignalProtocolService : ISignalProtocolService
     {
         ArgumentNullException.ThrowIfNull(bundle);
 
+        using var activity = AetherTelemetry.ActivitySource.StartActivity("Aether.X3DH.Initiator");
+        if (activity is not null)
+            activity.SetTag("aether.peer.uhid", LogSanitizer.SanitizeUhid(bundle.Uhid));
+
         if (!Ed25519SigningService.Verify(bundle.IdentityKey, bundle.SignedPreKey, bundle.SignedPreKeySignature))
             throw new CryptographicException("Signed pre-key signature verification failed.");
 
@@ -607,6 +658,7 @@ public sealed class SignalProtocolService : ISignalProtocolService
             ephemeralPriv = null!; // session retains ownership
 
             _sessions[bundle.Uhid] = session;
+            AetherTelemetry.SessionsEstablished.Add(1);
 
             _logger.LogDebug("Established initiator session with {Peer} via X3DH (4 DHs, X25519)",
                 LogSanitizer.SanitizeUhid(bundle.Uhid));
@@ -635,6 +687,10 @@ public sealed class SignalProtocolService : ISignalProtocolService
     /// </summary>
     private void EstablishResponderSession(string peerUhid, EncryptedPayload payload, byte[] initiatorRatchetPub)
     {
+        using var activity = AetherTelemetry.ActivitySource.StartActivity("Aether.X3DH.Responder");
+        if (activity is not null)
+            activity.SetTag("aether.peer.uhid", LogSanitizer.SanitizeUhid(peerUhid));
+
         var initiatorIK = payload.InitiatorIdentityKeyX25519
             ?? throw new CryptographicException("PreKey message missing initiator identity key.");
 
@@ -691,6 +747,7 @@ public sealed class SignalProtocolService : ISignalProtocolService
             rootKey = null; // ownership transferred
 
             _sessions[peerUhid] = session;
+            AetherTelemetry.SessionsEstablished.Add(1);
 
             // Consume the one-time pre-key (zero + remove). Replay protection
             // at the bundle layer. Two concurrent PreKey messages racing for

@@ -2,6 +2,7 @@
 
 using System.Collections.Concurrent;
 using Aether.Constants;
+using Aether.Diagnostics;
 using Aether.Extensibility;
 using Aether.Models;
 using Aether.Protocol;
@@ -51,19 +52,53 @@ public sealed class RoutingService : IRoutingService
     public async Task<RouteEntry?> FindRouteAsync(string destinationUhid, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(destinationUhid);
-        await EnsureLoadedAsync().ConfigureAwait(false);
 
-        if (_routeCache.TryGetValue(destinationUhid, out var cached) && !cached.IsExpired)
-            return cached;
+        using var activity = AetherTelemetry.ActivitySource.StartActivity("Aether.Route.Lookup");
+        if (activity is not null)
+            activity.SetTag("aether.destination.uhid", AetherTelemetry.SanitizeUhid(destinationUhid));
 
-        var stored = await _store.GetAsync(destinationUhid, cancellationToken).ConfigureAwait(false);
-        if (stored is not null && !stored.IsExpired)
+        var stopwatch = ValueStopwatch.StartNew();
+        try
         {
-            _routeCache[destinationUhid] = stored;
-            return stored;
-        }
+            await EnsureLoadedAsync().ConfigureAwait(false);
 
-        return await DiscoverAsync(destinationUhid, cancellationToken).ConfigureAwait(false);
+            if (_routeCache.TryGetValue(destinationUhid, out var cached) && !cached.IsExpired)
+            {
+                AetherTelemetry.RouteCacheHits.Add(1);
+                if (activity is not null)
+                {
+                    activity.SetTag("aether.route.source", "cache");
+                    activity.SetTag("aether.route.hops", cached.HopCount);
+                }
+                return cached;
+            }
+
+            var stored = await _store.GetAsync(destinationUhid, cancellationToken).ConfigureAwait(false);
+            if (stored is not null && !stored.IsExpired)
+            {
+                _routeCache[destinationUhid] = stored;
+                AetherTelemetry.RouteCacheHits.Add(1);
+                if (activity is not null)
+                {
+                    activity.SetTag("aether.route.source", "store");
+                    activity.SetTag("aether.route.hops", stored.HopCount);
+                }
+                return stored;
+            }
+
+            var discovered = await DiscoverAsync(destinationUhid, cancellationToken).ConfigureAwait(false);
+            if (activity is not null)
+            {
+                activity.SetTag("aether.route.source", "discovery");
+                if (discovered is not null)
+                    activity.SetTag("aether.route.hops", discovered.HopCount);
+            }
+            return discovered;
+        }
+        finally
+        {
+            AetherTelemetry.RouteLookupLatency.Record(stopwatch.GetElapsedMilliseconds());
+        }
     }
 
     public RouteEntry? GetCachedRoute(string destinationUhid)
@@ -155,6 +190,7 @@ public sealed class RoutingService : IRoutingService
         };
         _routeCache[forward.DestinationUhid] = forward;
         await _store.SaveAsync(forward, cancellationToken).ConfigureAwait(false);
+        AetherTelemetry.RouteRepliesReceived.Add(1);
         _logger.LogDebug("Forward route installed to {Dest} via RREP", forward.DestinationUhid);
 
         if (routeReply.DestinationUhid == localUhid)
@@ -212,6 +248,7 @@ public sealed class RoutingService : IRoutingService
             Ttl = ProtocolConstants.DefaultTtl,
         };
 
+        AetherTelemetry.RouteRequestsEmitted.Add(1);
         var fanout = await _sender.BroadcastAsync(rreq, cancellationToken).ConfigureAwait(false);
         if (fanout == 0)
         {
