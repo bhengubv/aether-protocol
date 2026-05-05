@@ -8,6 +8,15 @@ namespace Aether.Constants;
 public static class ProtocolConstants
 {
     // ── Protocol version ─────────────────────────────────────────────
+    /// <summary>
+    /// Wire-format protocol version emitted into <c>MeshPacket.ProtocolVersion</c>.
+    /// Value <c>2</c> indicates a signed packet.
+    /// Note: <c>docs/PROTOCOL_SPEC.md</c> Appendix A names this constant
+    /// <c>ProtocolVersionSigned</c>; that is the canonical cross-language name.
+    /// The C# constant is currently unreferenced — <c>MeshPacket</c>,
+    /// <c>PacketSerializer</c>, and <c>PacketSigningService</c> all carry the
+    /// literal <c>2</c>. Kept here as the single source of truth for the value.
+    /// </summary>
     public const byte CurrentProtocolVersion = 2;
 
     // ── TTL defaults ─────────────────────────────────────────────────
@@ -118,24 +127,44 @@ public static class ProtocolConstants
     /// <summary>Maximum video jitter buffer depth (ms).</summary>
     public const int VideoJitterBufferMaxMs = 500;
 
-    /// <summary>Watch-together target buffer ahead of playback (seconds).</summary>
+    /// <summary>
+    /// Watch-together target buffer ahead of playback (seconds).
+    /// Spec name (<c>docs/PROTOCOL_SPEC.md</c> Appendix A): <c>WatchTogetherBufferAheadSeconds</c>.
+    /// </summary>
     public const int WatchBufferAheadSeconds = 30;
 
-    /// <summary>Watch-together minimum buffer before auto-pause (seconds).</summary>
+    /// <summary>
+    /// Watch-together minimum buffer before auto-pause (seconds).
+    /// Spec name (<c>docs/PROTOCOL_SPEC.md</c> Appendix A): <c>WatchTogetherMinBufferSeconds</c>.
+    /// </summary>
     public const int WatchMinBufferSeconds = 10;
 
     /// <summary>Participant count at which group video switches from FullMesh to SFU.</summary>
     public const int SfuThresholdParticipants = 4;
 
     // ── Content verification ─────────────────────────────────────────
-    /// <summary>Default chunk size for content transfer (bytes).</summary>
+    /// <summary>
+    /// Default chunk size for content transfer (bytes).
+    /// Canonical runtime value is <c>8 192</c> — used by
+    /// <c>ContentDescriptor</c> and the swarm/torrent piece-to-chunk mapping
+    /// described in <c>docs/VIDEO_STREAMING.md</c>. <c>docs/PROTOCOL_SPEC.md</c>
+    /// Appendix A currently lists <c>DefaultChunkSizeBytes = 262144</c>; that
+    /// is a spec drift tracked under OPEN_ISSUES.md item 4 — runtime wins.
+    /// </summary>
     public const int DefaultChunkSizeBytes = 8_192;
 
     /// <summary>Maximum number of concurrent chunk transfers per peer.</summary>
     public const int MaxConcurrentChunkTransfers = 4;
 
     // ── SOS ──────────────────────────────────────────────────────────
-    /// <summary>Priority value for SOS packets (maximum urgency).</summary>
+    /// <summary>
+    /// Priority value for SOS packets (maximum urgency).
+    /// Canonical value is <c>255</c> — the byte-field maximum — and every
+    /// other-language port (Go/Rust/Kotlin/Swift/TypeScript/Python/C) anchors
+    /// on this constant. <c>docs/PROTOCOL_SPEC.md</c> Appendix A currently
+    /// lists <c>SosPriority = 999</c>, which is impossible in a byte field;
+    /// that is a spec drift tracked under OPEN_ISSUES.md item 4.
+    /// </summary>
     public const byte SosPriority = 255;
 
     /// <summary>How long SOS state remains active after broadcast (seconds).</summary>
