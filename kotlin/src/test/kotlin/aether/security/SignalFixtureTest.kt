@@ -11,6 +11,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -205,6 +206,147 @@ class SignalFixtureTest {
         assertEquals(32, bundle.signedPreKey.size)
         assertEquals(32, bundle.preKey.size)
         assertEquals(64, bundle.signedPreKeySignature.size)
+    }
+
+    // ─── Double Ratchet (Signal §5) tests ──────────────────────────────────
+
+    @Test
+    fun `DoubleRatchet every message carries sender ephemeral key`() {
+        val alice = SignalProtocol()
+        val bob = SignalProtocol()
+        val bobBundle = bob.generatePreKeyBundle("bob")
+        alice.generatePreKeyBundle("alice")
+        alice.processPreKeyBundle(bobBundle)
+
+        val first = alice.encrypt("bob", "a".toByteArray())
+        assertNotNull(first.senderEphemeralKeyX25519)
+        assertEquals(32, first.senderEphemeralKeyX25519!!.size)
+
+        bob.decrypt("alice", first)
+
+        // Subsequent message also carries senderEphemeralKeyX25519 (same value
+        // — Alice hasn't ratcheted because Bob hasn't responded yet).
+        val second = alice.encrypt("bob", "b".toByteArray())
+        assertNotNull(second.senderEphemeralKeyX25519)
+        assertEquals(hex(first.senderEphemeralKeyX25519!!), hex(second.senderEphemeralKeyX25519!!))
+    }
+
+    @Test
+    fun `DoubleRatchet sender ephemeral key rotates after roundtrip`() {
+        val alice = SignalProtocol()
+        val bob = SignalProtocol()
+        val bobBundle = bob.generatePreKeyBundle("bob")
+        alice.generatePreKeyBundle("alice")
+        alice.processPreKeyBundle(bobBundle)
+
+        // Alice -> Bob: Alice's first ratchet pub.
+        val aliceFirst = alice.encrypt("bob", "ping".toByteArray())
+        bob.decrypt("alice", aliceFirst)
+
+        // Bob -> Alice: Bob's first ratchet pub (rotated by responder DH ratchet).
+        val bobReply = bob.encrypt("alice", "pong".toByteArray())
+        assertNotNull(bobReply.senderEphemeralKeyX25519)
+        // Bob's ratchet pub MUST differ from Alice's (Bob rotated DHs on his
+        // DH-ratchet step).
+        assertNotEquals(hex(aliceFirst.senderEphemeralKeyX25519!!), hex(bobReply.senderEphemeralKeyX25519!!))
+
+        alice.decrypt("bob", bobReply)
+
+        // Alice -> Bob (after roundtrip): Alice rotates DHs on her own
+        // DH-ratchet step (when she received Bob's reply).
+        val aliceSecond = alice.encrypt("bob", "ping2".toByteArray())
+        assertNotEquals(hex(aliceFirst.senderEphemeralKeyX25519!!), hex(aliceSecond.senderEphemeralKeyX25519!!))
+        assertNotEquals(hex(bobReply.senderEphemeralKeyX25519!!), hex(aliceSecond.senderEphemeralKeyX25519!!))
+
+        // Bob can still decrypt Alice's new message.
+        val dec = bob.decrypt("alice", aliceSecond)
+        assertEquals("ping2", String(dec))
+    }
+
+    @Test
+    fun `DoubleRatchet previous chain count tracks messages per chain`() {
+        val alice = SignalProtocol()
+        val bob = SignalProtocol()
+        val bobBundle = bob.generatePreKeyBundle("bob")
+        alice.generatePreKeyBundle("alice")
+        alice.processPreKeyBundle(bobBundle)
+
+        // Alice sends 3 messages without a roundtrip.
+        for (i in 0 until 3) {
+            val enc = alice.encrypt("bob", "a$i".toByteArray())
+            // PN is 0 because this IS Alice's first chain.
+            assertEquals(0, enc.previousChainCount)
+            bob.decrypt("alice", enc)
+        }
+
+        // Bob sends a reply, triggering his DH-ratchet step.
+        val bobReply = bob.encrypt("alice", "hi".toByteArray())
+        // Bob's PN reflects however many messages Bob sent in his previous
+        // sending chain — which was 0 (Bob hadn't sent before his ratchet
+        // rotated his chain).
+        assertEquals(0, bobReply.previousChainCount)
+        alice.decrypt("bob", bobReply)
+
+        // Alice's next message after her DH-ratchet step. PN should be 3 —
+        // that's how many messages she sent on her previous chain before
+        // Bob's reply triggered her ratchet.
+        val aliceNew = alice.encrypt("bob", "a3".toByteArray())
+        assertEquals(3, aliceNew.previousChainCount)
+    }
+
+    @Test
+    fun `DoubleRatchet out-of-order across DH-ratchet boundary still decrypts`() {
+        // Alice sends 3 messages on chain 1. Bob receives only the first 2,
+        // then Alice does a DH-ratchet (Bob replied) and sends a 4th on chain
+        // 2. The 3rd message (from chain 1) arrives last — Bob must decrypt
+        // via the skipped-keys cache keyed by (Alice's old DHs pub, counter=2).
+        val alice = SignalProtocol()
+        val bob = SignalProtocol()
+        val bobBundle = bob.generatePreKeyBundle("bob")
+        alice.generatePreKeyBundle("alice")
+        alice.processPreKeyBundle(bobBundle)
+
+        val a0 = alice.encrypt("bob", "a0".toByteArray())
+        val a1 = alice.encrypt("bob", "a1".toByteArray())
+        val a2 = alice.encrypt("bob", "a2".toByteArray())
+
+        // Bob receives a0, a1 only.
+        assertEquals("a0", String(bob.decrypt("alice", a0)))
+        assertEquals("a1", String(bob.decrypt("alice", a1)))
+
+        // Bob replies — triggers his DH-ratchet step.
+        val bReply = bob.encrypt("alice", "hi".toByteArray())
+        alice.decrypt("bob", bReply)
+
+        // Alice sends a4 on her new chain (after her DH-ratchet step).
+        val a4 = alice.encrypt("bob", "a4".toByteArray())
+        // Bob receives a4 — triggers his second DH-ratchet step. He must
+        // skip-derive a key for Alice's old chain counter=2 because PN=3.
+        assertEquals("a4", String(bob.decrypt("alice", a4)))
+
+        // Now the missing a2 (from Alice's OLD chain) finally arrives. Bob
+        // pulls the skipped key from cache.
+        assertEquals("a2", String(bob.decrypt("alice", a2)))
+    }
+
+    @Test
+    fun `DoubleRatchet long conversation all messages decrypt`() {
+        val alice = SignalProtocol()
+        val bob = SignalProtocol()
+        val bobBundle = bob.generatePreKeyBundle("bob")
+        alice.generatePreKeyBundle("alice")
+        alice.processPreKeyBundle(bobBundle)
+
+        // 10 alternating messages — each side ratchets at every roundtrip.
+        for (i in 0 until 10) {
+            val aMsg = "alice $i"
+            val aEnc = alice.encrypt("bob", aMsg.toByteArray())
+            assertEquals(aMsg, String(bob.decrypt("alice", aEnc)))
+
+            val bMsg = "bob $i"
+            val bEnc = bob.encrypt("alice", bMsg.toByteArray())
+            assertEquals(bMsg, String(alice.decrypt("bob", bEnc)))
+        }
     }
 
     // ─── Helpers ───────────────────────────────────────────────────────────
