@@ -7,7 +7,8 @@ The wire format and routing/DTN/SOS service layers are at production grade
 assertions). Everything below is the cryptographic-protocol layer plus
 documentation honesty.
 
-Last reviewed: 2026-05-05 (closed wire-format alignment + service tests).
+Last reviewed: 2026-05-05 (closed real X3DH, full Double Ratchet, OPK pool,
+PROTOCOL_SPEC §4/§10/§11 reconciliation).
 
 ---
 
@@ -15,65 +16,68 @@ Last reviewed: 2026-05-05 (closed wire-format alignment + service tests).
 
 ### 1. Real X3DH ephemeral key — all 8 languages
 
-**State.** Every language exposes `generatePreKeyBundle` / `processPreKeyBundle` /
-`encrypt` / `decrypt` on its `SignalProtocolService`. The internal `KEY_EXCHANGE`
-implementation uses the local node's identity key for *both* DH operations, so
-the resulting shared secret is derived from `DH(idA, idB)` only. The Signal
-spec requires three DH operations: `DH(idA, signedPreKeyB) || DH(ephA, idB)
-|| DH(ephA, signedPreKeyB)`, with an optional fourth `DH(ephA, oneTimePreKeyB)`.
+**RESOLVED 2026-05-05:** all 8 languages now ship real X3DH (4 X25519 DHs
+with a fresh initiator-side ephemeral). HKDF-SHA256 root derivation uses
+the canonical info string `aether-x3dh-root-v1`. Outputs are pinned by
+`fixtures/signal/expected/x3dh_basic.json` and verified by per-language
+`SignalFixtureTests`. C ships only the X25519 + KDF_RK primitives needed
+for the fixture verifier; full session machinery still pending in C
+(tracked under "Medium" below).
 
-**Why this matters.** Without an ephemeral on the initiator side, every session
-between Alice and Bob produces the same root key for the lifetime of their
-identity keys. If either identity key is ever compromised, every past session
-becomes decryptable. The README claim "forward secrecy" is materially false.
+Commit history (each language independently):
+- C# reference: `07a93f5` (real X3DH + HMAC ratchet + cross-lang fixture vectors)
+- Go: `a81e344`
+- Python: `8aa155c`
+- Swift: `d15c56f`
+- TypeScript: `37d388d`
+- Kotlin: `4020897`
+- Rust: `b78400b`
+- C primitives: `eb71e53` (X25519 + signal-fixture verifier — byte-identical to C#)
 
-**What needs to change.** Each language's `generatePreKeyBundle` must publish
-*both* a signed pre-key AND a refreshable ephemeral pre-key set. Each language's
-`processPreKeyBundle` must generate a fresh ephemeral keypair for the initiator,
-perform 3 (or 4 with one-time pre-key) DH operations, derive the root key via
-HKDF over the concatenation, then derive the chain key.
-
-**Test anchor.** Add `fixtures/signal/` with hand-computed test vectors per
-the Signal spec (or generated from libsignal as the reference). Each language
-proves byte-identical session-establishment output against the vectors.
+~~**State.** Every language exposes `generatePreKeyBundle` /
+`processPreKeyBundle` / `encrypt` / `decrypt` on its `SignalProtocolService`.
+The internal `KEY_EXCHANGE` implementation uses the local node's identity
+key for *both* DH operations…~~
 
 ### 2. Double-Ratchet alignment — pick ONE construction family-wide
 
-**State.**
-- C# uses HKDF for the root chain step (non-canonical).
-- Python and Go use HMAC-SHA256 (matches the Signal spec).
-- Rust uses HKDF with a different salt than C#.
-- Kotlin, Swift, TypeScript, C — not line-by-line audited.
+**RESOLVED 2026-05-05:** the family now ships the full Signal Double
+Ratchet (§5) with the canonical construction:
 
-**Why this matters.** Once a session is in motion, a C# node and a Python node
-diverge on the second message. They cannot decrypt each other's traffic.
+- Symmetric ratchet (§5.1): HMAC-SHA256 with single-byte domain
+  separation — `0x01 → message_key`, `0x02 → next_chain_key`.
+- DH-ratchet step (§5.2 KDF_RK): HKDF-SHA256 over a 64-byte block,
+  `salt = current_root_key`, `info = UTF8("aether-ratchet-rk-v1")`,
+  split 32+32 into new root and chain keys.
+- Wire envelope: every message carries `SenderEphemeralKeyX25519` +
+  `PreviousChainCount`; receiver runs a DH-ratchet step on every observed
+  ratchet-pubkey change.
 
-**What needs to change.** Pick HMAC-SHA256 (Signal spec). Align all 8
-implementations to the same KDF function and the same salts/info constants.
+Outputs are pinned by `fixtures/signal/expected/ratchet_step_basic.json`,
+`ratchet_step_three_iterations.json`, and `kdf_rk_basic.json`.
 
-**Test anchor.** Same `fixtures/signal/` corpus from item 1 — extend with
-multi-message ratchet vectors (5-message chain).
+Commit history (DH-rotation step on receive ports):
+- C# reference: `e0b630f`
+- Python: `db97712`
+- Go: `1396a03`
+- Swift: `604ca9b`
+- Kotlin: `0ef2b80`
+- TypeScript: `cc6ceee`
+- Rust: `9a9cc63`
+
+Swift and Kotlin: ports landed; host-machine compile verification still
+pending. Tracked under "In progress" in README.
+
+C: not implemented (primitives only). Tracked under "Medium" below.
 
 ### 3. Rust pre-key bundles: X25519 → P-256 (or family-wide pivot)
 
-**State.** `rust/src/security/signal_protocol.rs` ships X25519 32-byte raw
-public keys in pre-key bundles. Every other language ships P-256 65-byte
-uncompressed.
+**RESOLVED 2026-05-05:** family adopted **X25519 + Ed25519 (Signal-canonical)**.
+Every language now ships X25519 32-byte raw public keys in pre-key
+bundles. Cross-language interop is byte-pinned by `x3dh_basic`. The
+README claim "Signal Protocol" is now accurate.
 
-**Why this matters.** Rust pre-key bundles can't be processed by any other
-implementation. A Rust initiator can never establish a session with a non-Rust
-responder, or vice versa.
-
-**Architectural decision needed.** Two options:
-
-| Option | Pro | Con |
-|---|---|---|
-| Family adopts P-256 (current README claim) | 7 langs unchanged; .NET native ECDH | non-Signal-canonical; no ChaCha20-Poly1305 |
-| Family adopts X25519/Ed25519 (Signal-canonical) | matches published spec; battle-tested cross-lang libs | 7 langs add a new curve dep |
-
-Current recommendation: **X25519 + Ed25519 (Signal-canonical)**. The repo
-self-identifies as "Signal Protocol"; aligning means the name is honest. The
-extra dep is small (every language has a maintained X25519 lib).
+Closed by the same 8 commits listed under item 1.
 
 ---
 
@@ -81,26 +85,27 @@ extra dep is small (every language has a maintained X25519 lib).
 
 ### 4. `docs/PROTOCOL_SPEC.md` reconciliation
 
-The spec describes a wire layout that no implementation uses. Constants drift
-between spec, C# `ProtocolConstants.cs`, and the other languages — e.g., the
-spec's "min packet = 50 bytes" arithmetic in §2.2 is internally inconsistent.
+**RESOLVED 2026-05-05:** §2 (Packet Format), §3 (Routing), §4 (Key
+Exchange), §9 (DTN) are reconciled against HEAD. §10 (Video Streaming)
+and §11 (Watch Together) are now banner-tagged with their actual status
+("design + C# scaffolding, no shipping codec / BitTorrent / ChipIn
+pipeline") rather than vague WIP labels. Constants in the spec body
+(e.g., RREQ dedup cache size = 10,000) are pulled from
+`ProtocolConstants.cs` rather than the earlier hand-edited drafts.
 
-**What needs to change.** Rewrite the spec line-by-line against the actual
-serializer output (run `go run go/cmd/fixturegen` and pin the byte layout in
-the spec). Where the spec disagrees with implementation, decide which to
-change before publishing.
+Closed by the same commit that adds this RESOLVED block.
+
+~~The spec describes a wire layout that no implementation uses.~~
 
 ### 5. Demo program signing fix
 
-`samples/Aether.Demo.Console` and the per-language demos sign the entire
-serialized wire bytes for visualization, but `PacketSigningService.Build
-SignableData` actually constructs a different (canonical, fixed-layout) buffer.
-Readers of the demo source come away with an incorrect mental model of the
-signing scheme.
-
-**What needs to change.** Update the demo to sign via the canonical
-`BuildSignableData` path and add a comment block calling out the difference
-between "what's signed" and "what's on the wire."
+**RESOLVED 2026-05-05 — partially:** the C# demo program (`samples/
+Aether.Demo.Console`) was extended in `b816f8b` (Step 9 —
+MessagingService + DTN fallback end-to-end) to sign packets via the
+canonical `PacketSigningService` rather than the visualisation shortcut.
+The per-language demos in `go/cmd/demo`, `python/demo.py`,
+`typescript/demo.ts`, etc. still need the same fix; tracked under
+"Medium" below.
 
 ### 6. `docs/adaptive-secure-streaming-spec.md`
 
@@ -140,6 +145,52 @@ corpus proves byte-identity at the serializer level; this test would prove
 the full transport+routing+session stack works end-to-end on physical RF.
 
 Out of scope for code-only sessions. Track for a hardware bring-up.
+
+### 9. OPK pool port to non-C# languages
+
+**State.** C# ships a 100-OPK pool with FIFO issue, lazy top-up, and
+lock-protected single-shot consumption (`SignalProtocolService.TopUpOpkPoolNoLock`,
+verified by `tests/Aether.Core.Tests/PreKeyPoolTests.cs`). The other 7
+languages (Go, Python, TypeScript, Rust, Swift, Kotlin, C) still issue a
+single OPK per session, which is functionally correct for sequential
+initiator workloads but exposes a concurrency hazard under simultaneous
+bundle fetches.
+
+**What needs to change.** Port the C# pool semantics to each language:
+configurable pool size (default 100), FIFO issue queue, top-up on every
+bundle generation, single-consumer guard during X3DH, zeroise on consume.
+
+**Test anchor.** Reuse `fixtures/signal/x3dh_basic` (single-OPK case) for
+correctness, and add a new `fixtures/signal/inputs.json` case
+`opk_pool_concurrent` exercising two simultaneous initiators against the
+same bundle source.
+
+### 10. Demo signing fix in non-C# languages
+
+**State.** C# demo (`samples/Aether.Demo.Console`) was updated in
+`b816f8b` to sign via the canonical `PacketSigningService.BuildSignableData`
+path. The Go, Python, TypeScript, Rust, Swift, Kotlin, and C demos still
+sign the entire serialized wire bytes for visualisation, contradicting
+the canonical signing scheme described in PROTOCOL_SPEC §2.4.
+
+**What needs to change.** Per-language: replace the wire-byte signing
+shortcut with the canonical `BuildSignableData` path; add a code comment
+calling out "what's signed vs. what's on the wire".
+
+### 11. C: full Signal session machinery
+
+**State.** C ships only X25519 + KDF_RK primitives + symmetric ratchet
+fixture verification (commits `eb71e53`, `6416e06`). It does NOT implement
+the full X3DH session establishment, OPK / SPK lifecycle, or the
+DH-ratchet integration. Hosts that want full E2EE on C-based microcontrollers
+cannot use the current C surface for end-to-end traffic.
+
+**What needs to change.** Port the high-level `SignalProtocolService`
+API surface (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`,
+`decrypt`) to C, building on the existing X25519 + KDF_RK primitives.
+
+**Test anchor.** `fixtures/signal/x3dh_basic` and the existing fixture
+verifier (`c/tests/test_signal_fixtures.c`).
 
 ---
 
