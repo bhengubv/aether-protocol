@@ -68,7 +68,9 @@ Devices talk directly to each other using Bluetooth, WiFi Direct, or NearLink. N
        |  No internet. No servers. No ISP. Just devices talking.     |
 ```
 
-When a message can't reach its destination directly, it hops through other devices. Those relay devices can't read what they're carrying — every message is encrypted with AES-256-GCM inside a Signal Protocol session (X3DH key exchange + Double Ratchet). Every packet is signed with Ed25519 identity keys. Forged packets are dropped by the network.
+When a message can't reach its destination directly, it hops through other devices. Those relay devices can't read what they're carrying — every message is encrypted with AES-256-GCM. Every packet is signed with Ed25519 identity keys, and forged packets are dropped by the network.
+
+> **Security maturity note (read before shipping):** the API surface for Signal-Protocol-style session establishment (X3DH key exchange + Double Ratchet) is in place across all 8 languages, but the X3DH ephemeral-key step currently collapses to static-static DH and three different ratchet constructions are in use across the family. Forward-secrecy and cross-language session interop are *not* yet at production grade — see Roadmap → Partially implemented for the open work and `OPEN_ISSUES.md` for the remediation plan.
 
 No accounts, no phone numbers, no emails. You generate a keypair and you're on the network.
 
@@ -79,8 +81,8 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
   │ Messaging · Streaming · Voice   │
   │ Video · Watch Together          │
   ├─────────────────────────────────┤
-  │  Security: Signal Protocol      │
-  │  AES-256-GCM · Ed25519 · X3DH  │
+  │  Security: AES-256-GCM · Ed25519│
+  │  X3DH/Ratchet API in progress   │
   ├─────────────────────────────────┤
   │  Routing: AODV + DTN            │
   ├─────────────────────────────────┤
@@ -102,16 +104,20 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
 
 Aether is built in 8 languages so it runs on phones, laptops, tablets, and microcontrollers. All implementations produce wire-compatible packets — a message encrypted by the Rust node can be relayed by the Python node and decrypted by the Swift node.
 
-| Language | Directory | Status |
-|----------|-----------|--------|
-| C# (.NET 10) | `src/` | Reference implementation |
-| Rust | `rust/` | Complete |
-| TypeScript | `typescript/` | Complete |
-| Python | `python/` | Complete |
-| Go | `go/` | Complete |
-| Kotlin | `kotlin/` | Complete |
-| Swift | `swift/` | Complete |
-| C | `c/` | Complete |
+| Language | Directory | Wire format | Routing/DTN/SOS | Forward-secrecy crypto |
+|----------|-----------|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ⚠ partial (see Roadmap) |
+| Rust | `rust/` | ✅ | ✅ | ⚠ partial |
+| TypeScript | `typescript/` | ✅ | ✅ | ⚠ partial |
+| Python | `python/` | ✅ | ✅ | ⚠ partial |
+| Go | `go/` | ✅ | ✅ | ⚠ partial |
+| Kotlin | `kotlin/` | ✅ | ✅ | ⚠ partial |
+| Swift | `swift/` | ✅ | ✅ | ⚠ partial |
+| C | `c/` | ✅ | ✅ | ⚠ partial |
+
+All 8 languages produce byte-identical wire packets, verified by 122 cross-language fixture assertions in CI (`fixtures/expected/*.bin`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, and SOS broadcast services are implemented in every language with ~280 unit tests anchoring the per-service invariants.
+
+Forward-secrecy crypto is "partial" because every language currently collapses X3DH to static-static DH and three different Double-Ratchet variants are in use. Don't ship privacy-critical traffic on this until those land — see Roadmap.
 
 ## Quickstart
 
@@ -361,35 +367,47 @@ aether_packet_free(packet);
 
 What's built and what's next.
 
-**Done (cryptographic primitives, all 8 languages):**
+**Done (verified cross-language, all 8 implementations):**
+- Wire format: byte-identical across 8 languages, anchored by 10 canonical fixtures and 122 cross-language assertions in CI (`fixtures/expected/*.bin`)
 - Ed25519 packet signing and verification
 - AES-256-GCM encryption
-- HKDF / HMAC key derivation
-- Packet serialization (wire format; cross-language interop has known gaps — see Caveats below)
+- HKDF / HMAC key derivation primitives
+- Packet serialization + signing layout (LE + 4-byte int32 fields)
 - In-process transport simulator (for development and tests)
-- Signal-Protocol-shaped session API surface (X3DH + ratchet methods exposed; see Caveats — current implementations use static-static DH, not full X3DH ephemeral)
+- AODV-inspired routing service with RREQ/RREP, signed route replies, dedup, TTL forwarding
+- DTN store-and-forward service with custody transfer, geohash-aware replication, 72h TTL
+- SOS broadcast service with flood, dedup, self-origin guard, rate-limit (3/hr)
+- Extensibility seams: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop defaults)
+- ~280 service-level invariant tests across all 8 languages
 
-**Spec'd but NOT yet implemented in any language (despite earlier docs claiming otherwise):**
-- AODV routing with signed route replies
-- DTN store-and-forward (72h)
-- SOS broadcast flood
-- Voice and streaming with adaptive bitrate
+**Partially implemented — production gaps tracked under "Open":**
+- Signal-Protocol-shaped session API: X3DH + Double Ratchet methods exist in every language, but every implementation collapses X3DH to static-static DH (no ephemeral key). The forward-secrecy guarantee the API name implies is **not** delivered yet.
+- Three different Double-Ratchet constructions are in use across the family (C# uses HKDF, Python/Go use HMAC matching the spec, Rust uses HKDF with a different salt). Once a session is in motion, a C# node and a Python node cannot decrypt each other's messages.
+- Rust pre-key bundles use X25519 32-byte raw keys; every other language uses P-256 65-byte uncompressed. Rust pre-key bundles cannot be processed by any other implementation.
+
+**Spec'd, design doc only, no code:**
+- Voice and streaming with adaptive bitrate (`docs/adaptive-secure-streaming-spec.md` is a forward design doc; no implementation)
 - Video calls (P2P and group) with transport-aware codec negotiation
 - Watch Together: synchronized playback, BitTorrent ingest, ChipIn group funding
-- Full X3DH (ephemeral pre-key) — current code uses static-static DH
 
-**In progress:**
+**In progress (waiting on physical hardware or external infra):**
 - BLE GATT transport — real Bluetooth Low Energy communication
 - Wi-Fi Direct transport — direct device-to-device over WiFi
-- Double Ratchet full implementation — complete forward secrecy with header encryption
+- NearLink transport implementation
+- End-to-end two-node interop test on real BLE / Wi-Fi-Direct hardware
 
-**Caveats — known wire-compat gaps under audit (2026-05-02):**
-- C# `Guid` byte order is mixed-endian; the other 7 languages use RFC4122 big-endian. Same packet has different `Id` bytes between C# and the rest.
-- C# `PacketSigningService.BuildSignableData` uses big-endian + 1-byte Type; spec and the other 7 languages use little-endian + 4-byte LE Type. Signatures don't verify across the C# boundary.
-- Rust pre-key bundles use X25519; the other languages use P-256. Pre-key bundles do not interop.
-- Three different ratchet constructions across languages (HKDF vs HMAC, different salts).
+**Open — tracked in `OPEN_ISSUES.md`:**
+- Real X3DH ephemeral key in all 8 languages (closes the static-static DH gap)
+- Pick one Double-Ratchet variant family-wide (HMAC matches the Signal published spec) and align the other languages
+- Rust pre-key bundles: X25519 → P-256 (or family-wide pivot to X25519/Ed25519 — pending architectural decision)
+- `docs/PROTOCOL_SPEC.md` reconciliation against actual wire format
+- Demo program signing fix (currently signs entire wire bytes, contradicting `PacketSigningService.BuildSignableData`)
 
-These are tracked in the private repo's session-state TODO; remediation will be a coordinated cross-language pass with a fixture-based interop test.
+**Open for contribution:**
+- Android and iOS integration examples
+- Performance benchmarks across languages
+- Additional transport backends (LoRa, ultrasonic, etc.)
+- Protocol fuzzing and security audits
 
 **Open for contribution:**
 - NearLink transport implementation

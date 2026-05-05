@@ -99,7 +99,7 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
     /// signature interop with every other language. Fixed to little-endian + 4-byte i32s
     /// to match Go / Python / Rust / Kotlin / Swift / TS / C.
     /// </summary>
-    internal static byte[] BuildSignableData(MeshPacket packet)
+    public static byte[] BuildSignableData(MeshPacket packet)
     {
         var payloadHash = SHA256.HashData(packet.Payload);
         var sourceBytes = Encoding.UTF8.GetBytes(packet.SourceUhid);

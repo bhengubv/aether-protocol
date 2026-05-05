@@ -1,9 +1,20 @@
 # Aether Mesh Networking Protocol Specification
 
 **Version:** 2.0
-**Status:** Draft
-**Date:** 2026-03-15
+**Status:** Reconciliation in progress (2026-05-05)
+**Date:** 2026-03-15 (initial draft); 2026-05-05 (Section 2 reconciled)
 **Authors:** The Other Bhengu (Pty) Ltd t/a The Geek and Bhengu B.V.
+
+> **Reader notice.** Sections of this document predate the 8-language wire-
+> format alignment work and describe a wire layout no implementation uses.
+> Section 2 (Packet Format) was reconciled on 2026-05-05 against the
+> canonical Go reference serializer used to generate `fixtures/expected/*.bin`.
+> Sections marked `WIP` further down are still being reconciled — until those
+> banners are removed, treat the implementation source as authoritative:
+>
+> - Canonical wire bytes: `fixtures/expected/*.bin` (10 named cases)
+> - Reference serializer: `src/Aether.Core/Protocol/PacketSerializer.cs`
+> - Cross-language interop proof: `fixtures/README.md`
 
 ---
 
@@ -31,89 +42,126 @@ Aether is a decentralised mesh networking protocol designed for environments wit
 
 ## 2. Packet Format
 
-### 2.1. MeshPacket Structure
+> Reconciled 2026-05-05 against `src/Aether.Core/Protocol/PacketSerializer.cs`
+> and the 10 fixture cases under `fixtures/expected/`.
 
-Every Aether message is encapsulated in a `MeshPacket`. The logical fields are:
+### 2.1. MeshPacket Wire Layout
 
-| Field            | Type                     | Size                  | Description |
-|------------------|--------------------------|-----------------------|-------------|
-| PacketNonce      | bytes                    | 8 bytes               | Cryptographically random nonce for replay prevention |
-| TimestampMs      | uint64 (big-endian)      | 8 bytes               | Unix epoch milliseconds (UTC) |
-| ProtocolVersion  | uint8                    | 1 byte                | `1` = unsigned (legacy), `2` = signed (current) |
-| Type             | uint8                    | 1 byte                | Packet type enumeration (see Section 2.3) |
-| Ttl              | uint8                    | 1 byte                | Time-to-live, decremented at each hop |
-| Priority         | uint8                    | 1 byte                | Priority level (0 = normal, 999 = SOS) |
-| SourceUhid       | length-prefixed UTF-8    | 4 + N bytes           | Sender's UHID; 4-byte little-endian length prefix |
-| DestinationUhid  | length-prefixed UTF-8    | 4 + N bytes           | Recipient's UHID; empty string for broadcast |
-| Payload          | length-prefixed bytes    | 4 + N bytes           | Application data; 4-byte little-endian length prefix |
-| Signature        | length-prefixed bytes    | 4 + N bytes           | Ed25519 signature over signable data (see Section 2.2) |
-| Id               | UUID                     | 16 bytes              | Packet identifier for deduplication |
+Every Aether message is encapsulated in a `MeshPacket`. Fields appear on the
+wire in **exactly** this order:
 
-### 2.2. Wire Format Diagram
+| Off | Field            | Type                            | Size       | Notes |
+|-----|------------------|---------------------------------|------------|-------|
+| 0   | ProtocolVersion  | uint8                           | 1          | `1` = unsigned (legacy), `2` = signed (current) |
+| 1   | Type             | uint8                           | 1          | Packet type enumeration (see §2.4) |
+| 2   | Id               | UUID, RFC 4122 big-endian       | 16         | Packet identifier for deduplication. **Big-endian** byte order, NOT .NET's mixed-endian Guid default. |
+| 18  | Priority         | uint8                           | 1          | Priority level (0 = normal, 255 = SOS). **Wire field is 1 byte; values >255 must be clamped.** |
+| 19  | Ttl              | int32, little-endian            | 4          | Time-to-live, decremented at each hop. **4-byte int32**, NOT 1-byte uint8 — values up to ~2³¹-1 are valid. |
+| 23  | TimestampMs      | int64, little-endian            | 8          | Unix epoch milliseconds (UTC). |
+| 31  | SourceUhid Len   | uint16, little-endian           | 2          | Length of `SourceUhid` in UTF-8 bytes. Max 65535. |
+| 33  | SourceUhid       | UTF-8 bytes                     | N          | Sender's UHID; empty allowed but unusual. |
+| 33+N | DestinationUhid Len | uint16, little-endian        | 2          | Length of `DestinationUhid` in UTF-8 bytes. |
+| ... | DestinationUhid  | UTF-8 bytes                     | M          | Recipient's UHID; empty string for broadcast. |
+| ... | PacketNonce Len  | uint16, little-endian           | 2          | Length of `PacketNonce` in bytes. Standard value: 8. |
+| ... | PacketNonce      | bytes                           | P          | Cryptographically random nonce for replay prevention. |
+| ... | Payload Len      | int32, little-endian            | 4          | Length of `Payload` in bytes. Negative values are an error. |
+| ... | Payload          | bytes                           | Q          | Application data. Interpretation depends on `Type`. |
+| ... | Signature Len    | uint16, little-endian           | 2          | Length of `Signature` in bytes. 0 (unsigned) or 64 (Ed25519). |
+| ... | Signature        | bytes                           | R          | Ed25519 signature over signable data (see §2.3). |
+
+**Length-prefix widths** vary by field — `SourceUhid`, `DestinationUhid`,
+`PacketNonce`, and `Signature` use **2-byte (uint16)** length prefixes;
+`Payload` uses a **4-byte (int32)** length prefix because payloads can exceed
+64 KiB.
+
+### 2.2. Minimum Packet Size
+
+With every variable-length field empty (zero-length UHIDs, zero-length nonce,
+zero-length payload, zero-length signature), the wire size is:
+
+```
+1 (version) + 1 (type) + 16 (id) + 1 (priority) + 4 (ttl)
+  + 8 (timestamp) + 2 (src len) + 2 (dst len)
+  + 2 (nonce len) + 4 (payload len) + 2 (sig len)
+= 43 bytes
+```
+
+The 50-byte / 52-byte figures in earlier drafts of this spec were incorrect.
+
+### 2.3. Wire Format Diagram
 
 ```
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                       PacketNonce (bytes 0-3)                 |
+| ProtoVer | Type    |              Id (bytes 0..3)              |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                       PacketNonce (bytes 4-7)                 |
+|                       Id (bytes 4..15, RFC 4122 BE)            |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                       TimestampMs (bytes 0-3)                 |
+                                  ...
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                       TimestampMs (bytes 4-7)                 |
+| Priority |                  Ttl (4 bytes int32 LE)              |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-| ProtoVer | Type     | TTL      | Priority   |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                  SourceUhid Length (4 bytes LE)                |
+|                  TimestampMs (8 bytes int64 LE)                |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                  SourceUhid (N bytes, UTF-8)                  |
-|                          ...                                  |
+                                  ...
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|               DestinationUhid Length (4 bytes LE)             |
+|  SourceUhid Len (uint16 LE)  |        SourceUhid (UTF-8)       |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|               DestinationUhid (N bytes, UTF-8)                |
-|                          ...                                  |
+|  DestUhid Len (uint16 LE)    |        DestUhid (UTF-8)         |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Payload Length (4 bytes LE)                 |
+|  Nonce Len (uint16 LE)       |        Nonce (bytes)            |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Payload (N bytes)                           |
-|                          ...                                  |
+|              Payload Len (int32 LE)                            |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                   Signature Length (4 bytes LE)                |
+|                       Payload (bytes)                          |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                   Signature (N bytes, Ed25519)                |
-|                          ...                                  |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                        Id (16 bytes, UUID)                    |
-|                                                               |
-|                                                               |
-|                                                               |
+|  Signature Len (uint16 LE)   |        Signature (bytes)        |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-The minimum packet size with empty UHIDs, empty payload, and no signature is 50 bytes: `8 (nonce) + 8 (timestamp) + 1 (version) + 1 (type) + 1 (ttl) + 1 (priority) + 4 (source len) + 4 (dest len) + 4 (payload len) + 4 (sig len) + 16 (id) = 52 bytes`.
+For a worked example, see `fixtures/expected/basic_data.bin` (83 bytes,
+canonical input in `fixtures/inputs.json`). Implementations are validated
+against the full fixture corpus — any divergence fails the cross-language
+fixture-verifier test.
 
-### 2.3. Signable Data Construction
+### 2.4. Signable Data Construction
 
-The signature covers a deterministic byte sequence constructed as follows:
+The signature (`Signature` field on the wire) is computed over a separate
+canonical byte sequence — **not** over the wire bytes themselves. This
+allows the wire layout to evolve without breaking signatures, and lets
+intermediary nodes verify integrity without seeing the plaintext payload
+(only its SHA-256 hash is signed).
+
+The signable byte sequence is the concatenation:
 
 ```
 PacketNonce (8 bytes)
-|| TimestampMs (8 bytes, little-endian int64)
-|| Type (4 bytes, little-endian int32)
-|| SourceUhidLength (4 bytes, little-endian int32)
-|| SourceUhid (UTF-8 bytes)
-|| DestinationUhidLength (4 bytes, little-endian int32)
-|| DestinationUhid (UTF-8 bytes)
-|| SHA-256(Payload) (32 bytes)
-|| Ttl (4 bytes, little-endian int32)
-|| Priority (4 bytes, little-endian int32)
+|| TimestampMs            (8 bytes, little-endian int64)
+|| Type                   (4 bytes, little-endian int32)
+|| SourceUhidLength       (4 bytes, little-endian int32)
+|| SourceUhid             (UTF-8 bytes)
+|| DestinationUhidLength  (4 bytes, little-endian int32)
+|| DestinationUhid        (UTF-8 bytes)
+|| SHA-256(Payload)       (32 bytes)
+|| Ttl                    (4 bytes, little-endian int32)
+|| Priority               (4 bytes, little-endian int32, clamped to [0,255])
 ```
 
-Note: The payload itself is NOT included in the signed data; its SHA-256 hash is used instead. This allows intermediary nodes to verify packet integrity without decrypting the payload.
+> Note the deliberate divergence from the wire layout in §2.1: the signable
+> data uses **4-byte int32** for `Type`, `Length`, `Ttl`, and `Priority`,
+> while the wire uses 1-byte / 2-byte / 4-byte / 1-byte respectively.
+> This is intentional — the signable form is portable across languages and
+> uses fixed-width fields; the wire form is compact for BLE PDU economy.
+> Implementations must clamp `Priority` to `[0,255]` before encoding into
+> signable bytes, otherwise the receiver (which sees the wire byte 0..255)
+> derives a different signable buffer and verification fails.
 
-### 2.4. Packet Types
+The reference implementation lives at `src/Aether.Security/Services/
+PacketSigningService.cs::BuildSignableData` and is required reading for
+porting.
+
+### 2.5. Packet Types
 
 | Value | Name              | Direction     | Description |
 |-------|-------------------|---------------|-------------|
@@ -152,7 +200,7 @@ Note: The payload itself is NOT included in the signed data; its SHA-256 hash is
 | 33    | WatchChunkRequest | Unicast       | Priority chunk request biased to playback position |
 | 34    | TorrentMetadata   | Multicast     | BitTorrent .torrent file or magnet link metadata exchange |
 
-### 2.5. Node Capabilities
+### 2.6. Node Capabilities
 
 Nodes advertise their capabilities as a bitfield:
 
@@ -241,6 +289,16 @@ Reliability scores are persisted to SQLite and loaded into memory at startup. Th
 ---
 
 ## 4. Key Exchange
+
+> **WIP — not reconciled against implementation as of 2026-05-05.** Every
+> language's `SignalProtocolService` exposes the API surface this section
+> describes (`generatePreKeyBundle`, `processPreKeyBundle`, `encrypt`,
+> `decrypt`), but the X3DH implementation collapses to static-static DH (no
+> ephemeral key) and three different Double-Ratchet constructions are in
+> use across the family. Treat the prose below as the *target* protocol;
+> consult `OPEN_ISSUES.md` § 1–3 for the current implementation state and
+> the planned remediation.
+
 
 Aether implements a key exchange mechanism derived from the Extended Triple Diffie-Hellman (X3DH) protocol, combined with a symmetric ratchet for forward secrecy. A full Diffie-Hellman ratchet (Double Ratchet) is specified for future implementation when always-on transports (BLE GATT) are available.
 
@@ -706,6 +764,15 @@ When the intended recipient receives a DTN bundle:
 
 ## 10. Video Streaming
 
+> **WIP — design only, no implementation as of 2026-05-05.** The packet
+> types `StreamAnnounce` (11), `StreamSegment` (12), `StreamSubscribe` (13),
+> `StreamUnsubscribe` (14), `VideoCall` (27), `VideoSignaling` (28),
+> `VideoFrame` (31), `ScreenShare` (32) are defined and have wire bytes,
+> but no language ships an actual video encode/decode/relay pipeline yet.
+> See `docs/adaptive-secure-streaming-spec.md` (forward-design) and
+> `OPEN_ISSUES.md` for status.
+
+
 Aether supports three video modes: peer-to-peer video calls, group video (unlimited participants with dynamic topology), and live broadcast. All video frames are encrypted with Signal Protocol and signed with Ed25519.
 
 ### 10.1. Transport Capability Matrix
@@ -806,6 +873,12 @@ The video jitter buffer operates independently from the voice jitter buffer (whi
 ---
 
 ## 11. Watch Together
+
+> **WIP — design only, no implementation as of 2026-05-05.** Same status as
+> § 10. Packet types `WatchSync` (29), `WatchReaction` (30), `WatchChunkRequest`
+> (33), `TorrentMetadata` (34) are wire-defined; no language ships
+> synchronized playback, BitTorrent ingest, or ChipIn group-funding logic.
+
 
 Watch Together enables synchronized media playback across a group of mesh peers. The host has exclusive control over playback (play, pause, seek, speed). Sync commands include wall clock timestamps for RTT compensation.
 
