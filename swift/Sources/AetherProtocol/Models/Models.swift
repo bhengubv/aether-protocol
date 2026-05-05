@@ -78,19 +78,31 @@ public struct RouteEntry: Equatable, Codable, Sendable {
     }
 }
 
-/// Pre-key bundle for session establishment.
+/// Pre-key bundle published by a node so others can initiate Signal sessions
+/// toward it asynchronously.
+///
+/// Two identity keys per node — Ed25519 for signing and X25519 for ECDH.
+/// Keeping them separate (rather than using XEdDSA) is the simpler choice
+/// across the 8-language implementation family.
 public struct PreKeyBundle: Equatable, Codable {
     public let uhid: String
-    public let identityKey: Data  // 32-byte Ed25519 public key
+    /// Long-term Ed25519 identity public key (32 bytes).
+    public let identityKey: Data
+    /// Long-term X25519 identity public key (32 bytes raw, RFC 7748).
+    public let identityKeyX25519: Data
     public let preKeyId: Int32
+    /// One-time pre-key X25519 public key (32 bytes raw).
     public let preKey: Data
     public let signedPreKeyId: Int32
+    /// Signed pre-key X25519 public key (32 bytes raw).
     public let signedPreKey: Data
+    /// Ed25519 signature over signedPreKey (64 bytes).
     public let signedPreKeySignature: Data
 
     public init(
         uhid: String,
         identityKey: Data,
+        identityKeyX25519: Data,
         preKeyId: Int32,
         preKey: Data,
         signedPreKeyId: Int32,
@@ -99,6 +111,7 @@ public struct PreKeyBundle: Equatable, Codable {
     ) {
         self.uhid = uhid
         self.identityKey = identityKey
+        self.identityKeyX25519 = identityKeyX25519
         self.preKeyId = preKeyId
         self.preKey = preKey
         self.signedPreKeyId = signedPreKeyId
@@ -107,7 +120,12 @@ public struct PreKeyBundle: Equatable, Codable {
     }
 }
 
-/// Encrypted payload wrapper.
+/// Wire-level encrypted payload.
+///
+/// When `messageType` is 1 (PreKey message — the first message from an
+/// initiator before the responder has established a session), the four
+/// `initiator*` fields carry the inputs the responder needs to run X3DH.
+/// On normal session messages (`messageType == 0`), those fields are nil/0.
 public struct EncryptedPayload: Equatable, Codable {
     public let ciphertext: Data
     public let nonce: Data
@@ -115,18 +133,35 @@ public struct EncryptedPayload: Equatable, Codable {
     public let senderUhid: String
     public let counter: Int32
 
+    /// PreKey messages: initiator's long-term X25519 identity public key (32 bytes).
+    public let initiatorIdentityKeyX25519: Data?
+    /// PreKey messages: initiator's ephemeral X25519 public key (32 bytes).
+    public let initiatorEphemeralKeyX25519: Data?
+    /// PreKey messages: SignedPreKeyId from the recipient bundle the initiator consumed.
+    public let usedSignedPreKeyId: Int32
+    /// PreKey messages: one-time PreKeyId from the recipient bundle the initiator consumed.
+    public let usedOneTimePreKeyId: Int32
+
     public init(
         ciphertext: Data,
         nonce: Data,
         messageType: Int32 = 0,
         senderUhid: String = "",
-        counter: Int32 = 0
+        counter: Int32 = 0,
+        initiatorIdentityKeyX25519: Data? = nil,
+        initiatorEphemeralKeyX25519: Data? = nil,
+        usedSignedPreKeyId: Int32 = 0,
+        usedOneTimePreKeyId: Int32 = 0
     ) {
         self.ciphertext = ciphertext
         self.nonce = nonce
         self.messageType = messageType
         self.senderUhid = senderUhid
         self.counter = counter
+        self.initiatorIdentityKeyX25519 = initiatorIdentityKeyX25519
+        self.initiatorEphemeralKeyX25519 = initiatorEphemeralKeyX25519
+        self.usedSignedPreKeyId = usedSignedPreKeyId
+        self.usedOneTimePreKeyId = usedOneTimePreKeyId
     }
 }
 
