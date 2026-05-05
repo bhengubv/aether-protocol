@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-using System.Security.Cryptography;
-using Microsoft.Extensions.Logging;
 using NSec.Cryptography;
 
 namespace Aether.Security.Services;
@@ -13,26 +11,6 @@ namespace Aether.Security.Services;
 public sealed class Ed25519SigningService
 {
     private static readonly SignatureAlgorithm Algorithm = SignatureAlgorithm.Ed25519;
-
-    /// <summary>
-    /// How many P-256 legacy verifications have been performed.
-    /// Used to track migration progress away from legacy curve.
-    /// </summary>
-    public static long P256VerificationCount => Interlocked.Read(ref _p256Count);
-
-    /// <summary>
-    /// The cutoff date after which P-256 legacy signatures are no longer accepted.
-    /// Pinned to a fixed UTC instant so the deadline does not drift forward
-    /// every time the assembly loads (pre-2026-05-05 used
-    /// <c>DateTimeOffset.UtcNow.AddDays(30)</c> which never expired in practice).
-    ///
-    /// 2026-04-15 was the originally-announced migration cutoff; the deadline
-    /// has passed and P-256 verification is permanently disabled. The fallback
-    /// path is kept as a no-op for source-compatibility with callers that
-    /// still invoke <see cref="VerifyWithFallback"/>.
-    /// </summary>
-    private static readonly DateTimeOffset P256MigrationDeadline =
-        new(2026, 4, 15, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>
     /// Generates a new Ed25519 key pair.
@@ -93,51 +71,4 @@ public sealed class Ed25519SigningService
         var pk = NSec.Cryptography.PublicKey.Import(Algorithm, publicKey, KeyBlobFormat.RawPublicKey);
         return Algorithm.Verify(pk, data, signature);
     }
-
-    /// <summary>
-    /// Verifies a signature with fallback support for legacy P-256 keys during migration.
-    /// If the public key is 32 bytes, uses Ed25519. If longer, attempts P-256 ECDSA
-    /// verification but only within the 30-day migration window.
-    /// </summary>
-    /// <param name="publicKey">Public key bytes (32 = Ed25519, 65 = P-256 uncompressed).</param>
-    /// <param name="data">The signed data.</param>
-    /// <param name="signature">The signature bytes.</param>
-    /// <returns>True if the signature is valid.</returns>
-    public static bool VerifyWithFallback(byte[] publicKey, byte[] data, byte[] signature)
-    {
-        ArgumentNullException.ThrowIfNull(publicKey);
-        ArgumentNullException.ThrowIfNull(data);
-        ArgumentNullException.ThrowIfNull(signature);
-
-        // Standard Ed25519 path
-        if (publicKey.Length == 32)
-        {
-            return Verify(publicKey, data, signature);
-        }
-
-        // Legacy P-256 path — only valid during migration window
-        if (DateTimeOffset.UtcNow > P256MigrationDeadline)
-        {
-            return false;
-        }
-
-        try
-        {
-            using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            ecdsa.ImportSubjectPublicKeyInfo(publicKey, out _);
-
-            var result = ecdsa.VerifyData(data, signature, HashAlgorithmName.SHA256);
-            if (result)
-            {
-                Interlocked.Increment(ref _p256Count);
-            }
-            return result;
-        }
-        catch (CryptographicException)
-        {
-            return false;
-        }
-    }
-
-    private static long _p256Count;
 }
