@@ -3,8 +3,17 @@
     <Project Path="samples/Aether.Demo.Console/Aether.Demo.Console.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Aether.Content/Aether.Content.csproj" />
     <Project Path="src/Aether.Core/Aether.Core.csproj" />
+    <Project Path="src/Aether.Messaging/Aether.Messaging.csproj" />
     <Project Path="src/Aether.Security/Aether.Security.csproj" />
+    <Project Path="src/Aether.Storage/Aether.Storage.csproj" />
+    <Project Path="src/Aether.Streaming/Aether.Streaming.csproj" />
     <Project Path="src/Aether.Transport/Aether.Transport.csproj" />
+    <Project Path="src/Aether.Voice/Aether.Voice.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Aether.Core.Tests/Aether.Core.Tests.csproj" />
+    <Project Path="tests/cross-language/runners/csharp/Aether.InteropTest.csproj" />
   </Folder>
 </Solution>
