@@ -482,6 +482,7 @@ static byte[] SerializeEncryptedPayload(EncryptedPayload p)
         t = p.MessageType,
         s = p.SenderUhid,
         k = p.Counter,
+        // X3DH session-establishment fields (PreKey messages only).
         ik = p.InitiatorIdentityKeyX25519 == null
             ? null
             : Convert.ToBase64String(p.InitiatorIdentityKeyX25519),
@@ -490,6 +491,11 @@ static byte[] SerializeEncryptedPayload(EncryptedPayload p)
             : Convert.ToBase64String(p.InitiatorEphemeralKeyX25519),
         spki = p.UsedSignedPreKeyId,
         opki = p.UsedOneTimePreKeyId,
+        // Double Ratchet fields (every message).
+        re = p.SenderEphemeralKeyX25519 == null
+            ? null
+            : Convert.ToBase64String(p.SenderEphemeralKeyX25519),
+        pn = p.PreviousChainCount,
     };
     return Encoding.UTF8.GetBytes(JsonSerializer.Serialize(obj));
 }
@@ -500,12 +506,16 @@ static EncryptedPayload DeserializeEncryptedPayload(byte[] data)
     var root = doc.RootElement;
     byte[]? initiatorIK = null;
     byte[]? initiatorEK = null;
+    byte[]? ratchetPub = null;
     if (root.TryGetProperty("ik", out var ikElem) && ikElem.ValueKind == JsonValueKind.String)
         initiatorIK = Convert.FromBase64String(ikElem.GetString()!);
     if (root.TryGetProperty("ek", out var ekElem) && ekElem.ValueKind == JsonValueKind.String)
         initiatorEK = Convert.FromBase64String(ekElem.GetString()!);
+    if (root.TryGetProperty("re", out var reElem) && reElem.ValueKind == JsonValueKind.String)
+        ratchetPub = Convert.FromBase64String(reElem.GetString()!);
     var spki = root.TryGetProperty("spki", out var spkiElem) ? spkiElem.GetInt32() : 0;
     var opki = root.TryGetProperty("opki", out var opkiElem) ? opkiElem.GetInt32() : 0;
+    var pn = root.TryGetProperty("pn", out var pnElem) ? pnElem.GetInt32() : 0;
 
     return new EncryptedPayload(
         Ciphertext: Convert.FromBase64String(root.GetProperty("c").GetString()!),
@@ -516,5 +526,7 @@ static EncryptedPayload DeserializeEncryptedPayload(byte[] data)
         InitiatorIdentityKeyX25519: initiatorIK,
         InitiatorEphemeralKeyX25519: initiatorEK,
         UsedSignedPreKeyId: spki,
-        UsedOneTimePreKeyId: opki);
+        UsedOneTimePreKeyId: opki,
+        SenderEphemeralKeyX25519: ratchetPub,
+        PreviousChainCount: pn);
 }
