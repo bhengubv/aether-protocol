@@ -1,20 +1,27 @@
 # Aether Mesh Networking Protocol Specification
 
 **Version:** 2.0
-**Status:** Reconciliation in progress (2026-05-05)
-**Date:** 2026-03-15 (initial draft); 2026-05-05 (Section 2 reconciled)
+**Status:** Reconciled with HEAD (2026-05-05)
+**Date:** 2026-03-15 (initial draft); 2026-05-05 (§2, §4, §10, §11 reconciled, §3/§9 verified)
 **Authors:** The Other Bhengu (Pty) Ltd t/a The Geek and Bhengu B.V.
 
-> **Reader notice.** Sections of this document predate the 8-language wire-
-> format alignment work and describe a wire layout no implementation uses.
-> Section 2 (Packet Format) was reconciled on 2026-05-05 against the
-> canonical Go reference serializer used to generate `fixtures/expected/*.bin`.
-> Sections marked `WIP` further down are still being reconciled — until those
-> banners are removed, treat the implementation source as authoritative:
+> **Reader notice.** Earlier drafts of this document predate the
+> 8-language wire-format alignment and the family-wide port to X25519 +
+> Signal Double Ratchet. As of 2026-05-05, §2 (Packet Format), §3
+> (Routing), §4 (Key Exchange), §9 (DTN) describe the implemented
+> protocol; §10 (Video Streaming) and §11 (Watch Together) describe the
+> target protocol — they are wire-defined and fixture-tested but the
+> codec / BitTorrent / ChipIn pipelines are not yet bound to the
+> scaffolding. The C# reference is authoritative everywhere this
+> document and the implementation diverge.
 >
 > - Canonical wire bytes: `fixtures/expected/*.bin` (10 named cases)
 > - Reference serializer: `src/Aether.Core/Protocol/PacketSerializer.cs`
-> - Cross-language interop proof: `fixtures/README.md`
+> - Reference Signal stack: `src/Aether.Security/Services/SignalProtocolService.cs`
+> - Reference routing: `src/Aether.Core/Routing/RoutingService.cs`
+> - Reference DTN: `src/Aether.Core/Dtn/DtnService.cs`
+> - Cross-language wire interop proof: `fixtures/README.md`
+> - Cross-language Signal interop proof: `fixtures/signal/README.md`
 
 ---
 
@@ -230,7 +237,7 @@ When a node needs to send a packet to a destination for which it has no route, i
 1. The originator creates a `MeshPacket` with `Type = RouteRequest`, sets `SourceUhid` to itself, `DestinationUhid` to the target, and `TTL = 7` (the default).
 2. The packet is broadcast to all directly connected peers.
 3. Each intermediate node that receives an RREQ:
-   a. Checks if it has already seen this RREQ by packet `Id`. If so, it silently drops the packet (deduplication). The deduplication cache holds up to 1,000 entries and is periodically flushed.
+   a. Checks if it has already seen this RREQ by packet `Id`. If so, it silently drops the packet (deduplication). The deduplication cache holds up to `DeduplicationCacheSize` entries (default 10,000) and is fully cleared once the cap is reached.
    b. Installs a **reverse route** to the RREQ originator. The reverse route records the UHID of the peer from which the RREQ was received as the next hop. Hop count is derived from `DefaultTtl - packet.Ttl + 1`.
    c. If it IS the destination, it generates an RREP (see Section 3.2).
    d. If it has an existing valid route to the destination, it MAY generate an RREP on behalf of the destination.
@@ -254,7 +261,7 @@ When the destination (or an intermediate node with a valid route) generates a Ro
 
 - **TTL-based expiry:** Every route entry carries an `ExpiresAt` timestamp set to `now + 300 seconds` (`RouteExpirySeconds`). Routes are not refreshed implicitly; they must be re-established via a new RREQ/RREP cycle after expiry.
 - **Periodic pruning:** The protocol service runs a periodic heartbeat (default every 300 seconds). During each cycle, it removes expired routes from both the in-memory `ConcurrentDictionary` and the SQLite backing store.
-- **RREQ dedup pruning:** The set of seen RREQ IDs is cleared when it exceeds 1,000 entries.
+- **RREQ dedup pruning:** The set of seen RREQ IDs is cleared when it exceeds `DeduplicationCacheSize` (default 10,000) entries.
 
 ### 3.4. Route Quality and QoS
 
@@ -290,131 +297,300 @@ Reliability scores are persisted to SQLite and loaded into memory at startup. Th
 
 ## 4. Key Exchange
 
-> **WIP — not reconciled against implementation as of 2026-05-05.** Every
-> language's `SignalProtocolService` exposes the API surface this section
-> describes (`generatePreKeyBundle`, `processPreKeyBundle`, `encrypt`,
-> `decrypt`), but the X3DH implementation collapses to static-static DH (no
-> ephemeral key) and three different Double-Ratchet constructions are in
-> use across the family. Treat the prose below as the *target* protocol;
-> consult `OPEN_ISSUES.md` § 1–3 for the current implementation state and
-> the planned remediation.
+> Reconciled 2026-05-05 against the C# reference implementation at
+> `src/Aether.Security/Services/SignalProtocolService.cs` and the
+> cross-language fixture corpus under `fixtures/signal/`. The C# reference
+> ships full X3DH + Double Ratchet (Signal §3 + §5) over X25519. Go,
+> Python, TypeScript, Rust, Swift, and Kotlin have been ported to the same
+> envelope and are byte-equivalent at the X3DH and KDF_RK fixture level.
+> C ships only the X25519 + KDF_RK + symmetric-ratchet primitives —
+> sufficient for the fixture verifier, no full session machinery yet.
+> Where this section disagrees with code, the code is authoritative;
+> file an issue in `OPEN_ISSUES.md`.
 
-
-Aether implements a key exchange mechanism derived from the Extended Triple Diffie-Hellman (X3DH) protocol, combined with a symmetric ratchet for forward secrecy. A full Diffie-Hellman ratchet (Double Ratchet) is specified for future implementation when always-on transports (BLE GATT) are available.
+Aether implements **X3DH** (Extended Triple Diffie-Hellman, Signal §3) for
+asynchronous session establishment, immediately followed by the **Signal
+Double Ratchet** (Signal §5) for ongoing forward secrecy and
+post-compromise security. All session crypto runs over Curve25519:
+**X25519** (RFC 7748) for ECDH and **Ed25519** (RFC 8032) for signing.
 
 ### 4.1. Identity Keys
 
-Each node generates an **Ed25519** identity key pair at first launch:
+Each node generates **two** long-term keypairs at first launch (no XEdDSA;
+the simpler dual-key arrangement is what every implementation ships):
 
-- **Private key:** 32-byte seed, stored in platform secure storage (MAUI SecureStorage on mobile, OS keychain on desktop).
-- **Public key:** 32-byte Ed25519 public key, published to the network and AetherAPI.
-- **Migration:** Nodes that were initialized with ECDSA P-256 identity keys (Protocol Version 1) are supported during a 30-day fallback window. Signature verification attempts Ed25519 first; if the public key is longer than 32 bytes, it falls back to P-256 ECDSA verification.
+- **Ed25519 keypair** — 32-byte seed (private), 32-byte public key.
+  Used for packet signing (§2.4), `SignedPreKeySignature` (§4.3),
+  RREP authentication (§3.2), and tip signatures.
+- **X25519 keypair** — 32-byte raw private and public keys. Used for
+  the four X3DH DH operations (§4.4).
 
-Ed25519 is used for:
-- Packet signing (Section 2.3)
-- Pre-key bundle signing (Section 4.3)
-- RREP authentication (Section 3.2)
-- Tip signature verification
+Reference: `SignalProtocolService.InitializeIdentityKeys`. Private keys
+live on the device only; public keys are published in `PreKeyBundle`.
 
-### 4.2. Ephemeral Keys
+A 30-day P-256 → Ed25519 migration window is honoured for *signature
+verification* on inbound packets only — see §7.5. Pre-key bundles
+themselves are X25519-only on the wire.
 
-Key agreement uses **ECDH with the NIST P-256 curve**. P-256 is chosen for native .NET runtime support (`ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256)`) without external library dependencies.
+### 4.2. Curve Choice
+
+X3DH and the Double Ratchet use **X25519** exclusively. P-256 is *not*
+used in session establishment by any current implementation. An earlier
+draft of this spec described P-256 ECDH; that text predates the
+2026-05-05 family-wide port to X25519 and is no longer accurate.
 
 ### 4.3. Pre-Key Bundle
 
-A pre-key bundle is published to allow asynchronous session establishment (the recipient need not be online when the sender initiates):
+A pre-key bundle is published so that an initiator can establish a
+session without the responder being online (Signal §3.4):
 
 ```
 PreKeyBundle {
     Uhid:                   string      // Node's Universal Hardware Identifier
-    IdentityKey:            byte[32]    // Ed25519 public key
-    PreKeyId:               int32       // Cryptographically random ID
-    PreKey:                 byte[]      // ECDH P-256 public key (DER SubjectPublicKeyInfo)
-    SignedPreKeyId:          int32       // Cryptographically random ID
-    SignedPreKey:            byte[]      // ECDH P-256 public key (DER SubjectPublicKeyInfo)
-    SignedPreKeySignature:   byte[]      // Ed25519 signature over SignedPreKey bytes
+    IdentityKey:            byte[32]    // Long-term Ed25519 public key (signing)
+    IdentityKeyX25519:      byte[32]    // Long-term X25519 public key (ECDH)
+    PreKeyId:               int32       // One-time pre-key id
+    PreKey:                 byte[32]    // One-time pre-key X25519 public key (OPK)
+    SignedPreKeyId:         int32       // Signed pre-key id
+    SignedPreKey:           byte[32]    // Signed pre-key X25519 public key (SPK)
+    SignedPreKeySignature:  byte[64]    // Ed25519(IdentityKey, SignedPreKey)
 }
 ```
 
-Pre-key IDs are generated using `RandomNumberGenerator.GetInt32(1, int.MaxValue)` to prevent prediction.
+Reference: `Aether.Security.Models.PreKeyBundle`. Wire-shape contract is
+the same across all 8 languages.
 
-### 4.4. Session Establishment (X3DH Variant)
+**One-time pre-key (OPK) pool.** Each responder maintains a pool of
+`OpkPoolSize` (default 100, mirroring Signal's published guidance) X25519
+OPKs. Bundle generation pops the next-unused id from a FIFO queue, then
+tops the pool back up to its target size. Each OPK is consumed exactly
+once: the responder removes and zeroises the private half on the first
+PreKey message that references its id. Concurrent initiators racing for
+the same OPK id will see exactly one `EstablishResponderSession` succeed
+under `_preKeyLock`; the loser raises `CryptographicException`.
 
-When Alice wants to establish an encrypted session with Bob:
+Reference: `SignalProtocolService.TopUpOpkPoolNoLock` (lines 494–518),
+`SignalProtocolService.EstablishResponderSession` (lines 636–718). Pool
+semantics are exercised by `tests/Aether.Core.Tests/PreKeyPoolTests.cs`.
 
-1. Alice obtains Bob's `PreKeyBundle` (via the network or AetherAPI).
-2. Alice verifies `SignedPreKeySignature` using Bob's `IdentityKey` (Ed25519, with P-256 fallback). If verification fails, the bundle is rejected.
-3. Alice generates an ephemeral ECDH P-256 key pair.
-4. Alice performs ECDH key agreement between her ephemeral private key and Bob's `SignedPreKey` public key, producing a 32-byte `sharedSecret`.
-5. Alice derives three keys using HKDF-SHA256:
+**Signed pre-key (SPK) rotation.** SPK is generated lazily on the first
+bundle call and reused across subsequent calls so concurrent initiators
+fetching bundles before X3DH runs do not invalidate each other's bundles.
+Periodic SPK rotation (Signal §3.3 recommends weekly) is an explicit
+operation, not a side effect of bundle generation.
 
-   ```
-   Salt:           "AetherSignal" (UTF-8, 12 bytes)
+Pre-key ids are drawn from `RandomNumberGenerator.GetInt32(1, int.MaxValue)`
+with explicit collision retry (up to 64 attempts before raising).
 
-   RootKey       = HKDF-SHA256(sharedSecret, salt, info="aether-root-v1",     outputLength=32)
-   SendChainKey  = HKDF-SHA256(sharedSecret, salt, info="aether-chain-send-v1", outputLength=32)
-   RecvChainKey  = HKDF-SHA256(sharedSecret, salt, info="aether-chain-recv-v1", outputLength=32)
-   ```
+### 4.4. Session Establishment (X3DH)
 
-6. The `sharedSecret` is immediately zeroed using `CryptographicOperations.ZeroMemory`.
-7. A `SignalSession` is created and persisted to SQLite:
+The full X3DH (Signal §3.3) runs on the initiator side. Four DH
+operations are computed over X25519:
 
-   ```
-   SignalSession {
-       RootKey:            byte[32]
-       SendChainKey:       byte[32]
-       RecvChainKey:       byte[32]
-       SendCounter:        int32       // Initialized to 0
-       RecvCounter:        int32       // Initialized to 0
-       LocalRatchetKey:    byte[]      // Alice's ephemeral ECDH private key
-       RemoteRatchetKey:   byte[]      // Bob's signed pre-key (DER)
-       PreKeyUsed:         int32       // Bob's PreKeyId consumed
-       SkippedMessageKeys: map<int, byte[32]>  // For out-of-order decryption
-       CreatedAt:          timestamp
-       UpdatedAt:          timestamp
-   }
-   ```
+```
+DH1 = DH(IK_A, SPK_B)    // long-term mutual auth
+DH2 = DH(EK_A, IK_B)     // initiator ephemeral binds responder identity
+DH3 = DH(EK_A, SPK_B)    // initiator ephemeral binds responder SPK
+DH4 = DH(EK_A, OPK_B)    // initiator ephemeral binds responder OPK
+```
 
-8. After session creation, intermediate key material (RootKey, SendChainKey, RecvChainKey) is zeroed from the establishment context. The session object retains its own copies.
+where `IK_A` / `IK_B` are the X25519 identity keys, `EK_A` is a fresh
+X25519 ephemeral generated for this session only, `SPK_B` is the
+responder's signed pre-key, and `OPK_B` is the responder's one-time
+pre-key. The initial root key is:
 
-**Important:** If no Signal session exists for a recipient, the message is NOT sent insecurely. It is queued in the outbox, and a `SessionRequired` event is raised to trigger pre-key bundle exchange. There is no UHID-derived fallback encryption.
+```
+RK_0 = HKDF-SHA256(
+    ikm  = DH1 || DH2 || DH3 || DH4,
+    salt = (default — empty),
+    info = UTF8("aether-x3dh-root-v1"),
+    L    = 32 bytes)
+```
 
-### 4.5. Symmetric Ratchet
+The `info` constant `aether-x3dh-root-v1` is identical across every
+implementation and is pinned by `fixtures/signal/expected/x3dh_basic.json`
+(field `root_key_hex`).
 
-Once a session is established, each message is encrypted with a unique key derived from the chain:
+Reference: `SignalProtocolService.ProcessPreKeyBundleAsync` (lines
+554–626). Verification path:
+`fixtures/signal/inputs.json` case `x3dh_basic` →
+`fixtures/signal/expected/x3dh_basic.json`.
 
-**Sending:**
+**Bundle verification.** Before any DH runs, the initiator verifies
+`SignedPreKeySignature` against `IdentityKey` using Ed25519. A failed
+verification raises `CryptographicException` and the bundle is dropped.
+Public-key sizes are validated against `X25519Service.PublicKeySize` (32);
+malformed bundles are rejected.
 
-1. Derive `messageKey = HMAC-SHA256(SendChainKey, counter_bytes)` where `counter_bytes` is the 4-byte little-endian representation of `SendCounter`.
-2. Advance the chain: `SendChainKey = HMAC-SHA256(SendChainKey, 0x01)`.
-3. Increment `SendCounter`.
-4. Encrypt the plaintext using AES-256-GCM with the `messageKey`:
-   - Nonce: 12 bytes, cryptographically random.
-   - Tag: 16 bytes, appended to ciphertext.
-   - Ciphertext format: `[encrypted_data || 16-byte_tag]`.
-5. Zero the `messageKey` immediately after encryption.
+**Session priming.** At the end of `ProcessPreKeyBundleAsync` a
+`SignalSession` is created with:
 
-**Receiving:**
+- `RootKey = RK_0`
+- `MyEphemeralPriv / MyEphemeralPub = EK_A` — Signal-canonical X3DH ↔
+  Double-Ratchet integration: the initiator's X3DH ephemeral becomes its
+  first DH-ratchet keypair (`DHs`).
+- `RemoteEphemeralPub = SPK_B` — the responder's signed pre-key is
+  treated as the initial peer ratchet key (`DHr`).
+- `SendChainKey = null`, `RecvChainKey = null` — both chain keys are
+  derived lazily on first send / first DH-ratchet receive.
+- `PendingPreKeyMessage = true` — flags that the next outbound
+  `EncryptAsync` call MUST emit a PreKey message (`MessageType=1`).
 
-1. If the incoming `Counter` matches a key in `SkippedMessageKeys`, use that key, decrypt, remove from map, and return.
-2. If `Counter < RecvCounter`, reject as duplicate/expired.
-3. If `Counter > RecvCounter` and the gap exceeds `MaxSkippedKeys` (1,000), reject the message and invalidate the session. The sender must re-establish via a new pre-key exchange. This prevents memory exhaustion attacks.
-4. If `Counter > RecvCounter` within the allowed gap, derive and store skipped keys for each counter value from `RecvCounter` to `Counter - 1`.
-5. Derive the message key for the current counter, decrypt, advance `RecvChainKey`, increment `RecvCounter`.
-6. Zero the `messageKey` after decryption.
+All DH outputs and the concatenated shared secret are zeroised in the
+`finally` block via `CryptographicOperations.ZeroMemory`.
+
+**Refusing to send insecurely.** If `EncryptAsync` is called for a peer
+with no session, the call throws `InvalidOperationException`. There is no
+UHID-derived fallback path. Hosts are expected to queue the message
+(see `MessagingService` + `SignalMessageEnvelopeCipher`) and retry once
+session establishment completes.
+
+### 4.5. Double Ratchet (Signal §5)
+
+Each side maintains a rotating X25519 ratchet keypair (`DHs`) and a copy
+of the peer's last-seen ratchet public key (`DHr`). On every message the
+sender publishes its current `DHs` public; whenever the receiver
+observes a new `DHr`, it runs a **DH-ratchet step** that re-keys the
+chain via `KDF_RK(RK, DH(myDHs, newDHr))` — re-deriving both the root key
+and a fresh chain key.
+
+#### 4.5.1. KDF_RK
+
+`KDF_RK` is HKDF-SHA256 over a 64-byte block, split 32+32 into the new
+root key and the new chain key:
+
+```
+out      = HKDF-SHA256(
+    ikm  = DH_output,
+    salt = current_root_key,
+    info = UTF8("aether-ratchet-rk-v1"),
+    L    = 64 bytes)
+new_RK   = out[0..32]
+new_CK   = out[32..64]
+```
+
+Reference: `SignalProtocolService.KdfRk` (lines 857–868). Pinned by
+`fixtures/signal/inputs.json` case `kdf_rk_basic` →
+`fixtures/signal/expected/kdf_rk_basic.json`.
+
+#### 4.5.2. Symmetric Ratchet
+
+Per Signal §5.1, message keys and chain keys are derived from a chain
+key using HMAC-SHA256 with single-byte domain separation:
+
+```
+message_key   = HMAC-SHA256(chain_key, 0x01)
+new_chain_key = HMAC-SHA256(chain_key, 0x02)
+```
+
+Reference: `SignalProtocolService.RatchetChainKey` (lines 876–881).
+Pinned by `fixtures/signal/inputs.json` cases `ratchet_step_basic` and
+`ratchet_step_three_iterations`.
+
+The earlier draft of this spec described `messageKey =
+HMAC-SHA256(chain_key, counter_bytes)` and a separate `chain_key
+advance via HMAC(chain_key, 0x01)`. That was non-Signal and never
+implemented; it has been replaced with the canonical 0x01/0x02 split.
+
+#### 4.5.3. DH-Ratchet Step on Receive
+
+Triggered when the inbound message's `SenderEphemeralKeyX25519` differs
+from the cached `RemoteEphemeralPub` (constant-time compare).
+
+1. Save outbound counter as `PreviousChainCount` (Signal §5: PN) so the
+   peer can compute skipped keys across the boundary.
+2. Reset `SendCounter` and `RecvCounter` to 0; install the new
+   `RemoteEphemeralPub`.
+3. Derive new receiving chain: `(RK', CKr) = KDF_RK(RK, DH(myDHs, newDHr))`.
+4. Zeroise the old `myDHs` private; generate a fresh X25519 keypair.
+5. Derive new sending chain: `(RK'', CKs) = KDF_RK(RK', DH(newDHs, newDHr))`.
+
+Reference: `SignalProtocolService.DhRatchetReceive` (lines 726–772).
+
+#### 4.5.4. Lazy Sending-Chain Derivation
+
+The initiator's first send runs a **half-step** rather than a full
+DH-ratchet — the X3DH already placed `DHs` and `DHr`, so only the
+sending chain needs deriving:
+
+```
+(RK', CKs) = KDF_RK(RK, DH(myDHs, DHr))
+```
+
+`DHs` is *not* rotated here. It is rotated only on a true receive-side
+DH-ratchet step.
+
+Reference: `SignalProtocolService.DhRatchetSendOnly` (lines 780–796).
+
+#### 4.5.5. Skipped Message Keys
+
+When messages arrive out of order, each skipped counter's message key is
+cached in `SkippedMessageKeys`, keyed by `(Hex(remoteEphPub):counter)`.
+The remote-pub binding is essential — out-of-order messages from a prior
+chain (different `DHr`) can still arrive after a DH-ratchet step and
+need their own per-chain key set.
+
+Limits:
+
+- Skipping more than `MaxSkippedKeys` (1000) entries in a single gap
+  raises `CryptographicException` and forces session re-establishment.
+- Crossing a DH-ratchet boundary, the receiver first skips up to
+  `PreviousChainCount` keys on the *old* chain, then runs the
+  DH-ratchet step before deriving keys on the new chain.
+
+Reference: `SignalProtocolService.SkipMessageKeys` (lines 804–830) and
+the in-decrypt skip loop (lines 366–388).
 
 ### 4.6. Encrypted Payload Format
 
 ```
 EncryptedPayload {
-    Ciphertext:     byte[]      // AES-256-GCM ciphertext + 16-byte tag
-    Nonce:          byte[12]    // AES-GCM nonce
-    MessageType:    int32       // 1 = PreKey message, 2 = Regular
-    SenderUhid:     string      // Sender's UHID
-    Counter:        int32       // Message sequence number within session
-    EncryptedAt:    timestamp
+    Ciphertext:                     byte[]      // AES-256-GCM ciphertext || 16-byte tag
+    Nonce:                          byte[12]    // AES-GCM nonce, freshly random
+    MessageType:                    int32       // 0 = normal, 1 = PreKey
+    SenderUhid:                     string      // Sender's UHID
+    Counter:                        int32       // Sender's Ns within current chain
+
+    // Double Ratchet — populated on EVERY message:
+    SenderEphemeralKeyX25519:       byte[32]    // Sender's current DHs public
+    PreviousChainCount:             int32       // Signal §5: PN
+
+    // X3DH — populated only on PreKey messages (MessageType == 1):
+    InitiatorIdentityKeyX25519:     byte[32]?   // Initiator's IK_X25519 public
+    UsedSignedPreKeyId:             int32       // SPK id consumed
+    UsedOneTimePreKeyId:            int32       // OPK id consumed
+    InitiatorEphemeralKeyX25519:    byte[32]?   // DEPRECATED — equals SenderEphemeralKeyX25519
 }
 ```
+
+Reference: `Aether.Security.Models.EncryptedPayload` (lines 55–66 of
+`SecurityModels.cs`). The `InitiatorEphemeralKeyX25519` field is a
+backward-compat alias for the pre-Double-Ratchet wire envelope and
+equals `SenderEphemeralKeyX25519` on PreKey messages; new consumers
+should ignore it.
+
+AES-GCM parameters: 256-bit key, 96-bit nonce (`AesNonceSize = 12`),
+128-bit tag (`AesTagSize = 16`), tag concatenated to ciphertext.
+Message keys are zeroised in `finally` blocks immediately after AES-GCM
+encrypt/decrypt.
+
+### 4.7. Per-Language Status
+
+| Language    | X3DH (4 DHs) | Double Ratchet | OPK pool       | Fixture-verified |
+|-------------|--------------|----------------|----------------|------------------|
+| C# (.NET)   | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Go          | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Python      | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_*, kdf_rk_basic |
+| TypeScript  | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Rust        | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Swift       | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_* (host-machine compile pending) |
+| Kotlin      | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_* (host-machine compile pending) |
+| C           | primitives only — `aether_x25519_*`, `aether_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+
+The OPK-pool-vs-single-OPK split is tracked under the "Open" tier of the
+README; functionally a single OPK is correct for sequential-initiator
+workloads but exposes a concurrency hazard under simultaneous bundle
+fetches. The C# reference is the canonical fix.
 
 ---
 
@@ -567,7 +743,7 @@ The nonce dedup cache is cleaned every 60 seconds. Expired entries (older than 5
 
 **Flooding attacks:**
 - TTL is decremented at each hop and packets with TTL = 0 are dropped. The default TTL of 7 limits the blast radius of any broadcast.
-- RREQ deduplication by packet ID prevents amplification through broadcast storms. The dedup cache is flushed at 1,000 entries.
+- RREQ deduplication by packet ID prevents amplification through broadcast storms. The dedup cache is flushed when it exceeds `DeduplicationCacheSize` (default 10,000) entries.
 - SOS broadcasts are rate-limited to 3 per hour per node (Section 8).
 
 ### 7.4. Key Zeroing
@@ -764,13 +940,19 @@ When the intended recipient receives a DTN bundle:
 
 ## 10. Video Streaming
 
-> **WIP — design only, no implementation as of 2026-05-05.** The packet
-> types `StreamAnnounce` (11), `StreamSegment` (12), `StreamSubscribe` (13),
-> `StreamUnsubscribe` (14), `VideoCall` (27), `VideoSignaling` (28),
-> `VideoFrame` (31), `ScreenShare` (32) are defined and have wire bytes,
-> but no language ships an actual video encode/decode/relay pipeline yet.
-> See `docs/adaptive-secure-streaming-spec.md` (forward-design) and
-> `OPEN_ISSUES.md` for status.
+> **Status as of 2026-05-05 — design + C# scaffolding, no shipping codec
+> pipeline.** The packet types `StreamAnnounce` (11), `StreamSegment` (12),
+> `StreamSubscribe` (13), `StreamUnsubscribe` (14), `VideoCall` (27),
+> `VideoSignaling` (28), `VideoFrame` (31), `ScreenShare` (32) are
+> wire-defined and round-trip via the cross-language fixture corpus.
+> The C# `Aether.Streaming` module ships interfaces, models, and skeleton
+> services (`StreamingService`, `VideoCallService`, `WatchTogetherService`)
+> that wire up routing/DI seams and unicast segment fan-out — but no actual
+> video encode/decode is bound to them. The other 7 languages have wire
+> types only. The forward-design doc at
+> `docs/adaptive-secure-streaming-spec.md` is the target architecture.
+> Treat the prose below as the specification of what those services WILL
+> implement; consult `OPEN_ISSUES.md` for production-readiness gaps.
 
 
 Aether supports three video modes: peer-to-peer video calls, group video (unlimited participants with dynamic topology), and live broadcast. All video frames are encrypted with Signal Protocol and signed with Ed25519.
@@ -874,10 +1056,16 @@ The video jitter buffer operates independently from the voice jitter buffer (whi
 
 ## 11. Watch Together
 
-> **WIP — design only, no implementation as of 2026-05-05.** Same status as
-> § 10. Packet types `WatchSync` (29), `WatchReaction` (30), `WatchChunkRequest`
-> (33), `TorrentMetadata` (34) are wire-defined; no language ships
-> synchronized playback, BitTorrent ingest, or ChipIn group-funding logic.
+> **Status as of 2026-05-05 — design + C# scaffolding, same maturity as
+> § 10.** Packet types `WatchSync` (29), `WatchReaction` (30),
+> `WatchChunkRequest` (33), `TorrentMetadata` (34) are wire-defined and
+> fixture-tested. `Aether.Streaming.WatchTogetherService` provides the
+> coordination skeleton (session state, sync command propagation via
+> `IMeshSender`, RTT-compensation helpers); BitTorrent ingest, ChipIn
+> SDPKT settlement, and chunk-fetch-from-peers are not implemented in any
+> language. Treat the prose below as the target protocol; the forward
+> design doc at `docs/adaptive-secure-streaming-spec.md` covers the same
+> ground in more detail.
 
 
 Watch Together enables synchronized media playback across a group of mesh peers. The host has exclusive control over playback (play, pause, seek, speed). Sync commands include wall clock timestamps for RTT compensation.

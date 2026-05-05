@@ -70,7 +70,7 @@ Devices talk directly to each other using Bluetooth, WiFi Direct, or NearLink. N
 
 When a message can't reach its destination directly, it hops through other devices. Those relay devices can't read what they're carrying — every message is encrypted with AES-256-GCM. Every packet is signed with Ed25519 identity keys, and forged packets are dropped by the network.
 
-> **Security maturity note (read before shipping):** the API surface for Signal-Protocol-style session establishment (X3DH key exchange + Double Ratchet) is in place across all 8 languages, but the X3DH ephemeral-key step currently collapses to static-static DH and three different ratchet constructions are in use across the family. Forward-secrecy and cross-language session interop are *not* yet at production grade — see Roadmap → Partially implemented for the open work and `OPEN_ISSUES.md` for the remediation plan.
+> **Security maturity note (read before shipping):** Real X3DH (4 X25519 DHs) and the full Signal Double Ratchet (DH-rotation step on receive, KDF_RK, 0x01/0x02 chain ratchet) are now implemented in all 8 languages and pinned to a shared cross-language fixture corpus under `fixtures/signal/`. C# additionally ships the one-time pre-key pool (default 100 OPKs) that closes the single-OPK concurrency hazard; the other 7 languages still use a single OPK. Swift and Kotlin port code has landed but is pending host-machine compile verification. C ships only the X25519 + KDF_RK primitives, not full session machinery. See Roadmap and `OPEN_ISSUES.md` for the residual gaps.
 
 No accounts, no phone numbers, no emails. You generate a keypair and you're on the network.
 
@@ -82,7 +82,7 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
   │ Video · Watch Together          │
   ├─────────────────────────────────┤
   │  Security: AES-256-GCM · Ed25519│
-  │  X3DH/Ratchet API in progress   │
+  │  X3DH + Double Ratchet (X25519) │
   ├─────────────────────────────────┤
   │  Routing: AODV + DTN            │
   ├─────────────────────────────────┤
@@ -104,20 +104,20 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
 
 Aether is built in 8 languages so it runs on phones, laptops, tablets, and microcontrollers. All implementations produce wire-compatible packets — a message encrypted by the Rust node can be relayed by the Python node and decrypted by the Swift node.
 
-| Language | Directory | Wire format | Routing/DTN/SOS | Forward-secrecy crypto |
-|----------|-----------|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ⚠ partial (see Roadmap) |
-| Rust | `rust/` | ✅ | ✅ | ⚠ partial |
-| TypeScript | `typescript/` | ✅ | ✅ | ⚠ partial |
-| Python | `python/` | ✅ | ✅ | ⚠ partial |
-| Go | `go/` | ✅ | ✅ | ⚠ partial |
-| Kotlin | `kotlin/` | ✅ | ✅ | ⚠ partial |
-| Swift | `swift/` | ✅ | ✅ | ⚠ partial |
-| C | `c/` | ✅ | ✅ | ⚠ partial |
+| Language | Directory | Wire format | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | single OPK |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | single OPK |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | single OPK |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | single OPK |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | single OPK |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | single OPK |
+| C | `c/` | ✅ | ✅ | primitives | — | — |
 
 All 8 languages produce byte-identical wire packets, verified by 122 cross-language fixture assertions in CI (`fixtures/expected/*.bin`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, and SOS broadcast services are implemented in every language with ~280 unit tests anchoring the per-service invariants.
 
-Forward-secrecy crypto is "partial" because every language currently collapses X3DH to static-static DH and three different Double-Ratchet variants are in use. Don't ship privacy-critical traffic on this until those land — see Roadmap.
+Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. Swift and Kotlin port code has landed but is pending host-machine compile verification. C ships only the X25519 and KDF_RK primitives needed for the fixture verifier — not a full Signal session.
 
 ## Quickstart
 
@@ -379,14 +379,19 @@ What's built and what's next.
 - SOS broadcast service with flood, dedup, self-origin guard, rate-limit (3/hr)
 - Extensibility seams: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop defaults)
 - ~280 service-level invariant tests across all 8 languages
+- ✅ **Real X3DH ephemeral key (8 languages)** — 4 X25519 DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) with HKDF-SHA256 root derivation. Pinned by `fixtures/signal/expected/x3dh_basic.json`.
+- ✅ **Double Ratchet alignment family-wide** — full Signal §5 with HMAC-SHA256 + 0x01/0x02 domain separation in the symmetric ratchet, HKDF-SHA256 KDF_RK in the DH-ratchet step, DH-rotation on receive. Verified by `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` fixtures.
+- ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 reconciled with HEAD** — see `docs/PROTOCOL_SPEC.md`.
 
-**Partially implemented — production gaps tracked under "Open":**
-- Signal-Protocol-shaped session API: X3DH + Double Ratchet methods exist in every language, but every implementation collapses X3DH to static-static DH (no ephemeral key). The forward-secrecy guarantee the API name implies is **not** delivered yet.
-- Three different Double-Ratchet constructions are in use across the family (C# uses HKDF, Python/Go use HMAC matching the spec, Rust uses HKDF with a different salt). Once a session is in motion, a C# node and a Python node cannot decrypt each other's messages.
-- Rust pre-key bundles use X25519 32-byte raw keys; every other language uses P-256 65-byte uncompressed. Rust pre-key bundles cannot be processed by any other implementation.
+**Done (C# reference only — port to other 7 languages pending):**
+- ✅ **One-time pre-key (OPK) pool** — default 100, FIFO issue, lazy top-up, lock-protected consumption. Closes the single-OPK concurrency hazard. Reference: `SignalProtocolService.TopUpOpkPoolNoLock` + `tests/Aether.Core.Tests/PreKeyPoolTests.cs`.
+- ✅ **Demo Step 9 — MessagingService + DTN fallback end-to-end** — `samples/Aether.Demo.Console` walks through real-Signal-encrypted messaging with DTN store-and-forward when the recipient is offline.
+- ✅ **`Aether.Messaging` ↔ `Aether.Security` bridge** — `SignalMessageEnvelopeCipher` makes the messaging layer end-to-end encrypted by default; messages without a Signal session are queued, never sent insecurely.
+- ✅ **C: X25519 + KDF_RK primitives + fixture verifier** — full session machinery still pending.
 
-**Spec'd, design doc only, no code:**
-- Voice and streaming with adaptive bitrate (`docs/adaptive-secure-streaming-spec.md` is a forward design doc; no implementation)
+**Spec'd, design doc only, no shipping pipeline:**
+- C# `Aether.Streaming` module ships interface scaffolding (`StreamingService`, `VideoCallService`, `WatchTogetherService`) wired to the routing layer; no codec backend bound to it
+- Voice and streaming with adaptive bitrate (`docs/adaptive-secure-streaming-spec.md` is a forward design doc)
 - Video calls (P2P and group) with transport-aware codec negotiation
 - Watch Together: synchronized playback, BitTorrent ingest, ChipIn group funding
 
@@ -395,19 +400,12 @@ What's built and what's next.
 - Wi-Fi Direct transport — direct device-to-device over WiFi
 - NearLink transport implementation
 - End-to-end two-node interop test on real BLE / Wi-Fi-Direct hardware
+- Swift and Kotlin host-machine compile verification of the X3DH + Double Ratchet ports
 
 **Open — tracked in `OPEN_ISSUES.md`:**
-- Real X3DH ephemeral key in all 8 languages (closes the static-static DH gap)
-- Pick one Double-Ratchet variant family-wide (HMAC matches the Signal published spec) and align the other languages
-- Rust pre-key bundles: X25519 → P-256 (or family-wide pivot to X25519/Ed25519 — pending architectural decision)
-- `docs/PROTOCOL_SPEC.md` reconciliation against actual wire format
-- Demo program signing fix (currently signs entire wire bytes, contradicting `PacketSigningService.BuildSignableData`)
-
-**Open for contribution:**
-- Android and iOS integration examples
-- Performance benchmarks across languages
-- Additional transport backends (LoRa, ultrasonic, etc.)
-- Protocol fuzzing and security audits
+- OPK pool port to the 7 non-C# languages (currently single-OPK)
+- Demo signing alignment with `PacketSigningService.BuildSignableData`
+- `docs/adaptive-secure-streaming-spec.md` — implement at least a skeleton or banner the doc as PROPOSAL
 
 **Open for contribution:**
 - NearLink transport implementation
