@@ -22,6 +22,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Aether.InteropTest" />
+    <InternalsVisibleTo Include="Aether.Storage" />
+    <InternalsVisibleTo Include="Aether.Core.Tests" />
   </ItemGroup>
 
 </Project>

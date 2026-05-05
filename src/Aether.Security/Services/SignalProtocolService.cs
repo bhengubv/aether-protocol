@@ -82,10 +82,23 @@ internal sealed class SignalSession
 /// </summary>
 internal sealed class PreKeyState
 {
+    /// <summary>
+    /// Active signed-pre-key id. Mirrors <c>SignedPreKeyHistory[^1].Id</c>
+    /// — kept as a denormalised field for the existing fast-path code that
+    /// references <see cref="SignedPreKeyId"/> directly without a list lookup.
+    /// </summary>
     public int SignedPreKeyId { get; set; }
     public byte[] SignedPreKeyPriv { get; set; } = [];
     public byte[] SignedPreKeyPub { get; set; } = [];
     public byte[] SignedPreKeySignature { get; set; } = [];
+
+    /// <summary>
+    /// Signed-pre-key history: oldest first, newest last. The newest entry
+    /// (i.e. the last) is the active SPK that gets handed out in bundles.
+    /// Older entries are retained for the rotation window so that messages
+    /// signed under a recently-rotated SPK can still decrypt.
+    /// </summary>
+    public List<SignedPreKeyEntry> SignedPreKeyHistory { get; } = new();
 
     /// <summary>One-time pre-keys keyed by id. Removed and zeroed on consumption.</summary>
     public Dictionary<int, (byte[] Priv, byte[] Pub)> OneTimePreKeys { get; } = new();
@@ -96,6 +109,20 @@ internal sealed class PreKeyState
     /// front (FIFO). Top-up generates new OPKs and enqueues them here.
     /// </summary>
     public Queue<int> AvailableOpkIds { get; } = new();
+}
+
+/// <summary>
+/// One signed-pre-key in the history (active or retained-prior). The private
+/// half is held so that responder-side X3DH can still complete when a peer
+/// presents a slightly-stale SPK during the rotation window.
+/// </summary>
+internal sealed class SignedPreKeyEntry
+{
+    public int Id { get; init; }
+    public byte[] PrivateKey { get; init; } = [];
+    public byte[] PublicKey { get; init; } = [];
+    public byte[] Signature { get; init; } = [];
+    public DateTimeOffset GeneratedAt { get; init; }
 }
 
 /// <summary>
@@ -169,6 +196,11 @@ public sealed class SignalProtocolService : ISignalProtocolService
     private readonly PreKeyState _preKeyState = new();
     private readonly object _preKeyLock = new();
 
+    private readonly ISignalSessionStore? _sessionStore;
+    private readonly IPreKeyStore? _preKeyStore;
+    private readonly SignedPreKeyRotationOptions _rotationOptions;
+    private readonly Func<DateTimeOffset> _nowProvider;
+
     /// <summary>
     /// Default size of the one-time pre-key pool. Mirrors Signal's published
     /// guidance: ~100 OPKs per device so realistic concurrent-initiator
@@ -184,18 +216,70 @@ public sealed class SignalProtocolService : ISignalProtocolService
     public int OpkPoolSize { get; }
 
     public SignalProtocolService(ILogger<SignalProtocolService> logger)
-        : this(logger, DefaultOpkPoolSize)
+        : this(logger, DefaultOpkPoolSize, sessionStore: null, preKeyStore: null,
+            rotationOptions: null, nowProvider: null)
     {
     }
 
     public SignalProtocolService(ILogger<SignalProtocolService> logger, int opkPoolSize)
+        : this(logger, opkPoolSize, sessionStore: null, preKeyStore: null,
+            rotationOptions: null, nowProvider: null)
+    {
+    }
+
+    /// <summary>
+    /// Constructor accepting persistent stores, rotation options, and a
+    /// synthetic clock. Internal because <see cref="ISignalSessionStore"/>
+    /// exposes the internal <see cref="SignalSession"/>; only assemblies
+    /// in the InternalsVisibleTo allow-list (Aether.Storage,
+    /// Aether.Core.Tests) can reference it directly.
+    ///
+    /// When <paramref name="preKeyStore"/> is non-null, identity keys are
+    /// loaded from it on construction (or generated and saved if no prior
+    /// identity is stored). The signed-pre-key history and OPK pool are
+    /// likewise hydrated. When <paramref name="sessionStore"/> is non-null,
+    /// every encrypt / decrypt mutation triggers a save. Saves are
+    /// best-effort: a failure logs a warning and continues without
+    /// blocking the message flow.
+    /// </summary>
+    internal SignalProtocolService(
+        ILogger<SignalProtocolService> logger,
+        ISignalSessionStore? sessionStore = null,
+        IPreKeyStore? preKeyStore = null,
+        SignedPreKeyRotationOptions? rotationOptions = null,
+        Func<DateTimeOffset>? nowProvider = null)
+        : this(logger, DefaultOpkPoolSize, sessionStore, preKeyStore, rotationOptions, nowProvider)
+    {
+    }
+
+    internal SignalProtocolService(
+        ILogger<SignalProtocolService> logger,
+        int opkPoolSize,
+        ISignalSessionStore? sessionStore,
+        IPreKeyStore? preKeyStore,
+        SignedPreKeyRotationOptions? rotationOptions,
+        Func<DateTimeOffset>? nowProvider)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         if (opkPoolSize < 1)
             throw new ArgumentOutOfRangeException(nameof(opkPoolSize),
                 $"OpkPoolSize must be >= 1 (got {opkPoolSize}).");
         OpkPoolSize = opkPoolSize;
+        _sessionStore = sessionStore;
+        _preKeyStore = preKeyStore;
+        _rotationOptions = rotationOptions ?? SignedPreKeyRotationOptions.Default;
+        _nowProvider = nowProvider ?? (() => DateTimeOffset.UtcNow);
+
+        if (_rotationOptions.RotationInterval <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(rotationOptions),
+                "RotationInterval must be > 0.");
+        if (_rotationOptions.RetainedHistoryCount < 0)
+            throw new ArgumentOutOfRangeException(nameof(rotationOptions),
+                "RetainedHistoryCount must be >= 0.");
+
         InitializeIdentityKeys();
+        HydrateFromPreKeyStore();
+        HydrateFromSessionStore();
     }
 
     private void InitializeIdentityKeys()
@@ -204,10 +288,164 @@ public sealed class SignalProtocolService : ISignalProtocolService
         (_ed25519PrivateKey, _ed25519PublicKey) = Ed25519SigningService.GenerateKeyPair();
     }
 
+    private void HydrateFromPreKeyStore()
+    {
+        if (_preKeyStore is null) return;
+
+        try
+        {
+            var stored = _preKeyStore.LoadIdentityAsync().GetAwaiter().GetResult();
+            if (stored is not null)
+            {
+                _ed25519PrivateKey = stored.Ed25519PrivateKey;
+                _ed25519PublicKey = stored.Ed25519PublicKey;
+                _identityX25519Priv = stored.X25519PrivateKey;
+                _identityX25519Pub = stored.X25519PublicKey;
+                if (!string.IsNullOrEmpty(stored.LocalUhid))
+                    _localUhid = stored.LocalUhid;
+            }
+            else
+            {
+                var fresh = new StoredIdentityKeys(
+                    _ed25519PrivateKey, _ed25519PublicKey,
+                    _identityX25519Priv, _identityX25519Pub, _localUhid);
+                _preKeyStore.SaveIdentityAsync(fresh).GetAwaiter().GetResult();
+            }
+
+            var history = _preKeyStore.LoadSignedPreKeysAsync().GetAwaiter().GetResult();
+            lock (_preKeyLock)
+            {
+                _preKeyState.SignedPreKeyHistory.Clear();
+                foreach (var e in history.Entries.OrderBy(e => e.GeneratedAt))
+                {
+                    _preKeyState.SignedPreKeyHistory.Add(new SignedPreKeyEntry
+                    {
+                        Id = e.Id, PrivateKey = e.PrivateKey, PublicKey = e.PublicKey,
+                        Signature = e.Signature, GeneratedAt = e.GeneratedAt,
+                    });
+                }
+                if (_preKeyState.SignedPreKeyHistory.Count > 0)
+                {
+                    var active = _preKeyState.SignedPreKeyHistory[^1];
+                    _preKeyState.SignedPreKeyId = active.Id;
+                    _preKeyState.SignedPreKeyPriv = active.PrivateKey;
+                    _preKeyState.SignedPreKeyPub = active.PublicKey;
+                    _preKeyState.SignedPreKeySignature = active.Signature;
+                }
+            }
+
+            var opks = _preKeyStore.LoadOneTimePreKeysAsync().GetAwaiter().GetResult();
+            lock (_preKeyLock)
+            {
+                _preKeyState.OneTimePreKeys.Clear();
+                _preKeyState.AvailableOpkIds.Clear();
+                foreach (var (id, opk) in opks)
+                {
+                    _preKeyState.OneTimePreKeys[id] = (opk.PrivateKey, opk.PublicKey);
+                    if (!opk.Issued)
+                        _preKeyState.AvailableOpkIds.Enqueue(id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to hydrate pre-key state; continuing with freshly-generated keys.");
+        }
+    }
+
+    private void HydrateFromSessionStore()
+    {
+        if (_sessionStore is null) return;
+        try
+        {
+            var peers = _sessionStore.ListPeersAsync().GetAwaiter().GetResult();
+            foreach (var peerUhid in peers)
+            {
+                try
+                {
+                    var session = _sessionStore.LoadAsync(peerUhid).GetAwaiter().GetResult();
+                    if (session is not null) _sessions[peerUhid] = session;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to load session for {Peer}; skipping.",
+                        LogSanitizer.SanitizeUhid(peerUhid));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to enumerate sessions from store.");
+        }
+    }
+
+    private void TryPersistSession(string peerUhid, SignalSession session)
+    {
+        if (_sessionStore is null) return;
+        try
+        {
+            _sessionStore.SaveAsync(peerUhid, session).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist session for {Peer}.",
+                LogSanitizer.SanitizeUhid(peerUhid));
+        }
+    }
+
+    private void TryPersistIdentity()
+    {
+        if (_preKeyStore is null) return;
+        try
+        {
+            var snapshot = new StoredIdentityKeys(
+                _ed25519PrivateKey, _ed25519PublicKey,
+                _identityX25519Priv, _identityX25519Pub, _localUhid);
+            _preKeyStore.SaveIdentityAsync(snapshot).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist identity keys."); }
+    }
+
+    private void TryPersistSignedPreKeysNoLock()
+    {
+        if (_preKeyStore is null) return;
+        try
+        {
+            var snapshot = new StoredSignedPreKeyHistory(
+                _preKeyState.SignedPreKeyHistory.Select(e => new StoredSignedPreKey(
+                    e.Id, e.PrivateKey, e.PublicKey, e.Signature, e.GeneratedAt)).ToArray());
+            _preKeyStore.SaveSignedPreKeysAsync(snapshot).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist SPK history."); }
+    }
+
+    private void TryPersistOneTimePreKeysNoLock()
+    {
+        if (_preKeyStore is null) return;
+        try
+        {
+            var issued = new HashSet<int>(_preKeyState.OneTimePreKeys.Keys);
+            foreach (var id in _preKeyState.AvailableOpkIds) issued.Remove(id);
+            var snapshot = _preKeyState.OneTimePreKeys.ToDictionary(
+                kv => kv.Key,
+                kv => new StoredOneTimePreKey(kv.Key, kv.Value.Priv, kv.Value.Pub, issued.Contains(kv.Key)));
+            _preKeyStore.SaveOneTimePreKeysAsync(snapshot).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist OPK pool."); }
+    }
+
+    private void TryConsumeOneTimePreKey(int id)
+    {
+        if (_preKeyStore is null) return;
+        try { _preKeyStore.ConsumeOneTimePreKeyAsync(id).GetAwaiter().GetResult(); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to consume OPK {Id}.", id); }
+    }
+
     public void SetLocalUhid(string localUhid)
     {
         ArgumentException.ThrowIfNullOrEmpty(localUhid);
         _localUhid = localUhid;
+        TryPersistIdentity();
     }
 
     /// <inheritdoc />
@@ -298,6 +536,7 @@ public sealed class SignalProtocolService : ISignalProtocolService
                     AetherTelemetry.MessagesEncrypted.Add(1);
                     _logger.LogDebug("Encrypted PreKey msg for {Peer}, counter={Counter}",
                         LogSanitizer.SanitizeUhid(peerUhid), counter);
+                    TryPersistSession(peerUhid, session);
                     return Task.FromResult(preKey);
                 }
 
@@ -311,14 +550,16 @@ public sealed class SignalProtocolService : ISignalProtocolService
                 _logger.LogDebug("Encrypted msg for {Peer}, counter={Counter}",
                     LogSanitizer.SanitizeUhid(peerUhid), counter);
 
-                return Task.FromResult(new EncryptedPayload(
+                var payload = new EncryptedPayload(
                     Ciphertext: combined,
                     Nonce: nonce,
                     MessageType: 0,
                     SenderUhid: senderUhid,
                     Counter: counter,
                     SenderEphemeralKeyX25519: ratchetPub,
-                    PreviousChainCount: session.PreviousChainCount));
+                    PreviousChainCount: session.PreviousChainCount);
+                TryPersistSession(peerUhid, session);
+                return Task.FromResult(payload);
             }
             finally
             {
@@ -447,6 +688,7 @@ public sealed class SignalProtocolService : ISignalProtocolService
                 _logger.LogDebug("Decrypted msg from {Peer}, counter={Counter}",
                     LogSanitizer.SanitizeUhid(peerUhid), payload.Counter);
 
+                TryPersistSession(peerUhid, session);
                 return Task.FromResult(plaintext);
             }
             finally
@@ -465,52 +707,53 @@ public sealed class SignalProtocolService : ISignalProtocolService
     public Task<PreKeyBundle> GeneratePreKeyBundleAsync(string localUhid, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(localUhid);
+        var uhidChanged = !string.Equals(_localUhid, localUhid, StringComparison.Ordinal);
         _localUhid = localUhid;
+        if (uhidChanged) TryPersistIdentity();
 
         int preKeyId;
         byte[] otpkPub;
         byte[] spkPub;
         int signedPreKeyId;
         byte[] signature;
+        var historyMutated = false;
 
         lock (_preKeyLock)
         {
-            // SignedPreKey: generated lazily on the first bundle call and
-            // reused across subsequent calls. Concurrent initiators may
-            // each fetch a bundle and then run X3DH at any time later;
-            // rotating SPK every call would invalidate every outstanding
-            // bundle as soon as the next one is issued. In production SPK
-            // rotation is a periodic operation (Signal §3.3 recommends
-            // weekly) — driven by an explicit RotateSignedPreKey call,
-            // not by every bundle issue.
-            if (_preKeyState.SignedPreKeyPriv.Length == 0)
+            // SignedPreKey: generated lazily on the first bundle call. On
+            // subsequent calls the active SPK is reused unless its age
+            // exceeds RotationInterval, in which case a fresh SPK is
+            // generated and the history is rolled forward. A retained
+            // history (configurable) lets messages signed under a
+            // recently-rotated SPK still complete X3DH during the rotation
+            // window — Signal §3.3 recommends weekly rotation.
+            if (_preKeyState.SignedPreKeyHistory.Count == 0)
             {
-                var (spkPriv, spkPubLocal) = X25519Service.GenerateKeyPair();
-                signedPreKeyId = RandomNumberGenerator.GetInt32(1, int.MaxValue);
-                signature = Ed25519SigningService.Sign(_ed25519PrivateKey, spkPubLocal);
-                spkPub = spkPubLocal;
-
-                _preKeyState.SignedPreKeyId = signedPreKeyId;
-                _preKeyState.SignedPreKeyPriv = spkPriv;
-                _preKeyState.SignedPreKeyPub = spkPub;
-                _preKeyState.SignedPreKeySignature = signature;
+                AppendNewSignedPreKeyNoLock();
+                historyMutated = true;
             }
             else
             {
-                signedPreKeyId = _preKeyState.SignedPreKeyId;
-                spkPub = _preKeyState.SignedPreKeyPub;
-                signature = _preKeyState.SignedPreKeySignature;
+                var active = _preKeyState.SignedPreKeyHistory[^1];
+                if (_nowProvider() - active.GeneratedAt >= _rotationOptions.RotationInterval)
+                {
+                    AppendNewSignedPreKeyNoLock();
+                    historyMutated = true;
+                }
             }
 
-            // Top up the OPK pool: ensure AvailableOpkIds is at the target
-            // size. Lazy generation — costs amortise across bundle calls
-            // and consumed OPKs are replaced on the next call.
-            TopUpOpkPoolNoLock();
+            var activeEntry = _preKeyState.SignedPreKeyHistory[^1];
+            signedPreKeyId = activeEntry.Id;
+            spkPub = activeEntry.PublicKey;
+            signature = activeEntry.Signature;
 
-            // Pop the next available OPK id. AvailableOpkIds is guaranteed
-            // non-empty by TopUpOpkPoolNoLock when OpkPoolSize >= 1.
+            // Top up the OPK pool, then dequeue the next un-issued OPK.
+            TopUpOpkPoolNoLock();
             preKeyId = _preKeyState.AvailableOpkIds.Dequeue();
             otpkPub = _preKeyState.OneTimePreKeys[preKeyId].Pub;
+
+            if (historyMutated) TryPersistSignedPreKeysNoLock();
+            TryPersistOneTimePreKeysNoLock();
         }
 
         var bundle = new PreKeyBundle(
@@ -527,6 +770,95 @@ public sealed class SignalProtocolService : ISignalProtocolService
             LogSanitizer.SanitizeUhid(localUhid), signedPreKeyId, preKeyId, _preKeyState.OneTimePreKeys.Count);
 
         return Task.FromResult(bundle);
+    }
+
+    /// <summary>
+    /// Generates a fresh SPK, appends it to the history as the new active
+    /// entry, and trims the history to the retained-count budget. Caller
+    /// MUST hold <see cref="_preKeyLock"/>.
+    /// </summary>
+    private void AppendNewSignedPreKeyNoLock()
+    {
+        var (spkPriv, spkPub) = X25519Service.GenerateKeyPair();
+        var signedPreKeyId = RandomNumberGenerator.GetInt32(1, int.MaxValue);
+        var sig = Ed25519SigningService.Sign(_ed25519PrivateKey, spkPub);
+
+        _preKeyState.SignedPreKeyHistory.Add(new SignedPreKeyEntry
+        {
+            Id = signedPreKeyId,
+            PrivateKey = spkPriv,
+            PublicKey = spkPub,
+            Signature = sig,
+            GeneratedAt = _nowProvider(),
+        });
+
+        var maxEntries = 1 + _rotationOptions.RetainedHistoryCount;
+        while (_preKeyState.SignedPreKeyHistory.Count > maxEntries)
+        {
+            var pruned = _preKeyState.SignedPreKeyHistory[0];
+            CryptographicOperations.ZeroMemory(pruned.PrivateKey);
+            _preKeyState.SignedPreKeyHistory.RemoveAt(0);
+        }
+
+        var active = _preKeyState.SignedPreKeyHistory[^1];
+        _preKeyState.SignedPreKeyId = active.Id;
+        _preKeyState.SignedPreKeyPriv = active.PrivateKey;
+        _preKeyState.SignedPreKeyPub = active.PublicKey;
+        _preKeyState.SignedPreKeySignature = active.Signature;
+    }
+
+    /// <summary>
+    /// Forces a signed-pre-key rotation if the active SPK is older than
+    /// <see cref="SignedPreKeyRotationOptions.RotationInterval"/>. Returns
+    /// true iff a new SPK was generated and persisted.
+    /// </summary>
+    public Task<bool> RotateSignedPreKeyAsync(CancellationToken ct = default)
+    {
+        bool rotated = false;
+        lock (_preKeyLock)
+        {
+            var shouldRotate = _preKeyState.SignedPreKeyHistory.Count == 0
+                || _nowProvider() - _preKeyState.SignedPreKeyHistory[^1].GeneratedAt
+                    >= _rotationOptions.RotationInterval;
+
+            if (shouldRotate)
+            {
+                AppendNewSignedPreKeyNoLock();
+                TryPersistSignedPreKeysNoLock();
+                rotated = true;
+            }
+        }
+        if (rotated)
+            _logger.LogInformation("Rotated signed pre-key (history size now {Size}).",
+                _preKeyState.SignedPreKeyHistory.Count);
+        return Task.FromResult(rotated);
+    }
+
+    /// <summary>Active signed-pre-key id for tests and observability.</summary>
+    public int ActiveSignedPreKeyId
+    {
+        get { lock (_preKeyLock) return _preKeyState.SignedPreKeyId; }
+    }
+
+    /// <summary>Number of signed-pre-keys held — active + retained prior.</summary>
+    public int SignedPreKeyHistoryCount
+    {
+        get { lock (_preKeyLock) return _preKeyState.SignedPreKeyHistory.Count; }
+    }
+
+    /// <summary>
+    /// Looks up a signed-pre-key entry by id across the full retained
+    /// history. Returns null if the id is unknown. Caller MUST hold
+    /// <see cref="_preKeyLock"/>.
+    /// </summary>
+    private SignedPreKeyEntry? FindSignedPreKeyNoLock(int id)
+    {
+        for (var i = _preKeyState.SignedPreKeyHistory.Count - 1; i >= 0; i--)
+        {
+            var entry = _preKeyState.SignedPreKeyHistory[i];
+            if (entry.Id == id) return entry;
+        }
+        return null;
     }
 
     /// <summary>
@@ -659,6 +991,7 @@ public sealed class SignalProtocolService : ISignalProtocolService
 
             _sessions[bundle.Uhid] = session;
             AetherTelemetry.SessionsEstablished.Add(1);
+            TryPersistSession(bundle.Uhid, session);
 
             _logger.LogDebug("Established initiator session with {Peer} via X3DH (4 DHs, X25519)",
                 LogSanitizer.SanitizeUhid(bundle.Uhid));
@@ -702,11 +1035,13 @@ public sealed class SignalProtocolService : ISignalProtocolService
                 $"Initiator ratchet pub has wrong size: {initiatorRatchetPub.Length} (expected {X25519Service.PublicKeySize}).");
 
         (byte[] Priv, byte[] Pub) otpk;
+        SignedPreKeyEntry spkEntry;
         lock (_preKeyLock)
         {
-            if (_preKeyState.SignedPreKeyId != payload.UsedSignedPreKeyId
-                || _preKeyState.SignedPreKeyPriv.Length == 0)
-                throw new CryptographicException(
+            // Walk the full SPK history (active + retained prior). A pruned
+            // SPK fails outright because its private half has been zeroed.
+            spkEntry = FindSignedPreKeyNoLock(payload.UsedSignedPreKeyId)
+                ?? throw new CryptographicException(
                     $"PreKey message references signed pre-key id {payload.UsedSignedPreKeyId} " +
                     "which is not held by this node (rotated out or never generated).");
 
@@ -723,41 +1058,37 @@ public sealed class SignalProtocolService : ISignalProtocolService
         try
         {
             // Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
-            dh1 = X25519Service.Agree(_preKeyState.SignedPreKeyPriv, initiatorIK);
+            dh1 = X25519Service.Agree(spkEntry.PrivateKey, initiatorIK);
             dh2 = X25519Service.Agree(_identityX25519Priv, initiatorRatchetPub);
-            dh3 = X25519Service.Agree(_preKeyState.SignedPreKeyPriv, initiatorRatchetPub);
+            dh3 = X25519Service.Agree(spkEntry.PrivateKey, initiatorRatchetPub);
             dh4 = X25519Service.Agree(otpk.Priv, initiatorRatchetPub);
 
             sharedSecret = ConcatBytes(dh1, dh2, dh3, dh4);
             rootKey = HKDF.DeriveKey(HashAlgorithmName.SHA256, sharedSecret, AesKeySize, info: HkdfRootInfo);
 
-            // Adopt SPK as the initial DHs. The DH-ratchet step that
-            // follows will rotate it to a fresh keypair.
             var session = new SignalSession
             {
                 RootKey = rootKey,
                 SendChainKey = null,
                 RecvChainKey = null,
-                MyEphemeralPriv = (byte[])_preKeyState.SignedPreKeyPriv.Clone(),
-                MyEphemeralPub = (byte[])_preKeyState.SignedPreKeyPub.Clone(),
-                RemoteEphemeralPub = null,         // forces DH-ratchet on first decrypt below
+                MyEphemeralPriv = (byte[])spkEntry.PrivateKey.Clone(),
+                MyEphemeralPub = (byte[])spkEntry.PublicKey.Clone(),
+                RemoteEphemeralPub = null,
                 PendingPreKeyMessage = false,
             };
 
-            rootKey = null; // ownership transferred
+            rootKey = null;
 
             _sessions[peerUhid] = session;
             AetherTelemetry.SessionsEstablished.Add(1);
 
-            // Consume the one-time pre-key (zero + remove). Replay protection
-            // at the bundle layer. Two concurrent PreKey messages racing for
-            // the same OPK id will see one Remove succeed and the other
-            // throw above (TryGetValue under lock).
             lock (_preKeyLock)
             {
                 if (_preKeyState.OneTimePreKeys.Remove(payload.UsedOneTimePreKeyId, out var stored))
                     CryptographicOperations.ZeroMemory(stored.Priv);
             }
+            TryConsumeOneTimePreKey(payload.UsedOneTimePreKeyId);
+            TryPersistSession(peerUhid, session);
 
             _logger.LogDebug(
                 "Established responder session with {Peer} via X3DH; one-time pre-key {Id} consumed",
