@@ -19,8 +19,11 @@
     <ProjectReference Include="../../src/Aether.Core/Aether.Core.csproj" />
     <ProjectReference Include="../../src/Aether.Security/Aether.Security.csproj" />
     <ProjectReference Include="../../src/Aether.Messaging/Aether.Messaging.csproj" />
+    <ProjectReference Include="../../src/Aether.Streaming/Aether.Streaming.csproj" />
     <ProjectReference Include="../../src/Aether.Transport/Aether.Transport.csproj" />
     <ProjectReference Include="../../src/Aether.Storage/Aether.Storage.csproj" />
+    <ProjectReference Include="../../src/Aether.Voice/Aether.Voice.csproj" />
+    <ProjectReference Include="../../src/Aether.Content/Aether.Content.csproj" />
   </ItemGroup>
 
 </Project>
