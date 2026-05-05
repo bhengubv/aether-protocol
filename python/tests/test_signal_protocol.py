@@ -262,3 +262,145 @@ async def test_pre_key_bundle_has_both_identity_keys():
     assert len(bundle.signed_pre_key) == 32
     assert len(bundle.pre_key) == 32
     assert len(bundle.signed_pre_key_signature) == 64
+
+
+# ─── Double Ratchet (Signal §5) tests ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_double_ratchet_every_message_carries_sender_ephemeral_key():
+    alice = SignalProtocolService()
+    bob = SignalProtocolService()
+    bob_bundle = await bob.generate_pre_key_bundle("bob")
+    await alice.generate_pre_key_bundle("alice")
+    await alice.process_pre_key_bundle(bob_bundle)
+
+    first = await alice.encrypt("bob", b"a")
+    assert first.sender_ephemeral_key_x25519 is not None
+    assert len(first.sender_ephemeral_key_x25519) == 32
+
+    await bob.decrypt("alice", first)
+
+    # Subsequent message also carries sender_ephemeral_key_x25519 (same
+    # value — Alice hasn't ratcheted because Bob hasn't responded yet).
+    second = await alice.encrypt("bob", b"b")
+    assert second.sender_ephemeral_key_x25519 is not None
+    assert second.sender_ephemeral_key_x25519 == first.sender_ephemeral_key_x25519
+
+
+@pytest.mark.asyncio
+async def test_double_ratchet_sender_ephemeral_key_rotates_after_roundtrip():
+    alice = SignalProtocolService()
+    bob = SignalProtocolService()
+    bob_bundle = await bob.generate_pre_key_bundle("bob")
+    await alice.generate_pre_key_bundle("alice")
+    await alice.process_pre_key_bundle(bob_bundle)
+
+    # Alice -> Bob: Alice's first ratchet pub.
+    alice_first = await alice.encrypt("bob", b"ping")
+    await bob.decrypt("alice", alice_first)
+
+    # Bob -> Alice: Bob's first ratchet pub (rotated by responder-side DH ratchet).
+    bob_reply = await bob.encrypt("alice", b"pong")
+    assert bob_reply.sender_ephemeral_key_x25519 is not None
+    # Bob's ratchet pub should be DIFFERENT from Alice's (Bob generated
+    # fresh DHs on his DH-ratchet step).
+    assert alice_first.sender_ephemeral_key_x25519 != bob_reply.sender_ephemeral_key_x25519
+
+    await alice.decrypt("bob", bob_reply)
+
+    # Alice -> Bob (after roundtrip): Alice should now use a NEW ratchet pub
+    # (rotated on her DH-ratchet step when she received Bob's reply).
+    alice_second = await alice.encrypt("bob", b"ping2")
+    assert alice_second.sender_ephemeral_key_x25519 != alice_first.sender_ephemeral_key_x25519
+    assert alice_second.sender_ephemeral_key_x25519 != bob_reply.sender_ephemeral_key_x25519
+
+    # Bob can still decrypt Alice's new message.
+    out = await bob.decrypt("alice", alice_second)
+    assert out == b"ping2"
+
+
+@pytest.mark.asyncio
+async def test_double_ratchet_previous_chain_count_tracks_messages_per_chain():
+    alice = SignalProtocolService()
+    bob = SignalProtocolService()
+    bob_bundle = await bob.generate_pre_key_bundle("bob")
+    await alice.generate_pre_key_bundle("alice")
+    await alice.process_pre_key_bundle(bob_bundle)
+
+    # Alice sends 3 messages without a roundtrip.
+    for i in range(3):
+        enc = await alice.encrypt("bob", f"a{i}".encode())
+        # PN is 0 because this IS Alice's first chain.
+        assert enc.previous_chain_count == 0
+        await bob.decrypt("alice", enc)
+
+    # Bob sends a reply, triggering his DH-ratchet step.
+    bob_reply = await bob.encrypt("alice", b"hi")
+    # Bob's PN reflects however many messages Bob sent in his previous
+    # sending chain — which was 0 (Bob hadn't sent anything yet before
+    # his DH-ratchet step rotated his chain).
+    assert bob_reply.previous_chain_count == 0
+    await alice.decrypt("bob", bob_reply)
+
+    # Alice's next message after her DH-ratchet step. Her PN should be
+    # 3 — that's how many messages she sent on her previous chain
+    # before Bob's reply triggered her ratchet.
+    alice_new = await alice.encrypt("bob", b"a3")
+    assert alice_new.previous_chain_count == 3
+
+
+@pytest.mark.asyncio
+async def test_double_ratchet_out_of_order_across_dh_ratchet_boundary_decrypts():
+    """Alice sends 3 messages on chain 1. Bob receives only the first 2,
+    then Alice does a DH-ratchet (because Bob replied) and sends a 4th
+    on chain 2. The 3rd message (from chain 1) arrives last — Bob must
+    still be able to decrypt it via the skipped-keys cache keyed by
+    (Alice's old DHs pub, counter=2).
+    """
+    alice = SignalProtocolService()
+    bob = SignalProtocolService()
+    bob_bundle = await bob.generate_pre_key_bundle("bob")
+    await alice.generate_pre_key_bundle("alice")
+    await alice.process_pre_key_bundle(bob_bundle)
+
+    a0 = await alice.encrypt("bob", b"a0")
+    a1 = await alice.encrypt("bob", b"a1")
+    a2 = await alice.encrypt("bob", b"a2")
+
+    # Bob receives a0, a1 only.
+    assert (await bob.decrypt("alice", a0)) == b"a0"
+    assert (await bob.decrypt("alice", a1)) == b"a1"
+
+    # Bob replies — triggers his DH-ratchet step.
+    b_reply = await bob.encrypt("alice", b"hi")
+    await alice.decrypt("bob", b_reply)
+
+    # Alice sends a4 on her new chain (after her DH-ratchet step).
+    a4 = await alice.encrypt("bob", b"a4")
+    # Bob receives a4 — triggers his second DH-ratchet step. He must
+    # skip-derive a key for Alice's old chain counter=2 because PN=3.
+    assert (await bob.decrypt("alice", a4)) == b"a4"
+
+    # Now the missing a2 (from Alice's OLD chain) finally arrives. Bob
+    # should pull the skipped key from cache.
+    assert (await bob.decrypt("alice", a2)) == b"a2"
+
+
+@pytest.mark.asyncio
+async def test_double_ratchet_long_conversation_all_messages_decrypt():
+    alice = SignalProtocolService()
+    bob = SignalProtocolService()
+    bob_bundle = await bob.generate_pre_key_bundle("bob")
+    await alice.generate_pre_key_bundle("alice")
+    await alice.process_pre_key_bundle(bob_bundle)
+
+    # 10 alternating messages — each side ratchets at every roundtrip.
+    for i in range(10):
+        a_msg = f"alice {i}".encode()
+        a_enc = await alice.encrypt("bob", a_msg)
+        assert (await bob.decrypt("alice", a_enc)) == a_msg
+
+        b_msg = f"bob {i}".encode()
+        b_enc = await bob.encrypt("alice", b_msg)
+        assert (await alice.decrypt("bob", b_enc)) == b_msg

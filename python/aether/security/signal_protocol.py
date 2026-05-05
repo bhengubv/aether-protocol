@@ -1,4 +1,5 @@
-"""Signal Protocol implementation for end-to-end encryption in Aether mesh.
+"""Signal Protocol implementation: X3DH session establishment + full
+Double Ratchet (Signal §5).
 
 Key agreement: X3DH (Signal Protocol §3) over X25519 (RFC 7748). Four DHs:
   - DH1 = DH(IK_A, SPK_B) — long-term mutual authentication
@@ -6,13 +7,23 @@ Key agreement: X3DH (Signal Protocol §3) over X25519 (RFC 7748). Four DHs:
   - DH3 = DH(EK_A, SPK_B) — initiator ephemeral binds to responder signed pre-key
   - DH4 = DH(EK_A, OPK_B) — initiator ephemeral binds to responder one-time pre-key (FS)
 
-Root-key derivation: HKDF-SHA256 over concat(DH1||DH2||DH3||DH4).
-Symmetric ratchet: HMAC-SHA256, single-byte domain separation
-  (0x01 -> message key, 0x02 -> next chain key) per Signal §5.1.
+Initial root-key derivation: HKDF-SHA256 over concat(DH1||DH2||DH3||DH4).
+
+Double Ratchet (§5): each side maintains a current X25519 ratchet
+keypair. Whenever a peer message bears a new ratchet public key, the
+receiver does a DH-ratchet step: derive a new chain key via
+KDF_RK(RK, DH(myDHs_priv, newDHr)), then generate a fresh DHs and
+derive its sending chain via KDF_RK(RK, DH(newDHs_priv, newDHr)).
+Signal-canonical X3DH integration: the initiator's X3DH ephemeral key
+becomes its first DH-ratchet keypair.
+
+Symmetric ratchet (§5.1): HMAC-SHA256, single-byte domain separation
+  (0x01 -> message key, 0x02 -> next chain key).
 Encryption: AES-256-GCM, 12-byte nonce, 16-byte tag.
 Identity signing: Ed25519 via Ed25519SigningService.
 """
 
+import hmac as stdlib_hmac
 import os
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Tuple
@@ -39,13 +50,20 @@ MESSAGE_TYPE_PRE_KEY = 1
 # HKDF info strings for X3DH session establishment. The SAME info strings
 # are used on initiator and responder sides; the responder SWAPS send/recv
 # assignment so the initiator's send chain matches the responder's recv
-# chain (and vice versa).
+# chain (and vice versa) — but only at session-bootstrap. After the first
+# DH-ratchet step on receive, both sides converge on the canonical Signal
+# §5 KDF_RK and these initial chain keys are discarded.
 #
 # These MUST match the C# reference exactly — any drift breaks cross-language
 # interop (verified by fixtures/signal/expected/x3dh_basic.json).
 _HKDF_ROOT_INFO = b"aether-x3dh-root-v1"
 _HKDF_CHAIN_INITIATOR_SEND_INFO = b"aether-chain-initiator-send-v1"
 _HKDF_CHAIN_INITIATOR_RECV_INFO = b"aether-chain-initiator-recv-v1"
+
+# HKDF info string for KDF_RK (Signal §5.2). Each DH-ratchet step derives
+# a 64-byte block, split into the new root key (first 32 bytes) and the
+# new chain key (second 32 bytes). Salt is the current root key.
+_HKDF_RATCHET_INFO = b"aether-ratchet-rk-v1"
 
 _X25519_PUBLIC_KEY_SIZE = 32
 _X25519_PRIVATE_KEY_SIZE = 32
@@ -74,10 +92,29 @@ class PreKeyBundle:
 class EncryptedPayload:
     """Wire-level form of an encrypted message.
 
-    When `message_type == 1` (PreKey message — first message from initiator
-    before responder has established a session), the four `initiator_*`
-    fields carry the data the responder needs to run X3DH on its side.
-    On normal messages (`message_type == 0`), those fields are None/0.
+    Two layered ratchets contribute fields:
+
+    1. **X3DH session establishment** (Signal §3) — populated only on the
+       first message a new initiator sends to a peer (message_type == 1):
+       ``initiator_identity_key_x25519``, ``used_signed_pre_key_id``,
+       ``used_one_time_pre_key_id``. The responder uses these to run X3DH
+       on its side and derive the same root key.
+
+    2. **Double Ratchet** (Signal §5) — ``sender_ephemeral_key_x25519`` and
+       ``previous_chain_count`` populated on EVERY message.
+       ``sender_ephemeral_key_x25519`` is the sender's current DH-ratchet
+       public key; when it changes between messages, the receiver runs a
+       DH-ratchet step that re-keys the chain and gives per-roundtrip forward
+       secrecy and post-compromise security. On the very first PreKey message,
+       this equals the X3DH ephemeral public key (Signal-canonical
+       integration: initiator's X3DH ephemeral becomes its first DH-ratchet
+       public).
+
+    ``initiator_ephemeral_key_x25519`` is retained for backward compatibility
+    with consumers of the pre-Double-Ratchet wire envelope. On PreKey messages
+    it equals ``sender_ephemeral_key_x25519``; on normal messages it stays
+    None. New consumers should ignore this field and use
+    ``sender_ephemeral_key_x25519`` exclusively.
     """
 
     ciphertext: bytes
@@ -91,26 +128,64 @@ class EncryptedPayload:
     used_signed_pre_key_id: int = 0
     used_one_time_pre_key_id: int = 0
 
+    # Double Ratchet (Signal §5) — populated on every message.
+    sender_ephemeral_key_x25519: Optional[bytes] = None
+    previous_chain_count: int = 0
+
 
 @dataclass
 class SignalSession:
-    """State of a Signal Protocol session with a single peer.
+    """State of a Signal-Protocol session with a single peer — both X3DH
+    session-establishment metadata and Double-Ratchet (Signal §5) state.
 
-    On the initiator side, `pending_pre_key_message` is True until the first
+    Double-Ratchet state per Signal §5:
+      - ``root_key`` — RK. Re-keyed on every DH-ratchet step.
+      - ``my_ephemeral_priv`` / ``my_ephemeral_pub`` — DHs, my current ratchet keypair.
+      - ``remote_ephemeral_pub`` — DHr, peer's last-known ratchet public key.
+        None until first DH-ratchet step.
+      - ``send_chain_key`` — CKs, my current sending chain key. None until I've
+        sent (or initialized) on this chain.
+      - ``recv_chain_key`` — CKr, my current receiving chain key. None until I've
+        received on this chain.
+      - ``send_counter`` / ``recv_counter`` — Ns / Nr (reset to 0 each DH-ratchet step).
+      - ``previous_chain_count`` — PN, number of messages I sent in my previous
+        sending chain (so the receiver can compute skipped keys across a
+        DH-ratchet boundary).
+      - ``skipped_message_keys`` — MKSKIPPED, keyed by ``"hex(DHr_pub):counter"``
+        so out-of-order messages from a previous chain (different DHr) can
+        still be decrypted via the cache after a DH-ratchet step.
+
+    On the initiator side, ``pending_pre_key_message`` is True until the first
     outbound message is sent. While True, the next encrypt() emits a PreKey
-    message carrying the four `initiator_*` fields below.
+    message carrying the X3DH inputs.
     """
 
     root_key: bytes = b""
-    send_chain_key: bytes = b""
-    recv_chain_key: bytes = b""
+
+    # Sending chain key. None until first send (or until DH-ratchet rekeys it).
+    send_chain_key: Optional[bytes] = None
+    # Receiving chain key. None until first receive that triggers a DH-ratchet step.
+    recv_chain_key: Optional[bytes] = None
+
     send_counter: int = 0
     recv_counter: int = 0
-    skipped_message_keys: Dict[int, bytes] = field(default_factory=dict)
+    # Number of messages sent in the previous sending chain (Signal §5: PN).
+    previous_chain_count: int = 0
+
+    # My current DH-ratchet keypair (X25519, 32 bytes each).
+    my_ephemeral_priv: bytes = b""
+    my_ephemeral_pub: bytes = b""
+    # Peer's last-seen DH-ratchet public key. None until first DH-ratchet step.
+    remote_ephemeral_pub: Optional[bytes] = None
+
+    # Skipped message keys keyed by "hex(remote_eph_pub):counter". The
+    # remote_eph_pub binding is essential — out-of-order messages from a
+    # previous chain (different DHr) can still arrive after a DH-ratchet
+    # step, and they need their own per-chain key set.
+    skipped_message_keys: Dict[str, bytes] = field(default_factory=dict)
 
     pending_pre_key_message: bool = False
     initiator_identity_key_x25519: bytes = b""
-    initiator_ephemeral_key_x25519: bytes = b""
     used_signed_pre_key_id: int = 0
     used_one_time_pre_key_id: int = 0
 
@@ -132,7 +207,7 @@ class _PreKeyState:
 
 
 class SignalProtocolService:
-    """Signal Protocol implementation: X3DH + Double-Ratchet."""
+    """Signal Protocol implementation: X3DH + full Double Ratchet (Signal §5)."""
 
     def __init__(self) -> None:
         self._sessions: Dict[str, SignalSession] = {}
@@ -198,41 +273,60 @@ class SignalProtocolService:
                 "or set_local_uhid(uhid) before encrypting."
             )
 
+        # Lazy CKs initialization for the initiator's first send: the X3DH
+        # setup placed DHs and DHr but did not derive CKs (the Double
+        # Ratchet defers it until first send to avoid an extra KDF step
+        # when no message is ever sent on a session).
+        if session.send_chain_key is None:
+            if session.remote_ephemeral_pub is None:
+                raise ValueError(
+                    "Cannot derive sending chain: peer's ratchet public key is unknown."
+                )
+            self._dh_ratchet_send_only(session, session.remote_ephemeral_pub)
+
         message_key = self._ratchet_send_chain(session)
+        try:
+            nonce = os.urandom(AES_GCM_NONCE_SIZE)
+            cipher = AESGCM(message_key)
+            ciphertext = cipher.encrypt(nonce, plaintext, None)
 
-        nonce = os.urandom(AES_GCM_NONCE_SIZE)
-        cipher = AESGCM(message_key)
-        ciphertext = cipher.encrypt(nonce, plaintext, None)
+            counter = session.send_counter
+            session.send_counter += 1
+            ratchet_pub = bytes(session.my_ephemeral_pub)
 
-        counter = session.send_counter
-        session.send_counter += 1
+            # PreKey message? Carries our X3DH inputs so the responder can mirror
+            # the DHs and arrive at the same root key.
+            if session.pending_pre_key_message:
+                payload = EncryptedPayload(
+                    ciphertext=ciphertext,
+                    nonce=nonce,
+                    message_type=MESSAGE_TYPE_PRE_KEY,
+                    sender_uhid=self._local_uhid,
+                    counter=counter,
+                    initiator_identity_key_x25519=bytes(session.initiator_identity_key_x25519),
+                    # Backward-compat field — equals sender_ephemeral_key_x25519
+                    # on the first message because the initiator's X3DH ephemeral
+                    # becomes its first DH-ratchet pubkey.
+                    initiator_ephemeral_key_x25519=ratchet_pub,
+                    used_signed_pre_key_id=session.used_signed_pre_key_id,
+                    used_one_time_pre_key_id=session.used_one_time_pre_key_id,
+                    sender_ephemeral_key_x25519=ratchet_pub,
+                    previous_chain_count=session.previous_chain_count,
+                )
+                session.pending_pre_key_message = False
+                return payload
 
-        # PreKey message? Carries our X3DH inputs so the responder can mirror
-        # the DHs and arrive at the same root key.
-        if session.pending_pre_key_message:
-            payload = EncryptedPayload(
+            return EncryptedPayload(
                 ciphertext=ciphertext,
                 nonce=nonce,
-                message_type=MESSAGE_TYPE_PRE_KEY,
+                message_type=MESSAGE_TYPE_NORMAL,
                 sender_uhid=self._local_uhid,
                 counter=counter,
-                initiator_identity_key_x25519=bytes(session.initiator_identity_key_x25519),
-                initiator_ephemeral_key_x25519=bytes(session.initiator_ephemeral_key_x25519),
-                used_signed_pre_key_id=session.used_signed_pre_key_id,
-                used_one_time_pre_key_id=session.used_one_time_pre_key_id,
+                sender_ephemeral_key_x25519=ratchet_pub,
+                previous_chain_count=session.previous_chain_count,
             )
-            session.pending_pre_key_message = False
+        finally:
             self._zero_memory(message_key)
-            return payload
-
-        self._zero_memory(message_key)
-        return EncryptedPayload(
-            ciphertext=ciphertext,
-            nonce=nonce,
-            message_type=MESSAGE_TYPE_NORMAL,
-            sender_uhid=self._local_uhid,
-            counter=counter,
-        )
 
     async def decrypt(self, peer_uhid: str, payload: EncryptedPayload) -> bytes:
         if not peer_uhid:
@@ -240,48 +334,85 @@ class SignalProtocolService:
         if payload is None:
             raise ValueError("payload cannot be None")
 
+        # Every Double-Ratchet message carries the sender's current ratchet
+        # public key. Fall back to initiator_ephemeral_key_x25519 for backward
+        # compatibility with older PreKey messages from peers that haven't
+        # upgraded to the new wire envelope.
+        sender_ratchet_pub = (
+            payload.sender_ephemeral_key_x25519
+            or payload.initiator_ephemeral_key_x25519
+        )
+
         # PreKey message? Establish (or replace) the responder-side session
         # before attempting decryption.
         if payload.message_type == MESSAGE_TYPE_PRE_KEY:
-            if not payload.initiator_identity_key_x25519 or not payload.initiator_ephemeral_key_x25519:
+            if payload.initiator_identity_key_x25519 is None or sender_ratchet_pub is None:
                 raise ValueError(
                     "PreKey message missing initiator key material "
-                    "(initiator_identity_key_x25519 / initiator_ephemeral_key_x25519)."
+                    "(initiator_identity_key_x25519 and sender_ephemeral_key_x25519 / "
+                    "initiator_ephemeral_key_x25519)."
                 )
-            self._establish_responder_session(peer_uhid, payload)
+            self._establish_responder_session(peer_uhid, payload, sender_ratchet_pub)
 
         session = self._sessions.get(peer_uhid)
         if session is None:
             raise ValueError(f"No session established with peer {peer_uhid}")
 
+        if sender_ratchet_pub is None:
+            raise ValueError(
+                "Message missing sender_ephemeral_key_x25519 — "
+                "required for the Double Ratchet."
+            )
+
+        # DH-ratchet step? Triggered when the peer's ratchet public key changes.
+        if (
+            session.remote_ephemeral_pub is None
+            or not stdlib_hmac.compare_digest(sender_ratchet_pub, session.remote_ephemeral_pub)
+        ):
+            # First, derive any skipped keys from the previous receive chain
+            # (the chain keyed by the OLD remote_ephemeral_pub). Then ratchet.
+            self._skip_message_keys(session, payload.previous_chain_count)
+            self._dh_ratchet_receive(session, sender_ratchet_pub)
+
         if len(payload.ciphertext) < AES_GCM_TAG_SIZE:
             raise ValueError("Ciphertext too short")
 
-        # Skipped key cache?
-        if payload.counter in session.skipped_message_keys:
-            message_key = session.skipped_message_keys.pop(payload.counter)
+        # Skipped key cached for this (DHr_pub, counter) pair?
+        skipped_key = self._skipped_key(sender_ratchet_pub, payload.counter)
+        if skipped_key in session.skipped_message_keys:
+            message_key = session.skipped_message_keys.pop(skipped_key)
         else:
+            if session.recv_chain_key is None:
+                raise ValueError(
+                    "Receive chain not initialized (DH-ratchet step missing)."
+                )
+
             gap = payload.counter - session.recv_counter
             if gap > MAX_SKIPPED_KEYS:
                 raise ValueError(
                     f"Message counter gap ({gap}) exceeds maximum ({MAX_SKIPPED_KEYS}). "
                     "Session must be re-established."
                 )
+
+            # Skip ahead, caching intermediate keys.
             while session.recv_counter < payload.counter:
                 skip_key = self._ratchet_recv_chain(session)
-                session.skipped_message_keys[session.recv_counter] = skip_key
+                session.skipped_message_keys[
+                    self._skipped_key(sender_ratchet_pub, session.recv_counter)
+                ] = skip_key
                 session.recv_counter += 1
+
             message_key = self._ratchet_recv_chain(session)
             session.recv_counter += 1
 
         try:
             cipher = AESGCM(message_key)
             plaintext = cipher.decrypt(payload.nonce, payload.ciphertext, None)
-            self._zero_memory(message_key)
             return plaintext
         except Exception as e:
-            self._zero_memory(message_key)
             raise ValueError(f"Decryption failed: {e}")
+        finally:
+            self._zero_memory(message_key)
 
     async def generate_pre_key_bundle(self, local_uhid: str) -> PreKeyBundle:
         """Generate a pre-key bundle. Retains the SPK + OPK private halves
@@ -337,7 +468,13 @@ class SignalProtocolService:
         )
 
     async def process_pre_key_bundle(self, bundle: PreKeyBundle) -> None:
-        """Establish initiator-side session via X3DH (Signal §3.3)."""
+        """Establish initiator-side session via X3DH (Signal §3.3).
+
+        After X3DH, the Signal-canonical X3DH↔Double-Ratchet integration is
+        used: the initiator's X3DH ephemeral becomes its first DHs. The peer's
+        signed pre-key is the initial DHr. CKs is computed lazily on first
+        send (via _dh_ratchet_send_only).
+        """
         if bundle is None:
             raise ValueError("bundle cannot be None")
 
@@ -373,41 +510,45 @@ class SignalProtocolService:
             encoding=Encoding.Raw, format=PublicFormat.Raw
         )
 
-        try:
-            # X3DH 4-DH key agreement (initiator side).
-            dh1 = self._x25519_agree(self._identity_x25519_priv, bundle.signed_pre_key)
-            dh2 = self._x25519_agree(ek_priv, bundle.identity_key_x25519)
-            dh3 = self._x25519_agree(ek_priv, bundle.signed_pre_key)
-            dh4 = self._x25519_agree(ek_priv, bundle.pre_key)
+        # X3DH 4-DH key agreement (initiator side).
+        dh1 = self._x25519_agree(self._identity_x25519_priv, bundle.signed_pre_key)
+        dh2 = self._x25519_agree(ek_priv, bundle.identity_key_x25519)
+        dh3 = self._x25519_agree(ek_priv, bundle.signed_pre_key)
+        dh4 = self._x25519_agree(ek_priv, bundle.pre_key)
 
-            shared_secret = dh1 + dh2 + dh3 + dh4
-            root_key = self._hkdf(shared_secret, _HKDF_ROOT_INFO)
-            send_chain = self._hkdf(root_key, _HKDF_CHAIN_INITIATOR_SEND_INFO)
-            recv_chain = self._hkdf(root_key, _HKDF_CHAIN_INITIATOR_RECV_INFO)
+        shared_secret = dh1 + dh2 + dh3 + dh4
+        root_key = self._hkdf(shared_secret, _HKDF_ROOT_INFO)
 
-            session = SignalSession(
-                root_key=root_key,
-                send_chain_key=send_chain,
-                recv_chain_key=recv_chain,
-                pending_pre_key_message=True,
-                initiator_identity_key_x25519=bytes(self._identity_x25519_pub),
-                initiator_ephemeral_key_x25519=bytes(ek_pub),
-                used_signed_pre_key_id=bundle.signed_pre_key_id,
-                used_one_time_pre_key_id=bundle.pre_key_id,
-            )
-            self._sessions[bundle.uhid] = session
-        finally:
-            self._zero_memory(ek_priv)
+        # Adopt X3DH ephemeral as initial DHs; peer SPK as initial DHr.
+        # CKs / CKr left None — derived lazily on first send / first DH-ratchet.
+        session = SignalSession(
+            root_key=root_key,
+            send_chain_key=None,
+            recv_chain_key=None,
+            my_ephemeral_priv=bytes(ek_priv),
+            my_ephemeral_pub=bytes(ek_pub),
+            remote_ephemeral_pub=bytes(bundle.signed_pre_key),
+            pending_pre_key_message=True,
+            initiator_identity_key_x25519=bytes(self._identity_x25519_pub),
+            used_signed_pre_key_id=bundle.signed_pre_key_id,
+            used_one_time_pre_key_id=bundle.pre_key_id,
+        )
+        self._sessions[bundle.uhid] = session
 
-    def _establish_responder_session(self, peer_uhid: str, payload: EncryptedPayload) -> None:
-        """Mirror the initiator's 4 X3DH DHs to derive the same root key.
+    def _establish_responder_session(
+        self, peer_uhid: str, payload: EncryptedPayload, initiator_ratchet_pub: bytes
+    ) -> None:
+        """Mirror the initiator's 4 X3DH DHs to derive the same root key,
+        then prepare for a DH-ratchet step on the same call's decrypt path.
 
-        Chain-key info strings are SWAPPED relative to the initiator so the
-        initiator's send chain matches the responder's recv chain. Consumes
-        and zeros the one-time pre-key.
+        The signed pre-key (private + public) is adopted as the responder's
+        initial DHs; a fresh keypair is generated when the DH-ratchet step
+        rotates it. ``remote_ephemeral_pub`` is left None to force a
+        DH-ratchet step on the upcoming decrypt. The one-time pre-key is
+        consumed.
         """
         ik = payload.initiator_identity_key_x25519
-        ek = payload.initiator_ephemeral_key_x25519
+        ek = initiator_ratchet_pub
         if ik is None or len(ik) != _X25519_PUBLIC_KEY_SIZE:
             raise ValueError(
                 f"Initiator IK_X25519 has wrong size ({len(ik) if ik else 0}, "
@@ -415,7 +556,7 @@ class SignalProtocolService:
             )
         if ek is None or len(ek) != _X25519_PUBLIC_KEY_SIZE:
             raise ValueError(
-                f"Initiator EK_X25519 has wrong size ({len(ek) if ek else 0}, "
+                f"Initiator ratchet pub has wrong size ({len(ek) if ek else 0}, "
                 f"expected {_X25519_PUBLIC_KEY_SIZE})"
             )
         if (self._pre_keys.signed_pre_key_id != payload.used_signed_pre_key_id
@@ -440,18 +581,91 @@ class SignalProtocolService:
 
         shared_secret = dh1 + dh2 + dh3 + dh4
         root_key = self._hkdf(shared_secret, _HKDF_ROOT_INFO)
-        # SWAPPED.
-        recv_chain = self._hkdf(root_key, _HKDF_CHAIN_INITIATOR_SEND_INFO)
-        send_chain = self._hkdf(root_key, _HKDF_CHAIN_INITIATOR_RECV_INFO)
 
+        # Adopt SPK as initial DHs. The DH-ratchet step that follows on the
+        # same decrypt() call will rotate it to a fresh keypair.
         self._sessions[peer_uhid] = SignalSession(
             root_key=root_key,
-            send_chain_key=send_chain,
-            recv_chain_key=recv_chain,
+            send_chain_key=None,
+            recv_chain_key=None,
+            my_ephemeral_priv=bytes(self._pre_keys.signed_pre_key_priv),
+            my_ephemeral_pub=bytes(self._pre_keys.signed_pre_key_pub),
+            remote_ephemeral_pub=None,  # forces DH-ratchet on first decrypt
+            pending_pre_key_message=False,
         )
 
         # Consume one-time pre-key — never reuse (replay protection).
         del self._pre_keys.one_time_pre_keys[payload.used_one_time_pre_key_id]
+
+    def _dh_ratchet_receive(self, session: SignalSession, new_remote_ephemeral_pub: bytes) -> None:
+        """Performs a full DH-ratchet step on receive (Signal §5.2): updates DHr,
+        derives a new receiving chain via KDF_RK(RK, DH(DHs, DHr)), generates a
+        fresh DHs, and derives a new sending chain via KDF_RK(RK, DH(newDHs, DHr)).
+        """
+        # Save send-counter as PN so the peer can compute skipped keys
+        # across the ratchet boundary on subsequent decrypts.
+        session.previous_chain_count = session.send_counter
+        session.send_counter = 0
+        session.recv_counter = 0
+        session.remote_ephemeral_pub = bytes(new_remote_ephemeral_pub)
+
+        # Step 1: derive new receiving chain from current DHs · new DHr.
+        dh1 = self._x25519_agree(session.my_ephemeral_priv, session.remote_ephemeral_pub)
+        new_root, new_ckr = self._kdf_rk(session.root_key, dh1)
+        session.root_key = new_root
+        session.recv_chain_key = new_ckr
+
+        # Step 2: rotate DHs to a fresh keypair, derive new sending chain
+        # from new DHs · new DHr.
+        new_priv_obj = X25519PrivateKey.generate()
+        new_priv = new_priv_obj.private_bytes(
+            encoding=Encoding.Raw,
+            format=PrivateFormat.Raw,
+            encryption_algorithm=NoEncryption(),
+        )
+        new_pub = new_priv_obj.public_key().public_bytes(
+            encoding=Encoding.Raw, format=PublicFormat.Raw
+        )
+        session.my_ephemeral_priv = new_priv
+        session.my_ephemeral_pub = new_pub
+
+        dh2 = self._x25519_agree(session.my_ephemeral_priv, session.remote_ephemeral_pub)
+        new_root, new_cks = self._kdf_rk(session.root_key, dh2)
+        session.root_key = new_root
+        session.send_chain_key = new_cks
+
+    def _dh_ratchet_send_only(self, session: SignalSession, remote_pub: bytes) -> None:
+        """Lazy half-ratchet for the very first send on a freshly-established
+        initiator session. The initiator's DHs and DHr are already set
+        (X3DH placed them); we just need to derive the sending chain. We do
+        NOT rotate DHs here — only on a true DH-ratchet (i.e. on receive).
+        """
+        dh = self._x25519_agree(session.my_ephemeral_priv, remote_pub)
+        new_root, new_cks = self._kdf_rk(session.root_key, dh)
+        session.root_key = new_root
+        session.send_chain_key = new_cks
+
+    def _skip_message_keys(self, session: SignalSession, until: int) -> None:
+        """Saves any unread message keys on the current receive chain up to
+        the given counter, so they can be consumed if those messages
+        eventually arrive after a DH-ratchet step. Bounded by MAX_SKIPPED_KEYS.
+        """
+        if session.recv_chain_key is None or session.remote_ephemeral_pub is None:
+            return  # no chain to skip on
+        if until <= session.recv_counter:
+            return
+        if until - session.recv_counter > MAX_SKIPPED_KEYS:
+            raise ValueError(
+                f"Skipped-key request exceeds maximum ({MAX_SKIPPED_KEYS}). "
+                "Session must be re-established."
+            )
+
+        while session.recv_counter < until:
+            skip_key = self._ratchet_recv_chain(session)
+            session.skipped_message_keys[
+                self._skipped_key(session.remote_ephemeral_pub, session.recv_counter)
+            ] = skip_key
+            session.recv_counter += 1
 
     async def sign_data(self, data: bytes) -> bytes:
         if data is None:
@@ -498,6 +712,22 @@ class SignalProtocolService:
         )
         return kdf.derive(input_key_material)
 
+    @staticmethod
+    def _kdf_rk(root_key: bytes, dh_output: bytes) -> Tuple[bytes, bytes]:
+        """KDF_RK per Signal §5.2: derives a new root key + new chain key
+        from the current root key and a fresh DH output. HKDF-SHA256 over
+        64 bytes; first 32 = new root, second 32 = new chain key.
+        """
+        kdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=64,
+            salt=root_key,
+            info=_HKDF_RATCHET_INFO,
+            backend=default_backend(),
+        )
+        derived = kdf.derive(dh_output)
+        return derived[:32], derived[32:]
+
     def _ratchet_send_chain(self, session: SignalSession) -> bytes:
         new_chain, message_key = self._ratchet(session.send_chain_key)
         session.send_chain_key = new_chain
@@ -523,6 +753,17 @@ class SignalProtocolService:
         h2.update(b"\x02")
         new_chain = h2.finalize()
         return new_chain, message_key
+
+    @staticmethod
+    def _skipped_key(dhr_pub: bytes, counter: int) -> str:
+        """Compose the skipped-message-keys cache key.
+
+        Mirrors the C# format ``Convert.ToHexString(dhrPub):counter`` —
+        uppercase hex of the DHr public, colon, integer counter. The
+        DHr binding is essential: out-of-order messages from a previous
+        chain (different DHr) need their own per-chain key set.
+        """
+        return f"{dhr_pub.hex().upper()}:{counter}"
 
     @staticmethod
     def _zero_memory(data) -> None:
