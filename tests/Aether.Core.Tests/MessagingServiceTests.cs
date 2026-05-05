@@ -204,7 +204,10 @@ public class MessagingServiceTests
         var cipher = new FakeCipher();
         var ciphertext = new byte[] { 9, 8, 7 };
         var plaintext = Encoding.UTF8.GetBytes("payload-decrypted");
-        cipher.SetDecryptResult(Remote, ciphertext, plaintext);
+        // After decrypt, MessagingService strips the 1-byte compression flag (0x00 = uncompressed).
+        // The fixture provides the framed plaintext that the cipher would yield.
+        var framedPlaintext = new byte[] { 0x00 }.Concat(plaintext).ToArray();
+        cipher.SetDecryptResult(Remote, ciphertext, framedPlaintext);
         var store = new InMemoryMessageStore();
         var svc = new MessagingService(sender, routing, store, cipher,
             logger: NullLogger<MessagingService>.Instance);
@@ -225,7 +228,7 @@ public class MessagingServiceTests
         Assert.Equal(packet.Id, observed!.Id);
         Assert.Equal(Remote, observed.SenderUhid);
         Assert.Equal(Local, observed.RecipientUhid);
-        // The MessageReceived view carries the *plaintext*, but it's not persisted.
+        // The MessageReceived view carries the *plaintext* (flag stripped), but it's not persisted.
         Assert.Equal(plaintext, observed.EncryptedContent);
         Assert.Equal(MessageStatus.Delivered, observed.Status);
 
@@ -485,10 +488,14 @@ public class MessagingServiceTests
         Assert.NotEmpty(unicast.Packet.Payload);
         Assert.NotEqual(plaintext, unicast.Packet.Payload);
 
-        // Bob can decrypt what Alice sent, completing the round-trip.
+        // Bob can decrypt what Alice sent. MessagingService wraps every payload with
+        // a 1-byte compression flag on the plaintext side of the cipher, so the
+        // decrypted output is [flag][payload]; small payloads use flag=0x00 (raw).
         var bobCipher = new SignalMessageEnvelopeCipher(bob);
         var decrypted = await bobCipher.DecryptAsync("alice", unicast.Packet.Payload);
-        Assert.Equal(plaintext, decrypted);
+        Assert.NotNull(decrypted);
+        var expectedFramed = new byte[] { 0x00 }.Concat(plaintext).ToArray();
+        Assert.Equal(expectedFramed, decrypted);
     }
 
     [Fact]
