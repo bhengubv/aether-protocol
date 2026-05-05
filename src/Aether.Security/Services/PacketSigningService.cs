@@ -68,11 +68,16 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
             return Task.FromResult(false);
         }
 
-        // Check nonce deduplication
-        var nonceKey = Convert.ToHexString(packet.PacketNonce);
+        // Check nonce deduplication. Key by (SourceUhid, nonce) so a collision
+        // across different senders does NOT drop legitimate traffic — and so an
+        // attacker who pre-registers a nonce against a recipient cannot block
+        // the legitimate sender's first packet. (Pre-2026-05-05: keyed by
+        // nonce alone, which had both failure modes.)
+        var nonceKey = string.Concat(packet.SourceUhid, ":", Convert.ToHexString(packet.PacketNonce));
         if (!_seenNonces.TryAdd(nonceKey, nowMs))
         {
-            _logger.LogWarning("Packet {PacketId} rejected: duplicate nonce", packet.Id);
+            _logger.LogWarning("Packet {PacketId} rejected: duplicate nonce from {Source}",
+                packet.Id, LogSanitizer.SanitizeUhid(packet.SourceUhid));
             return Task.FromResult(false);
         }
 
