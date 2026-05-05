@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: MIT
+
+//! Extension seams hosts can wire up to participate in incentive accounting,
+//! cloud-relay fallbacks, and feature gating. Default no-op implementations let
+//! the protocol layer call through these uniformly.
+
+use async_trait::async_trait;
+
+use crate::models::{DtnBundle, SosAlert};
+use crate::protocol::MeshPacket;
+
+/// Records relays for reward calculation; decides whether a packet jumps the priority queue.
+#[async_trait]
+pub trait IncentiveProvider: Send + Sync {
+    async fn record_relay(&self, _local_uhid: &str, _packet: &MeshPacket) {}
+    async fn should_prioritize(&self, _packet: &MeshPacket) -> bool {
+        false
+    }
+}
+
+/// Optional cloud-relay seam. Default returns false everywhere — fully offline mesh.
+#[async_trait]
+pub trait BackendClient: Send + Sync {
+    async fn relay_message(
+        &self,
+        _sender_uhid: &str,
+        _recipient_uhid: &str,
+        _encrypted_content: &[u8],
+        _priority: u8,
+    ) -> bool {
+        false
+    }
+    async fn sync_dtn_bundle(&self, _bundle: &DtnBundle) -> bool {
+        false
+    }
+    async fn sync_sos(&self, _alert: &SosAlert) -> bool {
+        false
+    }
+}
+
+/// Gates protocol features behind remote configuration. Default: every feature enabled.
+#[async_trait]
+pub trait FeatureFlagProvider: Send + Sync {
+    async fn is_enabled(&self, _feature_name: &str) -> bool {
+        true
+    }
+}
+
+/// Default no-op incentive provider.
+pub struct NoopIncentiveProvider;
+
+#[async_trait]
+impl IncentiveProvider for NoopIncentiveProvider {}
+
+/// Default no-op backend client — every method returns false.
+pub struct NoopBackendClient;
+
+#[async_trait]
+impl BackendClient for NoopBackendClient {}
+
+/// Default feature-flag provider — every flag enabled.
+pub struct NoopFeatureFlagProvider;
+
+#[async_trait]
+impl FeatureFlagProvider for NoopFeatureFlagProvider {}

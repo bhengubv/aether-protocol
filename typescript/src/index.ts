@@ -20,5 +20,20 @@ export {
 // Transport
 export { InProcessTransport } from "./transport/InProcessTransport.js";
 
+// Models (extended)
+export * from "./models/index.js";
+
+// Extensibility seams
+export * from "./extensibility.js";
+
+// Routing
+export * from "./routing/index.js";
+
+// DTN
+export * from "./dtn/index.js";
+
+// SOS
+export * from "./sos/index.js";
+
 // Constants
 export * from "./constants.js";
