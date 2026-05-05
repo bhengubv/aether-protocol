@@ -38,11 +38,22 @@ type PreKeyBundle struct {
 
 // EncryptedPayload is the wire-level form of an encrypted message.
 //
-// When MessageType is 1 (PreKey message — the first message from an initiator
-// before a session is established on the responder side), the four
-// Initiator* fields carry the data the responder needs to run X3DH on its
-// side and derive the same root key. On normal session messages
-// (MessageType=0) those fields are nil/0.
+// Two layered ratchets contribute fields:
+//
+//  1. X3DH session-establishment (Signal §3) — populated only on the very
+//     first message a new initiator sends to a peer (MessageType=PreKey):
+//     InitiatorIdentityKeyX25519, UsedSignedPreKeyID, UsedOneTimePreKeyID.
+//     The responder uses these to run X3DH on its side and derive the same
+//     root key.
+//
+//  2. Double Ratchet (Signal §5) — SenderEphemeralKeyX25519 and
+//     PreviousChainCount populated on EVERY message.
+//     SenderEphemeralKeyX25519 is the sender's current DH-ratchet public key;
+//     when it changes between messages, the receiver runs a DH-ratchet step
+//     that re-keys the chain and gives per-roundtrip forward secrecy and
+//     post-compromise security. On the very first PreKey message, this
+//     equals the X3DH ephemeral public key (Signal-canonical integration:
+//     initiator's X3DH ephemeral becomes its first DH-ratchet public).
 type EncryptedPayload struct {
 	// AES-256-GCM ciphertext concatenated with the 16-byte authentication tag.
 	Ciphertext []byte
@@ -56,15 +67,17 @@ type EncryptedPayload struct {
 	// Sender's UHID — set to the local node's UHID when encrypting.
 	SenderUhid string
 
-	// Message counter within the current sending chain.
+	// Message counter within the current sending chain (Signal §5: Ns).
 	Counter int32
 
 	// PreKey messages: initiator's long-term X25519 identity public key
 	// (32 bytes). Nil on normal messages.
 	InitiatorIdentityKeyX25519 []byte
 
-	// PreKey messages: initiator's ephemeral X25519 public key (32 bytes,
-	// generated fresh per session). Nil on normal messages.
+	// DEPRECATED: use SenderEphemeralKeyX25519 instead. Kept for backward
+	// compatibility with consumers of the pre-Double-Ratchet wire envelope.
+	// On PreKey messages this equals SenderEphemeralKeyX25519; on normal
+	// messages it is nil. New consumers should ignore this field.
 	InitiatorEphemeralKeyX25519 []byte
 
 	// PreKey messages: the SignedPreKeyID from the recipient's bundle that
@@ -74,38 +87,83 @@ type EncryptedPayload struct {
 	// PreKey messages: the one-time PreKeyID from the recipient's bundle
 	// that the initiator consumed. 0 on normal messages.
 	UsedOneTimePreKeyID int32
+
+	// SenderEphemeralKeyX25519 is the sender's current DH-ratchet X25519
+	// public key (32 bytes). Populated on EVERY message. Drives the
+	// DH-ratchet step on the receiver side: when this value changes between
+	// successive messages from the same peer, the receiver re-keys the chain
+	// via KDF_RK(rootKey, DH(myDHs, newDHr)).
+	SenderEphemeralKeyX25519 []byte
+
+	// PreviousChainCount is the number of messages the sender sent in its
+	// previous sending chain (Signal §5: PN). Used by the receiver to
+	// compute skipped message keys when crossing a DH-ratchet boundary.
+	PreviousChainCount int32
 }
 
 // SignalSession tracks the state of a Signal Protocol session with a single peer.
 //
-// On the initiator side (we processed the peer's pre-key bundle), the
-// pending PreKey-message metadata is retained until the first message is
-// sent — that first message carries our X25519 identity key, our fresh
-// ephemeral public key, and the bundle ids consumed, so the responder can
-// run X3DH on its side to derive the same root key.
+// Double-Ratchet state per Signal §5:
+//   - RK — root key. Re-keyed on every DH-ratchet step.
+//   - DHs (priv/pub) — my current ratchet keypair (MyEphemeralPriv / MyEphemeralPub).
+//   - DHr — peer's last-known ratchet public key (RemoteEphemeralPub). Nil
+//     until first DH-ratchet step on the responder side.
+//   - CKs — my current sending chain key (SendChainKey). Nil until I've
+//     sent (or initialized) on this chain.
+//   - CKr — my current receiving chain key (RecvChainKey). Nil until I've
+//     received on this chain.
+//   - Ns / Nr — send / receive counters (reset to 0 on each DH-ratchet step).
+//   - PN — number of messages I sent in my previous sending chain
+//     (PreviousChainCount), so the receiver can compute skipped keys across
+//     a DH-ratchet boundary.
+//   - MKSKIPPED — skipped message keys keyed by (DHr_pub, counter)
+//     (SkippedMessageKeys).
 type SignalSession struct {
-	RootKey      []byte
+	RootKey []byte
+
+	// SendChainKey is my current sending chain key (Signal §5: CKs). Nil
+	// until the first send (or until DH-ratchet rekeys it).
 	SendChainKey []byte
+	// RecvChainKey is my current receiving chain key (Signal §5: CKr). Nil
+	// until the first receive that triggers a DH-ratchet step.
 	RecvChainKey []byte
-	SendCounter  int32
-	RecvCounter  int32
 
-	// Skipped message keys indexed by counter for out-of-order decryption.
-	SkippedMessageKeys map[int32][]byte
+	SendCounter int32
+	RecvCounter int32
+	// PreviousChainCount is the number of messages sent in the previous
+	// sending chain (Signal §5: PN).
+	PreviousChainCount int32
 
-	// True iff this session was established in the initiator role and the
-	// first outbound message has not yet been sent.
-	PendingPreKeyMessage         bool
-	InitiatorIdentityKeyX25519   []byte
-	InitiatorEphemeralKeyX25519  []byte
-	UsedSignedPreKeyID           int32
-	UsedOneTimePreKeyID          int32
+	// MyEphemeralPriv is my current DH-ratchet private key (X25519, 32 bytes).
+	MyEphemeralPriv []byte
+	// MyEphemeralPub is my current DH-ratchet public key (X25519, 32 bytes).
+	MyEphemeralPub []byte
+	// RemoteEphemeralPub is the peer's last-seen DH-ratchet public key. Nil
+	// until first DH-ratchet step (responder side starts nil so the first
+	// receive triggers the ratchet).
+	RemoteEphemeralPub []byte
+
+	// SkippedMessageKeys are skipped message keys keyed by
+	// "Hex(remoteDhrPub):counter". The remote-DHr-pub binding is essential —
+	// out-of-order messages from a previous chain (different DHr) can still
+	// arrive after a DH-ratchet step, and they need their own per-chain key
+	// set rather than being conflated with the new chain's counters.
+	SkippedMessageKeys map[string][]byte
+
+	// PendingPreKeyMessage is true iff this session was established in the
+	// initiator role and the first outbound message has not yet been sent.
+	// While true, the next Encrypt emits a PreKey message (MessageType=1)
+	// carrying the X3DH inputs.
+	PendingPreKeyMessage       bool
+	InitiatorIdentityKeyX25519 []byte
+	UsedSignedPreKeyID         int32
+	UsedOneTimePreKeyID        int32
 }
 
 // NewSignalSession creates a new signal session.
 func NewSignalSession() *SignalSession {
 	return &SignalSession{
-		SkippedMessageKeys: make(map[int32][]byte),
+		SkippedMessageKeys: make(map[string][]byte),
 	}
 }
 
