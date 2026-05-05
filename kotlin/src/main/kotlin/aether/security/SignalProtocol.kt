@@ -2,40 +2,63 @@
 
 package aether.security
 
-import aether.AetherConstants
-import org.bouncycastle.jcajce.provider.digest.SHA256
-import java.security.KeyFactory
-import java.security.MessageDigest
+import org.bouncycastle.crypto.agreement.X25519Agreement
+import org.bouncycastle.crypto.generators.X25519KeyPairGenerator
+import org.bouncycastle.crypto.params.X25519KeyGenerationParameters
+import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
+import org.bouncycastle.crypto.params.X25519PublicKeyParameters
 import java.security.SecureRandom
-import java.security.spec.X509EncodedKeySpec
 import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Cipher
-import javax.crypto.KeyAgreement
 import javax.crypto.Mac
-import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import kotlin.math.min
 
 /**
- * Data class representing an encrypted payload.
+ * Signal Protocol implementation: X3DH + Double-Ratchet.
+ *
+ * Key agreement: X3DH (Signal Protocol §3) over X25519 (RFC 7748). Four DHs:
+ *   DH1 = DH(IK_A, SPK_B) — long-term mutual authentication
+ *   DH2 = DH(EK_A, IK_B)  — initiator ephemeral binds to responder identity
+ *   DH3 = DH(EK_A, SPK_B) — initiator ephemeral binds to responder signed pre-key
+ *   DH4 = DH(EK_A, OPK_B) — initiator ephemeral binds to responder one-time pre-key (FS)
+ *
+ * Root-key derivation: HKDF-SHA256 over concat(DH1||DH2||DH3||DH4).
+ * Symmetric ratchet: HMAC-SHA256, single-byte domain separation
+ *   (0x01 -> message key, 0x02 -> next chain key) per Signal §5.1.
+ * Encryption: AES-256-GCM, 12-byte nonce, 16-byte tag.
+ * Identity signing: Ed25519.
  */
+
+/** Wire-level encrypted payload. */
 data class EncryptedPayload(
     val ciphertext: ByteArray,
     val nonce: ByteArray,
+    /** 0 = normal, 1 = PreKey (initial). */
     val messageType: Int,
     val senderUhid: String,
-    val counter: Int
+    val counter: Int,
+    /** PreKey messages: initiator's long-term X25519 identity public key (32 bytes). */
+    val initiatorIdentityKeyX25519: ByteArray? = null,
+    /** PreKey messages: initiator's ephemeral X25519 public key (32 bytes). */
+    val initiatorEphemeralKeyX25519: ByteArray? = null,
+    /** PreKey messages: SignedPreKeyId from the recipient bundle the initiator consumed. */
+    val usedSignedPreKeyId: Int = 0,
+    /** PreKey messages: one-time PreKeyId from the recipient bundle the initiator consumed. */
+    val usedOneTimePreKeyId: Int = 0,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is EncryptedPayload) return false
-
         if (!ciphertext.contentEquals(other.ciphertext)) return false
         if (!nonce.contentEquals(other.nonce)) return false
         if (messageType != other.messageType) return false
         if (senderUhid != other.senderUhid) return false
         if (counter != other.counter) return false
-
+        if (!(initiatorIdentityKeyX25519 contentEqualsNullable other.initiatorIdentityKeyX25519)) return false
+        if (!(initiatorEphemeralKeyX25519 contentEqualsNullable other.initiatorEphemeralKeyX25519)) return false
+        if (usedSignedPreKeyId != other.usedSignedPreKeyId) return false
+        if (usedOneTimePreKeyId != other.usedOneTimePreKeyId) return false
         return true
     }
 
@@ -45,40 +68,53 @@ data class EncryptedPayload(
         result = 31 * result + messageType
         result = 31 * result + senderUhid.hashCode()
         result = 31 * result + counter
+        result = 31 * result + (initiatorIdentityKeyX25519?.contentHashCode() ?: 0)
+        result = 31 * result + (initiatorEphemeralKeyX25519?.contentHashCode() ?: 0)
+        result = 31 * result + usedSignedPreKeyId
+        result = 31 * result + usedOneTimePreKeyId
         return result
     }
 }
 
 /**
- * Data class representing a pre-key bundle for session establishment.
+ * Pre-key bundle published by a node so others can initiate Signal sessions
+ * toward it asynchronously.
+ *
+ * Two identity keys per node — Ed25519 for signing and X25519 for ECDH.
  */
 data class PreKeyBundle(
     val uhid: String,
+    /** Long-term Ed25519 identity public key (32 bytes). */
     val identityKey: ByteArray,
+    /** Long-term X25519 identity public key (32 bytes raw, RFC 7748). */
+    val identityKeyX25519: ByteArray,
     val preKeyId: Int,
+    /** One-time pre-key X25519 public key (32 bytes raw). */
     val preKey: ByteArray,
     val signedPreKeyId: Int,
+    /** Signed pre-key X25519 public key (32 bytes raw). */
     val signedPreKey: ByteArray,
-    val signedPreKeySignature: ByteArray
+    /** Ed25519 signature over signedPreKey (64 bytes). */
+    val signedPreKeySignature: ByteArray,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is PreKeyBundle) return false
-
         if (uhid != other.uhid) return false
         if (!identityKey.contentEquals(other.identityKey)) return false
+        if (!identityKeyX25519.contentEquals(other.identityKeyX25519)) return false
         if (preKeyId != other.preKeyId) return false
         if (!preKey.contentEquals(other.preKey)) return false
         if (signedPreKeyId != other.signedPreKeyId) return false
         if (!signedPreKey.contentEquals(other.signedPreKey)) return false
         if (!signedPreKeySignature.contentEquals(other.signedPreKeySignature)) return false
-
         return true
     }
 
     override fun hashCode(): Int {
         var result = uhid.hashCode()
         result = 31 * result + identityKey.contentHashCode()
+        result = 31 * result + identityKeyX25519.contentHashCode()
         result = 31 * result + preKeyId
         result = 31 * result + preKey.contentHashCode()
         result = 31 * result + signedPreKeyId
@@ -88,374 +124,399 @@ data class PreKeyBundle(
     }
 }
 
+private infix fun ByteArray?.contentEqualsNullable(other: ByteArray?): Boolean {
+    if (this == null && other == null) return true
+    if (this == null || other == null) return false
+    return this.contentEquals(other)
+}
+
 /**
- * Internal session state tracking.
+ * Signal session state.
+ *
+ * On the initiator side, [pendingPreKeyMessage] is true until the first
+ * outbound message is sent. While true, the next encrypt() emits a PreKey
+ * message carrying the four `initiator*` fields below.
  */
-internal data class SignalSession(
+internal class SignalSession(
     var rootKey: ByteArray,
     var sendChainKey: ByteArray,
     var recvChainKey: ByteArray,
     var sendCounter: Int = 0,
     var recvCounter: Int = 0,
-    var remotePublicKey: ByteArray = ByteArray(0),
-    val skippedMessageKeys: MutableMap<Int, ByteArray> = mutableMapOf()
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is SignalSession) return false
+    val skippedMessageKeys: MutableMap<Int, ByteArray> = mutableMapOf(),
+    var pendingPreKeyMessage: Boolean = false,
+    var initiatorIdentityKeyX25519: ByteArray = ByteArray(0),
+    var initiatorEphemeralKeyX25519: ByteArray = ByteArray(0),
+    var usedSignedPreKeyId: Int = 0,
+    var usedOneTimePreKeyId: Int = 0,
+)
 
-        if (!rootKey.contentEquals(other.rootKey)) return false
-        if (!sendChainKey.contentEquals(other.sendChainKey)) return false
-        if (!recvChainKey.contentEquals(other.recvChainKey)) return false
-        if (sendCounter != other.sendCounter) return false
-        if (recvCounter != other.recvCounter) return false
-        if (!remotePublicKey.contentEquals(other.remotePublicKey)) return false
-        if (skippedMessageKeys != other.skippedMessageKeys) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = rootKey.contentHashCode()
-        result = 31 * result + sendChainKey.contentHashCode()
-        result = 31 * result + recvChainKey.contentHashCode()
-        result = 31 * result + sendCounter
-        result = 31 * result + recvCounter
-        result = 31 * result + remotePublicKey.contentHashCode()
-        result = 31 * result + skippedMessageKeys.hashCode()
-        return result
-    }
+/** Responder-side pre-key state. */
+internal class PreKeyStateInternal {
+    var signedPreKeyId: Int = 0
+    var signedPreKeyPriv: ByteArray = ByteArray(0)
+    var signedPreKeyPub: ByteArray = ByteArray(0)
+    var signedPreKeySignature: ByteArray = ByteArray(0)
+    val oneTimePreKeys: MutableMap<Int, Pair<ByteArray, ByteArray>> = mutableMapOf()
 }
 
-/**
- * Signal Protocol implementation providing end-to-end encryption for Aether mesh messaging.
- *
- * Key agreement: X3DH with ECDH P-256
- * Key derivation: HKDF-SHA256 with unique info strings per derivation context
- * Encryption: AES-256-GCM with 12-byte nonce and 16-byte authentication tag
- * Signing: Ed25519
- *
- * The symmetric ratchet advances the chain key with each message sent or received.
- * Out-of-order messages are handled by caching skipped keys (up to MaxSkippedKeys).
- */
 class SignalProtocol {
     companion object {
-        const val MAX_SKIPPED_KEYS = AetherConstants.MAX_SKIPPED_KEYS
+        const val MAX_SKIPPED_KEYS: Int = 1000
+
+        const val MESSAGE_TYPE_NORMAL: Int = 0
+        const val MESSAGE_TYPE_PRE_KEY: Int = 1
+
+        private const val AES_KEY_SIZE = 32
+        private const val AES_GCM_NONCE_SIZE = 12
+        private const val AES_GCM_TAG_SIZE = 16
+        private const val X25519_PUBLIC_KEY_SIZE = 32
+
+        // HKDF info strings — these MUST match the C# reference exactly. Any
+        // drift breaks cross-language interop (verified by
+        // fixtures/signal/expected/x3dh_basic.json).
+        private val HKDF_ROOT_INFO = "aether-x3dh-root-v1".toByteArray(Charsets.UTF_8)
+        private val HKDF_CHAIN_INITIATOR_SEND_INFO = "aether-chain-initiator-send-v1".toByteArray(Charsets.UTF_8)
+        private val HKDF_CHAIN_INITIATOR_RECV_INFO = "aether-chain-initiator-recv-v1".toByteArray(Charsets.UTF_8)
+
+        private val rng = SecureRandom()
     }
 
     private val sessions = ConcurrentHashMap<String, SignalSession>()
-    private var ed25519PrivateKey = ByteArray(0)
-    private var ed25519PublicKey = ByteArray(0)
+
+    // Long-term identity keys — two distinct keypairs per node.
+    private val identityX25519Priv: ByteArray
+    private val identityX25519Pub: ByteArray
+    private val ed25519PrivateKey: ByteArray
+    private val ed25519PublicKey: ByteArray
+
+    private var localUhid: String? = null
+    private val preKeys: PreKeyStateInternal = PreKeyStateInternal()
 
     init {
-        // Generate Ed25519 identity keys
-        val (privKey, pubKey) = Ed25519Service.generateKeyPair()
-        ed25519PrivateKey = privKey
-        ed25519PublicKey = pubKey
+        val (edPriv, edPub) = Ed25519Service.generateKeyPair()
+        ed25519PrivateKey = edPriv
+        ed25519PublicKey = edPub
+
+        val (xPriv, xPub) = generateX25519KeyPair()
+        identityX25519Priv = xPriv
+        identityX25519Pub = xPub
     }
 
-    /**
-     * Checks if a session exists with a peer.
-     */
+    /** Sets the local node's UHID. Required before any encrypt() call. */
+    fun setLocalUhid(uhid: String) {
+        require(uhid.isNotEmpty()) { "uhid cannot be empty" }
+        localUhid = uhid
+    }
+
     fun hasSession(peerUhid: String): Boolean = sessions.containsKey(peerUhid)
 
-    /**
-     * Encrypts plaintext for a peer using the established Signal session.
-     *
-     * @param peerUhid Target peer UHID
-     * @param plaintext Data to encrypt
-     * @return EncryptedPayload with ciphertext and metadata
-     * @throws IllegalStateException if no session exists with the peer
-     */
     fun encrypt(peerUhid: String, plaintext: ByteArray): EncryptedPayload {
         val session = sessions[peerUhid]
             ?: throw IllegalStateException("No session established with peer $peerUhid")
+        val sender = localUhid
+            ?: throw IllegalStateException(
+                "Local UHID is not set. Call generatePreKeyBundle(uhid) " +
+                    "or setLocalUhid(uhid) before encrypting."
+            )
 
-        // Ratchet the sending chain
-        val (newChainKey, messageKey) = ratchetChainKey(session.sendChainKey, AetherConstants.HKDF_CHAIN_SEND_INFO)
-        session.sendChainKey = newChainKey
+        val (newChain, messageKey) = ratchetChainKey(session.sendChainKey)
+        session.sendChainKey = newChain
 
         try {
-            // Encrypt with AES-256-GCM
-            val nonce = ByteArray(AetherConstants.AES_GCM_NONCE_SIZE)
-            SecureRandom().nextBytes(nonce)
-
+            val nonce = ByteArray(AES_GCM_NONCE_SIZE).also { rng.nextBytes(it) }
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(messageKey, 0, messageKey.size, "AES"), IvParameterSpec(nonce))
-
+            cipher.init(
+                Cipher.ENCRYPT_MODE,
+                SecretKeySpec(messageKey, "AES"),
+                GCMParameterSpec(AES_GCM_TAG_SIZE * 8, nonce)
+            )
             val ciphertext = cipher.doFinal(plaintext)
+
             val counter = session.sendCounter++
 
-            return EncryptedPayload(
-                ciphertext = ciphertext,
-                nonce = nonce,
-                messageType = 0,
-                senderUhid = peerUhid,
-                counter = counter
-            )
+            return if (session.pendingPreKeyMessage) {
+                val payload = EncryptedPayload(
+                    ciphertext = ciphertext,
+                    nonce = nonce,
+                    messageType = MESSAGE_TYPE_PRE_KEY,
+                    senderUhid = sender,
+                    counter = counter,
+                    initiatorIdentityKeyX25519 = session.initiatorIdentityKeyX25519.copyOf(),
+                    initiatorEphemeralKeyX25519 = session.initiatorEphemeralKeyX25519.copyOf(),
+                    usedSignedPreKeyId = session.usedSignedPreKeyId,
+                    usedOneTimePreKeyId = session.usedOneTimePreKeyId,
+                )
+                session.pendingPreKeyMessage = false
+                payload
+            } else {
+                EncryptedPayload(
+                    ciphertext = ciphertext,
+                    nonce = nonce,
+                    messageType = MESSAGE_TYPE_NORMAL,
+                    senderUhid = sender,
+                    counter = counter,
+                )
+            }
         } finally {
             messageKey.fill(0)
         }
     }
 
-    /**
-     * Decrypts a ciphertext using the established Signal session.
-     *
-     * Handles out-of-order messages by caching skipped keys.
-     *
-     * @param peerUhid Source peer UHID
-     * @param payload EncryptedPayload to decrypt
-     * @return Plaintext
-     * @throws IllegalStateException if no session exists
-     * @throws IllegalArgumentException if message gap is too large
-     */
     fun decrypt(peerUhid: String, payload: EncryptedPayload): ByteArray {
+        if (payload.messageType == MESSAGE_TYPE_PRE_KEY) {
+            val ik = payload.initiatorIdentityKeyX25519
+                ?: throw IllegalArgumentException("PreKey message missing initiator identity key.")
+            val ek = payload.initiatorEphemeralKeyX25519
+                ?: throw IllegalArgumentException("PreKey message missing initiator ephemeral key.")
+            establishResponderSession(peerUhid, ik, ek, payload.usedSignedPreKeyId, payload.usedOneTimePreKeyId)
+        }
+
         val session = sessions[peerUhid]
             ?: throw IllegalStateException("No session established with peer $peerUhid")
 
+        if (payload.ciphertext.size < AES_GCM_TAG_SIZE) {
+            throw IllegalArgumentException("Ciphertext too short.")
+        }
+
         var messageKey: ByteArray? = null
         try {
-            // Check if this is a skipped message
-            if (session.skippedMessageKeys.containsKey(payload.counter)) {
-                messageKey = session.skippedMessageKeys.remove(payload.counter)
-                    ?: throw IllegalStateException("Skipped key was removed before use")
+            val cached = session.skippedMessageKeys.remove(payload.counter)
+            if (cached != null) {
+                messageKey = cached
             } else {
-                // Check for excessive counter gap
                 val gap = payload.counter - session.recvCounter
                 if (gap > MAX_SKIPPED_KEYS) {
                     throw IllegalArgumentException(
                         "Message counter gap ($gap) exceeds maximum ($MAX_SKIPPED_KEYS). Session must be re-established."
                     )
                 }
-
-                // Skip ahead and cache intermediate keys
                 while (session.recvCounter < payload.counter) {
-                    val (newChainKey, skipKey) = ratchetChainKey(session.recvChainKey, AetherConstants.HKDF_CHAIN_RECV_INFO)
-                    session.recvChainKey = newChainKey
-                    session.skippedMessageKeys[session.recvCounter] = skipKey
+                    val (nc, sk) = ratchetChainKey(session.recvChainKey)
+                    session.recvChainKey = nc
+                    session.skippedMessageKeys[session.recvCounter] = sk
                     session.recvCounter++
                 }
-
-                // Derive the actual message key
-                val (newChainKey, key) = ratchetChainKey(session.recvChainKey, AetherConstants.HKDF_CHAIN_RECV_INFO)
-                session.recvChainKey = newChainKey
-                messageKey = key
+                val (nc, mk) = ratchetChainKey(session.recvChainKey)
+                session.recvChainKey = nc
+                messageKey = mk
                 session.recvCounter++
             }
 
-            // Decrypt with AES-GCM
-            if (payload.ciphertext.size < AetherConstants.AES_GCM_TAG_SIZE) {
-                throw IllegalArgumentException("Ciphertext too short.")
-            }
-
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(messageKey, 0, messageKey.size, "AES"), IvParameterSpec(payload.nonce))
-
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                SecretKeySpec(messageKey, "AES"),
+                GCMParameterSpec(AES_GCM_TAG_SIZE * 8, payload.nonce)
+            )
             return cipher.doFinal(payload.ciphertext)
         } finally {
             messageKey?.fill(0)
         }
     }
 
-    /**
-     * Generates a pre-key bundle for session establishment.
-     *
-     * @param localUhid This node's UHID
-     * @return PreKeyBundle for publishing to peers
-     */
     fun generatePreKeyBundle(localUhid: String): PreKeyBundle {
-        // Generate one-time pre-key (P-256)
-        val preKeyBytes = generateP256PublicKey()
-        val preKeyId = SecureRandom().nextInt(1, Int.MAX_VALUE)
+        require(localUhid.isNotEmpty()) { "localUhid cannot be empty" }
+        this.localUhid = localUhid
 
-        // Generate signed pre-key (P-256)
-        val signedPreKeyBytes = generateP256PublicKey()
-        val signedPreKeyId = SecureRandom().nextInt(1, Int.MAX_VALUE)
+        // One-time pre-key.
+        val (otpkPriv, otpkPub) = generateX25519KeyPair()
+        val preKeyId = randomPositiveInt()
+        preKeys.oneTimePreKeys[preKeyId] = otpkPriv to otpkPub
 
-        // Sign the signed pre-key with Ed25519
-        val signature = Ed25519Service.sign(ed25519PrivateKey, signedPreKeyBytes)
+        // Signed pre-key.
+        val (spkPriv, spkPub) = generateX25519KeyPair()
+        val signedPreKeyId = randomPositiveInt()
+        val signature = Ed25519Service.sign(ed25519PrivateKey, spkPub)
+        preKeys.signedPreKeyId = signedPreKeyId
+        preKeys.signedPreKeyPriv = spkPriv
+        preKeys.signedPreKeyPub = spkPub
+        preKeys.signedPreKeySignature = signature
 
         return PreKeyBundle(
             uhid = localUhid,
-            identityKey = ed25519PublicKey.clone(),
+            identityKey = ed25519PublicKey.copyOf(),
+            identityKeyX25519 = identityX25519Pub.copyOf(),
             preKeyId = preKeyId,
-            preKey = preKeyBytes,
+            preKey = otpkPub.copyOf(),
             signedPreKeyId = signedPreKeyId,
-            signedPreKey = signedPreKeyBytes,
-            signedPreKeySignature = signature
+            signedPreKey = spkPub.copyOf(),
+            signedPreKeySignature = signature,
         )
     }
 
-    /**
-     * Processes a pre-key bundle and establishes a session.
-     *
-     * Verifies the bundle's signature and derives initial chain keys.
-     *
-     * @param bundle PreKeyBundle from the peer
-     * @throws IllegalArgumentException if signature verification fails
-     */
     fun processPreKeyBundle(bundle: PreKeyBundle) {
-        // Verify the signed pre-key signature
         if (!Ed25519Service.verify(bundle.identityKey, bundle.signedPreKey, bundle.signedPreKeySignature)) {
             throw IllegalArgumentException("Signed pre-key signature verification failed.")
         }
+        require(bundle.identityKeyX25519.size == X25519_PUBLIC_KEY_SIZE) {
+            "Bundle has malformed X25519 identity key (length ${bundle.identityKeyX25519.size})"
+        }
+        require(bundle.signedPreKey.size == X25519_PUBLIC_KEY_SIZE) {
+            "Bundle has malformed signed pre-key (length ${bundle.signedPreKey.size})"
+        }
+        require(bundle.preKey.size == X25519_PUBLIC_KEY_SIZE) {
+            "Bundle has malformed one-time pre-key (length ${bundle.preKey.size})"
+        }
 
-        // Perform X3DH key agreement
-        val sharedSecret = performECDH(bundle.signedPreKey, bundle.preKey)
+        // Fresh ephemeral X25519 keypair, generated per-session.
+        val (ekPriv, ekPub) = generateX25519KeyPair()
 
         try {
-            // Derive root key and initial chain keys using HKDF
-            val rootKey = deriveKey(sharedSecret, AetherConstants.HKDF_ROOT_INFO)
-            val sendChainKey = deriveKey(rootKey, AetherConstants.HKDF_CHAIN_SEND_INFO)
-            val recvChainKey = deriveKey(rootKey, AetherConstants.HKDF_CHAIN_RECV_INFO)
+            // X3DH 4-DH key agreement (initiator side).
+            val dh1 = x25519Agree(identityX25519Priv, bundle.signedPreKey)
+            val dh2 = x25519Agree(ekPriv, bundle.identityKeyX25519)
+            val dh3 = x25519Agree(ekPriv, bundle.signedPreKey)
+            val dh4 = x25519Agree(ekPriv, bundle.preKey)
 
-            val session = SignalSession(
+            val shared = dh1 + dh2 + dh3 + dh4
+            val rootKey = hkdf32(shared, HKDF_ROOT_INFO)
+            val sendChain = hkdf32(rootKey, HKDF_CHAIN_INITIATOR_SEND_INFO)
+            val recvChain = hkdf32(rootKey, HKDF_CHAIN_INITIATOR_RECV_INFO)
+
+            sessions[bundle.uhid] = SignalSession(
                 rootKey = rootKey,
-                sendChainKey = sendChainKey,
-                recvChainKey = recvChainKey,
-                remotePublicKey = bundle.identityKey.clone()
+                sendChainKey = sendChain,
+                recvChainKey = recvChain,
+                pendingPreKeyMessage = true,
+                initiatorIdentityKeyX25519 = identityX25519Pub.copyOf(),
+                initiatorEphemeralKeyX25519 = ekPub.copyOf(),
+                usedSignedPreKeyId = bundle.signedPreKeyId,
+                usedOneTimePreKeyId = bundle.preKeyId,
             )
 
-            sessions[bundle.uhid] = session
-
-            // Zero intermediate keys
-            rootKey.fill(0)
+            shared.fill(0); dh1.fill(0); dh2.fill(0); dh3.fill(0); dh4.fill(0)
         } finally {
-            sharedSecret.fill(0)
+            ekPriv.fill(0)
         }
     }
 
     /**
-     * Signs data using Ed25519.
+     * Mirrors the initiator's 4 X3DH DHs to derive the same root key, then
+     * derives chain keys with send/recv roles SWAPPED relative to the
+     * initiator. Consumes (and zeros) the one-time pre-key.
      */
+    private fun establishResponderSession(
+        peerUhid: String,
+        initiatorIK: ByteArray,
+        initiatorEK: ByteArray,
+        usedSignedPreKeyId: Int,
+        usedOneTimePreKeyId: Int,
+    ) {
+        require(initiatorIK.size == X25519_PUBLIC_KEY_SIZE) {
+            "Initiator IK_X25519 wrong size: ${initiatorIK.size}"
+        }
+        require(initiatorEK.size == X25519_PUBLIC_KEY_SIZE) {
+            "Initiator EK_X25519 wrong size: ${initiatorEK.size}"
+        }
+        check(preKeys.signedPreKeyId == usedSignedPreKeyId && preKeys.signedPreKeyPriv.isNotEmpty()) {
+            "PreKey message references signed pre-key id $usedSignedPreKeyId which is not held by this node."
+        }
+        val otpk = preKeys.oneTimePreKeys[usedOneTimePreKeyId]
+            ?: throw IllegalStateException(
+                "PreKey message references one-time pre-key id $usedOneTimePreKeyId which is not held (already consumed?)."
+            )
+
+        // Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
+        val dh1 = x25519Agree(preKeys.signedPreKeyPriv, initiatorIK)
+        val dh2 = x25519Agree(identityX25519Priv, initiatorEK)
+        val dh3 = x25519Agree(preKeys.signedPreKeyPriv, initiatorEK)
+        val dh4 = x25519Agree(otpk.first, initiatorEK)
+
+        val shared = dh1 + dh2 + dh3 + dh4
+        val rootKey = hkdf32(shared, HKDF_ROOT_INFO)
+        // SWAPPED: initiator's send-chain info derives our recv-chain.
+        val recvChain = hkdf32(rootKey, HKDF_CHAIN_INITIATOR_SEND_INFO)
+        val sendChain = hkdf32(rootKey, HKDF_CHAIN_INITIATOR_RECV_INFO)
+
+        sessions[peerUhid] = SignalSession(
+            rootKey = rootKey,
+            sendChainKey = sendChain,
+            recvChainKey = recvChain,
+        )
+
+        // Consume one-time pre-key — never reuse.
+        otpk.first.fill(0)
+        preKeys.oneTimePreKeys.remove(usedOneTimePreKeyId)
+
+        shared.fill(0); dh1.fill(0); dh2.fill(0); dh3.fill(0); dh4.fill(0)
+    }
+
     fun signData(data: ByteArray): ByteArray = Ed25519Service.sign(ed25519PrivateKey, data)
 
-    /**
-     * Verifies a signature using Ed25519.
-     */
     fun verifySignature(publicKey: ByteArray, data: ByteArray, signature: ByteArray): Boolean =
         Ed25519Service.verify(publicKey, data, signature)
 
-    /**
-     * Gets a copy of the Ed25519 public key.
-     */
-    fun getPublicKey(): ByteArray = ed25519PublicKey.clone()
+    fun getPublicKey(): ByteArray = ed25519PublicKey.copyOf()
 
-    /**
-     * Performs ECDH key agreement using generated P-256 keys.
-     * Concatenates two DH results (similar to X3DH).
-     */
-    private fun performECDH(remoteSignedPreKey: ByteArray, remotePreKey: ByteArray): ByteArray {
-        // Generate local ephemeral key
-        val localKeyPair = generateP256KeyPair()
+    fun getX25519PublicKey(): ByteArray = identityX25519Pub.copyOf()
 
-        // DH1: local <-> remote signed pre-key
-        val dh1 = performDH(localKeyPair.first, remoteSignedPreKey)
+    // ─── Crypto primitives ──────────────────────────────────────────────────
 
-        // DH2: local <-> remote pre-key
-        val dh2 = performDH(localKeyPair.first, remotePreKey)
-
-        return dh1 + dh2
+    /** Fresh X25519 keypair — raw 32-byte private + 32-byte public, RFC 7748. */
+    private fun generateX25519KeyPair(): Pair<ByteArray, ByteArray> {
+        val gen = X25519KeyPairGenerator()
+        gen.init(X25519KeyGenerationParameters(rng))
+        val kp = gen.generateKeyPair()
+        val priv = kp.private as X25519PrivateKeyParameters
+        val pub = kp.public as X25519PublicKeyParameters
+        return priv.encoded to pub.encoded
     }
 
     /**
-     * Performs a single ECDH key agreement.
+     * X25519 ECDH. Returns 32 raw shared-secret bytes.
+     *
+     * RFC 7748 §6.1: detect the all-zero output (small-subgroup attack).
      */
-    private fun performDH(localPrivateKey: ByteArray, remotePublicKeyBytes: ByteArray): ByteArray {
-        val keyFactory = KeyFactory.getInstance("EC")
-        val publicKeySpec = X509EncodedKeySpec(remotePublicKeyBytes)
-        val remotePublicKey = keyFactory.generatePublic(publicKeySpec)
-
-        val ka = KeyAgreement.getInstance("ECDH")
-        ka.init(getPrivateKeyFromBytes(localPrivateKey))
-        ka.doPhase(remotePublicKey, true)
-
-        return ka.generateSecret()
-    }
-
-    /**
-     * Derives a key using HKDF-SHA256.
-     */
-    private fun deriveKey(inputKeyMaterial: ByteArray, info: ByteArray): ByteArray {
-        return hkdf(inputKeyMaterial, null, info, AetherConstants.AES_KEY_SIZE)
-    }
-
-    /**
-     * Ratchets a chain key using HMAC-SHA256.
-     * Returns (new chain key, message key).
-     */
-    private fun ratchetChainKey(chainKey: ByteArray, info: ByteArray): Pair<ByteArray, ByteArray> {
-        // Message key = HKDF(chainKey, info, salt=0x01)
-        val messageKey = hkdf(chainKey, byteArrayOf(0x01), info, AetherConstants.AES_KEY_SIZE)
-
-        // New chain key = HKDF(chainKey, info, salt=0x02)
-        val newChainKey = hkdf(chainKey, byteArrayOf(0x02), info, AetherConstants.AES_KEY_SIZE)
-
-        return Pair(newChainKey, messageKey)
-    }
-
-    /**
-     * HKDF (HMAC-based Key Derivation Function) using SHA-256.
-     * Implements extract-expand KDF per RFC 5869.
-     */
-    private fun hkdf(ikm: ByteArray, salt: ByteArray?, info: ByteArray, length: Int): ByteArray {
-        // Extract phase
-        val actualSalt = salt ?: ByteArray(32) // Default salt is zeros
-        val hmac = Mac.getInstance("HmacSHA256")
-        hmac.init(SecretKeySpec(actualSalt, "HmacSHA256"))
-        val prk = hmac.doFinal(ikm)
-
-        // Expand phase
-        val result = mutableListOf<Byte>()
-        var counter = 1
-        var t = ByteArray(0)
-
-        while (result.size < length) {
-            val hmacExpand = Mac.getInstance("HmacSHA256")
-            hmacExpand.init(SecretKeySpec(prk, "HmacSHA256"))
-            hmacExpand.update(t)
-            hmacExpand.update(info)
-            hmacExpand.update(counter.toByte())
-            t = hmacExpand.doFinal()
-            result.addAll(t.take(min(t.size, length - result.size)))
-            counter++
+    private fun x25519Agree(localPriv: ByteArray, remotePub: ByteArray): ByteArray {
+        val priv = X25519PrivateKeyParameters(localPriv, 0)
+        val pub = X25519PublicKeyParameters(remotePub, 0)
+        val agreement = X25519Agreement()
+        agreement.init(priv)
+        val shared = ByteArray(agreement.agreementSize)
+        agreement.calculateAgreement(pub, shared, 0)
+        var nonZero = 0
+        for (b in shared) nonZero = nonZero or b.toInt()
+        if ((nonZero and 0xFF) == 0) {
+            shared.fill(0)
+            throw IllegalStateException("X25519 produced an all-zero shared secret (low-order point)")
         }
-
-        return result.take(length).toByteArray()
+        return shared
     }
 
-    /**
-     * Generates a P-256 key pair, returning (privateKeyBytes, publicKeyBytes).
-     */
-    private fun generateP256KeyPair(): Pair<ByteArray, ByteArray> {
-        val keyFactory = KeyFactory.getInstance("EC")
-        val kpg = java.security.KeyPairGenerator.getInstance("EC")
-        kpg.initialize(java.security.spec.ECGenParameterSpec("secp256r1"))
-        val keyPair = kpg.generateKeyPair()
+    /** HKDF-SHA256 with no salt, fixed 32-byte output. Matches C# HKDF.DeriveKey. */
+    private fun hkdf32(ikm: ByteArray, info: ByteArray): ByteArray {
+        // Extract: PRK = HMAC-SHA256(salt=0x00*32, IKM)
+        val salt = ByteArray(32) // RFC 5869: salt absent => salt = HashLen zeros.
+        val hmacExtract = Mac.getInstance("HmacSHA256")
+        hmacExtract.init(SecretKeySpec(salt, "HmacSHA256"))
+        val prk = hmacExtract.doFinal(ikm)
 
-        // Extract as bytes - simplified representation
-        val privateKey = keyPair.private.encoded
-        val publicKey = keyPair.public.encoded
-
-        return Pair(privateKey, publicKey)
+        // Expand: T(1) = HMAC(PRK, info || 0x01); we only need 32 bytes, so one block.
+        val hmacExpand = Mac.getInstance("HmacSHA256")
+        hmacExpand.init(SecretKeySpec(prk, "HmacSHA256"))
+        hmacExpand.update(info)
+        hmacExpand.update(0x01.toByte())
+        val t = hmacExpand.doFinal()
+        return t.copyOf(32)
     }
 
-    /**
-     * Generates a P-256 public key only, returning bytes.
-     */
-    private fun generateP256PublicKey(): ByteArray {
-        val kpg = java.security.KeyPairGenerator.getInstance("EC")
-        kpg.initialize(java.security.spec.ECGenParameterSpec("secp256r1"))
-        val keyPair = kpg.generateKeyPair()
-        return keyPair.public.encoded
+    /** Single Double-Ratchet step (Signal §5.1). */
+    private fun ratchetChainKey(chainKey: ByteArray): Pair<ByteArray, ByteArray> {
+        val mac1 = Mac.getInstance("HmacSHA256")
+        mac1.init(SecretKeySpec(chainKey, "HmacSHA256"))
+        val messageKey = mac1.doFinal(byteArrayOf(0x01))
+
+        val mac2 = Mac.getInstance("HmacSHA256")
+        mac2.init(SecretKeySpec(chainKey, "HmacSHA256"))
+        val newChainKey = mac2.doFinal(byteArrayOf(0x02))
+
+        return newChainKey to messageKey
     }
 
-    /**
-     * Reconstructs a PrivateKey from bytes.
-     */
-    private fun getPrivateKeyFromBytes(keyBytes: ByteArray): java.security.PrivateKey {
-        val keyFactory = KeyFactory.getInstance("EC")
-        val keySpec = java.security.spec.PKCS8EncodedKeySpec(keyBytes)
-        return keyFactory.generatePrivate(keySpec)
+    private fun randomPositiveInt(): Int {
+        var n = rng.nextInt() and 0x7FFFFFFF
+        if (n == 0) n = 1
+        return n
     }
 }
