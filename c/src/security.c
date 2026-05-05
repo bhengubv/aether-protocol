@@ -325,6 +325,42 @@ bool aether_hkdf_sha256(const uint8_t *salt,
 }
 
 /**
+ * Signal Double-Ratchet KDF_RK (Signal §5.2).
+ *
+ * HKDF-SHA256 over (salt=root_key, ikm=dh_output, info="aether-ratchet-rk-v1",
+ * L=64) — split into new_root_key (first 32 bytes) and new_chain_key (next 32).
+ * Mirrors C# SignalProtocolService.KdfRk byte-for-byte.
+ */
+bool aether_signal_kdf_rk(const uint8_t *root_key,
+                          const uint8_t *dh_output,
+                          uint8_t *out_new_root_key,
+                          uint8_t *out_new_chain_key) {
+    if (!root_key || !dh_output || !out_new_root_key || !out_new_chain_key) {
+        return false;
+    }
+
+    static const char info[] = "aether-ratchet-rk-v1";
+    static const size_t info_len = sizeof(info) - 1;
+
+    uint8_t derived[64];
+    bool ok = aether_hkdf_sha256(
+        root_key, 32,
+        dh_output, 32,
+        (const uint8_t *)info, info_len,
+        sizeof(derived), derived);
+
+    if (!ok) {
+        sodium_memzero(derived, sizeof(derived));
+        return false;
+    }
+
+    memcpy(out_new_root_key, derived, 32);
+    memcpy(out_new_chain_key, derived + 32, 32);
+    sodium_memzero(derived, sizeof(derived));
+    return true;
+}
+
+/**
  * Zeroize memory.
  */
 void aether_zeroize(void *mem, size_t len) {

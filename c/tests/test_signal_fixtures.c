@@ -324,6 +324,41 @@ static int test_ratchet_step_three(void) {
     return ok;
 }
 
+static int test_kdf_rk_basic(void) {
+    printf("Test: signal_fixture_kdf_rk_basic\n");
+    char *inputs_json = load_inputs();
+    if (!inputs_json) { fprintf(stderr, "  Cannot load inputs.json\n"); return 0; }
+    char *case_obj = find_case(inputs_json, "kdf_rk_basic");
+    if (!case_obj) { fprintf(stderr, "  case kdf_rk_basic not found\n"); free(inputs_json); return 0; }
+    char *expected_json = load_expected("kdf_rk_basic");
+    if (!expected_json) { fprintf(stderr, "  Cannot load expected\n"); free(inputs_json); free(case_obj); return 0; }
+
+    char hex[128];
+    uint8_t root_key[32], dh_output[32];
+    json_get_str(case_obj, "root_key_hex", hex, sizeof(hex));
+    hex_decode(hex, root_key, 32);
+    json_get_str(case_obj, "dh_output_hex", hex, sizeof(hex));
+    hex_decode(hex, dh_output, 32);
+
+    uint8_t new_root[32], new_chain[32];
+    if (!aether_signal_kdf_rk(root_key, dh_output, new_root, new_chain)) {
+        fprintf(stderr, "  aether_signal_kdf_rk returned false\n");
+        free(inputs_json); free(case_obj); free(expected_json);
+        return 0;
+    }
+
+    int ok = 1;
+    char expect[128];
+    json_get_str(expected_json, "new_root_key_hex", expect, sizeof(expect));
+    ok &= assert_hex_equal("new_root_key_hex", new_root, 32, expect);
+    json_get_str(expected_json, "new_chain_key_hex", expect, sizeof(expect));
+    ok &= assert_hex_equal("new_chain_key_hex", new_chain, 32, expect);
+
+    free(inputs_json); free(case_obj); free(expected_json);
+    if (ok) printf("  PASS\n");
+    return ok;
+}
+
 int main(void) {
     if (!find_repo_root()) {
         fprintf(stderr, "Cannot locate repo root (looking for AetherProtocol.slnx).\n");
@@ -335,6 +370,7 @@ int main(void) {
     total++; if (test_x3dh_basic()) passed++;
     total++; if (test_ratchet_step_basic()) passed++;
     total++; if (test_ratchet_step_three()) passed++;
+    total++; if (test_kdf_rk_basic()) passed++;
 
     printf("\n%d/%d tests passed.\n", passed, total);
     return passed == total ? 0 : 1;

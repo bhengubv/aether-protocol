@@ -140,6 +140,31 @@ bool aether_hkdf_sha256(const uint8_t *salt,
                        uint8_t *out_okm);
 
 /**
+ * Signal Double-Ratchet KDF_RK (Signal §5.2).
+ *
+ * Derives a new root key and a new chain key from the current root key and
+ * a fresh DH output. Implementation: HKDF-SHA256 with
+ *   salt = root_key (32 bytes)
+ *   ikm  = dh_output (32 bytes)
+ *   info = UTF-8 "aether-ratchet-rk-v1"
+ *   L    = 64
+ * The 64-byte output is split: first 32 bytes -> new root key, second 32
+ * bytes -> new chain key. Wire-format compatible with every other Aether
+ * Signal-Protocol implementation; verified by
+ * fixtures/signal/expected/kdf_rk_basic.json.
+ *
+ * Caller-allocated outputs (each 32 bytes):
+ *   out_new_root_key:  new root key (RK')
+ *   out_new_chain_key: new chain key (CK)
+ *
+ * Returns: true on success.
+ */
+bool aether_signal_kdf_rk(const uint8_t *root_key,
+                          const uint8_t *dh_output,
+                          uint8_t *out_new_root_key,
+                          uint8_t *out_new_chain_key);
+
+/**
  * X25519 key agreement primitives (RFC 7748).
  *
  * Used for the X3DH key exchange in the Signal Protocol layer. Public-key
