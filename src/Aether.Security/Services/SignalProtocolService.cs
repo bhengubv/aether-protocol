@@ -70,6 +70,14 @@ internal sealed class SignalSession
 /// periodically) and a pool of one-time pre-keys (each consumed exactly
 /// once). The private halves stay on the responder so that when a
 /// PreKey message arrives, the matching X3DH DHs can be computed.
+///
+/// One-time pre-keys are managed as a pool of <c>OpkPoolSize</c>
+/// (default 100) entries. Bundle generation hands out the next-unused id
+/// from <see cref="AvailableOpkIds"/>; the OPK stays in
+/// <see cref="OneTimePreKeys"/> until a responder consumes it via X3DH,
+/// at which point it is zeroed and removed. Top-up runs each time a
+/// bundle is generated so the available queue never empties under steady
+/// load.
 /// </summary>
 internal sealed class PreKeyState
 {
@@ -80,6 +88,13 @@ internal sealed class PreKeyState
 
     /// <summary>One-time pre-keys keyed by id. Removed and zeroed on consumption.</summary>
     public Dictionary<int, (byte[] Priv, byte[] Pub)> OneTimePreKeys { get; } = new();
+
+    /// <summary>
+    /// IDs of OPKs that exist in <see cref="OneTimePreKeys"/> and have NOT
+    /// yet been issued in any bundle. Bundle generation pops from the
+    /// front (FIFO). Top-up generates new OPKs and enqueues them here.
+    /// </summary>
+    public Queue<int> AvailableOpkIds { get; } = new();
 }
 
 /// <summary>
@@ -151,10 +166,34 @@ public sealed class SignalProtocolService : ISignalProtocolService
 
     private string? _localUhid;
     private readonly PreKeyState _preKeyState = new();
+    private readonly object _preKeyLock = new();
+
+    /// <summary>
+    /// Default size of the one-time pre-key pool. Mirrors Signal's published
+    /// guidance: ~100 OPKs per device so realistic concurrent-initiator
+    /// loads don't collide on a single shared id.
+    /// </summary>
+    public const int DefaultOpkPoolSize = 100;
+
+    /// <summary>
+    /// Target size of the one-time pre-key pool. The pool is topped up to
+    /// this many available (un-issued) keys on every bundle generation, and
+    /// consumed keys are replaced lazily on the next bundle call.
+    /// </summary>
+    public int OpkPoolSize { get; }
 
     public SignalProtocolService(ILogger<SignalProtocolService> logger)
+        : this(logger, DefaultOpkPoolSize)
+    {
+    }
+
+    public SignalProtocolService(ILogger<SignalProtocolService> logger, int opkPoolSize)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        if (opkPoolSize < 1)
+            throw new ArgumentOutOfRangeException(nameof(opkPoolSize),
+                $"OpkPoolSize must be >= 1 (got {opkPoolSize}).");
+        OpkPoolSize = opkPoolSize;
         InitializeIdentityKeys();
     }
 
@@ -381,18 +420,51 @@ public sealed class SignalProtocolService : ISignalProtocolService
         ArgumentException.ThrowIfNullOrEmpty(localUhid);
         _localUhid = localUhid;
 
-        var (otpkPriv, otpkPub) = X25519Service.GenerateKeyPair();
-        var preKeyId = RandomNumberGenerator.GetInt32(1, int.MaxValue);
-        _preKeyState.OneTimePreKeys[preKeyId] = (otpkPriv, otpkPub);
+        int preKeyId;
+        byte[] otpkPub;
+        byte[] spkPub;
+        int signedPreKeyId;
+        byte[] signature;
 
-        var (spkPriv, spkPub) = X25519Service.GenerateKeyPair();
-        var signedPreKeyId = RandomNumberGenerator.GetInt32(1, int.MaxValue);
-        var signature = Ed25519SigningService.Sign(_ed25519PrivateKey, spkPub);
+        lock (_preKeyLock)
+        {
+            // SignedPreKey: generated lazily on the first bundle call and
+            // reused across subsequent calls. Concurrent initiators may
+            // each fetch a bundle and then run X3DH at any time later;
+            // rotating SPK every call would invalidate every outstanding
+            // bundle as soon as the next one is issued. In production SPK
+            // rotation is a periodic operation (Signal §3.3 recommends
+            // weekly) — driven by an explicit RotateSignedPreKey call,
+            // not by every bundle issue.
+            if (_preKeyState.SignedPreKeyPriv.Length == 0)
+            {
+                var (spkPriv, spkPubLocal) = X25519Service.GenerateKeyPair();
+                signedPreKeyId = RandomNumberGenerator.GetInt32(1, int.MaxValue);
+                signature = Ed25519SigningService.Sign(_ed25519PrivateKey, spkPubLocal);
+                spkPub = spkPubLocal;
 
-        _preKeyState.SignedPreKeyId = signedPreKeyId;
-        _preKeyState.SignedPreKeyPriv = spkPriv;
-        _preKeyState.SignedPreKeyPub = spkPub;
-        _preKeyState.SignedPreKeySignature = signature;
+                _preKeyState.SignedPreKeyId = signedPreKeyId;
+                _preKeyState.SignedPreKeyPriv = spkPriv;
+                _preKeyState.SignedPreKeyPub = spkPub;
+                _preKeyState.SignedPreKeySignature = signature;
+            }
+            else
+            {
+                signedPreKeyId = _preKeyState.SignedPreKeyId;
+                spkPub = _preKeyState.SignedPreKeyPub;
+                signature = _preKeyState.SignedPreKeySignature;
+            }
+
+            // Top up the OPK pool: ensure AvailableOpkIds is at the target
+            // size. Lazy generation — costs amortise across bundle calls
+            // and consumed OPKs are replaced on the next call.
+            TopUpOpkPoolNoLock();
+
+            // Pop the next available OPK id. AvailableOpkIds is guaranteed
+            // non-empty by TopUpOpkPoolNoLock when OpkPoolSize >= 1.
+            preKeyId = _preKeyState.AvailableOpkIds.Dequeue();
+            otpkPub = _preKeyState.OneTimePreKeys[preKeyId].Pub;
+        }
 
         var bundle = new PreKeyBundle(
             Uhid: localUhid,
@@ -404,10 +476,71 @@ public sealed class SignalProtocolService : ISignalProtocolService
             SignedPreKey: (byte[])spkPub.Clone(),
             SignedPreKeySignature: signature);
 
-        _logger.LogDebug("Generated pre-key bundle for {Uhid} (SPK id {Spk}, OPK id {Opk})",
-            LogSanitizer.SanitizeUhid(localUhid), signedPreKeyId, preKeyId);
+        _logger.LogDebug("Generated pre-key bundle for {Uhid} (SPK id {Spk}, OPK id {Opk}, pool: held={Held})",
+            LogSanitizer.SanitizeUhid(localUhid), signedPreKeyId, preKeyId, _preKeyState.OneTimePreKeys.Count);
 
         return Task.FromResult(bundle);
+    }
+
+    /// <summary>
+    /// Tops the OPK pool up to <see cref="OpkPoolSize"/> available
+    /// (un-issued) keys. Caller MUST hold <see cref="_preKeyLock"/>.
+    ///
+    /// Generates a fresh X25519 keypair per missing slot, assigns it a
+    /// random non-colliding id, and enqueues the id in
+    /// <see cref="PreKeyState.AvailableOpkIds"/>. Idempotent — safe to call
+    /// repeatedly.
+    /// </summary>
+    private void TopUpOpkPoolNoLock()
+    {
+        while (_preKeyState.AvailableOpkIds.Count < OpkPoolSize)
+        {
+            var (priv, pub) = X25519Service.GenerateKeyPair();
+
+            // Choose a non-colliding id. RandomNumberGenerator.GetInt32 has
+            // a 2^31 range; collisions in a 100-element pool are
+            // statistically negligible but we still guard explicitly.
+            int id;
+            var attempts = 0;
+            do
+            {
+                id = RandomNumberGenerator.GetInt32(1, int.MaxValue);
+                if (++attempts > 64)
+                    throw new CryptographicException(
+                        "Could not allocate a non-colliding OPK id after 64 attempts. " +
+                        "Pool exhaustion or RNG failure.");
+            }
+            while (_preKeyState.OneTimePreKeys.ContainsKey(id));
+
+            _preKeyState.OneTimePreKeys[id] = (priv, pub);
+            _preKeyState.AvailableOpkIds.Enqueue(id);
+        }
+    }
+
+    /// <summary>
+    /// Number of OPKs currently held — both un-issued (in
+    /// <see cref="PreKeyState.AvailableOpkIds"/>) and issued-but-not-yet-consumed.
+    /// Exposed for tests and observability.
+    /// </summary>
+    public int HeldOneTimePreKeyCount
+    {
+        get
+        {
+            lock (_preKeyLock) return _preKeyState.OneTimePreKeys.Count;
+        }
+    }
+
+    /// <summary>
+    /// Number of OPKs in the pool that have not yet been issued in any
+    /// bundle. Drops as bundles are issued; tops back up on next bundle
+    /// generation. Exposed for tests and observability.
+    /// </summary>
+    public int AvailableOneTimePreKeyCount
+    {
+        get
+        {
+            lock (_preKeyLock) return _preKeyState.AvailableOpkIds.Count;
+        }
     }
 
     /// <summary>
@@ -512,16 +645,20 @@ public sealed class SignalProtocolService : ISignalProtocolService
             throw new CryptographicException(
                 $"Initiator ratchet pub has wrong size: {initiatorRatchetPub.Length} (expected {X25519Service.PublicKeySize}).");
 
-        if (_preKeyState.SignedPreKeyId != payload.UsedSignedPreKeyId
-            || _preKeyState.SignedPreKeyPriv.Length == 0)
-            throw new CryptographicException(
-                $"PreKey message references signed pre-key id {payload.UsedSignedPreKeyId} " +
-                "which is not held by this node (rotated out or never generated).");
+        (byte[] Priv, byte[] Pub) otpk;
+        lock (_preKeyLock)
+        {
+            if (_preKeyState.SignedPreKeyId != payload.UsedSignedPreKeyId
+                || _preKeyState.SignedPreKeyPriv.Length == 0)
+                throw new CryptographicException(
+                    $"PreKey message references signed pre-key id {payload.UsedSignedPreKeyId} " +
+                    "which is not held by this node (rotated out or never generated).");
 
-        if (!_preKeyState.OneTimePreKeys.TryGetValue(payload.UsedOneTimePreKeyId, out var otpk))
-            throw new CryptographicException(
-                $"PreKey message references one-time pre-key id {payload.UsedOneTimePreKeyId} " +
-                "which is not held (already consumed, or never generated).");
+            if (!_preKeyState.OneTimePreKeys.TryGetValue(payload.UsedOneTimePreKeyId, out otpk))
+                throw new CryptographicException(
+                    $"PreKey message references one-time pre-key id {payload.UsedOneTimePreKeyId} " +
+                    "which is not held (already consumed, or never generated).");
+        }
 
         byte[]? dh1 = null, dh2 = null, dh3 = null, dh4 = null;
         byte[]? sharedSecret = null;
@@ -556,9 +693,14 @@ public sealed class SignalProtocolService : ISignalProtocolService
             _sessions[peerUhid] = session;
 
             // Consume the one-time pre-key (zero + remove). Replay protection
-            // at the bundle layer.
-            CryptographicOperations.ZeroMemory(otpk.Priv);
-            _preKeyState.OneTimePreKeys.Remove(payload.UsedOneTimePreKeyId);
+            // at the bundle layer. Two concurrent PreKey messages racing for
+            // the same OPK id will see one Remove succeed and the other
+            // throw above (TryGetValue under lock).
+            lock (_preKeyLock)
+            {
+                if (_preKeyState.OneTimePreKeys.Remove(payload.UsedOneTimePreKeyId, out var stored))
+                    CryptographicOperations.ZeroMemory(stored.Priv);
+            }
 
             _logger.LogDebug(
                 "Established responder session with {Peer} via X3DH; one-time pre-key {Id} consumed",
