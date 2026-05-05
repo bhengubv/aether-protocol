@@ -36,3 +36,12 @@ target_link_libraries(test-fixtures PRIVATE aether-protocol pthread)
 # Run from the repo root so the fixture-locator finds fixtures/.
 add_test(NAME FixtureTests COMMAND test-fixtures
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
+add_executable(test-signal-fixtures
+    test_signal_fixtures.c
+)
+target_include_directories(test-signal-fixtures PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-signal-fixtures PRIVATE aether-protocol pthread)
+# Run from the repo root so find_repo_root() locates AetherProtocol.slnx.
+add_test(NAME SignalFixtureTests COMMAND test-signal-fixtures
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)

@@ -344,3 +344,60 @@ bool aether_random_bytes(uint8_t *out, size_t len) {
     randombytes_buf(out, len);
     return true;
 }
+
+/**
+ * Generate a fresh X25519 keypair.
+ */
+bool aether_x25519_generate_keypair(uint8_t *out_private,
+                                    uint8_t *out_public) {
+    if (!out_private || !out_public) return false;
+
+    ensure_libsodium_initialized();
+
+    // Random 32-byte private key. libsodium clamps internally on use.
+    randombytes_buf(out_private, AETHER_X25519_PRIVATE_KEY_SIZE);
+
+    // Public key = private * Basepoint.
+    if (crypto_scalarmult_curve25519_base(out_public, out_private) != 0) {
+        sodium_memzero(out_private, AETHER_X25519_PRIVATE_KEY_SIZE);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * X25519 ECDH agreement. Returns 32 raw shared-secret bytes.
+ *
+ * RFC 7748 §6.1: detect the all-zero output (small-subgroup attack via a
+ * low-order remote public key). libsodium's crypto_scalarmult returns -1
+ * on the all-zero result by default — we surface that as `false`.
+ */
+bool aether_x25519_agree(const uint8_t *local_private,
+                         const uint8_t *remote_public,
+                         uint8_t *out_shared) {
+    if (!local_private || !remote_public || !out_shared) return false;
+
+    ensure_libsodium_initialized();
+
+    if (crypto_scalarmult_curve25519(out_shared, local_private, remote_public) != 0) {
+        sodium_memzero(out_shared, AETHER_X25519_SHARED_SECRET_SIZE);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * X25519 base-point scalar multiplication: pub = priv * Basepoint.
+ */
+bool aether_x25519_derive_public(const uint8_t *private_key,
+                                 uint8_t *out_public) {
+    if (!private_key || !out_public) return false;
+
+    ensure_libsodium_initialized();
+
+    if (crypto_scalarmult_curve25519_base(out_public, private_key) != 0) {
+        sodium_memzero(out_public, AETHER_X25519_PUBLIC_KEY_SIZE);
+        return false;
+    }
+    return true;
+}
