@@ -8,37 +8,59 @@ using Microsoft.Extensions.Logging;
 namespace Aether.Security.Services;
 
 /// <summary>
-/// Tracks the state of a Signal Protocol session with a single peer.
-/// Contains root key, chain keys, counters, and skipped message keys.
+/// State of a Signal-Protocol session with a single peer — both X3DH
+/// session-establishment metadata and Double-Ratchet (Signal §5) state.
 ///
-/// On the initiator side (we processed the peer's pre-key bundle), the
-/// pending PreKey-message metadata is retained until the first message
-/// is sent — that first message carries our X25519 identity key, our fresh
-/// ephemeral public key, and the bundle ids we consumed, so the responder
-/// can run X3DH on its side to derive the same root key.
+/// Double-Ratchet state per Signal §5:
+///   <list type="bullet">
+///     <item>RK — root key. Re-keyed on every DH-ratchet step.</item>
+///     <item>DHs (priv/pub) — my current ratchet keypair.</item>
+///     <item>DHr — peer's last-known ratchet public key. Null until first DH-ratchet.</item>
+///     <item>CKs — my current sending chain key. Null until I've sent (or initialized) on this chain.</item>
+///     <item>CKr — my current receiving chain key. Null until I've received on this chain.</item>
+///     <item>Ns / Nr — send / receive counters (reset to 0 on each DH-ratchet step).</item>
+///     <item>PN — number of messages I sent in my previous sending chain (so the
+///       receiver can compute skipped keys across a DH-ratchet boundary).</item>
+///     <item>MKSKIPPED — skipped message keys keyed by (DHr_pub, counter).</item>
+///   </list>
 /// </summary>
 internal sealed class SignalSession
 {
     public byte[] RootKey { get; set; } = [];
-    public byte[] SendChainKey { get; set; } = [];
-    public byte[] RecvChainKey { get; set; } = [];
+
+    /// <summary>Sending chain key. Null until the first send (or until DH-ratchet rekeys it).</summary>
+    public byte[]? SendChainKey { get; set; }
+    /// <summary>Receiving chain key. Null until the first receive that triggers a DH-ratchet step.</summary>
+    public byte[]? RecvChainKey { get; set; }
+
     public int SendCounter { get; set; }
     public int RecvCounter { get; set; }
+    /// <summary>Number of messages sent in the previous sending chain (Signal §5: PN).</summary>
+    public int PreviousChainCount { get; set; }
+
+    /// <summary>My current DH-ratchet private key (X25519, 32 bytes).</summary>
+    public byte[] MyEphemeralPriv { get; set; } = [];
+    /// <summary>My current DH-ratchet public key (X25519, 32 bytes).</summary>
+    public byte[] MyEphemeralPub { get; set; } = [];
+    /// <summary>Peer's last-seen DH-ratchet public key. Null until first DH-ratchet step.</summary>
+    public byte[]? RemoteEphemeralPub { get; set; }
 
     /// <summary>
-    /// Skipped message keys indexed by counter for out-of-order decryption.
+    /// Skipped message keys keyed by "Hex(remoteEphPub):counter". The
+    /// remoteEphPub binding is essential — out-of-order messages from a
+    /// previous chain (different DHr) can still arrive after a DH-ratchet
+    /// step, and they need their own per-chain key set.
     /// </summary>
-    public Dictionary<int, byte[]> SkippedMessageKeys { get; } = new();
+    public Dictionary<string, byte[]> SkippedMessageKeys { get; } = new();
 
     /// <summary>
     /// True iff this session was established in the initiator role and the
     /// first outbound message has not yet been sent. While true, the next
     /// <see cref="SignalProtocolService.EncryptAsync"/> emits a PreKey
-    /// message (MessageType=1) carrying the fields below.
+    /// message (MessageType=1) carrying the X3DH inputs.
     /// </summary>
     public bool PendingPreKeyMessage { get; set; }
     public byte[] InitiatorIdentityKeyX25519 { get; set; } = [];
-    public byte[] InitiatorEphemeralKeyX25519 { get; set; } = [];
     public int UsedSignedPreKeyId { get; set; }
     public int UsedOneTimePreKeyId { get; set; }
 }
@@ -61,20 +83,30 @@ internal sealed class PreKeyState
 }
 
 /// <summary>
-/// Signal Protocol implementation providing end-to-end encryption for Aether mesh messaging.
+/// Signal Protocol implementation: X3DH session establishment + full
+/// Double Ratchet (Signal §5).
 ///
-/// Key agreement: X3DH (Signal Protocol §3) over X25519 (RFC 7748). Four DHs:
+/// Key agreement: X3DH (Signal §3) over X25519 (RFC 7748). Four DHs:
 ///   <list type="bullet">
-///     <item>DH1 = DH(IK_A, SPK_B) — long-term mutual authentication</item>
-///     <item>DH2 = DH(EK_A, IK_B) — initiator ephemeral binds to responder identity</item>
+///     <item>DH1 = DH(IK_A, SPK_B) — long-term mutual auth</item>
+///     <item>DH2 = DH(EK_A, IK_B)  — initiator ephemeral binds to responder identity</item>
 ///     <item>DH3 = DH(EK_A, SPK_B) — initiator ephemeral binds to responder signed pre-key</item>
-///     <item>DH4 = DH(EK_A, OPK_B) — initiator ephemeral binds to responder one-time pre-key (forward secrecy)</item>
+///     <item>DH4 = DH(EK_A, OPK_B) — initiator ephemeral binds to responder one-time pre-key</item>
 ///   </list>
-/// Root-key derivation: HKDF-SHA256 over the concatenation DH1||DH2||DH3||DH4.
-/// Symmetric ratchet: HMAC-SHA256 with single-byte domain separation
-///   (0x01 → message key, 0x02 → next chain key) per Signal Double-Ratchet §5.1.
-/// Encryption: AES-256-GCM with 12-byte nonce and 16-byte authentication tag.
-/// Identity signing: Ed25519 via <see cref="Ed25519SigningService"/>.
+/// Initial root key: HKDF-SHA256 over concat(DH1||DH2||DH3||DH4).
+///
+/// Double Ratchet (§5): each side maintains a current X25519 ratchet
+/// keypair. Whenever the sender receives a peer message bearing a new
+/// ratchet public key, it does a DH-ratchet step: derive a new chain key
+/// via <c>KDF_RK(RK, DH(myDHs_priv, newDHr))</c>, then generate a fresh
+/// <c>DHs</c> and derive its sending chain via <c>KDF_RK(RK, DH(newDHs_priv, newDHr))</c>.
+/// The Signal-canonical integration with X3DH is used: the initiator's
+/// X3DH ephemeral key becomes its first DH-ratchet keypair.
+///
+/// Symmetric ratchet (§5.1): HMAC-SHA256, single-byte domain separation
+///   (0x01 → message key, 0x02 → next chain key).
+/// Encryption: AES-256-GCM, 12-byte nonce, 16-byte tag.
+/// Identity signing: Ed25519.
 /// </summary>
 public sealed class SignalProtocolService : ISignalProtocolService
 {
@@ -89,42 +121,35 @@ public sealed class SignalProtocolService : ISignalProtocolService
     private const int AesTagSize = 16;
 
     /// <summary>
-    /// Ratchet domain-separation bytes per the Signal Double-Ratchet spec
-    /// (§5.1). 0x01 yields a per-message key, 0x02 yields the next chain key.
+    /// Ratchet domain-separation bytes per Signal §5.1. 0x01 yields a
+    /// per-message key, 0x02 yields the next chain key.
     /// </summary>
     private static readonly byte[] RatchetMessageKeyInput = [0x01];
     private static readonly byte[] RatchetChainKeyInput = [0x02];
 
     /// <summary>
-    /// HKDF info strings for X3DH session establishment. The SAME info
-    /// strings are used on initiator and responder sides; the responder
-    /// SWAPS send/recv assignment so the initiator's send chain matches
-    /// the responder's recv chain (and vice versa).
+    /// HKDF info string for the X3DH root-key derivation. MUST match
+    /// every other language exactly — verified by
+    /// fixtures/signal/expected/x3dh_basic.json.
     /// </summary>
     private static readonly byte[] HkdfRootInfo = "aether-x3dh-root-v1"u8.ToArray();
-    private static readonly byte[] HkdfChainInitiatorSendInfo = "aether-chain-initiator-send-v1"u8.ToArray();
-    private static readonly byte[] HkdfChainInitiatorRecvInfo = "aether-chain-initiator-recv-v1"u8.ToArray();
+
+    /// <summary>
+    /// HKDF info string for the DH-ratchet step (Signal §5: KDF_RK). Each
+    /// DH-ratchet step derives a 64-byte block, split into the new root
+    /// key (first 32 bytes) and the new chain key (second 32 bytes).
+    /// </summary>
+    private static readonly byte[] HkdfRatchetInfo = "aether-ratchet-rk-v1"u8.ToArray();
 
     private readonly ConcurrentDictionary<string, SignalSession> _sessions = new();
     private readonly ILogger<SignalProtocolService> _logger;
 
-    // Long-term identity keys — two distinct keypairs per node.
-    // X25519 for ECDH (X3DH); Ed25519 for signing. We keep them separate
-    // rather than using XEdDSA, which adds complexity without standard-library
-    // support across the 8-language family.
     private byte[] _identityX25519Priv = [];
     private byte[] _identityX25519Pub = [];
     private byte[] _ed25519PrivateKey = [];
     private byte[] _ed25519PublicKey = [];
 
-    // Local UHID — captured when GeneratePreKeyBundleAsync is called or set
-    // explicitly via SetLocalUhid. Used as the SenderUhid on outbound
-    // EncryptedPayloads so the receiver can attribute the message correctly.
     private string? _localUhid;
-
-    // Pre-key state held for responder-side X3DH. When a PreKey message
-    // arrives, EstablishResponderSession looks up the SPK + OPK private
-    // halves by id, runs the mirrored DHs, and consumes the OPK.
     private readonly PreKeyState _preKeyState = new();
 
     public SignalProtocolService(ILogger<SignalProtocolService> logger)
@@ -135,19 +160,10 @@ public sealed class SignalProtocolService : ISignalProtocolService
 
     private void InitializeIdentityKeys()
     {
-        // X25519 long-term identity for X3DH ECDH.
         (_identityX25519Priv, _identityX25519Pub) = X25519Service.GenerateKeyPair();
-
-        // Ed25519 long-term identity for signing.
         (_ed25519PrivateKey, _ed25519PublicKey) = Ed25519SigningService.GenerateKeyPair();
     }
 
-    /// <summary>
-    /// Sets the local node's UHID. Required before any
-    /// <see cref="EncryptAsync"/> call so the SenderUhid is correctly
-    /// stamped. Called automatically by <see cref="GeneratePreKeyBundleAsync"/>;
-    /// expose this for nodes that initiate without first publishing a bundle.
-    /// </summary>
     public void SetLocalUhid(string localUhid)
     {
         ArgumentException.ThrowIfNullOrEmpty(localUhid);
@@ -175,11 +191,22 @@ public sealed class SignalProtocolService : ISignalProtocolService
             "Local UHID is not set. Call GeneratePreKeyBundleAsync(localUhid) " +
             "or SetLocalUhid(localUhid) before encrypting.");
 
+        // Lazy CKs initialization for the initiator's first send: the X3DH
+        // setup placed DHs and DHr but did not derive CKs (the Double
+        // Ratchet defers it until first send to avoid an extra KDF step
+        // when no message is ever sent on a session).
+        if (session.SendChainKey is null)
+        {
+            if (session.RemoteEphemeralPub is null)
+                throw new InvalidOperationException(
+                    "Cannot derive sending chain: peer's ratchet public key is unknown.");
+            DhRatchetSendOnly(session, session.RemoteEphemeralPub);
+        }
+
         byte[]? messageKey = null;
         try
         {
-            // Advance the sending chain to derive a fresh per-message key.
-            (session.SendChainKey, messageKey) = RatchetChainKey(session.SendChainKey);
+            (session.SendChainKey, messageKey) = RatchetChainKey(session.SendChainKey!);
 
             var nonce = RandomNumberGenerator.GetBytes(AesNonceSize);
             var ciphertext = new byte[plaintext.Length];
@@ -188,39 +215,40 @@ public sealed class SignalProtocolService : ISignalProtocolService
             using var aes = new AesGcm(messageKey, AesTagSize);
             aes.Encrypt(nonce, plaintext, ciphertext, tag);
 
-            // Wire format: ciphertext || tag (combined). The tag is split
-            // back out on decryption.
             var combined = new byte[ciphertext.Length + AesTagSize];
             Buffer.BlockCopy(ciphertext, 0, combined, 0, ciphertext.Length);
             Buffer.BlockCopy(tag, 0, combined, ciphertext.Length, AesTagSize);
 
             var counter = session.SendCounter++;
+            var ratchetPub = (byte[])session.MyEphemeralPub.Clone();
 
-            // PreKey message? First message after initiator-side X3DH —
-            // carries our X3DH inputs so the responder can mirror the DHs
-            // and arrive at the same root key.
+            // PreKey message? First message after initiator-side X3DH.
+            // Carries X3DH metadata so the responder can mirror the DHs.
             if (session.PendingPreKeyMessage)
             {
-                var preKeyPayload = new EncryptedPayload(
+                var preKey = new EncryptedPayload(
                     Ciphertext: combined,
                     Nonce: nonce,
                     MessageType: 1,
                     SenderUhid: senderUhid,
                     Counter: counter,
                     InitiatorIdentityKeyX25519: (byte[])session.InitiatorIdentityKeyX25519.Clone(),
-                    InitiatorEphemeralKeyX25519: (byte[])session.InitiatorEphemeralKeyX25519.Clone(),
+                    // Backward-compat field — equals SenderEphemeralKeyX25519 on the first message
+                    // because the initiator's X3DH ephemeral becomes its first DH-ratchet pubkey.
+                    InitiatorEphemeralKeyX25519: ratchetPub,
                     UsedSignedPreKeyId: session.UsedSignedPreKeyId,
-                    UsedOneTimePreKeyId: session.UsedOneTimePreKeyId);
+                    UsedOneTimePreKeyId: session.UsedOneTimePreKeyId,
+                    SenderEphemeralKeyX25519: ratchetPub,
+                    PreviousChainCount: session.PreviousChainCount);
 
                 session.PendingPreKeyMessage = false;
 
-                _logger.LogDebug("Encrypted PreKey message for {Peer}, counter={Counter}",
+                _logger.LogDebug("Encrypted PreKey msg for {Peer}, counter={Counter}",
                     LogSanitizer.SanitizeUhid(peerUhid), counter);
-
-                return Task.FromResult(preKeyPayload);
+                return Task.FromResult(preKey);
             }
 
-            _logger.LogDebug("Encrypted message for {Peer}, counter={Counter}",
+            _logger.LogDebug("Encrypted msg for {Peer}, counter={Counter}",
                 LogSanitizer.SanitizeUhid(peerUhid), counter);
 
             return Task.FromResult(new EncryptedPayload(
@@ -228,7 +256,9 @@ public sealed class SignalProtocolService : ISignalProtocolService
                 Nonce: nonce,
                 MessageType: 0,
                 SenderUhid: senderUhid,
-                Counter: counter));
+                Counter: counter,
+                SenderEphemeralKeyX25519: ratchetPub,
+                PreviousChainCount: session.PreviousChainCount));
         }
         finally
         {
@@ -243,52 +273,72 @@ public sealed class SignalProtocolService : ISignalProtocolService
         ArgumentException.ThrowIfNullOrEmpty(peerUhid);
         ArgumentNullException.ThrowIfNull(payload);
 
-        // PreKey message? Establish (or replace) the responder-side session
-        // BEFORE attempting decryption. The same byte stream that the
-        // initiator encrypted is now decryptable because the mirrored X3DH
-        // produces the same root key.
+        // Every Double-Ratchet message carries the sender's current ratchet
+        // public key. Fall back to InitiatorEphemeralKeyX25519 for backward
+        // compatibility with older PreKey messages from peers that haven't
+        // upgraded to the new wire envelope.
+        var senderRatchetPub = payload.SenderEphemeralKeyX25519
+            ?? payload.InitiatorEphemeralKeyX25519;
+
+        // PreKey message? Establish the responder-side session via mirrored X3DH.
         if (payload.MessageType == 1)
         {
-            if (payload.InitiatorIdentityKeyX25519 == null
-                || payload.InitiatorEphemeralKeyX25519 == null)
+            if (payload.InitiatorIdentityKeyX25519 == null || senderRatchetPub == null)
                 throw new CryptographicException(
                     "PreKey message missing initiator key material " +
-                    "(InitiatorIdentityKeyX25519 / InitiatorEphemeralKeyX25519).");
-            EstablishResponderSession(peerUhid, payload);
+                    "(InitiatorIdentityKeyX25519 and SenderEphemeralKeyX25519 / InitiatorEphemeralKeyX25519).");
+            EstablishResponderSession(peerUhid, payload, senderRatchetPub);
         }
 
         if (!_sessions.TryGetValue(peerUhid, out var session))
             throw new InvalidOperationException(
                 $"No session established with peer {LogSanitizer.SanitizeUhid(peerUhid)}");
 
+        if (senderRatchetPub == null)
+            throw new CryptographicException(
+                "Message missing SenderEphemeralKeyX25519 — required for the Double Ratchet.");
+
+        // DH-ratchet step? Triggered when the peer's ratchet public key changes.
+        if (session.RemoteEphemeralPub == null
+            || !ConstantTimeEquals(senderRatchetPub, session.RemoteEphemeralPub))
+        {
+            // First, derive any skipped keys from the previous receive chain
+            // (the chain keyed by the OLD RemoteEphemeralPub). Then ratchet.
+            SkipMessageKeys(session, payload.PreviousChainCount);
+            DhRatchetReceive(session, senderRatchetPub);
+        }
+
         byte[]? messageKey = null;
         try
         {
-            // Out-of-order? Pull the cached key.
-            if (session.SkippedMessageKeys.TryGetValue(payload.Counter, out var skippedKey))
+            // Skipped key cached for this (DHr_pub, counter) pair?
+            var skippedKey = SkippedKey(senderRatchetPub, payload.Counter);
+            if (session.SkippedMessageKeys.TryGetValue(skippedKey, out var cached))
             {
-                session.SkippedMessageKeys.Remove(payload.Counter);
-                messageKey = skippedKey;
+                session.SkippedMessageKeys.Remove(skippedKey);
+                messageKey = cached;
             }
             else
             {
-                // Counter ahead of expected? Cache intermediate keys (up to
-                // the bound) so a later out-of-order delivery of one of
-                // those still works.
+                if (session.RecvChainKey == null)
+                    throw new CryptographicException(
+                        "Receive chain not initialized (DH-ratchet step missing).");
+
                 var gap = payload.Counter - session.RecvCounter;
                 if (gap > MaxSkippedKeys)
                     throw new CryptographicException(
                         $"Message counter gap ({gap}) exceeds maximum ({MaxSkippedKeys}). " +
                         "Session must be re-established.");
 
+                // Skip ahead, caching intermediate keys.
                 while (session.RecvCounter < payload.Counter)
                 {
                     byte[]? skipKey = null;
                     try
                     {
-                        (session.RecvChainKey, skipKey) = RatchetChainKey(session.RecvChainKey);
-                        session.SkippedMessageKeys[session.RecvCounter] = skipKey;
-                        skipKey = null; // Ownership transferred to dictionary.
+                        (session.RecvChainKey, skipKey) = RatchetChainKey(session.RecvChainKey!);
+                        session.SkippedMessageKeys[SkippedKey(senderRatchetPub, session.RecvCounter)] = skipKey;
+                        skipKey = null;
                         session.RecvCounter++;
                     }
                     finally
@@ -298,8 +348,7 @@ public sealed class SignalProtocolService : ISignalProtocolService
                     }
                 }
 
-                // Derive the message key for the expected counter.
-                (session.RecvChainKey, messageKey) = RatchetChainKey(session.RecvChainKey);
+                (session.RecvChainKey, messageKey) = RatchetChainKey(session.RecvChainKey!);
                 session.RecvCounter++;
             }
 
@@ -314,7 +363,7 @@ public sealed class SignalProtocolService : ISignalProtocolService
             using var aes = new AesGcm(messageKey, AesTagSize);
             aes.Decrypt(payload.Nonce, ciphertext, tag, plaintext);
 
-            _logger.LogDebug("Decrypted message from {Peer}, counter={Counter}",
+            _logger.LogDebug("Decrypted msg from {Peer}, counter={Counter}",
                 LogSanitizer.SanitizeUhid(peerUhid), payload.Counter);
 
             return Task.FromResult(plaintext);
@@ -332,15 +381,10 @@ public sealed class SignalProtocolService : ISignalProtocolService
         ArgumentException.ThrowIfNullOrEmpty(localUhid);
         _localUhid = localUhid;
 
-        // One-time pre-key (X25519). We retain the private half so we can
-        // run our side of X3DH when an initiator consumes this id.
         var (otpkPriv, otpkPub) = X25519Service.GenerateKeyPair();
         var preKeyId = RandomNumberGenerator.GetInt32(1, int.MaxValue);
         _preKeyState.OneTimePreKeys[preKeyId] = (otpkPriv, otpkPub);
 
-        // Signed pre-key (X25519) — also keep the private half. The
-        // signature is over the X25519 public key bytes, signed by our
-        // long-term Ed25519 identity key.
         var (spkPriv, spkPub) = X25519Service.GenerateKeyPair();
         var signedPreKeyId = RandomNumberGenerator.GetInt32(1, int.MaxValue);
         var signature = Ed25519SigningService.Sign(_ed25519PrivateKey, spkPub);
@@ -367,22 +411,17 @@ public sealed class SignalProtocolService : ISignalProtocolService
     }
 
     /// <summary>
-    /// Establishes an initiator-side session against the supplied pre-key
-    /// bundle via X3DH (Signal §3): generates a fresh ephemeral X25519
-    /// keypair, computes the four DH operations, derives the root key
-    /// via HKDF-SHA256, and primes the symmetric ratchet.
-    ///
-    /// The first <see cref="EncryptAsync"/> after this returns a PreKey
-    /// message (MessageType=1) carrying the initiator's X25519 identity
-    /// key, ephemeral public key, and the bundle ids consumed — the
-    /// responder uses these to compute the same root key on its side.
+    /// Establishes an initiator-side session against a pre-key bundle:
+    /// runs the four X3DH DHs (Signal §3.3) over X25519, derives the root
+    /// key, and primes the Double Ratchet by adopting the X3DH ephemeral
+    /// as the initiator's first <c>DHs</c>. The peer's signed pre-key
+    /// becomes the initial <c>DHr</c>. The first <see cref="EncryptAsync"/>
+    /// after this returns a PreKey message (MessageType=1).
     /// </summary>
     public Task ProcessPreKeyBundleAsync(PreKeyBundle bundle, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(bundle);
 
-        // The signed pre-key signature is over the SPK *X25519* public key
-        // bytes, signed by the bundle owner's *Ed25519* identity key.
         if (!Ed25519SigningService.Verify(bundle.IdentityKey, bundle.SignedPreKey, bundle.SignedPreKeySignature))
             throw new CryptographicException("Signed pre-key signature verification failed.");
 
@@ -396,22 +435,14 @@ public sealed class SignalProtocolService : ISignalProtocolService
             throw new CryptographicException(
                 $"Pre-key bundle has malformed one-time pre-key (length {bundle.PreKey.Length}, expected {X25519Service.PublicKeySize}).");
 
-        // Fresh ephemeral X25519 keypair, generated per-session per Signal §3.3.
         var (ephemeralPriv, ephemeralPub) = X25519Service.GenerateKeyPair();
 
         byte[]? dh1 = null, dh2 = null, dh3 = null, dh4 = null;
         byte[]? sharedSecret = null;
         byte[]? rootKey = null;
-        byte[]? sendChainKey = null;
-        byte[]? recvChainKey = null;
 
         try
         {
-            // X3DH 4-DH key agreement (Signal §3.3 — initiator side):
-            //   DH1 = DH(IK_A, SPK_B)  binds initiator's long-term identity to peer's signed pre-key (mutual auth)
-            //   DH2 = DH(EK_A, IK_B)   binds initiator's ephemeral to peer's long-term identity (auth)
-            //   DH3 = DH(EK_A, SPK_B)  binds initiator's ephemeral to peer's signed pre-key (FS)
-            //   DH4 = DH(EK_A, OPK_B)  binds initiator's ephemeral to peer's one-time pre-key (FS)
             dh1 = X25519Service.Agree(_identityX25519Priv, bundle.SignedPreKey);
             dh2 = X25519Service.Agree(ephemeralPriv, bundle.IdentityKeyX25519);
             dh3 = X25519Service.Agree(ephemeralPriv, bundle.SignedPreKey);
@@ -419,25 +450,28 @@ public sealed class SignalProtocolService : ISignalProtocolService
 
             sharedSecret = ConcatBytes(dh1, dh2, dh3, dh4);
             rootKey = HKDF.DeriveKey(HashAlgorithmName.SHA256, sharedSecret, AesKeySize, info: HkdfRootInfo);
-            sendChainKey = HKDF.DeriveKey(HashAlgorithmName.SHA256, rootKey, AesKeySize, info: HkdfChainInitiatorSendInfo);
-            recvChainKey = HKDF.DeriveKey(HashAlgorithmName.SHA256, rootKey, AesKeySize, info: HkdfChainInitiatorRecvInfo);
 
+            // Signal-canonical X3DH↔Double-Ratchet integration: the
+            // initiator's X3DH ephemeral becomes its first DHs. The
+            // peer's signed pre-key is the initial DHr. CKs is computed
+            // lazily on first send (DhRatchetSendOnly).
             var session = new SignalSession
             {
                 RootKey = rootKey,
-                SendChainKey = sendChainKey,
-                RecvChainKey = recvChainKey,
+                SendChainKey = null,                // computed on first send
+                RecvChainKey = null,                // computed on first DH-ratchet receive
+                MyEphemeralPriv = ephemeralPriv,
+                MyEphemeralPub = ephemeralPub,
+                RemoteEphemeralPub = (byte[])bundle.SignedPreKey.Clone(),
                 PendingPreKeyMessage = true,
                 InitiatorIdentityKeyX25519 = (byte[])_identityX25519Pub.Clone(),
-                InitiatorEphemeralKeyX25519 = ephemeralPub,
                 UsedSignedPreKeyId = bundle.SignedPreKeyId,
-                UsedOneTimePreKeyId = bundle.PreKeyId
+                UsedOneTimePreKeyId = bundle.PreKeyId,
             };
 
             // Ownership transferred to session — null out so finally doesn't zero them.
             rootKey = null;
-            sendChainKey = null;
-            recvChainKey = null;
+            ephemeralPriv = null!; // session retains ownership
 
             _sessions[bundle.Uhid] = session;
 
@@ -454,37 +488,30 @@ public sealed class SignalProtocolService : ISignalProtocolService
             if (dh4 != null) CryptographicOperations.ZeroMemory(dh4);
             if (sharedSecret != null) CryptographicOperations.ZeroMemory(sharedSecret);
             if (rootKey != null) CryptographicOperations.ZeroMemory(rootKey);
-            if (sendChainKey != null) CryptographicOperations.ZeroMemory(sendChainKey);
-            if (recvChainKey != null) CryptographicOperations.ZeroMemory(recvChainKey);
-            CryptographicOperations.ZeroMemory(ephemeralPriv);
+            if (ephemeralPriv != null) CryptographicOperations.ZeroMemory(ephemeralPriv);
         }
     }
 
     /// <summary>
     /// Establishes the responder-side session when a PreKey message arrives.
-    /// Mirrors the initiator's 4 X3DH DHs (X25519 ECDH is commutative, so
-    /// each pair of mirrored DHs yields the same shared secret) and derives
-    /// the same root key. The chain-key info strings are SWAPPED relative
-    /// to the initiator so initiator-send-chain == responder-recv-chain.
-    ///
-    /// The one-time pre-key is consumed (zeroed and removed) — replay
-    /// protection at the bundle layer.
+    /// Runs mirror X3DH to derive the same root key, then immediately does a
+    /// DH-ratchet step (the message header carries the initiator's first
+    /// <c>DHs</c>). The signed pre-key (private + public) is adopted as the
+    /// responder's initial <c>DHs</c>; a fresh keypair is generated when
+    /// the DH-ratchet step rotates it. The one-time pre-key is consumed.
     /// </summary>
-    private void EstablishResponderSession(string peerUhid, EncryptedPayload payload)
+    private void EstablishResponderSession(string peerUhid, EncryptedPayload payload, byte[] initiatorRatchetPub)
     {
         var initiatorIK = payload.InitiatorIdentityKeyX25519
             ?? throw new CryptographicException("PreKey message missing initiator identity key.");
-        var initiatorEK = payload.InitiatorEphemeralKeyX25519
-            ?? throw new CryptographicException("PreKey message missing initiator ephemeral key.");
 
         if (initiatorIK.Length != X25519Service.PublicKeySize)
             throw new CryptographicException(
                 $"Initiator IK_X25519 has wrong size: {initiatorIK.Length} (expected {X25519Service.PublicKeySize}).");
-        if (initiatorEK.Length != X25519Service.PublicKeySize)
+        if (initiatorRatchetPub.Length != X25519Service.PublicKeySize)
             throw new CryptographicException(
-                $"Initiator EK_X25519 has wrong size: {initiatorEK.Length} (expected {X25519Service.PublicKeySize}).");
+                $"Initiator ratchet pub has wrong size: {initiatorRatchetPub.Length} (expected {X25519Service.PublicKeySize}).");
 
-        // Look up the SPK + OPK private halves the initiator consumed.
         if (_preKeyState.SignedPreKeyId != payload.UsedSignedPreKeyId
             || _preKeyState.SignedPreKeyPriv.Length == 0)
             throw new CryptographicException(
@@ -499,49 +526,37 @@ public sealed class SignalProtocolService : ISignalProtocolService
         byte[]? dh1 = null, dh2 = null, dh3 = null, dh4 = null;
         byte[]? sharedSecret = null;
         byte[]? rootKey = null;
-        byte[]? sendChainKey = null;
-        byte[]? recvChainKey = null;
 
         try
         {
-            // Mirror of initiator's 4 DHs (X25519 ECDH is commutative — each
-            // pair below produces the same 32-byte shared secret as the
-            // corresponding initiator DH):
-            //   DH1' = DH(SPK_B, IK_A)   matches DH1  = DH(IK_A, SPK_B)
-            //   DH2' = DH(IK_B, EK_A)    matches DH2  = DH(EK_A, IK_B)
-            //   DH3' = DH(SPK_B, EK_A)   matches DH3  = DH(EK_A, SPK_B)
-            //   DH4' = DH(OPK_B, EK_A)   matches DH4  = DH(EK_A, OPK_B)
+            // Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
             dh1 = X25519Service.Agree(_preKeyState.SignedPreKeyPriv, initiatorIK);
-            dh2 = X25519Service.Agree(_identityX25519Priv, initiatorEK);
-            dh3 = X25519Service.Agree(_preKeyState.SignedPreKeyPriv, initiatorEK);
-            dh4 = X25519Service.Agree(otpk.Priv, initiatorEK);
+            dh2 = X25519Service.Agree(_identityX25519Priv, initiatorRatchetPub);
+            dh3 = X25519Service.Agree(_preKeyState.SignedPreKeyPriv, initiatorRatchetPub);
+            dh4 = X25519Service.Agree(otpk.Priv, initiatorRatchetPub);
 
             sharedSecret = ConcatBytes(dh1, dh2, dh3, dh4);
             rootKey = HKDF.DeriveKey(HashAlgorithmName.SHA256, sharedSecret, AesKeySize, info: HkdfRootInfo);
 
-            // SWAPPED: the initiator's send-chain info derives our
-            // recv-chain (and vice versa). This way the per-message keys
-            // line up: when initiator ratchets its send chain to encrypt
-            // counter N, responder ratchets its recv chain to decrypt the
-            // same counter N, both arriving at the same key.
-            recvChainKey = HKDF.DeriveKey(HashAlgorithmName.SHA256, rootKey, AesKeySize, info: HkdfChainInitiatorSendInfo);
-            sendChainKey = HKDF.DeriveKey(HashAlgorithmName.SHA256, rootKey, AesKeySize, info: HkdfChainInitiatorRecvInfo);
-
+            // Adopt SPK as the initial DHs. The DH-ratchet step that
+            // follows will rotate it to a fresh keypair.
             var session = new SignalSession
             {
                 RootKey = rootKey,
-                SendChainKey = sendChainKey,
-                RecvChainKey = recvChainKey,
-                PendingPreKeyMessage = false // we are the responder
+                SendChainKey = null,
+                RecvChainKey = null,
+                MyEphemeralPriv = (byte[])_preKeyState.SignedPreKeyPriv.Clone(),
+                MyEphemeralPub = (byte[])_preKeyState.SignedPreKeyPub.Clone(),
+                RemoteEphemeralPub = null,         // forces DH-ratchet on first decrypt below
+                PendingPreKeyMessage = false,
             };
 
-            rootKey = null;
-            sendChainKey = null;
-            recvChainKey = null;
+            rootKey = null; // ownership transferred
 
             _sessions[peerUhid] = session;
 
-            // Consume one-time pre-key — never reuse (replay protection).
+            // Consume the one-time pre-key (zero + remove). Replay protection
+            // at the bundle layer.
             CryptographicOperations.ZeroMemory(otpk.Priv);
             _preKeyState.OneTimePreKeys.Remove(payload.UsedOneTimePreKeyId);
 
@@ -557,8 +572,118 @@ public sealed class SignalProtocolService : ISignalProtocolService
             if (dh4 != null) CryptographicOperations.ZeroMemory(dh4);
             if (sharedSecret != null) CryptographicOperations.ZeroMemory(sharedSecret);
             if (rootKey != null) CryptographicOperations.ZeroMemory(rootKey);
-            if (sendChainKey != null) CryptographicOperations.ZeroMemory(sendChainKey);
-            if (recvChainKey != null) CryptographicOperations.ZeroMemory(recvChainKey);
+        }
+    }
+
+    /// <summary>
+    /// Performs a full DH-ratchet step on receive (Signal §5.2): updates DHr,
+    /// derives a new receiving chain via <c>KDF_RK(RK, DH(DHs, DHr))</c>,
+    /// generates a fresh DHs, and derives a new sending chain via
+    /// <c>KDF_RK(RK, DH(newDHs, DHr))</c>.
+    /// </summary>
+    private void DhRatchetReceive(SignalSession session, byte[] newRemoteEphemeralPub)
+    {
+        // Save send-counter as PN so the peer can compute skipped keys
+        // across the ratchet boundary on subsequent decrypts.
+        session.PreviousChainCount = session.SendCounter;
+        session.SendCounter = 0;
+        session.RecvCounter = 0;
+        session.RemoteEphemeralPub = (byte[])newRemoteEphemeralPub.Clone();
+
+        // Step 1: derive new receiving chain from current DHs · new DHr.
+        byte[]? dh1 = null;
+        byte[]? newCkr = null;
+        try
+        {
+            dh1 = X25519Service.Agree(session.MyEphemeralPriv, session.RemoteEphemeralPub!);
+            (session.RootKey, newCkr) = KdfRk(session.RootKey, dh1);
+            session.RecvChainKey = newCkr;
+            newCkr = null;
+        }
+        finally
+        {
+            if (dh1 != null) CryptographicOperations.ZeroMemory(dh1);
+            if (newCkr != null) CryptographicOperations.ZeroMemory(newCkr);
+        }
+
+        // Step 2: rotate DHs to a fresh keypair, derive new sending chain
+        // from new DHs · new DHr.
+        CryptographicOperations.ZeroMemory(session.MyEphemeralPriv);
+        var (newPriv, newPub) = X25519Service.GenerateKeyPair();
+        session.MyEphemeralPriv = newPriv;
+        session.MyEphemeralPub = newPub;
+
+        byte[]? dh2 = null;
+        byte[]? newCks = null;
+        try
+        {
+            dh2 = X25519Service.Agree(session.MyEphemeralPriv, session.RemoteEphemeralPub!);
+            (session.RootKey, newCks) = KdfRk(session.RootKey, dh2);
+            session.SendChainKey = newCks;
+            newCks = null;
+        }
+        finally
+        {
+            if (dh2 != null) CryptographicOperations.ZeroMemory(dh2);
+            if (newCks != null) CryptographicOperations.ZeroMemory(newCks);
+        }
+    }
+
+    /// <summary>
+    /// Lazy half-ratchet for the very first send on a freshly-established
+    /// initiator session. The initiator's DHs and DHr are already set
+    /// (X3DH placed them); we just need to derive the sending chain. We do
+    /// NOT rotate DHs here — only on a true DH-ratchet (i.e. on receive).
+    /// </summary>
+    private void DhRatchetSendOnly(SignalSession session, byte[] remotePub)
+    {
+        byte[]? dh = null;
+        byte[]? newCks = null;
+        try
+        {
+            dh = X25519Service.Agree(session.MyEphemeralPriv, remotePub);
+            (session.RootKey, newCks) = KdfRk(session.RootKey, dh);
+            session.SendChainKey = newCks;
+            newCks = null;
+        }
+        finally
+        {
+            if (dh != null) CryptographicOperations.ZeroMemory(dh);
+            if (newCks != null) CryptographicOperations.ZeroMemory(newCks);
+        }
+    }
+
+    /// <summary>
+    /// Saves any unread message keys on the current receive chain up to
+    /// the given counter, so they can be consumed if those messages
+    /// eventually arrive after a DH-ratchet step. Bounded by
+    /// <see cref="MaxSkippedKeys"/>.
+    /// </summary>
+    private static void SkipMessageKeys(SignalSession session, int until)
+    {
+        if (session.RecvChainKey == null || session.RemoteEphemeralPub == null)
+            return; // no chain to skip on
+        if (until <= session.RecvCounter)
+            return;
+        if (until - session.RecvCounter > MaxSkippedKeys)
+            throw new CryptographicException(
+                $"Skipped-key request exceeds maximum ({MaxSkippedKeys}). Session must be re-established.");
+
+        while (session.RecvCounter < until)
+        {
+            byte[]? skipKey = null;
+            try
+            {
+                (session.RecvChainKey, skipKey) = RatchetChainKey(session.RecvChainKey!);
+                session.SkippedMessageKeys[SkippedKey(session.RemoteEphemeralPub!, session.RecvCounter)] = skipKey;
+                skipKey = null;
+                session.RecvCounter++;
+            }
+            finally
+            {
+                if (skipKey != null)
+                    CryptographicOperations.ZeroMemory(skipKey);
+            }
         }
     }
 
@@ -576,22 +701,35 @@ public sealed class SignalProtocolService : ISignalProtocolService
         return Ed25519SigningService.Verify(publicKey, data, signature);
     }
 
-    /// <summary>Gets a copy of the Ed25519 public key for this node.</summary>
+    /// <summary>Ed25519 public key for this node.</summary>
     public byte[] GetPublicKey() => (byte[])_ed25519PublicKey.Clone();
 
-    /// <summary>Gets a copy of the X25519 ECDH public key for this node.</summary>
+    /// <summary>X25519 ECDH public key for this node.</summary>
     public byte[] GetX25519PublicKey() => (byte[])_identityX25519Pub.Clone();
 
     /// <summary>
-    /// Advances a chain key by one step per the Signal Double-Ratchet
-    /// spec (§5.1):
+    /// KDF_RK per Signal §5.2: derives a new root key + new chain key from
+    /// the current root key and a fresh DH output. HKDF-SHA256 over 64
+    /// bytes; first 32 = new root, second 32 = new chain key.
+    /// </summary>
+    private static (byte[] NewRootKey, byte[] NewChainKey) KdfRk(byte[] rootKey, byte[] dhOutput)
+    {
+        var derived = HKDF.DeriveKey(HashAlgorithmName.SHA256,
+            ikm: dhOutput, outputLength: 64,
+            salt: rootKey, info: HkdfRatchetInfo);
+        var newRoot = new byte[32];
+        var newChain = new byte[32];
+        Buffer.BlockCopy(derived, 0, newRoot, 0, 32);
+        Buffer.BlockCopy(derived, 32, newChain, 0, 32);
+        CryptographicOperations.ZeroMemory(derived);
+        return (newRoot, newChain);
+    }
+
+    /// <summary>
+    /// Advances a chain key by one step per Signal §5.1.
     ///
-    ///     message_key   = HMAC-SHA256(chain_key, 0x01)
-    ///     new_chain_key = HMAC-SHA256(chain_key, 0x02)
-    ///
-    /// Both outputs are 32 bytes. The chain key is uniformly random by
-    /// construction (output of HKDF in the root-key derivation), so HMAC
-    /// alone is a sound KDF here — no HKDF wrapper needed.
+    ///   message_key   = HMAC-SHA256(chain_key, 0x01)
+    ///   new_chain_key = HMAC-SHA256(chain_key, 0x02)
     /// </summary>
     private static (byte[] NewChainKey, byte[] MessageKey) RatchetChainKey(byte[] chainKey)
     {
@@ -599,6 +737,9 @@ public sealed class SignalProtocolService : ISignalProtocolService
         var newChainKey = HMACSHA256.HashData(chainKey, RatchetChainKeyInput);
         return (newChainKey, messageKey);
     }
+
+    private static string SkippedKey(byte[] dhrPub, int counter) =>
+        $"{Convert.ToHexString(dhrPub)}:{counter}";
 
     private static byte[] ConcatBytes(params byte[][] arrays)
     {
@@ -612,5 +753,11 @@ public sealed class SignalProtocolService : ISignalProtocolService
             offset += a.Length;
         }
         return result;
+    }
+
+    private static bool ConstantTimeEquals(byte[] a, byte[] b)
+    {
+        if (a.Length != b.Length) return false;
+        return CryptographicOperations.FixedTimeEquals(a, b);
     }
 }

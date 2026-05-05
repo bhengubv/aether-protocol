@@ -250,4 +250,153 @@ public class SignalProtocolServiceTests
 
         Assert.True(ok);
     }
+
+    // ─── Double Ratchet (Signal §5) tests ───────────────────────────────────
+
+    [Fact]
+    public async Task DoubleRatchet_EveryMessageCarriesSenderEphemeralKey()
+    {
+        var alice = NewService();
+        var bob = NewService();
+        var bobBundle = await bob.GeneratePreKeyBundleAsync(BobUhid);
+        await alice.GeneratePreKeyBundleAsync(AliceUhid);
+        await alice.ProcessPreKeyBundleAsync(bobBundle);
+
+        var first = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes("a"));
+        Assert.NotNull(first.SenderEphemeralKeyX25519);
+        Assert.Equal(32, first.SenderEphemeralKeyX25519!.Length);
+
+        await bob.DecryptAsync(AliceUhid, first);
+
+        // Subsequent message also carries SenderEphemeralKeyX25519 (same
+        // value — Alice hasn't ratcheted because Bob hasn't responded yet).
+        var second = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes("b"));
+        Assert.NotNull(second.SenderEphemeralKeyX25519);
+        Assert.Equal(first.SenderEphemeralKeyX25519, second.SenderEphemeralKeyX25519);
+    }
+
+    [Fact]
+    public async Task DoubleRatchet_SenderEphemeralKey_RotatesAfterRoundtrip()
+    {
+        var alice = NewService();
+        var bob = NewService();
+        var bobBundle = await bob.GeneratePreKeyBundleAsync(BobUhid);
+        await alice.GeneratePreKeyBundleAsync(AliceUhid);
+        await alice.ProcessPreKeyBundleAsync(bobBundle);
+
+        // Alice → Bob: Alice's first ratchet pub.
+        var aliceFirst = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes("ping"));
+        await bob.DecryptAsync(AliceUhid, aliceFirst);
+
+        // Bob → Alice: Bob's first ratchet pub (rotated by responder-side DH ratchet).
+        var bobReply = await bob.EncryptAsync(AliceUhid, Encoding.UTF8.GetBytes("pong"));
+        Assert.NotNull(bobReply.SenderEphemeralKeyX25519);
+        // Bob's ratchet pub should be DIFFERENT from Alice's (Bob generated
+        // fresh DHs on his DH-ratchet step).
+        Assert.NotEqual(aliceFirst.SenderEphemeralKeyX25519, bobReply.SenderEphemeralKeyX25519);
+
+        await alice.DecryptAsync(BobUhid, bobReply);
+
+        // Alice → Bob (after roundtrip): Alice should now use a NEW ratchet pub
+        // (rotated on her DH-ratchet step when she received Bob's reply).
+        var aliceSecond = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes("ping2"));
+        Assert.NotEqual(aliceFirst.SenderEphemeralKeyX25519, aliceSecond.SenderEphemeralKeyX25519);
+        Assert.NotEqual(bobReply.SenderEphemeralKeyX25519, aliceSecond.SenderEphemeralKeyX25519);
+
+        // Bob can still decrypt Alice's new message.
+        var dec = await bob.DecryptAsync(AliceUhid, aliceSecond);
+        Assert.Equal("ping2", Encoding.UTF8.GetString(dec));
+    }
+
+    [Fact]
+    public async Task DoubleRatchet_PreviousChainCount_TracksMessagesPerChain()
+    {
+        var alice = NewService();
+        var bob = NewService();
+        var bobBundle = await bob.GeneratePreKeyBundleAsync(BobUhid);
+        await alice.GeneratePreKeyBundleAsync(AliceUhid);
+        await alice.ProcessPreKeyBundleAsync(bobBundle);
+
+        // Alice sends 3 messages without a roundtrip.
+        for (var i = 0; i < 3; i++)
+        {
+            var enc = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes($"a{i}"));
+            // PN is 0 because this IS Alice's first chain.
+            Assert.Equal(0, enc.PreviousChainCount);
+            await bob.DecryptAsync(AliceUhid, enc);
+        }
+
+        // Bob sends a reply, triggering his DH-ratchet step.
+        var bobReply = await bob.EncryptAsync(AliceUhid, Encoding.UTF8.GetBytes("hi"));
+        // Bob's PN reflects however many messages Bob sent in his previous
+        // sending chain — which was 0 (Bob hadn't sent anything yet before
+        // his DH-ratchet step rotated his chain).
+        Assert.Equal(0, bobReply.PreviousChainCount);
+        await alice.DecryptAsync(BobUhid, bobReply);
+
+        // Alice's next message after her DH-ratchet step. Her PN should be
+        // 3 — that's how many messages she sent on her previous chain
+        // before Bob's reply triggered her ratchet.
+        var aliceNew = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes("a3"));
+        Assert.Equal(3, aliceNew.PreviousChainCount);
+    }
+
+    [Fact]
+    public async Task DoubleRatchet_OutOfOrderAcrossDhRatchetBoundary_StillDecrypts()
+    {
+        // Alice sends 3 messages on chain 1. Bob receives only the first 2,
+        // then Alice does a DH-ratchet (because Bob replied) and sends a 4th
+        // on chain 2. The 3rd message (from chain 1) arrives last —
+        // Bob must still be able to decrypt it via the skipped-keys cache
+        // keyed by (Alice's old DHs pub, counter=2).
+        var alice = NewService();
+        var bob = NewService();
+        var bobBundle = await bob.GeneratePreKeyBundleAsync(BobUhid);
+        await alice.GeneratePreKeyBundleAsync(AliceUhid);
+        await alice.ProcessPreKeyBundleAsync(bobBundle);
+
+        var a0 = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes("a0"));
+        var a1 = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes("a1"));
+        var a2 = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes("a2"));
+
+        // Bob receives a0, a1 only.
+        Assert.Equal("a0", Encoding.UTF8.GetString(await bob.DecryptAsync(AliceUhid, a0)));
+        Assert.Equal("a1", Encoding.UTF8.GetString(await bob.DecryptAsync(AliceUhid, a1)));
+
+        // Bob replies — triggers his DH-ratchet step.
+        var bReply = await bob.EncryptAsync(AliceUhid, Encoding.UTF8.GetBytes("hi"));
+        await alice.DecryptAsync(BobUhid, bReply);
+
+        // Alice sends a4 on her new chain (after her DH-ratchet step).
+        var a4 = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes("a4"));
+        // Bob receives a4 — triggers his second DH-ratchet step. He must
+        // skip-derive a key for Alice's old chain counter=2 because PN=3.
+        Assert.Equal("a4", Encoding.UTF8.GetString(await bob.DecryptAsync(AliceUhid, a4)));
+
+        // Now the missing a2 (from Alice's OLD chain) finally arrives. Bob
+        // should pull the skipped key from cache.
+        Assert.Equal("a2", Encoding.UTF8.GetString(await bob.DecryptAsync(AliceUhid, a2)));
+    }
+
+    [Fact]
+    public async Task DoubleRatchet_LongConversation_AllMessagesDecrypt()
+    {
+        var alice = NewService();
+        var bob = NewService();
+        var bobBundle = await bob.GeneratePreKeyBundleAsync(BobUhid);
+        await alice.GeneratePreKeyBundleAsync(AliceUhid);
+        await alice.ProcessPreKeyBundleAsync(bobBundle);
+
+        // 10 alternating messages — each side ratchets at every roundtrip.
+        for (var i = 0; i < 10; i++)
+        {
+            var aMsg = $"alice {i}";
+            var aEnc = await alice.EncryptAsync(BobUhid, Encoding.UTF8.GetBytes(aMsg));
+            Assert.Equal(aMsg, Encoding.UTF8.GetString(await bob.DecryptAsync(AliceUhid, aEnc)));
+
+            var bMsg = $"bob {i}";
+            var bEnc = await bob.EncryptAsync(AliceUhid, Encoding.UTF8.GetBytes(bMsg));
+            Assert.Equal(bMsg, Encoding.UTF8.GetString(await alice.DecryptAsync(BobUhid, bEnc)));
+        }
+    }
 }
