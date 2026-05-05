@@ -1,0 +1,81 @@
+# DocFX documentation site — deployment workflow stub.
+#
+# This workflow is intentionally left disabled. When the project is ready to publish the
+# DocFX site to GitHub Pages, uncomment the trigger block, configure the GH Pages source
+# to "GitHub Actions" in repo Settings > Pages, then push to main.
+#
+# To run locally instead:
+#   dotnet tool install -g docfx
+#   dotnet build AetherProtocol.slnx -c Release
+#   docfx metadata docfx.json
+#   docfx build docfx.json
+#   open _site/index.html
+#
+# name: Docs
+#
+# on:
+#   push:
+#     branches: [main]
+#     paths:
+#       - 'docs/**'
+#       - 'src/**'
+#       - 'docfx.json'
+#       - '.github/workflows/docs.yml'
+#   workflow_dispatch:
+#
+# permissions:
+#   contents: read
+#   pages: write
+#   id-token: write
+#
+# concurrency:
+#   group: pages
+#   cancel-in-progress: false
+#
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#
+#       - name: Setup .NET
+#         uses: actions/setup-dotnet@v4
+#         with:
+#           dotnet-version: '10.0.x'
+#
+#       - name: Install DocFX
+#         run: dotnet tool install -g docfx
+#
+#       - name: Restore + build C# projects (DocFX needs the assemblies)
+#         run: |
+#           dotnet build src/Aether.Core/Aether.Core.csproj -c Release
+#           dotnet build src/Aether.Security/Aether.Security.csproj -c Release
+#           dotnet build src/Aether.Messaging/Aether.Messaging.csproj -c Release
+#           dotnet build src/Aether.Storage/Aether.Storage.csproj -c Release
+#           dotnet build src/Aether.Transport/Aether.Transport.csproj -c Release
+#           dotnet build src/Aether.Streaming/Aether.Streaming.csproj -c Release
+#           dotnet build src/Aether.Voice/Aether.Voice.csproj -c Release
+#           dotnet build src/Aether.Content/Aether.Content.csproj -c Release
+#           dotnet build src/Aether.DependencyInjection/Aether.DependencyInjection.csproj -c Release
+#
+#       - name: DocFX metadata
+#         run: docfx metadata docfx.json
+#
+#       - name: DocFX build
+#         run: docfx build docfx.json
+#
+#       - name: Upload Pages artifact
+#         uses: actions/upload-pages-artifact@v3
+#         with:
+#           path: _site
+#
+#   deploy:
+#     needs: build
+#     environment:
+#       name: github-pages
+#       url: ${{ steps.deployment.outputs.page_url }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Deploy to GitHub Pages
+#         id: deployment
+#         uses: actions/deploy-pages@v4

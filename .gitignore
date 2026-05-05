@@ -74,3 +74,10 @@ kotlin/build/
 ## Swift
 swift/.build/
 swift/.swiftpm/
+
+## DocFX
+_site/
+docs/api/*.yml
+docs/api/.manifest
+docs/api/manifest.json
+api/.manifest
