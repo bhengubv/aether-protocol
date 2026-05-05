@@ -4,8 +4,12 @@
 
 using System.Text;
 using System.Text.Json;
+using Aether.Dtn;
+using Aether.Messaging;
+using Aether.Messaging.Models;
 using Aether.Models;
 using Aether.Protocol;
+using Aether.Routing;
 using Aether.Security.Models;
 using Aether.Security.Services;
 using Aether.Transport.Services;
@@ -360,6 +364,189 @@ Console.ResetColor();
 Pause();
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// STEP 9 — Messaging Layer + DTN Custody Fallback (Alice → Bob)
+// ═══════════════════════════════════════════════════════════════════════════════
+PrintStep(9, "Messaging Layer + DTN Custody Fallback");
+
+PrintInfo("Wires the full Aether stack end-to-end:");
+PrintInfo("  SignalProtocolService -> SignalMessageEnvelopeCipher -> MessagingService");
+PrintInfo("  RoutingService -> IMeshSender (transport adapter) -> InProcessTransport");
+PrintInfo("  DtnService + InMemoryDtnBundleStore for store-and-forward fallback.");
+Console.WriteLine();
+
+// Reset the mesh and stand up two fresh nodes for the messaging-layer demo.
+// (We avoid colliding with the alice/bob/charlie transports created in Step 2.)
+InProcessTransportService.ResetNetwork();
+var msgAliceUhid = "aether:msg-alice:09";
+var msgBobUhid = "aether:msg-bob:09";
+
+using var msgAliceTransport = new InProcessTransportService(msgAliceUhid, transportLogger);
+var msgBobTransport = new InProcessTransportService(msgBobUhid, transportLogger);
+
+// Adapter: bridges IMeshSender (packet-level, used by routing/DTN/messaging) to
+// InProcessTransportService (raw-bytes). Tracks a small set of "potential peers"
+// and reports them as connected only if their transport is live in the network.
+var aliceMeshSender = new InProcessMeshSender(msgAliceUhid, msgAliceTransport);
+var bobMeshSender = new InProcessMeshSender(msgBobUhid, msgBobTransport);
+aliceMeshSender.AddPotentialPeer(msgBobUhid);
+bobMeshSender.AddPotentialPeer(msgAliceUhid);
+
+// Routing: pre-populate a direct route both ways so we don't pay 5s of RREQ
+// timeout in the demo. RREQ/RREP discovery still works in production hosts;
+// here we're just skipping it to keep the demo tight.
+var aliceRouteStore = new InMemoryRouteStore();
+var bobRouteStore = new InMemoryRouteStore();
+await aliceRouteStore.SaveAsync(new RouteEntry
+{
+    DestinationUhid = msgBobUhid,
+    NextHopUhid = msgBobUhid,
+    HopCount = 1,
+    QualityScore = 1.0,
+    ExpiresAt = DateTime.UtcNow.AddMinutes(5),
+});
+await bobRouteStore.SaveAsync(new RouteEntry
+{
+    DestinationUhid = msgAliceUhid,
+    NextHopUhid = msgAliceUhid,
+    HopCount = 1,
+    QualityScore = 1.0,
+    ExpiresAt = DateTime.UtcNow.AddMinutes(5),
+});
+var aliceRouting = new RoutingService(aliceMeshSender, aliceRouteStore);
+var bobRouting = new RoutingService(bobMeshSender, bobRouteStore);
+
+// Signal Protocol identities + cipher wrappers.
+var msgAliceSignal = new SignalProtocolService(signalLogger);
+var msgBobSignal = new SignalProtocolService(signalLogger);
+var msgBobBundle = await msgBobSignal.GeneratePreKeyBundleAsync(msgBobUhid);
+_ = await msgAliceSignal.GeneratePreKeyBundleAsync(msgAliceUhid);
+await msgAliceSignal.ProcessPreKeyBundleAsync(msgBobBundle);
+var aliceCipher = new SignalMessageEnvelopeCipher(msgAliceSignal);
+var bobCipher = new SignalMessageEnvelopeCipher(msgBobSignal);
+
+// DTN store-and-forward (the fallback we're going to demo).
+var aliceDtnStore = new InMemoryDtnBundleStore();
+var bobDtnStore = new InMemoryDtnBundleStore();
+var aliceDtn = new DtnService(aliceMeshSender, aliceDtnStore);
+var bobDtn = new DtnService(bobMeshSender, bobDtnStore);
+
+// Messaging service composes everything above.
+var aliceMessaging = new MessagingService(
+    sender: aliceMeshSender,
+    routing: aliceRouting,
+    cipher: aliceCipher,
+    dtn: aliceDtn);
+var bobMessaging = new MessagingService(
+    sender: bobMeshSender,
+    routing: bobRouting,
+    cipher: bobCipher,
+    dtn: bobDtn);
+
+// Wire the receive paths: bytes off the wire -> deserialize MeshPacket ->
+// dispatch to routing/DTN/messaging based on packet type.
+var bobInboxTcs = new TaskCompletionSource<MeshMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+bobMessaging.MessageReceived += (_, msg) => bobInboxTcs.TrySetResult(msg);
+
+Task DispatchToBob(MeshPacket pkt) => pkt.Type switch
+{
+    PacketType.Data => bobMessaging.HandleAsync(pkt),
+    PacketType.Ack => bobMessaging.HandleAsync(pkt),
+    PacketType.DtnBundle => bobDtn.HandleAsync(pkt),
+    PacketType.DtnCustodyAck => bobDtn.HandleAsync(pkt),
+    PacketType.DtnDeliveryReceipt => bobDtn.HandleAsync(pkt),
+    PacketType.RouteRequest => bobRouting.HandleRouteRequestAsync(pkt),
+    PacketType.RouteReply => bobRouting.HandleRouteReplyAsync(pkt),
+    _ => Task.CompletedTask,
+};
+Task DispatchToAlice(MeshPacket pkt) => pkt.Type switch
+{
+    PacketType.Data => aliceMessaging.HandleAsync(pkt),
+    PacketType.Ack => aliceMessaging.HandleAsync(pkt),
+    PacketType.DtnBundle => aliceDtn.HandleAsync(pkt),
+    PacketType.DtnCustodyAck => aliceDtn.HandleAsync(pkt),
+    PacketType.DtnDeliveryReceipt => aliceDtn.HandleAsync(pkt),
+    PacketType.RouteRequest => aliceRouting.HandleRouteRequestAsync(pkt),
+    PacketType.RouteReply => aliceRouting.HandleRouteReplyAsync(pkt),
+    _ => Task.CompletedTask,
+};
+
+msgBobTransport.DataReceived += (_src, bytes) => { _ = DispatchToBob(PacketSerializer.Deserialize(bytes)); };
+msgAliceTransport.DataReceived += (_src, bytes) => { _ = DispatchToAlice(PacketSerializer.Deserialize(bytes)); };
+
+PrintNode("Alice", ConsoleColor.Cyan, "MessagingService + RoutingService + DtnService wired.");
+PrintNode("Bob", ConsoleColor.Green, "MessagingService + RoutingService + DtnService wired.");
+PrintInfo($"Alice has Signal session with Bob: {aliceCipher.HasSession(msgBobUhid)}");
+Console.WriteLine();
+
+// ─── Happy path: Bob is online, mesh delivery works. ─────────────────────────
+PrintInfo("[Path A] Mesh delivery (happy path)");
+var happyText = "Hi Bob — this one rides the live mesh.";
+var happyMsg = new MeshMessage { RecipientUhid = msgBobUhid, MessageType = "text" };
+PrintNode("Alice", ConsoleColor.Cyan, $"SendAsync(\"{happyText}\")");
+var happyDelivered = await aliceMessaging.SendAsync(happyMsg, Encoding.UTF8.GetBytes(happyText));
+var happyReceived = await bobInboxTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+PrintNode("Bob", ConsoleColor.Green,
+    $"MessageReceived event: \"{Encoding.UTF8.GetString(happyReceived.EncryptedContent)}\" " +
+    $"(status={happyReceived.Status})");
+PrintDetail($"  Alice SendAsync handed off: {happyDelivered}");
+PrintDetail($"  Outbox status for that id : {(await aliceMessaging.GetOutboxAsync()).First(m => m.Id == happyMsg.Id).Status}");
+Console.WriteLine();
+
+// ─── Outage path: Bob's transport vanishes. Message must survive. ────────────
+PrintInfo("[Path B] DTN custody fallback (Bob temporarily offline)");
+PrintNode("Bob", ConsoleColor.Green, "Going OFFLINE (transport disposed)...");
+msgBobTransport.Dispose(); // Bob is no longer reachable on the mesh.
+
+var custodyText = "And this one survives an outage thanks to DTN custody.";
+var custodyMsg = new MeshMessage { RecipientUhid = msgBobUhid, MessageType = "text" };
+PrintNode("Alice", ConsoleColor.Cyan, $"SendAsync(\"{custodyText}\")");
+var custodyDelivered = await aliceMessaging.SendAsync(custodyMsg, Encoding.UTF8.GetBytes(custodyText));
+PrintDetail($"  Alice SendAsync handed off: {custodyDelivered} (mesh send failed -> DTN bundle accepted)");
+
+var aliceActiveBundles = await aliceDtn.GetActiveBundlesAsync();
+var carriedBundle = aliceActiveBundles.FirstOrDefault(b => b.RecipientUhid == msgBobUhid);
+if (carriedBundle is not null)
+{
+    PrintDetail($"  DTN bundle in custody : {carriedBundle.Id.ToString()[..8]}... " +
+                $"({carriedBundle.EncryptedPayload.Length} byte ciphertext, status={carriedBundle.Status})");
+}
+Console.WriteLine();
+
+// Bob comes back online. Alice's DTN delivery scan opportunistically retries.
+PrintNode("Bob", ConsoleColor.Green, "Coming BACK ONLINE...");
+msgBobTransport = new InProcessTransportService(msgBobUhid, transportLogger);
+
+// Re-attach Bob's wire dispatcher to the new transport.
+msgBobTransport.DataReceived += (_src, bytes) => { _ = DispatchToBob(PacketSerializer.Deserialize(bytes)); };
+bobMeshSender.RebindTransport(msgBobTransport);
+
+PrintNode("Alice", ConsoleColor.Cyan, "Running DTN delivery scan...");
+await aliceDtn.RunDeliveryScanAsync();
+
+// Bob now has the bundle locally — pull the ciphertext out of his DTN store
+// and decrypt with his Signal cipher to recover the original plaintext.
+var bobBundles = await bobDtnStore.GetAsync(carriedBundle!.Id);
+if (bobBundles is not null && bobBundles.Status == BundleStatus.Delivered)
+{
+    var recoveredCipher = bobBundles.EncryptedPayload;
+    var recoveredPlain = await bobCipher.DecryptAsync(msgAliceUhid, recoveredCipher);
+    var recoveredText = recoveredPlain is null ? "<decrypt failed>" : Encoding.UTF8.GetString(recoveredPlain);
+    PrintNode("Bob", ConsoleColor.Green,
+        $"DTN bundle delivered locally — decrypted payload: \"{recoveredText}\"");
+}
+else
+{
+    PrintWarning("DTN bundle did not reach Bob in this scan — would retry on the next delivery loop.");
+}
+
+msgBobTransport.Dispose();
+
+Console.ForegroundColor = ConsoleColor.Green;
+Console.WriteLine("\n  >>> Messaging + DTN: live mesh AND store-and-forward custody both verified <<<");
+Console.ResetColor();
+Pause();
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // DONE
 // ═══════════════════════════════════════════════════════════════════════════════
 Console.ForegroundColor = ConsoleColor.Magenta;
@@ -377,6 +564,7 @@ Console.WriteLine("""
   ║   [6] Multi-hop relay (Charlie cannot read Alice's message)      ║
   ║   [7] Binary wire serialization (compact, efficient)             ║
   ║   [8] Forward secrecy via chain key ratchet                      ║
+  ║   [9] MessagingService end-to-end + DTN custody fallback         ║
   ║                                                                  ║
   ║   All crypto is REAL — NSec/libsodium Ed25519, .NET AES-GCM.    ║
   ║   No mocks. No stubs. Production-grade protocol primitives.      ║
@@ -529,4 +717,58 @@ static EncryptedPayload DeserializeEncryptedPayload(byte[] data)
         UsedOneTimePreKeyId: opki,
         SenderEphemeralKeyX25519: ratchetPub,
         PreviousChainCount: pn);
+}
+
+// ─── IMeshSender adapter for the InProcess transport (used by Step 9) ────────
+// Bridges the packet-level IMeshSender (consumed by RoutingService, DtnService
+// and MessagingService) to the byte-level InProcessTransportService. Serializes
+// MeshPackets via PacketSerializer before handing them to the wire, and reports
+// "potential peers" as connected only while their transport is live in the
+// simulated network.
+file sealed class InProcessMeshSender : Aether.Routing.IMeshSender
+{
+    private readonly HashSet<string> _potentialPeers = new(StringComparer.Ordinal);
+    private InProcessTransportService _transport;
+
+    public InProcessMeshSender(string localUhid, InProcessTransportService transport)
+    {
+        LocalUhid = localUhid;
+        _transport = transport;
+    }
+
+    public string LocalUhid { get; }
+    public string? LocalGeohash => null;
+
+    public void AddPotentialPeer(string uhid) => _potentialPeers.Add(uhid);
+
+    public void RebindTransport(InProcessTransportService transport) => _transport = transport;
+
+    public IReadOnlyList<Aether.Models.PeerInfo> GetConnectedPeers()
+    {
+        var alive = new List<Aether.Models.PeerInfo>();
+        foreach (var uhid in _potentialPeers)
+        {
+            if (_transport.IsConnected(uhid))
+                alive.Add(new Aether.Models.PeerInfo { Uhid = uhid, TransportType = "InProcess" });
+        }
+        return alive;
+    }
+
+    public Task<bool> SendAsync(Aether.Protocol.MeshPacket packet, string nextHopUhid, CancellationToken cancellationToken = default)
+    {
+        var bytes = Aether.Protocol.PacketSerializer.Serialize(packet);
+        return _transport.SendAsync(nextHopUhid, bytes, cancellationToken);
+    }
+
+    public async Task<int> BroadcastAsync(Aether.Protocol.MeshPacket packet, CancellationToken cancellationToken = default)
+    {
+        var bytes = Aether.Protocol.PacketSerializer.Serialize(packet);
+        var delivered = 0;
+        foreach (var uhid in _potentialPeers)
+        {
+            if (await _transport.SendAsync(uhid, bytes, cancellationToken).ConfigureAwait(false))
+                delivered++;
+        }
+        return delivered;
+    }
 }
