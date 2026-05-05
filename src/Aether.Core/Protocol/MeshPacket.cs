@@ -40,7 +40,23 @@ public enum PacketType : byte
     VideoFrame = 31,
     ScreenShare = 32,
     WatchChunkRequest = 33,
-    TorrentMetadata = 34
+    TorrentMetadata = 34,
+
+    /// <summary>
+    /// Capability handshake — sender announces supported protocol-version range
+    /// + capability flags. Sent on first contact with an unknown peer. The
+    /// payload is a UTF-8 JSON-encoded <c>HelloPayload</c>. Unauthenticated and
+    /// unencrypted — peer identity is verified later via Ed25519 packet
+    /// signatures.
+    /// </summary>
+    Hello = 50,
+
+    /// <summary>
+    /// Reply to a <see cref="Hello"/> — receiver echoes back the agreed
+    /// (highest mutually-supported) protocol version and the intersection of
+    /// capability flags. Same JSON payload shape as <see cref="Hello"/>.
+    /// </summary>
+    HelloAck = 51,
 }
 
 /// <summary>

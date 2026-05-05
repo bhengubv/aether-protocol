@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using Aether.Dtn;
+using Aether.Handshake;
 using Aether.Messaging;
 using Aether.Models;
 using Aether.Protocol;
@@ -31,6 +32,7 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
     private bool _sosAdded;
     private bool _messagingAdded;
     private bool _transportAdded;
+    private bool _handshakeAdded;
 
     public AetherProtocolBuilder(IServiceCollection services)
     {
@@ -249,6 +251,22 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
                 sp.GetRequiredService<HealthChecks.MessagingOutboxHealthCheck>(),
                 failureStatus: null,
                 tags: new[] { "aether", "messaging" }));
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddHandshake()
+    {
+        if (_handshakeAdded) return this;
+        _handshakeAdded = true;
+
+        Services.TryAddSingleton<IHandshakeService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<HandshakeService>>()
+                ?? NullLogger<HandshakeService>.Instance;
+            return new HandshakeService(sender, logger);
+        });
 
         return this;
     }
