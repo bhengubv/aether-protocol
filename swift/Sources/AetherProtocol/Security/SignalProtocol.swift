@@ -3,31 +3,56 @@
 import Crypto
 import Foundation
 
-/// Signal Protocol session state.
+/// State of a Signal-Protocol session with a single peer — both X3DH
+/// session-establishment metadata and Double-Ratchet (Signal §5) state.
 ///
-/// On the initiator side (we processed the peer's pre-key bundle), the
-/// pending PreKey-message metadata is retained until the first message is
-/// sent — that first message carries our X25519 identity key, our fresh
-/// ephemeral public key, and the bundle ids we consumed, so the responder
-/// can run X3DH on its side to derive the same root key.
+/// Double-Ratchet state per Signal §5:
+///   - RK — root key. Re-keyed on every DH-ratchet step.
+///   - DHs (priv/pub) — my current ratchet keypair.
+///   - DHr — peer's last-known ratchet public key. Nil until first DH-ratchet.
+///   - CKs — my current sending chain key. Nil until I've sent (or initialized) on this chain.
+///   - CKr — my current receiving chain key. Nil until I've received on this chain.
+///   - Ns / Nr — send / receive counters (reset to 0 on each DH-ratchet step).
+///   - PN — number of messages I sent in my previous sending chain (so the
+///     receiver can compute skipped keys across a DH-ratchet boundary).
+///   - MKSKIPPED — skipped message keys keyed by (DHr_pub, counter).
 internal class SignalSession {
     var rootKey: Data
-    var sendChainKey: Data
-    var recvChainKey: Data
+
+    /// Sending chain key. Nil until the first send (or until DH-ratchet rekeys it).
+    var sendChainKey: Data?
+    /// Receiving chain key. Nil until the first receive that triggers a DH-ratchet step.
+    var recvChainKey: Data?
+
     var sendCounter: Int32 = 0
     var recvCounter: Int32 = 0
-    var skippedMessageKeys: [Int32: Data] = [:]
+    /// Number of messages sent in the previous sending chain (Signal §5: PN).
+    var previousChainCount: Int32 = 0
 
+    /// My current DH-ratchet private key (X25519, 32 bytes raw).
+    var myEphemeralPriv: Data = Data()
+    /// My current DH-ratchet public key (X25519, 32 bytes).
+    var myEphemeralPub: Data = Data()
+    /// Peer's last-seen DH-ratchet public key. Nil until first DH-ratchet step.
+    var remoteEphemeralPub: Data?
+
+    /// Skipped message keys keyed by "hex(remoteEphPub):counter". The
+    /// remoteEphPub binding is essential — out-of-order messages from a
+    /// previous chain (different DHr) can still arrive after a DH-ratchet
+    /// step, and they need their own per-chain key set.
+    var skippedMessageKeys: [String: Data] = [:]
+
+    /// True iff this session was established in the initiator role and the
+    /// first outbound message has not yet been sent. While true, the next
+    /// `encrypt(...)` emits a PreKey message (messageType = 1) carrying the
+    /// X3DH inputs.
     var pendingPreKeyMessage: Bool = false
     var initiatorIdentityKeyX25519: Data = Data()
-    var initiatorEphemeralKeyX25519: Data = Data()
     var usedSignedPreKeyId: Int32 = 0
     var usedOneTimePreKeyId: Int32 = 0
 
-    init(rootKey: Data, sendChainKey: Data, recvChainKey: Data) {
+    init(rootKey: Data) {
         self.rootKey = rootKey
-        self.sendChainKey = sendChainKey
-        self.recvChainKey = recvChainKey
     }
 }
 
@@ -44,17 +69,26 @@ internal struct PreKeyState {
     var oneTimePreKeys: [Int32: (priv: Data, pub: Data)] = [:]
 }
 
-/// Signal Protocol implementation: X3DH + Double-Ratchet.
+/// Signal Protocol implementation: X3DH session establishment + full
+/// Double Ratchet (Signal §5).
 ///
-/// Key agreement: X3DH (Signal Protocol §3) over X25519 (RFC 7748). Four DHs:
+/// Key agreement: X3DH (Signal §3) over X25519 (RFC 7748). Four DHs:
 ///   - DH1 = DH(IK_A, SPK_B) — long-term mutual auth
 ///   - DH2 = DH(EK_A, IK_B)  — initiator ephemeral binds to responder identity
 ///   - DH3 = DH(EK_A, SPK_B) — initiator ephemeral binds to responder signed pre-key
 ///   - DH4 = DH(EK_A, OPK_B) — initiator ephemeral binds to responder one-time pre-key (FS)
+/// Initial root key: HKDF-SHA256 over concat(DH1||DH2||DH3||DH4).
 ///
-/// Root-key derivation: HKDF-SHA256 over concat(DH1||DH2||DH3||DH4).
-/// Symmetric ratchet: HMAC-SHA256, single-byte domain separation
-///   (0x01 -> message key, 0x02 -> next chain key) per Signal §5.1.
+/// Double Ratchet (§5): each side maintains a current X25519 ratchet
+/// keypair. Whenever the sender receives a peer message bearing a new
+/// ratchet public key, it does a DH-ratchet step: derive a new chain key
+/// via `KDF_RK(RK, DH(myDHs_priv, newDHr))`, then generate a fresh DHs
+/// and derive its sending chain via `KDF_RK(RK, DH(newDHs_priv, newDHr))`.
+/// The Signal-canonical integration with X3DH is used: the initiator's
+/// X3DH ephemeral key becomes its first DH-ratchet keypair.
+///
+/// Symmetric ratchet (§5.1): HMAC-SHA256, single-byte domain separation
+/// (0x01 -> message key, 0x02 -> next chain key).
 /// Encryption: AES-256-GCM, 12-byte nonce, 16-byte tag.
 /// Identity signing: Ed25519 via Ed25519Service.
 public actor SignalProtocolService {
@@ -67,12 +101,14 @@ public actor SignalProtocolService {
     private let aesTagSize: Int = 16
     private let aesKeySize: Int = 32
 
-    /// HKDF info strings — these MUST match the C# reference exactly. Any
-    /// drift breaks cross-language interop (verified by
-    /// fixtures/signal/expected/x3dh_basic.json).
+    /// HKDF info string for the X3DH root-key derivation. MUST match every
+    /// other language exactly — verified by fixtures/signal/expected/x3dh_basic.json.
     private let hkdfRootInfo = "aether-x3dh-root-v1".data(using: .utf8)!
-    private let hkdfChainInitiatorSendInfo = "aether-chain-initiator-send-v1".data(using: .utf8)!
-    private let hkdfChainInitiatorRecvInfo = "aether-chain-initiator-recv-v1".data(using: .utf8)!
+
+    /// HKDF info string for the DH-ratchet step (Signal §5: KDF_RK). Each
+    /// DH-ratchet step derives a 64-byte block, split into the new root key
+    /// (first 32 bytes) and the new chain key (second 32 bytes).
+    private let hkdfRatchetInfo = "aether-ratchet-rk-v1".data(using: .utf8)!
 
     private var sessions: [String: SignalSession] = [:]
 
@@ -104,7 +140,7 @@ public actor SignalProtocolService {
     }
 
     /// Encrypts plaintext for a peer. The first message after initiator-side
-    /// X3DH is returned with messageType=PreKey and carries the X3DH inputs
+    /// X3DH is returned with messageType = PreKey and carries the X3DH inputs
     /// the responder needs to derive the same root key.
     public func encrypt(peerUhid: String, plaintext: Data) throws -> EncryptedPayload {
         guard let session = sessions[peerUhid] else {
@@ -114,7 +150,23 @@ public actor SignalProtocolService {
             throw SignalProtocolError.localUhidNotSet
         }
 
-        let (newChain, messageKey) = ratchetChainKey(session.sendChainKey)
+        // Lazy CKs initialization for the initiator's first send: the X3DH
+        // setup placed DHs and DHr but did not derive CKs (the Double
+        // Ratchet defers it until first send to avoid an extra KDF step
+        // when no message is ever sent on a session).
+        if session.sendChainKey == nil {
+            guard let remotePub = session.remoteEphemeralPub else {
+                throw SignalProtocolError.noSessionEstablished(
+                    "Cannot derive sending chain: peer's ratchet public key is unknown."
+                )
+            }
+            try dhRatchetSendOnly(session: session, remotePub: remotePub)
+        }
+
+        guard let currentSendChain = session.sendChainKey else {
+            throw SignalProtocolError.failedToObtainMessageKey
+        }
+        let (newChain, messageKey) = ratchetChainKey(currentSendChain)
         session.sendChainKey = newChain
 
         var nonce = Data(count: aesNonceSize)
@@ -134,8 +186,13 @@ public actor SignalProtocolService {
         let counter = session.sendCounter
         session.sendCounter += 1
 
-        // PreKey message? Carry our X3DH inputs so the responder can mirror
-        // the DHs and arrive at the same root key.
+        let ratchetPub = session.myEphemeralPub
+
+        // PreKey message? First message after initiator-side X3DH. Carries
+        // X3DH metadata so the responder can mirror the DHs. The
+        // initiatorEphemeralKeyX25519 alias equals senderEphemeralKeyX25519
+        // because the initiator's X3DH ephemeral becomes its first
+        // DH-ratchet pubkey.
         if session.pendingPreKeyMessage {
             let payload = EncryptedPayload(
                 ciphertext: combined,
@@ -144,9 +201,11 @@ public actor SignalProtocolService {
                 senderUhid: senderUhid,
                 counter: counter,
                 initiatorIdentityKeyX25519: session.initiatorIdentityKeyX25519,
-                initiatorEphemeralKeyX25519: session.initiatorEphemeralKeyX25519,
+                initiatorEphemeralKeyX25519: ratchetPub,
                 usedSignedPreKeyId: session.usedSignedPreKeyId,
-                usedOneTimePreKeyId: session.usedOneTimePreKeyId
+                usedOneTimePreKeyId: session.usedOneTimePreKeyId,
+                senderEphemeralKeyX25519: ratchetPub,
+                previousChainCount: session.previousChainCount
             )
             session.pendingPreKeyMessage = false
             zero(messageKey)
@@ -159,23 +218,33 @@ public actor SignalProtocolService {
             nonce: nonce,
             messageType: Self.messageTypeNormal,
             senderUhid: senderUhid,
-            counter: counter
+            counter: counter,
+            senderEphemeralKeyX25519: ratchetPub,
+            previousChainCount: session.previousChainCount
         )
     }
 
-    /// Decrypts a payload. If messageType=PreKey, establishes (or replaces)
+    /// Decrypts a payload. If messageType = PreKey, establishes (or replaces)
     /// the responder-side session via mirrored X3DH first.
     public func decrypt(peerUhid: String, payload: EncryptedPayload) throws -> Data {
+        // Every Double-Ratchet message carries the sender's current ratchet
+        // public key. Fall back to initiatorEphemeralKeyX25519 for backward
+        // compatibility with older PreKey messages from peers that haven't
+        // upgraded to the new wire envelope.
+        let senderRatchetPub = payload.senderEphemeralKeyX25519
+            ?? payload.initiatorEphemeralKeyX25519
+
+        // PreKey message? Establish the responder-side session via mirrored X3DH.
         if payload.messageType == Self.messageTypePreKey {
             guard let initiatorIK = payload.initiatorIdentityKeyX25519,
-                  let initiatorEK = payload.initiatorEphemeralKeyX25519
+                  let initiatorRatchet = senderRatchetPub
             else {
                 throw SignalProtocolError.preKeyMessageMissingMaterial
             }
             try establishResponderSession(
                 peerUhid: peerUhid,
                 initiatorIK: initiatorIK,
-                initiatorEK: initiatorEK,
+                initiatorRatchetPub: initiatorRatchet,
                 usedSignedPreKeyId: payload.usedSignedPreKeyId,
                 usedOneTimePreKeyId: payload.usedOneTimePreKeyId
             )
@@ -185,25 +254,52 @@ public actor SignalProtocolService {
             throw SignalProtocolError.noSessionEstablished(peerUhid)
         }
 
+        guard let senderRatchet = senderRatchetPub else {
+            throw SignalProtocolError.preKeyMessageMissingMaterial
+        }
+
+        // DH-ratchet step? Triggered when the peer's ratchet public key changes.
+        if session.remoteEphemeralPub == nil
+            || !constantTimeEquals(senderRatchet, session.remoteEphemeralPub!)
+        {
+            // First, derive any skipped keys from the previous receive chain
+            // (the chain keyed by the OLD remoteEphemeralPub). Then ratchet.
+            try skipMessageKeys(session: session, until: payload.previousChainCount)
+            try dhRatchetReceive(session: session, newRemoteEphemeralPub: senderRatchet)
+        }
+
         guard payload.ciphertext.count >= aesTagSize else {
             throw SignalProtocolError.ciphertextTooShort
         }
 
         var messageKey: Data
-        if let skippedKey = session.skippedMessageKeys.removeValue(forKey: payload.counter) {
-            messageKey = skippedKey
+        let skippedLookupKey = skippedKeyId(remoteEphPub: senderRatchet, counter: payload.counter)
+        if let cached = session.skippedMessageKeys.removeValue(forKey: skippedLookupKey) {
+            messageKey = cached
         } else {
+            guard let currentRecvChain = session.recvChainKey else {
+                throw SignalProtocolError.failedToObtainMessageKey
+            }
+
             let gap = payload.counter - session.recvCounter
             if gap > Int32(Self.maxSkippedKeys) {
                 throw SignalProtocolError.excessiveCounterGap(Int(gap), Self.maxSkippedKeys)
             }
+
+            // Skip ahead, caching intermediate keys.
+            var workingChain = currentRecvChain
             while session.recvCounter < payload.counter {
-                let (newChain, skipKey) = ratchetChainKey(session.recvChainKey)
-                session.recvChainKey = newChain
-                session.skippedMessageKeys[session.recvCounter] = skipKey
+                let (nextChain, skipKey) = ratchetChainKey(workingChain)
+                workingChain = nextChain
+                let skipLookup = skippedKeyId(
+                    remoteEphPub: senderRatchet,
+                    counter: session.recvCounter
+                )
+                session.skippedMessageKeys[skipLookup] = skipKey
                 session.recvCounter += 1
             }
-            let (newChain, key) = ratchetChainKey(session.recvChainKey)
+
+            let (newChain, key) = ratchetChainKey(workingChain)
             session.recvChainKey = newChain
             messageKey = key
             session.recvCounter += 1
@@ -258,7 +354,10 @@ public actor SignalProtocolService {
 
     /// Establishes initiator-side session via X3DH (Signal §3.3): generates
     /// a fresh ephemeral X25519 keypair, runs the four DHs, derives the root
-    /// key, and primes the symmetric ratchet.
+    /// key, and primes the Double Ratchet by adopting the X3DH ephemeral as
+    /// the initiator's first DHs. The peer's signed pre-key becomes the
+    /// initial DHr. The first `encrypt(...)` after this returns a PreKey
+    /// message (messageType = 1).
     public func processPreKeyBundle(_ bundle: PreKeyBundle) throws {
         guard Ed25519Service.verify(bundle.identityKey, bundle.signedPreKey, bundle.signedPreKeySignature) else {
             throw SignalProtocolError.signatureVerificationFailed
@@ -289,14 +388,19 @@ public actor SignalProtocolService {
         shared.append(dh3)
         shared.append(dh4)
 
-        let rootKey = hkdf(shared, info: hkdfRootInfo)
-        let sendChain = hkdf(rootKey, info: hkdfChainInitiatorSendInfo)
-        let recvChain = hkdf(rootKey, info: hkdfChainInitiatorRecvInfo)
+        let rootKey = hkdf32(shared, info: hkdfRootInfo)
 
-        let session = SignalSession(rootKey: rootKey, sendChainKey: sendChain, recvChainKey: recvChain)
+        // Signal-canonical X3DH<->Double-Ratchet integration: the initiator's
+        // X3DH ephemeral becomes its first DHs. The peer's signed pre-key is
+        // the initial DHr. CKs is computed lazily on first send.
+        let session = SignalSession(rootKey: rootKey)
+        session.sendChainKey = nil          // computed on first send
+        session.recvChainKey = nil          // computed on first DH-ratchet receive
+        session.myEphemeralPriv = ekPriv.rawRepresentation
+        session.myEphemeralPub = ekPub
+        session.remoteEphemeralPub = bundle.signedPreKey
         session.pendingPreKeyMessage = true
         session.initiatorIdentityKeyX25519 = identityX25519Pub
-        session.initiatorEphemeralKeyX25519 = ekPub
         session.usedSignedPreKeyId = bundle.signedPreKeyId
         session.usedOneTimePreKeyId = bundle.preKeyId
 
@@ -305,20 +409,22 @@ public actor SignalProtocolService {
     }
 
     /// Mirrors the initiator's 4 X3DH DHs to derive the same root key, then
-    /// derives chain keys with send/recv roles SWAPPED relative to the
-    /// initiator. Consumes (and zeros) the one-time pre-key.
+    /// adopts the SPK (private + public) as the responder's initial DHs.
+    /// `remoteEphemeralPub` is left nil so the first decrypt forces a
+    /// DH-ratchet step (the message header carries the initiator's first
+    /// DHs). The one-time pre-key is consumed.
     private func establishResponderSession(
         peerUhid: String,
         initiatorIK: Data,
-        initiatorEK: Data,
+        initiatorRatchetPub: Data,
         usedSignedPreKeyId: Int32,
         usedOneTimePreKeyId: Int32
     ) throws {
         guard initiatorIK.count == 32 else {
             throw SignalProtocolError.invalidKeyFormat("initiator IK length \(initiatorIK.count) != 32")
         }
-        guard initiatorEK.count == 32 else {
-            throw SignalProtocolError.invalidKeyFormat("initiator EK length \(initiatorEK.count) != 32")
+        guard initiatorRatchetPub.count == 32 else {
+            throw SignalProtocolError.invalidKeyFormat("initiator ratchet pub length \(initiatorRatchetPub.count) != 32")
         }
         guard preKeys.signedPreKeyId == usedSignedPreKeyId, !preKeys.signedPreKeyPriv.isEmpty else {
             throw SignalProtocolError.preKeyNotHeld(.signedPreKey, usedSignedPreKeyId)
@@ -333,9 +439,9 @@ public actor SignalProtocolService {
 
         // Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
         let dh1 = try x25519Agree(privateKey: spkPrivKey, publicKey: initiatorIK)
-        let dh2 = try x25519Agree(privateKey: identityPrivKey, publicKey: initiatorEK)
-        let dh3 = try x25519Agree(privateKey: spkPrivKey, publicKey: initiatorEK)
-        let dh4 = try x25519Agree(privateKey: otpkPrivKey, publicKey: initiatorEK)
+        let dh2 = try x25519Agree(privateKey: identityPrivKey, publicKey: initiatorRatchetPub)
+        let dh3 = try x25519Agree(privateKey: spkPrivKey, publicKey: initiatorRatchetPub)
+        let dh4 = try x25519Agree(privateKey: otpkPrivKey, publicKey: initiatorRatchetPub)
 
         var shared = Data()
         shared.append(dh1)
@@ -343,17 +449,22 @@ public actor SignalProtocolService {
         shared.append(dh3)
         shared.append(dh4)
 
-        let rootKey = hkdf(shared, info: hkdfRootInfo)
-        // SWAPPED: initiator's send-chain info derives our recv-chain.
-        let recvChain = hkdf(rootKey, info: hkdfChainInitiatorSendInfo)
-        let sendChain = hkdf(rootKey, info: hkdfChainInitiatorRecvInfo)
+        let rootKey = hkdf32(shared, info: hkdfRootInfo)
 
-        sessions[peerUhid] = SignalSession(
-            rootKey: rootKey,
-            sendChainKey: sendChain,
-            recvChainKey: recvChain
-        )
-        // Consume one-time pre-key — never reuse.
+        // Adopt SPK as the initial DHs. The DH-ratchet step that follows
+        // (triggered on the first decrypt below) will rotate it to a fresh
+        // keypair.
+        let session = SignalSession(rootKey: rootKey)
+        session.sendChainKey = nil
+        session.recvChainKey = nil
+        session.myEphemeralPriv = preKeys.signedPreKeyPriv
+        session.myEphemeralPub = preKeys.signedPreKeyPub
+        session.remoteEphemeralPub = nil      // forces DH-ratchet on first decrypt
+        session.pendingPreKeyMessage = false
+
+        sessions[peerUhid] = session
+
+        // Consume the one-time pre-key — never reuse.
         preKeys.oneTimePreKeys.removeValue(forKey: usedOneTimePreKeyId)
         zero(shared)
     }
@@ -364,6 +475,105 @@ public actor SignalProtocolService {
 
     public func getX25519PublicKey() -> Data {
         identityX25519Pub
+    }
+
+    // MARK: - Double Ratchet (Signal §5)
+
+    /// Performs a full DH-ratchet step on receive (Signal §5.2): updates DHr,
+    /// derives a new receiving chain via `KDF_RK(RK, DH(DHs, DHr))`,
+    /// generates a fresh DHs, and derives a new sending chain via
+    /// `KDF_RK(RK, DH(newDHs, DHr))`.
+    private func dhRatchetReceive(session: SignalSession, newRemoteEphemeralPub: Data) throws {
+        // Save send-counter as PN so the peer can compute skipped keys
+        // across the ratchet boundary on subsequent decrypts.
+        session.previousChainCount = session.sendCounter
+        session.sendCounter = 0
+        session.recvCounter = 0
+        session.remoteEphemeralPub = newRemoteEphemeralPub
+
+        // Step 1: derive new receiving chain from current DHs · new DHr.
+        let myPriv = try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: session.myEphemeralPriv)
+        let dh1 = try x25519Agree(privateKey: myPriv, publicKey: newRemoteEphemeralPub)
+        let (newRoot1, newRecvChain) = kdfRk(rootKey: session.rootKey, dhOutput: dh1)
+        session.rootKey = newRoot1
+        session.recvChainKey = newRecvChain
+        zero(dh1)
+
+        // Step 2: rotate DHs to a fresh keypair, derive new sending chain
+        // from new DHs · new DHr.
+        zero(session.myEphemeralPriv)
+        let newPriv = Curve25519.KeyAgreement.PrivateKey()
+        session.myEphemeralPriv = newPriv.rawRepresentation
+        session.myEphemeralPub = newPriv.publicKey.rawRepresentation
+
+        let dh2 = try x25519Agree(privateKey: newPriv, publicKey: newRemoteEphemeralPub)
+        let (newRoot2, newSendChain) = kdfRk(rootKey: session.rootKey, dhOutput: dh2)
+        session.rootKey = newRoot2
+        session.sendChainKey = newSendChain
+        zero(dh2)
+    }
+
+    /// Lazy half-ratchet for the very first send on a freshly-established
+    /// initiator session. The initiator's DHs and DHr are already set (X3DH
+    /// placed them); we just need to derive the sending chain. We do NOT
+    /// rotate DHs here — only on a true DH-ratchet (i.e. on receive).
+    private func dhRatchetSendOnly(session: SignalSession, remotePub: Data) throws {
+        let myPriv = try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: session.myEphemeralPriv)
+        let dh = try x25519Agree(privateKey: myPriv, publicKey: remotePub)
+        let (newRoot, newSendChain) = kdfRk(rootKey: session.rootKey, dhOutput: dh)
+        session.rootKey = newRoot
+        session.sendChainKey = newSendChain
+        zero(dh)
+    }
+
+    /// Saves any unread message keys on the current receive chain up to the
+    /// given counter, so they can be consumed if those messages eventually
+    /// arrive after a DH-ratchet step. Bounded by `maxSkippedKeys`.
+    private func skipMessageKeys(session: SignalSession, until: Int32) throws {
+        // No chain to skip on (e.g. responder receiving its first message
+        // — recvChainKey is nil, remoteEphemeralPub is nil).
+        guard session.recvChainKey != nil,
+              let oldRemoteEphPub = session.remoteEphemeralPub else {
+            return
+        }
+        if until <= session.recvCounter {
+            return
+        }
+        if until - session.recvCounter > Int32(Self.maxSkippedKeys) {
+            throw SignalProtocolError.excessiveCounterGap(Int(until - session.recvCounter), Self.maxSkippedKeys)
+        }
+
+        while session.recvCounter < until {
+            guard let currentRecvChain = session.recvChainKey else { return }
+            let (nextChain, skipKey) = ratchetChainKey(currentRecvChain)
+            session.recvChainKey = nextChain
+            let lookup = skippedKeyId(remoteEphPub: oldRemoteEphPub, counter: session.recvCounter)
+            session.skippedMessageKeys[lookup] = skipKey
+            session.recvCounter += 1
+        }
+    }
+
+    /// KDF_RK per Signal §5.2: derives a new root key + new chain key from
+    /// the current root key and a fresh DH output. HKDF-SHA256 over 64 bytes;
+    /// first 32 = new root, second 32 = new chain key.
+    private func kdfRk(rootKey: Data, dhOutput: Data) -> (newRoot: Data, newChain: Data) {
+        let derived = HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: SymmetricKey(data: dhOutput),
+            salt: rootKey,
+            info: hkdfRatchetInfo,
+            outputByteCount: 64
+        )
+        let bytes = derived.withUnsafeBytes { Data($0) }
+        let newRoot = bytes.subdata(in: 0 ..< 32)
+        let newChain = bytes.subdata(in: 32 ..< 64)
+        return (newRoot, newChain)
+    }
+
+    /// Lookup key for the skipped-message-keys table — Hex(remoteEphPub):counter.
+    /// Matches the C# format exactly so the cache is conceptually identical
+    /// (string is internal but easier to debug if you peek at session state).
+    private func skippedKeyId(remoteEphPub: Data, counter: Int32) -> String {
+        return "\(remoteEphPub.toHexUpper()):\(counter)"
     }
 
     // MARK: - Private helpers
@@ -380,8 +590,9 @@ public actor SignalProtocolService {
         return bytes
     }
 
-    /// HKDF-SHA256 with no salt, fixed 32-byte output. Matches C# HKDF.DeriveKey.
-    private func hkdf(_ ikm: Data, info: Data) -> Data {
+    /// HKDF-SHA256 with no salt, fixed 32-byte output. Matches C# HKDF.DeriveKey
+    /// for the X3DH root-key derivation.
+    private func hkdf32(_ ikm: Data, info: Data) -> Data {
         let derived = HKDF<SHA256>.deriveKey(
             inputKeyMaterial: SymmetricKey(data: ikm),
             salt: Data(),
@@ -391,7 +602,10 @@ public actor SignalProtocolService {
         return derived.withUnsafeBytes { Data($0) }
     }
 
-    /// Single Double-Ratchet step (Signal §5.1).
+    /// Single symmetric ratchet step (Signal §5.1).
+    ///
+    ///   message_key   = HMAC-SHA256(chain_key, 0x01)
+    ///   new_chain_key = HMAC-SHA256(chain_key, 0x02)
     private func ratchetChainKey(_ chainKey: Data) -> (Data, Data) {
         let key = SymmetricKey(data: chainKey)
         let messageKey = Data(HMAC<SHA256>.authenticationCode(for: Data([0x01]), using: key))
@@ -414,6 +628,15 @@ public actor SignalProtocolService {
             memset(buffer.baseAddress!, 0, buffer.count)
         }
     }
+
+    private func constantTimeEquals(_ a: Data, _ b: Data) -> Bool {
+        if a.count != b.count { return false }
+        var diff: UInt8 = 0
+        for i in 0 ..< a.count {
+            diff |= a[a.startIndex + i] ^ b[b.startIndex + i]
+        }
+        return diff == 0
+    }
 }
 
 public enum SignalProtocolError: Error, Equatable {
@@ -431,5 +654,13 @@ public enum SignalProtocolError: Error, Equatable {
     public enum PreKeyKind: String {
         case signedPreKey
         case oneTimePreKey
+    }
+}
+
+/// Internal hex helper for the skipped-keys cache lookup. Uppercase to
+/// match C#'s `Convert.ToHexString` output exactly.
+private extension Data {
+    func toHexUpper() -> String {
+        return self.map { String(format: "%02X", $0) }.joined()
     }
 }

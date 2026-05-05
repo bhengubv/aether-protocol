@@ -122,10 +122,27 @@ public struct PreKeyBundle: Equatable, Codable {
 
 /// Wire-level encrypted payload.
 ///
-/// When `messageType` is 1 (PreKey message — the first message from an
-/// initiator before the responder has established a session), the four
-/// `initiator*` fields carry the inputs the responder needs to run X3DH.
-/// On normal session messages (`messageType == 0`), those fields are nil/0.
+/// Two layered ratchets contribute fields:
+///
+/// 1. **X3DH session-establishment** (Signal §3) — populated only on PreKey
+///    messages (`messageType == 1`): `initiatorIdentityKeyX25519`,
+///    `usedSignedPreKeyId`, `usedOneTimePreKeyId`. The responder uses these
+///    to run X3DH on its side and derive the same root key.
+///
+/// 2. **Double Ratchet** (Signal §5) — `senderEphemeralKeyX25519` and
+///    `previousChainCount` populated on EVERY message. The
+///    `senderEphemeralKeyX25519` is the sender's current DH-ratchet public
+///    key; when it changes between messages, the receiver runs a DH-ratchet
+///    step that re-keys the chain and gives per-roundtrip forward secrecy
+///    and post-compromise security. On the very first PreKey message, this
+///    equals the X3DH ephemeral public key (Signal-canonical integration:
+///    initiator's X3DH ephemeral becomes its first DH-ratchet public).
+///
+/// `initiatorEphemeralKeyX25519` is retained as a deprecated alias for
+/// `senderEphemeralKeyX25519` on PreKey messages — backward compatibility
+/// with consumers of the pre-Double-Ratchet wire envelope. New consumers
+/// should read `senderEphemeralKeyX25519` and fall back to it only if the
+/// new field is nil.
 public struct EncryptedPayload: Equatable, Codable {
     public let ciphertext: Data
     public let nonce: Data
@@ -135,12 +152,26 @@ public struct EncryptedPayload: Equatable, Codable {
 
     /// PreKey messages: initiator's long-term X25519 identity public key (32 bytes).
     public let initiatorIdentityKeyX25519: Data?
-    /// PreKey messages: initiator's ephemeral X25519 public key (32 bytes).
+    /// DEPRECATED: use `senderEphemeralKeyX25519` instead. Kept for backward
+    /// compatibility with the pre-Double-Ratchet wire envelope. On PreKey
+    /// messages this equals `senderEphemeralKeyX25519`; on normal messages
+    /// it is nil. New consumers should ignore this field.
     public let initiatorEphemeralKeyX25519: Data?
     /// PreKey messages: SignedPreKeyId from the recipient bundle the initiator consumed.
     public let usedSignedPreKeyId: Int32
     /// PreKey messages: one-time PreKeyId from the recipient bundle the initiator consumed.
     public let usedOneTimePreKeyId: Int32
+
+    /// Sender's current DH-ratchet X25519 public key (32 bytes). Populated on
+    /// every message. Drives the DH-ratchet step on the receiver side: when
+    /// this value changes, the receiver re-keys the chain via
+    /// `KDF_RK(rootKey, DH(myDHs, newDHr))`.
+    public let senderEphemeralKeyX25519: Data?
+
+    /// Number of messages the sender sent in its previous sending chain
+    /// (Signal §5: PN). Used by the receiver to compute skipped message keys
+    /// when crossing a DH-ratchet boundary.
+    public let previousChainCount: Int32
 
     public init(
         ciphertext: Data,
@@ -151,7 +182,9 @@ public struct EncryptedPayload: Equatable, Codable {
         initiatorIdentityKeyX25519: Data? = nil,
         initiatorEphemeralKeyX25519: Data? = nil,
         usedSignedPreKeyId: Int32 = 0,
-        usedOneTimePreKeyId: Int32 = 0
+        usedOneTimePreKeyId: Int32 = 0,
+        senderEphemeralKeyX25519: Data? = nil,
+        previousChainCount: Int32 = 0
     ) {
         self.ciphertext = ciphertext
         self.nonce = nonce
@@ -162,6 +195,8 @@ public struct EncryptedPayload: Equatable, Codable {
         self.initiatorEphemeralKeyX25519 = initiatorEphemeralKeyX25519
         self.usedSignedPreKeyId = usedSignedPreKeyId
         self.usedOneTimePreKeyId = usedOneTimePreKeyId
+        self.senderEphemeralKeyX25519 = senderEphemeralKeyX25519
+        self.previousChainCount = previousChainCount
     }
 }
 

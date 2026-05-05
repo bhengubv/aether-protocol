@@ -79,6 +79,29 @@ final class SignalFixtureTests: XCTestCase {
         }
     }
 
+    /// KDF_RK fixture (Signal §5.2): HKDF-SHA256(salt=root_key,
+    /// ikm=dh_output, info=UTF8('aether-ratchet-rk-v1'), L=64) split 32+32
+    /// into new_root_key + new_chain_key. Cross-language byte-identical.
+    func testSignalFixture_KdfRkBasic() throws {
+        let (inputs, expected) = try loadFixturePair(caseName: "kdf_rk_basic")
+        let rk = try mustHex(inputs["root_key_hex"] as! String)
+        let dh = try mustHex(inputs["dh_output_hex"] as! String)
+        let info = (inputs["hkdf_info_utf8"] as! String).data(using: .utf8)!
+
+        let derived = HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: SymmetricKey(data: dh),
+            salt: rk,
+            info: info,
+            outputByteCount: 64
+        )
+        let bytes = derived.withUnsafeBytes { Data($0) }
+        let newRoot = bytes.subdata(in: 0 ..< 32)
+        let newChain = bytes.subdata(in: 32 ..< 64)
+
+        XCTAssertEqual(newRoot.toHex(), expected["new_root_key_hex"] as? String)
+        XCTAssertEqual(newChain.toHex(), expected["new_chain_key_hex"] as? String)
+    }
+
     // MARK: - End-to-end exercises
 
     func testX3DH_FirstMessageRoundTrips() async throws {
@@ -93,6 +116,11 @@ final class SignalFixtureTests: XCTestCase {
         XCTAssertEqual(encrypted.messageType, SignalProtocolService.messageTypePreKey)
         XCTAssertEqual(encrypted.initiatorIdentityKeyX25519?.count, 32)
         XCTAssertEqual(encrypted.initiatorEphemeralKeyX25519?.count, 32)
+        // Double Ratchet: every message carries the sender's current DH-ratchet
+        // pubkey, including the very first PreKey message (which equals the
+        // X3DH ephemeral — Signal-canonical integration).
+        XCTAssertEqual(encrypted.senderEphemeralKeyX25519?.count, 32)
+        XCTAssertEqual(encrypted.senderEphemeralKeyX25519, encrypted.initiatorEphemeralKeyX25519)
         XCTAssertEqual(encrypted.senderUhid, "alice")
 
         let plaintext = try await bob.decrypt(peerUhid: "alice", payload: encrypted)
@@ -113,6 +141,12 @@ final class SignalFixtureTests: XCTestCase {
         let second = try await alice.encrypt(peerUhid: "bob", plaintext: "b".data(using: .utf8)!)
         XCTAssertEqual(second.messageType, SignalProtocolService.messageTypeNormal)
         XCTAssertNil(second.initiatorIdentityKeyX25519)
+        // initiatorEphemeralKeyX25519 (deprecated alias) is nil on normal messages.
+        XCTAssertNil(second.initiatorEphemeralKeyX25519)
+        // senderEphemeralKeyX25519 is populated on EVERY message (Double
+        // Ratchet header). Same DHs as the first message because Alice
+        // hasn't ratcheted (no roundtrip yet).
+        XCTAssertEqual(second.senderEphemeralKeyX25519, first.senderEphemeralKeyX25519)
         let dec = try await bob.decrypt(peerUhid: "alice", payload: second)
         XCTAssertEqual(dec, "b".data(using: .utf8)!)
     }
@@ -169,6 +203,169 @@ final class SignalFixtureTests: XCTestCase {
         XCTAssertEqual(bundle.signedPreKey.count, 32)
         XCTAssertEqual(bundle.preKey.count, 32)
         XCTAssertEqual(bundle.signedPreKeySignature.count, 64)
+    }
+
+    // MARK: - Double Ratchet (Signal §5)
+
+    /// Every Double-Ratchet message — including the first PreKey message
+    /// and subsequent normal messages — carries the sender's current
+    /// ratchet public key on the wire. Mirror of C#
+    /// `DoubleRatchet_EveryMessageCarriesSenderEphemeralKey`.
+    func testDoubleRatchet_EveryMessageCarriesSenderEphemeralKey() async throws {
+        let alice = SignalProtocolService()
+        let bob = SignalProtocolService()
+
+        let bobBundle = try await bob.generatePreKeyBundle(localUhid: "bob")
+        _ = try await alice.generatePreKeyBundle(localUhid: "alice")
+        try await alice.processPreKeyBundle(bobBundle)
+
+        let first = try await alice.encrypt(peerUhid: "bob", plaintext: "a".data(using: .utf8)!)
+        XCTAssertNotNil(first.senderEphemeralKeyX25519)
+        XCTAssertEqual(first.senderEphemeralKeyX25519?.count, 32)
+
+        _ = try await bob.decrypt(peerUhid: "alice", payload: first)
+
+        // Subsequent message also carries senderEphemeralKeyX25519 (same
+        // value — Alice hasn't ratcheted because Bob hasn't responded yet).
+        let second = try await alice.encrypt(peerUhid: "bob", plaintext: "b".data(using: .utf8)!)
+        XCTAssertNotNil(second.senderEphemeralKeyX25519)
+        XCTAssertEqual(first.senderEphemeralKeyX25519, second.senderEphemeralKeyX25519)
+    }
+
+    /// After a roundtrip (Alice -> Bob -> Alice), each side's ratchet pubkey
+    /// rotates. Mirror of C# `DoubleRatchet_SenderEphemeralKey_RotatesAfterRoundtrip`.
+    func testDoubleRatchet_SenderEphemeralKey_RotatesAfterRoundtrip() async throws {
+        let alice = SignalProtocolService()
+        let bob = SignalProtocolService()
+
+        let bobBundle = try await bob.generatePreKeyBundle(localUhid: "bob")
+        _ = try await alice.generatePreKeyBundle(localUhid: "alice")
+        try await alice.processPreKeyBundle(bobBundle)
+
+        // Alice -> Bob: Alice's first ratchet pub.
+        let aliceFirst = try await alice.encrypt(peerUhid: "bob", plaintext: "ping".data(using: .utf8)!)
+        _ = try await bob.decrypt(peerUhid: "alice", payload: aliceFirst)
+
+        // Bob -> Alice: Bob's first ratchet pub (rotated by responder-side DH ratchet).
+        let bobReply = try await bob.encrypt(peerUhid: "alice", plaintext: "pong".data(using: .utf8)!)
+        XCTAssertNotNil(bobReply.senderEphemeralKeyX25519)
+        // Bob's ratchet pub should be DIFFERENT from Alice's (Bob generated
+        // fresh DHs on his DH-ratchet step).
+        XCTAssertNotEqual(aliceFirst.senderEphemeralKeyX25519, bobReply.senderEphemeralKeyX25519)
+
+        _ = try await alice.decrypt(peerUhid: "bob", payload: bobReply)
+
+        // Alice -> Bob (after roundtrip): Alice should now use a NEW ratchet
+        // pub (rotated on her DH-ratchet step when she received Bob's reply).
+        let aliceSecond = try await alice.encrypt(peerUhid: "bob", plaintext: "ping2".data(using: .utf8)!)
+        XCTAssertNotEqual(aliceFirst.senderEphemeralKeyX25519, aliceSecond.senderEphemeralKeyX25519)
+        XCTAssertNotEqual(bobReply.senderEphemeralKeyX25519, aliceSecond.senderEphemeralKeyX25519)
+
+        // Bob can still decrypt Alice's new message.
+        let dec = try await bob.decrypt(peerUhid: "alice", payload: aliceSecond)
+        XCTAssertEqual(String(data: dec, encoding: .utf8), "ping2")
+    }
+
+    /// PN (previousChainCount) tracks how many messages were sent on the
+    /// previous chain before the most recent DH-ratchet step.
+    /// Mirror of C# `DoubleRatchet_PreviousChainCount_TracksMessagesPerChain`.
+    func testDoubleRatchet_PreviousChainCount_TracksMessagesPerChain() async throws {
+        let alice = SignalProtocolService()
+        let bob = SignalProtocolService()
+
+        let bobBundle = try await bob.generatePreKeyBundle(localUhid: "bob")
+        _ = try await alice.generatePreKeyBundle(localUhid: "alice")
+        try await alice.processPreKeyBundle(bobBundle)
+
+        // Alice sends 3 messages without a roundtrip.
+        for i in 0 ..< 3 {
+            let enc = try await alice.encrypt(peerUhid: "bob", plaintext: "a\(i)".data(using: .utf8)!)
+            // PN is 0 because this IS Alice's first chain.
+            XCTAssertEqual(enc.previousChainCount, 0)
+            _ = try await bob.decrypt(peerUhid: "alice", payload: enc)
+        }
+
+        // Bob sends a reply, triggering his DH-ratchet step.
+        let bobReply = try await bob.encrypt(peerUhid: "alice", plaintext: "hi".data(using: .utf8)!)
+        // Bob's PN reflects however many messages Bob sent in his previous
+        // sending chain — which was 0 (Bob hadn't sent anything yet before
+        // his DH-ratchet step rotated his chain).
+        XCTAssertEqual(bobReply.previousChainCount, 0)
+        _ = try await alice.decrypt(peerUhid: "bob", payload: bobReply)
+
+        // Alice's next message after her DH-ratchet step. Her PN should be
+        // 3 — that's how many messages she sent on her previous chain
+        // before Bob's reply triggered her ratchet.
+        let aliceNew = try await alice.encrypt(peerUhid: "bob", plaintext: "a3".data(using: .utf8)!)
+        XCTAssertEqual(aliceNew.previousChainCount, 3)
+    }
+
+    /// A message from the OLD chain that arrives AFTER a DH-ratchet boundary
+    /// (because of out-of-order delivery) must still decrypt via the
+    /// skipped-keys cache keyed by the old DHr pubkey.
+    /// Mirror of C# `DoubleRatchet_OutOfOrderAcrossDhRatchetBoundary_StillDecrypts`.
+    func testDoubleRatchet_OutOfOrderAcrossDhRatchetBoundary_StillDecrypts() async throws {
+        // Alice sends 3 messages on chain 1. Bob receives only the first 2,
+        // then Alice does a DH-ratchet (because Bob replied) and sends a 4th
+        // on chain 2. The 3rd message (from chain 1) arrives last —
+        // Bob must still be able to decrypt it via the skipped-keys cache
+        // keyed by (Alice's old DHs pub, counter=2).
+        let alice = SignalProtocolService()
+        let bob = SignalProtocolService()
+
+        let bobBundle = try await bob.generatePreKeyBundle(localUhid: "bob")
+        _ = try await alice.generatePreKeyBundle(localUhid: "alice")
+        try await alice.processPreKeyBundle(bobBundle)
+
+        let a0 = try await alice.encrypt(peerUhid: "bob", plaintext: "a0".data(using: .utf8)!)
+        let a1 = try await alice.encrypt(peerUhid: "bob", plaintext: "a1".data(using: .utf8)!)
+        let a2 = try await alice.encrypt(peerUhid: "bob", plaintext: "a2".data(using: .utf8)!)
+
+        // Bob receives a0, a1 only.
+        XCTAssertEqual(String(data: try await bob.decrypt(peerUhid: "alice", payload: a0), encoding: .utf8), "a0")
+        XCTAssertEqual(String(data: try await bob.decrypt(peerUhid: "alice", payload: a1), encoding: .utf8), "a1")
+
+        // Bob replies — triggers his DH-ratchet step.
+        let bReply = try await bob.encrypt(peerUhid: "alice", plaintext: "hi".data(using: .utf8)!)
+        _ = try await alice.decrypt(peerUhid: "bob", payload: bReply)
+
+        // Alice sends a4 on her new chain (after her DH-ratchet step).
+        let a4 = try await alice.encrypt(peerUhid: "bob", plaintext: "a4".data(using: .utf8)!)
+        // Bob receives a4 — triggers his second DH-ratchet step. He must
+        // skip-derive a key for Alice's old chain counter=2 because PN=3.
+        XCTAssertEqual(String(data: try await bob.decrypt(peerUhid: "alice", payload: a4), encoding: .utf8), "a4")
+
+        // Now the missing a2 (from Alice's OLD chain) finally arrives. Bob
+        // should pull the skipped key from cache.
+        XCTAssertEqual(String(data: try await bob.decrypt(peerUhid: "alice", payload: a2), encoding: .utf8), "a2")
+    }
+
+    /// 10 alternating messages — both sides ratchet at every roundtrip and
+    /// every message must decrypt correctly.
+    /// Mirror of C# `DoubleRatchet_LongConversation_AllMessagesDecrypt`.
+    func testDoubleRatchet_LongConversation_AllMessagesDecrypt() async throws {
+        let alice = SignalProtocolService()
+        let bob = SignalProtocolService()
+
+        let bobBundle = try await bob.generatePreKeyBundle(localUhid: "bob")
+        _ = try await alice.generatePreKeyBundle(localUhid: "alice")
+        try await alice.processPreKeyBundle(bobBundle)
+
+        for i in 0 ..< 10 {
+            let aMsg = "alice \(i)"
+            let aEnc = try await alice.encrypt(peerUhid: "bob", plaintext: aMsg.data(using: .utf8)!)
+            XCTAssertEqual(
+                String(data: try await bob.decrypt(peerUhid: "alice", payload: aEnc), encoding: .utf8),
+                aMsg
+            )
+
+            let bMsg = "bob \(i)"
+            let bEnc = try await bob.encrypt(peerUhid: "alice", plaintext: bMsg.data(using: .utf8)!)
+            XCTAssertEqual(
+                String(data: try await alice.decrypt(peerUhid: "bob", payload: bEnc), encoding: .utf8),
+                bMsg
+            )
+        }
     }
 
     // MARK: - Helpers
