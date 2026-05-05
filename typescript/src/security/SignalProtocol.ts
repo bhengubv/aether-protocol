@@ -8,6 +8,17 @@
  *   DH4 = DH(EK_A, OPK_B) — initiator ephemeral binds to responder one-time pre-key (FS)
  *
  * Root-key derivation: HKDF-SHA256 over concat(DH1||DH2||DH3||DH4).
+ *
+ * Double Ratchet (Signal §5): each side maintains a current X25519 ratchet
+ * keypair. Whenever the receiver sees a peer message bearing a new ratchet
+ * public key, it does a DH-ratchet step:
+ *   newRecvChain = KDF_RK(rootKey, DH(myDHs_priv, newDHr))
+ *   newDHs       = fresh X25519 keypair
+ *   newSendChain = KDF_RK(rootKey, DH(newDHs_priv, newDHr))
+ * Signal-canonical X3DH↔Double-Ratchet integration: the initiator's X3DH
+ * ephemeral becomes its first DHs; the peer's signed pre-key is the initial
+ * DHr. CKs is computed lazily on the initiator's first send.
+ *
  * Symmetric ratchet: HMAC-SHA256, single-byte domain separation
  *   (0x01 -> message key, 0x02 -> next chain key) per Signal §5.1.
  * Encryption: AES-256-GCM, 12-byte nonce, 16-byte tag.
@@ -25,6 +36,7 @@ import {
   diffieHellman,
   generateKeyPairSync,
   randomBytes,
+  timingSafeEqual,
 } from "crypto";
 import { hkdf } from "@noble/hashes/hkdf";
 import { sha256 } from "@noble/hashes/sha256";
@@ -38,8 +50,10 @@ import { Ed25519Service } from "./Ed25519Service.js";
 // HKDF info strings — these MUST match the C# reference (and every other
 // language). Any drift breaks cross-language interop.
 const HKDF_ROOT_INFO = Buffer.from("aether-x3dh-root-v1", "utf8");
-const HKDF_CHAIN_INITIATOR_SEND_INFO = Buffer.from("aether-chain-initiator-send-v1", "utf8");
-const HKDF_CHAIN_INITIATOR_RECV_INFO = Buffer.from("aether-chain-initiator-recv-v1", "utf8");
+// KDF_RK info string for Double-Ratchet step (Signal §5: KDF_RK). Each
+// DH-ratchet step derives a 64-byte block, split into the new root key
+// (first 32 bytes) and the new chain key (second 32 bytes).
+const HKDF_RATCHET_INFO = Buffer.from("aether-ratchet-rk-v1", "utf8");
 
 const X25519_PUBLIC_KEY_SIZE = 32;
 const X25519_PRIVATE_KEY_SIZE = 32;
@@ -64,36 +78,111 @@ export interface PreKeyBundle {
   signedPreKeySignature: Uint8Array;
 }
 
+/**
+ * An encrypted payload with all metadata needed for decryption.
+ *
+ * Two layered ratchets contribute fields:
+ *
+ * 1. X3DH session-establishment (Signal §3) — populated only on the first
+ *    message a new initiator sends to a peer (messageType=1):
+ *    initiatorIdentityKeyX25519, usedSignedPreKeyId, usedOneTimePreKeyId.
+ *    The responder uses these to run X3DH on its side and derive the same
+ *    root key.
+ *
+ * 2. Double Ratchet (Signal §5) — senderEphemeralKeyX25519 and
+ *    previousChainCount populated on EVERY message. senderEphemeralKeyX25519
+ *    is the sender's current DH-ratchet public key; when it changes between
+ *    messages, the receiver runs a DH-ratchet step that re-keys the chain.
+ *    On the very first PreKey message, this equals the X3DH ephemeral
+ *    public key (Signal-canonical integration).
+ */
 export interface EncryptedPayload {
   ciphertext: Uint8Array;
   nonce: Uint8Array;
   /** 0 = normal, 1 = PreKey (initial). */
   messageType: number;
   senderUhid: string;
+  /** Counter within the current sending chain (Signal §5: Ns). */
   counter: number;
   encryptedAt: Date;
 
   /** PreKey messages: initiator's long-term X25519 identity public key (32 bytes). */
   initiatorIdentityKeyX25519?: Uint8Array;
-  /** PreKey messages: initiator's ephemeral X25519 public key (32 bytes). */
+  /**
+   * DEPRECATED backward-compat field — equals senderEphemeralKeyX25519 on
+   * PreKey messages, undefined on normal messages. Kept so older peers
+   * (pre-Double-Ratchet wire envelope) can still read the initiator's
+   * ratchet pub. New consumers should read senderEphemeralKeyX25519.
+   */
   initiatorEphemeralKeyX25519?: Uint8Array;
   /** PreKey messages: SignedPreKeyId from the recipient bundle the initiator consumed. */
   usedSignedPreKeyId?: number;
   /** PreKey messages: one-time PreKeyId from the recipient bundle the initiator consumed. */
   usedOneTimePreKeyId?: number;
+
+  /**
+   * Sender's current DH-ratchet X25519 public key (32 bytes). Populated on
+   * EVERY message. Drives the DH-ratchet step on the receiver side: when
+   * this value changes, the receiver re-keys the chain via
+   * KDF_RK(rootKey, DH(myDHs, newDHr)).
+   */
+  senderEphemeralKeyX25519?: Uint8Array;
+  /**
+   * Number of messages the sender sent in its previous sending chain
+   * (Signal §5: PN). Used by the receiver to compute skipped message keys
+   * when crossing a DH-ratchet boundary.
+   */
+  previousChainCount?: number;
 }
 
+/**
+ * State of a Signal-Protocol session with a single peer — both X3DH
+ * session-establishment metadata and Double-Ratchet (Signal §5) state.
+ *
+ *   rootKey            — RK. Re-keyed on every DH-ratchet step.
+ *   myEphemeralPriv/Pub — DHs. My current ratchet keypair.
+ *   remoteEphemeralPub  — DHr. Peer's last-known ratchet pub. null until first DH-ratchet.
+ *   sendChainKey        — CKs. null until I've sent (or initialized) on this chain.
+ *   recvChainKey        — CKr. null until I've received on this chain.
+ *   sendCounter/recvCounter — Ns/Nr. Reset on each DH-ratchet step.
+ *   previousChainCount  — PN. Number of messages sent in my previous sending chain.
+ *   skippedMessageKeys  — Skipped keys keyed by "Hex(remoteEphPub):counter".
+ */
 interface SignalSession {
   rootKey: Uint8Array;
-  sendChainKey: Uint8Array;
-  recvChainKey: Uint8Array;
+  /** Sending chain key. null until first send (or until DH-ratchet rekeys it). */
+  sendChainKey: Uint8Array | null;
+  /** Receiving chain key. null until first receive that triggers a DH-ratchet step. */
+  recvChainKey: Uint8Array | null;
+
   sendCounter: number;
   recvCounter: number;
-  skippedMessageKeys: Map<number, Uint8Array>;
+  /** Messages sent in the previous sending chain (Signal §5: PN). */
+  previousChainCount: number;
 
+  /** My current DH-ratchet private key (X25519, 32 bytes). */
+  myEphemeralPriv: Uint8Array;
+  /** My current DH-ratchet public key (X25519, 32 bytes). */
+  myEphemeralPub: Uint8Array;
+  /** Peer's last-seen DH-ratchet public key. null until first DH-ratchet step. */
+  remoteEphemeralPub: Uint8Array | null;
+
+  /**
+   * Skipped message keys keyed by "Hex(remoteEphPub):counter". The
+   * remoteEphPub binding is essential — out-of-order messages from a
+   * previous chain (different DHr) can still arrive after a DH-ratchet
+   * step, and they need their own per-chain key set.
+   */
+  skippedMessageKeys: Map<string, Uint8Array>;
+
+  /**
+   * True iff this session was established in the initiator role and the
+   * first outbound message has not yet been sent. While true, the next
+   * encrypt() emits a PreKey message (messageType=1) carrying the X3DH
+   * inputs.
+   */
   pendingPreKeyMessage: boolean;
   initiatorIdentityKeyX25519: Uint8Array;
-  initiatorEphemeralKeyX25519: Uint8Array;
   usedSignedPreKeyId: number;
   usedOneTimePreKeyId: number;
 }
@@ -167,7 +256,7 @@ function x25519Agree(localPriv: Uint8Array, remotePub: Uint8Array): Uint8Array {
 }
 
 /**
- * Single Double-Ratchet step (Signal §5.1):
+ * Single Double-Ratchet symmetric step (Signal §5.1):
  *
  *   message_key   = HMAC-SHA256(chain_key, 0x01)
  *   new_chain_key = HMAC-SHA256(chain_key, 0x02)
@@ -179,6 +268,23 @@ function ratchetStep(chainKey: Uint8Array): { newChainKey: Uint8Array; messageKe
     newChainKey: new Uint8Array(newChainKey),
     messageKey: new Uint8Array(messageKey),
   };
+}
+
+/**
+ * KDF_RK per Signal §5.2: derives a new root key + new chain key from the
+ * current root key and a fresh DH output. HKDF-SHA256 over 64 bytes;
+ * salt=rootKey, ikm=dhOutput, info="aether-ratchet-rk-v1". First 32 bytes =
+ * new root, second 32 bytes = new chain key.
+ */
+function kdfRk(rootKey: Uint8Array, dhOutput: Uint8Array): { newRootKey: Uint8Array; newChainKey: Uint8Array } {
+  const derived = hkdf(sha256, dhOutput, rootKey, HKDF_RATCHET_INFO, 64);
+  const newRootKey = new Uint8Array(32);
+  const newChainKey = new Uint8Array(32);
+  newRootKey.set(derived.subarray(0, 32));
+  newChainKey.set(derived.subarray(32, 64));
+  // Best-effort scrub of the combined block.
+  derived.fill(0);
+  return { newRootKey, newChainKey };
 }
 
 /** HKDF-SHA256 with no salt, fixed 32-byte output. Matches C# HKDF.DeriveKey. */
@@ -202,6 +308,20 @@ function randomPositiveInt32(): number {
   // 31-bit positive non-zero.
   const r = randomBytes(4).readUInt32BE() & 0x7fffffff;
   return r === 0 ? 1 : r;
+}
+
+function constantTimeEquals(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+function toHex(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("hex").toUpperCase();
+}
+
+/** Skipped-keys cache key — binds to (remote DHr pub, counter) per Signal §5. */
+function skippedKey(dhrPub: Uint8Array, counter: number): string {
+  return `${toHex(dhrPub)}:${counter}`;
 }
 
 export class SignalProtocol {
@@ -256,7 +376,18 @@ export class SignalProtocol {
       );
     }
 
-    const { newChainKey, messageKey } = ratchetStep(session.sendChainKey);
+    // Lazy CKs initialization for the initiator's first send: X3DH placed
+    // DHs and DHr but did not derive CKs (the Double Ratchet defers it
+    // until first send to avoid an extra KDF step when no message is ever
+    // sent on a session).
+    if (session.sendChainKey === null) {
+      if (session.remoteEphemeralPub === null) {
+        throw new Error("Cannot derive sending chain: peer's ratchet public key is unknown.");
+      }
+      this.dhRatchetSendOnly(session, session.remoteEphemeralPub);
+    }
+
+    const { newChainKey, messageKey } = ratchetStep(session.sendChainKey!);
     session.sendChainKey = newChainKey;
 
     const nonce = randomBytes(AES_GCM_NONCE_SIZE);
@@ -267,6 +398,7 @@ export class SignalProtocol {
     const combined = Buffer.concat([finalCt, tag]);
 
     const counter = session.sendCounter++;
+    const ratchetPub = new Uint8Array(session.myEphemeralPub);
     messageKey.fill(0);
 
     const base: EncryptedPayload = {
@@ -276,6 +408,8 @@ export class SignalProtocol {
       senderUhid: this.localUhid,
       counter,
       encryptedAt: new Date(),
+      senderEphemeralKeyX25519: ratchetPub,
+      previousChainCount: session.previousChainCount,
     };
 
     if (session.pendingPreKeyMessage) {
@@ -283,7 +417,9 @@ export class SignalProtocol {
         ...base,
         messageType: MESSAGE_TYPE_PRE_KEY,
         initiatorIdentityKeyX25519: new Uint8Array(session.initiatorIdentityKeyX25519),
-        initiatorEphemeralKeyX25519: new Uint8Array(session.initiatorEphemeralKeyX25519),
+        // Backward-compat: equals senderEphemeralKeyX25519 on PreKey msgs
+        // because the initiator's X3DH ephemeral becomes its first DH-ratchet pub.
+        initiatorEphemeralKeyX25519: new Uint8Array(ratchetPub),
         usedSignedPreKeyId: session.usedSignedPreKeyId,
         usedOneTimePreKeyId: session.usedOneTimePreKeyId,
       };
@@ -295,11 +431,22 @@ export class SignalProtocol {
   }
 
   async decrypt(peerUhid: string, payload: EncryptedPayload): Promise<Uint8Array> {
+    // Every Double-Ratchet message carries the sender's current ratchet
+    // public key. Fall back to initiatorEphemeralKeyX25519 for backward
+    // compatibility with older PreKey messages from peers that haven't
+    // upgraded to the new wire envelope.
+    const senderRatchetPub =
+      payload.senderEphemeralKeyX25519 ?? payload.initiatorEphemeralKeyX25519;
+
+    // PreKey message? Establish the responder-side session via mirrored X3DH.
     if (payload.messageType === MESSAGE_TYPE_PRE_KEY) {
-      if (!payload.initiatorIdentityKeyX25519 || !payload.initiatorEphemeralKeyX25519) {
-        throw new Error("PreKey message missing initiator key material");
+      if (!payload.initiatorIdentityKeyX25519 || !senderRatchetPub) {
+        throw new Error(
+          "PreKey message missing initiator key material " +
+            "(initiatorIdentityKeyX25519 and senderEphemeralKeyX25519 / initiatorEphemeralKeyX25519)."
+        );
       }
-      this.establishResponderSession(peerUhid, payload);
+      this.establishResponderSession(peerUhid, payload, senderRatchetPub);
     }
 
     const session = this.sessions.get(peerUhid);
@@ -307,25 +454,52 @@ export class SignalProtocol {
       throw new Error(`No session established with peer ${peerUhid}`);
     }
 
+    if (!senderRatchetPub) {
+      throw new Error("Message missing senderEphemeralKeyX25519 — required for the Double Ratchet.");
+    }
+
+    // DH-ratchet step? Triggered when the peer's ratchet public key changes.
+    if (
+      session.remoteEphemeralPub === null ||
+      !constantTimeEquals(senderRatchetPub, session.remoteEphemeralPub)
+    ) {
+      // First, derive any skipped keys from the previous receive chain
+      // (the chain keyed by the OLD remoteEphemeralPub). Then ratchet.
+      this.skipMessageKeys(session, payload.previousChainCount ?? 0);
+      this.dhRatchetReceive(session, senderRatchetPub);
+    }
+
     if (payload.ciphertext.length < AES_GCM_TAG_SIZE) {
       throw new Error("Ciphertext too short");
     }
 
     let messageKey: Uint8Array;
-    if (session.skippedMessageKeys.has(payload.counter)) {
-      messageKey = session.skippedMessageKeys.get(payload.counter)!;
-      session.skippedMessageKeys.delete(payload.counter);
+    // Skipped key cached for this (DHr_pub, counter) pair?
+    const cacheKey = skippedKey(senderRatchetPub, payload.counter);
+    const cached = session.skippedMessageKeys.get(cacheKey);
+    if (cached) {
+      session.skippedMessageKeys.delete(cacheKey);
+      messageKey = cached;
     } else {
+      if (session.recvChainKey === null) {
+        throw new Error("Receive chain not initialized (DH-ratchet step missing).");
+      }
+
       const gap = payload.counter - session.recvCounter;
       if (gap > MAX_SKIPPED_KEYS) {
         throw new Error(
           `Message counter gap (${gap}) exceeds maximum (${MAX_SKIPPED_KEYS}). Session must be re-established.`
         );
       }
+
+      // Skip ahead, caching intermediate keys keyed by (current DHr, counter).
       while (session.recvCounter < payload.counter) {
         const step = ratchetStep(session.recvChainKey);
         session.recvChainKey = step.newChainKey;
-        session.skippedMessageKeys.set(session.recvCounter, step.messageKey);
+        session.skippedMessageKeys.set(
+          skippedKey(senderRatchetPub, session.recvCounter),
+          step.messageKey
+        );
         session.recvCounter++;
       }
       const step = ratchetStep(session.recvChainKey);
@@ -372,6 +546,14 @@ export class SignalProtocol {
     };
   }
 
+  /**
+   * Establishes an initiator-side session against a pre-key bundle: runs
+   * the four X3DH DHs (Signal §3.3) over X25519, derives the root key, and
+   * primes the Double Ratchet by adopting the X3DH ephemeral as the
+   * initiator's first DHs. The peer's signed pre-key becomes the initial
+   * DHr. The first encrypt() after this returns a PreKey message
+   * (messageType=1).
+   */
   async processPreKeyBundle(bundle: PreKeyBundle): Promise<void> {
     const ok = Ed25519Service.verify(
       bundle.identityKey,
@@ -401,26 +583,30 @@ export class SignalProtocol {
 
     const shared = concat(dh1, dh2, dh3, dh4);
     const rootKey = hkdf32(shared, HKDF_ROOT_INFO);
-    const sendChain = hkdf32(rootKey, HKDF_CHAIN_INITIATOR_SEND_INFO);
-    const recvChain = hkdf32(rootKey, HKDF_CHAIN_INITIATOR_RECV_INFO);
 
+    // Signal-canonical X3DH↔Double-Ratchet integration: the initiator's
+    // X3DH ephemeral becomes its first DHs. The peer's signed pre-key is
+    // the initial DHr. CKs is computed lazily on first send
+    // (dhRatchetSendOnly).
     const session: SignalSession = {
       rootKey,
-      sendChainKey: sendChain,
-      recvChainKey: recvChain,
+      sendChainKey: null,                                  // computed on first send
+      recvChainKey: null,                                  // computed on first DH-ratchet receive
       sendCounter: 0,
       recvCounter: 0,
+      previousChainCount: 0,
+      myEphemeralPriv: ek.priv,
+      myEphemeralPub: ek.pub,
+      remoteEphemeralPub: new Uint8Array(bundle.signedPreKey),
       skippedMessageKeys: new Map(),
       pendingPreKeyMessage: true,
       initiatorIdentityKeyX25519: new Uint8Array(this.identityX25519Pub),
-      initiatorEphemeralKeyX25519: new Uint8Array(ek.pub),
       usedSignedPreKeyId: bundle.signedPreKeyId,
       usedOneTimePreKeyId: bundle.preKeyId,
     };
     this.sessions.set(bundle.uhid, session);
 
     // Best-effort scrubbing.
-    ek.priv.fill(0);
     shared.fill(0);
     dh1.fill(0);
     dh2.fill(0);
@@ -429,18 +615,24 @@ export class SignalProtocol {
   }
 
   /**
-   * Mirrors the initiator's 4 X3DH DHs to derive the same root key, then
-   * derives chain keys with send/recv roles SWAPPED relative to the
-   * initiator. Consumes (and zeros) the one-time pre-key.
+   * Establishes the responder-side session when a PreKey message arrives.
+   * Runs mirror X3DH to derive the same root key. Adopts the signed
+   * pre-key (private + public) as the responder's initial DHs;
+   * remoteEphemeralPub is left null so the very first decrypt
+   * (immediately after this call) triggers a DH-ratchet step that rotates
+   * DHs to a fresh keypair.
    */
-  private establishResponderSession(peerUhid: string, payload: EncryptedPayload): void {
+  private establishResponderSession(
+    peerUhid: string,
+    payload: EncryptedPayload,
+    initiatorRatchetPub: Uint8Array
+  ): void {
     const ik = payload.initiatorIdentityKeyX25519!;
-    const ek = payload.initiatorEphemeralKeyX25519!;
     if (ik.length !== X25519_PUBLIC_KEY_SIZE) {
       throw new Error(`Initiator IK_X25519 wrong size: ${ik.length}`);
     }
-    if (ek.length !== X25519_PUBLIC_KEY_SIZE) {
-      throw new Error(`Initiator EK_X25519 wrong size: ${ek.length}`);
+    if (initiatorRatchetPub.length !== X25519_PUBLIC_KEY_SIZE) {
+      throw new Error(`Initiator ratchet pub wrong size: ${initiatorRatchetPub.length}`);
     }
     if (
       this.preKeys.signedPreKeyId !== (payload.usedSignedPreKeyId ?? 0) ||
@@ -460,26 +652,29 @@ export class SignalProtocol {
 
     // Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
     const dh1 = x25519Agree(this.preKeys.signedPreKeyPriv, ik);
-    const dh2 = x25519Agree(this.identityX25519Priv, ek);
-    const dh3 = x25519Agree(this.preKeys.signedPreKeyPriv, ek);
-    const dh4 = x25519Agree(otpk.priv, ek);
+    const dh2 = x25519Agree(this.identityX25519Priv, initiatorRatchetPub);
+    const dh3 = x25519Agree(this.preKeys.signedPreKeyPriv, initiatorRatchetPub);
+    const dh4 = x25519Agree(otpk.priv, initiatorRatchetPub);
 
     const shared = concat(dh1, dh2, dh3, dh4);
     const rootKey = hkdf32(shared, HKDF_ROOT_INFO);
-    // SWAPPED: initiator's send-chain info derives our recv-chain.
-    const recvChain = hkdf32(rootKey, HKDF_CHAIN_INITIATOR_SEND_INFO);
-    const sendChain = hkdf32(rootKey, HKDF_CHAIN_INITIATOR_RECV_INFO);
 
+    // Adopt SPK as the initial DHs. The DH-ratchet step that follows
+    // (forced by remoteEphemeralPub=null on the upcoming decrypt) will
+    // rotate it to a fresh keypair.
     this.sessions.set(peerUhid, {
       rootKey,
-      sendChainKey: sendChain,
-      recvChainKey: recvChain,
+      sendChainKey: null,
+      recvChainKey: null,
       sendCounter: 0,
       recvCounter: 0,
+      previousChainCount: 0,
+      myEphemeralPriv: new Uint8Array(this.preKeys.signedPreKeyPriv),
+      myEphemeralPub: new Uint8Array(this.preKeys.signedPreKeyPub),
+      remoteEphemeralPub: null,                            // forces DH-ratchet on first decrypt
       skippedMessageKeys: new Map(),
       pendingPreKeyMessage: false,
       initiatorIdentityKeyX25519: new Uint8Array(),
-      initiatorEphemeralKeyX25519: new Uint8Array(),
       usedSignedPreKeyId: 0,
       usedOneTimePreKeyId: 0,
     });
@@ -493,6 +688,82 @@ export class SignalProtocol {
     dh2.fill(0);
     dh3.fill(0);
     dh4.fill(0);
+  }
+
+  /**
+   * Performs a full DH-ratchet step on receive (Signal §5.2): updates DHr,
+   * derives a new receiving chain via KDF_RK(RK, DH(DHs, DHr)), generates
+   * a fresh DHs, and derives a new sending chain via
+   * KDF_RK(RK, DH(newDHs, DHr)).
+   */
+  private dhRatchetReceive(session: SignalSession, newRemoteEphemeralPub: Uint8Array): void {
+    // Save send-counter as PN so the peer can compute skipped keys across
+    // the ratchet boundary on subsequent decrypts.
+    session.previousChainCount = session.sendCounter;
+    session.sendCounter = 0;
+    session.recvCounter = 0;
+    session.remoteEphemeralPub = new Uint8Array(newRemoteEphemeralPub);
+
+    // Step 1: derive new receiving chain from current DHs · new DHr.
+    const dh1 = x25519Agree(session.myEphemeralPriv, session.remoteEphemeralPub);
+    const r1 = kdfRk(session.rootKey, dh1);
+    session.rootKey = r1.newRootKey;
+    session.recvChainKey = r1.newChainKey;
+    dh1.fill(0);
+
+    // Step 2: rotate DHs to a fresh keypair, derive new sending chain
+    // from new DHs · new DHr.
+    session.myEphemeralPriv.fill(0);
+    const fresh = generateX25519KeyPair();
+    session.myEphemeralPriv = fresh.priv;
+    session.myEphemeralPub = fresh.pub;
+
+    const dh2 = x25519Agree(session.myEphemeralPriv, session.remoteEphemeralPub);
+    const r2 = kdfRk(session.rootKey, dh2);
+    session.rootKey = r2.newRootKey;
+    session.sendChainKey = r2.newChainKey;
+    dh2.fill(0);
+  }
+
+  /**
+   * Lazy half-ratchet for the very first send on a freshly-established
+   * initiator session. The initiator's DHs and DHr are already set (X3DH
+   * placed them); we just need to derive the sending chain. We do NOT
+   * rotate DHs here — only on a true DH-ratchet (i.e. on receive).
+   */
+  private dhRatchetSendOnly(session: SignalSession, remotePub: Uint8Array): void {
+    const dh = x25519Agree(session.myEphemeralPriv, remotePub);
+    const { newRootKey, newChainKey } = kdfRk(session.rootKey, dh);
+    session.rootKey = newRootKey;
+    session.sendChainKey = newChainKey;
+    dh.fill(0);
+  }
+
+  /**
+   * Saves any unread message keys on the current receive chain up to the
+   * given counter, so they can be consumed if those messages eventually
+   * arrive after a DH-ratchet step. Bounded by MAX_SKIPPED_KEYS.
+   */
+  private skipMessageKeys(session: SignalSession, until: number): void {
+    if (session.recvChainKey === null || session.remoteEphemeralPub === null) {
+      return; // no chain to skip on
+    }
+    if (until <= session.recvCounter) return;
+    if (until - session.recvCounter > MAX_SKIPPED_KEYS) {
+      throw new Error(
+        `Skipped-key request exceeds maximum (${MAX_SKIPPED_KEYS}). Session must be re-established.`
+      );
+    }
+
+    while (session.recvCounter < until) {
+      const step = ratchetStep(session.recvChainKey);
+      session.recvChainKey = step.newChainKey;
+      session.skippedMessageKeys.set(
+        skippedKey(session.remoteEphemeralPub, session.recvCounter),
+        step.messageKey
+      );
+      session.recvCounter++;
+    }
   }
 
   getPublicKey(): Uint8Array {
