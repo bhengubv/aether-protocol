@@ -1,0 +1,6 @@
+{
+  "$schema": "Expected outputs for the kdf_rk_basic case. Validates Signal Double-Ratchet KDF_RK (§5.2) — HKDF-SHA256 over (salt=root_key, ikm=dh_output, info=UTF8('aether-ratchet-rk-v1'), L=64), split 32+32 into new_root_key + new_chain_key.",
+
+  "new_root_key_hex": "8f894048bc850a5ce9281af47d06e2281832636c87c3f891ef4e7a9489bab4d1",
+  "new_chain_key_hex": "08cba1060cf4e54e8a80598313e6ed32c78029bfd1668689386044aaf4b74af0"
+}
