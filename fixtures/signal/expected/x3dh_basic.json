@@ -1,0 +1,20 @@
+{
+  "$schema": "Expected outputs for the x3dh_basic case in fixtures/signal/inputs.json. Every language implementation must produce these exact bytes given those inputs. Regenerate via tests/Aether.Core.Tests/SignalFixtureGenerator (un-skip Generate_ExpectedFixtures) only when intentionally changing the protocol — and re-verify every language afterwards.",
+
+  "alice_identity_pub_hex": "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209",
+  "alice_ephemeral_pub_hex": "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59",
+  "bob_identity_pub_hex": "5dfedd3b6bd47f6fa28ee15d969d5bb0ea53774d488bdaf9df1c6e0124b3ef22",
+  "bob_signed_pre_key_pub_hex": "ac01b2209e86354fb853237b5de0f4fab13c7fcbf433a61c019369617fecf10b",
+  "bob_one_time_pre_key_pub_hex": "50a61409b1ddd0325e9b16b700e719e9772c07000b1bd7786e907c653d20495d",
+
+  "dh1_hex": "64bb28fb502743e6560d2330e0cebe95fa555a09a575e5fff1e34c5f6fd4d43c",
+  "dh2_hex": "7c425a51f6a7f2e60012b0a34dd6511017807708b502ee66a2a247f171fda96c",
+  "dh3_hex": "09bb974ce3799959096660bdece3bb89ca106e6df31c2f701b7b8b9977047c34",
+  "dh4_hex": "eae6c8a9cecac8ef9a0ad59794fef9d4fe8ef407e7ee7eb4856ca6f88a96db4b",
+
+  "shared_secret_hex": "64bb28fb502743e6560d2330e0cebe95fa555a09a575e5fff1e34c5f6fd4d43c7c425a51f6a7f2e60012b0a34dd6511017807708b502ee66a2a247f171fda96c09bb974ce3799959096660bdece3bb89ca106e6df31c2f701b7b8b9977047c34eae6c8a9cecac8ef9a0ad59794fef9d4fe8ef407e7ee7eb4856ca6f88a96db4b",
+
+  "root_key_hex": "dd538033d6edf28cf47d4400eef0dac2f51e3c59ade31fa068e20e79acc709d2",
+  "initiator_send_chain_key_hex": "4cbb54b018310ac31bec92af98faf1b5b89e39a1bb7a19850a69beef0dfc86d0",
+  "initiator_recv_chain_key_hex": "2ff1b887f9fb080b3730e3c113c321209deb0dc149982f9c35a4be5c8dc5b54e"
+}
