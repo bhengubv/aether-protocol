@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using System.IO.Compression;
 using System.Text.Json;
 using Aether.Diagnostics;
 using Aether.Dtn;
@@ -80,7 +81,15 @@ public sealed class MessagingService : IMessagingService
         if (string.IsNullOrEmpty(message.SenderUhid))
             message.SenderUhid = _sender.LocalUhid;
 
-        var ciphertext = await _cipher.EncryptAsync(message.RecipientUhid, plaintext, cancellationToken).ConfigureAwait(false);
+        // Wrap the application payload in a 1-byte flag envelope on the *plaintext*
+        // side of the cipher, so the wire never sees the flag in the clear.
+        //   0x00 = uncompressed, 0x01 = brotli-compressed.
+        // Compression below MinSizeBytes is skipped, and we fall back to 0x00 if the
+        // compressor produced output >= the raw payload (already-compressed content,
+        // short payloads where the brotli header eats the savings).
+        var framedPlaintext = WrapWithCompressionFlag(plaintext);
+
+        var ciphertext = await _cipher.EncryptAsync(message.RecipientUhid, framedPlaintext, cancellationToken).ConfigureAwait(false);
         if (ciphertext is null)
         {
             // No session — queue without ciphertext on the wire. Plaintext is NOT persisted.
@@ -235,10 +244,19 @@ public sealed class MessagingService : IMessagingService
             return;
         }
 
-        var plaintext = await _cipher.DecryptAsync(packet.SourceUhid, packet.Payload, cancellationToken).ConfigureAwait(false);
-        if (plaintext is null)
+        var framedPlaintext = await _cipher.DecryptAsync(packet.SourceUhid, packet.Payload, cancellationToken).ConfigureAwait(false);
+        if (framedPlaintext is null)
         {
             _logger.LogDebug("Data packet {Id} from {Source} dropped — no session or decrypt failed", packet.Id, packet.SourceUhid);
+            return;
+        }
+
+        // Unwrap the compression flag envelope. An empty plaintext is malformed
+        // (we always prepend at least the flag byte on send), as is any flag we
+        // don't recognise — drop and log so the wire format stays strict.
+        if (!TryUnwrapCompressionFlag(framedPlaintext, out var plaintext))
+        {
+            _logger.LogWarning("Data packet {Id} from {Source} dropped — malformed compression envelope", packet.Id, packet.SourceUhid);
             return;
         }
 
@@ -345,6 +363,113 @@ public sealed class MessagingService : IMessagingService
             Priority = message.Priority,
             Payload = message.EncryptedContent,
         };
+
+    // ─── Compression envelope ───────────────────────────────────────
+    //
+    // Flag byte values (carried inside the encrypted plaintext, never on the wire):
+    //   0x00 = uncompressed payload follows
+    //   0x01 = brotli-compressed payload follows
+    private const byte FlagUncompressed = 0x00;
+    private const byte FlagBrotli = 0x01;
+
+    /// <summary>
+    /// Prepends the compression flag and (if profitable) Brotli-compresses the payload.
+    /// Falls back to 0x00 + raw bytes when compression is disabled, the payload is
+    /// below the threshold, or the compressed output is not strictly smaller than
+    /// the input.
+    /// </summary>
+    private byte[] WrapWithCompressionFlag(byte[] plaintext)
+    {
+        var compression = _options.Compression;
+
+        if (compression is null
+            || !compression.Enabled
+            || plaintext.Length < compression.MinSizeBytes)
+        {
+            return PrependFlag(FlagUncompressed, plaintext);
+        }
+
+        byte[] compressed;
+        try
+        {
+            using var output = new MemoryStream();
+            using (var brotli = new BrotliStream(output, compression.Level, leaveOpen: true))
+            {
+                brotli.Write(plaintext, 0, plaintext.Length);
+            }
+            compressed = output.ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Brotli compression failed; sending payload uncompressed");
+            return PrependFlag(FlagUncompressed, plaintext);
+        }
+
+        // Keep the smaller of the two — already-compressed or short payloads can
+        // grow under Brotli's framing overhead.
+        if (compressed.Length >= plaintext.Length)
+        {
+            return PrependFlag(FlagUncompressed, plaintext);
+        }
+
+        return PrependFlag(FlagBrotli, compressed);
+    }
+
+    private static byte[] PrependFlag(byte flag, byte[] payload)
+    {
+        var framed = new byte[payload.Length + 1];
+        framed[0] = flag;
+        Buffer.BlockCopy(payload, 0, framed, 1, payload.Length);
+        return framed;
+    }
+
+    /// <summary>
+    /// Reads the compression flag and returns the application payload. Returns
+    /// false on an empty buffer or unrecognised flag — callers drop the message
+    /// in that case.
+    /// </summary>
+    private bool TryUnwrapCompressionFlag(byte[] framed, out byte[] payload)
+    {
+        if (framed.Length == 0)
+        {
+            payload = [];
+            return false;
+        }
+
+        var flag = framed[0];
+        var bodyLength = framed.Length - 1;
+
+        switch (flag)
+        {
+            case FlagUncompressed:
+                payload = new byte[bodyLength];
+                if (bodyLength > 0)
+                    Buffer.BlockCopy(framed, 1, payload, 0, bodyLength);
+                return true;
+
+            case FlagBrotli:
+                try
+                {
+                    using var input = new MemoryStream(framed, 1, bodyLength, writable: false);
+                    using var brotli = new BrotliStream(input, CompressionMode.Decompress);
+                    using var output = new MemoryStream();
+                    brotli.CopyTo(output);
+                    payload = output.ToArray();
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Brotli decompression failed for incoming payload");
+                    payload = [];
+                    return false;
+                }
+
+            default:
+                _logger.LogWarning("Unknown compression flag 0x{Flag:X2} on incoming payload", flag);
+                payload = [];
+                return false;
+        }
+    }
 
     private sealed class DefaultBackendClient : IAetherBackendClient
     {

@@ -78,4 +78,12 @@ public sealed class MessagingOptions
 
     /// <summary>If true, send a delivery <see cref="PacketType.Ack"/> back to the sender on every received message. Default true.</summary>
     public bool SendDeliveryAcks { get; set; } = true;
+
+    /// <summary>
+    /// Optional Brotli payload compression. See <see cref="CompressionOptions"/>
+    /// for the migration concern around the unconditional flag byte; defaults
+    /// to enabled but adopters can set <c>Compression.Enabled = false</c> during
+    /// rollout until all peers understand the flag.
+    /// </summary>
+    public CompressionOptions Compression { get; set; } = new();
 }
