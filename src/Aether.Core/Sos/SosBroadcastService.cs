@@ -3,6 +3,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Aether.Constants;
+using Aether.Diagnostics;
 using Aether.Extensibility;
 using Aether.Models;
 using Aether.Protocol;
@@ -106,6 +107,7 @@ public sealed class SosBroadcastService : ISosBroadcastService
 
         await Task.WhenAll(meshTask, backendTask).ConfigureAwait(false);
 
+        AetherTelemetry.SosBroadcasts.Add(1);
         _logger.LogWarning("SOS originated {Id} type={Type} reach: mesh={Peers} backend={Backend}",
             alert.Id, broadcastType, meshTask.Result, backendTask.Result);
 
@@ -132,7 +134,10 @@ public sealed class SosBroadcastService : ISosBroadcastService
             throw new ArgumentException($"Expected SosBroadcast, got {sosPacket.Type}", nameof(sosPacket));
 
         if (!_seen.TryAdd(sosPacket.Id, 0))
+        {
+            AetherTelemetry.SosRebroadcastsSuppressed.Add(1);
             return;
+        }
 
         SosPayload? body;
         try

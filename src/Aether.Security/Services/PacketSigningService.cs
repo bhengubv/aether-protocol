@@ -4,6 +4,7 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using Aether.Diagnostics;
 using Aether.Protocol;
 using Microsoft.Extensions.Logging;
 
@@ -37,19 +38,31 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
     {
         ArgumentNullException.ThrowIfNull(packet);
 
-        // Fill packet metadata
-        packet.PacketNonce = RandomNumberGenerator.GetBytes(NonceSizeBytes);
-        packet.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        packet.ProtocolVersion = 2;
+        using var activity = AetherTelemetry.ActivitySource.StartActivity("Aether.Sign.Packet");
+        var stopwatch = ValueStopwatch.StartNew();
+        try
+        {
+            // Fill packet metadata
+            packet.PacketNonce = RandomNumberGenerator.GetBytes(NonceSizeBytes);
+            packet.TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            packet.ProtocolVersion = 2;
 
-        // Build signable data and sign
-        var signableData = BuildSignableData(packet);
-        packet.Signature = await _signalProtocol.SignDataAsync(signableData, ct).ConfigureAwait(false);
+            // Build signable data and sign
+            var signableData = BuildSignableData(packet);
+            packet.Signature = await _signalProtocol.SignDataAsync(signableData, ct).ConfigureAwait(false);
 
-        _logger.LogDebug("Signed packet {PacketId} type={Type} src={Source}",
-            packet.Id, packet.Type, LogSanitizer.SanitizeUhid(packet.SourceUhid));
+            if (activity is not null)
+                activity.SetTag("aether.packet.type", (int)packet.Type);
 
-        return packet;
+            _logger.LogDebug("Signed packet {PacketId} type={Type} src={Source}",
+                packet.Id, packet.Type, LogSanitizer.SanitizeUhid(packet.SourceUhid));
+
+            return packet;
+        }
+        finally
+        {
+            AetherTelemetry.SignVerifyLatency.Record(stopwatch.GetElapsedMilliseconds());
+        }
     }
 
     /// <inheritdoc />
@@ -58,40 +71,64 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
         ArgumentNullException.ThrowIfNull(packet);
         ArgumentNullException.ThrowIfNull(senderPublicKey);
 
-        // Check timestamp freshness
-        var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var ageMs = Math.Abs(nowMs - packet.TimestampMs);
-        if (ageMs > FreshnessWindowMs)
+        using var activity = AetherTelemetry.ActivitySource.StartActivity("Aether.Verify.Packet");
+        var stopwatch = ValueStopwatch.StartNew();
+        try
         {
-            _logger.LogWarning("Packet {PacketId} rejected: timestamp too old ({AgeMs}ms)",
-                packet.Id, ageMs);
-            return Task.FromResult(false);
-        }
+            if (activity is not null)
+                activity.SetTag("aether.packet.type", (int)packet.Type);
 
-        // Check nonce deduplication. Key by (SourceUhid, nonce) so a collision
-        // across different senders does NOT drop legitimate traffic — and so an
-        // attacker who pre-registers a nonce against a recipient cannot block
-        // the legitimate sender's first packet. (Pre-2026-05-05: keyed by
-        // nonce alone, which had both failure modes.)
-        var nonceKey = string.Concat(packet.SourceUhid, ":", Convert.ToHexString(packet.PacketNonce));
-        if (!_seenNonces.TryAdd(nonceKey, nowMs))
+            // Check timestamp freshness
+            var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ageMs = Math.Abs(nowMs - packet.TimestampMs);
+            if (ageMs > FreshnessWindowMs)
+            {
+                AetherTelemetry.StaleTimestampsRejected.Add(1);
+                if (activity is not null) activity.SetTag("aether.packet.valid", false);
+                _logger.LogWarning("Packet {PacketId} rejected: timestamp too old ({AgeMs}ms)",
+                    packet.Id, ageMs);
+                return Task.FromResult(false);
+            }
+
+            // Check nonce deduplication. Key by (SourceUhid, nonce) so a collision
+            // across different senders does NOT drop legitimate traffic — and so an
+            // attacker who pre-registers a nonce against a recipient cannot block
+            // the legitimate sender's first packet. (Pre-2026-05-05: keyed by
+            // nonce alone, which had both failure modes.)
+            var nonceKey = string.Concat(packet.SourceUhid, ":", Convert.ToHexString(packet.PacketNonce));
+            if (!_seenNonces.TryAdd(nonceKey, nowMs))
+            {
+                AetherTelemetry.NoncesReplayed.Add(1);
+                if (activity is not null) activity.SetTag("aether.packet.valid", false);
+                _logger.LogWarning("Packet {PacketId} rejected: duplicate nonce from {Source}",
+                    packet.Id, LogSanitizer.SanitizeUhid(packet.SourceUhid));
+                return Task.FromResult(false);
+            }
+
+            // Verify signature
+            var signableData = BuildSignableData(packet);
+            var valid = _signalProtocol.VerifySignature(senderPublicKey, signableData, packet.Signature);
+
+            if (valid)
+            {
+                AetherTelemetry.SignaturesValidated.Add(1);
+            }
+            else
+            {
+                AetherTelemetry.SignaturesRejected.Add(1);
+                _logger.LogWarning("Packet {PacketId} rejected: invalid signature from {Source}",
+                    packet.Id, LogSanitizer.SanitizeUhid(packet.SourceUhid));
+            }
+
+            if (activity is not null)
+                activity.SetTag("aether.packet.valid", valid);
+
+            return Task.FromResult(valid);
+        }
+        finally
         {
-            _logger.LogWarning("Packet {PacketId} rejected: duplicate nonce from {Source}",
-                packet.Id, LogSanitizer.SanitizeUhid(packet.SourceUhid));
-            return Task.FromResult(false);
+            AetherTelemetry.SignVerifyLatency.Record(stopwatch.GetElapsedMilliseconds());
         }
-
-        // Verify signature
-        var signableData = BuildSignableData(packet);
-        var valid = _signalProtocol.VerifySignature(senderPublicKey, signableData, packet.Signature);
-
-        if (!valid)
-        {
-            _logger.LogWarning("Packet {PacketId} rejected: invalid signature from {Source}",
-                packet.Id, LogSanitizer.SanitizeUhid(packet.SourceUhid));
-        }
-
-        return Task.FromResult(valid);
     }
 
     /// <summary>
