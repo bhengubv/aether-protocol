@@ -22,9 +22,17 @@ public sealed class Ed25519SigningService
 
     /// <summary>
     /// The cutoff date after which P-256 legacy signatures are no longer accepted.
-    /// Set to 30 days from first assembly load.
+    /// Pinned to a fixed UTC instant so the deadline does not drift forward
+    /// every time the assembly loads (pre-2026-05-05 used
+    /// <c>DateTimeOffset.UtcNow.AddDays(30)</c> which never expired in practice).
+    ///
+    /// 2026-04-15 was the originally-announced migration cutoff; the deadline
+    /// has passed and P-256 verification is permanently disabled. The fallback
+    /// path is kept as a no-op for source-compatibility with callers that
+    /// still invoke <see cref="VerifyWithFallback"/>.
     /// </summary>
-    private static readonly DateTimeOffset P256MigrationDeadline = DateTimeOffset.UtcNow.AddDays(30);
+    private static readonly DateTimeOffset P256MigrationDeadline =
+        new(2026, 4, 15, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>
     /// Generates a new Ed25519 key pair.
