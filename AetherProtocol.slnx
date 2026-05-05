@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/bench/">
+    <Project Path="bench/Aether.Benchmarks/Aether.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/Aether.Demo.Console/Aether.Demo.Console.csproj" />
   </Folder>
