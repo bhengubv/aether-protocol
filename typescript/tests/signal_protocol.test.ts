@@ -175,6 +175,21 @@ test("signal fixture: ratchet_step_three_iterations", () => {
   }
 });
 
+test("signal fixture: kdf_rk_basic", () => {
+  // Validates Signal Double-Ratchet KDF_RK (§5.2): HKDF-SHA256 over
+  // (salt=root_key, ikm=dh_output, info=UTF8('aether-ratchet-rk-v1'), L=64),
+  // split 32+32 into new_root_key + new_chain_key.
+  const { inputs, expected } = loadFixturePair("kdf_rk_basic");
+  const rootKey = unhex(inputs.root_key_hex);
+  const dhOutput = unhex(inputs.dh_output_hex);
+  const info = Buffer.from(inputs.hkdf_info_utf8 as string, "utf8");
+  const derived = new Uint8Array(hkdf(sha256, dhOutput, rootKey, info, 64));
+  const newRootKey = derived.subarray(0, 32);
+  const newChainKey = derived.subarray(32, 64);
+  assert.equal(hex(newRootKey), expected.new_root_key_hex);
+  assert.equal(hex(newChainKey), expected.new_chain_key_hex);
+});
+
 // ─── End-to-end exercises ────────────────────────────────────────────────
 
 test("X3DH first message round-trips", async () => {
@@ -281,4 +296,180 @@ test("pre-key bundle has both Ed25519 and X25519 identity keys", async () => {
   assert.equal(bundle.signedPreKey.length, 32);
   assert.equal(bundle.preKey.length, 32);
   assert.equal(bundle.signedPreKeySignature.length, 64);
+});
+
+// ─── Double Ratchet (Signal §5) tests ────────────────────────────────────
+
+test("Double Ratchet: every message carries SenderEphemeralKeyX25519", async () => {
+  const alice = new SignalProtocol();
+  const bob = new SignalProtocol();
+  const bobBundle = await bob.generatePreKeyBundle("bob");
+  await alice.generatePreKeyBundle("alice");
+  await alice.processPreKeyBundle(bobBundle);
+
+  const first = await alice.encrypt("bob", new Uint8Array(Buffer.from("a")));
+  assert.ok(first.senderEphemeralKeyX25519);
+  assert.equal(first.senderEphemeralKeyX25519!.length, 32);
+
+  await bob.decrypt("alice", first);
+
+  // Subsequent message also carries senderEphemeralKeyX25519 (same value
+  // — Alice hasn't ratcheted because Bob hasn't responded yet).
+  const second = await alice.encrypt("bob", new Uint8Array(Buffer.from("b")));
+  assert.ok(second.senderEphemeralKeyX25519);
+  assert.deepEqual(
+    Array.from(first.senderEphemeralKeyX25519!),
+    Array.from(second.senderEphemeralKeyX25519!)
+  );
+});
+
+test("Double Ratchet: SenderEphemeralKey rotates after roundtrip", async () => {
+  const alice = new SignalProtocol();
+  const bob = new SignalProtocol();
+  const bobBundle = await bob.generatePreKeyBundle("bob");
+  await alice.generatePreKeyBundle("alice");
+  await alice.processPreKeyBundle(bobBundle);
+
+  // Alice -> Bob: Alice's first ratchet pub.
+  const aliceFirst = await alice.encrypt("bob", new Uint8Array(Buffer.from("ping")));
+  await bob.decrypt("alice", aliceFirst);
+
+  // Bob -> Alice: Bob's first ratchet pub (rotated by responder-side DH ratchet).
+  const bobReply = await bob.encrypt("alice", new Uint8Array(Buffer.from("pong")));
+  assert.ok(bobReply.senderEphemeralKeyX25519);
+  // Bob's ratchet pub MUST differ from Alice's (Bob generated fresh DHs
+  // on his DH-ratchet step).
+  assert.notDeepEqual(
+    Array.from(aliceFirst.senderEphemeralKeyX25519!),
+    Array.from(bobReply.senderEphemeralKeyX25519!)
+  );
+
+  await alice.decrypt("bob", bobReply);
+
+  // Alice -> Bob (after roundtrip): Alice should now use a NEW ratchet
+  // pub (rotated on her DH-ratchet step when she received Bob's reply).
+  const aliceSecond = await alice.encrypt("bob", new Uint8Array(Buffer.from("ping2")));
+  assert.notDeepEqual(
+    Array.from(aliceFirst.senderEphemeralKeyX25519!),
+    Array.from(aliceSecond.senderEphemeralKeyX25519!)
+  );
+  assert.notDeepEqual(
+    Array.from(bobReply.senderEphemeralKeyX25519!),
+    Array.from(aliceSecond.senderEphemeralKeyX25519!)
+  );
+
+  // Bob can still decrypt Alice's new message.
+  const dec = await bob.decrypt("alice", aliceSecond);
+  assert.equal(Buffer.from(dec).toString("utf8"), "ping2");
+});
+
+test("Double Ratchet: PreviousChainCount tracks messages per chain", async () => {
+  const alice = new SignalProtocol();
+  const bob = new SignalProtocol();
+  const bobBundle = await bob.generatePreKeyBundle("bob");
+  await alice.generatePreKeyBundle("alice");
+  await alice.processPreKeyBundle(bobBundle);
+
+  // Alice sends 3 messages without a roundtrip.
+  for (let i = 0; i < 3; i++) {
+    const enc = await alice.encrypt("bob", new Uint8Array(Buffer.from(`a${i}`)));
+    // PN is 0 because this IS Alice's first chain.
+    assert.equal(enc.previousChainCount, 0);
+    await bob.decrypt("alice", enc);
+  }
+
+  // Bob sends a reply, triggering his DH-ratchet step.
+  const bobReply = await bob.encrypt("alice", new Uint8Array(Buffer.from("hi")));
+  // Bob's PN reflects however many messages Bob sent in his previous
+  // sending chain — which was 0 (Bob hadn't sent anything yet before his
+  // DH-ratchet step rotated his chain).
+  assert.equal(bobReply.previousChainCount, 0);
+  await alice.decrypt("bob", bobReply);
+
+  // Alice's next message after her DH-ratchet step. Her PN should be 3
+  // — that's how many messages she sent on her previous chain before
+  // Bob's reply triggered her ratchet.
+  const aliceNew = await alice.encrypt("bob", new Uint8Array(Buffer.from("a3")));
+  assert.equal(aliceNew.previousChainCount, 3);
+});
+
+test("Double Ratchet: out-of-order across DH-ratchet boundary still decrypts", async () => {
+  // Alice sends 3 messages on chain 1. Bob receives only the first 2,
+  // then Alice does a DH-ratchet (because Bob replied) and sends a 4th
+  // on chain 2. The 3rd message (from chain 1) arrives last — Bob must
+  // still be able to decrypt it via the skipped-keys cache keyed by
+  // (Alice's old DHs pub, counter=2).
+  const alice = new SignalProtocol();
+  const bob = new SignalProtocol();
+  const bobBundle = await bob.generatePreKeyBundle("bob");
+  await alice.generatePreKeyBundle("alice");
+  await alice.processPreKeyBundle(bobBundle);
+
+  const a0 = await alice.encrypt("bob", new Uint8Array(Buffer.from("a0")));
+  const a1 = await alice.encrypt("bob", new Uint8Array(Buffer.from("a1")));
+  const a2 = await alice.encrypt("bob", new Uint8Array(Buffer.from("a2")));
+
+  // Bob receives a0, a1 only.
+  assert.equal(Buffer.from(await bob.decrypt("alice", a0)).toString("utf8"), "a0");
+  assert.equal(Buffer.from(await bob.decrypt("alice", a1)).toString("utf8"), "a1");
+
+  // Bob replies — triggers his DH-ratchet step.
+  const bReply = await bob.encrypt("alice", new Uint8Array(Buffer.from("hi")));
+  await alice.decrypt("bob", bReply);
+
+  // Alice sends a4 on her new chain (after her DH-ratchet step).
+  const a4 = await alice.encrypt("bob", new Uint8Array(Buffer.from("a4")));
+  // Bob receives a4 — triggers his second DH-ratchet step. He must
+  // skip-derive a key for Alice's old chain counter=2 because PN=3.
+  assert.equal(Buffer.from(await bob.decrypt("alice", a4)).toString("utf8"), "a4");
+
+  // Now the missing a2 (from Alice's OLD chain) finally arrives. Bob
+  // should pull the skipped key from the cache keyed by (old DHr, 2).
+  assert.equal(Buffer.from(await bob.decrypt("alice", a2)).toString("utf8"), "a2");
+});
+
+test("Double Ratchet: long conversation — 10 alternating messages decrypt", async () => {
+  const alice = new SignalProtocol();
+  const bob = new SignalProtocol();
+  const bobBundle = await bob.generatePreKeyBundle("bob");
+  await alice.generatePreKeyBundle("alice");
+  await alice.processPreKeyBundle(bobBundle);
+
+  // 10 alternating messages — each side ratchets at every roundtrip.
+  for (let i = 0; i < 10; i++) {
+    const aMsg = `alice ${i}`;
+    const aEnc = await alice.encrypt("bob", new Uint8Array(Buffer.from(aMsg)));
+    assert.equal(Buffer.from(await bob.decrypt("alice", aEnc)).toString("utf8"), aMsg);
+
+    const bMsg = `bob ${i}`;
+    const bEnc = await bob.encrypt("alice", new Uint8Array(Buffer.from(bMsg)));
+    assert.equal(Buffer.from(await alice.decrypt("bob", bEnc)).toString("utf8"), bMsg);
+  }
+});
+
+test("Double Ratchet: PreKey msg backward-compat — initiatorEphemeralKey equals senderEphemeralKey", async () => {
+  // Ensures an old peer that only reads InitiatorEphemeralKeyX25519 (the
+  // pre-Double-Ratchet wire field) still gets the correct ratchet pub.
+  const alice = new SignalProtocol();
+  const bob = new SignalProtocol();
+  const bobBundle = await bob.generatePreKeyBundle("bob");
+  await alice.generatePreKeyBundle("alice");
+  await alice.processPreKeyBundle(bobBundle);
+
+  const first = await alice.encrypt("bob", new Uint8Array(Buffer.from("hi")));
+  assert.equal(first.messageType, MESSAGE_TYPE_PRE_KEY);
+  assert.ok(first.senderEphemeralKeyX25519);
+  assert.ok(first.initiatorEphemeralKeyX25519);
+  assert.deepEqual(
+    Array.from(first.initiatorEphemeralKeyX25519!),
+    Array.from(first.senderEphemeralKeyX25519!)
+  );
+
+  // Normal (post-PreKey) message: senderEphemeralKey set,
+  // initiatorEphemeralKey undefined.
+  await bob.decrypt("alice", first);
+  const second = await alice.encrypt("bob", new Uint8Array(Buffer.from("ho")));
+  assert.equal(second.messageType, MESSAGE_TYPE_NORMAL);
+  assert.ok(second.senderEphemeralKeyX25519);
+  assert.equal(second.initiatorEphemeralKeyX25519, undefined);
 });
