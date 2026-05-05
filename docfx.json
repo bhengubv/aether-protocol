@@ -1,0 +1,86 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": [
+            "src/Aether.Core/Aether.Core.csproj",
+            "src/Aether.Security/Aether.Security.csproj",
+            "src/Aether.Messaging/Aether.Messaging.csproj",
+            "src/Aether.Storage/Aether.Storage.csproj",
+            "src/Aether.Transport/Aether.Transport.csproj",
+            "src/Aether.Streaming/Aether.Streaming.csproj",
+            "src/Aether.Voice/Aether.Voice.csproj",
+            "src/Aether.Content/Aether.Content.csproj",
+            "src/Aether.DependencyInjection/Aether.DependencyInjection.csproj"
+          ],
+          "exclude": [
+            "**/bin/**",
+            "**/obj/**"
+          ]
+        }
+      ],
+      "dest": "docs/api",
+      "outputFormat": "mref",
+      "includePrivateMembers": false,
+      "disableGitFeatures": false,
+      "disableDefaultFilter": false,
+      "noRestore": false,
+      "filter": "filterConfig.yml",
+      "memberLayout": "samePage",
+      "EnumSortOrder": "alphabetic",
+      "allowCompilationErrors": false
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "index.md",
+          "toc.yml",
+          "articles/**.md",
+          "articles/**/toc.yml"
+        ],
+        "src": "docs"
+      },
+      {
+        "files": [
+          "api/**.yml",
+          "api/index.md"
+        ],
+        "src": "docs"
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "images/**"
+        ],
+        "src": "docs"
+      }
+    ],
+    "overwrite": [],
+    "globalMetadata": {
+      "_appTitle": "Aether Protocol",
+      "_appName": "Aether Protocol",
+      "_appFooter": "&copy; 2026 The Other Bhengu (Pty) Ltd t/a The Geek. MIT licensed.",
+      "_enableSearch": true,
+      "_disableContribution": false,
+      "_gitContribute": {
+        "repo": "https://github.com/bhengubv/aether-protocol",
+        "branch": "main"
+      },
+      "_appLogoPath": "images/logo.svg"
+    },
+    "dest": "_site",
+    "globalMetadataFiles": [],
+    "fileMetadataFiles": [],
+    "template": [
+      "default",
+      "modern"
+    ],
+    "postProcessors": [],
+    "keepFileLink": false,
+    "disableGitFeatures": false
+  }
+}

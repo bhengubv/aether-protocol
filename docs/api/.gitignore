@@ -1,0 +1,4 @@
+# Generated DocFX metadata — do not commit. Re-run `docfx metadata docfx.json` to regenerate.
+*.yml
+*.manifest
+.manifest
