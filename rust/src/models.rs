@@ -210,23 +210,57 @@ impl PreKeyBundle {
     }
 }
 
-/// Signal Protocol session state.
+/// Signal Protocol session state — X3DH session-establishment metadata plus
+/// full Double-Ratchet state (Signal §5).
+///
+/// Double-Ratchet fields per Signal §5:
+///   * `root_key` (RK)              — re-keyed on every DH-ratchet step.
+///   * `my_ephemeral_priv` (DHs)    — current ratchet private key (32 bytes).
+///   * `my_ephemeral_pub`           — current ratchet public key (32 bytes).
+///   * `remote_ephemeral_pub` (DHr) — peer's last-known ratchet public key.
+///     None until first DH-ratchet step on the responder side.
+///   * `send_chain_key` (CKs)       — None until first send (or until
+///     DH-ratchet rekeys it).
+///   * `recv_chain_key` (CKr)       — None until first DH-ratchet step on
+///     receive.
+///   * `send_counter` / `recv_counter` — Ns / Nr; reset on each DH-ratchet step.
+///   * `previous_chain_count` (PN)  — number of messages sent in the previous
+///     sending chain. Lets the receiver compute skipped keys across a
+///     DH-ratchet boundary.
+///   * `skipped_message_keys`       — keyed by "Hex(DHr_pub):counter". The
+///     DHr_pub binding is essential — out-of-order messages from a previous
+///     chain (different DHr) can still arrive after a DH-ratchet step.
 ///
 /// On the initiator side, `pending_pre_key_message` is true until the first
 /// outbound message is sent. While true, the next encrypt() emits a PreKey
-/// message carrying the four `initiator_*` fields below.
+/// message carrying the four `initiator_*` fields below plus the Double-
+/// Ratchet header (sender_ephemeral_key_x25519 / previous_chain_count).
 #[derive(Debug, Clone)]
 pub struct SignalSession {
     pub peer_uhid: String,
     pub root_key: Vec<u8>,
-    pub send_chain_key: Vec<u8>,
-    pub recv_chain_key: Vec<u8>,
+    /// Sending chain key (Signal §5: CKs). None until first send or DH-ratchet rekeys it.
+    pub send_chain_key: Option<Vec<u8>>,
+    /// Receiving chain key (Signal §5: CKr). None until first DH-ratchet step on receive.
+    pub recv_chain_key: Option<Vec<u8>>,
     pub send_counter: u32,
     pub recv_counter: u32,
+    /// Number of messages sent in the previous sending chain (Signal §5: PN).
+    pub previous_chain_count: u32,
     pub remote_public_key: Vec<u8>,
-    pub skipped_message_keys: std::collections::HashMap<u32, Vec<u8>>,
+    /// Skipped message keys keyed by `"Hex(DHr_pub):counter"`. The DHr_pub
+    /// binding is essential — keys from a previous receive chain must
+    /// remain addressable after a DH-ratchet step swaps DHr.
+    pub skipped_message_keys: std::collections::HashMap<String, Vec<u8>>,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
+
+    /// My current DH-ratchet private key (X25519, 32 bytes).
+    pub my_ephemeral_priv: Vec<u8>,
+    /// My current DH-ratchet public key (X25519, 32 bytes).
+    pub my_ephemeral_pub: Vec<u8>,
+    /// Peer's last-seen DH-ratchet public key. None until first DH-ratchet step.
+    pub remote_ephemeral_pub: Option<Vec<u8>>,
 
     pub pending_pre_key_message: bool,
     pub initiator_identity_key_x25519: Vec<u8>,
@@ -241,14 +275,18 @@ impl SignalSession {
         SignalSession {
             peer_uhid,
             root_key: Vec::new(),
-            send_chain_key: Vec::new(),
-            recv_chain_key: Vec::new(),
+            send_chain_key: None,
+            recv_chain_key: None,
             send_counter: 0,
             recv_counter: 0,
+            previous_chain_count: 0,
             remote_public_key,
             skipped_message_keys: std::collections::HashMap::new(),
             created_at: now,
             updated_at: now,
+            my_ephemeral_priv: Vec::new(),
+            my_ephemeral_pub: Vec::new(),
+            remote_ephemeral_pub: None,
             pending_pre_key_message: false,
             initiator_identity_key_x25519: Vec::new(),
             initiator_ephemeral_key_x25519: Vec::new(),
@@ -260,10 +298,24 @@ impl SignalSession {
 
 /// Wire-level encrypted payload.
 ///
-/// When `message_type` is 1 (PreKey message — the first message from an
-/// initiator before a session is established on the responder side), the
-/// four `initiator_*` fields carry the data the responder needs to run X3DH
-/// on its side. On normal session messages those fields are None/0.
+/// Two layered ratchets contribute fields:
+///
+/// 1. **X3DH session-establishment** (Signal §3) — populated only on the
+///    first message a new initiator sends to a peer (`message_type == 1`):
+///    `initiator_identity_key_x25519`, `used_signed_pre_key_id`,
+///    `used_one_time_pre_key_id`. The responder uses these to run X3DH on its
+///    side and derive the same root key.
+///
+/// 2. **Double Ratchet** (Signal §5) — `sender_ephemeral_key_x25519` and
+///    `previous_chain_count` populated on EVERY message.
+///    `sender_ephemeral_key_x25519` is the sender's current DH-ratchet
+///    public key; when it changes between messages, the receiver runs a
+///    DH-ratchet step that re-keys the chain and provides per-roundtrip
+///    forward secrecy and post-compromise security. On the first PreKey
+///    message, this equals the X3DH ephemeral public key (Signal-canonical
+///    integration: initiator's X3DH ephemeral becomes its first DH-ratchet
+///    public). `initiator_ephemeral_key_x25519` is retained as a backward-
+///    compat alias of `sender_ephemeral_key_x25519` on the PreKey message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedPayload {
     pub ciphertext: Vec<u8>,
@@ -276,7 +328,10 @@ pub struct EncryptedPayload {
     /// PreKey messages: initiator's long-term X25519 identity public key (32 bytes).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub initiator_identity_key_x25519: Option<Vec<u8>>,
-    /// PreKey messages: initiator's ephemeral X25519 public key (32 bytes).
+    /// DEPRECATED: use `sender_ephemeral_key_x25519` instead. Retained for
+    /// backward compatibility with consumers of the pre-Double-Ratchet wire
+    /// envelope. On PreKey messages this equals
+    /// `sender_ephemeral_key_x25519`; on normal messages it is `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub initiator_ephemeral_key_x25519: Option<Vec<u8>>,
     /// PreKey messages: SignedPreKeyId from the recipient bundle the initiator consumed.
@@ -285,6 +340,19 @@ pub struct EncryptedPayload {
     /// PreKey messages: one-time PreKeyId from the recipient bundle the initiator consumed.
     #[serde(default)]
     pub used_one_time_pre_key_id: i32,
+
+    /// Sender's current DH-ratchet X25519 public key (32 bytes). Populated on
+    /// every Double-Ratchet message. When this value changes between
+    /// successive messages from the same peer, the receiver runs a
+    /// DH-ratchet step (Signal §5.2) that re-keys the chain via
+    /// `KDF_RK(rootKey, DH(myDHs, newDHr))`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sender_ephemeral_key_x25519: Option<Vec<u8>>,
+    /// Number of messages the sender sent in its previous sending chain
+    /// (Signal §5: PN). Used by the receiver to compute skipped message
+    /// keys when crossing a DH-ratchet boundary.
+    #[serde(default)]
+    pub previous_chain_count: u32,
 }
 
 impl EncryptedPayload {
@@ -311,6 +379,8 @@ impl EncryptedPayload {
             initiator_ephemeral_key_x25519: None,
             used_signed_pre_key_id: 0,
             used_one_time_pre_key_id: 0,
+            sender_ephemeral_key_x25519: None,
+            previous_chain_count: 0,
         }
     }
 }

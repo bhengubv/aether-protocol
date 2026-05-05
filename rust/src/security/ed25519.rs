@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature, SigningKey, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand::Rng;
 
 /// Ed25519 signing service for Aether protocol
@@ -28,7 +28,9 @@ impl Ed25519SigningService {
             return Err("Ed25519 private key must be 32 bytes".into());
         }
 
-        let signing_key = SigningKey::from_bytes(private_key);
+        let pk_arr = <[u8; 32]>::try_from(private_key)
+            .map_err(|_| "Ed25519 private key must be 32 bytes")?;
+        let signing_key = SigningKey::from_bytes(&pk_arr);
         let signature = signing_key.sign(data);
 
         Ok(signature.to_bytes().to_vec())
@@ -58,9 +60,7 @@ impl Ed25519SigningService {
             return false;
         };
 
-        let Ok(signature_obj) = Signature::from_bytes(&sig_bytes) else {
-            return false;
-        };
+        let signature_obj = Signature::from_bytes(&sig_bytes);
 
         verifying_key.verify_strict(data, &signature_obj).is_ok()
     }
