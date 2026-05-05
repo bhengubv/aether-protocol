@@ -78,4 +78,13 @@ public interface IAetherProtocolBuilder
     /// otherwise the registrations are a no-op.
     /// </summary>
     IAetherProtocolBuilder AddHealthChecks();
+
+    /// <summary>
+    /// Register <c>HandshakeService</c> as a singleton. Requires <c>IMeshSender</c>.
+    /// Wires the protocol-version + capability negotiation entry point that
+    /// runs on first contact with each peer (<c>PacketType.Hello</c> /
+    /// <c>PacketType.HelloAck</c>). Once added, hosts can resolve
+    /// <c>IHandshakeService</c>.
+    /// </summary>
+    IAetherProtocolBuilder AddHandshake();
 }
