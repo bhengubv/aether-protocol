@@ -17,6 +17,11 @@
   <ItemGroup>
     <ProjectReference Include="../Aether.Core/Aether.Core.csproj" />
     <ProjectReference Include="../Aether.Messaging/Aether.Messaging.csproj" />
+    <ProjectReference Include="../Aether.Security/Aether.Security.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Aether.Core.Tests" />
   </ItemGroup>
 
 </Project>
