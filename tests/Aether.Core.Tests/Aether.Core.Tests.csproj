@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Aether.Core/Aether.Core.csproj" />
     <ProjectReference Include="../../src/Aether.Security/Aether.Security.csproj" />
+    <ProjectReference Include="../../src/Aether.Messaging/Aether.Messaging.csproj" />
   </ItemGroup>
 
 </Project>
