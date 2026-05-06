@@ -22,8 +22,8 @@ dependencies {
     implementation(kotlin("stdlib"))
 
     // Logging
-    implementation("org.slf4j:slf4j-api:2.0.9")
-    implementation("org.slf4j:slf4j-simple:2.0.9")
+    implementation("org.slf4j:slf4j-api:2.0.17")
+    implementation("org.slf4j:slf4j-simple:2.0.17")
 
     // Testing
     testImplementation(kotlin("test"))
