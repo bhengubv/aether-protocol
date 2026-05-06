@@ -10,12 +10,47 @@ export { PacketSerializer } from "./protocol/PacketSerializer.js";
 
 // Security
 export { Ed25519Service } from "./security/Ed25519Service.js";
-export { SignalProtocol } from "./security/SignalProtocol.js";
+export {
+  SignalProtocol,
+  DEFAULT_OPK_POOL_SIZE,
+  DEFAULT_SPK_ROTATION_OPTIONS,
+} from "./security/SignalProtocol.js";
+export type {
+  SignalProtocolOptions,
+  SignedPreKeyRotationOptions,
+  PreKeyBundle,
+  EncryptedPayload,
+  OpkPoolStatus,
+} from "./security/SignalProtocol.js";
+export {
+  InMemorySignalSessionStore,
+  KeyValueSignalSessionStore,
+  serializeSignalSession,
+  deserializeSignalSession,
+} from "./security/SignalSessionStore.js";
+export type {
+  SignalSessionStore,
+  StoredSignalSession,
+} from "./security/SignalSessionStore.js";
+export {
+  InMemoryPreKeyStore,
+  KeyValuePreKeyStore,
+} from "./security/PreKeyStore.js";
+export type {
+  PreKeyStore,
+  StoredIdentityKeys,
+  StoredSignedPreKey,
+  StoredSignedPreKeyHistory,
+  StoredOneTimePreKey,
+} from "./security/PreKeyStore.js";
 export {
   signPacket,
   verifyPacket,
   PacketDeduplicator,
 } from "./security/PacketSigning.js";
+
+// Storage
+export * from "./storage/index.js";
 
 // Transport
 export { InProcessTransport } from "./transport/InProcessTransport.js";

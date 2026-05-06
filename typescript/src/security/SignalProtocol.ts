@@ -46,6 +46,17 @@ import {
   AES_GCM_TAG_SIZE,
 } from "../constants.js";
 import { Ed25519Service } from "./Ed25519Service.js";
+import {
+  PreKeyStore,
+  StoredIdentityKeys,
+  StoredSignedPreKey,
+  StoredSignedPreKeyHistory,
+  StoredOneTimePreKey,
+} from "./PreKeyStore.js";
+import {
+  SignalSessionStore,
+  StoredSignalSession,
+} from "./SignalSessionStore.js";
 
 // HKDF info strings — these MUST match the C# reference (and every other
 // language). Any drift breaks cross-language interop.
@@ -209,10 +220,22 @@ interface OneTimePreKey {
  * src/Aether.Security/Services/SignalProtocolService.cs.
  */
 interface PreKeyState {
+  /**
+   * Active signed-pre-key id. Mirrors the id of {@code signedPreKeyHistory[length-1]}
+   * — kept as a denormalised field for the existing fast-path code that
+   * references it directly without a list lookup.
+   */
   signedPreKeyId: number;
   signedPreKeyPriv: Uint8Array;
   signedPreKeyPub: Uint8Array;
   signedPreKeySignature: Uint8Array;
+  /**
+   * Signed-pre-key history: oldest first, newest last. The newest entry
+   * (i.e. the last) is the active SPK that gets handed out in bundles.
+   * Older entries are retained for the rotation window so that messages
+   * signed under a recently-rotated SPK can still complete X3DH.
+   */
+  signedPreKeyHistory: SignedPreKeyEntry[];
   /** All OPKs currently held — un-issued AND issued-but-not-consumed. */
   oneTimePreKeys: Map<number, OneTimePreKey>;
   /**
@@ -222,6 +245,47 @@ interface PreKeyState {
    */
   availableOpkIds: number[];
 }
+
+/**
+ * One signed-pre-key in the history (active or retained-prior). The
+ * private half is held so that responder-side X3DH can still complete
+ * when a peer presents a slightly-stale SPK during the rotation window.
+ */
+interface SignedPreKeyEntry {
+  id: number;
+  privateKey: Uint8Array;
+  publicKey: Uint8Array;
+  signature: Uint8Array;
+  /** Unix epoch milliseconds. */
+  generatedAtUnixMs: number;
+}
+
+/**
+ * Configuration for periodic signed-pre-key rotation (Signal §3.3 — keys
+ * SHOULD be rotated periodically).
+ *
+ * On every {@link SignalProtocol.generatePreKeyBundle} call the service
+ * checks whether the active SPK is older than {@link rotationIntervalMs};
+ * if it is, a fresh SPK is generated and the old one is appended to the
+ * history. The history is then trimmed to keep at most
+ * {@link retainedHistoryCount} prior entries (plus the new active one).
+ * Messages signed under any retained SPK still decrypt; messages signed
+ * under a pruned SPK fail.
+ *
+ * Mirrors the C# {@code SignedPreKeyRotationOptions} record.
+ */
+export interface SignedPreKeyRotationOptions {
+  /** Rotation interval in milliseconds. Default: 7 days. */
+  rotationIntervalMs: number;
+  /** Number of retained prior entries (in addition to the active one). Default: 3. */
+  retainedHistoryCount: number;
+}
+
+/** Default rotation options: 7-day interval, 3 retained prior entries. */
+export const DEFAULT_SPK_ROTATION_OPTIONS: SignedPreKeyRotationOptions = Object.freeze({
+  rotationIntervalMs: 7 * 24 * 60 * 60 * 1000,
+  retainedHistoryCount: 3,
+});
 
 /** Default size of the one-time pre-key pool (matches C# DefaultOpkPoolSize). */
 export const DEFAULT_OPK_POOL_SIZE = 100;
@@ -235,6 +299,44 @@ export interface SignalProtocolOptions {
    * {@link DEFAULT_OPK_POOL_SIZE}.
    */
   opkPoolSize?: number;
+
+  /**
+   * Persistent session store. When supplied, every encrypt / decrypt
+   * mutation triggers a save and existing sessions are loaded on
+   * construction. Saves are best-effort: failures are logged via
+   * {@code onPersistenceError} (or swallowed) and the message flow
+   * continues uninterrupted.
+   */
+  sessionStore?: SignalSessionStore;
+
+  /**
+   * Persistent pre-key store. When supplied, identity keys, the SPK
+   * history and the OPK pool are loaded on construction (or generated
+   * + saved if no prior state exists), and every mutation triggers a
+   * best-effort save.
+   */
+  preKeyStore?: PreKeyStore;
+
+  /**
+   * Configuration for periodic signed-pre-key rotation. Defaults to
+   * {@link DEFAULT_SPK_ROTATION_OPTIONS} (7-day interval, 3 retained
+   * prior entries).
+   */
+  rotationOptions?: SignedPreKeyRotationOptions;
+
+  /**
+   * Synthetic clock — used by tests to drive rotation deterministically.
+   * Defaults to {@code () => new Date()}.
+   */
+  nowProvider?: () => Date;
+
+  /**
+   * Optional sink for persistence-layer errors. Invoked with a message
+   * string; receivers typically forward to a logger. Defaults to a
+   * silent no-op so persistence failures never bubble up the message
+   * flow.
+   */
+  onPersistenceError?: (message: string, err: unknown) => void;
 }
 
 /** Snapshot of the OPK pool's current size, exposed for tests/observability. */
@@ -393,6 +495,7 @@ export class SignalProtocol {
     signedPreKeyPriv: new Uint8Array(),
     signedPreKeyPub: new Uint8Array(),
     signedPreKeySignature: new Uint8Array(),
+    signedPreKeyHistory: [],
     oneTimePreKeys: new Map(),
     availableOpkIds: [],
   };
@@ -405,12 +508,41 @@ export class SignalProtocol {
    */
   private opkLock: Promise<void> = Promise.resolve();
 
+  // ─── Persistence wiring ────────────────────────────────────────────────
+  private readonly sessionStore?: SignalSessionStore;
+  private readonly preKeyStore?: PreKeyStore;
+  private readonly rotationOptions: SignedPreKeyRotationOptions;
+  private readonly nowProvider: () => Date;
+  private readonly onPersistenceError: (message: string, err: unknown) => void;
+  /**
+   * Promise that resolves once the constructor's hydration pass has
+   * finished. Every async public method awaits this before touching
+   * state so a fresh instance handed to encrypt() before its stores
+   * have loaded behaves identically to one whose hydration completed
+   * first.
+   */
+  private readonly hydration: Promise<void>;
+
   constructor(options: SignalProtocolOptions = {}) {
     const opkPoolSize = options.opkPoolSize ?? DEFAULT_OPK_POOL_SIZE;
     if (!Number.isInteger(opkPoolSize) || opkPoolSize < 1) {
       throw new Error(`opkPoolSize must be an integer >= 1 (got ${opkPoolSize}).`);
     }
     this.opkPoolSize = opkPoolSize;
+
+    this.sessionStore = options.sessionStore;
+    this.preKeyStore = options.preKeyStore;
+    this.rotationOptions = options.rotationOptions ?? DEFAULT_SPK_ROTATION_OPTIONS;
+    this.nowProvider = options.nowProvider ?? (() => new Date());
+    this.onPersistenceError =
+      options.onPersistenceError ?? ((_msg, _err) => undefined);
+
+    if (this.rotationOptions.rotationIntervalMs <= 0) {
+      throw new Error("rotationOptions.rotationIntervalMs must be > 0.");
+    }
+    if (this.rotationOptions.retainedHistoryCount < 0) {
+      throw new Error("rotationOptions.retainedHistoryCount must be >= 0.");
+    }
 
     const ed25519KeyPair = Ed25519Service.generateKeyPair();
     this.ed25519PrivateKey = ed25519KeyPair.privateKey;
@@ -419,6 +551,240 @@ export class SignalProtocol {
     const x = generateX25519KeyPair();
     this.identityX25519Priv = x.priv;
     this.identityX25519Pub = x.pub;
+
+    // Hydration runs asynchronously off the constructor; every public
+    // async entry point awaits this.hydration before touching state.
+    this.hydration = this.hydrate();
+  }
+
+  /**
+   * Returns a promise that resolves once the constructor's hydration
+   * pass (loading identity, SPK history, OPK pool, sessions from the
+   * configured stores) has completed. Tests that want to assert state
+   * immediately after construction should await this. Public async
+   * methods already await internally — callers can ignore this for
+   * normal use.
+   */
+  ready(): Promise<void> {
+    return this.hydration;
+  }
+
+  /**
+   * Loads persisted identity, SPK history, OPK pool, and active
+   * sessions from the configured stores. Best-effort: any failure
+   * surfaces via {@link onPersistenceError} but never throws — the
+   * caller continues with the freshly-generated identity.
+   */
+  private async hydrate(): Promise<void> {
+    if (this.preKeyStore) {
+      try {
+        const stored = await this.preKeyStore.loadIdentity();
+        if (stored) {
+          this.ed25519PrivateKey = new Uint8Array(stored.ed25519PrivateKey);
+          this.ed25519PublicKey = new Uint8Array(stored.ed25519PublicKey);
+          this.identityX25519Priv = new Uint8Array(stored.x25519PrivateKey);
+          this.identityX25519Pub = new Uint8Array(stored.x25519PublicKey);
+          if (stored.localUhid) this.localUhid = stored.localUhid;
+        } else {
+          // First boot — persist the freshly-generated identity.
+          await this.preKeyStore.saveIdentity({
+            ed25519PrivateKey: new Uint8Array(this.ed25519PrivateKey),
+            ed25519PublicKey: new Uint8Array(this.ed25519PublicKey),
+            x25519PrivateKey: new Uint8Array(this.identityX25519Priv),
+            x25519PublicKey: new Uint8Array(this.identityX25519Pub),
+            localUhid: this.localUhid ?? null,
+          });
+        }
+      } catch (err) {
+        this.onPersistenceError("Failed to hydrate identity keys.", err);
+      }
+
+      try {
+        const history = await this.preKeyStore.loadSignedPreKeys();
+        const sorted = [...history.entries].sort(
+          (a, b) => a.generatedAtUnixMs - b.generatedAtUnixMs
+        );
+        this.preKeys.signedPreKeyHistory = sorted.map((e) => ({
+          id: e.id,
+          privateKey: new Uint8Array(e.privateKey),
+          publicKey: new Uint8Array(e.publicKey),
+          signature: new Uint8Array(e.signature),
+          generatedAtUnixMs: e.generatedAtUnixMs,
+        }));
+        if (this.preKeys.signedPreKeyHistory.length > 0) {
+          const active = this.preKeys.signedPreKeyHistory[this.preKeys.signedPreKeyHistory.length - 1];
+          this.preKeys.signedPreKeyId = active.id;
+          this.preKeys.signedPreKeyPriv = active.privateKey;
+          this.preKeys.signedPreKeyPub = active.publicKey;
+          this.preKeys.signedPreKeySignature = active.signature;
+        }
+      } catch (err) {
+        this.onPersistenceError("Failed to hydrate SPK history.", err);
+      }
+
+      try {
+        const pool = await this.preKeyStore.loadOneTimePreKeys();
+        this.preKeys.oneTimePreKeys.clear();
+        this.preKeys.availableOpkIds.length = 0;
+        for (const [id, opk] of pool.entries()) {
+          this.preKeys.oneTimePreKeys.set(id, {
+            priv: new Uint8Array(opk.privateKey),
+            pub: new Uint8Array(opk.publicKey),
+          });
+          if (!opk.issued) this.preKeys.availableOpkIds.push(id);
+        }
+      } catch (err) {
+        this.onPersistenceError("Failed to hydrate OPK pool.", err);
+      }
+    }
+
+    if (this.sessionStore) {
+      try {
+        const peers = await this.sessionStore.listPeers();
+        for (const peer of peers) {
+          try {
+            const stored = await this.sessionStore.load(peer);
+            if (stored) {
+              this.sessions.set(peer, this.fromStoredSession(stored));
+            }
+          } catch (err) {
+            this.onPersistenceError(`Failed to load session for peer.`, err);
+          }
+        }
+      } catch (err) {
+        this.onPersistenceError("Failed to enumerate persisted sessions.", err);
+      }
+    }
+  }
+
+  // ─── Best-effort persistence helpers ──────────────────────────────────
+
+  /**
+   * Promise chain tracking every in-flight fire-and-forget save. Fresh
+   * write Promises are appended; tests / hosts can {@link flushPendingWrites}
+   * to wait for the chain to settle before snapshotting state. Saves
+   * are best-effort: errors are routed through {@link onPersistenceError}
+   * but never reject the chain.
+   */
+  private pendingWrites: Promise<void> = Promise.resolve();
+
+  /**
+   * Awaits every fire-and-forget persistence write started up to the
+   * current call. Useful in tests that need to assert the underlying
+   * store contents, or for hosts implementing graceful shutdown.
+   */
+  flushPendingWrites(): Promise<void> {
+    return this.pendingWrites;
+  }
+
+  private trackWrite(label: string, work: () => Promise<void>): void {
+    const next = this.pendingWrites
+      .catch(() => undefined)
+      .then(() => work())
+      .catch((err) => this.onPersistenceError(label, err));
+    this.pendingWrites = next;
+  }
+
+  private persistSession(peerUhid: string, session: SignalSession): void {
+    if (!this.sessionStore) return;
+    const snapshot = this.toStoredSession(session);
+    const store = this.sessionStore;
+    this.trackWrite("Failed to persist session.", () => store.save(peerUhid, snapshot));
+  }
+
+  private persistIdentity(): void {
+    if (!this.preKeyStore) return;
+    const snapshot: StoredIdentityKeys = {
+      ed25519PrivateKey: new Uint8Array(this.ed25519PrivateKey),
+      ed25519PublicKey: new Uint8Array(this.ed25519PublicKey),
+      x25519PrivateKey: new Uint8Array(this.identityX25519Priv),
+      x25519PublicKey: new Uint8Array(this.identityX25519Pub),
+      localUhid: this.localUhid ?? null,
+    };
+    const store = this.preKeyStore;
+    this.trackWrite("Failed to persist identity keys.", () => store.saveIdentity(snapshot));
+  }
+
+  private persistSignedPreKeys(): void {
+    if (!this.preKeyStore) return;
+    const snapshot: StoredSignedPreKeyHistory = {
+      entries: this.preKeys.signedPreKeyHistory.map((e) => ({
+        id: e.id,
+        privateKey: new Uint8Array(e.privateKey),
+        publicKey: new Uint8Array(e.publicKey),
+        signature: new Uint8Array(e.signature),
+        generatedAtUnixMs: e.generatedAtUnixMs,
+      })),
+    };
+    const store = this.preKeyStore;
+    this.trackWrite("Failed to persist SPK history.", () => store.saveSignedPreKeys(snapshot));
+  }
+
+  private persistOneTimePreKeys(): void {
+    if (!this.preKeyStore) return;
+    const issued = new Set<number>(this.preKeys.oneTimePreKeys.keys());
+    for (const id of this.preKeys.availableOpkIds) issued.delete(id);
+    const snapshot = new Map<number, StoredOneTimePreKey>();
+    for (const [id, opk] of this.preKeys.oneTimePreKeys.entries()) {
+      snapshot.set(id, {
+        id,
+        privateKey: new Uint8Array(opk.priv),
+        publicKey: new Uint8Array(opk.pub),
+        issued: issued.has(id),
+      });
+    }
+    const store = this.preKeyStore;
+    this.trackWrite("Failed to persist OPK pool.", () => store.saveOneTimePreKeys(snapshot));
+  }
+
+  private consumeOneTimePreKey(id: number): void {
+    if (!this.preKeyStore) return;
+    const store = this.preKeyStore;
+    this.trackWrite(`Failed to consume OPK ${id}.`, () => store.consumeOneTimePreKey(id));
+  }
+
+  // ─── Session ↔ StoredSignalSession ────────────────────────────────────
+
+  private toStoredSession(s: SignalSession): StoredSignalSession {
+    return {
+      rootKey: new Uint8Array(s.rootKey),
+      sendChainKey: s.sendChainKey ? new Uint8Array(s.sendChainKey) : null,
+      recvChainKey: s.recvChainKey ? new Uint8Array(s.recvChainKey) : null,
+      sendCounter: s.sendCounter,
+      recvCounter: s.recvCounter,
+      previousChainCount: s.previousChainCount,
+      myEphemeralPriv: new Uint8Array(s.myEphemeralPriv),
+      myEphemeralPub: new Uint8Array(s.myEphemeralPub),
+      remoteEphemeralPub: s.remoteEphemeralPub ? new Uint8Array(s.remoteEphemeralPub) : null,
+      skippedMessageKeys: new Map(
+        Array.from(s.skippedMessageKeys.entries()).map(([k, v]) => [k, new Uint8Array(v)])
+      ),
+      pendingPreKeyMessage: s.pendingPreKeyMessage,
+      initiatorIdentityKeyX25519: new Uint8Array(s.initiatorIdentityKeyX25519),
+      usedSignedPreKeyId: s.usedSignedPreKeyId,
+      usedOneTimePreKeyId: s.usedOneTimePreKeyId,
+    };
+  }
+
+  private fromStoredSession(s: StoredSignalSession): SignalSession {
+    return {
+      rootKey: new Uint8Array(s.rootKey),
+      sendChainKey: s.sendChainKey ? new Uint8Array(s.sendChainKey) : null,
+      recvChainKey: s.recvChainKey ? new Uint8Array(s.recvChainKey) : null,
+      sendCounter: s.sendCounter,
+      recvCounter: s.recvCounter,
+      previousChainCount: s.previousChainCount,
+      myEphemeralPriv: new Uint8Array(s.myEphemeralPriv),
+      myEphemeralPub: new Uint8Array(s.myEphemeralPub),
+      remoteEphemeralPub: s.remoteEphemeralPub ? new Uint8Array(s.remoteEphemeralPub) : null,
+      skippedMessageKeys: new Map(
+        Array.from(s.skippedMessageKeys.entries()).map(([k, v]) => [k, new Uint8Array(v)])
+      ),
+      pendingPreKeyMessage: s.pendingPreKeyMessage,
+      initiatorIdentityKeyX25519: new Uint8Array(s.initiatorIdentityKeyX25519),
+      usedSignedPreKeyId: s.usedSignedPreKeyId,
+      usedOneTimePreKeyId: s.usedOneTimePreKeyId,
+    };
   }
 
   /**
@@ -437,7 +803,9 @@ export class SignalProtocol {
   /** Sets the local node's UHID. Required before any encrypt() call. */
   setLocalUhid(uhid: string): void {
     if (!uhid) throw new Error("uhid cannot be empty");
+    const changed = this.localUhid !== uhid;
     this.localUhid = uhid;
+    if (changed) this.persistIdentity();
   }
 
   hasSession(peerUhid: string): boolean {
@@ -445,6 +813,7 @@ export class SignalProtocol {
   }
 
   async encrypt(peerUhid: string, plaintext: Uint8Array): Promise<EncryptedPayload> {
+    await this.hydration;
     const session = this.sessions.get(peerUhid);
     if (!session) {
       throw new Error(`No session established with peer ${peerUhid}`);
@@ -503,13 +872,16 @@ export class SignalProtocol {
         usedOneTimePreKeyId: session.usedOneTimePreKeyId,
       };
       session.pendingPreKeyMessage = false;
+      this.persistSession(peerUhid, session);
       return payload;
     }
 
+    this.persistSession(peerUhid, session);
     return base;
   }
 
   async decrypt(peerUhid: string, payload: EncryptedPayload): Promise<Uint8Array> {
+    await this.hydration;
     // Every Double-Ratchet message carries the sender's current ratchet
     // public key. Fall back to initiatorEphemeralKeyX25519 for backward
     // compatibility with older PreKey messages from peers that haven't
@@ -594,18 +966,58 @@ export class SignalProtocol {
     decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     messageKey.fill(0);
+
+    this.persistSession(peerUhid, session);
     return new Uint8Array(plaintext);
   }
 
   async generatePreKeyBundle(localUhid: string): Promise<PreKeyBundle> {
     if (!localUhid) throw new Error("localUhid cannot be empty");
+    await this.hydration;
+
+    const uhidChanged = this.localUhid !== localUhid;
     this.localUhid = localUhid;
+    if (uhidChanged) this.persistIdentity();
 
     // Serialise OPK-pool mutations: chain this call onto opkLock so two
     // concurrent generatePreKeyBundle awaits cannot interleave their pool
     // mutations. Single-threaded JS still permits this kind of race because
     // await is a yield point.
     return this.runUnderOpkLock(() => this.generatePreKeyBundleInner(localUhid));
+  }
+
+  /**
+   * Forces a signed-pre-key rotation if the active SPK is older than
+   * {@link SignedPreKeyRotationOptions.rotationIntervalMs}, OR if no
+   * SPK has ever been generated. Returns true iff a new SPK was
+   * generated and persisted.
+   */
+  async rotateSignedPreKey(): Promise<boolean> {
+    await this.hydration;
+    return this.runUnderOpkLock(() => {
+      const history = this.preKeys.signedPreKeyHistory;
+      const shouldRotate =
+        history.length === 0 ||
+        this.nowProvider().getTime() - history[history.length - 1].generatedAtUnixMs >=
+          this.rotationOptions.rotationIntervalMs;
+      if (!shouldRotate) return false;
+      this.appendNewSignedPreKey();
+      this.persistSignedPreKeys();
+      return true;
+    });
+  }
+
+  /**
+   * Active signed-pre-key id. 0 if none has been generated yet.
+   * Exposed for tests and observability.
+   */
+  get activeSignedPreKeyId(): number {
+    return this.preKeys.signedPreKeyId;
+  }
+
+  /** Number of signed-pre-keys held — active + retained prior. */
+  get signedPreKeyHistoryCount(): number {
+    return this.preKeys.signedPreKeyHistory.length;
   }
 
   /**
@@ -629,22 +1041,29 @@ export class SignalProtocol {
   }
 
   private async generatePreKeyBundleInner(localUhid: string): Promise<PreKeyBundle> {
-    // SignedPreKey: lazily generated on first call. Subsequent calls reuse
-    // the active SPK (rotation is out of scope for this TS port — the C#
-    // reference adds rotation-window support behind a SignedPreKeyRotationOptions).
-    let signedPreKeyId = this.preKeys.signedPreKeyId;
-    let spkPub = this.preKeys.signedPreKeyPub;
-    let signature = this.preKeys.signedPreKeySignature;
-    if (signedPreKeyId === 0 || spkPub.length === 0) {
-      const spk = generateX25519KeyPair();
-      signedPreKeyId = randomPositiveInt32();
-      signature = Ed25519Service.sign(this.ed25519PrivateKey, spk.pub);
-      this.preKeys.signedPreKeyId = signedPreKeyId;
-      this.preKeys.signedPreKeyPriv = spk.priv;
-      this.preKeys.signedPreKeyPub = spk.pub;
-      this.preKeys.signedPreKeySignature = signature;
-      spkPub = spk.pub;
+    // SignedPreKey: generated lazily on the first bundle call. On
+    // subsequent calls the active SPK is reused unless its age exceeds
+    // rotationIntervalMs, in which case a fresh SPK is generated and
+    // the history is rolled forward. The retained history (configurable)
+    // lets messages signed under a recently-rotated SPK still complete
+    // X3DH during the rotation window.
+    let historyMutated = false;
+    if (this.preKeys.signedPreKeyHistory.length === 0) {
+      this.appendNewSignedPreKey();
+      historyMutated = true;
+    } else {
+      const active = this.preKeys.signedPreKeyHistory[this.preKeys.signedPreKeyHistory.length - 1];
+      const ageMs = this.nowProvider().getTime() - active.generatedAtUnixMs;
+      if (ageMs >= this.rotationOptions.rotationIntervalMs) {
+        this.appendNewSignedPreKey();
+        historyMutated = true;
+      }
     }
+
+    const active = this.preKeys.signedPreKeyHistory[this.preKeys.signedPreKeyHistory.length - 1];
+    const signedPreKeyId = active.id;
+    const spkPub = active.publicKey;
+    const signature = active.signature;
 
     // Top up the OPK pool to {@link opkPoolSize} un-issued entries, then
     // pop the next un-issued OPK off the front of the FIFO queue.
@@ -657,6 +1076,9 @@ export class SignalProtocol {
     }
     const otpk = this.preKeys.oneTimePreKeys.get(preKeyId)!;
 
+    if (historyMutated) this.persistSignedPreKeys();
+    this.persistOneTimePreKeys();
+
     return {
       uhid: localUhid,
       identityKey: new Uint8Array(this.ed25519PublicKey),
@@ -667,6 +1089,38 @@ export class SignalProtocol {
       signedPreKey: new Uint8Array(spkPub),
       signedPreKeySignature: signature,
     };
+  }
+
+  /**
+   * Generates a fresh SPK, appends it to the history as the new active
+   * entry, and trims the history to the retained-count budget. Caller
+   * MUST hold {@link opkLock} (which serialises pre-key state mutations).
+   */
+  private appendNewSignedPreKey(): void {
+    const spk = generateX25519KeyPair();
+    const id = randomPositiveInt32();
+    const sig = Ed25519Service.sign(this.ed25519PrivateKey, spk.pub);
+    const entry: SignedPreKeyEntry = {
+      id,
+      privateKey: spk.priv,
+      publicKey: spk.pub,
+      signature: sig,
+      generatedAtUnixMs: this.nowProvider().getTime(),
+    };
+    this.preKeys.signedPreKeyHistory.push(entry);
+
+    const maxEntries = 1 + this.rotationOptions.retainedHistoryCount;
+    while (this.preKeys.signedPreKeyHistory.length > maxEntries) {
+      const pruned = this.preKeys.signedPreKeyHistory.shift()!;
+      // Best-effort scrub of the pruned private half.
+      pruned.privateKey.fill(0);
+    }
+
+    const active = this.preKeys.signedPreKeyHistory[this.preKeys.signedPreKeyHistory.length - 1];
+    this.preKeys.signedPreKeyId = active.id;
+    this.preKeys.signedPreKeyPriv = active.privateKey;
+    this.preKeys.signedPreKeyPub = active.publicKey;
+    this.preKeys.signedPreKeySignature = active.signature;
   }
 
   /**
@@ -708,6 +1162,7 @@ export class SignalProtocol {
    * (messageType=1).
    */
   async processPreKeyBundle(bundle: PreKeyBundle): Promise<void> {
+    await this.hydration;
     const ok = Ed25519Service.verify(
       bundle.identityKey,
       bundle.signedPreKey,
@@ -758,6 +1213,7 @@ export class SignalProtocol {
       usedOneTimePreKeyId: bundle.preKeyId,
     };
     this.sessions.set(bundle.uhid, session);
+    this.persistSession(bundle.uhid, session);
 
     // Best-effort scrubbing.
     shared.fill(0);
@@ -787,12 +1243,14 @@ export class SignalProtocol {
     if (initiatorRatchetPub.length !== X25519_PUBLIC_KEY_SIZE) {
       throw new Error(`Initiator ratchet pub wrong size: ${initiatorRatchetPub.length}`);
     }
-    if (
-      this.preKeys.signedPreKeyId !== (payload.usedSignedPreKeyId ?? 0) ||
-      this.preKeys.signedPreKeyPriv.length === 0
-    ) {
+    // Walk the FULL SPK history (active + retained prior). A pruned
+    // SPK fails outright because its private half has been zeroed and
+    // dropped from the history when it aged out.
+    const spkId = payload.usedSignedPreKeyId ?? 0;
+    const spkEntry = this.findSignedPreKey(spkId);
+    if (!spkEntry || spkEntry.privateKey.length === 0) {
       throw new Error(
-        `PreKey message references signed pre-key id ${payload.usedSignedPreKeyId} which is not held by this node.`
+        `PreKey message references signed pre-key id ${spkId} which is not held by this node (rotated out or never generated).`
       );
     }
     const opkId = payload.usedOneTimePreKeyId ?? 0;
@@ -804,9 +1262,9 @@ export class SignalProtocol {
     }
 
     // Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
-    const dh1 = x25519Agree(this.preKeys.signedPreKeyPriv, ik);
+    const dh1 = x25519Agree(spkEntry.privateKey, ik);
     const dh2 = x25519Agree(this.identityX25519Priv, initiatorRatchetPub);
-    const dh3 = x25519Agree(this.preKeys.signedPreKeyPriv, initiatorRatchetPub);
+    const dh3 = x25519Agree(spkEntry.privateKey, initiatorRatchetPub);
     const dh4 = x25519Agree(otpk.priv, initiatorRatchetPub);
 
     const shared = concat(dh1, dh2, dh3, dh4);
@@ -815,32 +1273,48 @@ export class SignalProtocol {
     // Adopt SPK as the initial DHs. The DH-ratchet step that follows
     // (forced by remoteEphemeralPub=null on the upcoming decrypt) will
     // rotate it to a fresh keypair.
-    this.sessions.set(peerUhid, {
+    const newSession: SignalSession = {
       rootKey,
       sendChainKey: null,
       recvChainKey: null,
       sendCounter: 0,
       recvCounter: 0,
       previousChainCount: 0,
-      myEphemeralPriv: new Uint8Array(this.preKeys.signedPreKeyPriv),
-      myEphemeralPub: new Uint8Array(this.preKeys.signedPreKeyPub),
+      myEphemeralPriv: new Uint8Array(spkEntry.privateKey),
+      myEphemeralPub: new Uint8Array(spkEntry.publicKey),
       remoteEphemeralPub: null,                            // forces DH-ratchet on first decrypt
       skippedMessageKeys: new Map(),
       pendingPreKeyMessage: false,
       initiatorIdentityKeyX25519: new Uint8Array(),
       usedSignedPreKeyId: 0,
       usedOneTimePreKeyId: 0,
-    });
+    };
+    this.sessions.set(peerUhid, newSession);
+    this.persistSession(peerUhid, newSession);
 
     // Consume one-time pre-key — never reuse.
     otpk.priv.fill(0);
     this.preKeys.oneTimePreKeys.delete(opkId);
+    this.consumeOneTimePreKey(opkId);
 
     shared.fill(0);
     dh1.fill(0);
     dh2.fill(0);
     dh3.fill(0);
     dh4.fill(0);
+  }
+
+  /**
+   * Looks up a signed-pre-key entry by id across the full retained
+   * history. Returns null if the id is unknown (rotated-out and pruned,
+   * or never generated).
+   */
+  private findSignedPreKey(id: number): SignedPreKeyEntry | null {
+    for (let i = this.preKeys.signedPreKeyHistory.length - 1; i >= 0; i--) {
+      const entry = this.preKeys.signedPreKeyHistory[i];
+      if (entry.id === id) return entry;
+    }
+    return null;
   }
 
   /**
