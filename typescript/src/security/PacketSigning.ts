@@ -131,53 +131,94 @@ export function verifyPacket(
 }
 
 /**
- * Non-cryptographic deduplication with timestamp-based cleanup
+ * Non-cryptographic deduplication keyed by (senderUhid, nonce).
+ *
+ * The composite key is critical: keying by nonce alone (the pre-2026-05-05
+ * design in C#) had two failure modes that this implementation defends
+ * against:
+ *
+ *   1. A random 8-byte nonce collision across two unrelated senders would
+ *      drop the legitimate sender's first packet.
+ *   2. An attacker who pre-registered a chosen nonce against the recipient
+ *      could block a legitimate sender's first packet by reserving its
+ *      nonce slot.
+ *
+ * Both go away when the key is (source, nonce): two senders with the same
+ * random nonce hash to different cells, and an attacker would have to know
+ * both the target sender's UHID AND predict their next random nonce to
+ * effect a denial.
+ *
+ * Cleanup: each (sender, nonce) pair is tracked with the timestamp it was
+ * first seen. Periodic sweep (default every 60s) drops entries older than
+ * {@link MAX_PACKET_AGE_SECONDS} — matching the C# `FreshnessWindowMs`
+ * (5 minutes) so we don't blanket-clear recent legitimate nonces.
+ *
+ * Mirrors the C# `PacketSigningService._seenNonces` design at
+ * src/Aether.Security/Services/PacketSigningService.cs.
  */
 export class PacketDeduplicator {
-  private nonces: Map<string, Set<string>> = new Map(); // senderUhid -> set of nonce strings
+  /** Composite key "senderUhid:hex(nonce)" -> ms epoch when first seen. */
+  private nonces: Map<string, number> = new Map();
   private lastCleanup: number = Date.now();
-  private readonly cleanupIntervalMs: number = 60000; // 1 minute
+  private readonly cleanupIntervalMs: number = 60_000; // 60s — matches C#
+
+  /** Window beyond which a nonce is considered expired. */
+  private readonly maxAgeMs: number = MAX_PACKET_AGE_SECONDS * 1000;
 
   /**
-   * Check if a nonce is already seen for this sender
+   * Build the composite dedup key. Keying by (source, nonce) — see class
+   * docs for why nonce-alone is unsafe.
    */
-  isSeen(senderUhid: string, nonce: Uint8Array): boolean {
-    const nonceStr = Buffer.from(nonce).toString("hex");
-    const senderNonces = this.nonces.get(senderUhid);
-    return senderNonces ? senderNonces.has(nonceStr) : false;
+  private static keyOf(senderUhid: string, nonce: Uint8Array): string {
+    return `${senderUhid}:${Buffer.from(nonce).toString("hex")}`;
   }
 
-  /**
-   * Mark a nonce as seen
-   */
-  mark(senderUhid: string, nonce: Uint8Array): void {
-    const nonceStr = Buffer.from(nonce).toString("hex");
-    if (!this.nonces.has(senderUhid)) {
-      this.nonces.set(senderUhid, new Set());
-    }
-    this.nonces.get(senderUhid)!.add(nonceStr);
+  /** Check if this (sender, nonce) pair has already been observed. */
+  isSeen(senderUhid: string, nonce: Uint8Array): boolean {
+    return this.nonces.has(PacketDeduplicator.keyOf(senderUhid, nonce));
+  }
 
-    // Periodic cleanup
+  /** Mark this (sender, nonce) pair as observed at the current wall time. */
+  mark(senderUhid: string, nonce: Uint8Array): void {
+    const key = PacketDeduplicator.keyOf(senderUhid, nonce);
+    this.nonces.set(key, Date.now());
+
     if (Date.now() - this.lastCleanup > this.cleanupIntervalMs) {
       this.cleanup();
     }
   }
 
-  /**
-   * Clear all deduplication state
-   */
+  /** Atomically check-and-mark — returns true iff the pair is fresh. */
+  checkAndMark(senderUhid: string, nonce: Uint8Array): boolean {
+    const key = PacketDeduplicator.keyOf(senderUhid, nonce);
+    if (this.nonces.has(key)) return false;
+    this.nonces.set(key, Date.now());
+    if (Date.now() - this.lastCleanup > this.cleanupIntervalMs) {
+      this.cleanup();
+    }
+    return true;
+  }
+
+  /** Number of dedup entries currently held. Exposed for tests. */
+  get size(): number {
+    return this.nonces.size;
+  }
+
+  /** Clear all deduplication state. */
   clear(): void {
     this.nonces.clear();
     this.lastCleanup = Date.now();
   }
 
   /**
-   * Internal cleanup (in real implementation, would respect packet timestamp TTL)
+   * Drop entries older than {@link maxAgeMs}. Bounded cost — runs at most
+   * once per {@link cleanupIntervalMs}.
    */
   private cleanup(): void {
-    // For now, just clear everything older than 5 minutes
-    // In production, respect MAX_PACKET_AGE_SECONDS
-    this.nonces.clear();
+    const cutoff = Date.now() - this.maxAgeMs;
+    for (const [k, ts] of this.nonces) {
+      if (ts < cutoff) this.nonces.delete(k);
+    }
     this.lastCleanup = Date.now();
   }
 }

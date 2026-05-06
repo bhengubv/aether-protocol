@@ -14,10 +14,24 @@ import java.util.concurrent.ConcurrentHashMap
  * Constructs signable data matching the C# implementation exactly:
  * PacketNonce || TimestampMs || Type || SourceUhidLength || SourceUhid ||
  * DestinationUhidLength || DestinationUhid || SHA-256(Payload) || Ttl || Priority
+ *
+ * Nonce deduplication is keyed by `(sourceUhid, nonce)` so that:
+ *  - a nonce collision across two different senders does NOT drop a
+ *    legitimate packet, and
+ *  - an attacker who pre-registers a nonce against a recipient cannot block
+ *    the legitimate sender's first packet.
+ *
+ * Pre-2026-05-05 the cache used a `Pair<String, ByteArray>` key, but
+ * `ByteArray.hashCode` / `equals` are identity-based — two distinct
+ * `ByteArray` instances with identical bytes hashed differently and never
+ * collided, so dedup silently never fired. Switched to a string key
+ * `"<source>:<hex(nonce)>"` to match the C# reference (SourceUhid + ":" +
+ * Convert.ToHexString(PacketNonce)).
  */
 object PacketSigning {
-    private val nonceDedupCache = ConcurrentHashMap<Pair<String, ByteArray>, Long>()
+    private val nonceDedupCache = ConcurrentHashMap<String, Long>()
     private const val MAX_PACKET_AGE_MS = 300_000L // 5 minutes
+    private val HEX_CHARS = "0123456789ABCDEF".toCharArray()
 
     /**
      * Constructs the signable data for a packet.
@@ -109,29 +123,49 @@ object PacketSigning {
      * Checks if a packet nonce has been seen before (replay prevention).
      * Returns true if the nonce is NEW (not a replay).
      *
-     * Maintains a deduplication cache with a 5-minute TTL.
+     * Maintains a deduplication cache with a 5-minute TTL keyed by
+     * `(sourceUhid, hex(nonce))` — see class-level docs for the rationale
+     * vs. nonce-only keying.
      *
      * @param packet The packet to check
      * @return True if this is a new packet, false if it's a replay
      */
     fun isNewPacket(packet: MeshPacket): Boolean {
-        val key = Pair(packet.sourceUhid, packet.packetNonce)
+        val key = nonceKey(packet.sourceUhid, packet.packetNonce)
         val now = System.currentTimeMillis()
 
-        // Clean old entries
+        // Clean old entries.
         nonceDedupCache.entries.removeAll { (_, timestamp) ->
             (now - timestamp) > MAX_PACKET_AGE_MS
         }
 
-        // Check if nonce exists
-        val existing = nonceDedupCache[key]
-        if (existing != null) {
-            return false // Replay detected
-        }
+        // putIfAbsent is the atomic "first writer wins" check we want — if
+        // it returns non-null, the nonce was already seen (replay).
+        return nonceDedupCache.putIfAbsent(key, now) == null
+    }
 
-        // New nonce
-        nonceDedupCache[key] = now
-        return true
+    /**
+     * Composite dedup key: `"<sourceUhid>:<HEX(nonce)>"`. Hex is uppercase
+     * to match `Convert.ToHexString` in the C# reference, so cross-language
+     * peers logging the same key produce identical strings.
+     */
+    private fun nonceKey(sourceUhid: String, nonce: ByteArray): String {
+        val sb = StringBuilder(sourceUhid.length + 1 + nonce.size * 2)
+        sb.append(sourceUhid).append(':')
+        for (b in nonce) {
+            val v = b.toInt() and 0xFF
+            sb.append(HEX_CHARS[v ushr 4])
+            sb.append(HEX_CHARS[v and 0x0F])
+        }
+        return sb.toString()
+    }
+
+    /**
+     * Test-only: clear the dedup cache. Production code never needs this —
+     * entries TTL out automatically.
+     */
+    internal fun clearDedupCacheForTests() {
+        nonceDedupCache.clear()
     }
 
     /**
