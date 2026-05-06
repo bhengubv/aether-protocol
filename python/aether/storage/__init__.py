@@ -23,26 +23,17 @@ Python host to read what a C# host wrote (and vice versa).
 from aether.storage.kv import KeyValueStore
 from aether.storage.in_memory_kv import InMemoryKeyValueStore
 from aether.storage.filesystem_kv import FileSystemKeyValueStore
+from aether.storage.encrypted_kv import EncryptedKeyValueStore
+from aether.storage.key_provider import DataAtRestKeyProvider
+from aether.storage.static_key_provider import StaticDataAtRestKeyProvider
+from aether.storage.derived_key_provider import DerivedDataAtRestKeyProvider
 
 __all__ = [
     "KeyValueStore",
     "InMemoryKeyValueStore",
     "FileSystemKeyValueStore",
+    "EncryptedKeyValueStore",
+    "DataAtRestKeyProvider",
+    "StaticDataAtRestKeyProvider",
+    "DerivedDataAtRestKeyProvider",
 ]
-
-# Encryption-at-rest is wired in by commit 3. Adding the imports lazily so
-# that environments without the encrypted-KV components still load the
-# session/pre-key persistence layer.
-try:
-    from aether.storage.encrypted_kv import EncryptedKeyValueStore  # noqa: F401
-    from aether.storage.key_provider import DataAtRestKeyProvider  # noqa: F401
-    from aether.storage.static_key_provider import StaticDataAtRestKeyProvider  # noqa: F401
-    from aether.storage.derived_key_provider import DerivedDataAtRestKeyProvider  # noqa: F401
-    __all__ += [
-        "EncryptedKeyValueStore",
-        "DataAtRestKeyProvider",
-        "StaticDataAtRestKeyProvider",
-        "DerivedDataAtRestKeyProvider",
-    ]
-except ImportError:
-    pass
