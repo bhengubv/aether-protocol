@@ -16,7 +16,7 @@ dependencies {
     implementation("org.bouncycastle:bcpkix-jdk18on:1.76")
 
     // Coroutines for async operations
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 
     // Kotlin stdlib
     implementation(kotlin("stdlib"))
