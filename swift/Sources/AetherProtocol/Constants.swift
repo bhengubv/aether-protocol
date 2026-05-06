@@ -109,6 +109,18 @@ public enum PacketType: UInt8, Codable {
     case screenShare = 32
     case watchChunkRequest = 33
     case torrentMetadata = 34
+
+    /// Capability handshake — sender announces supported protocol-version range
+    /// + capability flags. Sent on first contact with an unknown peer. The
+    /// payload is a UTF-8 JSON-encoded `HelloPayload`. Unauthenticated and
+    /// unencrypted — peer identity is verified later via Ed25519 packet
+    /// signatures.
+    case hello = 50
+
+    /// Reply to a `hello` — receiver echoes back the agreed (highest
+    /// mutually-supported) protocol version and the intersection of capability
+    /// flags. Same JSON payload shape as `hello`.
+    case helloAck = 51
 }
 
 /// Node capabilities as a bitfield.
