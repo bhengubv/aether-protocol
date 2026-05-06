@@ -2209,4 +2209,213 @@ mod tests {
         let _bundle = svc.generate_pre_key_bundle("alice").unwrap();
         assert_eq!(svc.get_public_key(), pub_before);
     }
+
+    // ===== Signed pre-key rotation (Tier-2 parity with C# 13e9d3b) =====
+    //
+    // The rotation infrastructure (history, append/prune, SPK-id lookup
+    // across the retained window) shipped in the persistence commit because
+    // it shares structures with the persistent SPK history; this block
+    // adds the time-driven coverage that exercises it end-to-end.
+
+    use chrono::{Duration as ChronoDuration, TimeZone};
+
+    /// Helper: a synthetic clock that returns a fixed-time pointer behind a
+    /// shared cell. The test mutates the cell to drive rotation.
+    struct TestClock {
+        now: std::sync::Arc<std::sync::Mutex<chrono::DateTime<chrono::Utc>>>,
+    }
+    impl TestClock {
+        fn at(dt: chrono::DateTime<chrono::Utc>) -> (Self, NowProvider) {
+            let now = std::sync::Arc::new(std::sync::Mutex::new(dt));
+            let now_clone = now.clone();
+            let provider: NowProvider =
+                StdArc::new(move || *now_clone.lock().expect("clock mutex"));
+            (Self { now }, provider)
+        }
+        fn set(&self, dt: chrono::DateTime<chrono::Utc>) {
+            *self.now.lock().expect("clock mutex") = dt;
+        }
+    }
+
+    /// On first bundle generation the SPK history starts at length 1 (no
+    /// rotation yet — there's nothing to rotate from).
+    #[test]
+    fn initial_spk_history_size_is_one() {
+        let mut svc = SignalProtocolService::new();
+        let _ = svc.generate_pre_key_bundle("alice").unwrap();
+        assert_eq!(svc.signed_pre_key_history_count(), 1);
+    }
+
+    /// Bundles generated within rotation_interval reuse the same SPK id.
+    #[test]
+    fn no_rotation_within_interval() {
+        let t0 = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let (clock, provider) = TestClock::at(t0);
+        let mut svc = SignalProtocolService::builder()
+            .with_now_provider(provider)
+            .with_rotation_options(SignedPreKeyRotationOptions {
+                rotation_interval: ChronoDuration::days(7),
+                retained_history_count: 3,
+            })
+            .build();
+        let b1 = svc.generate_pre_key_bundle("alice").unwrap();
+        // Move the clock 1 day forward — well within the 7-day window.
+        clock.set(t0 + ChronoDuration::days(1));
+        let b2 = svc.generate_pre_key_bundle("alice").unwrap();
+        assert_eq!(b1.signed_pre_key_id, b2.signed_pre_key_id);
+        assert_eq!(svc.signed_pre_key_history_count(), 1);
+    }
+
+    /// Rotation triggers when the active SPK age exceeds rotation_interval.
+    /// History grows up to `1 + retained_history_count`.
+    #[test]
+    fn rotation_after_interval_grows_history() {
+        let t0 = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let (clock, provider) = TestClock::at(t0);
+        let mut svc = SignalProtocolService::builder()
+            .with_now_provider(provider)
+            .with_rotation_options(SignedPreKeyRotationOptions {
+                rotation_interval: ChronoDuration::days(7),
+                retained_history_count: 3,
+            })
+            .build();
+        let b1 = svc.generate_pre_key_bundle("alice").unwrap();
+        clock.set(t0 + ChronoDuration::days(7) + ChronoDuration::seconds(1));
+        let b2 = svc.generate_pre_key_bundle("alice").unwrap();
+        assert_ne!(b1.signed_pre_key_id, b2.signed_pre_key_id);
+        assert_eq!(svc.signed_pre_key_history_count(), 2);
+    }
+
+    /// Retention prunes the oldest entries beyond
+    /// `1 + retained_history_count`. With retention=2 + 1 active = 3 max,
+    /// after 5 rotations we keep 3 entries.
+    #[test]
+    fn retention_prunes_oldest() {
+        let t0 = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let (clock, provider) = TestClock::at(t0);
+        let mut svc = SignalProtocolService::builder()
+            .with_now_provider(provider)
+            .with_rotation_options(SignedPreKeyRotationOptions {
+                rotation_interval: ChronoDuration::days(7),
+                retained_history_count: 2,
+            })
+            .build();
+        for i in 0..5 {
+            clock.set(t0 + ChronoDuration::days(7 * i + 1));
+            svc.generate_pre_key_bundle("alice").unwrap();
+        }
+        // Max = 1 + retained = 3.
+        assert_eq!(svc.signed_pre_key_history_count(), 3);
+    }
+
+    /// X3DH against a retained-but-not-active SPK still completes — i.e. a
+    /// peer that received an older bundle and presents that older
+    /// signed_pre_key_id can still establish a session.
+    #[test]
+    fn x3dh_against_retained_spk_succeeds() {
+        let t0 = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let (clock, provider) = TestClock::at(t0);
+        let mut bob = SignalProtocolService::builder()
+            .with_now_provider(provider)
+            .with_rotation_options(SignedPreKeyRotationOptions {
+                rotation_interval: ChronoDuration::days(7),
+                retained_history_count: 3,
+            })
+            .build();
+        // bob issues bundle with old SPK
+        let bundle_old = bob.generate_pre_key_bundle("bob").unwrap();
+        let old_spk_id = bundle_old.signed_pre_key_id;
+        // Time passes — bob rotates SPK on next bundle.
+        clock.set(t0 + ChronoDuration::days(8));
+        let bundle_new = bob.generate_pre_key_bundle("bob").unwrap();
+        assert_ne!(bundle_new.signed_pre_key_id, old_spk_id);
+
+        // Alice processed the OLD bundle. X3DH must still work.
+        let mut alice = SignalProtocolService::new();
+        alice.generate_pre_key_bundle("alice").unwrap();
+        alice.process_pre_key_bundle(&bundle_old).unwrap();
+        let m = alice.encrypt("bob", b"retained").unwrap();
+        let pt = bob.decrypt("alice", &m).unwrap();
+        assert_eq!(pt, b"retained");
+    }
+
+    /// A bundle that references a *pruned* SPK fails outright. With
+    /// retention=0, the second bundle (post-rotation) prunes the prior SPK
+    /// immediately.
+    #[test]
+    fn x3dh_against_pruned_spk_fails() {
+        let t0 = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let (clock, provider) = TestClock::at(t0);
+        let mut bob = SignalProtocolService::builder()
+            .with_now_provider(provider)
+            .with_rotation_options(SignedPreKeyRotationOptions {
+                rotation_interval: ChronoDuration::days(7),
+                retained_history_count: 0,
+            })
+            .build();
+        let bundle_old = bob.generate_pre_key_bundle("bob").unwrap();
+        clock.set(t0 + ChronoDuration::days(8));
+        let _bundle_new = bob.generate_pre_key_bundle("bob").unwrap();
+        assert_eq!(bob.signed_pre_key_history_count(), 1);
+
+        let mut alice = SignalProtocolService::new();
+        alice.generate_pre_key_bundle("alice").unwrap();
+        alice.process_pre_key_bundle(&bundle_old).unwrap();
+        let m = alice.encrypt("bob", b"pruned").unwrap();
+        assert!(
+            bob.decrypt("alice", &m).is_err(),
+            "Pruned SPK reference must fail X3DH"
+        );
+    }
+
+    /// Explicit rotate_signed_pre_key only rotates when interval has
+    /// elapsed; otherwise it's a no-op.
+    #[tokio::test]
+    async fn explicit_rotate_no_op_within_interval() {
+        let t0 = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let (clock, provider) = TestClock::at(t0);
+        let mut svc = SignalProtocolService::builder()
+            .with_now_provider(provider)
+            .build();
+        let _ = svc.generate_pre_key_bundle("alice").unwrap();
+        clock.set(t0 + ChronoDuration::days(1));
+        let rotated = svc.rotate_signed_pre_key().await.unwrap();
+        assert!(!rotated, "rotate within interval must be a no-op");
+        assert_eq!(svc.signed_pre_key_history_count(), 1);
+    }
+
+    /// Explicit rotate_signed_pre_key past interval mints a fresh entry.
+    #[tokio::test]
+    async fn explicit_rotate_after_interval_appends() {
+        let t0 = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let (clock, provider) = TestClock::at(t0);
+        let mut svc = SignalProtocolService::builder()
+            .with_now_provider(provider)
+            .build();
+        let _ = svc.generate_pre_key_bundle("alice").unwrap();
+        clock.set(t0 + ChronoDuration::days(8));
+        let rotated = svc.rotate_signed_pre_key().await.unwrap();
+        assert!(rotated);
+        assert_eq!(svc.signed_pre_key_history_count(), 2);
+    }
+
+    /// SPK rotation also persists the new history.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rotation_persists_to_pre_key_store() {
+        let t0 = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let (clock, provider) = TestClock::at(t0);
+        let store: StdArc<dyn PreKeyStore> = StdArc::new(InMemoryPreKeyStore::new());
+        let mut svc = SignalProtocolService::builder()
+            .with_now_provider(provider)
+            .with_prekey_store(store.clone())
+            .build();
+        let _ = svc.generate_pre_key_bundle("alice").unwrap();
+        clock.set(t0 + ChronoDuration::days(8));
+        let rotated = svc.rotate_signed_pre_key().await.unwrap();
+        assert!(rotated);
+        // Allow fire-and-forget persistence to complete.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let history = store.load_signed_pre_keys().await.unwrap();
+        assert_eq!(history.entries.len(), 2);
+    }
 }
