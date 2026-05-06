@@ -250,7 +250,7 @@ jobs:
 
       # No gradlew in the repo; use the official setup-gradle action.
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Test
         run: gradle --no-daemon test
