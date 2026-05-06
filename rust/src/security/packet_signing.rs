@@ -68,10 +68,14 @@ impl PacketSigningService {
             return Ok(false); // Packet from future (clock skew)
         }
 
-        // Check for duplicate nonce
+        // Dedup is keyed by (source_uhid, nonce). The outer HashMap is keyed
+        // by source_uhid and the per-source VecDeque holds raw nonce bytes —
+        // structurally equivalent to keying by (source, nonce) but cheaper
+        // (no per-lookup string allocation) and the per-source partition lets
+        // us age-prune nonces from a single peer without scanning the world.
+        // Crucially: two different peers MAY legitimately use the same random
+        // nonce — they MUST NOT collide here.
         let nonce_entry = &packet.packet_nonce;
-        let nonce_key = format!("{}:{}", packet.source_uhid, hex::encode(nonce_entry));
-
         let timestamp = now as u64;
 
         let nonce_history = self
@@ -133,15 +137,6 @@ impl Default for PacketSigningService {
     }
 }
 
-// Helper module for hex encoding (inline minimal implementation)
-mod hex {
-    pub fn encode(data: &[u8]) -> String {
-        data.iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<String>()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,6 +160,52 @@ mod tests {
         // Verify the packet
         let is_valid = verifier.verify_packet(&packet, &public_key).unwrap();
         assert!(is_valid);
+    }
+
+    /// Dedup MUST be keyed by (source_uhid, nonce) — two different peers
+    /// happening to randomly pick the same 8 nonce bytes must NOT collide.
+    /// Otherwise an attacker who observes peer A's nonce can lock peer B out
+    /// by replaying a forged packet with peer B's source UHID.
+    #[test]
+    fn test_dedup_keyed_by_source_and_nonce() {
+        let (priv_a, pub_a) = crate::security::Ed25519SigningService::generate_keypair();
+        let (priv_b, pub_b) = crate::security::Ed25519SigningService::generate_keypair();
+        let signer = PacketSigningService::new();
+        let mut verifier = PacketSigningService::new();
+
+        // Two packets from two different sources, with deliberately-equal nonces.
+        let mut a = MeshPacket::new(PacketType::Data, "node-a".to_string());
+        a.payload = b"alpha".to_vec();
+        signer.sign_packet(&mut a, &priv_a).unwrap();
+
+        let mut b = MeshPacket::new(PacketType::Data, "node-b".to_string());
+        b.payload = b"bravo".to_vec();
+        signer.sign_packet(&mut b, &priv_b).unwrap();
+
+        // Force a collision on the nonce bytes — but each is signed under
+        // its own source-keyed signature.
+        b.packet_nonce = a.packet_nonce.clone();
+        // Re-sign B because mutating the nonce invalidates the signature.
+        b.signature = crate::security::Ed25519SigningService::sign(
+            &priv_b,
+            &b.signable_data(),
+        )
+        .unwrap();
+
+        assert!(
+            verifier.verify_packet(&a, &pub_a).unwrap(),
+            "first sender's nonce verifies"
+        );
+        assert!(
+            verifier.verify_packet(&b, &pub_b).unwrap(),
+            "second sender with same nonce bytes MUST also verify — dedup is keyed by (source, nonce)"
+        );
+
+        // But replaying A's exact packet again MUST fail (same source, same nonce).
+        assert!(
+            !verifier.verify_packet(&a, &pub_a).unwrap(),
+            "exact replay (same source, same nonce) must be rejected"
+        );
     }
 
     #[test]
