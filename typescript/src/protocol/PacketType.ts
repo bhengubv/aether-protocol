@@ -38,6 +38,22 @@ export enum PacketType {
   ScreenShare = 32,
   WatchChunkRequest = 33,
   TorrentMetadata = 34,
+
+  /**
+   * Capability handshake — sender announces supported protocol-version range
+   * + capability flags. Sent on first contact with an unknown peer. The
+   * payload is a UTF-8 JSON-encoded HelloPayload. Unauthenticated and
+   * unencrypted — peer identity is verified later via Ed25519 packet
+   * signatures.
+   */
+  Hello = 50,
+
+  /**
+   * Reply to a Hello — receiver echoes back the agreed (highest
+   * mutually-supported) protocol version and the intersection of capability
+   * flags. Same JSON payload shape as Hello.
+   */
+  HelloAck = 51,
 }
 
 export function packetTypeToString(type: PacketType): string {
@@ -110,6 +126,10 @@ export function packetTypeToString(type: PacketType): string {
       return "WatchChunkRequest";
     case PacketType.TorrentMetadata:
       return "TorrentMetadata";
+    case PacketType.Hello:
+      return "Hello";
+    case PacketType.HelloAck:
+      return "HelloAck";
     default:
       return `Unknown(${type})`;
   }
