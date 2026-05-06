@@ -36,7 +36,8 @@ use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
 use rand::Rng;
 use sha2::Sha256;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::sync::Mutex;
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
 type HmacSha256 = Hmac<Sha256>;
@@ -47,6 +48,12 @@ pub const MESSAGE_TYPE_NORMAL: i32 = 0;
 pub const MESSAGE_TYPE_PRE_KEY: i32 = 1;
 
 const X25519_PUBLIC_KEY_SIZE: usize = 32;
+
+/// Default size of the one-time pre-key pool. Mirrors Signal's published
+/// guidance and the C# reference (`SignalProtocolService.DefaultOpkPoolSize`):
+/// ~100 OPKs per device so realistic concurrent-initiator loads don't
+/// collide on a single shared id.
+pub const DEFAULT_OPK_POOL_SIZE: usize = 100;
 
 /// HKDF info strings — these MUST match the C# reference exactly. Any drift
 /// breaks cross-language interop (verified by
@@ -60,14 +67,26 @@ const HKDF_RATCHET_INFO: &[u8] = b"aether-ratchet-rk-v1";
 /// Responder-side pre-key state. Holds the private halves of the signed
 /// pre-key and one-time pre-keys so X3DH can be computed when an initiator's
 /// PreKey message arrives.
+///
+/// One-time pre-keys are managed as a pool of `target_opk_pool_size` entries.
+/// Bundle generation hands out the next-unused id from `available_opk_ids`
+/// (FIFO); the OPK private + public stay in `one_time_pre_keys` until a
+/// responder consumes it via X3DH, at which point it is zeroed and removed.
+/// Top-up runs each time a bundle is generated so the available queue never
+/// empties under steady load. This mirrors the C# reference's
+/// `PreKeyState.AvailableOpkIds` queue + `OneTimePreKeys` map.
 #[derive(Default)]
 struct PreKeyState {
     signed_pre_key_id: i32,
     signed_pre_key_priv: Vec<u8>,
     signed_pre_key_pub: Vec<u8>,
     signed_pre_key_signature: Vec<u8>,
-    /// id -> (priv, pub). Each entry consumed (zeroed and removed) on first use.
+    /// id -> (priv, pub). Removed and zeroed on consumption (X3DH responder side).
     one_time_pre_keys: HashMap<i32, (Vec<u8>, Vec<u8>)>,
+    /// IDs of OPKs that exist in `one_time_pre_keys` and have NOT yet been
+    /// issued in any bundle. Bundle generation pops from the front (FIFO).
+    /// Top-up generates new OPKs and enqueues them here.
+    available_opk_ids: VecDeque<i32>,
 }
 
 pub struct SignalProtocolService {
@@ -81,14 +100,40 @@ pub struct SignalProtocolService {
     /// set_local_uhid. Stamped on outbound EncryptedPayloads.
     local_uhid: Option<String>,
 
-    /// Pre-key state held for responder-side X3DH.
-    pre_keys: PreKeyState,
+    /// Pre-key state held for responder-side X3DH. Wrapped in a Mutex so
+    /// concurrent initiators (each calling `generate_pre_key_bundle` and
+    /// later receiving each other's PreKey messages on this single
+    /// responder) can't collide on OPK consumption. Mirrors the C#
+    /// reference's `_preKeyLock` semantics.
+    pre_keys: Mutex<PreKeyState>,
+
+    /// Target size of the one-time pre-key pool. The pool is topped up to
+    /// this many available (un-issued) keys on every bundle generation.
+    /// Mirrors C# `SignalProtocolService.OpkPoolSize`.
+    target_opk_pool_size: usize,
 
     sessions: HashMap<String, SignalSession>,
 }
 
 impl SignalProtocolService {
+    /// Construct a Signal Protocol service with the default OPK pool size
+    /// ([`DEFAULT_OPK_POOL_SIZE`] = 100).
     pub fn new() -> Self {
+        Self::with_opk_pool_size(DEFAULT_OPK_POOL_SIZE)
+    }
+
+    /// Construct a Signal Protocol service with a configurable OPK pool size.
+    /// The pool is topped up to `target_opk_pool_size` available (un-issued)
+    /// keys on every bundle generation.
+    ///
+    /// Panics if `target_opk_pool_size == 0`.
+    pub fn with_opk_pool_size(target_opk_pool_size: usize) -> Self {
+        assert!(
+            target_opk_pool_size >= 1,
+            "target_opk_pool_size must be >= 1 (got {})",
+            target_opk_pool_size
+        );
+
         let (ed_priv, ed_pub) = crate::security::Ed25519SigningService::generate_keypair();
 
         // X25519 long-term identity for X3DH ECDH.
@@ -103,9 +148,29 @@ impl SignalProtocolService {
             ed25519_private_key: ed_priv,
             ed25519_public_key: ed_pub,
             local_uhid: None,
-            pre_keys: PreKeyState::default(),
+            pre_keys: Mutex::new(PreKeyState::default()),
+            target_opk_pool_size,
             sessions: HashMap::new(),
         }
+    }
+
+    /// Configured target size of the OPK pool.
+    pub fn opk_pool_size(&self) -> usize {
+        self.target_opk_pool_size
+    }
+
+    /// Snapshot of the OPK pool. Returns `(held, available)` where:
+    ///   * `held` is the total number of OPKs (issued + un-issued) currently
+    ///     resident on this responder. Drops as responders consume issued
+    ///     OPKs via X3DH.
+    ///   * `available` is the number of OPKs in `available_opk_ids` —
+    ///     un-issued, ready to be handed out in the next bundle. Drops as
+    ///     bundles are issued; tops back up on the next bundle generation.
+    ///
+    /// Mirrors C# `HeldOneTimePreKeyCount` + `AvailableOneTimePreKeyCount`.
+    pub fn pre_key_pool_status(&self) -> (usize, usize) {
+        let pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+        (pk.one_time_pre_keys.len(), pk.available_opk_ids.len())
     }
 
     /// Sets the local node's UHID. Required before any encrypt() call.
@@ -127,6 +192,16 @@ impl SignalProtocolService {
 
     /// Generates a pre-key bundle. Retains the SPK + OPK private halves for
     /// responder-side X3DH on this node.
+    ///
+    /// OPK pool semantics (mirroring C#):
+    ///   * The first call seeds the pool to `target_opk_pool_size` un-issued
+    ///     OPKs and dequeues one for the bundle.
+    ///   * Subsequent calls top the pool back up to `target_opk_pool_size`
+    ///     un-issued OPKs (replacing keys consumed by responders since the
+    ///     last call), then dequeue one.
+    /// The SPK is generated lazily on the first bundle call and reused on
+    /// subsequent calls; rotation policy mirrors the C# reference but is not
+    /// implemented here (still TODO for full parity).
     pub fn generate_pre_key_bundle(
         &mut self,
         local_uhid: &str,
@@ -134,35 +209,61 @@ impl SignalProtocolService {
         self.local_uhid = Some(local_uhid.to_string());
         let mut rng = rand::thread_rng();
 
-        // One-time pre-key.
-        let otpk_secret = StaticSecret::random_from_rng(&mut rng);
-        let otpk_priv: [u8; 32] = otpk_secret.to_bytes();
-        let otpk_pub: [u8; 32] = X25519PublicKey::from(&otpk_secret).to_bytes();
-        let pre_key_id = rng.gen_range(1..i32::MAX);
-        self.pre_keys
-            .one_time_pre_keys
-            .insert(pre_key_id, (otpk_priv.to_vec(), otpk_pub.to_vec()));
+        // Lazy SPK initialization on first call. SPK is reused across bundles
+        // until rotation kicks in (rotation not yet implemented in Rust).
+        let (signed_pre_key_id, spk_pub_bytes, signature) = {
+            let mut pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+            if pk.signed_pre_key_priv.is_empty() {
+                let spk_secret = StaticSecret::random_from_rng(&mut rng);
+                let spk_priv: [u8; 32] = spk_secret.to_bytes();
+                let spk_pub: [u8; 32] = X25519PublicKey::from(&spk_secret).to_bytes();
+                let id = rng.gen_range(1..i32::MAX);
+                let sig = crate::security::Ed25519SigningService::sign(
+                    &self.ed25519_private_key,
+                    &spk_pub,
+                )?;
+                pk.signed_pre_key_id = id;
+                pk.signed_pre_key_priv = spk_priv.to_vec();
+                pk.signed_pre_key_pub = spk_pub.to_vec();
+                pk.signed_pre_key_signature = sig.clone();
+                (id, spk_pub.to_vec(), sig)
+            } else {
+                (
+                    pk.signed_pre_key_id,
+                    pk.signed_pre_key_pub.clone(),
+                    pk.signed_pre_key_signature.clone(),
+                )
+            }
+        };
 
-        // Signed pre-key.
-        let spk_secret = StaticSecret::random_from_rng(&mut rng);
-        let spk_priv: [u8; 32] = spk_secret.to_bytes();
-        let spk_pub: [u8; 32] = X25519PublicKey::from(&spk_secret).to_bytes();
-        let signed_pre_key_id = rng.gen_range(1..i32::MAX);
-        let signature =
-            crate::security::Ed25519SigningService::sign(&self.ed25519_private_key, &spk_pub)?;
-        self.pre_keys.signed_pre_key_id = signed_pre_key_id;
-        self.pre_keys.signed_pre_key_priv = spk_priv.to_vec();
-        self.pre_keys.signed_pre_key_pub = spk_pub.to_vec();
-        self.pre_keys.signed_pre_key_signature = signature.clone();
+        // OPK: top up the pool, then dequeue the next un-issued OPK id and
+        // grab its public half. Both happen under the same mutex hold so a
+        // concurrent responder cannot consume the OPK between top-up and
+        // dequeue.
+        let (pre_key_id, otpk_pub) = {
+            let mut pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+            top_up_opk_pool(&mut pk, self.target_opk_pool_size, &mut rng)?;
+            let id = pk
+                .available_opk_ids
+                .pop_front()
+                .expect("pool top-up guarantees at least one available id");
+            let pub_bytes = pk
+                .one_time_pre_keys
+                .get(&id)
+                .expect("available id MUST have a corresponding entry")
+                .1
+                .clone();
+            (id, pub_bytes)
+        };
 
         Ok(PreKeyBundle::new(
             local_uhid.to_string(),
             self.ed25519_public_key.clone(),
             self.identity_x25519_pub.to_vec(),
             pre_key_id,
-            otpk_pub.to_vec(),
+            otpk_pub,
             signed_pre_key_id,
-            spk_pub.to_vec(),
+            spk_pub_bytes,
             signature,
         ))
     }
@@ -457,31 +558,47 @@ impl SignalProtocolService {
         if initiator_ek.len() != X25519_PUBLIC_KEY_SIZE {
             return Err(format!("Initiator EK_X25519 wrong size: {}", initiator_ek.len()).into());
         }
-        if self.pre_keys.signed_pre_key_id != used_signed_pre_key_id
-            || self.pre_keys.signed_pre_key_priv.is_empty()
-        {
-            return Err(format!(
-                "PreKey message references signed pre-key id {} which is not held",
-                used_signed_pre_key_id
-            )
-            .into());
-        }
-        let otpk = self
-            .pre_keys
-            .one_time_pre_keys
-            .remove(&used_one_time_pre_key_id)
-            .ok_or_else(|| {
-                format!(
+
+        // Atomically validate SPK id, consume the OPK, and snapshot the
+        // private halves we need for the four DHs. Holding the mutex for the
+        // full snapshot is what guarantees two concurrent initiators racing
+        // on the same OPK id can never both succeed: the second `.remove()`
+        // returns None and the second initiator gets a clean error.
+        let (spk_priv, otpk_priv) = {
+            let mut pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+            if pk.signed_pre_key_id != used_signed_pre_key_id || pk.signed_pre_key_priv.is_empty() {
+                return Err(format!(
+                    "PreKey message references signed pre-key id {} which is not held",
+                    used_signed_pre_key_id
+                )
+                .into());
+            }
+            let otpk = pk
+                .one_time_pre_keys
+                .remove(&used_one_time_pre_key_id)
+                .ok_or_else(|| {
+                    format!(
                     "PreKey message references one-time pre-key id {} which is not held (already consumed?)",
                     used_one_time_pre_key_id
                 )
-            })?;
+                })?;
+            // Drop the id from the available queue too if it somehow lingered
+            // there (defensive — `.remove` on `one_time_pre_keys` is the
+            // canonical consume signal but a stale entry in `available_opk_ids`
+            // would re-issue a defunct id on the next bundle).
+            pk.available_opk_ids
+                .retain(|&id| id != used_one_time_pre_key_id);
+            (pk.signed_pre_key_priv.clone(), otpk.0)
+        };
 
-        // Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
-        let dh1 = x25519_agree(&self.pre_keys.signed_pre_key_priv, initiator_ik)?;
+        // Mirror of initiator's 4 DHs (X25519 ECDH is commutative). Note: spk
+        // and otpk priv halves are now local snapshots — the mutex was
+        // released after the snapshot above so concurrent bundle generation
+        // can proceed.
+        let dh1 = x25519_agree(&spk_priv, initiator_ik)?;
         let dh2 = x25519_agree(&self.identity_x25519_priv, initiator_ek)?;
-        let dh3 = x25519_agree(&self.pre_keys.signed_pre_key_priv, initiator_ek)?;
-        let dh4 = x25519_agree(&otpk.0, initiator_ek)?;
+        let dh3 = x25519_agree(&spk_priv, initiator_ek)?;
+        let dh4 = x25519_agree(&otpk_priv, initiator_ek)?;
 
         let mut shared = Vec::with_capacity(128);
         shared.extend_from_slice(&dh1);
@@ -492,23 +609,76 @@ impl SignalProtocolService {
         let root_key = hkdf32(&shared, HKDF_X3DH_ROOT_INFO)?;
 
         // Adopt SPK (priv+pub) as initial DHs. The DH-ratchet step in the
-        // decrypt() caller will rotate it to a fresh keypair.
+        // decrypt() caller will rotate it to a fresh keypair. We re-acquire
+        // the mutex briefly to grab spk_pub — kept separate from the consume
+        // step so the mutex hold-time around the four DHs is zero.
+        let spk_pub = {
+            let pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+            pk.signed_pre_key_pub.clone()
+        };
+
         let mut session = SignalSession::new(peer_uhid.to_string(), Vec::new());
         session.root_key = root_key;
         session.send_chain_key = None; // derived by DH-ratchet
         session.recv_chain_key = None; // derived by DH-ratchet
-        session.my_ephemeral_priv = self.pre_keys.signed_pre_key_priv.clone();
-        session.my_ephemeral_pub = self.pre_keys.signed_pre_key_pub.clone();
+        session.my_ephemeral_priv = spk_priv.clone();
+        session.my_ephemeral_pub = spk_pub;
         session.remote_ephemeral_pub = None; // forces DH-ratchet on first decrypt
         session.pending_pre_key_message = false;
         self.sessions.insert(peer_uhid.to_string(), session);
 
-        // Consume one-time pre-key — already removed by .remove() above; zero its priv copy.
-        let mut otpk_copy = otpk.0;
+        // Consume one-time pre-key — already removed under mutex above; zero
+        // the local priv copy. Also zero the snapshotted SPK priv (the
+        // canonical SPK priv is still held in self.pre_keys until rotation).
+        let mut otpk_copy = otpk_priv;
         zero(&mut otpk_copy);
+        let mut spk_priv_copy = spk_priv;
+        zero(&mut spk_priv_copy);
         zero(&mut shared);
         Ok(())
     }
+}
+
+/// Tops the OPK pool up to `target_size` available (un-issued) keys. Caller
+/// MUST hold the pre-key mutex (i.e., `pk` is borrowed from a held lock).
+///
+/// Generates a fresh X25519 keypair per missing slot, assigns it a random
+/// non-colliding id, and enqueues the id in `available_opk_ids`. Idempotent
+/// — safe to call repeatedly.
+fn top_up_opk_pool<R: rand::Rng + rand::CryptoRng>(
+    pk: &mut PreKeyState,
+    target_size: usize,
+    rng: &mut R,
+) -> Result<(), Box<dyn std::error::Error>> {
+    while pk.available_opk_ids.len() < target_size {
+        let secret = StaticSecret::random_from_rng(&mut *rng);
+        let priv_bytes: [u8; 32] = secret.to_bytes();
+        let pub_bytes: [u8; 32] = X25519PublicKey::from(&secret).to_bytes();
+
+        // Choose a non-colliding id. RandomNumberGenerator has a 2^31 range;
+        // collisions in a 100-element pool are statistically negligible but
+        // we still guard explicitly to match the C# reference.
+        let mut attempts = 0;
+        let id = loop {
+            let candidate = rng.gen_range(1..i32::MAX);
+            if !pk.one_time_pre_keys.contains_key(&candidate) {
+                break candidate;
+            }
+            attempts += 1;
+            if attempts > 64 {
+                return Err(
+                    "Could not allocate a non-colliding OPK id after 64 attempts. \
+                     Pool exhaustion or RNG failure."
+                        .into(),
+                );
+            }
+        };
+
+        pk.one_time_pre_keys
+            .insert(id, (priv_bytes.to_vec(), pub_bytes.to_vec()));
+        pk.available_opk_ids.push_back(id);
+    }
+    Ok(())
 }
 
 impl Default for SignalProtocolService {
@@ -1072,6 +1242,181 @@ mod tests {
         let pk = [0xAB, 0xCD, 0x12, 0x34];
         let s = skipped_key(&pk, 7);
         assert_eq!(s, "ABCD1234:7");
+    }
+
+    // ===== OPK pool tests =====
+
+    /// Default OPK pool size matches the C# reference (100).
+    #[test]
+    fn test_default_opk_pool_size_matches_csharp() {
+        let svc = SignalProtocolService::new();
+        assert_eq!(svc.opk_pool_size(), 100);
+        assert_eq!(svc.opk_pool_size(), DEFAULT_OPK_POOL_SIZE);
+    }
+
+    /// Constructor with custom pool size honours the configured target.
+    #[test]
+    fn test_with_opk_pool_size_honours_target() {
+        let svc = SignalProtocolService::with_opk_pool_size(7);
+        assert_eq!(svc.opk_pool_size(), 7);
+    }
+
+    /// Pool size 0 must panic — matches C# `ArgumentOutOfRangeException`.
+    #[test]
+    #[should_panic(expected = "target_opk_pool_size must be >= 1")]
+    fn test_opk_pool_size_zero_panics() {
+        let _ = SignalProtocolService::with_opk_pool_size(0);
+    }
+
+    /// Before the first bundle, the pool is empty. After the first bundle:
+    ///   * `held` == pool target size (the seed batch — minus none, because
+    ///     no responder has consumed yet)
+    ///   * `available` == pool target size - 1 (one was just dequeued for
+    ///     the bundle)
+    #[test]
+    fn test_pool_seeded_to_target_after_first_bundle() {
+        let mut svc = SignalProtocolService::with_opk_pool_size(10);
+        let (held_before, avail_before) = svc.pre_key_pool_status();
+        assert_eq!((held_before, avail_before), (0, 0));
+
+        let _ = svc.generate_pre_key_bundle("alice").unwrap();
+        let (held, available) = svc.pre_key_pool_status();
+        assert_eq!(held, 10, "pool seeded to target size");
+        assert_eq!(available, 9, "one dequeued for the bundle");
+    }
+
+    /// 100 sequential bundles → 100 distinct OPK ids (no reuse), pool stays
+    /// topped up to ~target size.
+    #[test]
+    fn test_distinct_opk_ids_over_100_sequential_bundles() {
+        let mut svc = SignalProtocolService::with_opk_pool_size(100);
+        let mut seen: std::collections::HashSet<i32> = std::collections::HashSet::new();
+        for _ in 0..100 {
+            let bundle = svc.generate_pre_key_bundle("alice").unwrap();
+            assert!(
+                seen.insert(bundle.pre_key_id),
+                "OPK id {} reused — pool issued the same id twice",
+                bundle.pre_key_id
+            );
+        }
+        assert_eq!(seen.len(), 100, "100 bundles must yield 100 distinct OPK ids");
+
+        // Pool top-up keeps available roughly at target size after consumption.
+        let (held, available) = svc.pre_key_pool_status();
+        assert!(
+            available == 100 || available == 99,
+            "available should be at-target after top-up, got {}",
+            available
+        );
+        assert_eq!(held, 100, "no responder consumed, so all 100 stay resident");
+    }
+
+    /// Responder-side X3DH consumption removes the OPK from the pool.
+    #[test]
+    fn test_consumption_removes_opk_from_pool() {
+        let mut alice = SignalProtocolService::with_opk_pool_size(5);
+        let mut bob = SignalProtocolService::with_opk_pool_size(5);
+
+        let bob_bundle = bob.generate_pre_key_bundle("bob").unwrap();
+        let bob_pool_before = bob.pre_key_pool_status();
+        assert_eq!(bob_pool_before, (5, 4));
+
+        alice.generate_pre_key_bundle("alice").unwrap();
+        alice.process_pre_key_bundle(&bob_bundle).unwrap();
+        let m = alice.encrypt("bob", b"hi").unwrap();
+        bob.decrypt("alice", &m).unwrap();
+
+        // After Bob runs responder-side X3DH, the OPK Alice consumed is gone.
+        let bob_pool_after = bob.pre_key_pool_status();
+        assert_eq!(
+            bob_pool_after.0, 4,
+            "responder X3DH consumed one OPK — held drops from 5 to 4"
+        );
+        // available_opk_ids never contained the issued id anyway, so it stays at 4.
+        assert_eq!(bob_pool_after.1, 4);
+    }
+
+    /// Top-up runs on the next bundle generation after a responder consumes
+    /// an issued OPK — the held count rises back to the target.
+    #[test]
+    fn test_top_up_replenishes_after_consumption() {
+        let mut alice = SignalProtocolService::with_opk_pool_size(5);
+        let mut bob = SignalProtocolService::with_opk_pool_size(5);
+
+        let bob_bundle1 = bob.generate_pre_key_bundle("bob").unwrap();
+        alice.generate_pre_key_bundle("alice").unwrap();
+        alice.process_pre_key_bundle(&bob_bundle1).unwrap();
+        bob.decrypt("alice", &alice.encrypt("bob", b"x").unwrap())
+            .unwrap();
+
+        // Bob held should be 4 now (5 seeded, 1 consumed).
+        assert_eq!(bob.pre_key_pool_status(), (4, 4));
+
+        // Generate another bundle — top-up must restore to target=5 available.
+        let _bob_bundle2 = bob.generate_pre_key_bundle("bob").unwrap();
+        let (held, available) = bob.pre_key_pool_status();
+        // Held = 5 (4 leftover + 1 freshly minted to top up). Available = 4
+        // (5 - 1 dequeued for this bundle).
+        assert_eq!(held, 5, "top-up restored held count to target");
+        assert_eq!(available, 4, "one dequeued for the new bundle");
+    }
+
+    /// Concurrent initiators against the same responder MUST NOT collide on
+    /// a shared OPK id — the OPK pool's mutex guarantees atomic dequeue.
+    /// Each bundle MUST carry a distinct OPK id so each responder consume
+    /// resolves a unique stored entry.
+    #[test]
+    fn test_concurrent_initiators_get_distinct_opks() {
+        use std::sync::{Arc, Mutex as StdMutex};
+        use std::thread;
+
+        let svc = Arc::new(StdMutex::new(SignalProtocolService::with_opk_pool_size(50)));
+
+        let mut handles = Vec::new();
+        for i in 0..20 {
+            let svc = Arc::clone(&svc);
+            let handle = thread::spawn(move || {
+                let mut guard = svc.lock().unwrap();
+                guard
+                    .generate_pre_key_bundle(&format!("user-{}", i))
+                    .unwrap()
+                    .pre_key_id
+            });
+            handles.push(handle);
+        }
+
+        let ids: Vec<i32> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        let unique: std::collections::HashSet<i32> = ids.iter().cloned().collect();
+        assert_eq!(
+            unique.len(),
+            20,
+            "20 concurrent bundles must yield 20 distinct OPK ids"
+        );
+    }
+
+    /// Replaying a bundle against the same responder must fail on the second
+    /// initiator: the responder's first decrypt consumes the OPK, the second
+    /// initiator's PreKey message references an id that is no longer held.
+    /// (This was already covered by `test_one_time_pre_key_consumed`; this
+    /// test re-asserts under the new pool-backed layout.)
+    #[test]
+    fn test_pool_consumption_blocks_replay() {
+        let mut alice = SignalProtocolService::with_opk_pool_size(5);
+        let mut bob = SignalProtocolService::with_opk_pool_size(5);
+        let bob_bundle = bob.generate_pre_key_bundle("bob").unwrap();
+        alice.generate_pre_key_bundle("alice").unwrap();
+        alice.process_pre_key_bundle(&bob_bundle).unwrap();
+        let first = alice.encrypt("bob", b"first").unwrap();
+        bob.decrypt("alice", &first).unwrap();
+
+        let mut alice2 = SignalProtocolService::with_opk_pool_size(5);
+        alice2.generate_pre_key_bundle("alice2").unwrap();
+        alice2.process_pre_key_bundle(&bob_bundle).unwrap();
+        let replay = alice2.encrypt("bob", b"replay").unwrap();
+        assert!(
+            bob.decrypt("alice2", &replay).is_err(),
+            "consumed OPK must NOT be re-usable"
+        );
     }
 
     /// Signal-canonical X3DH↔Double-Ratchet integration check: the initiator's
