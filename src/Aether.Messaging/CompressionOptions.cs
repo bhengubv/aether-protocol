@@ -24,9 +24,15 @@ public sealed class CompressionOptions
     /// <summary>
     /// If true, payloads at or above <see cref="MinSizeBytes"/> are Brotli-compressed
     /// before encryption. The compression flag byte is always present in the
-    /// plaintext envelope — see the migration note above. Default true.
+    /// plaintext envelope — see the migration note above.
+    ///
+    /// Defaults to <c>false</c> until all 8 language implementations have shipped
+    /// matching compression decode support AND the version-negotiation handshake
+    /// gates compression on a peer-advertised "compression-brotli" capability.
+    /// Hosts can opt in by setting this to <c>true</c> only when they're certain
+    /// every peer they'll talk to has been upgraded.
     /// </summary>
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; } = false;
 
     /// <summary>
     /// Minimum plaintext size (in bytes) at which compression is attempted. Below
