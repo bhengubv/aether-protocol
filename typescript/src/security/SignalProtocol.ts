@@ -192,12 +192,57 @@ interface OneTimePreKey {
   pub: Uint8Array;
 }
 
+/**
+ * Pre-key state held by the responder side: signed pre-key (rotated
+ * periodically) and a pool of one-time pre-keys (each consumed exactly once).
+ * The private halves stay on the responder so that when a PreKey message
+ * arrives, the matching X3DH DHs can be computed.
+ *
+ * One-time pre-keys are managed as a pool of {@link SignalProtocol.opkPoolSize}
+ * (default 100) entries. Bundle generation hands out the next-unused id from
+ * {@link availableOpkIds}; the OPK stays in {@link oneTimePreKeys} until a
+ * responder consumes it via X3DH, at which point it is zeroed and removed.
+ * Top-up runs each time a bundle is generated so the available queue never
+ * empties under steady load.
+ *
+ * Mirrors the C# {@code PreKeyState} layout in
+ * src/Aether.Security/Services/SignalProtocolService.cs.
+ */
 interface PreKeyState {
   signedPreKeyId: number;
   signedPreKeyPriv: Uint8Array;
   signedPreKeyPub: Uint8Array;
   signedPreKeySignature: Uint8Array;
+  /** All OPKs currently held — un-issued AND issued-but-not-consumed. */
   oneTimePreKeys: Map<number, OneTimePreKey>;
+  /**
+   * IDs of OPKs that exist in {@link oneTimePreKeys} and have NOT yet been
+   * issued in any bundle. Bundle generation pops from the front (FIFO);
+   * top-up generates new OPKs and pushes onto the back.
+   */
+  availableOpkIds: number[];
+}
+
+/** Default size of the one-time pre-key pool (matches C# DefaultOpkPoolSize). */
+export const DEFAULT_OPK_POOL_SIZE = 100;
+
+/** Construction options for {@link SignalProtocol}. */
+export interface SignalProtocolOptions {
+  /**
+   * Target size of the one-time pre-key pool. Topped up to this many
+   * available (un-issued) keys on every bundle generation; consumed keys
+   * are replaced lazily on the next bundle call. Defaults to
+   * {@link DEFAULT_OPK_POOL_SIZE}.
+   */
+  opkPoolSize?: number;
+}
+
+/** Snapshot of the OPK pool's current size, exposed for tests/observability. */
+export interface OpkPoolStatus {
+  /** OPKs currently held — un-issued AND issued-but-not-yet-consumed. */
+  held: number;
+  /** OPKs in the pool that have not yet been issued in any bundle. */
+  available: number;
 }
 
 /**
@@ -336,6 +381,12 @@ export class SignalProtocol {
   // Local UHID — captured when generatePreKeyBundle is called or via setLocalUhid.
   private localUhid: string | undefined;
 
+  /**
+   * Target pool size — top-up to this many un-issued OPKs on each
+   * generatePreKeyBundle call. Defaults to {@link DEFAULT_OPK_POOL_SIZE}.
+   */
+  readonly opkPoolSize: number;
+
   // Pre-key state held for responder-side X3DH.
   private preKeys: PreKeyState = {
     signedPreKeyId: 0,
@@ -343,9 +394,24 @@ export class SignalProtocol {
     signedPreKeyPub: new Uint8Array(),
     signedPreKeySignature: new Uint8Array(),
     oneTimePreKeys: new Map(),
+    availableOpkIds: [],
   };
 
-  constructor() {
+  /**
+   * Promise-chain serialising mutations against the OPK pool. JS is
+   * single-threaded but `await` interleaves between Promises, so two
+   * concurrent generatePreKeyBundle calls could otherwise observe each
+   * other's partial state. We chain them so each completes atomically.
+   */
+  private opkLock: Promise<void> = Promise.resolve();
+
+  constructor(options: SignalProtocolOptions = {}) {
+    const opkPoolSize = options.opkPoolSize ?? DEFAULT_OPK_POOL_SIZE;
+    if (!Number.isInteger(opkPoolSize) || opkPoolSize < 1) {
+      throw new Error(`opkPoolSize must be an integer >= 1 (got ${opkPoolSize}).`);
+    }
+    this.opkPoolSize = opkPoolSize;
+
     const ed25519KeyPair = Ed25519Service.generateKeyPair();
     this.ed25519PrivateKey = ed25519KeyPair.privateKey;
     this.ed25519PublicKey = ed25519KeyPair.publicKey;
@@ -353,6 +419,19 @@ export class SignalProtocol {
     const x = generateX25519KeyPair();
     this.identityX25519Priv = x.priv;
     this.identityX25519Pub = x.pub;
+  }
+
+  /**
+   * Snapshot of the OPK pool — `held` is the total OPKs currently in
+   * memory (un-issued + issued-but-not-consumed); `available` is the
+   * un-issued subset that the next bundle call would draw from. Exposed
+   * for tests and observability.
+   */
+  getOpkPoolStatus(): OpkPoolStatus {
+    return {
+      held: this.preKeys.oneTimePreKeys.size,
+      available: this.preKeys.availableOpkIds.length,
+    };
   }
 
   /** Sets the local node's UHID. Required before any encrypt() call. */
@@ -522,17 +601,61 @@ export class SignalProtocol {
     if (!localUhid) throw new Error("localUhid cannot be empty");
     this.localUhid = localUhid;
 
-    const otpk = generateX25519KeyPair();
-    const preKeyId = randomPositiveInt32();
-    this.preKeys.oneTimePreKeys.set(preKeyId, { priv: otpk.priv, pub: otpk.pub });
+    // Serialise OPK-pool mutations: chain this call onto opkLock so two
+    // concurrent generatePreKeyBundle awaits cannot interleave their pool
+    // mutations. Single-threaded JS still permits this kind of race because
+    // await is a yield point.
+    return this.runUnderOpkLock(() => this.generatePreKeyBundleInner(localUhid));
+  }
 
-    const spk = generateX25519KeyPair();
-    const signedPreKeyId = randomPositiveInt32();
-    const signature = Ed25519Service.sign(this.ed25519PrivateKey, spk.pub);
-    this.preKeys.signedPreKeyId = signedPreKeyId;
-    this.preKeys.signedPreKeyPriv = spk.priv;
-    this.preKeys.signedPreKeyPub = spk.pub;
-    this.preKeys.signedPreKeySignature = signature;
+  /**
+   * Runs `body` while holding the OPK lock. The lock is a Promise chain —
+   * we wait for the previous holder to complete (success or failure does
+   * not matter) and then take the slot ourselves.
+   */
+  private runUnderOpkLock<T>(body: () => Promise<T> | T): Promise<T> {
+    const prev = this.opkLock;
+    let resolve!: () => void;
+    this.opkLock = new Promise<void>((r) => { resolve = r; });
+    return prev
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          return await body();
+        } finally {
+          resolve();
+        }
+      });
+  }
+
+  private async generatePreKeyBundleInner(localUhid: string): Promise<PreKeyBundle> {
+    // SignedPreKey: lazily generated on first call. Subsequent calls reuse
+    // the active SPK (rotation is out of scope for this TS port — the C#
+    // reference adds rotation-window support behind a SignedPreKeyRotationOptions).
+    let signedPreKeyId = this.preKeys.signedPreKeyId;
+    let spkPub = this.preKeys.signedPreKeyPub;
+    let signature = this.preKeys.signedPreKeySignature;
+    if (signedPreKeyId === 0 || spkPub.length === 0) {
+      const spk = generateX25519KeyPair();
+      signedPreKeyId = randomPositiveInt32();
+      signature = Ed25519Service.sign(this.ed25519PrivateKey, spk.pub);
+      this.preKeys.signedPreKeyId = signedPreKeyId;
+      this.preKeys.signedPreKeyPriv = spk.priv;
+      this.preKeys.signedPreKeyPub = spk.pub;
+      this.preKeys.signedPreKeySignature = signature;
+      spkPub = spk.pub;
+    }
+
+    // Top up the OPK pool to {@link opkPoolSize} un-issued entries, then
+    // pop the next un-issued OPK off the front of the FIFO queue.
+    this.topUpOpkPool();
+    const preKeyId = this.preKeys.availableOpkIds.shift();
+    if (preKeyId === undefined) {
+      // Should be unreachable — topUpOpkPool always brings the queue up to
+      // opkPoolSize >= 1. Defensive throw keeps the type-checker happy.
+      throw new Error("OPK pool top-up failed to produce an available id.");
+    }
+    const otpk = this.preKeys.oneTimePreKeys.get(preKeyId)!;
 
     return {
       uhid: localUhid,
@@ -541,9 +664,39 @@ export class SignalProtocol {
       preKeyId,
       preKey: new Uint8Array(otpk.pub),
       signedPreKeyId,
-      signedPreKey: new Uint8Array(spk.pub),
+      signedPreKey: new Uint8Array(spkPub),
       signedPreKeySignature: signature,
     };
+  }
+
+  /**
+   * Tops the OPK pool up to {@link opkPoolSize} un-issued (available) keys.
+   * Generates a fresh X25519 keypair per missing slot, assigns it a random
+   * non-colliding 31-bit positive id, and enqueues the id in
+   * {@link PreKeyState.availableOpkIds}. Idempotent — safe to call repeatedly.
+   *
+   * Caller MUST hold {@link opkLock}.
+   */
+  private topUpOpkPool(): void {
+    while (this.preKeys.availableOpkIds.length < this.opkPoolSize) {
+      const { priv, pub } = generateX25519KeyPair();
+      // Choose a non-colliding id. randomPositiveInt32 is 31-bit so
+      // collisions in a 100-element pool are statistically negligible
+      // (~10^-7 birthday after 100k allocations) — we still guard explicitly.
+      let id = randomPositiveInt32();
+      let attempts = 0;
+      while (this.preKeys.oneTimePreKeys.has(id)) {
+        id = randomPositiveInt32();
+        if (++attempts > 64) {
+          throw new Error(
+            "Could not allocate a non-colliding OPK id after 64 attempts. " +
+              "Pool exhaustion or RNG failure."
+          );
+        }
+      }
+      this.preKeys.oneTimePreKeys.set(id, { priv, pub });
+      this.preKeys.availableOpkIds.push(id);
+    }
   }
 
   /**
