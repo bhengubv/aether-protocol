@@ -23,10 +23,12 @@ Encryption: AES-256-GCM, 12-byte nonce, 16-byte tag.
 Identity signing: Ed25519 via Ed25519SigningService.
 """
 
+import asyncio
 import hmac as stdlib_hmac
 import os
+from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Deque, Dict, Optional, Tuple
 from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -67,6 +69,17 @@ _HKDF_RATCHET_INFO = b"aether-ratchet-rk-v1"
 
 _X25519_PUBLIC_KEY_SIZE = 32
 _X25519_PRIVATE_KEY_SIZE = 32
+
+# Default size of the one-time pre-key pool. Mirrors Signal's published
+# guidance and the C# reference (``SignalProtocolService.DefaultOpkPoolSize
+# = 100``): ~100 OPKs per device so realistic concurrent-initiator loads
+# do not collide on a single shared id.
+DEFAULT_OPK_POOL_SIZE = 100
+
+# Maximum number of attempts to pick a non-colliding random OPK id during
+# pool top-up. Collisions in a 100-element pool over 2^31 ids are
+# statistically negligible but we still guard explicitly.
+_MAX_OPK_ID_ALLOC_ATTEMPTS = 64
 
 
 @dataclass
@@ -195,6 +208,15 @@ class _PreKeyState:
 
     Holds the private halves of the signed pre-key and one-time pre-keys so
     we can run our side of X3DH when an initiator's PreKey message arrives.
+
+    The OPKs are managed as a pool of ``opk_pool_size`` available keys. New
+    bundle generations dequeue the next available id from
+    :attr:`available_opk_ids`; the OPK stays in :attr:`one_time_pre_keys`
+    until a responder consumes it via X3DH, at which point it is removed
+    and never reused. The pool is topped back up to ``opk_pool_size`` on
+    every bundle generation. Pre-2026-05-05 the responder held a SINGLE
+    OPK in this dict, which silently dropped legitimate concurrent
+    initiators after the first consumed it.
     """
 
     def __init__(self) -> None:
@@ -202,14 +224,33 @@ class _PreKeyState:
         self.signed_pre_key_priv: bytes = b""
         self.signed_pre_key_pub: bytes = b""
         self.signed_pre_key_signature: bytes = b""
-        # int -> (priv, pub). Each entry is consumed (zeroed and removed) on first use.
+        # int -> (priv, pub). Each entry is removed on consumption.
         self.one_time_pre_keys: Dict[int, Tuple[bytes, bytes]] = {}
+        # FIFO of OPK ids that are present in ``one_time_pre_keys`` AND
+        # have not yet been advertised to a peer in any bundle. New bundles
+        # popleft() from here; top-up appends.
+        self.available_opk_ids: Deque[int] = deque()
 
 
 class SignalProtocolService:
-    """Signal Protocol implementation: X3DH + full Double Ratchet (Signal §5)."""
+    """Signal Protocol implementation: X3DH + full Double Ratchet (Signal §5).
 
-    def __init__(self) -> None:
+    One-time pre-keys (OPKs) are issued from a configurable pool — the
+    target size of which is set via the ``opk_pool_size`` constructor
+    kwarg (default :data:`DEFAULT_OPK_POOL_SIZE`, 100). On every
+    :meth:`generate_pre_key_bundle` call the pool is topped up to that
+    size; on every :meth:`decrypt` of a PreKey message the consumed OPK
+    is atomically removed under a single ``asyncio.Lock`` shared with
+    the bundle-generation path.
+    """
+
+    def __init__(self, opk_pool_size: int = DEFAULT_OPK_POOL_SIZE) -> None:
+        if opk_pool_size < 1:
+            raise ValueError(
+                f"opk_pool_size must be >= 1 (got {opk_pool_size})."
+            )
+        self._opk_pool_size: int = opk_pool_size
+
         self._sessions: Dict[str, SignalSession] = {}
 
         # Long-term identity keys — two distinct keypairs per node.
@@ -225,6 +266,14 @@ class SignalProtocolService:
 
         # Pre-key state held for responder-side X3DH.
         self._pre_keys: _PreKeyState = _PreKeyState()
+
+        # Single lock guarding OPK pool mutations — the bundle-generation
+        # dequeue and the responder-side consume MUST be atomic relative
+        # to one another, otherwise concurrent initiators using the same
+        # bundle id race the responder-side consume and one of them gets
+        # a "PreKey message references one-time pre-key id X which is not
+        # held" error.
+        self._opk_lock: asyncio.Lock = asyncio.Lock()
 
         self._initialize_identity_keys()
 
@@ -352,7 +401,7 @@ class SignalProtocolService:
                     "(initiator_identity_key_x25519 and sender_ephemeral_key_x25519 / "
                     "initiator_ephemeral_key_x25519)."
                 )
-            self._establish_responder_session(peer_uhid, payload, sender_ratchet_pub)
+            await self._establish_responder_session(peer_uhid, payload, sender_ratchet_pub)
 
         session = self._sessions.get(peer_uhid)
         if session is None:
@@ -417,44 +466,56 @@ class SignalProtocolService:
     async def generate_pre_key_bundle(self, local_uhid: str) -> PreKeyBundle:
         """Generate a pre-key bundle. Retains the SPK + OPK private halves
         for responder-side X3DH on this node.
+
+        OPKs are issued from the pool: on each call we top the pool up to
+        :attr:`_opk_pool_size` available (un-issued) keys, then dequeue
+        the next un-issued OPK as the one published in this bundle. The
+        OPK then stays in :attr:`_pre_keys.one_time_pre_keys` (no longer
+        in the available deque) until a responder consumes it via X3DH.
+
+        The signed pre-key is generated lazily on the first call and
+        re-used on subsequent calls (no rotation in the Python
+        implementation yet — matching pre-2026-05-05 C# behaviour. SPK
+        rotation can be added later if a Python host needs it; the wire
+        format does not change.)
         """
         if not local_uhid:
             raise ValueError("local_uhid cannot be empty")
         self._local_uhid = local_uhid
 
-        # One-time pre-key.
-        otpk_priv_obj = X25519PrivateKey.generate()
-        otpk_priv = otpk_priv_obj.private_bytes(
-            encoding=Encoding.Raw,
-            format=PrivateFormat.Raw,
-            encryption_algorithm=NoEncryption(),
-        )
-        otpk_pub = otpk_priv_obj.public_key().public_bytes(
-            encoding=Encoding.Raw, format=PublicFormat.Raw
-        )
-        pre_key_id = int.from_bytes(os.urandom(4), "big") % (2**31 - 1) + 1
-        self._pre_keys.one_time_pre_keys[pre_key_id] = (otpk_priv, otpk_pub)
+        # OPK pool top-up + dequeue: must be atomic relative to the
+        # responder-side consume in _establish_responder_session. We hold
+        # _opk_lock across both steps.
+        async with self._opk_lock:
+            self._top_up_opk_pool_locked()
+            pre_key_id = self._pre_keys.available_opk_ids.popleft()
+            _, otpk_pub = self._pre_keys.one_time_pre_keys[pre_key_id]
 
-        # Signed pre-key.
-        spk_priv_obj = X25519PrivateKey.generate()
-        spk_priv = spk_priv_obj.private_bytes(
-            encoding=Encoding.Raw,
-            format=PrivateFormat.Raw,
-            encryption_algorithm=NoEncryption(),
-        )
-        spk_pub = spk_priv_obj.public_key().public_bytes(
-            encoding=Encoding.Raw, format=PublicFormat.Raw
-        )
-        signed_pre_key_id = int.from_bytes(os.urandom(4), "big") % (2**31 - 1) + 1
+            # Signed pre-key — generated lazily and cached in pre_keys.
+            if not self._pre_keys.signed_pre_key_priv:
+                spk_priv_obj = X25519PrivateKey.generate()
+                spk_priv = spk_priv_obj.private_bytes(
+                    encoding=Encoding.Raw,
+                    format=PrivateFormat.Raw,
+                    encryption_algorithm=NoEncryption(),
+                )
+                spk_pub = spk_priv_obj.public_key().public_bytes(
+                    encoding=Encoding.Raw, format=PublicFormat.Raw
+                )
+                signed_pre_key_id = (
+                    int.from_bytes(os.urandom(4), "big") % (2**31 - 1) + 1
+                )
+                signature = Ed25519SigningService.sign(
+                    self._ed25519_private_key, spk_pub
+                )
+                self._pre_keys.signed_pre_key_id = signed_pre_key_id
+                self._pre_keys.signed_pre_key_priv = spk_priv
+                self._pre_keys.signed_pre_key_pub = spk_pub
+                self._pre_keys.signed_pre_key_signature = signature
 
-        # Signature is over the X25519 SPK public, signed by Ed25519 identity.
-        signature = Ed25519SigningService.sign(
-            self._ed25519_private_key, spk_pub
-        )
-        self._pre_keys.signed_pre_key_id = signed_pre_key_id
-        self._pre_keys.signed_pre_key_priv = spk_priv
-        self._pre_keys.signed_pre_key_pub = spk_pub
-        self._pre_keys.signed_pre_key_signature = signature
+            spk_pub = self._pre_keys.signed_pre_key_pub
+            signed_pre_key_id = self._pre_keys.signed_pre_key_id
+            signature = self._pre_keys.signed_pre_key_signature
 
         return PreKeyBundle(
             uhid=local_uhid,
@@ -466,6 +527,67 @@ class SignalProtocolService:
             signed_pre_key=bytes(spk_pub),
             signed_pre_key_signature=signature,
         )
+
+    def get_opk_pool_status(self) -> Tuple[int, int]:
+        """Snapshot of the OPK pool for observability.
+
+        Returns:
+            (held, available) where:
+              * ``held`` is the total number of OPKs whose private half
+                this service holds (un-issued + issued-but-not-yet-consumed).
+              * ``available`` is the number of OPKs in the pool that have
+                not yet been advertised to any peer in a bundle.
+
+        ``available`` is what gets compared against :attr:`opk_pool_size`
+        on each top-up; ``held - available`` is the number of OPKs that
+        have been issued at least once but not yet consumed.
+        """
+        return (
+            len(self._pre_keys.one_time_pre_keys),
+            len(self._pre_keys.available_opk_ids),
+        )
+
+    @property
+    def opk_pool_size(self) -> int:
+        """Target size of the OPK pool. Configured at construction time."""
+        return self._opk_pool_size
+
+    def _top_up_opk_pool_locked(self) -> None:
+        """Generate fresh OPKs until ``available_opk_ids`` reaches
+        :attr:`_opk_pool_size`. Caller MUST hold :attr:`_opk_lock`.
+
+        Mirrors the C# ``TopUpOpkPoolNoLock`` logic: random non-colliding
+        ids are chosen for each new OPK, retrying up to
+        :data:`_MAX_OPK_ID_ALLOC_ATTEMPTS` times before raising on
+        collision (statistically negligible — safety net for RNG failure).
+        """
+        while len(self._pre_keys.available_opk_ids) < self._opk_pool_size:
+            otpk_priv_obj = X25519PrivateKey.generate()
+            otpk_priv = otpk_priv_obj.private_bytes(
+                encoding=Encoding.Raw,
+                format=PrivateFormat.Raw,
+                encryption_algorithm=NoEncryption(),
+            )
+            otpk_pub = otpk_priv_obj.public_key().public_bytes(
+                encoding=Encoding.Raw, format=PublicFormat.Raw
+            )
+
+            # Choose a non-colliding id.
+            attempts = 0
+            while True:
+                pre_key_id = int.from_bytes(os.urandom(4), "big") % (2**31 - 1) + 1
+                if pre_key_id not in self._pre_keys.one_time_pre_keys:
+                    break
+                attempts += 1
+                if attempts > _MAX_OPK_ID_ALLOC_ATTEMPTS:
+                    raise RuntimeError(
+                        "Could not allocate a non-colliding OPK id after "
+                        f"{_MAX_OPK_ID_ALLOC_ATTEMPTS} attempts. Pool exhaustion or "
+                        "RNG failure."
+                    )
+
+            self._pre_keys.one_time_pre_keys[pre_key_id] = (otpk_priv, otpk_pub)
+            self._pre_keys.available_opk_ids.append(pre_key_id)
 
     async def process_pre_key_bundle(self, bundle: PreKeyBundle) -> None:
         """Establish initiator-side session via X3DH (Signal §3.3).
@@ -535,7 +657,7 @@ class SignalProtocolService:
         )
         self._sessions[bundle.uhid] = session
 
-    def _establish_responder_session(
+    async def _establish_responder_session(
         self, peer_uhid: str, payload: EncryptedPayload, initiator_ratchet_pub: bytes
     ) -> None:
         """Mirror the initiator's 4 X3DH DHs to derive the same root key,
@@ -544,8 +666,13 @@ class SignalProtocolService:
         The signed pre-key (private + public) is adopted as the responder's
         initial DHs; a fresh keypair is generated when the DH-ratchet step
         rotates it. ``remote_ephemeral_pub`` is left None to force a
-        DH-ratchet step on the upcoming decrypt. The one-time pre-key is
-        consumed.
+        DH-ratchet step on the upcoming decrypt.
+
+        Concurrency: the OPK look-up + consume is performed under
+        :attr:`_opk_lock` so two concurrent initiators that happened to
+        race on the SAME OPK id cannot both see "not yet consumed" and
+        proceed — exactly one wins, the loser raises with the standard
+        "already consumed" error.
         """
         ik = payload.initiator_identity_key_x25519
         ek = initiator_ratchet_pub
@@ -559,24 +686,46 @@ class SignalProtocolService:
                 f"Initiator ratchet pub has wrong size ({len(ek) if ek else 0}, "
                 f"expected {_X25519_PUBLIC_KEY_SIZE})"
             )
-        if (self._pre_keys.signed_pre_key_id != payload.used_signed_pre_key_id
-                or not self._pre_keys.signed_pre_key_priv):
-            raise ValueError(
-                f"PreKey message references signed pre-key id "
-                f"{payload.used_signed_pre_key_id} which is not held by this node."
-            )
-        if payload.used_one_time_pre_key_id not in self._pre_keys.one_time_pre_keys:
-            raise ValueError(
-                f"PreKey message references one-time pre-key id "
-                f"{payload.used_one_time_pre_key_id} which is not held "
-                "(already consumed, or never generated)."
-            )
-        otpk_priv, _ = self._pre_keys.one_time_pre_keys[payload.used_one_time_pre_key_id]
 
+        # Atomically look up + consume the OPK private half. SPK is also
+        # checked under the lock for symmetry, even though SPK is not
+        # rotated per-message in this implementation.
+        async with self._opk_lock:
+            if (self._pre_keys.signed_pre_key_id != payload.used_signed_pre_key_id
+                    or not self._pre_keys.signed_pre_key_priv):
+                raise ValueError(
+                    f"PreKey message references signed pre-key id "
+                    f"{payload.used_signed_pre_key_id} which is not held by this node."
+                )
+            if payload.used_one_time_pre_key_id not in self._pre_keys.one_time_pre_keys:
+                raise ValueError(
+                    f"PreKey message references one-time pre-key id "
+                    f"{payload.used_one_time_pre_key_id} which is not held "
+                    "(already consumed, or never generated)."
+                )
+            otpk_priv, _ = self._pre_keys.one_time_pre_keys[payload.used_one_time_pre_key_id]
+
+            # Consume the OPK BEFORE dropping the lock so a concurrent
+            # initiator using the same id sees "already consumed".
+            del self._pre_keys.one_time_pre_keys[payload.used_one_time_pre_key_id]
+            # If the consumed id was still in the available deque (an
+            # initiator that received the bundle before we issued any
+            # other), drop it from there too — non-fatal if already gone.
+            try:
+                self._pre_keys.available_opk_ids.remove(
+                    payload.used_one_time_pre_key_id
+                )
+            except ValueError:
+                pass
+
+            spk_priv = self._pre_keys.signed_pre_key_priv
+            spk_pub = self._pre_keys.signed_pre_key_pub
+
+        # Crypto outside the lock — only state mutation is locked.
         # Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
-        dh1 = self._x25519_agree(self._pre_keys.signed_pre_key_priv, ik)
+        dh1 = self._x25519_agree(spk_priv, ik)
         dh2 = self._x25519_agree(self._identity_x25519_priv, ek)
-        dh3 = self._x25519_agree(self._pre_keys.signed_pre_key_priv, ek)
+        dh3 = self._x25519_agree(spk_priv, ek)
         dh4 = self._x25519_agree(otpk_priv, ek)
 
         shared_secret = dh1 + dh2 + dh3 + dh4
@@ -588,14 +737,11 @@ class SignalProtocolService:
             root_key=root_key,
             send_chain_key=None,
             recv_chain_key=None,
-            my_ephemeral_priv=bytes(self._pre_keys.signed_pre_key_priv),
-            my_ephemeral_pub=bytes(self._pre_keys.signed_pre_key_pub),
+            my_ephemeral_priv=bytes(spk_priv),
+            my_ephemeral_pub=bytes(spk_pub),
             remote_ephemeral_pub=None,  # forces DH-ratchet on first decrypt
             pending_pre_key_message=False,
         )
-
-        # Consume one-time pre-key — never reuse (replay protection).
-        del self._pre_keys.one_time_pre_keys[payload.used_one_time_pre_key_id]
 
     def _dh_ratchet_receive(self, session: SignalSession, new_remote_ephemeral_pub: bytes) -> None:
         """Performs a full DH-ratchet step on receive (Signal §5.2): updates DHr,
