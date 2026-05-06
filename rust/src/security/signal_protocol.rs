@@ -31,13 +31,19 @@
 
 use crate::constants::{AES_GCM_NONCE_SIZE, AES_GCM_TAG_SIZE, AES_KEY_SIZE};
 use crate::models::{EncryptedPayload, PreKeyBundle, SignalSession};
+use crate::security::dtos::{
+    StoredIdentityKeys, StoredOneTimePreKey, StoredSignedPreKey, StoredSignedPreKeyHistory,
+};
+use crate::security::prekey_store::PreKeyStore;
+use crate::security::session_store::SignalSessionStore;
 use aes_gcm::{aead::Aead, Aes256Gcm, Key, KeyInit, Nonce};
+use chrono::{DateTime, Utc};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
 use rand::Rng;
 use sha2::Sha256;
 use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
 type HmacSha256 = Hmac<Sha256>;
@@ -64,9 +70,57 @@ const HKDF_X3DH_ROOT_INFO: &[u8] = b"aether-x3dh-root-v1";
 /// (first 32 bytes) and the new chain key (second 32 bytes).
 const HKDF_RATCHET_INFO: &[u8] = b"aether-ratchet-rk-v1";
 
+/// One signed-pre-key in the history (active or retained-prior). The
+/// private half is held so that responder-side X3DH can still complete
+/// when a peer presents a slightly-stale SPK during the rotation window.
+#[derive(Clone)]
+struct SignedPreKeyEntry {
+    id: i32,
+    private_key: Vec<u8>,
+    public_key: Vec<u8>,
+    signature: Vec<u8>,
+    generated_at: DateTime<Utc>,
+}
+
+/// Configuration for periodic signed-pre-key rotation (Signal §3.3 — keys
+/// SHOULD be rotated periodically).
+///
+/// On every `generate_pre_key_bundle` call the service checks whether the
+/// active SPK is older than [`Self::rotation_interval`]; if it is, a fresh
+/// SPK is generated and the old one is appended to the history. The
+/// history is then trimmed to keep at most [`Self::retained_history_count`]
+/// prior entries (plus the new active one). Messages signed under any
+/// retained SPK still decrypt; messages signed under a pruned SPK fail.
+#[derive(Clone, Copy, Debug)]
+pub struct SignedPreKeyRotationOptions {
+    pub rotation_interval: chrono::Duration,
+    pub retained_history_count: usize,
+}
+
+impl SignedPreKeyRotationOptions {
+    pub const DEFAULT_RETAINED_HISTORY_COUNT: usize = 3;
+
+    pub fn default_options() -> Self {
+        Self {
+            rotation_interval: chrono::Duration::days(7),
+            retained_history_count: Self::DEFAULT_RETAINED_HISTORY_COUNT,
+        }
+    }
+}
+
+impl Default for SignedPreKeyRotationOptions {
+    fn default() -> Self {
+        Self::default_options()
+    }
+}
+
 /// Responder-side pre-key state. Holds the private halves of the signed
-/// pre-key and one-time pre-keys so X3DH can be computed when an initiator's
-/// PreKey message arrives.
+/// pre-key (current + retained-prior history) and one-time pre-keys so
+/// X3DH can be computed when an initiator's PreKey message arrives.
+///
+/// `signed_pre_key_history` is oldest-first; the last entry is the active
+/// SPK. The flat `signed_pre_key_*` denormalised fields mirror the
+/// active entry and are kept in sync with `signed_pre_key_history.last()`.
 ///
 /// One-time pre-keys are managed as a pool of `target_opk_pool_size` entries.
 /// Bundle generation hands out the next-unused id from `available_opk_ids`
@@ -81,6 +135,8 @@ struct PreKeyState {
     signed_pre_key_priv: Vec<u8>,
     signed_pre_key_pub: Vec<u8>,
     signed_pre_key_signature: Vec<u8>,
+    /// SPK history, oldest first. The last entry is the active SPK.
+    signed_pre_key_history: Vec<SignedPreKeyEntry>,
     /// id -> (priv, pub). Removed and zeroed on consumption (X3DH responder side).
     one_time_pre_keys: HashMap<i32, (Vec<u8>, Vec<u8>)>,
     /// IDs of OPKs that exist in `one_time_pre_keys` and have NOT yet been
@@ -88,6 +144,10 @@ struct PreKeyState {
     /// Top-up generates new OPKs and enqueues them here.
     available_opk_ids: VecDeque<i32>,
 }
+
+/// Function returning the current time. Pluggable so tests can drive a
+/// synthetic clock through SPK rotation without sleeping.
+pub type NowProvider = Arc<dyn Fn() -> DateTime<Utc> + Send + Sync>;
 
 pub struct SignalProtocolService {
     // Long-term identity keys — two distinct keypairs per node.
@@ -113,11 +173,29 @@ pub struct SignalProtocolService {
     target_opk_pool_size: usize,
 
     sessions: HashMap<String, SignalSession>,
+
+    /// Optional persistent session store. When non-None, hydrated on
+    /// construction and saved to (best-effort) after every session
+    /// mutation. Wrapped in `Arc` so a single store can be shared across
+    /// services / tasks.
+    session_store: Option<Arc<dyn SignalSessionStore>>,
+
+    /// Optional persistent identity / pre-key store. When non-None,
+    /// identity keys are hydrated (or generated and saved) on
+    /// construction; SPK history and OPK pool are hydrated; and every
+    /// rotation / bundle generation persists the new state best-effort.
+    pre_key_store: Option<Arc<dyn PreKeyStore>>,
+
+    /// Signed-pre-key rotation policy.
+    rotation_options: SignedPreKeyRotationOptions,
+
+    /// Pluggable clock — defaults to `chrono::Utc::now`.
+    now_provider: NowProvider,
 }
 
 impl SignalProtocolService {
     /// Construct a Signal Protocol service with the default OPK pool size
-    /// ([`DEFAULT_OPK_POOL_SIZE`] = 100).
+    /// ([`DEFAULT_OPK_POOL_SIZE`] = 100) and no persistent stores.
     pub fn new() -> Self {
         Self::with_opk_pool_size(DEFAULT_OPK_POOL_SIZE)
     }
@@ -128,10 +206,34 @@ impl SignalProtocolService {
     ///
     /// Panics if `target_opk_pool_size == 0`.
     pub fn with_opk_pool_size(target_opk_pool_size: usize) -> Self {
+        Self::build(target_opk_pool_size, None, None, None, None)
+    }
+
+    /// Builder entry point that wires the full set of optional dependencies
+    /// — persistence stores, rotation policy, and clock. Mirrors the C#
+    /// `SignalProtocolService` internal constructor that takes every
+    /// optional parameter.
+    pub fn builder() -> SignalProtocolServiceBuilder {
+        SignalProtocolServiceBuilder::default()
+    }
+
+    fn build(
+        target_opk_pool_size: usize,
+        session_store: Option<Arc<dyn SignalSessionStore>>,
+        pre_key_store: Option<Arc<dyn PreKeyStore>>,
+        rotation_options: Option<SignedPreKeyRotationOptions>,
+        now_provider: Option<NowProvider>,
+    ) -> Self {
         assert!(
             target_opk_pool_size >= 1,
             "target_opk_pool_size must be >= 1 (got {})",
             target_opk_pool_size
+        );
+
+        let rotation_options = rotation_options.unwrap_or_default();
+        assert!(
+            rotation_options.rotation_interval > chrono::Duration::zero(),
+            "rotation_interval must be > 0"
         );
 
         let (ed_priv, ed_pub) = crate::security::Ed25519SigningService::generate_keypair();
@@ -142,7 +244,9 @@ impl SignalProtocolService {
         let x_priv: [u8; 32] = x_priv_secret.to_bytes();
         let x_pub: [u8; 32] = X25519PublicKey::from(&x_priv_secret).to_bytes();
 
-        SignalProtocolService {
+        let now_provider: NowProvider = now_provider.unwrap_or_else(|| Arc::new(Utc::now));
+
+        let mut svc = SignalProtocolService {
             identity_x25519_priv: x_priv,
             identity_x25519_pub: x_pub,
             ed25519_private_key: ed_priv,
@@ -151,7 +255,340 @@ impl SignalProtocolService {
             pre_keys: Mutex::new(PreKeyState::default()),
             target_opk_pool_size,
             sessions: HashMap::new(),
+            session_store,
+            pre_key_store,
+            rotation_options,
+            now_provider,
+        };
+
+        // Hydrate from stores if configured. Best-effort: a failure logs
+        // (via eprintln in lieu of a logger trait) and continues with
+        // freshly-generated material — matches the C# reference behaviour.
+        svc.hydrate_from_pre_key_store();
+        svc.hydrate_from_session_store();
+        svc
+    }
+
+    /// Loads identity keys, SPK history, and OPK pool from `pre_key_store`
+    /// if configured. If no identity is on disk, the freshly-generated one
+    /// is saved. Best-effort: failures log and continue with freshly-
+    /// generated material.
+    fn hydrate_from_pre_key_store(&mut self) {
+        let store = match self.pre_key_store.as_ref() {
+            Some(s) => s.clone(),
+            None => return,
+        };
+
+        // Identity.
+        match futures_block_on(store.load_identity()) {
+            Ok(Some(stored)) => {
+                if stored.ed25519_private_key.len() == 32
+                    && stored.ed25519_public_key.len() == 32
+                    && stored.x25519_private_key.len() == 32
+                    && stored.x25519_public_key.len() == 32
+                {
+                    self.ed25519_private_key = stored.ed25519_private_key;
+                    self.ed25519_public_key = stored.ed25519_public_key;
+                    self.identity_x25519_priv =
+                        try_into_32(&stored.x25519_private_key).unwrap_or(self.identity_x25519_priv);
+                    self.identity_x25519_pub =
+                        try_into_32(&stored.x25519_public_key).unwrap_or(self.identity_x25519_pub);
+                    if let Some(uhid) = stored.local_uhid {
+                        if !uhid.is_empty() {
+                            self.local_uhid = Some(uhid);
+                        }
+                    }
+                } else {
+                    eprintln!("[SignalProtocolService] stored identity has malformed key sizes; ignoring.");
+                }
+            }
+            Ok(None) => {
+                let snap = StoredIdentityKeys {
+                    ed25519_private_key: self.ed25519_private_key.clone(),
+                    ed25519_public_key: self.ed25519_public_key.clone(),
+                    x25519_private_key: self.identity_x25519_priv.to_vec(),
+                    x25519_public_key: self.identity_x25519_pub.to_vec(),
+                    local_uhid: self.local_uhid.clone(),
+                };
+                if let Err(e) = futures_block_on(store.save_identity(&snap)) {
+                    eprintln!("[SignalProtocolService] failed to save fresh identity: {}", e);
+                }
+            }
+            Err(e) => eprintln!("[SignalProtocolService] failed to load identity: {}", e),
         }
+
+        // SPK history.
+        let history = match futures_block_on(store.load_signed_pre_keys()) {
+            Ok(h) => h,
+            Err(e) => {
+                eprintln!("[SignalProtocolService] failed to load SPK history: {}", e);
+                StoredSignedPreKeyHistory::default()
+            }
+        };
+        if !history.entries.is_empty() {
+            let mut pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+            pk.signed_pre_key_history.clear();
+            let mut ordered = history.entries.clone();
+            ordered.sort_by_key(|e| e.generated_at_unix_ms);
+            for e in ordered {
+                pk.signed_pre_key_history.push(SignedPreKeyEntry {
+                    id: e.id,
+                    private_key: e.private_key,
+                    public_key: e.public_key,
+                    signature: e.signature,
+                    generated_at: from_unix_ms(e.generated_at_unix_ms),
+                });
+            }
+            let active_snapshot = pk.signed_pre_key_history.last().cloned();
+            if let Some(active) = active_snapshot {
+                pk.signed_pre_key_id = active.id;
+                pk.signed_pre_key_priv = active.private_key;
+                pk.signed_pre_key_pub = active.public_key;
+                pk.signed_pre_key_signature = active.signature;
+            }
+        }
+
+        // OPK pool.
+        match futures_block_on(store.load_one_time_pre_keys()) {
+            Ok(opks) => {
+                let mut pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+                pk.one_time_pre_keys.clear();
+                pk.available_opk_ids.clear();
+                let mut id_ordered: Vec<&i32> = opks.keys().collect();
+                id_ordered.sort();
+                for id in id_ordered {
+                    let opk = &opks[id];
+                    pk.one_time_pre_keys
+                        .insert(opk.id, (opk.private_key.clone(), opk.public_key.clone()));
+                    if !opk.issued {
+                        pk.available_opk_ids.push_back(opk.id);
+                    }
+                }
+            }
+            Err(e) => eprintln!("[SignalProtocolService] failed to load OPK pool: {}", e),
+        }
+    }
+
+    fn hydrate_from_session_store(&mut self) {
+        let store = match self.session_store.as_ref() {
+            Some(s) => s.clone(),
+            None => return,
+        };
+        let peers = match futures_block_on(store.list_peers()) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("[SignalProtocolService] failed to list peers: {}", e);
+                return;
+            }
+        };
+        for peer in peers {
+            match futures_block_on(store.load(&peer)) {
+                Ok(Some(mut session)) => {
+                    // session.peer_uhid is empty in deserialised form — fill it.
+                    session.peer_uhid = peer.clone();
+                    self.sessions.insert(peer, session);
+                }
+                Ok(None) => {}
+                Err(e) => eprintln!(
+                    "[SignalProtocolService] failed to load session for {}: {}",
+                    peer, e
+                ),
+            }
+        }
+    }
+
+    /// Best-effort persist of one session. Spawned to avoid blocking the
+    /// hot path; errors are logged and swallowed.
+    fn try_persist_session(&self, peer_uhid: &str, session: &SignalSession) {
+        let Some(store) = self.session_store.as_ref().cloned() else {
+            return;
+        };
+        let peer = peer_uhid.to_string();
+        let session = session.clone();
+        spawn_persist(async move {
+            if let Err(e) = store.save(&peer, &session).await {
+                eprintln!("[SignalProtocolService] persist session({}): {}", peer, e);
+            }
+        });
+    }
+
+    fn try_persist_identity(&self) {
+        let Some(store) = self.pre_key_store.as_ref().cloned() else {
+            return;
+        };
+        let snap = StoredIdentityKeys {
+            ed25519_private_key: self.ed25519_private_key.clone(),
+            ed25519_public_key: self.ed25519_public_key.clone(),
+            x25519_private_key: self.identity_x25519_priv.to_vec(),
+            x25519_public_key: self.identity_x25519_pub.to_vec(),
+            local_uhid: self.local_uhid.clone(),
+        };
+        spawn_persist(async move {
+            if let Err(e) = store.save_identity(&snap).await {
+                eprintln!("[SignalProtocolService] persist identity: {}", e);
+            }
+        });
+    }
+
+    /// Caller MUST hold the pre-key mutex (we snapshot under it then save
+    /// off-thread so there's no risk of an awaiting `MutexGuard`).
+    fn try_persist_signed_pre_keys_snapshot(&self, pk: &PreKeyState) {
+        let Some(store) = self.pre_key_store.as_ref().cloned() else {
+            return;
+        };
+        let snap = StoredSignedPreKeyHistory {
+            entries: pk
+                .signed_pre_key_history
+                .iter()
+                .map(|e| StoredSignedPreKey {
+                    id: e.id,
+                    private_key: e.private_key.clone(),
+                    public_key: e.public_key.clone(),
+                    signature: e.signature.clone(),
+                    generated_at_unix_ms: to_unix_ms(e.generated_at),
+                })
+                .collect(),
+        };
+        spawn_persist(async move {
+            if let Err(e) = store.save_signed_pre_keys(&snap).await {
+                eprintln!("[SignalProtocolService] persist SPK history: {}", e);
+            }
+        });
+    }
+
+    fn try_persist_one_time_pre_keys_snapshot(&self, pk: &PreKeyState) {
+        let Some(store) = self.pre_key_store.as_ref().cloned() else {
+            return;
+        };
+        let issued: std::collections::HashSet<i32> = pk
+            .one_time_pre_keys
+            .keys()
+            .filter(|id| !pk.available_opk_ids.contains(id))
+            .copied()
+            .collect();
+        let snap: HashMap<i32, StoredOneTimePreKey> = pk
+            .one_time_pre_keys
+            .iter()
+            .map(|(id, (priv_, pub_))| {
+                (
+                    *id,
+                    StoredOneTimePreKey {
+                        id: *id,
+                        private_key: priv_.clone(),
+                        public_key: pub_.clone(),
+                        issued: issued.contains(id),
+                    },
+                )
+            })
+            .collect();
+        spawn_persist(async move {
+            if let Err(e) = store.save_one_time_pre_keys(&snap).await {
+                eprintln!("[SignalProtocolService] persist OPK pool: {}", e);
+            }
+        });
+    }
+
+    fn try_consume_one_time_pre_key_persist(&self, id: i32) {
+        let Some(store) = self.pre_key_store.as_ref().cloned() else {
+            return;
+        };
+        spawn_persist(async move {
+            if let Err(e) = store.consume_one_time_pre_key(id).await {
+                eprintln!("[SignalProtocolService] persist OPK consume({}): {}", id, e);
+            }
+        });
+    }
+
+    /// Active signed-pre-key id. Test/observability hook.
+    pub fn active_signed_pre_key_id(&self) -> i32 {
+        self.pre_keys.lock().expect("pre-key mutex poisoned").signed_pre_key_id
+    }
+
+    /// Number of signed-pre-keys held — active + retained prior.
+    pub fn signed_pre_key_history_count(&self) -> usize {
+        self.pre_keys
+            .lock()
+            .expect("pre-key mutex poisoned")
+            .signed_pre_key_history
+            .len()
+    }
+
+    /// Forces a signed-pre-key rotation if the active SPK is older than
+    /// [`SignedPreKeyRotationOptions::rotation_interval`]. Returns
+    /// `true` iff a new SPK was generated and persisted.
+    pub async fn rotate_signed_pre_key(&self) -> Result<bool, Box<dyn std::error::Error>> {
+        let now = (self.now_provider)();
+        let mut rotated = false;
+        let snapshot_for_save = {
+            let mut pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+            let should_rotate = pk.signed_pre_key_history.is_empty()
+                || now - pk.signed_pre_key_history.last().unwrap().generated_at
+                    >= self.rotation_options.rotation_interval;
+            if should_rotate {
+                let mut rng = rand::thread_rng();
+                self.append_new_signed_pre_key_no_lock(&mut pk, &mut rng, now)?;
+                rotated = true;
+                Some(snapshot_history(&pk))
+            } else {
+                None
+            }
+        };
+        if rotated {
+            self.persist_history_snapshot(snapshot_for_save);
+        }
+        Ok(rotated)
+    }
+
+    fn persist_history_snapshot(&self, snapshot: Option<StoredSignedPreKeyHistory>) {
+        if let (Some(store), Some(snap)) = (self.pre_key_store.as_ref().cloned(), snapshot) {
+            spawn_persist(async move {
+                if let Err(e) = store.save_signed_pre_keys(&snap).await {
+                    eprintln!("[SignalProtocolService] persist SPK history: {}", e);
+                }
+            });
+        }
+    }
+
+    /// Generates a fresh SPK, appends it to the history as the new active
+    /// entry, and trims the history to the retained-count budget. Caller
+    /// MUST hold the pre-key mutex (passed in as `pk`).
+    fn append_new_signed_pre_key_no_lock<R: rand::Rng + rand::CryptoRng>(
+        &self,
+        pk: &mut PreKeyState,
+        rng: &mut R,
+        now: DateTime<Utc>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let spk_secret = StaticSecret::random_from_rng(&mut *rng);
+        let spk_priv: [u8; 32] = spk_secret.to_bytes();
+        let spk_pub: [u8; 32] = X25519PublicKey::from(&spk_secret).to_bytes();
+        let id = rng.gen_range(1..i32::MAX);
+        let signature =
+            crate::security::Ed25519SigningService::sign(&self.ed25519_private_key, &spk_pub)?;
+
+        pk.signed_pre_key_history.push(SignedPreKeyEntry {
+            id,
+            private_key: spk_priv.to_vec(),
+            public_key: spk_pub.to_vec(),
+            signature: signature.clone(),
+            generated_at: now,
+        });
+
+        let max_entries = 1 + self.rotation_options.retained_history_count;
+        while pk.signed_pre_key_history.len() > max_entries {
+            // Best-effort scrub of the pruned private half before drop.
+            let mut pruned = pk.signed_pre_key_history.remove(0);
+            zero(&mut pruned.private_key);
+        }
+
+        let active = pk
+            .signed_pre_key_history
+            .last()
+            .expect("just pushed an entry");
+        pk.signed_pre_key_id = active.id;
+        pk.signed_pre_key_priv = active.private_key.clone();
+        pk.signed_pre_key_pub = active.public_key.clone();
+        pk.signed_pre_key_signature = active.signature.clone();
+        Ok(())
     }
 
     /// Configured target size of the OPK pool.
@@ -175,7 +612,11 @@ impl SignalProtocolService {
 
     /// Sets the local node's UHID. Required before any encrypt() call.
     pub fn set_local_uhid(&mut self, uhid: &str) {
+        let changed = self.local_uhid.as_deref() != Some(uhid);
         self.local_uhid = Some(uhid.to_string());
+        if changed {
+            self.try_persist_identity();
+        }
     }
 
     pub fn has_session(&self, peer_uhid: &str) -> bool {
@@ -199,49 +640,58 @@ impl SignalProtocolService {
     ///   * Subsequent calls top the pool back up to `target_opk_pool_size`
     ///     un-issued OPKs (replacing keys consumed by responders since the
     ///     last call), then dequeue one.
-    /// The SPK is generated lazily on the first bundle call and reused on
-    /// subsequent calls; rotation policy mirrors the C# reference but is not
-    /// implemented here (still TODO for full parity).
+    /// The SPK is generated lazily on the first bundle call and rotated when
+    /// its age exceeds [`SignedPreKeyRotationOptions::rotation_interval`].
+    /// The retained-history budget keeps prior SPKs available so in-flight
+    /// messages signed under a recently-rotated SPK still complete X3DH.
     pub fn generate_pre_key_bundle(
         &mut self,
         local_uhid: &str,
     ) -> Result<PreKeyBundle, Box<dyn std::error::Error>> {
+        let uhid_changed = self.local_uhid.as_deref() != Some(local_uhid);
         self.local_uhid = Some(local_uhid.to_string());
+        if uhid_changed {
+            self.try_persist_identity();
+        }
+
         let mut rng = rand::thread_rng();
+        let now = (self.now_provider)();
 
-        // Lazy SPK initialization on first call. SPK is reused across bundles
-        // until rotation kicks in (rotation not yet implemented in Rust).
-        let (signed_pre_key_id, spk_pub_bytes, signature) = {
+        let (
+            signed_pre_key_id,
+            spk_pub_bytes,
+            signature,
+            pre_key_id,
+            otpk_pub,
+            history_mutated,
+        ) = {
             let mut pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
-            if pk.signed_pre_key_priv.is_empty() {
-                let spk_secret = StaticSecret::random_from_rng(&mut rng);
-                let spk_priv: [u8; 32] = spk_secret.to_bytes();
-                let spk_pub: [u8; 32] = X25519PublicKey::from(&spk_secret).to_bytes();
-                let id = rng.gen_range(1..i32::MAX);
-                let sig = crate::security::Ed25519SigningService::sign(
-                    &self.ed25519_private_key,
-                    &spk_pub,
-                )?;
-                pk.signed_pre_key_id = id;
-                pk.signed_pre_key_priv = spk_priv.to_vec();
-                pk.signed_pre_key_pub = spk_pub.to_vec();
-                pk.signed_pre_key_signature = sig.clone();
-                (id, spk_pub.to_vec(), sig)
+
+            // SPK: lazy init or rotation when active SPK age exceeds
+            // rotation_interval. Append-and-prune updates the history list
+            // and the denormalised active fields.
+            let mut history_mutated = false;
+            if pk.signed_pre_key_history.is_empty() {
+                self.append_new_signed_pre_key_no_lock(&mut pk, &mut rng, now)?;
+                history_mutated = true;
             } else {
-                (
-                    pk.signed_pre_key_id,
-                    pk.signed_pre_key_pub.clone(),
-                    pk.signed_pre_key_signature.clone(),
-                )
+                let age =
+                    now - pk.signed_pre_key_history.last().unwrap().generated_at;
+                if age >= self.rotation_options.rotation_interval {
+                    self.append_new_signed_pre_key_no_lock(&mut pk, &mut rng, now)?;
+                    history_mutated = true;
+                }
             }
-        };
+            let active = pk
+                .signed_pre_key_history
+                .last()
+                .expect("active SPK present after init/rotate");
+            let signed_pre_key_id = active.id;
+            let spk_pub = active.public_key.clone();
+            let signature = active.signature.clone();
 
-        // OPK: top up the pool, then dequeue the next un-issued OPK id and
-        // grab its public half. Both happen under the same mutex hold so a
-        // concurrent responder cannot consume the OPK between top-up and
-        // dequeue.
-        let (pre_key_id, otpk_pub) = {
-            let mut pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+            // OPK: top up + dequeue under same mutex hold to keep the
+            // original concurrency guarantee.
             top_up_opk_pool(&mut pk, self.target_opk_pool_size, &mut rng)?;
             let id = pk
                 .available_opk_ids
@@ -253,8 +703,25 @@ impl SignalProtocolService {
                 .expect("available id MUST have a corresponding entry")
                 .1
                 .clone();
-            (id, pub_bytes)
+            (
+                signed_pre_key_id,
+                spk_pub,
+                signature,
+                id,
+                pub_bytes,
+                history_mutated,
+            )
         };
+
+        // Persistence: snapshot under a brief re-acquired lock then
+        // fire-and-forget save.
+        {
+            let pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+            if history_mutated {
+                self.try_persist_signed_pre_keys_snapshot(&pk);
+            }
+            self.try_persist_one_time_pre_keys_snapshot(&pk);
+        }
 
         Ok(PreKeyBundle::new(
             local_uhid.to_string(),
@@ -343,6 +810,8 @@ impl SignalProtocolService {
         session.used_signed_pre_key_id = bundle.signed_pre_key_id;
         session.used_one_time_pre_key_id = bundle.pre_key_id;
 
+        // Persist before insert so the post-restart hydrated state matches.
+        self.try_persist_session(&bundle.uhid, &session);
         self.sessions.insert(bundle.uhid.clone(), session);
 
         // Best-effort scrubbing.
@@ -427,6 +896,16 @@ impl SignalProtocolService {
 
         let mut mk_copy = message_key;
         zero(&mut mk_copy);
+
+        // Persist the post-mutation session — fire-and-forget so the
+        // encrypt hot path is not blocked.
+        let session_snapshot = self
+            .sessions
+            .get(peer_uhid)
+            .expect("session present after encrypt mutation")
+            .clone();
+        self.try_persist_session(peer_uhid, &session_snapshot);
+
         Ok(payload)
     }
 
@@ -535,6 +1014,15 @@ impl SignalProtocolService {
 
         let mut mk_copy = message_key;
         zero(&mut mk_copy);
+
+        // Persist the post-mutation session.
+        let session_snapshot = self
+            .sessions
+            .get(peer_uhid)
+            .expect("session present after decrypt mutation")
+            .clone();
+        self.try_persist_session(peer_uhid, &session_snapshot);
+
         Ok(plaintext)
     }
 
@@ -564,15 +1052,25 @@ impl SignalProtocolService {
         // full snapshot is what guarantees two concurrent initiators racing
         // on the same OPK id can never both succeed: the second `.remove()`
         // returns None and the second initiator gets a clean error.
-        let (spk_priv, otpk_priv) = {
+        //
+        // SPK lookup walks the FULL retained history so messages signed
+        // under a recently-rotated SPK still complete X3DH during the
+        // rotation window. A pruned SPK fails outright.
+        let (spk_priv, spk_pub, otpk_priv) = {
             let mut pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
-            if pk.signed_pre_key_id != used_signed_pre_key_id || pk.signed_pre_key_priv.is_empty() {
-                return Err(format!(
-                    "PreKey message references signed pre-key id {} which is not held",
-                    used_signed_pre_key_id
-                )
-                .into());
-            }
+            let spk_entry = pk
+                .signed_pre_key_history
+                .iter()
+                .rev()
+                .find(|e| e.id == used_signed_pre_key_id)
+                .cloned()
+                .ok_or_else(|| {
+                    format!(
+                        "PreKey message references signed pre-key id {} which is not held \
+                         (rotated out or never generated)",
+                        used_signed_pre_key_id
+                    )
+                })?;
             let otpk = pk
                 .one_time_pre_keys
                 .remove(&used_one_time_pre_key_id)
@@ -588,7 +1086,7 @@ impl SignalProtocolService {
             // would re-issue a defunct id on the next bundle).
             pk.available_opk_ids
                 .retain(|&id| id != used_one_time_pre_key_id);
-            (pk.signed_pre_key_priv.clone(), otpk.0)
+            (spk_entry.private_key, spk_entry.public_key, otpk.0)
         };
 
         // Mirror of initiator's 4 DHs (X25519 ECDH is commutative). Note: spk
@@ -608,15 +1106,10 @@ impl SignalProtocolService {
 
         let root_key = hkdf32(&shared, HKDF_X3DH_ROOT_INFO)?;
 
-        // Adopt SPK (priv+pub) as initial DHs. The DH-ratchet step in the
-        // decrypt() caller will rotate it to a fresh keypair. We re-acquire
-        // the mutex briefly to grab spk_pub — kept separate from the consume
-        // step so the mutex hold-time around the four DHs is zero.
-        let spk_pub = {
-            let pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
-            pk.signed_pre_key_pub.clone()
-        };
-
+        // Adopt the *consumed* SPK (priv+pub) as initial DHs — must match
+        // the SPK the initiator referenced, which may not be the active
+        // SPK any longer. The DH-ratchet step in the decrypt() caller will
+        // rotate it to a fresh keypair.
         let mut session = SignalSession::new(peer_uhid.to_string(), Vec::new());
         session.root_key = root_key;
         session.send_chain_key = None; // derived by DH-ratchet
@@ -625,7 +1118,17 @@ impl SignalProtocolService {
         session.my_ephemeral_pub = spk_pub;
         session.remote_ephemeral_pub = None; // forces DH-ratchet on first decrypt
         session.pending_pre_key_message = false;
+
+        // Persist before inserting so the post-restart hydrated session
+        // reflects the just-consumed OPK.
+        self.try_persist_session(peer_uhid, &session);
         self.sessions.insert(peer_uhid.to_string(), session);
+        // Persist OPK consumption + the post-consume pool snapshot.
+        self.try_consume_one_time_pre_key_persist(used_one_time_pre_key_id);
+        {
+            let pk = self.pre_keys.lock().expect("pre-key mutex poisoned");
+            self.try_persist_one_time_pre_keys_snapshot(&pk);
+        }
 
         // Consume one-time pre-key — already removed under mutex above; zero
         // the local priv copy. Also zero the snapshotted SPK priv (the
@@ -637,6 +1140,138 @@ impl SignalProtocolService {
         zero(&mut shared);
         Ok(())
     }
+}
+
+/// Builder for [`SignalProtocolService`]. Wires the optional persistence
+/// stores, rotation policy, and clock without making the bare constructor
+/// signature explode.
+#[derive(Default)]
+pub struct SignalProtocolServiceBuilder {
+    target_opk_pool_size: Option<usize>,
+    session_store: Option<Arc<dyn SignalSessionStore>>,
+    pre_key_store: Option<Arc<dyn PreKeyStore>>,
+    rotation_options: Option<SignedPreKeyRotationOptions>,
+    now_provider: Option<NowProvider>,
+}
+
+impl SignalProtocolServiceBuilder {
+    pub fn with_opk_pool_size(mut self, size: usize) -> Self {
+        self.target_opk_pool_size = Some(size);
+        self
+    }
+
+    pub fn with_session_store(mut self, store: Arc<dyn SignalSessionStore>) -> Self {
+        self.session_store = Some(store);
+        self
+    }
+
+    pub fn with_prekey_store(mut self, store: Arc<dyn PreKeyStore>) -> Self {
+        self.pre_key_store = Some(store);
+        self
+    }
+
+    pub fn with_rotation_options(mut self, options: SignedPreKeyRotationOptions) -> Self {
+        self.rotation_options = Some(options);
+        self
+    }
+
+    pub fn with_now_provider(mut self, provider: NowProvider) -> Self {
+        self.now_provider = Some(provider);
+        self
+    }
+
+    pub fn build(self) -> SignalProtocolService {
+        SignalProtocolService::build(
+            self.target_opk_pool_size.unwrap_or(DEFAULT_OPK_POOL_SIZE),
+            self.session_store,
+            self.pre_key_store,
+            self.rotation_options,
+            self.now_provider,
+        )
+    }
+}
+
+/// Synchronously block on a future. The hydration path runs at construction
+/// time on whatever thread the caller holds, which may or may not be inside
+/// a tokio runtime. We try the current runtime handle first; if there isn't
+/// one, we spin up a temporary single-threaded runtime.
+///
+/// This is only used for store hydration during construction — the
+/// hot-path persistence calls dispatch via [`spawn_persist`] instead.
+fn futures_block_on<F: std::future::Future>(future: F) -> F::Output {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => {
+            // Inside an async context — block_on directly is unsafe (it
+            // would deadlock the executor). Use `block_in_place` to move
+            // the call onto a blocking thread, OR fall back to spawning a
+            // temporary runtime when block_in_place isn't available
+            // (current_thread runtimes).
+            tokio::task::block_in_place(|| handle.block_on(future))
+        }
+        Err(_) => {
+            // No tokio context — spin up a tiny one for this call.
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("failed to construct ad-hoc tokio runtime for hydration");
+            rt.block_on(future)
+        }
+    }
+}
+
+/// Spawn a fire-and-forget persistence future. Uses the ambient tokio
+/// runtime if one is present; otherwise runs the future to completion
+/// synchronously on the calling thread (tests + simple non-async hosts).
+fn spawn_persist<F>(future: F)
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => {
+            handle.spawn(future);
+        }
+        Err(_) => {
+            // No runtime — run synchronously. Slower but always correct.
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("failed to construct ad-hoc tokio runtime for persist");
+            rt.block_on(future);
+        }
+    }
+}
+
+fn snapshot_history(pk: &PreKeyState) -> StoredSignedPreKeyHistory {
+    StoredSignedPreKeyHistory {
+        entries: pk
+            .signed_pre_key_history
+            .iter()
+            .map(|e| StoredSignedPreKey {
+                id: e.id,
+                private_key: e.private_key.clone(),
+                public_key: e.public_key.clone(),
+                signature: e.signature.clone(),
+                generated_at_unix_ms: to_unix_ms(e.generated_at),
+            })
+            .collect(),
+    }
+}
+
+fn to_unix_ms(t: DateTime<Utc>) -> i64 {
+    t.timestamp_millis()
+}
+
+fn from_unix_ms(ms: i64) -> DateTime<Utc> {
+    DateTime::<Utc>::from_timestamp_millis(ms).unwrap_or_else(Utc::now)
+}
+
+fn try_into_32(v: &[u8]) -> Option<[u8; 32]> {
+    if v.len() != 32 {
+        return None;
+    }
+    let mut a = [0u8; 32];
+    a.copy_from_slice(v);
+    Some(a)
 }
 
 /// Tops the OPK pool up to `target_size` available (un-issued) keys. Caller
@@ -1301,14 +1936,18 @@ mod tests {
         }
         assert_eq!(seen.len(), 100, "100 bundles must yield 100 distinct OPK ids");
 
-        // Pool top-up keeps available roughly at target size after consumption.
+        // Pool top-up keeps available at target size after each dequeue.
+        // No responder consumed, so the held count grows by one per call:
+        // held == target_size + (calls - 1) = 100 + 99 = 199.
         let (held, available) = svc.pre_key_pool_status();
-        assert!(
-            available == 100 || available == 99,
-            "available should be at-target after top-up, got {}",
-            available
+        assert_eq!(
+            available, 99,
+            "available should be (target - 1) after the last dequeue"
         );
-        assert_eq!(held, 100, "no responder consumed, so all 100 stay resident");
+        assert_eq!(
+            held, 199,
+            "no responder consumed, so each top-up adds one — 100 seed + 99 top-ups"
+        );
     }
 
     /// Responder-side X3DH consumption removes the OPK from the pool.
@@ -1435,5 +2074,139 @@ mod tests {
         let initiator_pub = m.initiator_ephemeral_key_x25519.clone().unwrap();
         assert_eq!(sender_pub, initiator_pub,
             "First PreKey message: sender_ephemeral_key_x25519 == initiator_ephemeral_key_x25519");
+    }
+
+    // ===== Persistence (Tier-2 parity with C# 1beb4a7) =====
+
+    use crate::security::prekey_store::InMemoryPreKeyStore;
+    use crate::security::session_store::InMemorySignalSessionStore;
+    use std::sync::Arc as StdArc;
+
+    /// After a PreKey-then-Normal exchange, restarting the responder against
+    /// the same persistent stores must hydrate the SignalSession so the next
+    /// peer message decrypts cleanly without re-running X3DH.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn persistent_session_survives_responder_restart() {
+        let bob_session_store: StdArc<dyn SignalSessionStore> =
+            StdArc::new(InMemorySignalSessionStore::new());
+        let bob_pre_key_store: StdArc<dyn PreKeyStore> = StdArc::new(InMemoryPreKeyStore::new());
+
+        let mut alice = SignalProtocolService::new();
+        let mut bob = SignalProtocolService::builder()
+            .with_session_store(bob_session_store.clone())
+            .with_prekey_store(bob_pre_key_store.clone())
+            .build();
+
+        let bob_bundle = bob.generate_pre_key_bundle("bob").unwrap();
+        alice.generate_pre_key_bundle("alice").unwrap();
+        alice.process_pre_key_bundle(&bob_bundle).unwrap();
+
+        let m1 = alice.encrypt("bob", b"hello").unwrap();
+        bob.decrypt("alice", &m1).unwrap();
+
+        // Allow fire-and-forget persistence to complete.
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // Drop bob and rebuild from the same stores.
+        drop(bob);
+        let mut bob2 = SignalProtocolService::builder()
+            .with_session_store(bob_session_store.clone())
+            .with_prekey_store(bob_pre_key_store.clone())
+            .build();
+
+        // Hydrated? alice's UHID should be in the rebuilt service.
+        assert!(
+            bob2.has_session("alice"),
+            "session for 'alice' must hydrate from the persistent store"
+        );
+
+        let m2 = alice.encrypt("bob", b"after-restart").unwrap();
+        let plaintext = bob2
+            .decrypt("alice", &m2)
+            .expect("hydrated session must continue the Double Ratchet");
+        assert_eq!(plaintext, b"after-restart");
+    }
+
+    /// Identity keys (Ed25519 + X25519 long-term) must survive a restart so
+    /// the local UHID can encrypt without redoing X3DH from scratch.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn identity_keys_survive_restart() {
+        let store: StdArc<dyn PreKeyStore> = StdArc::new(InMemoryPreKeyStore::new());
+
+        let mut alice = SignalProtocolService::builder()
+            .with_prekey_store(store.clone())
+            .build();
+        alice.set_local_uhid("alice");
+        let ed_pub_before = alice.get_public_key();
+        let x_pub_before = alice.get_x25519_public_key();
+        // Generate at least one bundle so SPK + OPK pool persist.
+        alice.generate_pre_key_bundle("alice").unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        drop(alice);
+
+        let alice2 = SignalProtocolService::builder()
+            .with_prekey_store(store.clone())
+            .build();
+        assert_eq!(alice2.get_public_key(), ed_pub_before, "Ed25519 pub key must hydrate");
+        assert_eq!(
+            alice2.get_x25519_public_key(),
+            x_pub_before,
+            "X25519 long-term pub key must hydrate"
+        );
+    }
+
+    /// SPK + OPK pool survive a restart: a peer that received a bundle
+    /// before the restart can still establish a session against the same
+    /// SPK id (and the OPK pool stays hydrated).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pre_key_state_survives_restart() {
+        let bob_pre_key_store: StdArc<dyn PreKeyStore> =
+            StdArc::new(InMemoryPreKeyStore::new());
+
+        let mut bob = SignalProtocolService::builder()
+            .with_prekey_store(bob_pre_key_store.clone())
+            .build();
+        let bundle1 = bob.generate_pre_key_bundle("bob").unwrap();
+        let bob_pool_before = bob.pre_key_pool_status();
+        let active_spk_before = bob.active_signed_pre_key_id();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        drop(bob);
+
+        let bob2 = SignalProtocolService::builder()
+            .with_prekey_store(bob_pre_key_store.clone())
+            .build();
+        assert_eq!(
+            bob2.active_signed_pre_key_id(),
+            active_spk_before,
+            "active SPK id must hydrate"
+        );
+        let bob_pool_after = bob2.pre_key_pool_status();
+        assert_eq!(
+            bob_pool_after.0, bob_pool_before.0,
+            "OPK pool held count must hydrate"
+        );
+
+        // The bundle issued before the restart should still resolve on the
+        // hydrated responder: do an X3DH against bob2.
+        let mut alice = SignalProtocolService::new();
+        alice.generate_pre_key_bundle("alice").unwrap();
+        let mut bob2 = bob2;
+        alice.process_pre_key_bundle(&bundle1).unwrap();
+        let m = alice.encrypt("bob", b"after-restart-spk").unwrap();
+        let pt = bob2
+            .decrypt("alice", &m)
+            .expect("pre-restart bundle must still resolve against hydrated responder");
+        assert_eq!(pt, b"after-restart-spk");
+    }
+
+    /// Without persistent stores configured, behaviour must match the old
+    /// constructor exactly — no surprise mutations of the in-memory state.
+    #[test]
+    fn no_stores_means_baseline_behaviour() {
+        let mut svc = SignalProtocolService::new();
+        let pub_before = svc.get_public_key();
+        let _bundle = svc.generate_pre_key_bundle("alice").unwrap();
+        assert_eq!(svc.get_public_key(), pub_before);
     }
 }

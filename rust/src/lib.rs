@@ -9,6 +9,7 @@ pub mod protocol;
 pub mod routing;
 pub mod security;
 pub mod sos;
+pub mod storage;
 pub mod transport;
 
 pub use handshake::{
@@ -24,5 +25,11 @@ pub use routing::{
     AcceptAllRouteReplyVerifier, InMemoryRouteStore, MeshSender, RouteReplyVerifier, RouteStore,
     RoutingService,
 };
-pub use security::{Ed25519SigningService, SignalProtocolService};
+pub use security::{
+    Ed25519SigningService, InMemoryPreKeyStore, InMemorySignalSessionStore, KvPreKeyStore,
+    KvSignalSessionStore, PreKeyStore, SignalProtocolService, SignalSessionStore,
+    SignedPreKeyRotationOptions, StoredIdentityKeys, StoredOneTimePreKey, StoredSignedPreKey,
+    StoredSignedPreKeyHistory,
+};
+pub use storage::{FileSystemKeyValueStore, InMemoryKeyValueStore, KeyValueStore};
 pub use transport::{InProcessTransport, TransportService};
