@@ -35,5 +35,8 @@ export * from "./dtn/index.js";
 // SOS
 export * from "./sos/index.js";
 
+// Handshake
+export * from "./handshake/index.js";
+
 // Constants
 export * from "./constants.js";
