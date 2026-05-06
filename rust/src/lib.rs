@@ -31,5 +31,8 @@ pub use security::{
     SignedPreKeyRotationOptions, StoredIdentityKeys, StoredOneTimePreKey, StoredSignedPreKey,
     StoredSignedPreKeyHistory,
 };
-pub use storage::{FileSystemKeyValueStore, InMemoryKeyValueStore, KeyValueStore};
+pub use storage::{
+    DataAtRestKeyProvider, DerivedDataAtRestKeyProvider, EncryptedKeyValueStore,
+    FileSystemKeyValueStore, InMemoryKeyValueStore, KeyValueStore, StaticDataAtRestKeyProvider,
+};
 pub use transport::{InProcessTransport, TransportService};
