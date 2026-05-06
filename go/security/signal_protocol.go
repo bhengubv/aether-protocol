@@ -3,6 +3,7 @@
 package security
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -11,7 +12,9 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"sync"
+	"time"
 
 	"golang.org/x/crypto/hkdf"
 )
@@ -117,6 +120,21 @@ type SignalProtocolService struct {
 	// bundle generation. Mirrors the C# OpkPoolSize. Defaults to
 	// DefaultOpkPoolSize (100); override via WithOpkPoolSize.
 	opkPoolSize int
+
+	// Persistence stores. Nil means no persistence (in-memory only).
+	sessionStore ISignalSessionStore
+	preKeyStore  IPreKeyStore
+
+	// Signed-pre-key rotation policy. Defaults to
+	// DefaultSignedPreKeyRotationOptions (7-day rotation, 3 retained).
+	rotationOptions SignedPreKeyRotationOptions
+
+	// nowProvider is the clock for SPK rotation. Override via WithNowProvider
+	// for tests that need a synthetic clock. Defaults to time.Now.
+	nowProvider func() time.Time
+
+	// logger receives best-effort warnings for persistence failures.
+	logger *log.Logger
 }
 
 // SignalOption configures a SignalProtocolService at construction time.
@@ -138,9 +156,87 @@ func WithOpkPoolSize(size int) SignalOption {
 	}
 }
 
+// WithSessionStore wires a persistent ISignalSessionStore into the service.
+// On construction, every previously-stored session is hydrated. After
+// every encrypt / decrypt mutation, the affected session is saved
+// (best-effort: failures are logged via the configured logger and do not
+// abort the message flow).
+//
+// Mirrors the C# SignalProtocolService(sessionStore: …) constructor
+// parameter.
+func WithSessionStore(store ISignalSessionStore) SignalOption {
+	return func(s *SignalProtocolService) error {
+		s.sessionStore = store
+		return nil
+	}
+}
+
+// WithPreKeyStore wires a persistent IPreKeyStore into the service. On
+// construction, the long-term identity keys, signed-pre-key history, and
+// one-time pre-key pool are hydrated from the store (or generated and
+// saved if no prior state exists). After every state mutation, the
+// affected slice is saved (best-effort).
+//
+// Mirrors the C# SignalProtocolService(preKeyStore: …) constructor
+// parameter.
+func WithPreKeyStore(store IPreKeyStore) SignalOption {
+	return func(s *SignalProtocolService) error {
+		s.preKeyStore = store
+		return nil
+	}
+}
+
+// WithRotationOptions sets the signed-pre-key rotation policy. Default is
+// DefaultSignedPreKeyRotationOptions (7-day interval, 3 retained prior
+// entries). Must have RotationInterval > 0 and RetainedHistoryCount >= 0.
+//
+// Mirrors the C# SignedPreKeyRotationOptions constructor parameter.
+func WithRotationOptions(opts SignedPreKeyRotationOptions) SignalOption {
+	return func(s *SignalProtocolService) error {
+		if opts.RotationInterval <= 0 {
+			return fmt.Errorf("WithRotationOptions: RotationInterval must be > 0 (got %v)", opts.RotationInterval)
+		}
+		if opts.RetainedHistoryCount < 0 {
+			return fmt.Errorf("WithRotationOptions: RetainedHistoryCount must be >= 0 (got %d)", opts.RetainedHistoryCount)
+		}
+		s.rotationOptions = opts
+		return nil
+	}
+}
+
+// WithNowProvider injects a synthetic clock for SPK rotation tests.
+// Default is time.Now. Mirrors the C# nowProvider parameter.
+func WithNowProvider(now func() time.Time) SignalOption {
+	return func(s *SignalProtocolService) error {
+		if now == nil {
+			return fmt.Errorf("WithNowProvider: now cannot be nil")
+		}
+		s.nowProvider = now
+		return nil
+	}
+}
+
+// WithLogger injects a *log.Logger for persistence-failure warnings.
+// Defaults to a stderr logger. Pass log.New(io.Discard, …) to silence.
+func WithLogger(l *log.Logger) SignalOption {
+	return func(s *SignalProtocolService) error {
+		s.logger = l
+		return nil
+	}
+}
+
 // NewSignalProtocolService creates a new Signal Protocol service with
 // freshly-generated X25519 + Ed25519 long-term identity keys. Optional
-// behaviour (e.g. OPK pool size) can be configured via SignalOption.
+// behaviour (OPK pool size, persistence, SPK rotation policy, synthetic
+// clock) can be configured via SignalOption.
+//
+// When WithPreKeyStore is supplied and the store has prior state, the
+// identity keys, signed-pre-key history, and OPK pool are loaded from the
+// store (overriding the freshly-generated identity). When the store is
+// empty, the freshly-generated identity is saved.
+//
+// When WithSessionStore is supplied, every previously-stored session is
+// hydrated on construction.
 func NewSignalProtocolService(opts ...SignalOption) (*SignalProtocolService, error) {
 	ed25519Svc := NewEd25519Service()
 
@@ -162,26 +258,233 @@ func NewSignalProtocolService(opts ...SignalOption) (*SignalProtocolService, err
 		ed25519PublicKey:   edPub,
 		ed25519Service:     ed25519Svc,
 		preKeys: preKeyState{
-			oneTimePreKeys:  make(map[int32]oneTimePreKey),
-			availableOpkIds: make([]int32, 0),
+			oneTimePreKeys:      make(map[int32]oneTimePreKey),
+			availableOpkIds:     make([]int32, 0),
+			signedPreKeyHistory: make([]signedPreKeyEntry, 0),
 		},
-		opkPoolSize: DefaultOpkPoolSize,
+		opkPoolSize:     DefaultOpkPoolSize,
+		rotationOptions: DefaultSignedPreKeyRotationOptions(),
+		nowProvider:     time.Now,
+		logger:          log.Default(),
 	}
 	for _, opt := range opts {
 		if err := opt(sps); err != nil {
 			return nil, err
 		}
 	}
+
+	// Hydrate identity / pre-keys from the pre-key store if one is wired in.
+	if sps.preKeyStore != nil {
+		if err := sps.hydrateFromPreKeyStore(); err != nil {
+			sps.logger.Printf("SignalProtocolService: hydrateFromPreKeyStore: %v (continuing with freshly-generated keys)", err)
+		}
+	}
+
+	// Hydrate sessions from the session store if one is wired in. Done
+	// AFTER pre-key hydration so the identity keys match what the sessions
+	// were established under.
+	if sps.sessionStore != nil {
+		if err := sps.hydrateFromSessionStore(); err != nil {
+			sps.logger.Printf("SignalProtocolService: hydrateFromSessionStore: %v", err)
+		}
+	}
+
 	return sps, nil
+}
+
+// hydrateFromPreKeyStore loads identity, SPK history, and OPK pool from
+// the pre-key store. If the store has no prior identity, the freshly-
+// generated keys are saved instead.
+//
+// Caller must NOT hold sps.mu — this runs at construction before the
+// service is exposed.
+func (sps *SignalProtocolService) hydrateFromPreKeyStore() error {
+	ctx := context.Background()
+	store := sps.preKeyStore
+
+	stored, err := store.LoadIdentity(ctx)
+	if err != nil {
+		return fmt.Errorf("LoadIdentity: %w", err)
+	}
+	if stored != nil {
+		sps.ed25519PrivateKey = stored.Ed25519PrivateKey
+		sps.ed25519PublicKey = stored.Ed25519PublicKey
+		sps.identityX25519Priv = stored.X25519PrivateKey
+		sps.identityX25519Pub = stored.X25519PublicKey
+		if stored.LocalUhid != "" {
+			sps.localUhid = stored.LocalUhid
+		}
+	} else {
+		fresh := &StoredIdentityKeys{
+			Ed25519PrivateKey: sps.ed25519PrivateKey,
+			Ed25519PublicKey:  sps.ed25519PublicKey,
+			X25519PrivateKey:  sps.identityX25519Priv,
+			X25519PublicKey:   sps.identityX25519Pub,
+			LocalUhid:         sps.localUhid,
+		}
+		if err := store.SaveIdentity(ctx, fresh); err != nil {
+			return fmt.Errorf("SaveIdentity (initial): %w", err)
+		}
+	}
+
+	history, err := store.LoadSignedPreKeys(ctx)
+	if err != nil {
+		return fmt.Errorf("LoadSignedPreKeys: %w", err)
+	}
+	sps.preKeys.signedPreKeyHistory = sps.preKeys.signedPreKeyHistory[:0]
+	for _, e := range history.Entries {
+		sps.preKeys.signedPreKeyHistory = append(sps.preKeys.signedPreKeyHistory, signedPreKeyEntry{
+			id:          e.ID,
+			priv:        e.PrivateKey,
+			pub:         e.PublicKey,
+			signature:   e.Signature,
+			generatedAt: e.GeneratedAt,
+		})
+	}
+	if n := len(sps.preKeys.signedPreKeyHistory); n > 0 {
+		active := sps.preKeys.signedPreKeyHistory[n-1]
+		sps.preKeys.signedPreKeyID = active.id
+		sps.preKeys.signedPreKeyPriv = active.priv
+		sps.preKeys.signedPreKeyPub = active.pub
+		sps.preKeys.signedPreKeySignature = active.signature
+	}
+
+	opks, err := store.LoadOneTimePreKeys(ctx)
+	if err != nil {
+		return fmt.Errorf("LoadOneTimePreKeys: %w", err)
+	}
+	sps.preKeys.oneTimePreKeys = make(map[int32]oneTimePreKey, len(opks))
+	sps.preKeys.availableOpkIds = sps.preKeys.availableOpkIds[:0]
+	for id, opk := range opks {
+		sps.preKeys.oneTimePreKeys[id] = oneTimePreKey{priv: opk.PrivateKey, pub: opk.PublicKey}
+		if !opk.Issued {
+			sps.preKeys.availableOpkIds = append(sps.preKeys.availableOpkIds, id)
+		}
+	}
+	return nil
+}
+
+// hydrateFromSessionStore loads every previously-stored session.
+// Failures on individual peers log a warning and the loop continues —
+// one bad session shouldn't lose every session.
+func (sps *SignalProtocolService) hydrateFromSessionStore() error {
+	ctx := context.Background()
+	peers, err := sps.sessionStore.ListPeers(ctx)
+	if err != nil {
+		return fmt.Errorf("ListPeers: %w", err)
+	}
+	for _, peerUhid := range peers {
+		session, lerr := sps.sessionStore.LoadSession(ctx, peerUhid)
+		if lerr != nil {
+			sps.logger.Printf("SignalProtocolService: failed to load session for %s: %v", peerUhid, lerr)
+			continue
+		}
+		if session != nil {
+			sps.sessions[peerUhid] = session
+		}
+	}
+	return nil
+}
+
+// tryPersistSessionLocked best-effort saves a session. Failures log but do not abort.
+// Caller MUST hold sps.mu.
+func (sps *SignalProtocolService) tryPersistSessionLocked(peerUhid string, session *SignalSession) {
+	if sps.sessionStore == nil {
+		return
+	}
+	if err := sps.sessionStore.SaveSession(context.Background(), peerUhid, session); err != nil {
+		sps.logger.Printf("SignalProtocolService: failed to persist session for %s: %v", peerUhid, err)
+	}
+}
+
+// tryPersistIdentityLocked best-effort saves identity keys.
+// Caller MUST hold sps.mu.
+func (sps *SignalProtocolService) tryPersistIdentityLocked() {
+	if sps.preKeyStore == nil {
+		return
+	}
+	snap := &StoredIdentityKeys{
+		Ed25519PrivateKey: sps.ed25519PrivateKey,
+		Ed25519PublicKey:  sps.ed25519PublicKey,
+		X25519PrivateKey:  sps.identityX25519Priv,
+		X25519PublicKey:   sps.identityX25519Pub,
+		LocalUhid:         sps.localUhid,
+	}
+	if err := sps.preKeyStore.SaveIdentity(context.Background(), snap); err != nil {
+		sps.logger.Printf("SignalProtocolService: failed to persist identity keys: %v", err)
+	}
+}
+
+// tryPersistSignedPreKeysLocked best-effort saves the SPK history.
+// Caller MUST hold sps.mu.
+func (sps *SignalProtocolService) tryPersistSignedPreKeysLocked() {
+	if sps.preKeyStore == nil {
+		return
+	}
+	hist := StoredSignedPreKeyHistory{Entries: make([]StoredSignedPreKey, 0, len(sps.preKeys.signedPreKeyHistory))}
+	for _, e := range sps.preKeys.signedPreKeyHistory {
+		hist.Entries = append(hist.Entries, StoredSignedPreKey{
+			ID:          e.id,
+			PrivateKey:  e.priv,
+			PublicKey:   e.pub,
+			Signature:   e.signature,
+			GeneratedAt: e.generatedAt,
+		})
+	}
+	if err := sps.preKeyStore.SaveSignedPreKeys(context.Background(), hist); err != nil {
+		sps.logger.Printf("SignalProtocolService: failed to persist SPK history: %v", err)
+	}
+}
+
+// tryPersistOneTimePreKeysLocked best-effort saves the OPK pool.
+// Caller MUST hold sps.mu.
+func (sps *SignalProtocolService) tryPersistOneTimePreKeysLocked() {
+	if sps.preKeyStore == nil {
+		return
+	}
+	// "Issued" = present in oneTimePreKeys but NOT queued in availableOpkIds.
+	issued := make(map[int32]struct{}, len(sps.preKeys.oneTimePreKeys))
+	for id := range sps.preKeys.oneTimePreKeys {
+		issued[id] = struct{}{}
+	}
+	for _, id := range sps.preKeys.availableOpkIds {
+		delete(issued, id)
+	}
+	pool := make(map[int32]StoredOneTimePreKey, len(sps.preKeys.oneTimePreKeys))
+	for id, opk := range sps.preKeys.oneTimePreKeys {
+		_, isIssued := issued[id]
+		pool[id] = StoredOneTimePreKey{
+			ID:         id,
+			PrivateKey: opk.priv,
+			PublicKey:  opk.pub,
+			Issued:     isIssued,
+		}
+	}
+	if err := sps.preKeyStore.SaveOneTimePreKeys(context.Background(), pool); err != nil {
+		sps.logger.Printf("SignalProtocolService: failed to persist OPK pool: %v", err)
+	}
+}
+
+// tryConsumeOneTimePreKeyLocked best-effort removes a single OPK from the
+// pre-key store. Caller MUST hold sps.mu.
+func (sps *SignalProtocolService) tryConsumeOneTimePreKeyLocked(id int32) {
+	if sps.preKeyStore == nil {
+		return
+	}
+	if err := sps.preKeyStore.ConsumeOneTimePreKey(context.Background(), id); err != nil {
+		sps.logger.Printf("SignalProtocolService: failed to consume OPK %d: %v", id, err)
+	}
 }
 
 // SetLocalUhid sets the local node's UHID. Required before any Encrypt call
 // so the SenderUhid is correctly stamped. GeneratePreKeyBundle also captures
-// this automatically.
+// this automatically. If a pre-key store is wired in, the identity record
+// is re-persisted with the new UHID.
 func (sps *SignalProtocolService) SetLocalUhid(uhid string) {
 	sps.mu.Lock()
 	defer sps.mu.Unlock()
 	sps.localUhid = uhid
+	sps.tryPersistIdentityLocked()
 }
 
 // HasSession returns true if an active session exists with the given peer.
@@ -272,6 +575,9 @@ func (sps *SignalProtocolService) Encrypt(peerUhid string, plaintext []byte) (*E
 		session.PendingPreKeyMessage = false
 	}
 
+	// Persist the mutated session (best-effort; logged on failure).
+	sps.tryPersistSessionLocked(peerUhid, session)
+
 	return payload, nil
 }
 
@@ -336,7 +642,11 @@ func (sps *SignalProtocolService) Decrypt(peerUhid string, payload *EncryptedPay
 	if mk, ok := session.SkippedMessageKeys[cacheKey]; ok {
 		delete(session.SkippedMessageKeys, cacheKey)
 		defer ZeroMemory(mk)
-		return aesGcmOpen(mk, payload.Nonce, payload.Ciphertext)
+		plain, err := aesGcmOpen(mk, payload.Nonce, payload.Ciphertext)
+		if err == nil {
+			sps.tryPersistSessionLocked(peerUhid, session)
+		}
+		return plain, err
 	}
 
 	if session.RecvChainKey == nil {
@@ -368,7 +678,12 @@ func (sps *SignalProtocolService) Decrypt(peerUhid string, payload *EncryptedPay
 	session.RecvCounter++
 	defer ZeroMemory(msgKey)
 
-	return aesGcmOpen(msgKey, payload.Nonce, payload.Ciphertext)
+	plain, err := aesGcmOpen(msgKey, payload.Nonce, payload.Ciphertext)
+	if err == nil {
+		// Persist the mutated session (best-effort).
+		sps.tryPersistSessionLocked(peerUhid, session)
+	}
+	return plain, err
 }
 
 // GeneratePreKeyBundle generates a pre-key bundle for this node. The
@@ -395,7 +710,39 @@ func (sps *SignalProtocolService) GeneratePreKeyBundle(localUhid string) (*PreKe
 	sps.mu.Lock()
 	defer sps.mu.Unlock()
 
+	uhidChanged := sps.localUhid != localUhid
 	sps.localUhid = localUhid
+	if uhidChanged {
+		sps.tryPersistIdentityLocked()
+	}
+
+	// SignedPreKey: generated lazily on the first bundle call. On
+	// subsequent calls the active SPK is reused unless its age exceeds
+	// RotationOptions.RotationInterval, in which case a fresh SPK is
+	// generated and the history is rolled forward. Retained history (default
+	// 3 prior entries) lets messages signed under a recently-rotated SPK
+	// still complete X3DH during the rotation window — Signal §3.3
+	// recommends weekly rotation.
+	historyMutated := false
+	if len(sps.preKeys.signedPreKeyHistory) == 0 {
+		if err := sps.appendNewSignedPreKeyLocked(); err != nil {
+			return nil, fmt.Errorf("append initial SPK: %w", err)
+		}
+		historyMutated = true
+	} else {
+		active := sps.preKeys.signedPreKeyHistory[len(sps.preKeys.signedPreKeyHistory)-1]
+		if sps.nowProvider().Sub(active.generatedAt) >= sps.rotationOptions.RotationInterval {
+			if err := sps.appendNewSignedPreKeyLocked(); err != nil {
+				return nil, fmt.Errorf("rotate SPK: %w", err)
+			}
+			historyMutated = true
+		}
+	}
+
+	active := sps.preKeys.signedPreKeyHistory[len(sps.preKeys.signedPreKeyHistory)-1]
+	signedPreKeyID := active.id
+	spkPub := active.pub
+	signature := active.signature
 
 	// Top up the OPK pool, then dequeue the next un-issued OPK.
 	if err := sps.topUpOpkPoolLocked(); err != nil {
@@ -413,26 +760,10 @@ func (sps *SignalProtocolService) GeneratePreKeyBundle(localUhid string) (*PreKe
 	}
 	otpkPub := otpk.pub
 
-	// Signed pre-key (X25519). The signature is over the X25519 public key,
-	// signed by the long-term Ed25519 identity key. Currently regenerated
-	// on every call — adding rotation history (matching the C#
-	// SignedPreKeyHistory) is out of scope for this OPK-pool change.
-	spkPriv, spkPub, err := generateX25519KeyPair()
-	if err != nil {
-		return nil, fmt.Errorf("generate signed pre-key: %w", err)
+	if historyMutated {
+		sps.tryPersistSignedPreKeysLocked()
 	}
-	signedPreKeyID, err := randomInt32()
-	if err != nil {
-		return nil, err
-	}
-	signature, err := sps.ed25519Service.Sign(sps.ed25519PrivateKey, spkPub)
-	if err != nil {
-		return nil, fmt.Errorf("sign pre-key: %w", err)
-	}
-	sps.preKeys.signedPreKeyID = signedPreKeyID
-	sps.preKeys.signedPreKeyPriv = spkPriv
-	sps.preKeys.signedPreKeyPub = spkPub
-	sps.preKeys.signedPreKeySignature = signature
+	sps.tryPersistOneTimePreKeysLocked()
 
 	return &PreKeyBundle{
 		Uhid:                  localUhid,
@@ -444,6 +775,109 @@ func (sps *SignalProtocolService) GeneratePreKeyBundle(localUhid string) (*PreKe
 		SignedPreKey:          append([]byte{}, spkPub...),
 		SignedPreKeySignature: signature,
 	}, nil
+}
+
+// appendNewSignedPreKeyLocked generates a fresh SPK, appends it to the
+// history as the new active entry, and trims the history to the
+// retained-count budget. Caller MUST hold sps.mu.
+func (sps *SignalProtocolService) appendNewSignedPreKeyLocked() error {
+	spkPriv, spkPub, err := generateX25519KeyPair()
+	if err != nil {
+		return fmt.Errorf("generate signed pre-key: %w", err)
+	}
+	id, err := randomInt32()
+	if err != nil {
+		return fmt.Errorf("allocate SPK id: %w", err)
+	}
+	sig, err := sps.ed25519Service.Sign(sps.ed25519PrivateKey, spkPub)
+	if err != nil {
+		ZeroMemory(spkPriv)
+		return fmt.Errorf("sign pre-key: %w", err)
+	}
+
+	sps.preKeys.signedPreKeyHistory = append(sps.preKeys.signedPreKeyHistory, signedPreKeyEntry{
+		id:          id,
+		priv:        spkPriv,
+		pub:         spkPub,
+		signature:   sig,
+		generatedAt: sps.nowProvider(),
+	})
+
+	// Prune oldest entries beyond the retention budget. Retain at most
+	// (1 + RetainedHistoryCount) entries — the new active SPK plus the
+	// configured number of retained-prior entries.
+	maxEntries := 1 + sps.rotationOptions.RetainedHistoryCount
+	for len(sps.preKeys.signedPreKeyHistory) > maxEntries {
+		pruned := sps.preKeys.signedPreKeyHistory[0]
+		ZeroMemory(pruned.priv)
+		sps.preKeys.signedPreKeyHistory = sps.preKeys.signedPreKeyHistory[1:]
+	}
+
+	// Update the denormalised mirrors.
+	active := sps.preKeys.signedPreKeyHistory[len(sps.preKeys.signedPreKeyHistory)-1]
+	sps.preKeys.signedPreKeyID = active.id
+	sps.preKeys.signedPreKeyPriv = active.priv
+	sps.preKeys.signedPreKeyPub = active.pub
+	sps.preKeys.signedPreKeySignature = active.signature
+	return nil
+}
+
+// findSignedPreKeyLocked walks the SPK history (newest first) for the entry
+// with the given id. Returns nil if the id is unknown (rotated out or
+// never generated). Caller MUST hold sps.mu.
+func (sps *SignalProtocolService) findSignedPreKeyLocked(id int32) *signedPreKeyEntry {
+	for i := len(sps.preKeys.signedPreKeyHistory) - 1; i >= 0; i-- {
+		if sps.preKeys.signedPreKeyHistory[i].id == id {
+			return &sps.preKeys.signedPreKeyHistory[i]
+		}
+	}
+	return nil
+}
+
+// RotateSignedPreKey forces a signed-pre-key rotation if the active SPK is
+// older than RotationOptions.RotationInterval (or no SPK exists yet).
+// Returns true iff a new SPK was generated and persisted.
+//
+// Mirrors the C# RotateSignedPreKeyAsync method.
+func (sps *SignalProtocolService) RotateSignedPreKey(ctx context.Context) (bool, error) {
+	sps.mu.Lock()
+	defer sps.mu.Unlock()
+
+	shouldRotate := len(sps.preKeys.signedPreKeyHistory) == 0
+	if !shouldRotate {
+		active := sps.preKeys.signedPreKeyHistory[len(sps.preKeys.signedPreKeyHistory)-1]
+		if sps.nowProvider().Sub(active.generatedAt) >= sps.rotationOptions.RotationInterval {
+			shouldRotate = true
+		}
+	}
+	if !shouldRotate {
+		return false, nil
+	}
+	if err := sps.appendNewSignedPreKeyLocked(); err != nil {
+		return false, err
+	}
+	sps.tryPersistSignedPreKeysLocked()
+	return true, nil
+}
+
+// ActiveSignedPreKeyID returns the id of the currently active signed
+// pre-key (the newest entry in the history), or 0 if no SPK has been
+// generated yet. Mirrors the C# ActiveSignedPreKeyId property.
+func (sps *SignalProtocolService) ActiveSignedPreKeyID() int32 {
+	sps.mu.Lock()
+	defer sps.mu.Unlock()
+	if len(sps.preKeys.signedPreKeyHistory) == 0 {
+		return 0
+	}
+	return sps.preKeys.signedPreKeyHistory[len(sps.preKeys.signedPreKeyHistory)-1].id
+}
+
+// SignedPreKeyHistoryCount returns the number of signed pre-keys held
+// (active + retained-prior). Mirrors the C# SignedPreKeyHistoryCount property.
+func (sps *SignalProtocolService) SignedPreKeyHistoryCount() int {
+	sps.mu.Lock()
+	defer sps.mu.Unlock()
+	return len(sps.preKeys.signedPreKeyHistory)
 }
 
 // topUpOpkPoolLocked refills the OPK pool to opkPoolSize available
@@ -593,6 +1027,7 @@ func (sps *SignalProtocolService) ProcessPreKeyBundle(bundle *PreKeyBundle) erro
 
 	sps.mu.Lock()
 	sps.sessions[bundle.Uhid] = session
+	sps.tryPersistSessionLocked(bundle.Uhid, session)
 	sps.mu.Unlock()
 
 	return nil
@@ -604,6 +1039,11 @@ func (sps *SignalProtocolService) ProcessPreKeyBundle(bundle *PreKeyBundle) erro
 // Decrypt call triggers a DH-ratchet step (which rotates DHs to a fresh
 // keypair). Consumes (and zeros) the one-time pre-key.
 //
+// SPK lookup walks the full retained history (active + retained-prior) so
+// messages signed under a recently-rotated SPK still complete X3DH during
+// the rotation window. A pruned SPK fails outright because its private
+// half has been zeroed and removed from the history.
+//
 // Caller MUST hold sps.mu.
 func (sps *SignalProtocolService) establishResponderSessionLocked(peerUhid string, payload *EncryptedPayload, initiatorRatchetPub []byte) error {
 	if len(payload.InitiatorIdentityKeyX25519) != X25519PublicKeySize {
@@ -612,8 +1052,9 @@ func (sps *SignalProtocolService) establishResponderSessionLocked(peerUhid strin
 	if len(initiatorRatchetPub) != X25519PublicKeySize {
 		return fmt.Errorf("initiator ratchet pub has wrong size: %d (want %d)", len(initiatorRatchetPub), X25519PublicKeySize)
 	}
-	if sps.preKeys.signedPreKeyID != payload.UsedSignedPreKeyID || len(sps.preKeys.signedPreKeyPriv) == 0 {
-		return fmt.Errorf("PreKey message references signed pre-key id %d which is not held by this node", payload.UsedSignedPreKeyID)
+	spkEntry := sps.findSignedPreKeyLocked(payload.UsedSignedPreKeyID)
+	if spkEntry == nil || len(spkEntry.priv) == 0 {
+		return fmt.Errorf("PreKey message references signed pre-key id %d which is not held by this node (rotated out or never generated)", payload.UsedSignedPreKeyID)
 	}
 	otpk, ok := sps.preKeys.oneTimePreKeys[payload.UsedOneTimePreKeyID]
 	if !ok {
@@ -621,7 +1062,7 @@ func (sps *SignalProtocolService) establishResponderSessionLocked(peerUhid strin
 	}
 
 	// Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
-	dh1, err := x25519Agree(sps.preKeys.signedPreKeyPriv, payload.InitiatorIdentityKeyX25519)
+	dh1, err := x25519Agree(spkEntry.priv, payload.InitiatorIdentityKeyX25519)
 	if err != nil {
 		return fmt.Errorf("DH1': %w", err)
 	}
@@ -631,7 +1072,7 @@ func (sps *SignalProtocolService) establishResponderSessionLocked(peerUhid strin
 		return fmt.Errorf("DH2': %w", err)
 	}
 	defer ZeroMemory(dh2)
-	dh3, err := x25519Agree(sps.preKeys.signedPreKeyPriv, initiatorRatchetPub)
+	dh3, err := x25519Agree(spkEntry.priv, initiatorRatchetPub)
 	if err != nil {
 		return fmt.Errorf("DH3': %w", err)
 	}
@@ -652,20 +1093,26 @@ func (sps *SignalProtocolService) establishResponderSessionLocked(peerUhid strin
 	// rotates DHs to a fresh keypair and derives both the receive chain
 	// (from old DHs · new DHr) and the new sending chain (from new DHs ·
 	// new DHr).
-	sps.sessions[peerUhid] = &SignalSession{
+	session := &SignalSession{
 		RootKey:            rootKey,
 		SendChainKey:       nil,
 		RecvChainKey:       nil,
-		MyEphemeralPriv:    append([]byte{}, sps.preKeys.signedPreKeyPriv...),
-		MyEphemeralPub:     append([]byte{}, sps.preKeys.signedPreKeyPub...),
+		MyEphemeralPriv:    append([]byte{}, spkEntry.priv...),
+		MyEphemeralPub:     append([]byte{}, spkEntry.pub...),
 		RemoteEphemeralPub: nil, // forces DH-ratchet on the first decrypt below
 		SkippedMessageKeys: make(map[string][]byte),
 	}
+	sps.sessions[peerUhid] = session
 
 	// Consume one-time pre-key (zero + remove). Replay protection at the
 	// bundle layer.
 	ZeroMemory(otpk.priv)
 	delete(sps.preKeys.oneTimePreKeys, payload.UsedOneTimePreKeyID)
+
+	// Persist: OPK pool changed (one consumed) and a new session was created.
+	sps.tryConsumeOneTimePreKeyLocked(payload.UsedOneTimePreKeyID)
+	sps.tryPersistOneTimePreKeysLocked()
+	sps.tryPersistSessionLocked(peerUhid, session)
 
 	return nil
 }

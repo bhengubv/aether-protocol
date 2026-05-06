@@ -2,6 +2,8 @@
 
 package security
 
+import "time"
+
 // PreKeyBundle represents a pre-key bundle published by a node so other
 // nodes can initiate Signal sessions toward it asynchronously.
 //
@@ -183,15 +185,27 @@ func NewSignalSession() *SignalSession {
 //     generation pops from the front; top-up runs each time a bundle is
 //     generated so the queue never empties under steady load.
 //
-// The signed pre-key in this Go implementation is currently a single
-// active entry — rotation history (matching the C# SignedPreKeyHistory) is
-// out of scope for this OPK-pool change. A separate Tier-1 / Tier-2 pass
-// will add rotation history if cross-language interop requires it.
+// signedPreKeyHistory holds the active SPK plus retained prior entries
+// (oldest first, newest last). The newest entry is the active SPK that
+// gets handed out in bundles. Retained prior entries let messages signed
+// under a recently-rotated SPK still complete X3DH during the rotation
+// window — Signal §3.3 recommends weekly rotation.
+//
+// signedPreKeyID / signedPreKeyPriv / signedPreKeyPub / signedPreKeySignature
+// are denormalised mirrors of the LAST entry in signedPreKeyHistory, kept
+// for the existing fast-path code that references them directly without a
+// list lookup.
 type preKeyState struct {
 	signedPreKeyID        int32
 	signedPreKeyPriv      []byte
 	signedPreKeyPub       []byte
 	signedPreKeySignature []byte
+
+	// signedPreKeyHistory is the SPK history: oldest first, newest last.
+	// The newest entry is the active SPK; older entries are retained for
+	// the rotation window so messages signed under a recently-rotated SPK
+	// can still decrypt.
+	signedPreKeyHistory []signedPreKeyEntry
 
 	// oneTimePreKeys holds every OPK keypair we still own — both un-issued
 	// (still queued in availableOpkIds) and issued-but-not-yet-consumed
@@ -204,6 +218,17 @@ type preKeyState struct {
 	// generation dequeues from the front (FIFO). Top-up enqueues newly
 	// generated ids. Must stay in sync with oneTimePreKeys.
 	availableOpkIds []int32
+}
+
+// signedPreKeyEntry is one entry in the SPK history. The private half is
+// held so responder-side X3DH can still complete when a peer presents a
+// slightly-stale SPK during the rotation window.
+type signedPreKeyEntry struct {
+	id          int32
+	priv        []byte
+	pub         []byte
+	signature   []byte
+	generatedAt time.Time
 }
 
 type oneTimePreKey struct {
