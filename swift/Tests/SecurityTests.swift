@@ -227,4 +227,60 @@ final class SecurityTests: XCTestCase {
             }
         }
     }
+
+    /// Regression test for the pre-2026-05-05 cache-key bug. Pre-fix, the
+    /// dedup cache stored ONE nonce per source — every subsequent packet
+    /// from the same source overwrote the prior cached nonce, so a replay
+    /// of an earlier nonce was accepted. Post-fix, the cache is keyed by
+    /// (source, nonce) so each (source, nonce) pair is independently
+    /// remembered for the freshness window.
+    func testReplayOfEarlierNonceFromSameSenderRejected() async throws {
+        let (privateKey, publicKey) = Ed25519Service.generateKeyPair()
+        let signer = await PacketSigningService(privateKey: privateKey, publicKey: publicKey)
+
+        var pkt1 = MeshPacket(type: .data, sourceUhid: "alice", destinationUhid: "bob")
+        pkt1.packetNonce = Data([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
+        try await signer.signPacket(&pkt1)
+        XCTAssertTrue(try await signer.verifyPacket(pkt1, againstPublicKey: publicKey))
+
+        // A different nonce from the same source — must succeed.
+        var pkt2 = MeshPacket(type: .data, sourceUhid: "alice", destinationUhid: "bob")
+        pkt2.packetNonce = Data([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11])
+        try await signer.signPacket(&pkt2)
+        XCTAssertTrue(try await signer.verifyPacket(pkt2, againstPublicKey: publicKey))
+
+        // Now REPLAY the FIRST nonce. The pre-fix bug would let this
+        // through because pkt2 overwrote pkt1's entry. Must be rejected.
+        XCTAssertThrowsError(
+            try await signer.verifyPacket(pkt1, againstPublicKey: publicKey)
+        ) { error in
+            guard case .duplicateNonce = error as! PacketSigningError else {
+                XCTFail("Expected duplicateNonce error for replayed earlier nonce")
+                return
+            }
+        }
+    }
+
+    /// Two distinct senders may legitimately use the same nonce — they
+    /// share no replay risk because each (source, nonce) pair is tracked
+    /// separately. Pre-fix, the cache keyed by source alone would still
+    /// allow this (different keys), but the fix makes the design intent
+    /// explicit and ensures it stays correct after future refactors.
+    func testSameNonceFromDifferentSendersAccepted() async throws {
+        let (privateKey, publicKey) = Ed25519Service.generateKeyPair()
+        let signer = await PacketSigningService(privateKey: privateKey, publicKey: publicKey)
+
+        let sharedNonce = Data([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
+
+        var aPkt = MeshPacket(type: .data, sourceUhid: "alice", destinationUhid: "carol")
+        aPkt.packetNonce = sharedNonce
+        try await signer.signPacket(&aPkt)
+        XCTAssertTrue(try await signer.verifyPacket(aPkt, againstPublicKey: publicKey))
+
+        var bPkt = MeshPacket(type: .data, sourceUhid: "bob", destinationUhid: "carol")
+        bPkt.packetNonce = sharedNonce
+        try await signer.signPacket(&bPkt)
+        // Different source, same nonce — must be accepted.
+        XCTAssertTrue(try await signer.verifyPacket(bPkt, againstPublicKey: publicKey))
+    }
 }

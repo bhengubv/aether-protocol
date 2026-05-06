@@ -8,8 +8,16 @@ public actor PacketSigningService {
     /// Maximum age for cached nonces (5 minutes).
     private let maxNonceAgeSeconds: Int = 300
 
-    /// Deduplication cache: (senderUhid, nonce) -> timestamp
-    private var nonceCache: [String: (nonce: Data, timestamp: Date)] = [:]
+    /// Deduplication cache keyed by `"<sourceUhid>:<hex(nonce)>"` -> timestamp.
+    ///
+    /// Pre-2026-05-05 the Swift port keyed this cache by `sourceUhid` alone
+    /// and stored only ONE nonce per source — every new packet overwrote
+    /// the prior cached nonce, so a replay of the prior nonce went
+    /// undetected after any subsequent packet. Matches the C# fix in
+    /// `Aether.Security.Services.PacketSigningService` (`_seenNonces` keyed
+    /// by `string.Concat(packet.SourceUhid, ":", Convert.ToHexString(packet.PacketNonce))`)
+    /// so cross-language behaviour is consistent.
+    private var seenNonces: [String: Date] = [:]
 
     private let ed25519PrivateKey: Data
     private let ed25519PublicKey: Data
@@ -93,24 +101,43 @@ public actor PacketSigningService {
     }
 
     private func checkNonceDuplicate(_ sourceUhid: String, _ nonce: Data) throws {
-        let cacheKey = sourceUhid
+        // Key by (sourceUhid, nonce) so:
+        //   1. distinct senders cannot collide on the same nonce — a
+        //      colliding nonce from a different sender is legitimate
+        //      traffic, not a replay;
+        //   2. an attacker who pre-registers a nonce against a recipient
+        //      cannot block the legitimate sender's first packet;
+        //   3. a replay of the SAME (source, nonce) pair is the only thing
+        //      that gets rejected — which is exactly the replay-attack
+        //      shape the dedup is supposed to catch.
+        // Matches the C# `Aether.Security.Services.PacketSigningService`
+        // 2026-05-05 fix.
+        let cacheKey = nonceCacheKey(sourceUhid: sourceUhid, nonce: nonce)
 
-        // Clean up old cache entries
+        // Clean up old cache entries.
         let now = Date()
         let threshold = now.addingTimeInterval(-TimeInterval(maxNonceAgeSeconds))
-        for (key, value) in nonceCache {
-            if value.timestamp < threshold {
-                nonceCache.removeValue(forKey: key)
-            }
+        for (key, ts) in seenNonces where ts < threshold {
+            seenNonces.removeValue(forKey: key)
         }
 
-        // Check for duplicate nonce
-        if let cachedEntry = nonceCache[cacheKey], cachedEntry.nonce == nonce {
+        // Check for duplicate (source, nonce) pair.
+        if seenNonces[cacheKey] != nil {
             throw PacketSigningError.duplicateNonce(sourceUhid)
         }
 
-        // Add to cache
-        nonceCache[cacheKey] = (nonce: nonce, timestamp: now)
+        // Record the (source, nonce) pair so a replay of THIS exact pair
+        // gets rejected next time.
+        seenNonces[cacheKey] = now
+    }
+
+    /// Constructs the dedup-cache key in the same shape as the C# port —
+    /// `"<sourceUhid>:<UPPERCASE-HEX(nonce)>"`. Uppercase matches
+    /// `Convert.ToHexString` exactly so a future cross-language test that
+    /// inspects raw cache keys stays observably equivalent.
+    private func nonceCacheKey(sourceUhid: String, nonce: Data) -> String {
+        let hex = nonce.map { String(format: "%02X", $0) }.joined()
+        return "\(sourceUhid):\(hex)"
     }
 }
 
