@@ -45,6 +45,18 @@ class PacketType(IntEnum):
     WatchChunkRequest = 33
     TorrentMetadata = 34
 
+    # Capability handshake — sender announces supported protocol-version range
+    # + capability tags. Sent on first contact with an unknown peer. The
+    # payload is a UTF-8 JSON-encoded HelloPayload. Unauthenticated and
+    # unencrypted — peer identity is verified later via Ed25519 packet
+    # signatures.
+    Hello = 50
+
+    # Reply to a Hello — receiver echoes back the agreed (highest mutually-
+    # supported) protocol version and the intersection of capability tags.
+    # Same JSON payload shape as Hello.
+    HelloAck = 51
+
 
 @dataclass
 class MeshPacket:
