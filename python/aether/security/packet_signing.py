@@ -13,8 +13,28 @@ class PacketSigningService:
     """
     Service for signing MeshPackets and deduplicating based on nonce.
 
-    Maintains a deduplication cache of (sender_uhid, nonce) pairs with
-    a 5-minute TTL to prevent replay attacks.
+    Maintains a deduplication cache keyed by ``(sender_uhid, nonce)`` pairs
+    with a 5-minute TTL to prevent replay attacks.
+
+    Why the cache MUST key by ``(source, nonce)`` and not by ``nonce``
+    alone (matches the C# ``PacketSigningService`` rationale documented
+    at commit 9380631):
+
+      1. The nonce is only 8 random bytes (PACKET_NONCE_SIZE). With many
+         active peers, birthday-paradox collisions across DIFFERENT
+         senders are realistic. Keying by nonce alone would silently
+         drop legitimate traffic from one sender whenever its nonce
+         happened to match a recent one from a different sender.
+      2. An attacker who could pre-register a target nonce against the
+         recipient (by sending a single packet of their own with that
+         nonce) could then BLOCK the legitimate sender's first packet
+         carrying the same nonce. Keying by ``(source, nonce)`` makes
+         that attack require knowledge of the LEGITIMATE sender's
+         secret nonce-PRNG output — which it isn't.
+
+    The pair is unique-enough across the freshness window: a single
+    sender re-using its own 8-byte random nonce within 5 minutes is the
+    only legitimate replay pattern, and that IS what we want to drop.
     """
 
     def __init__(self, max_cache_size: int = 10000) -> None:
