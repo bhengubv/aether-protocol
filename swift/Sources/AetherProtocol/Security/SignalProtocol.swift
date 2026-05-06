@@ -59,6 +59,13 @@ internal class SignalSession {
 /// Responder-side pre-key state. Holds the private halves of the signed
 /// pre-key and one-time pre-keys so X3DH can be computed when an
 /// initiator's PreKey message arrives.
+///
+/// One-time pre-keys are managed as a pool of `opkPoolSize` entries
+/// (default 100, mirrors the Signal-published guidance). Bundle generation
+/// hands out the next-unused id from `availableOpkIds`; the OPK stays in
+/// `oneTimePreKeys` until a responder consumes it via X3DH, at which point
+/// it is removed. Top-up runs each time a bundle is generated so the
+/// available queue never empties under steady load.
 internal struct PreKeyState {
     var signedPreKeyId: Int32 = 0
     var signedPreKeyPriv: Data = Data()
@@ -67,6 +74,13 @@ internal struct PreKeyState {
 
     /// id -> (priv, pub). Each entry is consumed (zeroed and removed) on first use.
     var oneTimePreKeys: [Int32: (priv: Data, pub: Data)] = [:]
+
+    /// IDs of OPKs that exist in `oneTimePreKeys` and have NOT yet been
+    /// issued in any bundle. Bundle generation pops from the front (FIFO);
+    /// top-up appends to the end. Modelled as a `[Int32]` because Swift has
+    /// no built-in queue type — `removeFirst()` + `append(_:)` give us the
+    /// same FIFO semantics as the C# `Queue<int>`.
+    var availableOpkIds: [Int32] = []
 }
 
 /// Signal Protocol implementation: X3DH session establishment + full
@@ -97,9 +111,20 @@ public actor SignalProtocolService {
     public static let messageTypeNormal: Int32 = 0
     public static let messageTypePreKey: Int32 = 1
 
+    /// Default size of the one-time pre-key pool. Mirrors the Signal-
+    /// published guidance: ~100 OPKs per device so realistic concurrent-
+    /// initiator loads don't collide on a single shared id. Matches
+    /// `SignalProtocolService.DefaultOpkPoolSize` in the C# port.
+    public static let defaultOpkPoolSize: Int = 100
+
     private let aesNonceSize: Int = 12
     private let aesTagSize: Int = 16
     private let aesKeySize: Int = 32
+
+    /// Target size of the one-time pre-key pool. The pool is topped up to
+    /// this many available (un-issued) keys on every bundle generation, and
+    /// consumed keys are replaced lazily on the next bundle call.
+    public let opkPoolSize: Int
 
     /// HKDF info string for the X3DH root-key derivation. MUST match every
     /// other language exactly — verified by fixtures/signal/expected/x3dh_basic.json.
@@ -121,7 +146,10 @@ public actor SignalProtocolService {
     private var localUhid: String?
     private var preKeys: PreKeyState = PreKeyState()
 
-    public init() {
+    public init(opkPoolSize: Int = SignalProtocolService.defaultOpkPoolSize) {
+        precondition(opkPoolSize >= 1, "opkPoolSize must be >= 1 (got \(opkPoolSize)).")
+        self.opkPoolSize = opkPoolSize
+
         (self.ed25519PrivateKey, self.ed25519PublicKey) = Ed25519Service.generateKeyPair()
 
         // X25519 long-term identity for X3DH ECDH.
@@ -321,24 +349,43 @@ public actor SignalProtocolService {
 
     /// Generates a pre-key bundle. Retains the SPK + OPK private halves for
     /// responder-side X3DH on this node.
+    ///
+    /// One-time pre-keys are managed as a pool of `opkPoolSize` (default
+    /// 100) un-issued keys; this method tops the pool back up to that
+    /// target on every call, then dequeues the next un-issued OPK from the
+    /// front of `availableOpkIds`. Actor isolation is sufficient — there's
+    /// no race between concurrent bundle generations on the same actor.
     public func generatePreKeyBundle(localUhid: String) throws -> PreKeyBundle {
         self.localUhid = localUhid
 
-        // One-time pre-key.
-        let otpkPriv = Curve25519.KeyAgreement.PrivateKey()
-        let otpkPub = otpkPriv.publicKey.rawRepresentation
-        let preKeyId = randomPositiveInt32()
-        preKeys.oneTimePreKeys[preKeyId] = (priv: otpkPriv.rawRepresentation, pub: otpkPub)
+        // Signed pre-key — generate lazily on the first bundle call. The
+        // active SPK is reused on subsequent calls (the C# port supports
+        // periodic SPK rotation; mirror just the basic single-active-SPK
+        // behaviour here, which all existing Swift fixtures expect).
+        if preKeys.signedPreKeyPriv.isEmpty {
+            let spkPriv = Curve25519.KeyAgreement.PrivateKey()
+            let spkPub = spkPriv.publicKey.rawRepresentation
+            let signedPreKeyId = randomPositiveInt32()
+            let signature = try Ed25519Service.sign(ed25519PrivateKey, spkPub)
+            preKeys.signedPreKeyId = signedPreKeyId
+            preKeys.signedPreKeyPriv = spkPriv.rawRepresentation
+            preKeys.signedPreKeyPub = spkPub
+            preKeys.signedPreKeySignature = signature
+        }
 
-        // Signed pre-key.
-        let spkPriv = Curve25519.KeyAgreement.PrivateKey()
-        let spkPub = spkPriv.publicKey.rawRepresentation
-        let signedPreKeyId = randomPositiveInt32()
-        let signature = try Ed25519Service.sign(ed25519PrivateKey, spkPub)
-        preKeys.signedPreKeyId = signedPreKeyId
-        preKeys.signedPreKeyPriv = spkPriv.rawRepresentation
-        preKeys.signedPreKeyPub = spkPub
-        preKeys.signedPreKeySignature = signature
+        // Top up the OPK pool, then dequeue the next un-issued OPK.
+        topUpOpkPool()
+        guard !preKeys.availableOpkIds.isEmpty else {
+            // Should be unreachable after topUpOpkPool() succeeds, but guard
+            // explicitly so a future refactor can't silently regress to a
+            // single-OPK reuse.
+            throw SignalProtocolError.failedToObtainMessageKey
+        }
+        let preKeyId = preKeys.availableOpkIds.removeFirst()
+        guard let entry = preKeys.oneTimePreKeys[preKeyId] else {
+            throw SignalProtocolError.preKeyNotHeld(.oneTimePreKey, preKeyId)
+        }
+        let otpkPub = entry.pub
 
         return PreKeyBundle(
             uhid: localUhid,
@@ -346,10 +393,47 @@ public actor SignalProtocolService {
             identityKeyX25519: identityX25519Pub,
             preKeyId: preKeyId,
             preKey: otpkPub,
-            signedPreKeyId: signedPreKeyId,
-            signedPreKey: spkPub,
-            signedPreKeySignature: signature
+            signedPreKeyId: preKeys.signedPreKeyId,
+            signedPreKey: preKeys.signedPreKeyPub,
+            signedPreKeySignature: preKeys.signedPreKeySignature
         )
+    }
+
+    /// Tops the OPK pool up to `opkPoolSize` available (un-issued) keys.
+    /// Generates a fresh X25519 keypair per missing slot, assigns it a
+    /// random non-colliding id, and enqueues the id at the end of
+    /// `availableOpkIds`. Idempotent — safe to call repeatedly.
+    private func topUpOpkPool() {
+        while preKeys.availableOpkIds.count < opkPoolSize {
+            let priv = Curve25519.KeyAgreement.PrivateKey()
+            let pub = priv.publicKey.rawRepresentation
+
+            // Choose a non-colliding id. The 2^31 range makes collisions in
+            // a 100-element pool statistically negligible, but guard
+            // explicitly to match the C# implementation.
+            var id: Int32 = 0
+            var attempts = 0
+            repeat {
+                id = randomPositiveInt32()
+                attempts += 1
+                if attempts > 64 {
+                    // Mirrors the C# CryptographicException("Could not allocate
+                    // a non-colliding OPK id after 64 attempts.").
+                    fatalError("Could not allocate a non-colliding OPK id after 64 attempts. " +
+                               "Pool exhaustion or RNG failure.")
+                }
+            } while preKeys.oneTimePreKeys[id] != nil
+
+            preKeys.oneTimePreKeys[id] = (priv: priv.rawRepresentation, pub: pub)
+            preKeys.availableOpkIds.append(id)
+        }
+    }
+
+    /// Pool observability: total OPKs held (un-issued + issued-but-not-yet-
+    /// consumed) and the count still un-issued. Mirrors the C# props
+    /// `HeldOneTimePreKeyCount` and `AvailableOneTimePreKeyCount`.
+    public func getOpkPoolStatus() -> (held: Int, available: Int) {
+        return (held: preKeys.oneTimePreKeys.count, available: preKeys.availableOpkIds.count)
     }
 
     /// Establishes initiator-side session via X3DH (Signal §3.3): generates
