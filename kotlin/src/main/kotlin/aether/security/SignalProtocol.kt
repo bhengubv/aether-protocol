@@ -234,16 +234,54 @@ internal class SignalSession {
     var usedOneTimePreKeyId: Int = 0
 }
 
-/** Responder-side pre-key state. */
+/**
+ * Responder-side pre-key state — signed pre-key (rotated periodically) and a
+ * pool of one-time pre-keys (each consumed exactly once).
+ *
+ * One-time pre-keys are managed as a pool of `opkPoolSize` (default 100)
+ * entries. Bundle generation hands out the next-unused id from
+ * [availableOpkIds]; the OPK stays in [oneTimePreKeys] until a responder
+ * consumes it via X3DH, at which point it is zeroed and removed. Top-up runs
+ * each time a bundle is generated so the available queue never empties under
+ * steady load.
+ */
 internal class PreKeyStateInternal {
     var signedPreKeyId: Int = 0
     var signedPreKeyPriv: ByteArray = ByteArray(0)
     var signedPreKeyPub: ByteArray = ByteArray(0)
     var signedPreKeySignature: ByteArray = ByteArray(0)
+
+    /** One-time pre-keys keyed by id. Removed and zeroed on consumption. */
     val oneTimePreKeys: MutableMap<Int, Pair<ByteArray, ByteArray>> = mutableMapOf()
+
+    /**
+     * IDs of OPKs that exist in [oneTimePreKeys] and have NOT yet been issued
+     * in any bundle. Bundle generation pops from the front (FIFO). Top-up
+     * generates new OPKs and enqueues them here.
+     */
+    val availableOpkIds: ArrayDeque<Int> = ArrayDeque()
 }
 
-class SignalProtocol {
+class SignalProtocol(
+    /**
+     * Target size of the one-time pre-key pool. Defaults to 100 — mirrors
+     * Signal's published guidance so realistic concurrent-initiator loads
+     * don't collide on a single shared id. The pool is topped up to this
+     * many available (un-issued) keys on every bundle generation, and
+     * consumed keys are replaced lazily on the next bundle call.
+     *
+     * Pre-2026-05-05 the Kotlin module held only a single OPK at a time —
+     * matching the (pre-pool) C# behaviour and creating the same concurrency
+     * hazard: every concurrent initiator was handed an identical preKeyId and
+     * the responder rejected all but the first. Switching to a pool fixes
+     * that hazard for Kotlin too.
+     */
+    val opkPoolSize: Int = DEFAULT_OPK_POOL_SIZE,
+) {
+    init {
+        require(opkPoolSize >= 1) { "opkPoolSize must be >= 1 (got $opkPoolSize)." }
+    }
+
     companion object {
         /**
          * Maximum number of skipped message keys retained per session. If a
@@ -253,6 +291,13 @@ class SignalProtocol {
 
         const val MESSAGE_TYPE_NORMAL: Int = 0
         const val MESSAGE_TYPE_PRE_KEY: Int = 1
+
+        /**
+         * Default size of the one-time pre-key pool. Mirrors the C# reference
+         * (`SignalProtocolService.DefaultOpkPoolSize`) — Signal's published
+         * guidance is ~100 OPKs per device.
+         */
+        const val DEFAULT_OPK_POOL_SIZE: Int = 100
 
         private const val AES_KEY_SIZE = 32
         private const val AES_GCM_NONCE_SIZE = 12
@@ -289,6 +334,14 @@ class SignalProtocol {
 
     private var localUhid: String? = null
     private val preKeys: PreKeyStateInternal = PreKeyStateInternal()
+
+    /**
+     * Lock guarding mutations of [preKeys]. Bundle generation, OPK top-up,
+     * and OPK consumption (responder-side) all hold this lock for the whole
+     * mutation so concurrent initiators never see partial state. Mirrors
+     * `_preKeyLock` in the C# reference.
+     */
+    private val preKeyLock = Any()
 
     init {
         val (edPriv, edPub) = Ed25519Service.generateKeyPair()
@@ -477,23 +530,45 @@ class SignalProtocol {
         }
     }
 
+    /**
+     * Generates (or refreshes) the local node's pre-key bundle.
+     *
+     * On every call, the OPK pool is topped up to [opkPoolSize] available
+     * (un-issued) keys, then the next un-issued OPK id is dequeued and
+     * returned in the bundle. The signed pre-key is generated lazily on the
+     * first call and reused thereafter (rotation across calls is a future
+     * extension; the C# reference rotates on a configurable interval).
+     */
     fun generatePreKeyBundle(localUhid: String): PreKeyBundle {
         require(localUhid.isNotEmpty()) { "localUhid cannot be empty" }
         this.localUhid = localUhid
 
-        // One-time pre-key.
-        val (otpkPriv, otpkPub) = generateX25519KeyPair()
-        val preKeyId = randomPositiveInt()
-        preKeys.oneTimePreKeys[preKeyId] = otpkPriv to otpkPub
+        val preKeyId: Int
+        val otpkPub: ByteArray
+        val spkPub: ByteArray
+        val signedPreKeyId: Int
+        val signature: ByteArray
 
-        // Signed pre-key.
-        val (spkPriv, spkPub) = generateX25519KeyPair()
-        val signedPreKeyId = randomPositiveInt()
-        val signature = Ed25519Service.sign(ed25519PrivateKey, spkPub)
-        preKeys.signedPreKeyId = signedPreKeyId
-        preKeys.signedPreKeyPriv = spkPriv
-        preKeys.signedPreKeyPub = spkPub
-        preKeys.signedPreKeySignature = signature
+        synchronized(preKeyLock) {
+            // Signed pre-key: generated lazily on first call, reused after.
+            if (preKeys.signedPreKeyPriv.isEmpty()) {
+                val (spkPriv, fresh) = generateX25519KeyPair()
+                val sig = Ed25519Service.sign(ed25519PrivateKey, fresh)
+                preKeys.signedPreKeyId = randomPositiveInt()
+                preKeys.signedPreKeyPriv = spkPriv
+                preKeys.signedPreKeyPub = fresh
+                preKeys.signedPreKeySignature = sig
+            }
+
+            // Top up the pool, then hand out the next un-issued id (FIFO).
+            topUpOpkPoolNoLock()
+            preKeyId = preKeys.availableOpkIds.removeFirst()
+            otpkPub = preKeys.oneTimePreKeys[preKeyId]!!.second
+
+            spkPub = preKeys.signedPreKeyPub
+            signedPreKeyId = preKeys.signedPreKeyId
+            signature = preKeys.signedPreKeySignature
+        }
 
         return PreKeyBundle(
             uhid = localUhid,
@@ -505,6 +580,64 @@ class SignalProtocol {
             signedPreKey = spkPub.copyOf(),
             signedPreKeySignature = signature,
         )
+    }
+
+    /**
+     * Tops the OPK pool up to [opkPoolSize] available (un-issued) keys.
+     * Caller MUST hold [preKeyLock].
+     *
+     * Generates a fresh X25519 keypair per missing slot, assigns it a random
+     * non-colliding id, and enqueues the id in [PreKeyStateInternal.availableOpkIds].
+     * Idempotent — safe to call repeatedly.
+     */
+    private fun topUpOpkPoolNoLock() {
+        while (preKeys.availableOpkIds.size < opkPoolSize) {
+            val (priv, pub) = generateX25519KeyPair()
+
+            // Choose a non-colliding id. The 2^31 range makes collisions in a
+            // 100-element pool statistically negligible, but we still guard
+            // explicitly. Mirrors the C# reference.
+            var id: Int
+            var attempts = 0
+            do {
+                id = randomPositiveInt()
+                attempts++
+                if (attempts > 64) {
+                    throw IllegalStateException(
+                        "Could not allocate a non-colliding OPK id after 64 attempts. " +
+                            "Pool exhaustion or RNG failure.",
+                    )
+                }
+            } while (preKeys.oneTimePreKeys.containsKey(id))
+
+            preKeys.oneTimePreKeys[id] = priv to pub
+            preKeys.availableOpkIds.addLast(id)
+        }
+    }
+
+    /**
+     * Number of OPKs currently held — both un-issued (in the available
+     * queue) and issued-but-not-yet-consumed. Exposed for tests and
+     * observability.
+     */
+    val heldOneTimePreKeyCount: Int
+        get() = synchronized(preKeyLock) { preKeys.oneTimePreKeys.size }
+
+    /**
+     * Number of OPKs in the pool that have not yet been issued in any
+     * bundle. Drops as bundles are issued; tops back up on the next
+     * `generatePreKeyBundle()` call.
+     */
+    val availableOneTimePreKeyCount: Int
+        get() = synchronized(preKeyLock) { preKeys.availableOpkIds.size }
+
+    /**
+     * Snapshot of the OPK pool: `(held, available)` — `held` is the total
+     * (issued + un-issued); `available` is the un-issued portion. Mirrors
+     * the C# `(HeldOneTimePreKeyCount, AvailableOneTimePreKeyCount)` pair.
+     */
+    fun getOpkPoolStatus(): Pair<Int, Int> = synchronized(preKeyLock) {
+        preKeys.oneTimePreKeys.size to preKeys.availableOpkIds.size
     }
 
     /**
@@ -596,13 +729,27 @@ class SignalProtocol {
         require(initiatorRatchetPub.size == X25519_PUBLIC_KEY_SIZE) {
             "Initiator ratchet pub wrong size: ${initiatorRatchetPub.size}"
         }
-        check(preKeys.signedPreKeyId == usedSignedPreKeyId && preKeys.signedPreKeyPriv.isNotEmpty()) {
-            "PreKey message references signed pre-key id $usedSignedPreKeyId which is not held by this node."
+        // Atomically resolve SPK + OPK private halves. Holding [preKeyLock]
+        // for the lookup ensures concurrent responder-side establishments
+        // race-free against the OPK pool: the *first* responder to reach this
+        // point for a given OPK id removes it from the map; later attempts
+        // surface as "OPK not held" which is the correct replay-rejection
+        // signal.
+        val spkPrivCopy: ByteArray
+        val spkPubCopy: ByteArray
+        val otpkPriv: ByteArray
+        synchronized(preKeyLock) {
+            check(preKeys.signedPreKeyId == usedSignedPreKeyId && preKeys.signedPreKeyPriv.isNotEmpty()) {
+                "PreKey message references signed pre-key id $usedSignedPreKeyId which is not held by this node."
+            }
+            val otpk = preKeys.oneTimePreKeys.remove(usedOneTimePreKeyId)
+                ?: throw IllegalStateException(
+                    "PreKey message references one-time pre-key id $usedOneTimePreKeyId which is not held (already consumed?).",
+                )
+            spkPrivCopy = preKeys.signedPreKeyPriv.copyOf()
+            spkPubCopy = preKeys.signedPreKeyPub.copyOf()
+            otpkPriv = otpk.first
         }
-        val otpk = preKeys.oneTimePreKeys[usedOneTimePreKeyId]
-            ?: throw IllegalStateException(
-                "PreKey message references one-time pre-key id $usedOneTimePreKeyId which is not held (already consumed?)."
-            )
 
         var dh1: ByteArray? = null
         var dh2: ByteArray? = null
@@ -612,10 +759,10 @@ class SignalProtocol {
 
         try {
             // Mirror of initiator's 4 DHs (X25519 ECDH is commutative).
-            dh1 = x25519Agree(preKeys.signedPreKeyPriv, initiatorIK)
+            dh1 = x25519Agree(spkPrivCopy, initiatorIK)
             dh2 = x25519Agree(identityX25519Priv, initiatorRatchetPub)
-            dh3 = x25519Agree(preKeys.signedPreKeyPriv, initiatorRatchetPub)
-            dh4 = x25519Agree(otpk.first, initiatorRatchetPub)
+            dh3 = x25519Agree(spkPrivCopy, initiatorRatchetPub)
+            dh4 = x25519Agree(otpkPriv, initiatorRatchetPub)
 
             shared = dh1 + dh2 + dh3 + dh4
             val rootKey = hkdf32(shared, HKDF_ROOT_INFO)
@@ -627,18 +774,18 @@ class SignalProtocol {
                 this.rootKey = rootKey
                 this.sendChainKey = null
                 this.recvChainKey = null
-                this.myEphemeralPriv = preKeys.signedPreKeyPriv.copyOf()
-                this.myEphemeralPub = preKeys.signedPreKeyPub.copyOf()
+                this.myEphemeralPriv = spkPrivCopy
+                this.myEphemeralPub = spkPubCopy
                 this.remoteEphemeralPub = null   // forces DH-ratchet on first decrypt
                 this.pendingPreKeyMessage = false
             }
 
             sessions[peerUhid] = session
 
-            // Consume one-time pre-key (zero + remove). Replay protection
-            // at the bundle layer.
-            otpk.first.fill(0)
-            preKeys.oneTimePreKeys.remove(usedOneTimePreKeyId)
+            // Zero the consumed one-time pre-key — replay protection at the
+            // bundle layer. Removal from the map already happened atomically
+            // above.
+            otpkPriv.fill(0)
         } finally {
             dh1?.fill(0)
             dh2?.fill(0)
