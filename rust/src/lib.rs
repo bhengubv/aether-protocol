@@ -3,6 +3,7 @@
 pub mod constants;
 pub mod dtn;
 pub mod extensibility;
+pub mod handshake;
 pub mod models;
 pub mod protocol;
 pub mod routing;
@@ -10,6 +11,10 @@ pub mod security;
 pub mod sos;
 pub mod transport;
 
+pub use handshake::{
+    HandshakeEvent, HandshakeService, HelloPayload, IncompatiblePeer, IncompatibleReason,
+    PeerCapabilities,
+};
 pub use models::{
     AetherNode, BundlePriority, BundleStatus, CustodyRecord, DtnBundle, DtnDeliveryReceipt,
     PeerInfo, RouteEntry, SosAlert,

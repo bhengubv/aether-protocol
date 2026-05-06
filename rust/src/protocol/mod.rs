@@ -44,6 +44,18 @@ pub enum PacketType {
     ScreenShare = 32,
     WatchChunkRequest = 33,
     TorrentMetadata = 34,
+
+    /// Capability handshake — sender announces supported protocol-version
+    /// range + capability flags. Sent on first contact with an unknown peer.
+    /// The payload is a UTF-8 JSON-encoded `HelloPayload`. Unauthenticated and
+    /// unencrypted — peer identity is verified later via Ed25519 packet
+    /// signatures.
+    Hello = 50,
+
+    /// Reply to a [`PacketType::Hello`] — receiver echoes back the agreed
+    /// (highest mutually-supported) protocol version and the intersection of
+    /// capability flags. Same JSON payload shape as [`PacketType::Hello`].
+    HelloAck = 51,
 }
 
 impl PacketType {
@@ -83,6 +95,8 @@ impl PacketType {
             32 => Some(PacketType::ScreenShare),
             33 => Some(PacketType::WatchChunkRequest),
             34 => Some(PacketType::TorrentMetadata),
+            50 => Some(PacketType::Hello),
+            51 => Some(PacketType::HelloAck),
             _ => None,
         }
     }
@@ -262,6 +276,16 @@ mod tests {
         assert_eq!(PacketType::from_byte(1), Some(PacketType::RouteRequest));
         assert_eq!(PacketType::from_byte(3), Some(PacketType::Data));
         assert_eq!(PacketType::from_byte(23), Some(PacketType::ProfileSync));
+        assert_eq!(PacketType::from_byte(50), Some(PacketType::Hello));
+        assert_eq!(PacketType::from_byte(51), Some(PacketType::HelloAck));
         assert_eq!(PacketType::from_byte(99), None);
+    }
+
+    #[test]
+    fn test_handshake_packet_type_byte_values() {
+        // These wire bytes MUST match the C# PacketType.Hello/HelloAck values
+        // — drift here breaks Rust↔C# handshake interop.
+        assert_eq!(PacketType::Hello.as_byte(), 50);
+        assert_eq!(PacketType::HelloAck.as_byte(), 51);
     }
 }
