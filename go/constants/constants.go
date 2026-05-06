@@ -28,6 +28,11 @@ const (
 	MaxPacketAgeSeconds     int32 = 300
 	ProtocolVersionUnsigned byte  = 1
 	ProtocolVersionSigned   byte  = 2
+	// CurrentProtocolVersion is the highest protocol version this
+	// implementation can speak. Mirrors the C# reference's
+	// ProtocolConstants.CurrentProtocolVersion. Bumped when the wire
+	// format gains a backward-incompatible field.
+	CurrentProtocolVersion  byte  = 2
 	MaxSkippedKeys          int32 = 1000
 	AesGcmNonceSize         int32 = 12
 	AesGcmTagSize           int32 = 16

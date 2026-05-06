@@ -46,6 +46,18 @@ const (
 	ScreenShare        PacketType = 32
 	WatchChunkRequest  PacketType = 33
 	TorrentMetadata    PacketType = 34
+
+	// Hello — capability handshake. Sender announces supported
+	// protocol-version range + capability flags. Sent on first contact with
+	// an unknown peer. Payload is a UTF-8 JSON-encoded HelloPayload (see
+	// the handshake package). Unauthenticated and unencrypted — peer
+	// identity is verified later via Ed25519 packet signatures.
+	Hello PacketType = 50
+
+	// HelloAck — reply to a Hello. Receiver echoes back the agreed
+	// (highest mutually-supported) protocol version and the intersection
+	// of capability flags. Same JSON payload shape as Hello.
+	HelloAck PacketType = 51
 )
 
 // MeshPacket is the core packet transmitted across the Aether mesh network.
@@ -191,6 +203,10 @@ func (pt PacketType) String() string {
 		return "WatchChunkRequest"
 	case TorrentMetadata:
 		return "TorrentMetadata"
+	case Hello:
+		return "Hello"
+	case HelloAck:
+		return "HelloAck"
 	default:
 		return "Unknown"
 	}
