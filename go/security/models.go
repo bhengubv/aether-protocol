@@ -169,13 +169,41 @@ func NewSignalSession() *SignalSession {
 
 // preKeyState holds the responder-side pre-key private halves so X3DH can
 // be computed when an initiator's PreKey message arrives.
+//
+// One-time pre-keys are managed as a pool of opkPoolSize (default 100)
+// entries:
+//
+//   - oneTimePreKeys is the authoritative map of OPKs the responder still
+//     holds (un-issued + issued-but-not-yet-consumed). An OPK is removed
+//     and zeroed on consumption, so a missing id => already consumed (or
+//     never generated). Required for delayed PreKey messages.
+//
+//   - availableOpkIds is a FIFO queue of OPK ids that exist in
+//     oneTimePreKeys and have NOT yet been issued in any bundle. Bundle
+//     generation pops from the front; top-up runs each time a bundle is
+//     generated so the queue never empties under steady load.
+//
+// The signed pre-key in this Go implementation is currently a single
+// active entry — rotation history (matching the C# SignedPreKeyHistory) is
+// out of scope for this OPK-pool change. A separate Tier-1 / Tier-2 pass
+// will add rotation history if cross-language interop requires it.
 type preKeyState struct {
 	signedPreKeyID        int32
 	signedPreKeyPriv      []byte
 	signedPreKeyPub       []byte
 	signedPreKeySignature []byte
 
+	// oneTimePreKeys holds every OPK keypair we still own — both un-issued
+	// (still queued in availableOpkIds) and issued-but-not-yet-consumed
+	// (already handed out in a bundle but no PreKey message has arrived).
+	// Removed and zeroed on consumption.
 	oneTimePreKeys map[int32]oneTimePreKey
+
+	// availableOpkIds is a FIFO queue of OPK ids that are present in
+	// oneTimePreKeys and have NOT yet been issued in any bundle. Bundle
+	// generation dequeues from the front (FIFO). Top-up enqueues newly
+	// generated ids. Must stay in sync with oneTimePreKeys.
+	availableOpkIds []int32
 }
 
 type oneTimePreKey struct {

@@ -29,6 +29,20 @@ const (
 	// MessageType values for EncryptedPayload.
 	MessageTypeNormal = 0
 	MessageTypePreKey = 1
+
+	// DefaultOpkPoolSize is the default size of the one-time pre-key pool.
+	// Mirrors Signal's published guidance and the C# reference: ~100 OPKs
+	// per device so realistic concurrent-initiator loads don't collide on
+	// a single shared id (the prior single-OPK design is unsafe under
+	// concurrent X3DH establishment).
+	DefaultOpkPoolSize = 100
+
+	// maxOpkIdAllocAttempts caps the number of retries when picking a
+	// non-colliding random OPK id. RandomNumberGenerator-grade collisions
+	// in a 100-element pool are statistically negligible, but guarding
+	// explicitly turns a degenerate RNG failure into a clear error rather
+	// than an infinite loop.
+	maxOpkIdAllocAttempts = 64
 )
 
 // HKDF info strings.
@@ -97,11 +111,37 @@ type SignalProtocolService struct {
 
 	// Pre-key state held for responder-side X3DH.
 	preKeys preKeyState
+
+	// opkPoolSize is the target size of the one-time pre-key pool. The
+	// pool is topped up to this many available (un-issued) keys on every
+	// bundle generation. Mirrors the C# OpkPoolSize. Defaults to
+	// DefaultOpkPoolSize (100); override via WithOpkPoolSize.
+	opkPoolSize int
+}
+
+// SignalOption configures a SignalProtocolService at construction time.
+type SignalOption func(*SignalProtocolService) error
+
+// WithOpkPoolSize overrides the target size of the one-time pre-key pool.
+// Default is DefaultOpkPoolSize (100). Must be >= 1.
+//
+// Larger pools reduce the chance of bundle-issuance collisions under
+// concurrent initiator load at the cost of slightly more X25519 keypair
+// generation work per node and persistent OPK storage.
+func WithOpkPoolSize(size int) SignalOption {
+	return func(s *SignalProtocolService) error {
+		if size < 1 {
+			return fmt.Errorf("WithOpkPoolSize: size must be >= 1 (got %d)", size)
+		}
+		s.opkPoolSize = size
+		return nil
+	}
 }
 
 // NewSignalProtocolService creates a new Signal Protocol service with
-// freshly-generated X25519 + Ed25519 long-term identity keys.
-func NewSignalProtocolService() (*SignalProtocolService, error) {
+// freshly-generated X25519 + Ed25519 long-term identity keys. Optional
+// behaviour (e.g. OPK pool size) can be configured via SignalOption.
+func NewSignalProtocolService(opts ...SignalOption) (*SignalProtocolService, error) {
 	ed25519Svc := NewEd25519Service()
 
 	edPriv, edPub, err := ed25519Svc.GenerateKeyPair()
@@ -114,7 +154,7 @@ func NewSignalProtocolService() (*SignalProtocolService, error) {
 		return nil, fmt.Errorf("generate X25519 identity key pair: %w", err)
 	}
 
-	return &SignalProtocolService{
+	sps := &SignalProtocolService{
 		sessions:           make(map[string]*SignalSession),
 		identityX25519Priv: xPriv,
 		identityX25519Pub:  xPub,
@@ -122,9 +162,17 @@ func NewSignalProtocolService() (*SignalProtocolService, error) {
 		ed25519PublicKey:   edPub,
 		ed25519Service:     ed25519Svc,
 		preKeys: preKeyState{
-			oneTimePreKeys: make(map[int32]oneTimePreKey),
+			oneTimePreKeys:  make(map[int32]oneTimePreKey),
+			availableOpkIds: make([]int32, 0),
 		},
-	}, nil
+		opkPoolSize: DefaultOpkPoolSize,
+	}
+	for _, opt := range opts {
+		if err := opt(sps); err != nil {
+			return nil, err
+		}
+	}
+	return sps, nil
 }
 
 // SetLocalUhid sets the local node's UHID. Required before any Encrypt call
@@ -327,25 +375,48 @@ func (sps *SignalProtocolService) Decrypt(peerUhid string, payload *EncryptedPay
 // private halves of the signed pre-key and one-time pre-key are retained
 // internally so we can run our side of X3DH when an initiator consumes
 // these ids.
+//
+// One-time pre-keys are managed as a pool of opkPoolSize entries (default
+// 100). Bundle generation:
+//
+//  1. Tops up the OPK pool to opkPoolSize available (un-issued) keys.
+//  2. Dequeues the next un-issued OPK id from the FIFO available queue.
+//  3. Returns the bundle. The dequeued OPK stays in oneTimePreKeys until
+//     an initiator's PreKey message consumes it via X3DH (zeroed +
+//     removed there).
+//
+// This replaces the prior single-OPK design which had a critical
+// concurrency hazard: every bundle reused the same single OPK private key,
+// so two concurrent initiators establishing sessions against the same
+// responder would both compute X3DH against the same OPK — losing one of
+// the two sessions when the responder consumed the OPK on the first
+// PreKey message and refused to honour the second.
 func (sps *SignalProtocolService) GeneratePreKeyBundle(localUhid string) (*PreKeyBundle, error) {
 	sps.mu.Lock()
 	defer sps.mu.Unlock()
 
 	sps.localUhid = localUhid
 
-	// One-time pre-key (X25519).
-	otpkPriv, otpkPub, err := generateX25519KeyPair()
-	if err != nil {
-		return nil, fmt.Errorf("generate one-time pre-key: %w", err)
+	// Top up the OPK pool, then dequeue the next un-issued OPK.
+	if err := sps.topUpOpkPoolLocked(); err != nil {
+		return nil, fmt.Errorf("top up OPK pool: %w", err)
 	}
-	preKeyID, err := randomInt32()
-	if err != nil {
-		return nil, err
+	if len(sps.preKeys.availableOpkIds) == 0 {
+		// Defensive — top-up should always leave the queue at >= opkPoolSize.
+		return nil, fmt.Errorf("OPK pool unexpectedly empty after top-up")
 	}
-	sps.preKeys.oneTimePreKeys[preKeyID] = oneTimePreKey{priv: otpkPriv, pub: otpkPub}
+	preKeyID := sps.preKeys.availableOpkIds[0]
+	sps.preKeys.availableOpkIds = sps.preKeys.availableOpkIds[1:]
+	otpk, ok := sps.preKeys.oneTimePreKeys[preKeyID]
+	if !ok {
+		return nil, fmt.Errorf("OPK pool inconsistent: id %d in queue but not in map", preKeyID)
+	}
+	otpkPub := otpk.pub
 
 	// Signed pre-key (X25519). The signature is over the X25519 public key,
-	// signed by the long-term Ed25519 identity key.
+	// signed by the long-term Ed25519 identity key. Currently regenerated
+	// on every call — adding rotation history (matching the C#
+	// SignedPreKeyHistory) is out of scope for this OPK-pool change.
 	spkPriv, spkPub, err := generateX25519KeyPair()
 	if err != nil {
 		return nil, fmt.Errorf("generate signed pre-key: %w", err)
@@ -373,6 +444,70 @@ func (sps *SignalProtocolService) GeneratePreKeyBundle(localUhid string) (*PreKe
 		SignedPreKey:          append([]byte{}, spkPub...),
 		SignedPreKeySignature: signature,
 	}, nil
+}
+
+// topUpOpkPoolLocked refills the OPK pool to opkPoolSize available
+// (un-issued) keys. Generates a fresh X25519 keypair per missing slot,
+// allocates a non-colliding id, and enqueues the id at the tail of the
+// FIFO available queue.
+//
+// Caller MUST hold sps.mu.
+func (sps *SignalProtocolService) topUpOpkPoolLocked() error {
+	for len(sps.preKeys.availableOpkIds) < sps.opkPoolSize {
+		priv, pub, err := generateX25519KeyPair()
+		if err != nil {
+			return fmt.Errorf("generate OPK keypair: %w", err)
+		}
+
+		// Choose a non-colliding id. Random int32 collisions in a
+		// 100-element pool are statistically negligible; guard explicitly
+		// to surface a degenerate RNG failure.
+		var id int32
+		for attempt := 0; ; attempt++ {
+			id, err = randomInt32()
+			if err != nil {
+				ZeroMemory(priv)
+				return fmt.Errorf("allocate OPK id: %w", err)
+			}
+			if _, exists := sps.preKeys.oneTimePreKeys[id]; !exists {
+				break
+			}
+			if attempt+1 >= maxOpkIdAllocAttempts {
+				ZeroMemory(priv)
+				return fmt.Errorf(
+					"could not allocate non-colliding OPK id after %d attempts (pool exhaustion or RNG failure)",
+					maxOpkIdAllocAttempts)
+			}
+		}
+
+		sps.preKeys.oneTimePreKeys[id] = oneTimePreKey{priv: priv, pub: pub}
+		sps.preKeys.availableOpkIds = append(sps.preKeys.availableOpkIds, id)
+	}
+	return nil
+}
+
+// OpkPoolSize returns the configured target size of the one-time pre-key
+// pool. Useful for tests and observability.
+func (sps *SignalProtocolService) OpkPoolSize() int {
+	sps.mu.Lock()
+	defer sps.mu.Unlock()
+	return sps.opkPoolSize
+}
+
+// GetOpkPoolStatus returns the current pool counts for tests and
+// observability.
+//
+//   - held is the total number of OPKs we still own — both un-issued
+//     (queued) and issued-but-not-yet-consumed (handed out in a bundle
+//     but the matching PreKey message hasn't arrived yet).
+//   - available is the number of un-issued OPKs in the FIFO queue, ready
+//     to be handed out by the next GeneratePreKeyBundle call.
+//
+// Mirrors the C# HeldOneTimePreKeyCount + AvailableOneTimePreKeyCount pair.
+func (sps *SignalProtocolService) GetOpkPoolStatus() (held, available int) {
+	sps.mu.Lock()
+	defer sps.mu.Unlock()
+	return len(sps.preKeys.oneTimePreKeys), len(sps.preKeys.availableOpkIds)
 }
 
 // ProcessPreKeyBundle establishes an initiator-side session against the
