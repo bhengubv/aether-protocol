@@ -1413,26 +1413,32 @@ class SignalProtocolService:
         derived = kdf.derive(dh_output)
         return derived[:32], derived[32:]
 
-    def _ratchet_send_chain(self, session: SignalSession) -> bytes:
+    def _ratchet_send_chain(self, session: SignalSession) -> bytearray:
         new_chain, message_key = self._ratchet(session.send_chain_key)
         session.send_chain_key = new_chain
         return message_key
 
-    def _ratchet_recv_chain(self, session: SignalSession) -> bytes:
+    def _ratchet_recv_chain(self, session: SignalSession) -> bytearray:
         new_chain, message_key = self._ratchet(session.recv_chain_key)
         session.recv_chain_key = new_chain
         return message_key
 
     @staticmethod
-    def _ratchet(chain_key: bytes) -> Tuple[bytes, bytes]:
+    def _ratchet(chain_key: bytes) -> Tuple[bytes, bytearray]:
         """Single Double-Ratchet step (Signal §5.1).
 
         message_key   = HMAC-SHA256(chain_key, 0x01)
         new_chain_key = HMAC-SHA256(chain_key, 0x02)
+
+        ``message_key`` is returned as ``bytearray`` (not ``bytes``) so the
+        caller can zero it after use via ``_zero_memory``. Python's
+        ``hmac.HMAC.finalize()`` returns an immutable ``bytes`` object that
+        cannot be scrubbed in place; the ``bytearray`` copy holds the same
+        bits but allows overwrite.
         """
         h1 = hmac.HMAC(chain_key, hashes.SHA256(), backend=default_backend())
         h1.update(b"\x01")
-        message_key = h1.finalize()
+        message_key = bytearray(h1.finalize())  # mutable — caller zeroes after use
 
         h2 = hmac.HMAC(chain_key, hashes.SHA256(), backend=default_backend())
         h2.update(b"\x02")
@@ -1454,10 +1460,14 @@ class SignalProtocolService:
     def _zero_memory(data) -> None:
         """Best-effort zeroing.
 
-        Python `bytes` objects are immutable and cannot be scrubbed in place.
-        Callers that care about memory hygiene should hold sensitive material
-        as `bytearray` and pass that here. For `bytes`, this is a no-op (the
-        GC will eventually reclaim, but contents may persist until then).
+        Overwrites every byte of a ``bytearray`` or writable ``memoryview``
+        with zero. Per-message AES-GCM keys (returned by ``_ratchet`` as
+        ``bytearray``) are zeroed after use so they do not persist in heap
+        memory beyond the encrypt/decrypt call.
+
+        Python ``bytes`` objects are immutable and cannot be scrubbed in
+        place. If ``data`` is ``bytes``, this is a no-op — callers should
+        avoid passing ``bytes`` for sensitive material.
         """
         if isinstance(data, bytearray):
             for i in range(len(data)):

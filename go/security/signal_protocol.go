@@ -970,15 +970,28 @@ func (sps *SignalProtocolService) ProcessPreKeyBundle(bundle *PreKeyBundle) erro
 		return fmt.Errorf("signed pre-key signature verification failed")
 	}
 
+	// Snapshot identity keys under the lock before the DH computations.
+	// identityX25519Priv is written only at construction (NewSignalProtocolService
+	// / HydrateFromPersisted) and never rotated, so a read after construction is
+	// always safe. We still hold the lock briefly here for correctness under Go's
+	// memory model: without synchronisation, a concurrent HydrateFromPersisted
+	// could theoretically be observed mid-write by this goroutine.
+	sps.mu.Lock()
+	idPriv := append([]byte(nil), sps.identityX25519Priv...)
+	idPub := append([]byte(nil), sps.identityX25519Pub...)
+	sps.mu.Unlock()
+	defer ZeroMemory(idPriv)
+
 	// Fresh ephemeral X25519 keypair, generated per-session per Signal §3.3.
 	// Adopted as the initiator's first DH-ratchet keypair (DHs).
 	ekPriv, ekPub, err := generateX25519KeyPair()
 	if err != nil {
+		ZeroMemory(idPriv)
 		return fmt.Errorf("generate ephemeral key: %w", err)
 	}
 
 	// X3DH 4-DH key agreement (initiator side).
-	dh1, err := x25519Agree(sps.identityX25519Priv, bundle.SignedPreKey)
+	dh1, err := x25519Agree(idPriv, bundle.SignedPreKey)
 	if err != nil {
 		ZeroMemory(ekPriv)
 		return fmt.Errorf("DH1: %w", err)
@@ -1020,7 +1033,7 @@ func (sps *SignalProtocolService) ProcessPreKeyBundle(bundle *PreKeyBundle) erro
 		RemoteEphemeralPub:         append([]byte{}, bundle.SignedPreKey...),
 		SkippedMessageKeys:         make(map[string][]byte),
 		PendingPreKeyMessage:       true,
-		InitiatorIdentityKeyX25519: append([]byte{}, sps.identityX25519Pub...),
+		InitiatorIdentityKeyX25519: append([]byte{}, idPub...),
 		UsedSignedPreKeyID:         bundle.SignedPreKeyID,
 		UsedOneTimePreKeyID:        bundle.PreKeyID,
 	}

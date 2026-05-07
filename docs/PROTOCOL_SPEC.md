@@ -579,18 +579,15 @@ encrypt/decrypt.
 | Language    | X3DH (4 DHs) | Double Ratchet | OPK pool       | Fixture-verified |
 |-------------|--------------|----------------|----------------|------------------|
 | C# (.NET)   | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| Go          | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_*, kdf_rk_basic |
-| Python      | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_*, kdf_rk_basic |
-| TypeScript  | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_*, kdf_rk_basic |
-| Rust        | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_*, kdf_rk_basic |
-| Swift       | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_* (host-machine compile pending) |
-| Kotlin      | full         | full (§5)      | single OPK     | x3dh_basic, ratchet_* (host-machine compile pending) |
+| Go          | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Python      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| TypeScript  | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | C           | primitives only — `aether_x25519_*`, `aether_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
 
-The OPK-pool-vs-single-OPK split is tracked under the "Open" tier of the
-README; functionally a single OPK is correct for sequential-initiator
-workloads but exposes a concurrency hazard under simultaneous bundle
-fetches. The C# reference is the canonical fix.
+All 7 session-capable languages (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) ship the 100-key FIFO OPK pool with lazy top-up and lock-protected consumption, matching the C# reference contract. C ships primitives only; full session machinery is tracked in `OPEN_ISSUES.md` item 11.
 
 ---
 
