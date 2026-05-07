@@ -13,6 +13,7 @@
 
 #include "aether/protocol.h"
 #include "aether/routing.h"
+#include "aether/transport.h"
 
 #ifdef __cplusplus
 extern "C" {

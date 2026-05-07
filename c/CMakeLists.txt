@@ -40,6 +40,7 @@ target_include_directories(aether-protocol
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
         ${LIBSODIUM_INCLUDE_DIRS}
+        ${cjson_SOURCE_DIR}
 )
 
 target_link_directories(aether-protocol
