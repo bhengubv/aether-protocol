@@ -31,7 +31,7 @@ suspend fun main() {
     // Step 1: Generate Ed25519 keys for two nodes
     println("Step 1: Generating Ed25519 identity keys...")
     val (alicePrivateKey, alicePublicKey) = Ed25519Service.generateKeyPair()
-    val (bobPrivateKey, bobPublicKey) = Ed25519Service.generateKeyPair()
+    val (_, bobPublicKey) = Ed25519Service.generateKeyPair()
     println("Alice's public key: ${toHex(alicePublicKey.take(8).toByteArray())}...")
     println("Bob's public key: ${toHex(bobPublicKey.take(8).toByteArray())}...\n")
 
@@ -52,8 +52,8 @@ suspend fun main() {
         capabilities = NodeCapabilities(ble = true, wifiDirect = true, gateway = true)
     )
 
-    println("Alice UHID: $aliceUhid")
-    println("Bob UHID: $bobUhid\n")
+    println("Alice UHID: $aliceUhid (relay=${alice.capabilities.relay}, ble=${alice.capabilities.ble})")
+    println("Bob UHID: $bobUhid (gateway=${bob.capabilities.gateway}, ble=${bob.capabilities.ble})\n")
 
     // Step 3: Create Signal Protocol instances
     println("Step 3: Initializing Signal Protocol...")
