@@ -568,38 +568,32 @@ mod fuzz_tests {
     }
 
     fn arb_signal_session_dto() -> impl Strategy<Value = SignalSessionDto> {
+        // proptest Strategy is implemented for tuples up to arity 12.
+        // Split 14 fields into two nested 7-tuples to stay within that limit.
         (
-            arb_bytes(64),                           // root_key
-            prop::option::of(arb_bytes(64)),         // send_chain_key
-            prop::option::of(arb_bytes(64)),         // recv_chain_key
-            any::<u32>(),                            // send_counter
-            any::<u32>(),                            // recv_counter
-            any::<u32>(),                            // previous_chain_count
-            arb_bytes(64),                           // my_ephemeral_priv
-            arb_bytes(64),                           // my_ephemeral_pub
-            prop::option::of(arb_bytes(64)),         // remote_ephemeral_pub
-            arb_skipped_keys(),
-            any::<bool>(),                           // pending_pre_key_message
-            arb_bytes(64),                           // initiator_identity_key_x25519
-            any::<i32>(),                            // used_signed_pre_key_id
-            any::<i32>(),                            // used_one_time_pre_key_id
+            (
+                arb_bytes(64),                           // root_key
+                prop::option::of(arb_bytes(64)),         // send_chain_key
+                prop::option::of(arb_bytes(64)),         // recv_chain_key
+                any::<u32>(),                            // send_counter
+                any::<u32>(),                            // recv_counter
+                any::<u32>(),                            // previous_chain_count
+                arb_bytes(64),                           // my_ephemeral_priv
+            ),
+            (
+                arb_bytes(64),                           // my_ephemeral_pub
+                prop::option::of(arb_bytes(64)),         // remote_ephemeral_pub
+                arb_skipped_keys(),                      // skipped_message_keys
+                any::<bool>(),                           // pending_pre_key_message
+                arb_bytes(64),                           // initiator_identity_key_x25519
+                any::<i32>(),                            // used_signed_pre_key_id
+                any::<i32>(),                            // used_one_time_pre_key_id
+            ),
         )
             .prop_map(
                 |(
-                    root_key,
-                    cks,
-                    ckr,
-                    ns,
-                    nr,
-                    pn,
-                    dhs_priv,
-                    dhs_pub,
-                    dhr,
-                    skipped,
-                    pending,
-                    init_ik,
-                    spk_id,
-                    opk_id,
+                    (root_key, cks, ckr, ns, nr, pn, dhs_priv),
+                    (dhs_pub, dhr, skipped, pending, init_ik, spk_id, opk_id),
                 )| SignalSessionDto {
                     root_key,
                     send_chain_key: cks,

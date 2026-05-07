@@ -87,7 +87,7 @@ pub struct StoredOneTimePreKey {
 /// Serialisable snapshot of `SignalSession`. Field names match the C#
 /// reference exactly so the on-disk format is cross-language readable in
 /// principle (interop fixtures live under `fixtures/signal/`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SignalSessionDto {
     #[serde(rename = "rk")]
     pub root_key: Vec<u8>,
