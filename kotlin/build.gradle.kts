@@ -72,12 +72,21 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(17)
+    // Targeting JVM 11 bytecode (minimum supported by the protocol family).
+    // We do NOT use jvmToolchain(N) here — that requires an exact JDK N
+    // installation registered with Gradle's toolchain scanner, which may
+    // not be available in all local dev environments.  Instead we configure
+    // the Kotlin compiler's jvmTarget directly so any JDK 11+ running the
+    // build will produce 11-compatible bytecode.
+    // CI installs Java 21 (see .github/workflows/ci.yml) which works fine.
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+    }
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 }
 
 application {

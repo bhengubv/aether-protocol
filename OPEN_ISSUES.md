@@ -109,9 +109,10 @@ The per-language demos in `go/cmd/demo`, `python/demo.py`,
 
 ### 6. `docs/adaptive-secure-streaming-spec.md`
 
-625-line forward-design doc dated 2026-05-01. Zero corresponding code in any
-language. Either implement at least a skeleton, or add a header banner
-labelling it `Status: PROPOSAL — not implemented`.
+**RESOLVED 2026-05-07:** added `Status: PROPOSAL — not implemented` banner
+at the top of the document (lines 2–8). Zero corresponding code — this is a
+forward-design doc only. ~~Either implement at least a skeleton, or add a
+header banner labelling it `Status: PROPOSAL — not implemented`.~~
 
 ---
 
@@ -122,20 +123,22 @@ labelling it `Status: PROPOSAL — not implemented`.
 **Resolved 2026-05-05:** the parallel `tests/cross-language/` scaffold was
 deleted; `fixtures/` is now the canonical cross-language corpus.
 
-**Still open** — the deleted scaffold had 4 input cases not in `fixtures/`
-that would round out coverage. Worth porting to `fixtures/inputs.json`:
+**RESOLVED 2026-05-07:** all 4 cases added to `fixtures/inputs.json` and
+`fixtures/expected/` regenerated via `cd go && go run ./cmd/fixturegen`.
+Corpus now at 14 cases. Each language's `FixtureTests` picks them up
+automatically (no test-code changes needed).
 
-- `utf8-chinese` — Chinese characters in UHIDs (3-byte UTF-8 without ASCII
-  gaps; my `unicode_uhids` covers Korean + Russian which have different
-  byte patterns).
-- `utf8-emoji` — 4-byte UTF-8 sequences. Catches BMP / supplementary-plane
-  handling bugs.
-- `high-priority` — Priority=255 (SOS).
-- `large-payload` — payload > 1 MB.
+- `utf8_chinese` — Chinese characters in UHIDs (3-byte UTF-8; `节点-甲` /
+  `节点-乙`). Catches byte-length vs codepoint-length bugs.
+- `utf8_emoji` — 4-byte supplementary-plane emoji in UHIDs (`🌐-src` /
+  `🔑-dst`). Catches BMP-only string handling.
+- `high_priority` — Data packet with `priority=255`. Anchors that the
+  priority field isn't clamped on non-SOS packet types.
+- `large_payload` — 65 537-byte zero payload. Anchors int32 length prefix;
+  catches uint16 truncation in the payload length field.
 
-To add: extend `fixtures/inputs.json`, regenerate `fixtures/expected/*.bin`
-via `cd go && go run ./cmd/fixturegen`, commit. Each language's
-`FixtureTests` will pick the new cases up automatically.
+~~To add: extend `fixtures/inputs.json`, regenerate `fixtures/expected/*.bin`
+via `cd go && go run ./cmd/fixturegen`, commit.~~
 
 ### 8. End-to-end two-node interop on real hardware
 
