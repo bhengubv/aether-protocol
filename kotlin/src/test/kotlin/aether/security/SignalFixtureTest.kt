@@ -20,7 +20,7 @@ import kotlin.test.assertTrue
  *
  * Verifies that the Kotlin implementation produces byte-identical X3DH and
  * ratchet outputs to the C# reference (committed in
- * fixtures/signal/expected/*.json). Any drift between Kotlin and the other
+ * fixtures/signal/expected/[name].json). Any drift between Kotlin and the other
  * 7 languages surfaces here as a hex mismatch.
  */
 class SignalFixtureTest {

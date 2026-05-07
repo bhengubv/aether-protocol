@@ -151,22 +151,24 @@ Out of scope for code-only sessions. Track for a hardware bring-up.
 
 ### 9. OPK pool port to non-C# languages
 
-**State.** C# ships a 100-OPK pool with FIFO issue, lazy top-up, and
-lock-protected single-shot consumption (`SignalProtocolService.TopUpOpkPoolNoLock`,
-verified by `tests/Aether.Core.Tests/PreKeyPoolTests.cs`). The other 7
-languages (Go, Python, TypeScript, Rust, Swift, Kotlin, C) still issue a
-single OPK per session, which is functionally correct for sequential
-initiator workloads but exposes a concurrency hazard under simultaneous
-bundle fetches.
+**RESOLVED 2026-05-07:** verified all 6 non-C# languages that ship full
+Signal session machinery:
 
-**What needs to change.** Port the C# pool semantics to each language:
+| Language | File | Pool size | Test |
+|---|---|---|---|
+| TypeScript | `typescript/src/security/SignalProtocol.ts` | 100 (DEFAULT_OPK_POOL_SIZE) | `tests/opk_pool.test.ts` |
+| Python | `python/aether/security/signal_protocol.py` | 100 | `tests/test_opk_pool.py` |
+| Go | `go/security/signal_protocol.go` | 100 | `go/security/opk_pool_test.go` |
+| Kotlin | `kotlin/src/.../SignalProtocol.kt` | 100 | `test/OpkPoolTest.kt` |
+| Swift | `swift/Sources/.../SignalProtocol.swift` | 100 | `Tests/OpkPoolTests.swift` |
+| Rust | `rust/src/security/signal_protocol.rs` | 100 | (inline tests) |
+
+C is primitives-only (item 11 tracks full session machinery); the pool
+does not apply until a full session implementation exists.
+
+~~**What needs to change.** Port the C# pool semantics to each language:
 configurable pool size (default 100), FIFO issue queue, top-up on every
-bundle generation, single-consumer guard during X3DH, zeroise on consume.
-
-**Test anchor.** Reuse `fixtures/signal/x3dh_basic` (single-OPK case) for
-correctness, and add a new `fixtures/signal/inputs.json` case
-`opk_pool_concurrent` exercising two simultaneous initiators against the
-same bundle source.
+bundle generation, single-consumer guard during X3DH, zeroise on consume.~~
 
 ### 10. Demo signing fix in non-C# languages
 
