@@ -65,8 +65,8 @@ Commit history (DH-rotation step on receive ports):
 - TypeScript: `cc6ceee`
 - Rust: `9a9cc63`
 
-Swift and Kotlin: ports landed; host-machine compile verification still
-pending. Tracked under "In progress" in README.
+Swift and Kotlin: ports verified in CI (`swift test` on `macos-14`,
+`./gradlew test` on `ubuntu-latest` with Java 21). All tests passing.
 
 C: not implemented (primitives only). Tracked under "Medium" below.
 

@@ -70,7 +70,7 @@ Devices talk directly to each other using Bluetooth, WiFi Direct, or NearLink. N
 
 When a message can't reach its destination directly, it hops through other devices. Those relay devices can't read what they're carrying — every message is encrypted with AES-256-GCM. Every packet is signed with Ed25519 identity keys, and forged packets are dropped by the network.
 
-> **Security maturity note (read before shipping):** Real X3DH (4 X25519 DHs) and the full Signal Double Ratchet (DH-rotation step on receive, KDF_RK, 0x01/0x02 chain ratchet) are now implemented in all 8 languages and pinned to a shared cross-language fixture corpus under `fixtures/signal/`. C# additionally ships the one-time pre-key pool (default 100 OPKs) that closes the single-OPK concurrency hazard; the other 7 languages still use a single OPK. Swift and Kotlin port code has landed but is pending host-machine compile verification. C ships only the X25519 + KDF_RK primitives, not full session machinery. See Roadmap and `OPEN_ISSUES.md` for the residual gaps.
+> **Security maturity note (read before shipping):** Real X3DH (4 X25519 DHs), the full Signal Double Ratchet (DH-rotation step on receive, KDF_RK, 0x01/0x02 chain ratchet), and the one-time pre-key pool (default 100 OPKs, FIFO, lock-protected) are implemented in all 7 languages that ship a full session layer and pinned to a shared cross-language fixture corpus under `fixtures/signal/`. C ships only the X25519 + KDF_RK primitives, not full session machinery. See Roadmap and `OPEN_ISSUES.md` for the residual gaps.
 
 No accounts, no phone numbers, no emails. You generate a keypair and you're on the network.
 
@@ -107,17 +107,17 @@ Aether is built in 8 languages so it runs on phones, laptops, tablets, and micro
 | Language | Directory | Wire format | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch |
 |----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | primitives | — | — | ✅ | ✅ |
 
 All 8 languages produce byte-identical wire packets, verified by 122 cross-language fixture assertions in CI (`fixtures/expected/*.bin`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, and SOS broadcast services are implemented in every language with ~280 unit tests anchoring the per-service invariants.
 
-Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. Swift and Kotlin port code has landed but is pending host-machine compile verification. C ships only the X25519 and KDF_RK primitives needed for the fixture verifier — not a full Signal session.
+Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. C ships only the X25519 and KDF_RK primitives needed for the fixture verifier — not a full Signal session.
 
 ## Quickstart
 
@@ -390,9 +390,9 @@ What's built and what's next.
 - ✅ **Live streaming** — publisher broadcasts `StreamAnnounce`; subscribers send `StreamSubscribe`; binary `StreamSegment` frames (16B streamId · 4B seq · 8B ts · 1B isKeyframe · N bytes) unicast to each subscriber.
 - ✅ **Video calls (1-to-1)** — codec/resolution/fps/bitrate negotiation in signaling, keyframe-request and quality-change signals, binary `VideoFrame` format matching voice layout.
 - ✅ **Watch Together** — host emits authoritative `WatchSync` (play/pause/seek/speed) commands; followers apply with RTT compensation (`position = positionMs + elapsed × playbackSpeed`); fire-and-forget `WatchReaction`.
+- ✅ **One-time pre-key (OPK) pool** — default 100, FIFO issue, lazy top-up, lock-protected consumption across all 7 session-capable languages (C# + Go + TypeScript + Python + Kotlin + Swift + Rust). Closes the single-OPK concurrency hazard.
 
-**Done (C# reference only — port to other 7 languages pending):**
-- ✅ **One-time pre-key (OPK) pool** — default 100, FIFO issue, lazy top-up, lock-protected consumption. Closes the single-OPK concurrency hazard. Reference: `SignalProtocolService.TopUpOpkPoolNoLock` + `tests/Aether.Core.Tests/PreKeyPoolTests.cs`.
+**Done (C# reference only):**
 - ✅ **Demo Step 9 — MessagingService + DTN fallback end-to-end** — `samples/Aether.Demo.Console` walks through real-Signal-encrypted messaging with DTN store-and-forward when the recipient is offline.
 - ✅ **`Aether.Messaging` ↔ `Aether.Security` bridge** — `SignalMessageEnvelopeCipher` makes the messaging layer end-to-end encrypted by default; messages without a Signal session are queued, never sent insecurely.
 - ✅ **C: X25519 + KDF_RK primitives + fixture verifier** — full session machinery still pending.
@@ -407,7 +407,6 @@ What's built and what's next.
 - Wi-Fi Direct transport — direct device-to-device over WiFi
 - NearLink transport implementation
 - End-to-end two-node interop test on real BLE / Wi-Fi-Direct hardware
-- Swift and Kotlin host-machine compile verification of the X3DH + Double Ratchet ports
 
 **Open — tracked in `OPEN_ISSUES.md`:**
 - C: full Signal session machinery (X3DH + Double Ratchet; currently X25519 + KDF_RK primitives + fixture verifier only)
