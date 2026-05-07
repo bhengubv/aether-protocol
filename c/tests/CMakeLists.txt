@@ -56,6 +56,13 @@ target_include_directories(test-fuzz PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../incl
 target_link_libraries(test-fuzz PRIVATE aether-protocol pthread)
 add_test(NAME FuzzTests COMMAND test-fuzz)
 
+add_executable(test-signal-session
+    test_signal_session.c
+)
+target_include_directories(test-signal-session PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-signal-session PRIVATE aether-protocol pthread)
+add_test(NAME SignalSession COMMAND test-signal-session)
+
 # Convenience target: build every test binary in one step.
 # Usage: cmake --build build --target aether-tests
 add_custom_target(aether-tests
@@ -66,5 +73,6 @@ add_custom_target(aether-tests
         test-sos
         test-fixtures
         test-signal-fixtures
+        test-signal-session
         test-fuzz
 )

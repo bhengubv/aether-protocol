@@ -36,6 +36,7 @@ configure_file("${cjson_SOURCE_DIR}/cJSON.h"
 add_library(aether-protocol STATIC
     src/protocol.c
     src/security.c
+    src/signal_protocol.c
     src/transport_inprocess.c
     src/routing.c
     src/dtn.c

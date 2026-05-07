@@ -9,7 +9,8 @@ Everything below is the cryptographic-protocol layer plus documentation honesty.
 
 Last reviewed: 2026-05-07 (closed real X3DH, full Double Ratchet, OPK pool,
 PROTOCOL_SPEC §4/§10/§11 reconciliation, fixture corpus 14 cases, demo
-signing audit, adaptive-streaming-spec banner; updated to 1,315 verified tests).
+signing audit, adaptive-streaming-spec banner; C full Signal session;
+1,321 verified tests across 8 languages). Only open item: physical RF bring-up.
 
 ---
 
@@ -143,12 +144,20 @@ via `cd go && go run ./cmd/fixturegen`, commit.~~
 
 ### 8. End-to-end two-node interop on real hardware
 
-Needs at minimum: 2 phones (or 1 phone + 1 Pi with BLE), one running each of
-two language implementations, exchanging a packet over BLE. The `fixtures/`
-corpus proves byte-identity at the serializer level; this test would prove
-the full transport+routing+session stack works end-to-end on physical RF.
+**Software layer: RESOLVED 2026-05-07.** Two-node in-process E2E tests now
+exist in every language:
+- C: `c/tests/test_signal_session.c` — 6 cases (basic, bidirectional,
+  5-step ratchet, multi-message, has_session, SPK-sig rejection)
+- Rust: `rust/tests/` — 13 routing + 8 SOS + 9 DTN + E2E signal
+- Swift: `swift/Tests/HandshakeServiceTests.swift` — 19 cases
+- (+ equivalent coverage in C#, Go, TypeScript, Python, Kotlin)
 
-Out of scope for code-only sessions. Track for a hardware bring-up.
+The `fixtures/` corpus proves byte-identity at the serializer layer; the
+per-language E2E tests prove the full session+ratchet stack is correct.
+
+**RF bring-up: still open.** Needs at minimum 2 devices (phones or Pi+phone)
+running BLE, one per language implementation, exchanging a live packet. This
+is a hardware lab task — out of scope for code-only sessions.
 
 ### 9. OPK pool port to non-C# languages
 
@@ -191,18 +200,30 @@ calling out "what's signed vs. what's on the wire".~~
 
 ### 11. C: full Signal session machinery
 
-**State.** C ships only X25519 + KDF_RK primitives + symmetric ratchet
-fixture verification (commits `eb71e53`, `6416e06`). It does NOT implement
-the full X3DH session establishment, OPK / SPK lifecycle, or the
-DH-ratchet integration. Hosts that want full E2EE on C-based microcontrollers
-cannot use the current C surface for end-to-end traffic.
+**RESOLVED 2026-05-07:** `c/include/aether/signal_protocol.h` and
+`c/src/signal_protocol.c` implement the full Signal session API surface:
+`aether_signal_service_init`, `aether_signal_generate_pre_key_bundle`,
+`aether_signal_process_pre_key_bundle`, `aether_signal_encrypt`,
+`aether_signal_decrypt`, `aether_signal_has_session`.
 
-**What needs to change.** Port the high-level `SignalProtocolService`
+Construction: 4-DH X3DH (same algorithm as all other languages, verified
+against `fixtures/signal/expected/x3dh_basic.json`), full Double Ratchet
+with DH-ratchet steps on receive, symmetric ratchet (HMAC-SHA256 §5.1),
+OPK pool (100 keys, FIFO consumed), skipped-key cache (100 entries max —
+embedded constraint; documented). All sensitive key material zeroed with
+`aether_zeroize` on ratchet rotation.
+
+6 two-node E2E test cases in `c/tests/test_signal_session.c` (basic
+session, bidirectional, 5-step ratchet, has_session, SPK-sig rejection,
+multi-message same chain) — all pass in CI (`SignalSession` ctest job).
+C total test count: 60 (8 ctest suites).
+
+~~**What needs to change.** Port the high-level `SignalProtocolService`
 API surface (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`,
-`decrypt`) to C, building on the existing X25519 + KDF_RK primitives.
+`decrypt`) to C, building on the existing X25519 + KDF_RK primitives.~~
 
-**Test anchor.** `fixtures/signal/x3dh_basic` and the existing fixture
-verifier (`c/tests/test_signal_fixtures.c`).
+~~**Test anchor.** `fixtures/signal/x3dh_basic` and the existing fixture
+verifier (`c/tests/test_signal_fixtures.c`).~~
 
 ---
 

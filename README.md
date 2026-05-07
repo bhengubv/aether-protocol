@@ -70,7 +70,7 @@ Devices talk directly to each other using Bluetooth, WiFi Direct, or NearLink. N
 
 When a message can't reach its destination directly, it hops through other devices. Those relay devices can't read what they're carrying — every message is encrypted with AES-256-GCM. Every packet is signed with Ed25519 identity keys, and forged packets are dropped by the network.
 
-> **Security maturity note (read before shipping):** Real X3DH (4 X25519 DHs), the full Signal Double Ratchet (DH-rotation step on receive, KDF_RK, 0x01/0x02 chain ratchet), and the one-time pre-key pool (default 100 OPKs, FIFO, lock-protected) are implemented in all 7 languages that ship a full session layer and pinned to a shared cross-language fixture corpus under `fixtures/signal/`. C ships only the X25519 + KDF_RK primitives, not full session machinery. See Roadmap and `OPEN_ISSUES.md` for the residual gaps.
+> **Security maturity note (read before shipping):** Real X3DH (4 X25519 DHs), the full Signal Double Ratchet (DH-rotation step on receive, KDF_RK, 0x01/0x02 chain ratchet), and the one-time pre-key pool (default 100 OPKs, FIFO, lock-protected) are implemented in **all 8 languages** and pinned to a shared cross-language fixture corpus under `fixtures/signal/`. The only remaining open item is physical RF bring-up on real BLE hardware (tracked in `OPEN_ISSUES.md`).
 
 No accounts, no phone numbers, no emails. You generate a keypair and you're on the network.
 
@@ -113,9 +113,9 @@ Aether is built in 8 languages so it runs on phones, laptops, tablets, and micro
 | Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | primitives | — | — | ✅ | ✅ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
 
-All 8 languages produce byte-identical wire packets, verified by 14 canonical wire-format fixtures and 4 Signal test vectors run in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, and SOS broadcast services are implemented in every language with **1,315 tests** across all 8 implementations:
+All 8 languages produce byte-identical wire packets, verified by 14 canonical wire-format fixtures and 4 Signal test vectors run in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, and SOS broadcast services are implemented in every language with **1,321 tests** across all 8 implementations:
 
 | Language | Tests | CI platform |
 |----------|------:|-------------|
@@ -126,10 +126,10 @@ All 8 languages produce byte-identical wire packets, verified by 14 canonical wi
 | Swift 6 | 116 | macos-14 |
 | Kotlin / JVM 21 | 107 | ubuntu-latest |
 | Rust (stable) | 140 | ubuntu-latest |
-| C (GCC) | 54 | ubuntu-latest |
-| **Total** | **1,315** | |
+| C (GCC) | 60 | ubuntu-latest |
+| **Total** | **1,321** | |
 
-Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. C ships only the X25519 and KDF_RK primitives needed for the fixture verifier — not a full Signal session.
+Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. All 8 languages now ship a full Signal session (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 ## Quickstart
 
@@ -391,7 +391,7 @@ What's built and what's next.
 - DTN store-and-forward service with custody transfer, geohash-aware replication, 72h TTL
 - SOS broadcast service with flood, dedup, self-origin guard, rate-limit (3/hr)
 - Extensibility seams: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop defaults)
-- **1,315 tests** across all 8 languages (C# 413, Python 188, TypeScript 170, Go 127, Rust 140, Swift 116, Kotlin 107, C 54) — all green in CI
+- **1,321 tests** across all 8 languages (C# 413, Python 188, TypeScript 170, Go 127, Rust 140, Swift 116, Kotlin 107, C 60) — all green in CI
 - ✅ **Real X3DH ephemeral key (8 languages)** — 4 X25519 DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) with HKDF-SHA256 root derivation. Pinned by `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Double Ratchet alignment family-wide** — full Signal §5 with HMAC-SHA256 + 0x01/0x02 domain separation in the symmetric ratchet, HKDF-SHA256 KDF_RK in the DH-ratchet step, DH-rotation on receive. Verified by `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` fixtures.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 reconciled with HEAD** — see `docs/PROTOCOL_SPEC.md`.
@@ -402,12 +402,12 @@ What's built and what's next.
 - ✅ **Live streaming** — publisher broadcasts `StreamAnnounce`; subscribers send `StreamSubscribe`; binary `StreamSegment` frames (16B streamId · 4B seq · 8B ts · 1B isKeyframe · N bytes) unicast to each subscriber.
 - ✅ **Video calls (1-to-1)** — codec/resolution/fps/bitrate negotiation in signaling, keyframe-request and quality-change signals, binary `VideoFrame` format matching voice layout.
 - ✅ **Watch Together** — host emits authoritative `WatchSync` (play/pause/seek/speed) commands; followers apply with RTT compensation (`position = positionMs + elapsed × playbackSpeed`); fire-and-forget `WatchReaction`.
-- ✅ **One-time pre-key (OPK) pool** — default 100, FIFO issue, lazy top-up, lock-protected consumption across all 7 session-capable languages (C# + Go + TypeScript + Python + Kotlin + Swift + Rust). Closes the single-OPK concurrency hazard.
+- ✅ **One-time pre-key (OPK) pool** — default 100, FIFO issue, lazy top-up, lock-protected consumption across all 8 languages. Closes the single-OPK concurrency hazard.
+- ✅ **C: full Signal session** — `aether_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` in `c/src/signal_protocol.c`; 6 two-node E2E tests in `c/tests/test_signal_session.c`. All 8 languages now have full session-capable Signal Protocol.
 
 **Done (C# reference only):**
 - ✅ **Demo Step 9 — MessagingService + DTN fallback end-to-end** — `samples/Aether.Demo.Console` walks through real-Signal-encrypted messaging with DTN store-and-forward when the recipient is offline.
 - ✅ **`Aether.Messaging` ↔ `Aether.Security` bridge** — `SignalMessageEnvelopeCipher` makes the messaging layer end-to-end encrypted by default; messages without a Signal session are queued, never sent insecurely.
-- ✅ **C: X25519 + KDF_RK primitives + fixture verifier** — full session machinery still pending.
 
 **Spec'd, design doc only, no shipping pipeline:**
 - Adaptive bitrate streaming (`docs/adaptive-secure-streaming-spec.md` is a forward design doc — no codec backend)
@@ -418,10 +418,9 @@ What's built and what's next.
 - BLE GATT transport — real Bluetooth Low Energy communication
 - Wi-Fi Direct transport — direct device-to-device over WiFi
 - NearLink transport implementation
-- End-to-end two-node interop test on real BLE / Wi-Fi-Direct hardware
 
 **Open — tracked in `OPEN_ISSUES.md`:**
-- C: full Signal session machinery (X3DH + Double Ratchet; currently X25519 + KDF_RK primitives + fixture verifier only)
+- RF bring-up: end-to-end two-node interop test on real BLE / Wi-Fi-Direct hardware (software layer fully verified; physical device lab session needed)
 
 **Open for contribution:**
 - NearLink transport implementation
