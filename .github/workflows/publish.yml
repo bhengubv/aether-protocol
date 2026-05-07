@@ -1,0 +1,74 @@
+name: Publish NuGet packages
+
+# Triggers on a pushed semver tag (v0.1.0, v1.2.3, v2.0.0-beta.1, etc.)
+# Requires repository secret NUGET_API_KEY to be set.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Pack + publish to NuGet.org
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for source link
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Strip the leading 'v' from the tag (v0.1.0 → 0.1.0)
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore AetherProtocol.slnx
+
+      - name: Build (Release)
+        run: dotnet build AetherProtocol.slnx -c Release --no-restore
+
+      # Run the full test suite (including cross-language interop) before packing.
+      - name: Test
+        run: |
+          dotnet test tests/Aether.Core.Tests/Aether.Core.Tests.csproj \
+            -c Release --no-build --nologo
+          dotnet test tests/cross-language/runners/csharp/Aether.InteropTest.csproj \
+            -c Release --no-build --nologo
+
+      - name: Pack
+        run: |
+          dotnet pack AetherProtocol.slnx \
+            -c Release \
+            --no-build \
+            --nologo \
+            -p:VersionPrefix=${{ steps.version.outputs.version }}
+
+      - name: Push to NuGet.org
+        run: |
+          dotnet nuget push artifacts/packages/*.nupkg \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+
+      - name: Push symbols to NuGet.org
+        run: |
+          dotnet nuget push artifacts/packages/*.snupkg \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
