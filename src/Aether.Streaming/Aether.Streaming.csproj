@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <Description>Live broadcast streaming, video calls, and watch-together synchronization for the Aether mesh networking protocol. Provides segment-based live streaming with subscriber fan-out, video-call signaling and frame transport, and host-driven watch-together sync. Codec implementations (Opus, H264/H265/VP8/AV1) are supplied by hosts via IVideoCodec.</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>mesh;streaming;video;live-stream;watch-together;aether;broadcast;h264;av1;vp8</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

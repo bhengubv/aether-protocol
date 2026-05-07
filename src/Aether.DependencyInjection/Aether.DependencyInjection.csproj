@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <Description>One-call DI registration and health checks for the Aether mesh networking protocol stack. Hosts call services.AddAetherProtocol(...) to wire routing, DTN, Signal Protocol, and messaging — opt-in per capability.</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>mesh;di;dependency-injection;aether;aspnetcore;extensions;health-checks;signal-protocol;dtn;routing</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

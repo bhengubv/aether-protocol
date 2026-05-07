@@ -81,3 +81,6 @@ docs/api/*.yml
 docs/api/.manifest
 docs/api/manifest.json
 api/.manifest
+
+## NuGet package output (Directory.Build.props → artifacts/packages/)
+artifacts/packages/

@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <Description>Chunked content distribution and integrity verification for the Aether mesh networking protocol. Splits files into SHA-256-addressed chunks, ships them via ChunkRequest/ChunkData packets, and verifies each chunk and the root descriptor against published hashes.</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>mesh;content;chunked;distribution;sha256;aether;file-sharing;integrity-verification</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

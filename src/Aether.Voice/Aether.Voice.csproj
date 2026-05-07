@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <Description>Voice call signaling and frame transport for the Aether mesh networking protocol. Provides the call state machine, signaling-packet schema, frame metadata, jitter buffer, and codec abstraction. Host applications supply the actual codec implementation (Opus, Speex, etc.) via IVoiceCodec.</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>mesh;voice;voip;aether;call;audio;jitter-buffer;opus;speex</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

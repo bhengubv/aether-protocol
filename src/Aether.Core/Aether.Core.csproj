@@ -6,8 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <Description>Core protocol library for the Aether mesh networking protocol</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Description>Core protocol library for the Aether mesh networking protocol. Provides MeshPacket, packet serialization, AODV routing contracts, DTN store-and-forward contracts, transport abstractions, and the incentive/feature-flag extension seams.</Description>
+    <PackageTags>mesh;networking;protocol;aether;routing;dtn;signal-protocol;x25519;ed25519;ble;wifi-direct</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
