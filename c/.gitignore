@@ -1,0 +1,19 @@
+# CMake build artefacts (any build directory under c/)
+build/
+build_*/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+CTestTestfile.cmake
+Testing/
+install_manifest.txt
+compile_commands.json
+CPackConfig.cmake
+CPackSourceConfig.cmake
+
+# Compiled output
+*.o
+*.a
+*.so
+*.dylib
