@@ -170,15 +170,21 @@ same bundle source.
 
 ### 10. Demo signing fix in non-C# languages
 
-**State.** C# demo (`samples/Aether.Demo.Console`) was updated in
-`b816f8b` to sign via the canonical `PacketSigningService.BuildSignableData`
-path. The Go, Python, TypeScript, Rust, Swift, Kotlin, and C demos still
-sign the entire serialized wire bytes for visualisation, contradicting
-the canonical signing scheme described in PROTOCOL_SPEC §2.4.
+**RESOLVED 2026-05-07:** all 7 non-C# demos audited — every one signs
+via the canonical `constructSignableData` / `signable_data()` path, not
+the serialized wire bytes. Confirmed per-language:
 
-**What needs to change.** Per-language: replace the wire-byte signing
+- Go: `packetSigner.ComputeSignableData(packet)` in `go/cmd/demo/`
+- TypeScript: `signPacket(packet, privateKey)` → `constructSignableData(packet)` in `typescript/src/demo.ts`
+- Python: `PacketSigningService.sign_packet(packet, key)` → `_construct_signable_data(packet)` in `python/demo.py`
+- Kotlin: `PacketSigning.signPacket(packet, privateKey)` → `constructSignableData(packet)` in `kotlin/.../Demo.kt`
+- Swift: `PacketSigningService.signPacket(&packet)` → `constructSignableData(packet)` in `swift/.../main.swift`
+- Rust: `packet_signing_service.sign_packet(&mut packet, key)` → `packet.signable_data()` in `rust/`
+- C: `aether_packet_get_signable_data(packet, &len)` + manual `aether_ed25519_sign(...)` in `c/src/demo.c`
+
+~~**What needs to change.** Per-language: replace the wire-byte signing
 shortcut with the canonical `BuildSignableData` path; add a code comment
-calling out "what's signed vs. what's on the wire".
+calling out "what's signed vs. what's on the wire".~~
 
 ### 11. C: full Signal session machinery
 
