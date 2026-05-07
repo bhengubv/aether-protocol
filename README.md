@@ -410,8 +410,7 @@ What's built and what's next.
 - Swift and Kotlin host-machine compile verification of the X3DH + Double Ratchet ports
 
 **Open — tracked in `OPEN_ISSUES.md`:**
-- OPK pool port to the 7 non-C# languages (currently single-OPK; concurrency-safe for sequential workloads)
-- C: full Signal session machinery (X3DH + Double Ratchet; currently X25519 + KDF_RK primitives only)
+- C: full Signal session machinery (X3DH + Double Ratchet; currently X25519 + KDF_RK primitives + fixture verifier only)
 
 **Open for contribution:**
 - NearLink transport implementation
