@@ -55,3 +55,16 @@ add_executable(test-fuzz
 target_include_directories(test-fuzz PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 target_link_libraries(test-fuzz PRIVATE aether-protocol pthread)
 add_test(NAME FuzzTests COMMAND test-fuzz)
+
+# Convenience target: build every test binary in one step.
+# Usage: cmake --build build --target aether-tests
+add_custom_target(aether-tests
+    DEPENDS
+        test-protocol
+        test-routing
+        test-dtn
+        test-sos
+        test-fixtures
+        test-signal-fixtures
+        test-fuzz
+)
