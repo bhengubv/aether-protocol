@@ -28,12 +28,17 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Run FixtureTests + SignalFixtureTests
+      - name: Run FixtureTests + SignalFixtureTests (Aether.Core.Tests)
         run: |
           dotnet test tests/Aether.Core.Tests/Aether.Core.Tests.csproj \
             -c Release \
             --nologo \
             --filter "FullyQualifiedName~FixtureTests|FullyQualifiedName~SignalFixtureTests"
+      - name: Run cross-language Signal runner (Aether.InteropTest)
+        run: |
+          dotnet test tests/cross-language/runners/csharp/Aether.InteropTest.csproj \
+            -c Release \
+            --nologo
 
   go-fixtures:
     name: Go fixture tests
