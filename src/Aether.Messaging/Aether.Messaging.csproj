@@ -6,8 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <Description>End-to-end encrypted 1-to-1 messaging on top of the Aether mesh transport. Composes with Aether.Core's routing, DTN, and incentive seams.</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Description>End-to-end encrypted 1-to-1 and group messaging on the Aether mesh transport. Signal-Protocol envelopes, message queue (never insecure fallback), Brotli compression (capability-negotiated), and composable incentive/feature-flag seams.</Description>
+    <PackageTags>mesh;messaging;e2e-encryption;signal-protocol;aether;secure-messaging;double-ratchet</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

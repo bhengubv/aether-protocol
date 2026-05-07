@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <Description>Persistence layer for the Aether mesh networking protocol. Provides a generic key-value store abstraction with file-system and in-memory implementations, plus file-backed reference implementations of IRouteStore, IDtnBundleStore, and IMessageStore. No external storage dependencies — hosts that want SQLite or other databases ship their own adapters.</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>mesh;storage;persistence;key-value;aether;routing;dtn;encryption-at-rest</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

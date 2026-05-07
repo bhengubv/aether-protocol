@@ -1,0 +1,56 @@
+<Project>
+  <!--
+    Shared MSBuild properties for every project in the aether-protocol repo.
+    Projects that should NOT produce NuGet packages (tests, bench, samples)
+    must keep <IsPackable>false</IsPackable> in their own csproj — this file
+    does not set IsPackable so those overrides are respected.
+
+    Generated packages go to `artifacts/packages/`.
+    Publish via: dotnet pack -c Release && dotnet nuget push ...
+  -->
+
+  <PropertyGroup>
+    <!-- NuGet identity -->
+    <Authors>The Other Bhengu (Pty) Ltd t/a The Geek Network</Authors>
+    <Company>The Other Bhengu (Pty) Ltd</Company>
+    <Copyright>Copyright © 2024–2026 The Other Bhengu (Pty) Ltd. MIT License.</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/bhengubv/aether-protocol</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/bhengubv/aether-protocol</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- Version — bump in a single place before each release.
+         Pre-release: set VersionSuffix in CI (e.g. -alpha.1, -rc.1). -->
+    <VersionPrefix>0.1.0</VersionPrefix>
+
+    <!-- Source link + deterministic builds -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Deterministic>true</Deterministic>
+
+    <!-- Artifacts output — keeps nupkg/snupkg out of each project's bin/ -->
+    <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages</PackageOutputPath>
+
+    <!-- README embedded in every package -->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <!-- Include the root README.md in the NuGet package -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <None
+      Include="$(MSBuildThisFileDirectory)README.md"
+      Pack="true"
+      PackagePath="\" />
+  </ItemGroup>
+
+  <!-- Source-link for GitHub — enables "Go to Definition → GitHub source" in IDEs -->
+  <ItemGroup>
+    <PackageReference
+      Include="Microsoft.SourceLink.GitHub"
+      Version="8.0.0"
+      PrivateAssets="All"
+      Condition="'$(EnableSourceLink)' != 'false'" />
+  </ItemGroup>
+</Project>

@@ -6,8 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <Description>Transport abstraction layer for the Aether mesh networking protocol</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Description>Transport abstraction layer for the Aether mesh networking protocol. Defines ITransport, ITransportManager, and the in-process simulation transport; platform-specific BLE/Wi-Fi Direct/NearLink transports are supplied by the host application.</Description>
+    <PackageTags>mesh;transport;networking;aether;ble;wifi-direct;nearlink;simulation</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
