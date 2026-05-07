@@ -161,7 +161,9 @@ static int hmac_one(const uint8_t *key, size_t key_len, uint8_t b, uint8_t out[3
 // ─── Test cases ──────────────────────────────────────────────────────────
 
 static int assert_hex_equal(const char *label, const uint8_t *actual, size_t actual_len, const char *expected_hex) {
-    char actual_hex[256];
+    // shared_secret is 128 bytes = 256 hex chars + NUL = 257 bytes.
+    // Use 512 so any key/DH/chain value fits without overflow.
+    char actual_hex[512];
     hex_encode(actual, actual_len, actual_hex);
     if (strcmp(actual_hex, expected_hex) != 0) {
         fprintf(stderr, "  FAIL %s\n    expected: %s\n    actual:   %s\n", label, expected_hex, actual_hex);

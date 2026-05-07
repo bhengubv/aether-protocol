@@ -25,7 +25,7 @@
 
 // String size limits (for embedded devices)
 #define AETHER_MAX_UHID_LEN          128
-#define AETHER_MAX_PAYLOAD_LEN       65536  // 64KB max payload
+#define AETHER_MAX_PAYLOAD_LEN       (16 * 1024 * 1024)  // 16MB max payload (int32 length field)
 
 // Security constants
 #define AETHER_ED25519_PUBLIC_KEY_SIZE   32
