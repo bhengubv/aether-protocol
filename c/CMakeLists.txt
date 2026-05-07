@@ -22,6 +22,16 @@ set(CJSON_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(ENABLE_CJSON_TEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(cjson)
 
+# cJSON's FetchContent layout puts cJSON.h directly in ${cjson_SOURCE_DIR}
+# (i.e. #include <cJSON.h>), but our source files use the system-package
+# convention #include <cjson/cJSON.h>.  Create a thin shim directory so both
+# paths resolve to the same header regardless of whether we're using
+# FetchContent or a system-installed libcjson-dev package.
+set(CJSON_SHIM_DIR "${CMAKE_CURRENT_BINARY_DIR}/cjson-shim")
+file(MAKE_DIRECTORY "${CJSON_SHIM_DIR}/cjson")
+configure_file("${cjson_SOURCE_DIR}/cJSON.h"
+               "${CJSON_SHIM_DIR}/cjson/cJSON.h" COPYONLY)
+
 # Add the library
 add_library(aether-protocol STATIC
     src/protocol.c
@@ -41,6 +51,7 @@ target_include_directories(aether-protocol
     PRIVATE
         ${LIBSODIUM_INCLUDE_DIRS}
         ${cjson_SOURCE_DIR}
+        ${CJSON_SHIM_DIR}
 )
 
 target_link_directories(aether-protocol
