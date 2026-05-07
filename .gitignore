@@ -84,3 +84,6 @@ api/.manifest
 
 ## NuGet package output (Directory.Build.props → artifacts/packages/)
 artifacts/packages/
+
+## Loki mode session state (local orchestrator, never commit)
+.loki/

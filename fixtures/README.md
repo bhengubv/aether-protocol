@@ -74,10 +74,14 @@ Cases are chosen to anchor each documented wire-format hazard:
 | `basic_data` | minimal happy path |
 | `empty_dest` | empty destination UHID (broadcast) |
 | `empty_payload` | zero-length payload behind int32 length prefix |
-| `unicode_uhids` | UTF-8 length-in-bytes vs length-in-codepoints |
+| `unicode_uhids` | UTF-8 length-in-bytes vs length-in-codepoints (Korean + Russian) |
 | `with_signature` | trailing 64-byte signature length-prefixed correctly |
 | `high_ttl` | TTL > 255 (catches the historic uint8 truncation bug) |
 | `uuid_endianness` | RFC 4122 big-endian wire order (catches .NET mixed-endian Guid bug) |
 | `dtn_bundle` | DtnBundle packet type (PacketType=18) |
 | `voice_ptt` | VoicePtt packet type (PacketType=15) |
 | `route_request` | RouteRequest packet type (PacketType=1) |
+| `utf8_chinese` | 3-byte CJK UTF-8 in UHIDs — byte length vs codepoint length |
+| `utf8_emoji` | 4-byte supplementary-plane emoji in UHIDs — BMP-only handling |
+| `high_priority` | priority=255 on a non-SOS Data packet — no priority clamping |
+| `large_payload` | 65 537-byte payload — int32 length prefix, catches uint16 truncation |
