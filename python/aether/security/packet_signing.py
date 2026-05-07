@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Packet signing service with nonce deduplication and expiry."""
 
 import struct

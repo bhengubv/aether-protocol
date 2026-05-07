@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Tests for the Hello/HelloAck capability handshake.
 
 Mirrors the C# `HandshakeServiceTests` suite. Verifies:

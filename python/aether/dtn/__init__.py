@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Delay-tolerant networking on top of the Aether mesh."""
 
 from aether.dtn.store import BundleStore, InMemoryBundleStore

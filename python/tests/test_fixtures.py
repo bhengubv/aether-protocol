@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Cross-language wire-format fixture verifier.
 
 Reads ../fixtures/inputs.json and ../fixtures/expected/*.bin and asserts that

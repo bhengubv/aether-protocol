@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Ed25519 signing service using PyNaCl (libsodium)."""
 
 import nacl.signing

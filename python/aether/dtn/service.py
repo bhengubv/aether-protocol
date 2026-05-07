@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Default DTN service. Bundles are JSON-encoded into MeshPacket(DtnBundle) payloads."""
 
 from __future__ import annotations

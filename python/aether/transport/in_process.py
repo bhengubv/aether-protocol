@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """In-memory transport implementation for testing and local communication."""
 
 import asyncio

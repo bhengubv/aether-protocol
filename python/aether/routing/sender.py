@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """MeshSender abstraction — minimal sending interface routing/DTN/SOS depend on."""
 
 from __future__ import annotations

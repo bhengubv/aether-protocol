@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Protocol layer for Aether mesh networking."""
 
 from aether.protocol.mesh_packet import MeshPacket, PacketType

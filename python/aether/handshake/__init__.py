@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Capability handshake (Hello / HelloAck) for protocol-version negotiation.
 
 Mirrors the C# `Aether.Handshake` namespace. Peers exchange a Hello/HelloAck

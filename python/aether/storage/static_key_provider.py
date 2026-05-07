@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Static :class:`DataAtRestKeyProvider` backed by pre-derived 32-byte keys.
 
 Useful for tests, demos, and deployments that derive their key material

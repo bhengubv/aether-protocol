@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """MeshPacket definition and PacketType enumeration."""
 
 from dataclasses import dataclass, field

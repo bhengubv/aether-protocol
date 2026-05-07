@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """AODV-inspired reactive routing service."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Signed-pre-key rotation tests.
 
 Mirrors the C# ``SignedPreKeyRotationTests``:

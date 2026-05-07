@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Cross-language Signal-protocol fixture verifier and end-to-end exercises.
 
 These tests load fixtures/signal/inputs.json and verify the Python

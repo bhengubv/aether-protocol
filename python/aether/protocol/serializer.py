@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Binary serializer/deserializer for MeshPacket.
 
 Wire format (all multi-byte integers are little-endian):

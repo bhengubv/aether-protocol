@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Tests for PacketSigningService — sign / verify / nonce dedup behaviour.
 
 Regression coverage for the (source, nonce) dedup keying. The dedup

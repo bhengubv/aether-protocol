@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Persistent storage for Signal-Protocol session state.
 
 Each session is keyed by the peer's UHID. Implementations are responsible

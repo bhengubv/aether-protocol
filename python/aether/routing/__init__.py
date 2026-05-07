@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """AODV-inspired reactive routing for the Aether mesh."""
 
 from aether.routing.sender import MeshSender

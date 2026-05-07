@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Tests for :class:`aether.storage.DerivedDataAtRestKeyProvider`.
 
 Mirrors the C# ``DerivedDataAtRestKeyProviderTests``: PBKDF2-HMAC-SHA256

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """RREP verifier interface."""
 
 from __future__ import annotations

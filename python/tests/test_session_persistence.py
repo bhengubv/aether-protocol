@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Persistence tests for SignalProtocolService session state.
 
 Mirrors the C# ``SignalSessionPersistenceTests``: a "process restart" is
