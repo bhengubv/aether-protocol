@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Unit tests for the Aether routing service.
 
 Mirror of tests/Aether.Core.Tests/RoutingServiceTests.cs and go/routing/service_test.go.

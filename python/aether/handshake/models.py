@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Handshake data models — Hello payload, negotiated peer capabilities,
 and the IncompatiblePeer event payload.
 

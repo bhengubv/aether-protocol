@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Transparent encryption-at-rest wrapper for an arbitrary :class:`KeyValueStore`.
 
 Encrypts every value on the way down and decrypts on the way up using

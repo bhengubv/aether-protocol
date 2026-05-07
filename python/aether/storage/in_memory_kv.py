@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Process-local, volatile :class:`KeyValueStore` backed by a dict.
 
 Suitable for tests and demos. Loses everything on process exit. All

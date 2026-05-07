@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Master-key provider for :class:`aether.storage.EncryptedKeyValueStore`.
 
 Two responsibilities:

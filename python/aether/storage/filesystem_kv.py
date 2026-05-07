@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Durable :class:`KeyValueStore` backed by one file per entry in a
 configurable root directory.
 

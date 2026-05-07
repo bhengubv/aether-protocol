@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Persistent storage for the long-term identity keys, signed-pre-key
 history, and one-time pre-key pool of a Signal-Protocol participant.
 

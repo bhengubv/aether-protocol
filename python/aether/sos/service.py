@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Default SOS service. Originates and re-floods SOS broadcasts."""
 
 from __future__ import annotations

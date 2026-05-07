@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Persistence DTOs for the Signal-protocol session and pre-key state.
 
 These are JSON-serialisable snapshots of the live in-memory state held by

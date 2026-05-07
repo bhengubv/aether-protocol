@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Replication strategy for DTN bundles."""
 
 from __future__ import annotations

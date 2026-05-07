@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Signal Protocol implementation: X3DH session establishment + full
 Double Ratchet (Signal §5).
 

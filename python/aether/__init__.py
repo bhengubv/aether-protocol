@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Aether Mesh Networking Protocol.
 
 A decentralized mesh networking protocol designed for environments with

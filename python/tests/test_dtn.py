@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Unit tests for the Aether DTN service."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Transport layer for Aether mesh networking."""
 
 from aether.transport.transport_service import TransportService

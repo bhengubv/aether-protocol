@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """PBKDF2-derived :class:`DataAtRestKeyProvider`.
 
 Derives a 32-byte AES-256 key from a passphrase and a salt using

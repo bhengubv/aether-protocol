@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Security layer for Aether mesh networking."""
 
 from aether.security.ed25519_service import Ed25519SigningService

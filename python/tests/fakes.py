@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Test doubles for unit tests across routing / DTN / SOS."""
 
 from __future__ import annotations

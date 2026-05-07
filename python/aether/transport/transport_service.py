@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Abstract base class for transport services."""
 
 from abc import ABC, abstractmethod

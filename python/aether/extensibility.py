@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Extension seams hosts can wire up to participate in incentive accounting,
 cloud-relay fallbacks, and feature gating. Default no-op implementations let
 the protocol layer call through these uniformly.

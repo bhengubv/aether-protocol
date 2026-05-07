@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Protocol constants for the Aether mesh networking protocol."""
 
 # Routing constants

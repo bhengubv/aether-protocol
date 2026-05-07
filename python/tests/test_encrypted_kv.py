@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Tests for :class:`aether.storage.EncryptedKeyValueStore`.
 
 Covers the AES-256-GCM round trip, MAC failure on wrong-key reads, tamper

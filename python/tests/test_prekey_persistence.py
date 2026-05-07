@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Persistence tests for SignalProtocolService identity + pre-key state.
 
 Mirrors the C# ``PreKeyPersistenceTests``: long-term identity keys, the

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Round-trip tests for PacketSerializer.
 
 Mirror of swift/Tests/PacketSerializationTests.swift; cross-language byte

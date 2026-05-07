@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Route store abstraction + in-memory default."""
 
 from __future__ import annotations

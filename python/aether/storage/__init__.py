@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Storage layer for Aether: a generic key-value abstraction (:class:`KeyValueStore`)
 plus the reference implementations that protocol-layer adapters compose on top of.
 

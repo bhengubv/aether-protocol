@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Tests for the one-time pre-key (OPK) pool in SignalProtocolService.
 
 The pool replaces the pre-2026-05-05 single-OPK behaviour, which dropped

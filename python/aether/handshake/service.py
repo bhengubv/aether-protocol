@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """HandshakeService — async Hello/HelloAck capability handshake.
 
 Wire flow (mirrors the C# reference):

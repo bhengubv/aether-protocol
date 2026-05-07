@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Generic byte-array-keyed-by-string persistence primitive used as the
 foundation for every Aether store that needs to survive a process restart.
 

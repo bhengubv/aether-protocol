@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 """Core data models for the Aether mesh networking protocol."""
 
 from dataclasses import dataclass, field
