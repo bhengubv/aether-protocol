@@ -547,31 +547,127 @@ Console.ResetColor();
 Pause();
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// STEP 10 — Web-to-Mesh Relay (Internet-Only Sender)
+// ═══════════════════════════════════════════════════════════════════════════════
+PrintStep(10, "Web-to-Mesh Relay — Internet-Only Sender");
+
+PrintInfo("Eve is out of Bluetooth range — she cannot reach the mesh directly.");
+PrintInfo("She has internet access and uses the relay server as a bridge.");
+PrintInfo("Alice is on the mesh and periodically polls the relay API.");
+Console.WriteLine();
+PrintInfo("Flow:");
+PrintInfo("  1. Alice publishes her pre-key bundle to the relay server");
+PrintInfo("  2. Eve fetches Alice's bundle  →  establishes X3DH session");
+PrintInfo("  3. Eve encrypts a message      →  POSTs ciphertext to relay");
+PrintInfo("  4. Alice polls relay           →  decrypts with Signal session");
+PrintInfo("  Relay server sees only opaque ciphertext — full E2E encryption.");
+Console.WriteLine();
+
+// Stand up a fresh in-memory relay. Models the real CircleAetherAPI endpoints:
+//   POST /api/aether/prekey-bundles/             (publish)
+//   GET  /api/aether/prekey-bundles/{uhid}        (fetch & consume)
+//   POST /api/aether/messages/relay/              (store encrypted message)
+//   GET  /api/aether/messages/relay/pending/{u}   (poll pending messages)
+//   POST /api/aether/messages/relay/{id}/delivered (ack)
+var apiRelay = new InProcessApiRelay();
+
+var webAliceUhid = "aether:web-alice:10";
+var webEveUhid   = "aether:web-eve:10";
+
+// Alice — mesh node. Publishes her pre-key bundle so internet-only senders
+// can initiate a Signal session with her without ever touching the mesh.
+var webAliceSignal = new SignalProtocolService(signalLogger);
+var webAliceBundle = await webAliceSignal.GeneratePreKeyBundleAsync(webAliceUhid);
+apiRelay.PublishBundle(webAliceUhid, webAliceBundle);
+PrintNode("Alice", ConsoleColor.Cyan, "Pre-key bundle published to relay server.");
+PrintDetail($"  Identity key  : {Hex(webAliceBundle.IdentityKey)}");
+PrintDetail($"  Signed pre-key: {Hex(webAliceBundle.SignedPreKey)}");
+Console.WriteLine();
+
+// Eve — internet-only node. No mesh transport, no BLE. HTTPS to relay only.
+// Eve also publishes her bundle so Alice can initiate back (same pattern in
+// reverse — not shown here to keep the demo focused on one direction).
+var webEveSignal = new SignalProtocolService(signalLogger);
+var webEveBundle = await webEveSignal.GeneratePreKeyBundleAsync(webEveUhid);
+apiRelay.PublishBundle(webEveUhid, webEveBundle);
+
+PrintNode("Eve", ConsoleColor.DarkMagenta, "No mesh transport. Fetching Alice's pre-key bundle from relay...");
+var eveFetchedBundle = apiRelay.FetchBundle(webAliceUhid);
+if (eveFetchedBundle is null)
+{
+    PrintWarning("Pre-key bundle pool empty — Alice needs to replenish. Message would be queued.");
+}
+else
+{
+    await webEveSignal.ProcessPreKeyBundleAsync(eveFetchedBundle);
+    PrintNode("Eve", ConsoleColor.DarkMagenta,
+        $"X3DH session with Alice: {(webEveSignal.HasSession(webAliceUhid) ? "ESTABLISHED" : "FAILED")}");
+
+    var webMsg = "Hi Alice — I'm outside Bluetooth range but still end-to-end encrypted.";
+    PrintNode("Eve", ConsoleColor.DarkMagenta, $"Plaintext: \"{webMsg}\"");
+
+    var webEncrypted = await webEveSignal.EncryptAsync(webAliceUhid, Encoding.UTF8.GetBytes(webMsg));
+    var webPayload   = SerializeEncryptedPayload(webEncrypted);
+
+    var relayMsgId = apiRelay.StoreMessage(webEveUhid, webAliceUhid, webPayload);
+    PrintNode("Eve", ConsoleColor.DarkMagenta,
+        $"Stored in relay — id={relayMsgId.ToString()[..8]}... " +
+        $"({webPayload.Length} bytes; relay cannot read this)");
+    Console.WriteLine();
+
+    // Alice polls the relay — same call a mesh node makes when it comes back
+    // online after a period without internet, or when a web-only sender is involved.
+    PrintNode("Alice", ConsoleColor.Cyan, "Polling relay for pending messages...");
+    var pending = apiRelay.FetchMessages(webAliceUhid);
+    PrintNode("Alice", ConsoleColor.Cyan, $"Retrieved {pending.Count} pending message(s) from relay.");
+
+    foreach (var (msgId, senderUhid, msgPayload) in pending)
+    {
+        PrintDetail($"  From: {senderUhid}");
+        var rcvPayload = DeserializeEncryptedPayload(msgPayload);
+        // DecryptAsync auto-establishes Alice's responder session from the X3DH
+        // PreKey fields embedded in the first message (ik/ek/spki/opki).
+        var rcvPlain = await webAliceSignal.DecryptAsync(senderUhid, rcvPayload);
+        var rcvText  = rcvPlain is null ? "<decrypt failed>" : Encoding.UTF8.GetString(rcvPlain);
+        PrintNode("Alice", ConsoleColor.Cyan, $"  Decrypted: \"{rcvText}\"");
+        apiRelay.MarkDelivered(msgId);
+        PrintDetail($"  ACK sent — relay will expire record.");
+    }
+
+    Console.ForegroundColor = ConsoleColor.Green;
+    Console.WriteLine(
+        "\n  >>> Web-to-mesh relay: Eve reached Alice from the internet — E2E encrypted throughout <<<");
+    Console.ResetColor();
+}
+Pause();
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // DONE
 // ═══════════════════════════════════════════════════════════════════════════════
 Console.ForegroundColor = ConsoleColor.Magenta;
 Console.WriteLine("""
 
-  ╔══════════════════════════════════════════════════════════════════╗
-  ║                                                                  ║
-  ║   Demo complete. You just saw:                                   ║
-  ║                                                                  ║
-  ║   [1] Ed25519 identity key generation                            ║
-  ║   [2] In-process mesh transport with 3 simulated nodes           ║
-  ║   [3] Packet signing with forgery detection                      ║
-  ║   [4] X3DH session establishment (X25519, 4 DHs, forward secret) ║
-  ║   [5] AES-256-GCM end-to-end encrypted messaging                 ║
-  ║   [6] Multi-hop relay (Charlie cannot read Alice's message)      ║
-  ║   [7] Binary wire serialization (compact, efficient)             ║
-  ║   [8] Forward secrecy via chain key ratchet                      ║
-  ║   [9] MessagingService end-to-end + DTN custody fallback         ║
-  ║                                                                  ║
-  ║   All crypto is REAL — NSec/libsodium Ed25519, .NET AES-GCM.    ║
-  ║   No mocks. No stubs. Production-grade protocol primitives.      ║
-  ║                                                                  ║
-  ║   github.com/thegeeknetwork/aether-protocol                     ║
-  ║                                                                  ║
-  ╚══════════════════════════════════════════════════════════════════╝
+  ╔═══════════════════════════════════════════════════════════════════╗
+  ║                                                                   ║
+  ║   Demo complete. You just saw:                                    ║
+  ║                                                                   ║
+  ║   [1]  Ed25519 identity key generation                            ║
+  ║   [2]  In-process mesh transport with 3 simulated nodes           ║
+  ║   [3]  Packet signing with forgery detection                      ║
+  ║   [4]  X3DH session establishment (X25519, 4 DHs, forward secret) ║
+  ║   [5]  AES-256-GCM end-to-end encrypted messaging                 ║
+  ║   [6]  Multi-hop relay (Charlie cannot read Alice's message)      ║
+  ║   [7]  Binary wire serialization (compact, efficient)             ║
+  ║   [8]  Forward secrecy via chain key ratchet                      ║
+  ║   [9]  MessagingService end-to-end + DTN custody fallback         ║
+  ║   [10] Web-to-mesh relay (internet-only sender, E2E encrypted)    ║
+  ║                                                                   ║
+  ║   All crypto is REAL — NSec/libsodium Ed25519, .NET AES-GCM.     ║
+  ║   No mocks. No stubs. Production-grade protocol primitives.       ║
+  ║                                                                   ║
+  ║   github.com/thegeeknetwork/aether-protocol                      ║
+  ║                                                                   ║
+  ╚═══════════════════════════════════════════════════════════════════╝
 """);
 Console.ResetColor();
 
@@ -770,5 +866,81 @@ file sealed class InProcessMeshSender : Aether.Routing.IMeshSender
                 delivered++;
         }
         return delivered;
+    }
+}
+
+// ─── InProcessApiRelay — simulates CircleAetherAPI relay + pre-key store ──────
+// In a real deployment these are backed by PostgreSQL:
+//   pre_key_bundles table  — per-UHID one-time key pool
+//   message_relay table    — encrypted payloads with 7-day TTL
+//
+// Bundle consumption is atomic (SELECT ... FOR UPDATE SKIP LOCKED) so two
+// concurrent callers never receive the same one-time pre-key. The in-process
+// version below mirrors that contract with a simple queue + index.
+file sealed class InProcessApiRelay
+{
+    private readonly Dictionary<string, Queue<PreKeyBundle>> _bundles =
+        new(StringComparer.Ordinal);
+
+    private sealed record RelayMsg(
+        Guid Id, string SenderUhid, string TargetUhid, byte[] Payload, bool Delivered);
+
+    private readonly List<RelayMsg> _messages = [];
+
+    /// <summary>
+    /// Publish a pre-key bundle for a UHID. Each call adds one bundle to the
+    /// pool; bundles are consumed one-at-a-time by <see cref="FetchBundle"/>.
+    /// Mirrors: POST /api/aether/prekey-bundles/
+    /// </summary>
+    public void PublishBundle(string uhid, PreKeyBundle bundle)
+    {
+        if (!_bundles.TryGetValue(uhid, out var q))
+            _bundles[uhid] = q = new Queue<PreKeyBundle>();
+        q.Enqueue(bundle);
+    }
+
+    /// <summary>
+    /// Atomically consume one pre-key bundle for <paramref name="targetUhid"/>.
+    /// Returns <c>null</c> if the pool is empty (mirrors HTTP 404 from real API).
+    /// Mirrors: GET /api/aether/prekey-bundles/{targetUhid}
+    /// </summary>
+    public PreKeyBundle? FetchBundle(string targetUhid) =>
+        _bundles.TryGetValue(targetUhid, out var q) && q.Count > 0 ? q.Dequeue() : null;
+
+    /// <summary>
+    /// Store an encrypted relay message. The relay never sees the plaintext —
+    /// only the already-encrypted Signal payload and routing metadata.
+    /// Returns the relay message id.
+    /// Mirrors: POST /api/aether/messages/relay/
+    /// </summary>
+    public Guid StoreMessage(string senderUhid, string targetUhid, byte[] encryptedPayload)
+    {
+        var id = Guid.NewGuid();
+        _messages.Add(new RelayMsg(id, senderUhid, targetUhid, encryptedPayload, Delivered: false));
+        return id;
+    }
+
+    /// <summary>
+    /// Fetch all undelivered messages addressed to <paramref name="targetUhid"/>.
+    /// Mirrors: GET /api/aether/messages/relay/pending/{targetUhid}
+    /// </summary>
+    public IReadOnlyList<(Guid Id, string SenderUhid, byte[] Payload)> FetchMessages(string targetUhid) =>
+        _messages
+            .Where(m => m.TargetUhid == targetUhid && !m.Delivered)
+            .Select(m => (m.Id, m.SenderUhid, m.Payload))
+            .ToList();
+
+    /// <summary>
+    /// Acknowledge delivery so the relay can expire the record.
+    /// Mirrors: POST /api/aether/messages/relay/{id}/delivered
+    /// </summary>
+    public void MarkDelivered(Guid id)
+    {
+        var idx = _messages.FindIndex(m => m.Id == id);
+        if (idx >= 0)
+        {
+            var m = _messages[idx];
+            _messages[idx] = m with { Delivered = true };
+        }
     }
 }
