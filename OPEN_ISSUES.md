@@ -3,12 +3,13 @@
 Tracked items remaining before `aether-protocol` can be presented as a
 production-grade Signal-Protocol-style end-to-end-encrypted mesh primitive.
 The wire format and routing/DTN/SOS service layers are at production grade
-(verified by ~280 service tests + 122 cross-language byte-equality
-assertions). Everything below is the cryptographic-protocol layer plus
-documentation honesty.
+(verified by 1,315 tests across 8 languages + 14 wire-format fixtures +
+4 Signal test vectors with cross-language byte-equality assertions in CI).
+Everything below is the cryptographic-protocol layer plus documentation honesty.
 
-Last reviewed: 2026-05-05 (closed real X3DH, full Double Ratchet, OPK pool,
-PROTOCOL_SPEC §4/§10/§11 reconciliation).
+Last reviewed: 2026-05-07 (closed real X3DH, full Double Ratchet, OPK pool,
+PROTOCOL_SPEC §4/§10/§11 reconciliation, fixture corpus 14 cases, demo
+signing audit, adaptive-streaming-spec banner; updated to 1,315 verified tests).
 
 ---
 
