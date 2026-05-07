@@ -28,6 +28,7 @@
   "devDependencies": {
     "@types/node": "^20.10.6",
     "@types/uuid": "^10.0.0",
+    "fast-check": "^3.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
