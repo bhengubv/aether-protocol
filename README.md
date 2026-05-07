@@ -368,7 +368,8 @@ aether_packet_free(packet);
 What's built and what's next.
 
 **Done (verified cross-language, all 8 implementations):**
-- Wire format: byte-identical across 8 languages, anchored by 10 canonical fixtures and 122 cross-language assertions in CI (`fixtures/expected/*.bin`)
+- Wire format: byte-identical across 8 languages, anchored by 14 canonical fixtures and cross-language assertions in CI (`fixtures/expected/*.bin`)
+- ✅ **GitHub Actions CI** — 9-job matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus fixture integrity job) in `.github/workflows/ci.yml`.
 - Ed25519 packet signing and verification
 - AES-256-GCM encryption
 - HKDF / HMAC key derivation primitives
@@ -409,9 +410,8 @@ What's built and what's next.
 - Swift and Kotlin host-machine compile verification of the X3DH + Double Ratchet ports
 
 **Open — tracked in `OPEN_ISSUES.md`:**
-- OPK pool port to the 7 non-C# languages (currently single-OPK)
-- Demo signing alignment with `PacketSigningService.BuildSignableData`
-- `docs/adaptive-secure-streaming-spec.md` — implement at least a skeleton or banner the doc as PROPOSAL
+- OPK pool port to the 7 non-C# languages (currently single-OPK; concurrency-safe for sequential workloads)
+- C: full Signal session machinery (X3DH + Double Ratchet; currently X25519 + KDF_RK primitives only)
 
 **Open for contribution:**
 - NearLink transport implementation
