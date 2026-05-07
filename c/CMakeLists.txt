@@ -68,3 +68,10 @@ target_link_libraries(aether-demo
 # Optional: Add tests directory
 enable_testing()
 add_subdirectory(tests EXCLUDE_FROM_ALL)
+
+# Optional bench harness — separate target, not in ctest. Run via
+#   cmake --build . --target bench && ./bench/bench
+# Mirrors the cases pinned by go/bench (commit f873543) and
+# python/benchmarks/ so a regression in any language shows up as a delta
+# against the saved baseline.
+add_subdirectory(bench EXCLUDE_FROM_ALL)
