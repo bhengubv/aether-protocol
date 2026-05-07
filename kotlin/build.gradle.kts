@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "1.9.21"
+    kotlin("jvm") version "2.3.21"
     application
     // kotlinx-benchmark — the Kotlin-native bench harness. Mirrors the
     // tinybench (TS), pytest-benchmark (Python), Go testing.B, and
