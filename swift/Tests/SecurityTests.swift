@@ -74,12 +74,14 @@ final class SecurityTests: XCTestCase {
 
         // Alice processes bundle
         try await alice.processPreKeyBundle(bobBundle)
-        XCTAssertTrue(await alice.hasSession(peerUhid: "bob"))
+        let aliceHasBob = await alice.hasSession(peerUhid: "bob")
+        XCTAssertTrue(aliceHasBob)
 
         // For bidirectional, Bob also establishes session with Alice
         let aliceBundle = try await alice.generatePreKeyBundle(localUhid: "alice")
         try await bob.processPreKeyBundle(aliceBundle)
-        XCTAssertTrue(await bob.hasSession(peerUhid: "alice"))
+        let bobHasAlice = await bob.hasSession(peerUhid: "alice")
+        XCTAssertTrue(bobHasAlice)
     }
 
     func testSignalProtocolEncryptDecrypt() async throws {

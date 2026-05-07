@@ -322,8 +322,11 @@ final class SignalFixtureTests: XCTestCase {
         let a2 = try await alice.encrypt(peerUhid: "bob", plaintext: "a2".data(using: .utf8)!)
 
         // Bob receives a0, a1 only.
-        XCTAssertEqual(String(data: try await bob.decrypt(peerUhid: "alice", payload: a0), encoding: .utf8), "a0")
-        XCTAssertEqual(String(data: try await bob.decrypt(peerUhid: "alice", payload: a1), encoding: .utf8), "a1")
+        // await inside XCTAssertEqual autoclosure is not allowed in Swift 6 — extract first.
+        let dec_a0 = try await bob.decrypt(peerUhid: "alice", payload: a0)
+        XCTAssertEqual(String(data: dec_a0, encoding: .utf8), "a0")
+        let dec_a1 = try await bob.decrypt(peerUhid: "alice", payload: a1)
+        XCTAssertEqual(String(data: dec_a1, encoding: .utf8), "a1")
 
         // Bob replies — triggers his DH-ratchet step.
         let bReply = try await bob.encrypt(peerUhid: "alice", plaintext: "hi".data(using: .utf8)!)
@@ -333,11 +336,13 @@ final class SignalFixtureTests: XCTestCase {
         let a4 = try await alice.encrypt(peerUhid: "bob", plaintext: "a4".data(using: .utf8)!)
         // Bob receives a4 — triggers his second DH-ratchet step. He must
         // skip-derive a key for Alice's old chain counter=2 because PN=3.
-        XCTAssertEqual(String(data: try await bob.decrypt(peerUhid: "alice", payload: a4), encoding: .utf8), "a4")
+        let dec_a4 = try await bob.decrypt(peerUhid: "alice", payload: a4)
+        XCTAssertEqual(String(data: dec_a4, encoding: .utf8), "a4")
 
         // Now the missing a2 (from Alice's OLD chain) finally arrives. Bob
         // should pull the skipped key from cache.
-        XCTAssertEqual(String(data: try await bob.decrypt(peerUhid: "alice", payload: a2), encoding: .utf8), "a2")
+        let dec_a2 = try await bob.decrypt(peerUhid: "alice", payload: a2)
+        XCTAssertEqual(String(data: dec_a2, encoding: .utf8), "a2")
     }
 
     /// 10 alternating messages — both sides ratchet at every roundtrip and
