@@ -72,6 +72,9 @@ typedef enum {
 /**
  * Core mesh packet structure optimized for embedded devices.
  * Variable-length fields are stored as pointers with associated length fields.
+ *
+ * aether_packet_t is a convenience alias used throughout the service layer.
+ * The two names are identical; use either interchangeably.
  */
 typedef struct {
     // Fixed-size fields
@@ -96,6 +99,9 @@ typedef struct {
     uint8_t *signature;                                // Ed25519 signature
     uint16_t signature_len;                            // 0 or 64 for Ed25519
 } aether_mesh_packet_t;
+
+/** Convenience alias — service-layer headers use aether_packet_t. */
+typedef aether_mesh_packet_t aether_packet_t;
 
 /**
  * Initialize a mesh packet structure (zeros memory, sets defaults).

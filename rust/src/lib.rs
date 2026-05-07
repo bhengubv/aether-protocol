@@ -10,7 +10,9 @@ pub mod routing;
 pub mod security;
 pub mod sos;
 pub mod storage;
+pub mod streaming;
 pub mod transport;
+pub mod voice;
 
 pub use handshake::{
     HandshakeEvent, HandshakeService, HelloPayload, IncompatiblePeer, IncompatibleReason,
@@ -36,3 +38,12 @@ pub use storage::{
     FileSystemKeyValueStore, InMemoryKeyValueStore, KeyValueStore, StaticDataAtRestKeyProvider,
 };
 pub use transport::{InProcessTransport, TransportService};
+pub use voice::{
+    CallEntry, CallState, GroupCallEntry, GroupVoiceCallService, GroupVoiceSignalingMessage,
+    VoiceCallService, VoiceSignalingMessage,
+};
+pub use streaming::{
+    StreamAnnouncePayload, StreamSubscribePayload, StreamUnsubscribePayload, StreamingService,
+    VideoCallEntry, VideoCallService, VideoCallState, VideoSignalingMessage,
+    WatchReactionPayload, WatchSession, WatchSyncPayload, WatchTogetherService,
+};

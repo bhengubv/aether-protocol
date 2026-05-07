@@ -73,5 +73,11 @@ export * from "./sos/index.js";
 // Handshake
 export * from "./handshake/index.js";
 
+// Voice
+export * from "./voice/index.js";
+
+// Streaming, video, watch-together
+export * from "./streaming/index.js";
+
 // Constants
 export * from "./constants.js";

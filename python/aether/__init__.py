@@ -16,6 +16,15 @@ __license__ = "MIT"
 from aether.models import AetherNode, PeerInfo, RouteEntry
 from aether.protocol.mesh_packet import MeshPacket, PacketType
 
+# Voice services
+from aether.voice.service import VoiceCallService, VoiceCallState, VoiceCallSession
+from aether.voice.group_service import GroupVoiceCallService, GroupVoiceCallSession
+
+# Streaming services
+from aether.streaming.service import StreamingService, StreamSession, StreamState
+from aether.streaming.video_service import VideoCallService, VideoCallSession, VideoCallState
+from aether.streaming.watch_together import WatchTogetherService
+
 # Security primitives use pynacl, which is an optional dep for hosts that don't
 # need crypto (e.g. wire-format-only verifiers). Keep imports lazy so importing
 # `aether` does not require pynacl to be installed.
@@ -36,4 +45,18 @@ __all__ = [
     "PacketType",
     "Ed25519SigningService",
     "SignalProtocolService",
+    # Voice
+    "VoiceCallService",
+    "VoiceCallState",
+    "VoiceCallSession",
+    "GroupVoiceCallService",
+    "GroupVoiceCallSession",
+    # Streaming
+    "StreamingService",
+    "StreamSession",
+    "StreamState",
+    "VideoCallService",
+    "VideoCallSession",
+    "VideoCallState",
+    "WatchTogetherService",
 ]

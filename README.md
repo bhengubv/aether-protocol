@@ -104,16 +104,16 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
 
 Aether is built in 8 languages so it runs on phones, laptops, tablets, and microcontrollers. All implementations produce wire-compatible packets — a message encrypted by the Rust node can be relayed by the Python node and decrypted by the Swift node.
 
-| Language | Directory | Wire format | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | single OPK |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | single OPK |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | single OPK |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | single OPK |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | single OPK |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | single OPK |
-| C | `c/` | ✅ | ✅ | primitives | — | — |
+| Language | Directory | Wire format | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | single OPK | ✅ | ✅ |
+| C | `c/` | ✅ | ✅ | primitives | — | — | ✅ | ✅ |
 
 All 8 languages produce byte-identical wire packets, verified by 122 cross-language fixture assertions in CI (`fixtures/expected/*.bin`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, and SOS broadcast services are implemented in every language with ~280 unit tests anchoring the per-service invariants.
 
@@ -383,6 +383,13 @@ What's built and what's next.
 - ✅ **Double Ratchet alignment family-wide** — full Signal §5 with HMAC-SHA256 + 0x01/0x02 domain separation in the symmetric ratchet, HKDF-SHA256 KDF_RK in the DH-ratchet step, DH-rotation on receive. Verified by `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` fixtures.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 reconciled with HEAD** — see `docs/PROTOCOL_SPEC.md`.
 
+**Done (all 8 languages):**
+- ✅ **Voice calls (1-to-1)** — signaling state machine (Offer/Answer/Hangup/Cancel/Timeout) + binary frame transport (16B callId · 4B seq · 8B timestamp · 1B isSilence · N bytes). Route-aware delivery via `IRoutingService`.
+- ✅ **Group voice** — host-driven membership (invite/kick/leave), per-frame key generation field, unicast fan-out to all current members, host-controlled key rotation on membership change.
+- ✅ **Live streaming** — publisher broadcasts `StreamAnnounce`; subscribers send `StreamSubscribe`; binary `StreamSegment` frames (16B streamId · 4B seq · 8B ts · 1B isKeyframe · N bytes) unicast to each subscriber.
+- ✅ **Video calls (1-to-1)** — codec/resolution/fps/bitrate negotiation in signaling, keyframe-request and quality-change signals, binary `VideoFrame` format matching voice layout.
+- ✅ **Watch Together** — host emits authoritative `WatchSync` (play/pause/seek/speed) commands; followers apply with RTT compensation (`position = positionMs + elapsed × playbackSpeed`); fire-and-forget `WatchReaction`.
+
 **Done (C# reference only — port to other 7 languages pending):**
 - ✅ **One-time pre-key (OPK) pool** — default 100, FIFO issue, lazy top-up, lock-protected consumption. Closes the single-OPK concurrency hazard. Reference: `SignalProtocolService.TopUpOpkPoolNoLock` + `tests/Aether.Core.Tests/PreKeyPoolTests.cs`.
 - ✅ **Demo Step 9 — MessagingService + DTN fallback end-to-end** — `samples/Aether.Demo.Console` walks through real-Signal-encrypted messaging with DTN store-and-forward when the recipient is offline.
@@ -390,10 +397,9 @@ What's built and what's next.
 - ✅ **C: X25519 + KDF_RK primitives + fixture verifier** — full session machinery still pending.
 
 **Spec'd, design doc only, no shipping pipeline:**
-- C# `Aether.Streaming` module ships interface scaffolding (`StreamingService`, `VideoCallService`, `WatchTogetherService`) wired to the routing layer; no codec backend bound to it
-- Voice and streaming with adaptive bitrate (`docs/adaptive-secure-streaming-spec.md` is a forward design doc)
-- Video calls (P2P and group) with transport-aware codec negotiation
-- Watch Together: synchronized playback, BitTorrent ingest, ChipIn group funding
+- Adaptive bitrate streaming (`docs/adaptive-secure-streaming-spec.md` is a forward design doc — no codec backend)
+- Watch Together: BitTorrent ingest and ChipIn group funding flow
+- Group video calls with auto SFU relay
 
 **In progress (waiting on physical hardware or external infra):**
 - BLE GATT transport — real Bluetooth Low Energy communication
