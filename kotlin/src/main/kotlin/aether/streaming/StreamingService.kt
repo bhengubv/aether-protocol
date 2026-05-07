@@ -163,7 +163,7 @@ class StreamingService(private val sender: MeshSender) {
      * Publish a new segment to all current subscribers of [streamId].
      */
     suspend fun publishSegment(streamId: UUID, data: ByteArray, isKeyframe: Boolean) {
-        val info = activeStreams[streamId] ?: return
+        if (!activeStreams.containsKey(streamId)) return
         val subs = subscribers[streamId] ?: return
 
         val seq = segmentSequence++.toUInt()
