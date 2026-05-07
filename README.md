@@ -115,7 +115,19 @@ Aether is built in 8 languages so it runs on phones, laptops, tablets, and micro
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | primitives | — | — | ✅ | ✅ |
 
-All 8 languages produce byte-identical wire packets, verified by 122 cross-language fixture assertions in CI (`fixtures/expected/*.bin`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, and SOS broadcast services are implemented in every language with ~280 unit tests anchoring the per-service invariants.
+All 8 languages produce byte-identical wire packets, verified by 14 canonical wire-format fixtures and 4 Signal test vectors run in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, and SOS broadcast services are implemented in every language with **1,315 tests** across all 8 implementations:
+
+| Language | Tests | CI platform |
+|----------|------:|-------------|
+| C# (.NET 10) | 413 | ubuntu-latest |
+| Python 3.12 | 188 | ubuntu-latest |
+| TypeScript / Node 20 | 170 | ubuntu-latest |
+| Go 1.22 | 127 | ubuntu-latest |
+| Swift 6 | 116 | macos-14 |
+| Kotlin / JVM 21 | 107 | ubuntu-latest |
+| Rust (stable) | 140 | ubuntu-latest |
+| C (GCC) | 54 | ubuntu-latest |
+| **Total** | **1,315** | |
 
 Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. C ships only the X25519 and KDF_RK primitives needed for the fixture verifier — not a full Signal session.
 
@@ -379,7 +391,7 @@ What's built and what's next.
 - DTN store-and-forward service with custody transfer, geohash-aware replication, 72h TTL
 - SOS broadcast service with flood, dedup, self-origin guard, rate-limit (3/hr)
 - Extensibility seams: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop defaults)
-- ~280 service-level invariant tests across all 8 languages
+- **1,315 tests** across all 8 languages (C# 413, Python 188, TypeScript 170, Go 127, Rust 140, Swift 116, Kotlin 107, C 54) — all green in CI
 - ✅ **Real X3DH ephemeral key (8 languages)** — 4 X25519 DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) with HKDF-SHA256 root derivation. Pinned by `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Double Ratchet alignment family-wide** — full Signal §5 with HMAC-SHA256 + 0x01/0x02 domain separation in the symmetric ratchet, HKDF-SHA256 KDF_RK in the DH-ratchet step, DH-rotation on receive. Verified by `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` fixtures.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 reconciled with HEAD** — see `docs/PROTOCOL_SPEC.md`.
