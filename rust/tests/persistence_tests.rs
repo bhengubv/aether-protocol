@@ -33,7 +33,10 @@ fn fs_store() -> DiskStore {
 
 #[tokio::test]
 async fn fs_kv_roundtrip() {
-    let DiskStore { store, .. } = fs_store();
+    // `..` in a destructuring pattern drops the ignored fields immediately,
+    // which would delete the TempDir before the async ops run.  Bind `_dir`
+    // explicitly so it lives for the whole test.
+    let DiskStore { _dir, store } = fs_store();
     store.put("key", b"value").await.unwrap();
     assert_eq!(store.get("key").await.unwrap().as_deref(), Some(&b"value"[..]));
     let keys = store.list_keys(None).await.unwrap();
@@ -44,7 +47,7 @@ async fn fs_kv_roundtrip() {
 
 #[tokio::test]
 async fn fs_kv_list_with_prefix() {
-    let DiskStore { store, .. } = fs_store();
+    let DiskStore { _dir, store } = fs_store();
     store.put("signal:opk:1", b"a").await.unwrap();
     store.put("signal:opk:2", b"b").await.unwrap();
     store.put("other", b"c").await.unwrap();
