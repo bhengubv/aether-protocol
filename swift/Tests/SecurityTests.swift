@@ -34,7 +34,7 @@ final class SecurityTests: XCTestCase {
     }
 
     func testEd25519RejectWrongKey() throws {
-        let (privateKey1, publicKey1) = Ed25519Service.generateKeyPair()
+        let (privateKey1, _) = Ed25519Service.generateKeyPair()
         let (_, publicKey2) = Ed25519Service.generateKeyPair()
 
         let message = "Test message".data(using: .utf8)!
@@ -143,11 +143,13 @@ final class SecurityTests: XCTestCase {
         let alice = SignalProtocolService()
         let plaintext = "message".data(using: .utf8)!
 
-        XCTAssertThrowsError(
-            try await alice.encrypt(peerUhid: "unknown", plaintext: plaintext)
-        ) { error in
-            guard case .noSessionEstablished = error as! SignalProtocolError else {
-                XCTFail("Expected noSessionEstablished error")
+        // XCTAssertThrowsError doesn't support async closures in Swift 6 — use do/catch.
+        do {
+            _ = try await alice.encrypt(peerUhid: "unknown", plaintext: plaintext)
+            XCTFail("Expected noSessionEstablished error")
+        } catch let error as SignalProtocolError {
+            guard case .noSessionEstablished = error else {
+                XCTFail("Expected noSessionEstablished error but got \(error)")
                 return
             }
         }
@@ -217,12 +219,13 @@ final class SecurityTests: XCTestCase {
         let isValid1 = try await signer.verifyPacket(packet, againstPublicKey: publicKey)
         XCTAssertTrue(isValid1)
 
-        // Replay should fail (same nonce)
-        XCTAssertThrowsError(
-            try await signer.verifyPacket(packet, againstPublicKey: publicKey)
-        ) { error in
-            guard case .duplicateNonce = error as! PacketSigningError else {
-                XCTFail("Expected duplicateNonce error")
+        // Replay should fail (same nonce) — XCTAssertThrowsError doesn't support async.
+        do {
+            _ = try await signer.verifyPacket(packet, againstPublicKey: publicKey)
+            XCTFail("Expected duplicateNonce error on replay")
+        } catch let error as PacketSigningError {
+            guard case .duplicateNonce = error else {
+                XCTFail("Expected duplicateNonce error but got \(error)")
                 return
             }
         }
@@ -241,21 +244,24 @@ final class SecurityTests: XCTestCase {
         var pkt1 = MeshPacket(type: .data, sourceUhid: "alice", destinationUhid: "bob")
         pkt1.packetNonce = Data([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
         try await signer.signPacket(&pkt1)
-        XCTAssertTrue(try await signer.verifyPacket(pkt1, againstPublicKey: publicKey))
+        let v1 = try await signer.verifyPacket(pkt1, againstPublicKey: publicKey)
+        XCTAssertTrue(v1)
 
         // A different nonce from the same source — must succeed.
         var pkt2 = MeshPacket(type: .data, sourceUhid: "alice", destinationUhid: "bob")
         pkt2.packetNonce = Data([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11])
         try await signer.signPacket(&pkt2)
-        XCTAssertTrue(try await signer.verifyPacket(pkt2, againstPublicKey: publicKey))
+        let v2 = try await signer.verifyPacket(pkt2, againstPublicKey: publicKey)
+        XCTAssertTrue(v2)
 
         // Now REPLAY the FIRST nonce. The pre-fix bug would let this
         // through because pkt2 overwrote pkt1's entry. Must be rejected.
-        XCTAssertThrowsError(
-            try await signer.verifyPacket(pkt1, againstPublicKey: publicKey)
-        ) { error in
-            guard case .duplicateNonce = error as! PacketSigningError else {
-                XCTFail("Expected duplicateNonce error for replayed earlier nonce")
+        do {
+            _ = try await signer.verifyPacket(pkt1, againstPublicKey: publicKey)
+            XCTFail("Expected duplicateNonce error for replayed earlier nonce")
+        } catch let error as PacketSigningError {
+            guard case .duplicateNonce = error else {
+                XCTFail("Expected duplicateNonce error but got \(error)")
                 return
             }
         }
@@ -275,12 +281,14 @@ final class SecurityTests: XCTestCase {
         var aPkt = MeshPacket(type: .data, sourceUhid: "alice", destinationUhid: "carol")
         aPkt.packetNonce = sharedNonce
         try await signer.signPacket(&aPkt)
-        XCTAssertTrue(try await signer.verifyPacket(aPkt, againstPublicKey: publicKey))
+        let vA = try await signer.verifyPacket(aPkt, againstPublicKey: publicKey)
+        XCTAssertTrue(vA)
 
         var bPkt = MeshPacket(type: .data, sourceUhid: "bob", destinationUhid: "carol")
         bPkt.packetNonce = sharedNonce
         try await signer.signPacket(&bPkt)
         // Different source, same nonce — must be accepted.
-        XCTAssertTrue(try await signer.verifyPacket(bPkt, againstPublicKey: publicKey))
+        let vB = try await signer.verifyPacket(bPkt, againstPublicKey: publicKey)
+        XCTAssertTrue(vB, "Different source, same nonce — must be accepted.")
     }
 }
