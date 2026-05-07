@@ -45,3 +45,13 @@ target_link_libraries(test-signal-fixtures PRIVATE aether-protocol pthread)
 # Run from the repo root so find_repo_root() locates AetherProtocol.slnx.
 add_test(NAME SignalFixtureTests COMMAND test-signal-fixtures
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
+# Portable, dependency-free fuzz harness for the primitive entry points
+# (X25519 / HKDF / HMAC). 100k smoke iterations by default; tunable via
+# AETHER_FUZZ_ITERATIONS for adversarial local runs.
+add_executable(test-fuzz
+    test_fuzz.c
+)
+target_include_directories(test-fuzz PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-fuzz PRIVATE aether-protocol pthread)
+add_test(NAME FuzzTests COMMAND test-fuzz)
