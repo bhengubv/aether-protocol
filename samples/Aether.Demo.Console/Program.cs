@@ -634,6 +634,20 @@ else
         PrintDetail($"  ACK sent — relay will expire record.");
     }
 
+    // ─── Karma / Qi reward accounting ─────────────────────────────────────────
+    // Internet-only nodes that participate in the API relay are gateway
+    // participants — they earn Karma just like BLE/Wi-Fi Direct relay nodes.
+    // In production, RecordAsync() inserts into aether_reward_events (PostgreSQL)
+    // and the batch sync pushes to IncentivesAPI (/api/xp/award).
+    Console.WriteLine();
+    PrintInfo("Karma earned via relay participation:");
+    var karmaBoard = apiRelay.KarmaBoard;
+    foreach (var (uhid, total) in karmaBoard.OrderByDescending(kv => kv.Value))
+    {
+        var shortId = uhid.Length > 24 ? uhid[..24] + "..." : uhid;
+        PrintDetail($"  {shortId,-30} +{total} XP  ({total * 0.02m:F2} $hh)");
+    }
+
     Console.ForegroundColor = ConsoleColor.Green;
     Console.WriteLine(
         "\n  >>> Web-to-mesh relay: Eve reached Alice from the internet — E2E encrypted throughout <<<");
@@ -887,6 +901,20 @@ file sealed class InProcessApiRelay
 
     private readonly List<RelayMsg> _messages = [];
 
+    // ─── Karma / Qi reward tracking ───────────────────────────────────────────
+    // Mirrors aether_reward_events (PostgreSQL) + IncentivesAPI /api/xp/award.
+    // Rates: relay_packet = 1 XP (send or receive), dtn_custody = 2 XP, dtn_delivery = 3 XP.
+    // 1 XP → 1 Karma → 0.02 $hh at the v1.0 fixed peg.
+    private readonly Dictionary<string, int> _karma = new(StringComparer.Ordinal);
+
+    /// <summary>Accumulated XP per UHID since this relay instance was created.</summary>
+    public IReadOnlyDictionary<string, int> KarmaBoard => _karma;
+
+    private void RecordKarma(string uhid, int xp)
+    {
+        _karma[uhid] = (_karma.TryGetValue(uhid, out var prev) ? prev : 0) + xp;
+    }
+
     /// <summary>
     /// Publish a pre-key bundle for a UHID. Each call adds one bundle to the
     /// pool; bundles are consumed one-at-a-time by <see cref="FetchBundle"/>.
@@ -917,6 +945,7 @@ file sealed class InProcessApiRelay
     {
         var id = Guid.NewGuid();
         _messages.Add(new RelayMsg(id, senderUhid, targetUhid, encryptedPayload, Delivered: false));
+        RecordKarma(senderUhid, xp: 1); // relay_packet — sent via API gateway
         return id;
     }
 
@@ -941,6 +970,7 @@ file sealed class InProcessApiRelay
         {
             var m = _messages[idx];
             _messages[idx] = m with { Delivered = true };
+            RecordKarma(m.TargetUhid, xp: 1); // relay_packet — received via API gateway
         }
     }
 }
