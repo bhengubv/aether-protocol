@@ -199,8 +199,8 @@ final class HandshakeServiceTests: XCTestCase {
 
         try await service.handleHelloAck(pkt)
 
-        XCTAssertNil(await service.getPeerCapabilities(peerUhid: "bob"),
-                     "No record should be stored for an incompatible peer")
+        let incompatibleCaps = await service.getPeerCapabilities(peerUhid: "bob")
+        XCTAssertNil(incompatibleCaps, "No record should be stored for an incompatible peer")
         let event = captured.get()
         XCTAssertNotNil(event)
         XCTAssertEqual(event?.peerUhid, "bob")
@@ -352,7 +352,8 @@ final class HandshakeServiceTests: XCTestCase {
         try await service.handleHelloAck(pkt)
 
         // Nothing locked in — the malformed payload was dropped silently.
-        XCTAssertNil(await service.getPeerCapabilities(peerUhid: "bob"))
+        let malformedCaps = await service.getPeerCapabilities(peerUhid: "bob")
+        XCTAssertNil(malformedCaps)
     }
 }
 
