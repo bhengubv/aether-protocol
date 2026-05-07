@@ -114,10 +114,11 @@ class OpkPoolTest {
         assertEquals(5, svc.heldOneTimePreKeyCount)
         assertEquals(4, svc.availableOneTimePreKeyCount)
 
-        // Second call dequeues one more, then tops back up to 5 available.
+        // Second call tops up (adds 1 new key), then dequeues → available stays at opkPoolSize-1.
+        // C# contract: TopUp fills to opkPoolSize, Dequeue takes one → available = opkPoolSize-1.
         svc.generatePreKeyBundle("alice")
-        assertEquals(6, svc.heldOneTimePreKeyCount) // 1 consumed + 5 available = pool grew by 1
-        assertEquals(5, svc.availableOneTimePreKeyCount)
+        assertEquals(6, svc.heldOneTimePreKeyCount) // 2 issued + 4 available = grew by 1
+        assertEquals(4, svc.availableOneTimePreKeyCount)
     }
 
     @Test

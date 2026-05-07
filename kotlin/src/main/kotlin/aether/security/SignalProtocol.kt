@@ -560,7 +560,12 @@ class SignalProtocol(
                 preKeys.signedPreKeySignature = sig
             }
 
-            // Top up the pool, then hand out the next un-issued id (FIFO).
+            // Mirrors the C# TopUp-then-Dequeue contract:
+            //   TopUpOpkPoolNoLock() fills availableOpkIds to opkPoolSize,
+            //   then Dequeue hands out the oldest un-issued id.
+            // Result after every bundle call:
+            //   heldOneTimePreKeyCount  = oneTimePreKeys.size  (grows by 1 on each call after seeding)
+            //   availableOneTimePreKeyCount = opkPoolSize - 1  (constant after each call)
             topUpOpkPoolNoLock()
             preKeyId = preKeys.availableOpkIds.removeFirst()
             otpkPub = preKeys.oneTimePreKeys[preKeyId]!!.second
