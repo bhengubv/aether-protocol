@@ -359,17 +359,13 @@ final class SignalFixtureTests: XCTestCase {
         for i in 0 ..< 10 {
             let aMsg = "alice \(i)"
             let aEnc = try await alice.encrypt(peerUhid: "bob", plaintext: aMsg.data(using: .utf8)!)
-            XCTAssertEqual(
-                String(data: try await bob.decrypt(peerUhid: "alice", payload: aEnc), encoding: .utf8),
-                aMsg
-            )
+            let aDec = try await bob.decrypt(peerUhid: "alice", payload: aEnc)
+            XCTAssertEqual(String(data: aDec, encoding: .utf8), aMsg)
 
             let bMsg = "bob \(i)"
             let bEnc = try await bob.encrypt(peerUhid: "alice", plaintext: bMsg.data(using: .utf8)!)
-            XCTAssertEqual(
-                String(data: try await alice.decrypt(peerUhid: "bob", payload: bEnc), encoding: .utf8),
-                bMsg
-            )
+            let bDec = try await alice.decrypt(peerUhid: "bob", payload: bEnc)
+            XCTAssertEqual(String(data: bDec, encoding: .utf8), bMsg)
         }
     }
 
