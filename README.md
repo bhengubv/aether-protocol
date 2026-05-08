@@ -9,7 +9,6 @@ Share files, messages, and streams with people nearby. No WiFi. No mobile data. 
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 ## What can you do with it?
 
@@ -422,12 +421,9 @@ What's built and what's next.
 **Open — tracked in `OPEN_ISSUES.md`:**
 - RF bring-up: end-to-end two-node interop test on real BLE / Wi-Fi-Direct hardware (software layer fully verified; physical device lab session needed)
 
-**Open for contribution:**
-- NearLink transport implementation
-- Android and iOS integration examples
-- Performance benchmarks across languages
-- Additional transport backends (LoRa, ultrasonic, etc.)
-- Protocol fuzzing and security audits
+**Not yet open for external contribution:**
+- The protocol is still under active development. External contributions are not being accepted at this time.
+- NearLink transport implementation, Android/iOS integration examples, additional transport backends, performance benchmarks, and protocol fuzzing are tracked internally and will be opened when the project reaches a stable public contribution point.
 
 ## Project Structure
 
@@ -500,7 +496,7 @@ All three ship with no-op implementations. Remove them and nothing breaks.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+External contributions are not open yet. The project is still under active development. Check back when we announce a public contribution window.
 
 ## Security
 
