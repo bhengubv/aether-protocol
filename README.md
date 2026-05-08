@@ -118,7 +118,7 @@ All 8 languages produce byte-identical wire packets, verified by 14 canonical wi
 
 | Language | Tests | CI platform |
 |----------|------:|-------------|
-| C# (.NET 10) | 413 | ubuntu-latest |
+| C# (.NET 10) | 492 | ubuntu-latest |
 | Python 3.12 | 188 | ubuntu-latest |
 | TypeScript / Node 20 | 170 | ubuntu-latest |
 | Go 1.22 | 127 | ubuntu-latest |
@@ -126,7 +126,7 @@ All 8 languages produce byte-identical wire packets, verified by 14 canonical wi
 | Kotlin / JVM 21 | 107 | ubuntu-latest |
 | Rust (stable) | 140 | ubuntu-latest |
 | C (GCC) | 60 | ubuntu-latest |
-| **Total** | **1,321** | |
+| **Total** | **1,400** | |
 
 Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. All 8 languages now ship a full Signal session (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
@@ -390,7 +390,7 @@ What's built and what's next.
 - DTN store-and-forward service with custody transfer, geohash-aware replication, 72h TTL
 - SOS broadcast service with flood, dedup, self-origin guard, rate-limit (3/hr)
 - Extensibility seams: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop defaults)
-- **1,321 tests** across all 8 languages (C# 413, Python 188, TypeScript 170, Go 127, Rust 140, Swift 116, Kotlin 107, C 60) — all green in CI
+- **1,400 tests** across all 8 languages (C# 492, Python 188, TypeScript 170, Go 127, Rust 140, Swift 116, Kotlin 107, C 60) — all green in CI
 - ✅ **Real X3DH ephemeral key (8 languages)** — 4 X25519 DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) with HKDF-SHA256 root derivation. Pinned by `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Double Ratchet alignment family-wide** — full Signal §5 with HMAC-SHA256 + 0x01/0x02 domain separation in the symmetric ratchet, HKDF-SHA256 KDF_RK in the DH-ratchet step, DH-rotation on receive. Verified by `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` fixtures.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 reconciled with HEAD** — see `docs/PROTOCOL_SPEC.md`.
@@ -407,19 +407,16 @@ What's built and what's next.
 **Done (C# reference only):**
 - ✅ **Demo Step 9 — MessagingService + DTN fallback end-to-end** — `samples/Aether.Demo.Console` walks through real-Signal-encrypted messaging with DTN store-and-forward when the recipient is offline.
 - ✅ **`Aether.Messaging` ↔ `Aether.Security` bridge** — `SignalMessageEnvelopeCipher` makes the messaging layer end-to-end encrypted by default; messages without a Signal session are queued, never sent insecurely.
-
-**Spec'd, design doc only, no shipping pipeline:**
-- Adaptive bitrate streaming (`docs/adaptive-secure-streaming-spec.md` is a forward design doc — no codec backend)
-- Watch Together: BitTorrent ingest and ChipIn group funding flow
-- Group video calls with auto SFU relay
-
-**In progress (waiting on physical hardware or external infra):**
-- BLE GATT transport — real Bluetooth Low Energy communication
-- Wi-Fi Direct transport — direct device-to-device over WiFi
-- NearLink transport implementation
+- ✅ **Adaptive bitrate streaming** — `AdaptiveBitrateController` with spec-mandated bitrate ladders for Profile A (real-time), B (live broadcast), and C (VOD). Publisher selects the highest sustainable rung (20% headroom) and emits `StreamAbandon` (`PacketType.StreamAbandon`) instead of a segment when below the floor. `IStreamingService` exposes `UpdateBandwidthEstimate` and `GetCurrentBitrateRung`.
+- ✅ **Watch Together: BitTorrent ingest + ChipIn group funding** — `TorrentInfo` / `TorrentFile` models; `WatchTogetherService` handles `PacketType.TorrentMetadata` and fires `TorrentReceived`. `ChipInPool` / `ChipInContribution` state machine (Collecting → Funded → Purchasing → Acquired / Failed / Refunded); `StartChipInAsync` / `ContributeAsync` / `GetChipIn` on `IWatchTogetherService`.
+- ✅ **Group video calls with auto SFU relay** — `GroupVideoService` / `IGroupVideoService`. FullMesh topology for ≤ 3 participants; automatic switch to SFU at `SfuThresholdParticipants` (4) with relay re-assignment via `GroupVideoSignaling(SfuAssigned)`. Fan-out in FullMesh, relay-only send in SFU mode. Signaling packet type `GroupVideoSignaling = 35`.
+- ✅ **BLE GATT transport simulation** — `SimulatedBleGattTransportService` (`IBleTransportService`). GATT MTU framing via `BleGattFramer` (1024 B/frame, `[2B count][2B index][payload]`), in-process static peer registry, advertisement broadcast. All `BleMaxPayloadBytes` constraints enforced.
+- ✅ **Wi-Fi Direct transport simulation** — `SimulatedWifiDirectTransportService` (`IWifiDirectService`). Explicit `ConnectAsync`/`DisconnectAsync` lifecycle, direct large-payload delivery (no framing), bidirectional `PeerConnected`/`PeerDisconnected` events.
+- ✅ **NearLink transport simulation** — `SimulatedNearLinkTransportService` (`INearLinkTransportService`). 4096 B frame MTU, 500-peer registry, `ConnectedPeerCount`, `IsAvailable` settable at runtime.
+- ✅ **RF bring-up simulation tests** — Two-node interop tests (`SimulatedTransportTests`): BLE + NearLink `MeshPacket` round-trip, WiFi Direct 64 KB payload transfer. Software layer fully verified; physical device lab session needed for on-hardware validation.
 
 **Open — tracked in `OPEN_ISSUES.md`:**
-- RF bring-up: end-to-end two-node interop test on real BLE / Wi-Fi-Direct hardware (software layer fully verified; physical device lab session needed)
+- RF bring-up on real hardware: end-to-end two-node interop test on physical BLE / Wi-Fi-Direct / NearLink devices (simulation tests pass; hardware lab session needed)
 
 **Not yet open for external contribution:**
 - The protocol is still under active development. External contributions are not being accepted at this time.

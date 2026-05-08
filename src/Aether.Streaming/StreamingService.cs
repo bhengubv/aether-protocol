@@ -35,6 +35,7 @@ public sealed class StreamingService : IStreamingService
 
     private readonly ConcurrentDictionary<Guid, StreamSession> _sessions = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, byte>> _subscribers = new();
+    private readonly ConcurrentDictionary<Guid, AdaptiveBitrateController> _abrControllers = new();
 
     public event EventHandler<StreamSession>? StreamAnnounced;
     public event EventHandler<SubscriberJoinedEventArgs>? SubscriberJoined;
@@ -54,7 +55,7 @@ public sealed class StreamingService : IStreamingService
         _logger = logger ?? NullLogger<StreamingService>.Instance;
     }
 
-    public async Task<StreamSession> StartStreamAsync(string title, string contentType, string codec, int segmentDurationMs, CancellationToken cancellationToken = default)
+    public async Task<StreamSession> StartStreamAsync(string title, string contentType, string codec, int segmentDurationMs, StreamProfile profile = StreamProfile.ProfileB, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(title);
         if (segmentDurationMs <= 0) segmentDurationMs = ProtocolConstants.StreamSegmentDurationMs;
@@ -72,9 +73,10 @@ public sealed class StreamingService : IStreamingService
         };
         _sessions[session.Id] = session;
         _subscribers[session.Id] = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
+        _abrControllers[session.Id] = new AdaptiveBitrateController(profile);
 
         await BroadcastAnnounceAsync(session, cancellationToken).ConfigureAwait(false);
-        _logger.LogInformation("Stream {Id} started — title={Title} codec={Codec}", session.Id, title, codec);
+        _logger.LogInformation("Stream {Id} started — title={Title} codec={Codec} profile={Profile}", session.Id, title, codec, profile);
         return session;
     }
 
@@ -83,6 +85,28 @@ public sealed class StreamingService : IStreamingService
         if (!_sessions.TryGetValue(streamId, out var session) || session.Role != StreamRole.Publisher)
             return;
         if (session.State != StreamState.Live) return;
+
+        // ABR abandon check: if the link cannot sustain even the floor rung, broadcast a
+        // StreamAbandon packet to all subscribers instead of delivering a degraded segment.
+        if (_abrControllers.TryGetValue(streamId, out var controller) && controller.ShouldAbandon())
+        {
+            _logger.LogWarning(
+                "Stream {Id} seq={Seq}: bandwidth below floor rung — emitting StreamAbandon (congestion)",
+                streamId, sequence);
+
+            var abandonPayload = SerializeAbandonPayload(streamId, sequence, reason: 0);
+            var abandonPacket = new MeshPacket
+            {
+                Type = PacketType.StreamAbandon,
+                SourceUhid = _sender.LocalUhid,
+                DestinationUhid = string.Empty,
+                Ttl = ProtocolConstants.DefaultTtl,
+                Priority = 32,
+                Payload = abandonPayload,
+            };
+            await _sender.BroadcastAsync(abandonPacket, cancellationToken).ConfigureAwait(false);
+            return;
+        }
 
         var payload = SerializeSegment(streamId, sequence, encoded.Span, isKeyframe);
         if (!_subscribers.TryGetValue(streamId, out var set) || set.Count == 0) return;
@@ -118,6 +142,7 @@ public sealed class StreamingService : IStreamingService
 
         session.State = StreamState.Ended;
         session.EndedAt = DateTime.UtcNow;
+        _abrControllers.TryRemove(streamId, out _);
         await BroadcastAnnounceAsync(session, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation("Stream {Id} ended", session.Id);
     }
@@ -202,6 +227,12 @@ public sealed class StreamingService : IStreamingService
 
     public IReadOnlyList<StreamSession> GetActiveStreams()
         => _sessions.Values.Where(s => s.State is StreamState.Live or StreamState.Ending).ToArray();
+
+    public BitrateRung? GetCurrentBitrateRung(Guid streamId)
+        => _abrControllers.TryGetValue(streamId, out var c) ? c.CurrentRung : null;
+
+    public bool UpdateBandwidthEstimate(Guid streamId, long bandwidthKbps)
+        => _abrControllers.TryGetValue(streamId, out var c) && c.UpdateBandwidth(bandwidthKbps);
 
     private async Task BroadcastAnnounceAsync(StreamSession session, CancellationToken cancellationToken)
     {
@@ -338,6 +369,22 @@ public sealed class StreamingService : IStreamingService
 
         session.HighestSegmentSequence = Math.Max(session.HighestSegmentSequence, segment.Sequence);
         SegmentReceived?.Invoke(this, segment);
+    }
+
+    /// <summary>
+    /// StreamAbandon payload format (cross-language stable):
+    ///   [16] StreamId (RFC 4122 big-endian)
+    ///   [4]  Sequence (uint32 LE) — sequence that triggered the abandon
+    ///   [1]  Reason (0=congestion, 1=route_failure, 2=internal_error)
+    /// </summary>
+    internal static byte[] SerializeAbandonPayload(Guid streamId, uint sequence, byte reason)
+    {
+        var buf = new byte[16 + 4 + 1];
+        if (!streamId.TryWriteBytes(buf.AsSpan(0, 16), bigEndian: true, out _))
+            throw new InvalidOperationException("Failed to write stream id for abandon payload");
+        BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(16, 4), sequence);
+        buf[20] = reason;
+        return buf;
     }
 
     /// <summary>

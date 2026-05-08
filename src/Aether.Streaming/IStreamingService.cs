@@ -28,7 +28,8 @@ public interface IStreamingService
     event EventHandler<StreamSession>? StreamEnded;
 
     /// <summary>Begin publishing a stream. Broadcasts a <see cref="PacketType.StreamAnnounce"/> packet.</summary>
-    Task<StreamSession> StartStreamAsync(string title, string contentType, string codec, int segmentDurationMs, CancellationToken cancellationToken = default);
+    /// <param name="profile">ABR latency profile — determines the bitrate ladder used for this stream. Defaults to <see cref="StreamProfile.ProfileB"/> (live broadcast).</param>
+    Task<StreamSession> StartStreamAsync(string title, string contentType, string codec, int segmentDurationMs, StreamProfile profile = StreamProfile.ProfileB, CancellationToken cancellationToken = default);
 
     /// <summary>Publish one segment to every current subscriber. Caller is responsible for pacing (typically <paramref name="segmentDurationMs"/> apart).</summary>
     Task PublishSegmentAsync(Guid streamId, ReadOnlyMemory<byte> encoded, uint sequence, bool isKeyframe, CancellationToken cancellationToken = default);
@@ -47,6 +48,20 @@ public interface IStreamingService
 
     /// <summary>Streams currently being published or subscribed-to by the local node.</summary>
     IReadOnlyList<StreamSession> GetActiveStreams();
+
+    /// <summary>
+    /// Returns the current bitrate rung selected by the ABR controller for this stream.
+    /// Returns <see langword="null"/> if the stream is not managed by an ABR controller
+    /// (e.g. the stream was started before ABR support was added, or the id is unknown).
+    /// </summary>
+    BitrateRung? GetCurrentBitrateRung(Guid streamId);
+
+    /// <summary>
+    /// Updates the bandwidth estimate for a stream's ABR controller (Kbps).
+    /// The controller adjusts the current rung and returns <see langword="true"/> if the rung changed.
+    /// Returns <see langword="false"/> if the stream is unknown or the rung did not change.
+    /// </summary>
+    bool UpdateBandwidthEstimate(Guid streamId, long bandwidthKbps);
 }
 
 public sealed class SubscriberJoinedEventArgs : EventArgs

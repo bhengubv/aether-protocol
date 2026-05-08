@@ -5,6 +5,7 @@ using Aether.Streaming.Models;
 
 namespace Aether.Streaming;
 
+
 /// <summary>
 /// Synchronized playback across a small group. The host issues authoritative
 /// <see cref="WatchSyncCommand"/>s (Play / Pause / Seek / Speed); followers apply
@@ -58,4 +59,32 @@ public interface IWatchTogetherService
 
     /// <summary>Sessions this node currently hosts or follows.</summary>
     IReadOnlyList<WatchSession> GetActiveSessions();
+
+    // ─── BitTorrent ingest ──────────────────────────────────────────────────
+
+    /// <summary>Raised when a <see cref="PacketType.TorrentMetadata"/> packet arrives in a session this node participates in.</summary>
+    event EventHandler<(Guid SessionId, TorrentInfo Torrent)>? TorrentReceived;
+
+    /// <summary>Raised whenever a <see cref="ChipInPool"/> is created or its state changes.</summary>
+    event EventHandler<ChipInPool>? ChipInUpdated;
+
+    /// <summary>Host-side: broadcast <see cref="PacketType.TorrentMetadata"/> to all session participants.</summary>
+    Task BroadcastTorrentAsync(Guid sessionId, TorrentInfo torrent, CancellationToken ct = default);
+
+    // ─── ChipIn ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Create a ChipIn pool for content acquisition in a session and broadcast it to all participants.
+    /// </summary>
+    Task<ChipInPool> StartChipInAsync(Guid sessionId, decimal targetAmountZar, string? contentDescription, string? torrentInfoHash, string? magnetLink, CancellationToken ct = default);
+
+    /// <summary>
+    /// Add a contribution to an existing pool.
+    /// Transitions to <see cref="ChipInState.Funded"/> when <c>CollectedAmountZar &gt;= TargetAmountZar</c>.
+    /// Returns the updated pool, or <see langword="null"/> if the pool was not found.
+    /// </summary>
+    Task<ChipInPool?> ContributeAsync(Guid chipInId, string contributorUhid, decimal amountZar, CancellationToken ct = default);
+
+    /// <summary>Returns the pool with the given id, or <see langword="null"/> if unknown.</summary>
+    ChipInPool? GetChipIn(Guid chipInId);
 }

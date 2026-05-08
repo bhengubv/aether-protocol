@@ -43,6 +43,19 @@ public enum PacketType : byte
     TorrentMetadata = 34,
 
     /// <summary>
+    /// Group video session signaling — create, join, leave, kick, SFU relay assignment.
+    /// Payload is JSON-encoded <c>GroupVideoSignalingMessage</c>.
+    /// </summary>
+    GroupVideoSignaling = 35,
+
+    /// <summary>
+    /// Adaptive-bitrate abandon marker. Publisher emits this instead of the next segment
+    /// when the link cannot sustain even the floor bitrate rung. Receivers shred the
+    /// in-flight parent and await the next announce.
+    /// </summary>
+    StreamAbandon = 36,
+
+    /// <summary>
     /// Capability handshake — sender announces supported protocol-version range
     /// + capability flags. Sent on first contact with an unknown peer. The
     /// payload is a UTF-8 JSON-encoded <c>HelloPayload</c>. Unauthenticated and

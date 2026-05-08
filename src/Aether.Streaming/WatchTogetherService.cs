@@ -34,11 +34,14 @@ public sealed class WatchTogetherService : IWatchTogetherService
     private readonly ILogger<WatchTogetherService> _logger;
 
     private readonly ConcurrentDictionary<Guid, WatchSession> _sessions = new();
+    private readonly ConcurrentDictionary<Guid, ChipInPool> _chipIns = new();
 
     public event EventHandler<WatchSession>? SessionInvited;
     public event EventHandler<WatchSession>? SyncApplied;
     public event EventHandler<WatchReactionPayload>? ReactionReceived;
     public event EventHandler<WatchSession>? SessionEnded;
+    public event EventHandler<(Guid SessionId, TorrentInfo Torrent)>? TorrentReceived;
+    public event EventHandler<ChipInPool>? ChipInUpdated;
 
     public WatchTogetherService(
         IMeshSender sender,
@@ -140,6 +143,14 @@ public sealed class WatchTogetherService : IWatchTogetherService
             case PacketType.WatchReaction:
                 HandleReaction(packet);
                 break;
+            case PacketType.TorrentMetadata:
+                HandleTorrentMetadata(packet);
+                break;
+            case PacketType.WatchChunkRequest:
+                // Chunk serving is handled by the content layer (Aether.Content).
+                // WatchTogetherService records the request in telemetry but does not serve bytes.
+                _logger.LogDebug("WatchChunkRequest from {Source} — delegate to content layer", packet.SourceUhid);
+                break;
             default:
                 _logger.LogDebug("WatchTogetherService.HandleAsync ignoring non-watch packet type {Type}", packet.Type);
                 break;
@@ -149,6 +160,79 @@ public sealed class WatchTogetherService : IWatchTogetherService
 
     public IReadOnlyList<WatchSession> GetActiveSessions()
         => _sessions.Values.Where(s => s.State is WatchState.Hosting or WatchState.Following).ToArray();
+
+    public async Task BroadcastTorrentAsync(Guid sessionId, TorrentInfo torrent, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(torrent);
+        var payload = JsonSerializer.SerializeToUtf8Bytes(torrent, JsonOptions);
+        var packet = new MeshPacket
+        {
+            Type = PacketType.TorrentMetadata,
+            SourceUhid = _sender.LocalUhid,
+            DestinationUhid = string.Empty,
+            Ttl = ProtocolConstants.DefaultTtl,
+            Priority = 8,
+            Payload = payload,
+        };
+        await _sender.BroadcastAsync(packet, ct).ConfigureAwait(false);
+        _logger.LogInformation("Watch session {Id}: TorrentMetadata broadcast (hash={Hash})", sessionId, torrent.InfoHash);
+    }
+
+    public async Task<ChipInPool> StartChipInAsync(Guid sessionId, decimal targetAmountZar, string? contentDescription, string? torrentInfoHash, string? magnetLink, CancellationToken ct = default)
+    {
+        var pool = new ChipInPool
+        {
+            SessionId = sessionId,
+            InitiatorUhid = _sender.LocalUhid,
+            TargetAmountZar = targetAmountZar,
+            ContentDescription = contentDescription,
+            TorrentInfoHash = torrentInfoHash,
+            MagnetLink = magnetLink,
+        };
+        _chipIns[pool.Id] = pool;
+
+        // Broadcast a WatchSync packet with a "chip_in" discriminator field so followers
+        // learn about the new pool and can store it in their own _chipIns dict.
+        var envelope = new ChipInBroadcastEnvelope { ChipIn = pool };
+        var body = JsonSerializer.SerializeToUtf8Bytes(envelope, JsonOptions);
+        var packet = new MeshPacket
+        {
+            Type = PacketType.WatchSync,
+            SourceUhid = _sender.LocalUhid,
+            DestinationUhid = string.Empty,
+            Ttl = ProtocolConstants.DefaultTtl,
+            Priority = 8,
+            Payload = body,
+        };
+        await _sender.BroadcastAsync(packet, ct).ConfigureAwait(false);
+        ChipInUpdated?.Invoke(this, pool);
+        _logger.LogInformation("Watch session {SessionId}: ChipIn pool {PoolId} started (target={Target} ZAR)", sessionId, pool.Id, targetAmountZar);
+        return pool;
+    }
+
+    public Task<ChipInPool?> ContributeAsync(Guid chipInId, string contributorUhid, decimal amountZar, CancellationToken ct = default)
+    {
+        if (!_chipIns.TryGetValue(chipInId, out var pool))
+            return Task.FromResult<ChipInPool?>(null);
+
+        pool.Contributions.Add(new ChipInContribution
+        {
+            ContributorUhid = contributorUhid,
+            AmountZar = amountZar,
+        });
+        pool.CollectedAmountZar += amountZar;
+
+        if (pool.IsFunded && pool.State == ChipInState.Collecting)
+            pool.State = ChipInState.Funded;
+
+        ChipInUpdated?.Invoke(this, pool);
+        _logger.LogDebug("ChipIn {PoolId}: contribution {Amount} ZAR from {Uhid} — total={Total}/{Target}",
+            chipInId, amountZar, contributorUhid, pool.CollectedAmountZar, pool.TargetAmountZar);
+        return Task.FromResult<ChipInPool?>(pool);
+    }
+
+    public ChipInPool? GetChipIn(Guid chipInId)
+        => _chipIns.TryGetValue(chipInId, out var pool) ? pool : null;
 
     private async Task SendSyncAsync(Guid sessionId, WatchSyncType kind, long positionMs, double playbackSpeed = 1.0, CancellationToken cancellationToken = default)
     {
@@ -203,11 +287,43 @@ public sealed class WatchTogetherService : IWatchTogetherService
         await _sender.BroadcastAsync(packet, cancellationToken).ConfigureAwait(false);
     }
 
+    private void HandleTorrentMetadata(MeshPacket packet)
+    {
+        TorrentInfo? torrent;
+        try
+        {
+            torrent = JsonSerializer.Deserialize<TorrentInfo>(packet.Payload, JsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "WatchTogether: failed to deserialize TorrentMetadata from {Source}", packet.SourceUhid);
+            return;
+        }
+        if (torrent is null) return;
+
+        // Determine which session this belongs to — use the first hosting/following session
+        // (the host broadcasts without a session envelope in the packet itself).
+        var sessionId = _sessions.Keys.FirstOrDefault();
+        TorrentReceived?.Invoke(this, (sessionId, torrent));
+    }
+
     private void HandleSync(MeshPacket packet)
     {
-        // Discriminate join (from host_uhid presence) vs sync command (from kind presence).
+        // Discriminate join (from host_uhid presence) vs chip_in pool (from chip_in presence)
+        // vs sync command (from kind presence).
         var doc = TryParseJsonObject(packet.Payload);
         if (doc is null) return;
+
+        if (doc.RootElement.TryGetProperty("chip_in", out _))
+        {
+            // Follower receiving a ChipIn pool broadcast from the host.
+            var envelope = JsonSerializer.Deserialize<ChipInBroadcastEnvelope>(packet.Payload, JsonOptions);
+            if (envelope?.ChipIn is null) return;
+            var pool = envelope.ChipIn;
+            _chipIns.AddOrUpdate(pool.Id, pool, (_, _) => pool);
+            ChipInUpdated?.Invoke(this, pool);
+            return;
+        }
 
         if (doc.RootElement.TryGetProperty("host_uhid", out _))
         {
@@ -280,6 +396,15 @@ public sealed class WatchTogetherService : IWatchTogetherService
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Internal envelope used to discriminate ChipIn pool broadcasts inside WatchSync packets.
+    /// Serializes with the snake_case "chip_in" property so HandleSync can discriminate by shape.
+    /// </summary>
+    private sealed class ChipInBroadcastEnvelope
+    {
+        public ChipInPool? ChipIn { get; set; }
     }
 
     private sealed class DefaultIncentiveProvider : IAetherIncentiveProvider
