@@ -71,6 +71,12 @@ go/bin/
 kotlin/.gradle/
 kotlin/build/
 
+## Android / Gradle
+**/.gradle/
+*.apk
+*.aab
+**/local.properties
+
 ## Swift
 swift/.build/
 swift/.swiftpm/

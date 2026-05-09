@@ -155,9 +155,46 @@ exist in every language:
 The `fixtures/` corpus proves byte-identity at the serializer layer; the
 per-language E2E tests prove the full session+ratchet stack is correct.
 
-**RF bring-up: still open.** Needs at minimum 2 devices (phones or Pi+phone)
-running BLE, one per language implementation, exchanging a live packet. This
-is a hardware lab task — out of scope for code-only sessions.
+**Transport layer: RESOLVED 2026-05-08.** All six Aether transport colours now
+have real (or correctly-stubbed) implementations:
+- ✅ Aether Blue (BLE): `WinBleGattTransportService` + `android/blue/`
+- ✅ Aether Green (Wi-Fi Direct): `WinWifiDirectTransportService` + `android/green/`
+- ✅ Aether Purple (HTTP relay): `HttpRelayTransportService` + `samples/Aether.RelayServer/`
+- ⚠️ Aether White (NFC): `android/white/` HCE stub; Windows API removed in Win 11
+- 🔴 Aether Teal (NearLink): stub only — Huawei SDK required (see item 12)
+- 🔴 Aether Red (LoRa): stub only — radio module required (see item 13)
+
+**RF bring-up: still open.** Needs at minimum 2 devices exchanging a live BLE
+or Wi-Fi Direct packet. Hardware lab task — out of scope for code-only sessions.
+
+### 12. NearLink (Aether Teal) — Huawei NearLink SDK required
+
+`WinNearLinkStubTransportService` and `android/teal/` both return
+`IsAvailable = false`. The Huawei NearLink SDK is only available on HarmonyOS /
+OpenHarmony devices with NearLink silicon.
+
+**Unblock when:** Huawei releases a NearLink SDK for standard Android or Windows.
+Then replace the stubs with a real implementation; `ICircleLinkTransportService`
+(or `INearLinkTransportService`) is the seam.
+
+### 13. LoRa / CircleLink (Aether Red) — LoRa radio module required
+
+`LoRaCircleLinkStub` and `android/red/` both return `IsAvailable = false`.
+A physical LoRa radio module (Heltec WiFi LoRa 32, RAK WisBlock, Semtech SX1276)
+is required.
+
+**Unblock when:** a LoRa module is connected and the hardware driver is
+implemented. `ICircleLinkTransportService` is the correct seam.
+
+### 14. NFC tap-to-send from Windows (Aether White)
+
+`WinNfcStubTransportService` returns `IsAvailable = false` permanently.
+`Windows.Networking.Proximity` NFC APIs were removed in Windows 11 and there
+is no replacement.
+
+The active Aether White node is the Android `android/white/` HCE app
+(AID `F061657468657200`). The Windows machine can tap-to-send only if it has
+an NFC reader application (e.g. ACR122U reader software) — not native OS API.
 
 ### 9. OPK pool port to non-C# languages
 

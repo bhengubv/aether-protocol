@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Aether White</string>
+    <string name="hce_description">Aether mesh protocol NFC HCE endpoint (AID F061657468657200)</string>
+</resources>

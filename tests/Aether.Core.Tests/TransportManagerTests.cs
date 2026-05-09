@@ -306,7 +306,12 @@ public sealed class TransportManagerTests
 
     private sealed class FakeNearLink : INearLinkTransportService
     {
+        public string Name => "NearLink";
         public bool IsAvailable { get; set; } = true;
+        public long MaxBandwidthBps => 12_000_000;
+        public int MaxRangeMeters => 600;
+        public int PowerCostRelative => 1;
+        public int MaxConcurrentPeers => 500;
         public bool ShouldSucceed { get; set; } = true;
         public int SendCount { get; private set; }
         public int ConnectedPeerCount => 0;

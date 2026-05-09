@@ -99,6 +99,21 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
 
 **Replay protection** — Nonce deduplication with a 5-minute timestamp freshness window.
 
+## Transports
+
+Each transport has a colour name used throughout the codebase. `IsAvailable` gates hardware-blocked paths — the `TransportManager` skips them automatically and falls back to the next available transport.
+
+| Colour | Name | Range | Bandwidth | Status |
+|--------|------|------:|----------:|--------|
+| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
+| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android (`android/green/`) |
+| 🟣 Aether Purple | Cellular HTTP relay | Unlimited | ~10 Mbps | ✅ Windows — relay server in `samples/Aether.RelayServer/` |
+| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE only — `android/white/` (`Windows.Networking.Proximity` removed in Windows 11) |
+| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | 🔴 Hardware blocked — Huawei NearLink SDK required (`IsAvailable = false`) |
+| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | 🔴 Hardware blocked — LoRa radio module required (`IsAvailable = false`) |
+
+Priority order in `TransportManager`: NearLink → BLE (≤ 1 KB) → Wi-Fi Direct → NFC → LoRa → HTTP Relay (last resort, `PowerCostRelative = 100`).
+
 ## Implementations
 
 Aether is built in 8 languages so it runs on phones, laptops, tablets, and microcontrollers. All implementations produce wire-compatible packets — a message encrypted by the Rust node can be relayed by the Python node and decrypted by the Swift node.
@@ -415,8 +430,18 @@ What's built and what's next.
 - ✅ **NearLink transport simulation** — `SimulatedNearLinkTransportService` (`INearLinkTransportService`). 4096 B frame MTU, 500-peer registry, `ConnectedPeerCount`, `IsAvailable` settable at runtime.
 - ✅ **RF bring-up simulation tests** — Two-node interop tests (`SimulatedTransportTests`): BLE + NearLink `MeshPacket` round-trip, WiFi Direct 64 KB payload transfer. Software layer fully verified; physical device lab session needed for on-hardware validation.
 
+**Done (C# transport layer — all fail-fast):**
+- ✅ **BLE GATT real transport** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (Android GATT server). Full RF bring-up test in `samples/Aether.BleRfTest/`.
+- ✅ **Wi-Fi Direct real transport** — `WinWifiDirectTransportService` (WinRT, `WiFiDirectAdvertisementPublisher` + TCP StreamSocket port 8888) + `android/green/` (`WifiP2pManager`). RF test in `samples/Aether.WifiDirectRfTest/`.
+- ✅ **HTTP relay transport (Aether Purple)** — `HttpRelayTransportService` with 10-second long-poll, `PowerCostRelative = 100`, always last resort. Relay server in `samples/Aether.RelayServer/` (ASP.NET Core minimal API, port 5200). RF test in `samples/Aether.RelayRfTest/`.
+- ✅ **NFC Android HCE (Aether White)** — `android/white/` implements `HostApduService` with AID `F061657468657200`. Windows NFC stub documents permanent API removal in Windows 11 (`IsAvailable = false`).
+- ✅ **NearLink stub (Aether Teal)** — `WinNearLinkStubTransportService` + `android/teal/`. Hardware-blocked (Huawei SDK). `IsAvailable = false` on all current platforms. Interface ready for when SDK ships.
+- ✅ **LoRa / CircleLink stub (Aether Red)** — `LoRaCircleLinkStub` + `android/red/`. Hardware-blocked (LoRa radio module). `IsAvailable = false`. `ICircleLinkTransportService` seam is ready for hardware partners.
+
 **Open — tracked in `OPEN_ISSUES.md`:**
-- RF bring-up on real hardware: end-to-end two-node interop test on physical BLE / Wi-Fi-Direct / NearLink devices (simulation tests pass; hardware lab session needed)
+- RF bring-up on real hardware: end-to-end two-node interop test on physical BLE / Wi-Fi Direct devices (simulation tests pass; hardware lab session needed)
+- NearLink: waiting for Huawei NearLink SDK to become available outside HarmonyOS
+- LoRa / CircleLink: requires a physical LoRa radio module (SX1276 / Heltec LoRa32 / RAK WisBlock)
 
 **Not yet open for external contribution:**
 - The protocol is still under active development. External contributions are not being accepted at this time.
