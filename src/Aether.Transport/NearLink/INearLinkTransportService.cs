@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+using Aether.Transport.Abstractions;
+
 namespace Aether.Transport.NearLink;
 
 /// <summary>
@@ -22,28 +24,28 @@ namespace Aether.Transport.NearLink;
 /// with the range and bandwidth approaching Wi-Fi Direct, making it ideal for mesh networking
 /// in dense urban environments and emergency scenarios.
 /// </summary>
-public interface INearLinkTransportService
+public interface INearLinkTransportService : ITransportService
 {
     /// <summary>Human-readable name: "NearLink".</summary>
-    string Name => "NearLink";
+    new string Name => "NearLink";
 
     /// <summary>Whether NearLink hardware is available and enabled on this device.</summary>
-    bool IsAvailable { get; }
+    new bool IsAvailable { get; }
 
     /// <summary>Maximum bandwidth: 12 Mbps.</summary>
-    long MaxBandwidthBps => 12_000_000;
+    new long MaxBandwidthBps => 12_000_000;
 
     /// <summary>Maximum range: 600 meters.</summary>
-    int MaxRangeMeters => 600;
+    new int MaxRangeMeters => 600;
 
     /// <summary>
     /// Power cost relative to other transports. NearLink uses 60% less power than BLE,
     /// making it the most power-efficient transport available.
     /// </summary>
-    int PowerCostRelative => 1;
+    new int PowerCostRelative => 1;
 
     /// <summary>Maximum concurrent peer connections: 500+.</summary>
-    int MaxConcurrentPeers => 500;
+    new int MaxConcurrentPeers => 500;
 
     /// <summary>Number of peers currently connected via NearLink.</summary>
     int ConnectedPeerCount { get; }
@@ -56,7 +58,7 @@ public interface INearLinkTransportService
     /// <param name="data">The data to send.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if sent successfully.</returns>
-    Task<bool> SendAsync(string peerUhid, byte[] data, CancellationToken cancellationToken = default);
+    new Task<bool> SendAsync(string peerUhid, byte[] data, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sends a stream of data to a specific peer over NearLink.
@@ -66,20 +68,20 @@ public interface INearLinkTransportService
     /// <param name="stream">The data stream to send.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the stream was sent successfully.</returns>
-    Task<bool> SendStreamAsync(string peerUhid, Stream stream, CancellationToken cancellationToken = default);
+    new Task<bool> SendStreamAsync(string peerUhid, Stream stream, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Checks whether a specific peer is connected via NearLink.
     /// </summary>
     /// <param name="peerUhid">The Universal Hash ID of the peer.</param>
     /// <returns>True if the peer is connected.</returns>
-    bool IsConnected(string peerUhid);
+    new bool IsConnected(string peerUhid);
 
     /// <summary>
     /// Raised when data is received from a peer over NearLink.
     /// First argument: sender UHID. Second argument: raw data.
     /// </summary>
-    event Action<string, byte[]>? DataReceived;
+    new event Action<string, byte[]>? DataReceived;
 
     /// <summary>
     /// Raised when a new peer connects via NearLink.

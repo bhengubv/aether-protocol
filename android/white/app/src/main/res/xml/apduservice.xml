@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Aether White NFC HCE service descriptor.
+
+  AID: F061657468657200
+       F0               = proprietary AID prefix (ISO 7816-4 §10.2.1.5)
+       61 65 74 68 65 72 = "aether" in ASCII
+       00               = NUL terminator
+
+  Category: "other" (not payment).
+-->
+<host-apdu-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/hce_description"
+    android:requireDeviceUnlock="false">
+
+    <aid-group
+        android:description="@string/hce_description"
+        android:category="other">
+
+        <aid-filter android:name="F061657468657200" />
+
+    </aid-group>
+
+</host-apdu-service>

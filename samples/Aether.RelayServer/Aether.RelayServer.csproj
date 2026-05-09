@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Description>
+      Aether Purple relay server — in-memory HTTP relay for the cellular fallback transport.
+      Endpoints: POST /relay/send, GET /relay/receive/{nodeId} (long-poll, 10 s timeout).
+      Default port: 5200. No auth — test infrastructure only.
+    </Description>
+  </PropertyGroup>
+
+</Project>
