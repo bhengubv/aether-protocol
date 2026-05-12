@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thegeeknetwork/aether-protocol-go/reputation"
+	"github.com/bhengubv/aether-protocol/go/reputation"
 )
 
 // PacketSigningService handles packet signing and nonce deduplication.

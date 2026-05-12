@@ -12,6 +12,7 @@
       Starts an in-process relay server on port 5200, creates two HttpRelayTransportService
       nodes (A and B), sends a packet A→B, echoes B→A, and prints round-trip latency.
     </Description>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>

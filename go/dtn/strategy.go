@@ -5,7 +5,7 @@ package dtn
 import (
 	"sort"
 
-	"github.com/thegeeknetwork/aether-protocol-go/models"
+	"github.com/bhengubv/aether-protocol/go/models"
 )
 
 // ReplicationStrategy decides which connected peers should receive a copy of a

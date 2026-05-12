@@ -9,8 +9,8 @@ package routing
 import (
 	"context"
 
-	"github.com/thegeeknetwork/aether-protocol-go/models"
-	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/bhengubv/aether-protocol/go/models"
+	"github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 // MeshSender is the minimal sending abstraction the routing service depends on.

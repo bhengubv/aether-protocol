@@ -25,7 +25,7 @@ import (
 
 	"github.com/google/uuid"
 
-	protocol "github.com/thegeeknetwork/aether-protocol-go/protocol"
+	protocol "github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 type Input struct {

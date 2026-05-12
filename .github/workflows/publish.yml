@@ -1,7 +1,20 @@
-name: Publish NuGet packages
+name: Publish packages — all registries
 
-# Triggers on a pushed semver tag (v0.1.0, v1.2.3, v2.0.0-beta.1, etc.)
-# Requires repository secret NUGET_API_KEY to be set.
+# Triggers on a pushed semver tag (v1.0.0, v1.2.3, v2.0.0-beta.1, etc.)
+#
+# Required repository secrets:
+#   NUGET_API_KEY          — nuget.org API key (Account → API Keys)
+#   NPM_TOKEN              — npm publish token (npmjs.com → Access Tokens)
+#                            Scope must be @bhengubv — create npm org "bhengubv"
+#                            or use an unscoped name and adjust package.json
+#   PYPI_API_TOKEN         — PyPI API token (pypi.org → Account → API tokens)
+#   CARGO_REGISTRY_TOKEN   — crates.io token (crates.io → Account settings)
+#
+# GitHub token (GITHUB_TOKEN) is used automatically for:
+#   - Kotlin → GitHub Packages (maven.pkg.github.com)
+#   - Creating the go/ sub-module tag (go/vX.Y.Z)
+#   - Swift: no publish step — SPM resolves from the git tag
+#   - C: no publish step — embedded directly by consumers
 
 on:
   push:
@@ -10,65 +23,265 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+-*'
 
 permissions:
-  contents: read
+  contents: write      # create go/vX.Y.Z tag
+  packages: write      # publish to GitHub Packages (Kotlin)
+  id-token: write      # PyPI trusted publishing (OIDC)
 
 jobs:
-  publish:
-    name: Pack + publish to NuGet.org
+  # ── C# / NuGet ────────────────────────────────────────────────────────────
+  publish-nuget:
+    name: NuGet — Aether.* packages
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - run: dotnet restore AetherProtocol.slnx
+
+      - run: dotnet build AetherProtocol.slnx -c Release --no-restore
+
+      - name: Test (core + interop)
+        run: |
+          dotnet test tests/Aether.Core.Tests/Aether.Core.Tests.csproj -c Release --no-build --nologo
+          dotnet test tests/cross-language/runners/csharp/Aether.InteropTest.csproj -c Release --no-build --nologo
+
+      - name: Pack
+        shell: bash
+        run: |
+          dotnet pack AetherProtocol.slnx -c Release --no-build --nologo \
+            -p:VersionPrefix=${{ steps.version.outputs.version }}
+
+      - name: Push .nupkg to NuGet.org
+        shell: bash
+        run: |
+          dotnet nuget push artifacts/packages/*.nupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+
+      - name: Push .snupkg symbols to NuGet.org
+        shell: bash
+        run: |
+          dotnet nuget push artifacts/packages/*.snupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+
+  # ── TypeScript / npm ──────────────────────────────────────────────────────
+  publish-npm:
+    name: npm — @bhengubv/aether-protocol
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: typescript
+
+      - name: Test
+        run: npm test
+        working-directory: typescript
+
+      - name: Build
+        run: npm run build
+        working-directory: typescript
+
+      - name: Publish to npm
+        run: npm publish --access public
+        working-directory: typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── Python / PyPI ─────────────────────────────────────────────────────────
+  publish-pypi:
+    name: PyPI — aether-protocol
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/aether-protocol
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Patch version in pyproject.toml
+        run: |
+          sed -i "s/^version = .*/version = \"${{ steps.version.outputs.version }}\"/" pyproject.toml
+        working-directory: python
+
+      - name: Run tests
+        run: |
+          pip install -e ".[dev]"
+          pytest tests/ -x -q
+        working-directory: python
+
+      - name: Build wheel + sdist
+        run: python -m build
+        working-directory: python
+
+      - name: Publish to PyPI (trusted publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist/
+
+  # ── Rust / crates.io ──────────────────────────────────────────────────────
+  publish-cargo:
+    name: crates.io — aether-protocol
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # full history for source link
 
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: dtolnay/rust-toolchain@stable
 
-      # Strip the leading 'v' from the tag (v0.1.0 → 0.1.0)
       - name: Extract version from tag
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Restore
-        run: dotnet restore AetherProtocol.slnx
+      - name: Patch version in Cargo.toml
+        run: |
+          sed -i "s/^version = .*/version = \"${{ steps.version.outputs.version }}\"/" Cargo.toml
+        working-directory: rust
 
-      - name: Build (Release)
-        run: dotnet build AetherProtocol.slnx -c Release --no-restore
+      - name: Run tests
+        run: cargo test --all-features
+        working-directory: rust
 
-      # Run the full test suite (including cross-language interop) before packing.
+      - name: Publish to crates.io
+        run: cargo publish --no-verify
+        working-directory: rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # ── Go module tag ─────────────────────────────────────────────────────────
+  # Go modules in subdirectories require a tag prefixed with the subdirectory:
+  # go/v1.0.0. This job creates that tag automatically so consumers can:
+  #   go get github.com/bhengubv/aether-protocol/go@v1.0.0
+  tag-go-module:
+    name: Go — push go/vX.Y.Z tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push go/ sub-module tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "go/v${{ steps.version.outputs.version }}" "${{ github.sha }}"
+          git push origin "go/v${{ steps.version.outputs.version }}"
+
+  # ── Kotlin / GitHub Packages ──────────────────────────────────────────────
+  publish-kotlin:
+    name: GitHub Packages — dev.aether:aether-protocol-kotlin
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+        working-directory: kotlin
+
+      - name: Publish to GitHub Packages
+        run: ./gradlew publish -Pversion=${{ steps.version.outputs.version }} --no-daemon
+        working-directory: kotlin
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Swift (SPM — no publish step needed) ─────────────────────────────────
+  # Swift Package Manager resolves directly from the git tag. No extra publish
+  # step required. Consumers declare:
+  #   .package(url: "https://github.com/bhengubv/aether-protocol", from: "1.0.0")
+  #   .product(name: "AetherProtocol", package: "aether-protocol")
+  verify-swift:
+    name: Swift — verify SPM build at release tag
+    runs-on: macos-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve dependencies
+        run: swift package resolve
+        working-directory: swift
+      - name: Build release
+        run: swift build -c release
+        working-directory: swift
+
+  # ── C (CMake — no publish step needed) ───────────────────────────────────
+  # C consumers embed aether-protocol via CMake FetchContent or by copying
+  # c/include/ + c/src/ into their project. The git tag is sufficient.
+  verify-c:
+    name: C — verify CMake release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install libsodium
+        run: sudo apt-get install -y libsodium-dev
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        working-directory: c
+      - name: Build
+        run: cmake --build build --parallel
+        working-directory: c
       - name: Test
-        run: |
-          dotnet test tests/Aether.Core.Tests/Aether.Core.Tests.csproj \
-            -c Release --no-build --nologo
-          dotnet test tests/cross-language/runners/csharp/Aether.InteropTest.csproj \
-            -c Release --no-build --nologo
-
-      - name: Pack
-        run: |
-          dotnet pack AetherProtocol.slnx \
-            -c Release \
-            --no-build \
-            --nologo \
-            -p:VersionPrefix=${{ steps.version.outputs.version }}
-
-      - name: Push to NuGet.org
-        run: |
-          dotnet nuget push artifacts/packages/*.nupkg \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
-            --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-
-      - name: Push symbols to NuGet.org
-        run: |
-          dotnet nuget push artifacts/packages/*.snupkg \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
-            --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: ctest --output-on-failure
+        working-directory: c/build

@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm") version "1.9.21"
     kotlin("plugin.serialization") version "1.9.21"
     application
+    `maven-publish`
     // kotlinx-benchmark — the Kotlin-native bench harness. Mirrors the
     // tinybench (TS), pytest-benchmark (Python), Go testing.B, and
     // BenchmarkDotNet (C#) harnesses across the implementation family.
@@ -16,7 +17,7 @@ plugins {
 }
 
 group = "dev.aether"
-version = "2.0.0"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
@@ -139,4 +140,58 @@ benchmark {
 
 allOpen {
     annotation("org.openjdk.jmh.annotations.State")
+}
+
+// ─── Maven publishing ──────────────────────────────────────────────────────
+//
+// Publishes to GitHub Packages (ghp-registry) automatically from CI on a
+// version tag push. Consumers add:
+//
+//   repositories {
+//     maven("https://maven.pkg.github.com/bhengubv/aether-protocol") {
+//       credentials { username = "GITHUB_USER"; password = "GITHUB_TOKEN" }
+//     }
+//   }
+//   dependencies { implementation("dev.aether:aether-protocol-kotlin:1.0.0") }
+//
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            artifactId = "aether-protocol-kotlin"
+            from(components["java"])
+            pom {
+                name.set("Aether Protocol Kotlin")
+                description.set("Kotlin/JVM implementation of the Aether mesh networking protocol")
+                url.set("https://github.com/bhengubv/aether-protocol")
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/licenses/MIT")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("bhengubv")
+                        name.set("The Other Bhengu (Pty) Ltd t/a The Geek Network")
+                        email.set("engineering@thegeeknetwork.dev")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:git://github.com/bhengubv/aether-protocol.git")
+                    developerConnection.set("scm:git:ssh://github.com/bhengubv/aether-protocol.git")
+                    url.set("https://github.com/bhengubv/aether-protocol")
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/bhengubv/aether-protocol")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: ""
+                password = System.getenv("GITHUB_TOKEN") ?: ""
+            }
+        }
+    }
 }

@@ -9,7 +9,7 @@ package extensibility
 import (
 	"context"
 
-	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 // IncentiveProvider records relays for reward calculation and decides whether

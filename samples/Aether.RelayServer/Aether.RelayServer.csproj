@@ -10,6 +10,7 @@
       Endpoints: POST /relay/send, GET /relay/receive/{nodeId} (long-poll, 10 s timeout).
       Default port: 5200. No auth — test infrastructure only.
     </Description>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
 </Project>

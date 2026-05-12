@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/thegeeknetwork/aether-protocol-go/constants"
-	"github.com/thegeeknetwork/aether-protocol-go/models"
-	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/bhengubv/aether-protocol/go/constants"
+	"github.com/bhengubv/aether-protocol/go/models"
+	"github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 // FakeMeshSender is a test double that records every send and broadcast.

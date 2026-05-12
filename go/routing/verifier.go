@@ -5,7 +5,7 @@ package routing
 import (
 	"context"
 
-	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 // RouteReplyVerifier verifies that a received RREP was actually signed by the

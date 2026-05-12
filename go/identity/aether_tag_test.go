@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/thegeeknetwork/aether-protocol-go/identity"
+	"github.com/bhengubv/aether-protocol/go/identity"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────

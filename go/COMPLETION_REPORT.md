@@ -3,7 +3,7 @@
 **Date**: 2026-03-15
 **Status**: ✓ COMPLETE
 **Location**: `/Users/admin/Code/Dev/aether-protocol/go/`
-**Module**: `github.com/thegeeknetwork/aether-protocol-go`
+**Module**: `github.com/bhengubv/aether-protocol/go`
 
 ---
 
@@ -420,7 +420,7 @@ For integration into production systems:
 ## Dependencies
 
 ```
-module github.com/thegeeknetwork/aether-protocol-go
+module github.com/bhengubv/aether-protocol/go
 go 1.22
 
 require (
@@ -466,8 +466,8 @@ go run ./cmd/demo/main.go
 
 ### Integration
 ```go
-import "github.com/thegeeknetwork/aether-protocol-go/protocol"
-import "github.com/thegeeknetwork/aether-protocol-go/security"
+import "github.com/bhengubv/aether-protocol/go/protocol"
+import "github.com/bhengubv/aether-protocol/go/security"
 
 // Use the packages as shown in QUICK_START.md
 ```

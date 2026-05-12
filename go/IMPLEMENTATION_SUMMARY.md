@@ -2,7 +2,7 @@
 
 **Date**: 2026-03-15
 **Status**: Complete
-**Module**: `github.com/thegeeknetwork/aether-protocol-go`
+**Module**: `github.com/bhengubv/aether-protocol/go`
 **Go Version**: 1.22+
 
 ---
@@ -372,7 +372,7 @@ defer ZeroMemory(chainKey)
 ```
 go.mod:
 
-module github.com/thegeeknetwork/aether-protocol-go
+module github.com/bhengubv/aether-protocol/go
 go 1.22
 
 require (

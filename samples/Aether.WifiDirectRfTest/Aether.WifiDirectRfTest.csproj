@@ -13,6 +13,7 @@
       connect, sends one Aether wire-format packet, reads the echo response, and prints
       round-trip time.
     </Description>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>

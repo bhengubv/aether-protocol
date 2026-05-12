@@ -1,7 +1,7 @@
 # Aether Protocol Go Implementation - File Index
 
 **Location**: `/Users/admin/Code/Dev/aether-protocol/go/`
-**Module**: `github.com/thegeeknetwork/aether-protocol-go`
+**Module**: `github.com/bhengubv/aether-protocol/go`
 **Status**: Complete
 **Last Updated**: 2026-03-15
 

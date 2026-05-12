@@ -5,7 +5,7 @@ package models
 import (
 	"time"
 
-	"github.com/thegeeknetwork/aether-protocol-go/identity"
+	"github.com/bhengubv/aether-protocol/go/identity"
 )
 
 // NodeCapabilities is a bitfield representing node capabilities.

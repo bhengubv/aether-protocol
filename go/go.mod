@@ -1,4 +1,4 @@
-module github.com/thegeeknetwork/aether-protocol-go
+module github.com/bhengubv/aether-protocol/go
 
 go 1.22
 

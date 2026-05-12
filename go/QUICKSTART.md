@@ -9,7 +9,7 @@ across restarts, and encryption-at-rest.
 ## 1. Install
 
 The implementation lives in this repository's `go/` subtree and
-publishes the `github.com/thegeeknetwork/aether-protocol-go` module.
+publishes the `github.com/bhengubv/aether-protocol/go` module.
 For a local dev install from a checkout:
 
 ```bash
@@ -20,7 +20,7 @@ go mod download
 To pull it into another module:
 
 ```bash
-go get github.com/thegeeknetwork/aether-protocol-go
+go get github.com/bhengubv/aether-protocol/go
 ```
 
 Runtime dependencies are `golang.org/x/crypto` (HKDF) and
@@ -37,7 +37,7 @@ on subsequent constructions, so bundles published to peers stay valid
 across process restarts.
 
 ```go
-import "github.com/thegeeknetwork/aether-protocol-go/security"
+import "github.com/bhengubv/aether-protocol/go/security"
 
 alice, err := security.NewSignalProtocolService()
 if err != nil {
@@ -110,8 +110,8 @@ history, and the OPK pool all snapshot after every mutation.
 
 ```go
 import (
-    "github.com/thegeeknetwork/aether-protocol-go/security"
-    "github.com/thegeeknetwork/aether-protocol-go/storage"
+    "github.com/bhengubv/aether-protocol/go/security"
+    "github.com/bhengubv/aether-protocol/go/storage"
 )
 
 // Volatile (tests) — storage.NewInMemoryKeyValueStore().
@@ -136,7 +136,7 @@ AES-256-GCM every value before it touches disk. Keys are passed through
 unchanged so list / range queries continue to work.
 
 ```go
-import "github.com/thegeeknetwork/aether-protocol-go/storage"
+import "github.com/bhengubv/aether-protocol/go/storage"
 
 masterKey := make([]byte, 32) // 32 bytes from your KMS
 provider, err := storage.NewStaticDataAtRestKeyProvider(masterKey)

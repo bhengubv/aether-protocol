@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/thegeeknetwork/aether-protocol-go/constants"
-	"github.com/thegeeknetwork/aether-protocol-go/models"
-	"github.com/thegeeknetwork/aether-protocol-go/protocol"
-	"github.com/thegeeknetwork/aether-protocol-go/security"
-	"github.com/thegeeknetwork/aether-protocol-go/transport"
+	"github.com/bhengubv/aether-protocol/go/constants"
+	"github.com/bhengubv/aether-protocol/go/models"
+	"github.com/bhengubv/aether-protocol/go/protocol"
+	"github.com/bhengubv/aether-protocol/go/security"
+	"github.com/bhengubv/aether-protocol/go/transport"
 )
 
 func main() {
