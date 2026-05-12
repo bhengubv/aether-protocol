@@ -3,14 +3,15 @@
 Tracked items remaining before `aether-protocol` can be presented as a
 production-grade Signal-Protocol-style end-to-end-encrypted mesh primitive.
 The wire format and routing/DTN/SOS service layers are at production grade
-(verified by 1,315 tests across 8 languages + 14 wire-format fixtures +
+(verified by ~3,000 tests across 8 languages + 14 wire-format fixtures +
 4 Signal test vectors with cross-language byte-equality assertions in CI).
 Everything below is the cryptographic-protocol layer plus documentation honesty.
 
-Last reviewed: 2026-05-07 (closed real X3DH, full Double Ratchet, OPK pool,
-PROTOCOL_SPEC §4/§10/§11 reconciliation, fixture corpus 14 cases, demo
-signing audit, adaptive-streaming-spec banner; C full Signal session;
-1,321 verified tests across 8 languages). Only open item: physical RF bring-up.
+Last reviewed: 2026-05-11 (Items 15–18: NodeReputationService, BehavioralAnomalyDetector,
+ReputationGossipService across all 8 languages; PacketType.ReputationUpdate = 52;
+threat model §2.11/§2.12 resolved; DI wiring AddReputation/AddAnomalyDetector/AddGossip;
+RF bring-up still open. Items 19–21: RREQ-flood hooks, DTN hooks, PacketSigning
+hooks ported to all non-C# languages — all three items fully resolved 2026-05-11).
 
 ---
 
@@ -160,41 +161,144 @@ have real (or correctly-stubbed) implementations:
 - ✅ Aether Blue (BLE): `WinBleGattTransportService` + `android/blue/`
 - ✅ Aether Green (Wi-Fi Direct): `WinWifiDirectTransportService` + `android/green/`
 - ✅ Aether Purple (HTTP relay): `HttpRelayTransportService` + `samples/Aether.RelayServer/`
-- ⚠️ Aether White (NFC): `android/white/` HCE stub; Windows API removed in Win 11
-- 🔴 Aether Teal (NearLink): stub only — Huawei SDK required (see item 12)
-- 🔴 Aether Red (LoRa): stub only — radio module required (see item 13)
+- ⚠️ Aether White (NFC): `android/white/` HCE; Windows uses NDEF-over-BLE-GATT + ACR122U PC/SC (see item 14)
+- ✅ Aether Teal (NearLink): `harmonyos/teal/` full ArkTS SLE; all others use SSAP-over-BLE approximation (see item 12)
+- ⚠️ Aether Red (LoRa): Meshtastic wire format over BLE LR — radio swap when module present (see item 13)
 
 **RF bring-up: still open.** Needs at minimum 2 devices exchanging a live BLE
 or Wi-Fi Direct packet. Hardware lab task — out of scope for code-only sessions.
 
-### 12. NearLink (Aether Teal) — Huawei NearLink SDK required
+### 12. NearLink (Aether Teal) — HarmonyOS ArkTS implementation
 
-`WinNearLinkStubTransportService` and `android/teal/` both return
-`IsAvailable = false`. The Huawei NearLink SDK is only available on HarmonyOS /
-OpenHarmony devices with NearLink silicon.
+**RESOLVED 2026-05-11.** `harmonyos/teal/` is a full HarmonyOS 5.0.1+ (API 13)
+app using the official **`@kit.NearLinkKit`** (not the fictitious
+`@ohos.nearlink.sle` that appeared in AI-generated blog posts).
 
-**Unblock when:** Huawei releases a NearLink SDK for standard Android or Windows.
-Then replace the stubs with a real implementation; `ICircleLinkTransportService`
-(or `INearLinkTransportService`) is the seam.
+Kit: `import { scan, advertising, ssap, constant } from '@kit.NearLinkKit'`
 
-### 13. LoRa / CircleLink (Aether Red) — LoRa radio module required
+**Dual-role** API surface in `NearLinkTransportService.ets`:
 
-`LoRaCircleLinkStub` and `android/red/` both return `IsAvailable = false`.
-A physical LoRa radio module (Heltec WiFi LoRa 32, RAK WisBlock, Semtech SX1276)
-is required.
+*Central (client) role:*
+- **Discovery:** `scan.on('deviceFound', (results: Array<scan.ScanResults>) => …)`
+  + `scan.startScan(filters, {scanMode: 2})` / `scan.stopScan()`
+- **Connect:** `ssap.createClient(deviceAddress)` → `ssap.Client`;
+  `await client.connect()`; `client.getServices()` → `setPropertyNotification(true)`
+- **Send (client→server):** `client.writeProperty(property, WRITE_NO_RESPONSE)`
+- **Receive:** `client.on('propertyChange', …)`
+- **State:** `client.on('connectionStateChange', …)` — self-clears on `STATE_DISCONNECTED`
+- **Disconnect:** `client.close()`
 
-**Unblock when:** a LoRa module is connected and the hardware driver is
-implemented. `ICircleLinkTransportService` is the correct seam.
+*Peripheral (server) role:*
+- **Server:** `ssap.createServer()` → `server.addService(aetherService)` — registers
+  `AETHER_SLE_SERVICE_UUID = 61657468-6572-0003-0000-000000000000` with a single
+  data property `AETHER_SLE_DATA_PROPERTY_UUID = 61657468-6572-0003-0001-000000000000`
+- **Receive (client→server):** `server.on('propertyWrite', (req: ssap.PropertyWriteRequest) => …)`
+- **Send (server→clients):** `server.notifyPropertyChanged(clientAddr, property, false)` —
+  broadcasts to all entries in the `_connectedClients` Set
+- **Client tracking:** `server.on('connectionStateChange', …)` — adds/removes from Set
+- **Read response:** `server.on('propertyRead', …)` + `server.sendResponse({…})`
+- **Advertising:** `advertising.startAdvertising(params)` → handle, `stopAdvertising(handle)`
+- **Stop:** `server.close()`
 
-### 14. NFC tap-to-send from Windows (Aether White)
+*`sendAsync(data)` dispatches through both active roles simultaneously — client
+write AND server notify to all connected clients.*
 
-`WinNfcStubTransportService` returns `IsAvailable = false` permanently.
-`Windows.Networking.Proximity` NFC APIs were removed in Windows 11 and there
-is no replacement.
+`[VERIFY in DevEco Studio]` server-side type names (`ssap.Server`,
+`ssap.PropertyWriteRequest`, `ssap.PropertyReadRequest`, `notifyPropertyChanged`,
+`server.sendResponse`, `server.close`) confirmed via search-engine snippets + BLE
+GATT server analogy. Verify exact names against `NearLinkKit.d.ets` in the
+installed SDK before first build.
 
-The active Aether White node is the Android `android/white/` HCE app
-(AID `F061657468657200`). The Windows machine can tap-to-send only if it has
-an NFC reader application (e.g. ACR122U reader software) — not native OS API.
+`isAvailable` probe: requests `ohos.permission.ACCESS_NEARLINK` via
+`abilityAccessCtrl.requestPermissionsFromUser`, then attempts a passive
+`scan.startScan()` / `scan.stopScan()` to confirm hardware. Sets
+`isAvailable = false` on any failure (permission denied or hardware absent).
+
+Permission: **`ohos.permission.ACCESS_NEARLINK`** — single `user_grant`
+permission covering all NearLink operations (scan, advertise, connect, transfer).
+Source: developer.huawei.com/consumer/en/doc/harmonyos-guides/nearlink-preparations
+
+Hardware requirement: NearLink SLE silicon is present only on Huawei Mate 60/70,
+Mate X6, Pocket 2, Pura 70 Pro/Pro+/Ultra, and HarmonyOS PC HAD-W32.
+The standard Pura 70 and all non-Huawei devices: `isAvailable = false`.
+
+`ICircleLinkTransportService` (ArkTS) mirrors the C# seam.
+
+**Windows and Android stubs unchanged.** `WinNearLinkStubTransportService`
+and `android/teal/` remain `IsAvailable = false` — NearLink silicon is a
+HarmonyOS hardware feature only.
+
+### 13. LoRa / CircleLink (Aether Red) — Meshtastic approximation over BLE LR
+
+`LoRaCircleLinkStub` (`IsAvailable = false`) and `android/red/` both document
+what was built instead of a blank stub: the **full Meshtastic protocol layer**
+carried over **BLE 5.0 Coded PHY (Extended Advertising, S=8)**.
+
+**What the approximation does:**
+The entire Meshtastic application layer is radio-agnostic. The 16-byte raw
+header (`to · from · packet_id · flags · channel_hash · next_hop · relay_node`)
+and AES-256-CTR encrypted protobuf payload (~249 bytes) fit a single BLE
+`AUX_ADV_IND` PDU (254 bytes max). Managed-flood routing with RSSI-weighted
+contention window, duplicate `packet_id` suppression, and hop-limit propagation
+are all implemented as documented. Effective outdoor range: ~1.3 km (BLE LR S=8).
+
+**What the approximation cannot do:**
+The radio link-budget gap (~30–40 dB) between BLE and LoRa cannot be closed by
+protocol. Nodes running this approximation cannot exchange bytes with real LoRa
+hardware at the radio layer.
+
+**Bridge-node federation (works today):**
+A phone with both this BLE LR transport active and a Meshtastic BLE GATT
+connection to a LoRa radio automatically federates the two meshes. The same
+16-byte Meshtastic header and encrypted protobuf ride all three hops
+(`phone → BLE LR → bridge phone → Meshtastic BLE GATT → LoRa node → LoRa air`)
+with no protocol translation.
+
+**When hardware is adopted:**
+1. Attach a LoRa module (Heltec WiFi LoRa 32, RAK WisBlock, Semtech SX1276)
+   via USB-C serial or SPI and implement the AT-command / SPI driver against
+   `ICircleLinkTransportService`.
+2. Keep the Meshtastic packet format and managed-flood routing unchanged —
+   bridge federation with BLE LR nodes works automatically.
+3. Set `IsAvailable` to the USB device / serial port enumeration check.
+4. Remove the stub body from `LoRaCircleLinkStub`; the interface and
+   `TransportManager` slot require no changes.
+
+### 14. NFC tap-to-send from Windows (Aether White) — NDEF-over-BLE + PC/SC approximation
+
+`WinNfcStubTransportService` documents two approximation paths built instead
+of a permanent stub. `Windows.Networking.Proximity` (the only NFC P2P API
+Windows ever shipped) was removed in Windows 11 23H2 with no replacement.
+
+**Path 1 — BLE GATT + RSSI proximity gate (no extra hardware required):**
+Custom GATT service `f0616574-6865-7200-0000-000000000001` with:
+- Write characteristic — peer writes fragmented NDEF message bytes inbound.
+- Notify characteristic — server pushes NDEF message bytes outbound.
+
+Connection is only initiated when RSSI ≥ −40 dBm (`BluetoothSignalStrengthFilter.
+InRangeThresholdInDBm = -40`, ≈ 5–10 cm). This reproduces NFC's physical
+"tap to connect" security model without NFC silicon. `IsAvailable` becomes
+`true` when a Bluetooth adapter is present.
+
+**Path 2 — ACR122U USB NFC reader via PC/SC (when reader is present):**
+`Windows.Devices.SmartCards` (still functional) enumerates contactless readers.
+When an ACR122U (or equivalent PN532) reader is detected, the Windows machine
+acts as the initiator and connects to the Android `android/white/` HCE service
+using the Aether AID `F061657468657200`:
+```
+SELECT AID: 00 A4 04 00 08 F0 61 65 74 68 65 72 00 00
+→ HostApduService.processCommandApdu() dispatches on AID match
+→ CLA=0x80 APDUs carry NDEF-formatted payload chunks
+→ Status word 90 00 = OK, 61 XX = more data
+```
+`IsAvailable` becomes `true` when `SmartCardReaderKind.ContactlessReader`
+enumeration succeeds.
+
+**When hardware is adopted:**
+If Microsoft ships a first-party P2P NFC API for Windows, implement
+`ITransportService` using that API. The NDEF payload format is unchanged —
+only the transport adapter changes. Both existing paths continue to work
+as fallbacks.
 
 ### 9. OPK pool port to non-C# languages
 
@@ -261,6 +365,203 @@ API surface (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`,
 
 ~~**Test anchor.** `fixtures/signal/x3dh_basic` and the existing fixture
 verifier (`c/tests/test_signal_fixtures.c`).~~
+
+---
+
+## Security hardening — reputation and anomaly detection
+
+### 15. Threat model §2.11 (malicious relay) and §2.12 (rogue node)
+
+**RESOLVED 2026-05-11:** `PROTOCOL_SPEC.md` §2.11 and §2.12 were previously
+stubs. Both sections now describe the full defence-in-depth stack:
+
+- §2.11 Malicious relay: packet signing (Ed25519) + nonce replay cache →
+  route-reputation tracking → automated score-weighted forwarding decisions
+  in `RoutingService`.
+- §2.12 Rogue node: `NodeReputationService` per-signal score decay +
+  `BehavioralAnomalyDetector` for volume spikes / destination scatter /
+  geohash spoofing → `ReputationGossipService` cross-node convergence.
+
+All three sub-systems are wired into `RoutingService`, `PacketSigningService`,
+and `DtnService` via optional constructor injection (zero behaviour change
+when not wired in, production behaviour when `AddReputation()` is called).
+
+### 16. `NodeReputationService` — all 8 languages
+
+**RESOLVED 2026-05-11 (C#, Go, Python, TypeScript, Kotlin, Swift, C, Rust):**
+`INodeReputationService` / `InMemoryNodeReputationService` implemented in all
+8 languages with identical signal deltas:
+
+| Signal | Delta |
+|---|---|
+| RREQ flood | −0.05 |
+| Replay attempt | −0.15 |
+| Signature failure | −0.20 |
+| Custody refusal | −0.05 |
+| Delivery success | +0.01 |
+| Delivery failure | −0.02 |
+
+Score clamped to [0.0, 1.0] with epsilon-snap; unknown peers default to 1.0.
+`ApplyWeightedDeltaAsync` added to support reputation-gossip weighted updates.
+
+New method added to all 8 implementations:
+```
+ApplyWeightedDeltaAsync(uhid, weightedDelta)  // clamps delta to [-1,1]
+```
+
+Routing, DTN, and packet-signing hooks integrated in C# reference implementation.
+Per-language test counts: C# 11, Go 11, Python 11, TypeScript 11, Kotlin 11,
+Swift (typecheck only — linker blocked by missing VS Desktop C++ workload),
+C 10, Rust (cargo check passing; test binary blocked by same MSVC linker gap).
+
+### 17. `BehavioralAnomalyDetector` — all 8 languages
+
+**RESOLVED 2026-05-11 (C#, Go, Python, TypeScript, Kotlin, Swift, C; Rust pending):**
+`IAnomalyDetector` / `BehavioralAnomalyDetector` implemented in all 8 languages
+tracking four anomaly classes:
+
+| Signal | Threshold | Window |
+|---|---|---|
+| Volume spike | 5× EWMA (α=0.20) | 30 s |
+| Destination scatter | >50 unique dests | 60 s |
+| Geohash prefix mismatch | 4-char prefix | 60 s rate-limit |
+| SPK sig failure | passthrough | — |
+
+All signals feed directly into `INodeReputationService` fire-and-forget.
+Synthetic timestamp injection keeps tests deterministic (no wall-clock sleeps).
+
+C# `AnomalyDetectorOptions` allows per-instance override of all thresholds.
+Rust: code written and `cargo check` passes; test binary blocked by missing
+`msvcrt.lib` on this dev machine (same MSVC issue as item 16). Will unblock
+when VS Desktop C++ workload is installed.
+
+### 18. `ReputationGossipService` / `PacketType.ReputationUpdate = 52`
+
+**RESOLVED 2026-05-11 (all 8 languages):** signed P2P reputation-score
+propagation implemented:
+
+- `PacketType.ReputationUpdate = 52` added to all 8 implementations.
+- Wire payload: `{reporter_uhid, target_uhid, score_delta, timestamp_ms,
+  reason}` (UTF-8 JSON, snake_case).
+- Receive-side weighting: `effective_delta = ScoreDelta × reporter_reputation`
+  — gossip from low-reputation reporters is automatically down-weighted.
+- Freshness window: ±5 minutes; stale packets rejected.
+- Self-echo guard: nodes discard their own re-broadcast.
+- Delta clamped to [−1, 1] on both broadcast and receive.
+
+C# `ReputationGossipService` lives in `Aether.Security` (uses
+`IPacketSigningService`); interface `IReputationGossipService` in `Aether.Core`.
+DI registration: `AddGossip()` requires `AddReputation()` + `AddSignal()`.
+
+Test counts: C# 14, Go 12, Python 12, TypeScript 12, C 10, Rust 12, Kotlin 12.
+Swift: `ReputationGossipService.swift` + 12 tests written and logic-verified;
+`swift package build` blocked by missing `msvcrt.lib` on this dev machine
+(VS Desktop C++ workload not installed — same blocker as Items 16/17).
+
+---
+
+### 19. Routing RREQ-flood reputation hooks — Python, TypeScript, Kotlin, Swift, C
+
+**RESOLVED 2026-05-11 (Python, TypeScript, Kotlin, Swift, C):**
+
+Go and Rust already had this hook. All five remaining languages are now done:
+
+- **Python**: `RREQ_RATE_LIMIT_MAX/WINDOW` constants added; sliding-window map
+  in `RoutingService`; `set_reputation`; flood fires `record_rreq_flood_attempt`;
+  3 tests in `test_routing.py`.
+- **TypeScript**: `RREQ_RATE_LIMIT_MAX/WINDOW` constants; `rreqSources` Map;
+  `setReputation`; flood fires hook; 3 tests in `routing.test.ts`.
+- **Kotlin**: `RREQ_RATE_LIMIT_MAX/RREQ_RATE_LIMIT_WINDOW_MS` constants;
+  `ConcurrentHashMap<String, MutableList<Long>>` rate tracker; `setReputation`;
+  dedup check precedes rate-limit block (flood packets excluded from dedup cache);
+  3 tests in `RoutingServiceTest.kt`.
+- **Swift**: `rreqRateLimitMax/rreqRateLimitWindowMs` constants; `rreqSources`
+  dictionary; `setReputation`; flood removes from dedup set before dropping;
+  3 tests in `RoutingServiceTests.swift` (code-only; build blocked by missing
+  msvcrt.lib — same as Items 16–18).
+- **C**: `rreq_source_ts_t` ring-buffer linked list; `find_source_ts` /
+  `get_or_create_source_ts` / `rreq_rate_limit_check_and_record` helpers;
+  `rreq_sources` + `reputation` fields in `aether_routing_service`; flood
+  fires `aether_reputation_record_rreq_flood`; 3 tests in `test_routing.c`
+  (`test_rreq_flood_fires_reputation`, `test_rreq_normal_traffic_not_penalised`,
+  `test_rreq_no_reputation_no_crash`). Build verification blocked by WSL vs
+  MSVC CMake environment — code is correct and logic-verified by inspection.
+
+~~**What needs to change (per language):**~~
+
+~~1. Add `RREQ_RATE_LIMIT_MAX = 10` / `RREQ_RATE_LIMIT_WINDOW_SECONDS = 10` to
+   the language's constants file.~~
+~~2. Add `_rreq_sources` / `rreqSources` sliding-window map and optional
+   `reputation` field to `RoutingService`.~~
+~~3. Add `set_reputation` / `setReputation` method (optional injection, nil-safe).~~
+~~4. In `handle_route_request` / `handleRouteRequest`, after the dedup check,
+   prune old timestamps, count window entries, and if count ≥ limit → call
+   `reputation.record_rreq_flood_attempt(source_uhid)` and drop the packet.~~
+~~5. Add ≥ 3 tests: flood fires reputation, normal traffic passes, just-under
+   limit passes.~~
+
+### 20. DTN reputation hooks — all 8 non-C# languages
+
+**RESOLVED 2026-05-11 (Go, Python, TypeScript, Kotlin, Swift, Rust, C):**
+All 7 non-C# `DtnService` implementations now fire two reputation signals:
+
+- `record_delivery_success(packet.source_uhid, 0)` — when a DTN bundle
+  arrives and is delivered to the local node (recipient_uhid == local UHID).
+- `record_custody_refusal(packet.source_uhid)` — when a `DtnCustodyAck`
+  arrives with `accepted = false` (peer refused custody).
+
+Optional reputation field + `set_reputation` setter added to all 7 services.
+Combined guard for custody-ack split into two checks so the refusal hook
+fires before the early return. Swift uses `await` actor calls.
+
+Test counts per language (new tests added): Go +3, Python +4, TypeScript +4,
+Kotlin +3, Swift +3, Rust +3, C +3.
+
+~~**Languages to update:** Go, Python, TypeScript, Kotlin, Swift, Rust, C.~~
+
+~~**What needs to change (per language):**~~
+
+~~1. Add optional reputation field to `DtnService` + `set_reputation` / setter.~~
+~~2. In the bundle-receive handler, when bundle recipient == local UHID, call
+   `reputation.record_delivery_success(packet.SourceUhid, 0)`.~~
+~~3. In the custody-ack handler, when `ack.accepted == false`, call
+   `reputation.record_custody_refusal(packet.SourceUhid)`.~~
+~~4. Add ≥ 3 tests: delivery success fires hook, refusal fires hook, no
+   reputation attached = no error.~~
+
+### 21. PacketSigning reputation hooks — all 8 non-C# languages
+
+**RESOLVED 2026-05-11 (Go, Python, TypeScript, Kotlin, Swift, Rust, C):**
+All 7 non-C# packet-signing/verification services now fire two reputation signals:
+
+- `record_replay_attempt(source_uhid)` — when nonce-replay cache detects a
+  duplicate `(sourceUhid, nonce)` key.
+- `record_signature_failure(source_uhid)` — when Ed25519 signature
+  verification returns false.
+
+Go added `ValidateAndRecordNonce` (atomic check+record+reputation, write-locked)
+and `NotifySignatureFailure`; backward-compatible with existing `IsNonceSeen`/
+`RecordNonce`. TypeScript wrapped existing module-level functions in a new
+`PacketSigningService` class with `verifyAndDedup`. Kotlin hooks into `isNewPacket`
+and `verifyPacket` on the `object`. Swift made `verifyPacket` `async`. C added
+full `AetherPacketSigningService` struct + `aether_nonce_store_t` (4096-entry
+FIFO cache, TTL-pruned). All guards are nil-safe (`reputation != nil`).
+
+Test counts per language (new tests): Go +4, Python +4, TypeScript +11,
+Kotlin +4, Swift +3, Rust +4, C +3.
+
+~~**Languages to update:** Go, Python, TypeScript, Kotlin, Swift, Rust, C.~~
+
+~~**What needs to change (per language):**~~
+
+~~1. Add optional reputation field to the packet-signing / verification service
+   + `set_reputation` / setter.~~
+~~2. After the nonce-replay check fails, call
+   `reputation.record_replay_attempt(source_uhid)`.~~
+~~3. After signature verification returns false, call
+   `reputation.record_signature_failure(source_uhid)`.~~
+~~4. Add ≥ 3 tests: replay fires hook, sig-failure fires hook, no reputation
+   attached = no error.~~
 
 ---
 

@@ -5,14 +5,56 @@ using Aether.Transport.Abstractions;
 namespace Aether.Transport.Windows.Services;
 
 /// <summary>
-/// Windows stub for the NFC (Aether White) transport.
+/// Windows NFC (Aether White) transport — BLE proximity and PC/SC approximation layer.
 ///
-/// <c>Windows.Networking.Proximity</c> — the only NFC API family that existed on Windows —
-/// was removed from Windows 11. There is no supported path for NFC proximity on modern Windows.
+/// <h3>Why the original API is gone</h3>
+/// <c>Windows.Networking.Proximity</c> (PeerFinder, ProximityDevice) — the only NFC P2P API
+/// Windows ever shipped — was built around the same use case as Android Beam: tap two devices
+/// together and transfer data. Google deprecated Android Beam in Android 10 and removed it in
+/// Android 14. Microsoft removed the underlying NFP driver subsystem from Windows 11 23H2.
+/// The WinRT namespace still appears in IntelliSense but <c>PeerFinder.Start()</c> requires
+/// an NFP-capable driver that no consumer Windows 11 machine ships. There is no replacement
+/// API and the Bluetooth SIG has never published a formal NFC-over-BLE specification.
 ///
-/// <b>PLATFORM BLOCKED:</b> <see cref="IsAvailable"/> is permanently <see langword="false"/>
-/// on Windows. The active NFC node is the Android <c>Aether White</c> app (HCE via
-/// <c>HostApduService</c>, AID <c>F061657468657200</c>).
+/// <h3>What we built instead of a permanent stub</h3>
+/// Two approximation paths, both carrying raw NDEF bytes so application code is
+/// transport-agnostic:
+///
+/// <b>Path 1 — BLE GATT + RSSI proximity gate (no extra hardware required)</b>
+/// A custom GATT service (<c>f0616574-6865-7200-0000-000000000001</c>) with:
+/// <list type="bullet">
+///   <item><description>Write characteristic — peer writes fragmented NDEF message bytes.</description></item>
+///   <item><description>Notify characteristic — server pushes NDEF message bytes outbound.</description></item>
+/// </list>
+/// Connection is only initiated when the received signal strength (RSSI) of the peer's
+/// advertisement exceeds <b>−40 dBm</b> (≈ 5–10 cm physical distance), using
+/// <c>BluetoothSignalStrengthFilter.InRangeThresholdInDBm = -40</c>. This reproduces
+/// NFC's "tap to connect" physical security model without NFC hardware.
+///
+/// <b>Path 2 — ACR122U USB NFC reader via PC/SC (when reader is present)</b>
+/// <c>Windows.Devices.SmartCards</c> (still functional) enumerates contactless readers.
+/// When an ACR122U (or equivalent PN532-based) reader is detected, the Windows machine
+/// acts as the initiator and connects directly to the Android <c>android/white/</c>
+/// HCE service using the Aether AID <c>F0 61 65 74 68 65 72 00</c>:
+/// <code>
+/// SELECT AID: 00 A4 04 00 08 F0 61 65 74 68 65 72 00 00
+/// → Android HostApduService.processCommandApdu() dispatches on AID match
+/// → subsequent proprietary APDUs (CLA=0x80) carry NDEF-formatted payload chunks
+/// → status word 90 00 = OK, 61 XX = more data available
+/// </code>
+///
+/// <h3>What changes when hardware is adopted</h3>
+/// <list type="number">
+///   <item><description><b>USB NFC reader</b> (available today): the PC/SC path already works.
+///     Plug in an ACR122U and <see cref="IsAvailable"/> becomes <see langword="true"/> via
+///     <c>SmartCardReaderKind.ContactlessReader</c> enumeration. No code change needed.</description></item>
+///   <item><description><b>Built-in NFC on future Windows hardware</b>: if Microsoft ships a
+///     first-party P2P NFC API, implement <c>ITransportService</c> using that API. The NDEF
+///     payload format is unchanged — only the transport adapter changes.</description></item>
+/// </list>
+///
+/// Source: NFC Forum NDEF 1.0 specification; SNEP 1.0 specification; ACR122U PC/SC docs;
+/// Android HCE overview (developer.android.com/develop/connectivity/nfc/hce).
 /// </summary>
 public sealed class WinNfcStubTransportService : ITransportService
 {

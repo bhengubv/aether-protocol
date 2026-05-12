@@ -14,6 +14,9 @@
 extern "C" {
 #endif
 
+/* Forward declaration — include aether_reputation.h if you need the full type. */
+typedef struct AetherNodeReputationService AetherNodeReputationService;
+
 /**
  * A single entry in the routing table.
  */
@@ -104,6 +107,13 @@ int aether_routing_prune(aether_routing_service_t *service);
  * Free a route entry returned by aether_routing_find_cached().
  */
 void aether_route_entry_free(aether_route_entry_t *route);
+
+/**
+ * Attach an optional reputation service. Pass NULL to disable.
+ * When set, RREQ flood attempts are recorded against the source UHID.
+ */
+void aether_routing_set_reputation(aether_routing_service_t *service,
+                                   AetherNodeReputationService *reputation);
 
 #ifdef __cplusplus
 }

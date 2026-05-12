@@ -14,6 +14,7 @@ import aether.models.DtnDeliveryReceipt
 import aether.protocol.MeshPacket
 import aether.protocol.PacketType
 import aether.routing.MeshSender
+import aether.security.NodeReputationService
 import java.time.Instant
 import java.util.UUID
 
@@ -28,6 +29,10 @@ class DtnService(
     private val incentives: IncentiveProvider = NoopIncentiveProvider(),
     private val backend: BackendClient = NoopBackendClient()
 ) {
+    @Volatile private var reputation: NodeReputationService? = null
+
+    fun setReputation(rep: NodeReputationService?) { reputation = rep }
+
     var onBundleDelivered: ((DtnDeliveryReceipt) -> Unit)? = null
 
     suspend fun createBundle(
@@ -122,6 +127,7 @@ class DtnService(
             val delivered = bundle.copy(status = "Delivered")
             store.save(delivered)
             sendDeliveryReceipt(delivered)
+            reputation?.recordDeliverySuccess(packet.sourceUhid, 0)
             return
         }
         if (store.getActiveCount() >= AetherConstants.DTN_MAX_BUNDLES_PER_NODE) {
@@ -144,7 +150,10 @@ class DtnService(
 
     private suspend fun handleCustodyAck(packet: MeshPacket) {
         val (bundleId, accepted) = parseCustodyAck(packet.payload) ?: return
-        if (!accepted) return
+        if (!accepted) {
+            reputation?.recordCustodyRefusal(packet.sourceUhid)
+            return
+        }
         val bundle = store.get(bundleId) ?: return
         store.save(bundle.copy(copyCount = bundle.copyCount + 1))
     }

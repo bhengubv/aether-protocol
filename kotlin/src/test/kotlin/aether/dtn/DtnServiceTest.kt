@@ -9,11 +9,13 @@ import aether.models.NodeCapabilities
 import aether.models.PeerInfo
 import aether.protocol.MeshPacket
 import aether.protocol.PacketType
+import aether.security.NodeReputationService
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -224,5 +226,70 @@ class DtnServiceTest {
         val n = svc.expireStale()
         assertEquals(1, n)
         assertEquals("Pending", store.get(fresh.id)!!.status)
+    }
+
+    // ─── Reputation hooks ───────────────────────────────────
+
+    @Test fun handle_deliveryToSelf_firesRecordDeliverySuccess() = runBlocking {
+        val (svc, _, _) = newSvc()
+        val rep = FakeReputation()
+        svc.setReputation(rep)
+
+        val b = DtnBundle(
+            senderUhid = "alice",
+            recipientUhid = LOCAL,
+            encryptedPayload = byteArrayOf(1),
+        )
+        svc.handle(buildBundlePacket("alice", b))
+
+        assertEquals(1, rep.deliverySuccesses.size)
+        assertEquals("alice", rep.deliverySuccesses[0])
+    }
+
+    @Test fun handle_bundleNotForUs_doesNotFireRecordDeliverySuccess() = runBlocking {
+        val (svc, _, _) = newSvc()
+        val rep = FakeReputation()
+        svc.setReputation(rep)
+
+        val b = DtnBundle(
+            senderUhid = "alice",
+            recipientUhid = "bob",   // not LOCAL
+            encryptedPayload = byteArrayOf(1),
+        )
+        svc.handle(buildBundlePacket("alice", b))
+
+        assertTrue(rep.deliverySuccesses.isEmpty())
+    }
+
+    @Test fun handle_negativeCustodyAck_firesRecordCustodyRefusal() = runBlocking {
+        val (svc, _, _) = newSvc()
+        val rep = FakeReputation()
+        svc.setReputation(rep)
+
+        val payload = "{\"bundle_id\":\"${UUID.randomUUID()}\",\"accepted\":false}"
+        val pkt = MeshPacket(
+            type = PacketType.DtnCustodyAck,
+            sourceUhid = "carrier",
+            destinationUhid = LOCAL,
+            payload = payload.toByteArray(Charsets.UTF_8),
+        )
+        svc.handle(pkt)
+
+        assertEquals(1, rep.custodyRefusals.size)
+        assertEquals("carrier", rep.custodyRefusals[0])
+    }
+}
+
+/** Test double for [NodeReputationService] that records calls without side-effects. */
+private class FakeReputation : NodeReputationService() {
+    val deliverySuccesses = mutableListOf<String>()
+    val custodyRefusals   = mutableListOf<String>()
+
+    override fun recordDeliverySuccess(uhid: String, roundTripMs: Int) {
+        deliverySuccesses += uhid
+    }
+
+    override fun recordCustodyRefusal(uhid: String) {
+        custodyRefusals += uhid
     }
 }

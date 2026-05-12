@@ -23,6 +23,11 @@
 #define AETHER_ROUTE_TIMEOUT_MS      5000
 #define AETHER_ROUTE_EXPIRY_SECONDS  300
 
+/** Maximum unique RREQs from a single source in the rate-limit window. */
+#define AETHER_RREQ_RATE_LIMIT_MAX       10
+/** Rate-limit sliding window in seconds. */
+#define AETHER_RREQ_RATE_LIMIT_WINDOW_S  10
+
 // String size limits (for embedded devices)
 #define AETHER_MAX_UHID_LEN          128
 #define AETHER_MAX_PAYLOAD_LEN       (16 * 1024 * 1024)  // 16MB max payload (int32 length field)

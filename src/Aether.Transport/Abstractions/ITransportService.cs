@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using Aether.Protocol;
+using Aether.Transport.Models;
 
 namespace Aether.Transport.Abstractions;
 
@@ -31,6 +32,12 @@ public interface ITransportService
 
     /// <summary>Maximum number of peers this transport can handle concurrently.</summary>
     int MaxConcurrentPeers { get; }
+
+    /// <summary>
+    /// Live per-transport EWMA metrics (RTT, loss rate, throughput). Null if this
+    /// transport has not yet been registered with a <c>PredictiveTransportSelector</c>.
+    /// </summary>
+    PerTransportMetrics? Metrics => null;
 
     /// <summary>
     /// Sends raw data to a specific peer identified by their UHID.

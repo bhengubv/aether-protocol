@@ -58,6 +58,11 @@ const (
 	// (highest mutually-supported) protocol version and the intersection
 	// of capability flags. Same JSON payload shape as Hello.
 	HelloAck PacketType = 51
+
+	// PacketTypeReputationUpdate carries a signed reputation gossip payload.
+	// Flooded with TTL=3 so reputation signals propagate across the mesh
+	// without overwhelming it. Payload is a JSON-encoded ReputationUpdatePayload.
+	PacketTypeReputationUpdate PacketType = 52
 )
 
 // MeshPacket is the core packet transmitted across the Aether mesh network.
@@ -207,6 +212,8 @@ func (pt PacketType) String() string {
 		return "Hello"
 	case HelloAck:
 		return "HelloAck"
+	case PacketTypeReputationUpdate:
+		return "ReputationUpdate"
 	default:
 		return "Unknown"
 	}

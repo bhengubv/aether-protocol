@@ -1,0 +1,22 @@
+{
+  "$schema": "Expected outputs for x3dh_session_reply in fixtures/signal/inputs.json. Tests cross-language agreement on the FULL DhRatchetReceive path: two KDF_RK applications (recv chain + send chain), symmetric ratchet step, AES-256-GCM decrypt, and Alice's symmetric verification that her KDF_RK output matches Bob's send chain. Regenerate only when intentionally changing the protocol.",
+
+  "bob_ratchet_pub_hex":       "f5b2d6e60f9477e310c2982daaa6c9136c108a1777c5947e448fa37d68174557",
+  "alice_ephemeral_pub_hex":   "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59",
+
+  "dh_recv_hex":               "09bb974ce3799959096660bdece3bb89ca106e6df31c2f701b7b8b9977047c34",
+  "bob_new_root_after_recv_hex": "ba949de674b07650b8386a2cc186011e1f697bdcea7fab883671cfdda7c02507",
+  "bob_recv_chain_key_hex":    "a0184bb5a894fd5f750b460940ec08e400e28f32a41c65d2eb2d34d3e29e6ae8",
+
+  "dh_send_hex":               "aaa0841662764aeab7f1ee7adb452f2c7efc93f6aa8e327d91c4a23cb737d130",
+  "bob_new_root2_hex":         "52f7097fa24aa05878b1dd0b0fe137a008d95cac295ed1d9b5a1c0b6532a70e2",
+  "bob_send_chain_key_hex":    "a1f10956f8c6255b50335d90ce113efd5fdc2ed59c852f60126f5021e12612f1",
+
+  "bob_message_key_0_hex":     "91e345b7c247bccaaf0351023dcdf4c2672dfb182d622a0a775fcec61bb5b6e8",
+
+  "alice_recv_chain_key_hex":  "a1f10956f8c6255b50335d90ce113efd5fdc2ed59c852f60126f5021e12612f1",
+
+  "plaintext_hex":             "706f6e672066726f6d20626f62",
+  "nonce_hex":                 "000000000000000000000000",
+  "ciphertext_and_tag_hex":    "9d187b95bdaece7c298c3f31c2b10b336328462c448b8f716b8e15db2f"
+}

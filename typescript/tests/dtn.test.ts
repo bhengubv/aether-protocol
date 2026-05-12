@@ -5,7 +5,7 @@
  * Run with: tsx --test typescript/tests/dtn.test.ts
  */
 
-import { describe, it } from "node:test";
+import { describe, it, test } from "node:test";
 import { strict as assert } from "node:assert";
 
 import { DTN_MAX_BUNDLES_PER_NODE, DTN_BUNDLE_TTL_HOURS } from "../src/constants.js";
@@ -19,6 +19,7 @@ import {
   newDtnBundle,
 } from "../src/models/index.js";
 import { DtnService, InMemoryDtnBundleStore } from "../src/dtn/index.js";
+import { NodeReputationService } from "../src/reputation.js";
 import { FakeMeshSender } from "./fakes.js";
 
 const LOCAL = "local";
@@ -213,4 +214,99 @@ describe("DtnService — ExpireStale", () => {
     const freshAfter = await store.get(fresh.id);
     assert.equal(freshAfter!.status, BundleStatus.Pending);
   });
+});
+
+// ── Item 20: DTN reputation hooks ────────────────────────────────────────────
+
+class FakeReputation {
+  deliveryCalls: Array<{ uhid: string; roundTripMs: number }> = [];
+  refusalCalls: string[] = [];
+  recordDeliverySuccess(uhid: string, roundTripMs: number): void {
+    this.deliveryCalls.push({ uhid, roundTripMs });
+  }
+  recordCustodyRefusal(uhid: string): void { this.refusalCalls.push(uhid); }
+  recordRreqFloodAttempt(_: string): void {}
+  recordReplayAttempt(_: string): void {}
+  recordSignatureFailure(_: string): void {}
+  recordDeliveryFailure(_: string): void {}
+  getReputationScore(_: string): number { return 1.0; }
+  getAllScores(): Map<string, number> { return new Map(); }
+  applyWeightedDelta(_: string, __: number): void {}
+}
+
+test("dtnDeliveryToSelfFiresReputationSuccess", async () => {
+  const sender = new FakeMeshSender(LOCAL);
+  const store = new InMemoryDtnBundleStore();
+  const svc = new DtnService(sender, store);
+  const rep = new FakeReputation();
+  svc.setReputation(rep as unknown as NodeReputationService);
+
+  // Bundle addressed to LOCAL — must fire recordDeliverySuccess
+  const bundle = newDtnBundle("alice", LOCAL, new Uint8Array([1]));
+  await svc.handle(buildBundlePacket("alice", bundle));
+
+  assert.equal(rep.deliveryCalls.length, 1);
+  assert.equal(rep.deliveryCalls[0]!.uhid, "alice");
+  assert.equal(rep.deliveryCalls[0]!.roundTripMs, 0);
+});
+
+test("dtnBundleForOtherNodeDoesNotFireReputationSuccess", async () => {
+  const sender = new FakeMeshSender(LOCAL);
+  const store = new InMemoryDtnBundleStore();
+  const svc = new DtnService(sender, store);
+  const rep = new FakeReputation();
+  svc.setReputation(rep as unknown as NodeReputationService);
+
+  // Bundle addressed to "bob", not LOCAL — must NOT fire reputation
+  const bundle = newDtnBundle("alice", "bob", new Uint8Array([2]));
+  await svc.handle(buildBundlePacket("alice", bundle));
+
+  assert.equal(rep.deliveryCalls.length, 0);
+});
+
+test("dtnCustodyRefusalFiresReputationCustodyRefusal", async () => {
+  const sender = new FakeMeshSender(LOCAL);
+  const store = new InMemoryDtnBundleStore();
+  const svc = new DtnService(sender, store);
+  const rep = new FakeReputation();
+  svc.setReputation(rep as unknown as NodeReputationService);
+
+  const bundle = await svc.createBundle("recipient", new Uint8Array([3]));
+
+  const body = new TextEncoder().encode(
+    JSON.stringify({ bundle_id: bundle.id, accepted: false }),
+  );
+  const pkt = new MeshPacket();
+  pkt.type = PacketType.DtnCustodyAck;
+  pkt.sourceUhid = "carrier";
+  pkt.destinationUhid = LOCAL;
+  pkt.payload = body;
+  await svc.handle(pkt);
+
+  assert.equal(rep.refusalCalls.length, 1);
+  assert.equal(rep.refusalCalls[0], "carrier");
+});
+
+test("dtnReputationNullNoError", async () => {
+  const sender = new FakeMeshSender(LOCAL);
+  const store = new InMemoryDtnBundleStore();
+  const svc = new DtnService(sender, store);
+  // No setReputation call — reputation stays null
+
+  // Delivery to self — must not throw
+  const bundle = newDtnBundle("alice", LOCAL, new Uint8Array([4]));
+  await svc.handle(buildBundlePacket("alice", bundle));
+
+  // Custody refusal — must not throw
+  const bundle2 = await svc.createBundle("recipient", new Uint8Array([5]));
+  const body = new TextEncoder().encode(
+    JSON.stringify({ bundle_id: bundle2.id, accepted: false }),
+  );
+  const pkt = new MeshPacket();
+  pkt.type = PacketType.DtnCustodyAck;
+  pkt.sourceUhid = "carrier";
+  pkt.destinationUhid = LOCAL;
+  pkt.payload = body;
+  await svc.handle(pkt);
+  // Reaching here without exception is the assertion
 });

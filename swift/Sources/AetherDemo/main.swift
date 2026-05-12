@@ -47,8 +47,9 @@ func testPacketSerialization() async {
 
     // Generate packet nonce
     var nonce = Data(count: 8)
-    _ = nonce.withUnsafeMutableBytes { buffer in
-        SecRandomCopyBytes(kSecRandomDefault, 8, buffer.baseAddress!)
+    nonce.withUnsafeMutableBytes { buffer in
+        var rng = SystemRandomNumberGenerator()
+        for i in 0..<8 { buffer[i] = rng.next() }
     }
     packet.packetNonce = nonce
 
@@ -220,8 +221,9 @@ func testEndToEndMessaging() async {
 
         // Add nonce
         var nonce = Data(count: 8)
-        _ = nonce.withUnsafeMutableBytes { buffer in
-            SecRandomCopyBytes(kSecRandomDefault, 8, buffer.baseAddress!)
+        nonce.withUnsafeMutableBytes { buffer in
+            var rng = SystemRandomNumberGenerator()
+            for i in 0..<8 { buffer[i] = rng.next() }
         }
         packet.packetNonce = nonce
 

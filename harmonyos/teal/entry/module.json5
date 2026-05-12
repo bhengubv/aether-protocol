@@ -1,0 +1,48 @@
+{
+  "module": {
+    "name": "entry",
+    "type": "entry",
+    "description": "$string:module_desc",
+    "mainElement": "EntryAbility",
+    "deviceTypes": [
+      "phone",
+      "tablet"
+    ],
+    "deliveryWithInstall": true,
+    "installationFree": false,
+    "pages": "$profile:main_pages",
+    "abilities": [
+      {
+        "name": "EntryAbility",
+        "srcEntry": "./ets/entryability/EntryAbility.ets",
+        "description": "$string:EntryAbility_desc",
+        "icon": "$media:icon",
+        "label": "$string:EntryAbility_label",
+        "startWindowIcon": "$media:startIcon",
+        "startWindowBackground": "$color:start_window_background",
+        "exported": true,
+        "skills": [
+          {
+            "entities": ["entity.system.home"],
+            "actions": ["action.system.home"]
+          }
+        ]
+      }
+    ],
+    "requestPermissions": [
+      {
+        // ohos.permission.ACCESS_NEARLINK is the single user_grant permission
+        // covering scan, advertising, connect, and data transfer for NearLink SLE.
+        // Source: HarmonyOS 5.0.1 (API 13) NearLink Kit documentation:
+        //   developer.huawei.com/consumer/en/doc/harmonyos-guides/nearlink-preparations
+        // The permission is requested at runtime in NearLinkTransportService.probeAvailability().
+        "name": "ohos.permission.ACCESS_NEARLINK",
+        "reason": "$string:nearlink_reason",
+        "usedScene": {
+          "abilities": ["EntryAbility"],
+          "when": "inuse"
+        }
+      }
+    ]
+  }
+}

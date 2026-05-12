@@ -8,6 +8,8 @@ export const DEFAULT_TTL = 7;
 export const SOS_TTL = 15;
 export const ROUTE_TIMEOUT_MS = 5000;
 export const ROUTE_EXPIRY_SECONDS = 300;
+export const RREQ_RATE_LIMIT_MAX = 10;            // max unique RREQs per source per sliding window
+export const RREQ_RATE_LIMIT_WINDOW_SECONDS = 10; // sliding window duration in seconds
 
 // Security
 export const PACKET_NONCE_SIZE = 8;

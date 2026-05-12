@@ -251,3 +251,94 @@ def test_verify_packet_rejects_none_public_key():
     pkt = _make_packet("alice")
     with pytest.raises(ValueError):
         svc.verify_packet(pkt, None)
+
+
+# ─── Item 21: PacketSigning reputation hooks ───────────────────────────
+
+
+class FakeReputation:
+    """Minimal stand-in for NodeReputationService to verify hook calls."""
+
+    def __init__(self):
+        self.replay_calls: list[str] = []
+        self.sig_failure_calls: list[str] = []
+
+    def record_replay_attempt(self, uhid: str) -> None:
+        self.replay_calls.append(uhid)
+
+    def record_signature_failure(self, uhid: str) -> None:
+        self.sig_failure_calls.append(uhid)
+
+
+def test_replay_attempt_fires_record_replay_attempt():
+    """Duplicate (source, nonce) after a valid first packet calls record_replay_attempt."""
+    priv, pub = Ed25519SigningService.generate_keypair()
+    svc = PacketSigningService()
+    rep = FakeReputation()
+    svc.set_reputation(rep)
+
+    nonce = b"\xab" * 8
+
+    # First packet: valid, accepted — no reputation calls expected.
+    pkt1 = _make_packet("alice", nonce=nonce)
+    svc.sign_packet(pkt1, priv)
+    assert svc.verify_packet(pkt1, pub) is True
+    assert rep.replay_calls == []
+    assert rep.sig_failure_calls == []
+
+    # Second packet: same (source, nonce) — replay, must call the hook.
+    pkt2 = _make_packet("alice", nonce=nonce, payload=b"replayed")
+    svc.sign_packet(pkt2, priv)
+    assert svc.verify_packet(pkt2, pub) is False
+    assert rep.replay_calls == ["alice"]
+    assert rep.sig_failure_calls == []
+
+
+def test_new_nonce_does_not_fire_replay_hook():
+    """A fresh (source, nonce) pair must not trigger record_replay_attempt."""
+    priv, pub = Ed25519SigningService.generate_keypair()
+    svc = PacketSigningService()
+    rep = FakeReputation()
+    svc.set_reputation(rep)
+
+    for i in range(3):
+        nonce = bytes([i]) * 8
+        pkt = _make_packet("alice", nonce=nonce, payload=bytes([i]))
+        svc.sign_packet(pkt, priv)
+        assert svc.verify_packet(pkt, pub) is True
+
+    assert rep.replay_calls == []
+    assert rep.sig_failure_calls == []
+
+
+def test_signature_failure_fires_record_signature_failure():
+    """An invalid Ed25519 signature calls record_signature_failure."""
+    priv, pub = Ed25519SigningService.generate_keypair()
+    _, wrong_pub = Ed25519SigningService.generate_keypair()
+    svc = PacketSigningService()
+    rep = FakeReputation()
+    svc.set_reputation(rep)
+
+    pkt = _make_packet("mallory")
+    svc.sign_packet(pkt, priv)
+    # Verify with the wrong public key — signature check must fail.
+    assert svc.verify_packet(pkt, wrong_pub) is False
+    assert rep.sig_failure_calls == ["mallory"]
+    assert rep.replay_calls == []
+
+
+def test_no_reputation_service_no_error_on_replay():
+    """Replay detection without a reputation service attached does not raise."""
+    priv, pub = Ed25519SigningService.generate_keypair()
+    svc = PacketSigningService()
+    # No set_reputation call — _reputation stays None.
+
+    nonce = b"\xcc" * 8
+    pkt1 = _make_packet("alice", nonce=nonce)
+    svc.sign_packet(pkt1, priv)
+    assert svc.verify_packet(pkt1, pub) is True
+
+    pkt2 = _make_packet("alice", nonce=nonce, payload=b"replay")
+    svc.sign_packet(pkt2, priv)
+    # Must return False (replay detected) without raising.
+    assert svc.verify_packet(pkt2, pub) is False

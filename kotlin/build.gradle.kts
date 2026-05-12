@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "1.9.21"
+    kotlin("plugin.serialization") version "1.9.21"
     application
     // kotlinx-benchmark — the Kotlin-native bench harness. Mirrors the
     // tinybench (TS), pytest-benchmark (Python), Go testing.B, and
@@ -45,6 +46,10 @@ dependencies {
 
     // Coroutines for async operations
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+
+    // JSON serialization — used by ReputationGossipService wire format
+    // 1.6.3 is the last release compatible with Kotlin 1.9.x (1.7.x requires Kotlin 2.0+)
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // Kotlin stdlib
     implementation(kotlin("stdlib"))

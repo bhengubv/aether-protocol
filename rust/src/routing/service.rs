@@ -22,6 +22,7 @@ use crate::constants::{DEFAULT_TTL, ROUTE_EXPIRY_SECONDS, ROUTE_TIMEOUT_MS};
 use crate::extensibility::{IncentiveProvider, NoopIncentiveProvider};
 use crate::models::RouteEntry;
 use crate::protocol::{MeshPacket, PacketType};
+use crate::reputation::NodeReputationService;
 
 use super::sender::MeshSender;
 use super::store::{InMemoryRouteStore, RouteStore};
@@ -33,6 +34,8 @@ pub struct RoutingService {
     store: Arc<dyn RouteStore>,
     verifier: Arc<dyn RouteReplyVerifier>,
     incentives: Arc<dyn IncentiveProvider>,
+    /// Optional reputation service; `None` disables reputation tracking.
+    reputation: Option<Arc<NodeReputationService>>,
 
     state: Mutex<State>,
 }
@@ -66,6 +69,7 @@ impl RoutingService {
             store,
             verifier,
             incentives,
+            reputation: None,
             state: Mutex::new(State {
                 cache: HashMap::new(),
                 pending: HashMap::new(),
@@ -73,6 +77,12 @@ impl RoutingService {
                 loaded: false,
             }),
         }
+    }
+
+    /// Attaches a reputation service so that RREQ flood attempts are recorded.
+    pub fn with_reputation(mut self, reputation: Arc<NodeReputationService>) -> Self {
+        self.reputation = Some(reputation);
+        self
     }
 
     pub async fn find_route(&self, destination_uhid: &str) -> Option<RouteEntry> {
@@ -121,6 +131,12 @@ impl RoutingService {
         {
             let mut state = self.state.lock().await;
             if !state.seen_rreqs.insert(rreq.id) {
+                // Duplicate RREQ packet — record as flood attempt.
+                let source = rreq.source_uhid.clone();
+                drop(state);
+                if let Some(rep) = &self.reputation {
+                    rep.record_rreq_flood_attempt(&source);
+                }
                 return;
             }
         }

@@ -27,6 +27,7 @@ import {
   DTN_MAX_BUNDLES_PER_NODE,
 } from "../constants.js";
 import { IMeshSender } from "../routing/IMeshSender.js";
+import { NodeReputationService } from "../reputation.js";
 import { IDtnBundleStore, InMemoryDtnBundleStore } from "./IDtnBundleStore.js";
 import {
   GeohashEpidemicStrategy,
@@ -38,6 +39,8 @@ const DTN_BUNDLE_TTL_FOR_PACKET = 30; // ProtocolConstants.DtnTtl
 export class DtnService {
   onBundleDelivered?: (receipt: DtnDeliveryReceipt) => void;
 
+  private reputation: NodeReputationService | null = null;
+
   constructor(
     private readonly sender: IMeshSender,
     private readonly store: IDtnBundleStore = new InMemoryDtnBundleStore(),
@@ -45,6 +48,10 @@ export class DtnService {
     private readonly incentives: IncentiveProvider = new NoopIncentiveProvider(),
     private readonly backend: BackendClient = new NoopBackendClient(),
   ) {}
+
+  setReputation(rep: NodeReputationService | null): void {
+    this.reputation = rep;
+  }
 
   async createBundle(
     recipientUhid: string,
@@ -147,6 +154,7 @@ export class DtnService {
       bundle.status = BundleStatus.Delivered;
       await this.store.save(bundle);
       await this.sendDeliveryReceipt(bundle);
+      this.reputation?.recordDeliverySuccess(packet.sourceUhid, 0);
       return;
     }
 
@@ -178,7 +186,12 @@ export class DtnService {
     } catch {
       return;
     }
-    if (!data.bundle_id || !data.accepted) return;
+    if (!data.bundle_id) return;
+    if (data.accepted === false) {
+      this.reputation?.recordCustodyRefusal(packet.sourceUhid);
+      return;
+    }
+    if (!data.accepted) return;
     const bundle = await this.store.get(data.bundle_id);
     if (!bundle) return;
     bundle.copyCount += 1;

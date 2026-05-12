@@ -12,6 +12,7 @@ import (
 	"github.com/thegeeknetwork/aether-protocol-go/constants"
 	"github.com/thegeeknetwork/aether-protocol-go/models"
 	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/thegeeknetwork/aether-protocol-go/reputation"
 )
 
 type unicastRecord struct {
@@ -329,6 +330,90 @@ func TestExpireStale_FlipsStatusForExpiredBundles(t *testing.T) {
 	fresh, _ := store.Get(context.Background(), freshID)
 	if fresh.Status != models.DtnStatusPending {
 		t.Fatalf("fresh bundle should remain pending")
+	}
+}
+
+// ─── Reputation hooks ──────────────────────────────────────
+
+func TestHandleBundle_DeliverySuccess_FiresReputation(t *testing.T) {
+	svc, _, _ := newDtnSvc(t)
+	rep := reputation.NewNodeReputationService()
+	svc.SetReputation(rep)
+
+	bundle := &models.DtnBundle{
+		ID:               uuid.NewString(),
+		SenderUhid:       "alice",
+		RecipientUhid:    local, // addressed to us
+		EncryptedPayload: []byte{1},
+		Priority:         models.DtnPriorityNormal,
+		Status:           models.DtnStatusPending,
+		CopyCount:        1,
+		MaxCopies:        constants.DtnMaxCopies,
+		CreatedAt:        time.Now(),
+		ExpiresAt:        time.Now().Add(72 * time.Hour),
+	}
+	pkt := buildBundlePacket(t, "alice", bundle)
+
+	if err := svc.Handle(context.Background(), pkt); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	// RecordDeliverySuccess applies +0.01; unknown peers start at 1.0 which clamps to 1.0 still,
+	// so we verify via GetAllScores that an entry for "alice" now exists.
+	scores := rep.GetAllScores()
+	if _, ok := scores["alice"]; !ok {
+		t.Fatalf("expected reputation entry for alice after delivery success, scores=%v", scores)
+	}
+}
+
+func TestHandleBundle_NotForUs_NoReputationFired(t *testing.T) {
+	svc, _, _ := newDtnSvc(t)
+	rep := reputation.NewNodeReputationService()
+	svc.SetReputation(rep)
+
+	bundle := &models.DtnBundle{
+		ID:               uuid.NewString(),
+		SenderUhid:       "alice",
+		RecipientUhid:    "bob", // not us
+		EncryptedPayload: []byte{1},
+		Priority:         models.DtnPriorityNormal,
+		Status:           models.DtnStatusPending,
+		CopyCount:        1,
+		MaxCopies:        constants.DtnMaxCopies,
+		CreatedAt:        time.Now(),
+		ExpiresAt:        time.Now().Add(72 * time.Hour),
+	}
+	pkt := buildBundlePacket(t, "alice", bundle)
+
+	if err := svc.Handle(context.Background(), pkt); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	// No reputation call should have been made; scores map must be empty.
+	if scores := rep.GetAllScores(); len(scores) != 0 {
+		t.Fatalf("expected no reputation entries, got %v", scores)
+	}
+}
+
+func TestHandleCustodyAck_Refused_FiresReputation(t *testing.T) {
+	svc, _, _ := newDtnSvc(t)
+	rep := reputation.NewNodeReputationService()
+	svc.SetReputation(rep)
+
+	bundle, _ := svc.CreateBundle(context.Background(), "recipient", []byte{1}, models.DtnPriorityNormal, "")
+
+	body, _ := json.Marshal(map[string]any{"bundle_id": bundle.ID, "accepted": false})
+	pkt := protocol.NewMeshPacket()
+	pkt.Type = protocol.DtnCustodyAck
+	pkt.SourceUhid = "carrier"
+	pkt.DestinationUhid = local
+	pkt.Payload = body
+
+	if err := svc.Handle(context.Background(), pkt); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	// RecordCustodyRefusal applies -0.05; carrier's score should be < 1.0.
+	score := rep.GetReputationScore("carrier")
+	if score >= 1.0 {
+		t.Fatalf("expected carrier score < 1.0 after custody refusal, got %f", score)
 	}
 }
 

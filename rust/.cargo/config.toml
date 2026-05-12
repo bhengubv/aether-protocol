@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MIT
+# Workaround: VS 18 Insiders only ships onecore libs; point the linker at
+# VS 2022 Community's onecore/x64 which contains msvcrt.lib.
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+  "-Clink-arg=/LIBPATH:C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\lib\\onecore\\x64",
+  "-Clink-arg=/LIBPATH:C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\x64",
+  "-Clink-arg=/LIBPATH:C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\x64",
+]

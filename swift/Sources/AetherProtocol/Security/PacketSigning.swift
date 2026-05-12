@@ -22,9 +22,22 @@ public actor PacketSigningService {
     private let ed25519PrivateKey: Data
     private let ed25519PublicKey: Data
 
+    /// Optional reputation service. When set, replay and signature-failure
+    /// events are forwarded so that the per-UHID reputation score is updated
+    /// in real time. Injected after construction via ``setReputation(_:)``
+    /// to avoid a circular dependency between the security and reputation
+    /// layers at initialisation time.
+    private var reputation: NodeReputationService?
+
     public init(privateKey: Data, publicKey: Data) {
         self.ed25519PrivateKey = privateKey
         self.ed25519PublicKey = publicKey
+    }
+
+    /// Wires up (or removes) the reputation service used to penalise
+    /// misbehaving peers. Pass `nil` to detach.
+    public func setReputation(_ rep: NodeReputationService?) {
+        reputation = rep
     }
 
     /// Signs a mesh packet according to the Aether protocol.
@@ -36,16 +49,35 @@ public actor PacketSigningService {
     }
 
     /// Verifies a packet signature and checks for replay attacks.
+    ///
+    /// Reputation hooks:
+    /// - A duplicate-nonce (replay) error penalises `sourceUhid` via
+    ///   ``NodeReputationService/recordReplayAttempt(uhid:)`` before the
+    ///   error is re-thrown to the caller.
+    /// - A false signature result penalises `sourceUhid` via
+    ///   ``NodeReputationService/recordSignatureFailure(uhid:)`` before
+    ///   `false` is returned.
     public func verifyPacket(
         _ packet: MeshPacket,
         againstPublicKey publicKey: Data
-    ) throws -> Bool {
-        // Check nonce deduplication
-        try checkNonceDuplicate(packet.sourceUhid, packet.packetNonce)
+    ) async throws -> Bool {
+        // Check nonce deduplication — notify reputation on replay.
+        do {
+            try checkNonceDuplicate(packet.sourceUhid, packet.packetNonce)
+        } catch let error as PacketSigningError {
+            if case .duplicateNonce(let sourceUhid) = error {
+                await reputation?.recordReplayAttempt(uhid: sourceUhid)
+            }
+            throw error
+        }
 
-        // Construct and verify signature
+        // Construct and verify signature — notify reputation on failure.
         let signableData = try constructSignableData(packet)
-        return Ed25519Service.verify(publicKey, signableData, packet.signature)
+        let isValid = Ed25519Service.verify(publicKey, signableData, packet.signature)
+        if !isValid {
+            await reputation?.recordSignatureFailure(uhid: packet.sourceUhid)
+        }
+        return isValid
     }
 
     /// Gets the public key for this signing service.

@@ -56,7 +56,14 @@ enum class PacketType(val value: Byte) {
      * supported) protocol version and the intersection of capability flags.
      * Same JSON payload shape as [Hello].
      */
-    HelloAck(51);
+    HelloAck(51),
+
+    /**
+     * Signed peer-to-peer reputation-score gossip packet.
+     * Payload is UTF-8 JSON-encoded [aether.reputation.ReputationGossipService.ReputationUpdatePayload].
+     * Wire value 52 — matches all other language implementations.
+     */
+    ReputationUpdate(52);
 
     companion object {
         fun fromValue(value: Byte): PacketType? = values().find { it.value == value }

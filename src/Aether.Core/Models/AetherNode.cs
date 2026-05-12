@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+using Aether.Identity;
+
 namespace Aether.Models;
 
 /// <summary>
@@ -68,6 +70,15 @@ public sealed class AetherNode
 
     /// <summary>Ed25519 or X25519 public key bytes for identity verification and key exchange.</summary>
     public byte[] PublicKey { get; set; } = [];
+
+    /// <summary>
+    /// The node's Aether Tag — a human-readable, shareable identity address derived from
+    /// <see cref="PublicKey"/>. Format: XXXXX-XXXXX (Crockford base-32, e.g. "KXJB7-MN2P4").
+    /// Returns an empty string if <see cref="PublicKey"/> has not been set.
+    /// </summary>
+    public string AetherTag => PublicKey.Length == 32
+        ? Identity.AetherTag.FromPublicKey(PublicKey).Value
+        : string.Empty;
 
     /// <summary>Advertised capabilities of this node.</summary>
     public NodeCapabilities Capabilities { get; set; } = NodeCapabilities.None;

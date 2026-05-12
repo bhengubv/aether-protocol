@@ -46,9 +46,10 @@ target_link_libraries(test-signal-fixtures PRIVATE aether-protocol pthread)
 add_test(NAME SignalFixtureTests COMMAND test-signal-fixtures
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
-# Portable, dependency-free fuzz harness for the primitive entry points
-# (X25519 / HKDF / HMAC). 100k smoke iterations by default; tunable via
-# AETHER_FUZZ_ITERATIONS for adversarial local runs.
+# Portable, dependency-free fuzz harness covering:
+#   - aether_packet_deserialize (random bytes, oversize length prefix, mutated valid wire)
+#   - Crypto primitives: aether_x25519_*, aether_hkdf_sha256, aether_hmac_sha256
+# 10k smoke iterations by default; tunable via AETHER_FUZZ_ITERATIONS.
 add_executable(test-fuzz
     test_fuzz.c
 )
@@ -63,6 +64,104 @@ target_include_directories(test-signal-session PRIVATE ${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(test-signal-session PRIVATE aether-protocol pthread)
 add_test(NAME SignalSession COMMAND test-signal-session)
 
+add_executable(test-rlnc
+    test_rlnc.c
+)
+target_include_directories(test-rlnc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-rlnc PRIVATE aether-protocol pthread)
+add_test(NAME RlncTests COMMAND test-rlnc)
+
+add_executable(test-predictive-selector
+    test_predictive_selector.c
+)
+target_include_directories(test-predictive-selector PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-predictive-selector PRIVATE aether-protocol pthread m)
+add_test(NAME PredictiveSelectorTests COMMAND test-predictive-selector)
+
+add_executable(test-voice
+    test_voice.c
+)
+target_include_directories(test-voice PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-voice PRIVATE aether-protocol pthread)
+add_test(NAME VoiceTests COMMAND test-voice)
+
+add_executable(test-streaming
+    test_streaming.c
+)
+target_include_directories(test-streaming PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-streaming PRIVATE aether-protocol pthread)
+add_test(NAME StreamingTests COMMAND test-streaming)
+
+add_executable(test-group-voice
+    test_group_voice.c
+)
+target_include_directories(test-group-voice PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-group-voice PRIVATE aether-protocol pthread)
+add_test(NAME GroupVoiceTests COMMAND test-group-voice)
+
+add_executable(test-video-call
+    test_video_call.c
+)
+target_include_directories(test-video-call PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-video-call PRIVATE aether-protocol pthread)
+add_test(NAME VideoCallTests COMMAND test-video-call)
+
+add_executable(test-watch-together
+    test_watch_together.c
+)
+target_include_directories(test-watch-together PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-watch-together PRIVATE aether-protocol pthread)
+add_test(NAME WatchTogetherTests COMMAND test-watch-together)
+
+add_executable(test-security
+    test_security.c
+)
+target_include_directories(test-security PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-security PRIVATE aether-protocol pthread)
+add_test(NAME SecurityTests COMMAND test-security)
+
+add_executable(test-transport-metrics
+    test_transport_metrics.c
+)
+target_include_directories(test-transport-metrics PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-transport-metrics PRIVATE aether-protocol pthread m)
+add_test(NAME TransportMetricsTests COMMAND test-transport-metrics)
+
+add_executable(test-transport-inprocess
+    test_transport_inprocess.c
+)
+target_include_directories(test-transport-inprocess PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-transport-inprocess PRIVATE aether-protocol pthread)
+add_test(NAME TransportInprocessTests COMMAND test-transport-inprocess)
+
+add_executable(test-reputation
+    test_reputation.c
+)
+target_include_directories(test-reputation PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-reputation PRIVATE aether-protocol m)
+add_test(NAME ReputationTests COMMAND test-reputation)
+
+add_executable(test-anomaly
+    test_anomaly.c
+)
+target_include_directories(test-anomaly PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-anomaly PRIVATE aether-protocol m)
+add_test(NAME AnomalyTests COMMAND test-anomaly)
+
+add_executable(test-gossip
+    test_gossip.c
+)
+target_include_directories(test-gossip PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-gossip PRIVATE aether-protocol m)
+add_test(NAME GossipTests COMMAND test-gossip)
+
+add_executable(test-aether-tag
+    test_aether_tag.c
+)
+target_include_directories(test-aether-tag PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-aether-tag PRIVATE aether-protocol pthread)
+add_test(NAME AetherTagTests COMMAND test-aether-tag)
+
 # Convenience target: build every test binary in one step.
 # Usage: cmake --build build --target aether-tests
 add_custom_target(aether-tests
@@ -75,4 +174,18 @@ add_custom_target(aether-tests
         test-signal-fixtures
         test-signal-session
         test-fuzz
+        test-rlnc
+        test-predictive-selector
+        test-voice
+        test-streaming
+        test-group-voice
+        test-video-call
+        test-watch-together
+        test-security
+        test-transport-metrics
+        test-transport-inprocess
+        test-reputation
+        test-anomaly
+        test-gossip
+        test-aether-tag
 )

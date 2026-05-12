@@ -18,6 +18,10 @@ public actor RoutingService {
     private var pending: [String: CheckedContinuation<RouteEntry?, Never>] = [:]
     private var seenRreqs: Set<UUID> = []
     private var loaded = false
+    /// Per-source sliding-window timestamps (milliseconds since epoch).
+    private var rreqSources: [String: [Int64]] = [:]
+    /// Optional reputation service; nil disables flood recording.
+    private var reputation: NodeReputationService?
 
     public init(
         sender: any MeshSender,
@@ -54,9 +58,29 @@ public actor RoutingService {
         cache.values.filter { !$0.isExpired }
     }
 
+    /// Attach an optional NodeReputationService. Pass nil to disable.
+    public func setReputation(_ rep: NodeReputationService?) {
+        reputation = rep
+    }
+
     public func handleRouteRequest(_ rreq: MeshPacket) async {
         guard rreq.type == .routeRequest else { return }
         guard seenRreqs.insert(rreq.id).inserted else { return }
+        // Per-source RREQ rate limiting — mirrors Go/Rust RoutingService.
+        if !rreq.sourceUhid.isEmpty {
+            let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+            let windowStart = nowMs - ProtocolConstants.rreqRateLimitWindowMs
+            let src = rreq.sourceUhid
+            let existing = rreqSources[src] ?? []
+            let recent = existing.filter { $0 > windowStart }
+            if recent.count >= ProtocolConstants.rreqRateLimitMax {
+                rreqSources[src] = recent
+                seenRreqs.remove(rreq.id)   // undo dedup add — flood packets must not persist
+                await reputation?.recordRreqFloodAttempt(uhid: src)
+                return  // silently drop: source is flooding unique RREQs
+            }
+            rreqSources[src] = recent + [nowMs]
+        }
 
         let local = sender.localUhid
         guard !rreq.sourceUhid.isEmpty, rreq.sourceUhid != local else { return }

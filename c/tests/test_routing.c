@@ -13,6 +13,7 @@
 #include "aether/constants.h"
 #include "aether/protocol.h"
 #include "aether/routing.h"
+#include "aether_reputation.h"
 
 #define LOCAL_UHID "local"
 
@@ -341,6 +342,84 @@ static void prune_removes_expired_routes(void) {
     fake_clear(&s);
 }
 
+// ── Item 19: RREQ-flood reputation hook ──────────────────
+
+static void test_rreq_flood_fires_reputation(void) {
+    fake_state_t s = {0};
+    aether_mesh_sender_t sender = make_sender(&s);
+    aether_routing_service_t *svc = aether_routing_service_new(&sender);
+
+    AetherNodeReputationService rep;
+    aether_reputation_init(&rep);
+    aether_routing_set_reputation(svc, &rep);
+
+    /* Send AETHER_RREQ_RATE_LIMIT_MAX unique RREQs from same source — still within limit */
+    for (int i = 0; i < AETHER_RREQ_RATE_LIMIT_MAX; i++) {
+        aether_mesh_packet_t *pkt = new_rreq("attacker", "dest", AETHER_DEFAULT_TTL);
+        aether_routing_handle_rreq(svc, pkt);
+        aether_packet_free(pkt);
+    }
+    double score_before = aether_reputation_get_score(&rep, "attacker");
+    assert(score_before > 0.99); /* should still be 1.0 */
+
+    /* 11th unique RREQ — crosses limit, fires hook */
+    aether_mesh_packet_t *pkt11 = new_rreq("attacker", "dest", AETHER_DEFAULT_TTL);
+    aether_routing_handle_rreq(svc, pkt11);
+    aether_packet_free(pkt11);
+
+    double score_after = aether_reputation_get_score(&rep, "attacker");
+    /* After 1 flood record: 1.0 - 0.05 = 0.95 */
+    assert(score_after < 0.96 && score_after > 0.94);
+
+    aether_routing_service_free(svc);
+    fake_clear(&s);
+}
+
+static void test_rreq_normal_traffic_not_penalised(void) {
+    fake_state_t s = {0};
+    aether_mesh_sender_t sender = make_sender(&s);
+    aether_routing_service_t *svc = aether_routing_service_new(&sender);
+
+    AetherNodeReputationService rep;
+    aether_reputation_init(&rep);
+    aether_routing_set_reputation(svc, &rep);
+
+    /* 5 distinct sources each send 1 RREQ — none should be penalised */
+    for (int i = 0; i < 5; i++) {
+        char src[32];
+        snprintf(src, sizeof(src), "node-%d", i);
+        aether_mesh_packet_t *pkt = new_rreq(src, "dest", AETHER_DEFAULT_TTL);
+        aether_routing_handle_rreq(svc, pkt);
+        aether_packet_free(pkt);
+    }
+
+    for (int i = 0; i < 5; i++) {
+        char src[32];
+        snprintf(src, sizeof(src), "node-%d", i);
+        double score = aether_reputation_get_score(&rep, src);
+        assert(score > 0.99);
+    }
+
+    aether_routing_service_free(svc);
+    fake_clear(&s);
+}
+
+static void test_rreq_no_reputation_no_crash(void) {
+    fake_state_t s = {0};
+    aether_mesh_sender_t sender = make_sender(&s);
+    aether_routing_service_t *svc = aether_routing_service_new(&sender);
+    /* No reputation attached — flood path must not crash */
+
+    for (int i = 0; i <= AETHER_RREQ_RATE_LIMIT_MAX; i++) {
+        aether_mesh_packet_t *pkt = new_rreq("attacker", "dest", AETHER_DEFAULT_TTL);
+        aether_routing_handle_rreq(svc, pkt);
+        aether_packet_free(pkt);
+    }
+    /* No crash */
+    aether_routing_service_free(svc);
+    fake_clear(&s);
+}
+
 int main(void) {
     printf("Aether Routing Service — Unit Tests\n");
     printf("=====================================\n");
@@ -356,6 +435,9 @@ int main(void) {
     RUN(find_cached_returns_null_when_not_present);
     RUN(discover_returns_neg1_when_no_peers);
     RUN(prune_removes_expired_routes);
+    RUN(test_rreq_flood_fires_reputation);
+    RUN(test_rreq_normal_traffic_not_penalised);
+    RUN(test_rreq_no_reputation_no_crash);
 
     printf("\n%d tests passed.\n", tests_run);
     return 0;

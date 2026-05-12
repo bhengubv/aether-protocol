@@ -2,7 +2,11 @@
 
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/thegeeknetwork/aether-protocol-go/identity"
+)
 
 // NodeCapabilities is a bitfield representing node capabilities.
 type NodeCapabilities uint16
@@ -28,6 +32,10 @@ type AetherNode struct {
 	// Ed25519 public key (32 bytes)
 	IdentityKey []byte
 
+	// Human-readable identity address derived from IdentityKey.
+	// Populated by calling AetherNode.DeriveTag() after IdentityKey is set.
+	Tag identity.AetherTag
+
 	// Node capabilities bitfield
 	Capabilities NodeCapabilities
 
@@ -39,6 +47,17 @@ type AetherNode struct {
 
 	// Reliability score (0-100)
 	ReliabilityScore int32
+}
+
+// DeriveTag computes the AetherTag from the node's IdentityKey and stores it
+// in the Tag field.  It returns an error if IdentityKey is not 32 bytes.
+func (n *AetherNode) DeriveTag() error {
+	tag, err := identity.FromPublicKey(n.IdentityKey)
+	if err != nil {
+		return err
+	}
+	n.Tag = tag
+	return nil
 }
 
 // PeerInfo represents information about a connected peer.

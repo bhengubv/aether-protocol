@@ -1,0 +1,9 @@
+{
+  "string": [
+    { "name": "module_desc",          "value": "Aether Teal NearLink transport module" },
+    { "name": "EntryAbility_desc",    "value": "Aether Teal — NearLink mesh node" },
+    { "name": "EntryAbility_label",   "value": "Aether Teal" },
+    { "name": "nearlink_reason",
+      "value": "Aether Teal uses NearLink (SLE) to discover nearby Aether mesh nodes, advertise this node, and relay encrypted mesh packets over NearLink radio links" }
+  ]
+}

@@ -9,6 +9,7 @@
 
 #include "aether/protocol.h"
 #include "aether/routing.h"
+#include "aether_reputation.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +66,15 @@ typedef struct aether_dtn_service aether_dtn_service_t;
 
 aether_dtn_service_t *aether_dtn_service_new(aether_mesh_sender_t *sender);
 void aether_dtn_service_free(aether_dtn_service_t *service);
+
+/**
+ * Attach an optional reputation service. Pass NULL to detach.
+ * When set, the DTN service fires reputation events:
+ *   - delivery_success  when a bundle addressed to the local node is received.
+ *   - custody_refusal   when a DTN custody-ack indicates the peer refused.
+ * The caller retains ownership of `rep`; it must outlive the DTN service.
+ */
+void aether_dtn_set_reputation(aether_dtn_service_t *svc, AetherNodeReputationService *rep);
 
 /**
  * Create a bundle and queue it for delivery. The bundle is saved to the local

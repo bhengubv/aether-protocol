@@ -7,6 +7,8 @@ DEFAULT_TTL = 7
 SOS_TTL = 15
 ROUTE_TIMEOUT_MS = 5000
 ROUTE_EXPIRY_SECONDS = 300
+RREQ_RATE_LIMIT_MAX = 10            # max unique RREQs per source per sliding window
+RREQ_RATE_LIMIT_WINDOW_SECONDS = 10  # sliding window duration in seconds
 
 # BLE Discovery constants
 BLE_DISCOVERY_INTERVAL_MS = 10000

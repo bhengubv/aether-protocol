@@ -11,6 +11,7 @@
 
 #include "aether/dtn.h"
 #include "aether/constants.h"
+#include "aether_reputation.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +38,7 @@ struct aether_dtn_service {
     aether_mesh_sender_t *sender;
     bundle_node_t *bundles;
     custody_node_t *custody_records;
+    AetherNodeReputationService *reputation; // optional, may be NULL
 };
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -205,6 +207,11 @@ void aether_dtn_service_free(aether_dtn_service_t *service) {
     free(service);
 }
 
+void aether_dtn_set_reputation(aether_dtn_service_t *svc, AetherNodeReputationService *rep) {
+    if (!svc) return;
+    svc->reputation = rep;
+}
+
 int aether_dtn_create_bundle(aether_dtn_service_t *service,
                              const char *recipient_uhid,
                              const uint8_t *encrypted_payload,
@@ -245,7 +252,28 @@ void aether_dtn_handle_packet(aether_dtn_service_t *service, const aether_mesh_p
     // payloads. See header note: hosts wire up a JSON library on receive side
     // for production. The reference impl ships a placeholder so the service
     // compiles cleanly without a JSON dep.
-    (void)packet;
+
+    if (packet->type == AETHER_PACKET_TYPE_DTN_BUNDLE) {
+        // Bundle addressed to this node — record delivery success for the sender.
+        if (service->sender->local_uhid
+                && packet->destination_uhid
+                && strcmp(packet->destination_uhid, service->sender->local_uhid) == 0) {
+            if (service->reputation != NULL) {
+                aether_reputation_record_delivery_success(service->reputation,
+                                                         packet->source_uhid, 0);
+            }
+        }
+    } else if (packet->type == AETHER_PACKET_TYPE_DTN_CUSTODY_ACK) {
+        // Custody-ack refusal: hosts set payload[0] = 0 when the peer declines
+        // custody (accepted == 0). JSON hosts encode this in the body; the
+        // reference impl reads the first raw byte so it compiles without a JSON dep.
+        if (packet->payload && packet->payload_len >= 1 && packet->payload[0] == 0) {
+            if (service->reputation != NULL) {
+                aether_reputation_record_custody_refusal(service->reputation,
+                                                        packet->source_uhid);
+            }
+        }
+    }
 }
 
 void aether_dtn_run_delivery_scan(aether_dtn_service_t *service) {

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
@@ -49,6 +50,8 @@ class RoutingService:
         self._cache: Dict[str, RouteEntry] = {}
         self._pending: Dict[str, asyncio.Future[Optional[RouteEntry]]] = {}
         self._seen_rreqs: set[UUID] = set()
+        self._rreq_sources: Dict[str, List[float]] = {}   # per-source Unix timestamps
+        self._reputation = None  # optional NodeReputationService; None = disabled
         self._loaded = False
         self._lock = asyncio.Lock()
 
@@ -82,6 +85,10 @@ class RoutingService:
     def get_all_routes(self) -> List[RouteEntry]:
         return [r for r in self._cache.values() if not r.is_expired]
 
+    def set_reputation(self, reputation) -> None:
+        """Attach an optional NodeReputationService. Pass None to disable."""
+        self._reputation = reputation
+
     async def handle_route_request(self, rreq: MeshPacket) -> None:
         if rreq.type != PacketType.RouteRequest:
             raise ValueError("expected PacketType.RouteRequest")
@@ -89,6 +96,19 @@ class RoutingService:
         async with self._lock:
             if rreq.id in self._seen_rreqs:
                 return
+            # Per-source RREQ rate limiting — mirrors Go/Rust RoutingService.
+            # Unique packet IDs only count against the limit; duplicates caught above.
+            now_ts = time.time()
+            window_start = now_ts - constants.RREQ_RATE_LIMIT_WINDOW_SECONDS
+            recent = [ts for ts in self._rreq_sources.get(rreq.source_uhid, [])
+                      if ts > window_start]
+            if len(recent) >= constants.RREQ_RATE_LIMIT_MAX:
+                self._rreq_sources[rreq.source_uhid] = recent
+                if self._reputation is not None:
+                    self._reputation.record_rreq_flood_attempt(rreq.source_uhid)
+                return  # silently drop: source is flooding unique RREQs
+            recent.append(now_ts)
+            self._rreq_sources[rreq.source_uhid] = recent
             self._seen_rreqs.add(rreq.id)
 
         local = self._sender.local_uhid

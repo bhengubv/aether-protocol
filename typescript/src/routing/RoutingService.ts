@@ -12,7 +12,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { DEFAULT_TTL, ROUTE_EXPIRY_SECONDS, ROUTE_TIMEOUT_MS } from "../constants.js";
+import { DEFAULT_TTL, ROUTE_EXPIRY_SECONDS, ROUTE_TIMEOUT_MS, RREQ_RATE_LIMIT_MAX, RREQ_RATE_LIMIT_WINDOW_SECONDS } from "../constants.js";
+import { NodeReputationService } from "../reputation.js";
 import { IncentiveProvider, NoopIncentiveProvider } from "../extensibility.js";
 import { RouteEntry, isRouteExpired } from "../models/index.js";
 import { MeshPacket } from "../protocol/MeshPacket.js";
@@ -31,6 +32,8 @@ export class RoutingService {
   private readonly cache = new Map<string, RouteEntry>();
   private readonly pending = new Map<string, PendingDiscovery>();
   private readonly seenRreqs = new Set<string>();
+  private readonly rreqSources = new Map<string, number[]>(); // per-source epoch-seconds timestamps
+  private reputation: NodeReputationService | null = null;
   private loaded = false;
 
   constructor(
@@ -39,6 +42,11 @@ export class RoutingService {
     private readonly verifier: IRouteReplyVerifier = new AcceptAllRouteReplyVerifier(),
     private readonly incentives: IncentiveProvider = new NoopIncentiveProvider(),
   ) {}
+
+  /** Attach an optional NodeReputationService. Pass null to disable. */
+  setReputation(reputation: NodeReputationService | null): void {
+    this.reputation = reputation;
+  }
 
   async findRoute(destinationUhid: string): Promise<RouteEntry | null> {
     if (!destinationUhid) throw new Error("destinationUhid must not be empty");
@@ -72,6 +80,18 @@ export class RoutingService {
       throw new Error("expected PacketType.RouteRequest");
     }
     if (this.seenRreqs.has(rreq.id)) return;
+    // Per-source RREQ rate limiting — mirrors Go/Rust RoutingService.
+    const nowSec = Date.now() / 1000;
+    const windowStart = nowSec - RREQ_RATE_LIMIT_WINDOW_SECONDS;
+    const existing = this.rreqSources.get(rreq.sourceUhid) ?? [];
+    const recent = existing.filter((ts) => ts > windowStart);
+    if (recent.length >= RREQ_RATE_LIMIT_MAX) {
+      this.rreqSources.set(rreq.sourceUhid, recent);
+      this.reputation?.recordRreqFloodAttempt(rreq.sourceUhid);
+      return; // silently drop: source is flooding unique RREQs
+    }
+    recent.push(nowSec);
+    this.rreqSources.set(rreq.sourceUhid, recent);
     this.seenRreqs.add(rreq.id);
 
     const local = this.sender.localUhid;

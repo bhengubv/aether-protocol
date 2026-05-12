@@ -5,6 +5,7 @@ using Aether.Handshake;
 using Aether.Messaging;
 using Aether.Models;
 using Aether.Protocol;
+using Aether.Reputation;
 using Aether.Routing;
 using Aether.Security.Services;
 using Aether.Sos;
@@ -33,6 +34,9 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
     private bool _messagingAdded;
     private bool _transportAdded;
     private bool _handshakeAdded;
+    private bool _reputationAdded;
+    private bool _anomalyDetectorAdded;
+    private bool _gossipAdded;
 
     public AetherProtocolBuilder(IServiceCollection services)
     {
@@ -59,7 +63,8 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
             var signal = sp.GetRequiredService<ISignalProtocolService>();
             var logger = sp.GetService<ILogger<PacketSigningService>>()
                 ?? NullLogger<PacketSigningService>.Instance;
-            return new PacketSigningService(signal, logger);
+            var reputation = sp.GetService<INodeReputationService>();
+            return new PacketSigningService(signal, logger, reputation);
         });
 
         return this;
@@ -78,9 +83,10 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
             var sender = sp.GetRequiredService<IMeshSender>();
             var store = sp.GetService<IRouteStore>();
             var verifier = sp.GetService<IRouteReplyVerifier>();
+            var reputation = sp.GetService<INodeReputationService>();
             var logger = sp.GetService<ILogger<RoutingService>>()
                 ?? NullLogger<RoutingService>.Instance;
-            return new RoutingService(sender, store, verifier, incentives: null, logger: logger);
+            return new RoutingService(sender, store, verifier, incentives: null, reputation: reputation, logger: logger);
         });
 
         return this;
@@ -97,9 +103,10 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
         {
             var sender = sp.GetRequiredService<IMeshSender>();
             var store = sp.GetService<IDtnBundleStore>();
+            var reputation = sp.GetService<INodeReputationService>();
             var logger = sp.GetService<ILogger<DtnService>>()
                 ?? NullLogger<DtnService>.Instance;
-            return new DtnService(sender, store, strategy: null, incentives: null, backend: null, logger: logger);
+            return new DtnService(sender, store, strategy: null, incentives: null, backend: null, reputation: reputation, logger: logger);
         });
 
         return this;
@@ -266,6 +273,68 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
             var logger = sp.GetService<ILogger<HandshakeService>>()
                 ?? NullLogger<HandshakeService>.Instance;
             return new HandshakeService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddReputation()
+    {
+        if (_reputationAdded) return this;
+        _reputationAdded = true;
+
+        Services.TryAddSingleton<INodeReputationService, InMemoryNodeReputationService>();
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddAnomalyDetector(Action<AnomalyDetectorOptions>? configure = null)
+    {
+        if (!_reputationAdded)
+        {
+            throw new InvalidOperationException(
+                "AddAnomalyDetector() requires AddReputation() to have been called first. " +
+                "BehavioralAnomalyDetector feeds directly into INodeReputationService.");
+        }
+        if (_anomalyDetectorAdded) return this;
+        _anomalyDetectorAdded = true;
+
+        Services.TryAddSingleton<IAnomalyDetector>(sp =>
+        {
+            var reputation = sp.GetRequiredService<INodeReputationService>();
+            var opts = new AnomalyDetectorOptions();
+            configure?.Invoke(opts);
+            return new BehavioralAnomalyDetector(reputation, opts);
+        });
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddGossip()
+    {
+        if (!_reputationAdded)
+        {
+            throw new InvalidOperationException(
+                "AddGossip() requires AddReputation() to have been called first. " +
+                "ReputationGossipService reads and writes INodeReputationService.");
+        }
+        if (!_signalAdded)
+        {
+            throw new InvalidOperationException(
+                "AddGossip() requires AddSignalProtocol() to have been called first. " +
+                "ReputationGossipService signs outbound gossip packets via IPacketSigningService.");
+        }
+        if (_gossipAdded) return this;
+        _gossipAdded = true;
+
+        Services.TryAddSingleton<IReputationGossipService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var signing = sp.GetRequiredService<IPacketSigningService>();
+            var reputation = sp.GetRequiredService<INodeReputationService>();
+            var logger = sp.GetService<ILogger<ReputationGossipService>>()
+                ?? NullLogger<ReputationGossipService>.Instance;
+            return new ReputationGossipService(sender, signing, reputation, logger);
         });
 
         return this;

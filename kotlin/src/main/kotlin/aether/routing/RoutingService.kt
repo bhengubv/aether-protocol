@@ -8,6 +8,7 @@ import aether.extensibility.NoopIncentiveProvider
 import aether.models.RouteEntry
 import aether.protocol.MeshPacket
 import aether.protocol.PacketType
+import aether.security.NodeReputationService
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -37,6 +38,10 @@ class RoutingService(
     private val loadLock = Mutex()
     @Volatile private var loaded = false
 
+    // Per-source RREQ rate-limit state (System.currentTimeMillis() epoch-ms timestamps)
+    private val rreqSources = ConcurrentHashMap<String, MutableList<Long>>()
+    @Volatile private var reputation: NodeReputationService? = null
+
     suspend fun findRoute(destinationUhid: String): RouteEntry? {
         require(destinationUhid.isNotEmpty()) { "destinationUhid must not be empty" }
         ensureLoaded()
@@ -59,9 +64,30 @@ class RoutingService(
 
     fun getAllRoutes(): List<RouteEntry> = cache.values.filter { !it.isExpired() }
 
+    /** Attach an optional NodeReputationService. Pass null to disable. */
+    fun setReputation(rep: NodeReputationService?) {
+        reputation = rep
+    }
+
     suspend fun handleRouteRequest(rreq: MeshPacket) {
         require(rreq.type == PacketType.RouteRequest) { "expected PacketType.RouteRequest" }
-        if (!seenRreqs.add(rreq.id)) return
+        // Dedup: if already seen, drop
+        if (seenRreqs.contains(rreq.id)) return
+        // Per-source RREQ rate limiting — mirrors Go/Rust RoutingService.
+        val nowMs = System.currentTimeMillis()
+        val windowStart = nowMs - AetherConstants.RREQ_RATE_LIMIT_WINDOW_MS
+        val src = rreq.sourceUhid
+        val existing = rreqSources.getOrPut(src) { java.util.Collections.synchronizedList(mutableListOf()) }
+        synchronized(existing) {
+            existing.removeIf { it <= windowStart }
+            if (existing.size >= AetherConstants.RREQ_RATE_LIMIT_MAX) {
+                reputation?.recordRreqFloodAttempt(src)
+                return  // drop: source is flooding unique RREQs
+            }
+            existing.add(nowMs)
+        }
+        // Add to dedup cache (only reached if not a flood packet)
+        if (!seenRreqs.add(rreq.id)) return  // race: another coroutine beat us to it — drop
 
         val local = sender.localUhid
         if (rreq.sourceUhid.isEmpty() || rreq.sourceUhid == local) return

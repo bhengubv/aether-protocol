@@ -18,6 +18,8 @@ object AetherConstants {
     const val SOS_TTL = 15
     const val ROUTE_TIMEOUT_MS = 5000L
     const val ROUTE_EXPIRY_SECONDS = 300L
+    const val RREQ_RATE_LIMIT_MAX: Int = 10           // max unique RREQs per source per sliding window
+    const val RREQ_RATE_LIMIT_WINDOW_MS: Long = 10_000 // sliding window duration in milliseconds
 
     // Security
     const val MAX_PACKET_AGE_SECONDS = 300

@@ -46,9 +46,11 @@ coverage/
 build/
 c/build/
 *.o
+*.obj
 *.a
 *.so
 *.dylib
+*.exe
 
 ## Rust
 target/

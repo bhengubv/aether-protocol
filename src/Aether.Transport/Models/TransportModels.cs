@@ -75,3 +75,63 @@ public sealed class TransportMetrics
     public long TotalBytesSent => BleBytesSent + WifiDirectBytesSent + NearLinkBytesSent
                                   + CircleLinkBytesSent + AdditionalBytesSent;
 }
+
+/// <summary>
+/// Per-transport EWMA metrics used by <c>PredictiveTransportSelector</c>.
+/// Thread-safe via <c>lock</c>.
+/// </summary>
+public sealed class PerTransportMetrics
+{
+    private const double Alpha = 0.10; // EWMA smoothing factor
+
+    private readonly object _lock = new();
+
+    private double _ewmaRttMs;
+    private double _ewmaLossRate;
+    private double _ewmaThroughputBps;
+    private bool _hasData;
+
+    /// <summary>EWMA loss rate in [0, 1]. 0 = no loss, 1 = all failed.</summary>
+    public double EwmaLossRate { get { lock (_lock) return _ewmaLossRate; } }
+
+    /// <summary>EWMA throughput in bits per second.</summary>
+    public double EwmaThroughputBps { get { lock (_lock) return _ewmaThroughputBps; } }
+
+    /// <summary>EWMA round-trip time in milliseconds.</summary>
+    public double EwmaRttMs { get { lock (_lock) return _ewmaRttMs; } }
+
+    /// <summary>
+    /// Record a single link observation. <paramref name="rttMs"/> is ignored when
+    /// <paramref name="success"/> is false (failure doesn't provide a valid RTT).
+    /// </summary>
+    public void RecordSample(long rttMs, bool success, long bytesTransferred)
+    {
+        lock (_lock)
+        {
+            var lossObservation = success ? 0.0 : 1.0;
+            if (!_hasData)
+            {
+                _ewmaLossRate = lossObservation;
+                _ewmaRttMs = success && rttMs > 0 ? rttMs : 0.0;
+                _ewmaThroughputBps = success && rttMs > 0 && bytesTransferred > 0
+                    ? bytesTransferred * 8.0 / (rttMs / 1000.0)
+                    : 0.0;
+                _hasData = true;
+            }
+            else
+            {
+                _ewmaLossRate = Alpha * lossObservation + (1 - Alpha) * _ewmaLossRate;
+
+                if (success && rttMs > 0)
+                {
+                    _ewmaRttMs = Alpha * rttMs + (1 - Alpha) * _ewmaRttMs;
+                    if (bytesTransferred > 0)
+                    {
+                        var observedBps = bytesTransferred * 8.0 / (rttMs / 1000.0);
+                        _ewmaThroughputBps = Alpha * observedBps + (1 - Alpha) * _ewmaThroughputBps;
+                    }
+                }
+            }
+        }
+    }
+}

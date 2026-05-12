@@ -142,6 +142,24 @@ public static class ProtocolConstants
     /// <summary>Participant count at which group video switches from FullMesh to SFU.</summary>
     public const int SfuThresholdParticipants = 4;
 
+    // ── Aether Tag ───────────────────────────────────────────────────
+    /// <summary>
+    /// Number of significant data characters in an Aether Tag (excluding the separator).
+    /// Format: XXXXX-XXXXX → 10 data chars + 1 separator = 11 total.
+    /// </summary>
+    public const int AetherTagDataLength = 10;
+
+    /// <summary>
+    /// Total length of a formatted Aether Tag string including the separator dash.
+    /// </summary>
+    public const int AetherTagFormattedLength = 11;
+
+    /// <summary>
+    /// Number of bits extracted from the SHA-256 public key hash to form an Aether Tag.
+    /// 50 bits → ~1.1 quadrillion combinations.
+    /// </summary>
+    public const int AetherTagBits = 50;
+
     // ── Content verification ─────────────────────────────────────────
     /// <summary>
     /// Default chunk size for content transfer (bytes).

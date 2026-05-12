@@ -1,0 +1,27 @@
+{
+  "$schema": "Expected outputs for x3dh_session_msg1 in fixtures/signal/inputs.json. Tests cross-language agreement on the FULL session path: X3DH → DhRatchetSendOnly → symmetric ratchet step → AES-256-GCM decrypt. Every language must derive identical keys and successfully decrypt the pinned ciphertext. Regenerate only when intentionally changing the protocol.",
+
+  "alice_identity_pub_hex":       "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209",
+  "alice_ephemeral_pub_hex":      "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59",
+  "bob_identity_pub_hex":         "5dfedd3b6bd47f6fa28ee15d969d5bb0ea53774d488bdaf9df1c6e0124b3ef22",
+  "bob_signed_pre_key_pub_hex":   "ac01b2209e86354fb853237b5de0f4fab13c7fcbf433a61c019369617fecf10b",
+  "bob_one_time_pre_key_pub_hex": "50a61409b1ddd0325e9b16b700e719e9772c07000b1bd7786e907c653d20495d",
+
+  "dh1_hex": "64bb28fb502743e6560d2330e0cebe95fa555a09a575e5fff1e34c5f6fd4d43c",
+  "dh2_hex": "7c425a51f6a7f2e60012b0a34dd6511017807708b502ee66a2a247f171fda96c",
+  "dh3_hex": "09bb974ce3799959096660bdece3bb89ca106e6df31c2f701b7b8b9977047c34",
+  "dh4_hex": "eae6c8a9cecac8ef9a0ad59794fef9d4fe8ef407e7ee7eb4856ca6f88a96db4b",
+
+  "root_key_hex": "dd538033d6edf28cf47d4400eef0dac2f51e3c59ade31fa068e20e79acc709d2",
+
+  "dh_ratchet_send_hex":        "09bb974ce3799959096660bdece3bb89ca106e6df31c2f701b7b8b9977047c34",
+  "new_root_key_after_send_hex": "ba949de674b07650b8386a2cc186011e1f697bdcea7fab883671cfdda7c02507",
+  "send_chain_key_hex":          "a0184bb5a894fd5f750b460940ec08e400e28f32a41c65d2eb2d34d3e29e6ae8",
+
+  "message_key_0_hex":           "fc97d244ec8fa41495772c46f7e7da6abfbdd3cff0281d98144494de90927ee1",
+  "next_chain_key_hex":          "3ee396f6935609aeb7cc3d06b58f46142ec9655a3b147132116dd791b7d031e7",
+
+  "plaintext_hex":              "68656c6c6f20616574686572",
+  "nonce_hex":                  "000000000000000000000000",
+  "ciphertext_and_tag_hex":     "f6457d4581a84fe4be121a29755812fffdbef964cab3195c7269db99"
+}

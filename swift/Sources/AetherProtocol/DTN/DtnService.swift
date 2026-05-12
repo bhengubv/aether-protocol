@@ -10,6 +10,7 @@ public actor DtnService {
     private let strategy: any ReplicationStrategy
     private let incentives: any IncentiveProvider
     private let backend: any BackendClient
+    private var reputation: NodeReputationService?
 
     public var onBundleDelivered: (@Sendable (DtnDeliveryReceipt) -> Void)?
 
@@ -25,6 +26,10 @@ public actor DtnService {
         self.strategy = strategy
         self.incentives = incentives
         self.backend = backend
+    }
+
+    public func setReputation(_ rep: NodeReputationService?) {
+        self.reputation = rep
     }
 
     public func setOnBundleDelivered(_ callback: (@Sendable (DtnDeliveryReceipt) -> Void)?) {
@@ -121,6 +126,7 @@ public actor DtnService {
             let delivered = withStatus(bundle, status: .delivered)
             await store.save(delivered)
             await sendDeliveryReceipt(delivered)
+            await reputation?.recordDeliverySuccess(uhid: packet.sourceUhid, roundTripMs: 0)
             return
         }
         if await store.getActiveCount() >= ProtocolConstants.dtnMaxBundlesPerNode {
@@ -140,7 +146,11 @@ public actor DtnService {
     }
 
     private func handleCustodyAck(_ packet: MeshPacket) async {
-        guard let (bundleId, accepted) = parseCustodyAck(packet.payload), accepted else { return }
+        guard let (bundleId, accepted) = parseCustodyAck(packet.payload) else { return }
+        if !accepted {
+            await reputation?.recordCustodyRefusal(uhid: packet.sourceUhid)
+            return
+        }
         guard let b = await store.get(bundleId) else { return }
         await store.save(withCopyCount(b, copyCount: b.copyCount + 1))
     }

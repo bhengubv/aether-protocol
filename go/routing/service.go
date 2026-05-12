@@ -13,6 +13,7 @@ import (
 	"github.com/thegeeknetwork/aether-protocol-go/extensibility"
 	"github.com/thegeeknetwork/aether-protocol-go/models"
 	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/thegeeknetwork/aether-protocol-go/reputation"
 )
 
 // Service is the AODV-inspired reactive routing service.
@@ -30,12 +31,14 @@ type Service struct {
 	store      RouteStore
 	verifier   RouteReplyVerifier
 	incentives extensibility.IncentiveProvider
+	reputation *reputation.NodeReputationService // optional; nil = disabled
 
-	mu         sync.Mutex
-	routeCache map[string]*models.RouteEntry
-	pending    map[string]chan *models.RouteEntry
-	seenRreqs  map[uuid.UUID]struct{}
-	loaded     bool
+	mu           sync.Mutex
+	routeCache   map[string]*models.RouteEntry
+	pending      map[string]chan *models.RouteEntry
+	seenRreqs    map[uuid.UUID]struct{}
+	rreqSources  map[string][]int64 // per-source Unix timestamps for rate limiting
+	loaded       bool
 }
 
 // NewService constructs a Service with the given dependencies. Pass nil for
@@ -54,14 +57,22 @@ func NewService(sender MeshSender, store RouteStore, verifier RouteReplyVerifier
 		incentives = extensibility.NoopIncentiveProvider{}
 	}
 	return &Service{
-		sender:     sender,
-		store:      store,
-		verifier:   verifier,
-		incentives: incentives,
-		routeCache: make(map[string]*models.RouteEntry),
-		pending:    make(map[string]chan *models.RouteEntry),
-		seenRreqs:  make(map[uuid.UUID]struct{}),
+		sender:      sender,
+		store:       store,
+		verifier:    verifier,
+		incentives:  incentives,
+		routeCache:  make(map[string]*models.RouteEntry),
+		pending:     make(map[string]chan *models.RouteEntry),
+		seenRreqs:   make(map[uuid.UUID]struct{}),
+		rreqSources: make(map[string][]int64),
 	}
+}
+
+// SetReputation attaches an optional NodeReputationService. Pass nil to disable.
+func (s *Service) SetReputation(r *reputation.NodeReputationService) {
+	s.mu.Lock()
+	s.reputation = r
+	s.mu.Unlock()
 }
 
 // FindRoute returns a route to destinationUhid, discovering one via RREQ/RREP if
@@ -134,6 +145,31 @@ func (s *Service) HandleRouteRequest(ctx context.Context, rreq *protocol.MeshPac
 	if _, seen := s.seenRreqs[rreq.ID]; seen {
 		s.mu.Unlock()
 		return nil
+	}
+	// Per-source RREQ rate limiting.
+	// Only novel packet IDs count against the limit; duplicates already caught
+	// above are free so that legitimate multi-path re-transmissions are not
+	// penalised.  An attacker sending unique IDs is capped at
+	// RreqRateLimitMax per RreqRateLimitWindowSeconds seconds.
+	{
+		now := time.Now().Unix()
+		windowStart := now - int64(constants.RreqRateLimitWindowSeconds)
+		var recent []int64
+		for _, ts := range s.rreqSources[rreq.SourceUhid] {
+			if ts > windowStart {
+				recent = append(recent, ts)
+			}
+		}
+		if int32(len(recent)) >= constants.RreqRateLimitMax {
+			s.rreqSources[rreq.SourceUhid] = recent
+			rep := s.reputation
+			s.mu.Unlock()
+			if rep != nil {
+				rep.RecordRreqFloodAttempt(rreq.SourceUhid)
+			}
+			return nil // silently drop: source is flooding unique RREQs
+		}
+		s.rreqSources[rreq.SourceUhid] = append(recent, now)
 	}
 	s.seenRreqs[rreq.ID] = struct{}{}
 	s.mu.Unlock()
@@ -258,6 +294,21 @@ func (s *Service) Prune(ctx context.Context) error {
 	}
 	if len(s.seenRreqs) > 10_000 {
 		s.seenRreqs = make(map[uuid.UUID]struct{})
+	}
+	// Prune stale per-source rate-limit entries.
+	oldWindow := time.Now().Unix() - int64(constants.RreqRateLimitWindowSeconds)
+	for src, timestamps := range s.rreqSources {
+		var kept []int64
+		for _, ts := range timestamps {
+			if ts > oldWindow {
+				kept = append(kept, ts)
+			}
+		}
+		if len(kept) == 0 {
+			delete(s.rreqSources, src)
+		} else {
+			s.rreqSources[src] = kept
+		}
 	}
 	s.mu.Unlock()
 

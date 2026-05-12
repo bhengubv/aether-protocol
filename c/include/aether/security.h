@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "constants.h"
+#include "aether/protocol.h"         /* aether_mesh_packet_t / aether_packet_t */
+#include "aether_reputation.h"       /* AetherNodeReputationService            */
 
 #ifdef __cplusplus
 extern "C" {
@@ -234,6 +236,131 @@ void aether_zeroize(void *mem, size_t len);
  * Returns: true on success.
  */
 bool aether_random_bytes(uint8_t *out, size_t len);
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Nonce deduplication store
+ *
+ * Tracks (source_uhid, nonce) pairs for replay-attack prevention.
+ * Entries are recorded with a TTL (seconds); expired entries are pruned
+ * lazily on each subsequent call for the same source.
+ *
+ * Thread-safety: NOT thread-safe — single-threaded embedded targets only,
+ * matching the rest of the C library.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Opaque nonce-store handle.  Create with aether_nonce_store_new(). */
+typedef struct aether_nonce_store aether_nonce_store_t;
+
+/**
+ * Allocate and initialise a new nonce store.
+ * Caller must free with aether_nonce_store_free().
+ *
+ * Returns: non-NULL on success, NULL on allocation failure.
+ */
+aether_nonce_store_t *aether_nonce_store_new(void);
+
+/**
+ * Free a nonce store previously created by aether_nonce_store_new().
+ * Passing NULL is safe (no-op).
+ */
+void aether_nonce_store_free(aether_nonce_store_t *store);
+
+/**
+ * Check whether (source_uhid, nonce[nonce_len]) has been seen before,
+ * and if not, record it with a TTL of `ttl_seconds` seconds.
+ *
+ * Parameters:
+ *   store       — nonce store (must not be NULL)
+ *   source_uhid — null-terminated UHID string identifying the sender
+ *   nonce       — raw nonce bytes
+ *   nonce_len   — number of nonce bytes (must be > 0)
+ *   ttl_seconds — how long to remember this (source, nonce) pair
+ *
+ * Returns: true  — nonce is fresh; pair has been recorded.
+ *          false — nonce is a replay (already seen within TTL), or any
+ *                  parameter is NULL / nonce_len == 0.
+ */
+bool aether_nonce_store_check_and_record(aether_nonce_store_t *store,
+                                         const char *source_uhid,
+                                         const uint8_t *nonce,
+                                         size_t nonce_len,
+                                         int ttl_seconds);
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * PacketSigning service
+ *
+ * Thin service layer over the nonce store + Ed25519 verify, with optional
+ * NodeReputationService injection.  When a reputation service is attached:
+ *
+ *   • Nonce replay  → aether_reputation_record_replay(rep, source_uhid)
+ *   • Sig failure   → aether_reputation_record_sig_failure(rep, source_uhid)
+ *
+ * The service owns NO heap allocation — embed AetherPacketSigningService
+ * by value or as a static.  Call aether_packet_signing_init() before use.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Packet signing / verification service. */
+typedef struct {
+    /** Nonce deduplication store.  May be NULL; if so, replay checking is
+     *  skipped (useful for unit tests that only test signature logic). */
+    aether_nonce_store_t *nonce_store;
+
+    /** Optional reputation service.  NULL = no reputation signals fired. */
+    AetherNodeReputationService *reputation;
+} AetherPacketSigningService;
+
+/**
+ * Initialise an AetherPacketSigningService.
+ *
+ * Parameters:
+ *   svc        — service to initialise (must not be NULL)
+ *   nonce_store — nonce store to use (may be NULL to skip replay detection)
+ *
+ * The reputation pointer defaults to NULL; use
+ * aether_packet_signing_set_reputation() to attach one.
+ */
+void aether_packet_signing_init(AetherPacketSigningService *svc,
+                                aether_nonce_store_t *nonce_store);
+
+/**
+ * Attach (or detach) a reputation service.
+ *
+ * Parameters:
+ *   svc — service (must not be NULL)
+ *   rep — reputation service to attach, or NULL to detach
+ *
+ * The caller retains ownership of `rep`; the signing service holds only a
+ * non-owning pointer.
+ */
+void aether_packet_signing_set_reputation(AetherPacketSigningService *svc,
+                                          AetherNodeReputationService *rep);
+
+/**
+ * Verify the Ed25519 signature on a packet, checking for nonce replay first.
+ *
+ * Workflow:
+ *   1. If svc->nonce_store != NULL: call aether_nonce_store_check_and_record().
+ *      On replay (returns false): fire reputation hook + return false.
+ *   2. Rebuild signable data via aether_packet_get_signable_data().
+ *   3. aether_ed25519_verify() against sender_public_key.
+ *      On failure: fire reputation hook + return false.
+ *   4. Return true.
+ *
+ * Parameters:
+ *   svc              — signing service (must not be NULL)
+ *   packet           — mesh packet to verify (must not be NULL)
+ *   sender_public_key — 32-byte Ed25519 public key of the claimed sender
+ *   ttl_seconds      — TTL passed to the nonce store (e.g. 300 for 5 min)
+ *
+ * Returns: true if valid, false otherwise.
+ *
+ * Note: aether_packet_get_signable_data() is declared in aether/protocol.h.
+ *       Callers who use this function must also include aether/protocol.h.
+ */
+bool aether_packet_signing_verify(AetherPacketSigningService *svc,
+                                  const aether_mesh_packet_t *packet,
+                                  const uint8_t *sender_public_key,
+                                  int ttl_seconds);
 
 #ifdef __cplusplus
 }
