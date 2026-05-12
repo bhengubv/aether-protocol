@@ -44,6 +44,12 @@ interface TransportService : Closeable {
     val maxConcurrentPeers: Int
 
     /**
+     * Per-transport EWMA metrics for adaptive selection.
+     * Implementations that do not track metrics may return null.
+     */
+    val metrics: PerTransportMetrics? get() = null
+
+    /**
      * Sends a byte array to a specific peer.
      *
      * @param peerUhid Target peer UHID

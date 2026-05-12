@@ -20,6 +20,9 @@ class InProcessTransport(override val name: String = "InProcess") : TransportSer
     override val powerCostRelative: Int = 1
     override val maxConcurrentPeers: Int = Int.MAX_VALUE
 
+    /** Non-null metrics instance; always present for in-process transport. */
+    override val metrics: PerTransportMetrics = PerTransportMetrics()
+
     private val mutableDataReceived = MutableSharedFlow<Pair<String, ByteArray>>(
         replay = 0,
         extraBufferCapacity = 100
@@ -30,15 +33,20 @@ class InProcessTransport(override val name: String = "InProcess") : TransportSer
     private val connectedPeers = ConcurrentHashMap<String, Boolean>()
 
     override suspend fun sendAsync(peerUhid: String, data: ByteArray): Boolean {
+        val startMs = System.currentTimeMillis()
         return try {
             val transport = Companion.transports[peerUhid]
             if (transport != null) {
                 transport.mutableDataReceived.emit(Pair(name, data))
+                val rttMs = (System.currentTimeMillis() - startMs).coerceAtLeast(1L)
+                metrics.recordSample(rttMs, success = true, bytesTransferred = data.size.toLong())
                 true
             } else {
+                metrics.recordSample(0L, success = false, bytesTransferred = 0L)
                 false
             }
         } catch (e: Exception) {
+            metrics.recordSample(0L, success = false, bytesTransferred = 0L)
             false
         }
     }

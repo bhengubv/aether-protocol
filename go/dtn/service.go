@@ -15,6 +15,7 @@ import (
 	"github.com/thegeeknetwork/aether-protocol-go/extensibility"
 	"github.com/thegeeknetwork/aether-protocol-go/models"
 	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/thegeeknetwork/aether-protocol-go/reputation"
 	"github.com/thegeeknetwork/aether-protocol-go/routing"
 )
 
@@ -27,10 +28,19 @@ type Service struct {
 	strategy   ReplicationStrategy
 	incentives extensibility.IncentiveProvider
 	backend    extensibility.BackendClient
+	reputation *reputation.NodeReputationService
 
 	mu sync.Mutex
 
 	OnBundleDelivered func(receipt *models.DtnDeliveryReceipt)
+}
+
+// SetReputation attaches an optional NodeReputationService to the DTN service.
+// It is safe to call after construction. Pass nil to detach.
+func (s *Service) SetReputation(r *reputation.NodeReputationService) {
+	s.mu.Lock()
+	s.reputation = r
+	s.mu.Unlock()
 }
 
 // NewService constructs a Service. Pass nil for any optional dependency to
@@ -224,6 +234,9 @@ func (s *Service) handleBundle(ctx context.Context, packet *protocol.MeshPacket)
 	if bundle.RecipientUhid == s.sender.LocalUhid() {
 		bundle.Status = models.DtnStatusDelivered
 		_ = s.store.Save(ctx, bundle)
+		if rep := s.reputation; rep != nil {
+			rep.RecordDeliverySuccess(packet.SourceUhid, 0)
+		}
 		return s.sendDeliveryReceipt(ctx, bundle)
 	}
 
@@ -252,7 +265,13 @@ func (s *Service) handleCustodyAck(ctx context.Context, packet *protocol.MeshPac
 	if err := json.Unmarshal(packet.Payload, &ack); err != nil {
 		return fmt.Errorf("dtn: failed to deserialize custody ack: %w", err)
 	}
-	if ack.BundleID == "" || !ack.Accepted {
+	if ack.BundleID == "" {
+		return nil
+	}
+	if !ack.Accepted {
+		if rep := s.reputation; rep != nil {
+			rep.RecordCustodyRefusal(packet.SourceUhid)
+		}
 		return nil
 	}
 	bundle, err := s.store.Get(ctx, ack.BundleID)

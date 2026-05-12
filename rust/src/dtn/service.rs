@@ -12,6 +12,7 @@ use crate::constants::{DEFAULT_TTL, DTN_BUNDLE_TTL_HOURS, DTN_MAX_BUNDLES_PER_NO
 use crate::extensibility::{BackendClient, IncentiveProvider, NoopBackendClient, NoopIncentiveProvider};
 use crate::models::{BundlePriority, BundleStatus, CustodyRecord, DtnBundle};
 use crate::protocol::{MeshPacket, PacketType};
+use crate::reputation::NodeReputationService;
 use crate::routing::sender::MeshSender;
 
 use super::store::{BundleStore, InMemoryBundleStore};
@@ -58,6 +59,8 @@ pub struct DtnService {
     strategy: Arc<dyn ReplicationStrategy>,
     incentives: Arc<dyn IncentiveProvider>,
     backend: Arc<dyn BackendClient>,
+    /// Optional reputation service; `None` disables reputation tracking.
+    reputation: Option<Arc<NodeReputationService>>,
 }
 
 impl DtnService {
@@ -85,7 +88,14 @@ impl DtnService {
             strategy,
             incentives,
             backend,
+            reputation: None,
         }
+    }
+
+    /// Attaches a reputation service so that delivery successes and custody
+    /// refusals are recorded against the source UHID.
+    pub fn set_reputation(&mut self, rep: Arc<NodeReputationService>) {
+        self.reputation = Some(rep);
     }
 
     /// Create a new bundle. Attempts immediate mesh delivery, falls back to backend relay,
@@ -210,6 +220,9 @@ impl DtnService {
             delivered.status = BundleStatus::Delivered;
             self.store.save(delivered.clone()).await;
             self.send_delivery_receipt(&delivered).await;
+            if let Some(rep) = &self.reputation {
+                rep.record_delivery_success(&packet.source_uhid, 0);
+            }
             return;
         }
 
@@ -244,6 +257,9 @@ impl DtnService {
             Err(_) => return,
         };
         if !ack.accepted {
+            if let Some(rep) = &self.reputation {
+                rep.record_custody_refusal(&packet.source_uhid);
+            }
             return;
         }
         if let Some(mut bundle) = self.store.get(&ack.bundle_id).await {
@@ -351,4 +367,153 @@ fn unix_millis() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_millis() as i64
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use crate::models::{BundlePriority, PeerInfo};
+    use std::sync::Mutex;
+
+    // ── Fake MeshSender ───────────────────────────────────────────────────────
+
+    struct FakeSender {
+        local: String,
+        sends: Mutex<Vec<String>>,
+    }
+
+    impl FakeSender {
+        fn new(local: &str) -> Arc<Self> {
+            Arc::new(Self {
+                local: local.to_string(),
+                sends: Mutex::new(Vec::new()),
+            })
+        }
+    }
+
+    #[async_trait]
+    impl MeshSender for FakeSender {
+        fn local_uhid(&self) -> String {
+            self.local.clone()
+        }
+
+        fn connected_peers(&self) -> Vec<PeerInfo> {
+            Vec::new()
+        }
+
+        async fn send(&self, _packet: &MeshPacket, next_hop: &str) -> bool {
+            self.sends.lock().unwrap().push(next_hop.to_string());
+            true
+        }
+
+        async fn broadcast(&self, _packet: &MeshPacket) -> usize {
+            0
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// Build a DtnBundle wire packet addressed from `source_uhid` to `recipient_uhid`.
+    fn make_bundle_packet(source_uhid: &str, recipient_uhid: &str) -> MeshPacket {
+        let bundle = DtnBundle {
+            id: uuid::Uuid::new_v4(),
+            sender_uhid: source_uhid.to_string(),
+            recipient_uhid: recipient_uhid.to_string(),
+            encrypted_payload: vec![1, 2, 3],
+            priority: BundlePriority::Normal,
+            status: BundleStatus::Pending,
+            copy_count: 0,
+            max_copies: DTN_MAX_COPIES as i32,
+            sender_geohash: None,
+            recipient_last_geohash: None,
+            hop_count: 0,
+            created_at: unix_secs(),
+            expires_at: unix_secs() + 3600,
+        };
+        let payload = encode_bundle(&bundle);
+        let mut pkt = MeshPacket::new(PacketType::DtnBundle, source_uhid.to_string());
+        pkt.destination_uhid = recipient_uhid.to_string();
+        pkt.payload = payload;
+        pkt
+    }
+
+    /// Build a DtnCustodyAck packet with `accepted = false` from `source_uhid`.
+    fn make_custody_ack_packet(source_uhid: &str, bundle_id: uuid::Uuid, accepted: bool) -> MeshPacket {
+        let body = serde_json::to_vec(&CustodyAckWire { bundle_id, accepted }).unwrap();
+        let mut pkt = MeshPacket::new(PacketType::DtnCustodyAck, source_uhid.to_string());
+        pkt.payload = body;
+        pkt
+    }
+
+    // ── Test 1: delivery to self fires record_delivery_success ────────────────
+
+    #[tokio::test]
+    async fn delivery_to_self_records_delivery_success() {
+        let sender = FakeSender::new("local-node");
+        let mut svc = DtnService::new(Arc::clone(&sender) as Arc<dyn MeshSender>);
+
+        let rep = Arc::new(NodeReputationService::new());
+        svc.set_reputation(Arc::clone(&rep));
+
+        let packet = make_bundle_packet("remote-node", "local-node");
+        svc.handle(&packet).await;
+
+        // Score for "remote-node" should increase by +0.01 from 1.0 → epsilon-snapped to 1.0
+        // (already at max), so verify that it was NOT penalised (still at 1.0).
+        // More importantly, verify it did not drop.
+        let score = rep.get_reputation_score("remote-node");
+        assert!(
+            score >= 1.0,
+            "expected score >= 1.0 after delivery success, got {score}"
+        );
+    }
+
+    // ── Test 2: bundle not for us does NOT fire record_delivery_success ────────
+
+    #[tokio::test]
+    async fn bundle_not_for_us_does_not_fire_delivery_success() {
+        let sender = FakeSender::new("local-node");
+        let mut svc = DtnService::new(Arc::clone(&sender) as Arc<dyn MeshSender>);
+
+        let rep = Arc::new(NodeReputationService::new());
+        // Pre-degrade the source so we can detect if it was (incorrectly) boosted
+        rep.record_signature_failure("remote-node"); // → 0.80
+        svc.set_reputation(Arc::clone(&rep));
+
+        // Bundle addressed to someone else, not "local-node"
+        let packet = make_bundle_packet("remote-node", "other-node");
+        svc.handle(&packet).await;
+
+        // Score must remain at 0.80; a spurious success call would move it to 0.81
+        let score = rep.get_reputation_score("remote-node");
+        assert!(
+            (score - 0.80).abs() < 1e-9,
+            "expected score 0.80 (no delivery-success fired), got {score}"
+        );
+    }
+
+    // ── Test 3: custody refusal fires record_custody_refusal ─────────────────
+
+    #[tokio::test]
+    async fn custody_refusal_records_custody_refusal() {
+        let sender = FakeSender::new("local-node");
+        let mut svc = DtnService::new(Arc::clone(&sender) as Arc<dyn MeshSender>);
+
+        let rep = Arc::new(NodeReputationService::new());
+        svc.set_reputation(Arc::clone(&rep));
+
+        let bundle_id = uuid::Uuid::new_v4();
+        let packet = make_custody_ack_packet("refusing-node", bundle_id, false);
+        svc.handle(&packet).await;
+
+        // record_custody_refusal applies -0.05, so 1.0 → 0.95
+        let score = rep.get_reputation_score("refusing-node");
+        assert!(
+            (score - 0.95).abs() < 1e-9,
+            "expected score 0.95 after custody refusal, got {score}"
+        );
+    }
 }

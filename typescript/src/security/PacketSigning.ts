@@ -7,6 +7,7 @@ import { createHash, randomBytes } from "crypto";
 import { MeshPacket } from "../protocol/MeshPacket.js";
 import { Ed25519Service } from "./Ed25519Service.js";
 import { MAX_PACKET_AGE_SECONDS } from "../constants.js";
+import { NodeReputationService } from "../reputation.js";
 
 export interface PacketSignature {
   nonce: Uint8Array; // 8-byte random nonce
@@ -220,5 +221,84 @@ export class PacketDeduplicator {
       if (ts < cutoff) this.nonces.delete(k);
     }
     this.lastCleanup = Date.now();
+  }
+}
+
+/**
+ * Stateful packet-signing service that combines deduplication and signature
+ * verification with optional reputation signalling.
+ *
+ * Mirrors the C# `PacketSigningService` at
+ * src/Aether.Security/Services/PacketSigningService.cs — specifically the
+ * two hooks added in Item 21:
+ *
+ *   - `reputation?.RecordReplayAttemptAsync(packet.SourceUhid)` when the
+ *     nonce-replay cache detects a duplicate (sourceUhid, nonce) pair.
+ *   - `reputation?.RecordSignatureFailureAsync(packet.SourceUhid)` when
+ *     Ed25519 signature verification returns false.
+ *
+ * The reputation field is nullable so callers that do not yet have a
+ * `NodeReputationService` wired up incur no error — all calls use optional
+ * chaining (`this.reputation?.…`).
+ */
+export class PacketSigningService {
+  private readonly deduplicator: PacketDeduplicator = new PacketDeduplicator();
+  private reputation: NodeReputationService | null = null;
+
+  /** Attach (or detach, when null) a reputation service. */
+  setReputation(rep: NodeReputationService | null): void {
+    this.reputation = rep;
+  }
+
+  /**
+   * Sign a packet in-place using the supplied Ed25519 private key.
+   * Delegates to the module-level {@link signPacket} helper.
+   */
+  sign(packet: MeshPacket, privateKey: Uint8Array): void {
+    signPacket(packet, privateKey);
+  }
+
+  /**
+   * Verify the packet's timestamp, signature, and nonce freshness in one
+   * call, firing reputation hooks on failure.
+   *
+   * Returns `true` iff all three checks pass.
+   *
+   * Hook behaviour (Item 21):
+   *  - Duplicate nonce → `reputation?.recordReplayAttempt(sourceUhid)`
+   *  - Bad signature   → `reputation?.recordSignatureFailure(sourceUhid)`
+   */
+  verifyAndDedup(packet: MeshPacket, publicKey: Uint8Array): boolean {
+    // Nonce deduplication — fires before the expensive crypto verify.
+    if (!this.deduplicator.checkAndMark(packet.sourceUhid, packet.packetNonce)) {
+      this.reputation?.recordReplayAttempt(packet.sourceUhid);
+      return false;
+    }
+
+    // Signature + timestamp verification.
+    if (!verifyPacket(packet, publicKey)) {
+      this.notifySignatureFailure(packet.sourceUhid);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Fire the signature-failure reputation hook.
+   * Extracted as a named helper so tests can assert on it independently.
+   */
+  notifySignatureFailure(sourceUhid: string): void {
+    this.reputation?.recordSignatureFailure(sourceUhid);
+  }
+
+  /** Expose deduplicator size for tests. */
+  get dedupSize(): number {
+    return this.deduplicator.size;
+  }
+
+  /** Clear all deduplication state (useful in tests). */
+  clearDedup(): void {
+    this.deduplicator.clear();
   }
 }

@@ -13,6 +13,8 @@ import unittest
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+import pytest
+
 from aether import constants
 from aether.models import RouteEntry
 from aether.protocol.mesh_packet import MeshPacket, PacketType
@@ -24,6 +26,19 @@ from aether.routing import (
 from aether.routing.verifier import RouteReplyVerifier
 
 from tests.fakes import FakeMeshSender
+
+# Alias used by the new flood-reputation tests
+FakeSender = FakeMeshSender
+
+
+def make_rreq(source: str, dest: str) -> MeshPacket:
+    """Create a fresh RREQ MeshPacket with a unique ID."""
+    p = MeshPacket(type=PacketType.RouteRequest)
+    p.source_uhid = source
+    p.destination_uhid = dest
+    p.ttl = 7
+    p.id = uuid4()
+    return p
 
 
 LOCAL = "local-uhid"
@@ -224,3 +239,60 @@ class RoutingServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── Item 19: RREQ-flood reputation hook ──────────────────────────────────────
+
+class FakeReputation:
+    """Minimal stand-in for NodeReputationService to verify hook calls."""
+    def __init__(self):
+        self.flood_calls: list[str] = []
+
+    def record_rreq_flood_attempt(self, uhid: str) -> None:
+        self.flood_calls.append(uhid)
+
+
+@pytest.mark.asyncio
+async def test_rreq_flood_fires_reputation():
+    """11 unique RREQs from same source triggers record_rreq_flood_attempt."""
+    sender = FakeSender("local")
+    svc = RoutingService(sender)
+    rep = FakeReputation()
+    svc.set_reputation(rep)
+
+    # Send RREQ_RATE_LIMIT_MAX (10) unique packets — still within limit, no fire
+    for _ in range(constants.RREQ_RATE_LIMIT_MAX):
+        pkt = make_rreq("attacker", "dest")
+        await svc.handle_route_request(pkt)
+    assert rep.flood_calls == []
+
+    # 11th unique packet — crosses the limit, fires the hook
+    pkt = make_rreq("attacker", "dest")
+    await svc.handle_route_request(pkt)
+    assert rep.flood_calls == ["attacker"]
+
+
+@pytest.mark.asyncio
+async def test_rreq_normal_traffic_not_penalised():
+    """Different sources each sending 5 packets are never penalised."""
+    sender = FakeSender("local")
+    svc = RoutingService(sender)
+    rep = FakeReputation()
+    svc.set_reputation(rep)
+
+    for i in range(5):
+        pkt = make_rreq(f"node-{i}", "dest")
+        await svc.handle_route_request(pkt)
+    assert rep.flood_calls == []
+
+
+@pytest.mark.asyncio
+async def test_rreq_no_reputation_no_error():
+    """Flood detection without a reputation service attached does not error."""
+    sender = FakeSender("local")
+    svc = RoutingService(sender)
+
+    for _ in range(constants.RREQ_RATE_LIMIT_MAX + 1):
+        pkt = make_rreq("attacker", "dest")
+        await svc.handle_route_request(pkt)
+    # No exception raised, no crash

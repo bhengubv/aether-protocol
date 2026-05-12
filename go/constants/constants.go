@@ -4,11 +4,13 @@ package constants
 
 // Routing constants
 const (
-	DefaultTtl         int32 = 7
-	SosTtl             int32 = 15
-	DtnTtl             int32 = 30
-	RouteTimeoutMs     int32 = 5000
-	RouteExpirySeconds int32 = 300
+	DefaultTtl                  int32 = 7
+	SosTtl                      int32 = 15
+	DtnTtl                      int32 = 30
+	RouteTimeoutMs              int32 = 5000
+	RouteExpirySeconds          int32 = 300
+	RreqRateLimitMax            int32 = 10  // max unique RREQs per source per window
+	RreqRateLimitWindowSeconds  int32 = 10  // sliding window for RREQ rate limiting
 )
 
 // BLE Discovery constants

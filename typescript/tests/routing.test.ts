@@ -5,10 +5,10 @@
  * Run with: tsx --test typescript/tests/routing.test.ts
  */
 
-import { describe, it } from "node:test";
+import { describe, it, test } from "node:test";
 import { strict as assert } from "node:assert";
 
-import { DEFAULT_TTL } from "../src/constants.js";
+import { DEFAULT_TTL, RREQ_RATE_LIMIT_MAX } from "../src/constants.js";
 import { MeshPacket } from "../src/protocol/MeshPacket.js";
 import { PacketType } from "../src/protocol/PacketType.js";
 import { RouteEntry } from "../src/models/index.js";
@@ -19,6 +19,7 @@ import {
   RoutingService,
 } from "../src/routing/index.js";
 import { FakeMeshSender } from "./fakes.js";
+import { NodeReputationService } from "../src/reputation.js";
 
 const LOCAL = "local-uhid";
 
@@ -220,4 +221,67 @@ describe("RoutingService — FindRoute / Prune", () => {
     assert.equal(await store.get("stale"), null);
     assert.ok(await store.get("fresh"));
   });
+});
+
+// ── Item 19: RREQ-flood reputation hook ──────────────────────────────────────
+
+class FakeReputation {
+  floodCalls: string[] = [];
+  recordRreqFloodAttempt(uhid: string): void { this.floodCalls.push(uhid); }
+  getReputationScore(_: string): number { return 1.0; }
+  recordReplayAttempt(_: string): void {}
+  recordSignatureFailure(_: string): void {}
+  recordCustodyRefusal(_: string): void {}
+  recordDeliverySuccess(_: string, __: number): void {}
+  recordDeliveryFailure(_: string): void {}
+  getAllScores(): Map<string, number> { return new Map(); }
+  applyWeightedDelta(_: string, __: number): void {}
+}
+
+function makeRreq(sourceUhid: string, destinationUhid: string): MeshPacket {
+  const p = new MeshPacket();
+  p.type = PacketType.RouteRequest;
+  p.sourceUhid = sourceUhid;
+  p.destinationUhid = destinationUhid;
+  p.ttl = 7;
+  // Make every call produce a fresh unique id
+  p.id = crypto.randomUUID();
+  return p;
+}
+
+test("rreqFloodFiresReputation", async () => {
+  const sender = new FakeMeshSender("local");
+  const svc = new RoutingService(sender);
+  const rep = new FakeReputation();
+  svc.setReputation(rep as unknown as NodeReputationService);
+
+  for (let i = 0; i < RREQ_RATE_LIMIT_MAX; i++) {
+    await svc.handleRouteRequest(makeRreq("attacker", "dest"));
+  }
+  assert.deepStrictEqual(rep.floodCalls, []);
+
+  await svc.handleRouteRequest(makeRreq("attacker", "dest"));
+  assert.deepStrictEqual(rep.floodCalls, ["attacker"]);
+});
+
+test("rreqNormalTrafficNotPenalised", async () => {
+  const sender = new FakeMeshSender("local");
+  const svc = new RoutingService(sender);
+  const rep = new FakeReputation();
+  svc.setReputation(rep as unknown as NodeReputationService);
+
+  for (let i = 0; i < 5; i++) {
+    await svc.handleRouteRequest(makeRreq(`node-${i}`, "dest"));
+  }
+  assert.deepStrictEqual(rep.floodCalls, []);
+});
+
+test("rreqFloodWithoutReputationNoError", async () => {
+  const sender = new FakeMeshSender("local");
+  const svc = new RoutingService(sender);
+
+  for (let i = 0; i <= RREQ_RATE_LIMIT_MAX; i++) {
+    await svc.handleRouteRequest(makeRreq("attacker", "dest"));
+  }
+  // No exception
 });

@@ -22,6 +22,22 @@ set(CJSON_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(ENABLE_CJSON_TEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(cjson)
 
+# ─── BLAKE3 (portable C reference, no SIMD) ────────────────────────────────
+# We fetch the upstream BLAKE3 repo and compile only the portable three-file
+# subset directly into aether-protocol. This avoids SIMD toolchain issues on
+# cross-compile CI targets while remaining wire-compatible with every other
+# language implementation in this family.
+FetchContent_Declare(
+    blake3_src
+    GIT_REPOSITORY https://github.com/BLAKE3-team/BLAKE3.git
+    GIT_TAG        1.5.1
+    GIT_SHALLOW    TRUE
+)
+FetchContent_GetProperties(blake3_src)
+if(NOT blake3_src_POPULATED)
+    FetchContent_Populate(blake3_src)
+endif()
+
 # cJSON's FetchContent layout puts cJSON.h directly in ${cjson_SOURCE_DIR}
 # (i.e. #include <cJSON.h>), but our source files use the system-package
 # convention #include <cjson/cJSON.h>.  Create a thin shim directory so both
@@ -38,12 +54,24 @@ add_library(aether-protocol STATIC
     src/security.c
     src/signal_protocol.c
     src/transport_inprocess.c
+    src/transport_metrics.c
+    src/predictive_selector.c
+    src/rlnc.c
     src/routing.c
     src/dtn.c
     src/sos.c
     src/voice.c
     src/group_voice.c
     src/streaming.c
+    src/aether_reputation.c
+    src/aether_anomaly.c
+    src/aether_gossip.c
+    src/aether_tag.c
+    # BLAKE3 portable subset (no SIMD — compile-time defines below disable all
+    # optional SIMD backends; only blake3_portable.c is linked in practice)
+    ${blake3_src_SOURCE_DIR}/c/blake3.c
+    ${blake3_src_SOURCE_DIR}/c/blake3_dispatch.c
+    ${blake3_src_SOURCE_DIR}/c/blake3_portable.c
 )
 
 target_include_directories(aether-protocol
@@ -53,6 +81,19 @@ target_include_directories(aether-protocol
         ${LIBSODIUM_INCLUDE_DIRS}
         ${cjson_SOURCE_DIR}
         ${CJSON_SHIM_DIR}
+        ${blake3_src_SOURCE_DIR}/c
+)
+
+# Disable all SIMD backends — only the portable C path is compiled.
+# Each define removes one optional .c file from the dispatch chain;
+# without them blake3_dispatch.c would try to compile SSE2/AVX2/NEON
+# assembly stubs which may not exist on all CI toolchains.
+target_compile_definitions(aether-protocol PRIVATE
+    BLAKE3_NO_SSE2=1
+    BLAKE3_NO_SSE41=1
+    BLAKE3_NO_AVX2=1
+    BLAKE3_NO_AVX512=1
+    BLAKE3_NO_NEON=1
 )
 
 target_link_directories(aether-protocol

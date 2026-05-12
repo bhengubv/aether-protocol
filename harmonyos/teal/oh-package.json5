@@ -1,0 +1,11 @@
+{
+  "name": "aether-teal",
+  "version": "1.0.0",
+  "description": "Aether Teal — NearLink (SLE) mesh transport node for HarmonyOS / OpenHarmony.",
+  "main": "",
+  "author": "Aether Protocol Contributors",
+  "license": "MIT",
+  "devDependencies": {
+    "@ohos/hypium": "1.0.21"
+  }
+}

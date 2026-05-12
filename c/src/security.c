@@ -3,10 +3,23 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "aether/security.h"
+#include "aether/protocol.h"
 
 #include <sodium.h>
+
+/* ─── Cross-platform "wall-clock seconds since epoch" ─────────────────── */
+static int64_t security_now_seconds(void) {
+    struct timespec ts;
+#if defined(_WIN32)
+    timespec_get(&ts, TIME_UTC);
+#else
+    clock_gettime(CLOCK_REALTIME, &ts);
+#endif
+    return (int64_t)ts.tv_sec;
+}
 
 /**
  * Initialize libsodium (idempotent).
@@ -435,5 +448,202 @@ bool aether_x25519_derive_public(const uint8_t *private_key,
         sodium_memzero(out_public, AETHER_X25519_PUBLIC_KEY_SIZE);
         return false;
     }
+    return true;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Nonce deduplication store
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/* Maximum number of (source, nonce) pairs tracked simultaneously. */
+#define AETHER_NONCE_STORE_MAX_ENTRIES 4096
+
+/* Maximum nonce size accepted (bytes). */
+#define AETHER_NONCE_STORE_MAX_NONCE_LEN 64
+
+/* Maximum source UHID length (bytes). */
+#define AETHER_NONCE_STORE_MAX_SOURCE_LEN 64
+
+/* Composite key: "source:hex(nonce)" — max length:
+ *   source (63) + ':' (1) + hex nonce (128) + NUL (1) = 193 bytes */
+#define AETHER_NONCE_STORE_KEY_LEN 193
+
+typedef struct {
+    char    key[AETHER_NONCE_STORE_KEY_LEN]; /* "source:hexnonce\0"     */
+    int64_t expires_at;                       /* wall-clock seconds      */
+} aether_nonce_entry_t;
+
+struct aether_nonce_store {
+    aether_nonce_entry_t entries[AETHER_NONCE_STORE_MAX_ENTRIES];
+    int                  count;
+};
+
+aether_nonce_store_t *aether_nonce_store_new(void) {
+    aether_nonce_store_t *s =
+        (aether_nonce_store_t *)calloc(1, sizeof(aether_nonce_store_t));
+    return s; /* NULL on allocation failure */
+}
+
+void aether_nonce_store_free(aether_nonce_store_t *store) {
+    if (!store) return;
+    /* Zero any key material before freeing */
+    memset(store, 0, sizeof(*store));
+    free(store);
+}
+
+/**
+ * Build the composite lookup key "source_uhid:HEX(nonce)" into `buf`.
+ * Returns false if the source or nonce are too long to fit.
+ */
+static bool build_nonce_key(char *buf, size_t buf_len,
+                             const char *source_uhid,
+                             const uint8_t *nonce, size_t nonce_len) {
+    size_t src_len = strlen(source_uhid);
+    /* hex(nonce) needs 2 chars per byte */
+    size_t needed = src_len + 1 + nonce_len * 2 + 1;
+    if (needed > buf_len) return false;
+
+    memcpy(buf, source_uhid, src_len);
+    buf[src_len] = ':';
+    char *p = buf + src_len + 1;
+    for (size_t i = 0; i < nonce_len; i++) {
+        static const char hex[] = "0123456789abcdef";
+        *p++ = hex[(nonce[i] >> 4) & 0xF];
+        *p++ = hex[nonce[i] & 0xF];
+    }
+    *p = '\0';
+    return true;
+}
+
+/**
+ * Prune expired entries (shift remaining entries down).
+ * Called lazily before inserting a new entry.
+ */
+static void nonce_store_prune(aether_nonce_store_t *store, int64_t now) {
+    int new_count = 0;
+    for (int i = 0; i < store->count; i++) {
+        if (store->entries[i].expires_at > now) {
+            if (new_count != i) {
+                store->entries[new_count] = store->entries[i];
+            }
+            new_count++;
+        }
+    }
+    /* Zero the vacated tail slots */
+    for (int i = new_count; i < store->count; i++) {
+        memset(&store->entries[i], 0, sizeof(aether_nonce_entry_t));
+    }
+    store->count = new_count;
+}
+
+bool aether_nonce_store_check_and_record(aether_nonce_store_t *store,
+                                          const char *source_uhid,
+                                          const uint8_t *nonce,
+                                          size_t nonce_len,
+                                          int ttl_seconds) {
+    if (!store || !source_uhid || !nonce || nonce_len == 0) return false;
+    if (nonce_len > AETHER_NONCE_STORE_MAX_NONCE_LEN) return false;
+    if (strlen(source_uhid) >= AETHER_NONCE_STORE_MAX_SOURCE_LEN) return false;
+
+    char key[AETHER_NONCE_STORE_KEY_LEN];
+    if (!build_nonce_key(key, sizeof(key), source_uhid, nonce, nonce_len)) {
+        return false;
+    }
+
+    int64_t now = security_now_seconds();
+
+    /* Prune expired entries before the lookup — keeps the store bounded. */
+    nonce_store_prune(store, now);
+
+    /* Search for an existing non-expired entry with the same key. */
+    for (int i = 0; i < store->count; i++) {
+        if (strcmp(store->entries[i].key, key) == 0) {
+            /* Found — this is a replay. */
+            return false;
+        }
+    }
+
+    /* Not a replay. Record it if there is space (oldest entry is evicted
+     * if the store is full). */
+    if (store->count >= AETHER_NONCE_STORE_MAX_ENTRIES) {
+        /* Evict the first (oldest) slot by shifting left. */
+        memmove(&store->entries[0], &store->entries[1],
+                (AETHER_NONCE_STORE_MAX_ENTRIES - 1) * sizeof(aether_nonce_entry_t));
+        store->count = AETHER_NONCE_STORE_MAX_ENTRIES - 1;
+    }
+
+    aether_nonce_entry_t *e = &store->entries[store->count];
+    memcpy(e->key, key, strlen(key) + 1);
+    e->expires_at = now + (int64_t)ttl_seconds;
+    store->count++;
+
+    return true;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * PacketSigning service
+ * ──────────────────────────────────────────────────────────────────────── */
+
+void aether_packet_signing_init(AetherPacketSigningService *svc,
+                                aether_nonce_store_t *nonce_store) {
+    if (!svc) return;
+    svc->nonce_store = nonce_store;
+    svc->reputation  = NULL;
+}
+
+void aether_packet_signing_set_reputation(AetherPacketSigningService *svc,
+                                           AetherNodeReputationService *rep) {
+    if (!svc) return;
+    svc->reputation = rep;
+}
+
+bool aether_packet_signing_verify(AetherPacketSigningService *svc,
+                                   const aether_mesh_packet_t *packet,
+                                   const uint8_t *sender_public_key,
+                                   int ttl_seconds) {
+    if (!svc || !packet || !sender_public_key) return false;
+
+    const char *source_uhid = packet->source_uhid ? packet->source_uhid : "";
+
+    /* 1. Nonce replay check ─────────────────────────────────────────────── */
+    if (svc->nonce_store != NULL) {
+        bool fresh = aether_nonce_store_check_and_record(
+            svc->nonce_store,
+            source_uhid,
+            packet->packet_nonce,
+            AETHER_PACKET_NONCE_SIZE,
+            ttl_seconds);
+
+        if (!fresh) {
+            /* Replay detected — fire reputation hook if wired. */
+            if (svc->reputation != NULL) {
+                aether_reputation_record_replay(svc->reputation, source_uhid);
+            }
+            return false;
+        }
+    }
+
+    /* 2. Build signable data ────────────────────────────────────────────── */
+    size_t sig_data_len = 0;
+    uint8_t *sig_data = aether_packet_get_signable_data(packet, &sig_data_len);
+    if (!sig_data) return false;
+
+    /* 3. Verify Ed25519 signature ────────────────────────────────────────── */
+    bool valid = aether_ed25519_verify(
+        sender_public_key,
+        sig_data,
+        sig_data_len,
+        packet->signature);
+
+    free(sig_data);
+
+    if (!valid) {
+        /* Signature failure — fire reputation hook if wired. */
+        if (svc->reputation != NULL) {
+            aether_reputation_record_sig_failure(svc->reputation, source_uhid);
+        }
+        return false;
+    }
+
     return true;
 }

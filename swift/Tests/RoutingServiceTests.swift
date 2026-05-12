@@ -200,4 +200,66 @@ final class RoutingServiceTests: XCTestCase {
         XCTAssertNil(stale)
         XCTAssertNotNil(fresh)
     }
+
+    // MARK: - Item 19: RREQ-flood reputation hook
+
+    func testRreqFloodFiresReputation() async throws {
+        let sender = FakeMeshSender(localUhid: LOCAL)
+        let svc = RoutingService(sender: sender)
+        let rep = NodeReputationService()
+        await svc.setReputation(rep)
+
+        // RREQ_RATE_LIMIT_MAX unique packets — still within limit
+        for _ in 0..<ProtocolConstants.rreqRateLimitMax {
+            let pkt = makeRreq(source: "attacker", dest: "dest")
+            await svc.handleRouteRequest(pkt)
+        }
+        let scoreBefore = await rep.reputationScore(for: "attacker")
+        XCTAssertEqual(scoreBefore, 1.0, accuracy: 1e-9)
+
+        // 11th packet — crosses limit, fires hook
+        let pkt11 = makeRreq(source: "attacker", dest: "dest")
+        await svc.handleRouteRequest(pkt11)
+        let scoreAfter = await rep.reputationScore(for: "attacker")
+        // After 1 flood record: 1.0 − 0.05 = 0.95
+        XCTAssertEqual(scoreAfter, 0.95, accuracy: 1e-9)
+    }
+
+    func testRreqNormalTrafficNotPenalised() async throws {
+        let sender = FakeMeshSender(localUhid: LOCAL)
+        let svc = RoutingService(sender: sender)
+        let rep = NodeReputationService()
+        await svc.setReputation(rep)
+
+        for i in 0..<5 {
+            let pkt = makeRreq(source: "node-\(i)", dest: "dest")
+            await svc.handleRouteRequest(pkt)
+        }
+        for i in 0..<5 {
+            let score = await rep.reputationScore(for: "node-\(i)")
+            XCTAssertEqual(score, 1.0, accuracy: 1e-9)
+        }
+    }
+
+    func testRreqFloodWithoutReputationNoError() async throws {
+        let sender = FakeMeshSender(localUhid: LOCAL)
+        let svc = RoutingService(sender: sender)  // no reputation
+
+        for _ in 0...ProtocolConstants.rreqRateLimitMax {
+            let pkt = makeRreq(source: "attacker", dest: "dest")
+            await svc.handleRouteRequest(pkt)
+        }
+        // No error thrown, no crash
+    }
+
+    // MARK: - Helpers
+
+    private func makeRreq(source: String, dest: String) -> MeshPacket {
+        MeshPacket(
+            type: .routeRequest,
+            sourceUhid: source,
+            destinationUhid: dest,
+            ttl: ProtocolConstants.defaultTtl
+        )
+    }
 }

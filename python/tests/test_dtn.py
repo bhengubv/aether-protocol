@@ -24,6 +24,20 @@ from aether.protocol.mesh_packet import MeshPacket, PacketType
 
 from tests.fakes import FakeMeshSender
 
+
+class FakeReputation:
+    """Minimal reputation double that records every signal call."""
+
+    def __init__(self) -> None:
+        self.delivery_successes: list[tuple[str, int]] = []
+        self.custody_refusals: list[str] = []
+
+    def record_delivery_success(self, uhid: str, round_trip_ms: int) -> None:
+        self.delivery_successes.append((uhid, round_trip_ms))
+
+    def record_custody_refusal(self, uhid: str) -> None:
+        self.custody_refusals.append(uhid)
+
 LOCAL = "local"
 
 
@@ -212,6 +226,90 @@ class DtnServiceTests(unittest.TestCase):
         self.assertEqual(BundleStatus.DELIVERED, stored.status)
         self.assertIn("r", observed)
         self.assertEqual(3, observed["r"].total_hops)
+
+    # ─── Reputation hooks ──────────────────────────────────
+
+    def test_reputation_delivery_success_fires_when_bundle_addressed_to_self(self):
+        """Delivering a bundle destined for local_uhid records a delivery success."""
+        svc, _, _ = _new_svc()
+        rep = FakeReputation()
+        svc.set_reputation(rep)
+
+        bundle = DtnBundle(
+            sender_uhid="alice",
+            recipient_uhid=LOCAL,
+            encrypted_payload=b"\x01",
+        )
+        pkt = _build_bundle_packet("alice", bundle)
+        _run(svc.handle(pkt))
+
+        self.assertEqual(1, len(rep.delivery_successes))
+        self.assertEqual("alice", rep.delivery_successes[0][0])
+        self.assertEqual(0, rep.delivery_successes[0][1])
+        self.assertEqual(0, len(rep.custody_refusals))
+
+    def test_reputation_delivery_success_not_fired_for_transit_bundle(self):
+        """A bundle addressed to a different recipient (relayed in transit) must NOT
+        trigger record_delivery_success."""
+        svc, _, _ = _new_svc()
+        rep = FakeReputation()
+        svc.set_reputation(rep)
+
+        bundle = DtnBundle(
+            sender_uhid="alice",
+            recipient_uhid="bob",          # NOT the local node
+            encrypted_payload=b"\x02",
+        )
+        pkt = _build_bundle_packet("alice", bundle)
+        _run(svc.handle(pkt))
+
+        self.assertEqual(0, len(rep.delivery_successes))
+
+    def test_reputation_custody_refusal_fires_on_negative_ack(self):
+        """A custody-ack with accepted=False records a custody refusal for the sender."""
+        svc, _, _ = _new_svc()
+        rep = FakeReputation()
+        svc.set_reputation(rep)
+
+        bundle = _run(svc.create_bundle("recipient", b"\x03"))
+
+        body = json.dumps({"bundle_id": str(bundle.id), "accepted": False}).encode("utf-8")
+        pkt = MeshPacket(
+            type=PacketType.DtnCustodyAck,
+            source_uhid="carrier",
+            destination_uhid=LOCAL,
+            payload=body,
+        )
+        _run(svc.handle(pkt))
+
+        self.assertEqual(1, len(rep.custody_refusals))
+        self.assertEqual("carrier", rep.custody_refusals[0])
+        self.assertEqual(0, len(rep.delivery_successes))
+
+    def test_reputation_no_error_when_reputation_not_attached(self):
+        """DtnService must not raise when no reputation service has been attached."""
+        svc, _, _ = _new_svc()
+        # no set_reputation call — _reputation stays None
+
+        # Deliver a bundle to self
+        bundle_self = DtnBundle(
+            sender_uhid="alice",
+            recipient_uhid=LOCAL,
+            encrypted_payload=b"\x04",
+        )
+        _run(svc.handle(_build_bundle_packet("alice", bundle_self)))
+
+        # Refuse a custody ack
+        bundle_fwd = _run(svc.create_bundle("recipient", b"\x05"))
+        body = json.dumps({"bundle_id": str(bundle_fwd.id), "accepted": False}).encode("utf-8")
+        refusal_pkt = MeshPacket(
+            type=PacketType.DtnCustodyAck,
+            source_uhid="carrier",
+            destination_uhid=LOCAL,
+            payload=body,
+        )
+        _run(svc.handle(refusal_pkt))
+        # Reaching here without exception is the assertion
 
     # ─── ExpireStale ───────────────────────────────────────
 

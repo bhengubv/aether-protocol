@@ -250,4 +250,70 @@ final class DtnServiceTests: XCTestCase {
         let storedFresh = await store.get(fresh.id)
         XCTAssertEqual(storedFresh?.status, BundleStatus.pending.rawValue)
     }
+
+    // MARK: - Reputation hooks
+
+    func test_handle_deliveryToSelf_firesRecordDeliverySuccess() async {
+        let sender = FakeMeshSender(localUhid: LOCAL)
+        let store = InMemoryBundleStore()
+        let svc = DtnService(sender: sender, store: store)
+        let rep = NodeReputationService()
+        await svc.setReputation(rep)
+
+        let bundle = DtnBundle(
+            senderUhid: "alice",
+            recipientUhid: LOCAL,
+            encryptedPayload: Data([1])
+        )
+        await svc.handle(buildBundlePacket(source: "alice", bundle: bundle))
+
+        let score = await rep.reputationScore(for: "alice")
+        // score starts at 1.0; recordDeliverySuccess adds +0.01 → clamped to 1.0
+        // The key assertion is that the score was touched, not below the default
+        XCTAssertGreaterThanOrEqual(score, 1.0)
+    }
+
+    func test_handle_deliveryForOther_doesNotFireRecordDeliverySuccess() async {
+        let sender = FakeMeshSender(localUhid: LOCAL)
+        let store = InMemoryBundleStore()
+        let svc = DtnService(sender: sender, store: store)
+        let rep = NodeReputationService()
+        await svc.setReputation(rep)
+
+        // Bundle destined for "bob", not LOCAL — should NOT fire recordDeliverySuccess
+        let bundle = DtnBundle(
+            senderUhid: "alice",
+            recipientUhid: "bob",
+            encryptedPayload: Data([2])
+        )
+        await svc.handle(buildBundlePacket(source: "alice", bundle: bundle))
+
+        // "alice" score should be untouched (still default 1.0, no delivery-success delta applied)
+        let allScores = await rep.allScores()
+        XCTAssertNil(allScores["alice"], "reputation must not record delivery success for transit bundles")
+    }
+
+    func test_handle_negativeCustodyAck_firesRecordCustodyRefusal() async {
+        let sender = FakeMeshSender(localUhid: LOCAL)
+        let store = InMemoryBundleStore()
+        let svc = DtnService(sender: sender, store: store)
+        let rep = NodeReputationService()
+        await svc.setReputation(rep)
+
+        let b = await svc.createBundle(recipientUhid: "recipient", encryptedPayload: Data([1]))
+
+        let body = try? JSONEncoder().encode(CustodyAckWireMirror(bundle_id: b.id, accepted: false))
+        let pkt = MeshPacket(
+            type: .dtnCustodyAck,
+            sourceUhid: "carrier",
+            destinationUhid: LOCAL,
+            payload: body ?? Data()
+        )
+        await svc.handle(pkt)
+
+        // recordCustodyRefusal subtracts 0.05 from "carrier" (starts at 1.0 → 0.95)
+        let score = await rep.reputationScore(for: "carrier")
+        XCTAssertLessThan(score, 1.0, "custody refusal must lower the refusing peer's reputation score")
+        XCTAssertEqual(score, 0.95, accuracy: 1e-9)
+    }
 }

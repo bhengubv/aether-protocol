@@ -70,6 +70,14 @@ public enum PacketType : byte
     /// capability flags. Same JSON payload shape as <see cref="Hello"/>.
     /// </summary>
     HelloAck = 51,
+
+    /// <summary>
+    /// Reputation gossip — a node announces an observed score delta for a peer.
+    /// Payload is a UTF-8 JSON-encoded <c>ReputationUpdatePayload</c>.
+    /// Recipients MUST scale the claimed delta by the reporter's own local
+    /// reputation score before applying it (see <c>ReputationUpdatePayload</c>).
+    /// </summary>
+    ReputationUpdate = 52,
 }
 
 /// <summary>

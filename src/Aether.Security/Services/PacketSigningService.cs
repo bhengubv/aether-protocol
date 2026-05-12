@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Aether.Diagnostics;
 using Aether.Protocol;
+using Aether.Reputation;
 using Microsoft.Extensions.Logging;
 
 namespace Aether.Security.Services;
@@ -22,14 +23,19 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
     private const int CleanupIntervalMs = 60 * 1000; // 60 seconds
 
     private readonly ISignalProtocolService _signalProtocol;
+    private readonly INodeReputationService? _reputation;
     private readonly ILogger<PacketSigningService> _logger;
     private readonly ConcurrentDictionary<string, long> _seenNonces = new();
     private readonly Timer _cleanupTimer;
 
-    public PacketSigningService(ISignalProtocolService signalProtocol, ILogger<PacketSigningService> logger)
+    public PacketSigningService(
+        ISignalProtocolService signalProtocol,
+        ILogger<PacketSigningService> logger,
+        INodeReputationService? reputation = null)
     {
         _signalProtocol = signalProtocol ?? throw new ArgumentNullException(nameof(signalProtocol));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _reputation = reputation;
         _cleanupTimer = new Timer(CleanupExpiredNonces, null, CleanupIntervalMs, CleanupIntervalMs);
     }
 
@@ -102,6 +108,7 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
                 if (activity is not null) activity.SetTag("aether.packet.valid", false);
                 _logger.LogWarning("Packet {PacketId} rejected: duplicate nonce from {Source}",
                     packet.Id, LogSanitizer.SanitizeUhid(packet.SourceUhid));
+                _ = _reputation?.RecordReplayAttemptAsync(packet.SourceUhid);
                 return Task.FromResult(false);
             }
 
@@ -118,6 +125,7 @@ public sealed class PacketSigningService : IPacketSigningService, IDisposable
                 AetherTelemetry.SignaturesRejected.Add(1);
                 _logger.LogWarning("Packet {PacketId} rejected: invalid signature from {Source}",
                     packet.Id, LogSanitizer.SanitizeUhid(packet.SourceUhid));
+                _ = _reputation?.RecordSignatureFailureAsync(packet.SourceUhid);
             }
 
             if (activity is not null)

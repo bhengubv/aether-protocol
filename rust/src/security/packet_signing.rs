@@ -2,20 +2,37 @@
 
 use crate::constants::*;
 use crate::protocol::MeshPacket;
+use crate::reputation::NodeReputationService;
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Service for packet signing and nonce deduplication
 pub struct PacketSigningService {
     /// Map of (sender_uhid, nonce) -> timestamp for replay detection
     seen_nonces: HashMap<String, VecDeque<(Vec<u8>, u64)>>,
+    /// Optional reputation service.  When set, replay attempts and signature
+    /// failures are forwarded so the peer's behavioural score is updated.
+    reputation: Option<Arc<NodeReputationService>>,
 }
 
 impl PacketSigningService {
     pub fn new() -> Self {
         PacketSigningService {
             seen_nonces: HashMap::new(),
+            reputation: None,
         }
+    }
+
+    /// Attaches a [`NodeReputationService`] to this signing service.
+    ///
+    /// Once set, every detected replay attempt will call
+    /// [`NodeReputationService::record_replay_attempt`] and every signature
+    /// verification failure will call
+    /// [`NodeReputationService::record_signature_failure`] with the packet's
+    /// `source_uhid`.
+    pub fn set_reputation(&mut self, rep: Arc<NodeReputationService>) {
+        self.reputation = Some(rep);
     }
 
     /// Signs a packet with a fresh nonce and timestamp
@@ -95,6 +112,9 @@ impl PacketSigningService {
         // Check if this nonce has been seen
         for (seen_nonce, _) in nonce_history.iter() {
             if seen_nonce == nonce_entry {
+                if let Some(rep) = &self.reputation {
+                    rep.record_replay_attempt(&packet.source_uhid);
+                }
                 return Ok(false); // Duplicate nonce
             }
         }
@@ -105,6 +125,12 @@ impl PacketSigningService {
         // Verify signature
         let signable_data = packet.signable_data();
         let is_valid = crate::security::Ed25519SigningService::verify(public_key, &signable_data, &packet.signature);
+
+        if !is_valid {
+            if let Some(rep) = &self.reputation {
+                rep.record_signature_failure(&packet.source_uhid);
+            }
+        }
 
         Ok(is_valid)
     }
@@ -140,6 +166,7 @@ impl Default for PacketSigningService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::reputation::NodeReputationService;
     use crate::protocol::PacketType;
 
     #[test]
@@ -229,5 +256,114 @@ mod tests {
         packet.packet_nonce = original_nonce.clone();
         let is_valid = verifier.verify_packet(&packet, &public_key).unwrap();
         assert!(!is_valid);
+    }
+
+    // ── Reputation hook tests ─────────────────────────────────────────────────
+
+    /// Replaying the same packet (duplicate nonce) MUST call
+    /// `record_replay_attempt` on the reputation service.
+    #[test]
+    fn test_replay_fires_record_replay_attempt() {
+        let (private_key, public_key) = crate::security::Ed25519SigningService::generate_keypair();
+        let rep = Arc::new(NodeReputationService::new());
+
+        let mut signer = PacketSigningService::new();
+        let mut verifier = PacketSigningService::new();
+        verifier.set_reputation(Arc::clone(&rep));
+
+        let mut packet = MeshPacket::new(PacketType::Data, "node-rep-a".to_string());
+        packet.payload = b"replay-test".to_vec();
+        signer.sign_packet(&mut packet, &private_key).unwrap();
+
+        // First pass – accepted, no penalty yet (score still 1.0).
+        assert!(verifier.verify_packet(&packet, &public_key).unwrap());
+        assert!((rep.get_reputation_score("node-rep-a") - 1.0).abs() < 1e-9);
+
+        // Second pass – duplicate nonce → replay_attempt → score 0.85.
+        assert!(!verifier.verify_packet(&packet, &public_key).unwrap());
+        assert!(
+            (rep.get_reputation_score("node-rep-a") - 0.85).abs() < 1e-9,
+            "expected 0.85 after one replay penalty, got {}",
+            rep.get_reputation_score("node-rep-a")
+        );
+    }
+
+    /// A legitimately fresh nonce MUST NOT trigger `record_replay_attempt`.
+    #[test]
+    fn test_fresh_nonce_does_not_fire_replay_hook() {
+        let (private_key, public_key) = crate::security::Ed25519SigningService::generate_keypair();
+        let rep = Arc::new(NodeReputationService::new());
+
+        let mut signer = PacketSigningService::new();
+        let mut verifier = PacketSigningService::new();
+        verifier.set_reputation(Arc::clone(&rep));
+
+        let mut packet = MeshPacket::new(PacketType::Data, "node-rep-b".to_string());
+        packet.payload = b"fresh".to_vec();
+        signer.sign_packet(&mut packet, &private_key).unwrap();
+
+        // Single verification with a unique nonce – score must stay at 1.0.
+        assert!(verifier.verify_packet(&packet, &public_key).unwrap());
+        assert!(
+            (rep.get_reputation_score("node-rep-b") - 1.0).abs() < 1e-9,
+            "fresh nonce must not penalise score"
+        );
+    }
+
+    /// A packet whose signature does not verify MUST call
+    /// `record_signature_failure` on the reputation service.
+    #[test]
+    fn test_signature_failure_fires_record_signature_failure() {
+        let (private_key, _) = crate::security::Ed25519SigningService::generate_keypair();
+        // Use a *different* key-pair for verification so the signature is wrong.
+        let (_, wrong_public_key) = crate::security::Ed25519SigningService::generate_keypair();
+
+        let rep = Arc::new(NodeReputationService::new());
+
+        let mut signer = PacketSigningService::new();
+        let mut verifier = PacketSigningService::new();
+        verifier.set_reputation(Arc::clone(&rep));
+
+        let mut packet = MeshPacket::new(PacketType::Data, "node-rep-c".to_string());
+        packet.payload = b"bad-sig".to_vec();
+        signer.sign_packet(&mut packet, &private_key).unwrap();
+
+        // Verifying against the wrong public key → signature failure → score 0.80.
+        assert!(!verifier.verify_packet(&packet, &wrong_public_key).unwrap());
+        assert!(
+            (rep.get_reputation_score("node-rep-c") - 0.80).abs() < 1e-9,
+            "expected 0.80 after one signature-failure penalty, got {}",
+            rep.get_reputation_score("node-rep-c")
+        );
+    }
+
+    /// When no reputation service is attached, replay and signature-failure
+    /// paths MUST still return the correct `Ok(false)` without panicking.
+    #[test]
+    fn test_none_reputation_no_panic() {
+        let (private_key, _) = crate::security::Ed25519SigningService::generate_keypair();
+        let (_, wrong_public_key) = crate::security::Ed25519SigningService::generate_keypair();
+
+        // No set_reputation call — reputation is None.
+        let mut signer = PacketSigningService::new();
+        let mut verifier = PacketSigningService::new();
+
+        let mut packet = MeshPacket::new(PacketType::Data, "node-rep-d".to_string());
+        packet.payload = b"no-rep".to_vec();
+        signer.sign_packet(&mut packet, &private_key).unwrap();
+
+        // Signature failure with no reputation service — must not panic.
+        assert!(!verifier.verify_packet(&packet, &wrong_public_key).unwrap());
+
+        // Re-sign and verify once to populate nonce cache, then replay to
+        // exercise the replay path without a reputation service — must not panic.
+        let mut verifier2 = PacketSigningService::new();
+        let (private_key2, public_key2) = crate::security::Ed25519SigningService::generate_keypair();
+        let mut packet2 = MeshPacket::new(PacketType::Data, "node-rep-e".to_string());
+        packet2.payload = b"no-rep-replay".to_vec();
+        signer.sign_packet(&mut packet2, &private_key2).unwrap();
+
+        assert!(verifier2.verify_packet(&packet2, &public_key2).unwrap());
+        assert!(!verifier2.verify_packet(&packet2, &public_key2).unwrap()); // replay — must not panic
     }
 }

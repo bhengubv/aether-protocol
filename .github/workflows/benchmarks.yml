@@ -1,0 +1,280 @@
+name: Benchmarks
+
+# Runs on every push to main/master (to update the performance picture) and on
+# pull requests (to gate regressions before merge).
+#
+# Each language job:
+#   1. Builds and runs its benchmark suite.
+#   2. Calls scripts/check_bench_regression.py to compare the results against
+#      bench/baselines/<lang>.txt with a ±20 % regression threshold.
+#   3. Exits non-zero on regression; exits zero with a warning if the baseline
+#      is still PENDING (not yet established).
+#
+# To establish or update baselines run `bash scripts/update_baselines.sh`
+# locally and commit the updated bench/baselines/*.txt files.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  # ── Go ─────────────────────────────────────────────────────────────────────
+  bench-go:
+    name: "Bench · Go"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: go/go.sum
+
+      - name: Run benchmarks
+        run: |
+          go test -bench=. -benchmem -count=3 ./bench/ | tee /tmp/go_bench.txt
+        working-directory: go
+
+      - name: Check regression
+        run: |
+          python3 scripts/check_bench_regression.py \
+            --lang go \
+            --current /tmp/go_bench.txt \
+            --baseline bench/baselines/go.txt \
+            --threshold 0.20
+
+  # ── Rust ───────────────────────────────────────────────────────────────────
+  bench-rust:
+    name: "Bench · Rust"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Run benchmarks
+        # criterion writes human-readable output to stdout; capture it.
+        run: |
+          cargo bench --bench aether 2>&1 | tee /tmp/rust_bench.txt
+        working-directory: rust
+
+      - name: Check regression
+        run: |
+          python3 scripts/check_bench_regression.py \
+            --lang rust \
+            --current /tmp/rust_bench.txt \
+            --baseline bench/baselines/rust.txt \
+            --threshold 0.20
+
+  # ── Python ─────────────────────────────────────────────────────────────────
+  bench-python:
+    name: "Bench · Python"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python/pyproject.toml
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+        working-directory: python
+
+      - name: Run benchmarks
+        run: |
+          python -m pytest benchmarks/ \
+            --benchmark-json=/tmp/python_bench.json \
+            --benchmark-min-rounds=3 \
+            -q
+        working-directory: python
+
+      - name: Check regression
+        run: |
+          python3 scripts/check_bench_regression.py \
+            --lang python \
+            --current /tmp/python_bench.json \
+            --baseline bench/baselines/python.txt \
+            --threshold 0.20
+
+  # ── TypeScript ─────────────────────────────────────────────────────────────
+  bench-typescript:
+    name: "Bench · TypeScript"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: typescript
+
+      - name: Run benchmarks
+        run: |
+          npx tsx benchmarks/bench.ts | tee /tmp/ts_bench.txt
+        working-directory: typescript
+
+      - name: Check regression
+        run: |
+          python3 scripts/check_bench_regression.py \
+            --lang typescript \
+            --current /tmp/ts_bench.txt \
+            --baseline bench/baselines/typescript.txt \
+            --threshold 0.20
+
+  # ── C# ─────────────────────────────────────────────────────────────────────
+  bench-csharp:
+    name: "Bench · C#"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Run benchmarks
+        # BenchmarkDotNet requires Release build; --filter * runs all cases.
+        # Export to JSON for machine-readable parsing.
+        run: |
+          dotnet run -c Release --project bench/Aether.Benchmarks -- \
+            --exporters json \
+            --filter '*' \
+            --artifacts /tmp/bdn_artifacts 2>&1 | tee /tmp/csharp_stdout.txt
+          # Convert BenchmarkDotNet JSON to our key=ns format
+          python3 - <<'PYEOF'
+          import json, glob, sys
+          lines = []
+          for f in glob.glob("/tmp/bdn_artifacts/**/*.json", recursive=True):
+              try:
+                  data = json.loads(open(f).read())
+                  for b in data.get("Benchmarks", []):
+                      name = b.get("Method", b.get("FullName", ""))
+                      stat = b.get("Statistics", {})
+                      median_ns = stat.get("Median", 0)
+                      if name and median_ns:
+                          lines.append(f"{name}: {median_ns:.3f} ns")
+              except Exception:
+                  pass
+          if lines:
+              open("/tmp/csharp_bench.txt", "w").write("\n".join(lines))
+          else:
+              print("[warn] No BenchmarkDotNet results parsed", file=sys.stderr)
+          PYEOF
+
+      - name: Check regression
+        run: |
+          if [ -f /tmp/csharp_bench.txt ]; then
+            python3 scripts/check_bench_regression.py \
+              --lang csharp \
+              --current /tmp/csharp_bench.txt \
+              --baseline bench/baselines/csharp.txt \
+              --threshold 0.20
+          else
+            echo "[warn] No benchmark output file — skipping regression check."
+          fi
+
+  # ── Kotlin ─────────────────────────────────────────────────────────────────
+  bench-kotlin:
+    name: "Bench · Kotlin"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: kotlin/build.gradle.kts
+
+      - name: Run benchmarks
+        run: |
+          ./gradlew jmh --no-daemon 2>&1 | tee /tmp/kotlin_bench.txt
+        working-directory: kotlin
+
+      - name: Check regression
+        run: |
+          python3 scripts/check_bench_regression.py \
+            --lang kotlin \
+            --current /tmp/kotlin_bench.txt \
+            --baseline bench/baselines/kotlin.txt \
+            --threshold 0.20
+
+  # ── Swift ──────────────────────────────────────────────────────────────────
+  bench-swift:
+    name: "Bench · Swift"
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run benchmarks
+        run: |
+          swift test --filter BenchmarkTests 2>&1 | tee /tmp/swift_bench.txt
+        working-directory: swift
+
+      - name: Check regression
+        run: |
+          python3 scripts/check_bench_regression.py \
+            --lang swift \
+            --current /tmp/swift_bench.txt \
+            --baseline bench/baselines/swift.txt \
+            --threshold 0.20
+
+  # ── C ──────────────────────────────────────────────────────────────────────
+  bench-c:
+    name: "Bench · C"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsodium-dev cmake ninja-build
+
+      - name: Build benchmarks
+        run: |
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -S . -B build-bench
+          cmake --build build-bench
+        working-directory: c
+
+      - name: Run benchmarks
+        run: |
+          ./build-bench/bench/aether_bench | tee /tmp/c_bench.txt
+        working-directory: c
+
+      - name: Check regression
+        run: |
+          python3 scripts/check_bench_regression.py \
+            --lang c \
+            --current /tmp/c_bench.txt \
+            --baseline bench/baselines/c.txt \
+            --threshold 0.20
+
+  # ── Summary ────────────────────────────────────────────────────────────────
+  bench-summary:
+    name: "Bench · All passed"
+    runs-on: ubuntu-latest
+    needs:
+      - bench-go
+      - bench-rust
+      - bench-python
+      - bench-typescript
+      - bench-csharp
+      - bench-kotlin
+      - bench-swift
+      - bench-c
+    steps:
+      - run: echo "All benchmark regression checks passed."

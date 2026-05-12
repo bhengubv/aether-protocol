@@ -79,5 +79,20 @@ export * from "./voice/index.js";
 // Streaming, video, watch-together
 export * from "./streaming/index.js";
 
+// Identity
+export * from "./identity/index.js";
+
 // Constants
 export * from "./constants.js";
+
+// Reputation gossip
+export {
+  ReputationGossipService,
+  REPUTATION_UPDATE_TYPE,
+} from "./gossip.js";
+export type {
+  ReputationUpdatePayload,
+  Packet,
+  MeshSender,
+  PacketSigner,
+} from "./gossip.js";

@@ -108,11 +108,77 @@ Each transport has a colour name used throughout the codebase. `IsAvailable` gat
 | 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
 | 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android (`android/green/`) |
 | 🟣 Aether Purple | Cellular HTTP relay | Unlimited | ~10 Mbps | ✅ Windows — relay server in `samples/Aether.RelayServer/` |
-| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE only — `android/white/` (`Windows.Networking.Proximity` removed in Windows 11) |
-| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | 🔴 Hardware blocked — Huawei NearLink SDK required (`IsAvailable = false`) |
-| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | 🔴 Hardware blocked — LoRa radio module required (`IsAvailable = false`) |
+| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE (`android/white/`); Windows: NDEF-over-BLE-GATT + ACR122U PC/SC approximation (`Windows.Networking.Proximity` removed in Win 11) |
+| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`; Windows + Android: SSAP-over-BLE approximation (API-analogous, not wire-compatible) |
+| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ Meshtastic wire format over BLE LR (~1.3 km); radio swap to SX1276/SX1278 when LoRa module present |
 
 Priority order in `TransportManager`: NearLink → BLE (≤ 1 KB) → Wi-Fi Direct → NFC → LoRa → HTTP Relay (last resort, `PowerCostRelative = 100`).
+
+## Deployment tiers
+
+Aether works on any platform that supports Bluetooth or Wi-Fi. The tier you're on depends on the OS you're targeting.
+
+---
+
+### Standard tier — any platform
+
+Android · Windows · Linux · macOS · iOS
+
+Aether runs fully on any device with Bluetooth or Wi-Fi hardware. Where a radio is physically absent, each blocked transport is approximated using what is available:
+
+- **NearLink (Aether Teal)** — approximated over BLE GATT using the canonical Aether SLE service UUID (`61657468-6572-0003-0000-000000000000`). The SSAP application-protocol layer is API-identical to GATT. The radio layer (BPSK/QPSK/8PSK, Polar codes, 1–4 MHz channels) is not — nodes running the standard tier cannot exchange raw bytes with real NearLink hardware; they interoperate with other standard-tier Aether nodes.
+- **LoRa (Aether Red)** — approximated using the full Meshtastic wire format over BLE 5.0 Coded PHY (S=8, ~1.3 km outdoor). Bridge-node federation with real LoRa hardware works automatically — the same Meshtastic packet format rides all hops with no translation.
+- **NFC (Aether White)** — approximated via NDEF-over-BLE-GATT with an RSSI proximity gate (≥ −40 dBm ≈ 5–10 cm) that reproduces tap-to-connect semantics. PC/SC path via USB NFC reader is also supported on Windows.
+
+All other capabilities — BLE, Wi-Fi Direct, HTTP relay, Signal Protocol security (X3DH + Double Ratchet), AODV routing, DTN store-and-forward, SOS broadcast, voice, streaming — are native and identical to the native tier.
+
+**This is a fully capable, production-grade deployment.** Most apps start here.
+
+---
+
+### Native tier — CircleOS / OpenHarmony
+
+CircleOS · HarmonyOS · any OpenHarmony-based OS
+
+CircleOS is built on OpenHarmony, which ships NearLink (SLE) silicon and the `@kit.NearLinkKit` SDK as a first-class OS capability. On CircleOS and HarmonyOS devices with NearLink hardware, no approximation is needed — `harmonyos/teal/` uses the real SLE radio directly:
+
+```
+ssap.createClient(deviceAddress)  →  client.connect()  →  client.writeProperty(WRITE_NO_RESPONSE)
+advertising.startAdvertising()    →  scan.startScan()   →  client.on('propertyChange')
+```
+
+This is not just a better version of the standard tier. At the NearLink layer it is a categorically different network:
+
+| Capability | Standard tier (BLE approx) | Native tier (CircleOS / OpenHarmony) |
+|---|---|---|
+| **NearLink range** | ~100 m (BLE) | **600 m** |
+| **NearLink bandwidth** | ~1 Mbps (BLE) | **12 Mbps** |
+| **NearLink latency** | ~10 ms (BLE) | **20 µs** |
+| **NearLink power** | BLE baseline | **60% less than BLE 5.0** |
+| **Concurrent NearLink peers** | ~7 (BLE connection limit) | **500+** |
+| **NearLink source** | SSAP-over-BLE (`android/teal/`, `WinNearLinkStubTransportService`) | Real SLE radio (`harmonyos/teal/`, `@kit.NearLinkKit`) |
+| **BLE / Wi-Fi Direct / HTTP relay** | Native | Native (identical) |
+| **Signal Protocol security** | Full | Full (identical) |
+| **Routing / DTN / SOS** | Full | Full (identical) |
+| **Aether Tag identity** | Supported | Supported (identical) |
+
+---
+
+### Moving between tiers
+
+No code changes are required. The tier is determined at runtime by `IsAvailable` on each transport service:
+
+1. On a CircleOS or HarmonyOS device with NearLink silicon, `IsAvailable` on the NearLink transport returns `true` (hardware-probed via permission check + passive scan attempt).
+2. `TransportManager` automatically promotes NearLink to priority position — lowest power cost, highest bandwidth.
+3. App code, packet format, routing algorithm, security layer, and Aether Tags are identical across both tiers.
+
+A node on the standard tier and a node on the native tier can communicate freely — they share the same wire format, the same Signal Protocol sessions, and the same Aether Tags. The tier difference affects only the radio used for NearLink packets, not the protocol above it.
+
+---
+
+> **Internally these tiers are referred to as the Asterix variant (standard) and the Obelix variant (native).** Asterix works well with what is available. Obelix — running on CircleOS with native NearLink — operates at permanently elevated capability, the way Obelix carries the magic potion's strength without needing to drink again.
+
+---
 
 ## Implementations
 
@@ -127,21 +193,21 @@ Aether is built in 8 languages so it runs on phones, laptops, tablets, and micro
 | Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-All 8 languages produce byte-identical wire packets, verified by 14 canonical wire-format fixtures and 4 Signal test vectors run in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, and SOS broadcast services are implemented in every language with **1,321 tests** across all 8 implementations:
+All 8 languages produce byte-identical wire packets, verified by 14 canonical wire-format fixtures and 4 Signal test vectors run in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, SOS broadcast, voice, streaming, and security-hardening services are implemented in every language with **~3,000 tests** across all 8 implementations:
 
 | Language | Tests | CI platform |
 |----------|------:|-------------|
-| C# (.NET 10) | 492 | ubuntu-latest |
-| Python 3.12 | 188 | ubuntu-latest |
-| TypeScript / Node 20 | 170 | ubuntu-latest |
-| Go 1.22 | 127 | ubuntu-latest |
-| Swift 6 | 116 | macos-14 |
-| Kotlin / JVM 21 | 107 | ubuntu-latest |
-| Rust (stable) | 140 | ubuntu-latest |
-| C (GCC) | 60 | ubuntu-latest |
-| **Total** | **1,400** | |
+| C# (.NET 10) | 530 | ubuntu-latest |
+| TypeScript / Node 20 | 459 | ubuntu-latest |
+| Kotlin / JVM 21 | 457 | ubuntu-latest |
+| Go 1.22 | 423 | ubuntu-latest |
+| Python 3.12 | 387 | ubuntu-latest |
+| Swift 6 | 295 | macos-14 |
+| C (GCC) | 253 | ubuntu-latest |
+| Rust (stable) | ~195 | ubuntu-latest |
+| **Total** | **~3,000** | |
 
 Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. All 8 languages now ship a full Signal session (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
@@ -405,7 +471,7 @@ What's built and what's next.
 - DTN store-and-forward service with custody transfer, geohash-aware replication, 72h TTL
 - SOS broadcast service with flood, dedup, self-origin guard, rate-limit (3/hr)
 - Extensibility seams: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop defaults)
-- **1,400 tests** across all 8 languages (C# 492, Python 188, TypeScript 170, Go 127, Rust 140, Swift 116, Kotlin 107, C 60) — all green in CI
+- **~3,000 tests** across all 8 languages (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — all green in CI
 - ✅ **Real X3DH ephemeral key (8 languages)** — 4 X25519 DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) with HKDF-SHA256 root derivation. Pinned by `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Double Ratchet alignment family-wide** — full Signal §5 with HMAC-SHA256 + 0x01/0x02 domain separation in the symmetric ratchet, HKDF-SHA256 KDF_RK in the DH-ratchet step, DH-rotation on receive. Verified by `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` fixtures.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 reconciled with HEAD** — see `docs/PROTOCOL_SPEC.md`.
@@ -434,14 +500,14 @@ What's built and what's next.
 - ✅ **BLE GATT real transport** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (Android GATT server). Full RF bring-up test in `samples/Aether.BleRfTest/`.
 - ✅ **Wi-Fi Direct real transport** — `WinWifiDirectTransportService` (WinRT, `WiFiDirectAdvertisementPublisher` + TCP StreamSocket port 8888) + `android/green/` (`WifiP2pManager`). RF test in `samples/Aether.WifiDirectRfTest/`.
 - ✅ **HTTP relay transport (Aether Purple)** — `HttpRelayTransportService` with 10-second long-poll, `PowerCostRelative = 100`, always last resort. Relay server in `samples/Aether.RelayServer/` (ASP.NET Core minimal API, port 5200). RF test in `samples/Aether.RelayRfTest/`.
-- ✅ **NFC Android HCE (Aether White)** — `android/white/` implements `HostApduService` with AID `F061657468657200`. Windows NFC stub documents permanent API removal in Windows 11 (`IsAvailable = false`).
-- ✅ **NearLink stub (Aether Teal)** — `WinNearLinkStubTransportService` + `android/teal/`. Hardware-blocked (Huawei SDK). `IsAvailable = false` on all current platforms. Interface ready for when SDK ships.
-- ✅ **LoRa / CircleLink stub (Aether Red)** — `LoRaCircleLinkStub` + `android/red/`. Hardware-blocked (LoRa radio module). `IsAvailable = false`. `ICircleLinkTransportService` seam is ready for hardware partners.
+- ✅ **NFC (Aether White)** — `android/white/` implements `HostApduService` with AID `F061657468657200`. `WinNfcStubTransportService` documents two Windows approximation paths: (1) NDEF-over-BLE-GATT with RSSI gate ≥ −40 dBm (simulates tap-to-connect without NFC silicon, `IsAvailable = Bluetooth present`); (2) ACR122U USB reader via `Windows.Devices.SmartCards` PC/SC (`IsAvailable = contactless reader enumerated`). Upgrade path: implement `ITransportService` when Microsoft ships a first-party P2P NFC API.
+- ✅ **NearLink (Aether Teal)** — **`harmonyos/teal/`** — full HarmonyOS 5.0.1 (API 13) ArkTS implementation using `@kit.NearLinkKit` (`scan.startScan` + `ssap.createClient` + `advertising.startAdvertising`); `isAvailable` probed at runtime. `WinNearLinkStubTransportService` + `android/teal/` document the SSAP-over-BLE approximation: BLE GATT with Aether SLE service UUID `61657468-6572-0003-0000-000000000000` — API-analogous to SSAP, not wire-compatible with real NearLink hardware. Upgrade path: replace BLE GATT calls with `ssapc_*`/`ssaps_*` SDK calls; UUIDs and `TransportManager` slot unchanged.
+- ✅ **LoRa / CircleLink (Aether Red)** — `LoRaCircleLinkStub` + `android/red/` document the Meshtastic-over-BLE-LR approximation: full Meshtastic wire format (16-byte header + AES-256-CTR protobuf) over BLE 5.0 Coded PHY S=8 (~1.3 km outdoor), with managed-flood routing and RSSI-weighted contention window. Bridge-node federation with real LoRa hardware works automatically (same Meshtastic packet format, no translation). Upgrade path: replace BLE LR radio with SX1276/SX1278 AT-command or SPI driver; packet format and routing unchanged.
 
 **Open — tracked in `OPEN_ISSUES.md`:**
 - RF bring-up on real hardware: end-to-end two-node interop test on physical BLE / Wi-Fi Direct devices (simulation tests pass; hardware lab session needed)
-- NearLink: waiting for Huawei NearLink SDK to become available outside HarmonyOS
-- LoRa / CircleLink: requires a physical LoRa radio module (SX1276 / Heltec LoRa32 / RAK WisBlock)
+- NearLink: `harmonyos/teal/` complete; requires Huawei Mate 60/70 / Pura 70 Pro+ / Mate X6 hardware (NearLink silicon not present on non-Huawei devices). Windows + Android fall back to SSAP-over-BLE approximation automatically.
+- LoRa / CircleLink: radio module required for true LoRa range. Without one, the Meshtastic wire format is carried over BLE LR (~1.3 km) and bridge-node federation with real LoRa hardware is available.
 
 **Not yet open for external contribution:**
 - The protocol is still under active development. External contributions are not being accepted at this time.

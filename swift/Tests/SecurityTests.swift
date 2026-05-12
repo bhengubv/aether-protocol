@@ -186,8 +186,9 @@ final class SecurityTests: XCTestCase {
 
         // Generate nonce
         var nonce = Data(count: 8)
-        _ = nonce.withUnsafeMutableBytes { buffer in
-            SecRandomCopyBytes(kSecRandomDefault, 8, buffer.baseAddress!)
+        nonce.withUnsafeMutableBytes { buffer in
+            var rng = SystemRandomNumberGenerator()
+            for i in 0..<8 { buffer[i] = rng.next() }
         }
         packet.packetNonce = nonce
 
@@ -210,8 +211,9 @@ final class SecurityTests: XCTestCase {
         )
 
         var nonce = Data(count: 8)
-        _ = nonce.withUnsafeMutableBytes { buffer in
-            SecRandomCopyBytes(kSecRandomDefault, 8, buffer.baseAddress!)
+        nonce.withUnsafeMutableBytes { buffer in
+            var rng = SystemRandomNumberGenerator()
+            for i in 0..<8 { buffer[i] = rng.next() }
         }
         packet.packetNonce = nonce
 
@@ -292,5 +294,87 @@ final class SecurityTests: XCTestCase {
         // Different source, same nonce — must be accepted.
         let vB = try await signer.verifyPacket(bPkt, againstPublicKey: publicKey)
         XCTAssertTrue(vB, "Different source, same nonce — must be accepted.")
+    }
+
+    // MARK: - Reputation hook tests
+
+    /// A replay (duplicate nonce) must call `recordReplayAttempt(uhid:)` on
+    /// the reputation service, reducing the source's score by 0.15.
+    func testReplayFiresReputationHook() async throws {
+        let (privateKey, publicKey) = Ed25519Service.generateKeyPair()
+        let signer = await PacketSigningService(privateKey: privateKey, publicKey: publicKey)
+        let rep = NodeReputationService()
+        await signer.setReputation(rep)
+
+        var packet = MeshPacket(type: .data, sourceUhid: "attacker", destinationUhid: "victim")
+        packet.packetNonce = Data([0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE])
+        try await signer.signPacket(&packet)
+
+        // First verify — legitimate; no penalty.
+        let firstResult = try await signer.verifyPacket(packet, againstPublicKey: publicKey)
+        XCTAssertTrue(firstResult)
+        let scoreAfterFirst = await rep.reputationScore(for: "attacker")
+        XCTAssertEqual(scoreAfterFirst, 1.0, "No penalty on a fresh (source, nonce) pair")
+
+        // Replay attempt — must throw and apply the −0.15 replay penalty.
+        do {
+            _ = try await signer.verifyPacket(packet, againstPublicKey: publicKey)
+            XCTFail("Expected duplicateNonce error on replay")
+        } catch let error as PacketSigningError {
+            guard case .duplicateNonce = error else {
+                XCTFail("Expected duplicateNonce error but got \(error)")
+                return
+            }
+        }
+
+        let scoreAfterReplay = await rep.reputationScore(for: "attacker")
+        XCTAssertEqual(
+            scoreAfterReplay, 0.85, accuracy: 1e-10,
+            "Replay penalty (−0.15) must reduce score from 1.0 to 0.85"
+        )
+    }
+
+    /// A fresh (not-yet-seen) nonce must NOT fire any reputation hook —
+    /// the score for the source stays at 1.0 (default).
+    func testFreshNonceDoesNotFireReputationHook() async throws {
+        let (privateKey, publicKey) = Ed25519Service.generateKeyPair()
+        let signer = await PacketSigningService(privateKey: privateKey, publicKey: publicKey)
+        let rep = NodeReputationService()
+        await signer.setReputation(rep)
+
+        var packet = MeshPacket(type: .data, sourceUhid: "alice", destinationUhid: "bob")
+        packet.packetNonce = Data([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])
+        try await signer.signPacket(&packet)
+
+        let isValid = try await signer.verifyPacket(packet, againstPublicKey: publicKey)
+        XCTAssertTrue(isValid)
+
+        let score = await rep.reputationScore(for: "alice")
+        XCTAssertEqual(score, 1.0, "A legitimately fresh nonce must not penalise the source")
+    }
+
+    /// An invalid signature (tampered payload) must call
+    /// `recordSignatureFailure(uhid:)` on the reputation service,
+    /// reducing the source's score by 0.20.
+    func testSignatureFailureFiresReputationHook() async throws {
+        let (privateKey, publicKey) = Ed25519Service.generateKeyPair()
+        let (_, wrongPublicKey) = Ed25519Service.generateKeyPair()
+        let signer = await PacketSigningService(privateKey: privateKey, publicKey: publicKey)
+        let rep = NodeReputationService()
+        await signer.setReputation(rep)
+
+        var packet = MeshPacket(type: .data, sourceUhid: "impostor", destinationUhid: "victim")
+        packet.packetNonce = Data([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01, 0x02])
+        try await signer.signPacket(&packet)
+
+        // Verify with the wrong public key — signature check must return false.
+        let isValid = try await signer.verifyPacket(packet, againstPublicKey: wrongPublicKey)
+        XCTAssertFalse(isValid, "Wrong public key must cause signature verification to fail")
+
+        let score = await rep.reputationScore(for: "impostor")
+        XCTAssertEqual(
+            score, 0.80, accuracy: 1e-10,
+            "Signature-failure penalty (−0.20) must reduce score from 1.0 to 0.80"
+        )
     }
 }

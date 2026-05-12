@@ -34,6 +34,20 @@ object PacketSigning {
     private val HEX_CHARS = "0123456789ABCDEF".toCharArray()
 
     /**
+     * Optional reputation hook.  When set, replay attempts and signature
+     * failures are reported so the calling layer can down-score the offending
+     * peer.  `null` (the default) disables all reputation side-effects without
+     * changing validation semantics.
+     */
+    @Volatile
+    var reputation: NodeReputationService? = null
+
+    /** Convenience setter for injection from Java or builder-style callers. */
+    fun setReputationService(service: NodeReputationService?) {
+        reputation = service
+    }
+
+    /**
      * Constructs the signable data for a packet.
      *
      * Wire format (little-endian):
@@ -116,7 +130,9 @@ object PacketSigning {
      */
     fun verifyPacket(packet: MeshPacket, publicKey: ByteArray): Boolean {
         val signableData = constructSignableData(packet)
-        return Ed25519Service.verify(publicKey, signableData, packet.signature)
+        val valid = Ed25519Service.verify(publicKey, signableData, packet.signature)
+        if (!valid) reputation?.recordSignatureFailure(packet.sourceUhid)
+        return valid
     }
 
     /**
@@ -141,7 +157,9 @@ object PacketSigning {
 
         // putIfAbsent is the atomic "first writer wins" check we want — if
         // it returns non-null, the nonce was already seen (replay).
-        return nonceDedupCache.putIfAbsent(key, now) == null
+        val isNew = nonceDedupCache.putIfAbsent(key, now) == null
+        if (!isNew) reputation?.recordReplayAttempt(packet.sourceUhid)
+        return isNew
     }
 
     /**
@@ -166,6 +184,14 @@ object PacketSigning {
      */
     internal fun clearDedupCacheForTests() {
         nonceDedupCache.clear()
+    }
+
+    /**
+     * Test-only: reset the reputation service reference to null so tests are
+     * isolated from one another.
+     */
+    internal fun clearReputationServiceForTests() {
+        reputation = null
     }
 
     /**

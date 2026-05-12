@@ -6,6 +6,7 @@ using Aether.Diagnostics;
 using Aether.Extensibility;
 using Aether.Models;
 using Aether.Protocol;
+using Aether.Reputation;
 using Aether.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,6 +29,7 @@ public sealed class DtnService : IDtnService
     private readonly IBundleReplicationStrategy _strategy;
     private readonly IAetherIncentiveProvider _incentives;
     private readonly IAetherBackendClient _backend;
+    private readonly INodeReputationService? _reputation;
     private readonly ILogger<DtnService> _logger;
 
     public event EventHandler<DtnDeliveryReceipt>? BundleDelivered;
@@ -38,6 +40,7 @@ public sealed class DtnService : IDtnService
         IBundleReplicationStrategy? strategy = null,
         IAetherIncentiveProvider? incentives = null,
         IAetherBackendClient? backend = null,
+        INodeReputationService? reputation = null,
         ILogger<DtnService>? logger = null)
     {
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
@@ -45,6 +48,7 @@ public sealed class DtnService : IDtnService
         _strategy = strategy ?? new GeohashEpidemicStrategy();
         _incentives = incentives ?? new DefaultIncentiveProvider();
         _backend = backend ?? new DefaultBackendClient();
+        _reputation = reputation;
         _logger = logger ?? NullLogger<DtnService>.Instance;
     }
 
@@ -202,6 +206,7 @@ public sealed class DtnService : IDtnService
             await _store.SaveAsync(bundle, cancellationToken).ConfigureAwait(false);
             AetherTelemetry.DtnBundlesDelivered.Add(1);
             _logger.LogDebug("DTN bundle {Id} delivered locally — {Hops} hops", bundle.Id, bundle.HopCount);
+            _ = _reputation?.RecordDeliverySuccessAsync(packet.SourceUhid, 0);
             await SendDeliveryReceiptAsync(bundle, cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -257,6 +262,7 @@ public sealed class DtnService : IDtnService
         if (!ack.Accepted)
         {
             _logger.LogDebug("DTN custody ack: {Receiver} refused custody of {Bundle}", packet.SourceUhid, ack.BundleId);
+            _ = _reputation?.RecordCustodyRefusalAsync(packet.SourceUhid);
             return;
         }
 

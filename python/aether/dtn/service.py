@@ -25,6 +25,7 @@ from aether.models import (
     DtnDeliveryReceipt,
 )
 from aether.protocol.mesh_packet import MeshPacket, PacketType
+from aether.reputation import NodeReputationService
 from aether.routing.sender import MeshSender
 from aether.dtn.store import BundleStore, InMemoryBundleStore
 from aether.dtn.strategy import GeohashEpidemicStrategy, ReplicationStrategy
@@ -51,7 +52,15 @@ class DtnService:
         self._strategy = strategy or GeohashEpidemicStrategy()
         self._incentives = incentives or NoopIncentiveProvider()
         self._backend = backend or NoopBackendClient()
+        self._reputation: Optional[NodeReputationService] = None
         self.on_bundle_delivered: Optional[Callable[[DtnDeliveryReceipt], None]] = None
+
+    def set_reputation(self, reputation: Optional[NodeReputationService]) -> None:
+        """Attach a :class:`NodeReputationService` to receive DTN reputation signals.
+
+        Pass ``None`` to detach the reputation service.
+        """
+        self._reputation = reputation
 
     async def create_bundle(
         self,
@@ -147,6 +156,8 @@ class DtnService:
             bundle.status = BundleStatus.DELIVERED
             await self._store.save(bundle)
             await self._send_delivery_receipt(bundle)
+            if self._reputation is not None:
+                self._reputation.record_delivery_success(packet.source_uhid, 0)
             return
 
         if await self._store.get_active_count() >= constants.DTN_MAX_BUNDLES_PER_NODE:
@@ -174,7 +185,11 @@ class DtnService:
             return
         bundle_id = _try_uuid(data.get("bundle_id"))
         accepted = bool(data.get("accepted"))
-        if bundle_id is None or not accepted:
+        if bundle_id is None:
+            return
+        if not accepted:
+            if self._reputation is not None:
+                self._reputation.record_custody_refusal(packet.source_uhid)
             return
         bundle = await self._store.get(bundle_id)
         if bundle is None:

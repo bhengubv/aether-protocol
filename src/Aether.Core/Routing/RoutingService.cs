@@ -6,6 +6,7 @@ using Aether.Diagnostics;
 using Aether.Extensibility;
 using Aether.Models;
 using Aether.Protocol;
+using Aether.Reputation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -27,6 +28,7 @@ public sealed class RoutingService : IRoutingService
     private readonly IRouteStore _store;
     private readonly IRouteReplyVerifier _verifier;
     private readonly IAetherIncentiveProvider _incentives;
+    private readonly INodeReputationService? _reputation;
     private readonly ILogger<RoutingService> _logger;
 
     private readonly ConcurrentDictionary<string, RouteEntry> _routeCache = new(StringComparer.Ordinal);
@@ -40,12 +42,14 @@ public sealed class RoutingService : IRoutingService
         IRouteStore? store = null,
         IRouteReplyVerifier? verifier = null,
         IAetherIncentiveProvider? incentives = null,
+        INodeReputationService? reputation = null,
         ILogger<RoutingService>? logger = null)
     {
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
         _store = store ?? new InMemoryRouteStore();
         _verifier = verifier ?? new AcceptAllRouteReplyVerifier();
         _incentives = incentives ?? new DefaultIncentiveProvider();
+        _reputation = reputation;
         _logger = logger ?? NullLogger<RoutingService>.Instance;
     }
 
@@ -117,7 +121,10 @@ public sealed class RoutingService : IRoutingService
             throw new ArgumentException($"Expected RouteRequest, got {routeRequest.Type}", nameof(routeRequest));
 
         if (!_seenRreqs.TryAdd(routeRequest.Id, 0))
+        {
+            _ = _reputation?.RecordRreqFloodAttemptAsync(routeRequest.SourceUhid);
             return;
+        }
 
         var localUhid = _sender.LocalUhid;
         if (string.IsNullOrEmpty(routeRequest.SourceUhid) || routeRequest.SourceUhid == localUhid)

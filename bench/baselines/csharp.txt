@@ -1,0 +1,3 @@
+PENDING
+# Run `bash scripts/update_baselines.sh` from the repo root to establish baselines.
+# Format: bench_name=<median_ns>

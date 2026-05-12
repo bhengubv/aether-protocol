@@ -3,6 +3,7 @@
 
 #include "aether/routing.h"
 #include "aether/constants.h"
+#include "aether_reputation.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -23,11 +24,23 @@ typedef struct rreq_seen {
     struct rreq_seen *next;
 } rreq_seen_t;
 
+// ─── Per-source RREQ rate-limit entry ────────────────────
+#define RREQ_SOURCE_TS_CAP 32   /* ring-buffer capacity per source */
+
+typedef struct rreq_source_ts {
+    char     uhid[256];
+    int64_t  timestamps[RREQ_SOURCE_TS_CAP];
+    int      count;
+    struct rreq_source_ts *next;
+} rreq_source_ts_t;
+
 struct aether_routing_service {
-    aether_mesh_sender_t *sender;
-    route_node_t *routes;       // singly-linked list
-    rreq_seen_t *seen_rreqs;    // singly-linked list
-    int seen_count;
+    aether_mesh_sender_t         *sender;
+    route_node_t                 *routes;         // singly-linked list
+    rreq_seen_t                  *seen_rreqs;     // singly-linked list
+    int                           seen_count;
+    rreq_source_ts_t             *rreq_sources;   /* per-source timestamps */
+    AetherNodeReputationService  *reputation;     /* optional, may be NULL */
 };
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -95,6 +108,56 @@ static void rreq_seen_add(aether_routing_service_t *svc, const uint8_t id[AETHER
     svc->seen_count++;
 }
 
+// ─── Per-source RREQ rate-limit helpers ──────────────────
+
+static rreq_source_ts_t *find_source_ts(aether_routing_service_t *svc, const char *uhid) {
+    for (rreq_source_ts_t *s = svc->rreq_sources; s; s = s->next) {
+        if (strncmp(s->uhid, uhid, sizeof(s->uhid) - 1) == 0) return s;
+    }
+    return NULL;
+}
+
+static rreq_source_ts_t *get_or_create_source_ts(aether_routing_service_t *svc, const char *uhid) {
+    rreq_source_ts_t *s = find_source_ts(svc, uhid);
+    if (!s) {
+        s = (rreq_source_ts_t *)calloc(1, sizeof(rreq_source_ts_t));
+        if (!s) return NULL;
+        strncpy(s->uhid, uhid, sizeof(s->uhid) - 1);
+        s->next = svc->rreq_sources;
+        svc->rreq_sources = s;
+    }
+    return s;
+}
+
+/* Returns true iff the source has exceeded the per-window RREQ limit.
+ * Also prunes stale timestamps and (if not flooded) appends now_s. */
+static bool rreq_rate_limit_check_and_record(aether_routing_service_t *svc,
+                                              const char *uhid, int64_t now_s) {
+    rreq_source_ts_t *src = get_or_create_source_ts(svc, uhid);
+    if (!src) return false;  /* allocation failure — permit packet */
+
+    int64_t window_start = now_s - AETHER_RREQ_RATE_LIMIT_WINDOW_S;
+
+    /* Compact: remove timestamps outside the window. */
+    int out = 0;
+    for (int i = 0; i < src->count; i++) {
+        if (src->timestamps[i] > window_start) {
+            src->timestamps[out++] = src->timestamps[i];
+        }
+    }
+    src->count = out;
+
+    if (src->count >= AETHER_RREQ_RATE_LIMIT_MAX) {
+        return true;  /* flood: caller drops packet + records reputation */
+    }
+
+    /* Append current timestamp (guard against ring overflow). */
+    if (src->count < RREQ_SOURCE_TS_CAP) {
+        src->timestamps[src->count++] = now_s;
+    }
+    return false;
+}
+
 static void install_route(aether_routing_service_t *svc,
                           const char *destination,
                           const char *next_hop,
@@ -142,7 +205,18 @@ void aether_routing_service_free(aether_routing_service_t *service) {
         free(service->seen_rreqs);
         service->seen_rreqs = next;
     }
+    while (service->rreq_sources) {
+        rreq_source_ts_t *next = service->rreq_sources->next;
+        free(service->rreq_sources);
+        service->rreq_sources = next;
+    }
     free(service);
+}
+
+void aether_routing_set_reputation(aether_routing_service_t *service,
+                                   AetherNodeReputationService *reputation) {
+    if (!service) return;
+    service->reputation = reputation;
 }
 
 bool aether_routing_find_cached(aether_routing_service_t *service,
@@ -176,6 +250,16 @@ int aether_routing_discover(aether_routing_service_t *service, const char *desti
 void aether_routing_handle_rreq(aether_routing_service_t *service, aether_mesh_packet_t *rreq) {
     if (!service || !rreq || rreq->type != AETHER_PACKET_TYPE_ROUTE_REQUEST) return;
     if (rreq_seen_contains(service, rreq->packet_id)) return;
+    /* Per-source RREQ rate limiting — mirrors Go/Rust RoutingService. */
+    if (rreq->source_uhid) {
+        int64_t now_s = now_ms() / 1000;
+        if (rreq_rate_limit_check_and_record(service, rreq->source_uhid, now_s)) {
+            if (service->reputation) {
+                aether_reputation_record_rreq_flood(service->reputation, rreq->source_uhid);
+            }
+            return;  /* silently drop: source is flooding unique RREQs */
+        }
+    }
     rreq_seen_add(service, rreq->packet_id);
 
     const char *local = service->sender->local_uhid;

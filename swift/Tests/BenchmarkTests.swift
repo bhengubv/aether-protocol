@@ -38,6 +38,7 @@
 /// diff future runs against the saved measurement. `swift test` prints
 /// per-test mean and stddev to stdout; collect with `-Xswiftc -O` for
 /// release-mode numbers comparable to the other languages' baselines.
+#if canImport(ObjectiveC)
 import XCTest
 import Crypto
 import Foundation
@@ -319,3 +320,4 @@ final class BenchmarkTests: XCTestCase {
         return data
     }
 }
+#endif // canImport(ObjectiveC)

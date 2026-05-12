@@ -37,6 +37,14 @@ class PacketSigningService:
     The pair is unique-enough across the freshness window: a single
     sender re-using its own 8-byte random nonce within 5 minutes is the
     only legitimate replay pattern, and that IS what we want to drop.
+
+    Reputation integration
+    ----------------------
+    Call ``set_reputation(svc)`` with a ``NodeReputationService`` (or any
+    object that exposes ``record_replay_attempt(uhid)`` and
+    ``record_signature_failure(uhid)``) to enable automatic scoring.
+    Both call-sites are nil-safe: when no reputation service is attached
+    the checks still work correctly, they just do not score the peer.
     """
 
     def __init__(self, max_cache_size: int = 10000) -> None:
@@ -49,6 +57,18 @@ class PacketSigningService:
         self._nonce_cache: Dict[Tuple[str, bytes], datetime] = {}
         self._max_cache_size = max_cache_size
         self._last_cleanup = time.time()
+        self._reputation = None
+
+    def set_reputation(self, reputation) -> None:
+        """Attach a reputation service.
+
+        Args:
+            reputation: Any object that implements
+                ``record_replay_attempt(uhid: str)`` and
+                ``record_signature_failure(uhid: str)``.  Passing ``None``
+                detaches any previously attached service.
+        """
+        self._reputation = reputation
 
     def sign_packet(self, packet: MeshPacket, private_key: bytes) -> None:
         """
@@ -87,10 +107,14 @@ class PacketSigningService:
         # Verify signature
         signable_data = self._construct_signable_data(packet)
         if not Ed25519SigningService.verify(public_key, signable_data, packet.signature):
+            if self._reputation is not None:
+                self._reputation.record_signature_failure(packet.source_uhid)
             return False
 
         # Check for replay
         if self._is_replayed(packet.source_uhid, packet.packet_nonce):
+            if self._reputation is not None:
+                self._reputation.record_replay_attempt(packet.source_uhid)
             return False
 
         # Record the nonce

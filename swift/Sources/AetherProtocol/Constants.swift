@@ -10,6 +10,8 @@ public struct ProtocolConstants {
     public static let sosTtl: Int32 = 15
     public static let routeTimeoutMs: Int = 5000
     public static let routeExpirySeconds: Int = 300
+    public static let rreqRateLimitMax = 10
+    public static let rreqRateLimitWindowMs: Int64 = 10_000  // 10 seconds in milliseconds
 
     // MARK: - BLE Discovery
     public static let bleDiscoveryIntervalMs: Int = 10000
@@ -121,6 +123,10 @@ public enum PacketType: UInt8, Codable {
     /// mutually-supported) protocol version and the intersection of capability
     /// flags. Same JSON payload shape as `hello`.
     case helloAck = 51
+
+    /// Gossip-layer reputation update. Payload is a UTF-8 JSON-encoded
+    /// `ReputationUpdatePayload`. Broadcast with TTL = 3, destination = "*".
+    case reputationUpdate = 52
 }
 
 /// Node capabilities as a bitfield.

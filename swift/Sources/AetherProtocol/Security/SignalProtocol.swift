@@ -198,8 +198,11 @@ public actor SignalProtocolService {
         session.sendChainKey = newChain
 
         var nonce = Data(count: aesNonceSize)
-        _ = nonce.withUnsafeMutableBytes { buffer in
-            SecRandomCopyBytes(kSecRandomDefault, aesNonceSize, buffer.baseAddress!)
+        nonce.withUnsafeMutableBytes { buffer in
+            var rng = SystemRandomNumberGenerator()
+            for i in 0..<aesNonceSize {
+                buffer[i] = rng.next()
+            }
         }
 
         let sealedBox = try AES.GCM.seal(
@@ -698,10 +701,8 @@ public actor SignalProtocolService {
     }
 
     private func randomPositiveInt32() -> Int32 {
-        var raw: Int32 = 0
-        _ = withUnsafeMutableBytes(of: &raw) { buffer in
-            SecRandomCopyBytes(kSecRandomDefault, 4, buffer.baseAddress!)
-        }
+        var rng = SystemRandomNumberGenerator()
+        let raw = Int32(bitPattern: rng.next())
         let result = abs(raw)
         return result == 0 ? 1 : result
     }

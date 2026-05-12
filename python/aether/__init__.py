@@ -28,6 +28,13 @@ from aether.streaming.watch_together import WatchTogetherService
 # Security primitives use pynacl, which is an optional dep for hosts that don't
 # need crypto (e.g. wire-format-only verifiers). Keep imports lazy so importing
 # `aether` does not require pynacl to be installed.
+from aether.gossip import (
+    ReputationGossipService,
+    ReputationUpdatePayload,
+    REPUTATION_UPDATE_TYPE,
+)
+
+
 def __getattr__(name: str):
     if name in ("Ed25519SigningService",):
         from aether.security.ed25519_service import Ed25519SigningService
@@ -59,4 +66,8 @@ __all__ = [
     "VideoCallSession",
     "VideoCallState",
     "WatchTogetherService",
+    # Reputation gossip
+    "ReputationGossipService",
+    "ReputationUpdatePayload",
+    "REPUTATION_UPDATE_TYPE",
 ]

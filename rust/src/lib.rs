@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 
+pub mod identity;
+pub mod anomaly_detector;
 pub mod constants;
+pub mod gossip;
 pub mod dtn;
 pub mod extensibility;
 pub mod handshake;
 pub mod models;
 pub mod protocol;
+pub mod reputation;
 pub mod routing;
 pub mod security;
 pub mod sos;
@@ -37,6 +41,10 @@ pub use storage::{
     DataAtRestKeyProvider, DerivedDataAtRestKeyProvider, EncryptedKeyValueStore,
     FileSystemKeyValueStore, InMemoryKeyValueStore, KeyValueStore, StaticDataAtRestKeyProvider,
 };
+pub use identity::{AetherTag, AetherTagError};
+pub use anomaly_detector::{AnomalyDetectorOptions, BehavioralAnomalyDetector};
+pub use gossip::{GossipPacket, GossipSender, PacketSigner, ReputationGossipService, ReputationUpdatePayload};
+pub use reputation::NodeReputationService;
 pub use transport::{InProcessTransport, TransportService};
 pub use voice::{
     CallEntry, CallState, GroupCallEntry, GroupVoiceCallService, GroupVoiceSignalingMessage,

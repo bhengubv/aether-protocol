@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using Aether.Reputation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Aether.DependencyInjection;
@@ -87,4 +88,27 @@ public interface IAetherProtocolBuilder
     /// <c>IHandshakeService</c>.
     /// </summary>
     IAetherProtocolBuilder AddHandshake();
+
+    /// <summary>
+    /// Register <c>InMemoryNodeReputationService</c> as a singleton
+    /// <c>INodeReputationService</c>. Once added, the reputation score is
+    /// automatically plumbed into <c>RoutingService</c>, <c>PacketSigningService</c>,
+    /// and <c>DtnService</c> as an optional dependency at resolve time.
+    /// </summary>
+    IAetherProtocolBuilder AddReputation();
+
+    /// <summary>
+    /// Register <c>BehavioralAnomalyDetector</c> as a singleton
+    /// <c>IAnomalyDetector</c>. Requires <see cref="AddReputation"/> to have
+    /// been called first; throws <see cref="InvalidOperationException"/> otherwise.
+    /// </summary>
+    IAetherProtocolBuilder AddAnomalyDetector(Action<AnomalyDetectorOptions>? configure = null);
+
+    /// <summary>
+    /// Register <c>ReputationGossipService</c> as a singleton
+    /// <c>IReputationGossipService</c>. Requires both <see cref="AddReputation"/>
+    /// and <see cref="AddSignalProtocol"/> to have been called first; throws
+    /// <see cref="InvalidOperationException"/> otherwise.
+    /// </summary>
+    IAetherProtocolBuilder AddGossip();
 }

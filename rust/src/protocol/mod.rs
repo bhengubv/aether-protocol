@@ -56,6 +56,10 @@ pub enum PacketType {
     /// (highest mutually-supported) protocol version and the intersection of
     /// capability flags. Same JSON payload shape as [`PacketType::Hello`].
     HelloAck = 51,
+
+    /// Gossip packet carrying a signed reputation-score delta for a target UHID.
+    /// Payload is UTF-8 JSON-encoded [`crate::gossip::ReputationUpdatePayload`].
+    ReputationUpdate = 52,
 }
 
 impl PacketType {
@@ -97,6 +101,7 @@ impl PacketType {
             34 => Some(PacketType::TorrentMetadata),
             50 => Some(PacketType::Hello),
             51 => Some(PacketType::HelloAck),
+            52 => Some(PacketType::ReputationUpdate),
             _ => None,
         }
     }

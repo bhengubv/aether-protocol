@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/thegeeknetwork/aether-protocol-go/reputation"
 )
 
 // PacketSigningService handles packet signing and nonce deduplication.
@@ -17,6 +19,7 @@ type PacketSigningService struct {
 	maxPacketAge   int32            // seconds
 	cleanupTicker  *time.Ticker
 	done           chan struct{}
+	reputation     *reputation.NodeReputationService
 }
 
 // NewPacketSigningService creates a new packet signing service.
@@ -112,6 +115,57 @@ func (pss *PacketSigningService) RecordNonce(sourceUhid string, nonce []byte) {
 	pss.mu.Lock()
 	pss.nonceCache[key] = now
 	pss.mu.Unlock()
+}
+
+// SetReputation wires a NodeReputationService into the signing service so that
+// replay and signature-failure events are reflected in the reputation ledger.
+// Safe to call concurrently; passing nil removes the current hook.
+func (pss *PacketSigningService) SetReputation(r *reputation.NodeReputationService) {
+	pss.mu.Lock()
+	pss.reputation = r
+	pss.mu.Unlock()
+}
+
+// ValidateAndRecordNonce atomically checks whether the (sourceUhid, nonce) pair
+// has been seen before and, if not, records it.
+//
+// Returns true when the nonce is fresh (the caller should accept the packet).
+// Returns false when the nonce is a duplicate (the caller should drop the
+// packet). On a duplicate, RecordReplayAttempt is fired on the wired
+// reputation service if one has been set.
+//
+// This method replaces the pattern of calling IsNonceSeen + RecordNonce in
+// separate steps; the existing methods are kept for backward compatibility.
+func (pss *PacketSigningService) ValidateAndRecordNonce(sourceUhid string, nonce []byte) bool {
+	key := fmt.Sprintf("%s:%x", sourceUhid, nonce)
+	now := time.Now().Unix()
+
+	pss.mu.Lock()
+	_, seen := pss.nonceCache[key]
+	if seen {
+		rep := pss.reputation
+		pss.mu.Unlock()
+		if rep != nil {
+			rep.RecordReplayAttempt(sourceUhid)
+		}
+		return false
+	}
+	pss.nonceCache[key] = now
+	pss.mu.Unlock()
+
+	return true
+}
+
+// NotifySignatureFailure fires the reputation hook for a failed Ed25519
+// signature verification. Call this immediately after a verify step returns
+// false so the reputation ledger can penalise the sending node.
+func (pss *PacketSigningService) NotifySignatureFailure(sourceUhid string) {
+	pss.mu.RLock()
+	rep := pss.reputation
+	pss.mu.RUnlock()
+	if rep != nil {
+		rep.RecordSignatureFailure(sourceUhid)
+	}
 }
 
 // cleanupLoop periodically removes expired nonce entries.

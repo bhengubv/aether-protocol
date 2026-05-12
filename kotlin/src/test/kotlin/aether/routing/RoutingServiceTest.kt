@@ -6,6 +6,7 @@ import aether.FakeMeshSender
 import aether.models.RouteEntry
 import aether.protocol.MeshPacket
 import aether.protocol.PacketType
+import aether.security.NodeReputationService
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -192,5 +193,50 @@ class RoutingServiceTest {
         svc.prune()
         assertNull(store.get("stale"))
         assertNotNull(store.get("fresh"))
+    }
+
+    // ── Item 19: RREQ-flood reputation hook ──────────────────────────────────────
+
+    @Test fun rreqFloodFiresReputation(): Unit = runBlocking {
+        val sender = FakeMeshSender("local")
+        val svc = RoutingService(sender)
+        val rep = NodeReputationService()
+        svc.setReputation(rep)
+
+        // Send RREQ_RATE_LIMIT_MAX unique RREQs — still within limit
+        repeat(AetherConstants.RREQ_RATE_LIMIT_MAX) {
+            svc.handleRouteRequest(newRreq("attacker", "dest"))
+        }
+        assertEquals(1.0, rep.getReputationScore("attacker"), 1e-9)
+
+        // 11th unique RREQ — crosses limit, fires hook
+        svc.handleRouteRequest(newRreq("attacker", "dest"))
+        // After 1 flood record: score = 1.0 - 0.05 = 0.95
+        assertEquals(0.95, rep.getReputationScore("attacker"), 1e-9)
+    }
+
+    @Test fun rreqNormalTrafficNotPenalised(): Unit = runBlocking {
+        val sender = FakeMeshSender("local")
+        val svc = RoutingService(sender)
+        val rep = NodeReputationService()
+        svc.setReputation(rep)
+
+        repeat(5) { i ->
+            svc.handleRouteRequest(newRreq("node-$i", "dest"))
+        }
+        // All 5 sources should be at pristine 1.0
+        repeat(5) { i ->
+            assertEquals(1.0, rep.getReputationScore("node-$i"), 1e-9)
+        }
+    }
+
+    @Test fun rreqFloodWithoutReputationNoError(): Unit = runBlocking {
+        val sender = FakeMeshSender("local")
+        val svc = RoutingService(sender)  // no reputation attached
+
+        repeat(AetherConstants.RREQ_RATE_LIMIT_MAX + 1) {
+            svc.handleRouteRequest(newRreq("attacker", "dest"))
+        }
+        // No exception raised
     }
 }
