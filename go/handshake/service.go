@@ -39,8 +39,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thegeeknetwork/aether-protocol-go/constants"
-	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/bhengubv/aether-protocol/go/constants"
+	"github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 // MeshSender is the minimal sending abstraction the handshake service

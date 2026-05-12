@@ -9,7 +9,7 @@ persistence across restarts, and encryption-at-rest.
 ## 1. Install
 
 The implementation lives in this repository's `typescript/` subtree and
-publishes the `@aether-protocol/core` package. For a local dev install
+publishes the `@bhengubv/aether-protocol` package. For a local dev install
 from a checkout:
 
 ```bash
@@ -31,7 +31,7 @@ on subsequent constructions, so bundles published to peers stay valid
 across process restarts.
 
 ```ts
-import { SignalProtocol } from "@aether-protocol/core";
+import { SignalProtocol } from "@bhengubv/aether-protocol";
 
 const alice = new SignalProtocol();
 alice.setLocalUhid("alice-uhid-0001");
@@ -93,7 +93,7 @@ import {
   KeyValueSignalSessionStore,
   KeyValuePreKeyStore,
   FileSystemKeyValueStore,
-} from "@aether-protocol/core";
+} from "@bhengubv/aether-protocol";
 
 const kv = new FileSystemKeyValueStore("./aether-data");
 const sessions = new KeyValueSignalSessionStore(kv);
@@ -122,7 +122,7 @@ import {
   StaticDataAtRestKeyProvider,
   FileSystemKeyValueStore,
   KeyValueSignalSessionStore,
-} from "@aether-protocol/core";
+} from "@bhengubv/aether-protocol";
 
 const masterKey = new Uint8Array(32); // 32 random bytes from your KMS
 const keyProvider = new StaticDataAtRestKeyProvider(1, new Map([[1, masterKey]]));

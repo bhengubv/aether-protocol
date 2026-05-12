@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/thegeeknetwork/aether-protocol-go/extensibility"
-	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/bhengubv/aether-protocol/go/extensibility"
+	"github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────

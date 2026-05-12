@@ -21,7 +21,7 @@
 
     <!-- Version — bump in a single place before each release.
          Pre-release: set VersionSuffix in CI (e.g. -alpha.1, -rc.1). -->
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionPrefix>1.0.0</VersionPrefix>
 
     <!-- Source link + deterministic builds -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>

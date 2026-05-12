@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thegeeknetwork/aether-protocol-go/models"
+	"github.com/bhengubv/aether-protocol/go/models"
 )
 
 // RouteStore is the persistent backing store for the routing table. The default

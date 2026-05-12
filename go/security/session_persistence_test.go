@@ -8,7 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/thegeeknetwork/aether-protocol-go/storage"
+	"github.com/bhengubv/aether-protocol/go/storage"
 )
 
 // TestSessionPersistence_RoundTripAcrossRestart establishes a session,

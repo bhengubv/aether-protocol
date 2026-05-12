@@ -10,7 +10,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/thegeeknetwork/aether-protocol-go/models"
+	"github.com/bhengubv/aether-protocol/go/models"
 )
 
 // BundleStore is the persistent backing store for DTN bundles + custody records.

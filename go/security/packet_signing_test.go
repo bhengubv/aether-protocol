@@ -5,7 +5,7 @@ package security
 import (
 	"testing"
 
-	"github.com/thegeeknetwork/aether-protocol-go/reputation"
+	"github.com/bhengubv/aether-protocol/go/reputation"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────

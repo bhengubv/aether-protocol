@@ -28,7 +28,7 @@ All 13 required modules delivered with 100% protocol compliance.
 ### Build Output
 
 - **tsconfig.json** — Target ES2022, Node16 module resolution, strict mode
-- **package.json** — @aether-protocol/core v1.0.0, MIT license
+- **package.json** — @bhengubv/aether-protocol v1.0.0, MIT license
 - **dist/** — Compiled JavaScript + declaration files + source maps
 - **README.md** — Full documentation with API examples
 

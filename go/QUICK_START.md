@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-go get github.com/thegeeknetwork/aether-protocol-go
+go get github.com/bhengubv/aether-protocol/go
 ```
 
 ## 1. Packet Serialization (5 minutes)
@@ -13,7 +13,7 @@ package main
 
 import (
     "fmt"
-    "github.com/thegeeknetwork/aether-protocol-go/protocol"
+    "github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 func main() {
@@ -52,7 +52,7 @@ package main
 
 import (
     "fmt"
-    "github.com/thegeeknetwork/aether-protocol-go/security"
+    "github.com/bhengubv/aether-protocol/go/security"
 )
 
 func main() {
@@ -96,7 +96,7 @@ package main
 
 import (
     "fmt"
-    "github.com/thegeeknetwork/aether-protocol-go/security"
+    "github.com/bhengubv/aether-protocol/go/security"
 )
 
 func main() {
@@ -159,7 +159,7 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/thegeeknetwork/aether-protocol-go/transport"
+    "github.com/bhengubv/aether-protocol/go/transport"
 )
 
 func main() {
@@ -217,8 +217,8 @@ package main
 
 import (
     "fmt"
-    "github.com/thegeeknetwork/aether-protocol-go/constants"
-    "github.com/thegeeknetwork/aether-protocol-go/security"
+    "github.com/bhengubv/aether-protocol/go/constants"
+    "github.com/bhengubv/aether-protocol/go/security"
     "time"
 )
 
@@ -265,7 +265,7 @@ package main
 
 import (
     "fmt"
-    "github.com/thegeeknetwork/aether-protocol-go/models"
+    "github.com/bhengubv/aether-protocol/go/models"
     "time"
 )
 
@@ -323,9 +323,9 @@ package main
 
 import (
     "fmt"
-    "github.com/thegeeknetwork/aether-protocol-go/protocol"
-    "github.com/thegeeknetwork/aether-protocol-go/security"
-    "github.com/thegeeknetwork/aether-protocol-go/transport"
+    "github.com/bhengubv/aether-protocol/go/protocol"
+    "github.com/bhengubv/aether-protocol/go/security"
+    "github.com/bhengubv/aether-protocol/go/transport"
     "context"
 )
 
@@ -486,7 +486,7 @@ package protocol_test
 
 import (
     "testing"
-    "github.com/thegeeknetwork/aether-protocol-go/protocol"
+    "github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 func TestPacketSerialization(t *testing.T) {

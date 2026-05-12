@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <Description>RF bring-up test: sends an Aether packet to the Android BLE node and verifies the echo response. Closes OPEN_ISSUES item 8.</Description>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>

@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/thegeeknetwork/aether-protocol-go/constants"
-	"github.com/thegeeknetwork/aether-protocol-go/protocol"
-	"github.com/thegeeknetwork/aether-protocol-go/routing"
+	"github.com/bhengubv/aether-protocol/go/constants"
+	"github.com/bhengubv/aether-protocol/go/protocol"
+	"github.com/bhengubv/aether-protocol/go/routing"
 )
 
 // ──────────────────────────────────────────────

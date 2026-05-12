@@ -74,7 +74,7 @@ All demos completed successfully!
 package main
 
 import (
-    "github.com/thegeeknetwork/aether-protocol-go/security"
+    "github.com/bhengubv/aether-protocol/go/security"
 )
 
 func main() {
@@ -106,7 +106,7 @@ func main() {
 package main
 
 import (
-    "github.com/thegeeknetwork/aether-protocol-go/protocol"
+    "github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 func main() {
@@ -135,7 +135,7 @@ func main() {
 package main
 
 import (
-    "github.com/thegeeknetwork/aether-protocol-go/security"
+    "github.com/bhengubv/aether-protocol/go/security"
 )
 
 func main() {
@@ -288,7 +288,7 @@ All measurements on modern hardware. In-process transport has no latency (same p
 
 ### To Integrate Into Your Project
 
-1. **Copy the module**: Import `github.com/thegeeknetwork/aether-protocol-go` into your project
+1. **Copy the module**: Import `github.com/bhengubv/aether-protocol/go` into your project
 2. **Read QUICK_START.md**: 7 examples of the most common operations
 3. **Review IMPLEMENTATION_SUMMARY.md**: Understand wire format and cryptography
 4. **Look at cmd/demo/main.go**: See full working examples
@@ -359,4 +359,4 @@ For technical details, see [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md
 
 **Last Updated**: 2026-03-15
 **Location**: `/Users/admin/Code/Dev/aether-protocol/go/`
-**Module**: `github.com/thegeeknetwork/aether-protocol-go`
+**Module**: `github.com/bhengubv/aether-protocol/go`

@@ -46,7 +46,7 @@ The demo:
 #### Packet Creation & Signing
 
 ```typescript
-import { MeshPacket, PacketType, signPacket, Ed25519Service } from '@aether-protocol/core';
+import { MeshPacket, PacketType, signPacket, Ed25519Service } from '@bhengubv/aether-protocol';
 
 // Create packet
 const packet = MeshPacket.create(PacketType.Data, "node-a");
@@ -64,7 +64,7 @@ const isValid = verifyPacket(packet, keyPair.publicKey);
 #### Signal Protocol Encryption
 
 ```typescript
-import { SignalProtocol } from '@aether-protocol/core';
+import { SignalProtocol } from '@bhengubv/aether-protocol';
 
 const signal = new SignalProtocol();
 
@@ -84,7 +84,7 @@ const decrypted = await signal.decrypt("peer-uhid", encrypted);
 #### Packet Serialization
 
 ```typescript
-import { PacketSerializer } from '@aether-protocol/core';
+import { PacketSerializer } from '@bhengubv/aether-protocol';
 
 // Serialize to binary
 const binary = PacketSerializer.serialize(packet);
@@ -96,7 +96,7 @@ const restored = PacketSerializer.deserialize(binary);
 #### In-Process Transport
 
 ```typescript
-import { InProcessTransport } from '@aether-protocol/core';
+import { InProcessTransport } from '@bhengubv/aether-protocol';
 
 const nodeA = new InProcessTransport("uhid-a");
 const nodeB = new InProcessTransport("uhid-b");

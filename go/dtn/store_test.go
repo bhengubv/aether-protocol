@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thegeeknetwork/aether-protocol-go/models"
+	"github.com/bhengubv/aether-protocol/go/models"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────

@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/thegeeknetwork/aether-protocol-go/models"
-	"github.com/thegeeknetwork/aether-protocol-go/protocol"
+	"github.com/bhengubv/aether-protocol/go/models"
+	"github.com/bhengubv/aether-protocol/go/protocol"
 )
 
 // ── fakeSender ────────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thegeeknetwork/aether-protocol-go/transport"
+	"github.com/bhengubv/aether-protocol/go/transport"
 )
 
 // floatEqual returns true if |a-b| < eps.

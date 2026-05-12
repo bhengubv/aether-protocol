@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/thegeeknetwork/aether-protocol-go/storage"
+	"github.com/bhengubv/aether-protocol/go/storage"
 )
 
 // TestPreKeyPersistence_IdentityAndSPKAndOPKsSurviveRestart establishes

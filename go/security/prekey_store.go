@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thegeeknetwork/aether-protocol-go/storage"
+	"github.com/bhengubv/aether-protocol/go/storage"
 )
 
 // IPreKeyStore is the persistent storage interface for the long-term

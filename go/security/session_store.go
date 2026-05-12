@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/thegeeknetwork/aether-protocol-go/storage"
+	"github.com/bhengubv/aether-protocol/go/storage"
 )
 
 // ISignalSessionStore is the persistence boundary for Signal-Protocol

@@ -1,10 +1,17 @@
 [package]
 name = "aether-protocol"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
-authors = ["The Other Bhengu (Pty) Ltd t/a The Geek and Bhengu B.V."]
+authors = ["The Other Bhengu (Pty) Ltd t/a The Geek Network <engineering@thegeeknetwork.dev>"]
 license = "MIT"
-description = "Aether mesh networking protocol implementation in Rust"
+description = "Aether mesh networking protocol — offline-first P2P mesh via BLE, Wi-Fi Direct, LoRa, NFC, NearLink, and cellular relay"
+repository = "https://github.com/bhengubv/aether-protocol"
+homepage = "https://github.com/bhengubv/aether-protocol"
+documentation = "https://docs.rs/aether-protocol"
+readme = "README.md"
+keywords = ["mesh", "networking", "p2p", "bluetooth", "protocol"]
+categories = ["network-programming", "cryptography"]
+exclude = ["benches/", "tests/", "target/"]
 
 [dependencies]
 ed25519-dalek = "2.1"

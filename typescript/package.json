@@ -1,26 +1,54 @@
 {
-  "name": "@aether-protocol/core",
+  "name": "@bhengubv/aether-protocol",
   "version": "1.0.0",
-  "description": "TypeScript implementation of the Aether mesh networking protocol",
+  "description": "TypeScript implementation of the Aether mesh networking protocol — offline-first P2P mesh via BLE, Wi-Fi Direct, LoRa, NFC, NearLink, and cellular relay",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/demo.ts",
     "test": "tsx --test",
     "bench": "tsx benchmarks/bench.ts",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mesh",
     "networking",
     "p2p",
     "encryption",
-    "aether"
+    "aether",
+    "ble",
+    "bluetooth",
+    "offline"
   ],
-  "author": "The Other Bhengu (Pty) Ltd t/a The Geek and Bhengu B.V.",
+  "author": "The Other Bhengu (Pty) Ltd t/a The Geek Network <engineering@thegeeknetwork.dev>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bhengubv/aether-protocol.git",
+    "directory": "typescript"
+  },
+  "homepage": "https://github.com/bhengubv/aether-protocol#readme",
+  "bugs": {
+    "url": "https://github.com/bhengubv/aether-protocol/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@noble/hashes": "^1.3.3",
     "tweetnacl": "^1.0.3",
