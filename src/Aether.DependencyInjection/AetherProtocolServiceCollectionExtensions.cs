@@ -39,7 +39,7 @@ public static class AetherProtocolServiceCollectionExtensions
             optionsBuilder.Configure(configure);
 
         // Register the no-op AI provider as the default singleton for IAetherAiProvider.
-        // Hosts that install CircleAI / BhenguAI replace this by calling
+        // Hosts that install CircleAI replace this by calling
         // services.AddSingleton<IAetherAiProvider, TheirProvider>() BEFORE calling
         // AddAetherProtocol(), or by removing the TryAdd registration afterwards.
         services.TryAddSingleton<IAetherAiProvider, NullAetherAiProvider>();

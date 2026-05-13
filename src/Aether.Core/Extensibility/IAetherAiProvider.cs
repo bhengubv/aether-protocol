@@ -36,7 +36,7 @@ public sealed record AiRouteSuggestion(
     double Confidence);
 
 /// <summary>
-/// Extension point for AI-enhanced mesh operations (CircleAI / BhenguAI).
+/// Extension point for AI-enhanced mesh operations (CircleAI).
 ///
 /// Default no-op implementations make every method safe to call when no AI
 /// is installed. <c>IsAvailable</c> is the gate: callers must check it before

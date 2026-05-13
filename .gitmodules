@@ -1,0 +1,3 @@
+[submodule "circleai"]
+	path = circleai
+	url = https://github.com/bhengubv/CircleAI

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Predictive transport selector — 2-state Kalman filter over PerTransportMetrics.
-// RankWithAiAsync extends Rank() with optional CircleAI / BhenguAI transport biases.
+// RankWithAiAsync extends Rank() with optional CircleAI transport biases.
 //
 // Why a Kalman filter instead of more EWMA?
 // ───────────────────────────────────────────
