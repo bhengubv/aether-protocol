@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Predictive transport selector — 2-state Kalman filter over PerTransportMetrics.
+// RankWithAiAsync extends Rank() with optional CircleAI / BhenguAI transport biases.
 //
 // Why a Kalman filter instead of more EWMA?
 // ───────────────────────────────────────────
@@ -36,6 +37,8 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
+using Aether.Extensibility;
 using Aether.Transport.Abstractions;
 using Aether.Transport.Models;
 
@@ -372,5 +375,75 @@ public sealed class PredictiveTransportSelector
                 : null;
         }
         finally { _rwLock.ExitReadLock(); }
+    }
+
+    // ── AI-augmented ranking ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// AI-augmented ranking: runs <see cref="Rank"/> then multiplies each transport's
+    /// score by the AI provider's bias for that transport name.
+    ///
+    /// <para>
+    /// Falls back to the plain <see cref="Rank"/> result when:
+    /// <list type="bullet">
+    ///   <item><description><paramref name="aiProvider"/> is <see langword="null"/>.</description></item>
+    ///   <item><description><see cref="IAetherAiProvider.IsAvailable"/> is <c>false</c>.</description></item>
+    ///   <item><description>The provider returns an empty bias dictionary.</description></item>
+    ///   <item><description>The provider throws — the exception is swallowed; AI is never a hard dependency.</description></item>
+    /// </list>
+    /// </para>
+    ///
+    /// <para>
+    /// Bias semantics match <see cref="IAetherAiProvider.GetTransportBiasesAsync"/>:
+    /// 1.0 = neutral, &gt;1.0 = AI-preferred, &lt;1.0 = AI-discouraged, 0.0 = effectively suppress.
+    /// Negative multipliers are clamped to 0.0 so scores never go negative.
+    /// The resulting list is sorted by adjusted score descending.
+    /// </para>
+    /// </summary>
+    /// <param name="payloadBytes">Intended payload size, forwarded to both <see cref="Rank"/> and the provider.</param>
+    /// <param name="aiProvider">
+    /// Optional AI provider. When <see langword="null"/> or unavailable, behaves identically to <see cref="Rank"/>.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token forwarded to the AI provider.</param>
+    /// <returns>
+    /// Transports in descending AI-adjusted score order. When AI is unavailable or fails,
+    /// returns the same result as <see cref="Rank"/>.
+    /// </returns>
+    public async Task<IReadOnlyList<(ITransportService Transport, double Score, double PredictedRttMs, double RttVariance)>>
+        RankWithAiAsync(
+            int payloadBytes = 512,
+            IAetherAiProvider? aiProvider = null,
+            CancellationToken cancellationToken = default)
+    {
+        var baseRanking = Rank(payloadBytes);
+
+        if (aiProvider is not { IsAvailable: true })
+            return baseRanking;
+
+        IReadOnlyDictionary<string, double> biases;
+        try
+        {
+            biases = await aiProvider.GetTransportBiasesAsync(payloadBytes, cancellationToken)
+                                      .ConfigureAwait(false);
+        }
+        catch
+        {
+            // AI failures are never fatal — mesh operates without AI.
+            return baseRanking;
+        }
+
+        if (biases.Count == 0)
+            return baseRanking;
+
+        var adjusted = new List<(ITransportService, double, double, double)>(baseRanking.Count);
+        foreach (var (transport, score, rtt, variance) in baseRanking)
+        {
+            double multiplier = biases.TryGetValue(transport.Name, out double m) ? m : 1.0;
+            multiplier = Math.Max(multiplier, 0.0); // clamp: no negative scores
+            adjusted.Add((transport, score * multiplier, rtt, variance));
+        }
+
+        adjusted.Sort((a, b) => b.Item2.CompareTo(a.Item2));
+        return adjusted;
     }
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 
+using Aether.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Aether.DependencyInjection;
 
@@ -35,6 +37,12 @@ public static class AetherProtocolServiceCollectionExtensions
         var optionsBuilder = services.AddOptions<AetherOptions>();
         if (configure is not null)
             optionsBuilder.Configure(configure);
+
+        // Register the no-op AI provider as the default singleton for IAetherAiProvider.
+        // Hosts that install CircleAI / BhenguAI replace this by calling
+        // services.AddSingleton<IAetherAiProvider, TheirProvider>() BEFORE calling
+        // AddAetherProtocol(), or by removing the TryAdd registration afterwards.
+        services.TryAddSingleton<IAetherAiProvider, NullAetherAiProvider>();
 
         return new AetherProtocolBuilder(services);
     }
