@@ -8,6 +8,20 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [1.0.1] — 2026-05-21
+
+### Fixed
+- `ITransportService.ts` now exports `PerTransportMetrics` and `rankTransports`
+  (were missing, causing all `transport_rank.test.ts` tests to fail at import)
+- `InProcessTransport` now implements `metrics: PerTransportMetrics` and records
+  a sample on each successful delivery (fixes `transport_inprocess.test.ts`
+  metrics assertions)
+- `PROTOCOL_SPEC.md` `SosPriority` corrected from `999` to `255` (byte overflow)
+- `PROTOCOL_SPEC.md` `DefaultChunkSizeBytes` corrected from `262144` to `8192`
+  (mesh-correct value matching all runtime implementations)
+
+---
+
 ## [1.0.0] — 2026-05-21
 
 First stable release. All eight language implementations (C#, Kotlin, Swift,
