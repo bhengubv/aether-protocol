@@ -18,6 +18,9 @@ on:
     branches: [main, master]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   # ── Go ─────────────────────────────────────────────────────────────────────
   bench-go:
@@ -45,6 +48,14 @@ jobs:
             --baseline bench/baselines/go.txt \
             --threshold 0.20
 
+      - name: Upload baseline artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-go
+          path: /tmp/go_bench.txt
+          if-no-files-found: ignore
+
   # ── Rust ───────────────────────────────────────────────────────────────────
   bench-rust:
     name: "Bench · Rust"
@@ -71,6 +82,14 @@ jobs:
             --current /tmp/rust_bench.txt \
             --baseline bench/baselines/rust.txt \
             --threshold 0.20
+
+      - name: Upload baseline artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-rust
+          path: /tmp/rust_bench.txt
+          if-no-files-found: ignore
 
   # ── Python ─────────────────────────────────────────────────────────────────
   bench-python:
@@ -105,6 +124,14 @@ jobs:
             --baseline bench/baselines/python.txt \
             --threshold 0.20
 
+      - name: Upload baseline artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-python
+          path: /tmp/python_bench.json
+          if-no-files-found: ignore
+
   # ── TypeScript ─────────────────────────────────────────────────────────────
   bench-typescript:
     name: "Bench · TypeScript"
@@ -134,6 +161,14 @@ jobs:
             --current /tmp/ts_bench.txt \
             --baseline bench/baselines/typescript.txt \
             --threshold 0.20
+
+      - name: Upload baseline artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-typescript
+          path: /tmp/ts_bench.txt
+          if-no-files-found: ignore
 
   # ── C# ─────────────────────────────────────────────────────────────────────
   bench-csharp:
@@ -187,6 +222,14 @@ jobs:
             echo "[warn] No benchmark output file — skipping regression check."
           fi
 
+      - name: Upload baseline artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-csharp
+          path: /tmp/csharp_bench.txt
+          if-no-files-found: ignore
+
   # ── Kotlin ─────────────────────────────────────────────────────────────────
   bench-kotlin:
     name: "Bench · Kotlin"
@@ -214,6 +257,14 @@ jobs:
             --baseline bench/baselines/kotlin.txt \
             --threshold 0.20
 
+      - name: Upload baseline artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-kotlin
+          path: /tmp/kotlin_bench.txt
+          if-no-files-found: ignore
+
   # ── Swift ──────────────────────────────────────────────────────────────────
   bench-swift:
     name: "Bench · Swift"
@@ -233,6 +284,14 @@ jobs:
             --current /tmp/swift_bench.txt \
             --baseline bench/baselines/swift.txt \
             --threshold 0.20
+
+      - name: Upload baseline artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-swift
+          path: /tmp/swift_bench.txt
+          if-no-files-found: ignore
 
   # ── C ──────────────────────────────────────────────────────────────────────
   bench-c:
@@ -263,6 +322,14 @@ jobs:
             --baseline bench/baselines/c.txt \
             --threshold 0.20
 
+      - name: Upload baseline artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-c
+          path: /tmp/c_bench.txt
+          if-no-files-found: ignore
+
   # ── Summary ────────────────────────────────────────────────────────────────
   bench-summary:
     name: "Bench · All passed"
@@ -278,3 +345,51 @@ jobs:
       - bench-c
     steps:
       - run: echo "All benchmark regression checks passed."
+
+  # ── Auto-update baselines on main ──────────────────────────────────────────
+  update-baselines:
+    name: "Bench · Auto-update baselines"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs:
+      - bench-go
+      - bench-rust
+      - bench-python
+      - bench-typescript
+      - bench-csharp
+      - bench-kotlin
+      - bench-swift
+      - bench-c
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all baseline artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: baseline-*
+          path: /tmp/baselines
+          merge-multiple: true
+
+      - name: Update baseline files
+        run: |
+          mkdir -p bench/baselines
+          for lang in go rust typescript kotlin swift c; do
+            src="/tmp/baselines/${lang}_bench.txt"
+            [ -f "$src" ] && cp "$src" "bench/baselines/${lang}.txt" && echo "Updated ${lang}.txt"
+          done
+          # Python uses .json
+          [ -f "/tmp/baselines/python_bench.json" ] && cp /tmp/baselines/python_bench.json bench/baselines/python.txt && echo "Updated python.txt"
+          # C# uses csharp_bench.txt
+          [ -f "/tmp/baselines/csharp_bench.txt" ] && cp /tmp/baselines/csharp_bench.txt bench/baselines/csharp.txt && echo "Updated csharp.txt"
+
+      - name: Commit updated baselines
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bench/baselines/
+          git diff --staged --quiet && echo "No baseline changes." || \
+            git commit -m "ci: auto-update benchmark baselines [skip ci]" && git push

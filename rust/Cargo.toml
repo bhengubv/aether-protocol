@@ -2,6 +2,7 @@
 name = "aether-protocol"
 version = "1.0.0"
 edition = "2021"
+rust-version = "1.75"
 authors = ["The Other Bhengu (Pty) Ltd t/a The Geek Network <engineering@thegeeknetwork.dev>"]
 license = "MIT"
 description = "Aether mesh networking protocol — offline-first P2P mesh via BLE, Wi-Fi Direct, LoRa, NFC, NearLink, and cellular relay"
