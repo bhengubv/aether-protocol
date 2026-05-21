@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { ITransportService } from "./ITransportService.js";
+import { ITransportService, PerTransportMetrics } from "./ITransportService.js";
 
 /**
  * In-memory transport for testing and demos. Simulates a network of nodes using a static
@@ -23,6 +23,7 @@ export class InProcessTransport implements ITransportService {
   maxRangeMeters: number = 0; // Not applicable
   powerCostRelative: number = 0; // No power cost
   maxConcurrentPeers: number = Number.MAX_SAFE_INTEGER;
+  readonly metrics: PerTransportMetrics = new PerTransportMetrics();
   onDataReceived?: (senderUhid: string, data: Uint8Array) => void;
 
   /**
@@ -82,6 +83,9 @@ export class InProcessTransport implements ITransportService {
       // Copy data to prevent mutation
       const dataCopy = new Uint8Array(data);
       targetNode.onDataReceived?.(this.localUhid, dataCopy);
+      // Record a successful delivery sample. In-process delivery is
+      // synchronous (rttMs = 0), so only sampleCount and lossRate update.
+      this.metrics.recordSample(0, true, data.length);
       console.debug(
         `[InProcess] Delivered ${data.length} bytes from '${this.localUhid}' to '${peerUhid}'`
       );

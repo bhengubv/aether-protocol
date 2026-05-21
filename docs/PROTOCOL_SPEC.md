@@ -1236,7 +1236,7 @@ All protocol constants are defined in `ProtocolConstants` and are reproduced her
 | Constant                   | Value |
 |----------------------------|-------|
 | SosTtl                     | 15    |
-| SosPriority                | 999   |
+| SosPriority                | 255   |
 | MaxSosBroadcastsPerHour    | 3     |
 
 ### DTN
@@ -1251,7 +1251,7 @@ All protocol constants are defined in `ProtocolConstants` and are reproduced her
 | Constant                  | Value   |
 |---------------------------|---------|
 | BleMaxPayloadBytes        | 1024    |
-| DefaultChunkSizeBytes     | 262144  |
+| DefaultChunkSizeBytes     | 8192    |
 | MaxChunkSizeBytes         | 1048576 |
 | WifiDirectTimeoutMs       | 10000   |
 | MaxWifiDirectPeers        | 8       |
