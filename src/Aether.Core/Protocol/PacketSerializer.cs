@@ -128,7 +128,10 @@ public static class PacketSerializer
     /// </summary>
     public static MeshPacket Deserialize(ReadOnlySpan<byte> data)
     {
-        if (data.Length < 31) // minimum: version(1) + type(1) + guid(16) + priority(1) + ttl(4) + ts(8) + lengths(6*0 + 2+2+2+4+2=12) = 43 minimum with 0-length strings
+        // Minimum wire size with all variable fields empty:
+        //   version(1) + type(1) + guid(16) + priority(1) + ttl(4) + ts(8)
+        //   + sourceLen(2) + destLen(2) + nonceLen(2) + payloadLen(4) + sigLen(2) = 43
+        if (data.Length < 43)
             throw new ArgumentException("Data is too short to contain a valid MeshPacket.", nameof(data));
 
         var offset = 0;
@@ -207,8 +210,11 @@ public static class PacketSerializer
             packet = Deserialize(data);
             return true;
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // Narrow the catch: OOM and similar catastrophic exceptions must propagate.
+            // ArgumentException / InvalidOperationException from a malformed packet are
+            // expected and safely absorbed here.
             packet = null;
             return false;
         }

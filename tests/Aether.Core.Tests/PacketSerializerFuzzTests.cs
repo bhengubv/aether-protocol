@@ -88,17 +88,18 @@ public class PacketSerializerFuzzTests
     [Fact]
     public void OversizeUhidLengthPrefix_ThrowsExpected()
     {
-        // SourceUhid length = 65535 (uint16 max) but no actual bytes follow.
-        var buf = new byte[31];
-        // Header: ver, type, guid(16), priority, ttl(4), ts(8) = 31 bytes
-        // First 31 bytes are valid; sourceLen at offset 31 reads OOB.
-        // Pad up to read sourceLen at offset 31 (requires 33 bytes).
-        var padded = new byte[33];
-        Array.Copy(buf, padded, 31);
-        padded[31] = 0xFF;
-        padded[32] = 0xFF;
+        // Wire minimum is 43 bytes (fixed header + 5 zero-length prefixes).
+        // A 44-byte buffer where the SourceUhid length prefix = 65535 (uint16 max)
+        // declares far more bytes than remain in the buffer → EnsureRemaining throws.
+        // Older test used 33 bytes which now fails the minimum-length guard
+        // (< 43) before reaching the prefix check — both paths throw ArgumentException.
+        var buf = new byte[44];
+        buf[0] = 0x02; // version
+        // all other fixed fields = 0x00 (valid enough for the guard)
+        buf[31] = 0xFF; // SourceUhid length high byte — at offset 31 = after fixed header
+        buf[32] = 0xFF; // SourceUhid length low byte  → 65535 declared, 0 remain
 
-        var ex = Record.Exception(() => PacketSerializer.Deserialize(padded));
+        var ex = Record.Exception(() => PacketSerializer.Deserialize(buf));
         Assert.NotNull(ex);
         Assert.True(IsExpectedException(ex!),
             $"Unexpected: {ex!.GetType().FullName}");

@@ -119,7 +119,10 @@ export class PacketSerializer {
    * Deserialize a MeshPacket from its binary wire format
    */
   static deserialize(data: Uint8Array): MeshPacket {
-    if (data.length < 31) {
+    // Minimum wire size with all variable fields empty:
+    //   version(1) + type(1) + guid(16) + priority(1) + ttl(4) + ts(8)
+    //   + sourceLen(2) + destLen(2) + nonceLen(2) + payloadLen(4) + sigLen(2) = 43
+    if (data.length < 43) {
       throw new Error("Data is too short to contain a valid MeshPacket");
     }
 

@@ -33,7 +33,10 @@ public sealed class RoutingService : IRoutingService
 
     private readonly ConcurrentDictionary<string, RouteEntry> _routeCache = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<RouteEntry>> _pending = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<Guid, byte> _seenRreqs = new();
+    // Value = Environment.TickCount64 expiry (ms). TTL-based so stale entries can be
+    // re-seen after DeduplicationWindowSeconds, preventing the "never-expires" DoS
+    // where an attacker replays old RREQs after the size-only eviction clears them.
+    private readonly ConcurrentDictionary<Guid, long> _seenRreqs = new();
 
     private int _loaded;
 
@@ -120,10 +123,21 @@ public sealed class RoutingService : IRoutingService
         if (routeRequest.Type != PacketType.RouteRequest)
             throw new ArgumentException($"Expected RouteRequest, got {routeRequest.Type}", nameof(routeRequest));
 
-        if (!_seenRreqs.TryAdd(routeRequest.Id, 0))
+        var expiryTick = Environment.TickCount64 + (ProtocolConstants.DeduplicationWindowSeconds * 1_000L);
+        if (!_seenRreqs.TryAdd(routeRequest.Id, expiryTick))
         {
-            _ = _reputation?.RecordRreqFloodAttemptAsync(routeRequest.SourceUhid);
-            return;
+            // Key exists — check whether the stored entry has already expired.
+            // An expired entry means this packet ID is being legitimately re-used after
+            // the deduplication window; refresh it and allow processing. A non-expired
+            // entry is a duplicate — drop and score the sender.
+            if (_seenRreqs.TryGetValue(routeRequest.Id, out var storedExpiry)
+                && Environment.TickCount64 < storedExpiry)
+            {
+                _ = _reputation?.RecordRreqFloodAttemptAsync(routeRequest.SourceUhid);
+                return;
+            }
+            // Expired — overwrite with fresh expiry and fall through to process.
+            _seenRreqs[routeRequest.Id] = expiryTick;
         }
 
         var localUhid = _sender.LocalUhid;
@@ -235,6 +249,15 @@ public sealed class RoutingService : IRoutingService
         }
         var storePruned = await _store.PruneExpiredAsync(cancellationToken).ConfigureAwait(false);
 
+        // Prune expired RREQ dedup entries (TTL-based) before applying the size cap.
+        // This keeps the cache accurate: entries within the deduplication window are
+        // retained as true duplicates; stale entries are freed so the ID can be reused.
+        var now = Environment.TickCount64;
+        foreach (var kvp in _seenRreqs)
+        {
+            if (kvp.Value < now)
+                _seenRreqs.TryRemove(kvp.Key, out _);
+        }
         if (_seenRreqs.Count > ProtocolConstants.DeduplicationCacheSize)
             _seenRreqs.Clear();
 

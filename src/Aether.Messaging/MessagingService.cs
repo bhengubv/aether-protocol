@@ -138,12 +138,18 @@ public sealed class MessagingService : IMessagingService
         {
             if (cancellationToken.IsCancellationRequested) break;
 
-            // If the message was queued because of a missing session, retry encryption.
+            // Message was queued because no Signal session existed at send time.
+            // The original plaintext is intentionally NOT persisted (security rule).
+            // We cannot re-encrypt here; the upper layer must re-send once a session
+            // is established. DO NOT increment the retry counter — this is not a
+            // transport failure, and doing so would eventually flip the message to
+            // Failed even though the session might appear tomorrow. Re-raise
+            // SessionRequired as a nudge so the upper layer knows to act.
             if (message.EncryptedContent.Length == 0)
             {
-                _logger.LogDebug("Outbox: message {Id} has no ciphertext — still awaiting session, skipping",
-                    message.Id);
-                await _store.IncrementRetryAsync(message.Id, cancellationToken).ConfigureAwait(false);
+                SessionRequired?.Invoke(this, message.RecipientUhid);
+                _logger.LogDebug("Outbox: message {Id} still awaiting Signal session with {Recipient} — not counting as retry",
+                    message.Id, message.RecipientUhid);
                 continue;
             }
 

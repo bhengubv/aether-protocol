@@ -219,8 +219,18 @@ jobs:
               --baseline bench/baselines/csharp.txt \
               --threshold 0.20
           else
-            echo "[warn] No benchmark output file — skipping regression check."
+            echo "[error] No C# benchmark output produced — BenchmarkDotNet may have crashed or produced no results." >&2
+            echo "Check /tmp/csharp_stdout.txt (uploaded as artifact) for the full BenchmarkDotNet log." >&2
+            exit 1
           fi
+
+      - name: Upload BenchmarkDotNet stdout (always, for debugging failures)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: csharp-bench-stdout
+          path: /tmp/csharp_stdout.txt
+          if-no-files-found: ignore
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
