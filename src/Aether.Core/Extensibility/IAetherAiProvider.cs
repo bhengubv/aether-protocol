@@ -38,10 +38,6 @@ public sealed record AiRouteSuggestion(
 /// <summary>
 /// Extension point for AI-enhanced mesh operations (CircleAI).
 ///
-/// Default no-op implementations make every method safe to call when no AI
-/// is installed. <c>IsAvailable</c> is the gate: callers must check it before
-/// trusting any returned data.
-///
 /// Three integration points:
 /// <list type="number">
 ///   <item>
@@ -66,15 +62,31 @@ public sealed record AiRouteSuggestion(
 ///
 /// <para>
 /// The AI is a "magic potion": it enhances but never blocks. Aether must operate
-/// correctly when <see cref="IsAvailable"/> is <c>false</c>, and every method
-/// provides a safe no-op default so callers do not need null-guards on the provider.
+/// correctly when <see cref="IsAvailable"/> is <c>false</c>.
+/// </para>
+///
+/// <para><b>Null-provider contract (important for implementors and callers):</b></para>
+/// <para>
+/// Every method on this interface ships with a default implementation that is safe
+/// to call unconditionally — it returns the neutral value (empty list, empty
+/// dictionary, <see cref="AiThreatLevel.None"/>) without throwing. The
+/// <see cref="IsAvailable"/> check is therefore a <em>performance optimisation</em>,
+/// not a correctness requirement: callers that skip the check in non-hot paths
+/// are still correct, merely slightly less efficient. Implementations that set
+/// <see cref="IsAvailable"/> to <c>true</c> are responsible for honouring this
+/// same contract — methods must never throw when the provider is initialised but
+/// temporarily degraded. <see cref="NullAetherAiProvider"/> is the registered
+/// default and serves as the canonical reference implementation of this contract.
 /// </para>
 /// </summary>
 public interface IAetherAiProvider
 {
     /// <summary>
-    /// Whether this AI provider is loaded and operational on this device.
-    /// When <c>false</c>, callers should skip all other methods.
+    /// Whether this AI provider is loaded and fully operational on this device.
+    /// <c>false</c> means no AI intelligence is available (e.g. CircleAI SDK not
+    /// installed, not licenced, or still initialising). When <c>false</c>, callers
+    /// <em>may</em> skip the other methods as an optimisation; all methods still
+    /// return safe neutral values via their default implementations.
     /// </summary>
     bool IsAvailable { get; }
 

@@ -5,15 +5,20 @@ using Aether.Protocol;
 namespace Aether.Extensibility;
 
 /// <summary>
-/// No-op <see cref="IAetherAiProvider"/> — registered by default when no AI SDK is present.
+/// Default (no-op) <see cref="IAetherAiProvider"/> — registered automatically when no
+/// CircleAI SDK is present. Acts as the canonical reference implementation of the
+/// null-provider contract described on <see cref="IAetherAiProvider"/>.
 ///
 /// <para>
-/// All methods return safe defaults. <see cref="IsAvailable"/> is always <c>false</c>,
-/// signalling to callers that no AI intelligence is available on this node.
+/// <see cref="IsAvailable"/> is always <c>false</c>. All three methods return the
+/// same neutral values as the interface's default implementations, but are re-declared
+/// here explicitly so the no-op behaviour is immediately visible in source and cannot
+/// be accidentally shadowed by a subclass.
 /// </para>
+///
 /// <para>
-/// This class implements every method explicitly so that the no-op behaviour is
-/// transparent and cannot be accidentally overridden by a derived class.
+/// Thread-safe and allocation-free on the hot path — all returns are
+/// pre-allocated singletons or <see cref="Task.FromResult{TResult}"/> wrappers.
 /// </para>
 /// </summary>
 public sealed class NullAetherAiProvider : IAetherAiProvider

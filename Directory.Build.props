@@ -53,4 +53,22 @@
       PrivateAssets="All"
       Condition="'$(EnableSourceLink)' != 'false'" />
   </ItemGroup>
+
+  <!--
+    Coverlet code-coverage exclusions (apply to all projects via dotnet test
+    with the XPlat Code Coverage collector).
+
+    Excluded patterns:
+      *.g.cs         - C# source-generator output (Roslyn, T4, etc.)
+      *.designer.cs  - WinForms / WPF designer glue
+      GeneratedCode  - [System.CodeDom.Compiler.GeneratedCode] attribute
+      ExcludeFromCodeCoverage - [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+
+    These files inflate coverage denominators with machine-produced lines that
+    no developer writes tests for, causing the 80% gate to fire on phantom misses.
+  -->
+  <PropertyGroup>
+    <CoverletExcludeByAttribute>GeneratedCode;ExcludeFromCodeCoverage</CoverletExcludeByAttribute>
+    <CoverletExcludeByFile>**/*.g.cs;**/*.designer.cs</CoverletExcludeByFile>
+  </PropertyGroup>
 </Project>
