@@ -157,15 +157,7 @@ class AetherWifiDirectService(private val context: Context) {
                 val summary = parsePacketSummary(data)
                 notify("[Packet] $summary")
                 listeners.forEach { it.onPacketReceived(summary) }
-
-                // Echo with TTL decremented (offset 19 in the Aether wire format)
-                val echo = data.copyOf()
-                if (echo.size >= 24) {
-                    val ttl = ByteBuffer.wrap(echo, 19, 4).order(ByteOrder.LITTLE_ENDIAN).int
-                    ByteBuffer.wrap(echo, 19, 4).order(ByteOrder.LITTLE_ENDIAN)
-                        .putInt(maxOf(0, ttl - 1))
-                }
-                writePacket(output, echo)
+                writePacket(output, buildEchoResponse(data))
             }
         } catch (e: Exception) {
             notify("Socket closed: ${e.message}")
@@ -197,24 +189,57 @@ class AetherWifiDirectService(private val context: Context) {
     }
 
     private fun writePacket(output: OutputStream, data: ByteArray) {
-        output.write(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(data.size).array())
+        output.write(buildFrameHeader(data.size))
         output.write(data)
         output.flush()
-    }
-
-    private fun parsePacketSummary(data: ByteArray): String {
-        if (data.size < 31) return "${data.size}B (too short for Aether header)"
-        val buf      = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
-        val version  = buf.get().toInt() and 0xFF
-        val type     = buf.get().toInt() and 0xFF
-        buf.position(18)
-        val priority = buf.get().toInt() and 0xFF
-        val ttl      = buf.int
-        return "v=$version type=$type pri=$priority ttl=$ttl total=${data.size}B"
     }
 
     private fun notify(status: String) {
         Log.i(TAG, status)
         listeners.forEach { it.onStatusChanged(status) }
+    }
+
+    // ── Companion: pure functions, no Android framework deps (unit-testable) ────
+
+    companion object {
+        /** Parses the Aether wire-format fixed header into a human-readable summary. */
+        internal fun parsePacketSummary(data: ByteArray): String =
+            if (data.size < 31) "${data.size}B (too short for Aether header)"
+            else {
+                val buf      = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+                val version  = buf.get().toInt() and 0xFF
+                val type     = buf.get().toInt() and 0xFF
+                buf.position(18) // skip 16-byte GUID to reach priority
+                val priority = buf.get().toInt() and 0xFF
+                val ttl      = buf.int
+                "v=$version type=$type pri=$priority ttl=$ttl total=${data.size}B"
+            }
+
+        /**
+         * Returns a copy of [data] with the TTL field (int32 LE at offset 19)
+         * decremented by 1, clamped to 0. Packets shorter than 24 bytes are
+         * returned as an unchanged copy.
+         */
+        internal fun buildEchoResponse(data: ByteArray): ByteArray {
+            val echo = data.copyOf()
+            if (echo.size >= 24) {
+                val ttl = ByteBuffer.wrap(echo, 19, 4).order(ByteOrder.LITTLE_ENDIAN).int
+                ByteBuffer.wrap(echo, 19, 4).order(ByteOrder.LITTLE_ENDIAN)
+                    .putInt(maxOf(0, ttl - 1))
+            }
+            return echo
+        }
+
+        /** Encodes [payloadLen] as a 4-byte little-endian length prefix for TCP framing. */
+        internal fun buildFrameHeader(payloadLen: Int): ByteArray =
+            ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(payloadLen).array()
+
+        /**
+         * Decodes a 4-byte little-endian frame header and returns the declared payload
+         * length, or -1 if the header is not exactly 4 bytes.
+         */
+        internal fun parseFrameLength(header: ByteArray): Int =
+            if (header.size != 4) -1
+            else ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).int
     }
 }

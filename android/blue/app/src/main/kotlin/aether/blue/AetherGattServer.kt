@@ -234,34 +234,51 @@ class AetherGattServer(private val context: Context) {
      */
     private fun handleIncomingPacket(device: BluetoothDevice, data: ByteArray) {
         Log.i(TAG, "RX ${data.size} bytes from ${device.address}")
-
-        val summary = if (data.size >= 31) {
-            val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
-            val version  = buf.get().toInt() and 0xFF
-            val type     = buf.get().toInt() and 0xFF
-            buf.position(18)                             // skip 16-byte GUID
-            val priority = buf.get().toInt() and 0xFF
-            val ttl      = buf.int
-
-            val versionOk = version == 2
-            "v=$version${if (versionOk) "✓" else "?"} type=$type pri=$priority ttl=$ttl total=${data.size}B"
-        } else {
-            "${data.size} bytes (too short for Aether header, need ≥31)"
-        }
-
+        val summary = parsePacketSummary(data)
         Log.i(TAG, "Packet: $summary")
         listeners.forEach { it.onPacketReceived(summary) }
+        notifyRx(device, buildEchoResponse(data))
+    }
 
-        // Echo the packet back with TTL decremented (offset 18+1+4 = bytes 19-22 are TTL).
-        // TTL is at fixed offset 19 in the wire format (after ver[1]+type[1]+guid[16]+pri[1]).
-        val response = data.copyOf()
-        if (response.size >= 24) {
-            val ttlOffset = 19
-            val currentTtl = ByteBuffer.wrap(response, ttlOffset, 4).order(ByteOrder.LITTLE_ENDIAN).int
-            val newTtl = maxOf(0, currentTtl - 1)
-            ByteBuffer.wrap(response, ttlOffset, 4).order(ByteOrder.LITTLE_ENDIAN).putInt(newTtl)
+    // ── Companion: pure functions, no Android framework deps (unit-testable) ────
+
+    companion object {
+        /**
+         * Parses the Aether wire-format fixed header and returns a human-readable
+         * summary string. Called by [handleIncomingPacket]; exposed as `internal`
+         * so unit tests can call it without an Android context.
+         */
+        internal fun parsePacketSummary(data: ByteArray): String =
+            if (data.size >= 31) {
+                val buf      = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+                val version  = buf.get().toInt() and 0xFF
+                val type     = buf.get().toInt() and 0xFF
+                buf.position(18) // skip 16-byte GUID to reach priority
+                val priority = buf.get().toInt() and 0xFF
+                val ttl      = buf.int
+                val versionOk = version == 2
+                "v=$version${if (versionOk) "✓" else "?"} type=$type pri=$priority ttl=$ttl total=${data.size}B"
+            } else {
+                "${data.size} bytes (too short for Aether header, need ≥31)"
+            }
+
+        /**
+         * Returns a copy of [data] with the TTL field (int32 LE at offset 19)
+         * decremented by 1, clamped to 0. Packets shorter than 24 bytes are
+         * returned as an unchanged copy.
+         */
+        internal fun buildEchoResponse(data: ByteArray): ByteArray {
+            val response = data.copyOf()
+            if (response.size >= 24) {
+                val ttlOffset  = 19
+                val currentTtl = ByteBuffer.wrap(response, ttlOffset, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN).int
+                ByteBuffer.wrap(response, ttlOffset, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .putInt(maxOf(0, currentTtl - 1))
+            }
+            return response
         }
-        notifyRx(device, response)
     }
 
     private fun notifyRx(device: BluetoothDevice, data: ByteArray) {

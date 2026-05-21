@@ -39,6 +39,41 @@ class AetherHceService : HostApduService() {
     companion object {
         // Static listener so MainActivity can receive events without a bound service.
         @Volatile var listener: Listener? = null
+
+        // ── Pure functions — no Android framework deps (unit-testable) ─────────
+
+        /**
+         * Returns true when [apdu] is a valid ISO 7816 SELECT AID command for the
+         * Aether HCE AID ([AETHER_AID]). Checks header bytes, Lc length, and AID
+         * value (case-insensitive hex comparison).
+         */
+        internal fun isSelectAid(apdu: ByteArray): Boolean {
+            if (apdu.size < SELECT_AID_HEADER.size + 2) return false
+            for (i in SELECT_AID_HEADER.indices) {
+                if (apdu[i] != SELECT_AID_HEADER[i]) return false
+            }
+            val lc = apdu[4].toInt() and 0xFF
+            if (apdu.size < 5 + lc) return false
+            val aid = apdu.slice(5 until 5 + lc).joinToString("") { "%02X".format(it) }
+            return aid.equals(AETHER_AID, ignoreCase = true)
+        }
+
+        /**
+         * Produces a compact CLA/INS/size summary for logging.
+         * For short APDUs (< 2 bytes) just returns the byte count.
+         */
+        internal fun parsePacketSummary(data: ByteArray): String {
+            if (data.size < 2) return "${data.size}B"
+            val cla = "%02X".format(data[0])
+            val ins = "%02X".format(data[1])
+            return "CLA=$cla INS=$ins ${data.size}B total"
+        }
+
+        /** Builds a SELECT AID APDU for the Aether HCE AID (for test use). */
+        internal fun buildSelectAidApdu(): ByteArray {
+            val aidBytes = AETHER_AID.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            return SELECT_AID_HEADER + byteArrayOf(aidBytes.size.toByte()) + aidBytes
+        }
     }
 
     // ── HostApduService ───────────────────────────────────────────────────────
@@ -66,31 +101,11 @@ class AetherHceService : HostApduService() {
 
     override fun onDeactivated(reason: Int) {
         val reasonStr = when (reason) {
-            DEACTIVATION_LINK_LOSS      -> "link loss"
-            DEACTIVATION_DESELECTED     -> "deselected"
-            else                         -> "reason=$reason"
+            DEACTIVATION_LINK_LOSS   -> "link loss"
+            DEACTIVATION_DESELECTED  -> "deselected"
+            else                      -> "reason=$reason"
         }
         Log.i(TAG, "HCE deactivated: $reasonStr")
         listener?.onStatusChanged("NFC field lost ($reasonStr)")
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private fun isSelectAid(apdu: ByteArray): Boolean {
-        if (apdu.size < SELECT_AID_HEADER.size + 2) return false
-        for (i in SELECT_AID_HEADER.indices) {
-            if (apdu[i] != SELECT_AID_HEADER[i]) return false
-        }
-        val lc  = apdu[4].toInt() and 0xFF
-        if (apdu.size < 5 + lc) return false
-        val aid = apdu.slice(5 until 5 + lc).joinToString("") { "%02X".format(it) }
-        return aid.equals(AETHER_AID, ignoreCase = true)
-    }
-
-    private fun parsePacketSummary(data: ByteArray): String {
-        if (data.size < 2) return "${data.size}B"
-        val cla = "%02X".format(data[0])
-        val ins = "%02X".format(data[1])
-        return "CLA=$cla INS=$ins ${data.size}B total"
     }
 }
