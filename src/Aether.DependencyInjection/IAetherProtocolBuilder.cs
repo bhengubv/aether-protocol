@@ -19,6 +19,16 @@ namespace Aether.DependencyInjection;
 ///         .AddDtn()
 ///         .AddSosBroadcast()
 ///         .AddMessaging()
+///         .AddStreaming()
+///         .AddWatchTogether()
+///         .AddVideoCall()
+///         .AddGroupVideo()
+///         .AddVoice()
+///         .AddGroupVoice()
+///         .AddContent()
+///         .AddReputation()
+///         .AddGossip()
+///         .AddHandshake()
 ///         .AddInProcessTransport("aether:alice:01")
 ///         .AddHealthChecks();
 /// </code>
@@ -111,4 +121,53 @@ public interface IAetherProtocolBuilder
     /// <see cref="InvalidOperationException"/> otherwise.
     /// </summary>
     IAetherProtocolBuilder AddGossip();
+
+    // ── Media layer ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Register <c>StreamingService</c> as a singleton <c>IStreamingService</c>.
+    /// Requires <see cref="AddRouting"/>. Picks up <c>IAetherIncentiveProvider</c>
+    /// automatically if registered by the host (e.g. SDPKT).
+    /// </summary>
+    IAetherProtocolBuilder AddStreaming();
+
+    /// <summary>
+    /// Register <c>WatchTogetherService</c> as a singleton <c>IWatchTogetherService</c>.
+    /// Requires <see cref="AddRouting"/>. Picks up <c>IAetherIncentiveProvider</c>
+    /// automatically if registered (ChipIn requires a concrete implementation).
+    /// </summary>
+    IAetherProtocolBuilder AddWatchTogether();
+
+    /// <summary>
+    /// Register <c>VideoCallService</c> as a singleton <c>IVideoCallService</c>.
+    /// Requires <see cref="AddRouting"/>.
+    /// </summary>
+    IAetherProtocolBuilder AddVideoCall();
+
+    /// <summary>
+    /// Register <c>GroupVideoService</c> as a singleton <c>IGroupVideoService</c>.
+    /// Requires <see cref="AddRouting"/>.
+    /// </summary>
+    IAetherProtocolBuilder AddGroupVideo();
+
+    /// <summary>
+    /// Register <c>VoiceCallService</c> as a singleton <c>IVoiceCallService</c>.
+    /// Requires <see cref="AddRouting"/>.
+    /// </summary>
+    IAetherProtocolBuilder AddVoice();
+
+    /// <summary>
+    /// Register <c>GroupVoiceCallService</c> as a singleton <c>IGroupVoiceCallService</c>.
+    /// Requires <see cref="AddRouting"/>. Picks up <c>IGroupKeyProvider</c> automatically
+    /// if registered by the host.
+    /// </summary>
+    IAetherProtocolBuilder AddGroupVoice();
+
+    /// <summary>
+    /// Register <c>ContentService</c> as a singleton <c>IContentService</c>.
+    /// Requires <see cref="AddRouting"/>. Uses <c>InMemoryContentStore</c> by default
+    /// unless the host has registered an <c>IContentStore</c> beforehand.
+    /// Picks up <c>IAetherIncentiveProvider</c> automatically if registered.
+    /// </summary>
+    IAetherProtocolBuilder AddContent();
 }

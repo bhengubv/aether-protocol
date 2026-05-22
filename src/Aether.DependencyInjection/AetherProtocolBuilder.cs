@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 
+using Aether.Content;
 using Aether.Dtn;
+using Aether.Extensibility;
 using Aether.Handshake;
 using Aether.Messaging;
 using Aether.Models;
@@ -9,7 +11,9 @@ using Aether.Reputation;
 using Aether.Routing;
 using Aether.Security.Services;
 using Aether.Sos;
+using Aether.Streaming;
 using Aether.Transport.Services;
+using Aether.Voice;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -37,6 +41,13 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
     private bool _reputationAdded;
     private bool _anomalyDetectorAdded;
     private bool _gossipAdded;
+    private bool _streamingAdded;
+    private bool _watchTogetherAdded;
+    private bool _videoCallAdded;
+    private bool _groupVideoAdded;
+    private bool _voiceAdded;
+    private bool _groupVoiceAdded;
+    private bool _contentAdded;
 
     public AetherProtocolBuilder(IServiceCollection services)
     {
@@ -335,6 +346,160 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
             var logger = sp.GetService<ILogger<ReputationGossipService>>()
                 ?? NullLogger<ReputationGossipService>.Instance;
             return new ReputationGossipService(sender, signing, reputation, logger);
+        });
+
+        return this;
+    }
+
+    // ── Media layer ───────────────────────────────────────────────────────────
+
+    public IAetherProtocolBuilder AddStreaming()
+    {
+        if (!_routingAdded)
+            throw new InvalidOperationException(
+                "AddStreaming() requires AddRouting() to have been called first. " +
+                "StreamingService consumes both IMeshSender and IRoutingService.");
+        if (_streamingAdded) return this;
+        _streamingAdded = true;
+
+        Services.TryAddSingleton<IStreamingService>(sp =>
+        {
+            var sender    = sp.GetRequiredService<IMeshSender>();
+            var routing   = sp.GetRequiredService<IRoutingService>();
+            var incentives = sp.GetService<IAetherIncentiveProvider>();
+            var logger    = sp.GetService<ILogger<StreamingService>>()
+                            ?? NullLogger<StreamingService>.Instance;
+            return new StreamingService(sender, routing, incentives, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddWatchTogether()
+    {
+        if (!_routingAdded)
+            throw new InvalidOperationException(
+                "AddWatchTogether() requires AddRouting() to have been called first.");
+        if (_watchTogetherAdded) return this;
+        _watchTogetherAdded = true;
+
+        Services.TryAddSingleton<IWatchTogetherService>(sp =>
+        {
+            var sender    = sp.GetRequiredService<IMeshSender>();
+            var routing   = sp.GetRequiredService<IRoutingService>();
+            var incentives = sp.GetService<IAetherIncentiveProvider>();
+            var logger    = sp.GetService<ILogger<WatchTogetherService>>()
+                            ?? NullLogger<WatchTogetherService>.Instance;
+            return new WatchTogetherService(sender, routing, incentives, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddVideoCall()
+    {
+        if (!_routingAdded)
+            throw new InvalidOperationException(
+                "AddVideoCall() requires AddRouting() to have been called first.");
+        if (_videoCallAdded) return this;
+        _videoCallAdded = true;
+
+        Services.TryAddSingleton<IVideoCallService>(sp =>
+        {
+            var sender    = sp.GetRequiredService<IMeshSender>();
+            var routing   = sp.GetRequiredService<IRoutingService>();
+            var incentives = sp.GetService<IAetherIncentiveProvider>();
+            var logger    = sp.GetService<ILogger<VideoCallService>>()
+                            ?? NullLogger<VideoCallService>.Instance;
+            return new VideoCallService(sender, routing, incentives, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddGroupVideo()
+    {
+        if (!_routingAdded)
+            throw new InvalidOperationException(
+                "AddGroupVideo() requires AddRouting() to have been called first.");
+        if (_groupVideoAdded) return this;
+        _groupVideoAdded = true;
+
+        Services.TryAddSingleton<IGroupVideoService>(sp =>
+        {
+            var sender    = sp.GetRequiredService<IMeshSender>();
+            var routing   = sp.GetRequiredService<IRoutingService>();
+            var incentives = sp.GetService<IAetherIncentiveProvider>();
+            var logger    = sp.GetService<ILogger<GroupVideoService>>()
+                            ?? NullLogger<GroupVideoService>.Instance;
+            return new GroupVideoService(sender, routing, incentives, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddVoice()
+    {
+        if (!_routingAdded)
+            throw new InvalidOperationException(
+                "AddVoice() requires AddRouting() to have been called first.");
+        if (_voiceAdded) return this;
+        _voiceAdded = true;
+
+        Services.TryAddSingleton<IVoiceCallService>(sp =>
+        {
+            var sender    = sp.GetRequiredService<IMeshSender>();
+            var routing   = sp.GetRequiredService<IRoutingService>();
+            var incentives = sp.GetService<IAetherIncentiveProvider>();
+            var logger    = sp.GetService<ILogger<VoiceCallService>>()
+                            ?? NullLogger<VoiceCallService>.Instance;
+            return new VoiceCallService(sender, routing, incentives, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddGroupVoice()
+    {
+        if (!_routingAdded)
+            throw new InvalidOperationException(
+                "AddGroupVoice() requires AddRouting() to have been called first.");
+        if (_groupVoiceAdded) return this;
+        _groupVoiceAdded = true;
+
+        Services.TryAddSingleton<IGroupVoiceCallService>(sp =>
+        {
+            var sender    = sp.GetRequiredService<IMeshSender>();
+            var routing   = sp.GetRequiredService<IRoutingService>();
+            var keys      = sp.GetService<IGroupKeyProvider>();
+            var incentives = sp.GetService<IAetherIncentiveProvider>();
+            var logger    = sp.GetService<ILogger<GroupVoiceCallService>>()
+                            ?? NullLogger<GroupVoiceCallService>.Instance;
+            return new GroupVoiceCallService(sender, routing, keys, incentives, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddContent()
+    {
+        if (!_routingAdded)
+            throw new InvalidOperationException(
+                "AddContent() requires AddRouting() to have been called first.");
+        if (_contentAdded) return this;
+        _contentAdded = true;
+
+        Services.TryAddSingleton<IContentStore, InMemoryContentStore>();
+
+        Services.TryAddSingleton<IContentService>(sp =>
+        {
+            var sender    = sp.GetRequiredService<IMeshSender>();
+            var routing   = sp.GetRequiredService<IRoutingService>();
+            var store     = sp.GetService<IContentStore>();
+            var incentives = sp.GetService<IAetherIncentiveProvider>();
+            var logger    = sp.GetService<ILogger<ContentService>>()
+                            ?? NullLogger<ContentService>.Instance;
+            return new ContentService(sender, routing, store, incentives, logger);
         });
 
         return this;
