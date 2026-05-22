@@ -1,72 +1,86 @@
 # Aether Mesh Networking Protocol Specification
-**著者：** The Other Bhengu (Pty) Ltd t/a The Geek and Bhengu B.V.
 
-> **読者への注意。** このドキュメントの初期草稿は、8 言語ワイヤーフォーマット整合と、X25519 + Signal Double Ratchet へのファミリー全体の移行よりも前のものです。2026-05-05 時点で、§2（パケットフォーマット）、§3（ルーティング）、§4（鍵交換）、§9（DTN）は実装されたプロトコルを説明しています。§10（ビデオストリーミング）と §11（Watch Together）はターゲットプロトコルを説明しています — ワイヤー定義され、フィクスチャーテスト済みですが、コーデック / BitTorrent / ChipIn パイプラインはまだスキャフォールディングに接続されていません。このドキュメントと実装が食い違う場合は C# リファレンスが権威を持ちます。
+**Version:** 2.0
+**Status:** Reconciled with HEAD (2026-05-05)
+**Date:** 2026-03-15 (初版); 2026-05-05 (§2、§4、§10、§11 調整済み、§3/§9 検証済み)
+**Authors:** The Other Bhengu (Pty) Ltd t/a The Geek and Bhengu B.V.
+
+> **読者へのご注意。** 本ドキュメントの旧版は、8言語対応のワイヤーフォーマット統一および
+> ファミリー全体の X25519 + Signal Double Ratchet への移行以前に作成されたものです。
+> 2026-05-05 時点において、§2（パケットフォーマット）、§3（ルーティング）、§4（鍵交換）、
+> §9（DTN）は実装済みプロトコルを記述しています。§10（ビデオストリーミング）および
+> §11（Watch Together）はターゲットプロトコルを記述しており、ワイヤー定義済みかつ
+> フィクスチャテスト済みですが、コーデック / BitTorrent / ChipIn パイプラインはまだ
+> スキャフォールディングに結合されていません。本ドキュメントと実装が乖離している箇所では、
+> C# リファレンスが正式なものとして扱われます。
 >
-> - 正規ワイヤーバイト：`fixtures/expected/*.bin`（10 個の名前付きケース）
-> - リファレンスシリアライザー：`src/Aether.Core/Protocol/PacketSerializer.cs`
-> - リファレンス Signal スタック：`src/Aether.Security/Services/SignalProtocolService.cs`
-> - リファレンスルーティング：`src/Aether.Core/Routing/RoutingService.cs`
-> - リファレンス DTN：`src/Aether.Core/Dtn/DtnService.cs`
-> - クロス言語ワイヤー相互運用証明：`fixtures/README.md`
-> - クロス言語 Signal 相互運用証明：`fixtures/signal/README.md`
+> - 正規ワイヤーバイト列: `fixtures/expected/*.bin`（10の名前付きケース）
+> - リファレンスシリアライザ: `src/Aether.Core/Protocol/PacketSerializer.cs`
+> - リファレンスシグナルスタック: `src/Aether.Security/Services/SignalProtocolService.cs`
+> - リファレンスルーティング: `src/Aether.Core/Routing/RoutingService.cs`
+> - リファレンス DTN: `src/Aether.Core/Dtn/DtnService.cs`
+> - クロス言語ワイヤー相互運用証明: `fixtures/README.md`
+> - クロス言語シグナル相互運用証明: `fixtures/signal/README.md`
 
 ---
 
 ## 目次
 
-1. [概要](#1-abstract)
-2. [パケットフォーマット](#2-packet-format)
-3. [ルーティングアルゴリズム](#3-routing-algorithm)
-4. [鍵交換](#4-key-exchange)
-5. [トランスポート層の要件](#5-transport-layer-requirements)
-6. [ディスカバリープロトコル](#6-discovery-protocol)
-7. [セキュリティモデル](#7-security-model)
-8. [SOS ブロードキャスト](#8-sos-broadcast)
-9. [DTN ストアアンドフォワード](#9-dtn-store-and-forward)
-10. [ビデオストリーミング](#10-video-streaming)
+1. [概要](#1-概要)
+2. [パケットフォーマット](#2-パケットフォーマット)
+3. [ルーティングアルゴリズム](#3-ルーティングアルゴリズム)
+4. [鍵交換](#4-鍵交換)
+5. [トランスポートレイヤー要件](#5-トランスポートレイヤー要件)
+6. [ディスカバリプロトコル](#6-ディスカバリプロトコル)
+7. [セキュリティモデル](#7-セキュリティモデル)
+8. [SOS ブロードキャスト](#8-sos-ブロードキャスト)
+9. [DTN ストアアンドフォワード](#9-dtn-ストアアンドフォワード)
+10. [ビデオストリーミング](#10-ビデオストリーミング)
 11. [Watch Together](#11-watch-together)
 
 ---
 
 ## 1. 概要
 
-Aether は、インターネット接続が断続的または存在しない環境向けに設計された分散型メッシュネットワーキングプロトコルです。異種の近距離通信トランスポート（Bluetooth Low Energy、Wi-Fi Direct、NearLink）を介したマルチホップパケットルーティング、シンメトリックラチェットを伴う X3DH 派生鍵合意を使用したエンドツーエンド暗号化、遅延耐性のあるストアアンドフォワード配信、および緊急 SOS フラッドメカニズムを提供します。プロトコルはトランスポート非依存です。ピア間でバイト配列を送受信できる物理層はすべて有効な Aether トランスポートです。ノードはユニバーサルハードウェア識別子（UHID）によって識別され、Ed25519 ID キーによって認証されます。Aether はユニバーサルネットワーク層として意図されています — エコシステム内のすべてのアプリケーションが Aether サービスを登録し、インターネット接続のないノードは、メッシュトラフィックをインターネットにブリッジするゲートウェイピアを通じてより広いネットワークに接続します。
+Aether は、インターネット接続が断続的または存在しない環境向けに設計された分散型メッシュネットワーキングプロトコルです。異種の短距離トランスポート（Bluetooth Low Energy、Wi-Fi Direct、NearLink）を経由したマルチホップパケットルーティング、X3DH 派生の鍵共有と対称ラチェットを用いたエンドツーエンド暗号化、遅延耐性のあるストアアンドフォワード配信、そして緊急 SOS フラッドメカニズムを提供します。このプロトコルはトランスポート非依存です。ピア間でバイト配列を送受信できる物理レイヤーであれば、いずれも有効な Aether トランスポートとなります。ノードはユニバーサルハードウェア識別子（UHID）によって識別され、Ed25519 アイデンティティキーによって認証されます。Aether はユニバーサルネットワークレイヤーとして機能することを意図しており、エコシステム内のすべてのアプリケーションが Aether サービスを登録し、インターネット接続のないノードは、メッシュトラフィックをインターネットにブリッジするゲートウェイピアを通じて広域ネットワークに到達します。
 
 ---
 
 ## 2. パケットフォーマット
 
-> 2026-05-05 に `src/Aether.Core/Protocol/PacketSerializer.cs` および `fixtures/expected/` 以下の 10 個のフィクスチャーケースと照合済み。
+> 2026-05-05 に `src/Aether.Core/Protocol/PacketSerializer.cs` および
+> `fixtures/expected/` 配下の 10 フィクスチャケースと照合済み。
 
 ### 2.1. MeshPacket ワイヤーレイアウト
 
-すべての Aether メッセージは `MeshPacket` にカプセル化されます。フィールドはワイヤー上で**正確に**この順序で現れます：
+すべての Aether メッセージは `MeshPacket` にカプセル化されます。フィールドはワイヤー上で**正確に**この順序で現れます:
 
-| オフ | フィールド            | 型                            | サイズ       | 注記 |
+| Off | Field            | Type                            | Size       | Notes |
 |-----|------------------|---------------------------------|------------|-------|
-| 0   | ProtocolVersion  | uint8                           | 1          | `1` = 未署名（レガシー）、`2` = 署名済み（現在） |
-| 1   | Type             | uint8                           | 1          | パケット型の列挙（§2.4 を参照） |
-| 2   | Id               | UUID、RFC 4122 ビッグエンディアン       | 16         | 重複排除のためのパケット識別子。.NET のミックスエンディアン Guid デフォルトではなく、**ビッグエンディアン**バイト順。 |
-| 18  | Priority         | uint8                           | 1          | 優先度レベル（0 = 通常、255 = SOS）。**ワイヤーフィールドは 1 バイト；255 を超える値はクランプされなければなりません。** |
-| 19  | Ttl              | int32、リトルエンディアン            | 4          | 各ホップで減少する有効期限（TTL）。**4 バイト int32**、1 バイト uint8 ではありません — 最大 ~2³¹-1 の値が有効です。 |
-| 23  | TimestampMs      | int64、リトルエンディアン            | 8          | Unix エポックミリ秒（UTC）。 |
-| 31  | SourceUhid Len   | uint16、リトルエンディアン           | 2          | `SourceUhid` の UTF-8 バイト長。最大 65535。 |
-| 33  | SourceUhid       | UTF-8 バイト                     | N          | 送信者の UHID；空は許可されるが通常は使用されない。 |
-| 33+N | DestinationUhid Len | uint16、リトルエンディアン        | 2          | `DestinationUhid` の UTF-8 バイト長。 |
-| ... | DestinationUhid  | UTF-8 バイト                     | M          | 受信者の UHID；ブロードキャストの場合は空文字列。 |
-| ... | PacketNonce Len  | uint16、リトルエンディアン           | 2          | `PacketNonce` のバイト長。標準値：8。 |
-| ... | PacketNonce      | バイト                           | P          | リプレイ防止のための暗号学的ランダムノンス。 |
-| ... | Payload Len      | int32、リトルエンディアン            | 4          | `Payload` のバイト長。負の値はエラー。 |
-| ... | Payload          | バイト                           | Q          | アプリケーションデータ。解釈は `Type` に依存。 |
-| ... | Signature Len    | uint16、リトルエンディアン           | 2          | `Signature` のバイト長。0（未署名）または 64（Ed25519）。 |
-| ... | Signature        | バイト                           | R          | 署名可能データに対する Ed25519 署名（§2.3 を参照）。 |
+| 0   | ProtocolVersion  | uint8                           | 1          | `1` = 未署名（レガシー）、`2` = 署名済み（現行） |
+| 1   | Type             | uint8                           | 1          | パケットタイプ列挙（§2.4 参照） |
+| 2   | Id               | UUID, RFC 4122 big-endian       | 16         | 重複排除用パケット識別子。.NET のデフォルトである混合エンディアン Guid ではなく、**ビッグエンディアン**バイト順。 |
+| 18  | Priority         | uint8                           | 1          | 優先度レベル（0 = 通常、255 = SOS）。**ワイヤーフィールドは 1 バイト。255 を超える値はクランプする。** |
+| 19  | Ttl              | int32, little-endian            | 4          | 各ホップで減算される生存時間。1バイト uint8 ではなく **4バイト int32** — 最大約 2³¹-1 の値が有効。 |
+| 23  | TimestampMs      | int64, little-endian            | 8          | Unix エポックミリ秒（UTC）。 |
+| 31  | SourceUhid Len   | uint16, little-endian           | 2          | `SourceUhid` の UTF-8 バイト長。最大 65535。 |
+| 33  | SourceUhid       | UTF-8 bytes                     | N          | 送信者の UHID。空も許可されるが通常は使用しない。 |
+| 33+N | DestinationUhid Len | uint16, little-endian        | 2          | `DestinationUhid` の UTF-8 バイト長。 |
+| ... | DestinationUhid  | UTF-8 bytes                     | M          | 受信者の UHID。ブロードキャストの場合は空文字列。 |
+| ... | PacketNonce Len  | uint16, little-endian           | 2          | `PacketNonce` のバイト長。標準値: 8。 |
+| ... | PacketNonce      | bytes                           | P          | リプレイ防止用の暗号学的乱数ノンス。 |
+| ... | Payload Len      | int32, little-endian            | 4          | `Payload` のバイト長。負値はエラー。 |
+| ... | Payload          | bytes                           | Q          | アプリケーションデータ。解釈は `Type` に依存する。 |
+| ... | Signature Len    | uint16, little-endian           | 2          | `Signature` のバイト長。0（未署名）または 64（Ed25519）。 |
+| ... | Signature        | bytes                           | R          | 署名対象データに対する Ed25519 署名（§2.3 参照）。 |
 
-**長さプレフィックスの幅**はフィールドによって異なります — `SourceUhid`、`DestinationUhid`、`PacketNonce`、`Signature` は **2 バイト（uint16）**の長さプレフィックスを使用します；`Payload` はペイロードが 64 KiB を超える可能性があるため **4 バイト（int32）**の長さプレフィックスを使用します。
+**長さプレフィックスの幅**はフィールドによって異なります。`SourceUhid`、`DestinationUhid`、
+`PacketNonce`、`Signature` は **2バイト（uint16）** 長さプレフィックスを使用します。
+`Payload` はペイロードが 64 KiB を超える場合があるため、**4バイト（int32）** 長さプレフィックスを使用します。
 
 ### 2.2. 最小パケットサイズ
 
-すべての可変長フィールドが空（長さゼロの UHID、長さゼロのノンス、長さゼロのペイロード、長さゼロのシグネチャ）の場合、ワイヤーサイズは：
+すべての可変長フィールドが空（ゼロ長 UHID、ゼロ長ノンス、ゼロ長ペイロード、ゼロ長署名）の場合、ワイヤーサイズは:
 
 ```
 1 (version) + 1 (type) + 16 (id) + 1 (priority) + 4 (ttl)
@@ -75,7 +89,7 @@ Aether は、インターネット接続が断続的または存在しない環�
 = 43 bytes
 ```
 
-この仕様の初期草稿にあった 50 バイト / 52 バイトの数値は誤りでした。
+旧版の仕様に記載されていた 50バイト / 52バイトという数値は誤りでした。
 
 ### 2.3. ワイヤーフォーマット図
 
@@ -109,13 +123,18 @@ Aether は、インターネット接続が断続的または存在しない環�
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-具体的な例については `fixtures/expected/basic_data.bin`（83 バイト、`fixtures/inputs.json` 内の正規入力）を参照してください。実装はフルフィクスチャーコーパスに対して検証されます — 相違点があるとクロス言語フィクスチャーベリファイアーテストに失敗します。
+具体的な例については `fixtures/expected/basic_data.bin`（83バイト、
+正規入力は `fixtures/inputs.json`）を参照してください。実装はフルフィクスチャコーパスに
+対して検証されます — いずれかの乖離があるとクロス言語フィクスチャ検証テストが失敗します。
 
-### 2.4. 署名可能データの構築
+### 2.4. 署名対象データの構築
 
-署名（ワイヤー上の `Signature` フィールド）は、ワイヤーバイト自体ではなく、別の正規バイトシーケンスに対して計算されます。これにより、ワイヤーレイアウトが署名を壊さずに進化でき、中継ノードが平文ペイロードを見ることなく整合性を検証できます（ペイロードの SHA-256 ハッシュのみが署名されます）。
+署名（ワイヤー上の `Signature` フィールド）は、ワイヤーバイト列自体ではなく、別個の
+正規バイト列に対して計算されます。これにより、ワイヤーレイアウトが署名を破ることなく
+進化できるようになり、中間ノードが平文ペイロードを見ることなく完全性を検証できます
+（署名されるのはその SHA-256 ハッシュのみです）。
 
-署名可能なバイトシーケンスは以下の連結です：
+署名対象バイト列は以下の連結です:
 
 ```
 PacketNonce (8 bytes)
@@ -130,116 +149,124 @@ PacketNonce (8 bytes)
 || Priority               (4 bytes, little-endian int32, clamped to [0,255])
 ```
 
-> §2.1 のワイヤーレイアウトからの意図的な乖離に注意してください。署名可能データは `Type`、`Length`、`Ttl`、`Priority` に **4 バイト int32** を使用しますが、ワイヤーはそれぞれ 1 バイト / 2 バイト / 4 バイト / 1 バイトを使用します。これは意図的です — 署名可能な形式は言語をまたいで移植可能であり、固定幅フィールドを使用します；ワイヤー形式は BLE PDU の効率性のためにコンパクトです。実装は `Priority` を署名可能バイトにエンコードする前に `[0,255]` にクランプしなければなりません。そうしないと、受信側（ワイヤーバイト 0..255 を参照する）が異なる署名可能バッファを導出し、検証が失敗します。
+> §2.1 のワイヤーレイアウトとの意図的な相違点に注意してください: 署名対象データでは
+> `Type`、`Length`、`Ttl`、`Priority` に **4バイト int32** を使用しますが、
+> ワイヤーではそれぞれ 1バイト / 2バイト / 4バイト / 1バイトを使用します。
+> これは意図的な設計です — 署名対象形式は言語をまたいで移植可能であり固定幅フィールドを使用します。
+> ワイヤー形式は BLE PDU の節約のためにコンパクトになっています。
+> 実装では `Priority` を署名対象バイトにエンコードする前に `[0,255]` にクランプする必要があります。
+> そうしないと受信者（ワイヤーバイト 0..255 を参照する）が異なる署名対象バッファを導出し、
+> 検証が失敗します。
 
-リファレンス実装は `src/Aether.Security/Services/PacketSigningService.cs::BuildSignableData` にあり、ポーティングの必読資料です。
+リファレンス実装は `src/Aether.Security/Services/
+PacketSigningService.cs::BuildSignableData` にあり、移植作業において必読です。
 
-### 2.5. パケット型
+### 2.5. パケットタイプ
 
-| 値 | 名称              | 方向     | 説明 |
+| Value | Name              | Direction     | Description |
 |-------|-------------------|---------------|-------------|
-| 1     | RouteRequest      | ブロードキャスト     | AODV ルートリクエスト |
-| 2     | RouteReply        | ユニキャスト       | AODV ルートリプライ（宛先による署名が必須） |
-| 3     | Data              | ユニキャスト       | アプリケーションデータ |
-| 4     | Ack               | ユニキャスト       | 配信確認応答 |
-| 5     | SosBroadcast      | フラッド         | 緊急ブロードキャスト（セクション 8 を参照） |
-| 6     | SosAck            | ユニキャスト       | SOS 確認応答 |
-| 7     | ChannelMessage    | マルチキャスト     | グループチャンネルメッセージ |
-| 8     | ChunkRequest      | ユニキャスト       | P2P コンテンツチャンクリクエスト |
-| 9     | ChunkData         | ユニキャスト       | P2P コンテンツチャンクレスポンス |
-| 10    | Heartbeat         | ブロードキャスト     | 定期的な生存確認シグナル |
-| 11    | StreamAnnounce    | ブロードキャスト     | ライブストリーム広告 |
-| 12    | StreamSegment     | ユニキャスト / ツリー  | ライブストリームメディアセグメント |
-| 13    | StreamSubscribe   | ユニキャスト       | ストリームリレーツリーへの参加リクエスト |
-| 14    | StreamUnsubscribe | ユニキャスト       | ストリームリレーツリーからの離脱 |
-| 15    | VoicePtt          | ユニキャスト       | プッシュツートーク音声フレーム |
-| 16    | VoiceCall         | ユニキャスト       | リアルタイム音声通話フレーム |
-| 17    | VoiceSignaling    | ユニキャスト       | 音声通話のセットアップ / ティアダウン |
-| 18    | DtnBundle         | ユニキャスト       | DTN ストアアンドフォワードバンドル（セクション 9 を参照） |
-| 19    | DtnCustodyAck     | ユニキャスト       | DTN カストディ転送確認応答 |
-| 20    | DtnDeliveryReceipt| ユニキャスト       | DTN エンドツーエンド配信確認 |
-| 21    | PresenceBeacon    | ブロードキャスト     | プレゼンスと利用可能性のアナウンス |
-| 22    | PresenceQuery     | ユニキャスト       | プレゼンスステータスリクエスト |
-| 23    | ProfileSync       | ユニキャスト       | プロファイルメタデータの同期 |
-| 24    | TipPacket         | ユニキャスト       | ノードチップ（LedgerAPI 経由で決済） |
-| 25    | PreKeyRequest     | ユニキャスト       | ピアのプリキーバンドルリクエスト |
-| 26    | PreKeyResponse    | ユニキャスト       | プリキーバンドル配信 |
-| 27    | VideoCall         | ユニキャスト       | 暗号化ビデオフレーム（H.264/H.265/VP8 NAL ユニット） |
-| 28    | VideoSignaling    | ユニキャスト       | ビデオ通話セットアップ：オファー、アンサー、リジェクト、バイ、コーデックネゴシエーション |
-| 29    | WatchSync         | ユニキャスト       | 同期再生コマンド：再生、一時停止、シーク、速度 |
-| 30    | WatchReaction     | マルチキャスト     | Watch Together 中のタイムスタンプ付き絵文字または音声リアクション |
-| 31    | VideoFrame        | ユニキャスト / SFU   | グループビデオフレーム（SFU リレーが参加者に配布） |
-| 32    | ScreenShare       | ユニキャスト       | スクリーンシェアフレーム（ビデオと同じパイプライン、別フラグ） |
-| 33    | WatchChunkRequest | ユニキャスト       | 再生位置にバイアスされた優先チャンクリクエスト |
-| 34    | TorrentMetadata   | マルチキャスト     | BitTorrent .torrent ファイルまたはマグネットリンクのメタデータ交換 |
+| 1     | RouteRequest      | Broadcast     | AODV ルートリクエスト |
+| 2     | RouteReply        | Unicast       | AODV ルートリプライ（宛先ノードによる署名が必須） |
+| 3     | Data              | Unicast       | アプリケーションデータ |
+| 4     | Ack               | Unicast       | 配信確認応答 |
+| 5     | SosBroadcast      | Flood         | 緊急ブロードキャスト（セクション 8 参照） |
+| 6     | SosAck            | Unicast       | SOS 確認応答 |
+| 7     | ChannelMessage    | Multicast     | グループチャンネルメッセージ |
+| 8     | ChunkRequest      | Unicast       | P2P コンテンツチャンクリクエスト |
+| 9     | ChunkData         | Unicast       | P2P コンテンツチャンクレスポンス |
+| 10    | Heartbeat         | Broadcast     | 定期的な生存確認シグナル |
+| 11    | StreamAnnounce    | Broadcast     | ライブストリームのアドバタイズ |
+| 12    | StreamSegment     | Unicast/Tree  | ライブストリームのメディアセグメント |
+| 13    | StreamSubscribe   | Unicast       | ストリームリレーツリーへの参加リクエスト |
+| 14    | StreamUnsubscribe | Unicast       | ストリームリレーツリーからの離脱 |
+| 15    | VoicePtt          | Unicast       | プッシュトゥトーク音声フレーム |
+| 16    | VoiceCall         | Unicast       | リアルタイム音声通話フレーム |
+| 17    | VoiceSignaling    | Unicast       | 音声通話のセットアップ/ティアダウン |
+| 18    | DtnBundle         | Unicast       | DTN ストアアンドフォワードバンドル（セクション 9 参照） |
+| 19    | DtnCustodyAck     | Unicast       | DTN カストディ転送確認応答 |
+| 20    | DtnDeliveryReceipt| Unicast       | DTN エンドツーエンド配信確認 |
+| 21    | PresenceBeacon    | Broadcast     | プレゼンスおよび可用性アナウンス |
+| 22    | PresenceQuery     | Unicast       | プレゼンスステータスリクエスト |
+| 23    | ProfileSync       | Unicast       | プロファイルメタデータの同期 |
+| 24    | TipPacket         | Unicast       | ノードチップ（LedgerAPI 経由で決済） |
+| 25    | PreKeyRequest     | Unicast       | ピアのプレキーバンドルリクエスト |
+| 26    | PreKeyResponse    | Unicast       | プレキーバンドルの配信 |
+| 27    | VideoCall         | Unicast       | 暗号化ビデオフレーム（H.264/H.265/VP8 NAL ユニット） |
+| 28    | VideoSignaling    | Unicast       | ビデオ通話セットアップ: オファー、アンサー、リジェクト、バイ、コーデックネゴシエーション |
+| 29    | WatchSync         | Unicast       | 同期再生コマンド: プレイ、ポーズ、シーク、スピード |
+| 30    | WatchReaction     | Multicast     | Watch Together 中のタイムスタンプ付き絵文字または音声リアクション |
+| 31    | VideoFrame        | Unicast/SFU   | グループビデオフレーム（SFU リレーが参加者に配信） |
+| 32    | ScreenShare       | Unicast       | 画面共有フレーム（ビデオと同じパイプライン、別フラグ） |
+| 33    | WatchChunkRequest | Unicast       | 再生位置に偏重した優先チャンクリクエスト |
+| 34    | TorrentMetadata   | Multicast     | BitTorrent の .torrent ファイルまたはマグネットリンクのメタデータ交換 |
 
 ### 2.6. ノードケイパビリティ
 
-ノードはケイパビリティをビットフィールドとして広告します：
+ノードはケイパビリティをビットフィールドとしてアドバタイズします:
 
-| ビット | 値 | ケイパビリティ  | 説明 |
+| Bit | Value | Capability  | Description |
 |-----|-------|-------------|-------------|
-| 0   | 1     | Ble         | Bluetooth Low Energy トランスポート利用可能 |
-| 1   | 2     | WifiDirect  | Wi-Fi Direct トランスポート利用可能 |
+| 0   | 1     | Ble         | Bluetooth Low Energy トランスポートが利用可能 |
+| 1   | 2     | WifiDirect  | Wi-Fi Direct トランスポートが利用可能 |
 | 2   | 4     | Gateway     | インターネットゲートウェイ（メッシュを IP ネットワークにブリッジ） |
-| 3   | 8     | Relay       | 他者のためにパケットをリレーする意思あり |
+| 3   | 8     | Relay       | 他ノードのパケットをリレーする意思あり |
 | 4   | 16    | Sos         | SOS ブロードキャスト対応 |
 | 5   | 32    | Streaming   | ライブストリーミングリレー対応 |
 | 6   | 64    | Voice       | 音声通話リレー対応 |
 | 7   | 128   | DtnCarrier  | DTN ストアアンドフォワードキャリア |
-| 8   | 256   | NearLink    | NearLink トランスポート利用可能 |
-| 9   | 512   | Video       | ビデオエンコード / デコード対応 |
+| 8   | 256   | NearLink    | NearLink トランスポートが利用可能 |
+| 9   | 512   | Video       | ビデオのエンコード/デコード対応 |
 
 ---
 
 ## 3. ルーティングアルゴリズム
 
-Aether は、暗号ルート認証と QoS 重み付けルート選択で拡張された、アドホックオンデマンド距離ベクター（AODV）ルーティングに基づくリアクティブルーティングプロトコルを使用します。
+Aether は、暗号学的なルート認証と QoS 重み付きルート選択を拡張した、Ad-hoc On-demand Distance Vector（AODV）ルーティングに基づくリアクティブルーティングプロトコルを使用します。
 
 ### 3.1. ルートリクエスト（RREQ）
 
-ノードがルートを持たない宛先にパケットを送信する必要がある場合、ルートリクエストを開始します：
+ノードがルートを持たない宛先にパケットを送信する必要がある場合、ルートリクエストを開始します:
 
-1. 発信元は `Type = RouteRequest` で `MeshPacket` を作成し、`SourceUhid` を自身に、`DestinationUhid` をターゲットに設定し、`TTL = 7`（デフォルト）に設定します。
-2. パケットは直接接続されているすべてのピアにブロードキャストされます。
-3. RREQ を受信した各中間ノードは：
-   a. パケット `Id` によってこの RREQ を既に見ているか確認します。見ている場合はパケットをサイレントに破棄します（重複排除）。重複排除キャッシュは最大 `DeduplicationCacheSize` エントリ（デフォルト 10,000）を保持し、上限に達するとすべてクリアされます。
-   b. RREQ の発信元への**リバースルート**をインストールします。リバースルートは RREQ を受信したピアの UHID をネクストホップとして記録します。ホップカウントは `DefaultTtl - packet.Ttl + 1` から導出されます。
-   c. 宛先である場合は RREP を生成します（セクション 3.2 を参照）。
-   d. 宛先への有効なルートが既に存在する場合は、宛先に代わって RREP を生成できます（MAY）。
-   e. それ以外の場合は TTL を減少させ、RREQ を再ブロードキャストします。
-4. 発信元は **5,000 ms**（`RouteTimeoutMs`）のタイムアウトで RREP を待ちます。RREP が到着しない場合、ルート発見は失敗します。
+1. 発信者は `Type = RouteRequest` の `MeshPacket` を作成し、`SourceUhid` を自身に、`DestinationUhid` をターゲットに設定し、`TTL = 7`（デフォルト値）とします。
+2. パケットは直接接続されたすべてのピアにブロードキャストされます。
+3. RREQ を受信した各中間ノードは:
+   a. パケット `Id` によってすでにこの RREQ を受信済みかどうかを確認します。受信済みの場合、パケットはサイレントに破棄されます（重複排除）。重複排除キャッシュは最大 `DeduplicationCacheSize` エントリ（デフォルト 10,000）を保持し、上限に達すると完全にクリアされます。
+   b. RREQ 発信者への**逆方向ルート**を設定します。逆方向ルートは RREQ を受信したピアの UHID をネクストホップとして記録します。ホップカウントは `DefaultTtl - packet.Ttl + 1` から導出されます。
+   c. 自身が宛先ノードである場合、RREP を生成します（セクション 3.2 参照）。
+   d. 宛先への有効なルートが存在する場合、宛先に代わって RREP を生成してもよいです（MAY）。
+   e. そうでない場合、TTL を減算して RREQ を再ブロードキャストします。
+4. 発信者は **5,000 ms**（`RouteTimeoutMs`）のタイムアウトで RREP を待ちます。RREP が到達しない場合、ルートディスカバリは失敗します。
 
 ### 3.2. ルートリプライ（RREP）
 
-宛先（または有効なルートを持つ中間ノード）がルートリプライを生成する場合：
+宛先（または有効なルートを持つ中間ノード）がルートリプライを生成する場合:
 
-1. `Type = RouteReply` の `MeshPacket` が作成され、`SourceUhid` が宛先ノードに、`DestinationUhid` が RREQ 発信元に設定されます。
-2. **セキュリティ要件：** RREP は宛先ノードの Ed25519 ID キーで署名されなければなりません（MUST）。署名は標準の署名可能データ（セクション 2.3）をカバーします。これにより、悪意のある中間ノードによるルートポイズニングを防ぎます。
-3. RREP は RREQ 伝播中にインストールされたリバースルートに沿ってユニキャストで返送されます。
-4. RREP を転送する各中間ノードは：
-   a. RREP の署名を主張されたソースの公開鍵に対して検証します（既知の場合）。検証が失敗した場合、RREP は破棄され警告がログに記録されます。
-   b. RREP ソース（宛先ノード）への**フォワードルート**を RREP の送信者をネクストホップとしてインストールします。
-   c. TTL を減少させ、RREQ 発信元に向けて転送します。
-5. RREP が発信元に到達すると、保留中のルートリクエスト（`TaskCompletionSource` で追跡）がインストールされたルートで解決されます。
+1. `Type = RouteReply` の `MeshPacket` が作成され、`SourceUhid` を宛先ノードに、`DestinationUhid` を RREQ 発信者に設定します。
+2. **セキュリティ要件:** RREP は宛先ノードの Ed25519 アイデンティティキーで署名されなければなりません（MUST）。署名は標準の署名対象データ（セクション 2.3）をカバーします。これにより、悪意のある中間ノードによるルートポイズニングを防ぎます。
+3. RREP は RREQ 伝播中に設定された逆方向ルートに沿ってユニキャストで返送されます。
+4. RREP を転送する各中間ノードは:
+   a. 既知であれば、主張されたソースの公開鍵に対して RREP 署名を検証します。検証が失敗した場合、RREP は破棄されて警告がログに記録されます。
+   b. RREP ソース（宛先ノード）への**前方ルート**を、RREP の送信者をネクストホップとして設定します。
+   c. TTL を減算して RREQ 発信者に向けて転送します。
+5. RREP が発信者に到達すると、保留中のルートリクエスト（`TaskCompletionSource` で追跡）が設定済みルートとともに解決されます。
 
 ### 3.3. ルートメンテナンス
 
-- **TTL ベースの有効期限：** すべてのルートエントリは `now + 300 秒`（`RouteExpirySeconds`）に設定された `ExpiresAt` タイムスタンプを持ちます。ルートは暗黙的にリフレッシュされません。有効期限後は新しい RREQ / RREP サイクルで再確立しなければなりません。
-- **定期的なプルーニング：** プロトコルサービスは定期的なハートビート（デフォルトで 300 秒ごと）を実行します。各サイクルで、インメモリの `ConcurrentDictionary` と SQLite バッキングストアの両方から期限切れのルートを削除します。
-- **RREQ 重複排除のプルーニング：** 見られた RREQ ID のセットは、`DeduplicationCacheSize`（デフォルト 10,000）エントリを超えるとクリアされます。
+- **TTL ベースの有効期限:** すべてのルートエントリは `ExpiresAt` タイムスタンプを持ち、`now + 300 秒`（`RouteExpirySeconds`）に設定されます。ルートは暗黙的にリフレッシュされません。有効期限後は新しい RREQ/RREP サイクルで再確立する必要があります。
+- **定期的なプルーニング:** プロトコルサービスは定期的なハートビートを実行します（デフォルトは 300 秒ごと）。各サイクルで、期限切れのルートをインメモリの `ConcurrentDictionary` と SQLite バッキングストアの両方から削除します。
+- **RREQ 重複排除プルーニング:** 確認済み RREQ ID のセットは `DeduplicationCacheSize`（デフォルト 10,000）エントリを超えるとクリアされます。
 
 ### 3.4. ルート品質と QoS
 
-各 `RouteEntry` は [0, 100] の範囲の `QualityScore` を持ち、新しく発見されたルートは 50 で初期化されます。スコアは以下を考慮します：
+各 `RouteEntry` は [0, 100] の範囲の `QualityScore` を持ち、新しく発見されたルートでは 50 に初期化されます。スコアは以下を考慮します:
 
-- **ホップカウント：** ホップが少ないほど一般的に高速なルートを示します。
-- **レイテンシー：** 利用可能な場合の測定されたラウンドトリップタイム。
-- **ピアの信頼性：** ネクストホップピアの信頼性スコア（セクション 3.5 を参照）。
+- **ホップカウント:** ホップ数が少ないほど、一般的に高速なルートを示します。
+- **レイテンシ:** 利用可能な場合の測定往復時間。
+- **ピア信頼性:** ネクストホップピアの信頼性スコア（セクション 3.5 参照）。
 
-チップインセンティブシステムに参加しているノードは、ルート品質スコアに QoS ブーストを受けます。これはソフトな優先設定です。チップを行わないノードも常にサービスを受けますが、継続的にチップを行うノードはわずかに優れたルート選択を経験する場合があります。ブーストティアは以下の通りです：
+チップインセンティブシステムに参加しているノードは、ルート品質スコアに QoS ブーストを受けます。これはソフトな優先設定であり、チップしていないノードは常にサービスを受けますが、継続的なチッパーはわずかに優れたルート選択を経験する場合があります。ブーストティアは以下の通りです:
 
-| ティア    | 一貫性しきい値 | QoS ブースト |
+| Tier    | Consistency Threshold | QoS Boost |
 |---------|-----------------------|-----------|
 | Bronze  | 25                    | +5        |
 | Silver  | 50                    | +10       |
@@ -247,44 +274,64 @@ Aether は、暗号ルート認証と QoS 重み付けルート選択で拡張�
 
 ### 3.5. ピア信頼性スコアリング
 
-すべての既知のピアには [0, 100] の範囲の信頼性スコアが割り当てられ、50（`DefaultReliabilityScore`）で初期化されます。スコアは観察された動作に基づいて調整されます：
+すべての既知ピアには [0, 100] の範囲の信頼性スコアが割り当てられ、50（`DefaultReliabilityScore`）に初期化されます。スコアは観察された動作に基づいて調整されます:
 
-| イベント                | デルタ |
+| Event                | Delta |
 |----------------------|-------|
-| 成功したリレー     | +2    |
-| 失敗したリレー         | -5    |
-| SOS リレー            | +5    |
-| チャンク提供         | +1    |
-| チャンク提供失敗  | -10   |
+| Successful relay     | +2    |
+| Failed relay         | -5    |
+| SOS relay            | +5    |
+| Chunk served         | +1    |
+| Chunk serve failure  | -10   |
 
-信頼性スコアは SQLite に永続化され、起動時にメモリに読み込まれます。スコアはルート選択に影響します。信頼性の高いピアを通じるルートが優先されます。
+信頼性スコアは SQLite に永続化され、起動時にメモリにロードされます。スコアはルート選択に影響します: より信頼性の高いピアを経由するルートが優先されます。
 
 ---
 
 ## 4. 鍵交換
 
-> 2026-05-05 に `src/Aether.Security/Services/SignalProtocolService.cs` の C# リファレンス実装および `fixtures/signal/` 以下のクロス言語フィクスチャーコーパスと照合済み。C# リファレンスは X25519 上で完全な X3DH + Double Ratchet（Signal §3 + §5）を搭載しています。Go、Python、TypeScript、Rust、Swift、Kotlin は同じエンベロープに移植され、X3DH および KDF_RK フィクスチャーレベルでバイト等価です。C は X25519 + KDF_RK + シンメトリックラチェットプリミティブのみを搭載しています — フィクスチャーベリファイアには十分ですが、完全なセッション機構はまだありません。このセクションとコードが食い違う場合は、コードが権威を持ちます。`OPEN_ISSUES.md` に issue を提出してください。
+> 2026-05-05 に `src/Aether.Security/Services/SignalProtocolService.cs` の C# リファレンス実装
+> および `fixtures/signal/` 配下のクロス言語フィクスチャコーパスと照合済み。C# リファレンスは
+> X25519 上で完全な X3DH + Double Ratchet（Signal §3 + §5）を実装しています。Go、Python、
+> TypeScript、Rust、Swift、Kotlin は同じエンベロープに移植済みで、X3DH および KDF_RK
+> フィクスチャレベルでバイト等価です。C は X25519 + KDF_RK + 対称ラチェットのプリミティブのみ
+> 実装しており、フィクスチャ検証には十分ですが、完全なセッション機能はまだありません。
+> このセクションとコードが一致しない場合はコードが正式です。`OPEN_ISSUES.md` に
+> イシューを起票してください。
 
-Aether は非同期セッション確立のために **X3DH**（Extended Triple Diffie-Hellman、Signal §3）を実装し、継続的な前方秘匿性と侵害後のセキュリティのために直ちに **Signal Double Ratchet**（Signal §5）を続けます。すべてのセッション暗号は Curve25519 上で実行されます：ECDH には **X25519**（RFC 7748）、署名には **Ed25519**（RFC 8032）。
+Aether は、非同期セッション確立のために **X3DH**（Extended Triple Diffie-Hellman、Signal §3）を実装し、
+その後すぐに継続的な前方秘匿性とポストコンプロマイズセキュリティのために
+**Signal Double Ratchet**（Signal §5）を実装します。すべてのセッション暗号は Curve25519 で動作します:
+ECDH には **X25519**（RFC 7748）、署名には **Ed25519**（RFC 8032）を使用します。
 
-### 4.1. ID キー
+### 4.1. アイデンティティキー
 
-各ノードは最初の起動時に **2 つの**長期キーペアを生成します（XEdDSA なし；よりシンプルなデュアルキー配置がすべての実装でシップされます）：
+各ノードは最初の起動時に**2つ**の長期キーペアを生成します（XEdDSA は使用せず、
+よりシンプルなデュアルキー構成がすべての実装で採用されています）:
 
-- **Ed25519 キーペア** — 32 バイトシード（秘密鍵）、32 バイト公開鍵。パケット署名（§2.4）、`SignedPreKeySignature`（§4.3）、RREP 認証（§3.2）、およびチップ署名に使用されます。
-- **X25519 キーペア** — 32 バイトのローパイベートキーとパブリックキー。4 つの X3DH DH 操作に使用されます（§4.4）。
+- **Ed25519 キーペア** — 32バイトのシード（秘密鍵）、32バイトの公開鍵。
+  パケット署名（§2.4）、`SignedPreKeySignature`（§4.3）、
+  RREP 認証（§3.2）、チップ署名に使用されます。
+- **X25519 キーペア** — 32バイトの生の秘密鍵と公開鍵。
+  4つの X3DH DH 演算（§4.4）に使用されます。
 
-リファレンス：`SignalProtocolService.InitializeIdentityKeys`。秘密鍵はデバイス上にのみ存在します；公開鍵は `PreKeyBundle` に公開されます。
+リファレンス: `SignalProtocolService.InitializeIdentityKeys`。秘密鍵はデバイス上にのみ存在し、
+公開鍵は `PreKeyBundle` で公開されます。
 
-署名**検証**のみに対して、受信パケットに対して 30 日間の P-256 → Ed25519 移行ウィンドウが適用されます — §7.5 を参照してください。プリキーバンドル自体はワイヤー上では X25519 のみです。
+受信パケットの*署名検証*のみに対して、30日間の P-256 → Ed25519 移行ウィンドウが
+設けられています（§7.5 参照）。プレキーバンドル自体はワイヤー上では X25519 のみです。
 
 ### 4.2. 曲線の選択
 
-X3DH と Double Ratchet は **X25519** を排他的に使用します。P-256 は現在のいかなる実装でもセッション確立に使用されていません。この仕様の初期草稿では P-256 ECDH が説明されていましたが、そのテキストは 2026-05-05 のファミリー全体の X25519 への移行より前のものであり、もはや正確ではありません。
+X3DH と Double Ratchet は **X25519** のみを使用します。P-256 は現在の実装では
+セッション確立に使用されて*いません*。この仕様の旧版には P-256 ECDH について
+記述がありましたが、そのテキストは 2026-05-05 のファミリー全体の X25519 移行以前のものであり、
+現在は正確ではありません。
 
-### 4.3. プリキーバンドル
+### 4.3. プレキーバンドル
 
-イニシエーターがレスポンダーがオンラインでなくてもセッションを確立できるように、プリキーバンドルが公開されます（Signal §3.4）：
+イニシエータがレスポンダがオンラインでなくてもセッションを確立できるよう、
+プレキーバンドルが公開されます（Signal §3.4）:
 
 ```
 PreKeyBundle {
@@ -299,19 +346,33 @@ PreKeyBundle {
 }
 ```
 
-リファレンス：`Aether.Security.Models.PreKeyBundle`。ワイヤー形状のコントラクトはすべての 8 言語で同一です。
+リファレンス: `Aether.Security.Models.PreKeyBundle`。ワイヤーシェイプのコントラクトは
+8つの言語すべてで同一です。
 
-**ワンタイムプリキー（OPK）プール。** 各レスポンダーは `OpkPoolSize`（デフォルト 100、Signal の公開ガイダンスを反映）の X25519 OPK プールを維持します。バンドル生成は FIFO キューから次の未使用 id をポップし、プールをターゲットサイズまで補充します。各 OPK はちょうど 1 回消費されます。レスポンダーは、その id を参照する最初の PreKey メッセージで秘密の半分を削除してゼロ化します。同じ OPK id を競い合う並行イニシエーターは、`EstablishResponderSession` の 1 つが `_preKeyLock` 下で成功します；失敗した方は `CryptographicException` を発生させます。
+**ワンタイムプレキー（OPK）プール。** 各レスポンダは `OpkPoolSize`（デフォルト 100、
+Signal の公開ガイダンスを踏襲）の X25519 OPK プールを維持します。バンドル生成では
+FIFO キューから未使用の次の id をポップし、プールをターゲットサイズまで補充します。
+各 OPK は厳密に1回だけ消費されます: レスポンダはその id を参照する最初の PreKey
+メッセージで秘密鍵の半分を削除してゼロ化します。同じ OPK id を競合する並列イニシエータは、
+`_preKeyLock` 配下で厳密に1つの `EstablishResponderSession` が成功するのを確認します。
+失敗した方は `CryptographicException` を発生させます。
 
-リファレンス：`SignalProtocolService.TopUpOpkPoolNoLock`（494–518 行）、`SignalProtocolService.EstablishResponderSession`（636–718 行）。プールのセマンティクスは `tests/Aether.Core.Tests/PreKeyPoolTests.cs` によって検証されています。
+リファレンス: `SignalProtocolService.TopUpOpkPoolNoLock`（494–518行）、
+`SignalProtocolService.EstablishResponderSession`（636–718行）。プールのセマンティクスは
+`tests/Aether.Core.Tests/PreKeyPoolTests.cs` でテストされています。
 
-**署名済みプリキー（SPK）のローテーション。** SPK は最初のバンドル呼び出し時に遅延生成され、後続の呼び出しにわたって再使用されます。これにより、X3DH が実行される前にバンドルをフェッチする並行イニシエーターが互いのバンドルを無効化しません。定期的な SPK ローテーション（Signal §3.3 では週次を推奨）は明示的な操作であり、バンドル生成の副作用ではありません。
+**署名済みプレキー（SPK）のローテーション。** SPK は最初のバンドル呼び出し時に遅延生成され、
+後続の呼び出し間で再利用されます。これにより、X3DH 実行前にバンドルをフェッチする
+並列イニシエータが互いのバンドルを無効化しないようにします。
+定期的な SPK ローテーション（Signal §3.3 では週次を推奨）はバンドル生成の副作用ではなく、
+明示的な操作です。
 
-プリキー id は `RandomNumberGenerator.GetInt32(1, int.MaxValue)` から、明示的な衝突リトライ（発生前に最大 64 回の試行）で取得されます。
+プレキー id は `RandomNumberGenerator.GetInt32(1, int.MaxValue)` から取得され、
+明示的な衝突リトライ（発生前に最大 64 回試行）が行われます。
 
 ### 4.4. セッション確立（X3DH）
 
-完全な X3DH（Signal §3.3）はイニシエーター側で実行されます。4 つの DH 操作が X25519 上で計算されます：
+完全な X3DH（Signal §3.3）はイニシエータ側で実行されます。X25519 上で4つの DH 演算が計算されます:
 
 ```
 DH1 = DH(IK_A, SPK_B)    // long-term mutual auth
@@ -320,7 +381,9 @@ DH3 = DH(EK_A, SPK_B)    // initiator ephemeral binds responder SPK
 DH4 = DH(EK_A, OPK_B)    // initiator ephemeral binds responder OPK
 ```
 
-ここで `IK_A` / `IK_B` は X25519 ID キー、`EK_A` はこのセッションのためだけに生成される新鮮な X25519 エフェメラル、`SPK_B` はレスポンダーの署名済みプリキー、`OPK_B` はレスポンダーのワンタイムプリキーです。初期ルートキーは：
+ここで `IK_A` / `IK_B` は X25519 アイデンティティキー、`EK_A` はこのセッション専用に
+生成された新規 X25519 エフェメラルキー、`SPK_B` はレスポンダの署名済みプレキー、
+`OPK_B` はレスポンダのワンタイムプレキーです。初期ルートキーは:
 
 ```
 RK_0 = HKDF-SHA256(
@@ -330,31 +393,52 @@ RK_0 = HKDF-SHA256(
     L    = 32 bytes)
 ```
 
-`info` 定数 `aether-x3dh-root-v1` はすべての実装で同一であり、`fixtures/signal/expected/x3dh_basic.json`（フィールド `root_key_hex`）によってピン留めされています。
+`info` 定数 `aether-x3dh-root-v1` はすべての実装で同一であり、
+`fixtures/signal/expected/x3dh_basic.json`（フィールド `root_key_hex`）でピン固定されています。
 
-リファレンス：`SignalProtocolService.ProcessPreKeyBundleAsync`（554–626 行）。検証パス：`fixtures/signal/inputs.json` ケース `x3dh_basic` → `fixtures/signal/expected/x3dh_basic.json`。
+リファレンス: `SignalProtocolService.ProcessPreKeyBundleAsync`（554–626行）。
+検証パス: `fixtures/signal/inputs.json` のケース `x3dh_basic` →
+`fixtures/signal/expected/x3dh_basic.json`。
 
-**バンドル検証。** DH が実行される前に、イニシエーターは Ed25519 を使用して `IdentityKey` に対して `SignedPreKeySignature` を検証します。検証が失敗した場合は `CryptographicException` が発生し、バンドルが破棄されます。公開鍵サイズは `X25519Service.PublicKeySize`（32）に対して検証され、不正なバンドルは拒否されます。
+**バンドル検証。** DH 演算の前に、イニシエータは Ed25519 を使用して
+`IdentityKey` に対して `SignedPreKeySignature` を検証します。
+検証が失敗した場合、`CryptographicException` が発生してバンドルは破棄されます。
+公開鍵サイズは `X25519Service.PublicKeySize`（32）に対して検証されます。
+不正な形式のバンドルは拒否されます。
 
-**セッションプライミング。** `ProcessPreKeyBundleAsync` の終わりに `SignalSession` が以下で作成されます：
+**セッションプライミング。** `ProcessPreKeyBundleAsync` の最後に `SignalSession` が
+以下のように作成されます:
 
 - `RootKey = RK_0`
-- `MyEphemeralPriv / MyEphemeralPub = EK_A` — Signal 正規の X3DH ↔ Double-Ratchet 統合：イニシエーターの X3DH エフェメラルが最初の DH ラチェットキーペア（`DHs`）になります。
-- `RemoteEphemeralPub = SPK_B` — レスポンダーの署名済みプリキーが初期ピアラチェットキー（`DHr`）として扱われます。
-- `SendChainKey = null`、`RecvChainKey = null` — 両チェーンキーは最初の送信 / 最初の DH ラチェット受信時に遅延導出されます。
-- `PendingPreKeyMessage = true` — 次のアウトバウンドの `EncryptAsync` 呼び出しが PreKey メッセージ（`MessageType=1`）を発行しなければならないことをフラグします。
+- `MyEphemeralPriv / MyEphemeralPub = EK_A` — Signal 正規の X3DH ↔ Double-Ratchet 統合:
+  イニシエータの X3DH エフェメラルが最初の DH ラチェットキーペア（`DHs`）になります。
+- `RemoteEphemeralPub = SPK_B` — レスポンダの署名済みプレキーが
+  初期ピアラチェットキー（`DHr`）として扱われます。
+- `SendChainKey = null`、`RecvChainKey = null` — 両方のチェーンキーは
+  最初の送信 / 最初の DH ラチェット受信時に遅延導出されます。
+- `PendingPreKeyMessage = true` — 次の送信 `EncryptAsync` 呼び出しが
+  PreKey メッセージ（`MessageType=1`）を送出しなければならないことを示すフラグ。
 
-すべての DH 出力と連結された共有シークレットは `finally` ブロックで `CryptographicOperations.ZeroMemory` によってゼロ化されます。
+すべての DH 出力と連結共有シークレットは `finally` ブロックで
+`CryptographicOperations.ZeroMemory` によってゼロ化されます。
 
-**安全でない送信の拒否。** セッションなしのピアに対して `EncryptAsync` が呼び出された場合、その呼び出しは `InvalidOperationException` をスローします。UHID 派生のフォールバックパスはありません。ホストはメッセージをキューに入れ（`MessagingService` + `SignalMessageEnvelopeCipher` を参照）、セッション確立が完了したらリトライすることが期待されます。
+**安全でない送信の拒否。** セッションのないピアに対して `EncryptAsync` が呼び出された場合、
+呼び出しは `InvalidOperationException` をスローします。UHID 派生のフォールバックパスはありません。
+ホストはメッセージをキューに入れ（`MessagingService` + `SignalMessageEnvelopeCipher` 参照）、
+セッション確立が完了したら再試行することが期待されます。
 
 ### 4.5. Double Ratchet（Signal §5）
 
-各サイドは回転する X25519 ラチェットキーペア（`DHs`）と、ピアの最後に見られたラチェット公開鍵のコピー（`DHr`）を維持します。すべてのメッセージで送信者は現在の `DHs` 公開鍵を公開します；受信者が新しい `DHr` を観察するたびに、`KDF_RK(RK, DH(myDHs, newDHr))` を介してチェーンを再鍵化する **DH ラチェットステップ**を実行し、ルートキーと新鮮なチェーンキーの両方を再導出します。
+各サイドは回転する X25519 ラチェットキーペア（`DHs`）と、ピアの最後に確認された
+ラチェット公開鍵のコピー（`DHr`）を維持します。すべてのメッセージで送信者は
+現在の `DHs` 公開鍵を公開し、受信者が新しい `DHr` を観察するたびに、
+`KDF_RK(RK, DH(myDHs, newDHr))` によってチェーンを再キーイングする **DH ラチェットステップ**を実行します。
+これによりルートキーと新しいチェーンキーの両方が再導出されます。
 
 #### 4.5.1. KDF_RK
 
-`KDF_RK` は 64 バイトブロックに対する HKDF-SHA256 であり、新しいルートキーとチェーンキーに 32+32 に分割されます：
+`KDF_RK` は 64バイトのブロックに対する HKDF-SHA256 で、32+32 に分割して
+新しいルートキーと新しいチェーンキーになります:
 
 ```
 out      = HKDF-SHA256(
@@ -366,55 +450,76 @@ new_RK   = out[0..32]
 new_CK   = out[32..64]
 ```
 
-リファレンス：`SignalProtocolService.KdfRk`（857–868 行）。`fixtures/signal/inputs.json` ケース `kdf_rk_basic` → `fixtures/signal/expected/kdf_rk_basic.json` によってピン留めされています。
+リファレンス: `SignalProtocolService.KdfRk`（857–868行）。
+`fixtures/signal/inputs.json` のケース `kdf_rk_basic` →
+`fixtures/signal/expected/kdf_rk_basic.json` でピン固定。
 
-#### 4.5.2. シンメトリックラチェット
+#### 4.5.2. 対称ラチェット
 
-Signal §5.1 に従い、メッセージキーとチェーンキーは、シングルバイトドメイン分離を使用した HMAC-SHA256 でチェーンキーから導出されます：
+Signal §5.1 に従い、メッセージキーとチェーンキーは
+1バイトのドメイン分離を使用した HMAC-SHA256 によってチェーンキーから導出されます:
 
 ```
 message_key   = HMAC-SHA256(chain_key, 0x01)
 new_chain_key = HMAC-SHA256(chain_key, 0x02)
 ```
 
-リファレンス：`SignalProtocolService.RatchetChainKey`（876–881 行）。`fixtures/signal/inputs.json` ケース `ratchet_step_basic` および `ratchet_step_three_iterations` によってピン留めされています。
+リファレンス: `SignalProtocolService.RatchetChainKey`（876–881行）。
+`fixtures/signal/inputs.json` のケース `ratchet_step_basic` および
+`ratchet_step_three_iterations` でピン固定。
 
-この仕様の初期草稿では `messageKey = HMAC-SHA256(chain_key, counter_bytes)` と、`HMAC(chain_key, 0x01)` を介した別個の `chain_key` 進行が説明されていました。それは非 Signal であり、実装されたことはありませんでした。正規の 0x01/0x02 分割に置き換えられています。
+この仕様の旧版では `messageKey =
+HMAC-SHA256(chain_key, counter_bytes)` および `chain_key` の
+`HMAC(chain_key, 0x01)` による別途アドバンスが記述されていました。
+それは Signal 非準拠であり実装されたことがありませんでした。
+正規の 0x01/0x02 分割に置き換えられています。
 
 #### 4.5.3. 受信時の DH ラチェットステップ
 
-受信メッセージの `SenderEphemeralKeyX25519` がキャッシュされた `RemoteEphemeralPub` と（定数時間比較で）異なる場合にトリガーされます。
+受信メッセージの `SenderEphemeralKeyX25519` がキャッシュされた
+`RemoteEphemeralPub` と異なる場合（定数時間比較）にトリガーされます。
 
-1. アウトバウンドカウンターを `PreviousChainCount`（Signal §5：PN）として保存し、ピアが境界をまたいでスキップされたキーを計算できるようにします。
-2. `SendCounter` と `RecvCounter` を 0 にリセット；新しい `RemoteEphemeralPub` をインストールします。
-3. 新しい受信チェーンを導出：`(RK', CKr) = KDF_RK(RK, DH(myDHs, newDHr))`。
-4. 古い `myDHs` の秘密鍵をゼロ化；新鮮な X25519 キーペアを生成します。
-5. 新しい送信チェーンを導出：`(RK'', CKs) = KDF_RK(RK', DH(newDHs, newDHr))`。
+1. 送信カウンタを `PreviousChainCount` として保存（Signal §5: PN）し、
+   ピアが境界を越えたスキップキーを計算できるようにします。
+2. `SendCounter` と `RecvCounter` を 0 にリセットし、新しい `RemoteEphemeralPub` をインストールします。
+3. 新しい受信チェーンを導出: `(RK', CKr) = KDF_RK(RK, DH(myDHs, newDHr))`。
+4. 古い `myDHs` 秘密鍵をゼロ化し、新しい X25519 キーペアを生成します。
+5. 新しい送信チェーンを導出: `(RK'', CKs) = KDF_RK(RK', DH(newDHs, newDHr))`。
 
-リファレンス：`SignalProtocolService.DhRatchetReceive`（726–772 行）。
+リファレンス: `SignalProtocolService.DhRatchetReceive`（726–772行）。
 
-#### 4.5.4. 遅延送信チェーン導出
+#### 4.5.4. 送信チェーンの遅延導出
 
-イニシエーターの最初の送信は、完全な DH ラチェットではなく**ハーフステップ**を実行します — X3DH がすでに `DHs` と `DHr` を配置しているため、送信チェーンのみを導出する必要があります：
+イニシエータの最初の送信は、完全な DH ラチェットではなく**ハーフステップ**を実行します。
+X3DH がすでに `DHs` と `DHr` を配置しているため、送信チェーンのみを導出する必要があります:
 
 ```
 (RK', CKs) = KDF_RK(RK, DH(myDHs, DHr))
 ```
 
-`DHs` はここでは回転**されません**。真の受信側 DH ラチェットステップでのみ回転されます。
+`DHs` はここでは*ローテーションされません*。
+真の受信側 DH ラチェットステップでのみローテーションされます。
 
-リファレンス：`SignalProtocolService.DhRatchetSendOnly`（780–796 行）。
+リファレンス: `SignalProtocolService.DhRatchetSendOnly`（780–796行）。
 
 #### 4.5.5. スキップされたメッセージキー
 
-メッセージが順序どおりに到着しない場合、各スキップされたカウンターのメッセージキーは `SkippedMessageKeys` にキャッシュされ、`(Hex(remoteEphPub):counter)` でキーが付けられます。リモート公開鍵のバインディングが不可欠です — DH ラチェットステップ後に、以前のチェーン（異なる `DHr`）からの順序不整合メッセージが到着した場合でも、独自のチェーンごとのキーセットが必要です。
+メッセージが順序外れで到着した場合、スキップされた各カウンタのメッセージキーは
+`SkippedMessageKeys` にキャッシュされ、`(Hex(remoteEphPub):counter)` をキーとします。
+リモート公開鍵のバインディングは不可欠です — DH ラチェットステップ後でも
+以前のチェーン（異なる `DHr`）からの順序外れのメッセージが到着する可能性があり、
+それぞれのチェーン固有のキーセットが必要です。
 
-制限：
+制限:
 
-- 単一のギャップで `MaxSkippedKeys`（1000）エントリを超えてスキップすると `CryptographicException` が発生し、セッションの再確立が強制されます。
-- DH ラチェット境界を越える場合、受信側はまず*古い*チェーン上で `PreviousChainCount` キーまでスキップし、次に新しいチェーンでキーを導出する前に DH ラチェットステップを実行します。
+- 単一のギャップで `MaxSkippedKeys`（1000）エントリを超えてスキップすると
+  `CryptographicException` が発生し、セッションの再確立が強制されます。
+- DH ラチェット境界を越える場合、受信者はまず*古い*チェーンで最大
+  `PreviousChainCount` キーをスキップし、その後 DH ラチェットステップを実行してから
+  新しいチェーンのキーを導出します。
 
-リファレンス：`SignalProtocolService.SkipMessageKeys`（804–830 行）および復号内のスキップループ（366–388 行）。
+リファレンス: `SignalProtocolService.SkipMessageKeys`（804–830行）および
+復号内のスキップループ（366–388行）。
 
 ### 4.6. 暗号化ペイロードフォーマット
 
@@ -438,97 +543,114 @@ EncryptedPayload {
 }
 ```
 
-リファレンス：`Aether.Security.Models.EncryptedPayload`（`SecurityModels.cs` の 55–66 行）。`InitiatorEphemeralKeyX25519` フィールドは、Double Ratchet 以前のワイヤーエンベロープとの後方互換エイリアスであり、PreKey メッセージでは `SenderEphemeralKeyX25519` と等しくなります；新しいコンシューマーはこれを無視すべきです。
+リファレンス: `Aether.Security.Models.EncryptedPayload`（`SecurityModels.cs` の 55–66行）。
+`InitiatorEphemeralKeyX25519` フィールドは Pre-Double-Ratchet ワイヤーエンベロープの
+後方互換エイリアスであり、PreKey メッセージでは `SenderEphemeralKeyX25519` と等しいです。
+新しいコンシューマはこれを無視するべきです。
 
-AES-GCM パラメーター：256 ビットキー、96 ビットノンス（`AesNonceSize = 12`）、128 ビットタグ（`AesTagSize = 16`）、タグは暗号文に連結されます。メッセージキーは AES-GCM 暗号化 / 復号直後に `finally` ブロックでゼロ化されます。
+AES-GCM パラメータ: 256ビットキー、96ビットノンス（`AesNonceSize = 12`）、
+128ビットタグ（`AesTagSize = 16`）、タグは暗号文に連結されます。
+メッセージキーは AES-GCM の暗号化/復号の直後に `finally` ブロックでゼロ化されます。
 
 ### 4.7. 言語別ステータス
 
-| 言語    | X3DH（4 DH） | Double Ratchet | OPK プール       | フィクスチャー検証済み |
+| Language    | X3DH (4 DHs) | Double Ratchet | OPK pool       | Fixture-verified |
 |-------------|--------------|----------------|----------------|------------------|
-| C# (.NET)   | 完全         | 完全（§5）      | プール、デフォルト 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| Go          | 完全         | 完全（§5）      | プール、デフォルト 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| Python      | 完全         | 完全（§5）      | プール、デフォルト 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| TypeScript  | 完全         | 完全（§5）      | プール、デフォルト 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| Rust        | 完全         | 完全（§5）      | プール、デフォルト 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| Swift       | 完全         | 完全（§5）      | プール、デフォルト 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| Kotlin      | 完全         | 完全（§5）      | プール、デフォルト 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | プリミティブのみ — `aether_x25519_*`, `aether_signal_kdf_rk` | 未実装 | — | kdf_rk_basic のみ |
+| C# (.NET)   | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Go          | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Python      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| TypeScript  | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
+| C           | primitives only — `aether_x25519_*`, `aether_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
 
-セッション対応のすべての 7 言語（C# + Go + TypeScript + Python + Kotlin + Swift + Rust）は、C# リファレンスコントラクトに合わせた遅延補充とロック保護された消費を持つ 100 キー FIFO OPK プールを搭載しています。C はプリミティブのみです；完全なセッション機構は `OPEN_ISSUES.md` アイテム 11 で追跡されています。
+セッション対応の 7 言語すべて（C# + Go + TypeScript + Python + Kotlin + Swift + Rust）は、
+C# リファレンスコントラクトに合わせた遅延補充とロック保護消費を備えた 100 キー FIFO OPK プールを実装しています。
+C はプリミティブのみ実装しており、完全なセッション機能は `OPEN_ISSUES.md` のアイテム 11 で追跡されています。
 
 ---
 
-## 5. トランスポート層の要件
+## 5. トランスポートレイヤー要件
 
-Aether はトランスポート非依存です。`ITransportService` コントラクトを満たす物理通信チャネルはすべてメッシュに参加できます。
+Aether はトランスポート非依存です。`ITransportService` コントラクトを満たすあらゆる物理通信チャネルがメッシュに参加できます。
 
 ### 5.1. ITransportService インターフェースコントラクト
 
-すべてのトランスポート実装は以下を公開しなければなりません（MUST）：
+すべてのトランスポート実装は以下を公開しなければなりません（MUST）:
 
-**プロパティ：**
+**プロパティ:**
 
-| プロパティ           | 型   | 説明 |
+| Property           | Type   | Description |
 |--------------------|--------|-------------|
-| `Name`             | string | 人間が読める識別子（例："BLE"、"Wi-Fi Direct"、"NearLink"） |
-| `IsAvailable`      | bool   | このデバイスでトランスポートが現在使用可能かどうか |
-| `MaxBandwidthBps`  | int64  | 1 秒あたりの最大スループット（バイト） |
-| `MaxRangeMeters`   | int32  | 最大通信範囲（メートル） |
+| `Name`             | string | 人間が読めるための識別子（例: "BLE"、"Wi-Fi Direct"、"NearLink"） |
+| `IsAvailable`      | bool   | トランスポートがこのデバイスで現在使用可能かどうか |
+| `MaxBandwidthBps`  | int64  | バイト毎秒での最大スループット |
+| `MaxRangeMeters`   | int32  | メートル単位の最大通信範囲 |
 | `PowerCostRelative`| int32  | 相対的な消費電力（1 = 低、10 = 高） |
-| `MaxConcurrentPeers` | int32 | 最大同時ピア接続数 |
+| `MaxConcurrentPeers` | int32 | 同時ピア接続の最大数 |
 
-**メソッド：**
+**メソッド:**
 
-| メソッド         | シグネチャ | 説明 |
+| Method         | Signature | Description |
 |----------------|-----------|-------------|
-| `SendAsync`    | `Task<bool> SendAsync(string peerUhid, byte[] data, CancellationToken)` | バイト配列を特定のピアに送信します。成功した場合は true を返します。 |
-| `SendStreamAsync` | `Task<bool> SendStreamAsync(string peerUhid, Stream data, CancellationToken)` | ストリームをピアに送信します（大容量転送、音声、ビデオ向け）。 |
-| `IsConnected`  | `bool IsConnected(string peerUhid)` | ピアへの接続がアクティブかどうかを確認します。 |
+| `SendAsync`    | `Task<bool> SendAsync(string peerUhid, byte[] data, CancellationToken)` | 特定のピアにバイト配列を送信。成功時に true を返す。 |
+| `SendStreamAsync` | `Task<bool> SendStreamAsync(string peerUhid, Stream data, CancellationToken)` | ピアにストリームを送信（大規模転送、音声、ビデオ用）。 |
+| `IsConnected`  | `bool IsConnected(string peerUhid)` | ピアへのアクティブな接続があるかどうかを確認。 |
 
-**イベント：**
+**イベント:**
 
-| イベント          | シグネチャ | 説明 |
+| Event          | Signature | Description |
 |----------------|-----------|-------------|
-| `DataReceived` | `EventHandler<(string SenderUhid, byte[] Data)>` | ピアからデータが到着したときに発火します。 |
+| `DataReceived` | `EventHandler<(string SenderUhid, byte[] Data)>` | ピアからデータが到着したときに発火。 |
 
 ### 5.2. トランスポート選択アルゴリズム
 
-`TransportManager` は以下に基づいて各パケットに最適なトランスポートを選択します：
+`TransportManager` は以下に基づいて各パケットの最適なトランスポートを選択します:
 
-1. **可用性：** `IsAvailable == true` のトランスポートのみが考慮されます。
-2. **ペイロードサイズ：** ペイロードサイズが `BleMaxPayloadBytes`（1,024 バイト）以下の場合、消費電力効率のために BLE が優先されます。より大きなペイロードは Wi-Fi Direct を優先します。
-3. **消費電力の重み付け：** 利用可能なトランスポートの中で、低い `PowerCostRelative` 値が通常トラフィックに優先されます。高優先度パケット（SOS、音声）はこの優先設定をオーバーライドできます。
-4. **ピア接続性：** トランスポートがターゲットピアへのアクティブな接続をすでに持っている場合（`IsConnected` が true を返す）、接続セットアップのオーバーヘッドを避けるために優先されます。
-5. **フォールバック：** ローカルトランスポートがターゲットに到達できない場合、パケットは AetherAPI 経由のサーバーリレーにキューイングされます。
+1. **可用性:** `IsAvailable == true` のトランスポートのみが考慮されます。
+2. **ペイロードサイズ:** ペイロードサイズが `BleMaxPayloadBytes`（1,024バイト）以下の場合、電力効率のために BLE が優先されます。それより大きいペイロードは Wi-Fi Direct を優先します。
+3. **消費電力の重み付け:** 利用可能なトランスポートの中で、通常トラフィックには低い `PowerCostRelative` 値が優先されます。高優先度パケット（SOS、音声）はこの優先設定を上書きする場合があります。
+4. **ピア接続性:** ターゲットピアへのアクティブな接続がすでにあるトランスポート（`IsConnected` が true を返す）は、接続セットアップのオーバーヘッドを避けるために優先されます。
+5. **フォールバック:** どのローカルトランスポートもターゲットに到達できない場合、パケットは AetherAPI 経由のサーバーリレーのためにキューに入れられます。
 
 ### 5.3. リファレンストランスポート
 
-| トランスポート    | 最大帯域幅   | 最大レンジ | 消費電力コスト | 最大ピア | 注記 |
+| Transport    | MaxBandwidth   | MaxRange | PowerCost | MaxPeers | Notes |
 |-------------|----------------|----------|-----------|----------|-------|
-| BLE 5.0     | ~2 Mbps        | 100m     | 1         | 7        | 主要なディスカバリー + 小パケット |
-| Wi-Fi Direct| ~250 Mbps      | 200m     | 5         | 8        | 大容量転送、ストリーミング、音声 |
+| BLE 5.0     | ~2 Mbps        | 100m     | 1         | 7        | 主要なディスカバリ + 小パケット |
+| Wi-Fi Direct| ~250 Mbps      | 200m     | 5         | 8        | 大規模転送、ストリーミング、音声 |
 | NearLink    | ~900 Mbps      | 200m     | 3         | 16       | Huawei/HiSilicon、高スループット |
 
-**BLE ペイロード制限：** 1,024 バイト（`BleMaxPayloadBytes`）を超えるパケットは Wi-Fi Direct または NearLink に自動的にルーティングされます。BLE はディスカバリー広告、小型制御パケット（RREQ/RREP、プレゼンスビーコン）、および低帯域幅メッセージングに使用されます。
+**BLE ペイロード制限:** 1,024バイト（`BleMaxPayloadBytes`）を超えるパケットは
+自動的に Wi-Fi Direct または NearLink にルーティングされます。BLE はディスカバリアドバタイズ、
+小さな制御パケット（RREQ/RREP、プレゼンスビーコン）、および低帯域幅メッセージングに使用されます。
 
-**Wi-Fi Direct** の接続タイムアウトは 10,000 ms（`WifiDirectTimeoutMs`）で、最大 8 つの同時ピア（`MaxWifiDirectPeers`）が許可されます。
+**Wi-Fi Direct** の接続タイムアウトは 10,000 ms（`WifiDirectTimeoutMs`）で、
+同時ピア数の最大値は 8（`MaxWifiDirectPeers`）です。
 
 ---
 
-## 6. ディスカバリープロトコル
+## 6. ディスカバリプロトコル
 
 ### 6.1. BLE アドバタイジング
 
-Aether ノードは主に BLE アドバタイジングを通じてお互いを発見します。静的識別子による永続的な追跡を防ぐため、プロトコルは 2 つのプライバシーメカニズムを採用しています：ローテーティングサービス UUID と Identity Resolving Key。
+Aether ノードは主に BLE アドバタイジングを通じて互いを発見します。静的識別子による
+永続的なトラッキングを防ぐため、プロトコルは2つのプライバシーメカニズムを採用しています:
+ローテーティングサービス UUID とアイデンティティ解決キー。
 
-**アドバタイジングサイクル：** 2 秒スキャンオン、8 秒オフ（`BleScanOnMs`/`BleScanOffMs`）。アドバタイズ間隔は 1,000 ms（`BleAdvertiseIntervalMs`）。タイミングパターン検出を防ぐため、スキャン間隔に 0-2,000 ms のランダムジッター（`BleScanJitterMaxMs`）が追加されます。
+**アドバタイジングサイクル:** 2秒スキャンオン、8秒オフ（`BleScanOnMs`/`BleScanOffMs`）。
+アドバタイズ間隔は 1,000 ms（`BleAdvertiseIntervalMs`）です。
+タイミングパターンの検出を防ぐため、スキャン間隔に 0〜2,000 ms のランダムジッター
+（`BleScanJitterMaxMs`）が追加されます。
 
-**ピアタイムアウト：** 30 秒以内に再発見されないピアは失われたと見なされます（`PeerLost` イベント）。
+**ピアタイムアウト:** 30秒以内に再発見されないピアは切断されたとみなされます
+（`PeerLost` イベント）。
 
 ### 6.2. ローテーティングサービス UUID
 
-長期的な BLE フィンガープリンティングを防ぐため、アドバタイジングに使用されるサービス UUID は 15 分ごとにローテーションされます（`BleUuidRotationSeconds = 900`）：
+長期的な BLE フィンガープリンティングを防ぐため、アドバタイズで使用されるサービス UUID は
+15分ごとにローテーションされます（`BleUuidRotationSeconds = 900`）:
 
 ```
 window     = floor(unix_timestamp_seconds / 900)
@@ -536,34 +658,44 @@ hmac       = HMAC-SHA256(rotation_key, little-endian-int64(window))
 service_uuid = format_as_uuid(hmac[0..15])
 ```
 
-`rotation_key` はノードごとに一度生成され、セキュアストレージに保存される 32 バイトのキーです。同じローテーションキーを共有するすべての Aether ノードは、所定の時間ウィンドウに対して同じ UUID を導出し、永続識別子を明かさずに相互ディスカバリーを可能にします。
+`rotation_key` はノードごとに1回生成された 32バイトのキーで、セキュアストレージに保存されます。
+同じローテーションキーを共有するすべての Aether ノードは、指定された時間ウィンドウに対して
+同じ UUID を導出し、永続的な識別子を公開せずに相互発見が可能になります。
 
-非ローテーションスキームからの移行のために、90 日間の静的フォールバック UUID（`A3E7-1001-0001-0000-000000000000`）が維持されます。
+非ローテーションスキームからの移行期間中 90 日間、静的フォールバック UUID
+（`A3E7-1001-0001-0000-000000000000`）が維持されます。
 
-### 6.3. Identity Resolving Key（IRK）
+### 6.3. アイデンティティ解決キー（IRK）
 
-各ノードはセキュアストレージに保存された 128 ビットの Identity Resolving Key（IRK）を生成します。IRK は鍵交換中に信頼できるピアと共有されます。
+各ノードはセキュアストレージに保存された 128ビットのアイデンティティ解決キー（IRK）を生成します。
+IRK は鍵交換中に信頼済みピアと共有されます。
 
-**Resolvable Private Address（RPA）の生成：**
+**解決可能なプライベートアドレス（RPA）の生成:**
 
-1. `prand = HMAC-SHA256(IRK, window_bytes)[0..2]` を計算します（3 バイト）。
-2. `prand[0]` の最上位 2 ビットを `01` に設定します（BLE 仕様に従った RPA フラグ）。
-3. `hash = AES-128-ECB(IRK, pad(prand))` を計算します。ここで `prand` は 16 バイトのゼロパディング入力のバイト 13-15 を占めます。
-4. RPA を構築します：`hash[0..2] || prand[0..2]`（合計 6 バイト）。
+1. `prand = HMAC-SHA256(IRK, window_bytes)[0..2]`（3バイト）を計算します。
+2. `prand[0]` の上位2ビットを `01`（BLE 仕様に従った RPA フラグ）に設定します。
+3. `prand` が 16バイトのゼロパディング入力の 13〜15バイトを占める形で
+   `hash = AES-128-ECB(IRK, pad(prand))` を計算します。
+4. RPA を構築: `hash[0..2] || prand[0..2]`（合計 6バイト）。
 
-**RPA 解決：** ピアの IRK を持つノードは、RPA の `prand` コンポーネントからハッシュを再計算することで、観察された RPA がそのピアに属するかどうかを確認できます。解決時間は N を既知の IRK の数として約 O(N) です。100 ピアで約 0.1ms のベンチマーク。
+**RPA の解決:** ピアの IRK を持つノードは、RPA の `prand` コンポーネントからハッシュを
+再計算することで、観察された RPA がそのピアのものかどうかを検証できます。
+解決時間は N が既知の IRK 数である場合、約 O(N) で、100ピアで約 0.1ms です。
 
-RPA はサービス UUID と同じ 15 分サイクルでローテーションされます。
+RPA はサービス UUID と同じ 15分サイクルでローテーションされます。
 
 ### 6.4. ジオハッシュベースの近接性
 
-ノードはオプションで位置情報をジオハッシュとしてエンコードします。プライバシーのため、ジオハッシュは 4 文字に切り詰められ、約 39km x 20km の解像度を提供します。この粒度は以下に十分です：
+ノードはオプションで位置をジオハッシュとしてエンコードします。プライバシーのため、
+ジオハッシュは4文字に切り詰められ、約 39km × 20km の解像度が得られます。
+この粒度は以下に十分です:
 
-- 近接ベースのチャンネルディスカバリー
-- DTN エピデミックルーティング（受信者の最後に知られたジオハッシュエリアに向けて複製）
+- 近接ベースのチャンネルディスカバリ
+- DTN エピデミックルーティング（受信者の最後に既知のジオハッシュエリアに向けてレプリケート）
 - SOS アラートの地理的コンテキスト
 
-完全精度のジオハッシュはメッシュ上で送信されません。切り詰められた形式のみが共有され、ノードのプライバシーレベルが許可する場合にのみ共有されます（`PrivacyLevel.Full` または `PrivacyLevel.Partial`）。
+完全精度のジオハッシュはメッシュ上では送信されません。切り詰められた形式のみが共有され、
+それもノードのプライバシーレベルが許可する場合のみです（`PrivacyLevel.Full` または `PrivacyLevel.Partial`）。
 
 ---
 
@@ -571,98 +703,117 @@ RPA はサービス UUID と同じ 15 分サイクルでローテーションさ
 
 ### 7.1. 脅威モデル
 
-Aether は以下の敵対者の能力を仮定します：
+Aether は以下の攻撃者ケイパビリティを想定しています:
 
-- **受動的な盗聴：** 敵対者は電波範囲内のすべての BLE 広告とメッシュトラフィックを観察できます。
-- **アクティブな注入：** 敵対者はパケットを注入、修正、またはリプレイできます。
-- **Sybil 攻撃：** 敵対者は複数の偽のノード ID を作成できます。
-- **選択的なサービス拒否：** 敵対者はリレーノードとしてパケットを選択的にドロップできます。
+- **受動的盗聴:** 攻撃者は無線範囲内のすべての BLE アドバタイズとメッシュトラフィックを観察できます。
+- **能動的注入:** 攻撃者はパケットを注入、変更、またはリプレイできます。
+- **シビル攻撃:** 攻撃者は複数の偽ノードアイデンティティを作成できます。
+- **選択的サービス拒否:** 攻撃者はリレーノードとしてパケットを選択的にドロップできます。
 
 ### 7.2. 保護されているもの
 
-| プロパティ | 保護レベル | メカニズム |
+| Property | Protection Level | Mechanism |
 |----------|-----------------|-----------|
-| メッセージコンテンツ | 完全な機密性 | メッセージごとのキーを使用した AES-256-GCM（セクション 4.5） |
-| 送信者 ID | 部分的 | パケットヘッダーに UHID が見える；BLE アドレスがローテーション（セクション 6） |
-| 受信者 ID | 部分的 | ルーティングされたパケットに宛先 UHID が見える；ブロードキャストパケットは宛先が空 |
-| ルーティングメタデータ | 最小限 | 中間ノードがソース / 宛先 UHID と TTL を見える |
-| メッセージの順序 | 保護済み | シンメトリックラチェットのカウンターが並び替えを防止 |
-| メッセージの整合性 | 完全 | すべてのパケット（v2）に Ed25519 署名 |
+| メッセージ内容 | 完全な機密性 | AES-256-GCM とメッセージごとのキー（セクション 4.5） |
+| 送信者アイデンティティ | 部分的 | UHID はパケットヘッダに表示される。BLE アドレスはローテーションされる（セクション 6） |
+| 受信者アイデンティティ | 部分的 | 宛先 UHID はルーティングされたパケットに表示される。ブロードキャストパケットは宛先が空 |
+| ルーティングメタデータ | 最小限 | 中間ノードはソース/宛先 UHID と TTL を参照できる |
+| メッセージ順序 | 保護済み | 対称ラチェットのカウンタが並び替えを防止 |
+| メッセージ完全性 | 完全 | すべてのパケット（v2）に Ed25519 署名 |
 
 ### 7.3. 攻撃耐性
 
-**リプレイ攻撃：**
-各パケットには 8 バイトの暗号学的ランダムノンスとミリ秒精度のタイムスタンプが含まれます。リレーノードは 5 分間の TTL を持つ `(SenderUhid, NonceValue)` ペアの重複排除キャッシュを維持します（`MaxPacketAgeSeconds = 300`）。同じ送信者からの重複ノンスを持つパケットはドロップされます。タイムスタンプが 5 分以上古いパケットはノンスに関わらず拒否されます。
+**リプレイ攻撃:**
+各パケットは 8バイトの暗号学的乱数ノンスとミリ秒精度のタイムスタンプを持ちます。
+リレーノードは 5分間の TTL（`MaxPacketAgeSeconds = 300`）で
+`(SenderUhid, NonceValue)` ペアの重複排除キャッシュを維持します。
+同一送信者からの重複ノンスを持つパケットはドロップされます。
+タイムスタンプが 5分以上古いパケットはノンスに関わらず拒否されます。
 
-ノンス重複排除キャッシュは 60 秒ごとにクリーンアップされます。期限切れのエントリ（5 分以上古い）は削除されます。
+ノンス重複排除キャッシュは 60秒ごとにクリーニングされます。期限切れのエントリ
+（5分以上古いもの）は削除されます。
 
-**中間者攻撃（MITM）：**
-- Route Reply パケットは、主張された宛先ノードからの有効な Ed25519 署名を持たなければなりません。中間ノードは宛先の秘密鍵を持っていないため、RREP を偽造できません。
-- プリキーバンドルには `SignedPreKey` に対する `SignedPreKeySignature`（Ed25519）が含まれ、エフェメラル ECDH キーを長期 ID にバインドします。
-- セッション確立（セクション 4.4）はプリキー検証ステップを通じて、セッションを両者の ID に暗号学的にバインドします。
+**中間者攻撃（MITM）:**
+- ルートリプライパケットは、主張された宛先ノードからの有効な Ed25519 署名を持たなければなりません。
+  中間ノードは宛先の秘密鍵を持っていないため、RREP を偽造できません。
+- プレキーバンドルには長期アイデンティティに対して `SignedPreKey` をバインドする
+  `SignedPreKeySignature`（Ed25519）が含まれています。
+- セッション確立（セクション 4.4）はプレキー検証ステップを通じて両者のアイデンティティに
+  暗号学的にセッションをバインドします。
 
-**Sybil 攻撃：**
-- 各ノードの信頼性スコアは 50 から始まり、観察された動作に基づいて調整されます（セクション 3.5）。新しく作成された Sybil ノードには蓄積された信頼性がありません。
-- 信頼性スコアが低い（0 に近づく）ノードはルート選択で優先度が下げられます。
-- DTN エピデミックルーティングアルゴリズムは、ジオハッシュの近接性とリレー成功履歴を使用して複製ターゲットを選択し、真のリレー貢献なしに Sybil ノードがトラフィックを引き付けることを困難にします。
+**シビル攻撃:**
+- 各ノードの信頼性スコアは 50 から始まり、観察された動作に基づいて調整されます（セクション 3.5）。
+  新規作成されたシビルノードは蓄積されたレピュテーションを持ちません。
+- 信頼性スコアが低い（0 に近い）ノードはルート選択で優先度が下げられます。
+- DTN エピデミックルーティングアルゴリズムはジオハッシュの近接性とリレー成功履歴を使用して
+  レプリケーションターゲットを選択するため、シビルノードが真のリレー貢献なしにトラフィックを
+  引き寄せることが難しくなります。
 
-**フラッディング攻撃：**
-- TTL は各ホップで減少し、TTL = 0 のパケットはドロップされます。デフォルト TTL 7 は任意のブロードキャストのブラストラジウスを制限します。
-- パケット ID による RREQ の重複排除により、ブロードキャストストームによる増幅を防ぎます。重複排除キャッシュは `DeduplicationCacheSize`（デフォルト 10,000）エントリを超えるとフラッシュされます。
-- SOS ブロードキャストはノードごとに 1 時間あたり 3 回に制限されています（セクション 8）。
+**フラッディング攻撃:**
+- TTL は各ホップで減算され、TTL = 0 のパケットはドロップされます。デフォルト TTL の 7 は
+  あらゆるブロードキャストの影響範囲を制限します。
+- パケット ID による RREQ 重複排除はブロードキャストストームによる増幅を防止します。
+  重複排除キャッシュは `DeduplicationCacheSize`（デフォルト 10,000）エントリを超えるとフラッシュされます。
+- SOS ブロードキャストはノードごとに 1時間に 3回に制限されます（セクション 8）。
 
-### 7.4. キーのゼロ化
+### 7.4. 鍵のゼロ化
 
-すべての中間的な暗号素材は使用直後にゼロ化されます：
+すべての中間暗号マテリアルは使用直後にゼロ化されます:
 
-- ECDH 鍵合意からの `sharedSecret`：HKDF 導出後にゼロ化。
-- チェーンラチェットからの `messageKey`：AES-GCM 暗号化 / 復号後にゼロ化。
-- 順序不整合復号からの `skippedKey`：使用後にゼロ化され、マップから削除。
-- 導出された `RootKey`、`SendChainKey`、`RecvChainKey`：確立コンテキストからゼロ化（セッションは独自のコピーを保持）。
+- ECDH 鍵共有からの `sharedSecret`: HKDF 導出後にゼロ化。
+- チェーンラチェットからの `messageKey`: AES-GCM の暗号化/復号後にゼロ化。
+- 順序外れの復号からの `skippedKey`: 使用後にゼロ化されてマップから削除。
+- 導出された `RootKey`、`SendChainKey`、`RecvChainKey`: 確立コンテキストからゼロ化（セッションは自身のコピーを保持）。
 
-ゼロ化にはコンパイラーによって最適化されないことが保証された `CryptographicOperations.ZeroMemory` を使用します。
+ゼロ化にはコンパイラによる最適化が保証されない `CryptographicOperations.ZeroMemory` を使用します。
 
 ### 7.5. P-256 から Ed25519 への移行
 
-プロトコルは ECDSA P-256 ID キー（プロトコルバージョン 1）から Ed25519（プロトコルバージョン 2）への 30 日間の移行ウィンドウをサポートします：
+プロトコルは ECDSA P-256 アイデンティティキー（プロトコルバージョン 1）から
+Ed25519（プロトコルバージョン 2）への 30日間の移行ウィンドウをサポートします:
 
-1. 移行期間中はプロトコルバージョン 1 パケット（未署名）が受け入れられます。
-2. 署名検証は最初に Ed25519 を試みます。公開鍵が 32 バイトより長い（DER エンコードの P-256 キーを示す）場合、P-256 ECDSA 検証にフォールバックします。
-3. 30 日ウィンドウ後、プロトコルバージョン 1 パケットは拒否されます。
-4. 移行していないノードは新しい Ed25519 ID で再初期化しなければなりません。
+1. プロトコルバージョン 1 パケット（未署名）は移行期間中に受け入れられます。
+2. 署名検証はまず Ed25519 を試みます。公開鍵が 32バイトより長い場合
+（DER エンコードされた P-256 キーを示す）、P-256 ECDSA 検証にフォールバックします。
+3. 30日間のウィンドウ後、プロトコルバージョン 1 パケットは拒否されます。
+4. 移行していないノードは新しい Ed25519 アイデンティティで再初期化する必要があります。
 
-### 7.6. 管轄意識
+### 7.6. 管轄地域の認識
 
-プロトコルは暗号化とメッシュネットワーキングに関するさまざまな法的要件を処理するための管轄ティアを定義します：
+プロトコルは、暗号化とメッシュネットワーキングに関する異なる法的要件に対応するために
+管轄地域ティアを定義します:
 
-| ティア | 動作 | 管轄の例 |
+| Tier | Behavior | Example Jurisdictions |
 |------|----------|-----------------------|
-| 1    | 自由に運用 | 南アフリカ、ケニア、ガーナ |
-| 2    | 変更された運用 | ナイジェリア、インド、EU、米国、英国 |
-| 3    | メッシュのみ（高リスク） | 中国、ロシア、イラン、UAE、ミャンマー |
-| 4    | 不明（デフォルトのメッシュのみ） | その他すべて |
+| 1    | 自由に動作 | South Africa, Kenya, Ghana |
+| 2    | 変更された動作 | Nigeria, India, EU, US, UK |
+| 3    | メッシュのみ（高リスク） | China, Russia, Iran, UAE, Myanmar |
+| 4    | 不明（デフォルトはメッシュのみ） | All others |
 
-ティア選択は機能の可用性に影響します（例：チップ / 金融機能はティア 3 で無効になる場合があります）が、暗号化を弱めません。エンドツーエンド暗号化は管轄に関わらず常に適用されます。
+ティアの選択は機能の可用性に影響します（例: チップ/金融機能はティア 3 で無効になる場合があります）が、
+暗号化を弱めません。エンドツーエンド暗号化は管轄地域に関わらず常に適用されます。
 
 ---
 
 ## 8. SOS ブロードキャスト
 
-SOS メカニズムは、ユーザーが危険な状況にあり近くのメッシュピアやインターネットに同時に到達する必要がある状況のために設計されたデュアルパス緊急フラッドです。
+SOS メカニズムは、ユーザーが危険な状況にあり、近くのメッシュピアやインターネットに
+同時にアクセスする必要がある状況向けに設計されたデュアルパス緊急フラッドです。
 
-### 8.1. ブロードキャストパラメーター
+### 8.1. ブロードキャストパラメータ
 
-| パラメーター | 値 | 説明 |
+| Parameter | Value | Description |
 |-----------|-------|-------------|
-| TTL       | 15    | 通常のデフォルト（7）の 2 倍、より広い伝播を保証 |
-| Priority  | 999   | 最高優先度；リレーキュー内の他のすべてのトラフィックを先取り |
-| レート制限| 3 / 時| 乱用防止のためのノードごとの制限 |
-| 宛先| 空 | すべてのピアにブロードキャスト（特定の宛先なし） |
+| TTL       | 15    | 通常のデフォルト（7）の2倍で、より広い伝播を確保 |
+| Priority  | 999   | 最大優先度。リレーキュー内の他のすべてのトラフィックをプリエンプト |
+| Rate limit| 3/hour| 悪用防止のためのノードごとの制限 |
+| Destination| empty | すべてのピアへのブロードキャスト（特定の宛先なし） |
 
 ### 8.2. フラッドアルゴリズム
 
-1. 発信元は `Type = SosBroadcast`、`TTL = 15`、`Priority = 999`、空の `DestinationUhid` で SOS パケットを構築します。
-2. ペイロードは JSON エンコードされ、以下を含みます：
+1. 発信者は `Type = SosBroadcast`、`TTL = 15`、`Priority = 999`、
+   空の `DestinationUhid` で SOS パケットを構築します。
+2. ペイロードは JSON エンコードされ、以下を含みます:
    ```json
    {
        "broadcast_id": "UUID",
@@ -673,39 +824,50 @@ SOS メカニズムは、ユーザーが危険な状況にあり近くのメッ�
        "geohash": "k3vn"
    }
    ```
-3. **デュアルパスディスパッチ：** SOS は同時に以下を介して送信されます：
-   - **メッシュフラッド：** 利用可能なすべてのトランスポートを介して接続されているすべてのピアにブロードキャスト。
-   - **API 呼び出し：** サーバー側の配信と PanikAPI（SMS / メールディスパッチ）へのブリッジのために AetherAPI に送信。
-4. 両方のパスはお互いに対してファイアアンドフォーゲットです。API 呼び出しが失敗した場合、メッシュフラッドは独立して続行します。
+3. **デュアルパスディスパッチ:** SOS は同時に以下を介して送信されます:
+   - **メッシュフラッド:** 利用可能なすべてのトランスポートを通じて接続されたすべてのピアにブロードキャスト。
+   - **API コール:** サーバーサイドの配信と PanikAPI へのブリッジ（SMS/メールディスパッチ）のために AetherAPI に送信。
+4. 両方のパスは互いに対してファイアアンドフォゲットです。
+   API コールが失敗しても、メッシュフラッドは独立して継続されます。
 
 ### 8.3. リレー動作
 
-ノードが SOS パケットを受信した場合：
+ノードが SOS パケットを受信した場合:
 
-1. パケット `Id` による重複排除チェック。既に見ている場合はサイレントにドロップ。
-2. ペイロードをデシリアライズし、ローカル UI のために `SosReceived` イベントを発生させます。
-3. アクティブなアラートリストにアラートを追加します。
-4. `TTL > 1` の場合、TTL を減少させ、ルーティングテーブルの状態に関わらず**すべてのピアに再ブロードキャスト**します。SOS パケットは通常のルーティングをバイパスします — 無条件にフラッドします。
+1. パケット `Id` による重複排除を確認します。すでに確認済みの場合はサイレントにドロップします。
+2. ペイロードをデシリアライズし、ローカル UI のために `SosReceived` イベントを発火します。
+3. アラートをアクティブアラートリストに追加します。
+4. `TTL > 1` の場合、TTL を減算して、ルーティングテーブルの状態に関わらず
+   **すべてのピアに再ブロードキャスト**します。SOS パケットは通常のルーティングをバイパスして
+   無条件にフラッドします。
 
 ### 8.4. レート制限
 
-各ノードは最近のブロードキャストタイムスタンプのスライディングウィンドウを維持します。新しい SOS を開始する前に：
+各ノードは最近のブロードキャストタイムスタンプのスライディングウィンドウを維持します。
+新しい SOS を開始する前に:
 
-1. キューから 1 時間以上前のエントリを削除します。
-2. キューに 3 つ以上のエントリ（`MaxSosBroadcastsPerHour`）が含まれている場合、ブロードキャストは拒否されます。
-3. 正常なディスパッチ時に、現在のタイムスタンプをエンキューします。
+1. キューから 1時間以上古いエントリを削除します。
+2. キューに 3つ以上のエントリ（`MaxSosBroadcastsPerHour`）がある場合、
+   ブロードキャストは拒否されます。
+3. ディスパッチが成功すると、現在のタイムスタンプがエンキューされます。
 
-レート制限は SOS ブロードキャストの発信にのみ適用され、リレーには適用されません。
+レート制限は発信 SOS ブロードキャストのみに適用され、リレーには適用されません。
 
 ### 8.5. SOS-PanikAPI ブリッジ
 
-メッシュ経由で受信した SOS ブロードキャストは、従来の緊急対応（連絡先への SMS、メールアラート）のために PanikAPI に転送できます。逆に、PanikAPI の緊急セッションはコミュニティ意識のためにメッシュにブロードキャストできます。ループ防止は、ソースのマーキング（`direct` vs `mesh_forward`）とメッシュブロードキャスト上の `internet_forwarded` フラグによって達成されます。
+メッシュ経由で受信した SOS ブロードキャストは、従来の緊急対応（連絡先への SMS、
+メールアラート）のために PanikAPI に転送できます。逆に、PanikAPI の緊急セッションは
+コミュニティの認識のためにメッシュにブロードキャストできます。
+ループ防止はソース（`direct` vs `mesh_forward`）のマーキングと
+メッシュブロードキャストの `internet_forwarded` フラグによって実現されます。
 
 ---
 
 ## 9. DTN ストアアンドフォワード
 
-Delay-Tolerant Networking（DTN）サブシステムは、送信者と受信者の間にエンドツーエンドのパスが存在しない場合にメッセージを配信します。バンドルは中間ノードに保存され、接続が変化するにつれて日和見的に転送されます。
+遅延耐性ネットワーキング（DTN）サブシステムは、送信者と受信者間にエンドツーエンドの
+パスが存在しない場合のメッセージ配信を可能にします。バンドルは中間ノードに保存され、
+接続状況の変化に応じて日和見的に転送されます。
 
 ### 9.1. バンドルフォーマット
 
@@ -727,53 +889,57 @@ DtnBundle {
 }
 ```
 
-### 9.2. バンドルのライフサイクル
+### 9.2. バンドルライフサイクル
 
-1. **作成：** 送信者は暗号化されたペイロード（受信者との Signal セッションで暗号化）でバンドルを作成します。`Status = Pending`、`CopyCount = 1`。
-2. **即時配信の試み：** 送信者はまず直接メッシュルーティング（RREQ / RREP）を試みます。ルートが存在する場合、バンドルは即座に配信され、`Status` は `Delivered` に遷移します。
-3. **サーバーリレーの試み：** メッシュルーティングが失敗した場合、送信者は AetherAPI を通じたリレーを試みます。サーバーが受信者に到達できる（またはメッセージをキューに入れられる）場合、配信は成功します。
-4. **ストアアンドフォワード：** メッシュとサーバーリレーの両方が失敗した場合、バンドルは次の配信スキャンを待って（`Pending` ステータスで）ローカルストレージに残ります。
+1. **作成:** 送信者は暗号化されたペイロードを含むバンドルを作成します（受信者との Signal セッションで暗号化）。`Status = Pending`、`CopyCount = 1`。
+2. **即時配信の試行:** 送信者はまず直接メッシュルーティング（RREQ/RREP）を試みます。ルートが存在する場合、バンドルは即座に配信され、`Status` が `Delivered` に遷移します。
+3. **サーバーリレーの試行:** メッシュルーティングが失敗した場合、送信者は AetherAPI を介したリレーを試みます。サーバーが受信者に到達できる（またはメッセージをキューに入れられる）場合、配信は成功します。
+4. **ストアアンドフォワード:** メッシュとサーバーリレーの両方が失敗した場合、バンドルはローカルストレージに残ります（`Pending` ステータス）。次の配信スキャンを待ちます。
 
 ### 9.3. 配信スキャン
 
-定期的なスキャンが 60 秒ごとに実行されます（`DtnScanIntervalSeconds`）：
+定期的なスキャンが 60秒ごとに実行されます（`DtnScanIntervalSeconds`）:
 
-1. SQLite（真実のソース）からすべての保留中のバンドルを読み込みます。
-2. 各保留中のバンドルに対して：
+1. SQLite から（信頼の源として）すべての保留中バンドルを読み込みます。
+2. 各保留中バンドルに対して:
    a. 受信者へのメッシュルートを試みます。
    b. サーバーリレーを試みます。
-   c. 両方が失敗し、`CopyCount < MaxCopies` の場合、エピデミック複製を試みます（セクション 9.4）。
+   c. 両方が失敗し `CopyCount < MaxCopies` の場合、エピデミックレプリケーションを試みます（セクション 9.4）。
 3. 期限切れのバンドルを削除します（`ExpiresAt <= now`）。
 
 ### 9.4. エピデミックルーティング
 
-直接配信とサーバーリレーの両方が失敗した場合、バンドルはエピデミックルーティングを使用して近くのピアに複製されます：
+直接配信とサーバーリレーの両方が失敗した場合、バンドルはエピデミックルーティングを使用して
+近くのピアにレプリケートされます:
 
-1. `EpidemicRoutingService` は現在のピアリストから複製ターゲットを選択します。
-2. ターゲット選択は以下を考慮します：
-   - **ジオハッシュの近接性：** ジオハッシュが受信者の最後に知られたジオハッシュに近いピアが優先されます。
-   - **リレー履歴：** 信頼性スコアが高いピアが優先されます。
-   - **コピーバジェット：** `CopyCount >= MaxCopies`（デフォルト：3）になると複製は停止します。
-3. 各複製は選択されたピアに `DtnBundle` パケットを送信します。
-4. 受信時に、ピアの DTN サービスは `AcceptCustodyAsync` を呼び出します。
+1. `EpidemicRoutingService` が現在のピアリストからレプリケーションターゲットを選択します。
+2. ターゲット選択は以下を考慮します:
+   - **ジオハッシュ近接性:** ジオハッシュが受信者の最後に既知のジオハッシュに近いピアが優先されます。
+   - **リレー履歴:** 信頼性スコアが高いピアが優先されます。
+   - **コピー予算:** `CopyCount >= MaxCopies`（デフォルト: 3）になるとレプリケーションが停止します。
+3. 各レプリケーションは選択されたピアに `DtnBundle` パケットを送信します。
+4. 受信時、ピアの DTN サービスが `AcceptCustodyAsync` を呼び出します。
 
 ### 9.5. カストディ転送
 
-別のノード向けの DTN バンドルをノードが受信した場合：
+ノードが別のノード宛の DTN バンドルを受信した場合:
 
-1. **容量確認：** ノードは現在のバンドルカウントを `DtnMaxBundlesPerNode`（50）と照合します。容量に達している場合、カストディは拒否されます。
-2. **受諾：** バンドルのステータスは `InCustody` に設定され、ホップカウントが増加し、バンドルは SQLite に永続化されます。
-3. **カストディ記録：** 転送を文書化する `CustodyRecord` が作成されます（送信元、宛先、タイムスタンプ）。
-4. **コピーカウントの増加：** バンドルの `CopyCount` は永続ストレージで増加します。
-5. **確認応答：** `Accepted = true` の `DtnCustodyAck` パケットが転送ノードに返送されます。
-6. 受諾ノードは後続のスキャンで配信を試みる責任を持ちます。
+1. **容量チェック:** ノードは現在のバンドル数を `DtnMaxBundlesPerNode`（50）と比較します。
+   容量に達している場合、カストディは拒否されます。
+2. **受け入れ:** バンドルのステータスが `InCustody` に設定され、ホップカウントがインクリメントされ、
+   バンドルが SQLite に永続化されます。
+3. **カストディレコード:** 転送を記録する `CustodyRecord` が作成されます（from、to、タイムスタンプ）。
+4. **コピーカウントのインクリメント:** バンドルの `CopyCount` が永続ストレージでインクリメントされます。
+5. **確認応答:** `Accepted = true` の `DtnCustodyAck` パケットが転送ノードに返送されます。
+6. 受け入れノードは後続のスキャンでの配信試行を担当するようになります。
 
 ### 9.6. 配信レシート
 
-意図した受信者が DTN バンドルを受信した場合：
+意図された受信者が DTN バンドルを受信した場合:
 
-1. バンドルのステータスは `Delivered` に更新されます。
-2. `DtnDeliveryReceipt` がメッシュルーティング（サーバーリレーフォールバックを伴う）を介して元の送信者に返送されます：
+1. バンドルのステータスが `Delivered` に更新されます。
+2. `DtnDeliveryReceipt` がメッシュルーティング（サーバーリレーフォールバックあり）で
+   元の送信者に返送されます:
    ```
    DtnDeliveryReceipt {
        BundleId:               UUID
@@ -783,59 +949,75 @@ DtnBundle {
        DeliveredAt:            timestamp
    }
    ```
-3. レシートを受信すると、送信者はバンドルをストアから削除し `BundleDelivered` イベントを発生させます。
+3. レシートを受信すると、送信者はストアからバンドルを削除して `BundleDelivered` イベントを発火します。
 4. レシートはアナリティクスのために AetherAPI にも同期されます。
 
-### 9.7. バンドルの有効期限
+### 9.7. バンドル有効期限
 
-- デフォルトのバンドル TTL は 72 時間（`DtnBundleTtlHours`）です。
+- デフォルトのバンドル TTL は 72時間（`DtnBundleTtlHours`）です。
 - 期限切れのバンドルは定期的な配信スキャン中にクリーンアップされます。
 - `Expired` または `Delivered` ステータスのバンドルはインメモリキャッシュと SQLite の両方から削除されます。
 
 ### 9.8. 容量制限
 
-| パラメーター               | デフォルト | 説明 |
+| Parameter               | Default | Description |
 |-------------------------|---------|-------------|
 | `DtnBundleTtlHours`    | 72      | バンドルの最大有効期間 |
-| `DtnMaxCopies`          | 3       | ネットワーク全体のバンドルごとの最大コピー数 |
-| `DtnMaxBundlesPerNode`  | 50      | 単一ノードが保持する最大バンドル数 |
-| `DtnScanIntervalSeconds`| 60      | 配信スキャンの頻度 |
+| `DtnMaxCopies`          | 3       | ネットワーク全体でのバンドルごとの最大コピー数 |
+| `DtnMaxBundlesPerNode`  | 50      | 単一ノードが保持するバンドルの最大数 |
+| `DtnScanIntervalSeconds`| 60      | 配信スキャン頻度 |
 
 ---
 
 ## 10. ビデオストリーミング
 
-> **2026-05-05 時点のステータス — 設計 + C# スキャフォールディング、配送コーデックパイプラインなし。** パケット型 `StreamAnnounce`（11）、`StreamSegment`（12）、`StreamSubscribe`（13）、`StreamUnsubscribe`（14）、`VideoCall`（27）、`VideoSignaling`（28）、`VideoFrame`（31）、`ScreenShare`（32）はワイヤー定義され、クロス言語フィクスチャーコーパスでラウンドトリップします。C# `Aether.Streaming` モジュールはインターフェース、モデル、およびスケルトンサービス（`StreamingService`、`VideoCallService`、`WatchTogetherService`）を搭載し、ルーティング / DI シームとユニキャストセグメントファンアウトを配線しています — しかし実際のビデオエンコード / デコードはバインドされていません。他の 7 言語はワイヤー型のみです。`docs/adaptive-secure-streaming-spec.md` の前方設計ドキュメントがターゲットアーキテクチャーです。以下の散文をこれらのサービスが実装するものの仕様として扱ってください；本番対応のギャップについては `OPEN_ISSUES.md` を参照してください。
+> **2026-05-05 時点のステータス — 設計 + C# スキャフォールディング、配布可能なコーデックパイプラインなし。**
+> パケットタイプ `StreamAnnounce`（11）、`StreamSegment`（12）、
+> `StreamSubscribe`（13）、`StreamUnsubscribe`（14）、`VideoCall`（27）、
+> `VideoSignaling`（28）、`VideoFrame`（31）、`ScreenShare`（32）は
+> ワイヤー定義済みでクロス言語フィクスチャコーパスでのラウンドトリップが確認されています。
+> C# の `Aether.Streaming` モジュールはインターフェース、モデル、スケルトンサービス
+> （`StreamingService`、`VideoCallService`、`WatchTogetherService`）を実装しており、
+> ルーティング/DI のシームとユニキャストセグメントファンアウトを接続していますが、
+> 実際のビデオエンコード/デコードは結合されていません。他の 7 言語はワイヤータイプのみです。
+> `docs/adaptive-secure-streaming-spec.md` の前方設計ドキュメントがターゲットアーキテクチャです。
+> 以下の散文をそれらのサービスが**実装する**仕様として扱い、本番環境の準備ギャップについては
+> `OPEN_ISSUES.md` を参照してください。
 
-Aether は 3 つのビデオモードをサポートします：ピアツーピアビデオ通話、グループビデオ（動的トポロジーで無制限の参加者）、およびライブブロードキャスト。すべてのビデオフレームは Signal プロトコルで暗号化され、Ed25519 で署名されています。
+Aether は3つのビデオモードをサポートします: ピアツーピアビデオ通話、グループビデオ
+（動的トポロジーの無制限参加者）、そしてライブブロードキャスト。すべてのビデオフレームは
+Signal プロトコルで暗号化され、Ed25519 で署名されます。
 
 ### 10.1. トランスポートケイパビリティマトリクス
 
-ビデオ通話を開始する前に、発信元はトランスポート層に問い合わせて、ピアへの最良の接続を確認します。トランスポートはどの品質のビデオが可能かを決定します：
+ビデオ通話を開始する前に、発信者はトランスポートレイヤーにクエリを送信して
+ピアへの最良の利用可能接続を決定します。トランスポートはどの品質のビデオが
+可能かを決定します:
 
-| トランスポート | ビデオサポート | 最大解像度 | 推奨コーデック | 最大ビットレート | Watch Together |
+| Transport | Video Support | Max Resolution | Recommended Codec | Max Bitrate | Watch-Together |
 |-----------|--------------|----------------|-------------------|-------------|----------------|
-| BLE | なし（音声のみ） | — | — | 64 Kbps | 同期パケットのみ |
-| NearLink | ライト | 360p | H.265 | 800 Kbps | SharedFile + StreamFromHost |
-| WiFi Direct | フル | 1080p | H.264 | 3000 Kbps | すべてのモード |
-| Internet | フル | 720p | H.264 | 1500 Kbps | すべてのモード |
-| CircleLink | なし（音声のみ） | — | — | 64 Kbps | 同期パケットのみ |
+| BLE | No (audio-only) | — | — | 64 Kbps | Sync packets only |
+| NearLink | Light | 360p | H.265 | 800 Kbps | SharedFile + StreamFromHost |
+| WiFi Direct | Full | 1080p | H.264 | 3000 Kbps | All modes |
+| Internet | Full | 720p | H.264 | 1500 Kbps | All modes |
+| CircleLink | No (audio-only) | — | — | 64 Kbps | Sync packets only |
 
-利用可能な唯一のトランスポートが BLE または CircleLink の場合、ビデオ通話サービスは自動的に音声通話にダウングレードします。
+利用可能なトランスポートが BLE または CircleLink のみの場合、
+ビデオ通話サービスは自動的に音声通話にダウングレードします。
 
 ### 10.2. ビデオコーデック
 
-| 列挙値 | コーデック | ユースケース |
+| Enum Value | Codec | Use Case |
 |------------|-------|----------|
-| 0 | H.264 | デフォルト。広くサポートされ、良好な圧縮。 |
-| 1 | H.265 | より優れた圧縮。NearLink（帯域幅制約）で使用。 |
+| 0 | H.264 | デフォルト。広くサポートされ、優れた圧縮。 |
+| 1 | H.265 | より優れた圧縮。帯域幅制約のある NearLink で使用。 |
 | 2 | VP8 | ロイヤリティフリーの代替。 |
 
 ### 10.3. ビデオ解像度
 
-| 列挙値 | 解像度 | 典型的なビットレート |
+| Enum Value | Resolution | Typical Bitrate |
 |------------|-----------|-----------------|
-| 0 | AudioOnly | 64 Kbps（Opus） |
+| 0 | AudioOnly | 64 Kbps (Opus) |
 | 1 | 360p | 800 Kbps |
 | 2 | 480p | 1200 Kbps |
 | 3 | 720p | 1500 Kbps |
@@ -843,14 +1025,23 @@ Aether は 3 つのビデオモードをサポートします：ピアツーピ�
 
 ### 10.4. P2P ビデオ通話フロー
 
-1. **ケイパビリティ確認**：発信元は `GetVideoCapabilityAsync(peerUhid)` に問い合わせ、最良のトランスポート、最大解像度、推奨コーデックを決定します。
-2. **オファー**：発信元は `SignalType = Offer`、優先コーデック、最大解像度、最大ビットレートを含む `VideoSignaling` パケット（型 28）を送信します。
-3. **アンサー / リジェクト**：着信側は `SignalType = Answer`（コーデックを最小公倍数にネゴシエート）または `SignalType = Reject` で応答します。
-4. **アクティブ通話**：両ノードは H.264/H.265/VP8 NAL ユニットを含む `VideoCall` パケット（型 27）を交換します。各フレームにはジッターバッファー順序付けのためのシーケンス番号とキーフレームフラグが含まれます。
-5. **スクリーンシェア**：どちらの当事者もスクリーン共有を切り替えられます。`SignalType = ScreenShareStart/Stop` の `VideoSignaling` はピアに通知します。スクリーンシェアフレームは `PacketType.ScreenShare`（型 32）を使用しますが、同じ処理パイプラインを使用します。
-6. **通話終了**：どちらの当事者も `SignalType = Bye` の `VideoSignaling` を送信します。
+1. **ケイパビリティチェック**: 発信者は `GetVideoCapabilityAsync(peerUhid)` にクエリして
+   最適なトランスポート、最大解像度、推奨コーデックを決定します。
+2. **オファー**: 発信者は優先コーデック、最大解像度、最大ビットレートを含む
+   `VideoSignaling` パケット（タイプ 28）を `SignalType = Offer` で送信します。
+3. **アンサー/リジェクト**: 着信側は `SignalType = Answer`（コーデックを最小公倍数に交渉）
+   または `SignalType = Reject` で応答します。
+4. **アクティブ通話**: 両ノードは H.264/H.265/VP8 NAL ユニットを含む `VideoCall`
+   パケット（タイプ 27）を交換します。各フレームにはジッターバッファの順序付け用の
+   シーケンス番号とキーフレームフラグが含まれます。
+5. **画面共有**: いずれかのパーティが画面共有を切り替えられます。`SignalType = ScreenShareStart/Stop` の
+   `VideoSignaling` がピアに通知します。画面共有フレームは `PacketType.ScreenShare`（タイプ 32）を
+   使用しますが、同じ処理パイプラインです。
+6. **通話終了**: いずれかのパーティが `SignalType = Bye` の `VideoSignaling` を送信します。
 
-すべてのシグナリングおよびフレームペイロードは Signal プロトコル（X3DH セッション）で暗号化されます。暗号化されたペイロードは `MeshPacket.Payload` フィールド内に JSON エンコードされた `EncryptedPayload` としてシリアライズされます。
+すべてのシグナリングとフレームペイロードは Signal プロトコル（X3DH セッション）で暗号化されます。
+暗号化されたペイロードは `MeshPacket.Payload` フィールド内に JSON エンコードされた
+`EncryptedPayload` としてシリアライズされます。
 
 ### 10.5. ビデオ通話ステートマシン
 
@@ -861,97 +1052,125 @@ Aether は 3 つのビデオモードをサポートします：ピアツーピ�
                    └──► Failed ───────────┘
 ```
 
-ステート：`Initiating(0)`、`Ringing(1)`、`Active(2)`、`OnHold(3)`、`Ended(4)`、`Failed(5)`、`Rejected(6)`。
+ステート: `Initiating(0)`、`Ringing(1)`、`Active(2)`、`OnHold(3)`、`Ended(4)`、`Failed(5)`、`Rejected(6)`。
 
 ### 10.6. グループビデオ
 
-グループビデオセッションは無制限の参加者をサポートします。トポロジーは参加者数に基づいて動的に選択されます：
+グループビデオセッションは無制限の参加者をサポートします。トポロジーは参加者数に基づいて
+動的に選択されます:
 
-- **FullMesh**（2-3 参加者）：各参加者が他のすべての参加者に 1 つのストリームを送信します。シンプルで低レイテンシー。
-- **SFU**（4 人以上の参加者、しきい値：`SfuThresholdParticipants = 4`）：1 つのノードが SFU リレーとして選出されます。各参加者はリレーに 1 つのストリームを送信し、リレーはそれをすべての他者に配布します。リレーノードはインセンティブ層を通じてチップを獲得します。
+- **FullMesh**（2〜3参加者）: 各参加者が他のすべての参加者に1つのストリームを送信します。
+  シンプルで低レイテンシ。
+- **SFU**（4人以上の参加者、閾値: `SfuThresholdParticipants = 4`）: 1つのノードが
+  SFU リレーとして選出されます。各参加者はリレーに1つのストリームを送信し、
+  リレーがそれを他のすべてに配信します。リレーノードはインセンティブレイヤー経由でチップを獲得します。
 
-トポロジーの切り替えは自動です：4 人目の参加者が参加すると、セッションは FullMesh から SFU に遷移します。参加者が離れて数が 4 未満になると、元に戻ります。
+トポロジーの切り替えは自動です: 4人目の参加者が参加すると、セッションは FullMesh から SFU に移行します。
+参加者が離れて数が 4 を下回ると、元に戻ります。
 
-グループビデオフレームは `PacketType.VideoFrame`（型 31）を使用します。SFU モードでは、フレームはリレーノードの UHID に送信され、リレーノードがそれらを再ブロードキャストします。
+グループビデオフレームは `PacketType.VideoFrame`（タイプ 31）を使用します。
+SFU モードでは、フレームはリレーノードの UHID に送信され、リレーが再ブロードキャストします。
 
-### 10.7. ジッターバッファー
+### 10.7. ジッターバッファ
 
-ビデオジッターバッファーは音声ジッターバッファー（20ms Opus フレームを処理）とは独立して動作します：
+ビデオジッターバッファは音声ジッターバッファ（20ms の Opus フレームを処理）とは独立して動作します:
 
-- **範囲**：最小 60ms、最大 500ms。
-- **適応的な深さ**：指数移動平均（EMA）を通じてフレーム間ジッターを追跡します。バッファー深さ = ジッター推定値の 2 倍、[60, 500] ms にクランプ。
-- **キーフレーム認識ドロッピング**：バッファーがオーバーフローした場合、非キーフレーム（P/B フレーム）が最初にドロップされます。I フレーム（キーフレーム）はドロップされません — デコーダーリカバリーに必要です。
-- **ギャップ処理**：シーケンスギャップが検出された場合、バッファーは無期限に待機するのではなく、次の利用可能なキーフレームにスキップします。
+- **範囲**: 最小 60ms、最大 500ms。
+- **適応的な深さ**: 指数移動平均（EMA）によるフレーム間ジッターの追跡。
+  バッファ深さ = ジッター推定値の 2倍、[60, 500] ms にクランプ。
+- **キーフレーム対応ドロッピング**: バッファがオーバーフローした場合、非キーフレーム（P/Bフレーム）が
+  先にドロップされます。I フレーム（キーフレーム）は決してドロップされません — デコーダ回復に
+  必要です。
+- **ギャップ処理**: シーケンスギャップが検出された場合、バッファは無期限に待機するのではなく、
+  次に利用可能なキーフレームにスキップします。
 
-### 10.8. ビデオシグナリング型
+### 10.8. ビデオシグナリングタイプ
 
-| 列挙値 | 型 | 説明 |
+| Enum Value | Type | Description |
 |------------|------|-------------|
-| 0 | Offer | コーデック / 解像度優先設定を伴うビデオ通話開始 |
-| 1 | Answer | ネゴシエートされたパラメーターを伴う通話受諾 |
+| 0 | Offer | コーデック/解像度の優先設定を含むビデオ通話開始 |
+| 1 | Answer | 交渉されたパラメータでの通話受け入れ |
 | 2 | Reject | 通話拒否 |
 | 3 | Bye | 通話終了 |
-| 4 | Upgrade | より高い品質のリクエスト（例：トランスポートが改善された） |
-| 5 | Downgrade | より低い品質のリクエスト（例：帯域幅低下） |
-| 6 | ScreenShareStart | ピアがスクリーン共有を開始 |
-| 7 | ScreenShareStop | ピアがスクリーン共有を停止 |
+| 4 | Upgrade | より高い品質のリクエスト（例: トランスポートが改善された） |
+| 5 | Downgrade | より低い品質のリクエスト（例: 帯域幅低下） |
+| 6 | ScreenShareStart | ピアが画面共有を開始した |
+| 7 | ScreenShareStop | ピアが画面共有を停止した |
 
 ### 10.9. 暗号化モデル
 
-| モード | 暗号化 | 鍵配布 |
+| Mode | Encryption | Key Distribution |
 |------|-----------|-----------------|
-| P2P ビデオ通話 | フレームごとの Signal プロトコル | X3DH 鍵合意 |
+| P2P ビデオ通話 | フレームごとの Signal プロトコル | X3DH 鍵共有 |
 | グループビデオ | グループチャンネルキー（AES-GCM） | セッション作成時に Signal プロトコルで配布 |
-| スクリーンシェア | 親通話モードと同じ | ビデオ通話セッションから継承 |
+| 画面共有 | 親通話モードと同じ | ビデオ通話セッションから継承 |
 
 ---
 
 ## 11. Watch Together
 
-> **2026-05-05 時点のステータス — 設計 + C# スキャフォールディング、§10 と同じ成熟度。** パケット型 `WatchSync`（29）、`WatchReaction`（30）、`WatchChunkRequest`（33）、`TorrentMetadata`（34）はワイヤー定義され、フィクスチャーテスト済みです。`Aether.Streaming.WatchTogetherService` はコーディネーションスケルトン（セッション状態、`IMeshSender` 経由の同期コマンド伝播、RTT 補正ヘルパー）を提供します；BitTorrent インジェスト、ChipIn SDPKT 決済、チャンクフェッチはどの言語でも実装されていません。以下の散文をターゲットプロトコルとして扱ってください；`docs/adaptive-secure-streaming-spec.md` の前方設計ドキュメントが同じ内容をより詳しく説明しています。
+> **2026-05-05 時点のステータス — 設計 + C# スキャフォールディング、§10 と同じ成熟度。**
+> パケットタイプ `WatchSync`（29）、`WatchReaction`（30）、
+> `WatchChunkRequest`（33）、`TorrentMetadata`（34）はワイヤー定義済みで
+> フィクスチャテスト済みです。`Aether.Streaming.WatchTogetherService` は
+> コーディネーションスケルトン（セッション状態、`IMeshSender` 経由の同期コマンド伝播、
+> RTT 補償ヘルパー）を提供していますが、BitTorrent インジェスト、
+> ChipIn SDPKT 決済、ピアからのチャンクフェッチはいずれの言語にも実装されていません。
+> 以下の散文をターゲットプロトコルとして扱ってください。`docs/adaptive-secure-streaming-spec.md`
+> の前方設計ドキュメントが同じ内容をより詳細にカバーしています。
 
-Watch Together は、メッシュピアのグループにわたって同期されたメディア再生を可能にします。ホストは再生（再生、一時停止、シーク、速度）の独占的な制御を持ちます。同期コマンドには RTT 補正のためのウォールクロックタイムスタンプが含まれます。
+Watch Together は、メッシュピアのグループ全体で同期されたメディア再生を可能にします。
+ホストは再生（プレイ、ポーズ、シーク、スピード）の独占的な制御権を持ちます。
+同期コマンドには RTT 補償のためのウォールクロックタイムスタンプが含まれます。
 
-### 11.1. Watch モード
+### 11.1. ウォッチモード
 
-| 列挙値 | モード | データフロー | トランスポート要件 |
+| Enum Value | Mode | Data Flow | Transport Requirement |
 |------------|------|-----------|----------------------|
-| 0 | SharedFile | 同期パケットのみ（各 100 バイト未満） | 任意（BLE で動作） |
-| 1 | StreamFromHost | P2P チャンク転送（P2pContentService を再利用） | WiFi Direct またはインターネット |
-| 2 | BitTorrent | ゲートウェイノード経由のメッシュ + 外部スウォーム | WiFi Direct またはインターネット |
+| 0 | SharedFile | 同期パケットのみ（それぞれ 100バイト未満） | Any (works over BLE) |
+| 1 | StreamFromHost | P2P チャンク転送（P2pContentService を再利用） | WiFi Direct or Internet |
+| 2 | BitTorrent | ゲートウェイノード経由のメッシュ + 外部スウォーム | WiFi Direct or Internet |
 
 ### 11.2. SharedFile モード
 
-両方の参加者が同じファイルを持っています（SHA-256 コンテンツハッシュでマッチング）。`WatchSync` パケットのみが交換されます。これが最も帯域幅効率の高いモードで、BLE で動作します。
+両方の参加者が同じファイルを持っています（SHA-256 コンテンツハッシュで照合）。
+`WatchSync` パケットのみが交換されます。これは最も帯域幅効率の高いモードで、BLE 上で動作します。
 
-1. ホストは `contentHash`（ファイルの SHA-256）でウォッチセッションを作成します。
-2. 参加者が参加し、プレーヤーがロードされると `IsReady = true` を報告します。
-3. すべての参加者がレディを報告するとセッションが開始されます。
-4. ホストは `WatchSync` パケット（型 29）として再生 / 一時停止 / シーク / 速度コマンドを送信します。
-5. 受信者は RTT 補正を適用します：`adjustedPosition = commandPosition + (wallClockNow - commandWallClock) / 2`。
+1. ホストがファイルの SHA-256 のコンテンツハッシュ `contentHash` でウォッチセッションを作成します。
+2. 参加者が参加し、プレイヤーがロードされると `IsReady = true` を報告します。
+3. セッションはすべての参加者が準備完了を報告したときに開始されます。
+4. ホストは `WatchSync` パケット（タイプ 29）としてプレイ/ポーズ/シーク/スピードコマンドを送信します。
+5. 受信者は RTT 補償を適用します: `adjustedPosition = commandPosition + (wallClockNow - commandWallClock) / 2`。
 
 ### 11.3. StreamFromHost モード
 
-ホストのみがファイルを持っています。ホストは `ContentManifest`（P2P コンテンツシステムを再利用）を生成し、参加者はメッシュ経由でチャンクをダウンロードします。
+ホストのみがファイルを持っています。ホストは `ContentManifest`（P2P コンテンツシステムを再利用）を
+生成し、参加者はメッシュを介してチャンクをダウンロードします。
 
-- チャンク選択は `SequentialFromPosition` ストラテジーを使用します（`RarestFirst` ではない）：現在の再生位置より先のチャンクを優先し、次にシードのためにバックフィルします。
-- バッファーターゲット：30 秒先（`WatchTogetherBufferAheadSeconds`）。
-- 自動一時停止：任意の参加者のバッファーが 10 秒（`WatchTogetherMinBufferSeconds`）を下回ると、セッションはすべての参加者を `BufferUnderrun` 同期コマンドで自動一時停止します。すべての参加者が十分なバッファーを持つと（`BufferReady`）再生が再開されます。
-- 視聴者がチャンクをダウンロードするにつれて、他の視聴者のシーダーになります（メッシュ内の BitTorrent スタイルのスウォーミング）。
+- チャンク選択は `SequentialFromPosition` 戦略（`RarestFirst` ではなく）を使用します。
+  現在の再生位置より前のチャンクを優先し、その後バックフィルしてシーディングを行います。
+- バッファターゲット: 30秒先（`WatchTogetherBufferAheadSeconds`）。
+- 自動ポーズ: いずれかの参加者のバッファが 10秒（`WatchTogetherMinBufferSeconds`）を
+  下回ると、セッションはすべての参加者を `BufferUnderrun` 同期コマンドで自動ポーズします。
+  すべての参加者が十分なバッファを持つと再生が再開されます（`BufferReady`）。
+- 視聴者がチャンクをダウンロードするにつれて、他の視聴者のシーダーになります
+  （メッシュ内での BitTorrent スタイルのスウォーミング）。
 
 ### 11.4. BitTorrent モード
 
-参加者がグループチャットに `.torrent` ファイルまたはマグネットリンクを共有します。`TorrentMetadata` パケット（型 34）はすべてのセッション参加者にトレント情報を配布します。
+参加者がグループチャットで `.torrent` ファイルまたはマグネットリンクを共有します。
+`TorrentMetadata` パケット（タイプ 34）がすべてのセッション参加者にトレント情報を配信します。
 
-**メッシュ-スウォームブリッジ：**
-- ゲートウェイノード（インターネットを持つノード）は外部 BitTorrent スウォームからピースをダウンロードします。
-- ゲートウェイノードはダウンロードしたピースをメッシュ配布のために再暗号化し、メッシュピアにシードします。
-- インターネットのないメッシュピアはゲートウェイノードとお互いからピースを受け取ります。
-- P2P コンテンツエンジンは BitTorrent のピースモデルと Aether のチャンクモデルの間で変換します。
+**メッシュからスウォームへのブリッジ:**
+- ゲートウェイノード（インターネット接続のあるノード）が外部の BitTorrent スウォームからピースをダウンロードします。
+- ゲートウェイノードはダウンロードされたピースをメッシュ配信のために再暗号化し、メッシュピアにシードします。
+- インターネットなしのメッシュピアはゲートウェイノードと互いからピースを受信します。
+- P2P コンテンツエンジンが BitTorrent のピースモデルと Aether のチャンクモデルの間で変換を行います。
 
-十分なコンテンツがバッファリングされると、SharedFile モードと同じ同期プロトコルを使用して Watch Together 再生が始まります。
+十分なコンテンツがバッファリングされると、SharedFile モードと同じ同期プロトコルを使用して
+Watch Together 再生が開始されます。
 
-### 11.5. Watch セッションステートマシン
+### 11.5. ウォッチセッションステートマシン
 
 ```
   WaitingForReady ──► Playing ◄──► Paused
@@ -962,101 +1181,108 @@ Watch Together は、メッシュピアのグループにわたって同期さ�
         └────────────► Ended
 ```
 
-ステート：`WaitingForReady(0)`、`Buffering(1)`、`Playing(2)`、`Paused(3)`、`Ended(4)`。
+ステート: `WaitingForReady(0)`、`Buffering(1)`、`Playing(2)`、`Paused(3)`、`Ended(4)`。
 
-### 11.6. 同期コマンド型
+### 11.6. 同期コマンドタイプ
 
-| 列挙値 | 型 | 説明 |
+| Enum Value | Type | Description |
 |------------|------|-------------|
-| 0 | Play | 指定された位置で再生を再開 |
+| 0 | Play | 指定された位置から再生を再開 |
 | 1 | Pause | 指定された位置で一時停止 |
 | 2 | Seek | 指定された位置にジャンプ |
 | 3 | Speed | 再生速度を変更 |
-| 4 | BufferUnderrun | 自動一時停止 — 参加者のバッファーが危機的に低い |
-| 5 | BufferReady | 再開 — すべての参加者が十分なバッファーを持つ |
+| 4 | BufferUnderrun | 自動ポーズ — 参加者のバッファが致命的に低い |
+| 5 | BufferReady | 再開 — すべての参加者が十分なバッファを持っている |
 
-### 11.7. RTT 補正
+### 11.7. RTT 補償
 
-同期コマンドには `WallClockMs` フィールド（Unix エポックミリ秒）が含まれます。受信者が同期コマンドを処理する際：
+同期コマンドには `WallClockMs` フィールド（Unix エポックミリ秒）が含まれます。
+受信者が同期コマンドを処理する際:
 
 1. `rtt = receiverWallClock - commandWallClock`
 2. `networkDelay = rtt / 2`
-3. Play および BufferReady コマンドの場合：`adjustedPosition = commandPosition + networkDelay`
-4. Pause および Seek コマンドの場合：位置は正確に適用されます（再生が停止 / ジャンプするため調整は不要）。
+3. Play および BufferReady コマンドの場合: `adjustedPosition = commandPosition + networkDelay`
+4. Pause および Seek コマンドの場合: 再生が停止/ジャンプするため、位置は正確に適用されます（調整不要）。
 
 これにより、すべての参加者がネットワーク RTT の半分以内で同期されます。
 
 ### 11.8. リアクション
 
-参加者は再生中にコンテンツにリアクションできます：
+参加者は再生中にコンテンツに対してリアクションできます:
 
-- **絵文字リアクション**：`Type = Emoji`、絵文字文字列、リアクション時のメディア位置を持つ `WatchReaction` パケット（型 30）。
-- **音声コメント**：Opus エンコードの音声データ（最大 10 秒）を持つ `Type = VoiceComment` の `WatchReaction` パケット。音声データはリアクションの `VoiceData` フィールドに含まれます。
+- **絵文字リアクション**: `Type = Emoji` の `WatchReaction` パケット（タイプ 30）で、
+  絵文字文字列とリアクション時のメディア位置を含みます。
+- **音声コメント**: `Type = VoiceComment` の `WatchReaction` パケットで、
+  Opus エンコードされた音声データ（最大 10秒）を含みます。
+  音声データはリアクションの `VoiceData` フィールドに含まれます。
 
-リアクションはすべてのセッション参加者にブロードキャストされます。メディア位置にタイムスタンプが付けられ、再生同期表示が可能です。
+リアクションはすべてのセッション参加者にブロードキャストされます。メディア位置にタイムスタンプが付けられ、
+再生同期ディスプレイが可能です。
 
 ### 11.9. ChipIn — グループコンテンツ取得
 
-ChipIn はグループメンバーが資金（ZAR、LedgerAPI を通じた SDPKT ウォレットで決済）を共同出資してグループ視聴のためにコンテンツを集合的に取得できるようにします。
+ChipIn により、グループメンバーが資金をプール（ZAR 建て、LedgerAPI を介した SDPKT
+ウォレットで決済）して、グループウォッチング用のコンテンツを共同取得できます。
 
-**ステートマシン：**
+**ステートマシン:**
 ```
   Collecting ──► Funded ──► Purchasing ──► Acquired
        │                        │
        └── (timeout) ──► Failed/Refunded
 ```
 
-ステート：`Collecting(0)`、`Funded(1)`、`Purchasing(2)`、`Acquired(3)`、`Failed(4)`、`Refunded(5)`。
+ステート: `Collecting(0)`、`Funded(1)`、`Purchasing(2)`、`Acquired(3)`、`Failed(4)`、`Refunded(5)`。
 
-**フロー：**
-1. 発起人はターゲット金額とコンテンツ説明で `ChipInPool` を作成します。
-2. 参加者は SDPKT ウォレットトランザクションで金額を拠出します。
-3. `CollectedAmount >= TargetAmount` になると、ステートは `Funded` に遷移します。
-4. システムはコンテンツを取得します（例：BitTorrent ダウンロードを開始）。
-5. コンテンツが利用可能になると、ステートは `Acquired` に遷移し、Watch Together が始められます。
+**フロー:**
+1. イニシエータが目標金額とコンテンツの説明で `ChipInPool` を作成します。
+2. 参加者が SDPKT ウォレットトランザクションで金額を拠出します。
+3. `CollectedAmount >= TargetAmount` になると、ステートが `Funded` に遷移します。
+4. システムがコンテンツを取得します（例: BitTorrent ダウンロードを開始する）。
+5. コンテンツが利用可能になると、ステートが `Acquired` に遷移し、Watch Together が開始できます。
 
-各拠出はオーディットトレイルのために SDPKT トランザクション ID とともに記録されます。
+各拠出は監査証跡のために SDPKT トランザクション ID とともに記録されます。
 
 ### 11.10. 暗号化モデル
 
-| モード | 暗号化 | 鍵配布 |
+| Mode | Encryption | Key Distribution |
 |------|-----------|-----------------|
-| Watch 同期コマンド | チャンネル / 会話キー | 既存の Signal プロトコルセッション |
+| ウォッチ同期コマンド | チャンネル/会話キー | 既存の Signal プロトコルセッション |
 | コンテンツチャンク（StreamFromHost） | マニフェストごとのコンテンツキー | Signal プロトコルで配布 |
-| BitTorrent ピース | インジェスト時に再暗号化 | ゲートウェイがスウォームから平文をダウンロードし、メッシュ用に暗号化 |
-| Watch リアクション | セッションキー | 会話キーから導出 |
+| BitTorrent ピース | インジェスト時に再暗号化 | ゲートウェイがスウォームからクリアテキストをダウンロードし、メッシュ用に暗号化 |
+| ウォッチリアクション | セッションキー | 会話キーから導出 |
 
-### 11.11. フィーチャーフラグ
+### 11.11. 機能フラグ
 
-すべてのビデオおよび Watch Together 機能はフィーチャーフラグの背後にゲートされています（すべてデフォルトで無効）：
+すべてのビデオおよび Watch Together 機能は機能フラグによって制御されます（デフォルトはすべて無効）:
 
-| フラグ | 親 | 説明 |
+| Flag | Parent | Description |
 |------|--------|-------------|
 | AETHER_VIDEO_CALL | AETHER_VOICE | P2P およびグループビデオ通話 |
 | AETHER_VIDEO_GROUP | AETHER_VIDEO_CALL | マルチパーティビデオセッション |
-| AETHER_SCREEN_SHARE | AETHER_VIDEO_CALL | ビデオ通話でのスクリーン共有 |
+| AETHER_SCREEN_SHARE | AETHER_VIDEO_CALL | ビデオ通話での画面共有 |
 | AETHER_WATCH_TOGETHER | AETHER_CONTENT_P2P | 同期メディア再生 |
 | AETHER_WATCH_REACTIONS | AETHER_WATCH_TOGETHER | 絵文字および音声リアクション |
-| AETHER_TORRENT_INGEST | AETHER_CONTENT_P2P | メッシュ配布のための BitTorrent ファイル受け入れ |
+| AETHER_TORRENT_INGEST | AETHER_CONTENT_P2P | メッシュ配信用の BitTorrent ファイル受け入れ |
 
-フィーチャーフラグには親の依存関係があります：子フラグは親も有効になっている場合にのみ有効にできます。これにより段階的なロールアウトが可能です。
+機能フラグには親の依存関係があります: 子フラグは親も有効な場合にのみ有効にできます。
+これにより段階的なロールアウトが可能になります。
 
 ---
 
-## 付録 A：定数リファレンス
+## 付録 A: 定数リファレンス
 
-すべてのプロトコル定数は `ProtocolConstants` に定義されており、参照のためにここに再掲します：
+すべてのプロトコル定数は `ProtocolConstants` で定義されており、参照のためにここに再掲します:
 
 ### ルーティング
-| 定数              | 値  |
+| Constant              | Value  |
 |-----------------------|--------|
 | DefaultTtl            | 7      |
 | SosTtl                | 15     |
 | RouteTimeoutMs        | 5000   |
 | RouteExpirySeconds    | 300    |
 
-### BLE ディスカバリー
-| 定数                  | 値  |
+### BLE ディスカバリ
+| Constant                  | Value  |
 |---------------------------|--------|
 | BleDiscoveryIntervalMs    | 10000  |
 | BleScanOnMs               | 2000   |
@@ -1067,7 +1293,7 @@ ChipIn はグループメンバーが資金（ZAR、LedgerAPI を通じた SDPKT
 | AetherBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
 
 ### セキュリティ
-| 定数                  | 値  |
+| Constant                  | Value  |
 |---------------------------|--------|
 | PacketNonceSize           | 8      |
 | MaxPacketAgeSeconds       | 300    |
@@ -1078,14 +1304,14 @@ ChipIn はグループメンバーが資金（ZAR、LedgerAPI を通じた SDPKT
 | AES-GCM Tag Size          | 16     |
 
 ### SOS
-| 定数                   | 値 |
+| Constant                   | Value |
 |----------------------------|-------|
 | SosTtl                     | 15    |
 | SosPriority                | 255   |
 | MaxSosBroadcastsPerHour    | 3     |
 
 ### DTN
-| 定数                  | 値  |
+| Constant                  | Value  |
 |---------------------------|--------|
 | DtnBundleTtlHours         | 72     |
 | DtnMaxCopies              | 3      |
@@ -1093,7 +1319,7 @@ ChipIn はグループメンバーが資金（ZAR、LedgerAPI を通じた SDPKT
 | DtnScanIntervalSeconds     | 60     |
 
 ### トランスポート
-| 定数                  | 値   |
+| Constant                  | Value   |
 |---------------------------|---------|
 | BleMaxPayloadBytes        | 1024    |
 | DefaultChunkSizeBytes     | 8192    |
@@ -1102,13 +1328,13 @@ ChipIn はグループメンバーが資金（ZAR、LedgerAPI を通じた SDPKT
 | MaxWifiDirectPeers        | 8       |
 
 ### ハートビート
-| 定数                      | 値 |
+| Constant                      | Value |
 |-------------------------------|-------|
 | HeartbeatIntervalSeconds      | 300   |
 | NodeOfflineThresholdSeconds   | 900   |
 
 ### プレゼンス
-| 定数                          | 値 |
+| Constant                          | Value |
 |-----------------------------------|-------|
 | PresenceBeaconIntervalMs          | 15000 |
 | PresenceTimeoutSeconds            | 60    |
@@ -1116,7 +1342,7 @@ ChipIn はグループメンバーが資金（ZAR、LedgerAPI を通じた SDPKT
 | ProximityEventDebounceSeconds     | 30    |
 
 ### 音声
-| 定数                  | 値 |
+| Constant                  | Value |
 |---------------------------|-------|
 | VoiceFrameDurationMs      | 20    |
 | PttMaxDurationSeconds     | 60    |
@@ -1126,7 +1352,7 @@ ChipIn はグループメンバーが資金（ZAR、LedgerAPI を通じた SDPKT
 | MaxGroupVoiceMembers      | 8     |
 
 ### ストリーミング
-| 定数                    | 値 |
+| Constant                    | Value |
 |-----------------------------|-------|
 | DefaultSegmentDurationMs    | 3000  |
 | MaxStreamTreeFanout         | 4     |
@@ -1136,7 +1362,7 @@ ChipIn はグループメンバーが資金（ZAR、LedgerAPI を通じた SDPKT
 | WifiDirectVideoBitrateKbps  | 500   |
 
 ### ビデオ
-| 定数                       | 値 |
+| Constant                       | Value |
 |--------------------------------|-------|
 | VideoFrameDurationMs           | 33    |
 | VideoJitterBufferMinMs         | 60    |
@@ -1150,27 +1376,27 @@ ChipIn はグループメンバーが資金（ZAR、LedgerAPI を通じた SDPKT
 
 ---
 
-## 付録 B：用語集
+## 付録 B: 用語集
 
-| 用語 | 定義 |
+| Term | Definition |
 |------|------------|
-| **UHID** | ユニバーサルハードウェア識別子。デバイスの ID と暗号キーから導出される、メッシュノードを識別する一意の文字列。 |
+| **UHID** | ユニバーサルハードウェア識別子。デバイスアイデンティティと暗号鍵から導出された、メッシュノードを識別する一意の文字列。 |
 | **RREQ** | ルートリクエスト。宛先ノードへのパスを発見するために使用されるブロードキャストパケット。 |
-| **RREP** | ルートリプライ。RREQ によって確立されたリバースルートに沿ってユニキャストで返送されるパケット。 |
-| **IRK** | Identity Resolving Key。BLE のリゾルバブルプライベートアドレスを生成および解決するために使用される 128 ビットキー。 |
-| **RPA** | リゾルバブルプライベートアドレス。定期的にローテーションしますが、送信者の IRK を保持するピアが解決できる 6 バイトの BLE アドレス。 |
-| **X3DH** | Extended Triple Diffie-Hellman。非同期セッション確立を可能にする鍵合意プロトコル。 |
-| **DTN** | Delay-Tolerant Networking（遅延耐性ネットワーク）。断続的な接続を持つ環境向けのストアアンドフォワードパラダイム。 |
-| **ゲートウェイ** | インターネット接続を持ち、メッシュトラフィックを IP ベースのサービスとの間でブリッジするメッシュノード。 |
-| **HKDF** | HMAC ベースの鍵導出関数。単一の共有シークレットから複数のキーを導出するために使用されます。 |
-| **プリキーバンドル** | 受信者がオンラインでなくても、送信者が暗号化セッションを確立できるように公開されたキーのセット。 |
-| **SFU** | Selective Forwarding Unit（選択的転送ユニット）。各送信者から 1 つのビデオストリームを受け取り、他のすべての参加者に配布するリレーノード。ノードごとのアップロード帯域幅を削減します。 |
-| **ChipIn** | 参加者が SDPKT 資金を共同出資してグループ視聴のためにコンテンツを集合的に取得するグループファンディングメカニズム。 |
-| **NAL** | ネットワーク抽象化層。ビデオフレームをパケット化するために H.264 および H.265 コーデックが使用するカプセル化フォーマット。 |
+| **RREP** | ルートリプライ。RREQ によって確立された逆方向ルートに沿って返送されるユニキャストパケット。 |
+| **IRK** | アイデンティティ解決キー。BLE 解決可能なプライベートアドレスを生成および解決するために使用される 128ビットキー。 |
+| **RPA** | 解決可能なプライベートアドレス。定期的にローテーションされるが、送信者の IRK を持つピアが解決できる 6バイトの BLE アドレス。 |
+| **X3DH** | Extended Triple Diffie-Hellman。非同期セッション確立を可能にする鍵共有プロトコル。 |
+| **DTN** | 遅延耐性ネットワーキング。断続的な接続環境向けのストアアンドフォワードパラダイム。 |
+| **Gateway** | インターネット接続を持ち、メッシュトラフィックを IP ベースのサービスとの間でブリッジするメッシュノード。 |
+| **HKDF** | HMAC ベースの鍵導出関数。単一の共有シークレットから複数の鍵を導出するために使用。 |
+| **Pre-key bundle** | 受信者がオンラインでなくても送信者が暗号化されたセッションを確立できるように公開された鍵のセット。 |
+| **SFU** | 選択的転送ユニット。各送信者から1つのビデオストリームを受信し、他のすべての参加者に配信するリレーノード。ノードごとのアップロード帯域幅を削減する。 |
+| **ChipIn** | グループメンバーが SDPKT 資金をプールして、グループウォッチング用のコンテンツを共同取得するグループ資金調達メカニズム。 |
+| **NAL** | ネットワーク抽象化レイヤー。H.264 および H.265 コーデックがビデオフレームをパケット化するために使用するカプセル化フォーマット。 |
 
 ---
 
-## 付録 C：参考文献
+## 付録 C: 参考文献
 
 1. C. Perkins, E. Belding-Royer, S. Das, "Ad hoc On-Demand Distance Vector (AODV) Routing," RFC 3561, July 2003.
 2. M. Marlinspike, T. Perrin, "The X3DH Key Agreement Protocol," Signal Foundation, November 2016.

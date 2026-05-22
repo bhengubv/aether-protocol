@@ -1,5 +1,7 @@
 # Aether Mesh Networking Protocol - C Implementation
 
+[English](README.md) · [Français](../docs/i18n/fr/c/README.md) · [Español](../docs/i18n/es/c/README.md) · [العربية](../docs/i18n/ar/c/README.md) · [中文简体](../docs/i18n/zh-CN/c/README.md) · [日本語](../docs/i18n/ja/c/README.md) · [Deutsch](../docs/i18n/de/c/README.md) · [Português (BR)](../docs/i18n/pt-BR/c/README.md) · [Русский](../docs/i18n/ru/c/README.md) · [فارسی](../docs/i18n/fa/c/README.md) · [한국어](../docs/i18n/ko/c/README.md)
+
 A high-performance, embedded-friendly C implementation of the Aether mesh networking protocol. Designed for resource-constrained devices like ESP32 and nRF52, with full support for Ed25519 signing, AES-256-GCM encryption, and AODV-based routing.
 
 ## Overview

@@ -1,5 +1,7 @@
 # Aether Protocol - Go Implementation
 
+[English](README.md) · [Français](../docs/i18n/fr/go/README.md) · [Español](../docs/i18n/es/go/README.md) · [العربية](../docs/i18n/ar/go/README.md) · [中文简体](../docs/i18n/zh-CN/go/README.md) · [日本語](../docs/i18n/ja/go/README.md) · [Deutsch](../docs/i18n/de/go/README.md) · [Português (BR)](../docs/i18n/pt-BR/go/README.md) · [Русский](../docs/i18n/ru/go/README.md) · [فارسی](../docs/i18n/fa/go/README.md) · [한국어](../docs/i18n/ko/go/README.md)
+
 A complete Go implementation of the Aether mesh networking protocol, wire-compatible with the C# reference implementation.
 
 ## Overview

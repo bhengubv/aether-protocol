@@ -1,5 +1,7 @@
 # Aether Protocol - Swift Implementation
 
+[English](README.md) · [Français](../docs/i18n/fr/swift/README.md) · [Español](../docs/i18n/es/swift/README.md) · [العربية](../docs/i18n/ar/swift/README.md) · [中文简体](../docs/i18n/zh-CN/swift/README.md) · [日本語](../docs/i18n/ja/swift/README.md) · [Deutsch](../docs/i18n/de/swift/README.md) · [Português (BR)](../docs/i18n/pt-BR/swift/README.md) · [Русский](../docs/i18n/ru/swift/README.md) · [فارسی](../docs/i18n/fa/swift/README.md) · [한국어](../docs/i18n/ko/swift/README.md)
+
 A comprehensive Swift implementation of the Aether mesh networking protocol, providing end-to-end encryption, routing, and peer-to-peer communication for iOS and macOS.
 
 ## Overview

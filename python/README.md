@@ -1,5 +1,7 @@
 # Aether Mesh Networking Protocol - Python Implementation
 
+[English](README.md) · [Français](../docs/i18n/fr/python/README.md) · [Español](../docs/i18n/es/python/README.md) · [العربية](../docs/i18n/ar/python/README.md) · [中文简体](../docs/i18n/zh-CN/python/README.md) · [日本語](../docs/i18n/ja/python/README.md) · [Deutsch](../docs/i18n/de/python/README.md) · [Português (BR)](../docs/i18n/pt-BR/python/README.md) · [Русский](../docs/i18n/ru/python/README.md) · [فارسی](../docs/i18n/fa/python/README.md) · [한국어](../docs/i18n/ko/python/README.md)
+
 A Python implementation of the Aether mesh networking protocol, providing wire-compatible cryptographic operations with the C# reference implementation.
 
 ## Overview
