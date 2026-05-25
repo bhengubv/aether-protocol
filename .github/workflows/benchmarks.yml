@@ -50,7 +50,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: baseline-go
           path: /tmp/go_bench.txt
@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: baseline-rust
           path: /tmp/rust_bench.txt
@@ -126,7 +126,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: baseline-python
           path: /tmp/python_bench.json
@@ -164,7 +164,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: baseline-typescript
           path: /tmp/ts_bench.txt
@@ -226,7 +226,7 @@ jobs:
 
       - name: Upload BenchmarkDotNet stdout (always, for debugging failures)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: csharp-bench-stdout
           path: /tmp/csharp_stdout.txt
@@ -234,7 +234,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: baseline-csharp
           path: /tmp/csharp_bench.txt
@@ -269,7 +269,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: baseline-kotlin
           path: /tmp/kotlin_bench.txt
@@ -297,7 +297,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: baseline-swift
           path: /tmp/swift_bench.txt
@@ -334,7 +334,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: baseline-c
           path: /tmp/c_bench.txt
