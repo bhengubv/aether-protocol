@@ -4,6 +4,39 @@ using Aether.Protocol;
 
 namespace Aether.Extensibility;
 
+// ── Supporting types (BhenguAI health monitoring) ─────────────────────────────
+
+/// <summary>
+/// Aggregate health of the mesh as assessed by BhenguAI / CircleAI.
+/// Returned by <see cref="IAetherAiProvider.GetNetworkHealthAsync"/>.
+///
+/// <para>
+/// <see cref="OverallScore"/> ranges from 0.0 (severely degraded) to 1.0 (fully healthy).
+/// The AI computes this from node trust scores, route stability, and observed
+/// congestion — callers may use it as a single-number signal for dashboards or
+/// adaptive behaviour (e.g. fall back to DTN when score drops below 0.4).
+/// </para>
+/// </summary>
+/// <param name="OverallScore">Composite health score: 0.0–1.0.</param>
+/// <param name="TrustedNodeCount">Number of peers with trust score ≥ 0.7.</param>
+/// <param name="SuspiciousNodeCount">Number of peers with trust score &lt; 0.3 or under AI monitoring.</param>
+/// <param name="Summary">Human-readable summary sentence from the AI.</param>
+/// <param name="GeneratedAt">UTC time the AI produced this report.</param>
+public sealed record AiNetworkHealthReport(
+    double         OverallScore,
+    int            TrustedNodeCount,
+    int            SuspiciousNodeCount,
+    string         Summary,
+    DateTimeOffset GeneratedAt)
+{
+    /// <summary><c>true</c> when <see cref="OverallScore"/> is within the valid 0–1 range.</summary>
+    public bool IsValid => OverallScore is >= 0.0 and <= 1.0;
+
+    /// <summary>A neutral placeholder returned when AI is unavailable.</summary>
+    public static readonly AiNetworkHealthReport Unavailable =
+        new(1.0, 0, 0, "AI health monitoring unavailable.", DateTimeOffset.UtcNow);
+}
+
 // ── Supporting types ──────────────────────────────────────────────────────────
 
 /// <summary>
@@ -146,4 +179,25 @@ public interface IAetherAiProvider
         MeshPacket packet,
         CancellationToken cancellationToken = default)
         => Task.FromResult(AiThreatLevel.None);
+
+    /// <summary>
+    /// Returns an aggregate health report for the current mesh state, as assessed
+    /// by BhenguAI / CircleAI from accumulated telemetry.
+    ///
+    /// <para>
+    /// The report combines node trust scores, route stability, congestion, and
+    /// any active security posture into a single <see cref="AiNetworkHealthReport.OverallScore"/>
+    /// (0.0 = severely degraded, 1.0 = fully healthy). It is intended for dashboards,
+    /// adaptive behaviour (e.g. switch to DTN when score is low), and incident response.
+    /// </para>
+    ///
+    /// <para>
+    /// Returns <see cref="AiNetworkHealthReport.Unavailable"/> when AI is not active —
+    /// callers need not check <see cref="IsAvailable"/> first.
+    /// </para>
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<AiNetworkHealthReport> GetNetworkHealthAsync(
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(AiNetworkHealthReport.Unavailable);
 }
