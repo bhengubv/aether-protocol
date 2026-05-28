@@ -1,0 +1,103 @@
+[
+  {
+    "name": "fuzz_oversized_uhid",
+    "description": "T-10 RCE: SourceUhid field 10,000 chars. Parser must reject without crashing.",
+    "threat_id": "T-10",
+    "vulnerability_class": "RemoteCodeExecution",
+    "bughunter_skill": "hunt-rce",
+    "packet": {
+      "packet_type": 1,
+      "source_uhid": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "destination_uhid": null,
+      "payload": ""
+    },
+    "expected": "rejected",
+    "notes": "UHID must be exactly 16 chars (base-32 encoded Ed25519 public key fragment). Any parser accepting arbitrary-length UHIDs is vulnerable."
+  },
+  {
+    "name": "fuzz_negative_chunk_count",
+    "description": "T-10 RCE: ChunkBitmapPayload with chunk_count=-1. Parser must reject without integer underflow.",
+    "threat_id": "T-10",
+    "vulnerability_class": "RemoteCodeExecution",
+    "bughunter_skill": "hunt-rce",
+    "packet": {
+      "packet_type": 37,
+      "source_uhid": "KXJB7MN2P4TEST01",
+      "destination_uhid": null,
+      "payload": "{\"root_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"chunk_count\":-1,\"have_bitset\":\"AA==\",\"generation\":1}"
+    },
+    "expected": "rejected",
+    "notes": "ChunkShuffleSession constructor guards chunkCount < 0 with ArgumentOutOfRangeException. Language implementations must match."
+  },
+  {
+    "name": "fuzz_null_payload",
+    "description": "T-10 RCE: MeshPacket with null payload field. Parser must not NullReferenceException.",
+    "threat_id": "T-10",
+    "vulnerability_class": "RemoteCodeExecution",
+    "bughunter_skill": "hunt-rce",
+    "packet": {
+      "packet_type": 10,
+      "source_uhid": "KXJB7MN2P4TEST01",
+      "destination_uhid": null,
+      "payload": null
+    },
+    "expected": "rejected",
+    "notes": "Null payload must be treated as empty bytes, not crash."
+  },
+  {
+    "name": "fuzz_replay_chunk_bitmap",
+    "description": "T-02 Replay: ChunkBitmapPayload with generation=0 after generation=5 has been seen. Must be silently discarded.",
+    "threat_id": "T-02",
+    "vulnerability_class": "ReplayAttack",
+    "bughunter_skill": "hunt-race-condition",
+    "setup": "First deliver generation=5 for peer KXJB7MN2P4TEST01",
+    "packet": {
+      "packet_type": 37,
+      "source_uhid": "KXJB7MN2P4TEST01",
+      "destination_uhid": null,
+      "payload": "{\"root_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"chunk_count\":8,\"have_bitset\":\"/w==\",\"generation\":0}"
+    },
+    "expected": "discarded",
+    "notes": "ChunkShuffleSession.OnPeerBitmap generation guard: generation <= lastGen returns empty. All 8 language implementations must honour this."
+  },
+  {
+    "name": "fuzz_max_chunk_count",
+    "description": "T-09 DoS: ChunkBitmapPayload with chunk_count=2147483647 (Int32.MaxValue). Parser must handle without OOM.",
+    "threat_id": "T-09",
+    "vulnerability_class": "DenialOfService",
+    "bughunter_skill": "hunt-dos",
+    "packet": {
+      "packet_type": 37,
+      "source_uhid": "KXJB7MN2P4TEST01",
+      "destination_uhid": null,
+      "payload": "{\"root_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"chunk_count\":2147483647,\"have_bitset\":\"AA==\",\"generation\":1}"
+    },
+    "expected": "rejected",
+    "notes": "Implementations should cap chunk_count at ProtocolConstants.MaxContentChunks. A 2 billion-element bool array allocation is a DoS vector."
+  },
+  {
+    "name": "fuzz_invalid_base64_bitset",
+    "description": "T-10 RCE: ChunkBitmapPayload with non-base64 have_bitset. Parser must reject cleanly.",
+    "threat_id": "T-10",
+    "vulnerability_class": "RemoteCodeExecution",
+    "bughunter_skill": "hunt-rce",
+    "packet": {
+      "packet_type": 37,
+      "source_uhid": "KXJB7MN2P4TEST01",
+      "destination_uhid": null,
+      "payload": "{\"root_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"chunk_count\":8,\"have_bitset\":\"!!!NOT_BASE64!!!\",\"generation\":1}"
+    },
+    "expected": "rejected",
+    "notes": "Base64 decode errors must throw AetherProtocolException, not FormatException bubbled to caller."
+  },
+  {
+    "name": "fuzz_sybil_rapid_join",
+    "description": "T-03 Sybil: 1000 HelloPayload packets from 1000 different UHIDs arriving within 100ms. IBehavioralAnomalyDetector must flag.",
+    "threat_id": "T-03",
+    "vulnerability_class": "BusinessLogic",
+    "bughunter_skill": "hunt-business-logic",
+    "packet": "generate 1000 HelloPayload packets with unique UHIDs within 100ms window",
+    "expected": "AnomalyScore > 0.8 for all nodes, AetherSecurityEvent emitted",
+    "notes": "Rapid join storm is a classic Sybil indicator. BehavioralAnomalyDetector should track join rate per time window."
+  }
+]

@@ -1,0 +1,164 @@
+{
+  "tasks": [
+    {
+      "id": "lang-python",
+      "type": "eng-backend",
+      "priority": 9,
+      "payload": {
+        "track": "python",
+        "description": "Implement Python aether-protocol client. Packet encode/decode (JSON + binary), handshake, AODV routing, IContentService (publish/request/assemble), ChunkShuffle session. Publish to PyPI as aether-protocol.",
+        "output_dir": "python/",
+        "test_command": "pytest python/tests/ -v"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "lang-typescript",
+      "type": "eng-frontend",
+      "priority": 9,
+      "payload": {
+        "track": "typescript",
+        "description": "Implement TypeScript aether-protocol client (browser + Node.js). Packet encode/decode, handshake, routing, content service, ChunkShuffle. Publish to npm as @bhengubv/aether-protocol.",
+        "output_dir": "typescript/",
+        "test_command": "npm test"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "lang-rust",
+      "type": "eng-backend",
+      "priority": 8,
+      "payload": {
+        "track": "rust",
+        "description": "Implement Rust aether-protocol crate. Packet encode/decode (serde_json), handshake, routing, content service, ChunkShuffle. Publish to crates.io as aether-protocol.",
+        "output_dir": "rust/",
+        "test_command": "cargo test"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "lang-go",
+      "type": "eng-backend",
+      "priority": 8,
+      "payload": {
+        "track": "go",
+        "description": "Implement Go aether-protocol module. Packet encode/decode, handshake, routing, content service, ChunkShuffle, aether-forge proxy daemon stub. Tag as go/v1.",
+        "output_dir": "go/",
+        "test_command": "go test ./..."
+      },
+      "status": "pending"
+    },
+    {
+      "id": "lang-kotlin",
+      "type": "eng-mobile",
+      "priority": 8,
+      "payload": {
+        "track": "kotlin",
+        "description": "Implement Kotlin aether-protocol library (Android + JVM). Packet encode/decode, handshake, routing, content service, ChunkShuffle. Publish to GitHub Packages as dev.aether:aether-protocol-kotlin.",
+        "output_dir": "kotlin/",
+        "test_command": "./gradlew test"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "lang-swift",
+      "type": "eng-mobile",
+      "priority": 8,
+      "payload": {
+        "track": "swift",
+        "description": "Implement Swift aether-protocol package (iOS + macOS). Packet encode/decode, handshake, routing, content service, ChunkShuffle. Swift Package Manager.",
+        "output_dir": "swift/",
+        "test_command": "swift test"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "lang-c",
+      "type": "eng-embedded",
+      "priority": 7,
+      "payload": {
+        "track": "c",
+        "description": "Implement C aether-protocol library (embedded/headless). Packet encode/decode (cJSON), handshake, routing, content service. CMake build. Minimal dependencies for BLE-constrained devices.",
+        "output_dir": "c/",
+        "test_command": "cmake --build build && ctest"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "interop-chunk-bitmap",
+      "type": "eng-qa",
+      "priority": 9,
+      "payload": {
+        "description": "Add cross-language ChunkBitmap wire-format tests. Read fixtures/content/chunk_bitmap_vectors.json in each language and assert expected_json matches. Adds to tests/cross-language/.",
+        "files": ["tests/cross-language/"],
+        "fixture": "fixtures/content/chunk_bitmap_vectors.json"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "telemetry-callsites",
+      "type": "eng-backend",
+      "priority": 7,
+      "payload": {
+        "description": "Add IAetherTelemetry.Publish() call sites throughout C# services. HandshakeService: publish AetherNodeEvent on join/left. RoutingService: publish AetherRouteEvent on discovery/failure. ContentService: publish AetherNetworkEvent on content complete.",
+        "files": [
+          "src/Aether.Core/Handshake/HandshakeService.cs",
+          "src/Aether.Core/Routing/RoutingService.cs",
+          "src/Aether.Content/ContentService.cs"
+        ]
+      },
+      "status": "pending"
+    },
+    {
+      "id": "ext-aether-space",
+      "type": "eng-backend",
+      "priority": 6,
+      "payload": {
+        "description": "Implement aether-space extension. PacketType.SpaceBreadcrumb=40. SpaceBreadcrumb model (contentHash, geoHash, anchorUhid, ttlHours, type, signature). ISpaceService (Drop/Scan/Pin/Delete). Propagation: 3-cell radius limit. Emergency type bypasses radius via ISosBroadcastService.",
+        "output_dir": "src/Aether.Space/"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "ext-aether-forge",
+      "type": "eng-backend",
+      "priority": 6,
+      "payload": {
+        "description": "Implement aether-forge extension. ForgeEntry + ForgeStats models. IForgeService (Query/Cache/Fetch/GetStats). HTTP CONNECT proxy daemon in go/cmd/aether-forge-proxy/. Content-addressed via IContentService.PublishAsync().",
+        "output_dir": "src/Aether.Forge/"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "ext-aether-vault",
+      "type": "eng-backend",
+      "priority": 5,
+      "payload": {
+        "description": "Implement aether-vault extension. Reed-Solomon k=10 m=4 erasure coding (libfec or pure C#). VaultManifest + VaultShard models. IVaultService (Store/Recover/CheckHealth/Replicate). Shard storage via IContentService. Incentive via IAetherIncentiveProvider.",
+        "output_dir": "src/Aether.Vault/"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "ext-aether-market",
+      "type": "eng-backend",
+      "priority": 4,
+      "payload": {
+        "description": "Implement aether-market extension. Requires Space + Vault. PoVToken (BLE co-presence, Ed25519 countersign). PoVScore (decay 6-month half-life, defection penalty 20%). MarketListing + TradeEscrow models. IPoVService + IMarketService.",
+        "output_dir": "src/Aether.Market/",
+        "dependencies": ["ext-aether-space", "ext-aether-vault"]
+      },
+      "status": "pending"
+    },
+    {
+      "id": "benchmarks",
+      "type": "eng-qa",
+      "priority": 5,
+      "payload": {
+        "description": "Add BenchmarkDotNet performance benchmarks. Routing: AODV flood throughput, route-table lookup. Content: chunk encode/decode speed, ChunkShuffle assignment latency. Telemetry: fan-out cost (1/10/100 observers). Target: routing O(n) confirmed.",
+        "output_dir": "benchmarks/"
+      },
+      "status": "pending"
+    }
+  ]
+}

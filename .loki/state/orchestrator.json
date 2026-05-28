@@ -1,0 +1,23 @@
+{
+  "phase": "development",
+  "wave": "B-D",
+  "iteration": 2,
+  "updated": "2026-05-07T02:00:00Z",
+  "agents": {
+    "a9a564c45217d99a7": "Wave A bug fixes (Go/Swift/C/Python + README) — RUNNING",
+    "a369614233a61de13": "TypeScript voice+streaming port — RUNNING",
+    "ab067ef2181e0ff57": "Rust voice+streaming port — RUNNING",
+    "a6485b567c7fbb2b4": "Kotlin voice+streaming port — RUNNING"
+  },
+  "pending_after_bugfix": ["Go full port", "Python full port", "Swift full port", "C full port"],
+  "languages_needing": {
+    "TypeScript": ["voice", "group_voice", "streaming", "video", "watch_together"],
+    "Rust": ["voice", "group_voice", "streaming", "video", "watch_together"],
+    "Kotlin": ["voice", "group_voice", "streaming", "video", "watch_together"],
+    "Go": ["survey first — bug fix running"],
+    "Python": ["survey first — bug fix running"],
+    "Swift": ["survey first — bug fix running"],
+    "C": ["survey first — bug fix running"]
+  },
+  "csharp_status": "ALL 9 SERVICES FULLY IMPLEMENTED"
+}

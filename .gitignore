@@ -93,5 +93,7 @@ api/.manifest
 ## NuGet package output (Directory.Build.props → artifacts/packages/)
 artifacts/packages/
 
-## Loki mode session state (local orchestrator, never commit)
-.loki/
+## Loki mode session state — committed so agents resume correctly across sessions
+## (task queue, CONTINUITY.md, PARALLEL_AGENT_RULES.md, progress logs)
+## progress/*.log are agent runtime logs — gitignore those only
+.loki/progress/*.log
