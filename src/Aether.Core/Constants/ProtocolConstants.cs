@@ -174,6 +174,21 @@ public static class ProtocolConstants
     /// <summary>Maximum number of concurrent chunk transfers per peer.</summary>
     public const int MaxConcurrentChunkTransfers = 4;
 
+    /// <summary>
+    /// Chunk Shuffle — number of chunks received since the last bitmap broadcast
+    /// that triggers an early re-broadcast (event-driven batch coalescing).
+    /// Chosen to match ~65 KB received at 8 192-byte chunks, which is well-paced
+    /// against BLE throughput without flooding the radio.
+    /// </summary>
+    public const int ChunkBitmapBroadcastBatchSize = 8;
+
+    /// <summary>
+    /// Chunk Shuffle — maximum milliseconds between bitmap re-broadcasts even if
+    /// the batch-size threshold has not been reached (timer-driven coalescing).
+    /// Keeps bitmap information fresh for late-joining peers without per-chunk overhead.
+    /// </summary>
+    public const int ChunkBitmapBroadcastCoalesceMs = 500;
+
     // ── SOS ──────────────────────────────────────────────────────────
     /// <summary>
     /// Priority value for SOS packets (maximum urgency).

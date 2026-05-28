@@ -34,13 +34,36 @@ public interface IContentService
     Task AnnounceAsync(ContentDescriptor descriptor, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Broadcast a <see cref="PacketType.ChunkBitmap"/> packet advertising which chunks
+    /// of <paramref name="rootHash"/> this node currently holds.
+    ///
+    /// <para>
+    /// Call this after <see cref="AnnounceAsync"/> (as a seeder) or after receiving
+    /// <see cref="ContentAnnounced"/> (as a leecher) to opt into the Chunk Shuffle
+    /// protocol. Peers that receive the bitmap will automatically issue targeted
+    /// <see cref="PacketType.ChunkRequest"/> packets for chunks they lack.
+    /// </para>
+    ///
+    /// <para>
+    /// <see cref="ContentService"/> also calls this automatically after each coalescing
+    /// batch of chunks received, so callers only need to trigger the initial broadcast.
+    /// </para>
+    /// </summary>
+    Task BroadcastBitmapAsync(string rootHash, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Request specific chunks of a content from a peer (or any peer, if <paramref name="peerUhid"/> is null —
     /// the request is broadcast). The receiver verifies each arriving chunk and stores it locally; the
     /// <see cref="ChunkReceived"/> and <see cref="ContentComplete"/> events fire as appropriate.
     /// </summary>
     Task RequestChunksAsync(string rootHash, IReadOnlyList<int> chunkIndices, string? peerUhid = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Pump an inbound DTN-related packet (TorrentMetadata / ChunkRequest / ChunkData) into the service.</summary>
+    /// <summary>
+    /// Pump an inbound content packet into the service.
+    /// Handled types: <see cref="PacketType.TorrentMetadata"/>,
+    /// <see cref="PacketType.ChunkRequest"/>, <see cref="PacketType.ChunkData"/>,
+    /// <see cref="PacketType.ChunkBitmap"/>.
+    /// </summary>
     Task HandleAsync(MeshPacket packet, CancellationToken cancellationToken = default);
 
     /// <summary>Reassemble content from the local store. Returns null if any chunk is missing.</summary>

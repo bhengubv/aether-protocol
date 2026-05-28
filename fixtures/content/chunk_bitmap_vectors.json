@@ -1,0 +1,46 @@
+[
+  {
+    "name": "chunk_bitmap_sparse",
+    "description": "ChunkBitmapPayload — 8-chunk content, chunks 0, 2, 5 present. Verifies LSB-first bit packing: bit0=1, bit2=4, bit5=32 → byte 0 = 0x25 = decimal 37.",
+    "root_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "chunk_count": 8,
+    "have_indices": [0, 2, 5],
+    "have_bitset_hex": "25",
+    "have_bitset_base64": "JQ==",
+    "generation": 1,
+    "expected_json": "{\"root_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"chunk_count\":8,\"have_bitset\":\"JQ==\",\"generation\":1}"
+  },
+  {
+    "name": "chunk_bitmap_empty",
+    "description": "ChunkBitmapPayload — 8-chunk content, no chunks present (fresh leecher announcing intent). All bits clear → byte 0 = 0x00.",
+    "root_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "chunk_count": 8,
+    "have_indices": [],
+    "have_bitset_hex": "00",
+    "have_bitset_base64": "AA==",
+    "generation": 1,
+    "expected_json": "{\"root_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"chunk_count\":8,\"have_bitset\":\"AA==\",\"generation\":1}"
+  },
+  {
+    "name": "chunk_bitmap_full",
+    "description": "ChunkBitmapPayload — 8-chunk content, all chunks present (seeder). All 8 bits set → byte 0 = 0xFF.",
+    "root_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "chunk_count": 8,
+    "have_indices": [0, 1, 2, 3, 4, 5, 6, 7],
+    "have_bitset_hex": "ff",
+    "have_bitset_base64": "/w==",
+    "generation": 2,
+    "expected_json": "{\"root_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"chunk_count\":8,\"have_bitset\":\"/w==\",\"generation\":2}"
+  },
+  {
+    "name": "chunk_bitmap_16chunks_partial",
+    "description": "ChunkBitmapPayload — 16-chunk content, chunks 0, 8 present. Two bytes required. Byte 0 = 0x01 (bit0), byte 1 = 0x01 (bit8). Tests multi-byte bitset handling.",
+    "root_hash": "ba7816bf8f01cfea414140de5dae2ec73b00361a396177a9cb410ff61f20015a",
+    "chunk_count": 16,
+    "have_indices": [0, 8],
+    "have_bitset_hex": "0101",
+    "have_bitset_base64": "AQE=",
+    "generation": 5,
+    "expected_json": "{\"root_hash\":\"ba7816bf8f01cfea414140de5dae2ec73b00361a396177a9cb410ff61f20015a\",\"chunk_count\":16,\"have_bitset\":\"AQE=\",\"generation\":5}"
+  }
+]

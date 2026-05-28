@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Aether.Constants;
 using Aether.Content.Models;
@@ -29,6 +30,19 @@ public sealed class ContentService : IContentService
     private readonly IContentStore _store;
     private readonly IAetherIncentiveProvider _incentives;
     private readonly ILogger<ContentService> _logger;
+
+    // ── Chunk Shuffle state ──────────────────────────────────────────────────
+    /// <summary>Active shuffle sessions keyed by root hash.</summary>
+    private readonly ConcurrentDictionary<string, ChunkShuffleSession> _shuffleSessions =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Monotonically-increasing generation counter for bitmap broadcasts.
+    /// Incremented on each call to <see cref="BroadcastBitmapAsync"/>.
+    /// Stored as <c>int</c> for <see cref="Interlocked"/> compatibility;
+    /// cast to <c>uint</c> on the wire.
+    /// </summary>
+    private int _bitmapGeneration;
 
     public event EventHandler<ContentDescriptor>? ContentAnnounced;
     public event EventHandler<ChunkArrivedEventArgs>? ChunkReceived;
@@ -88,6 +102,58 @@ public sealed class ContentService : IContentService
         await _sender.BroadcastAsync(packet, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task BroadcastBitmapAsync(string rootHash, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(rootHash);
+
+        var descriptor = await _store.GetDescriptorAsync(rootHash, cancellationToken).ConfigureAwait(false);
+        if (descriptor is null)
+        {
+            _logger.LogDebug("BroadcastBitmapAsync: no descriptor for root={Root} — skipped", rootHash);
+            return;
+        }
+
+        var have  = await _store.ListChunksAsync(rootHash, cancellationToken).ConfigureAwait(false);
+        var flags = new bool[descriptor.ChunkCount];
+        foreach (var i in have)
+            if ((uint)i < (uint)flags.Length)
+                flags[i] = true;
+
+        var generation = unchecked((uint)Interlocked.Increment(ref _bitmapGeneration));
+
+        // Keep the session's have-set in sync so it can build accurate payloads later.
+        if (_shuffleSessions.TryGetValue(rootHash, out var existingSession))
+        {
+            // Session was already created — we don't rebuild it; its internal state
+            // already tracks received chunks.  The bitmap we broadcast is built
+            // directly from the store (the authoritative source).
+            _ = existingSession; // silence unused-variable warning
+        }
+
+        var bitmapPayload = new ChunkBitmapPayload
+        {
+            RootHash   = rootHash,
+            ChunkCount = descriptor.ChunkCount,
+            HaveBitset = ChunkBitmapPayload.Encode(flags),
+            Generation = generation,
+        };
+
+        var packet = new MeshPacket
+        {
+            Type             = PacketType.ChunkBitmap,
+            SourceUhid       = _sender.LocalUhid,
+            DestinationUhid  = string.Empty,
+            Ttl              = ProtocolConstants.DefaultTtl,
+            Priority         = 0,
+            Payload          = JsonSerializer.SerializeToUtf8Bytes(bitmapPayload, JsonOptions),
+        };
+
+        await _sender.BroadcastAsync(packet, cancellationToken).ConfigureAwait(false);
+
+        _logger.LogDebug("BroadcastBitmap root={Root} have={Have}/{Total} gen={Gen}",
+            rootHash, have.Count, descriptor.ChunkCount, generation);
+    }
+
     public async Task RequestChunksAsync(string rootHash, IReadOnlyList<int> chunkIndices, string? peerUhid = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(rootHash);
@@ -136,6 +202,9 @@ public sealed class ContentService : IContentService
                 break;
             case PacketType.ChunkData:
                 await HandleChunkDataAsync(packet, cancellationToken).ConfigureAwait(false);
+                break;
+            case PacketType.ChunkBitmap:
+                await HandleChunkBitmapAsync(packet, cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 _logger.LogDebug("ContentService.HandleAsync ignoring non-content packet type {Type}", packet.Type);
@@ -300,6 +369,93 @@ public sealed class ContentService : IContentService
         {
             ContentComplete?.Invoke(this, descriptor);
             _logger.LogInformation("Content {Root} fully assembled ({Chunks} chunks)", body.RootHash, descriptor.ChunkCount);
+        }
+
+        // ── Chunk Shuffle: coalesced bitmap re-advertisement ──────────────────
+        if (_shuffleSessions.TryGetValue(body.RootHash, out var session))
+        {
+            var shouldBroadcast = session.OnChunkReceived(body.ChunkIndex);
+            if (shouldBroadcast && !complete)
+            {
+                // Re-broadcast availability bitmap so other peers can pull from us.
+                // We await but swallow exceptions — a failed bitmap broadcast is
+                // cosmetic; the content transfer itself is unaffected.
+                try
+                {
+                    await BroadcastBitmapAsync(body.RootHash, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "BroadcastBitmap after chunk {Index} failed (non-fatal)", body.ChunkIndex);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handle an inbound <see cref="PacketType.ChunkBitmap"/> from a peer.
+    ///
+    /// <para>
+    /// Creates a <see cref="ChunkShuffleSession"/> for the root hash on first
+    /// contact (if we know the descriptor), then feeds the peer's bitmap to the
+    /// session.  Any chunk assignments returned are executed immediately via
+    /// <see cref="RequestChunksAsync"/>.
+    /// </para>
+    /// </summary>
+    private async Task HandleChunkBitmapAsync(MeshPacket packet, CancellationToken cancellationToken)
+    {
+        ChunkBitmapPayload? body;
+        try
+        {
+            body = JsonSerializer.Deserialize<ChunkBitmapPayload>(packet.Payload, JsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Content: failed to deserialise ChunkBitmap from packet {Id}", packet.Id);
+            return;
+        }
+
+        if (body is null || string.IsNullOrEmpty(body.RootHash) || body.HaveBitset is null)
+            return;
+
+        // Only engage if we know this content.
+        var descriptor = await _store.GetDescriptorAsync(body.RootHash, cancellationToken).ConfigureAwait(false);
+        if (descriptor is null)
+        {
+            _logger.LogDebug("ChunkBitmap: no descriptor for root={Root} from {Src} — ignored",
+                body.RootHash, packet.SourceUhid);
+            return;
+        }
+
+        // Get-or-create a shuffle session for this content.
+        if (!_shuffleSessions.TryGetValue(body.RootHash, out var session))
+        {
+            var localHave = await _store.ListChunksAsync(body.RootHash, cancellationToken).ConfigureAwait(false);
+            var created = new ChunkShuffleSession(body.RootHash, descriptor.ChunkCount, localHave);
+            // GetOrAdd wins the race safely; the loser's object is discarded.
+            session = _shuffleSessions.GetOrAdd(body.RootHash, created);
+        }
+
+        if (session.IsComplete)
+        {
+            _logger.LogDebug("ChunkBitmap: root={Root} already complete — no requests issued", body.RootHash);
+            return;
+        }
+
+        // Use the smaller of the declared ChunkCount and our known ChunkCount to
+        // avoid decoding a rogue (oversized) bitset.
+        var safeChunkCount = Math.Min(body.ChunkCount, descriptor.ChunkCount);
+        var peerHas = ChunkBitmapPayload.Decode(body.HaveBitset, safeChunkCount);
+
+        var assignments = session.OnPeerBitmap(packet.SourceUhid, peerHas, body.Generation);
+
+        foreach (var (peerUhid, indices) in assignments)
+        {
+            if (indices.Length == 0) continue;
+            _logger.LogDebug("ChunkShuffle: requesting {Count} chunk(s) from {Peer} for root={Root}",
+                indices.Length, peerUhid, body.RootHash);
+            await RequestChunksAsync(body.RootHash, indices, peerUhid, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 

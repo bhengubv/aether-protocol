@@ -56,6 +56,18 @@ public enum PacketType : byte
     StreamAbandon = 36,
 
     /// <summary>
+    /// Chunk availability bitmap — used by the Chunk Shuffle (Self-Assembling Peer
+    /// Interleaving) protocol. A node broadcasts this to announce which chunks of a
+    /// specific content it currently holds. Payload is a JSON-encoded
+    /// <c>ChunkBitmapPayload</c> (snake_case). Peers use it to make informed
+    /// pull decisions: each peer requests a non-overlapping random subset of the
+    /// chunks the sender has that the requester lacks, avoiding duplicate in-flight
+    /// transfers. The bitmap is re-broadcast after every 8 chunks received OR
+    /// every 500 ms, whichever fires first (event-driven coalescing).
+    /// </summary>
+    ChunkBitmap = 37,
+
+    /// <summary>
     /// Capability handshake — sender announces supported protocol-version range
     /// + capability flags. Sent on first contact with an unknown peer. The
     /// payload is a UTF-8 JSON-encoded <c>HelloPayload</c>. Unauthenticated and
