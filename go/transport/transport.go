@@ -32,6 +32,10 @@ type TransportService interface {
 
 	// IsConnected checks if a connection is active to a peer.
 	IsConnected(peerUhid string) bool
+
+	// Metrics returns per-transport EWMA metrics for adaptive selection, or nil
+	// if the transport does not track metrics.
+	Metrics() *PerTransportMetrics
 }
 
 // TransportType represents the type of transport.

@@ -11,14 +11,15 @@ import (
 // InProcessTransport is an in-memory transport for testing and inter-process communication.
 // It uses a global sync.Map to route packets between nodes.
 type InProcessTransport struct {
-	name             string
-	available        bool
-	maxBandwidth     int64
-	maxRange         int32
-	powerCost        int32
-	maxConcurrency   int32
-	connectedPeers   sync.Map // map[string]bool
-	messageHandlers  sync.Map // map[string]chan []byte
+	name            string
+	available       bool
+	maxBandwidth    int64
+	maxRange        int32
+	powerCost       int32
+	maxConcurrency  int32
+	connectedPeers  sync.Map // map[string]bool
+	messageHandlers sync.Map // map[string]chan []byte
+	m               *PerTransportMetrics
 }
 
 // NewInProcessTransport creates a new in-memory transport.
@@ -30,6 +31,7 @@ func NewInProcessTransport() *InProcessTransport {
 		maxRange:       100,
 		powerCost:      1,
 		maxConcurrency: 100,
+		m:              NewPerTransportMetrics(),
 	}
 }
 
@@ -91,6 +93,7 @@ func (ipt *InProcessTransport) SendAsync(ctx context.Context, peerUhid string, d
 	// Send data to the peer's channel (non-blocking)
 	select {
 	case handler <- append([]byte{}, data...):
+		ipt.m.RecordSample(0, true, int64(len(data)))
 		return true, nil
 	case <-ctx.Done():
 		return false, ctx.Err()
@@ -133,6 +136,11 @@ func (ipt *InProcessTransport) UnregisterPeer(peerUhid string) {
 		ipt.messageHandlers.Delete(peerUhid)
 	}
 	ipt.connectedPeers.Delete(peerUhid)
+}
+
+// Metrics returns the per-transport EWMA metrics for this transport.
+func (ipt *InProcessTransport) Metrics() *PerTransportMetrics {
+	return ipt.m
 }
 
 // Shutdown cleanly shuts down the transport.

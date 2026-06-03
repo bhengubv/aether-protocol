@@ -45,7 +45,10 @@ pub use identity::{AetherTag, AetherTagError};
 pub use anomaly_detector::{AnomalyDetectorOptions, BehavioralAnomalyDetector};
 pub use gossip::{GossipPacket, GossipSender, PacketSigner, ReputationGossipService, ReputationUpdatePayload};
 pub use reputation::NodeReputationService;
-pub use transport::{InProcessTransport, TransportService};
+pub use transport::{
+    InProcessTransport, PerTransportMetrics, PredictedRankedTransport,
+    PredictiveTransportSelector, TransportService,
+};
 pub use voice::{
     CallEntry, CallState, GroupCallEntry, GroupVoiceCallService, GroupVoiceSignalingMessage,
     VoiceCallService, VoiceSignalingMessage,

@@ -5,6 +5,7 @@
 import asyncio
 import threading
 from typing import Callable, Dict, List, Optional
+from aether.transport.per_transport_metrics import PerTransportMetrics
 from aether.transport.transport_service import TransportService
 
 
@@ -31,6 +32,7 @@ class InProcessTransport(TransportService):
         self._data_callbacks: List[Callable[[str, bytes], None]] = []
         self._message_queue: asyncio.Queue[tuple[str, bytes]] = asyncio.Queue()
         self._lock = threading.Lock()
+        self._metrics = PerTransportMetrics()
 
         # Register this node globally
         with InProcessTransport._global_lock:
@@ -66,6 +68,11 @@ class InProcessTransport(TransportService):
         """Maximum concurrent peers."""
         return 1000
 
+    @property
+    def metrics(self) -> PerTransportMetrics:
+        """Per-transport EWMA metrics (sample count, RTT, loss, throughput)."""
+        return self._metrics
+
     async def send_async(self, peer_uhid: str, data: bytes) -> bool:
         """
         Send data to a peer through the global registry.
@@ -92,8 +99,10 @@ class InProcessTransport(TransportService):
             # Trigger callbacks
             for callback in target._data_callbacks:
                 callback(self._peer_uhid, data)
+            self._metrics.record_sample(0, True, len(data))
             return True
         except Exception:
+            self._metrics.record_sample(0, False, 0)
             return False
 
     async def send_stream_async(self, peer_uhid: str, data_stream: asyncio.StreamReader) -> bool:
