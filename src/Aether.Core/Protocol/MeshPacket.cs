@@ -67,6 +67,34 @@ public enum PacketType : byte
     /// </summary>
     ChunkBitmap = 37,
 
+    // ── IDs 38–49 reserved for Phase-2 extensions ────────────────────────────
+    //
+    // Rules:
+    //   • Core protocol types occupy 1–37 and 50–52.
+    //   • IDs 38–49 are reserved for the aether-* extension packages. Each
+    //     extension must document its type here before shipping. New assignments
+    //     require a CHANGELOG entry and must not break existing implementations
+    //     (nodes MUST ignore unrecognised PacketType values gracefully).
+    //   • IDs 38–39 are currently unassigned — reserved for future core use.
+    //
+    //   38 = (unassigned — reserved)
+    //   39 = (unassigned — reserved)
+    //
+    /// <summary>
+    /// Geo-pinned content breadcrumb — part of the <c>aether-space</c> Phase-2
+    /// extension. A node drops a <c>SpaceBreadcrumb</c> at a geohash coordinate;
+    /// passing devices auto-pull, cache, and re-host it for nearby peers.
+    /// Payload is a JSON-encoded <c>SpaceBreadcrumb</c>. Only nodes that have
+    /// registered the <c>aether.space/v1</c> capability process this type;
+    /// all other nodes MUST forward it unchanged if TTL allows.
+    /// </summary>
+    SpaceBreadcrumb = 40,
+
+    //   41 = (unassigned — reserved for aether-forge/v1)
+    //   42 = (unassigned — reserved for aether-vault/v1)
+    //   43 = (unassigned — reserved for aether-market/v1)
+    //   44–49 = (unassigned — reserved for future Phase-2 extensions)
+
     /// <summary>
     /// Capability handshake — sender announces supported protocol-version range
     /// + capability flags. Sent on first contact with an unknown peer. The

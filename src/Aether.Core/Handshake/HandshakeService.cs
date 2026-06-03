@@ -3,6 +3,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Aether.Constants;
+using Aether.Extensibility;
+using Aether.Extensibility.Events;
 using Aether.Protocol;
 using Aether.Routing;
 using Microsoft.Extensions.Logging;
@@ -55,6 +57,7 @@ public sealed class HandshakeService : IHandshakeService
     private readonly byte _ourMaxVersion;
     private readonly IReadOnlySet<string> _ourCapabilities;
     private readonly string _ourImplementation;
+    private readonly IAetherTelemetry? _telemetry;
 
     // Peers we've already sent a Hello to, to suppress duplicate sends.
     private readonly ConcurrentDictionary<string, byte> _helloSent = new(StringComparer.Ordinal);
@@ -76,7 +79,8 @@ public sealed class HandshakeService : IHandshakeService
         byte? ourMinVersion = null,
         byte? ourMaxVersion = null,
         IReadOnlySet<string>? ourCapabilities = null,
-        string? ourImplementation = null)
+        string? ourImplementation = null,
+        IAetherTelemetry? telemetry = null)
     {
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
         _logger = logger ?? NullLogger<HandshakeService>.Instance;
@@ -88,6 +92,7 @@ public sealed class HandshakeService : IHandshakeService
                 nameof(ourMinVersion));
         _ourCapabilities = ourCapabilities ?? DefaultCapabilities;
         _ourImplementation = ourImplementation ?? DefaultImplementation;
+        _telemetry = telemetry;
     }
 
     public async Task InitiateAsync(string peerUhid, CancellationToken cancellationToken = default)
@@ -126,6 +131,12 @@ public sealed class HandshakeService : IHandshakeService
 
         _negotiated[helloPacket.SourceUhid] = negotiated;
         PeerNegotiated?.Invoke(this, negotiated);
+        _telemetry?.Publish(new AetherNodeEvent(
+            helloPacket.SourceUhid,
+            AetherNodeEventKind.Joined,
+            new AetherNodeHealth(TrustScore: 1.0, IsReachable: true,
+                Latency: TimeSpan.Zero, HopCount: 1),
+            DateTimeOffset.UtcNow));
         _logger.LogInformation(
             "Hello accepted from {Peer} → version={Ver} caps=[{Caps}] impl={Impl}",
             helloPacket.SourceUhid,
@@ -164,6 +175,12 @@ public sealed class HandshakeService : IHandshakeService
 
         _negotiated[helloAckPacket.SourceUhid] = negotiated;
         PeerNegotiated?.Invoke(this, negotiated);
+        _telemetry?.Publish(new AetherNodeEvent(
+            helloAckPacket.SourceUhid,
+            AetherNodeEventKind.Joined,
+            new AetherNodeHealth(TrustScore: 1.0, IsReachable: true,
+                Latency: TimeSpan.Zero, HopCount: 1),
+            DateTimeOffset.UtcNow));
         _logger.LogInformation(
             "HelloAck received from {Peer} → version={Ver} caps=[{Caps}] impl={Impl}",
             helloAckPacket.SourceUhid,

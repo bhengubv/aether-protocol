@@ -5,6 +5,7 @@ using System.Text.Json;
 using Aether.Constants;
 using Aether.Content.Models;
 using Aether.Extensibility;
+using Aether.Extensibility.Events;
 using Aether.Protocol;
 using Aether.Routing;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,7 @@ public sealed class ContentService : IContentService
     private readonly IContentStore _store;
     private readonly IAetherIncentiveProvider _incentives;
     private readonly ILogger<ContentService> _logger;
+    private readonly IAetherTelemetry? _telemetry;
 
     // ── Chunk Shuffle state ──────────────────────────────────────────────────
     /// <summary>Active shuffle sessions keyed by root hash.</summary>
@@ -53,13 +55,15 @@ public sealed class ContentService : IContentService
         IRoutingService routing,
         IContentStore? store = null,
         IAetherIncentiveProvider? incentives = null,
-        ILogger<ContentService>? logger = null)
+        ILogger<ContentService>? logger = null,
+        IAetherTelemetry? telemetry = null)
     {
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
         _routing = routing ?? throw new ArgumentNullException(nameof(routing));
         _store = store ?? new InMemoryContentStore();
         _incentives = incentives ?? new DefaultIncentiveProvider();
         _logger = logger ?? NullLogger<ContentService>.Instance;
+        _telemetry = telemetry;
     }
 
     public async Task<ContentDescriptor> PublishAsync(string name, byte[] data, string contentType = "application/octet-stream", int chunkSizeBytes = 0, CancellationToken cancellationToken = default)
@@ -369,6 +373,12 @@ public sealed class ContentService : IContentService
         {
             ContentComplete?.Invoke(this, descriptor);
             _logger.LogInformation("Content {Root} fully assembled ({Chunks} chunks)", body.RootHash, descriptor.ChunkCount);
+            _telemetry?.Publish(new AetherNetworkEvent(
+                Kind:             AetherNetworkEventKind.TopologyChanged,
+                NodeCount:        _sender.GetConnectedPeers().Count,
+                ActiveRouteCount: _routing.GetAllRoutes().Count,
+                CongestionLevel:  0.0,
+                OccurredAt:       DateTimeOffset.UtcNow));
         }
 
         // ── Chunk Shuffle: coalesced bitmap re-advertisement ──────────────────

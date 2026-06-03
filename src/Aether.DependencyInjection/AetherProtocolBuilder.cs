@@ -91,13 +91,15 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
 
         Services.TryAddSingleton<IRoutingService>(sp =>
         {
-            var sender = sp.GetRequiredService<IMeshSender>();
-            var store = sp.GetService<IRouteStore>();
-            var verifier = sp.GetService<IRouteReplyVerifier>();
+            var sender     = sp.GetRequiredService<IMeshSender>();
+            var store      = sp.GetService<IRouteStore>();
+            var verifier   = sp.GetService<IRouteReplyVerifier>();
             var reputation = sp.GetService<INodeReputationService>();
-            var logger = sp.GetService<ILogger<RoutingService>>()
-                ?? NullLogger<RoutingService>.Instance;
-            return new RoutingService(sender, store, verifier, incentives: null, reputation: reputation, logger: logger);
+            var logger     = sp.GetService<ILogger<RoutingService>>()
+                             ?? NullLogger<RoutingService>.Instance;
+            var telemetry  = sp.GetService<IAetherTelemetry>();
+            return new RoutingService(sender, store, verifier, incentives: null,
+                reputation: reputation, logger: logger, telemetry: telemetry);
         });
 
         return this;
@@ -280,10 +282,11 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
 
         Services.TryAddSingleton<IHandshakeService>(sp =>
         {
-            var sender = sp.GetRequiredService<IMeshSender>();
-            var logger = sp.GetService<ILogger<HandshakeService>>()
-                ?? NullLogger<HandshakeService>.Instance;
-            return new HandshakeService(sender, logger);
+            var sender    = sp.GetRequiredService<IMeshSender>();
+            var logger    = sp.GetService<ILogger<HandshakeService>>()
+                            ?? NullLogger<HandshakeService>.Instance;
+            var telemetry = sp.GetService<IAetherTelemetry>();
+            return new HandshakeService(sender, logger, telemetry: telemetry);
         });
 
         return this;
@@ -493,15 +496,84 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
 
         Services.TryAddSingleton<IContentService>(sp =>
         {
-            var sender    = sp.GetRequiredService<IMeshSender>();
-            var routing   = sp.GetRequiredService<IRoutingService>();
-            var store     = sp.GetService<IContentStore>();
+            var sender     = sp.GetRequiredService<IMeshSender>();
+            var routing    = sp.GetRequiredService<IRoutingService>();
+            var store      = sp.GetService<IContentStore>();
             var incentives = sp.GetService<IAetherIncentiveProvider>();
-            var logger    = sp.GetService<ILogger<ContentService>>()
-                            ?? NullLogger<ContentService>.Instance;
-            return new ContentService(sender, routing, store, incentives, logger);
+            var logger     = sp.GetService<ILogger<ContentService>>()
+                             ?? NullLogger<ContentService>.Instance;
+            var telemetry  = sp.GetService<IAetherTelemetry>();
+            return new ContentService(sender, routing, store, incentives, logger, telemetry);
         });
 
+        return this;
+    }
+
+    // ── Extensibility ─────────────────────────────────────────────────────────
+
+    public IAetherProtocolBuilder AddTelemetry<T>() where T : class, IAetherTelemetryObserver
+    {
+        // Not TryAdd — multiple observers are valid and additive.
+        Services.AddSingleton<IAetherTelemetryObserver, T>();
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddTelemetry(IAetherTelemetryObserver observer)
+    {
+        ArgumentNullException.ThrowIfNull(observer);
+        Services.AddSingleton(observer);
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddCircleAI<T>() where T : class, IAetherAiProvider
+    {
+        Services.Replace(ServiceDescriptor.Singleton<IAetherAiProvider, T>());
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddCircleAI(IAetherAiProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        Services.Replace(ServiceDescriptor.Singleton(typeof(IAetherAiProvider), provider));
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddBiometrics<T>() where T : class, IBiometricProvider
+    {
+        Services.Replace(ServiceDescriptor.Singleton<IBiometricProvider, T>());
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddBiometrics(IBiometricProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        Services.Replace(ServiceDescriptor.Singleton(typeof(IBiometricProvider), provider));
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddContextMemory<T>() where T : class, IAetherContextMemory
+    {
+        Services.Replace(ServiceDescriptor.Singleton<IAetherContextMemory, T>());
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddContextMemory(IAetherContextMemory memory)
+    {
+        ArgumentNullException.ThrowIfNull(memory);
+        Services.Replace(ServiceDescriptor.Singleton(typeof(IAetherContextMemory), memory));
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddSecurityAudit<T>() where T : class, IAetherSecurityAudit
+    {
+        Services.Replace(ServiceDescriptor.Singleton<IAetherSecurityAudit, T>());
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddSecurityAudit(IAetherSecurityAudit auditor)
+    {
+        ArgumentNullException.ThrowIfNull(auditor);
+        Services.Replace(ServiceDescriptor.Singleton(typeof(IAetherSecurityAudit), auditor));
         return this;
     }
 }

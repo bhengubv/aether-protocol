@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using Aether.Constants;
 using Aether.Diagnostics;
 using Aether.Extensibility;
+using Aether.Extensibility.Events;
 using Aether.Models;
 using Aether.Protocol;
 using Aether.Reputation;
@@ -30,6 +31,7 @@ public sealed class RoutingService : IRoutingService
     private readonly IAetherIncentiveProvider _incentives;
     private readonly INodeReputationService? _reputation;
     private readonly ILogger<RoutingService> _logger;
+    private readonly IAetherTelemetry? _telemetry;
 
     private readonly ConcurrentDictionary<string, RouteEntry> _routeCache = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<RouteEntry>> _pending = new(StringComparer.Ordinal);
@@ -46,7 +48,8 @@ public sealed class RoutingService : IRoutingService
         IRouteReplyVerifier? verifier = null,
         IAetherIncentiveProvider? incentives = null,
         INodeReputationService? reputation = null,
-        ILogger<RoutingService>? logger = null)
+        ILogger<RoutingService>? logger = null,
+        IAetherTelemetry? telemetry = null)
     {
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
         _store = store ?? new InMemoryRouteStore();
@@ -54,6 +57,7 @@ public sealed class RoutingService : IRoutingService
         _incentives = incentives ?? new DefaultIncentiveProvider();
         _reputation = reputation;
         _logger = logger ?? NullLogger<RoutingService>.Instance;
+        _telemetry = telemetry;
     }
 
     public async Task<RouteEntry?> FindRouteAsync(string destinationUhid, CancellationToken cancellationToken = default)
@@ -213,6 +217,13 @@ public sealed class RoutingService : IRoutingService
         await _store.SaveAsync(forward, cancellationToken).ConfigureAwait(false);
         AetherTelemetry.RouteRepliesReceived.Add(1);
         _logger.LogDebug("Forward route installed to {Dest} via RREP", forward.DestinationUhid);
+        _telemetry?.Publish(new AetherRouteEvent(
+            SourceNodeId:      localUhid,
+            DestinationNodeId: forward.DestinationUhid,
+            Path:              [localUhid, forward.NextHopUhid],
+            Kind:              AetherRouteEventKind.Discovered,
+            FailureReason:     null,
+            OccurredAt:        DateTimeOffset.UtcNow));
 
         if (routeReply.DestinationUhid == localUhid)
         {
@@ -298,6 +309,13 @@ public sealed class RoutingService : IRoutingService
         catch (OperationCanceledException)
         {
             _logger.LogDebug("RREQ timeout — no RREP received for {Dest}", destinationUhid);
+            _telemetry?.Publish(new AetherRouteEvent(
+                SourceNodeId:      _sender.LocalUhid,
+                DestinationNodeId: destinationUhid,
+                Path:              [],
+                Kind:              AetherRouteEventKind.Failed,
+                FailureReason:     "RREP timeout",
+                OccurredAt:        DateTimeOffset.UtcNow));
             return null;
         }
         finally

@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="../Aether.Transport/Aether.Transport.csproj" />
     <ProjectReference Include="../Aether.Core/Aether.Core.csproj" />
+    <ProjectReference Include="../Aether.DependencyInjection/Aether.DependencyInjection.csproj" />
   </ItemGroup>
 
   <ItemGroup>

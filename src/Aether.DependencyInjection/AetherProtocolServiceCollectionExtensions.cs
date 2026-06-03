@@ -38,11 +38,38 @@ public static class AetherProtocolServiceCollectionExtensions
         if (configure is not null)
             optionsBuilder.Configure(configure);
 
-        // Register the no-op AI provider as the default singleton for IAetherAiProvider.
-        // Hosts that install CircleAI replace this by calling
-        // services.AddSingleton<IAetherAiProvider, TheirProvider>() BEFORE calling
-        // AddAetherProtocol(), or by removing the TryAdd registration afterwards.
+        // ── Extensibility defaults ────────────────────────────────────────────
+        // Each is registered with TryAdd so that hosts which install a real
+        // implementation (CircleAI, SDPKT biometrics, etc.) before calling
+        // AddAetherProtocol() keep theirs unchanged. All Null* singletons are
+        // allocation-free no-ops that satisfy the contract without any cost.
+
+        // AI provider — route suggestion, transport biasing, threat assessment.
         services.TryAddSingleton<IAetherAiProvider, NullAetherAiProvider>();
+
+        // Telemetry bus — fan-out publish/subscribe to all registered observers.
+        // Built as a factory so it resolves any IAetherTelemetryObserver instances
+        // already registered in the container (CircleAI, BhenguAI, custom analytics).
+        services.TryAddSingleton<IAetherTelemetry>(sp =>
+        {
+            var bus = new AetherTelemetryBus();
+            foreach (var observer in sp.GetServices<IAetherTelemetryObserver>())
+                bus.Subscribe(observer);
+            return bus;
+        });
+
+        // Context memory — semantic memory for AI-layer route/behaviour context.
+        services.TryAddSingleton<IAetherContextMemory, NullAetherContextMemory>();
+
+        // Biometric provider — device-native authentication gate.
+        services.TryAddSingleton<IBiometricProvider, NullBiometricProvider>();
+
+        // Security audit — static + runtime vulnerability scanning.
+        services.TryAddSingleton<IAetherSecurityAudit, NullAetherSecurityAudit>();
+
+        // Security directive consumer — receives hardened-mesh commands from the AI
+        // security layer (block node, revoke key, isolate segment, etc.).
+        services.TryAddSingleton<ISecurityDirectiveConsumer, NullSecurityDirectiveConsumer>();
 
         return new AetherProtocolBuilder(services);
     }

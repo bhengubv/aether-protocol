@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using Aether.Extensibility;
 using Aether.Reputation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -170,4 +171,68 @@ public interface IAetherProtocolBuilder
     /// Picks up <c>IAetherIncentiveProvider</c> automatically if registered.
     /// </summary>
     IAetherProtocolBuilder AddContent();
+
+    // ── Extensibility ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Register <typeparamref name="T"/> as a singleton <see cref="IAetherTelemetryObserver"/>.
+    /// Multiple observers may be registered; the <see cref="AetherTelemetryBus"/> singleton
+    /// resolves all of them and fans out every publish call. Calling this does NOT replace
+    /// other already-registered observers — use multiple calls to build up the subscriber set.
+    /// </summary>
+    IAetherProtocolBuilder AddTelemetry<T>() where T : class, IAetherTelemetryObserver;
+
+    /// <summary>
+    /// Register an existing <see cref="IAetherTelemetryObserver"/> instance. The instance
+    /// is added to the bus alongside any type-based registrations. Idempotent — if the
+    /// same instance reference is passed twice only one registration is created.
+    /// </summary>
+    IAetherProtocolBuilder AddTelemetry(IAetherTelemetryObserver observer);
+
+    /// <summary>
+    /// Replace the default <see cref="NullAetherAiProvider"/> with <typeparamref name="T"/>.
+    /// Used by CircleAI and BhenguAI host packages to wire their provider into Aether's
+    /// route-suggestion, transport-biasing, and threat-assessment hooks.
+    /// </summary>
+    IAetherProtocolBuilder AddCircleAI<T>() where T : class, IAetherAiProvider;
+
+    /// <summary>
+    /// Replace the default <see cref="NullAetherAiProvider"/> with an existing instance.
+    /// </summary>
+    IAetherProtocolBuilder AddCircleAI(IAetherAiProvider provider);
+
+    /// <summary>
+    /// Replace the default <see cref="NullBiometricProvider"/> with <typeparamref name="T"/>.
+    /// Used by SDPKT and mobile-biometric host packages to gate sensitive mesh operations.
+    /// </summary>
+    IAetherProtocolBuilder AddBiometrics<T>() where T : class, IBiometricProvider;
+
+    /// <summary>
+    /// Replace the default <see cref="NullBiometricProvider"/> with an existing instance.
+    /// </summary>
+    IAetherProtocolBuilder AddBiometrics(IBiometricProvider provider);
+
+    /// <summary>
+    /// Replace the default <see cref="NullAetherContextMemory"/> with <typeparamref name="T"/>.
+    /// Used by CircleAI / mempalace to give the AI layer durable semantic memory over mesh
+    /// route and behaviour history.
+    /// </summary>
+    IAetherProtocolBuilder AddContextMemory<T>() where T : class, IAetherContextMemory;
+
+    /// <summary>
+    /// Replace the default <see cref="NullAetherContextMemory"/> with an existing instance.
+    /// </summary>
+    IAetherProtocolBuilder AddContextMemory(IAetherContextMemory memory);
+
+    /// <summary>
+    /// Replace the default <see cref="NullAetherSecurityAudit"/> with <typeparamref name="T"/>.
+    /// Used by Claude-BugHunter and security monitoring packages to perform static and
+    /// runtime vulnerability scanning over mesh packets and node behaviour.
+    /// </summary>
+    IAetherProtocolBuilder AddSecurityAudit<T>() where T : class, IAetherSecurityAudit;
+
+    /// <summary>
+    /// Replace the default <see cref="NullAetherSecurityAudit"/> with an existing instance.
+    /// </summary>
+    IAetherProtocolBuilder AddSecurityAudit(IAetherSecurityAudit auditor);
 }

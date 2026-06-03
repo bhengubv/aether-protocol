@@ -54,7 +54,7 @@ respective package registries from a single CI/CD pipeline.
 - `IMessagingService` — Signal-encrypted direct messaging with outbox retry;
   zero-plaintext-persistence security guarantee
 - `IReputationGossipService` — peer reputation scoring gossiped across mesh
-- `IBehavioralAnomalyDetector` — traffic-pattern anomaly detection
+- `IAnomalyDetector` — traffic-pattern anomaly detection
 - `ISosBroadcastService` — priority-255 emergency broadcast interrupting all
   lower-priority traffic
 - `IHandshakeService` — peer capability negotiation on connect
