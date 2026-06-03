@@ -29,10 +29,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/bhengubv/aether-protocol/go/content"
 	"github.com/bhengubv/aether-protocol/go/models"
 	"github.com/bhengubv/aether-protocol/go/protocol"
 	"github.com/bhengubv/aether-protocol/go/routing"
 	"github.com/bhengubv/aether-protocol/go/security"
+	"github.com/bhengubv/aether-protocol/go/transport"
 	"golang.org/x/crypto/hkdf"
 )
 
@@ -335,6 +337,113 @@ func BenchmarkRouteStore_Save(b *testing.B) {
 		}
 		if err := store.Save(ctx, entry); err != nil {
 			b.Fatal(err)
+		}
+	}
+}
+
+// ─── ChunkBitmap / Chunk Shuffle ────────────────────────────────────────
+
+// haveIndices1024 is the setup data for the 1024-chunk benchmarks: every even
+// index (0, 2, 4, …, 1022) — a representative 50 % fill factor.
+var haveIndices1024 = func() []int {
+	idxs := make([]int, 512)
+	for i := range idxs {
+		idxs[i] = i * 2
+	}
+	return idxs
+}()
+
+// bitset1024 is the pre-encoded bitset for decode benchmarks.
+var bitset1024 = func() []byte {
+	b, _ := content.BitsetEncode(1024, haveIndices1024)
+	return b
+}()
+
+// BenchmarkChunkBitmapEncode_1024 pins the encode hot path for a 1024-chunk
+// content item (128-byte bitset output, 50 % fill). Called on every
+// ChunkBitmap broadcast by a seeding/leeching peer.
+func BenchmarkChunkBitmapEncode_1024(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		if _, err := content.BitsetEncode(1024, haveIndices1024); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkChunkBitmapDecode_1024 pins the decode hot path — runs once per
+// received ChunkBitmap packet on every receiver in the swarm.
+func BenchmarkChunkBitmapDecode_1024(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		got := content.BitsetDecode(bitset1024, 1024)
+		if len(got) == 0 {
+			b.Fatal("unexpected empty decode")
+		}
+	}
+}
+
+// BenchmarkChunkBitmapMarshalJSON_1024 pins the full JSON serialisation of a
+// ChunkBitmapPayload (root_hash + chunk_count + have_bitset base64 + generation).
+// Fired once per broadcast before the packet is placed on the wire.
+func BenchmarkChunkBitmapMarshalJSON_1024(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		got := content.MarshalJSON("abc123", 1024, bitset1024, 42)
+		if len(got) == 0 {
+			b.Fatal("unexpected empty JSON")
+		}
+	}
+}
+
+// ─── Transport metrics (BLE simulation) ─────────────────────────────────
+
+// BenchmarkPerTransportMetrics_RecordSample_Warm pins the steady-state EWMA
+// update — the lock-guarded arithmetic that fires once per BLE/Wi-Fi packet
+// on the link observer goroutine. Pre-seeded with 50 observations to ensure
+// the warmup branch is not exercised.
+func BenchmarkPerTransportMetrics_RecordSample_Warm(b *testing.B) {
+	m := transport.NewPerTransportMetrics()
+	// Warm up: seed 50 successful observations so the branching settles.
+	for i := 0; i < 50; i++ {
+		m.RecordSample(80+int64(i%40), true, 512)
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		m.RecordSample(85, true, 512)
+	}
+}
+
+// BenchmarkPerTransportMetrics_RecordSample_Failure pins the loss-observation
+// code path (success=false). Only the loss-rate EWMA is updated, bypassing
+// RTT and throughput arithmetic.
+func BenchmarkPerTransportMetrics_RecordSample_Failure(b *testing.B) {
+	m := transport.NewPerTransportMetrics()
+	for i := 0; i < 50; i++ {
+		m.RecordSample(80, true, 512)
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		m.RecordSample(0, false, 0)
+	}
+}
+
+// BenchmarkPerTransportMetrics_CompositeScore pins the ranking-score
+// computation — called by the transport selector for every active transport
+// on each routing decision. Uses a fixed maxBandwidthBps and powerCost that
+// represent a mid-range BLE link.
+func BenchmarkPerTransportMetrics_CompositeScore(b *testing.B) {
+	m := transport.NewPerTransportMetrics()
+	for i := 0; i < 50; i++ {
+		m.RecordSample(80, true, 512)
+	}
+	const maxBandwidthBps = 20_000 // 20 Kbps BLE
+	const powerCost = 3
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		score := m.CompositeScore(maxBandwidthBps, powerCost)
+		if score < 0 {
+			b.Fatal("negative score")
 		}
 	}
 }

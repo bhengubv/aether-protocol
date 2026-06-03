@@ -14,7 +14,7 @@
     <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-    <Description>BenchmarkDotNet harness for the Aether crypto and serializer hot paths.</Description>
+    <Description>BenchmarkDotNet harness for the Aether crypto, serializer, routing, and chunk-distribution hot paths.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,6 +25,8 @@
     <ProjectReference Include="../../src/Aether.Core/Aether.Core.csproj" />
     <ProjectReference Include="../../src/Aether.Security/Aether.Security.csproj" />
     <ProjectReference Include="../../src/Aether.Messaging/Aether.Messaging.csproj" />
+    <ProjectReference Include="../../src/Aether.Content/Aether.Content.csproj" />
+    <ProjectReference Include="../../src/Aether.Transport/Aether.Transport.csproj" />
   </ItemGroup>
 
 </Project>
