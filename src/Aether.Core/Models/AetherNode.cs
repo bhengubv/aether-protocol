@@ -23,7 +23,8 @@ public enum NodeCapabilities : ushort
     Video = 512,
     Space = 1024,
     Forge = 2048,
-    Vault = 4096
+    Vault = 4096,
+    Market = 8192
 }
 
 /// <summary>

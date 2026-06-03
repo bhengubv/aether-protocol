@@ -259,4 +259,12 @@ public interface IAetherProtocolBuilder
     /// Requires <see cref="AddContent"/> to have been called first.
     /// </summary>
     IAetherProtocolBuilder AddVault();
+
+    /// <summary>
+    /// Register <c>InMemoryPoVService</c> and <c>InMemoryMarketService</c> as singletons
+    /// (aether-market Phase-2 extension — offline P2P commerce with PoV anti-Sybil trust).
+    /// Requires <see cref="AddSpace"/> and <see cref="AddVault"/> to have been called first;
+    /// throws <see cref="InvalidOperationException"/> otherwise.
+    /// </summary>
+    IAetherProtocolBuilder AddMarket();
 }

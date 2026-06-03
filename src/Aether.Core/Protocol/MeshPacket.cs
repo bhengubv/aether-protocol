@@ -103,7 +103,13 @@ public enum PacketType : byte
     /// </summary>
     VaultShardRequest = 42,
 
-    //   43 = (unassigned — reserved for aether-market/v1)
+    /// <summary>
+    /// PoV token exchange — part of <c>aether-market</c> Phase-2. Short-range
+    /// co-presence token transmitted over BLE/NFC/NearLink to establish
+    /// Proof-of-Vicinity trust between two nodes.
+    /// </summary>
+    PoVTokenExchange = 43,
+
     //   44–49 = (unassigned — reserved for future Phase-2 extensions)
 
     /// <summary>

@@ -3,6 +3,7 @@
 using Aether.Content;
 using Aether.Dtn;
 using Aether.Forge;
+using Aether.Market;
 using Aether.Space;
 using Aether.Vault;
 using Aether.Extensibility;
@@ -54,6 +55,7 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
     private bool _spaceAdded;
     private bool _forgeAdded;
     private bool _vaultAdded;
+    private bool _marketAdded;
 
     public AetherProtocolBuilder(IServiceCollection services)
     {
@@ -559,6 +561,25 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
         _vaultAdded = true;
 
         Services.TryAddSingleton<IVaultService, InMemoryVaultService>();
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddMarket()
+    {
+        if (!_spaceAdded)
+            throw new InvalidOperationException(
+                "AddMarket() requires AddSpace() to have been called first. " +
+                "IMarketService distributes geo-pinned listings via ISpaceService.");
+        if (!_vaultAdded)
+            throw new InvalidOperationException(
+                "AddMarket() requires AddVault() to have been called first. " +
+                "IMarketService uses IVaultService for document escrow on trades.");
+        if (_marketAdded) return this;
+        _marketAdded = true;
+
+        Services.TryAddSingleton<IPoVService, InMemoryPoVService>();
+        Services.TryAddSingleton<IMarketService, InMemoryMarketService>();
 
         return this;
     }
