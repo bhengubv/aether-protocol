@@ -16,8 +16,12 @@ public sealed class InMemoryVaultService : IVaultService
 {
     private readonly ConcurrentDictionary<string, byte[]> _shards = new();
 
+    // In-memory stub: ShardRequested is never raised because there are no remote
+    // peers to request shards. Suppress CS0067 (event never used) intentionally.
+#pragma warning disable CS0067
     /// <inheritdoc/>
     public event EventHandler<VaultShardRequest>? ShardRequested;
+#pragma warning restore CS0067
 
     event EventHandler<VaultShardRequest> IVaultService.ShardRequested
     {
