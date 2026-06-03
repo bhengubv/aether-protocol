@@ -35,7 +35,7 @@ public enum SecurityDirectiveKind : byte
 
     /// <summary>
     /// Request that the user re-authenticates before a sensitive operation.
-    /// Platform implementations surface an <see cref="AuthMethod"/> challenge.
+    /// Platform implementations surface an <c>AuthMethod</c> challenge.
     /// </summary>
     RequestReauth,
 

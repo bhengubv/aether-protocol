@@ -67,6 +67,7 @@ add_library(aether-protocol STATIC
     src/aether_anomaly.c
     src/aether_gossip.c
     src/aether_tag.c
+    src/chunk_bitmap.c
     # BLAKE3 portable subset (no SIMD — compile-time defines below disable all
     # optional SIMD backends; only blake3_portable.c is linked in practice)
     ${blake3_src_SOURCE_DIR}/c/blake3.c

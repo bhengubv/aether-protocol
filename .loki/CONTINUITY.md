@@ -25,22 +25,33 @@ ecosystem can build on a stable, audited foundation.
 - feat(protocol): PacketType IDs 38-49 documented/reserved; SpaceBreadcrumb=40 declared
 
 ## Current Test Count
-- Unit: 609/609
-- Soak: 11/11
-- Interop (cross-language): 4/4
-- Total: 624/624, 0 warnings
+- C# Unit: 615 (Aether.Core.Tests)
+- C# Forge: 10, Interop: 24, Space: 12, Vault: 12, Market: 14, Soak: 11
+- C# Total: 698/698, 0 warnings, 0 errors
+- Go: all packages pass (content, transport, routing, security, etc.)
+- Python: 20/20 ChunkBitmap fixture tests
+- TypeScript: 48/48 (including 20 ChunkBitmap fixture tests)
+- Rust: 5/5 content module tests
+- Kotlin: BUILD SUCCESSFUL (ChunkBitmapFixtureTest)
+
+## Completed This Session (Session 5 continuation)
+- ✅ (1) 8-language ChunkBitmap codec + cross-language interop runners
+- ✅ (2) aether-space Phase-2 extension
+- ✅ (3) aether-forge Phase-2 extension
+- ✅ (4) aether-vault Phase-2 extension
+- ✅ (5) aether-market Phase-2 extension with PoV anti-Sybil trust
+- ✅ (6) IBiometricProvider wired into HandshakeService.VerifyCoPresenceAsync
+- ✅ (7) Performance benchmarks: C# ChunkBitmap+Transport, Go ChunkBitmap+transport metrics
+- ✅ (8) docfx.json updated to include Phase 2 projects; metadata regenerated
+
+## Completed (Session 5 continuation — post-compaction)
+- ✅ A. C ChunkBitmap codec (c/include/aether/chunk_bitmap.h, c/src/chunk_bitmap.c, c/tests/test_chunk_bitmap.c) — 5/5 GCC tests pass
+- ✅ D. Swift ChunkBitmap codec (swift/Sources/AetherProtocol/Content/ChunkBitmap.swift, swift/Tests/ChunkBitmapTests.swift) — 5/5 XCTest tests pass
+- ✅ E. docfx cref warnings — all 8 fixed, 0 warnings 0 errors
 
 ## Next Actions (Priority Order)
-1. Implement 7 non-C# language stubs (Python, TypeScript, Rust, Go, Kotlin, Swift, C)
-   -- each needs: packet encode/decode, handshake, routing, content service, ChunkShuffle
-2. Add cross-language wire-format interop tests for ChunkBitmap (fixture vectors exist)
-3. Implement aether-space extension (SpaceBreadcrumb=40, ISpaceService, geohash DTN routing)
-4. Implement aether-forge extension (ForgeEntry, IForgeService, HTTP CONNECT proxy in Go)
-5. Implement aether-vault extension (Reed-Solomon k=10 m=4, VaultManifest, IVaultService)
-6. Implement aether-market extension (PoVToken, MarketListing, TradeEscrow, IMarketService)
-7. Add performance benchmarks (routing throughput, chunk distribution, BLE simulation)
-8. Add docfx API documentation site
-9. Wire IBiometricProvider into IHandshakeService co-presence verification
+1. B. aether-forge Go HTTP CONNECT proxy daemon (go/cmd/aether-forge-proxy/) — http.Transport-based intercepting proxy
+2. C. PoV token exchange wire integration test (HandshakeService.VerifyCoPresenceAsync end-to-end with FakeBiometricProvider)
 
 ## Active Blockers
 - None

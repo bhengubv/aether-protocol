@@ -203,8 +203,8 @@ internal sealed class KalmanRttFilter
 /// top of <see cref="PerTransportMetrics"/> EWMA values.
 ///
 /// <para>
-/// Extends <see cref="TransportManager.Rank()"/> by replacing the EWMA-only RTT term
-/// with the Kalman-estimated RTT (which reacts faster to degrading links) and adding a
+/// Extends the EWMA-only transport selection in <see cref="Aether.Transport.Services.TransportManager"/>
+/// by replacing the static RTT term with the Kalman-estimated RTT (which reacts faster to degrading links) and adding a
 /// reliability penalty proportional to the Kalman variance (uncertain links are scored
 /// lower, even when their point estimate looks good).
 /// </para>

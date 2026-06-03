@@ -119,7 +119,7 @@ public sealed record BiometricVerificationResult(
 /// for Aether services that require physical presence or identity binding:
 /// </para>
 /// <list type="bullet">
-///   <item><see cref="IHandshakeService"/> — verify co-presence during key exchange.</item>
+///   <item><see cref="Aether.Handshake.IHandshakeService"/> — verify co-presence during key exchange.</item>
 ///   <item>Video call services — live face detection and participant tracking.</item>
 ///   <item>AetherTag — optional face-bound cryptographic identity.</item>
 ///   <item>aether-market <c>PoVToken</c> — anti-Sybil physical presence proof.</item>

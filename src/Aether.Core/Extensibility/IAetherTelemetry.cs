@@ -52,7 +52,7 @@ public interface IAetherTelemetryObserver
 ///
 /// <para>
 /// Register an implementation via DI and call
-/// <see cref="IAetherProtocolBuilder.AddTelemetry{T}"/> (or the extension overload
+/// <c>IAetherProtocolBuilder.AddTelemetry&lt;T&gt;</c> (or the extension overload
 /// accepting an <see cref="IAetherTelemetryObserver"/> instance) to wire it up.
 /// When no implementation is registered, <see cref="NullAetherTelemetry"/> is used
 /// and all events are silently discarded.

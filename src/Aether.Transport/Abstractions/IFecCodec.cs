@@ -44,7 +44,7 @@ public interface IFecCodec
 
     /// <summary>
     /// Overhead fraction added by this codec (e.g. 0.30 = 30 % overhead).
-    /// Used by <see cref="ITransportManager.Rank"/> when scoring transports
+    /// Used by <see cref="Aether.Transport.Services.PredictiveTransportSelector.Rank(int)"/> when scoring transports
     /// that have an active FEC decorator.
     /// </summary>
     double OverheadFraction { get; }
