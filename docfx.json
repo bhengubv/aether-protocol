@@ -12,7 +12,11 @@
             "src/Aether.Streaming/Aether.Streaming.csproj",
             "src/Aether.Voice/Aether.Voice.csproj",
             "src/Aether.Content/Aether.Content.csproj",
-            "src/Aether.DependencyInjection/Aether.DependencyInjection.csproj"
+            "src/Aether.DependencyInjection/Aether.DependencyInjection.csproj",
+            "src/Aether.Space/Aether.Space.csproj",
+            "src/Aether.Forge/Aether.Forge.csproj",
+            "src/Aether.Vault/Aether.Vault.csproj",
+            "src/Aether.Market/Aether.Market.csproj"
           ],
           "exclude": [
             "**/bin/**",
