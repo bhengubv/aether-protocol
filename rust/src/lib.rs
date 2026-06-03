@@ -3,6 +3,7 @@
 pub mod identity;
 pub mod anomaly_detector;
 pub mod constants;
+pub mod content;
 pub mod gossip;
 pub mod dtn;
 pub mod extensibility;
