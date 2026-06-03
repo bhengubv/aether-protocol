@@ -2,6 +2,7 @@
 
 using Aether.Content;
 using Aether.Dtn;
+using Aether.Forge;
 using Aether.Space;
 using Aether.Extensibility;
 using Aether.Handshake;
@@ -50,6 +51,7 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
     private bool _groupVoiceAdded;
     private bool _contentAdded;
     private bool _spaceAdded;
+    private bool _forgeAdded;
 
     public AetherProtocolBuilder(IServiceCollection services)
     {
@@ -527,6 +529,20 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
         _spaceAdded = true;
 
         Services.TryAddSingleton<ISpaceService, InMemorySpaceService>();
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddForge()
+    {
+        if (!_contentAdded)
+            throw new InvalidOperationException(
+                "AddForge() requires AddContent() to have been called first. " +
+                "IForgeService addresses payloads by IContentService content hash.");
+        if (_forgeAdded) return this;
+        _forgeAdded = true;
+
+        Services.TryAddSingleton<IForgeService, InMemoryForgeService>();
 
         return this;
     }

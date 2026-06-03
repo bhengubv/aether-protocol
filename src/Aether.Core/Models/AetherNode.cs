@@ -21,7 +21,8 @@ public enum NodeCapabilities : ushort
     DtnCarrier = 128,
     NearLink = 256,
     Video = 512,
-    Space = 1024
+    Space = 1024,
+    Forge = 2048
 }
 
 /// <summary>

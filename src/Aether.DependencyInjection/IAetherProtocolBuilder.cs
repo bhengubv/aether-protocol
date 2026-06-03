@@ -245,4 +245,11 @@ public interface IAetherProtocolBuilder
     /// called first; throws <see cref="InvalidOperationException"/> otherwise.
     /// </summary>
     IAetherProtocolBuilder AddSpace();
+
+    /// <summary>
+    /// Register <c>InMemoryForgeService</c> as a singleton <c>IForgeService</c>
+    /// (aether-forge Phase-2 extension — mesh-native package cache proxy).
+    /// Requires <see cref="AddContent"/> to have been called first.
+    /// </summary>
+    IAetherProtocolBuilder AddForge();
 }

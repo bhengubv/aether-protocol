@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Aether.Forge</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Mesh-native package cache proxy for the Aether protocol — first internet pull is cached as Aether content chunks, subsequent pulls served at mesh speeds.</Description>
+    <PackageTags>mesh;package;cache;proxy;npm;pip;cargo;go;nuget;git;aether;offline</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Aether.Core/Aether.Core.csproj" />
+  </ItemGroup>
+
+</Project>

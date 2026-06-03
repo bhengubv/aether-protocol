@@ -90,7 +90,13 @@ public enum PacketType : byte
     /// </summary>
     SpaceBreadcrumb = 40,
 
-    //   41 = (unassigned — reserved for aether-forge/v1)
+    /// <summary>
+    /// Forge cache-entry announcement — part of the <c>aether-forge</c> Phase-2
+    /// extension. A node broadcasts this when it caches a new package artifact
+    /// to announce it to mesh peers with the <c>aether.forge/v1</c> capability.
+    /// </summary>
+    ForgeAnnounce = 41,
+
     //   42 = (unassigned — reserved for aether-vault/v1)
     //   43 = (unassigned — reserved for aether-market/v1)
     //   44–49 = (unassigned — reserved for future Phase-2 extensions)
