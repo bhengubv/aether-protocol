@@ -58,6 +58,7 @@ public sealed class HandshakeService : IHandshakeService
     private readonly IReadOnlySet<string> _ourCapabilities;
     private readonly string _ourImplementation;
     private readonly IAetherTelemetry? _telemetry;
+    private readonly IBiometricProvider _biometricProvider;
 
     // Peers we've already sent a Hello to, to suppress duplicate sends.
     private readonly ConcurrentDictionary<string, byte> _helloSent = new(StringComparer.Ordinal);
@@ -80,7 +81,8 @@ public sealed class HandshakeService : IHandshakeService
         byte? ourMaxVersion = null,
         IReadOnlySet<string>? ourCapabilities = null,
         string? ourImplementation = null,
-        IAetherTelemetry? telemetry = null)
+        IAetherTelemetry? telemetry = null,
+        IBiometricProvider? biometricProvider = null)
     {
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
         _logger = logger ?? NullLogger<HandshakeService>.Instance;
@@ -93,6 +95,7 @@ public sealed class HandshakeService : IHandshakeService
         _ourCapabilities = ourCapabilities ?? DefaultCapabilities;
         _ourImplementation = ourImplementation ?? DefaultImplementation;
         _telemetry = telemetry;
+        _biometricProvider = biometricProvider ?? NullBiometricProvider.Instance;
     }
 
     public async Task InitiateAsync(string peerUhid, CancellationToken cancellationToken = default)
@@ -210,6 +213,54 @@ public sealed class HandshakeService : IHandshakeService
 
     public IReadOnlyList<PeerCapabilities> GetAllNegotiated()
         => _negotiated.Values.ToArray();
+
+    /// <inheritdoc/>
+    public async Task<BiometricVerificationResult> VerifyCoPresenceAsync(
+        byte[]            localFaceFrameRgbHwc,
+        int               width,
+        int               height,
+        FaceEmbedding     referenceEmbedding,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(referenceEmbedding);
+
+        if (!_biometricProvider.IsAvailable)
+        {
+            _logger.LogDebug("VerifyCoPresence: biometric provider unavailable — returning Failed");
+            return BiometricVerificationResult.Failed;
+        }
+
+        // Detect the dominant face in the live frame.
+        var faces = await _biometricProvider.DetectAsync(
+            localFaceFrameRgbHwc, width, height, maxFaces: 1, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (faces.Count == 0)
+        {
+            _logger.LogDebug("VerifyCoPresence: no face detected in live frame — returning Failed");
+            return BiometricVerificationResult.Failed;
+        }
+
+        var detected = faces[0];
+        if (!detected.IsConfident)
+        {
+            _logger.LogDebug(
+                "VerifyCoPresence: detection confidence {Score:F2} below threshold 0.50 — returning Failed",
+                detected.DetectionScore);
+            return BiometricVerificationResult.Failed;
+        }
+
+        // Compare the detected face to the peer's reference embedding.
+        var verifyResult = await _biometricProvider.VerifyAsync(
+            referenceEmbedding, detected.Embedding, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        _logger.LogDebug(
+            "VerifyCoPresence: verified={Verified} similarity={Similarity:F3}",
+            verifyResult.Verified, verifyResult.Similarity);
+
+        return verifyResult;
+    }
 
     /// <summary>
     /// Backward-compat: install a "v1, no caps" record for a peer that never

@@ -3,6 +3,7 @@
 using System.Text.Json;
 using Aether.Constants;
 using Aether.Core.Tests.Fakes;
+using Aether.Extensibility;
 using Aether.Handshake;
 using Aether.Protocol;
 using Xunit;
@@ -351,5 +352,139 @@ public class HandshakeServiceTests
         Assert.Equal(2, all.Count);
         Assert.Contains(all, c => c.PeerUhid == "uhid:bob");
         Assert.Contains(all, c => c.PeerUhid == "uhid:carol");
+    }
+
+    // ─── Biometric co-presence verification ───────────────────────
+
+    /// <summary>
+    /// No biometric provider wired in → NullBiometricProvider.IsAvailable = false
+    /// → always returns <see cref="BiometricVerificationResult.Failed"/>.
+    /// </summary>
+    [Fact]
+    public async Task VerifyCoPresenceAsync_WithNullProvider_ReturnsFailed()
+    {
+        var sender  = new FakeMeshSender(Local);
+        var service = new HandshakeService(sender); // biometricProvider defaults to Null
+
+        var reference = MakeDummyEmbedding();
+        var result = await service.VerifyCoPresenceAsync(
+            new byte[112 * 112 * 3], 112, 112, reference);
+
+        Assert.False(result.Verified);
+        Assert.Equal(0.0, result.Similarity);
+    }
+
+    /// <summary>
+    /// Provider is registered but unavailable (hardware absent / engine not loaded).
+    /// </summary>
+    [Fact]
+    public async Task VerifyCoPresenceAsync_WithUnavailableProvider_ReturnsFailed()
+    {
+        var sender   = new FakeMeshSender(Local);
+        var provider = new FakeBiometricProvider { IsAvailable = false };
+        var service  = new HandshakeService(sender, biometricProvider: provider);
+
+        var result = await service.VerifyCoPresenceAsync(
+            new byte[112 * 112 * 3], 112, 112, MakeDummyEmbedding());
+
+        Assert.False(result.Verified);
+        Assert.Equal(0.0, result.Similarity);
+    }
+
+    /// <summary>
+    /// Provider available but no face found in the live frame.
+    /// </summary>
+    [Fact]
+    public async Task VerifyCoPresenceAsync_NoFaceDetected_ReturnsFailed()
+    {
+        var sender   = new FakeMeshSender(Local);
+        var provider = new FakeBiometricProvider();
+        provider.SetDetectionResult(null); // empty frame
+        provider.SetVerifyResult(true, 0.95);
+        var service  = new HandshakeService(sender, biometricProvider: provider);
+
+        var result = await service.VerifyCoPresenceAsync(
+            new byte[112 * 112 * 3], 112, 112, MakeDummyEmbedding());
+
+        Assert.False(result.Verified);
+    }
+
+    /// <summary>
+    /// A face is detected but its detection confidence is below 0.50 (FaceX default).
+    /// The low-confidence detection must be rejected before VerifyAsync is even called.
+    /// </summary>
+    [Fact]
+    public async Task VerifyCoPresenceAsync_LowConfidenceFace_ReturnsFailed()
+    {
+        var sender   = new FakeMeshSender(Local);
+        var provider = new FakeBiometricProvider();
+        provider.SetDetectionResult(new FaceDetectionResult(
+            X1: 0f, Y1: 0f, X2: 50f, Y2: 50f,
+            DetectionScore: 0.30f, // below IsConfident threshold of 0.50
+            Embedding: MakeDummyEmbedding()));
+        provider.SetVerifyResult(true, 0.95); // would pass if confidence weren't checked
+        var service = new HandshakeService(sender, biometricProvider: provider);
+
+        var result = await service.VerifyCoPresenceAsync(
+            new byte[112 * 112 * 3], 112, 112, MakeDummyEmbedding());
+
+        Assert.False(result.Verified);
+    }
+
+    /// <summary>
+    /// High-confidence face detected, embeddings match → Verified = true.
+    /// </summary>
+    [Fact]
+    public async Task VerifyCoPresenceAsync_MatchingFace_ReturnsVerified()
+    {
+        var sender   = new FakeMeshSender(Local);
+        var provider = new FakeBiometricProvider();
+        provider.SetDetectionResult(new FaceDetectionResult(
+            X1: 10f, Y1: 10f, X2: 90f, Y2: 90f,
+            DetectionScore: 0.97f,
+            Embedding: MakeDummyEmbedding()));
+        provider.SetVerifyResult(true, 0.82);
+        var service = new HandshakeService(sender, biometricProvider: provider);
+
+        var result = await service.VerifyCoPresenceAsync(
+            new byte[112 * 112 * 3], 112, 112, MakeDummyEmbedding());
+
+        Assert.True(result.Verified);
+        Assert.Equal(0.82, result.Similarity, precision: 10);
+    }
+
+    /// <summary>
+    /// High-confidence face detected but embeddings do not match the reference
+    /// (different person). Verified = false; similarity value is surfaced.
+    /// </summary>
+    [Fact]
+    public async Task VerifyCoPresenceAsync_NonMatchingFace_ReturnsNotVerified()
+    {
+        var sender   = new FakeMeshSender(Local);
+        var provider = new FakeBiometricProvider();
+        provider.SetDetectionResult(new FaceDetectionResult(
+            X1: 10f, Y1: 10f, X2: 90f, Y2: 90f,
+            DetectionScore: 0.91f,
+            Embedding: MakeDummyEmbedding()));
+        provider.SetVerifyResult(false, 0.10);
+        var service = new HandshakeService(sender, biometricProvider: provider);
+
+        var result = await service.VerifyCoPresenceAsync(
+            new byte[112 * 112 * 3], 112, 112, MakeDummyEmbedding());
+
+        Assert.False(result.Verified);
+        Assert.Equal(0.10, result.Similarity, precision: 10);
+    }
+
+    // ── helpers ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Produces a valid L2-normalised 512-dim embedding (all elements = 1/√512).
+    /// </summary>
+    private static FaceEmbedding MakeDummyEmbedding()
+    {
+        var v   = (float)(1.0 / Math.Sqrt(512));
+        var vec = Enumerable.Repeat(v, 512).ToArray();
+        return new FaceEmbedding(vec, DateTimeOffset.UtcNow);
     }
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using Aether.Extensibility;
 using Aether.Protocol;
 
 namespace Aether.Handshake;
@@ -88,6 +89,47 @@ public interface IHandshakeService
     /// diagnostics / health-check use.
     /// </summary>
     IReadOnlyList<PeerCapabilities> GetAllNegotiated();
+
+    /// <summary>
+    /// Verify physical co-presence of a peer by detecting a face in a live
+    /// camera frame and comparing it to a reference embedding.
+    ///
+    /// <para>
+    /// This is the biometric component of the aether-market PoV
+    /// (Proof-of-Vicinity) token exchange. Both devices capture a camera
+    /// frame; each verifies that the face it sees matches the claimed
+    /// identity of the peer standing in front of it.
+    /// </para>
+    ///
+    /// <para>
+    /// When no <see cref="IBiometricProvider"/> is registered, or the
+    /// registered provider reports <see cref="IBiometricProvider.IsAvailable"/>
+    /// = <c>false</c>, returns <see cref="BiometricVerificationResult.Failed"/>
+    /// — biometrics are optional and never gate core mesh connectivity.
+    /// </para>
+    /// </summary>
+    /// <param name="localFaceFrameRgbHwc">
+    ///   Raw camera frame: width × height × 3 bytes, HWC layout, RGB,
+    ///   values 0–255.
+    /// </param>
+    /// <param name="width">Frame width in pixels.</param>
+    /// <param name="height">Frame height in pixels.</param>
+    /// <param name="referenceEmbedding">
+    ///   The peer's identity embedding (from their AetherTag profile or PoV
+    ///   packet).
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    ///   A <see cref="BiometricVerificationResult"/> indicating whether the
+    ///   face in <paramref name="localFaceFrameRgbHwc"/> matches
+    ///   <paramref name="referenceEmbedding"/>.
+    /// </returns>
+    Task<BiometricVerificationResult> VerifyCoPresenceAsync(
+        byte[]            localFaceFrameRgbHwc,
+        int               width,
+        int               height,
+        FaceEmbedding     referenceEmbedding,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
