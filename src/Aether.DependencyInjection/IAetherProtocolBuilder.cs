@@ -252,4 +252,11 @@ public interface IAetherProtocolBuilder
     /// Requires <see cref="AddContent"/> to have been called first.
     /// </summary>
     IAetherProtocolBuilder AddForge();
+
+    /// <summary>
+    /// Register <c>InMemoryVaultService</c> as a singleton <c>IVaultService</c>
+    /// (aether-vault Phase-2 extension — erasure-coded distributed backup, k=10 m=4).
+    /// Requires <see cref="AddContent"/> to have been called first.
+    /// </summary>
+    IAetherProtocolBuilder AddVault();
 }

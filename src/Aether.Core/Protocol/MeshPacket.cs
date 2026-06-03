@@ -97,7 +97,12 @@ public enum PacketType : byte
     /// </summary>
     ForgeAnnounce = 41,
 
-    //   42 = (unassigned — reserved for aether-vault/v1)
+    /// <summary>
+    /// Vault shard request — part of the <c>aether-vault</c> Phase-2 extension.
+    /// A node broadcasts this to locate peers holding a specific shard by hash.
+    /// </summary>
+    VaultShardRequest = 42,
+
     //   43 = (unassigned — reserved for aether-market/v1)
     //   44–49 = (unassigned — reserved for future Phase-2 extensions)
 

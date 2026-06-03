@@ -4,6 +4,7 @@ using Aether.Content;
 using Aether.Dtn;
 using Aether.Forge;
 using Aether.Space;
+using Aether.Vault;
 using Aether.Extensibility;
 using Aether.Handshake;
 using Aether.Messaging;
@@ -52,6 +53,7 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
     private bool _contentAdded;
     private bool _spaceAdded;
     private bool _forgeAdded;
+    private bool _vaultAdded;
 
     public AetherProtocolBuilder(IServiceCollection services)
     {
@@ -543,6 +545,20 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
         _forgeAdded = true;
 
         Services.TryAddSingleton<IForgeService, InMemoryForgeService>();
+
+        return this;
+    }
+
+    public IAetherProtocolBuilder AddVault()
+    {
+        if (!_contentAdded)
+            throw new InvalidOperationException(
+                "AddVault() requires AddContent() to have been called first. " +
+                "IVaultService addresses shard payloads by IContentService content hash.");
+        if (_vaultAdded) return this;
+        _vaultAdded = true;
+
+        Services.TryAddSingleton<IVaultService, InMemoryVaultService>();
 
         return this;
     }

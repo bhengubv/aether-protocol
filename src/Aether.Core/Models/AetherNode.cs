@@ -22,7 +22,8 @@ public enum NodeCapabilities : ushort
     NearLink = 256,
     Video = 512,
     Space = 1024,
-    Forge = 2048
+    Forge = 2048,
+    Vault = 4096
 }
 
 /// <summary>
