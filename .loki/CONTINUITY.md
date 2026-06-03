@@ -1,5 +1,5 @@
 # Loki Mode Working Memory — aether-protocol
-Last Updated: 2026-06-03
+Last Updated: 2026-06-03 (session 5 — complete)
 Current Phase: development
 Current Iteration: 5
 
@@ -48,10 +48,23 @@ ecosystem can build on a stable, audited foundation.
 - ✅ A. C ChunkBitmap codec (c/include/aether/chunk_bitmap.h, c/src/chunk_bitmap.c, c/tests/test_chunk_bitmap.c) — 5/5 GCC tests pass
 - ✅ D. Swift ChunkBitmap codec (swift/Sources/AetherProtocol/Content/ChunkBitmap.swift, swift/Tests/ChunkBitmapTests.swift) — 5/5 XCTest tests pass
 - ✅ E. docfx cref warnings — all 8 fixed, 0 warnings 0 errors
+- ✅ B. aether-forge Go HTTP CONNECT proxy daemon (go/cmd/aether-forge-proxy/main.go + main_test.go) — 8/8 Go tests pass
+- ✅ C. PoV wire integration test (tests/Aether.Market.Tests/PoVIntegrationTests.cs) — 5/5 xUnit tests pass
+
+## Current Test Count (FINAL)
+- C# Unit: 615 (Aether.Core.Tests)
+- C# Forge: 10, Interop: 24, Space: 12, Vault: 12, Market: 19, Soak: 11
+- C# Total: 703/703, 0 warnings, 0 errors
+- Go: all packages pass (content, transport, routing, security, forge proxy)
+- Python: 20/20 ChunkBitmap fixture tests
+- TypeScript: 48/48 (including 20 ChunkBitmap fixture tests)
+- Rust: 5/5 content module tests
+- Kotlin: BUILD SUCCESSFUL (ChunkBitmapFixtureTest)
+- C: 5/5 GCC tests (chunk_bitmap)
+- Swift: 5/5 XCTest tests (ChunkBitmapTests)
 
 ## Next Actions (Priority Order)
-1. B. aether-forge Go HTTP CONNECT proxy daemon (go/cmd/aether-forge-proxy/) — http.Transport-based intercepting proxy
-2. C. PoV token exchange wire integration test (HandshakeService.VerifyCoPresenceAsync end-to-end with FakeBiometricProvider)
+- NONE — Active Goal achieved. All 8-language implementations + all Phase 2 extensions complete.
 
 ## Active Blockers
 - None
