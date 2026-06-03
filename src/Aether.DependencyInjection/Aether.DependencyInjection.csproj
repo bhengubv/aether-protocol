@@ -26,6 +26,7 @@
     <ProjectReference Include="../Aether.Streaming/Aether.Streaming.csproj" />
     <ProjectReference Include="../Aether.Voice/Aether.Voice.csproj" />
     <ProjectReference Include="../Aether.Content/Aether.Content.csproj" />
+    <ProjectReference Include="../Aether.Space/Aether.Space.csproj" />
   </ItemGroup>
 
 </Project>

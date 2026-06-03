@@ -20,7 +20,8 @@ public enum NodeCapabilities : ushort
     Voice = 64,
     DtnCarrier = 128,
     NearLink = 256,
-    Video = 512
+    Video = 512,
+    Space = 1024
 }
 
 /// <summary>

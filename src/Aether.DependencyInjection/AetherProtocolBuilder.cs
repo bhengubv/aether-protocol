@@ -2,6 +2,7 @@
 
 using Aether.Content;
 using Aether.Dtn;
+using Aether.Space;
 using Aether.Extensibility;
 using Aether.Handshake;
 using Aether.Messaging;
@@ -48,6 +49,7 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
     private bool _voiceAdded;
     private bool _groupVoiceAdded;
     private bool _contentAdded;
+    private bool _spaceAdded;
 
     public AetherProtocolBuilder(IServiceCollection services)
     {
@@ -505,6 +507,26 @@ internal sealed class AetherProtocolBuilder : IAetherProtocolBuilder
             var telemetry  = sp.GetService<IAetherTelemetry>();
             return new ContentService(sender, routing, store, incentives, logger, telemetry);
         });
+
+        return this;
+    }
+
+    // ── Phase-2 Extensions ────────────────────────────────────────────────────
+
+    public IAetherProtocolBuilder AddSpace()
+    {
+        if (!_contentAdded)
+            throw new InvalidOperationException(
+                "AddSpace() requires AddContent() to have been called first. " +
+                "ISpaceService addresses payloads by IContentService hash.");
+        if (!_dtnAdded)
+            throw new InvalidOperationException(
+                "AddSpace() requires AddDtn() to have been called first. " +
+                "Breadcrumb propagation relies on DTN store-and-forward for offline delivery.");
+        if (_spaceAdded) return this;
+        _spaceAdded = true;
+
+        Services.TryAddSingleton<ISpaceService, InMemorySpaceService>();
 
         return this;
     }

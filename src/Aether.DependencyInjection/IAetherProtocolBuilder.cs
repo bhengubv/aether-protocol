@@ -235,4 +235,14 @@ public interface IAetherProtocolBuilder
     /// Replace the default <see cref="NullAetherSecurityAudit"/> with an existing instance.
     /// </summary>
     IAetherProtocolBuilder AddSecurityAudit(IAetherSecurityAudit auditor);
+
+    // ── Phase-2 Extensions ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Register <c>InMemorySpaceService</c> as a singleton <c>ISpaceService</c>
+    /// (aether-space Phase-2 extension — geo-pinned community noticeboards).
+    /// Requires <see cref="AddContent"/> and <see cref="AddDtn"/> to have been
+    /// called first; throws <see cref="InvalidOperationException"/> otherwise.
+    /// </summary>
+    IAetherProtocolBuilder AddSpace();
 }
