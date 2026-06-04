@@ -16,6 +16,7 @@
     <Project Path="src/Aether.Forge/Aether.Forge.csproj" />
     <Project Path="src/Aether.Vault/Aether.Vault.csproj" />
     <Project Path="src/Aether.Market/Aether.Market.csproj" />
+    <Project Path="src/Aether.Fmhy/Aether.Fmhy.csproj" />
     <Project Path="src/Aether.DependencyInjection/Aether.DependencyInjection.csproj" />
     <Project Path="src/Aether.Messaging/Aether.Messaging.csproj" />
     <Project Path="src/Aether.Security/Aether.Security.csproj" />
@@ -31,6 +32,7 @@
     <Project Path="tests/Aether.Forge.Tests/Aether.Forge.Tests.csproj" />
     <Project Path="tests/Aether.Vault.Tests/Aether.Vault.Tests.csproj" />
     <Project Path="tests/Aether.Market.Tests/Aether.Market.Tests.csproj" />
+    <Project Path="tests/Aether.Fmhy.Tests/Aether.Fmhy.Tests.csproj" />
     <Project Path="tests/Aether.Soak.Tests/Aether.Soak.Tests.csproj" />
     <Project Path="tests/cross-language/runners/csharp/Aether.InteropTest.csproj" />
   </Folder>

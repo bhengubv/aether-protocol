@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Aether.Fmhy</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>FMHY catalogue integration for the Aether protocol — bundles and propagates the Free Media Heck Yeah directory over the mesh, enabling offline content discovery without internet access.</Description>
+    <PackageTags>mesh;fmhy;catalogue;content;discovery;offline;p2p;aether</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Aether.Core/Aether.Core.csproj" />
+  </ItemGroup>
+
+</Project>

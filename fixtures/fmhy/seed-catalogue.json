@@ -1,0 +1,202 @@
+[
+  {
+    "name": "Stremio",
+    "url": "https://www.stremio.com/",
+    "description": "Video streaming platform with add-on ecosystem for torrent and web streaming.",
+    "category": "Video Tools",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "qBittorrent",
+    "url": "https://www.qbittorrent.org/",
+    "description": "Free, open-source BitTorrent client. Windows, Mac, Linux.",
+    "category": "Torrent Clients",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "Deluge",
+    "url": "https://deluge-torrent.org/",
+    "description": "Lightweight BitTorrent client with plugin support.",
+    "category": "Torrent Clients",
+    "isStarred": false,
+    "mirrors": []
+  },
+  {
+    "name": "Transmission",
+    "url": "https://transmissionbt.com/",
+    "description": "Simple, lightweight BitTorrent client. Native Linux/Mac.",
+    "category": "Torrent Clients",
+    "isStarred": false,
+    "mirrors": []
+  },
+  {
+    "name": "Internet Archive",
+    "url": "https://archive.org/",
+    "description": "Non-profit digital library: video, audio, books, magazines, ROMs, and web archives.",
+    "category": "Downloading / Public Domain",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "Wikimedia Commons",
+    "url": "https://commons.wikimedia.org/",
+    "description": "Free media repository: images, sound, video under open licences.",
+    "category": "Downloading / Public Domain",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "Project Gutenberg",
+    "url": "https://www.gutenberg.org/",
+    "description": "60,000+ free ebooks — works in the public domain.",
+    "category": "Reading / Ebooks",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "LibriVox",
+    "url": "https://librivox.org/",
+    "description": "Free public domain audiobooks read by volunteers.",
+    "category": "Audio Streaming",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "Jellyfin",
+    "url": "https://jellyfin.org/",
+    "description": "Free, open-source media server for personal streaming.",
+    "category": "Video Tools",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "Kodi",
+    "url": "https://kodi.tv/",
+    "description": "Open-source media center: plays virtually any video, audio, and image format.",
+    "category": "Video Tools",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "mpv",
+    "url": "https://mpv.io/",
+    "description": "Free, open-source, cross-platform media player. Minimalist and powerful.",
+    "category": "Video Tools",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "VLC",
+    "url": "https://www.videolan.org/vlc/",
+    "description": "Versatile open-source media player supporting virtually every codec.",
+    "category": "Video Tools",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "ngosang/trackerslist",
+    "url": "https://ngosang.github.io/trackerslist/",
+    "description": "Community-maintained list of all known public BitTorrent trackers.",
+    "category": "Torrent Sites",
+    "isStarred": true,
+    "mirrors": ["https://github.com/ngosang/trackerslist"]
+  },
+  {
+    "name": "TrackersListCollection",
+    "url": "https://github.com/XIU2/TrackersListCollection",
+    "description": "Comprehensive collection of BitTorrent tracker lists, updated daily.",
+    "category": "Torrent Sites",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "newtrackon",
+    "url": "https://newtrackon.com/list",
+    "description": "Live-monitored public tracker status and list.",
+    "category": "Torrent Sites",
+    "isStarred": false,
+    "mirrors": ["https://newtrackon.com/api/stable"]
+  },
+  {
+    "name": "openwebtorrent",
+    "url": "https://openwebtorrent.com/",
+    "description": "Free WebTorrent-compatible tracker for browser-based P2P.",
+    "category": "Torrent Sites",
+    "isStarred": false,
+    "mirrors": []
+  },
+  {
+    "name": "uBlock Origin",
+    "url": "https://github.com/gorhill/uBlock",
+    "description": "Efficient, wide-spectrum content blocker for web browsers.",
+    "category": "Adblocking",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "WebTorrent",
+    "url": "https://webtorrent.io/",
+    "description": "BitTorrent client for the web — streams torrents in the browser over WebRTC.",
+    "category": "Torrent Clients",
+    "isStarred": true,
+    "mirrors": ["https://github.com/webtorrent/webtorrent"]
+  },
+  {
+    "name": "Invidious",
+    "url": "https://invidious.io/",
+    "description": "Open-source alternative YouTube front-end. Privacy-preserving, no tracking.",
+    "category": "Streaming Sites",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "Piped",
+    "url": "https://piped.video/",
+    "description": "Privacy-friendly alternative YouTube front-end with no ads.",
+    "category": "Streaming Sites",
+    "isStarred": true,
+    "mirrors": ["https://github.com/TeamPiped/Piped"]
+  },
+  {
+    "name": "FreeTube",
+    "url": "https://freetubeapp.io/",
+    "description": "Privacy-focused YouTube desktop app — no Google APIs, local subscriptions.",
+    "category": "Video Tools",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "yt-dlp",
+    "url": "https://github.com/yt-dlp/yt-dlp",
+    "description": "Feature-rich command-line downloader for YouTube, Twitch, and 1000+ sites.",
+    "category": "Video Download",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "BTDigg",
+    "url": "https://btdig.com/",
+    "description": "DHT-based torrent search engine — no trackers needed.",
+    "category": "Torrent Sites",
+    "isStarred": false,
+    "mirrors": []
+  },
+  {
+    "name": "Open Library",
+    "url": "https://openlibrary.org/",
+    "description": "One web page for every book ever published — read millions for free.",
+    "category": "Reading / Ebooks",
+    "isStarred": true,
+    "mirrors": []
+  },
+  {
+    "name": "Funkwhale",
+    "url": "https://funkwhale.audio/",
+    "description": "Decentralised, federated music platform — self-host your music library.",
+    "category": "Audio Streaming",
+    "isStarred": false,
+    "mirrors": []
+  }
+]

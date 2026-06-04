@@ -77,6 +77,47 @@ func (e *ForgeEntry) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// TrackerSource describes a public BitTorrent tracker list aggregator.
+// Aether Media nodes use these URLs to seed their announce lists for
+// mesh-distributed content, enabling peers without internet to join swarms
+// that were seeded by connected peers through the forge proxy.
+type TrackerSource struct {
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	Description string `json:"description"`
+}
+
+// builtInTrackerSources is the bundled set of well-known public tracker
+// list aggregators.  Each URL returns a plain-text list of tracker announce
+// URLs (one per line), compatible with BitTorrent clients and WebTorrent.
+var builtInTrackerSources = []TrackerSource{
+	{
+		Name:        "ngosang/trackerslist (all)",
+		URL:         "https://ngosang.github.io/trackerslist/trackers_all.txt",
+		Description: "Community-maintained list of all known public BitTorrent trackers.",
+	},
+	{
+		Name:        "XIU2/TrackersListCollection (all)",
+		URL:         "https://raw.githubusercontent.com/XIU2/TrackersListCollection/master/all.txt",
+		Description: "Comprehensive tracker collection maintained by XIU2, updated daily.",
+	},
+	{
+		Name:        "XIU2/TrackersListCollection (best)",
+		URL:         "https://raw.githubusercontent.com/XIU2/TrackersListCollection/master/best.txt",
+		Description: "Best-performing tracker subset from the XIU2 collection.",
+	},
+	{
+		Name:        "newtrackon (stable)",
+		URL:         "https://newtrackon.com/api/stable",
+		Description: "Live-monitored stable tracker list from newtrackon.com.",
+	},
+	{
+		Name:        "openwebtorrent",
+		URL:         "https://openwebtorrent.com/",
+		Description: "Free WebTorrent-compatible tracker for browser-based P2P.",
+	},
+}
+
 // ForgeStats carries aggregated proxy usage metrics.
 type ForgeStats struct {
 	TotalBytesSaved int64        `json:"total_bytes_saved"`
@@ -236,6 +277,8 @@ func (p *forgeProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.handleConnect(w, r)
 	case r.URL.Path == "/__forge/stats":
 		p.handleStats(w, r)
+	case r.URL.Path == "/__forge/trackers":
+		p.handleTrackers(w, r)
 	default:
 		p.handleHTTP(w, r)
 	}
@@ -397,6 +440,20 @@ func (p *forgeProxy) handleStats(w http.ResponseWriter, _ *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(stats)
+}
+
+// handleTrackers returns the built-in tracker list aggregator sources as JSON.
+// Aether Media nodes call this to seed their BitTorrent announce lists so that
+// mesh-cached content is discoverable by peers across the internet swarm.
+//
+// Example:
+//
+//	curl http://localhost:2301/__forge/trackers
+func (p *forgeProxy) handleTrackers(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(builtInTrackerSources)
 }
 
 // packageIDFromURL derives a human-readable package identifier from a URL.

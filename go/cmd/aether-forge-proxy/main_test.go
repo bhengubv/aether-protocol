@@ -219,6 +219,43 @@ func TestProxy_NonIdempotentMethodNotCached(t *testing.T) {
 	}
 }
 
+func TestProxy_TrackersEndpoint(t *testing.T) {
+	proxy := newForgeProxy(false)
+	proxyServer := httptest.NewServer(proxy)
+	defer proxyServer.Close()
+
+	resp, err := http.Get(proxyServer.URL + "/__forge/trackers")
+	if err != nil {
+		t.Fatalf("GET /__forge/trackers failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d; want 200", resp.StatusCode)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type = %q; want application/json", ct)
+	}
+
+	var sources []TrackerSource
+	if err := json.NewDecoder(resp.Body).Decode(&sources); err != nil {
+		t.Fatalf("decode trackers JSON: %v", err)
+	}
+	if len(sources) == 0 {
+		t.Error("expected at least one tracker source; got none")
+	}
+	// Every source must have a non-empty Name and URL.
+	for i, s := range sources {
+		if s.Name == "" {
+			t.Errorf("sources[%d].Name is empty", i)
+		}
+		if s.URL == "" {
+			t.Errorf("sources[%d].URL is empty", i)
+		}
+	}
+}
+
 func TestPackageIDFromURL(t *testing.T) {
 	cases := []struct {
 		input string
