@@ -63,8 +63,20 @@ ecosystem can build on a stable, audited foundation.
 - C: 5/5 GCC tests (chunk_bitmap)
 - Swift: 5/5 XCTest tests (ChunkBitmapTests)
 
+## Completed Post-Session-5 (FMHY Integration)
+- ✅ FMHY GitHub issue filed: https://github.com/fmhy/FMHY/issues/142
+- ✅ src/Aether.Fmhy/: IFmhyCatalogueService + FmhyMarkdownParser + FmhySeedLoader + InMemoryFmhyCatalogueService
+- ✅ fixtures/fmhy/seed-catalogue.json: 25 curated entries
+- ✅ go/cmd/aether-forge-proxy/: TrackerSource + builtInTrackerSources + /__forge/trackers endpoint
+- ✅ C# total: 730/730 tests pass | Go forge: 9/9 | 0 warnings
+
+## Current Test Count (FINAL with FMHY)
+- C# Core: 615 | Fmhy: 27 | Market: 19 | Forge: 10 | Space: 12 | Vault: 12 | Interop: 24 | Soak: 11
+- C# Total: 730/730, 0 warnings, 0 errors
+- Go forge proxy: 9/9
+
 ## Next Actions (Priority Order)
-- NONE — Active Goal achieved. All 8-language implementations + all Phase 2 extensions complete.
+- NONE — Active Goal achieved. All 8-language implementations + all Phase 2 extensions + FMHY integration complete.
 
 ## Active Blockers
 - None
