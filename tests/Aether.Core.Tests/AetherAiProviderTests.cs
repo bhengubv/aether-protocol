@@ -6,16 +6,16 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Aether.DependencyInjection;
-using Aether.Extensibility;
-using Aether.Protocol;
-using Aether.Transport.Abstractions;
-using Aether.Transport.Models;
-using Aether.Transport.Services;
+using AetherMesh.DependencyInjection;
+using AetherMesh.Extensibility;
+using AetherMesh.Protocol;
+using AetherMesh.Transport.Abstractions;
+using AetherMesh.Transport.Models;
+using AetherMesh.Transport.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Unit tests for the <see cref="IAetherAiProvider"/> interface, the

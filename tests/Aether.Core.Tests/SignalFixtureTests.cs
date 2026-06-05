@@ -15,12 +15,12 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 using Org.BouncyCastle.Crypto.Parameters;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 public class SignalFixtureTests
 {
@@ -171,7 +171,7 @@ public class SignalFixtureTests
     private static byte[] X25519AgreeViaService(byte[] priv, byte[] pub)
     {
         var t = typeof(SignalProtocolService).Assembly
-            .GetType("Aether.Security.Services.X25519Service")
+            .GetType("AetherMesh.Security.Services.X25519Service")
             ?? throw new InvalidOperationException("X25519Service type not found.");
         var method = t.GetMethod("Agree", BindingFlags.Public | BindingFlags.Static)
             ?? throw new InvalidOperationException("X25519Service.Agree not found.");

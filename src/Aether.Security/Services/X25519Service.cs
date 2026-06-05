@@ -6,7 +6,7 @@ using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
-namespace Aether.Security.Services;
+namespace AetherMesh.Security.Services;
 
 /// <summary>
 /// X25519 ECDH key agreement primitives — used for the X3DH key exchange in

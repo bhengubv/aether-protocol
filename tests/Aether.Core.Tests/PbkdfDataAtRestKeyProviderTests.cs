@@ -2,10 +2,10 @@
 
 using System.Security.Cryptography;
 using System.Text;
-using Aether.Storage;
+using AetherMesh.Storage;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Tests for <see cref="DerivedDataAtRestKeyProvider"/>: passphrase-derived AES-256

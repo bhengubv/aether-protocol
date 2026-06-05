@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Transport.Abstractions;
+namespace AetherMesh.Transport.Abstractions;
 
 /// <summary>
 /// Extension point for custom or community-contributed transport backends.

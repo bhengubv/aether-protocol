@@ -2,10 +2,10 @@
 
 using System.Reflection;
 using System.Security.Cryptography;
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 using BenchmarkDotNet.Attributes;
 
-namespace Aether.Benchmarks;
+namespace AetherMesh.Benchmarks;
 
 /// <summary>
 /// Bottom-of-the-stack crypto primitives. The Double Ratchet's inner loop
@@ -108,9 +108,9 @@ public class PrimitivesBenchmarks
     private static MethodInfo ResolveX25519Method(string name)
     {
         var type = typeof(Ed25519SigningService).Assembly
-            .GetType("Aether.Security.Services.X25519Service")
+            .GetType("AetherMesh.Security.Services.X25519Service")
             ?? throw new InvalidOperationException(
-                "X25519Service type not found in Aether.Security assembly. " +
+                "X25519Service type not found in AetherMesh.Security assembly. " +
                 "Has the type been moved or made public? Update PrimitivesBenchmarks.");
         return type.GetMethod(name, BindingFlags.Public | BindingFlags.Static)
             ?? throw new InvalidOperationException(

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Identity;
+using AetherMesh.Identity;
 
-namespace Aether.Models;
+namespace AetherMesh.Models;
 
 /// <summary>
 /// Capabilities a node can advertise. Combined as flags.

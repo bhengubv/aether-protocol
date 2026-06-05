@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-using Aether.Market;
-using Aether.Market.Models;
+using AetherMesh.Market;
+using AetherMesh.Market.Models;
 using Xunit;
 
-namespace Aether.Market.Tests;
+namespace AetherMesh.Market.Tests;
 
 public sealed class MarketTests
 {

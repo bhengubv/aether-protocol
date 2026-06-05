@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Forge.Models;
+namespace AetherMesh.Forge.Models;
 
 /// <summary>Aggregate statistics for the local Forge mesh cache.</summary>
 public sealed class ForgeStats

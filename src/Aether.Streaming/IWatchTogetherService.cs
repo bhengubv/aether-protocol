@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
-using Aether.Streaming.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Streaming.Models;
 
-namespace Aether.Streaming;
+namespace AetherMesh.Streaming;
 
 
 /// <summary>

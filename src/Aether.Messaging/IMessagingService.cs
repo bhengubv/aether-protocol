@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Messaging.Models;
-using Aether.Protocol;
+using AetherMesh.Messaging.Models;
+using AetherMesh.Protocol;
 
-namespace Aether.Messaging;
+namespace AetherMesh.Messaging;
 
 /// <summary>
 /// 1-to-1 encrypted messaging service. Hosts call <see cref="SendAsync"/> to enqueue
@@ -71,7 +71,7 @@ public sealed class MessagingOptions
     public bool EnableDtnFallback { get; set; } = true;
 
     /// <summary>
-    /// If true, fall back to the registered <see cref="Aether.Extensibility.IAetherBackendClient"/>'s
+    /// If true, fall back to the registered <see cref="AetherMesh.Extensibility.IAetherBackendClient"/>'s
     /// relay path when no mesh route exists. Default true; only effective if a backend client is wired.
     /// </summary>
     public bool EnableBackendRelay { get; set; } = true;

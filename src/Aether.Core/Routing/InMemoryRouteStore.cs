@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Models;
+using AetherMesh.Models;
 
-namespace Aether.Routing;
+namespace AetherMesh.Routing;
 
 /// <summary>
 /// Thread-safe, process-local route store. Sufficient for tests, demos, and any

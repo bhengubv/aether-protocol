@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 using Microsoft.Extensions.Logging;
 
-namespace Aether.Transport.Services;
+namespace AetherMesh.Transport.Services;
 
 /// <summary>
 /// In-memory transport for testing and demos. Simulates a network of nodes using a static

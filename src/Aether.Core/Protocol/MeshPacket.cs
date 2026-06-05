@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Protocol;
+namespace AetherMesh.Protocol;
 
 /// <summary>
 /// Defines the type of mesh packet being transmitted.

@@ -2,12 +2,12 @@
 
 using System.Security.Cryptography;
 using System.Text;
-using Aether.Protocol;
-using Aether.Security.Services;
+using AetherMesh.Protocol;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// PacketSigningService tests — focused on the parts of the contract the

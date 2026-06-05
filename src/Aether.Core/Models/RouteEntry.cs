@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Models;
+namespace AetherMesh.Models;
 
 /// <summary>
 /// A single entry in the mesh routing table. Routes are discovered via

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Streaming;
+namespace AetherMesh.Streaming;
 
 /// <summary>
 /// Latency profile for a stream session. Determines the bitrate ladder and ABR cadence.
@@ -110,7 +110,7 @@ public sealed class AdaptiveBitrateController
 
     /// <summary>
     /// Returns <see langword="true"/> when the current bandwidth estimate cannot sustain
-    /// even the floor rung. Callers should emit a <see cref="Aether.Protocol.PacketType.StreamAbandon"/>
+    /// even the floor rung. Callers should emit a <see cref="AetherMesh.Protocol.PacketType.StreamAbandon"/>
     /// packet instead of a segment when this is true.
     /// </summary>
     public bool ShouldAbandon()

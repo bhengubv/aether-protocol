@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Voice.Models;
+namespace AetherMesh.Voice.Models;
 
 /// <summary>
 /// State of a group voice call (3+ participants).
@@ -69,7 +69,7 @@ public enum GroupSignalingKind : byte
 }
 
 /// <summary>
-/// Wire envelope for <see cref="Aether.Protocol.PacketType.VoiceSignaling"/> when the
+/// Wire envelope for <see cref="AetherMesh.Protocol.PacketType.VoiceSignaling"/> when the
 /// signaling concerns a group call. JSON-encoded snake_case names.
 /// </summary>
 public sealed class GroupVoiceSignalingMessage

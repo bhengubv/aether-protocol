@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Constants;
+namespace AetherMesh.Constants;
 
 /// <summary>
 /// Constants governing the Aether mesh protocol behaviour.

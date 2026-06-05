@@ -2,7 +2,7 @@
 
 using System.Collections.Concurrent;
 
-namespace Aether.Reputation;
+namespace AetherMesh.Reputation;
 
 /// <summary>
 /// Default implementation of <see cref="IAnomalyDetector"/>.

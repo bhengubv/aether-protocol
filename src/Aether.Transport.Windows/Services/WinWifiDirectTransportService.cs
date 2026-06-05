@@ -2,7 +2,7 @@
 
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices.WindowsRuntime;
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 using Microsoft.Extensions.Logging;
 using Windows.Devices.Enumeration;
 using Windows.Devices.WiFiDirect;
@@ -10,7 +10,7 @@ using Windows.Networking.Sockets;
 using Windows.Security.Cryptography;
 using Windows.Storage.Streams;
 
-namespace Aether.Transport.Windows.Services;
+namespace AetherMesh.Transport.Windows.Services;
 
 /// <summary>
 /// Wi-Fi Direct transport for Aether Green.

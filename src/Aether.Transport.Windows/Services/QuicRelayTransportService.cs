@@ -24,11 +24,11 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Aether.Transport.Abstractions;
-using Aether.Transport.Models;
+using AetherMesh.Transport.Abstractions;
+using AetherMesh.Transport.Models;
 using Microsoft.Extensions.Logging;
 
-namespace Aether.Transport.Windows.Services;
+namespace AetherMesh.Transport.Windows.Services;
 
 /// <summary>
 /// Cellular relay transport using HTTP/3 (QUIC) for reduced head-of-line blocking and

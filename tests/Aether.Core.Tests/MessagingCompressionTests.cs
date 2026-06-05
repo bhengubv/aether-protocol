@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Core.Tests.Fakes;
-using Aether.Messaging;
-using Aether.Messaging.Models;
-using Aether.Models;
-using Aether.Protocol;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Tests for <see cref="MessagingService"/>'s optional Brotli payload compression.

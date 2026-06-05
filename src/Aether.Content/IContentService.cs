@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Content.Models;
-using Aether.Protocol;
+using AetherMesh.Content.Models;
+using AetherMesh.Protocol;
 
-namespace Aether.Content;
+namespace AetherMesh.Content;
 
 /// <summary>
 /// Chunked content distribution. Senders publish a <see cref="ContentDescriptor"/>

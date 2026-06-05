@@ -3,7 +3,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Aether.Security.Services;
+namespace AetherMesh.Security.Services;
 
 /// <summary>
 /// Serialisable snapshot of <see cref="SignalSession"/>. Used by

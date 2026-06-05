@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
+using AetherMesh.Protocol;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Round-trip tests for <see cref="PacketSerializer"/>. Mirror of the Swift

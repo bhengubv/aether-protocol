@@ -25,9 +25,9 @@
 
 using System;
 using System.Collections.Generic;
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 
-namespace Aether.Transport.Fec;
+namespace AetherMesh.Transport.Fec;
 
 /// <summary>
 /// Arıkan polar erasure codec operating on 64-byte symbols.

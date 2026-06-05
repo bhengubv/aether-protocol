@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 public class Ed25519SigningServiceTests
 {

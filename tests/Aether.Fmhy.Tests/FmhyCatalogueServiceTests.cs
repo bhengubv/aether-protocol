@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Fmhy;
-using Aether.Fmhy.Models;
+using AetherMesh.Fmhy;
+using AetherMesh.Fmhy.Models;
 using Xunit;
 
-namespace Aether.Fmhy.Tests;
+namespace AetherMesh.Fmhy.Tests;
 
 public sealed class FmhyCatalogueServiceTests
 {

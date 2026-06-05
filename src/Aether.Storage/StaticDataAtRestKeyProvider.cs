@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// Simple <see cref="IDataAtRestKeyProvider"/> backed by one or more

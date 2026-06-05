@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Voice.Models;
+using AetherMesh.Voice.Models;
 
-namespace Aether.Voice;
+namespace AetherMesh.Voice;
 
 /// <summary>
 /// Time-based jitter buffer. Frames are inserted as they arrive (potentially out of order
@@ -32,8 +32,8 @@ public sealed class JitterBuffer
     }
 
     public JitterBuffer(
-        int targetDepthMs = Aether.Constants.ProtocolConstants.JitterBufferTargetMs,
-        int maxDepthMs = Aether.Constants.ProtocolConstants.JitterBufferMaxMs)
+        int targetDepthMs = AetherMesh.Constants.ProtocolConstants.JitterBufferTargetMs,
+        int maxDepthMs = AetherMesh.Constants.ProtocolConstants.JitterBufferMaxMs)
     {
         if (targetDepthMs <= 0) throw new ArgumentOutOfRangeException(nameof(targetDepthMs));
         if (maxDepthMs < targetDepthMs) throw new ArgumentOutOfRangeException(nameof(maxDepthMs));

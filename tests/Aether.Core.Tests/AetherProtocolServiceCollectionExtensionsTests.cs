@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Core.Tests.Fakes;
-using Aether.DependencyInjection;
-using Aether.Dtn;
-using Aether.Messaging;
-using Aether.Routing;
-using Aether.Security.Services;
-using Aether.Sos;
-using Aether.Transport.Services;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.DependencyInjection;
+using AetherMesh.Dtn;
+using AetherMesh.Messaging;
+using AetherMesh.Routing;
+using AetherMesh.Security.Services;
+using AetherMesh.Sos;
+using AetherMesh.Transport.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Verifies the public surface of <c>services.AddAetherProtocol(...)</c>:

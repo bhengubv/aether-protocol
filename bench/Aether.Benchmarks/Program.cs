@@ -2,7 +2,7 @@
 
 using BenchmarkDotNet.Running;
 
-namespace Aether.Benchmarks;
+namespace AetherMesh.Benchmarks;
 
 /// <summary>
 /// Entry point for the Aether benchmark suite.

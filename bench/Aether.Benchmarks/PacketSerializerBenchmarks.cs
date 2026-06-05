@@ -2,10 +2,10 @@
 
 using System.Security.Cryptography;
 using System.Text;
-using Aether.Protocol;
+using AetherMesh.Protocol;
 using BenchmarkDotNet.Attributes;
 
-namespace Aether.Benchmarks;
+namespace AetherMesh.Benchmarks;
 
 /// <summary>
 /// Wire-format serializer/deserializer hot paths.

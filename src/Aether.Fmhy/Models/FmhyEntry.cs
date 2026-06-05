@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Fmhy.Models;
+namespace AetherMesh.Fmhy.Models;
 
 /// <summary>
 /// A single resource entry parsed from the FMHY directory.

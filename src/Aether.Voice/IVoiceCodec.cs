@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Voice;
+namespace AetherMesh.Voice;
 
 /// <summary>
 /// Codec abstraction. The open-source repo ships no real audio codec — hosts wire
@@ -13,7 +13,7 @@ namespace Aether.Voice;
 /// </summary>
 public interface IVoiceCodec
 {
-    /// <summary>Codec identifier matched against <see cref="Aether.Voice.Models.VoiceSignalingMessage.ProposedCodecs"/> ("opus", "speex", "pcm-passthrough", …).</summary>
+    /// <summary>Codec identifier matched against <see cref="AetherMesh.Voice.Models.VoiceSignalingMessage.ProposedCodecs"/> ("opus", "speex", "pcm-passthrough", …).</summary>
     string Name { get; }
 
     /// <summary>Sample rate in Hz this codec instance is configured for.</summary>
@@ -40,7 +40,7 @@ public sealed class PassThroughVoiceCodec : IVoiceCodec
     public int SampleRateHz { get; }
     public int FrameDurationMs { get; }
 
-    public PassThroughVoiceCodec(int sampleRateHz = 16_000, int frameDurationMs = Aether.Constants.ProtocolConstants.VoiceFrameDurationMs)
+    public PassThroughVoiceCodec(int sampleRateHz = 16_000, int frameDurationMs = AetherMesh.Constants.ProtocolConstants.VoiceFrameDurationMs)
     {
         if (sampleRateHz <= 0) throw new ArgumentOutOfRangeException(nameof(sampleRateHz));
         if (frameDurationMs <= 0) throw new ArgumentOutOfRangeException(nameof(frameDurationMs));

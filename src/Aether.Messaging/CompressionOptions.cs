@@ -2,7 +2,7 @@
 
 using System.IO.Compression;
 
-namespace Aether.Messaging;
+namespace AetherMesh.Messaging;
 
 /// <summary>
 /// Optional Brotli payload compression for <see cref="MessagingService"/>.

@@ -2,9 +2,9 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// <see cref="IPreKeyStore"/> implementation backed by an arbitrary

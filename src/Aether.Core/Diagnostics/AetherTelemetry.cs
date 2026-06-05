@@ -5,7 +5,7 @@ using System.Diagnostics.Metrics;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Aether.Diagnostics;
+namespace AetherMesh.Diagnostics;
 
 /// <summary>
 /// OpenTelemetry-compatible instrumentation surface for the Aether
@@ -32,7 +32,7 @@ namespace Aether.Diagnostics;
 ///
 /// <para>
 /// PII safety: all UHID-typed activity tags MUST be passed through
-/// <c>Aether.Security.Services.LogSanitizer.SanitizeUhid</c> before
+/// <c>AetherMesh.Security.Services.LogSanitizer.SanitizeUhid</c> before
 /// being attached. The instruments and sources are public so callers
 /// outside the assembly (test hosts, observability infra) can subscribe.
 /// </para>
@@ -237,7 +237,7 @@ public static class AetherTelemetry
 
     /// <summary>
     /// Sanitizes a UHID for safe attachment as an activity tag. Mirrors the
-    /// scheme used by <c>Aether.Security.Services.LogSanitizer.SanitizeUhid</c>:
+    /// scheme used by <c>AetherMesh.Security.Services.LogSanitizer.SanitizeUhid</c>:
     /// first 4 chars + "..." + 4 chars of a SHA-256 hash salted by the UTC
     /// date — correlatable within a day, opaque across days, never the full
     /// identifier.

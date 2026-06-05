@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Transport.Models;
+using AetherMesh.Transport.Models;
 
-namespace Aether.Transport.Abstractions;
+namespace AetherMesh.Transport.Abstractions;
 
 /// <summary>
 /// Manages multiple transport backends and routes data through the best available transport.

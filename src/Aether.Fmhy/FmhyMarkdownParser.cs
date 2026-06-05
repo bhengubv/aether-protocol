@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.RegularExpressions;
-using Aether.Fmhy.Models;
+using AetherMesh.Fmhy.Models;
 
-namespace Aether.Fmhy;
+namespace AetherMesh.Fmhy;
 
 /// <summary>
 /// Parses the FMHY single-page Markdown dump into a flat list of <see cref="FmhyEntry"/> records.

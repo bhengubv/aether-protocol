@@ -15,15 +15,15 @@
 // integration end-to-end.  Individual unit tests for each component live in
 // Aether.Core.Tests and Aether.Market.Tests respectively.
 
-using Aether.Extensibility;
-using Aether.Handshake;
-using Aether.Market;
-using Aether.Market.Models;
-using Aether.Protocol;
-using Aether.Routing;
+using AetherMesh.Extensibility;
+using AetherMesh.Handshake;
+using AetherMesh.Market;
+using AetherMesh.Market.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
 using Xunit;
 
-namespace Aether.Market.Tests;
+namespace AetherMesh.Market.Tests;
 
 // ── Inline fakes ──────────────────────────────────────────────────────────────
 

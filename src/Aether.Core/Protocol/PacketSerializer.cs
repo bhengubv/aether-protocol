@@ -3,7 +3,7 @@
 using System.Buffers.Binary;
 using System.Text;
 
-namespace Aether.Protocol;
+namespace AetherMesh.Protocol;
 
 /// <summary>
 /// Binary serializer/deserializer for <see cref="MeshPacket"/>.

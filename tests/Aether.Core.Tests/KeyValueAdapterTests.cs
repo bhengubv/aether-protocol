@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Messaging.Models;
-using Aether.Models;
-using Aether.Storage;
+using AetherMesh.Messaging.Models;
+using AetherMesh.Models;
+using AetherMesh.Storage;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Unit tests for the three KV-backed store adapters in <c>Aether.Storage</c>:

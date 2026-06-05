@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Voice;
+namespace AetherMesh.Voice;
 
 /// <summary>
 /// Sender-key seam for group voice. The host generates a fresh group key on every

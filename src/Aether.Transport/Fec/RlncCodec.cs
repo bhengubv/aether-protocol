@@ -20,9 +20,9 @@
 
 using System;
 using System.Security.Cryptography;
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 
-namespace Aether.Transport.Fec;
+namespace AetherMesh.Transport.Fec;
 
 // ── GF(2⁸) arithmetic ─────────────────────────────────────────────────────────
 

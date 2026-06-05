@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Constants;
-using Aether.Diagnostics;
-using Aether.Extensibility;
-using Aether.Extensibility.Events;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Reputation;
+using AetherMesh.Constants;
+using AetherMesh.Diagnostics;
+using AetherMesh.Extensibility;
+using AetherMesh.Extensibility.Events;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Reputation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Routing;
+namespace AetherMesh.Routing;
 
 /// <summary>
 /// AODV-inspired reactive routing. RREQ floods the mesh; the destination (or any node

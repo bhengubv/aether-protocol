@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// Generic byte-array-keyed-by-string persistence primitive used as the foundation

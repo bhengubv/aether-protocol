@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Routing;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
 
-namespace Aether.Soak.Tests;
+namespace AetherMesh.Soak.Tests;
 
 /// <summary>
 /// Bare-bones in-memory <see cref="IMeshSender"/> for soak tests. Different

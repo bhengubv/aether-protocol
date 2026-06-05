@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Transport.Abstractions;
-using Aether.Transport.Models;
-using Aether.Transport.NearLink;
+using AetherMesh.Transport.Abstractions;
+using AetherMesh.Transport.Models;
+using AetherMesh.Transport.NearLink;
 using Microsoft.Extensions.Logging;
 
-namespace Aether.Transport.Services;
+namespace AetherMesh.Transport.Services;
 
 /// <summary>
 /// Multi-transport manager that routes packets through the best available transport.

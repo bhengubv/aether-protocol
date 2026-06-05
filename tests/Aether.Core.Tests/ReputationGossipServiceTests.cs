@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Reputation;
-using Aether.Routing;
-using Aether.Security.Services;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Reputation;
+using AetherMesh.Routing;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="ReputationGossipService"/>. Uses fakes for

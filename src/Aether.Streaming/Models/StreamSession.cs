@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Streaming.Models;
+namespace AetherMesh.Streaming.Models;
 
 /// <summary>
 /// Lifecycle state of a live stream from this node's perspective.
 /// </summary>
 public enum StreamState : byte
 {
-    /// <summary>Initial state; <see cref="Aether.Protocol.PacketType.StreamAnnounce"/> not yet broadcast.</summary>
+    /// <summary>Initial state; <see cref="AetherMesh.Protocol.PacketType.StreamAnnounce"/> not yet broadcast.</summary>
     Idle = 0,
     /// <summary>Publisher actively producing segments.</summary>
     Live = 1,
@@ -55,7 +55,7 @@ public sealed class StreamSession
     public string Codec { get; set; } = string.Empty;
 
     /// <summary>Segment duration in milliseconds. Each <see cref="StreamSegment"/> covers exactly this much wall-clock audio/video.</summary>
-    public int SegmentDurationMs { get; set; } = Aether.Constants.ProtocolConstants.StreamSegmentDurationMs;
+    public int SegmentDurationMs { get; set; } = AetherMesh.Constants.ProtocolConstants.StreamSegmentDurationMs;
 
     /// <summary>UTC timestamp the stream went live (or the announcement was received).</summary>
     public DateTime StartedAt { get; set; } = DateTime.UtcNow;

@@ -2,13 +2,13 @@
 
 using System.Security.Cryptography;
 using System.Text;
-using Aether.Security.Models;
-using Aether.Security.Services;
-using Aether.Storage;
+using AetherMesh.Security.Models;
+using AetherMesh.Security.Services;
+using AetherMesh.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Verifies the signed-pre-key rotation policy:

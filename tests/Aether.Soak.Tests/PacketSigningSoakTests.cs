@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Protocol;
-using Aether.Security.Services;
+using AetherMesh.Protocol;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Soak.Tests;
+namespace AetherMesh.Soak.Tests;
 
 /// <summary>
 /// Soak tests for <see cref="PacketSigningService"/>. The service holds a

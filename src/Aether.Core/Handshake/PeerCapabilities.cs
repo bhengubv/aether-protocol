@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Handshake;
+namespace AetherMesh.Handshake;
 
 /// <summary>
 /// The negotiated protocol-version + capability set for a remote peer, locked

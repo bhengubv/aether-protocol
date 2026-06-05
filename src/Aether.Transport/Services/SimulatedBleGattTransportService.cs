@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Transport.Abstractions;
-using Aether.Transport.Models;
+using AetherMesh.Transport.Abstractions;
+using AetherMesh.Transport.Models;
 
-namespace Aether.Transport.Services;
+namespace AetherMesh.Transport.Services;
 
 /// <summary>
 /// In-process simulation of a BLE GATT transport. Two or more instances registered with

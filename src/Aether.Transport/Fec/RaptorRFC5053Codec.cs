@@ -27,9 +27,9 @@
 
 using System;
 using System.Collections.Generic;
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 
-namespace Aether.Transport.Fec;
+namespace AetherMesh.Transport.Fec;
 
 /// <summary>
 /// Rateless Raptor fountain codec (RFC 5053 LT layer) operating on byte-block symbols.

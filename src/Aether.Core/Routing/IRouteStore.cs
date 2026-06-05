@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
+using AetherMesh.Models;
 
-namespace Aether.Routing;
+namespace AetherMesh.Routing;
 
 /// <summary>
 /// Persistent backing store for the routing table. The default implementation

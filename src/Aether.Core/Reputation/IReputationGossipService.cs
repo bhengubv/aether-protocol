@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
+using AetherMesh.Protocol;
 
-namespace Aether.Reputation;
+namespace AetherMesh.Reputation;
 
 /// <summary>
 /// Signs, broadcasts, and handles <see cref="PacketType.ReputationUpdate"/> gossip packets.

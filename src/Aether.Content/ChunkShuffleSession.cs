@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Constants;
-using Aether.Content.Models;
+using AetherMesh.Constants;
+using AetherMesh.Content.Models;
 
-namespace Aether.Content;
+namespace AetherMesh.Content;
 
 /// <summary>
 /// Coordinates parallel multi-peer chunk download using the <em>Chunk Shuffle</em>

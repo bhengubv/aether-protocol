@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Extensibility;
+using AetherMesh.Extensibility;
 
-namespace Aether.Core.Tests.Fakes;
+namespace AetherMesh.Core.Tests.Fakes;
 
 /// <summary>
 /// Configurable <see cref="IBiometricProvider"/> fake for unit testing.

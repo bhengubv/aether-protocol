@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Vault.Models;
+namespace AetherMesh.Vault.Models;
 
 /// <summary>One encrypted shard of a vaulted file.</summary>
 public sealed class VaultShard

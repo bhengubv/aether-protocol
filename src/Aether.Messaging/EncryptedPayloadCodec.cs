@@ -2,9 +2,9 @@
 
 using System.Text;
 using System.Text.Json;
-using Aether.Security.Models;
+using AetherMesh.Security.Models;
 
-namespace Aether.Messaging;
+namespace AetherMesh.Messaging;
 
 /// <summary>
 /// JSON wire codec for <see cref="EncryptedPayload"/>. Used by

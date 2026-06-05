@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Extensibility.Events;
+namespace AetherMesh.Extensibility.Events;
 
 /// <summary>Kinds of routing changes Aether can emit.</summary>
 public enum AetherRouteEventKind : byte

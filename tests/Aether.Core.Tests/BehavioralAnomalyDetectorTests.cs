@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Reputation;
+using AetherMesh.Reputation;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="BehavioralAnomalyDetector"/>.

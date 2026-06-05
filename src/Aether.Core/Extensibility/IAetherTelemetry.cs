@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Extensibility.Events;
+using AetherMesh.Extensibility.Events;
 
-namespace Aether.Extensibility;
+namespace AetherMesh.Extensibility;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Telemetry publication surface

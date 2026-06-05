@@ -2,17 +2,17 @@
 
 using System.IO.Compression;
 using System.Text.Json;
-using Aether.Diagnostics;
-using Aether.Dtn;
-using Aether.Extensibility;
-using Aether.Messaging.Models;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Routing;
+using AetherMesh.Diagnostics;
+using AetherMesh.Dtn;
+using AetherMesh.Extensibility;
+using AetherMesh.Messaging.Models;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Messaging;
+namespace AetherMesh.Messaging;
 
 /// <summary>
 /// Default messaging service. Composes the existing Aether seams:

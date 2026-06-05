@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-using Aether.Forge;
-using Aether.Forge.Models;
+using AetherMesh.Forge;
+using AetherMesh.Forge.Models;
 using Xunit;
 
-namespace Aether.Forge.Tests;
+namespace AetherMesh.Forge.Tests;
 
 public sealed class ForgeServiceTests
 {

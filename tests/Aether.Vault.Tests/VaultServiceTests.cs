@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-using Aether.Vault;
-using Aether.Vault.Models;
+using AetherMesh.Vault;
+using AetherMesh.Vault.Models;
 using Xunit;
 
-namespace Aether.Vault.Tests;
+namespace AetherMesh.Vault.Tests;
 
 public sealed class VaultServiceTests
 {

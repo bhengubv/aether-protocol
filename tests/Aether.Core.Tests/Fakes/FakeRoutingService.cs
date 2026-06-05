@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Routing;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
 
-namespace Aether.Core.Tests.Fakes;
+namespace AetherMesh.Core.Tests.Fakes;
 
 /// <summary>
 /// Minimal in-memory <see cref="IRoutingService"/> for streaming/voice/video tests.

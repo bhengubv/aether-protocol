@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Extensibility.Events;
+namespace AetherMesh.Extensibility.Events;
 
 /// <summary>Mesh-wide topology and congestion observations.</summary>
 public enum AetherNetworkEventKind : byte

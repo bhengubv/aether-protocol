@@ -2,14 +2,14 @@
 
 using System.Buffers.Binary;
 using System.Text.Json;
-using Aether.Core.Tests.Fakes;
-using Aether.Protocol;
-using Aether.Routing;
-using Aether.Voice;
-using Aether.Voice.Models;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
+using AetherMesh.Voice;
+using AetherMesh.Voice.Models;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 public class VoiceCallServiceTests
 {

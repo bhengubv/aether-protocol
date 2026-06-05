@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Storage;
+using AetherMesh.Storage;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="InMemoryKeyValueStore"/>. The in-memory store is the

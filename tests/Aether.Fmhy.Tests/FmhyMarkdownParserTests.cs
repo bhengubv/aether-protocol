@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Fmhy;
+using AetherMesh.Fmhy;
 using Xunit;
 
-namespace Aether.Fmhy.Tests;
+namespace AetherMesh.Fmhy.Tests;
 
 public sealed class FmhyMarkdownParserTests
 {

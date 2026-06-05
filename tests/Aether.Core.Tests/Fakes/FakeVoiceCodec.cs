@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Voice;
+using AetherMesh.Voice;
 
-namespace Aether.Core.Tests.Fakes;
+namespace AetherMesh.Core.Tests.Fakes;
 
 /// <summary>
 /// Trivial non-stateful codec for unit tests. <see cref="Encode"/> packs PCM samples

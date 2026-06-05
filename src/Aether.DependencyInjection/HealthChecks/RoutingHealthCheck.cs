@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Routing;
+using AetherMesh.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-namespace Aether.DependencyInjection.HealthChecks;
+namespace AetherMesh.DependencyInjection.HealthChecks;
 
 /// <summary>
 /// Reports the size of the in-memory routing table as a coarse-grained

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
-using Aether.Vault.Models;
+using AetherMesh.Vault.Models;
 
-namespace Aether.Vault;
+namespace AetherMesh.Vault;
 
 /// <summary>
 /// In-memory <see cref="IVaultService"/> implementation for testing and

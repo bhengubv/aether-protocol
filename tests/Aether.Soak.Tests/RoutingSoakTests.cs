@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
-using Aether.Routing;
+using AetherMesh.Models;
+using AetherMesh.Routing;
 using Xunit;
 
-namespace Aether.Soak.Tests;
+namespace AetherMesh.Soak.Tests;
 
 /// <summary>
 /// Soak tests for the routing layer's bounded caches:

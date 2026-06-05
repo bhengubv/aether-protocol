@@ -3,7 +3,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Aether.Handshake;
+namespace AetherMesh.Handshake;
 
 /// <summary>
 /// Wire payload carried inside a <c>PacketType.Hello</c> or

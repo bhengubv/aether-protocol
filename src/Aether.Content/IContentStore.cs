@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Content.Models;
+using AetherMesh.Content.Models;
 
-namespace Aether.Content;
+namespace AetherMesh.Content;
 
 /// <summary>
 /// Persistence boundary for content descriptors and chunks. Hosts that want

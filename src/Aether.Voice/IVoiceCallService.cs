@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
-using Aether.Voice.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Voice.Models;
 
-namespace Aether.Voice;
+namespace AetherMesh.Voice;
 
 /// <summary>
 /// Coordinates 1-to-1 voice calls over the mesh. Hosts call <see cref="PlaceAsync"/>

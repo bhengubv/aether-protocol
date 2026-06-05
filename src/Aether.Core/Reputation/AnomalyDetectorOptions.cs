@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Reputation;
+namespace AetherMesh.Reputation;
 
 /// <summary>
 /// Tuneable thresholds for <see cref="BehavioralAnomalyDetector"/>.

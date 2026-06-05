@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Security.Models;
+namespace AetherMesh.Security.Models;
 
 /// <summary>
 /// Represents an asymmetric key pair.

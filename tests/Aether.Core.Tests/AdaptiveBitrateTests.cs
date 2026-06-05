@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 using System.Buffers.Binary;
-using Aether.Core.Tests.Fakes;
-using Aether.Protocol;
-using Aether.Streaming;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.Protocol;
+using AetherMesh.Streaming;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 public class AdaptiveBitrateTests
 {
@@ -147,7 +147,7 @@ public class AdaptiveBitrateTests
         const string sub = "sub-1";
         routing.SetRoute(sub, sub);
         var subscribePayload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
-            new Aether.Streaming.Models.StreamSubscribePayload { StreamId = session.Id, LiveOnly = true },
+            new AetherMesh.Streaming.Models.StreamSubscribePayload { StreamId = session.Id, LiveOnly = true },
             new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower });
         await svc.HandleAsync(new MeshPacket
         {

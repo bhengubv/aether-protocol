@@ -3,10 +3,10 @@
 using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
-using Aether.Models;
-using Aether.Routing;
+using AetherMesh.Models;
+using AetherMesh.Routing;
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// <see cref="IRouteStore"/> implementation backed by an arbitrary

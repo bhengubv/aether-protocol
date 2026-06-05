@@ -4,12 +4,12 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Text;
-using Aether.Diagnostics;
-using Aether.Security.Services;
+using AetherMesh.Diagnostics;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Verifies the OpenTelemetry-compatible instrumentation surface published

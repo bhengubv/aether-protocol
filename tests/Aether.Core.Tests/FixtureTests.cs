@@ -2,10 +2,10 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Aether.Protocol;
+using AetherMesh.Protocol;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Cross-language wire-format fixture verifier. Reads fixtures/inputs.json and

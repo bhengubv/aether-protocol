@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Content.Models;
+namespace AetherMesh.Content.Models;
 
 /// <summary>
-/// Cross-language stable wire payload for <see cref="Aether.Protocol.PacketType.ChunkRequest"/>.
+/// Cross-language stable wire payload for <see cref="AetherMesh.Protocol.PacketType.ChunkRequest"/>.
 /// JSON-encoded with snake_case names. Receiver replies with a matching
 /// <see cref="ChunkDataPayload"/> per requested chunk.
 /// </summary>
@@ -17,7 +17,7 @@ public sealed class ChunkRequestPayload
 }
 
 /// <summary>
-/// Cross-language stable wire payload for <see cref="Aether.Protocol.PacketType.ChunkData"/>.
+/// Cross-language stable wire payload for <see cref="AetherMesh.Protocol.PacketType.ChunkData"/>.
 /// One chunk per packet — keeps responses simple and friendly to BLE MTU limits.
 /// </summary>
 public sealed class ChunkDataPayload
@@ -33,7 +33,7 @@ public sealed class ChunkDataPayload
 }
 
 /// <summary>
-/// Cross-language stable wire payload for <see cref="Aether.Protocol.PacketType.TorrentMetadata"/>.
+/// Cross-language stable wire payload for <see cref="AetherMesh.Protocol.PacketType.TorrentMetadata"/>.
 /// Carries a serialized <see cref="ContentDescriptor"/> so a peer can advertise content
 /// before any chunk transfer begins.
 /// </summary>

@@ -2,7 +2,7 @@
 
 using NSec.Cryptography;
 
-namespace Aether.Security.Services;
+namespace AetherMesh.Security.Services;
 
 /// <summary>
 /// Static Ed25519 signing service using NSec/libsodium.

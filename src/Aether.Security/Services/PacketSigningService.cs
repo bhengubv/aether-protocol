@@ -4,12 +4,12 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
-using Aether.Diagnostics;
-using Aether.Protocol;
-using Aether.Reputation;
+using AetherMesh.Diagnostics;
+using AetherMesh.Protocol;
+using AetherMesh.Reputation;
 using Microsoft.Extensions.Logging;
 
-namespace Aether.Security.Services;
+namespace AetherMesh.Security.Services;
 
 /// <summary>
 /// Signs and verifies MeshPacket signatures for authentication and replay protection.

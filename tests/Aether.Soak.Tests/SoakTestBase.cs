@@ -2,7 +2,7 @@
 
 using System.Diagnostics;
 
-namespace Aether.Soak.Tests;
+namespace AetherMesh.Soak.Tests;
 
 /// <summary>
 /// Base class for the soak suite. Provides:

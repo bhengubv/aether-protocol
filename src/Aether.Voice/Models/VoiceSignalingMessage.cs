@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Voice.Models;
+namespace AetherMesh.Voice.Models;
 
 /// <summary>
 /// Kind of voice signaling message. Carried in the JSON payload of a
-/// <see cref="Aether.Protocol.PacketType.VoiceSignaling"/> packet under the <c>kind</c> field.
+/// <see cref="AetherMesh.Protocol.PacketType.VoiceSignaling"/> packet under the <c>kind</c> field.
 /// </summary>
 public enum SignalingKind : byte
 {
@@ -21,7 +21,7 @@ public enum SignalingKind : byte
 }
 
 /// <summary>
-/// Signaling envelope serialized into <see cref="Aether.Protocol.PacketType.VoiceSignaling"/>
+/// Signaling envelope serialized into <see cref="AetherMesh.Protocol.PacketType.VoiceSignaling"/>
 /// packet payloads. JSON-encoded with snake_case property names so other-language
 /// implementations can produce / consume identical bytes.
 /// </summary>

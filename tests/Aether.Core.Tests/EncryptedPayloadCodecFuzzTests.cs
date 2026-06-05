@@ -3,18 +3,18 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Aether.Messaging;
+using AetherMesh.Messaging;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Fuzz exercises for <see cref="EncryptedPayloadCodec.Deserialize"/>.
 ///
 /// The codec parses an untrusted JSON envelope off the wire (Base64-encoded
 /// ciphertext + nonce + metadata). Contract: for ANY input the codec must
-/// EITHER return a valid <see cref="Aether.Security.Models.EncryptedPayload"/>
+/// EITHER return a valid <see cref="AetherMesh.Security.Models.EncryptedPayload"/>
 /// OR throw one of the documented exception types. It must NEVER:
 ///   - throw an unhandled / uncaught exception of an undocumented type,
 ///   - hang in an infinite loop,

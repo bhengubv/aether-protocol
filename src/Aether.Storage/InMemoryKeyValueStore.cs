@@ -3,7 +3,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// Process-local, volatile key-value store backed by <see cref="ConcurrentDictionary{TKey, TValue}"/>.

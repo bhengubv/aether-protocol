@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
+using AetherMesh.Models;
 
-namespace Aether.Dtn;
+namespace AetherMesh.Dtn;
 
 /// <summary>
 /// Persistent backing store for DTN bundles and their custody records.

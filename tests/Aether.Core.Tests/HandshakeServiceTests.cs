@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json;
-using Aether.Constants;
-using Aether.Core.Tests.Fakes;
-using Aether.Extensibility;
-using Aether.Handshake;
-using Aether.Protocol;
+using AetherMesh.Constants;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.Extensibility;
+using AetherMesh.Handshake;
+using AetherMesh.Protocol;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Coverage for the protocol-version + capability negotiation surface

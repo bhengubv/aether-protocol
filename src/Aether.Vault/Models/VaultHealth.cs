@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Vault.Models;
+namespace AetherMesh.Vault.Models;
 
 /// <summary>Current health report for a vaulted file.</summary>
 public sealed class VaultHealth

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
-using Aether.Streaming.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Streaming.Models;
 
-namespace Aether.Streaming;
+namespace AetherMesh.Streaming;
 
 /// <summary>
 /// Coordinates multi-party (group) video calls over the Aether mesh.
 ///
 /// Topology is auto-managed: when active participant count is below
-/// <see cref="Aether.Constants.ProtocolConstants.SfuThresholdParticipants"/> the session runs
+/// <see cref="AetherMesh.Constants.ProtocolConstants.SfuThresholdParticipants"/> the session runs
 /// as FullMesh (every sender unicasts to every other participant). At or above
 /// that threshold the session switches to SFU mode where every sender unicasts
 /// only to the relay node which fans the frame out.

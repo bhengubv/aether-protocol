@@ -2,16 +2,16 @@
 
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Aether.Constants;
-using Aether.Diagnostics;
-using Aether.Extensibility;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Routing;
+using AetherMesh.Constants;
+using AetherMesh.Diagnostics;
+using AetherMesh.Extensibility;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Sos;
+namespace AetherMesh.Sos;
 
 /// <summary>
 /// Default SOS service. Originates SOS broadcasts as flooded

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Content.Models;
+namespace AetherMesh.Content.Models;
 
 /// <summary>
-/// Cross-language stable wire payload for <see cref="Aether.Protocol.PacketType.ChunkBitmap"/>.
+/// Cross-language stable wire payload for <see cref="AetherMesh.Protocol.PacketType.ChunkBitmap"/>.
 ///
 /// <para>
 /// A node broadcasts this packet to announce which chunks of a particular content

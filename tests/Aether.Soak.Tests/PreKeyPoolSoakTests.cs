@@ -2,11 +2,11 @@
 
 using System.Collections.Concurrent;
 using System.Text;
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Soak.Tests;
+namespace AetherMesh.Soak.Tests;
 
 /// <summary>
 /// Soak tests for the one-time pre-key pool. The pool tops up to

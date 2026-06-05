@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 using System.Collections.Concurrent;
-using Aether.Forge.Models;
+using AetherMesh.Forge.Models;
 
-namespace Aether.Forge;
+namespace AetherMesh.Forge;
 
 /// <summary>
 /// In-memory implementation of <see cref="IForgeService"/> for testing and

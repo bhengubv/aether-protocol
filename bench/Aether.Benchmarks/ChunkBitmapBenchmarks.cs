@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 using System.Security.Cryptography;
-using Aether.Content.Models;
+using AetherMesh.Content.Models;
 using BenchmarkDotNet.Attributes;
 
-namespace Aether.Benchmarks;
+namespace AetherMesh.Benchmarks;
 
 /// <summary>
 /// Benchmarks for the <see cref="ChunkBitmapPayload"/> bitset codec —

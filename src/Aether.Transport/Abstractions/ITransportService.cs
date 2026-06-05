@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
-using Aether.Transport.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Transport.Models;
 
-namespace Aether.Transport.Abstractions;
+namespace AetherMesh.Transport.Abstractions;
 
 /// <summary>
 /// Generic transport interface that all mesh networking backends must implement.
@@ -26,7 +26,7 @@ public interface ITransportService
 
     /// <summary>
     /// Relative power cost of using this transport (0 = free, higher = more expensive).
-    /// Used by <see cref="Aether.Transport.Services.TransportManager"/> to prefer lower-cost transports.
+    /// Used by <see cref="AetherMesh.Transport.Services.TransportManager"/> to prefer lower-cost transports.
     /// </summary>
     int PowerCostRelative { get; }
 

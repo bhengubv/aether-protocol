@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Messaging;
+namespace AetherMesh.Messaging;
 
 /// <summary>
 /// Encrypts plaintext message bodies for a specific recipient and decrypts incoming

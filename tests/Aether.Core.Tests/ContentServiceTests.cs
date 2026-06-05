@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json;
-using Aether.Constants;
-using Aether.Content;
-using Aether.Content.Models;
-using Aether.Core.Tests.Fakes;
-using Aether.Protocol;
-using Aether.Routing;
+using AetherMesh.Constants;
+using AetherMesh.Content;
+using AetherMesh.Content.Models;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 public class ContentServiceTests
 {

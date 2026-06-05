@@ -5,9 +5,9 @@
 
 using System.Security.Cryptography;
 using System.Text;
-using Aether.Protocol;
-using Aether.Transport;
-using Aether.Transport.Windows.Services;
+using AetherMesh.Protocol;
+using AetherMesh.Transport;
+using AetherMesh.Transport.Windows.Services;
 using Microsoft.Extensions.Logging;
 
 Console.OutputEncoding = Encoding.UTF8;

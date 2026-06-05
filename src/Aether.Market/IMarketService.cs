@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-using Aether.Market.Models;
+using AetherMesh.Market.Models;
 
-namespace Aether.Market;
+namespace AetherMesh.Market;
 
 /// <summary>
 /// Offline-capable P2P marketplace (aether-market Phase-2 extension).

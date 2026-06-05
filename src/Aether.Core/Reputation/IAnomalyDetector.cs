@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Reputation;
+namespace AetherMesh.Reputation;
 
 /// <summary>
 /// Observes raw behavioral signals from the mesh and detects anomalous patterns.

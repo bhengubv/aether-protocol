@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Content;
-using Aether.Dtn;
-using Aether.Forge;
-using Aether.Market;
-using Aether.Space;
-using Aether.Vault;
-using Aether.Extensibility;
-using Aether.Handshake;
-using Aether.Messaging;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Reputation;
-using Aether.Routing;
-using Aether.Security.Services;
-using Aether.Sos;
-using Aether.Streaming;
-using Aether.Transport.Services;
-using Aether.Voice;
+using AetherMesh.Content;
+using AetherMesh.Dtn;
+using AetherMesh.Forge;
+using AetherMesh.Market;
+using AetherMesh.Space;
+using AetherMesh.Vault;
+using AetherMesh.Extensibility;
+using AetherMesh.Handshake;
+using AetherMesh.Messaging;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Reputation;
+using AetherMesh.Routing;
+using AetherMesh.Security.Services;
+using AetherMesh.Sos;
+using AetherMesh.Streaming;
+using AetherMesh.Transport.Services;
+using AetherMesh.Voice;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace Aether.DependencyInjection;
+namespace AetherMesh.DependencyInjection;
 
 /// <summary>
 /// Sealed implementation of <see cref="IAetherProtocolBuilder"/>. Tracks which

@@ -38,11 +38,11 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Aether.Extensibility;
-using Aether.Transport.Abstractions;
-using Aether.Transport.Models;
+using AetherMesh.Extensibility;
+using AetherMesh.Transport.Abstractions;
+using AetherMesh.Transport.Models;
 
-namespace Aether.Transport.Services;
+namespace AetherMesh.Transport.Services;
 
 // ════════════════════════════════════════════════════════════════════════════════
 //  KalmanRttFilter — 2-state Kalman filter for RTT + drift
@@ -203,7 +203,7 @@ internal sealed class KalmanRttFilter
 /// top of <see cref="PerTransportMetrics"/> EWMA values.
 ///
 /// <para>
-/// Extends the EWMA-only transport selection in <see cref="Aether.Transport.Services.TransportManager"/>
+/// Extends the EWMA-only transport selection in <see cref="AetherMesh.Transport.Services.TransportManager"/>
 /// by replacing the static RTT term with the Kalman-estimated RTT (which reacts faster to degrading links) and adding a
 /// reliability penalty proportional to the Kalman variance (uncertain links are scored
 /// lower, even when their point estimate looks good).

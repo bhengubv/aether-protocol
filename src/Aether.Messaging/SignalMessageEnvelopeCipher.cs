@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Security.Models;
-using Aether.Security.Services;
+using AetherMesh.Security.Models;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Messaging;
+namespace AetherMesh.Messaging;
 
 /// <summary>
 /// <see cref="IMessageEnvelopeCipher"/> implementation backed by

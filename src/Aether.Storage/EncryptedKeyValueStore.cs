@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// Transparent encryption-at-rest wrapper for an arbitrary <see cref="IKeyValueStore"/>.

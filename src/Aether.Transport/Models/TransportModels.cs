@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Transport.Models;
+namespace AetherMesh.Transport.Models;
 
 /// <summary>
 /// Represents a BLE advertisement packet used for passive peer discovery.

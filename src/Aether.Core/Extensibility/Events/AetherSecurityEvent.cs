@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Extensibility.Events;
+namespace AetherMesh.Extensibility.Events;
 
 /// <summary>
 /// Protocol-level threat severity detected by Aether itself, before any AI

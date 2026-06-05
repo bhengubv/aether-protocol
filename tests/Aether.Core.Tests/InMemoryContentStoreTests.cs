@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Content;
-using Aether.Content.Models;
+using AetherMesh.Content;
+using AetherMesh.Content.Models;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 public class InMemoryContentStoreTests
 {

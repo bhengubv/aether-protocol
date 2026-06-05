@@ -4,12 +4,12 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Aether.Transport.Abstractions;
-using Aether.Transport.Models;
-using Aether.Transport.Services;
+using AetherMesh.Transport.Abstractions;
+using AetherMesh.Transport.Models;
+using AetherMesh.Transport.Services;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Unit tests for PredictiveTransportSelector — Kalman RTT filter and scoring.

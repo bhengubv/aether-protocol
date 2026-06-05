@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Messaging;
-using Aether.Messaging.Models;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Routing;
-using Aether.Security.Services;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Soak.Tests;
+namespace AetherMesh.Soak.Tests;
 
 /// <summary>
 /// Soak tests for <see cref="MessagingService"/>. These exercise the full

@@ -3,15 +3,15 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Aether.Constants;
-using Aether.Extensibility;
-using Aether.Protocol;
-using Aether.Routing;
-using Aether.Voice.Models;
+using AetherMesh.Constants;
+using AetherMesh.Extensibility;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
+using AetherMesh.Voice.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Voice;
+namespace AetherMesh.Voice;
 
 /// <summary>
 /// Default voice-call service. Manages per-call state, exchanges signaling messages

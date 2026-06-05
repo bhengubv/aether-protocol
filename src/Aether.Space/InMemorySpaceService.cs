@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 using System.Collections.Concurrent;
-using Aether.Space.Models;
+using AetherMesh.Space.Models;
 
-namespace Aether.Space;
+namespace AetherMesh.Space;
 
 /// <summary>
 /// In-memory implementation of <see cref="ISpaceService"/> for testing and

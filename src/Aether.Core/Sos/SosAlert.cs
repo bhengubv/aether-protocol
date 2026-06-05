@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Models;
+namespace AetherMesh.Models;
 
 /// <summary>
 /// An SOS alert observed on the mesh — either originated locally and broadcast

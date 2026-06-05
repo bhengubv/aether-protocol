@@ -2,7 +2,7 @@
 
 using System.Security.Cryptography;
 
-namespace Aether.Identity;
+namespace AetherMesh.Identity;
 
 /// <summary>
 /// Aether Tag — the human-readable, shareable identity address for an Aether node.

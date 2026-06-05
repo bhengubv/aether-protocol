@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Market.Models;
+namespace AetherMesh.Market.Models;
 
 /// <summary>Proof-of-Vicinity trust score for a node.</summary>
 public sealed class PoVScore

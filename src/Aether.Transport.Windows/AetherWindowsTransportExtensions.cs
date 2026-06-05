@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.DependencyInjection;
-using Aether.Transport.Abstractions;
-using Aether.Transport.NearLink;
-using Aether.Transport.Services;
-using Aether.Transport.Windows.Services;
+using AetherMesh.DependencyInjection;
+using AetherMesh.Transport.Abstractions;
+using AetherMesh.Transport.NearLink;
+using AetherMesh.Transport.Services;
+using AetherMesh.Transport.Windows.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace Aether.Transport.Windows;
+namespace AetherMesh.Transport.Windows;
 
 /// <summary>
 /// Wires all Windows-native transport backends into the Aether protocol DI stack.

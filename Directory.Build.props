@@ -21,7 +21,29 @@
 
     <!-- Version — bump in a single place before each release.
          Pre-release: set VersionSuffix in CI (e.g. -alpha.1, -rc.1). -->
-    <VersionPrefix>1.0.1</VersionPrefix>
+    <VersionPrefix>1.0.3</VersionPrefix>
+
+    <!-- AetherMesh identity — package, assembly AND namespace, fully consistent.
+         The `Aether.*` prefix on nuget.org is RESERVED by another owner
+         (nkast/tainicom, of Aether.Physics2D), so any push of an `Aether.*`
+         id is rejected with HTTP 409 "package ID is reserved". The whole .NET
+         surface is therefore published under the unreserved, unbranded
+         `AetherMesh.*` prefix.
+
+         As of 1.0.3, PackageId, AssemblyName and every C# `namespace` are all
+         `AetherMesh.*`: restoring `AetherMesh.Core` yields `AetherMesh.Core.dll`
+         containing `namespace AetherMesh.Core`. This is a deliberate breaking
+         change from 1.0.2 (which shipped `AetherMesh.*` packages that still
+         contained `Aether.*` assemblies/namespaces). Project folders, .csproj
+         filenames and the .slnx keep their `Aether.*` names — only the build
+         OUTPUT identity is renamed — so the publish script that globs
+         `src/Aether.*` is unaffected.
+
+         One transform drives all of it:
+           Aether.Core              -> AetherMesh.Core
+           Aether.Transport.Windows -> AetherMesh.Transport.Windows -->
+    <PackageId>$(MSBuildProjectName.Replace('Aether.', 'AetherMesh.'))</PackageId>
+    <AssemblyName>$(MSBuildProjectName.Replace('Aether.', 'AetherMesh.'))</AssemblyName>
 
     <!-- Source link + deterministic builds -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>

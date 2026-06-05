@@ -2,7 +2,7 @@
 
 using System.Security.Cryptography;
 
-namespace Aether.Content.Models;
+namespace AetherMesh.Content.Models;
 
 /// <summary>
 /// Manifest for a piece of chunked content. Identifies the content by a root hash
@@ -26,7 +26,7 @@ public sealed class ContentDescriptor
     public long TotalBytes { get; set; }
 
     /// <summary>Bytes per chunk for every chunk except possibly the last.</summary>
-    public int ChunkSizeBytes { get; set; } = Aether.Constants.ProtocolConstants.DefaultChunkSizeBytes;
+    public int ChunkSizeBytes { get; set; } = AetherMesh.Constants.ProtocolConstants.DefaultChunkSizeBytes;
 
     /// <summary>Total number of chunks. Equal to ceil(<see cref="TotalBytes"/> / <see cref="ChunkSizeBytes"/>).</summary>
     public int ChunkCount { get; set; }
@@ -47,7 +47,7 @@ public sealed class ContentDescriptor
     /// </summary>
     public static ContentDescriptor FromBytes(string name, ReadOnlySpan<byte> data, string contentType = "application/octet-stream", int chunkSizeBytes = 0)
     {
-        if (chunkSizeBytes <= 0) chunkSizeBytes = Aether.Constants.ProtocolConstants.DefaultChunkSizeBytes;
+        if (chunkSizeBytes <= 0) chunkSizeBytes = AetherMesh.Constants.ProtocolConstants.DefaultChunkSizeBytes;
         var chunkCount = (int)((data.Length + chunkSizeBytes - 1) / (long)chunkSizeBytes);
         var hashes = new string[chunkCount];
 

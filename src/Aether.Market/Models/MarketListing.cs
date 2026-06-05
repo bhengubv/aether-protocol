@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-using Aether.Vault.Models;
+using AetherMesh.Vault.Models;
 
-namespace Aether.Market.Models;
+namespace AetherMesh.Market.Models;
 
 /// <summary>
 /// A geo-pinned market listing dropped by a verified seller.

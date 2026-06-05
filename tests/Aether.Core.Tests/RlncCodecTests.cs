@@ -2,10 +2,10 @@
 
 using System;
 using System.Collections.Generic;
-using Aether.Transport.Fec;
+using AetherMesh.Transport.Fec;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Unit tests for RlncCodec, RlncEncoder, RlncDecoder and GF(2⁸) arithmetic.

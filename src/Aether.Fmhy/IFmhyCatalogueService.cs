@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Fmhy.Models;
+using AetherMesh.Fmhy.Models;
 
-namespace Aether.Fmhy;
+namespace AetherMesh.Fmhy;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  IFmhyCatalogueService — FMHY content discovery over the Aether mesh

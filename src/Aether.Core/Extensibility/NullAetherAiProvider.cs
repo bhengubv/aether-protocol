@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
+using AetherMesh.Protocol;
 
-namespace Aether.Extensibility;
+namespace AetherMesh.Extensibility;
 
 /// <summary>
 /// Default (no-op) <see cref="IAetherAiProvider"/> — registered automatically when no

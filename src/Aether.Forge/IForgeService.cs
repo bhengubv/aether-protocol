@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-using Aether.Forge.Models;
+using AetherMesh.Forge.Models;
 
-namespace Aether.Forge;
+namespace AetherMesh.Forge;
 
 /// <summary>
 /// Mesh-native package cache proxy (aether-forge Phase-2 extension).

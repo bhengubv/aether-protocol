@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
+using AetherMesh.Models;
 
-namespace Aether.Dtn;
+namespace AetherMesh.Dtn;
 
 /// <summary>
 /// Decides which connected peers should receive a copy of a bundle on the

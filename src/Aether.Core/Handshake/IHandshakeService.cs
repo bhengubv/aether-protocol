@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Extensibility;
-using Aether.Protocol;
+using AetherMesh.Extensibility;
+using AetherMesh.Protocol;
 
-namespace Aether.Handshake;
+namespace AetherMesh.Handshake;
 
 /// <summary>
 /// Protocol-version + capability negotiation service.

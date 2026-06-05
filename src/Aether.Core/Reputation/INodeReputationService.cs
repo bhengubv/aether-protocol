@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Reputation;
+namespace AetherMesh.Reputation;
 
 /// <summary>
 /// Aggregates per-UHID behavioral signals into a single reputation score in [0, 1].

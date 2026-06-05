@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Transport.Services;
+using AetherMesh.Transport.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Tests for <see cref="InProcessTransportService"/> — the in-memory simulator used to

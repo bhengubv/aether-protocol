@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Space.Models;
+namespace AetherMesh.Space.Models;
 
 /// <summary>
 /// A geo-pinned digital notice dropped by a user at a physical location.

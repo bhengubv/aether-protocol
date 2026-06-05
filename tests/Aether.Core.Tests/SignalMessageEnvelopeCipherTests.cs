@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Messaging;
-using Aether.Security.Services;
+using AetherMesh.Messaging;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Tests for the messaging↔Signal bridge. Validates the security rule
@@ -76,10 +76,16 @@ public class SignalMessageEnvelopeCipherTests
 
         var ciphertext = (await aliceCipher.EncryptAsync("bob", Encoding.UTF8.GetBytes("x")))!;
 
-        // Flip a byte deep in the JSON ciphertext field — must drop, not throw.
-        ciphertext[ciphertext.Length / 2] ^= 0xFF;
+        // Tamper the GCM-authenticated ciphertext deterministically: decode the
+        // envelope, flip a byte of the encrypted body, re-encode. Flipping a raw
+        // JSON byte (as this test did before) was flaky — the midpoint can land on
+        // non-authenticated metadata and still decrypt cleanly; corrupting the
+        // ciphertext itself always trips the AEAD tag.
+        var payload = EncryptedPayloadCodec.Deserialize(ciphertext);
+        payload.Ciphertext[0] ^= 0xFF;
+        var tampered = EncryptedPayloadCodec.Serialize(payload);
 
-        var decrypted = await bobCipher.DecryptAsync("alice", ciphertext);
+        var decrypted = await bobCipher.DecryptAsync("alice", tampered);
         Assert.Null(decrypted);
     }
 

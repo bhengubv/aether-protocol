@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Extensibility;
+using AetherMesh.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace Aether.DependencyInjection;
+namespace AetherMesh.DependencyInjection;
 
 /// <summary>
 /// Entry point for one-call host wiring of the Aether protocol stack.

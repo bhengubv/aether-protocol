@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Market.Models;
+namespace AetherMesh.Market.Models;
 
 /// <summary>Category of a <see cref="MarketListing"/>.</summary>
 public enum MarketCategory : byte

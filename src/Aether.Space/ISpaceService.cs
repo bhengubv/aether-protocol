@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-using Aether.Space.Models;
+using AetherMesh.Space.Models;
 
-namespace Aether.Space;
+namespace AetherMesh.Space;
 
 /// <summary>
 /// Geo-pinned community noticeboards (aether-space Phase-2 extension).

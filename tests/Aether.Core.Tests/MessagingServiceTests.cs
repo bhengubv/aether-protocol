@@ -2,19 +2,19 @@
 
 using System.Text;
 using System.Text.Json;
-using Aether.Constants;
-using Aether.Core.Tests.Fakes;
-using Aether.Dtn;
-using Aether.Extensibility;
-using Aether.Messaging;
-using Aether.Messaging.Models;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Security.Services;
+using AetherMesh.Constants;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.Dtn;
+using AetherMesh.Extensibility;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Tests for <see cref="MessagingService"/>. Covers the audit's primary security

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Security.Services;
-using Aether.Storage;
+using AetherMesh.Security.Services;
+using AetherMesh.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Verifies that <see cref="SignalProtocolService"/> sessions survive a

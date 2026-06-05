@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Forge.Models;
+namespace AetherMesh.Forge.Models;
 
 /// <summary>
 /// Metadata record for one cached package artifact in the Forge mesh cache.

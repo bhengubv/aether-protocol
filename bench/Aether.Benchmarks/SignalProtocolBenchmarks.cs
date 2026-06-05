@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Security.Models;
-using Aether.Security.Services;
+using AetherMesh.Security.Models;
+using AetherMesh.Security.Services;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Benchmarks;
+namespace AetherMesh.Benchmarks;
 
 /// <summary>
 /// X3DH session establishment + Double-Ratchet send/receive hot paths.

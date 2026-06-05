@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Security.Models;
-using Aether.Security.Services;
+using AetherMesh.Security.Models;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// End-to-end exercises of the X3DH + Double-Ratchet flow on the C# reference

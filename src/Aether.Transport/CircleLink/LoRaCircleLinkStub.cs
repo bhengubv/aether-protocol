@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 
-namespace Aether.Transport.CircleLink;
+namespace AetherMesh.Transport.CircleLink;
 
 /// <summary>
 /// LoRa / CircleLink (Aether Red) transport — BLE Long Range approximation layer.

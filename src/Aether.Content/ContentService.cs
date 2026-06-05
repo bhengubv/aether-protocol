@@ -2,16 +2,16 @@
 
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Aether.Constants;
-using Aether.Content.Models;
-using Aether.Extensibility;
-using Aether.Extensibility.Events;
-using Aether.Protocol;
-using Aether.Routing;
+using AetherMesh.Constants;
+using AetherMesh.Content.Models;
+using AetherMesh.Extensibility;
+using AetherMesh.Extensibility.Events;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Content;
+namespace AetherMesh.Content;
 
 /// <summary>
 /// Default content distribution service. Announces and serves content advertised

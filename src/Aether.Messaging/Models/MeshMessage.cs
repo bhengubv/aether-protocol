@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Messaging.Models;
+namespace AetherMesh.Messaging.Models;
 
 /// <summary>
 /// Lifecycle state of a 1-to-1 mesh message.
@@ -42,7 +42,7 @@ public sealed class MeshMessage
     /// <summary>Caller-defined message kind ("text", "image", "voice-clip", …). Opaque to the protocol.</summary>
     public string MessageType { get; set; } = "text";
 
-    /// <summary>Priority of the underlying <see cref="Aether.Protocol.MeshPacket"/>. Defaults to 0.</summary>
+    /// <summary>Priority of the underlying <see cref="AetherMesh.Protocol.MeshPacket"/>. Defaults to 0.</summary>
     public byte Priority { get; set; }
 
     /// <summary>Optional reply-to message id. Null for top-level messages.</summary>

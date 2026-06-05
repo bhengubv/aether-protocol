@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Core.Tests.Fakes;
-using Aether.DependencyInjection;
-using Aether.DependencyInjection.HealthChecks;
-using Aether.Dtn;
-using Aether.Models;
-using Aether.Routing;
-using Aether.Security.Services;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.DependencyInjection;
+using AetherMesh.DependencyInjection.HealthChecks;
+using AetherMesh.Dtn;
+using AetherMesh.Models;
+using AetherMesh.Routing;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Verifies the four protocol-level <see cref="IHealthCheck"/> implementations
@@ -292,8 +292,8 @@ public class HealthCheckTests
             => Task.FromResult<RouteEntry?>(null);
         public RouteEntry? GetCachedRoute(string destinationUhid) => null;
         public IReadOnlyList<RouteEntry> GetAllRoutes() => _routes;
-        public Task HandleRouteRequestAsync(Aether.Protocol.MeshPacket routeRequest, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task HandleRouteReplyAsync(Aether.Protocol.MeshPacket routeReply, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task HandleRouteRequestAsync(AetherMesh.Protocol.MeshPacket routeRequest, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task HandleRouteReplyAsync(AetherMesh.Protocol.MeshPacket routeReply, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task PruneAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
@@ -318,15 +318,15 @@ public class HealthCheckTests
 #pragma warning restore CS0067
         public Task<DtnBundle> CreateBundleAsync(string recipientUhid, byte[] encryptedPayload, BundlePriority priority = BundlePriority.Normal, string? recipientLastGeohash = null, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
-        public Task HandleAsync(Aether.Protocol.MeshPacket packet, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task HandleAsync(AetherMesh.Protocol.MeshPacket packet, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RunDeliveryScanAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<int> ExpireStaleAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
         public Task<IReadOnlyList<DtnBundle>> GetActiveBundlesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<DtnBundle>>(_bundles);
     }
 
-    /// <summary>Stub <see cref="Aether.Messaging.IMessagingService"/> exposing a configurable outbox depth.</summary>
-    private sealed class OutboxBackedFakeMessaging : Aether.Messaging.IMessagingService
+    /// <summary>Stub <see cref="AetherMesh.Messaging.IMessagingService"/> exposing a configurable outbox depth.</summary>
+    private sealed class OutboxBackedFakeMessaging : AetherMesh.Messaging.IMessagingService
     {
         private int _pending;
 
@@ -335,30 +335,30 @@ public class HealthCheckTests
         public void SetPending(int pending) => _pending = pending;
 
 #pragma warning disable CS0067 // event-stubs for interface contract
-        public event EventHandler<Aether.Messaging.Models.MeshMessage>? MessageReceived;
-        public event EventHandler<Aether.Messaging.Models.DeliveryReceipt>? DeliveryConfirmed;
+        public event EventHandler<AetherMesh.Messaging.Models.MeshMessage>? MessageReceived;
+        public event EventHandler<AetherMesh.Messaging.Models.DeliveryReceipt>? DeliveryConfirmed;
         public event EventHandler<string>? SessionRequired;
 #pragma warning restore CS0067
 
-        public Task<bool> SendAsync(Aether.Messaging.Models.MeshMessage message, byte[] plaintext, CancellationToken cancellationToken = default)
+        public Task<bool> SendAsync(AetherMesh.Messaging.Models.MeshMessage message, byte[] plaintext, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
 
-        public Task HandleAsync(Aether.Protocol.MeshPacket packet, CancellationToken cancellationToken = default)
+        public Task HandleAsync(AetherMesh.Protocol.MeshPacket packet, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
         public Task<int> ProcessOutboxAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(0);
 
-        public Task<IReadOnlyList<Aether.Messaging.Models.MeshMessage>> GetInboxAsync(int limit = 50, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<Aether.Messaging.Models.MeshMessage>>(Array.Empty<Aether.Messaging.Models.MeshMessage>());
+        public Task<IReadOnlyList<AetherMesh.Messaging.Models.MeshMessage>> GetInboxAsync(int limit = 50, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<AetherMesh.Messaging.Models.MeshMessage>>(Array.Empty<AetherMesh.Messaging.Models.MeshMessage>());
 
-        public Task<IReadOnlyList<Aether.Messaging.Models.MeshMessage>> GetOutboxAsync(int limit = 50, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<AetherMesh.Messaging.Models.MeshMessage>> GetOutboxAsync(int limit = 50, CancellationToken cancellationToken = default)
         {
-            var pending = Enumerable.Range(0, _pending).Select(i => new Aether.Messaging.Models.MeshMessage
+            var pending = Enumerable.Range(0, _pending).Select(i => new AetherMesh.Messaging.Models.MeshMessage
             {
-                Status = Aether.Messaging.Models.MessageStatus.Pending,
+                Status = AetherMesh.Messaging.Models.MessageStatus.Pending,
             }).ToArray();
-            return Task.FromResult<IReadOnlyList<Aether.Messaging.Models.MeshMessage>>(pending);
+            return Task.FromResult<IReadOnlyList<AetherMesh.Messaging.Models.MeshMessage>>(pending);
         }
     }
 }

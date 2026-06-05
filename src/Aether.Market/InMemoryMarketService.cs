@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 using System.Collections.Concurrent;
-using Aether.Market.Models;
+using AetherMesh.Market.Models;
 
-namespace Aether.Market;
+namespace AetherMesh.Market;
 
 /// <summary>
 /// In-memory <see cref="IMarketService"/> implementation for testing and

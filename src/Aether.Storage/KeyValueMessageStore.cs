@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json;
-using Aether.Messaging;
-using Aether.Messaging.Models;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// <see cref="IMessageStore"/> implementation backed by an arbitrary <see cref="IKeyValueStore"/>.

@@ -2,7 +2,7 @@
 
 using System.Collections.Concurrent;
 
-namespace Aether.Reputation;
+namespace AetherMesh.Reputation;
 
 /// <summary>
 /// Thread-safe, in-memory implementation of <see cref="INodeReputationService"/>.

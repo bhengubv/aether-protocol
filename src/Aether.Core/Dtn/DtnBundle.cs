@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Models;
+namespace AetherMesh.Models;
 
 /// <summary>
 /// Lifecycle state of a DTN bundle.
@@ -60,7 +60,7 @@ public sealed class DtnBundle
     public int CopyCount { get; set; } = 1;
 
     /// <summary>Maximum number of replicas that may exist concurrently.</summary>
-    public int MaxCopies { get; set; } = Aether.Constants.ProtocolConstants.DtnMaxCopies;
+    public int MaxCopies { get; set; } = AetherMesh.Constants.ProtocolConstants.DtnMaxCopies;
 
     /// <summary>Geohash recorded at the sender at bundle-creation time, when shared.</summary>
     public string? SenderGeohash { get; set; }
@@ -75,7 +75,7 @@ public sealed class DtnBundle
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>UTC time after which the bundle should be discarded.</summary>
-    public DateTime ExpiresAt { get; set; } = DateTime.UtcNow.AddHours(Aether.Constants.ProtocolConstants.DtnBundleTtlHours);
+    public DateTime ExpiresAt { get; set; } = DateTime.UtcNow.AddHours(AetherMesh.Constants.ProtocolConstants.DtnBundleTtlHours);
 
     /// <summary>Returns true if the bundle has expired.</summary>
     public bool IsExpired => DateTime.UtcNow >= ExpiresAt;

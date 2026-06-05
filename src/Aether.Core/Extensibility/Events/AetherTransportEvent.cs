@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Extensibility.Events;
+namespace AetherMesh.Extensibility.Events;
 
 /// <summary>Physical or logical transport medium Aether is using.</summary>
 public enum AetherTransportKind : byte

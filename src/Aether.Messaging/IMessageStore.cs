@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Messaging.Models;
+using AetherMesh.Messaging.Models;
 
-namespace Aether.Messaging;
+namespace AetherMesh.Messaging;
 
 /// <summary>
 /// Persistence boundary for the messaging service. Outbox state must survive a

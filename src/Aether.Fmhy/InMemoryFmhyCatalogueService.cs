@@ -2,9 +2,9 @@
 
 using System.Collections.Concurrent;
 using System.Net.Http;
-using Aether.Fmhy.Models;
+using AetherMesh.Fmhy.Models;
 
-namespace Aether.Fmhy;
+namespace AetherMesh.Fmhy;
 
 /// <summary>
 /// In-memory <see cref="IFmhyCatalogueService"/> backed by the parsed FMHY markdown.

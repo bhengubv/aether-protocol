@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Messaging.Models;
+using AetherMesh.Messaging.Models;
 
-namespace Aether.Messaging;
+namespace AetherMesh.Messaging;
 
 /// <summary>
 /// Thread-safe, process-local message store. Suitable for tests, demos, and any

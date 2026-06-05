@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 
-namespace Aether.Transport.NearLink;
+namespace AetherMesh.Transport.NearLink;
 
 /// <summary>
 /// NearLink transport for HarmonyOS/OpenHarmony devices.

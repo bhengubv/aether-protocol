@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Streaming.Models;
+namespace AetherMesh.Streaming.Models;
 
 /// <summary>
 /// One file entry within a multi-file torrent.
@@ -16,7 +16,7 @@ public sealed class TorrentFile
 
 /// <summary>
 /// Everything a mesh peer needs to join the BitTorrent swarm for a watch-together session.
-/// Carried in a <see cref="Aether.Protocol.PacketType.TorrentMetadata"/> broadcast packet.
+/// Carried in a <see cref="AetherMesh.Protocol.PacketType.TorrentMetadata"/> broadcast packet.
 /// </summary>
 public sealed class TorrentInfo
 {

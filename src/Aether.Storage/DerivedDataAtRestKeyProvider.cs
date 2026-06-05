@@ -3,7 +3,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// <see cref="IDataAtRestKeyProvider"/> that derives a 32-byte AES-256 key

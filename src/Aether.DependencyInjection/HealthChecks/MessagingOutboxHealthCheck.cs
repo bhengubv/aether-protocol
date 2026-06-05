@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Messaging;
-using Aether.Messaging.Models;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-namespace Aether.DependencyInjection.HealthChecks;
+namespace AetherMesh.DependencyInjection.HealthChecks;
 
 /// <summary>
 /// Reports messaging outbox depth as a liveness signal. Outbox growth

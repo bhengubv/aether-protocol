@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Transport.Abstractions;
+namespace AetherMesh.Transport.Abstractions;
 
 /// <summary>
 /// Forward Error Correction (FEC) codec decorator.
@@ -44,7 +44,7 @@ public interface IFecCodec
 
     /// <summary>
     /// Overhead fraction added by this codec (e.g. 0.30 = 30 % overhead).
-    /// Used by <see cref="Aether.Transport.Services.PredictiveTransportSelector.Rank(int)"/> when scoring transports
+    /// Used by <see cref="AetherMesh.Transport.Services.PredictiveTransportSelector.Rank(int)"/> when scoring transports
     /// that have an active FEC decorator.
     /// </summary>
     double OverheadFraction { get; }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Streaming.Models;
+namespace AetherMesh.Streaming.Models;
 
 /// <summary>
 /// Topology mode for a group video session. FullMesh means every participant
@@ -71,7 +71,7 @@ public sealed class GroupVideoParticipant
 }
 
 /// <summary>
-/// JSON-serialised payload for <see cref="Aether.Protocol.PacketType.GroupVideoSignaling"/> packets.
+/// JSON-serialised payload for <see cref="AetherMesh.Protocol.PacketType.GroupVideoSignaling"/> packets.
 /// Uses snake_case names for cross-language interoperability.
 /// </summary>
 public sealed record GroupVideoSignalingMessage

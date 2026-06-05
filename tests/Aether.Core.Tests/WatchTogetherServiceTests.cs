@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json;
-using Aether.Core.Tests.Fakes;
-using Aether.Protocol;
-using Aether.Streaming;
-using Aether.Streaming.Models;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.Protocol;
+using AetherMesh.Streaming;
+using AetherMesh.Streaming.Models;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 public class WatchTogetherServiceTests
 {

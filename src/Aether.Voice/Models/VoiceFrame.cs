@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Voice.Models;
+namespace AetherMesh.Voice.Models;
 
 /// <summary>
 /// A single encoded audio frame in flight. The payload is whatever the negotiated

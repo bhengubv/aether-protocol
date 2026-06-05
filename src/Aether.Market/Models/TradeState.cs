@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Market.Models;
+namespace AetherMesh.Market.Models;
 
 /// <summary>State machine for a <see cref="TradeEscrow"/>.</summary>
 public enum TradeState : byte

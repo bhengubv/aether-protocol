@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Transport;
+namespace AetherMesh.Transport;
 
 /// <summary>
 /// Fixed GATT UUIDs for the Aether mesh BLE transport.

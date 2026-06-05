@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Dtn;
-using Aether.Models;
+using AetherMesh.Dtn;
+using AetherMesh.Models;
 using Xunit;
 
-namespace Aether.Soak.Tests;
+namespace AetherMesh.Soak.Tests;
 
 /// <summary>
 /// Soak tests for <see cref="DtnService"/> + <see cref="InMemoryDtnBundleStore"/>.

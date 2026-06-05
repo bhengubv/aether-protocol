@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Content.Models;
+using AetherMesh.Content.Models;
 
-namespace Aether.Content;
+namespace AetherMesh.Content;
 
 /// <summary>
 /// Process-local content store. Suitable for tests and demos.

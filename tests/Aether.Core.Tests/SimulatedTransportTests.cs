@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
-using Aether.Protocol;
-using Aether.Transport.Models;
-using Aether.Transport.Services;
+using AetherMesh.Protocol;
+using AetherMesh.Transport.Models;
+using AetherMesh.Transport.Services;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Tests for the simulated transport layer:

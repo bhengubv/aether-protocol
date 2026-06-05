@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Streaming.Services;
+namespace AetherMesh.Streaming.Services;
 
 /// <summary>
 /// Protocol-level video call service interface.

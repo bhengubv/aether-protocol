@@ -2,15 +2,15 @@
 
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices.WindowsRuntime;
-using Aether.Transport.Abstractions;
-using Aether.Transport.Models;
+using AetherMesh.Transport.Abstractions;
+using AetherMesh.Transport.Models;
 using Microsoft.Extensions.Logging;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
 using Windows.Storage.Streams;
 
-namespace Aether.Transport.Windows.Services;
+namespace AetherMesh.Transport.Windows.Services;
 
 /// <summary>
 /// Windows BLE GATT central transport for the Aether mesh protocol.

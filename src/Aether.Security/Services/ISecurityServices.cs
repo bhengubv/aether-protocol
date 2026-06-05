@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
-using Aether.Security.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Security.Models;
 
-namespace Aether.Security.Services;
+namespace AetherMesh.Security.Services;
 
 /// <summary>
 /// Signal Protocol service for end-to-end encrypted messaging.

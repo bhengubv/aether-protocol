@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Voice;
-using Aether.Voice.Models;
+using AetherMesh.Voice;
+using AetherMesh.Voice.Models;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 public class JitterBufferTests
 {

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
-using Aether.Protocol;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
 
-namespace Aether.Extensibility;
+namespace AetherMesh.Extensibility;
 
 /// <summary>
 /// Extension point for incentive mechanisms. Implementations can reward nodes
@@ -73,7 +73,7 @@ public interface IAetherBackendClient
     /// <param name="bundle">The bundle to relay.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the backend accepted custody of the bundle for relay.</returns>
-    Task<bool> SyncDtnBundleAsync(Aether.Models.DtnBundle bundle, CancellationToken cancellationToken = default)
+    Task<bool> SyncDtnBundleAsync(AetherMesh.Models.DtnBundle bundle, CancellationToken cancellationToken = default)
         => Task.FromResult(false);
 
     /// <summary>
@@ -84,7 +84,7 @@ public interface IAetherBackendClient
     /// <param name="alert">The SOS alert to mirror to the backend.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the backend accepted the alert.</returns>
-    Task<bool> SyncSosAsync(Aether.Models.SosAlert alert, CancellationToken cancellationToken = default)
+    Task<bool> SyncSosAsync(AetherMesh.Models.SosAlert alert, CancellationToken cancellationToken = default)
         => Task.FromResult(false);
 
     /// <summary>

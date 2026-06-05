@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Storage;
+using AetherMesh.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.DependencyInjection;
+namespace AetherMesh.DependencyInjection;
 
 /// <summary>
 /// Optional encryption-at-rest extension for <see cref="IAetherProtocolBuilder"/>.

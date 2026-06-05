@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Constants;
-using Aether.Core.Tests.Fakes;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Routing;
+using AetherMesh.Constants;
+using AetherMesh.Core.Tests.Fakes;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 public class RoutingServiceTests
 {

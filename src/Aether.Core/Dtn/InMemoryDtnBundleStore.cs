@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Models;
+using AetherMesh.Models;
 
-namespace Aether.Dtn;
+namespace AetherMesh.Dtn;
 
 /// <summary>
 /// Thread-safe, process-local DTN bundle store. Sufficient for tests, demos,

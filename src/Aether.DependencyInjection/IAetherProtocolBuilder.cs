@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Extensibility;
-using Aether.Reputation;
+using AetherMesh.Extensibility;
+using AetherMesh.Reputation;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Aether.DependencyInjection;
+namespace AetherMesh.DependencyInjection;
 
 /// <summary>
 /// Fluent builder returned by

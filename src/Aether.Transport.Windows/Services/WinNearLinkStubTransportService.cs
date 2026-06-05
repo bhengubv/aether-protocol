@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Transport.NearLink;
+using AetherMesh.Transport.NearLink;
 
-namespace Aether.Transport.Windows.Services;
+namespace AetherMesh.Transport.Windows.Services;
 
 /// <summary>
 /// Windows NearLink (Aether Teal) transport — BLE approximation layer.

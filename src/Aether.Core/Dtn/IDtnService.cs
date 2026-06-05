@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
-using Aether.Protocol;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
 
-namespace Aether.Dtn;
+namespace AetherMesh.Dtn;
 
 /// <summary>
 /// Delay-tolerant networking layer. Hosts call <see cref="CreateBundleAsync"/> to send,

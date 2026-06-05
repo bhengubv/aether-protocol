@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-using Aether.Market.Models;
+using AetherMesh.Market.Models;
 
-namespace Aether.Market;
+namespace AetherMesh.Market;
 
 /// <summary>
 /// Proof-of-Vicinity (PoV) anti-Sybil trust (part of aether-market Phase-2).

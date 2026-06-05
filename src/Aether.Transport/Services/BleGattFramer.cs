@@ -2,13 +2,13 @@
 
 using System.Buffers.Binary;
 
-namespace Aether.Transport.Services;
+namespace AetherMesh.Transport.Services;
 
 /// <summary>
 /// Handles GATT-layer framing for BLE transport.
 ///
 /// BLE GATT has an MTU ceiling (default <c>1024</c> bytes per
-/// <see cref="Aether.Constants.ProtocolConstants.BleMaxPayloadBytes"/>). Large buffers must
+/// <see cref="AetherMesh.Constants.ProtocolConstants.BleMaxPayloadBytes"/>). Large buffers must
 /// be split into numbered frames before transmission and reassembled by the receiver.
 ///
 /// Frame wire format (all integers little-endian):

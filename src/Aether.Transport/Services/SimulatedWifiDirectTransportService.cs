@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 
-namespace Aether.Transport.Services;
+namespace AetherMesh.Transport.Services;
 
 /// <summary>
 /// In-process simulation of a Wi-Fi Direct transport. Two or more instances registered with
 /// different UHIDs can establish logical connections and exchange large payloads without
 /// framing (Wi-Fi Direct supports up to 64 KB per
-/// <see cref="Aether.Constants.ProtocolConstants.WifiDirectMaxPayloadBytes"/>).
+/// <see cref="AetherMesh.Constants.ProtocolConstants.WifiDirectMaxPayloadBytes"/>).
 ///
 /// A connection is a symmetric, bilateral relationship. Calling
 /// <see cref="ConnectAsync"/> on node A both marks B as connected from A's perspective

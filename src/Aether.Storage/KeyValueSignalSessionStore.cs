@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// <see cref="ISignalSessionStore"/> implementation backed by an arbitrary
@@ -11,7 +11,7 @@ namespace Aether.Storage;
 ///
 /// Implementing the <see cref="ISignalSessionStore"/> interface requires
 /// access to the internal <c>SignalSession</c> type — granted via
-/// <c>InternalsVisibleTo("Aether.Storage")</c> on <c>Aether.Security</c>.
+/// <c>InternalsVisibleTo("AetherMesh.Storage")</c> on <c>AetherMesh.Security</c>.
 /// Hosts that want a different on-disk format (encrypted-at-rest, sqlite,
 /// etc.) ship their own adapter against <c>IKeyValueStore</c> or against
 /// <c>ISignalSessionStore</c> directly.

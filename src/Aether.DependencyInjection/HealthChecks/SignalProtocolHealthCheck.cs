@@ -2,12 +2,12 @@
 
 using System.Collections;
 using System.Reflection;
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-namespace Aether.DependencyInjection.HealthChecks;
+namespace AetherMesh.DependencyInjection.HealthChecks;
 
 /// <summary>
 /// Reports Signal Protocol identity health. Two distinct signals:

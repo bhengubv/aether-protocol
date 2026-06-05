@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Vault.Models;
+namespace AetherMesh.Vault.Models;
 
 /// <summary>
 /// Manifest for a file stored in the Aether Vault.

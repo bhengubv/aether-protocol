@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Streaming.Models;
+namespace AetherMesh.Streaming.Models;
 
 /// <summary>
 /// State of a video call from this node's perspective. Same shape as the audio-only
@@ -31,8 +31,8 @@ public enum VideoHangupReason : byte
 /// <summary>
 /// Video call session state. Tracks codec / resolution / frame-rate negotiated for
 /// this call. Frame I/O happens via the
-/// <see cref="Aether.Protocol.PacketType.VideoFrame"/> packet, signaling via
-/// <see cref="Aether.Protocol.PacketType.VideoSignaling"/>.
+/// <see cref="AetherMesh.Protocol.PacketType.VideoFrame"/> packet, signaling via
+/// <see cref="AetherMesh.Protocol.PacketType.VideoSignaling"/>.
 /// </summary>
 public sealed class VideoCallSession
 {
@@ -99,7 +99,7 @@ public enum VideoSignalingKind : byte
 }
 
 /// <summary>
-/// Signaling envelope for <see cref="Aether.Protocol.PacketType.VideoSignaling"/> packets.
+/// Signaling envelope for <see cref="AetherMesh.Protocol.PacketType.VideoSignaling"/> packets.
 /// JSON-encoded with snake_case names so non-.NET implementations can produce / consume identical bytes.
 /// </summary>
 public sealed class VideoSignalingMessage

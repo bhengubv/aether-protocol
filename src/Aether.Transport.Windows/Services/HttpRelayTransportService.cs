@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 using System.Net.Http.Json;
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 using Microsoft.Extensions.Logging;
 
-namespace Aether.Transport.Windows.Services;
+namespace AetherMesh.Transport.Windows.Services;
 
 /// <summary>
 /// HTTP-based relay transport (Aether Purple) — cellular / internet fallback.

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
-using Aether.Protocol;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
 
-namespace Aether.Sos;
+namespace AetherMesh.Sos;
 
 /// <summary>
 /// Handles SOS origination and propagation. SOS uses

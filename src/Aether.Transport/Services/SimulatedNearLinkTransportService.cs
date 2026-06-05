@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Concurrent;
-using Aether.Transport.NearLink;
+using AetherMesh.Transport.NearLink;
 
-namespace Aether.Transport.Services;
+namespace AetherMesh.Transport.Services;
 
 /// <summary>
 /// In-process simulation of a NearLink transport. NearLink has a larger MTU than BLE
-/// (<see cref="Aether.Constants.ProtocolConstants.NearLinkMaxPayloadBytes"/> = 4096 bytes)
+/// (<see cref="AetherMesh.Constants.ProtocolConstants.NearLinkMaxPayloadBytes"/> = 4096 bytes)
 /// and can maintain up to 500 concurrent peers.
 ///
 /// Large payloads are split into 4096-byte frames and reassembled at the receiver, mirroring

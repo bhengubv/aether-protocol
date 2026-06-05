@@ -2,9 +2,9 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Aether.Fmhy.Models;
+using AetherMesh.Fmhy.Models;
 
-namespace Aether.Fmhy;
+namespace AetherMesh.Fmhy;
 
 /// <summary>
 /// Loads the bundled FMHY seed catalogue from an embedded JSON resource.

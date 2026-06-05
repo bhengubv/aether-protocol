@@ -16,7 +16,7 @@ using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Parameters;
 using Xunit;
 
-namespace Aether.InteropTest;
+namespace AetherMesh.InteropTest;
 
 // ─── Model types ──────────────────────────────────────────────────────────────
 

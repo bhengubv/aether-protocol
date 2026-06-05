@@ -2,15 +2,15 @@
 
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Aether.Constants;
-using Aether.Extensibility;
-using Aether.Protocol;
-using Aether.Routing;
-using Aether.Streaming.Models;
+using AetherMesh.Constants;
+using AetherMesh.Extensibility;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
+using AetherMesh.Streaming.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Streaming;
+namespace AetherMesh.Streaming;
 
 /// <summary>
 /// Multi-party video call service. Manages FullMesh and SFU topologies,

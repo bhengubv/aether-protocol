@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json;
-using Aether.Dtn;
-using Aether.Models;
+using AetherMesh.Dtn;
+using AetherMesh.Models;
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// <see cref="IDtnBundleStore"/> implementation backed by an arbitrary <see cref="IKeyValueStore"/>.
 /// Bundles are JSON-encoded under <c>bundle:&lt;guid&gt;</c>, custody records under
 /// <c>custody:&lt;guid&gt;</c>. List-style queries scan the keyspace; this is fine for
-/// the bounded numbers DTN allows (<see cref="Aether.Constants.ProtocolConstants.DtnMaxBundlesPerNode"/>)
+/// the bounded numbers DTN allows (<see cref="AetherMesh.Constants.ProtocolConstants.DtnMaxBundlesPerNode"/>)
 /// but a host with millions of bundles should ship a custom store with proper indexes.
 /// </summary>
 public sealed class KeyValueDtnBundleStore : IDtnBundleStore

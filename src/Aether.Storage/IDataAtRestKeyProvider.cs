@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Storage;
+namespace AetherMesh.Storage;
 
 /// <summary>
 /// Supplies the AES-256 master key(s) used by <see cref="EncryptedKeyValueStore"/>

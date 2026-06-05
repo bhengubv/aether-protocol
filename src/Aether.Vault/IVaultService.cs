@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-using Aether.Vault.Models;
+using AetherMesh.Vault.Models;
 
-namespace Aether.Vault;
+namespace AetherMesh.Vault;
 
 /// <summary>
 /// Erasure-coded encrypted distributed backup (aether-vault Phase-2 extension).
@@ -10,7 +10,7 @@ namespace Aether.Vault;
 /// in-memory implementation uses simple byte partitioning (no real
 /// Reed-Solomon) for testing; production implementations use libfec/RS.
 ///
-/// NodeCapability: <c>aether.vault/v1</c> (<see cref="Aether.Models.NodeCapabilities.Vault"/>).
+/// NodeCapability: <c>aether.vault/v1</c> (<see cref="AetherMesh.Models.NodeCapabilities.Vault"/>).
 /// PacketType: <c>VaultShardRequest (42)</c>.
 /// </summary>
 public interface IVaultService

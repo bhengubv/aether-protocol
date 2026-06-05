@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Transport.Abstractions;
-using Aether.Transport.Models;
-using Aether.Transport.NearLink;
-using Aether.Transport.Services;
+using AetherMesh.Transport.Abstractions;
+using AetherMesh.Transport.Models;
+using AetherMesh.Transport.NearLink;
+using AetherMesh.Transport.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Tests for <see cref="TransportManager"/> — the N-way transport selector. The manager

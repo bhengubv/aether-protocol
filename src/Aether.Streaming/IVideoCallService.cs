@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
-using Aether.Streaming.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Streaming.Models;
 
-namespace Aether.Streaming;
+namespace AetherMesh.Streaming;
 
 /// <summary>
 /// Coordinates 1-to-1 video calls. Same shape as the audio-only service in Aether.Voice

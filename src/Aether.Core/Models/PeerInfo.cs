@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Models;
+namespace AetherMesh.Models;
 
 /// <summary>
 /// Information about a directly discovered peer on the mesh network.

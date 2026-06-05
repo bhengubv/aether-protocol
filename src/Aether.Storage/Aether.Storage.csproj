@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>Aether.Storage</RootNamespace>
+    <RootNamespace>AetherMesh.Storage</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Aether.Core.Tests" />
+    <InternalsVisibleTo Include="AetherMesh.Core.Tests" />
   </ItemGroup>
 
 </Project>

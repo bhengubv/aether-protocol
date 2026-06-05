@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-using Aether.Space;
-using Aether.Space.Models;
+using AetherMesh.Space;
+using AetherMesh.Space.Models;
 using Xunit;
 
-namespace Aether.Space.Tests;
+namespace AetherMesh.Space.Tests;
 
 public sealed class SpaceServiceTests
 {

@@ -3,11 +3,11 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Aether.Models;
-using Aether.Storage;
+using AetherMesh.Models;
+using AetherMesh.Storage;
 using Xunit;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Tests for <see cref="EncryptedKeyValueStore"/>: the AES-256-GCM wrapper that

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Voice.Models;
+namespace AetherMesh.Voice.Models;
 
 /// <summary>
 /// State machine of a voice call from this node's perspective.
@@ -60,8 +60,8 @@ public sealed class VoiceCallSession
     /// <summary>Sample rate in Hz (e.g. 16000, 48000). 0 until both parties agree.</summary>
     public int SampleRateHz { get; set; }
 
-    /// <summary>Frame duration in ms (typically <see cref="Aether.Constants.ProtocolConstants.VoiceFrameDurationMs"/>).</summary>
-    public int FrameDurationMs { get; set; } = Aether.Constants.ProtocolConstants.VoiceFrameDurationMs;
+    /// <summary>Frame duration in ms (typically <see cref="AetherMesh.Constants.ProtocolConstants.VoiceFrameDurationMs"/>).</summary>
+    public int FrameDurationMs { get; set; } = AetherMesh.Constants.ProtocolConstants.VoiceFrameDurationMs;
 
     /// <summary>UTC timestamp at which the call session was created locally.</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

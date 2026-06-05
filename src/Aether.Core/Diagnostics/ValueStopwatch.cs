@@ -2,7 +2,7 @@
 
 using System.Diagnostics;
 
-namespace Aether.Diagnostics;
+namespace AetherMesh.Diagnostics;
 
 /// <summary>
 /// Allocation-free stopwatch built on <see cref="Stopwatch.GetTimestamp"/>.

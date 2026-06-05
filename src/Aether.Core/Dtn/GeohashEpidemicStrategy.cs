@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
+using AetherMesh.Models;
 
-namespace Aether.Dtn;
+namespace AetherMesh.Dtn;
 
 /// <summary>
 /// Default epidemic strategy. SOS bundles replicate to every eligible DTN-carrier peer up to the copy cap.

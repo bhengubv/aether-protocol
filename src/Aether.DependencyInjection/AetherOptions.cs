@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Constants;
+using AetherMesh.Constants;
 
-namespace Aether.DependencyInjection;
+namespace AetherMesh.DependencyInjection;
 
 /// <summary>
 /// Root configuration for <c>services.AddAetherProtocol(...)</c>. Bind from

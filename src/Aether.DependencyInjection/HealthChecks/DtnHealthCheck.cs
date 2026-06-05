@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Dtn;
+using AetherMesh.Dtn;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
-namespace Aether.DependencyInjection.HealthChecks;
+namespace AetherMesh.DependencyInjection.HealthChecks;
 
 /// <summary>
 /// Reports DTN bundle-store occupancy as a liveness signal. A healthy DTN

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Space.Models;
+namespace AetherMesh.Space.Models;
 
 /// <summary>Category of a geo-pinned <see cref="SpaceBreadcrumb"/>.</summary>
 public enum BreadcrumbType : byte

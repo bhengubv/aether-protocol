@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
-using Aether.Voice.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Voice.Models;
 
-namespace Aether.Voice;
+namespace AetherMesh.Voice;
 
 /// <summary>
 /// Group voice (3+ participants). The host invites peers, holds authority over

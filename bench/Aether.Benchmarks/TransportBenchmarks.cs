@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
-using Aether.Routing;
-using Aether.Transport.Models;
+using AetherMesh.Models;
+using AetherMesh.Routing;
+using AetherMesh.Transport.Models;
 using BenchmarkDotNet.Attributes;
 
-namespace Aether.Benchmarks;
+namespace AetherMesh.Benchmarks;
 
 /// <summary>
 /// Benchmarks for the transport routing and EWMA metrics hot paths.

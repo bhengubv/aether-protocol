@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Reputation;
+namespace AetherMesh.Reputation;
 
 /// <summary>
 /// JSON payload for <see cref="Protocol.PacketType.ReputationUpdate"/> packets.

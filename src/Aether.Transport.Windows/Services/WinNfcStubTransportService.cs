@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Transport.Abstractions;
+using AetherMesh.Transport.Abstractions;
 
-namespace Aether.Transport.Windows.Services;
+namespace AetherMesh.Transport.Windows.Services;
 
 /// <summary>
 /// Windows NFC (Aether White) transport — BLE proximity and PC/SC approximation layer.

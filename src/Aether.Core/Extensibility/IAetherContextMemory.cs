@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Extensibility;
+namespace AetherMesh.Extensibility;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Context memory for the AI layer (mempalace / CircleAI.Memory integration)

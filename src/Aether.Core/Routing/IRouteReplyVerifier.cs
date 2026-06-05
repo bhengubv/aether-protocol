@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Protocol;
+using AetherMesh.Protocol;
 
-namespace Aether.Routing;
+namespace AetherMesh.Routing;
 
 /// <summary>
 /// Verifies that a received RREP was actually signed by the node it claims to come from.

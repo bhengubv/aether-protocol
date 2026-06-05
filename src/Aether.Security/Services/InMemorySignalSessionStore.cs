@@ -2,7 +2,7 @@
 
 using System.Collections.Concurrent;
 
-namespace Aether.Security.Services;
+namespace AetherMesh.Security.Services;
 
 /// <summary>
 /// Process-local, volatile <see cref="ISignalSessionStore"/> backed by a

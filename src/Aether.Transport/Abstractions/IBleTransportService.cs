@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Transport.Models;
+using AetherMesh.Transport.Models;
 
-namespace Aether.Transport.Abstractions;
+namespace AetherMesh.Transport.Abstractions;
 
 /// <summary>
 /// Bluetooth Low Energy transport for short-range, low-power mesh communication.

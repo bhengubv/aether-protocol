@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Streaming.Models;
+namespace AetherMesh.Streaming.Models;
 
 /// <summary>
-/// Cross-language stable wire payload for <see cref="Aether.Protocol.PacketType.StreamAnnounce"/>.
+/// Cross-language stable wire payload for <see cref="AetherMesh.Protocol.PacketType.StreamAnnounce"/>.
 /// Broadcast at stream start (and periodically while live) so newly arriving subscribers
 /// can discover available streams.
 /// </summary>
@@ -19,7 +19,7 @@ public sealed class StreamAnnouncePayload
 }
 
 /// <summary>
-/// Wire payload for <see cref="Aether.Protocol.PacketType.StreamSubscribe"/>.
+/// Wire payload for <see cref="AetherMesh.Protocol.PacketType.StreamSubscribe"/>.
 /// </summary>
 public sealed class StreamSubscribePayload
 {
@@ -30,7 +30,7 @@ public sealed class StreamSubscribePayload
 }
 
 /// <summary>
-/// Wire payload for <see cref="Aether.Protocol.PacketType.StreamUnsubscribe"/>.
+/// Wire payload for <see cref="AetherMesh.Protocol.PacketType.StreamUnsubscribe"/>.
 /// </summary>
 public sealed class StreamUnsubscribePayload
 {

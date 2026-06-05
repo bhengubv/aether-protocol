@@ -4,15 +4,15 @@
 
 using System.Text;
 using System.Text.Json;
-using Aether.Dtn;
-using Aether.Messaging;
-using Aether.Messaging.Models;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Routing;
-using Aether.Security.Models;
-using Aether.Security.Services;
-using Aether.Transport.Services;
+using AetherMesh.Dtn;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
+using AetherMesh.Security.Models;
+using AetherMesh.Security.Services;
+using AetherMesh.Transport.Services;
 using Microsoft.Extensions.Logging;
 
 // ─── Logging factory (minimal, no noise) ─────────────────────────────────────
@@ -835,7 +835,7 @@ static EncryptedPayload DeserializeEncryptedPayload(byte[] data)
 // MeshPackets via PacketSerializer before handing them to the wire, and reports
 // "potential peers" as connected only while their transport is live in the
 // simulated network.
-file sealed class InProcessMeshSender : Aether.Routing.IMeshSender
+file sealed class InProcessMeshSender : AetherMesh.Routing.IMeshSender
 {
     private readonly HashSet<string> _potentialPeers = new(StringComparer.Ordinal);
     private InProcessTransportService _transport;
@@ -853,26 +853,26 @@ file sealed class InProcessMeshSender : Aether.Routing.IMeshSender
 
     public void RebindTransport(InProcessTransportService transport) => _transport = transport;
 
-    public IReadOnlyList<Aether.Models.PeerInfo> GetConnectedPeers()
+    public IReadOnlyList<AetherMesh.Models.PeerInfo> GetConnectedPeers()
     {
-        var alive = new List<Aether.Models.PeerInfo>();
+        var alive = new List<AetherMesh.Models.PeerInfo>();
         foreach (var uhid in _potentialPeers)
         {
             if (_transport.IsConnected(uhid))
-                alive.Add(new Aether.Models.PeerInfo { Uhid = uhid, TransportType = "InProcess" });
+                alive.Add(new AetherMesh.Models.PeerInfo { Uhid = uhid, TransportType = "InProcess" });
         }
         return alive;
     }
 
-    public Task<bool> SendAsync(Aether.Protocol.MeshPacket packet, string nextHopUhid, CancellationToken cancellationToken = default)
+    public Task<bool> SendAsync(AetherMesh.Protocol.MeshPacket packet, string nextHopUhid, CancellationToken cancellationToken = default)
     {
-        var bytes = Aether.Protocol.PacketSerializer.Serialize(packet);
+        var bytes = AetherMesh.Protocol.PacketSerializer.Serialize(packet);
         return _transport.SendAsync(nextHopUhid, bytes, cancellationToken);
     }
 
-    public async Task<int> BroadcastAsync(Aether.Protocol.MeshPacket packet, CancellationToken cancellationToken = default)
+    public async Task<int> BroadcastAsync(AetherMesh.Protocol.MeshPacket packet, CancellationToken cancellationToken = default)
     {
-        var bytes = Aether.Protocol.PacketSerializer.Serialize(packet);
+        var bytes = AetherMesh.Protocol.PacketSerializer.Serialize(packet);
         var delivered = 0;
         foreach (var uhid in _potentialPeers)
         {

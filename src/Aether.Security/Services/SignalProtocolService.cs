@@ -2,11 +2,11 @@
 
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
-using Aether.Diagnostics;
-using Aether.Security.Models;
+using AetherMesh.Diagnostics;
+using AetherMesh.Security.Models;
 using Microsoft.Extensions.Logging;
 
-namespace Aether.Security.Services;
+namespace AetherMesh.Security.Services;
 
 /// <summary>
 /// State of a Signal-Protocol session with a single peer — both X3DH

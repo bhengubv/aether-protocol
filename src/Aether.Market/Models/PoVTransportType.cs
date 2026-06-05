@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Market.Models;
+namespace AetherMesh.Market.Models;
 
 /// <summary>Transport used for co-presence Proof-of-Vicinity exchange.</summary>
 public enum PoVTransportType : byte

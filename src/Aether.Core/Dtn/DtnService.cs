@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json;
-using Aether.Constants;
-using Aether.Diagnostics;
-using Aether.Extensibility;
-using Aether.Models;
-using Aether.Protocol;
-using Aether.Reputation;
-using Aether.Routing;
+using AetherMesh.Constants;
+using AetherMesh.Diagnostics;
+using AetherMesh.Extensibility;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
+using AetherMesh.Reputation;
+using AetherMesh.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Dtn;
+namespace AetherMesh.Dtn;
 
 /// <summary>
 /// Default DTN service implementation. Bundles are JSON-serialized into <see cref="MeshPacket.Payload"/>

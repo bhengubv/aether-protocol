@@ -2,11 +2,11 @@
 
 using System.Buffers.Binary;
 using System.Security.Cryptography;
-using Aether.Protocol;
+using AetherMesh.Protocol;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Aether.Core.Tests;
+namespace AetherMesh.Core.Tests;
 
 /// <summary>
 /// Fuzz exercises for <see cref="PacketSerializer.Deserialize(byte[])"/>.

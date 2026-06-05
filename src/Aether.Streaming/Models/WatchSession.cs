@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace Aether.Streaming.Models;
+namespace AetherMesh.Streaming.Models;
 
 /// <summary>
 /// Lifecycle state of a watch-together session.
@@ -56,7 +56,7 @@ public sealed class WatchSession
 }
 
 /// <summary>
-/// Wire payload for <see cref="Aether.Protocol.PacketType.WatchSync"/>. Host emits
+/// Wire payload for <see cref="AetherMesh.Protocol.PacketType.WatchSync"/>. Host emits
 /// these as authoritative commands; followers apply with the RTT-compensation rule
 /// in the spec (<c>local_position_at_apply ← position_ms + (now − sent_at_ms) × playback_speed</c>).
 /// </summary>
@@ -76,7 +76,7 @@ public sealed class WatchSyncCommand
 }
 
 /// <summary>
-/// Wire payload for <see cref="Aether.Protocol.PacketType.WatchReaction"/> — followers
+/// Wire payload for <see cref="AetherMesh.Protocol.PacketType.WatchReaction"/> — followers
 /// can fire small reactions (emoji etc.) without disturbing host-controlled playback.
 /// </summary>
 public sealed class WatchReactionPayload
@@ -93,7 +93,7 @@ public sealed class WatchReactionPayload
 }
 
 /// <summary>
-/// Wire payload for the announce / join handshake. Carried in <see cref="Aether.Protocol.PacketType.WatchSync"/>
+/// Wire payload for the announce / join handshake. Carried in <see cref="AetherMesh.Protocol.PacketType.WatchSync"/>
 /// with <see cref="WatchSyncCommand.Kind"/> ignored — discriminated by the JSON shape.
 /// </summary>
 public sealed class WatchJoinPayload

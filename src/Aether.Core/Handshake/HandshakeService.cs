@@ -2,15 +2,15 @@
 
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Aether.Constants;
-using Aether.Extensibility;
-using Aether.Extensibility.Events;
-using Aether.Protocol;
-using Aether.Routing;
+using AetherMesh.Constants;
+using AetherMesh.Extensibility;
+using AetherMesh.Extensibility.Events;
+using AetherMesh.Protocol;
+using AetherMesh.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Aether.Handshake;
+namespace AetherMesh.Handshake;
 
 /// <summary>
 /// Default <see cref="IHandshakeService"/> implementation. Tracks the peers

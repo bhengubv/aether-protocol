@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using Aether.Models;
-using Aether.Protocol;
+using AetherMesh.Models;
+using AetherMesh.Protocol;
 
-namespace Aether.Routing;
+namespace AetherMesh.Routing;
 
 /// <summary>
 /// Minimal sending abstraction routing, DTN, and SOS need. Lets these services

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-namespace Aether.Vault.Models;
+namespace AetherMesh.Vault.Models;
 
 /// <summary>Event args fired when a peer requests a shard that this node holds.</summary>
 public sealed class VaultShardRequest
