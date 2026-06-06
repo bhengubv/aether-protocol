@@ -81,8 +81,8 @@ path that handles a real session must produce the fixture outputs.
 
 ```bash
 # Un-skip Generate_ExpectedFixtures in
-# tests/Aether.Core.Tests/SignalFixtureGenerator.cs and run:
-dotnet test tests/Aether.Core.Tests/Aether.Core.Tests.csproj \
+# tests/AetherMesh.Core.Tests/SignalFixtureGenerator.cs and run:
+dotnet test tests/AetherMesh.Core.Tests/AetherMesh.Core.Tests.csproj \
   --filter "FullyQualifiedName~SignalFixtureGenerator" \
   --logger "console;verbosity=detailed"
 ```

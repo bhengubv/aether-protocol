@@ -15,10 +15,10 @@ import asyncio
 
 import pytest
 
-from aether.security import SignalProtocolService
-from aether.security.session_store import KeyValueSignalSessionStore
-from aether.security.pre_key_store import KeyValuePreKeyStore
-from aether.storage import InMemoryKeyValueStore, KeyValueStore
+from aethermesh.security import SignalProtocolService
+from aethermesh.security.session_store import KeyValueSignalSessionStore
+from aethermesh.security.pre_key_store import KeyValuePreKeyStore
+from aethermesh.storage import InMemoryKeyValueStore, KeyValueStore
 
 
 _ALICE_UHID = "alice-uhid-persist"

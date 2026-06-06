@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-"""Unit tests for aether.transport.in_process.InProcessTransport."""
+"""Unit tests for aethermesh.transport.in_process.InProcessTransport."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import asyncio
 import threading
 import unittest
 
-from aether.transport.in_process import InProcessTransport
+from aethermesh.transport.in_process import InProcessTransport
 
 
 def _run(coro):

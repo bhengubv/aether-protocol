@@ -109,7 +109,7 @@
 |--------|------|------:|----------:|--------|
 | 🔵 Aether Blue | BLE GATT | ~۱۰۰ متر | ۱ مگابیت/ثانیه | ✅ Windows + Android (`android/blue/`) |
 | 🟢 Aether Green | Wi-Fi Direct | ~۲۰۰ متر | ۲۵۰ مگابیت/ثانیه | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | رله سلولی HTTP | نامحدود | ~۱۰ مگابیت/ثانیه | ✅ Windows — سرور رله در `samples/Aether.RelayServer/` |
+| 🟣 Aether Purple | رله سلولی HTTP | نامحدود | ~۱۰ مگابیت/ثانیه | ✅ Windows — سرور رله در `samples/AetherMesh.RelayServer/` |
 | ⚪ Aether White | NFC HCE | ~۵ سانتی‌متر | ۸۴۸ کیلوبیت/ثانیه | ⚠️ Android HCE (`android/white/`)؛ Windows: NDEF-over-BLE-GATT + ACR122U PC/SC تقریبی (`Windows.Networking.Proximity` در Win 11 حذف شده) |
 | 🩵 Aether Teal | NearLink | ~۶۰۰ متر | ۱۲ مگابیت/ثانیه | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`؛ Windows + Android: تقریب SSAP-over-BLE (معادل API، نه سازگار با سیم) |
 | 🔴 Aether Red | LoRa / CircleLink | ~۱۵ کیلومتر | ۳۷.۵ کیلوبیت/ثانیه | ⚠️ فرمت سیم Meshtastic روی BLE LR (~۱.۳ کیلومتر)؛ تعویض رادیو به SX1276/SX1278 وقتی ماژول LoRa موجود است |
@@ -223,7 +223,7 @@ cd aether-protocol
 ### C# (.NET 10 SDK)
 
 ```bash
-dotnet run --project samples/Aether.Demo.Console
+dotnet run --project samples/AetherMesh.Demo.Console
 ```
 
 دمو ۸ مرحله را طی می‌کند: تولید کلیدهای هویتی Ed25519 برای سه گره (Alice، Bob، Charlie)، برقراری جلسات Signal Protocol، ارسال پیام‌های رمزگذاری‌شده، رله یک پیام از طریق Charlie (که نمی‌تواند آن را بخواند)، نمایش فرمت سیم باینری، و نمایش رازداری رو به جلو در ۵ پیام متوالی. خروجی رنگ‌بندی‌شده است و بین مراحل مکث می‌کند.
@@ -433,28 +433,28 @@ cd c && mkdir -p build && cd build && cmake .. && make && ./aether-demo
 **ارسال پیام در C:**
 
 ```c
-aether_mesh_packet_t *packet = aether_packet_new();
-packet->type = AETHER_PACKET_TYPE_DATA;
+aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+packet->type = AETHERMESH_PACKET_TYPE_DATA;
 packet->ttl = 7;
 
-aether_packet_set_source_uhid(packet, "alice");
-aether_packet_set_destination_uhid(packet, "bob");
-aether_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
+aethermesh_packet_set_source_uhid(packet, "alice");
+aethermesh_packet_set_destination_uhid(packet, "bob");
+aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
 
 // Sign
 size_t signable_len = 0;
-uint8_t *signable = aether_packet_get_signable_data(packet, &signable_len);
+uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
 uint8_t signature[64];
-aether_ed25519_sign(private_key, signable, signable_len, signature);
-aether_packet_set_signature(packet, signature, 64);
+aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
+aethermesh_packet_set_signature(packet, signature, 64);
 free(signable);
 
 // Serialize and send
 uint8_t buffer[2048];
-int size = aether_packet_serialize(packet, buffer, sizeof(buffer));
+int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
 // send buffer[0..size-1] over transport
 
-aether_packet_free(packet);
+aethermesh_packet_free(packet);
 ```
 
 ## نقشه راه
@@ -485,11 +485,11 @@ aether_packet_free(packet);
 - ✅ **تماس‌های تصویری (یک‌به‌یک)** — مذاکره کدک/رزولوشن/fps/bitrate در سیگنالینگ، سیگنال‌های درخواست keyframe و تغییر کیفیت، فرمت `VideoFrame` باینری مطابق با طرح‌بندی صوتی.
 - ✅ **تماشا با هم** — میزبان دستورات `WatchSync` معتبر (پخش/توقف/جستجو/سرعت) صادر می‌کند؛ پیروان با جبران RTT اعمال می‌کنند (`position = positionMs + elapsed × playbackSpeed`)؛ `WatchReaction` fire-and-forget.
 - ✅ **مخزن کلید پیش‌پرداخت یک‌بار مصرف (OPK)** — پیش‌فرض ۱۰۰، صدور FIFO، شارژ تنبل، مصرف محافظت‌شده با قفل در تمام ۸ زبان. خطر همزمانی single-OPK را بسته می‌کند.
-- ✅ **C: جلسه Signal کامل** — `aether_signal_service_init`، `generate_pre_key_bundle`، `process_pre_key_bundle`، `encrypt`، `decrypt` در `c/src/signal_protocol.c`؛ ۶ آزمون E2E دو-گره در `c/tests/test_signal_session.c`. هر ۸ زبان اکنون Signal Protocol کامل با قابلیت جلسه دارند.
+- ✅ **C: جلسه Signal کامل** — `aethermesh_signal_service_init`، `generate_pre_key_bundle`، `process_pre_key_bundle`، `encrypt`، `decrypt` در `c/src/signal_protocol.c`؛ ۶ آزمون E2E دو-گره در `c/tests/test_signal_session.c`. هر ۸ زبان اکنون Signal Protocol کامل با قابلیت جلسه دارند.
 
 **انجام‌شده (فقط مرجع C#):**
 - ✅ **مرحله ۹ دمو — MessagingService + DTN fallback انتها-به-انتها**
-- ✅ **پل `Aether.Messaging` ↔ `Aether.Security`** — `SignalMessageEnvelopeCipher` لایه پیام‌رسانی را به‌طور پیش‌فرض انتها-به-انتها رمزگذاری می‌کند.
+- ✅ **پل `AetherMesh.Messaging` ↔ `AetherMesh.Security`** — `SignalMessageEnvelopeCipher` لایه پیام‌رسانی را به‌طور پیش‌فرض انتها-به-انتها رمزگذاری می‌کند.
 - ✅ **استریمینگ با bitrate تطبیقی** — `AdaptiveBitrateController` با نردبان‌های bitrate مشخص‌شده در spec برای Profile A (زمان واقعی)، B (پخش زنده) و C (VOD).
 - ✅ **تماشا با هم: ورودی BitTorrent + تأمین مالی گروهی ChipIn**
 - ✅ **تماس‌های تصویری گروهی با رله SFU خودکار** — `GroupVideoService` / `IGroupVideoService`.
@@ -519,19 +519,19 @@ aether_packet_free(packet);
 ```
 aether-protocol/
   src/
-    Aether.Core/          مدل‌های پروتکل، ثابت‌ها، سریال‌سازی بسته
-    Aether.Security/      Signal Protocol، Ed25519، امضای بسته
-    Aether.Transport/     انتزاع‌های انتقال، NearLink، شبیه‌ساز درون‌پروسه‌ای
-    Aether.Messaging/     مدیریت پیام و رله
-    Aether.Storage/       پایداری DTN store-and-forward
-    Aether.Streaming/     استریمینگ bitrate تطبیقی، مدل‌ها و رابط‌های تصویری
-    Aether.Voice/         تماس‌های صوتی و صدای گروهی
-    Aether.Content/       تأیید محتوا و انتقال تقسیم‌شده
+    AetherMesh.Core/          مدل‌های پروتکل، ثابت‌ها، سریال‌سازی بسته
+    AetherMesh.Security/      Signal Protocol، Ed25519، امضای بسته
+    AetherMesh.Transport/     انتزاع‌های انتقال، NearLink، شبیه‌ساز درون‌پروسه‌ای
+    AetherMesh.Messaging/     مدیریت پیام و رله
+    AetherMesh.Storage/       پایداری DTN store-and-forward
+    AetherMesh.Streaming/     استریمینگ bitrate تطبیقی، مدل‌ها و رابط‌های تصویری
+    AetherMesh.Voice/         تماس‌های صوتی و صدای گروهی
+    AetherMesh.Content/       تأیید محتوا و انتقال تقسیم‌شده
   samples/
-    Aether.Demo.Console/  دمو تعاملی
+    AetherMesh.Demo.Console/  دمو تعاملی
   tests/
-    Aether.Security.Tests/
-    Aether.Protocol.Tests/
+    AetherMesh.Security.Tests/
+    AetherMesh.Protocol.Tests/
   rust/                   پیاده‌سازی Rust
   typescript/             پیاده‌سازی TypeScript
   python/                 پیاده‌سازی Python
@@ -577,9 +577,9 @@ public class LoRaTransportService : ITransportService
 
 پروتکل به‌تنهایی کار می‌کند. این رابط‌ها به شما اجازه می‌دهند بک‌اند خودتان را اگر خواستید وصل کنید:
 
-- `IAetherIncentiveProvider` — پاداش به گره‌هایی که ترافیک را رله می‌کنند (پیش‌فرض no-op: رله نوع‌دوستانه)
-- `IAetherBackendClient` — همگام‌سازی با سرور وقتی اینترنت موجود است (پیش‌فرض no-op: کاملاً آفلاین)
-- `IAetherFeatureFlagProvider` — تغییر ویژگی‌های پروتکل در زمان اجرا (پیش‌فرض no-op: همه چیز فعال)
+- `IAetherMeshIncentiveProvider` — پاداش به گره‌هایی که ترافیک را رله می‌کنند (پیش‌فرض no-op: رله نوع‌دوستانه)
+- `IAetherMeshBackendClient` — همگام‌سازی با سرور وقتی اینترنت موجود است (پیش‌فرض no-op: کاملاً آفلاین)
+- `IAetherMeshFeatureFlagProvider` — تغییر ویژگی‌های پروتکل در زمان اجرا (پیش‌فرض no-op: همه چیز فعال)
 
 هر سه با پیاده‌سازی‌های no-op ارائه می‌شوند. آن‌ها را بردارید و چیزی خراب نمی‌شود.
 

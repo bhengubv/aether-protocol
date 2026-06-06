@@ -134,43 +134,43 @@ ctest --output-on-failure
 
 int main(void) {
     // Create a packet
-    aether_mesh_packet_t *packet = aether_packet_new();
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
     if (!packet) return 1;
 
     // Set fields
-    aether_packet_set_source_uhid(packet, "node-alice");
-    aether_packet_set_destination_uhid(packet, "node-bob");
-    aether_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
+    aethermesh_packet_set_source_uhid(packet, "node-alice");
+    aethermesh_packet_set_destination_uhid(packet, "node-bob");
+    aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
 
     // Generate and sign
-    uint8_t private_key[AETHER_ED25519_PRIVATE_KEY_SIZE];
-    uint8_t public_key[AETHER_ED25519_PUBLIC_KEY_SIZE];
-    aether_ed25519_generate_keypair(private_key, public_key);
+    uint8_t private_key[AETHERMESH_ED25519_PRIVATE_KEY_SIZE];
+    uint8_t public_key[AETHERMESH_ED25519_PUBLIC_KEY_SIZE];
+    aethermesh_ed25519_generate_keypair(private_key, public_key);
 
     size_t signable_len = 0;
-    uint8_t *signable = aether_packet_get_signable_data(packet, &signable_len);
+    uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
     if (signable) {
-        uint8_t signature[AETHER_ED25519_SIGNATURE_SIZE];
-        aether_ed25519_sign(private_key, signable, signable_len, signature);
-        aether_packet_set_signature(packet, signature, AETHER_ED25519_SIGNATURE_SIZE);
+        uint8_t signature[AETHERMESH_ED25519_SIGNATURE_SIZE];
+        aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
+        aethermesh_packet_set_signature(packet, signature, AETHERMESH_ED25519_SIGNATURE_SIZE);
         free(signable);
     }
 
     // Serialize
     uint8_t buffer[4096];
-    int size = aether_packet_serialize(packet, buffer, sizeof(buffer));
+    int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
     if (size > 0) {
         printf("Packet serialized: %d bytes\n", size);
     }
 
     // Deserialize
-    aether_mesh_packet_t *received = aether_packet_deserialize(buffer, size);
+    aethermesh_mesh_packet_t *received = aethermesh_packet_deserialize(buffer, size);
     if (received) {
         printf("Received from: %s\n", received->source_uhid);
-        aether_packet_free(received);
+        aethermesh_packet_free(received);
     }
 
-    aether_packet_free(packet);
+    aethermesh_packet_free(packet);
     return 0;
 }
 ```
@@ -180,60 +180,60 @@ int main(void) {
 ### Protocol
 
 #### Packet Management
-- `aether_mesh_packet_t *aether_packet_new(void)` — Create a new packet
-- `void aether_packet_free(aether_mesh_packet_t *packet)` — Free a packet
-- `aether_mesh_packet_t *aether_packet_clone(const aether_mesh_packet_t *packet)` — Clone a packet
+- `aethermesh_mesh_packet_t *aethermesh_packet_new(void)` — Create a new packet
+- `void aethermesh_packet_free(aethermesh_mesh_packet_t *packet)` — Free a packet
+- `aethermesh_mesh_packet_t *aethermesh_packet_clone(const aethermesh_mesh_packet_t *packet)` — Clone a packet
 
 #### Serialization
-- `int aether_packet_serialize(const aether_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — Serialize to wire format
-- `aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data, size_t data_len)` — Deserialize from wire format
-- `size_t aether_packet_estimate_size(const aether_mesh_packet_t *packet)` — Estimate wire size
+- `int aethermesh_packet_serialize(const aethermesh_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — Serialize to wire format
+- `aethermesh_mesh_packet_t *aethermesh_packet_deserialize(const uint8_t *data, size_t data_len)` — Deserialize from wire format
+- `size_t aethermesh_packet_estimate_size(const aethermesh_mesh_packet_t *packet)` — Estimate wire size
 
 #### Packet Fields
-- `bool aether_packet_set_source_uhid(aether_mesh_packet_t *packet, const char *uhid)` — Set source
-- `bool aether_packet_set_destination_uhid(aether_mesh_packet_t *packet, const char *uhid)` — Set destination
-- `bool aether_packet_set_payload(aether_mesh_packet_t *packet, const uint8_t *data, size_t len)` — Set payload
-- `bool aether_packet_set_signature(aether_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — Set signature
+- `bool aethermesh_packet_set_source_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — Set source
+- `bool aethermesh_packet_set_destination_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — Set destination
+- `bool aethermesh_packet_set_payload(aethermesh_mesh_packet_t *packet, const uint8_t *data, size_t len)` — Set payload
+- `bool aethermesh_packet_set_signature(aethermesh_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — Set signature
 
 #### Validation
-- `bool aether_packet_is_expired(const aether_mesh_packet_t *packet, int max_age_seconds)` — Check if expired
-- `bool aether_packet_can_forward(const aether_mesh_packet_t *packet)` — Check if TTL > 0
+- `bool aethermesh_packet_is_expired(const aethermesh_mesh_packet_t *packet, int max_age_seconds)` — Check if expired
+- `bool aethermesh_packet_can_forward(const aethermesh_mesh_packet_t *packet)` — Check if TTL > 0
 
 #### Signing Data
-- `uint8_t *aether_packet_get_signable_data(const aether_mesh_packet_t *packet, size_t *out_len)` — Get deterministic signable bytes (caller must free)
+- `uint8_t *aethermesh_packet_get_signable_data(const aethermesh_mesh_packet_t *packet, size_t *out_len)` — Get deterministic signable bytes (caller must free)
 
 ### Security
 
 #### Ed25519
-- `bool aether_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — Generate 32+32 byte keys
-- `bool aether_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — Sign (produces 64 bytes)
-- `bool aether_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — Verify
+- `bool aethermesh_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — Generate 32+32 byte keys
+- `bool aethermesh_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — Sign (produces 64 bytes)
+- `bool aethermesh_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — Verify
 
 #### AES-256-GCM
-- `bool aether_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — Encrypt (nonce auto-generated if NULL)
-- `bool aether_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — Decrypt
+- `bool aethermesh_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — Encrypt (nonce auto-generated if NULL)
+- `bool aethermesh_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — Decrypt
 
 #### HMAC & Hash
-- `bool aether_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 bytes)
-- `bool aether_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 bytes)
-- `bool aether_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
+- `bool aethermesh_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 bytes)
+- `bool aethermesh_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 bytes)
+- `bool aethermesh_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
 
 #### Utilities
-- `void aether_zeroize(void *mem, size_t len)` — Constant-time memory wiping
-- `bool aether_random_bytes(uint8_t *out, size_t len)` — Cryptographically random bytes
+- `void aethermesh_zeroize(void *mem, size_t len)` — Constant-time memory wiping
+- `bool aethermesh_random_bytes(uint8_t *out, size_t len)` — Cryptographically random bytes
 
 ### Transport
 
 #### Generic Functions
-- `bool aether_transport_send(aether_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — Send data
-- `bool aether_transport_is_connected(aether_transport_t *transport, const char *peer_uhid)` — Check connection
-- `void aether_transport_set_on_data_received(aether_transport_t *transport, aether_transport_on_data_received callback, void *user_data)` — Register callback
-- `void aether_transport_destroy(aether_transport_t *transport)` — Cleanup
+- `bool aethermesh_transport_send(aethermesh_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — Send data
+- `bool aethermesh_transport_is_connected(aethermesh_transport_t *transport, const char *peer_uhid)` — Check connection
+- `void aethermesh_transport_set_on_data_received(aethermesh_transport_t *transport, aethermesh_transport_on_data_received callback, void *user_data)` — Register callback
+- `void aethermesh_transport_destroy(aethermesh_transport_t *transport)` — Cleanup
 
 #### In-Process Transport
-- `aether_transport_t *aether_inprocess_transport_new(void)` — Create shared in-process transport
-- `bool aether_inprocess_transport_register_node(aether_transport_t *transport, const char *uhid)` — Register a node
-- `bool aether_inprocess_transport_unregister_node(aether_transport_t *transport, const char *uhid)` — Unregister a node
+- `aethermesh_transport_t *aethermesh_inprocess_transport_new(void)` — Create shared in-process transport
+- `bool aethermesh_inprocess_transport_register_node(aethermesh_transport_t *transport, const char *uhid)` — Register a node
+- `bool aethermesh_inprocess_transport_unregister_node(aethermesh_transport_t *transport, const char *uhid)` — Unregister a node
 
 ## Wire Format Compliance
 
@@ -294,7 +294,7 @@ All sensitive material (keys, plaintext, intermediate values) is zeroed from mem
 
 ### Memory Usage
 - Minimum packet: ~52 bytes
-- Maximum packet: 65KB (configurable via `AETHER_MAX_PAYLOAD_LEN`)
+- Maximum packet: 65KB (configurable via `AETHERMESH_MAX_PAYLOAD_LEN`)
 - A 256-node peer table: ~32KB
 - Single mesh packet in memory: ~8KB (worst case with maximum fields)
 
@@ -331,8 +331,8 @@ Tests cover:
 ## Integration with Aether Ecosystem
 
 This C library is designed to integrate with:
-- **AetherAPI** (C#) — server-side mesh relay and analytics
-- **Aether.Core** (C#) — reference implementation (interoperable wire format)
+- **AetherMeshAPI** (C#) — server-side mesh relay and analytics
+- **AetherMesh.Core** (C#) — reference implementation (interoperable wire format)
 - **Meshtastic** — open-source mesh radio firmware
 - **esp-idf** — Espressif IoT Development Framework
 - Custom embedded applications
@@ -355,7 +355,7 @@ Contributions welcome! Please ensure:
 ## References
 
 - Protocol Spec: `/Users/admin/Code/Dev/aether-protocol/docs/PROTOCOL_SPEC.md`
-- C# Reference: `/Users/admin/Code/Dev/aether-protocol/src/Aether.Core/`
+- C# Reference: `/Users/admin/Code/Dev/aether-protocol/src/AetherMesh.Core/`
 - libsodium: https://libsodium.org/
 - RFC 5869 (HKDF): https://tools.ietf.org/html/rfc5869
 - RFC 3561 (AODV): https://tools.ietf.org/html/rfc3561

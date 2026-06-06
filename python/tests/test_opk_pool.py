@@ -26,7 +26,7 @@ from typing import List
 
 import pytest
 
-from aether.security.signal_protocol import (
+from aethermesh.security.signal_protocol import (
     DEFAULT_OPK_POOL_SIZE,
     SignalProtocolService,
 )

@@ -87,7 +87,7 @@ impl SignalSessionStore for InMemorySignalSessionStore {
 /// [`SignalSessionStore`] adapter over an arbitrary [`KeyValueStore`].
 /// Sessions are JSON-encoded under `signal:session:<peerUhid>`.
 ///
-/// Mirrors `Aether.Storage.KeyValueSignalSessionStore`.
+/// Mirrors `AetherMesh.Storage.KeyValueSignalSessionStore`.
 pub struct KvSignalSessionStore {
     kv: Arc<dyn KeyValueStore>,
 }

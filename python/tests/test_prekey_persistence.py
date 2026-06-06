@@ -15,10 +15,10 @@ import asyncio
 
 import pytest
 
-from aether.security import SignalProtocolService
-from aether.security.session_store import KeyValueSignalSessionStore
-from aether.security.pre_key_store import KeyValuePreKeyStore
-from aether.storage import InMemoryKeyValueStore, KeyValueStore
+from aethermesh.security import SignalProtocolService
+from aethermesh.security.session_store import KeyValueSignalSessionStore
+from aethermesh.security.pre_key_store import KeyValuePreKeyStore
+from aethermesh.storage import InMemoryKeyValueStore, KeyValueStore
 
 
 _LOCAL_UHID = "uhid-prekey-persist"
@@ -175,7 +175,7 @@ async def test_filesystem_kv_persists_across_restart(tmp_path):
     Verifies that the identity round-trips through actual disk I/O, not
     just the in-memory KV. ``tmp_path`` is wiped by pytest at end-of-test.
     """
-    from aether.storage import FileSystemKeyValueStore
+    from aethermesh.storage import FileSystemKeyValueStore
 
     kv_path = tmp_path / "prekey"
     first = SignalProtocolService(

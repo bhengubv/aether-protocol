@@ -9,10 +9,10 @@ import json
 import unittest
 from uuid import uuid4
 
-from aether import constants
-from aether.models import SosAlert
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.sos import SosBroadcastService
+from aethermesh import constants
+from aethermesh.models import SosAlert
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.sos import SosBroadcastService
 
 from tests.fakes import FakeMeshSender
 

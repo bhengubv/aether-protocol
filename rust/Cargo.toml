@@ -1,5 +1,5 @@
 [package]
-name = "aether-protocol"
+name = "aethermesh-protocol"
 version = "1.0.0"
 edition = "2021"
 rust-version = "1.75"
@@ -8,7 +8,7 @@ license = "MIT"
 description = "Aether mesh networking protocol — offline-first P2P mesh via BLE, Wi-Fi Direct, LoRa, NFC, NearLink, and cellular relay"
 repository = "https://github.com/bhengubv/aether-protocol"
 homepage = "https://github.com/bhengubv/aether-protocol"
-documentation = "https://docs.rs/aether-protocol"
+documentation = "https://docs.rs/aethermesh-protocol"
 readme = "README.md"
 keywords = ["mesh", "networking", "p2p", "bluetooth", "protocol"]
 categories = ["network-programming", "cryptography"]
@@ -39,5 +39,5 @@ proptest = "1.4"
 criterion = { version = "0.5", default-features = false }
 
 [[bench]]
-name = "aether"
+name = "aethermesh"
 harness = false

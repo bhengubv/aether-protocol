@@ -107,7 +107,7 @@
 |--------|------|------:|----------:|--------|
 | 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
 | 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | Cellular HTTP relay | 무제한 | ~10 Mbps | ✅ Windows — 중계 서버는 `samples/Aether.RelayServer/` |
+| 🟣 Aether Purple | Cellular HTTP relay | 무제한 | ~10 Mbps | ✅ Windows — 중계 서버는 `samples/AetherMesh.RelayServer/` |
 | ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE (`android/white/`); Windows: NDEF-over-BLE-GATT + ACR122U PC/SC 근사 (`Windows.Networking.Proximity`는 Win 11에서 제거됨) |
 | 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`; Windows + Android: SSAP-over-BLE 근사 (API 유사, 와이어 비호환) |
 | 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ BLE LR을 통한 Meshtastic 와이어 형식 (~1.3 km); LoRa 모듈 존재 시 SX1276/SX1278로 라디오 교체 |
@@ -221,7 +221,7 @@ cd aether-protocol
 ### C# (.NET 10 SDK)
 
 ```bash
-dotnet run --project samples/Aether.Demo.Console
+dotnet run --project samples/AetherMesh.Demo.Console
 ```
 
 데모는 8단계를 진행합니다: 세 노드 (Alice, Bob, Charlie)에 대한 Ed25519 신원 키 생성, Signal Protocol 세션 수립, 암호화된 메시지 전송, Charlie를 통한 메시지 중계 (Charlie는 내용을 읽을 수 없음), 바이너리 와이어 형식 표시, 5개의 연속 메시지에 걸친 전달 비밀성 시연. 출력은 색상 코드로 구분되며 단계 사이마다 일시 정지합니다.
@@ -431,28 +431,28 @@ cd c && mkdir -p build && cd build && cmake .. && make && ./aether-demo
 **C로 메시지 보내기:**
 
 ```c
-aether_mesh_packet_t *packet = aether_packet_new();
-packet->type = AETHER_PACKET_TYPE_DATA;
+aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+packet->type = AETHERMESH_PACKET_TYPE_DATA;
 packet->ttl = 7;
 
-aether_packet_set_source_uhid(packet, "alice");
-aether_packet_set_destination_uhid(packet, "bob");
-aether_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
+aethermesh_packet_set_source_uhid(packet, "alice");
+aethermesh_packet_set_destination_uhid(packet, "bob");
+aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
 
 // Sign
 size_t signable_len = 0;
-uint8_t *signable = aether_packet_get_signable_data(packet, &signable_len);
+uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
 uint8_t signature[64];
-aether_ed25519_sign(private_key, signable, signable_len, signature);
-aether_packet_set_signature(packet, signature, 64);
+aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
+aethermesh_packet_set_signature(packet, signature, 64);
 free(signable);
 
 // Serialize and send
 uint8_t buffer[2048];
-int size = aether_packet_serialize(packet, buffer, sizeof(buffer));
+int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
 // send buffer[0..size-1] over transport
 
-aether_packet_free(packet);
+aethermesh_packet_free(packet);
 ```
 
 ## 로드맵
@@ -483,11 +483,11 @@ aether_packet_free(packet);
 - ✅ **영상 통화 (1:1)** — 시그널링에서 코덱/해상도/fps/비트레이트 협상, 키프레임 요청 및 품질 변경 신호, 음성 레이아웃에 맞는 바이너리 `VideoFrame` 형식.
 - ✅ **함께 보기** — 호스트가 권위 있는 `WatchSync` (재생/일시정지/탐색/속도) 명령 발행; 팔로워가 RTT 보상으로 적용 (`position = positionMs + elapsed × playbackSpeed`); 파이어-앤-포겟 `WatchReaction`.
 - ✅ **1회용 사전 키 (OPK) 풀** — 기본 100개, FIFO 발급, 지연 보충, 8개 언어 모두에서 잠금 보호 소비. 단일 OPK 동시성 위험 해결.
-- ✅ **C: 완전한 Signal 세션** — `c/src/signal_protocol.c`의 `aether_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`; `c/tests/test_signal_session.c`의 6개 양방향 E2E 테스트. 8개 언어 모두 이제 완전한 세션 기능 Signal Protocol 지원.
+- ✅ **C: 완전한 Signal 세션** — `c/src/signal_protocol.c`의 `aethermesh_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`; `c/tests/test_signal_session.c`의 6개 양방향 E2E 테스트. 8개 언어 모두 이제 완전한 세션 기능 Signal Protocol 지원.
 
 **완료 (C# 참조 구현체만):**
-- ✅ **데모 9단계 — MessagingService + DTN 폴백 종단 간** — `samples/Aether.Demo.Console`은 수신자가 오프라인일 때 DTN 저장-전달과 함께 실제 Signal 암호화 메시지를 진행합니다.
-- ✅ **`Aether.Messaging` ↔ `Aether.Security` 브리지** — `SignalMessageEnvelopeCipher`가 메시지 계층을 기본적으로 종단 간 암호화합니다; Signal 세션이 없는 메시지는 큐에 저장되며 안전하지 않게 전송되지 않습니다.
+- ✅ **데모 9단계 — MessagingService + DTN 폴백 종단 간** — `samples/AetherMesh.Demo.Console`은 수신자가 오프라인일 때 DTN 저장-전달과 함께 실제 Signal 암호화 메시지를 진행합니다.
+- ✅ **`AetherMesh.Messaging` ↔ `AetherMesh.Security` 브리지** — `SignalMessageEnvelopeCipher`가 메시지 계층을 기본적으로 종단 간 암호화합니다; Signal 세션이 없는 메시지는 큐에 저장되며 안전하지 않게 전송되지 않습니다.
 - ✅ **어댑티브 비트레이트 스트리밍** — 프로파일 A (실시간), B (라이브 방송), C (VOD)에 대한 명세 지정 비트레이트 래더를 갖는 `AdaptiveBitrateController`. 퍼블리셔는 최고 지속 가능한 등급 (20% 여유)을 선택하고 하한선 이하가 되면 세그먼트 대신 `StreamAbandon` (`PacketType.StreamAbandon`)을 발행합니다. `IStreamingService`는 `UpdateBandwidthEstimate`와 `GetCurrentBitrateRung`을 노출합니다.
 - ✅ **함께 보기: BitTorrent 수집 + ChipIn 그룹 펀딩** — `TorrentInfo` / `TorrentFile` 모델; `WatchTogetherService`가 `PacketType.TorrentMetadata`를 처리하고 `TorrentReceived`를 발생시킵니다. `ChipInPool` / `ChipInContribution` 상태 머신 (수집 중 → 펀딩됨 → 구매 중 → 획득 / 실패 / 환불); `IWatchTogetherService`의 `StartChipInAsync` / `ContributeAsync` / `GetChipIn`.
 - ✅ **자동 SFU 중계를 통한 그룹 영상 통화** — `GroupVideoService` / `IGroupVideoService`. ≤ 3명 참가자에는 FullMesh 토폴로지; `SfuThresholdParticipants` (4)에서 `GroupVideoSignaling(SfuAssigned)`을 통한 중계 재배정으로 자동 SFU 전환. FullMesh에서 팬아웃, SFU 모드에서 중계 전용 전송. 시그널링 패킷 타입 `GroupVideoSignaling = 35`.
@@ -497,9 +497,9 @@ aether_packet_free(packet);
 - ✅ **RF 가동 시뮬레이션 테스트** — 양방향 상호 운용성 테스트 (`SimulatedTransportTests`): BLE + NearLink `MeshPacket` 왕복, WiFi Direct 64 KB 페이로드 전송. 소프트웨어 계층 완전 검증; 하드웨어 검증을 위한 물리적 기기 테스트 세션 필요.
 
 **완료 (C# 전송 계층 — 모두 페일-패스트):**
-- ✅ **BLE GATT 실제 전송** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (Android GATT 서버). `samples/Aether.BleRfTest/`의 완전한 RF 가동 테스트.
-- ✅ **Wi-Fi Direct 실제 전송** — `WinWifiDirectTransportService` (WinRT, `WiFiDirectAdvertisementPublisher` + TCP StreamSocket 포트 8888) + `android/green/` (`WifiP2pManager`). `samples/Aether.WifiDirectRfTest/`의 RF 테스트.
-- ✅ **HTTP 중계 전송 (Aether Purple)** — 10초 롱폴링, `PowerCostRelative = 100`, 항상 최후 수단인 `HttpRelayTransportService`. `samples/Aether.RelayServer/`의 중계 서버 (ASP.NET Core 미니멀 API, 포트 5200). `samples/Aether.RelayRfTest/`의 RF 테스트.
+- ✅ **BLE GATT 실제 전송** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (Android GATT 서버). `samples/AetherMesh.BleRfTest/`의 완전한 RF 가동 테스트.
+- ✅ **Wi-Fi Direct 실제 전송** — `WinWifiDirectTransportService` (WinRT, `WiFiDirectAdvertisementPublisher` + TCP StreamSocket 포트 8888) + `android/green/` (`WifiP2pManager`). `samples/AetherMesh.WifiDirectRfTest/`의 RF 테스트.
+- ✅ **HTTP 중계 전송 (Aether Purple)** — 10초 롱폴링, `PowerCostRelative = 100`, 항상 최후 수단인 `HttpRelayTransportService`. `samples/AetherMesh.RelayServer/`의 중계 서버 (ASP.NET Core 미니멀 API, 포트 5200). `samples/AetherMesh.RelayRfTest/`의 RF 테스트.
 - ✅ **NFC (Aether White)** — `android/white/`는 AID `F061657468657200`으로 `HostApduService`를 구현합니다. `WinNfcStubTransportService`는 두 가지 Windows 근사 경로를 문서화합니다: (1) RSSI 게이트 ≥ −40 dBm을 가진 NDEF-over-BLE-GATT (NFC 실리콘 없이 탭-투-커넥트 시뮬레이션, `IsAvailable = 블루투스 존재`); (2) `Windows.Devices.SmartCards` PC/SC를 통한 ACR122U USB 리더 (`IsAvailable = 비접촉식 리더 열거됨`). 업그레이드 경로: Microsoft가 1급 P2P NFC API를 제공하면 `ITransportService` 구현.
 - ✅ **NearLink (Aether Teal)** — **`harmonyos/teal/`** — `@kit.NearLinkKit`을 사용하는 완전한 HarmonyOS 5.0.1 (API 13) ArkTS 구현 (`scan.startScan` + `ssap.createClient` + `advertising.startAdvertising`); 런타임에 `isAvailable` 탐지. `WinNearLinkStubTransportService` + `android/teal/`은 SSAP-over-BLE 근사를 문서화합니다: Aether SLE 서비스 UUID `61657468-6572-0003-0000-000000000000`을 사용하는 BLE GATT — SSAP와 API 유사하지만 실제 NearLink 하드웨어와 와이어 비호환. 업그레이드 경로: BLE GATT 호출을 `ssapc_*`/`ssaps_*` SDK 호출로 교체; UUID 및 `TransportManager` 슬롯 변경 없음.
 - ✅ **LoRa / CircleLink (Aether Red)** — `LoRaCircleLinkStub` + `android/red/`은 Meshtastic-over-BLE-LR 근사를 문서화합니다: 관리된 플러드 라우팅 및 RSSI 가중 경쟁 창을 갖는 BLE 5.0 Coded PHY S=8 (~1.3 km 야외)을 통한 완전한 Meshtastic 와이어 형식 (16바이트 헤더 + AES-256-CTR 프로토버프). 실제 LoRa 하드웨어와의 브리지 노드 연합은 자동으로 작동합니다 (동일한 Meshtastic 패킷 형식, 변환 없음). 업그레이드 경로: BLE LR 라디오를 SX1276/SX1278 AT-커맨드 또는 SPI 드라이버로 교체; 패킷 형식 및 라우팅 변경 없음.
@@ -518,19 +518,19 @@ aether_packet_free(packet);
 ```
 aether-protocol/
   src/
-    Aether.Core/          프로토콜 모델, 상수, 패킷 직렬화
-    Aether.Security/      Signal Protocol, Ed25519, 패킷 서명
-    Aether.Transport/     전송 추상화, NearLink, 프로세스 내 시뮬레이터
-    Aether.Messaging/     메시지 처리 및 중계
-    Aether.Storage/       DTN 저장-전달 영속성
-    Aether.Streaming/     어댑티브 비트레이트 스트리밍, 영상 모델 및 인터페이스
-    Aether.Voice/         음성 통화 및 그룹 음성
-    Aether.Content/       콘텐츠 검증 및 청크 전송
+    AetherMesh.Core/          프로토콜 모델, 상수, 패킷 직렬화
+    AetherMesh.Security/      Signal Protocol, Ed25519, 패킷 서명
+    AetherMesh.Transport/     전송 추상화, NearLink, 프로세스 내 시뮬레이터
+    AetherMesh.Messaging/     메시지 처리 및 중계
+    AetherMesh.Storage/       DTN 저장-전달 영속성
+    AetherMesh.Streaming/     어댑티브 비트레이트 스트리밍, 영상 모델 및 인터페이스
+    AetherMesh.Voice/         음성 통화 및 그룹 음성
+    AetherMesh.Content/       콘텐츠 검증 및 청크 전송
   samples/
-    Aether.Demo.Console/  인터랙티브 데모
+    AetherMesh.Demo.Console/  인터랙티브 데모
   tests/
-    Aether.Security.Tests/
-    Aether.Protocol.Tests/
+    AetherMesh.Security.Tests/
+    AetherMesh.Protocol.Tests/
   rust/                   Rust 구현체
   typescript/             TypeScript 구현체
   python/                 Python 구현체
@@ -576,9 +576,9 @@ DI에 등록하면 `TransportManager`가 자동으로 전송 선택에 포함하
 
 프로토콜은 독립적으로 작동합니다. 다음 인터페이스로 원하는 경우 자체 백엔드를 연결할 수 있습니다:
 
-- `IAetherIncentiveProvider` — 트래픽을 중계하는 노드에 보상 (기본 no-op: 이타적 중계)
-- `IAetherBackendClient` — 인터넷 가용 시 서버와 동기화 (기본 no-op: 완전 오프라인)
-- `IAetherFeatureFlagProvider` — 런타임에 프로토콜 기능 토글 (기본 no-op: 모든 기능 활성화)
+- `IAetherMeshIncentiveProvider` — 트래픽을 중계하는 노드에 보상 (기본 no-op: 이타적 중계)
+- `IAetherMeshBackendClient` — 인터넷 가용 시 서버와 동기화 (기본 no-op: 완전 오프라인)
+- `IAetherMeshFeatureFlagProvider` — 런타임에 프로토콜 기능 토글 (기본 no-op: 모든 기능 활성화)
 
 세 가지 모두 no-op 구현체가 제공됩니다. 제거해도 아무것도 중단되지 않습니다.
 

@@ -11,16 +11,16 @@
 #include <arpa/inet.h>
 #endif
 
-#include "aether/protocol.h"
-#include "aether/security.h"
+#include "aethermesh/protocol.h"
+#include "aethermesh/security.h"
 
 // ─── Cross-platform "current time in milliseconds since epoch" ─────
 // MSVC's CRT does not expose POSIX `clock_gettime`. Use timespec_get (C11)
 // which is available on every platform's stdc11 runtime.
-static int aether_now_timespec(struct timespec *ts) {
+static int aethermesh_now_timespec(struct timespec *ts) {
     return timespec_get(ts, TIME_UTC) == TIME_UTC ? 0 : -1;
 }
-#define clock_gettime(_clk, _ts) aether_now_timespec(_ts)
+#define clock_gettime(_clk, _ts) aethermesh_now_timespec(_ts)
 #ifndef CLOCK_REALTIME
 #define CLOCK_REALTIME 0
 #endif
@@ -82,25 +82,25 @@ static void write_le_i64(uint8_t *data, int64_t value) {
 /**
  * Create a new mesh packet with defaults.
  */
-aether_mesh_packet_t *aether_packet_new(void) {
-    aether_mesh_packet_t *packet = (aether_mesh_packet_t *)malloc(sizeof(aether_mesh_packet_t));
+aethermesh_mesh_packet_t *aethermesh_packet_new(void) {
+    aethermesh_mesh_packet_t *packet = (aethermesh_mesh_packet_t *)malloc(sizeof(aethermesh_mesh_packet_t));
     if (!packet) return NULL;
 
-    memset(packet, 0, sizeof(aether_mesh_packet_t));
+    memset(packet, 0, sizeof(aethermesh_mesh_packet_t));
 
     // Set defaults
-    packet->protocol_version = AETHER_PROTOCOL_VERSION_CURRENT;
-    packet->ttl = AETHER_DEFAULT_TTL;
+    packet->protocol_version = AETHERMESH_PROTOCOL_VERSION_CURRENT;
+    packet->ttl = AETHERMESH_DEFAULT_TTL;
     packet->priority = 0;
 
     // Generate random nonce
-    if (!aether_random_bytes(packet->packet_nonce, AETHER_PACKET_NONCE_SIZE)) {
+    if (!aethermesh_random_bytes(packet->packet_nonce, AETHERMESH_PACKET_NONCE_SIZE)) {
         free(packet);
         return NULL;
     }
 
     // Generate random packet ID
-    if (!aether_random_bytes(packet->packet_id, AETHER_PACKET_ID_SIZE)) {
+    if (!aethermesh_random_bytes(packet->packet_id, AETHERMESH_PACKET_ID_SIZE)) {
         free(packet);
         return NULL;
     }
@@ -119,26 +119,26 @@ aether_mesh_packet_t *aether_packet_new(void) {
 /**
  * Free a mesh packet.
  */
-void aether_packet_free(aether_mesh_packet_t *packet) {
+void aethermesh_packet_free(aethermesh_mesh_packet_t *packet) {
     if (!packet) return;
 
     if (packet->source_uhid) {
-        aether_zeroize(packet->source_uhid, packet->source_uhid_len);
+        aethermesh_zeroize(packet->source_uhid, packet->source_uhid_len);
         free(packet->source_uhid);
     }
 
     if (packet->destination_uhid) {
-        aether_zeroize(packet->destination_uhid, packet->destination_uhid_len);
+        aethermesh_zeroize(packet->destination_uhid, packet->destination_uhid_len);
         free(packet->destination_uhid);
     }
 
     if (packet->payload) {
-        aether_zeroize(packet->payload, packet->payload_len);
+        aethermesh_zeroize(packet->payload, packet->payload_len);
         free(packet->payload);
     }
 
     if (packet->signature) {
-        aether_zeroize(packet->signature, packet->signature_len);
+        aethermesh_zeroize(packet->signature, packet->signature_len);
         free(packet->signature);
     }
 
@@ -148,14 +148,14 @@ void aether_packet_free(aether_mesh_packet_t *packet) {
 /**
  * Clone a packet.
  */
-aether_mesh_packet_t *aether_packet_clone(const aether_mesh_packet_t *packet) {
+aethermesh_mesh_packet_t *aethermesh_packet_clone(const aethermesh_mesh_packet_t *packet) {
     if (!packet) return NULL;
 
-    aether_mesh_packet_t *clone = (aether_mesh_packet_t *)malloc(sizeof(aether_mesh_packet_t));
+    aethermesh_mesh_packet_t *clone = (aethermesh_mesh_packet_t *)malloc(sizeof(aethermesh_mesh_packet_t));
     if (!clone) return NULL;
 
     // Copy fixed fields
-    memcpy(clone, packet, sizeof(aether_mesh_packet_t));
+    memcpy(clone, packet, sizeof(aethermesh_mesh_packet_t));
 
     // Clone variable fields
     if (packet->source_uhid) {
@@ -171,7 +171,7 @@ aether_mesh_packet_t *aether_packet_clone(const aether_mesh_packet_t *packet) {
     if (packet->destination_uhid) {
         clone->destination_uhid = (char *)malloc(packet->destination_uhid_len + 1);
         if (!clone->destination_uhid) {
-            aether_packet_free(clone);
+            aethermesh_packet_free(clone);
             return NULL;
         }
         memcpy(clone->destination_uhid, packet->destination_uhid, packet->destination_uhid_len);
@@ -181,7 +181,7 @@ aether_mesh_packet_t *aether_packet_clone(const aether_mesh_packet_t *packet) {
     if (packet->payload) {
         clone->payload = (uint8_t *)malloc(packet->payload_len);
         if (!clone->payload) {
-            aether_packet_free(clone);
+            aethermesh_packet_free(clone);
             return NULL;
         }
         memcpy(clone->payload, packet->payload, packet->payload_len);
@@ -190,7 +190,7 @@ aether_mesh_packet_t *aether_packet_clone(const aether_mesh_packet_t *packet) {
     if (packet->signature) {
         clone->signature = (uint8_t *)malloc(packet->signature_len);
         if (!clone->signature) {
-            aether_packet_free(clone);
+            aethermesh_packet_free(clone);
             return NULL;
         }
         memcpy(clone->signature, packet->signature, packet->signature_len);
@@ -202,12 +202,12 @@ aether_mesh_packet_t *aether_packet_clone(const aether_mesh_packet_t *packet) {
 /**
  * Serialize a packet to binary format.
  */
-int aether_packet_serialize(const aether_mesh_packet_t *packet,
+int aethermesh_packet_serialize(const aethermesh_mesh_packet_t *packet,
                            uint8_t *buffer,
                            size_t buffer_len) {
     if (!packet || !buffer) return -1;
 
-    size_t required = aether_packet_estimate_size(packet);
+    size_t required = aethermesh_packet_estimate_size(packet);
     if (required > buffer_len) return -1;
 
     size_t offset = 0;
@@ -219,8 +219,8 @@ int aether_packet_serialize(const aether_mesh_packet_t *packet,
     buffer[offset++] = packet->type;
 
     // Packet ID [16]
-    memcpy(&buffer[offset], packet->packet_id, AETHER_PACKET_ID_SIZE);
-    offset += AETHER_PACKET_ID_SIZE;
+    memcpy(&buffer[offset], packet->packet_id, AETHERMESH_PACKET_ID_SIZE);
+    offset += AETHERMESH_PACKET_ID_SIZE;
 
     // Priority [1]
     buffer[offset++] = packet->priority;
@@ -252,7 +252,7 @@ int aether_packet_serialize(const aether_mesh_packet_t *packet,
     }
 
     // PacketNonce length [2] + data [N]
-    uint16_t nonce_len = AETHER_PACKET_NONCE_SIZE;
+    uint16_t nonce_len = AETHERMESH_PACKET_NONCE_SIZE;
     write_le_u16(&buffer[offset], nonce_len);
     offset += 2;
     memcpy(&buffer[offset], packet->packet_nonce, nonce_len);
@@ -282,14 +282,14 @@ int aether_packet_serialize(const aether_mesh_packet_t *packet,
 /**
  * Deserialize a packet from binary format.
  */
-aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data,
+aethermesh_mesh_packet_t *aethermesh_packet_deserialize(const uint8_t *data,
                                                size_t data_len) {
-    if (!data || data_len < AETHER_MIN_PACKET_SIZE) return NULL;
+    if (!data || data_len < AETHERMESH_MIN_PACKET_SIZE) return NULL;
 
-    aether_mesh_packet_t *packet = (aether_mesh_packet_t *)malloc(sizeof(aether_mesh_packet_t));
+    aethermesh_mesh_packet_t *packet = (aethermesh_mesh_packet_t *)malloc(sizeof(aethermesh_mesh_packet_t));
     if (!packet) return NULL;
 
-    memset(packet, 0, sizeof(aether_mesh_packet_t));
+    memset(packet, 0, sizeof(aethermesh_mesh_packet_t));
 
     size_t offset = 0;
 
@@ -302,9 +302,9 @@ aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data,
     packet->type = data[offset++];
 
     // Packet ID [16]
-    if (offset + AETHER_PACKET_ID_SIZE > data_len) goto error;
-    memcpy(packet->packet_id, &data[offset], AETHER_PACKET_ID_SIZE);
-    offset += AETHER_PACKET_ID_SIZE;
+    if (offset + AETHERMESH_PACKET_ID_SIZE > data_len) goto error;
+    memcpy(packet->packet_id, &data[offset], AETHERMESH_PACKET_ID_SIZE);
+    offset += AETHERMESH_PACKET_ID_SIZE;
 
     // Priority [1]
     if (offset >= data_len) goto error;
@@ -325,7 +325,7 @@ aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data,
     uint16_t source_len = read_le_u16(&data[offset]);
     offset += 2;
     if (offset + source_len > data_len) goto error;
-    if (source_len > AETHER_MAX_UHID_LEN) goto error;
+    if (source_len > AETHERMESH_MAX_UHID_LEN) goto error;
     if (source_len > 0) {
         packet->source_uhid = (char *)malloc(source_len + 1);
         if (!packet->source_uhid) goto error;
@@ -340,7 +340,7 @@ aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data,
     uint16_t dest_len = read_le_u16(&data[offset]);
     offset += 2;
     if (offset + dest_len > data_len) goto error;
-    if (dest_len > AETHER_MAX_UHID_LEN) goto error;
+    if (dest_len > AETHERMESH_MAX_UHID_LEN) goto error;
     if (dest_len > 0) {
         packet->destination_uhid = (char *)malloc(dest_len + 1);
         if (!packet->destination_uhid) goto error;
@@ -354,7 +354,7 @@ aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data,
     if (offset + 2 > data_len) goto error;
     uint16_t nonce_len = read_le_u16(&data[offset]);
     offset += 2;
-    if (nonce_len != AETHER_PACKET_NONCE_SIZE) goto error;
+    if (nonce_len != AETHERMESH_PACKET_NONCE_SIZE) goto error;
     if (offset + nonce_len > data_len) goto error;
     memcpy(packet->packet_nonce, &data[offset], nonce_len);
     offset += nonce_len;
@@ -363,7 +363,7 @@ aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data,
     if (offset + 4 > data_len) goto error;
     int32_t payload_len = read_le_i32(&data[offset]);
     offset += 4;
-    if (payload_len < 0 || (size_t)payload_len > AETHER_MAX_PAYLOAD_LEN) goto error;
+    if (payload_len < 0 || (size_t)payload_len > AETHERMESH_MAX_PAYLOAD_LEN) goto error;
     if (offset + (size_t)payload_len > data_len) goto error;
     if (payload_len > 0) {
         packet->payload = (uint8_t *)malloc(payload_len);
@@ -389,26 +389,26 @@ aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data,
     return packet;
 
 error:
-    aether_packet_free(packet);
+    aethermesh_packet_free(packet);
     return NULL;
 }
 
 /**
  * Get signable data for Ed25519 signing.
  */
-uint8_t *aether_packet_get_signable_data(const aether_mesh_packet_t *packet,
+uint8_t *aethermesh_packet_get_signable_data(const aethermesh_mesh_packet_t *packet,
                                         size_t *out_len) {
     if (!packet || !out_len) return NULL;
 
     // Calculate payload hash
-    uint8_t payload_hash[AETHER_SHA256_SIZE];
+    uint8_t payload_hash[AETHERMESH_SHA256_SIZE];
     if (packet->payload && packet->payload_len > 0) {
-        if (!aether_sha256(packet->payload, packet->payload_len, payload_hash)) {
+        if (!aethermesh_sha256(packet->payload, packet->payload_len, payload_hash)) {
             return NULL;
         }
     } else {
         // Hash of empty data
-        if (!aether_sha256(NULL, 0, payload_hash)) {
+        if (!aethermesh_sha256(NULL, 0, payload_hash)) {
             return NULL;
         }
     }
@@ -424,7 +424,7 @@ uint8_t *aether_packet_get_signable_data(const aether_mesh_packet_t *packet,
                        source_len +           // source_uhid
                        4 +                    // dest_len
                        dest_len +             // dest_uhid
-                       AETHER_SHA256_SIZE +   // payload_hash
+                       AETHERMESH_SHA256_SIZE +   // payload_hash
                        4 +                    // ttl
                        4;                     // priority
 
@@ -434,8 +434,8 @@ uint8_t *aether_packet_get_signable_data(const aether_mesh_packet_t *packet,
     size_t offset = 0;
 
     // PacketNonce [8]
-    memcpy(&signable[offset], packet->packet_nonce, AETHER_PACKET_NONCE_SIZE);
-    offset += AETHER_PACKET_NONCE_SIZE;
+    memcpy(&signable[offset], packet->packet_nonce, AETHERMESH_PACKET_NONCE_SIZE);
+    offset += AETHERMESH_PACKET_NONCE_SIZE;
 
     // TimestampMs [8] little-endian
     write_le_i64(&signable[offset], packet->timestamp_ms);
@@ -466,8 +466,8 @@ uint8_t *aether_packet_get_signable_data(const aether_mesh_packet_t *packet,
     }
 
     // SHA-256(Payload) [32]
-    memcpy(&signable[offset], payload_hash, AETHER_SHA256_SIZE);
-    offset += AETHER_SHA256_SIZE;
+    memcpy(&signable[offset], payload_hash, AETHERMESH_SHA256_SIZE);
+    offset += AETHERMESH_SHA256_SIZE;
 
     // Ttl [4] little-endian
     write_le_i32(&signable[offset], (int32_t)packet->ttl);
@@ -484,7 +484,7 @@ uint8_t *aether_packet_get_signable_data(const aether_mesh_packet_t *packet,
 /**
  * Check if packet is expired.
  */
-bool aether_packet_is_expired(const aether_mesh_packet_t *packet,
+bool aethermesh_packet_is_expired(const aethermesh_mesh_packet_t *packet,
                              int max_age_seconds) {
     if (!packet) return true;
 
@@ -501,7 +501,7 @@ bool aether_packet_is_expired(const aether_mesh_packet_t *packet,
 /**
  * Check if packet can be forwarded.
  */
-bool aether_packet_can_forward(const aether_mesh_packet_t *packet) {
+bool aethermesh_packet_can_forward(const aethermesh_mesh_packet_t *packet) {
     if (!packet) return false;
     return packet->ttl > 0;
 }
@@ -509,12 +509,12 @@ bool aether_packet_can_forward(const aether_mesh_packet_t *packet) {
 /**
  * Set source UHID.
  */
-bool aether_packet_set_source_uhid(aether_mesh_packet_t *packet,
+bool aethermesh_packet_set_source_uhid(aethermesh_mesh_packet_t *packet,
                                   const char *uhid) {
     if (!packet || !uhid) return false;
 
     size_t uhid_len = strlen(uhid);
-    if (uhid_len > AETHER_MAX_UHID_LEN) return false;
+    if (uhid_len > AETHERMESH_MAX_UHID_LEN) return false;
 
     if (packet->source_uhid) {
         free(packet->source_uhid);
@@ -531,12 +531,12 @@ bool aether_packet_set_source_uhid(aether_mesh_packet_t *packet,
 /**
  * Set destination UHID.
  */
-bool aether_packet_set_destination_uhid(aether_mesh_packet_t *packet,
+bool aethermesh_packet_set_destination_uhid(aethermesh_mesh_packet_t *packet,
                                        const char *uhid) {
     if (!packet || !uhid) return false;
 
     size_t uhid_len = strlen(uhid);
-    if (uhid_len > AETHER_MAX_UHID_LEN) return false;
+    if (uhid_len > AETHERMESH_MAX_UHID_LEN) return false;
 
     if (packet->destination_uhid) {
         free(packet->destination_uhid);
@@ -553,14 +553,14 @@ bool aether_packet_set_destination_uhid(aether_mesh_packet_t *packet,
 /**
  * Set payload.
  */
-bool aether_packet_set_payload(aether_mesh_packet_t *packet,
+bool aethermesh_packet_set_payload(aethermesh_mesh_packet_t *packet,
                               const uint8_t *data,
                               size_t len) {
     if (!packet) return false;
-    if (len > AETHER_MAX_PAYLOAD_LEN) return false;
+    if (len > AETHERMESH_MAX_PAYLOAD_LEN) return false;
 
     if (packet->payload) {
-        aether_zeroize(packet->payload, packet->payload_len);
+        aethermesh_zeroize(packet->payload, packet->payload_len);
         free(packet->payload);
     }
 
@@ -581,13 +581,13 @@ bool aether_packet_set_payload(aether_mesh_packet_t *packet,
 /**
  * Set signature.
  */
-bool aether_packet_set_signature(aether_mesh_packet_t *packet,
+bool aethermesh_packet_set_signature(aethermesh_mesh_packet_t *packet,
                                 const uint8_t *sig,
                                 size_t len) {
     if (!packet) return false;
 
     if (packet->signature) {
-        aether_zeroize(packet->signature, packet->signature_len);
+        aethermesh_zeroize(packet->signature, packet->signature_len);
         free(packet->signature);
     }
 
@@ -608,7 +608,7 @@ bool aether_packet_set_signature(aether_mesh_packet_t *packet,
 /**
  * Estimate serialized size.
  */
-size_t aether_packet_estimate_size(const aether_mesh_packet_t *packet) {
+size_t aethermesh_packet_estimate_size(const aethermesh_mesh_packet_t *packet) {
     if (!packet) return 0;
 
     size_t size = 1 +  // protocol_version
@@ -619,7 +619,7 @@ size_t aether_packet_estimate_size(const aether_mesh_packet_t *packet) {
                   8 +  // timestamp_ms
                   2 + (packet->source_uhid ? packet->source_uhid_len : 0) +
                   2 + (packet->destination_uhid ? packet->destination_uhid_len : 0) +
-                  2 + AETHER_PACKET_NONCE_SIZE +
+                  2 + AETHERMESH_PACKET_NONCE_SIZE +
                   4 + (packet->payload ? packet->payload_len : 0) +
                   2 + (packet->signature ? packet->signature_len : 0);
 

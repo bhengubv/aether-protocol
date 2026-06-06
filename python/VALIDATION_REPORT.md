@@ -20,7 +20,7 @@ A complete, production-ready Python implementation of the Aether mesh networking
   - Development dependencies: pytest, pytest-asyncio, black, mypy, ruff
 
 - ✅ **aether/__init__.py** — Package initialization with public API exports
-  - Exports: `AetherNode`, `PeerInfo`, `RouteEntry`, `MeshPacket`, `PacketType`
+  - Exports: `AetherMeshNode`, `PeerInfo`, `RouteEntry`, `MeshPacket`, `PacketType`
   - Exports: `Ed25519SigningService`, `SignalProtocolService`
   - Version: `2.0.0`
 
@@ -115,7 +115,7 @@ A complete, production-ready Python implementation of the Aether mesh networking
     - `AES_GCM_NONCE_SIZE = 12`, `AES_GCM_TAG_SIZE = 16`
 
 - ✅ **aether/models.py** (57 lines)
-  - `AetherNode` — Local mesh node
+  - `AetherMeshNode` — Local mesh node
     - Fields: `uhid`, `private_key`, `public_key`, `created_at`, `capabilities`, `peers`, `routing_table`
     - Methods: `has_route_to()`, `get_route_to()`
   - `PeerInfo` — Remote peer information
@@ -211,7 +211,7 @@ A complete, production-ready Python implementation of the Aether mesh networking
 - ✅ Proper parameter import/export
 
 ### Key Derivation (HKDF-SHA256)
-- ✅ Salt: b"AetherSignal"
+- ✅ Salt: b"AetherMeshSignal"
 - ✅ Root info: b"aether-root-v1"
 - ✅ Send chain info: b"aether-chain-send-v1"
 - ✅ Receive chain info: b"aether-chain-recv-v1"
@@ -394,9 +394,9 @@ pip install -e .
 # Test imports
 python3 -c "
 from aether import MeshPacket, PacketType, Ed25519SigningService
-from aether.protocol.serializer import PacketSerializer
-from aether.security.signal_protocol import SignalProtocolService
-from aether.transport.in_process import InProcessTransport
+from aethermesh.protocol.serializer import PacketSerializer
+from aethermesh.security.signal_protocol import SignalProtocolService
+from aethermesh.transport.in_process import InProcessTransport
 print('✓ All imports successful')
 "
 

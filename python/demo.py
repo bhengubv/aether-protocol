@@ -15,13 +15,13 @@ import asyncio
 import os
 from typing import Optional
 
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.protocol.serializer import PacketSerializer
-from aether.security.ed25519_service import Ed25519SigningService
-from aether.security.signal_protocol import SignalProtocolService
-from aether.security.packet_signing import PacketSigningService
-from aether.transport.in_process import InProcessTransport
-from aether.models import AetherNode
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.protocol.serializer import PacketSerializer
+from aethermesh.security.ed25519_service import Ed25519SigningService
+from aethermesh.security.signal_protocol import SignalProtocolService
+from aethermesh.security.packet_signing import PacketSigningService
+from aethermesh.transport.in_process import InProcessTransport
+from aethermesh.models import AetherMeshNode
 
 
 # ANSI color codes for pretty output
@@ -64,7 +64,7 @@ def print_info(text: str) -> None:
     print(f"{Colors.OKCYAN}• {text}{Colors.ENDC}")
 
 
-def create_node(uhid: str) -> AetherNode:
+def create_node(uhid: str) -> AetherMeshNode:
     """
     Create an Aether node with generated Ed25519 keys.
 
@@ -72,10 +72,10 @@ def create_node(uhid: str) -> AetherNode:
         uhid: The node's Universal Hardware Identifier.
 
     Returns:
-        An initialized AetherNode.
+        An initialized AetherMeshNode.
     """
     private_key, public_key = Ed25519SigningService.generate_keypair()
-    node = AetherNode(
+    node = AetherMeshNode(
         uhid=uhid,
         private_key=private_key,
         public_key=public_key,
@@ -141,7 +141,7 @@ async def demo_node_creation() -> None:
     return alice, bob
 
 
-async def demo_signal_protocol(alice: AetherNode, bob: AetherNode) -> None:
+async def demo_signal_protocol(alice: AetherMeshNode, bob: AetherMeshNode) -> None:
     """Demo 3: Signal Protocol key exchange and session establishment."""
     print_header("Demo 3: Signal Protocol - X3DH Key Exchange")
 
@@ -442,7 +442,7 @@ async def demo_end_to_end() -> None:
 
 
 # Import after class definitions
-from aether.security.signal_protocol import EncryptedPayload
+from aethermesh.security.signal_protocol import EncryptedPayload
 
 
 async def main() -> None:

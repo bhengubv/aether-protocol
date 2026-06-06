@@ -3,9 +3,9 @@
 //! Identity primitives for the Aether mesh protocol.
 //!
 //! Currently exports:
-//! - [`AetherTag`] — a human-readable, shareable address derived from a node's
+//! - [`AetherMeshTag`] — a human-readable, shareable address derived from a node's
 //!   Ed25519 public key.
 
-pub mod aether_tag;
+pub mod aethermesh_tag;
 
-pub use aether_tag::{AetherTag, AetherTagError};
+pub use aethermesh_tag::{AetherMeshTag, AetherMeshTagError};

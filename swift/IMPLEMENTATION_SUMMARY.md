@@ -57,7 +57,7 @@ The Aether Protocol Swift implementation is **complete and functional**, with al
 
 ### 4. Models ✓
 - **Models.swift** - Complete data structures
-  - AetherNode - UHID-based node representation
+  - AetherMeshNode - UHID-based node representation
   - PeerInfo - Routing table peer information with reliability scores
   - RouteEntry - Route table entries with hop counts and QoS scores
   - PreKeyBundle - Pre-key bundle for asynchronous session establishment
@@ -94,7 +94,7 @@ The Aether Protocol Swift implementation is **complete and functional**, with al
   - Packet signing and verification
   - Replay attack prevention
 
-- **AetherDemo** - Executable with 5 test scenarios
+- **AetherMeshDemo** - Executable with 5 test scenarios
   - Packet serialization/deserialization
   - Ed25519 signing and verification
   - Signal Protocol key exchange and encryption
@@ -172,7 +172,7 @@ swift/
 ├── IMPLEMENTATION_SUMMARY.md             # This file
 ├── .gitignore
 ├── Sources/
-│   ├── AetherProtocol/
+│   ├── AetherMeshProtocol/
 │   │   ├── Constants.swift               # Protocol constants (6 KB)
 │   │   ├── Models/
 │   │   │   └── Models.swift              # Data structures (5 KB)
@@ -185,7 +185,7 @@ swift/
 │   │   │   └── PacketSigning.swift       # Packet signing (4 KB)
 │   │   └── Transport/
 │   │       └── TransportService.swift    # Transport protocol (4 KB)
-│   └── AetherDemo/
+│   └── AetherMeshDemo/
 │       └── main.swift                    # Demo executable (9 KB)
 └── Tests/
     ├── PacketSerializationTests.swift    # Serialization tests (5 KB)
@@ -255,7 +255,7 @@ Benchmarks on Apple Silicon M1:
 ## Interoperability
 
 Wire format is compatible with:
-- **Aether.Core** (C# reference) - ✓ Tested
+- **AetherMesh.Core** (C# reference) - ✓ Tested
 - **aether-protocol-go** - Pending
 - **aether-protocol-rust** - Pending
 

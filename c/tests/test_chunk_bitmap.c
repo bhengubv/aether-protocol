@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aether/chunk_bitmap.h"
+#include "aethermesh/chunk_bitmap.h"
 
 // ── Vector table ──────────────────────────────────────────────────────────────
 
@@ -148,7 +148,7 @@ static void test_encode_produces_correct_bitset(void)
     printf("TEST: encode produces correct bitset...");
     for (int v = 0; v < VECTOR_COUNT; v++) {
         const vector_t *vec = &VECTORS[v];
-        aether_bitset_t bs = aether_bitset_encode(
+        aethermesh_bitset_t bs = aethermesh_bitset_encode(
             vec->chunk_count, vec->have_indices, vec->index_count);
 
         // Verify length = ceil(chunk_count / 8).
@@ -161,7 +161,7 @@ static void test_encode_produces_correct_bitset(void)
         assert(strcmp(hex_buf, vec->have_bitset_hex) == 0);
 
         // Verify base64.
-        char *b64 = aether_chunk_bitmap_marshal_json(
+        char *b64 = aethermesh_chunk_bitmap_marshal_json(
             vec->root_hash, vec->chunk_count, bs.bytes, bs.len, 0);
         // We can't easily get just the base64 out of marshal, so build it
         // by encoding separately via the static helper.
@@ -173,7 +173,7 @@ static void test_encode_produces_correct_bitset(void)
         free(decoded);
         free(b64);
 
-        aether_bitset_free(bs);
+        aethermesh_bitset_free(bs);
     }
     printf(" OK\n");
 }
@@ -191,12 +191,12 @@ static void test_decode_recovers_correct_indices(void)
         uint8_t *bitset = b64_decode(vec->have_bitset_base64, &blen);
 
         int out_count = 0;
-        int *indices = aether_bitset_decode(bitset, blen, vec->chunk_count, &out_count);
+        int *indices = aethermesh_bitset_decode(bitset, blen, vec->chunk_count, &out_count);
         free(bitset);
 
         // Compare sorted results against expected.
         assert(out_count == vec->index_count);
-        // aether_bitset_decode returns indices in ascending order already.
+        // aethermesh_bitset_decode returns indices in ascending order already.
         for (int k = 0; k < vec->index_count; k++)
             assert(indices[k] == vec->have_indices[k]);
 
@@ -213,10 +213,10 @@ static void test_json_serialization_matches_expected(void)
     for (int v = 0; v < VECTOR_COUNT; v++) {
         const vector_t *vec = &VECTORS[v];
 
-        aether_bitset_t bs = aether_bitset_encode(
+        aethermesh_bitset_t bs = aethermesh_bitset_encode(
             vec->chunk_count, vec->have_indices, vec->index_count);
 
-        char *json = aether_chunk_bitmap_marshal_json(
+        char *json = aethermesh_chunk_bitmap_marshal_json(
             vec->root_hash, vec->chunk_count, bs.bytes, bs.len, vec->generation);
 
         assert(json != NULL);
@@ -227,7 +227,7 @@ static void test_json_serialization_matches_expected(void)
         }
 
         free(json);
-        aether_bitset_free(bs);
+        aethermesh_bitset_free(bs);
     }
     printf(" OK\n");
 }
@@ -239,11 +239,11 @@ static void test_bitset_length_is_ceil_div_8(void)
     printf("TEST: bitset length is ceil(chunk_count/8)...");
     for (int v = 0; v < VECTOR_COUNT; v++) {
         const vector_t *vec = &VECTORS[v];
-        aether_bitset_t bs = aether_bitset_encode(
+        aethermesh_bitset_t bs = aethermesh_bitset_encode(
             vec->chunk_count, vec->have_indices, vec->index_count);
         size_t expected = (size_t)((vec->chunk_count + 7) / 8);
         assert(bs.len == expected);
-        aether_bitset_free(bs);
+        aethermesh_bitset_free(bs);
     }
     printf(" OK\n");
 }
@@ -257,7 +257,7 @@ static void test_trailing_bits_are_zero(void)
         const vector_t *vec = &VECTORS[v];
         if (vec->chunk_count == 0) continue;
 
-        aether_bitset_t bs = aether_bitset_encode(
+        aethermesh_bitset_t bs = aethermesh_bitset_encode(
             vec->chunk_count, vec->have_indices, vec->index_count);
 
         int trailing = vec->chunk_count % 8; // bits used in the last byte (0 = full)
@@ -272,7 +272,7 @@ static void test_trailing_bits_are_zero(void)
             }
         }
 
-        aether_bitset_free(bs);
+        aethermesh_bitset_free(bs);
     }
     printf(" OK\n");
 }

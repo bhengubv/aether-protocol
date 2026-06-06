@@ -16,10 +16,10 @@
 > document and the implementation diverge.
 >
 > - Canonical wire bytes: `fixtures/expected/*.bin` (10 named cases)
-> - Reference serializer: `src/Aether.Core/Protocol/PacketSerializer.cs`
-> - Reference Signal stack: `src/Aether.Security/Services/SignalProtocolService.cs`
-> - Reference routing: `src/Aether.Core/Routing/RoutingService.cs`
-> - Reference DTN: `src/Aether.Core/Dtn/DtnService.cs`
+> - Reference serializer: `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
+> - Reference Signal stack: `src/AetherMesh.Security/Services/SignalProtocolService.cs`
+> - Reference routing: `src/AetherMesh.Core/Routing/RoutingService.cs`
+> - Reference DTN: `src/AetherMesh.Core/Dtn/DtnService.cs`
 > - Cross-language wire interop proof: `fixtures/README.md`
 > - Cross-language Signal interop proof: `fixtures/signal/README.md`
 
@@ -49,7 +49,7 @@ Aether is a decentralised mesh networking protocol designed for environments wit
 
 ## 2. Packet Format
 
-> Reconciled 2026-05-05 against `src/Aether.Core/Protocol/PacketSerializer.cs`
+> Reconciled 2026-05-05 against `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
 > and the 10 fixture cases under `fixtures/expected/`.
 
 ### 2.1. MeshPacket Wire Layout
@@ -164,7 +164,7 @@ PacketNonce (8 bytes)
 > signable bytes, otherwise the receiver (which sees the wire byte 0..255)
 > derives a different signable buffer and verification fails.
 
-The reference implementation lives at `src/Aether.Security/Services/
+The reference implementation lives at `src/AetherMesh.Security/Services/
 PacketSigningService.cs::BuildSignableData` and is required reading for
 porting.
 
@@ -298,7 +298,7 @@ Reliability scores are persisted to SQLite and loaded into memory at startup. Th
 ## 4. Key Exchange
 
 > Reconciled 2026-05-05 against the C# reference implementation at
-> `src/Aether.Security/Services/SignalProtocolService.cs` and the
+> `src/AetherMesh.Security/Services/SignalProtocolService.cs` and the
 > cross-language fixture corpus under `fixtures/signal/`. The C# reference
 > ships full X3DH + Double Ratchet (Signal §3 + §5) over X25519. Go,
 > Python, TypeScript, Rust, Swift, and Kotlin have been ported to the same
@@ -357,7 +357,7 @@ PreKeyBundle {
 }
 ```
 
-Reference: `Aether.Security.Models.PreKeyBundle`. Wire-shape contract is
+Reference: `AetherMesh.Security.Models.PreKeyBundle`. Wire-shape contract is
 the same across all 8 languages.
 
 **One-time pre-key (OPK) pool.** Each responder maintains a pool of
@@ -371,7 +371,7 @@ under `_preKeyLock`; the loser raises `CryptographicException`.
 
 Reference: `SignalProtocolService.TopUpOpkPoolNoLock` (lines 494–518),
 `SignalProtocolService.EstablishResponderSession` (lines 636–718). Pool
-semantics are exercised by `tests/Aether.Core.Tests/PreKeyPoolTests.cs`.
+semantics are exercised by `tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`.
 
 **Signed pre-key (SPK) rotation.** SPK is generated lazily on the first
 bundle call and reused across subsequent calls so concurrent initiators
@@ -563,7 +563,7 @@ EncryptedPayload {
 }
 ```
 
-Reference: `Aether.Security.Models.EncryptedPayload` (lines 55–66 of
+Reference: `AetherMesh.Security.Models.EncryptedPayload` (lines 55–66 of
 `SecurityModels.cs`). The `InitiatorEphemeralKeyX25519` field is a
 backward-compat alias for the pre-Double-Ratchet wire envelope and
 equals `SenderEphemeralKeyX25519` on PreKey messages; new consumers
@@ -585,7 +585,7 @@ encrypt/decrypt.
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aether_x25519_*`, `aether_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | primitives only — `aethermesh_x25519_*`, `aethermesh_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
 
 All 7 session-capable languages (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) ship the 100-key FIFO OPK pool with lazy top-up and lock-protected consumption, matching the C# reference contract. C ships primitives only; full session machinery is tracked in `OPEN_ISSUES.md` item 11.
 
@@ -632,7 +632,7 @@ The `TransportManager` selects the optimal transport for each packet based on:
 2. **Payload size:** If payload size is at or below `BleMaxPayloadBytes` (1,024 bytes), BLE is preferred for power efficiency. Larger payloads prefer Wi-Fi Direct.
 3. **Power cost weighting:** Among available transports, lower `PowerCostRelative` values are preferred for routine traffic. High-priority packets (SOS, voice) may override this preference.
 4. **Peer connectivity:** If a transport already has an active connection to the target peer (`IsConnected` returns true), it is preferred to avoid connection setup overhead.
-5. **Fallback:** If no local transport can reach the target, the packet is queued for server relay via AetherAPI.
+5. **Fallback:** If no local transport can reach the target, the packet is queued for server relay via AetherMeshAPI.
 
 ### 5.3. Reference Transports
 
@@ -807,7 +807,7 @@ The SOS mechanism is a dual-path emergency flood designed for situations where a
    ```
 3. **Dual-path dispatch:** The SOS is sent simultaneously via:
    - **Mesh flood:** Broadcast to all connected peers via all available transports.
-   - **API call:** Sent to AetherAPI for server-side distribution and bridging to PanikAPI (SMS/email dispatch).
+   - **API call:** Sent to AetherMeshAPI for server-side distribution and bridging to PanikAPI (SMS/email dispatch).
 4. Both paths are fire-and-forget relative to each other. If the API call fails, the mesh flood proceeds independently.
 
 ### 8.3. Relay Behavior
@@ -863,7 +863,7 @@ DtnBundle {
 
 1. **Creation:** The sender creates a bundle with an encrypted payload (encrypted via the Signal session with the recipient). `Status = Pending`, `CopyCount = 1`.
 2. **Immediate delivery attempt:** The sender first attempts direct mesh routing (RREQ/RREP). If a route exists, the bundle is delivered immediately and `Status` transitions to `Delivered`.
-3. **Server relay attempt:** If mesh routing fails, the sender attempts to relay through AetherAPI. If the server can reach the recipient (or queue the message), delivery succeeds.
+3. **Server relay attempt:** If mesh routing fails, the sender attempts to relay through AetherMeshAPI. If the server can reach the recipient (or queue the message), delivery succeeds.
 4. **Store-and-forward:** If both mesh and server relay fail, the bundle remains in local storage (`Pending` status) awaiting the next delivery scan.
 
 ### 9.3. Delivery Scan
@@ -916,7 +916,7 @@ When the intended recipient receives a DTN bundle:
    }
    ```
 3. Upon receiving the receipt, the sender removes the bundle from its store and fires the `BundleDelivered` event.
-4. The receipt is also synced to AetherAPI for analytics.
+4. The receipt is also synced to AetherMeshAPI for analytics.
 
 ### 9.7. Bundle Expiry
 
@@ -942,7 +942,7 @@ When the intended recipient receives a DTN bundle:
 > `StreamSubscribe` (13), `StreamUnsubscribe` (14), `VideoCall` (27),
 > `VideoSignaling` (28), `VideoFrame` (31), `ScreenShare` (32) are
 > wire-defined and round-trip via the cross-language fixture corpus.
-> The C# `Aether.Streaming` module ships interfaces, models, and skeleton
+> The C# `AetherMesh.Streaming` module ships interfaces, models, and skeleton
 > services (`StreamingService`, `VideoCallService`, `WatchTogetherService`)
 > that wire up routing/DI seams and unicast segment fan-out — but no actual
 > video encode/decode is bound to them. The other 7 languages have wire
@@ -1056,7 +1056,7 @@ The video jitter buffer operates independently from the voice jitter buffer (whi
 > **Status as of 2026-05-05 — design + C# scaffolding, same maturity as
 > § 10.** Packet types `WatchSync` (29), `WatchReaction` (30),
 > `WatchChunkRequest` (33), `TorrentMetadata` (34) are wire-defined and
-> fixture-tested. `Aether.Streaming.WatchTogetherService` provides the
+> fixture-tested. `AetherMesh.Streaming.WatchTogetherService` provides the
 > coordination skeleton (session state, sync command propagation via
 > `IMeshSender`, RTT-compensation helpers); BitTorrent ingest, ChipIn
 > SDPKT settlement, and chunk-fetch-from-peers are not implemented in any
@@ -1187,12 +1187,12 @@ All video and watch-together features are gated behind feature flags (all disabl
 
 | Flag | Parent | Description |
 |------|--------|-------------|
-| AETHER_VIDEO_CALL | AETHER_VOICE | P2P and group video calling |
-| AETHER_VIDEO_GROUP | AETHER_VIDEO_CALL | Multi-party video sessions |
-| AETHER_SCREEN_SHARE | AETHER_VIDEO_CALL | Screen sharing in video calls |
-| AETHER_WATCH_TOGETHER | AETHER_CONTENT_P2P | Synchronized media playback |
-| AETHER_WATCH_REACTIONS | AETHER_WATCH_TOGETHER | Emoji and voice reactions |
-| AETHER_TORRENT_INGEST | AETHER_CONTENT_P2P | BitTorrent file acceptance for mesh distribution |
+| AETHERMESH_VIDEO_CALL | AETHERMESH_VOICE | P2P and group video calling |
+| AETHERMESH_VIDEO_GROUP | AETHERMESH_VIDEO_CALL | Multi-party video sessions |
+| AETHERMESH_SCREEN_SHARE | AETHERMESH_VIDEO_CALL | Screen sharing in video calls |
+| AETHERMESH_WATCH_TOGETHER | AETHERMESH_CONTENT_P2P | Synchronized media playback |
+| AETHERMESH_WATCH_REACTIONS | AETHERMESH_WATCH_TOGETHER | Emoji and voice reactions |
+| AETHERMESH_TORRENT_INGEST | AETHERMESH_CONTENT_P2P | BitTorrent file acceptance for mesh distribution |
 
 Feature flags have parent dependencies: a child flag can only be enabled if its parent is also enabled. This allows progressive rollout.
 
@@ -1219,7 +1219,7 @@ All protocol constants are defined in `ProtocolConstants` and are reproduced her
 | BleAdvertiseIntervalMs    | 1000   |
 | BleUuidRotationSeconds    | 900    |
 | BleScanJitterMaxMs        | 2000   |
-| AetherBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
+| AetherMeshBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
 
 ### Security
 | Constant                  | Value  |

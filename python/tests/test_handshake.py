@@ -17,14 +17,14 @@ from typing import List
 
 import pytest
 
-from aether.handshake import (
+from aethermesh.handshake import (
     HandshakeService,
     HelloPayload,
     IncompatiblePeerEvent,
     PeerCapabilities,
 )
-from aether.handshake.service import DEFAULT_CAPABILITIES, DEFAULT_IMPLEMENTATION
-from aether.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.handshake.service import DEFAULT_CAPABILITIES, DEFAULT_IMPLEMENTATION
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
 from tests.fakes import FakeMeshSender
 
 

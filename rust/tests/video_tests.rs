@@ -7,7 +7,7 @@ mod common;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use aether_protocol::{
+use aethermesh_protocol::{
     extensibility::NoopIncentiveProvider,
     protocol::{MeshPacket, PacketType},
     routing::{verifier::AcceptAllRouteReplyVerifier, InMemoryRouteStore, RoutingService},

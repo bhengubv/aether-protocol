@@ -13,7 +13,7 @@ Este módulo implementa o protocolo de rede em malha descentralizado Aether para
 - **Protocolo Signal**: Acordo de chaves X3DH + ratchet simétrico para criptografia de ponta a ponta
 - **Serviço de Assinatura de Pacotes**: Deduplicação de nonce com TTL de 5 minutos para prevenção de repetição
 - **Transporte em Processo**: Transporte baseado em memória para testes e comunicação entre processos
-- **Modelos**: Estruturas AetherNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
+- **Modelos**: Estruturas AetherMeshNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
 - **Constantes do Protocolo**: Todas as constantes de roteamento, descoberta, segurança e transporte
 
 ## Estrutura do Módulo
@@ -173,7 +173,7 @@ Estruturas completas para redes em malha:
 
 ```go
 // Node in the mesh
-node := &models.AetherNode{
+node := &models.AetherMeshNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

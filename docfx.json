@@ -4,19 +4,19 @@
       "src": [
         {
           "files": [
-            "src/Aether.Core/Aether.Core.csproj",
-            "src/Aether.Security/Aether.Security.csproj",
-            "src/Aether.Messaging/Aether.Messaging.csproj",
-            "src/Aether.Storage/Aether.Storage.csproj",
-            "src/Aether.Transport/Aether.Transport.csproj",
-            "src/Aether.Streaming/Aether.Streaming.csproj",
-            "src/Aether.Voice/Aether.Voice.csproj",
-            "src/Aether.Content/Aether.Content.csproj",
-            "src/Aether.DependencyInjection/Aether.DependencyInjection.csproj",
-            "src/Aether.Space/Aether.Space.csproj",
-            "src/Aether.Forge/Aether.Forge.csproj",
-            "src/Aether.Vault/Aether.Vault.csproj",
-            "src/Aether.Market/Aether.Market.csproj"
+            "src/AetherMesh.Core/AetherMesh.Core.csproj",
+            "src/AetherMesh.Security/AetherMesh.Security.csproj",
+            "src/AetherMesh.Messaging/AetherMesh.Messaging.csproj",
+            "src/AetherMesh.Storage/AetherMesh.Storage.csproj",
+            "src/AetherMesh.Transport/AetherMesh.Transport.csproj",
+            "src/AetherMesh.Streaming/AetherMesh.Streaming.csproj",
+            "src/AetherMesh.Voice/AetherMesh.Voice.csproj",
+            "src/AetherMesh.Content/AetherMesh.Content.csproj",
+            "src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj",
+            "src/AetherMesh.Space/AetherMesh.Space.csproj",
+            "src/AetherMesh.Forge/AetherMesh.Forge.csproj",
+            "src/AetherMesh.Vault/AetherMesh.Vault.csproj",
+            "src/AetherMesh.Market/AetherMesh.Market.csproj"
           ],
           "exclude": [
             "**/bin/**",

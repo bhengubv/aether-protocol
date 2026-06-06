@@ -27,7 +27,7 @@ from cryptography.hazmat.primitives.serialization import (
 )
 from cryptography.hazmat.backends import default_backend
 
-from aether.security.signal_protocol import (
+from aethermesh.security.signal_protocol import (
     SignalProtocolService,
     MESSAGE_TYPE_PRE_KEY,
     MESSAGE_TYPE_NORMAL,
@@ -39,7 +39,7 @@ from aether.security.signal_protocol import (
 def _repo_root() -> Path:
     here = Path(__file__).resolve()
     for parent in [here] + list(here.parents):
-        if (parent / "AetherProtocol.slnx").is_file():
+        if (parent / "AetherMeshProtocol.slnx").is_file():
             return parent
     raise RuntimeError(f"Repo root not found from {here}")
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-"""Tests for :class:`aether.storage.DerivedDataAtRestKeyProvider`.
+"""Tests for :class:`aethermesh.storage.DerivedDataAtRestKeyProvider`.
 
 Mirrors the C# ``DerivedDataAtRestKeyProviderTests``: PBKDF2-HMAC-SHA256
 derivation, validation, caching, and the rotation flow.
@@ -17,7 +17,7 @@ import os
 
 import pytest
 
-from aether.storage import (
+from aethermesh.storage import (
     DerivedDataAtRestKeyProvider,
     EncryptedKeyValueStore,
     InMemoryKeyValueStore,

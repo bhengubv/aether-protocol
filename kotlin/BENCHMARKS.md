@@ -3,7 +3,7 @@
 # aether-protocol — Kotlin Benchmarks
 
 `kotlinx-benchmark` harness (over JMH 1.37) mirroring the C#
-`Aether.Benchmarks` suite, the Go `go/bench` harness, the Python
+`AetherMesh.Benchmarks` suite, the Go `go/bench` harness, the Python
 `python/benchmarks/test_benchmark.py`, the C `c/benchmarks/` runner,
 and the TypeScript `typescript/benchmarks/bench.ts` — same hot paths so
 a regression in any language shows up as a delta against the committed

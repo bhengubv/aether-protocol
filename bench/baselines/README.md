@@ -39,4 +39,4 @@ JDK 21, Swift 5.10, GCC + libsodium).
 | `csharp.txt` | C# | BenchmarkDotNet JSON export |
 | `kotlin.txt` | Kotlin | JMH (`./gradlew jmh`) |
 | `swift.txt` | Swift | XCTest `measure {}` |
-| `c.txt` | C | wall-clock (`./build/bench/aether_bench`) |
+| `c.txt` | C | wall-clock (`./build/bench/aethermesh_bench`) |

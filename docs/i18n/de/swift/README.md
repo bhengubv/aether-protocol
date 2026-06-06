@@ -43,7 +43,7 @@ Aether ist ein dezentrales Mesh-Netzwerkprotokoll, das für Umgebungen mit unter
 - **InProcessTransport**: In-Memory-Transport für Tests und lokale Kommunikation
 
 #### Modelle
-- **AetherNode**: Knotendarstellung mit UHID und Identitätsschlüssel
+- **AetherMeshNode**: Knotendarstellung mit UHID und Identitätsschlüssel
 - **PreKeyBundle**: Bundle für den asynchronen Session-Aufbau
 - **EncryptedPayload**: Wrapper für verschlüsselte Nachrichten
 - **DtnBundle**: Delay-Tolerant-Networking-Bundle
@@ -66,7 +66,7 @@ In der Package.swift-Datei:
 .target(
     name: "YourTarget",
     dependencies: [
-        .product(name: "AetherProtocol", package: "aether-protocol-swift")
+        .product(name: "AetherMeshProtocol", package: "aether-protocol-swift")
     ]
 )
 ```
@@ -76,7 +76,7 @@ In der Package.swift-Datei:
 ### 1. Paketserialisierung
 
 ```swift
-import AetherProtocol
+import AetherMeshProtocol
 
 // Create a packet
 var packet = MeshPacket(
@@ -274,7 +274,7 @@ Test 5: End-to-End Messaging (Full Stack)
 ## Interoperabilität
 
 Das Drahtformat ist kompatibel mit:
-- **Aether.Core** (C#) - Referenzimplementierung
+- **AetherMesh.Core** (C#) - Referenzimplementierung
 - **aether-protocol-go** - Go-Implementierung
 - **aether-protocol-rust** - Rust-Implementierung
 

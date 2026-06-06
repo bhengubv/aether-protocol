@@ -24,7 +24,7 @@ pub use handshake::{
     PeerCapabilities,
 };
 pub use models::{
-    AetherNode, BundlePriority, BundleStatus, CustodyRecord, DtnBundle, DtnDeliveryReceipt,
+    AetherMeshNode, BundlePriority, BundleStatus, CustodyRecord, DtnBundle, DtnDeliveryReceipt,
     PeerInfo, RouteEntry, SosAlert,
 };
 pub use protocol::{MeshPacket, PacketType};
@@ -42,7 +42,7 @@ pub use storage::{
     DataAtRestKeyProvider, DerivedDataAtRestKeyProvider, EncryptedKeyValueStore,
     FileSystemKeyValueStore, InMemoryKeyValueStore, KeyValueStore, StaticDataAtRestKeyProvider,
 };
-pub use identity::{AetherTag, AetherTagError};
+pub use identity::{AetherMeshTag, AetherMeshTagError};
 pub use anomaly_detector::{AnomalyDetectorOptions, BehavioralAnomalyDetector};
 pub use gossip::{GossipPacket, GossipSender, PacketSigner, ReputationGossipService, ReputationUpdatePayload};
 pub use reputation::NodeReputationService;

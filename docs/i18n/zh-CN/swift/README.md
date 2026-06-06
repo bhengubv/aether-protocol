@@ -43,7 +43,7 @@ Aether 是一种去中心化网状网络协议，专为网络连接断断续续�
 - **InProcessTransport**：用于测试和本地通信的内存传输
 
 #### 数据模型
-- **AetherNode**：带 UHID 和身份密钥的节点表示
+- **AetherMeshNode**：带 UHID 和身份密钥的节点表示
 - **PreKeyBundle**：用于异步会话建立的包
 - **EncryptedPayload**：加密消息包装器
 - **DtnBundle**：延迟容忍网络包
@@ -66,7 +66,7 @@ Aether 是一种去中心化网状网络协议，专为网络连接断断续续�
 .target(
     name: "YourTarget",
     dependencies: [
-        .product(name: "AetherProtocol", package: "aether-protocol-swift")
+        .product(name: "AetherMeshProtocol", package: "aether-protocol-swift")
     ]
 )
 ```
@@ -76,7 +76,7 @@ Aether 是一种去中心化网状网络协议，专为网络连接断断续续�
 ### 1. 数据包序列化
 
 ```swift
-import AetherProtocol
+import AetherMeshProtocol
 
 // Create a packet
 var packet = MeshPacket(
@@ -274,7 +274,7 @@ Test 5: End-to-End Messaging (Full Stack)
 ## 互操作性
 
 线格式兼容以下实现：
-- **Aether.Core**（C#）- 参考实现
+- **AetherMesh.Core**（C#）- 参考实现
 - **aether-protocol-go** - Go 实现
 - **aether-protocol-rust** - Rust 实现
 

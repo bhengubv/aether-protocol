@@ -5,7 +5,7 @@
  * snake_case keys to match the C# reference (and every other Aether wire
  * format). Drift between language implementations breaks first-contact
  * negotiation, so the JSON shape is load-bearing — see
- * src/Aether.Core/Handshake/HelloPayload.cs.
+ * src/AetherMesh.Core/Handshake/HelloPayload.cs.
  *
  * SPDX-License-Identifier: MIT
  */

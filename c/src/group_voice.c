@@ -7,8 +7,8 @@
 // NOTE: Build verification requires Linux/macOS with cmake + libsodium + cJSON.
 // CI on ubuntu-latest is the verification gate.
 
-#include "aether/voice.h"
-#include "aether/constants.h"
+#include "aethermesh/voice.h"
+#include "aethermesh/constants.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -177,26 +177,26 @@ typedef struct {
 
 // ─── Service struct ───────────────────────────────────────
 
-struct aether_group_voice_service {
-    aether_transport_t       *transport;
-    aether_routing_service_t *routing;
+struct aethermesh_group_voice_service {
+    aethermesh_transport_t       *transport;
+    aethermesh_routing_service_t *routing;
     char                     *local_uhid;   // owned
 
     group_call_record_t calls[GV_MAX_CALLS];
 
-    aether_group_voice_invite_cb invite_cb;
+    aethermesh_group_voice_invite_cb invite_cb;
     void                        *invite_cb_ud;
-    aether_group_voice_member_cb member_joined_cb;
+    aethermesh_group_voice_member_cb member_joined_cb;
     void                        *member_joined_cb_ud;
-    aether_group_voice_member_cb member_left_cb;
+    aethermesh_group_voice_member_cb member_left_cb;
     void                        *member_left_cb_ud;
-    aether_group_voice_frame_cb  frame_cb;
+    aethermesh_group_voice_frame_cb  frame_cb;
     void                        *frame_cb_ud;
 };
 
 // ─── Internal helpers ─────────────────────────────────────
 
-static group_call_record_t *gv_find_call(aether_group_voice_service_t *svc, const uint8_t call_id[16]) {
+static group_call_record_t *gv_find_call(aethermesh_group_voice_service_t *svc, const uint8_t call_id[16]) {
     for (int i = 0; i < GV_MAX_CALLS; i++) {
         if (svc->calls[i].active && memcmp(svc->calls[i].call_id, call_id, 16) == 0)
             return &svc->calls[i];
@@ -204,7 +204,7 @@ static group_call_record_t *gv_find_call(aether_group_voice_service_t *svc, cons
     return NULL;
 }
 
-static group_call_record_t *gv_alloc_call(aether_group_voice_service_t *svc) {
+static group_call_record_t *gv_alloc_call(aethermesh_group_voice_service_t *svc) {
     for (int i = 0; i < GV_MAX_CALLS; i++) {
         if (!svc->calls[i].active) return &svc->calls[i];
     }
@@ -220,31 +220,31 @@ static void gv_free_call(group_call_record_t *c) {
     c->active = false;
 }
 
-static void gv_send_signal_to(aether_group_voice_service_t *svc, cJSON *obj, const char *to_uhid) {
+static void gv_send_signal_to(aethermesh_group_voice_service_t *svc, cJSON *obj, const char *to_uhid) {
     if (!obj || !to_uhid) { cJSON_Delete(obj); return; }
     char *body = cJSON_PrintUnformatted(obj);
     cJSON_Delete(obj);
     if (!body) return;
 
-    aether_mesh_packet_t *pkt = aether_packet_new();
+    aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
     if (!pkt) { free(body); return; }
-    pkt->type = AETHER_PACKET_TYPE_VOICE_SIGNALING;
-    aether_packet_set_source_uhid(pkt, svc->local_uhid);
-    aether_packet_set_destination_uhid(pkt, to_uhid);
-    pkt->ttl      = AETHER_DEFAULT_TTL;
+    pkt->type = AETHERMESH_PACKET_TYPE_VOICE_SIGNALING;
+    aethermesh_packet_set_source_uhid(pkt, svc->local_uhid);
+    aethermesh_packet_set_destination_uhid(pkt, to_uhid);
+    pkt->ttl      = AETHERMESH_DEFAULT_TTL;
     pkt->priority = 32;
-    aether_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
+    aethermesh_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
     free(body);
 
     /* Routing lookup; actual serialise+send is host responsibility. */
-    aether_route_entry_t *route = NULL;
-    if (aether_routing_find_cached(svc->routing, to_uhid, &route)) {
-        aether_route_entry_free(route);
+    aethermesh_route_entry_t *route = NULL;
+    if (aethermesh_routing_find_cached(svc->routing, to_uhid, &route)) {
+        aethermesh_route_entry_free(route);
     }
-    aether_packet_free(pkt);
+    aethermesh_packet_free(pkt);
 }
 
-static void gv_broadcast_to_members(aether_group_voice_service_t *svc, group_call_record_t *rec, cJSON *obj) {
+static void gv_broadcast_to_members(aethermesh_group_voice_service_t *svc, group_call_record_t *rec, cJSON *obj) {
     /* cJSON_Duplicate so we can send to multiple peers without freeing mid-loop */
     for (int i = 0; i < rec->member_count; i++) {
         if (!rec->member_uhids[i]) continue;
@@ -257,13 +257,13 @@ static void gv_broadcast_to_members(aether_group_voice_service_t *svc, group_cal
 
 // ─── Public API ───────────────────────────────────────────
 
-aether_group_voice_service_t *aether_group_voice_service_create(
-    aether_transport_t       *transport,
-    aether_routing_service_t *routing,
+aethermesh_group_voice_service_t *aethermesh_group_voice_service_create(
+    aethermesh_transport_t       *transport,
+    aethermesh_routing_service_t *routing,
     const char               *local_uhid
 ) {
     if (!transport || !routing || !local_uhid) return NULL;
-    aether_group_voice_service_t *svc = (aether_group_voice_service_t *)calloc(1, sizeof(aether_group_voice_service_t));
+    aethermesh_group_voice_service_t *svc = (aethermesh_group_voice_service_t *)calloc(1, sizeof(aethermesh_group_voice_service_t));
     if (!svc) return NULL;
     svc->transport  = transport;
     svc->routing    = routing;
@@ -272,7 +272,7 @@ aether_group_voice_service_t *aether_group_voice_service_create(
     return svc;
 }
 
-void aether_group_voice_service_destroy(aether_group_voice_service_t *svc) {
+void aethermesh_group_voice_service_destroy(aethermesh_group_voice_service_t *svc) {
     if (!svc) return;
     for (int i = 0; i < GV_MAX_CALLS; i++) {
         if (svc->calls[i].active) gv_free_call(&svc->calls[i]);
@@ -281,21 +281,21 @@ void aether_group_voice_service_destroy(aether_group_voice_service_t *svc) {
     free(svc);
 }
 
-void aether_group_voice_set_invite_cb(aether_group_voice_service_t *svc, aether_group_voice_invite_cb cb, void *ud) {
+void aethermesh_group_voice_set_invite_cb(aethermesh_group_voice_service_t *svc, aethermesh_group_voice_invite_cb cb, void *ud) {
     if (svc) { svc->invite_cb = cb; svc->invite_cb_ud = ud; }
 }
-void aether_group_voice_set_member_joined_cb(aether_group_voice_service_t *svc, aether_group_voice_member_cb cb, void *ud) {
+void aethermesh_group_voice_set_member_joined_cb(aethermesh_group_voice_service_t *svc, aethermesh_group_voice_member_cb cb, void *ud) {
     if (svc) { svc->member_joined_cb = cb; svc->member_joined_cb_ud = ud; }
 }
-void aether_group_voice_set_member_left_cb(aether_group_voice_service_t *svc, aether_group_voice_member_cb cb, void *ud) {
+void aethermesh_group_voice_set_member_left_cb(aethermesh_group_voice_service_t *svc, aethermesh_group_voice_member_cb cb, void *ud) {
     if (svc) { svc->member_left_cb = cb; svc->member_left_cb_ud = ud; }
 }
-void aether_group_voice_set_frame_cb(aether_group_voice_service_t *svc, aether_group_voice_frame_cb cb, void *ud) {
+void aethermesh_group_voice_set_frame_cb(aethermesh_group_voice_service_t *svc, aethermesh_group_voice_frame_cb cb, void *ud) {
     if (svc) { svc->frame_cb = cb; svc->frame_cb_ud = ud; }
 }
 
-int aether_group_voice_invite(
-    aether_group_voice_service_t *svc,
+int aethermesh_group_voice_invite(
+    aethermesh_group_voice_service_t *svc,
     const char                  **to_uhids,
     int                           to_count,
     const char                  **codecs,
@@ -347,7 +347,7 @@ int aether_group_voice_invite(
     return 0;
 }
 
-int aether_group_voice_join(aether_group_voice_service_t *svc, const uint8_t call_id[16]) {
+int aethermesh_group_voice_join(aethermesh_group_voice_service_t *svc, const uint8_t call_id[16]) {
     if (!svc) return -1;
     group_call_record_t *rec = gv_find_call(svc, call_id);
     if (!rec) return -1;
@@ -376,7 +376,7 @@ int aether_group_voice_join(aether_group_voice_service_t *svc, const uint8_t cal
     return 0;
 }
 
-int aether_group_voice_leave(aether_group_voice_service_t *svc, const uint8_t call_id[16]) {
+int aethermesh_group_voice_leave(aethermesh_group_voice_service_t *svc, const uint8_t call_id[16]) {
     if (!svc) return -1;
     group_call_record_t *rec = gv_find_call(svc, call_id);
     if (!rec) return -1;
@@ -395,7 +395,7 @@ int aether_group_voice_leave(aether_group_voice_service_t *svc, const uint8_t ca
     return 0;
 }
 
-int aether_group_voice_kick(aether_group_voice_service_t *svc, const uint8_t call_id[16], const char *uhid) {
+int aethermesh_group_voice_kick(aethermesh_group_voice_service_t *svc, const uint8_t call_id[16], const char *uhid) {
     if (!svc || !uhid) return -1;
     group_call_record_t *rec = gv_find_call(svc, call_id);
     if (!rec) return -1;
@@ -428,8 +428,8 @@ int aether_group_voice_kick(aether_group_voice_service_t *svc, const uint8_t cal
     return 0;
 }
 
-int aether_group_voice_send_frame(
-    aether_group_voice_service_t *svc,
+int aethermesh_group_voice_send_frame(
+    aethermesh_group_voice_service_t *svc,
     const uint8_t                *call_id,
     const uint8_t                *audio,
     size_t                        audio_len,
@@ -451,30 +451,30 @@ int aether_group_voice_send_frame(
         if (!uhid) continue;
         if (svc->local_uhid && strcmp(uhid, svc->local_uhid) == 0) continue;
 
-        aether_mesh_packet_t *pkt = aether_packet_new();
+        aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
         if (!pkt) continue;
-        pkt->type = AETHER_PACKET_TYPE_VOICE_CALL;
-        aether_packet_set_source_uhid(pkt, svc->local_uhid);
-        aether_packet_set_destination_uhid(pkt, uhid);
-        pkt->ttl      = AETHER_DEFAULT_TTL;
+        pkt->type = AETHERMESH_PACKET_TYPE_VOICE_CALL;
+        aethermesh_packet_set_source_uhid(pkt, svc->local_uhid);
+        aethermesh_packet_set_destination_uhid(pkt, uhid);
+        pkt->ttl      = AETHERMESH_DEFAULT_TTL;
         pkt->priority = 64;
-        aether_packet_set_payload(pkt, frame, frame_len);
+        aethermesh_packet_set_payload(pkt, frame, frame_len);
 
-        aether_route_entry_t *route = NULL;
-        if (aether_routing_find_cached(svc->routing, uhid, &route)) {
+        aethermesh_route_entry_t *route = NULL;
+        if (aethermesh_routing_find_cached(svc->routing, uhid, &route)) {
             /* Host serialises and transmits */
-            aether_route_entry_free(route);
+            aethermesh_route_entry_free(route);
         }
-        aether_packet_free(pkt);
+        aethermesh_packet_free(pkt);
     }
     free(frame);
     return 0;
 }
 
-int aether_group_voice_handle_packet(aether_group_voice_service_t *svc, const aether_packet_t *packet) {
+int aethermesh_group_voice_handle_packet(aethermesh_group_voice_service_t *svc, const aethermesh_packet_t *packet) {
     if (!svc || !packet) return -1;
 
-    if (packet->type == AETHER_PACKET_TYPE_VOICE_CALL) {
+    if (packet->type == AETHERMESH_PACKET_TYPE_VOICE_CALL) {
         if (!packet->payload || packet->payload_len < 33) return -1;
         uint8_t  call_id[16];
         uint32_t seq, key_gen;
@@ -490,7 +490,7 @@ int aether_group_voice_handle_packet(aether_group_voice_service_t *svc, const ae
         return 0;
     }
 
-    if (packet->type == AETHER_PACKET_TYPE_VOICE_SIGNALING) {
+    if (packet->type == AETHERMESH_PACKET_TYPE_VOICE_SIGNALING) {
         if (!packet->payload || packet->payload_len == 0) return -1;
         cJSON *obj = cJSON_ParseWithLength((const char *)packet->payload, packet->payload_len);
         if (!obj) return -1;

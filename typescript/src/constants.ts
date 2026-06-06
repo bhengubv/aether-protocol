@@ -47,7 +47,7 @@ export const BLE_SCAN_OFF_MS = 8000;
 export const BLE_ADVERTISE_INTERVAL_MS = 1000;
 export const BLE_UUID_ROTATION_SECONDS = 900;
 export const BLE_SCAN_JITTER_MAX_MS = 2000;
-export const AETHER_BLE_SERVICE_UUID = "A3E7-1001-0001-0000-000000000000";
+export const AETHERMESH_BLE_SERVICE_UUID = "A3E7-1001-0001-0000-000000000000";
 
 // Heartbeat
 export const HEARTBEAT_INTERVAL_SECONDS = 300;
@@ -76,7 +76,7 @@ export const BLE_AUDIO_BITRATE_KBPS = 64;
 export const WIFI_DIRECT_VIDEO_BITRATE_KBPS = 500;
 
 // HKDF Info Strings
-export const HKDF_SALT = Buffer.from("AetherSignal", "utf-8");
+export const HKDF_SALT = Buffer.from("AetherMeshSignal", "utf-8");
 export const HKDF_INFO_ROOT = Buffer.from("aether-root-v1", "utf-8");
 export const HKDF_INFO_CHAIN_SEND = Buffer.from("aether-chain-send-v1", "utf-8");
 export const HKDF_INFO_CHAIN_RECV = Buffer.from("aether-chain-recv-v1", "utf-8");

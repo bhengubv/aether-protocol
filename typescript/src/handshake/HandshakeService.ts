@@ -16,9 +16,9 @@
  *   - Locked-in capability set = `ourCaps ∩ theirCaps`.
  *
  * Mirrors the C# reference at
- * src/Aether.Core/Handshake/HandshakeService.cs (commit 9380631). Cross-
+ * src/AetherMesh.Core/Handshake/HandshakeService.cs (commit 9380631). Cross-
  * language Hello packets must round-trip — see
- * src/Aether.Core/Handshake/HelloPayload.cs for the JSON shape.
+ * src/AetherMesh.Core/Handshake/HelloPayload.cs for the JSON shape.
  *
  * SPDX-License-Identifier: MIT
  */

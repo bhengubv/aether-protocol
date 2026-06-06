@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! Integration tests for the RLNC engine (GF(2⁸), encoder, decoder, codec).
 
-use aether_protocol::transport::rlnc::{RlncCodec, RlncDecoder, RlncEncoder};
+use aethermesh_protocol::transport::rlnc::{RlncCodec, RlncDecoder, RlncEncoder};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

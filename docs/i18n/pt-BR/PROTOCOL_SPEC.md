@@ -16,10 +16,10 @@
 > é autoritativa em todo lugar onde este documento e a implementação divergem.
 >
 > - Bytes de wire canônicos: `fixtures/expected/*.bin` (10 casos nomeados)
-> - Serializador de referência: `src/Aether.Core/Protocol/PacketSerializer.cs`
-> - Pilha Signal de referência: `src/Aether.Security/Services/SignalProtocolService.cs`
-> - Roteamento de referência: `src/Aether.Core/Routing/RoutingService.cs`
-> - DTN de referência: `src/Aether.Core/Dtn/DtnService.cs`
+> - Serializador de referência: `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
+> - Pilha Signal de referência: `src/AetherMesh.Security/Services/SignalProtocolService.cs`
+> - Roteamento de referência: `src/AetherMesh.Core/Routing/RoutingService.cs`
+> - DTN de referência: `src/AetherMesh.Core/Dtn/DtnService.cs`
 > - Prova de interoperabilidade wire entre linguagens: `fixtures/README.md`
 > - Prova de interoperabilidade Signal entre linguagens: `fixtures/signal/README.md`
 
@@ -60,7 +60,7 @@ de pares gateway que fazem a ponte entre o tráfego de malha e a internet.
 
 ## 2. Formato de Pacote
 
-> Reconciliado em 2026-05-05 com `src/Aether.Core/Protocol/PacketSerializer.cs`
+> Reconciliado em 2026-05-05 com `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
 > e os 10 casos de fixture em `fixtures/expected/`.
 
 ### 2.1. Layout de Wire do MeshPacket
@@ -175,7 +175,7 @@ PacketNonce (8 bytes)
 > nos bytes assináveis; caso contrário, o receptor (que vê o byte de wire 0..255)
 > derivará um buffer assinável diferente e a verificação falhará.
 
-A implementação de referência está em `src/Aether.Security/Services/
+A implementação de referência está em `src/AetherMesh.Security/Services/
 PacketSigningService.cs::BuildSignableData` e é leitura obrigatória para ports.
 
 ### 2.5. Tipos de Pacote
@@ -339,7 +339,7 @@ confiáveis são preferidas.
 ## 4. Troca de Chaves
 
 > Reconciliado em 2026-05-05 com a implementação de referência em C# em
-> `src/Aether.Security/Services/SignalProtocolService.cs` e o corpus de
+> `src/AetherMesh.Security/Services/SignalProtocolService.cs` e o corpus de
 > fixtures entre linguagens em `fixtures/signal/`. A referência em C#
 > inclui X3DH completo + Double Ratchet (Signal §3 + §5) sobre X25519.
 > Go, Python, TypeScript, Rust, Swift e Kotlin foram portados para o mesmo
@@ -399,7 +399,7 @@ PreKeyBundle {
 }
 ```
 
-Referência: `Aether.Security.Models.PreKeyBundle`. O contrato de forma de wire é
+Referência: `AetherMesh.Security.Models.PreKeyBundle`. O contrato de forma de wire é
 o mesmo em todas as 8 linguagens.
 
 **Pool de pré-chave de uso único (OPK).** Cada respondente mantém um pool de
@@ -413,7 +413,7 @@ o perdedor lança `CryptographicException`.
 
 Referência: `SignalProtocolService.TopUpOpkPoolNoLock` (linhas 494–518),
 `SignalProtocolService.EstablishResponderSession` (linhas 636–718). A semântica
-do pool é exercida por `tests/Aether.Core.Tests/PreKeyPoolTests.cs`.
+do pool é exercida por `tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`.
 
 **Rotação de signed pre-key (SPK).** A SPK é gerada preguiçosamente na primeira
 chamada de bundle e reutilizada nas chamadas subsequentes para que iniciadores
@@ -604,7 +604,7 @@ EncryptedPayload {
 }
 ```
 
-Referência: `Aether.Security.Models.EncryptedPayload` (linhas 55–66 de
+Referência: `AetherMesh.Security.Models.EncryptedPayload` (linhas 55–66 de
 `SecurityModels.cs`). O campo `InitiatorEphemeralKeyX25519` é um alias de
 compatibilidade retroativa para o envelope de wire pré-Double-Ratchet e é
 igual a `SenderEphemeralKeyX25519` em mensagens PreKey; novos consumidores
@@ -626,7 +626,7 @@ encrypt/decrypt AES-GCM.
 | Rust        | completo     | completo (§5)  | pool, padrão 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | completo     | completo (§5)  | pool, padrão 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | completo     | completo (§5)  | pool, padrão 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | apenas primitivas — `aether_x25519_*`, `aether_signal_kdf_rk` | não implementado | — | apenas kdf_rk_basic |
+| C           | apenas primitivas — `aethermesh_x25519_*`, `aethermesh_signal_kdf_rk` | não implementado | — | apenas kdf_rk_basic |
 
 Todas as 7 linguagens capazes de sessão (C# + Go + TypeScript + Python + Kotlin + Swift + Rust)
 incluem o pool OPK FIFO de 100 chaves com reabastecimento lazy e consumo protegido por lock,
@@ -684,7 +684,7 @@ O `TransportManager` seleciona o transporte ideal para cada pacote com base em:
    alvo (`IsConnected` retorna true), ele é preferido para evitar a sobrecarga de
    configuração de conexão.
 5. **Fallback:** Se nenhum transporte local puder alcançar o alvo, o pacote é
-   enfileirado para relay via servidor pela AetherAPI.
+   enfileirado para relay via servidor pela AetherMeshAPI.
 
 ### 5.3. Transportes de Referência
 
@@ -918,7 +918,7 @@ a internet simultaneamente.
 3. **Despacho de caminho duplo:** O SOS é enviado simultaneamente via:
    - **Flood de malha:** Broadcast para todos os pares conectados via todos os
      transportes disponíveis.
-   - **Chamada de API:** Enviado para a AetherAPI para distribuição no lado do
+   - **Chamada de API:** Enviado para a AetherMeshAPI para distribuição no lado do
      servidor e ponte para a PanikAPI (despacho por SMS/email).
 4. Ambos os caminhos são fire-and-forget em relação ao outro. Se a chamada de API
    falhar, o flood de malha prossegue de forma independente.
@@ -992,7 +992,7 @@ DtnBundle {
    direto (RREQ/RREP). Se uma rota existir, o bundle é entregue imediatamente e
    `Status` transita para `Delivered`.
 3. **Tentativa de relay via servidor:** Se o roteamento de malha falhar, o remetente
-   tenta retransmitir pela AetherAPI. Se o servidor puder alcançar o destinatário
+   tenta retransmitir pela AetherMeshAPI. Se o servidor puder alcançar o destinatário
    (ou enfileirar a mensagem), a entrega é bem-sucedida.
 4. **Store-and-forward:** Se ambas as tentativas de malha e relay via servidor
    falharem, o bundle permanece no armazenamento local (status `Pending`) aguardando
@@ -1061,7 +1061,7 @@ Quando o destinatário pretendido recebe um bundle DTN:
    ```
 3. Ao receber o recibo, o remetente remove o bundle de seu store e dispara o evento
    `BundleDelivered`.
-4. O recibo também é sincronizado com a AetherAPI para análises.
+4. O recibo também é sincronizado com a AetherMeshAPI para análises.
 
 ### 9.7. Expiração de Bundles
 
@@ -1088,7 +1088,7 @@ Quando o destinatário pretendido recebe um bundle DTN:
 > `StreamSubscribe` (13), `StreamUnsubscribe` (14), `VideoCall` (27),
 > `VideoSignaling` (28), `VideoFrame` (31), `ScreenShare` (32) são wire-definidos
 > e fazem round-trip via o corpus de fixtures entre linguagens.
-> O módulo C# `Aether.Streaming` inclui interfaces, modelos e serviços esqueleto
+> O módulo C# `AetherMesh.Streaming` inclui interfaces, modelos e serviços esqueleto
 > (`StreamingService`, `VideoCallService`, `WatchTogetherService`) que conectam
 > junções de roteamento/DI e fan-out de segmento unicast — mas nenhum encode/decode
 > de vídeo real está vinculado a eles. As outras 7 linguagens têm apenas tipos de
@@ -1230,7 +1230,7 @@ lida com frames Opus de 20ms):
 > **Status em 2026-05-05 — design + scaffolding em C#, mesma maturidade que
 > §10.** Os tipos de pacote `WatchSync` (29), `WatchReaction` (30),
 > `WatchChunkRequest` (33), `TorrentMetadata` (34) são wire-definidos e
-> testados por fixtures. `Aether.Streaming.WatchTogetherService` fornece o
+> testados por fixtures. `AetherMesh.Streaming.WatchTogetherService` fornece o
 > esqueleto de coordenação (estado de sessão, propagação de comando sync via
 > `IMeshSender`, helpers de compensação RTT); a ingestão BitTorrent, o
 > liquidamento SDPKT ChipIn e o fetch de chunk de pares não estão implementados
@@ -1387,12 +1387,12 @@ Todas as funcionalidades de vídeo e watch-together estão bloqueadas por featur
 
 | Flag | Pai | Descrição |
 |------|--------|-------------|
-| AETHER_VIDEO_CALL | AETHER_VOICE | Chamadas de vídeo P2P e em grupo |
-| AETHER_VIDEO_GROUP | AETHER_VIDEO_CALL | Sessões de vídeo com múltiplas partes |
-| AETHER_SCREEN_SHARE | AETHER_VIDEO_CALL | Compartilhamento de tela em chamadas de vídeo |
-| AETHER_WATCH_TOGETHER | AETHER_CONTENT_P2P | Reprodução de mídia sincronizada |
-| AETHER_WATCH_REACTIONS | AETHER_WATCH_TOGETHER | Reações de emoji e voz |
-| AETHER_TORRENT_INGEST | AETHER_CONTENT_P2P | Aceitação de arquivos BitTorrent para distribuição na malha |
+| AETHERMESH_VIDEO_CALL | AETHERMESH_VOICE | Chamadas de vídeo P2P e em grupo |
+| AETHERMESH_VIDEO_GROUP | AETHERMESH_VIDEO_CALL | Sessões de vídeo com múltiplas partes |
+| AETHERMESH_SCREEN_SHARE | AETHERMESH_VIDEO_CALL | Compartilhamento de tela em chamadas de vídeo |
+| AETHERMESH_WATCH_TOGETHER | AETHERMESH_CONTENT_P2P | Reprodução de mídia sincronizada |
+| AETHERMESH_WATCH_REACTIONS | AETHERMESH_WATCH_TOGETHER | Reações de emoji e voz |
+| AETHERMESH_TORRENT_INGEST | AETHERMESH_CONTENT_P2P | Aceitação de arquivos BitTorrent para distribuição na malha |
 
 As feature flags têm dependências de pai: uma flag filha só pode ser habilitada se seu
 pai também estiver habilitado. Isso permite rollout progressivo.
@@ -1421,7 +1421,7 @@ aqui para referência:
 | BleAdvertiseIntervalMs    | 1000   |
 | BleUuidRotationSeconds    | 900    |
 | BleScanJitterMaxMs        | 2000   |
-| AetherBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
+| AetherMeshBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
 
 ### Segurança
 | Constante                  | Valor  |

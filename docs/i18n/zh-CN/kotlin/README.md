@@ -27,7 +27,7 @@ Aether 是一种去中心化网状网络协议，适用于网络连接间歇性�
 │       ├── Constants.kt                      # Protocol constants (TTL, timeouts, HKDF info strings)
 │       ├── Demo.kt                           # Demo application (key generation, encryption, signing)
 │       ├── models/
-│       │   └── Models.kt                     # Domain models (AetherNode, PeerInfo, DtnBundle, etc.)
+│       │   └── Models.kt                     # Domain models (AetherMeshNode, PeerInfo, DtnBundle, etc.)
 │       ├── protocol/
 │       │   ├── MeshPacket.kt                 # Packet data class (wire-compatible with C#)
 │       │   ├── PacketType.kt                 # Packet type enum (23 types, matching C# values)
@@ -145,7 +145,7 @@ interface TransportService {
 
 ### 5. 领域模型（`Models.kt`）
 
-- **AetherNode**：带 UHID、公钥、能力和地理哈希的节点身份
+- **AetherMeshNode**：带 UHID、公钥、能力和地理哈希的节点身份
 - **PeerInfo**：带可靠性分数和最后可见时间戳的已知对等方
 - **RouteEntry**：带跳数和质量分数的路由表条目
 - **NodeCapabilities**：位字段（BLE、Wi-Fi Direct、网关、中继、SOS、流媒体、语音、DTN）

@@ -8,7 +8,7 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use aether_protocol::{
+use aethermesh_protocol::{
     constants::{DTN_BUNDLE_TTL_HOURS, DTN_MAX_BUNDLES_PER_NODE},
     dtn::{BundleStore, DtnService, InMemoryBundleStore},
     extensibility::{NoopBackendClient, NoopIncentiveProvider},
@@ -32,7 +32,7 @@ async fn new_svc() -> (DtnService, Arc<FakeMeshSender>, Arc<InMemoryBundleStore>
     let svc = DtnService::with_dependencies(
         sender.clone(),
         store.clone(),
-        Arc::new(aether_protocol::dtn::GeohashEpidemicStrategy),
+        Arc::new(aethermesh_protocol::dtn::GeohashEpidemicStrategy),
         Arc::new(NoopIncentiveProvider),
         Arc::new(NoopBackendClient),
     );

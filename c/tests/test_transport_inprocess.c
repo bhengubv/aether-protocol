@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "aether/transport.h"
+#include "aethermesh/transport.h"
 
 // ── Test runner ───────────────────────────────────────────────
 
@@ -39,140 +39,140 @@ static void on_data(const char *from, const uint8_t *data, size_t len, void *ud)
 // ── Tests ─────────────────────────────────────────────────────
 
 static void create_returns_non_null(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
     assert(t != NULL);
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void register_node_returns_true(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    bool ok = aether_inprocess_transport_register_node(t, "alice");
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    bool ok = aethermesh_inprocess_transport_register_node(t, "alice");
     assert(ok);
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void register_same_node_twice_returns_false(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    aether_inprocess_transport_register_node(t, "alice");
-    bool again = aether_inprocess_transport_register_node(t, "alice");
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    aethermesh_inprocess_transport_register_node(t, "alice");
+    bool again = aethermesh_inprocess_transport_register_node(t, "alice");
     assert(!again);
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void is_connected_registered_node_returns_true(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    aether_inprocess_transport_register_node(t, "alice");
-    bool c = aether_transport_is_connected(t, "alice");
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    aethermesh_inprocess_transport_register_node(t, "alice");
+    bool c = aethermesh_transport_is_connected(t, "alice");
     assert(c);
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void is_connected_unregistered_node_returns_false(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    bool c = aether_transport_is_connected(t, "nobody");
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    bool c = aethermesh_transport_is_connected(t, "nobody");
     assert(!c);
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void send_delivers_data_to_registered_receiver(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    aether_inprocess_transport_register_node(t, "bob");
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    aethermesh_inprocess_transport_register_node(t, "bob");
 
     g_recv_count = 0;
-    aether_transport_set_on_data_received(t, on_data, NULL);
+    aethermesh_transport_set_on_data_received(t, on_data, NULL);
 
     const uint8_t payload[] = { 0xDE, 0xAD, 0xBE, 0xEF };
-    bool ok = aether_transport_send(t, "bob", payload, sizeof(payload));
+    bool ok = aethermesh_transport_send(t, "bob", payload, sizeof(payload));
     assert(ok);
     assert(g_recv_count == 1);
     assert(g_recv_len == sizeof(payload));
     assert(memcmp(g_recv_buf, payload, sizeof(payload)) == 0);
 
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void send_to_unregistered_peer_returns_false(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
     const uint8_t data[] = { 0x01 };
-    bool ok = aether_transport_send(t, "nobody", data, sizeof(data));
+    bool ok = aethermesh_transport_send(t, "nobody", data, sizeof(data));
     assert(!ok);
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void send_without_callback_returns_false(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    aether_inprocess_transport_register_node(t, "carol");
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    aethermesh_inprocess_transport_register_node(t, "carol");
     // No callback registered for carol
     const uint8_t data[] = { 0x01 };
-    bool ok = aether_transport_send(t, "carol", data, sizeof(data));
+    bool ok = aethermesh_transport_send(t, "carol", data, sizeof(data));
     assert(!ok);
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void unregister_node_makes_it_unavailable(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    aether_inprocess_transport_register_node(t, "dave");
-    assert(aether_transport_is_connected(t, "dave"));
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    aethermesh_inprocess_transport_register_node(t, "dave");
+    assert(aethermesh_transport_is_connected(t, "dave"));
 
-    bool unreg = aether_inprocess_transport_unregister_node(t, "dave");
+    bool unreg = aethermesh_inprocess_transport_unregister_node(t, "dave");
     assert(unreg);
-    assert(!aether_transport_is_connected(t, "dave"));
+    assert(!aethermesh_transport_is_connected(t, "dave"));
 
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void unregister_unknown_node_returns_false(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    bool bad = aether_inprocess_transport_unregister_node(t, "ghost");
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    bool bad = aethermesh_inprocess_transport_unregister_node(t, "ghost");
     assert(!bad);
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void multiple_nodes_can_coexist(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    aether_inprocess_transport_register_node(t, "node1");
-    aether_inprocess_transport_register_node(t, "node2");
-    aether_inprocess_transport_register_node(t, "node3");
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    aethermesh_inprocess_transport_register_node(t, "node1");
+    aethermesh_inprocess_transport_register_node(t, "node2");
+    aethermesh_inprocess_transport_register_node(t, "node3");
 
-    assert(aether_transport_is_connected(t, "node1"));
-    assert(aether_transport_is_connected(t, "node2"));
-    assert(aether_transport_is_connected(t, "node3"));
+    assert(aethermesh_transport_is_connected(t, "node1"));
+    assert(aethermesh_transport_is_connected(t, "node2"));
+    assert(aethermesh_transport_is_connected(t, "node3"));
 
-    aether_inprocess_transport_unregister_node(t, "node2");
-    assert(aether_transport_is_connected(t, "node1"));
-    assert(!aether_transport_is_connected(t, "node2"));
-    assert(aether_transport_is_connected(t, "node3"));
+    aethermesh_inprocess_transport_unregister_node(t, "node2");
+    assert(aethermesh_transport_is_connected(t, "node1"));
+    assert(!aethermesh_transport_is_connected(t, "node2"));
+    assert(aethermesh_transport_is_connected(t, "node3"));
 
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void get_metrics_returns_non_null_after_create(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
     assert(t->vtable != NULL);
     assert(t->vtable->get_metrics != NULL);
-    aether_transport_metrics_t *m = t->vtable->get_metrics(t->handle);
+    aethermesh_transport_metrics_t *m = t->vtable->get_metrics(t->handle);
     assert(m != NULL);
     // Priors must be set
     assert(m->ewma_rtt_ms == 200.0);
     assert(m->ewma_loss_rate == 0.05);
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 static void send_updates_metrics_sample_count(void) {
-    aether_transport_t *t = aether_inprocess_transport_new();
-    aether_inprocess_transport_register_node(t, "eve");
-    aether_transport_set_on_data_received(t, on_data, NULL);
+    aethermesh_transport_t *t = aethermesh_inprocess_transport_new();
+    aethermesh_inprocess_transport_register_node(t, "eve");
+    aethermesh_transport_set_on_data_received(t, on_data, NULL);
 
-    aether_transport_metrics_t *m = t->vtable->get_metrics(t->handle);
+    aethermesh_transport_metrics_t *m = t->vtable->get_metrics(t->handle);
     assert(m != NULL);
     uint64_t before = m->sample_count;
 
     const uint8_t data[] = { 1, 2, 3 };
-    aether_transport_send(t, "eve", data, sizeof(data));
+    aethermesh_transport_send(t, "eve", data, sizeof(data));
 
     assert(m->sample_count > before);
 
-    aether_transport_destroy(t);
+    aethermesh_transport_destroy(t);
 }
 
 // ── main ─────────────────────────────────────────────────────

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AetherMesh.Messaging</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>End-to-end encrypted 1-to-1 and group messaging on the Aether mesh transport. Signal-Protocol envelopes, message queue (never insecure fallback), Brotli compression (capability-negotiated), and composable incentive/feature-flag seams.</Description>
+    <PackageTags>mesh;messaging;e2e-encryption;signal-protocol;aether;secure-messaging;double-ratchet</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherMesh.Core/AetherMesh.Core.csproj" />
+    <ProjectReference Include="../AetherMesh.Security/AetherMesh.Security.csproj" />
+  </ItemGroup>
+
+</Project>

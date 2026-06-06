@@ -178,7 +178,7 @@ transport/             ← Network abstraction
 └── in_process.go      ← In-memory sync.Map transport
 
 models/                ← Domain models
-└── models.go          ← AetherNode, Route, DtnBundle, SosAlert
+└── models.go          ← AetherMeshNode, Route, DtnBundle, SosAlert
 
 constants/             ← Protocol constants
 └── constants.go       ← All Spec Appendix A constants
@@ -212,7 +212,7 @@ cmd/demo/              ← Example program
 - [x] Goroutine-safe operations
 
 ### Models (1 file, 200 lines)
-- [x] AetherNode with capabilities
+- [x] AetherMeshNode with capabilities
 - [x] RouteEntry with quality scores
 - [x] DtnBundle with priority/status
 - [x] SosAlert with location

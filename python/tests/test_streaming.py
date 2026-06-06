@@ -11,8 +11,8 @@ import time
 import unittest
 import uuid
 
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.streaming.service import StreamingService
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.streaming.service import StreamingService
 
 from tests.fakes import FakeMeshSender
 

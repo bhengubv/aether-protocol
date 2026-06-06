@@ -14,13 +14,13 @@ import unittest
 from dataclasses import asdict
 from typing import List, Tuple
 
-from aether.gossip import (
+from aethermesh.gossip import (
     FRESHNESS_WINDOW_MS,
     REPUTATION_UPDATE_TYPE,
     ReputationGossipService,
     ReputationUpdatePayload,
 )
-from aether.reputation import NodeReputationService
+from aethermesh.reputation import NodeReputationService
 
 
 # ---------------------------------------------------------------------------

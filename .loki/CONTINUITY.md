@@ -10,22 +10,22 @@ ecosystem can build on a stable, audited foundation.
 
 ## Completed This Session
 - feat(content): Chunk Shuffle / Self-Assembling Peer Interleaving (ChunkBitmap=37, ChunkShuffleSession, 36 tests, 4 fixture vectors)
-- feat(extensibility): CircleAI telemetry surface (IAetherTelemetry + 5 event types + AetherTelemetryBus)
+- feat(extensibility): CircleAI telemetry surface (IAetherMeshTelemetry + 5 event types + AetherMeshTelemetryBus)
 - feat(extensibility): CircleAI security directives (ISecurityDirectiveConsumer + SecurityDirective)
 - feat(extensibility): BhenguAI network health (AiNetworkHealthReport + GetNetworkHealthAsync)
-- feat(extensibility): mempalace context memory (IAetherContextMemory + NullAetherContextMemory)
+- feat(extensibility): mempalace context memory (IAetherMeshContextMemory + NullAetherMeshContextMemory)
 - feat(extensibility): facex biometrics (IBiometricProvider + FaceEmbedding + NullBiometricProvider)
 - feat(loki): .loki/ scaffold for aether-protocol
-- feat(security): Claude-BugHunter IAetherSecurityAudit + threat model
-- fix(di): AddAetherProtocol() now registers all Null* extensibility defaults + AetherTelemetryBus factory
-- feat(di): IAetherProtocolBuilder gains 10 extensibility methods (AddTelemetry/AddCircleAI/AddBiometrics/AddContextMemory/AddSecurityAudit — type + instance overloads)
+- feat(security): Claude-BugHunter IAetherMeshSecurityAudit + threat model
+- fix(di): AddAetherMeshProtocol() now registers all Null* extensibility defaults + AetherMeshTelemetryBus factory
+- feat(di): IAetherMeshProtocolBuilder gains 10 extensibility methods (AddTelemetry/AddCircleAI/AddBiometrics/AddContextMemory/AddSecurityAudit — type + instance overloads)
 - fix(changelog): IBehavioralAnomalyDetector → IAnomalyDetector typo
-- feat(transport): AetherWindowsTransportExtensions.AddWindowsTransports() — BLE/WifiDirect/NearLink/NFC/HTTP relay + TransportManager wired via DI
-- feat(telemetry): HandshakeService publishes AetherNodeEvent.Joined; RoutingService publishes AetherRouteEvent.Discovered/Failed; ContentService publishes AetherNetworkEvent.TopologyChanged
+- feat(transport): AetherMeshWindowsTransportExtensions.AddWindowsTransports() — BLE/WifiDirect/NearLink/NFC/HTTP relay + TransportManager wired via DI
+- feat(telemetry): HandshakeService publishes AetherMeshNodeEvent.Joined; RoutingService publishes AetherMeshRouteEvent.Discovered/Failed; ContentService publishes AetherMeshNetworkEvent.TopologyChanged
 - feat(protocol): PacketType IDs 38-49 documented/reserved; SpaceBreadcrumb=40 declared
 
 ## Current Test Count
-- C# Unit: 615 (Aether.Core.Tests)
+- C# Unit: 615 (AetherMesh.Core.Tests)
 - C# Forge: 10, Interop: 24, Space: 12, Vault: 12, Market: 14, Soak: 11
 - C# Total: 698/698, 0 warnings, 0 errors
 - Go: all packages pass (content, transport, routing, security, etc.)
@@ -46,13 +46,13 @@ ecosystem can build on a stable, audited foundation.
 
 ## Completed (Session 5 continuation — post-compaction)
 - ✅ A. C ChunkBitmap codec (c/include/aether/chunk_bitmap.h, c/src/chunk_bitmap.c, c/tests/test_chunk_bitmap.c) — 5/5 GCC tests pass
-- ✅ D. Swift ChunkBitmap codec (swift/Sources/AetherProtocol/Content/ChunkBitmap.swift, swift/Tests/ChunkBitmapTests.swift) — 5/5 XCTest tests pass
+- ✅ D. Swift ChunkBitmap codec (swift/Sources/AetherMeshProtocol/Content/ChunkBitmap.swift, swift/Tests/ChunkBitmapTests.swift) — 5/5 XCTest tests pass
 - ✅ E. docfx cref warnings — all 8 fixed, 0 warnings 0 errors
 - ✅ B. aether-forge Go HTTP CONNECT proxy daemon (go/cmd/aether-forge-proxy/main.go + main_test.go) — 8/8 Go tests pass
-- ✅ C. PoV wire integration test (tests/Aether.Market.Tests/PoVIntegrationTests.cs) — 5/5 xUnit tests pass
+- ✅ C. PoV wire integration test (tests/AetherMesh.Market.Tests/PoVIntegrationTests.cs) — 5/5 xUnit tests pass
 
 ## Current Test Count (FINAL)
-- C# Unit: 615 (Aether.Core.Tests)
+- C# Unit: 615 (AetherMesh.Core.Tests)
 - C# Forge: 10, Interop: 24, Space: 12, Vault: 12, Market: 19, Soak: 11
 - C# Total: 703/703, 0 warnings, 0 errors
 - Go: all packages pass (content, transport, routing, security, forge proxy)
@@ -65,7 +65,7 @@ ecosystem can build on a stable, audited foundation.
 
 ## Completed Post-Session-5 (FMHY Integration)
 - ✅ FMHY GitHub issue filed: https://github.com/fmhy/FMHY/issues/142
-- ✅ src/Aether.Fmhy/: IFmhyCatalogueService + FmhyMarkdownParser + FmhySeedLoader + InMemoryFmhyCatalogueService
+- ✅ src/AetherMesh.Fmhy/: IFmhyCatalogueService + FmhyMarkdownParser + FmhySeedLoader + InMemoryFmhyCatalogueService
 - ✅ fixtures/fmhy/seed-catalogue.json: 25 curated entries
 - ✅ go/cmd/aether-forge-proxy/: TrackerSource + builtInTrackerSources + /__forge/trackers endpoint
 - ✅ C# total: 730/730 tests pass | Go forge: 9/9 | 0 warnings
@@ -82,8 +82,8 @@ ecosystem can build on a stable, audited foundation.
 - None
 
 ## Key Decisions This Session
-- AetherThreatLevel (5-level, protocol-native) != AiThreatLevel (4-level, AI output)
-- IAetherTelemetry owned by aether-protocol -- CircleAI subscribes, never the reverse
+- AetherMeshThreatLevel (5-level, protocol-native) != AiThreatLevel (4-level, AI output)
+- IAetherMeshTelemetry owned by aether-protocol -- CircleAI subscribes, never the reverse
 - IBiometricProvider default threshold 0.30 (FaceX recommended default)
 - SecurityDirective.Duration=null means permanent (no auto-expiry)
 - loki-mode max parallel agents for this repo: 7 (one per language track, never share .sln or .csproj)
@@ -92,12 +92,12 @@ ecosystem can build on a stable, audited foundation.
 - System.Collections.Concurrent NOT in .NET SDK implicit usings -- must add explicitly
 - ConcurrentBag<T> is LIFO -- tests checking order must sort by a deterministic field first
 - Flaky random tests: design with fixed/deterministic candidates, not probabilistic scenarios
-- Never define "Aether owns" interfaces in downstream repos (CircleAI had IAetherTelemetry) -- own it here
+- Never define "Aether owns" interfaces in downstream repos (CircleAI had IAetherMeshTelemetry) -- own it here
 
 ## Architecture Constraints
-- All services operate correctly when IAetherAiProvider.IsAvailable == false
+- All services operate correctly when IAetherMeshAiProvider.IsAvailable == false
 - All extensibility providers must ship a working Null* singleton
 - No blocking I/O inside any lock
 - Protocol constants in ProtocolConstants.cs only -- zero magic numbers in service code
-- MIT licence -- no GPL, no LGPL dependencies in Aether.Core or Aether.Content
+- MIT licence -- no GPL, no LGPL dependencies in AetherMesh.Core or AetherMesh.Content
 - 8 language implementations must remain wire-compatible -- fixtures/ is the canonical truth

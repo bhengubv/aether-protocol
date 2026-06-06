@@ -9,11 +9,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aether/constants.h"
-#include "aether/protocol.h"
-#include "aether/routing.h"
-#include "aether/transport.h"
-#include "aether/voice.h"
+#include "aethermesh/constants.h"
+#include "aethermesh/protocol.h"
+#include "aethermesh/routing.h"
+#include "aethermesh/transport.h"
+#include "aethermesh/voice.h"
 
 // ── Fake transport ────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ static bool ft_send(void *h, const char *peer, const uint8_t *d, size_t n) {
 static bool ft_is_connected(void *h, const char *peer) {
     (void)h; (void)peer; return false;
 }
-static aether_transport_vtable_t g_vtable = {
+static aethermesh_transport_vtable_t g_vtable = {
     .name                 = "fake",
     .max_bandwidth_bps    = 1000000,
     .power_cost_relative  = 1,
@@ -34,14 +34,14 @@ static aether_transport_vtable_t g_vtable = {
     .destroy              = NULL,
     .get_metrics          = NULL,
 };
-static aether_transport_t g_transport = { .vtable = &g_vtable, .handle = NULL };
+static aethermesh_transport_t g_transport = { .vtable = &g_vtable, .handle = NULL };
 
 // ── Fake routing sender ───────────────────────────────────────
 
-static bool rs_send(aether_mesh_sender_t *s, const aether_mesh_packet_t *p, const char *hop) {
+static bool rs_send(aethermesh_mesh_sender_t *s, const aethermesh_mesh_packet_t *p, const char *hop) {
     (void)s; (void)p; (void)hop; return true;
 }
-static int rs_broadcast(aether_mesh_sender_t *s, const aether_mesh_packet_t *p) {
+static int rs_broadcast(aethermesh_mesh_sender_t *s, const aethermesh_mesh_packet_t *p) {
     (void)s; (void)p; return 0;
 }
 
@@ -56,30 +56,30 @@ static void test_uuid_str(const uint8_t b[16], char out[37]) {
 
 // ── Helper: create voice service with fresh routing ───────────
 
-static aether_voice_service_t *make_voice_svc(const char *local_uhid) {
-    static aether_mesh_sender_t rs;
+static aethermesh_voice_service_t *make_voice_svc(const char *local_uhid) {
+    static aethermesh_mesh_sender_t rs;
     rs.local_uhid = local_uhid;
     rs.send       = rs_send;
     rs.broadcast  = rs_broadcast;
     rs.user_data  = NULL;
-    aether_routing_service_t *routing = aether_routing_service_new(&rs);
-    return aether_voice_service_create(&g_transport, routing, local_uhid);
+    aethermesh_routing_service_t *routing = aethermesh_routing_service_new(&rs);
+    return aethermesh_voice_service_create(&g_transport, routing, local_uhid);
 }
 
 // ── Helper: create VoiceSignaling packet from JSON string ─────
 
-static aether_packet_t *make_signal_pkt(const char *from, const char *json) {
-    aether_packet_t *p = aether_packet_new();
+static aethermesh_packet_t *make_signal_pkt(const char *from, const char *json) {
+    aethermesh_packet_t *p = aethermesh_packet_new();
     if (!p) return NULL;
-    p->type = AETHER_PACKET_TYPE_VOICE_SIGNALING;
-    aether_packet_set_source_uhid(p, from);
-    aether_packet_set_payload(p, (const uint8_t *)json, (uint32_t)strlen(json));
+    p->type = AETHERMESH_PACKET_TYPE_VOICE_SIGNALING;
+    aethermesh_packet_set_source_uhid(p, from);
+    aethermesh_packet_set_payload(p, (const uint8_t *)json, (uint32_t)strlen(json));
     return p;
 }
 
 // ── Helper: create VoiceCall binary frame packet ─────────────
 
-static aether_packet_t *make_frame_pkt(const char *from, const uint8_t call_id[16]) {
+static aethermesh_packet_t *make_frame_pkt(const char *from, const uint8_t call_id[16]) {
     // Layout: [16 UUID BE][4 seq LE][8 ts LE][1 is_silence][4 audio]
     uint8_t buf[33];
     memcpy(buf, call_id, 16);
@@ -88,11 +88,11 @@ static aether_packet_t *make_frame_pkt(const char *from, const uint8_t call_id[1
     buf[28] = 0;               // is_silence = false
     buf[29] = 0xAA; buf[30] = 0xBB; buf[31] = 0xCC; buf[32] = 0xDD;
 
-    aether_packet_t *p = aether_packet_new();
+    aethermesh_packet_t *p = aethermesh_packet_new();
     if (!p) return NULL;
-    p->type = AETHER_PACKET_TYPE_VOICE_CALL;
-    aether_packet_set_source_uhid(p, from);
-    aether_packet_set_payload(p, buf, sizeof(buf));
+    p->type = AETHERMESH_PACKET_TYPE_VOICE_CALL;
+    aethermesh_packet_set_source_uhid(p, from);
+    aethermesh_packet_set_payload(p, buf, sizeof(buf));
     return p;
 }
 
@@ -124,7 +124,7 @@ static void on_incoming(const uint8_t cid[16], const char *from,
 
 static int g_state_count = 0;
 static int g_last_state = -1;
-static void on_state(const uint8_t cid[16], aether_voice_call_state_t s, void *ud) {
+static void on_state(const uint8_t cid[16], aethermesh_voice_call_state_t s, void *ud) {
     (void)cid; (void)ud;
     g_state_count++;
     g_last_state = (int)s;
@@ -150,50 +150,50 @@ static int tests_run = 0;
 // ── Tests ─────────────────────────────────────────────────────
 
 static void send_offer_returns_call_id(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     const char *codecs[] = { "opus" };
     uint8_t call_id[16] = {0};
-    int rc = aether_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
+    int rc = aethermesh_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
     assert(rc == 0);
     // UUID v4 should have non-zero bytes
     int nonzero = 0;
     for (int i = 0; i < 16; i++) nonzero += (call_id[i] != 0 ? 1 : 0);
     assert(nonzero > 0);
-    aether_voice_service_destroy(svc);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void send_offer_null_uhid_returns_error(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     const char *codecs[] = { "opus" };
     uint8_t call_id[16] = {0};
-    int rc = aether_voice_send_offer(svc, NULL, codecs, 1, 48000, call_id);
+    int rc = aethermesh_voice_send_offer(svc, NULL, codecs, 1, 48000, call_id);
     assert(rc == -1);
-    aether_voice_service_destroy(svc);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void handle_offer_fires_incoming_cb(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     g_incoming_count = 0;
-    aether_voice_set_incoming_cb(svc, on_incoming, NULL);
+    aethermesh_voice_set_incoming_cb(svc, on_incoming, NULL);
 
-    aether_packet_t *pkt = make_signal_pkt("bob", TEST_OFFER_JSON);
-    int rc = aether_voice_handle_packet(svc, pkt);
+    aethermesh_packet_t *pkt = make_signal_pkt("bob", TEST_OFFER_JSON);
+    int rc = aethermesh_voice_handle_packet(svc, pkt);
     assert(rc == 0);
     assert(g_incoming_count == 1);
     assert(strcmp(g_incoming_from, "bob") == 0);
 
-    aether_packet_free(pkt);
-    aether_voice_service_destroy(svc);
+    aethermesh_packet_free(pkt);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void handle_accept_fires_state_changed_connected(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     const char *codecs[] = { "opus" };
     uint8_t call_id[16] = {0};
-    aether_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
+    aethermesh_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
 
     g_state_count = 0; g_last_state = -1;
-    aether_voice_set_state_changed_cb(svc, on_state, NULL);
+    aethermesh_voice_set_state_changed_cb(svc, on_state, NULL);
 
     // Build accept JSON with the generated call_id
     char id_str[37];
@@ -202,104 +202,104 @@ static void handle_accept_fires_state_changed_connected(void) {
     snprintf(json, sizeof(json),
         "{\"call_id\":\"%s\",\"from_uhid\":\"bob\",\"signal_type\":\"accept\"}", id_str);
 
-    aether_packet_t *pkt = make_signal_pkt("bob", json);
-    int rc = aether_voice_handle_packet(svc, pkt);
+    aethermesh_packet_t *pkt = make_signal_pkt("bob", json);
+    int rc = aethermesh_voice_handle_packet(svc, pkt);
     assert(rc == 0);
     assert(g_state_count == 1);
-    assert(g_last_state == (int)AETHER_VOICE_STATE_CONNECTED);
+    assert(g_last_state == (int)AETHERMESH_VOICE_STATE_CONNECTED);
 
-    aether_packet_free(pkt);
-    aether_voice_service_destroy(svc);
+    aethermesh_packet_free(pkt);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void handle_hangup_fires_state_changed_ended(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     // Set up inbound session via offer
-    aether_packet_t *offer = make_signal_pkt("bob", TEST_OFFER_JSON);
-    aether_voice_handle_packet(svc, offer);
-    aether_packet_free(offer);
+    aethermesh_packet_t *offer = make_signal_pkt("bob", TEST_OFFER_JSON);
+    aethermesh_voice_handle_packet(svc, offer);
+    aethermesh_packet_free(offer);
 
     g_state_count = 0; g_last_state = -1;
-    aether_voice_set_state_changed_cb(svc, on_state, NULL);
+    aethermesh_voice_set_state_changed_cb(svc, on_state, NULL);
 
-    aether_packet_t *pkt = make_signal_pkt("bob", TEST_HANGUP_JSON);
-    int rc = aether_voice_handle_packet(svc, pkt);
+    aethermesh_packet_t *pkt = make_signal_pkt("bob", TEST_HANGUP_JSON);
+    int rc = aethermesh_voice_handle_packet(svc, pkt);
     assert(rc == 0);
     assert(g_state_count == 1);
-    assert(g_last_state == (int)AETHER_VOICE_STATE_ENDED);
+    assert(g_last_state == (int)AETHERMESH_VOICE_STATE_ENDED);
 
-    aether_packet_free(pkt);
-    aether_voice_service_destroy(svc);
+    aethermesh_packet_free(pkt);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void accept_call_transitions_to_connected(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     // Receive inbound offer
-    aether_packet_t *offer = make_signal_pkt("bob", TEST_OFFER_JSON);
-    aether_voice_handle_packet(svc, offer);
-    aether_packet_free(offer);
+    aethermesh_packet_t *offer = make_signal_pkt("bob", TEST_OFFER_JSON);
+    aethermesh_voice_handle_packet(svc, offer);
+    aethermesh_packet_free(offer);
 
     g_state_count = 0; g_last_state = -1;
-    aether_voice_set_state_changed_cb(svc, on_state, NULL);
+    aethermesh_voice_set_state_changed_cb(svc, on_state, NULL);
 
-    int rc = aether_voice_accept_call(svc, TEST_CALL_ID);
+    int rc = aethermesh_voice_accept_call(svc, TEST_CALL_ID);
     assert(rc == 0);
     assert(g_state_count == 1);
-    assert(g_last_state == (int)AETHER_VOICE_STATE_CONNECTED);
+    assert(g_last_state == (int)AETHERMESH_VOICE_STATE_CONNECTED);
 
-    aether_voice_service_destroy(svc);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void accept_call_unknown_returns_error(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     uint8_t unknown[16] = {0x01, 0x02, 0x03};
-    int rc = aether_voice_accept_call(svc, unknown);
+    int rc = aethermesh_voice_accept_call(svc, unknown);
     assert(rc == -1);
-    aether_voice_service_destroy(svc);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void hang_up_fires_ended_callback(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     const char *codecs[] = { "opus" };
     uint8_t call_id[16] = {0};
-    aether_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
+    aethermesh_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
 
     g_state_count = 0; g_last_state = -1;
-    aether_voice_set_state_changed_cb(svc, on_state, NULL);
+    aethermesh_voice_set_state_changed_cb(svc, on_state, NULL);
 
-    int rc = aether_voice_hang_up(svc, call_id);
+    int rc = aethermesh_voice_hang_up(svc, call_id);
     assert(rc == 0);
     assert(g_state_count == 1);
-    assert(g_last_state == (int)AETHER_VOICE_STATE_ENDED);
+    assert(g_last_state == (int)AETHERMESH_VOICE_STATE_ENDED);
 
-    aether_voice_service_destroy(svc);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void hang_up_unknown_returns_error(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     uint8_t unknown[16] = {0x01, 0x02, 0x03};
-    int rc = aether_voice_hang_up(svc, unknown);
+    int rc = aethermesh_voice_hang_up(svc, unknown);
     assert(rc == -1);
-    aether_voice_service_destroy(svc);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void send_frame_not_connected_returns_error(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     const char *codecs[] = { "opus" };
     uint8_t call_id[16] = {0};
-    aether_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
+    aethermesh_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
     // Still OUTGOING — send_frame must fail
     const uint8_t audio[] = {1, 2, 3, 4};
-    int rc = aether_voice_send_frame(svc, call_id, audio, sizeof(audio), 0);
+    int rc = aethermesh_voice_send_frame(svc, call_id, audio, sizeof(audio), 0);
     assert(rc == -1);
-    aether_voice_service_destroy(svc);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void send_frame_connected_returns_ok(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     const char *codecs[] = { "opus" };
     uint8_t call_id[16] = {0};
-    aether_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
+    aethermesh_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
 
     // Transition to Connected by feeding an accept
     char id_str[37];
@@ -307,21 +307,21 @@ static void send_frame_connected_returns_ok(void) {
     char json[256];
     snprintf(json, sizeof(json),
         "{\"call_id\":\"%s\",\"from_uhid\":\"bob\",\"signal_type\":\"accept\"}", id_str);
-    aether_packet_t *pkt = make_signal_pkt("bob", json);
-    aether_voice_handle_packet(svc, pkt);
-    aether_packet_free(pkt);
+    aethermesh_packet_t *pkt = make_signal_pkt("bob", json);
+    aethermesh_voice_handle_packet(svc, pkt);
+    aethermesh_packet_free(pkt);
 
     const uint8_t audio[] = {1, 2, 3, 4};
-    int rc = aether_voice_send_frame(svc, call_id, audio, sizeof(audio), 0);
+    int rc = aethermesh_voice_send_frame(svc, call_id, audio, sizeof(audio), 0);
     assert(rc == 0);
-    aether_voice_service_destroy(svc);
+    aethermesh_voice_service_destroy(svc);
 }
 
 static void handle_frame_fires_frame_cb(void) {
-    aether_voice_service_t *svc = make_voice_svc("alice");
+    aethermesh_voice_service_t *svc = make_voice_svc("alice");
     const char *codecs[] = { "opus" };
     uint8_t call_id[16] = {0};
-    aether_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
+    aethermesh_voice_send_offer(svc, "bob", codecs, 1, 48000, call_id);
 
     // Transition to Connected
     char id_str[37];
@@ -329,20 +329,20 @@ static void handle_frame_fires_frame_cb(void) {
     char json[256];
     snprintf(json, sizeof(json),
         "{\"call_id\":\"%s\",\"from_uhid\":\"bob\",\"signal_type\":\"accept\"}", id_str);
-    aether_packet_t *accept_pkt = make_signal_pkt("bob", json);
-    aether_voice_handle_packet(svc, accept_pkt);
-    aether_packet_free(accept_pkt);
+    aethermesh_packet_t *accept_pkt = make_signal_pkt("bob", json);
+    aethermesh_voice_handle_packet(svc, accept_pkt);
+    aethermesh_packet_free(accept_pkt);
 
     g_frame_count = 0;
-    aether_voice_set_frame_cb(svc, on_frame, NULL);
+    aethermesh_voice_set_frame_cb(svc, on_frame, NULL);
 
-    aether_packet_t *frame_pkt = make_frame_pkt("bob", call_id);
-    int rc = aether_voice_handle_packet(svc, frame_pkt);
+    aethermesh_packet_t *frame_pkt = make_frame_pkt("bob", call_id);
+    int rc = aethermesh_voice_handle_packet(svc, frame_pkt);
     assert(rc == 0);
     assert(g_frame_count == 1);
 
-    aether_packet_free(frame_pkt);
-    aether_voice_service_destroy(svc);
+    aethermesh_packet_free(frame_pkt);
+    aethermesh_voice_service_destroy(svc);
 }
 
 int main(void) {

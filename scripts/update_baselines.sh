@@ -74,7 +74,7 @@ fi
 echo "[csharp] Running benchmarks..."
 (
   cd "$REPO_ROOT"
-  dotnet run -c Release --project bench/Aether.Benchmarks -- \
+  dotnet run -c Release --project bench/AetherMesh.Benchmarks -- \
     --exporters json --artifacts "$TMP/csharp_artifacts" 2>&1 | \
     tee "$TMP/csharp_stdout.txt"
   # Extract from BenchmarkDotNet JSON exports
@@ -131,7 +131,7 @@ echo "[c] Running benchmarks..."
   cd "$REPO_ROOT/c"
   cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -S . -B build-bench > /dev/null 2>&1
   cmake --build build-bench > /dev/null 2>&1
-  ./build-bench/bench/aether_bench 2>&1 | tee "$TMP/c.txt"
+  ./build-bench/bench/aethermesh_bench 2>&1 | tee "$TMP/c.txt"
 ) && echo "[c] Done." || echo "[c] FAILED — skipping baseline update."
 if [ -s "$TMP/c.txt" ]; then
   python3 "$SCRIPT" --lang c --current "$TMP/c.txt" \

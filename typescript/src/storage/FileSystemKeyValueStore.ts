@@ -13,7 +13,7 @@
  * {@link EncryptedKeyValueStore} or supply their own implementation.
  *
  * Mirrors the C# {@code FileSystemKeyValueStore} in
- * src/Aether.Storage/FileSystemKeyValueStore.cs.
+ * src/AetherMesh.Storage/FileSystemKeyValueStore.cs.
  *
  * SPDX-License-Identifier: MIT
  */

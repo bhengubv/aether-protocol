@@ -6,8 +6,8 @@
 #include <string.h>
 #include <assert.h>
 
-#include "aether/protocol.h"
-#include "aether/security.h"
+#include "aethermesh/protocol.h"
+#include "aethermesh/security.h"
 
 /**
  * Test: Packet Creation
@@ -15,15 +15,15 @@
 static void test_packet_creation(void) {
     printf("TEST: Packet creation...");
 
-    aether_mesh_packet_t *packet = aether_packet_new();
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
     assert(packet != NULL);
-    assert(packet->protocol_version == AETHER_PROTOCOL_VERSION_CURRENT);
-    assert(packet->ttl == AETHER_DEFAULT_TTL);
+    assert(packet->protocol_version == AETHERMESH_PROTOCOL_VERSION_CURRENT);
+    assert(packet->ttl == AETHERMESH_DEFAULT_TTL);
     assert(packet->priority == 0);
     assert(packet->payload == NULL);
     assert(packet->signature == NULL);
 
-    aether_packet_free(packet);
+    aethermesh_packet_free(packet);
     printf(" OK\n");
 }
 
@@ -33,20 +33,20 @@ static void test_packet_creation(void) {
 static void test_packet_clone(void) {
     printf("TEST: Packet cloning...");
 
-    aether_mesh_packet_t *packet = aether_packet_new();
-    assert(aether_packet_set_source_uhid(packet, "test-node"));
-    assert(aether_packet_set_destination_uhid(packet, "dest-node"));
-    assert(aether_packet_set_payload(packet, (const uint8_t *)"test", 4));
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+    assert(aethermesh_packet_set_source_uhid(packet, "test-node"));
+    assert(aethermesh_packet_set_destination_uhid(packet, "dest-node"));
+    assert(aethermesh_packet_set_payload(packet, (const uint8_t *)"test", 4));
 
-    aether_mesh_packet_t *clone = aether_packet_clone(packet);
+    aethermesh_mesh_packet_t *clone = aethermesh_packet_clone(packet);
     assert(clone != NULL);
     assert(strcmp(clone->source_uhid, "test-node") == 0);
     assert(strcmp(clone->destination_uhid, "dest-node") == 0);
     assert(clone->payload_len == 4);
     assert(memcmp(clone->payload, "test", 4) == 0);
 
-    aether_packet_free(packet);
-    aether_packet_free(clone);
+    aethermesh_packet_free(packet);
+    aethermesh_packet_free(clone);
     printf(" OK\n");
 }
 
@@ -56,20 +56,20 @@ static void test_packet_clone(void) {
 static void test_serialize_deserialize(void) {
     printf("TEST: Serialize/deserialize round-trip...");
 
-    aether_mesh_packet_t *packet = aether_packet_new();
-    assert(aether_packet_set_source_uhid(packet, "alice"));
-    assert(aether_packet_set_destination_uhid(packet, "bob"));
-    assert(aether_packet_set_payload(packet, (const uint8_t *)"Hello mesh", 10));
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+    assert(aethermesh_packet_set_source_uhid(packet, "alice"));
+    assert(aethermesh_packet_set_destination_uhid(packet, "bob"));
+    assert(aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello mesh", 10));
     packet->priority = 42;
 
     // Serialize
-    size_t est_size = aether_packet_estimate_size(packet);
+    size_t est_size = aethermesh_packet_estimate_size(packet);
     uint8_t *buffer = (uint8_t *)malloc(est_size + 256);
-    int serialized_len = aether_packet_serialize(packet, buffer, est_size + 256);
+    int serialized_len = aethermesh_packet_serialize(packet, buffer, est_size + 256);
     assert(serialized_len > 0);
 
     // Deserialize
-    aether_mesh_packet_t *deserialized = aether_packet_deserialize(buffer, serialized_len);
+    aethermesh_mesh_packet_t *deserialized = aethermesh_packet_deserialize(buffer, serialized_len);
     assert(deserialized != NULL);
     assert(strcmp(deserialized->source_uhid, "alice") == 0);
     assert(strcmp(deserialized->destination_uhid, "bob") == 0);
@@ -78,8 +78,8 @@ static void test_serialize_deserialize(void) {
     assert(deserialized->priority == 42);
 
     free(buffer);
-    aether_packet_free(packet);
-    aether_packet_free(deserialized);
+    aethermesh_packet_free(packet);
+    aethermesh_packet_free(deserialized);
     printf(" OK\n");
 }
 
@@ -89,20 +89,20 @@ static void test_serialize_deserialize(void) {
 static void test_ed25519_sign_verify(void) {
     printf("TEST: Ed25519 sign/verify...");
 
-    uint8_t private_key[AETHER_ED25519_PRIVATE_KEY_SIZE];
-    uint8_t public_key[AETHER_ED25519_PUBLIC_KEY_SIZE];
+    uint8_t private_key[AETHERMESH_ED25519_PRIVATE_KEY_SIZE];
+    uint8_t public_key[AETHERMESH_ED25519_PUBLIC_KEY_SIZE];
 
-    assert(aether_ed25519_generate_keypair(private_key, public_key));
+    assert(aethermesh_ed25519_generate_keypair(private_key, public_key));
 
     const char *message = "Test message for signing";
-    uint8_t signature[AETHER_ED25519_SIGNATURE_SIZE];
+    uint8_t signature[AETHERMESH_ED25519_SIGNATURE_SIZE];
 
-    assert(aether_ed25519_sign(private_key, (const uint8_t *)message, strlen(message), signature));
-    assert(aether_ed25519_verify(public_key, (const uint8_t *)message, strlen(message), signature));
+    assert(aethermesh_ed25519_sign(private_key, (const uint8_t *)message, strlen(message), signature));
+    assert(aethermesh_ed25519_verify(public_key, (const uint8_t *)message, strlen(message), signature));
 
     // Tamper with signature should fail
     signature[0] ^= 0xFF;
-    assert(!aether_ed25519_verify(public_key, (const uint8_t *)message, strlen(message), signature));
+    assert(!aethermesh_ed25519_verify(public_key, (const uint8_t *)message, strlen(message), signature));
 
     printf(" OK\n");
 }
@@ -114,16 +114,16 @@ static void test_aes_gcm(void) {
     printf("TEST: AES-256-GCM encrypt/decrypt...");
 
     uint8_t key[32];
-    assert(aether_random_bytes(key, 32));
+    assert(aethermesh_random_bytes(key, 32));
 
     const char *plaintext = "Secret message";
     size_t plaintext_len = strlen(plaintext);
 
     uint8_t ciphertext[128];
-    uint8_t tag[AETHER_AES_GCM_TAG_SIZE];
-    uint8_t nonce[AETHER_AES_GCM_NONCE_SIZE];
+    uint8_t tag[AETHERMESH_AES_GCM_TAG_SIZE];
+    uint8_t nonce[AETHERMESH_AES_GCM_NONCE_SIZE];
 
-    assert(aether_aes256_gcm_encrypt((const uint8_t *)plaintext,
+    assert(aethermesh_aes256_gcm_encrypt((const uint8_t *)plaintext,
                                     plaintext_len,
                                     key,
                                     NULL,  // Generate nonce
@@ -134,7 +134,7 @@ static void test_aes_gcm(void) {
                                     nonce));
 
     uint8_t decrypted[128];
-    assert(aether_aes256_gcm_decrypt(ciphertext,
+    assert(aethermesh_aes256_gcm_decrypt(ciphertext,
                                     plaintext_len,
                                     key,
                                     nonce,
@@ -147,7 +147,7 @@ static void test_aes_gcm(void) {
 
     // Tamper with ciphertext should fail
     ciphertext[0] ^= 0xFF;
-    assert(!aether_aes256_gcm_decrypt(ciphertext,
+    assert(!aethermesh_aes256_gcm_decrypt(ciphertext,
                                      plaintext_len,
                                      key,
                                      nonce,
@@ -166,17 +166,17 @@ static void test_hmac_sha256(void) {
     printf("TEST: HMAC-SHA256...");
 
     uint8_t key[32];
-    assert(aether_random_bytes(key, 32));
+    assert(aethermesh_random_bytes(key, 32));
 
     const char *message = "Message to authenticate";
-    uint8_t hash[AETHER_HMAC_SHA256_SIZE];
+    uint8_t hash[AETHERMESH_HMAC_SHA256_SIZE];
 
-    assert(aether_hmac_sha256(key, 32, (const uint8_t *)message, strlen(message), hash));
+    assert(aethermesh_hmac_sha256(key, 32, (const uint8_t *)message, strlen(message), hash));
 
     // Computing again should give same result
-    uint8_t hash2[AETHER_HMAC_SHA256_SIZE];
-    assert(aether_hmac_sha256(key, 32, (const uint8_t *)message, strlen(message), hash2));
-    assert(memcmp(hash, hash2, AETHER_HMAC_SHA256_SIZE) == 0);
+    uint8_t hash2[AETHERMESH_HMAC_SHA256_SIZE];
+    assert(aethermesh_hmac_sha256(key, 32, (const uint8_t *)message, strlen(message), hash2));
+    assert(memcmp(hash, hash2, AETHERMESH_HMAC_SHA256_SIZE) == 0);
 
     printf(" OK\n");
 }
@@ -188,14 +188,14 @@ static void test_hkdf_sha256(void) {
     printf("TEST: HKDF-SHA256...");
 
     uint8_t ikm[32];
-    assert(aether_random_bytes(ikm, 32));
+    assert(aethermesh_random_bytes(ikm, 32));
 
     uint8_t key1[32];
     uint8_t key2[32];
     const char *info = "test-info";
 
-    assert(aether_hkdf_sha256(NULL, 0, ikm, 32, (const uint8_t *)info, strlen(info), 32, key1));
-    assert(aether_hkdf_sha256(NULL, 0, ikm, 32, (const uint8_t *)info, strlen(info), 32, key2));
+    assert(aethermesh_hkdf_sha256(NULL, 0, ikm, 32, (const uint8_t *)info, strlen(info), 32, key1));
+    assert(aethermesh_hkdf_sha256(NULL, 0, ikm, 32, (const uint8_t *)info, strlen(info), 32, key2));
 
     // Same inputs should give same output
     assert(memcmp(key1, key2, 32) == 0);
@@ -209,17 +209,17 @@ static void test_hkdf_sha256(void) {
 static void test_packet_expiry(void) {
     printf("TEST: Packet expiry...");
 
-    aether_mesh_packet_t *packet = aether_packet_new();
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
     assert(packet != NULL);
 
     // Fresh packet should not be expired
-    assert(!aether_packet_is_expired(packet, 300));
+    assert(!aethermesh_packet_is_expired(packet, 300));
 
     // Set timestamp to far past
     packet->timestamp_ms = 0;
-    assert(aether_packet_is_expired(packet, 1));
+    assert(aethermesh_packet_is_expired(packet, 1));
 
-    aether_packet_free(packet);
+    aethermesh_packet_free(packet);
     printf(" OK\n");
 }
 
@@ -229,19 +229,19 @@ static void test_packet_expiry(void) {
 static void test_packet_ttl(void) {
     printf("TEST: Packet TTL and forwarding...");
 
-    aether_mesh_packet_t *packet = aether_packet_new();
-    assert(packet->ttl == AETHER_DEFAULT_TTL);
-    assert(aether_packet_can_forward(packet));
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+    assert(packet->ttl == AETHERMESH_DEFAULT_TTL);
+    assert(aethermesh_packet_can_forward(packet));
 
     // Set TTL to 0
     packet->ttl = 0;
-    assert(!aether_packet_can_forward(packet));
+    assert(!aethermesh_packet_can_forward(packet));
 
     // Set TTL to 1
     packet->ttl = 1;
-    assert(aether_packet_can_forward(packet));
+    assert(aethermesh_packet_can_forward(packet));
 
-    aether_packet_free(packet);
+    aethermesh_packet_free(packet);
     printf(" OK\n");
 }
 
@@ -251,25 +251,25 @@ static void test_packet_ttl(void) {
 static void test_signable_data(void) {
     printf("TEST: Signable data construction...");
 
-    aether_mesh_packet_t *packet = aether_packet_new();
-    assert(aether_packet_set_source_uhid(packet, "alice"));
-    assert(aether_packet_set_destination_uhid(packet, "bob"));
-    assert(aether_packet_set_payload(packet, (const uint8_t *)"test", 4));
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+    assert(aethermesh_packet_set_source_uhid(packet, "alice"));
+    assert(aethermesh_packet_set_destination_uhid(packet, "bob"));
+    assert(aethermesh_packet_set_payload(packet, (const uint8_t *)"test", 4));
 
     size_t signable_len = 0;
-    uint8_t *signable = aether_packet_get_signable_data(packet, &signable_len);
+    uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
     assert(signable != NULL);
     assert(signable_len > 0);
 
     // Signable data should be deterministic
     size_t signable_len2 = 0;
-    uint8_t *signable2 = aether_packet_get_signable_data(packet, &signable_len2);
+    uint8_t *signable2 = aethermesh_packet_get_signable_data(packet, &signable_len2);
     assert(signable_len == signable_len2);
     assert(memcmp(signable, signable2, signable_len) == 0);
 
     free(signable);
     free(signable2);
-    aether_packet_free(packet);
+    aethermesh_packet_free(packet);
     printf(" OK\n");
 }
 

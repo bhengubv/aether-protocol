@@ -21,15 +21,15 @@ Python, Kotlin, Swift, C) and pinned to a shared fixture corpus under `fixtures/
 
 | Assembly                            | What it provides                                                |
 |-------------------------------------|-----------------------------------------------------------------|
-| `Aether.Core`                       | Wire format, routing, DTN, the protocol primitives              |
-| `Aether.Security`                   | X3DH, Double Ratchet, identity, packet signing                  |
-| `Aether.Messaging`                  | High-level send/receive of application messages                 |
-| `Aether.Storage`                    | Encrypted at-rest storage of keys, sessions, queued packets     |
-| `Aether.Transport`                  | BLE / WiFi Direct / NearLink transport adapters                 |
-| `Aether.Streaming`                  | Adaptive secure streaming (video, large files)                  |
-| `Aether.Voice`                      | Voice / Opus codec scaffolding                                  |
-| `Aether.Content`                    | Content addressing, channels, watch-together                    |
-| `Aether.DependencyInjection`        | `IServiceCollection` registration helpers                       |
+| `AetherMesh.Core`                       | Wire format, routing, DTN, the protocol primitives              |
+| `AetherMesh.Security`                   | X3DH, Double Ratchet, identity, packet signing                  |
+| `AetherMesh.Messaging`                  | High-level send/receive of application messages                 |
+| `AetherMesh.Storage`                    | Encrypted at-rest storage of keys, sessions, queued packets     |
+| `AetherMesh.Transport`                  | BLE / WiFi Direct / NearLink transport adapters                 |
+| `AetherMesh.Streaming`                  | Adaptive secure streaming (video, large files)                  |
+| `AetherMesh.Voice`                      | Voice / Opus codec scaffolding                                  |
+| `AetherMesh.Content`                    | Content addressing, channels, watch-together                    |
+| `AetherMesh.DependencyInjection`        | `IServiceCollection` registration helpers                       |
 
 Hop into the [API Reference](../api/index.md) to see what is in each.
 

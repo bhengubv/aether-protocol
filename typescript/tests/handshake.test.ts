@@ -1,7 +1,7 @@
 /**
  * Handshake service tests.
  *
- * Mirror the C# unit-suite in src/Aether.Core.Tests/Handshake/. Goals:
+ * Mirror the C# unit-suite in src/AetherMesh.Core.Tests/Handshake/. Goals:
  *   - the basic Hello/HelloAck round-trip emits a PeerNegotiated event
  *     with the highest mutually-supported version + capability intersection
  *   - duplicate Hellos to the same peer are suppressed

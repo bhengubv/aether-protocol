@@ -39,10 +39,10 @@ pip install -e ".[dev]"
 
 ```python
 import asyncio
-from aether.security.ed25519_service import Ed25519SigningService
-from aether.security.signal_protocol import SignalProtocolService
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.protocol.serializer import PacketSerializer
+from aethermesh.security.ed25519_service import Ed25519SigningService
+from aethermesh.security.signal_protocol import SignalProtocolService
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.protocol.serializer import PacketSerializer
 
 # Generate Ed25519 keys
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -64,7 +64,7 @@ print(f"Signature valid: {is_valid}")
 aether/
 ├── __init__.py              # Package exports
 ├── constants.py             # Protocol constants
-├── models.py                # Data models (AetherNode, PeerInfo, RouteEntry)
+├── models.py                # Data models (AetherMeshNode, PeerInfo, RouteEntry)
 ├── protocol/
 │   ├── __init__.py
 │   ├── mesh_packet.py       # MeshPacket and PacketType definitions
@@ -87,7 +87,7 @@ aether/
 暗号化操作に PyNaCl (libsodium) を使用します:
 
 ```python
-from aether.security.ed25519_service import Ed25519SigningService
+from aethermesh.security.ed25519_service import Ed25519SigningService
 
 # Generate a key pair
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -109,7 +109,7 @@ is_valid = Ed25519SigningService.verify(public_key, data, signature)
 前方秘匿性のための対称ラチェットを伴う X3DH 鍵交換を実装します:
 
 ```python
-from aether.security.signal_protocol import SignalProtocolService
+from aethermesh.security.signal_protocol import SignalProtocolService
 
 # Create protocol instances
 alice_signal = SignalProtocolService()
@@ -134,7 +134,7 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 ```
 
 **鍵導出:**
-- ソルト `"AetherSignal"` を使用した HKDF-SHA256
+- ソルト `"AetherMeshSignal"` を使用した HKDF-SHA256
 - ルート鍵情報: `"aether-root-v1"`
 - 送信チェーン情報: `"aether-chain-send-v1"`
 - 受信チェーン情報: `"aether-chain-recv-v1"`
@@ -150,8 +150,8 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 C# 実装に一致するワイヤー互換のバイナリ形式:
 
 ```python
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.protocol.serializer import PacketSerializer
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.protocol.serializer import PacketSerializer
 
 # Create a packet
 packet = MeshPacket(
@@ -188,7 +188,7 @@ decoded_packet = PacketSerializer.deserialize(binary)
 Ed25519 を使用してパケットに署名し、リプレイアタックを検出します:
 
 ```python
-from aether.security.packet_signing import PacketSigningService
+from aethermesh.security.packet_signing import PacketSigningService
 
 signing_service = PacketSigningService()
 
@@ -220,7 +220,7 @@ is_valid = signing_service.verify_packet(packet, public_key)
 物理トランスポート（BLE、Wi-Fi Direct など）向けの抽象基底クラス:
 
 ```python
-from aether.transport.in_process import InProcessTransport
+from aethermesh.transport.in_process import InProcessTransport
 
 # Create in-process transport instances
 alice_transport = InProcessTransport("alice-001")
@@ -279,7 +279,7 @@ python3 demo.py
 
 デモの内容:
 1. Ed25519 鍵の生成と署名
-2. AetherNode を使用したノードの作成
+2. AetherMeshNode を使用したノードの作成
 3. Signal Protocol X3DH 鍵交換
 4. メッセージの暗号化と復号化
 5. パケットのシリアライゼーション/デシリアライゼーション

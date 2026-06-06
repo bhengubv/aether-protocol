@@ -13,7 +13,7 @@ Aether メッシュネットワーキングプロトコルの完全な Go 実装
 - **Signal プロトコル**: エンドツーエンド暗号化のための X3DH 鍵合意 + 対称ラチェット
 - **パケット署名サービス**: リプレイ防止のための 5 分間 TTL 付きノンス重複排除
 - **インプロセストランスポート**: テストとプロセス間通信のためのメモリベーストランスポート
-- **モデル**: AetherNode、PeerInfo、RouteEntry、DtnBundle、SosAlert 構造体
+- **モデル**: AetherMeshNode、PeerInfo、RouteEntry、DtnBundle、SosAlert 構造体
 - **プロトコル定数**: すべてのルーティング、ディスカバリ、セキュリティ、トランスポート定数
 
 ## モジュール構成
@@ -173,7 +173,7 @@ fmt.Println(inProcTransport.IsConnected("bob"))    // true
 
 ```go
 // Node in the mesh
-node := &models.AetherNode{
+node := &models.AetherMeshNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

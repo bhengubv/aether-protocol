@@ -45,7 +45,7 @@ Aether هو بروتوكول شبكات ميش لامركزي مصمم للبي�
 - **InProcessTransport**: نقل داخل الذاكرة للاختبار والاتصال المحلي
 
 #### النماذج
-- **AetherNode**: تمثيل العقدة مع UHID ومفتاح الهوية
+- **AetherMeshNode**: تمثيل العقدة مع UHID ومفتاح الهوية
 - **PreKeyBundle**: حزمة لتأسيس الجلسة غير المتزامن
 - **EncryptedPayload**: غلاف الرسائل المشفرة
 - **DtnBundle**: حزمة شبكة التحمل المتأخر
@@ -68,7 +68,7 @@ Aether هو بروتوكول شبكات ميش لامركزي مصمم للبي�
 .target(
     name: "YourTarget",
     dependencies: [
-        .product(name: "AetherProtocol", package: "aether-protocol-swift")
+        .product(name: "AetherMeshProtocol", package: "aether-protocol-swift")
     ]
 )
 ```
@@ -78,7 +78,7 @@ Aether هو بروتوكول شبكات ميش لامركزي مصمم للبي�
 ### 1. تسلسل الحزم
 
 ```swift
-import AetherProtocol
+import AetherMeshProtocol
 
 // Create a packet
 var packet = MeshPacket(
@@ -276,7 +276,7 @@ Test 5: End-to-End Messaging (Full Stack)
 ## التشغيل البيني
 
 تنسيق السلك متوافق مع:
-- **Aether.Core** (C#) - التطبيق المرجعي
+- **AetherMesh.Core** (C#) - التطبيق المرجعي
 - **aether-protocol-go** - تطبيق Go
 - **aether-protocol-rust** - تطبيق Rust
 

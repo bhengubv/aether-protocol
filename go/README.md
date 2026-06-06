@@ -13,7 +13,7 @@ This module implements the Aether decentralised mesh networking protocol for env
 - **Signal Protocol**: X3DH key agreement + symmetric ratchet for end-to-end encryption
 - **Packet Signing Service**: Nonce deduplication with 5-minute TTL for replay prevention
 - **In-Process Transport**: Memory-based transport for testing and inter-process communication
-- **Models**: AetherNode, PeerInfo, RouteEntry, DtnBundle, SosAlert structures
+- **Models**: AetherMeshNode, PeerInfo, RouteEntry, DtnBundle, SosAlert structures
 - **Protocol Constants**: All routing, discovery, security, and transport constants
 
 ## Module Structure
@@ -173,7 +173,7 @@ Complete structures for mesh networking:
 
 ```go
 // Node in the mesh
-node := &models.AetherNode{
+node := &models.AetherMeshNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

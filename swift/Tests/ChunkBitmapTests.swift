@@ -7,7 +7,7 @@
 
 import Foundation
 import XCTest
-@testable import AetherProtocol
+@testable import AetherMeshProtocol
 
 final class ChunkBitmapTests: XCTestCase {
 

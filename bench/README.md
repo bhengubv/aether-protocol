@@ -26,27 +26,27 @@ refactors — are visible.
 Run the whole suite:
 
 ```bash
-dotnet run -c Release --project bench/Aether.Benchmarks --filter '*'
+dotnet run -c Release --project bench/AetherMesh.Benchmarks --filter '*'
 ```
 
 Run a specific class:
 
 ```bash
-dotnet run -c Release --project bench/Aether.Benchmarks --filter '*PacketSerializer*'
-dotnet run -c Release --project bench/Aether.Benchmarks --filter '*SignalProtocol*'
-dotnet run -c Release --project bench/Aether.Benchmarks --filter '*Primitives*'
+dotnet run -c Release --project bench/AetherMesh.Benchmarks --filter '*PacketSerializer*'
+dotnet run -c Release --project bench/AetherMesh.Benchmarks --filter '*SignalProtocol*'
+dotnet run -c Release --project bench/AetherMesh.Benchmarks --filter '*Primitives*'
 ```
 
 Run a single method:
 
 ```bash
-dotnet run -c Release --project bench/Aether.Benchmarks --filter '*Encrypt_SubsequentMessage*'
+dotnet run -c Release --project bench/AetherMesh.Benchmarks --filter '*Encrypt_SubsequentMessage*'
 ```
 
 List all discovered benchmarks without running them:
 
 ```bash
-dotnet run -c Release --project bench/Aether.Benchmarks -- --list flat
+dotnet run -c Release --project bench/AetherMesh.Benchmarks -- --list flat
 ```
 
 > Always pass `-c Release`. BenchmarkDotNet warns if invoked under Debug and the
@@ -55,7 +55,7 @@ dotnet run -c Release --project bench/Aether.Benchmarks -- --list flat
 ## Reading the results
 
 BenchmarkDotNet prints a Markdown summary table at the end of each run and
-also writes detailed reports under `bench/Aether.Benchmarks/BenchmarkDotNet.Artifacts/`.
+also writes detailed reports under `bench/AetherMesh.Benchmarks/BenchmarkDotNet.Artifacts/`.
 
 The `[MemoryDiagnoser]` attribute on every class adds three columns to the
 output: `Allocated`, `Gen0`, `Gen1` — track these alongside `Mean` to catch
@@ -68,7 +68,7 @@ allocation regressions that don't show up in wall-clock time.
 * `SignalProtocolBenchmarks` uses `[IterationSetup]` for benchmarks that
   consume one-time pre-keys or advance ratchet counters per call.
 * `PrimitivesBenchmarks` uses reflection to reach `X25519Service`, which is
-  `internal` to `Aether.Security`. This avoids modifying the production project's
+  `internal` to `AetherMesh.Security`. This avoids modifying the production project's
   `InternalsVisibleTo` list. If `X25519Service` is ever made public or its
   signature changes, update `ResolveX25519Method` accordingly.
 * Don't run the benchmark suite on a battery / power-saving profile. CPU

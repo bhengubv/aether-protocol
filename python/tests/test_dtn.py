@@ -10,9 +10,9 @@ import unittest
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from aether import constants
-from aether.dtn import DtnService, InMemoryBundleStore
-from aether.models import (
+from aethermesh import constants
+from aethermesh.dtn import DtnService, InMemoryBundleStore
+from aethermesh.models import (
     BundlePriority,
     BundleStatus,
     DtnBundle,
@@ -20,7 +20,7 @@ from aether.models import (
     NodeCapabilities,
     PeerInfo,
 )
-from aether.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
 
 from tests.fakes import FakeMeshSender
 

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "aether.teal"
+    namespace = "aethermesh.teal"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "aether.teal"
+        applicationId = "aethermesh.teal"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

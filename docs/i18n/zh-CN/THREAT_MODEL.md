@@ -2,7 +2,7 @@
 
 **已针对 HEAD `b8b3d22`（2026-05-06）进行审查。** 本文档描述 `aether-protocol` 的加密协议层所防御的内容、明确不在范围内的内容，以及安全主张所依赖的假设。本文档刻意保持诚实：能够阅读本文的攻击者应能列举出该协议**无法**阻止的每一种攻击，而不应被 README 中的营销措辞所误导。
 
-配套文档为 [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7（安全模型）。如两者存在分歧，`src/Aether.Security/` 中的实现为准。
+配套文档为 [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7（安全模型）。如两者存在分歧，`src/AetherMesh.Security/` 中的实现为准。
 
 ---
 
@@ -32,11 +32,11 @@
 
 每个载荷均使用 AES-256-GCM 加密，密钥由双棘轮的对称链派生的逐消息密钥保护（Signal §5.1，使用 `0x01`/`0x02` 域分离的 HMAC-SHA256）。攻击者即使截获 Alice 和 Bob 之间的每个数据包，在没有其中一方的会话密钥的情况下，也无从恢复任何内容。
 
-由 `tests/Aether.Security.Tests/SignalProtocolEncryptionTests.cs` 及跨语言 `fixtures/signal/expected/ratchet_step_basic.json` 向量验证。
+由 `tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs` 及跨语言 `fixtures/signal/expected/ratchet_step_basic.json` 向量验证。
 
 ### 2.2. 消息伪造
 
-每个 Wave-2 数据包都携带对规范 `BuildSignableData(packet)` 缓冲区的 Ed25519 签名（`src/Aether.Security/Services/PacketSigningService.cs`，PROTOCOL_SPEC §2.4）。伪造的数据包在每个知道源方身份公钥的跳点处均会验证失败并被丢弃。路由回复包（RREP）由声称的目标节点签名——中间节点无法冒充目标节点，因为它们不持有目标节点的 Ed25519 私钥。
+每个 Wave-2 数据包都携带对规范 `BuildSignableData(packet)` 缓冲区的 Ed25519 签名（`src/AetherMesh.Security/Services/PacketSigningService.cs`，PROTOCOL_SPEC §2.4）。伪造的数据包在每个知道源方身份公钥的跳点处均会验证失败并被丢弃。路由回复包（RREP）由声称的目标节点签名——中间节点无法冒充目标节点，因为它们不持有目标节点的 Ed25519 私钥。
 
 ### 2.3. 重放攻击
 
@@ -45,11 +45,11 @@
 - 拒绝 `TimestampMs` 与本地 UTC 偏差超过 5 分钟的数据包（`FreshnessWindowMs = 5 * 60 * 1000`）。
 - 维护一个以 `(SourceUhid, PacketNonce)` 为键、TTL 为 5 分钟的内存去重映射。去重键在提交 `5bd52a9` 中从单独的 `nonce` 改为 `(source, nonce)`，以修复两种失效模式：跨发送方的随机数碰撞导致合法流量被丢弃，以及攻击者预先植入随机数以阻止合法发送方第一个数据包的预注册攻击。
 
-计数器：`aether.nonces.replayed`、`aether.timestamps.stale`。
+计数器：`aethermesh.nonces.replayed`、`aethermesh.timestamps.stale`。
 
 ### 2.4. 前向保密（过去密钥泄露）
 
-双棘轮在每个 DH 轮换步骤中派生新的发送链密钥（KDF_RK，在 `salt = current_root_key`、`info = "aether-ratchet-rk-v1"` 上使用 HKDF-SHA256，64 字节块按 32+32 分割为新的根密钥和链密钥 — `src/Aether.Security/Services/SignalProtocolService.cs`）。攻击者即使获取当前会话状态，也无法解密任何先前消息：每个先前的消息密钥在下一个棘轮步骤之前已被派生并清零（`CryptographicOperations.ZeroMemory`）。
+双棘轮在每个 DH 轮换步骤中派生新的发送链密钥（KDF_RK，在 `salt = current_root_key`、`info = "aether-ratchet-rk-v1"` 上使用 HKDF-SHA256，64 字节块按 32+32 分割为新的根密钥和链密钥 — `src/AetherMesh.Security/Services/SignalProtocolService.cs`）。攻击者即使获取当前会话状态，也无法解密任何先前消息：每个先前的消息密钥在下一个棘轮步骤之前已被派生并清零（`CryptographicOperations.ZeroMemory`）。
 
 ### 2.5. 后妥协安全（未来密钥恢复）
 
@@ -59,7 +59,7 @@
 
 ### 2.6. 一次性预密钥重放
 
-每个一次性预密钥（OPK）仅被使用一次。C# 参考实现附带一个 100 个 OPK 的池，采用 FIFO 发放、每次生成捆绑时懒补充，以及锁保护的单次消费（`SignalProtocolService.TopUpOpkPoolNoLock`，由 `tests/Aether.Core.Tests/PreKeyPoolTests.cs` 验证）。OPK 在响应方 X3DH 消费时立即被移除并清零，因此重放相同 OPK id 的 PreKey 消息无法建立会话。
+每个一次性预密钥（OPK）仅被使用一次。C# 参考实现附带一个 100 个 OPK 的池，采用 FIFO 发放、每次生成捆绑时懒补充，以及锁保护的单次消费（`SignalProtocolService.TopUpOpkPoolNoLock`，由 `tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs` 验证）。OPK 在响应方 X3DH 消费时立即被移除并清零，因此重放相同 OPK id 的 PreKey 消息无法建立会话。
 
 其余 7 种语言仍每个会话发放一个 OPK——在顺序工作负载下功能正确，但在同时捆绑获取下存在并发风险。详见 `OPEN_ISSUES.md` §9。
 
@@ -123,7 +123,7 @@ X25519（RFC 7748）和 Ed25519（RFC 8032）在运行 Shor 算法的足够大�
 
 ### 3.5. 大规模群组消息
 
-`Aether.Security` 提供了 `IGroupKeyProvider` 接缝，但截至 HEAD，完整的 Signal Sender Keys 协议（Signal 使用的异步群组消息构造）**未**实现。今天需要群组消息的宿主回退到 N 个成对会话——功能可用，但每次群发的成本为 O(N)。PROTOCOL_SPEC §7 仅涵盖单接收方威胁。
+`AetherMesh.Security` 提供了 `IGroupKeyProvider` 接缝，但截至 HEAD，完整的 Signal Sender Keys 协议（Signal 使用的异步群组消息构造）**未**实现。今天需要群组消息的宿主回退到 N 个成对会话——功能可用，但每次群发的成本为 O(N)。PROTOCOL_SPEC §7 仅涵盖单接收方威胁。
 
 ### 3.6. 首次联系时的身份验证（TOFU）
 
@@ -164,7 +164,7 @@ Aether 认证的是"持有身份密钥 X 的对等方签署了此消息"。它**
 ### 5.1. 首次联系中间人攻击（TOFU）
 
 **弱点：** 在第一次捆绑交换期间控制点对点链路的主动攻击者可以替换自己的捆绑并代理流量。
-**缓解措施：** 宿主 UX 必须在将联系人视为已验证之前暴露安全编号/公钥指纹对比流程。用于安全编号派生的公共 API 接口尚未在 `Aether.Security` 中发布；正在跟踪为差距。
+**缓解措施：** 宿主 UX 必须在将联系人视为已验证之前暴露安全编号/公钥指纹对比流程。用于安全编号派生的公共 API 接口尚未在 `AetherMesh.Security` 中发布；正在跟踪为差距。
 
 ### 5.2. 签名预密钥轮换滞后
 

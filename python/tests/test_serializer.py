@@ -13,8 +13,8 @@ from __future__ import annotations
 import unittest
 from uuid import UUID, uuid4
 
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.protocol.serializer import PacketSerializer
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.protocol.serializer import PacketSerializer
 
 
 def _nonce(fill: int = 0x00) -> bytes:

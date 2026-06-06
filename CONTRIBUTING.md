@@ -47,8 +47,8 @@ dotnet test
 dotnet test
 
 # Run a specific test project
-dotnet test tests/Aether.Protocol.Tests
-dotnet test tests/Aether.Security.Tests
+dotnet test tests/AetherMesh.Protocol.Tests
+dotnet test tests/AetherMesh.Security.Tests
 ```
 
 ### 4. Submit a Pull Request
@@ -65,10 +65,10 @@ dotnet test tests/Aether.Security.Tests
 
 Aether is designed to support any peer-to-peer radio or communication technology. To add a new transport:
 
-1. **Create a new interface** in `src/Aether.Transport/Abstractions/` (or use the existing `ITransportService` if it fits):
+1. **Create a new interface** in `src/AetherMesh.Transport/Abstractions/` (or use the existing `ITransportService` if it fits):
 
    ```csharp
-   namespace Aether.Transport.Abstractions;
+   namespace AetherMesh.Transport.Abstractions;
 
    /// <summary>
    /// Transport service for [Your Technology] communication.
@@ -79,17 +79,17 @@ Aether is designed to support any peer-to-peer radio or communication technology
    }
    ```
 
-2. **Implement the interface** in a new directory under `src/Aether.Transport/`:
+2. **Implement the interface** in a new directory under `src/AetherMesh.Transport/`:
 
    ```
-   src/Aether.Transport/
+   src/AetherMesh.Transport/
        YourTransport/
            YourTransportService.cs
    ```
 
 3. **Register with the transport manager** so AODV routing can use it automatically.
 
-4. **Add tests** in `tests/Aether.Protocol.Tests/` covering:
+4. **Add tests** in `tests/AetherMesh.Protocol.Tests/` covering:
    - Connection establishment and teardown
    - Packet send and receive
    - Error handling (timeout, out-of-range, interference)
@@ -97,7 +97,7 @@ Aether is designed to support any peer-to-peer radio or communication technology
 
 5. **Update the README** comparison table if the new transport changes Aether's capability profile.
 
-See `src/Aether.Transport/Services/InProcessTransportService.cs` for a minimal reference implementation used in testing and demos.
+See `src/AetherMesh.Transport/Services/InProcessTransportService.cs` for a minimal reference implementation used in testing and demos.
 
 ---
 

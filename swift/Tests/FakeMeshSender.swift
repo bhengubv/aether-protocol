@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import Foundation
-@testable import AetherProtocol
+@testable import AetherMeshProtocol
 
 /// Records a single unicast send made through ``FakeMeshSender``.
 public struct UnicastRecord: Sendable {

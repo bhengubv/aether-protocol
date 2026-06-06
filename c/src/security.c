@@ -5,8 +5,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "aether/security.h"
-#include "aether/protocol.h"
+#include "aethermesh/security.h"
+#include "aethermesh/protocol.h"
 
 #include <sodium.h>
 
@@ -36,7 +36,7 @@ static void ensure_libsodium_initialized(void) {
 /**
  * Generate Ed25519 key pair.
  */
-bool aether_ed25519_generate_keypair(uint8_t *out_private,
+bool aethermesh_ed25519_generate_keypair(uint8_t *out_private,
                                     uint8_t *out_public) {
     if (!out_private || !out_public) return false;
 
@@ -63,7 +63,7 @@ bool aether_ed25519_generate_keypair(uint8_t *out_private,
 /**
  * Sign data with Ed25519.
  */
-bool aether_ed25519_sign(const uint8_t *private_key,
+bool aethermesh_ed25519_sign(const uint8_t *private_key,
                         const uint8_t *data,
                         size_t data_len,
                         uint8_t *out_signature) {
@@ -99,7 +99,7 @@ bool aether_ed25519_sign(const uint8_t *private_key,
 /**
  * Verify Ed25519 signature.
  */
-bool aether_ed25519_verify(const uint8_t *public_key,
+bool aethermesh_ed25519_verify(const uint8_t *public_key,
                           const uint8_t *data,
                           size_t data_len,
                           const uint8_t *signature) {
@@ -113,7 +113,7 @@ bool aether_ed25519_verify(const uint8_t *public_key,
 /**
  * AES-256-GCM encrypt.
  */
-bool aether_aes256_gcm_encrypt(const uint8_t *plaintext,
+bool aethermesh_aes256_gcm_encrypt(const uint8_t *plaintext,
                               size_t plaintext_len,
                               const uint8_t *key,
                               const uint8_t *nonce,
@@ -127,13 +127,13 @@ bool aether_aes256_gcm_encrypt(const uint8_t *plaintext,
     ensure_libsodium_initialized();
 
     // Generate nonce if not provided
-    uint8_t actual_nonce[AETHER_AES_GCM_NONCE_SIZE];
+    uint8_t actual_nonce[AETHERMESH_AES_GCM_NONCE_SIZE];
     if (nonce == NULL) {
-        randombytes_buf(actual_nonce, AETHER_AES_GCM_NONCE_SIZE);
+        randombytes_buf(actual_nonce, AETHERMESH_AES_GCM_NONCE_SIZE);
     } else {
-        memcpy(actual_nonce, nonce, AETHER_AES_GCM_NONCE_SIZE);
+        memcpy(actual_nonce, nonce, AETHERMESH_AES_GCM_NONCE_SIZE);
     }
-    memcpy(out_nonce, actual_nonce, AETHER_AES_GCM_NONCE_SIZE);
+    memcpy(out_nonce, actual_nonce, AETHERMESH_AES_GCM_NONCE_SIZE);
 
     unsigned char tag[crypto_aead_aes256gcm_ABYTES];
     unsigned long long ciphertext_len_actual;
@@ -169,7 +169,7 @@ bool aether_aes256_gcm_encrypt(const uint8_t *plaintext,
 /**
  * AES-256-GCM decrypt.
  */
-bool aether_aes256_gcm_decrypt(const uint8_t *ciphertext,
+bool aethermesh_aes256_gcm_decrypt(const uint8_t *ciphertext,
                               size_t ciphertext_len,
                               const uint8_t *key,
                               const uint8_t *nonce,
@@ -202,7 +202,7 @@ bool aether_aes256_gcm_decrypt(const uint8_t *ciphertext,
 /**
  * HMAC-SHA256.
  */
-bool aether_hmac_sha256(const uint8_t *key,
+bool aethermesh_hmac_sha256(const uint8_t *key,
                        size_t key_len,
                        const uint8_t *data,
                        size_t data_len,
@@ -228,7 +228,7 @@ bool aether_hmac_sha256(const uint8_t *key,
 /**
  * SHA-256.
  */
-bool aether_sha256(const uint8_t *data,
+bool aethermesh_sha256(const uint8_t *data,
                   size_t data_len,
                   uint8_t *out_hash) {
     if (!out_hash) return false;
@@ -253,7 +253,7 @@ bool aether_sha256(const uint8_t *data,
  * HKDF-SHA256 (extract-and-expand).
  * RFC 5869.
  */
-bool aether_hkdf_sha256(const uint8_t *salt,
+bool aethermesh_hkdf_sha256(const uint8_t *salt,
                        size_t salt_len,
                        const uint8_t *ikm,
                        size_t ikm_len,
@@ -262,20 +262,20 @@ bool aether_hkdf_sha256(const uint8_t *salt,
                        size_t output_len,
                        uint8_t *out_okm) {
     if (!ikm || !out_okm) return false;
-    if (output_len == 0 || output_len > 255 * AETHER_SHA256_SIZE) return false;
+    if (output_len == 0 || output_len > 255 * AETHERMESH_SHA256_SIZE) return false;
 
     ensure_libsodium_initialized();
 
     // HKDF-Extract: PRK = HMAC-Hash(salt, IKM)
-    uint8_t salt_default[AETHER_SHA256_SIZE];
+    uint8_t salt_default[AETHERMESH_SHA256_SIZE];
     if (salt == NULL) {
-        memset(salt_default, 0, AETHER_SHA256_SIZE);
+        memset(salt_default, 0, AETHERMESH_SHA256_SIZE);
         salt = salt_default;
-        salt_len = AETHER_SHA256_SIZE;
+        salt_len = AETHERMESH_SHA256_SIZE;
     }
 
-    uint8_t prk[AETHER_SHA256_SIZE];
-    if (!aether_hmac_sha256(salt, salt_len, ikm, ikm_len, prk)) {
+    uint8_t prk[AETHERMESH_SHA256_SIZE];
+    if (!aethermesh_hmac_sha256(salt, salt_len, ikm, ikm_len, prk)) {
         return false;
     }
 
@@ -283,12 +283,12 @@ bool aether_hkdf_sha256(const uint8_t *salt,
     // T(1) = HMAC-Hash(PRK, info | 0x01)
     // T(2) = HMAC-Hash(PRK, T(1) | info | 0x02)
     // ...
-    uint8_t t[AETHER_SHA256_SIZE];
+    uint8_t t[AETHERMESH_SHA256_SIZE];
     size_t okm_offset = 0;
     uint8_t counter = 1;
 
     while (okm_offset < output_len && counter <= 255) {
-        size_t t_len = okm_offset > 0 ? AETHER_SHA256_SIZE : 0;
+        size_t t_len = okm_offset > 0 ? AETHERMESH_SHA256_SIZE : 0;
 
         // Create input: [previous T] | info | counter
         size_t input_len = t_len + info_len + 1;
@@ -307,8 +307,8 @@ bool aether_hkdf_sha256(const uint8_t *salt,
         }
         input[t_len + info_len] = counter;
 
-        uint8_t t_new[AETHER_SHA256_SIZE];
-        bool ok = aether_hmac_sha256(prk, AETHER_SHA256_SIZE, input, input_len, t_new);
+        uint8_t t_new[AETHERMESH_SHA256_SIZE];
+        bool ok = aethermesh_hmac_sha256(prk, AETHERMESH_SHA256_SIZE, input, input_len, t_new);
         free(input);
 
         if (!ok) {
@@ -318,14 +318,14 @@ bool aether_hkdf_sha256(const uint8_t *salt,
         }
 
         size_t copy_len = output_len - okm_offset;
-        if (copy_len > AETHER_SHA256_SIZE) {
-            copy_len = AETHER_SHA256_SIZE;
+        if (copy_len > AETHERMESH_SHA256_SIZE) {
+            copy_len = AETHERMESH_SHA256_SIZE;
         }
 
         memcpy(&out_okm[okm_offset], t_new, copy_len);
         okm_offset += copy_len;
 
-        memcpy(t, t_new, AETHER_SHA256_SIZE);
+        memcpy(t, t_new, AETHERMESH_SHA256_SIZE);
         sodium_memzero(t_new, sizeof(t_new));
 
         counter++;
@@ -344,7 +344,7 @@ bool aether_hkdf_sha256(const uint8_t *salt,
  * L=64) — split into new_root_key (first 32 bytes) and new_chain_key (next 32).
  * Mirrors C# SignalProtocolService.KdfRk byte-for-byte.
  */
-bool aether_signal_kdf_rk(const uint8_t *root_key,
+bool aethermesh_signal_kdf_rk(const uint8_t *root_key,
                           const uint8_t *dh_output,
                           uint8_t *out_new_root_key,
                           uint8_t *out_new_chain_key) {
@@ -356,7 +356,7 @@ bool aether_signal_kdf_rk(const uint8_t *root_key,
     static const size_t info_len = sizeof(info) - 1;
 
     uint8_t derived[64];
-    bool ok = aether_hkdf_sha256(
+    bool ok = aethermesh_hkdf_sha256(
         root_key, 32,
         dh_output, 32,
         (const uint8_t *)info, info_len,
@@ -376,7 +376,7 @@ bool aether_signal_kdf_rk(const uint8_t *root_key,
 /**
  * Zeroize memory.
  */
-void aether_zeroize(void *mem, size_t len) {
+void aethermesh_zeroize(void *mem, size_t len) {
     if (!mem) return;
     ensure_libsodium_initialized();
     sodium_memzero(mem, len);
@@ -385,7 +385,7 @@ void aether_zeroize(void *mem, size_t len) {
 /**
  * Generate random bytes.
  */
-bool aether_random_bytes(uint8_t *out, size_t len) {
+bool aethermesh_random_bytes(uint8_t *out, size_t len) {
     if (!out) return false;
 
     ensure_libsodium_initialized();
@@ -397,18 +397,18 @@ bool aether_random_bytes(uint8_t *out, size_t len) {
 /**
  * Generate a fresh X25519 keypair.
  */
-bool aether_x25519_generate_keypair(uint8_t *out_private,
+bool aethermesh_x25519_generate_keypair(uint8_t *out_private,
                                     uint8_t *out_public) {
     if (!out_private || !out_public) return false;
 
     ensure_libsodium_initialized();
 
     // Random 32-byte private key. libsodium clamps internally on use.
-    randombytes_buf(out_private, AETHER_X25519_PRIVATE_KEY_SIZE);
+    randombytes_buf(out_private, AETHERMESH_X25519_PRIVATE_KEY_SIZE);
 
     // Public key = private * Basepoint.
     if (crypto_scalarmult_curve25519_base(out_public, out_private) != 0) {
-        sodium_memzero(out_private, AETHER_X25519_PRIVATE_KEY_SIZE);
+        sodium_memzero(out_private, AETHERMESH_X25519_PRIVATE_KEY_SIZE);
         return false;
     }
     return true;
@@ -421,7 +421,7 @@ bool aether_x25519_generate_keypair(uint8_t *out_private,
  * low-order remote public key). libsodium's crypto_scalarmult returns -1
  * on the all-zero result by default — we surface that as `false`.
  */
-bool aether_x25519_agree(const uint8_t *local_private,
+bool aethermesh_x25519_agree(const uint8_t *local_private,
                          const uint8_t *remote_public,
                          uint8_t *out_shared) {
     if (!local_private || !remote_public || !out_shared) return false;
@@ -429,7 +429,7 @@ bool aether_x25519_agree(const uint8_t *local_private,
     ensure_libsodium_initialized();
 
     if (crypto_scalarmult_curve25519(out_shared, local_private, remote_public) != 0) {
-        sodium_memzero(out_shared, AETHER_X25519_SHARED_SECRET_SIZE);
+        sodium_memzero(out_shared, AETHERMESH_X25519_SHARED_SECRET_SIZE);
         return false;
     }
     return true;
@@ -438,14 +438,14 @@ bool aether_x25519_agree(const uint8_t *local_private,
 /**
  * X25519 base-point scalar multiplication: pub = priv * Basepoint.
  */
-bool aether_x25519_derive_public(const uint8_t *private_key,
+bool aethermesh_x25519_derive_public(const uint8_t *private_key,
                                  uint8_t *out_public) {
     if (!private_key || !out_public) return false;
 
     ensure_libsodium_initialized();
 
     if (crypto_scalarmult_curve25519_base(out_public, private_key) != 0) {
-        sodium_memzero(out_public, AETHER_X25519_PUBLIC_KEY_SIZE);
+        sodium_memzero(out_public, AETHERMESH_X25519_PUBLIC_KEY_SIZE);
         return false;
     }
     return true;
@@ -456,35 +456,35 @@ bool aether_x25519_derive_public(const uint8_t *private_key,
  * ──────────────────────────────────────────────────────────────────────── */
 
 /* Maximum number of (source, nonce) pairs tracked simultaneously. */
-#define AETHER_NONCE_STORE_MAX_ENTRIES 4096
+#define AETHERMESH_NONCE_STORE_MAX_ENTRIES 4096
 
 /* Maximum nonce size accepted (bytes). */
-#define AETHER_NONCE_STORE_MAX_NONCE_LEN 64
+#define AETHERMESH_NONCE_STORE_MAX_NONCE_LEN 64
 
 /* Maximum source UHID length (bytes). */
-#define AETHER_NONCE_STORE_MAX_SOURCE_LEN 64
+#define AETHERMESH_NONCE_STORE_MAX_SOURCE_LEN 64
 
 /* Composite key: "source:hex(nonce)" — max length:
  *   source (63) + ':' (1) + hex nonce (128) + NUL (1) = 193 bytes */
-#define AETHER_NONCE_STORE_KEY_LEN 193
+#define AETHERMESH_NONCE_STORE_KEY_LEN 193
 
 typedef struct {
-    char    key[AETHER_NONCE_STORE_KEY_LEN]; /* "source:hexnonce\0"     */
+    char    key[AETHERMESH_NONCE_STORE_KEY_LEN]; /* "source:hexnonce\0"     */
     int64_t expires_at;                       /* wall-clock seconds      */
-} aether_nonce_entry_t;
+} aethermesh_nonce_entry_t;
 
-struct aether_nonce_store {
-    aether_nonce_entry_t entries[AETHER_NONCE_STORE_MAX_ENTRIES];
+struct aethermesh_nonce_store {
+    aethermesh_nonce_entry_t entries[AETHERMESH_NONCE_STORE_MAX_ENTRIES];
     int                  count;
 };
 
-aether_nonce_store_t *aether_nonce_store_new(void) {
-    aether_nonce_store_t *s =
-        (aether_nonce_store_t *)calloc(1, sizeof(aether_nonce_store_t));
+aethermesh_nonce_store_t *aethermesh_nonce_store_new(void) {
+    aethermesh_nonce_store_t *s =
+        (aethermesh_nonce_store_t *)calloc(1, sizeof(aethermesh_nonce_store_t));
     return s; /* NULL on allocation failure */
 }
 
-void aether_nonce_store_free(aether_nonce_store_t *store) {
+void aethermesh_nonce_store_free(aethermesh_nonce_store_t *store) {
     if (!store) return;
     /* Zero any key material before freeing */
     memset(store, 0, sizeof(*store));
@@ -519,7 +519,7 @@ static bool build_nonce_key(char *buf, size_t buf_len,
  * Prune expired entries (shift remaining entries down).
  * Called lazily before inserting a new entry.
  */
-static void nonce_store_prune(aether_nonce_store_t *store, int64_t now) {
+static void nonce_store_prune(aethermesh_nonce_store_t *store, int64_t now) {
     int new_count = 0;
     for (int i = 0; i < store->count; i++) {
         if (store->entries[i].expires_at > now) {
@@ -531,21 +531,21 @@ static void nonce_store_prune(aether_nonce_store_t *store, int64_t now) {
     }
     /* Zero the vacated tail slots */
     for (int i = new_count; i < store->count; i++) {
-        memset(&store->entries[i], 0, sizeof(aether_nonce_entry_t));
+        memset(&store->entries[i], 0, sizeof(aethermesh_nonce_entry_t));
     }
     store->count = new_count;
 }
 
-bool aether_nonce_store_check_and_record(aether_nonce_store_t *store,
+bool aethermesh_nonce_store_check_and_record(aethermesh_nonce_store_t *store,
                                           const char *source_uhid,
                                           const uint8_t *nonce,
                                           size_t nonce_len,
                                           int ttl_seconds) {
     if (!store || !source_uhid || !nonce || nonce_len == 0) return false;
-    if (nonce_len > AETHER_NONCE_STORE_MAX_NONCE_LEN) return false;
-    if (strlen(source_uhid) >= AETHER_NONCE_STORE_MAX_SOURCE_LEN) return false;
+    if (nonce_len > AETHERMESH_NONCE_STORE_MAX_NONCE_LEN) return false;
+    if (strlen(source_uhid) >= AETHERMESH_NONCE_STORE_MAX_SOURCE_LEN) return false;
 
-    char key[AETHER_NONCE_STORE_KEY_LEN];
+    char key[AETHERMESH_NONCE_STORE_KEY_LEN];
     if (!build_nonce_key(key, sizeof(key), source_uhid, nonce, nonce_len)) {
         return false;
     }
@@ -565,14 +565,14 @@ bool aether_nonce_store_check_and_record(aether_nonce_store_t *store,
 
     /* Not a replay. Record it if there is space (oldest entry is evicted
      * if the store is full). */
-    if (store->count >= AETHER_NONCE_STORE_MAX_ENTRIES) {
+    if (store->count >= AETHERMESH_NONCE_STORE_MAX_ENTRIES) {
         /* Evict the first (oldest) slot by shifting left. */
         memmove(&store->entries[0], &store->entries[1],
-                (AETHER_NONCE_STORE_MAX_ENTRIES - 1) * sizeof(aether_nonce_entry_t));
-        store->count = AETHER_NONCE_STORE_MAX_ENTRIES - 1;
+                (AETHERMESH_NONCE_STORE_MAX_ENTRIES - 1) * sizeof(aethermesh_nonce_entry_t));
+        store->count = AETHERMESH_NONCE_STORE_MAX_ENTRIES - 1;
     }
 
-    aether_nonce_entry_t *e = &store->entries[store->count];
+    aethermesh_nonce_entry_t *e = &store->entries[store->count];
     memcpy(e->key, key, strlen(key) + 1);
     e->expires_at = now + (int64_t)ttl_seconds;
     store->count++;
@@ -584,21 +584,21 @@ bool aether_nonce_store_check_and_record(aether_nonce_store_t *store,
  * PacketSigning service
  * ──────────────────────────────────────────────────────────────────────── */
 
-void aether_packet_signing_init(AetherPacketSigningService *svc,
-                                aether_nonce_store_t *nonce_store) {
+void aethermesh_packet_signing_init(AetherMeshPacketSigningService *svc,
+                                aethermesh_nonce_store_t *nonce_store) {
     if (!svc) return;
     svc->nonce_store = nonce_store;
     svc->reputation  = NULL;
 }
 
-void aether_packet_signing_set_reputation(AetherPacketSigningService *svc,
-                                           AetherNodeReputationService *rep) {
+void aethermesh_packet_signing_set_reputation(AetherMeshPacketSigningService *svc,
+                                           AetherMeshNodeReputationService *rep) {
     if (!svc) return;
     svc->reputation = rep;
 }
 
-bool aether_packet_signing_verify(AetherPacketSigningService *svc,
-                                   const aether_mesh_packet_t *packet,
+bool aethermesh_packet_signing_verify(AetherMeshPacketSigningService *svc,
+                                   const aethermesh_mesh_packet_t *packet,
                                    const uint8_t *sender_public_key,
                                    int ttl_seconds) {
     if (!svc || !packet || !sender_public_key) return false;
@@ -607,17 +607,17 @@ bool aether_packet_signing_verify(AetherPacketSigningService *svc,
 
     /* 1. Nonce replay check ─────────────────────────────────────────────── */
     if (svc->nonce_store != NULL) {
-        bool fresh = aether_nonce_store_check_and_record(
+        bool fresh = aethermesh_nonce_store_check_and_record(
             svc->nonce_store,
             source_uhid,
             packet->packet_nonce,
-            AETHER_PACKET_NONCE_SIZE,
+            AETHERMESH_PACKET_NONCE_SIZE,
             ttl_seconds);
 
         if (!fresh) {
             /* Replay detected — fire reputation hook if wired. */
             if (svc->reputation != NULL) {
-                aether_reputation_record_replay(svc->reputation, source_uhid);
+                aethermesh_reputation_record_replay(svc->reputation, source_uhid);
             }
             return false;
         }
@@ -625,11 +625,11 @@ bool aether_packet_signing_verify(AetherPacketSigningService *svc,
 
     /* 2. Build signable data ────────────────────────────────────────────── */
     size_t sig_data_len = 0;
-    uint8_t *sig_data = aether_packet_get_signable_data(packet, &sig_data_len);
+    uint8_t *sig_data = aethermesh_packet_get_signable_data(packet, &sig_data_len);
     if (!sig_data) return false;
 
     /* 3. Verify Ed25519 signature ────────────────────────────────────────── */
-    bool valid = aether_ed25519_verify(
+    bool valid = aethermesh_ed25519_verify(
         sender_public_key,
         sig_data,
         sig_data_len,
@@ -640,7 +640,7 @@ bool aether_packet_signing_verify(AetherPacketSigningService *svc,
     if (!valid) {
         /* Signature failure — fire reputation hook if wired. */
         if (svc->reputation != NULL) {
-            aether_reputation_record_sig_failure(svc->reputation, source_uhid);
+            aethermesh_reputation_record_sig_failure(svc->reputation, source_uhid);
         }
         return false;
     }

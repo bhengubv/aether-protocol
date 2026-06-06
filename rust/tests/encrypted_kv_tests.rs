@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use aether_protocol::{
+use aethermesh_protocol::{
     DataAtRestKeyProvider, DerivedDataAtRestKeyProvider, EncryptedKeyValueStore,
     InMemoryKeyValueStore, KeyValueStore, StaticDataAtRestKeyProvider,
 };

@@ -155,7 +155,7 @@ src/main/kotlin/aether/models/Models.kt (271 lines)
   * RouteEntry: data class
     - Fields: destinationUhid, nextHopUhid, hopCount, qualityScore, expiresAt
     - isExpired(): Boolean
-  * AetherNode: data class
+  * AetherMeshNode: data class
     - Fields: uhid, identityPublicKey, capabilities, geohash
   * DtnBundle: data class
     - Fields: id, senderUhid, recipientUhid, encryptedPayload, priority, status,
@@ -169,7 +169,7 @@ src/main/kotlin/aether/models/Models.kt (271 lines)
 src/main/kotlin/aether/Demo.kt (175 lines)
   * Comprehensive demonstration application
   * Step 1: Ed25519 key generation
-  * Step 2: AetherNode creation with capabilities
+  * Step 2: AetherMeshNode creation with capabilities
   * Step 3: Signal Protocol initialization
   * Step 4: Pre-key bundle generation and exchange
   * Step 5: Encrypted session establishment
@@ -255,13 +255,13 @@ Coverage:
   - Packet types implemented: 23/23 (100%)
   - Security algorithms: 6 (Ed25519, ECDH, HKDF, AES-GCM, SHA-256, HMAC-SHA256)
   - Transport implementations: 1 reference (InProcessTransport)
-  - Domain models: 5 (AetherNode, PeerInfo, RouteEntry, NodeCapabilities, DtnBundle)
+  - Domain models: 5 (AetherMeshNode, PeerInfo, RouteEntry, NodeCapabilities, DtnBundle)
   - Protocol constants: 50+
 
 Build:
   - JDK target: 17+
   - Gradle: 8.0+
-  - Main class: aether.DemoKt
+  - Main class: aethermesh.DemoKt
   - Dependencies: 8 (BouncyCastle × 2, Coroutines, SLF4J × 2, Kotlin, JUnit)
 
 ================================================================================
@@ -302,7 +302,7 @@ Transport:
   [✓] Flow-based message reception
 
 Data Models:
-  [✓] AetherNode (identity)
+  [✓] AetherMeshNode (identity)
   [✓] PeerInfo (known peers)
   [✓] RouteEntry (routing table)
   [✓] NodeCapabilities (bitfield)
@@ -342,7 +342,7 @@ Production Ready Features:
 Ready for Integration with:
   ✓ Android apps (Kotlin multiplatform)
   ✓ Desktop apps (JVM)
-  ✓ Server backends (AetherAPI)
+  ✓ Server backends (AetherMeshAPI)
   ✓ C# reference implementation (wire-compatible)
 
 Next Steps:

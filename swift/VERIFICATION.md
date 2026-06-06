@@ -10,7 +10,7 @@
 - [x] `.gitignore` - Version control ignore rules
 
 ### Source Code Structure
-- [x] `Sources/AetherProtocol/` - Main library
+- [x] `Sources/AetherMeshProtocol/` - Main library
   - [x] `Constants.swift` (121 lines)
   - [x] `Protocol/MeshPacket.swift` (87 lines)
   - [x] `Protocol/PacketSerializer.swift` (212 lines)
@@ -21,7 +21,7 @@
   - [x] `Models/Models.swift` (221 lines)
 
 ### Demo & Tests
-- [x] `Sources/AetherDemo/main.swift` (263 lines)
+- [x] `Sources/AetherMeshDemo/main.swift` (263 lines)
 - [x] `Tests/PacketSerializationTests.swift` (180 lines)
 - [x] `Tests/SecurityTests.swift` (230 lines)
 
@@ -118,7 +118,7 @@
 
 ## Models & Data Structures ✓
 
-- [x] `AetherNode` - UHID + identity key
+- [x] `AetherMeshNode` - UHID + identity key
 - [x] `PeerInfo` - Peer information with reliability
 - [x] `RouteEntry` - Route table entry
 - [x] `PreKeyBundle` - Pre-key bundle for sessions

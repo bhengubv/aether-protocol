@@ -13,7 +13,7 @@
 #  define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include "aether/chunk_bitmap.h"
+#include "aethermesh/chunk_bitmap.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -54,13 +54,13 @@ static char *b64_encode(const uint8_t *data, size_t len)
     return out;
 }
 
-// ── aether_bitset_encode ──────────────────────────────────────────────────────
+// ── aethermesh_bitset_encode ──────────────────────────────────────────────────────
 
-aether_bitset_t aether_bitset_encode(int        chunk_count,
+aethermesh_bitset_t aethermesh_bitset_encode(int        chunk_count,
                                      const int *have_indices,
                                      int        index_count)
 {
-    aether_bitset_t result = {NULL, 0};
+    aethermesh_bitset_t result = {NULL, 0};
     if (chunk_count <= 0)
         return result;
 
@@ -81,9 +81,9 @@ aether_bitset_t aether_bitset_encode(int        chunk_count,
     return result;
 }
 
-// ── aether_bitset_decode ──────────────────────────────────────────────────────
+// ── aethermesh_bitset_decode ──────────────────────────────────────────────────────
 
-int *aether_bitset_decode(const uint8_t *bitset,
+int *aethermesh_bitset_decode(const uint8_t *bitset,
                           size_t         bitset_len,
                           int            chunk_count,
                           int           *out_count)
@@ -118,16 +118,16 @@ int *aether_bitset_decode(const uint8_t *bitset,
     return result;
 }
 
-// ── aether_bitset_free ────────────────────────────────────────────────────────
+// ── aethermesh_bitset_free ────────────────────────────────────────────────────────
 
-void aether_bitset_free(aether_bitset_t bs)
+void aethermesh_bitset_free(aethermesh_bitset_t bs)
 {
     free(bs.bytes);
 }
 
-// ── aether_chunk_bitmap_marshal_json ─────────────────────────────────────────
+// ── aethermesh_chunk_bitmap_marshal_json ─────────────────────────────────────────
 
-char *aether_chunk_bitmap_marshal_json(const char    *root_hash,
+char *aethermesh_chunk_bitmap_marshal_json(const char    *root_hash,
                                        int            chunk_count,
                                        const uint8_t *have_bitset,
                                        size_t         have_bitset_len,

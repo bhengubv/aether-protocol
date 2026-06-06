@@ -143,7 +143,7 @@ PacketNonce (8 bytes)
 ### بروتوكول Signal (القسم 4)
 
 - **تبادل المفاتيح**: X3DH مع ECDH P-256
-- **HKDF**: SHA256 مع ملح="AetherSignal"
+- **HKDF**: SHA256 مع ملح="AetherMeshSignal"
 - **سلاسل المعلومات**: "aether-root-v1"، "aether-chain-send-v1"، "aether-chain-recv-v1"
 - **التشفير**: AES-256-GCM مع nonce بحجم 12 بايت، علامة بحجم 16 بايت
 - **ترقيع السلسلة**: HMAC-SHA256 مع تقدم العداد

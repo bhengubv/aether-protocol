@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import XCTest
-@testable import AetherProtocol
+@testable import AetherMeshProtocol
 
 private let LOCAL = "local-uhid"
 

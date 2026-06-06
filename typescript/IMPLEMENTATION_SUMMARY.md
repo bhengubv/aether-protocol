@@ -21,7 +21,7 @@ All 13 required modules delivered with 100% protocol compliance.
 7. **src/security/PacketSigning.ts** — Packet signing with nonce/timestamp, deduplication
 8. **src/transport/ITransportService.ts** — Transport interface contract
 9. **src/transport/InProcessTransport.ts** — In-process simulated network
-10. **src/models/index.ts** — AetherNode, PeerInfo, RouteEntry interfaces
+10. **src/models/index.ts** — AetherMeshNode, PeerInfo, RouteEntry interfaces
 11. **src/index.ts** — Main module exports
 12. **src/demo.ts** — Runnable demonstration (npx tsx src/demo.ts)
 
@@ -95,7 +95,7 @@ PacketNonce (8 bytes)
   - Root: "aether-root-v1"
   - Send Chain: "aether-chain-send-v1"
   - Recv Chain: "aether-chain-recv-v1"
-  - Salt: "AetherSignal" (UTF-8, 12 bytes)
+  - Salt: "AetherMeshSignal" (UTF-8, 12 bytes)
 - **Encryption**: AES-256-GCM
   - Nonce: 12 bytes random
   - Tag: 16 bytes authentication

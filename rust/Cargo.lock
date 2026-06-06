@@ -38,7 +38,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "aether-protocol"
+name = "aethermesh-protocol"
 version = "1.0.0"
 dependencies = [
  "aes-gcm",

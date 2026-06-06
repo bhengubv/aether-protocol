@@ -2,7 +2,7 @@
 // Unit tests for PerTransportMetrics, rankTransports(), and GeohashEpidemicStrategy.
 
 import XCTest
-@testable import AetherProtocol
+@testable import AetherMeshProtocol
 
 // ── StubTransport ─────────────────────────────────────────────────────────────
 

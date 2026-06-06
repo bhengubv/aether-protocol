@@ -9,7 +9,7 @@ not be misled by the marketing on the README.
 
 The companion document is [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7
 (Security Model). Where the two diverge, the implementation in
-`src/Aether.Security/` is authoritative.
+`src/AetherMesh.Security/` is authoritative.
 
 ---
 
@@ -60,14 +60,14 @@ from the Double Ratchet's symmetric chain (Signal §5.1, HMAC-SHA256 with
 `0x01`/`0x02` domain separation). An attacker that captures every packet
 between Alice and Bob recovers nothing without one of their session keys.
 
-Verified by `tests/Aether.Security.Tests/SignalProtocolEncryptionTests.cs`
+Verified by `tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs`
 and the cross-language `fixtures/signal/expected/ratchet_step_basic.json`
 vectors.
 
 ### 2.2. Message forgery
 
 Every Wave-2 packet carries an Ed25519 signature over the canonical
-`BuildSignableData(packet)` buffer (`src/Aether.Security/Services/PacketSigningService.cs`,
+`BuildSignableData(packet)` buffer (`src/AetherMesh.Security/Services/PacketSigningService.cs`,
 PROTOCOL_SPEC §2.4). Forged packets fail verification and are dropped at
 every hop that knows the source's identity public key. Route Reply packets
 (RREP) are signed by the claimed destination — intermediate nodes cannot
@@ -87,14 +87,14 @@ Ed25519 private key.
   pre-registration attacks where an adversary plants a nonce against a
   recipient to block the legitimate sender's first packet.
 
-Counters: `aether.nonces.replayed`, `aether.timestamps.stale`.
+Counters: `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`.
 
 ### 2.4. Forward secrecy (past-key compromise)
 
 The Double Ratchet derives a new sending chain key on every DH-rotation
 step (KDF_RK, HKDF-SHA256 over `salt = current_root_key`,
 `info = "aether-ratchet-rk-v1"`, 64-byte block split 32+32 into new
-root and chain keys — `src/Aether.Security/Services/SignalProtocolService.cs`).
+root and chain keys — `src/AetherMesh.Security/Services/SignalProtocolService.cs`).
 An attacker that compromises the current session state cannot decrypt any
 prior message: each prior message key was derived and zeroed
 (`CryptographicOperations.ZeroMemory`) before the next ratchet step.
@@ -116,7 +116,7 @@ Each one-time pre-key (OPK) is consumed exactly once. The C# reference
 ships a 100-OPK pool with FIFO issue, lazy top-up on every bundle
 generation, and lock-protected single-shot consumption
 (`SignalProtocolService.TopUpOpkPoolNoLock`, verified by
-`tests/Aether.Core.Tests/PreKeyPoolTests.cs`). An OPK is removed and
+`tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`). An OPK is removed and
 zeroed the moment the responder consumes it during X3DH, so a replayed
 PreKey message that re-uses the same OPK id cannot establish a session.
 
@@ -227,7 +227,7 @@ within the relevant time horizon.
 
 ### 3.5. Group messaging at scale
 
-`Aether.Security` ships an `IGroupKeyProvider` seam, but the full
+`AetherMesh.Security` ships an `IGroupKeyProvider` seam, but the full
 Signal Sender Keys protocol (the asynchronous group-messaging
 construction Signal uses) is **not** implemented as of HEAD. Hosts
 that need group messaging today fall back to N pairwise sessions —
@@ -327,7 +327,7 @@ and proxy traffic.
 **Mitigation:** host UX must expose a safety-number / public-key
 fingerprint comparison flow before treating a contact as verified. A
 public API surface for safety-number derivation is not yet shipped in
-`Aether.Security`; tracking as a gap.
+`AetherMesh.Security`; tracking as a gap.
 
 ### 5.2. Signed-pre-key rotation lag
 

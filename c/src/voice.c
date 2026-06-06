@@ -10,8 +10,8 @@
 // NOTE: Build verification requires a Linux/macOS host with cmake + libsodium.
 // CI on ubuntu-latest is the verification gate.
 
-#include "aether/voice.h"
-#include "aether/constants.h"
+#include "aethermesh/voice.h"
+#include "aethermesh/constants.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -166,31 +166,31 @@ static bool parse_voice_frame(
 typedef struct {
     uint8_t  call_id[16];
     char    *remote_uhid;    // owned
-    int      state;          // aether_voice_call_state_t
+    int      state;          // aethermesh_voice_call_state_t
     uint32_t next_seq;
     bool     active;
 } voice_call_record_t;
 
 // ─── Service struct ───────────────────────────────────────
 
-struct aether_voice_service {
-    aether_transport_t       *transport;
-    aether_routing_service_t *routing;
+struct aethermesh_voice_service {
+    aethermesh_transport_t       *transport;
+    aethermesh_routing_service_t *routing;
     char                     *local_uhid;   // owned
 
     voice_call_record_t calls[VOICE_MAX_CALLS];
 
-    aether_voice_incoming_cb      incoming_cb;
+    aethermesh_voice_incoming_cb      incoming_cb;
     void                         *incoming_cb_ud;
-    aether_voice_state_changed_cb state_changed_cb;
+    aethermesh_voice_state_changed_cb state_changed_cb;
     void                         *state_changed_cb_ud;
-    aether_voice_frame_cb         frame_cb;
+    aethermesh_voice_frame_cb         frame_cb;
     void                         *frame_cb_ud;
 };
 
 // ─── Helpers ──────────────────────────────────────────────
 
-static voice_call_record_t *find_call(aether_voice_service_t *svc, const uint8_t call_id[16]) {
+static voice_call_record_t *find_call(aethermesh_voice_service_t *svc, const uint8_t call_id[16]) {
     for (int i = 0; i < VOICE_MAX_CALLS; i++) {
         if (svc->calls[i].active && memcmp(svc->calls[i].call_id, call_id, 16) == 0)
             return &svc->calls[i];
@@ -198,7 +198,7 @@ static voice_call_record_t *find_call(aether_voice_service_t *svc, const uint8_t
     return NULL;
 }
 
-static voice_call_record_t *alloc_call(aether_voice_service_t *svc) {
+static voice_call_record_t *alloc_call(aethermesh_voice_service_t *svc) {
     for (int i = 0; i < VOICE_MAX_CALLS; i++) {
         if (!svc->calls[i].active) return &svc->calls[i];
     }
@@ -224,44 +224,44 @@ static void gen_uuid_v4(uint8_t out[16]) {
 
 /* Send a JSON signalling packet unicast. `signal_json` is a cJSON object
    (ownership transferred — printed then freed here). */
-static void send_signal_json(aether_voice_service_t *svc, cJSON *obj, const char *to_uhid, uint8_t pkt_type) {
+static void send_signal_json(aethermesh_voice_service_t *svc, cJSON *obj, const char *to_uhid, uint8_t pkt_type) {
     if (!obj || !to_uhid) { cJSON_Delete(obj); return; }
     char *body = cJSON_PrintUnformatted(obj);
     cJSON_Delete(obj);
     if (!body) return;
 
-    aether_mesh_packet_t *pkt = aether_packet_new();
+    aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
     if (!pkt) { free(body); return; }
     pkt->type = pkt_type;
-    aether_packet_set_source_uhid(pkt, svc->local_uhid);
-    aether_packet_set_destination_uhid(pkt, to_uhid);
-    pkt->ttl      = AETHER_DEFAULT_TTL;
+    aethermesh_packet_set_source_uhid(pkt, svc->local_uhid);
+    aethermesh_packet_set_destination_uhid(pkt, to_uhid);
+    pkt->ttl      = AETHERMESH_DEFAULT_TTL;
     pkt->priority = 32;
-    aether_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
+    aethermesh_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
     free(body);
 
     /* Unicast via routing cache; fall back to broadcast if no route is known. */
-    aether_route_entry_t *route = NULL;
-    if (aether_routing_find_cached(svc->routing, to_uhid, &route)) {
+    aethermesh_route_entry_t *route = NULL;
+    if (aethermesh_routing_find_cached(svc->routing, to_uhid, &route)) {
         svc->transport->vtable->send(svc->transport->handle, route->next_hop_uhid,
             NULL, 0); /* real hosts serialise + send pkt here */
-        aether_route_entry_free(route);
+        aethermesh_route_entry_free(route);
     }
     /* NOTE: actual byte-level send is wired by the host layer which serialises
-       the packet via aether_packet_serialize(). This reference impl shows the
+       the packet via aethermesh_packet_serialize(). This reference impl shows the
        signalling logic; transport binding is intentionally host-side. */
-    aether_packet_free(pkt);
+    aethermesh_packet_free(pkt);
 }
 
 // ─── Public API ───────────────────────────────────────────
 
-aether_voice_service_t *aether_voice_service_create(
-    aether_transport_t       *transport,
-    aether_routing_service_t *routing,
+aethermesh_voice_service_t *aethermesh_voice_service_create(
+    aethermesh_transport_t       *transport,
+    aethermesh_routing_service_t *routing,
     const char               *local_uhid
 ) {
     if (!transport || !routing || !local_uhid) return NULL;
-    aether_voice_service_t *svc = (aether_voice_service_t *)calloc(1, sizeof(aether_voice_service_t));
+    aethermesh_voice_service_t *svc = (aethermesh_voice_service_t *)calloc(1, sizeof(aethermesh_voice_service_t));
     if (!svc) return NULL;
     svc->transport  = transport;
     svc->routing    = routing;
@@ -270,7 +270,7 @@ aether_voice_service_t *aether_voice_service_create(
     return svc;
 }
 
-void aether_voice_service_destroy(aether_voice_service_t *svc) {
+void aethermesh_voice_service_destroy(aethermesh_voice_service_t *svc) {
     if (!svc) return;
     for (int i = 0; i < VOICE_MAX_CALLS; i++) {
         if (svc->calls[i].active) free_call(&svc->calls[i]);
@@ -279,26 +279,26 @@ void aether_voice_service_destroy(aether_voice_service_t *svc) {
     free(svc);
 }
 
-void aether_voice_set_incoming_cb(aether_voice_service_t *svc, aether_voice_incoming_cb cb, void *ud) {
+void aethermesh_voice_set_incoming_cb(aethermesh_voice_service_t *svc, aethermesh_voice_incoming_cb cb, void *ud) {
     if (!svc) return;
     svc->incoming_cb    = cb;
     svc->incoming_cb_ud = ud;
 }
 
-void aether_voice_set_state_changed_cb(aether_voice_service_t *svc, aether_voice_state_changed_cb cb, void *ud) {
+void aethermesh_voice_set_state_changed_cb(aethermesh_voice_service_t *svc, aethermesh_voice_state_changed_cb cb, void *ud) {
     if (!svc) return;
     svc->state_changed_cb    = cb;
     svc->state_changed_cb_ud = ud;
 }
 
-void aether_voice_set_frame_cb(aether_voice_service_t *svc, aether_voice_frame_cb cb, void *ud) {
+void aethermesh_voice_set_frame_cb(aethermesh_voice_service_t *svc, aethermesh_voice_frame_cb cb, void *ud) {
     if (!svc) return;
     svc->frame_cb    = cb;
     svc->frame_cb_ud = ud;
 }
 
-int aether_voice_send_offer(
-    aether_voice_service_t *svc,
+int aethermesh_voice_send_offer(
+    aethermesh_voice_service_t *svc,
     const char             *to_uhid,
     const char            **codecs,
     int                     codec_count,
@@ -312,7 +312,7 @@ int aether_voice_send_offer(
     gen_uuid_v4(rec->call_id);
     rec->remote_uhid = voice_str_dup(to_uhid);
     if (!rec->remote_uhid) return -1;
-    rec->state    = AETHER_VOICE_STATE_OUTGOING;
+    rec->state    = AETHERMESH_VOICE_STATE_OUTGOING;
     rec->next_seq = 0;
     rec->active   = true;
     memcpy(call_id_out, rec->call_id, 16);
@@ -329,15 +329,15 @@ int aether_voice_send_offer(
     }
     cJSON_AddItemToObject(obj, "codecs", arr);
     cJSON_AddNumberToObject(obj, "sample_rate_hz", sample_rate_hz);
-    send_signal_json(svc, obj, to_uhid, AETHER_PACKET_TYPE_VOICE_SIGNALING);
+    send_signal_json(svc, obj, to_uhid, AETHERMESH_PACKET_TYPE_VOICE_SIGNALING);
     return 0;
 }
 
-int aether_voice_accept_call(aether_voice_service_t *svc, const uint8_t call_id[16]) {
+int aethermesh_voice_accept_call(aethermesh_voice_service_t *svc, const uint8_t call_id[16]) {
     if (!svc) return -1;
     voice_call_record_t *rec = find_call(svc, call_id);
-    if (!rec || rec->state != AETHER_VOICE_STATE_INCOMING) return -1;
-    rec->state    = AETHER_VOICE_STATE_CONNECTED;
+    if (!rec || rec->state != AETHERMESH_VOICE_STATE_INCOMING) return -1;
+    rec->state    = AETHERMESH_VOICE_STATE_CONNECTED;
     rec->next_seq = 0;
 
     char id_str[37];
@@ -346,14 +346,14 @@ int aether_voice_accept_call(aether_voice_service_t *svc, const uint8_t call_id[
     cJSON_AddStringToObject(obj, "call_id", id_str);
     cJSON_AddStringToObject(obj, "from_uhid", svc->local_uhid);
     cJSON_AddStringToObject(obj, "signal_type", "accept");
-    send_signal_json(svc, obj, rec->remote_uhid, AETHER_PACKET_TYPE_VOICE_SIGNALING);
+    send_signal_json(svc, obj, rec->remote_uhid, AETHERMESH_PACKET_TYPE_VOICE_SIGNALING);
 
     if (svc->state_changed_cb)
-        svc->state_changed_cb(rec->call_id, AETHER_VOICE_STATE_CONNECTED, svc->state_changed_cb_ud);
+        svc->state_changed_cb(rec->call_id, AETHERMESH_VOICE_STATE_CONNECTED, svc->state_changed_cb_ud);
     return 0;
 }
 
-int aether_voice_hang_up(aether_voice_service_t *svc, const uint8_t call_id[16]) {
+int aethermesh_voice_hang_up(aethermesh_voice_service_t *svc, const uint8_t call_id[16]) {
     if (!svc) return -1;
     voice_call_record_t *rec = find_call(svc, call_id);
     if (!rec) return -1;
@@ -365,16 +365,16 @@ int aether_voice_hang_up(aether_voice_service_t *svc, const uint8_t call_id[16])
     cJSON_AddStringToObject(obj, "from_uhid", svc->local_uhid);
     cJSON_AddStringToObject(obj, "signal_type", "hangup");
     const char *remote = rec->remote_uhid;
-    send_signal_json(svc, obj, remote, AETHER_PACKET_TYPE_VOICE_SIGNALING);
+    send_signal_json(svc, obj, remote, AETHERMESH_PACKET_TYPE_VOICE_SIGNALING);
 
     if (svc->state_changed_cb)
-        svc->state_changed_cb(rec->call_id, AETHER_VOICE_STATE_ENDED, svc->state_changed_cb_ud);
+        svc->state_changed_cb(rec->call_id, AETHERMESH_VOICE_STATE_ENDED, svc->state_changed_cb_ud);
     free_call(rec);
     return 0;
 }
 
-int aether_voice_send_frame(
-    aether_voice_service_t *svc,
+int aethermesh_voice_send_frame(
+    aethermesh_voice_service_t *svc,
     const uint8_t          *call_id,
     const uint8_t          *audio,
     size_t                  audio_len,
@@ -382,7 +382,7 @@ int aether_voice_send_frame(
 ) {
     if (!svc || !call_id) return -1;
     voice_call_record_t *rec = find_call(svc, call_id);
-    if (!rec || rec->state != AETHER_VOICE_STATE_CONNECTED) return -1;
+    if (!rec || rec->state != AETHERMESH_VOICE_STATE_CONNECTED) return -1;
 
     uint32_t seq    = rec->next_seq++;
     int64_t  ts_ms  = voice_now_ms();
@@ -390,30 +390,30 @@ int aether_voice_send_frame(
     uint8_t *frame = build_voice_frame(call_id, seq, ts_ms, is_silence, audio, audio_len, &frame_len);
     if (!frame) return -1;
 
-    aether_mesh_packet_t *pkt = aether_packet_new();
+    aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
     if (!pkt) { free(frame); return -1; }
-    pkt->type = AETHER_PACKET_TYPE_VOICE_CALL;
-    aether_packet_set_source_uhid(pkt, svc->local_uhid);
-    aether_packet_set_destination_uhid(pkt, rec->remote_uhid);
-    pkt->ttl      = AETHER_DEFAULT_TTL;
+    pkt->type = AETHERMESH_PACKET_TYPE_VOICE_CALL;
+    aethermesh_packet_set_source_uhid(pkt, svc->local_uhid);
+    aethermesh_packet_set_destination_uhid(pkt, rec->remote_uhid);
+    pkt->ttl      = AETHERMESH_DEFAULT_TTL;
     pkt->priority = 64;
-    aether_packet_set_payload(pkt, frame, frame_len);
+    aethermesh_packet_set_payload(pkt, frame, frame_len);
     free(frame);
 
     /* Host wires unicast delivery; we just build the packet here. */
-    aether_route_entry_t *route = NULL;
-    if (aether_routing_find_cached(svc->routing, rec->remote_uhid, &route)) {
+    aethermesh_route_entry_t *route = NULL;
+    if (aethermesh_routing_find_cached(svc->routing, rec->remote_uhid, &route)) {
         /* Real send: host serialises and transmits via transport->vtable->send */
-        aether_route_entry_free(route);
+        aethermesh_route_entry_free(route);
     }
-    aether_packet_free(pkt);
+    aethermesh_packet_free(pkt);
     return 0;
 }
 
-int aether_voice_handle_packet(aether_voice_service_t *svc, const aether_packet_t *packet) {
+int aethermesh_voice_handle_packet(aethermesh_voice_service_t *svc, const aethermesh_packet_t *packet) {
     if (!svc || !packet) return -1;
 
-    if (packet->type == AETHER_PACKET_TYPE_VOICE_CALL) {
+    if (packet->type == AETHERMESH_PACKET_TYPE_VOICE_CALL) {
         /* Binary voice frame */
         if (!packet->payload || packet->payload_len < 29) return -1;
         uint8_t call_id[16];
@@ -430,7 +430,7 @@ int aether_voice_handle_packet(aether_voice_service_t *svc, const aether_packet_
         return 0;
     }
 
-    if (packet->type == AETHER_PACKET_TYPE_VOICE_SIGNALING) {
+    if (packet->type == AETHERMESH_PACKET_TYPE_VOICE_SIGNALING) {
         if (!packet->payload || packet->payload_len == 0) return -1;
         cJSON *obj = cJSON_ParseWithLength((const char *)packet->payload, packet->payload_len);
         if (!obj) return -1;
@@ -455,7 +455,7 @@ int aether_voice_handle_packet(aether_voice_service_t *svc, const aether_packet_
             if (rec) {
                 memcpy(rec->call_id, call_id, 16);
                 rec->remote_uhid = voice_str_dup(from);
-                rec->state  = AETHER_VOICE_STATE_INCOMING;
+                rec->state  = AETHERMESH_VOICE_STATE_INCOMING;
                 rec->active = true;
 
                 if (svc->incoming_cb) {
@@ -482,15 +482,15 @@ int aether_voice_handle_packet(aether_voice_service_t *svc, const aether_packet_
         } else if (strcmp(sig, "accept") == 0) {
             voice_call_record_t *rec = find_call(svc, call_id);
             if (rec) {
-                rec->state = AETHER_VOICE_STATE_CONNECTED;
+                rec->state = AETHERMESH_VOICE_STATE_CONNECTED;
                 if (svc->state_changed_cb)
-                    svc->state_changed_cb(call_id, AETHER_VOICE_STATE_CONNECTED, svc->state_changed_cb_ud);
+                    svc->state_changed_cb(call_id, AETHERMESH_VOICE_STATE_CONNECTED, svc->state_changed_cb_ud);
             }
         } else if (strcmp(sig, "hangup") == 0) {
             voice_call_record_t *rec = find_call(svc, call_id);
             if (rec) {
                 if (svc->state_changed_cb)
-                    svc->state_changed_cb(call_id, AETHER_VOICE_STATE_ENDED, svc->state_changed_cb_ud);
+                    svc->state_changed_cb(call_id, AETHERMESH_VOICE_STATE_ENDED, svc->state_changed_cb_ud);
                 free_call(rec);
             }
         }

@@ -9,7 +9,7 @@ pas**, et ne doit pas être induit en erreur par le marketing du README.
 
 Le document complémentaire est [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7
 (Modèle de sécurité). En cas de divergence entre les deux, l'implémentation dans
-`src/Aether.Security/` fait autorité.
+`src/AetherMesh.Security/` fait autorité.
 
 ---
 
@@ -61,13 +61,13 @@ de la chaîne symétrique du Double Ratchet (Signal §5.1, HMAC-SHA256 avec sép
 de domaine `0x01`/`0x02`). Un attaquant qui capture tous les paquets entre Alice et
 Bob ne récupère rien sans l'une de leurs clés de session.
 
-Vérifié par `tests/Aether.Security.Tests/SignalProtocolEncryptionTests.cs` et les
+Vérifié par `tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs` et les
 vecteurs cross-langage `fixtures/signal/expected/ratchet_step_basic.json`.
 
 ### 2.2. Falsification de messages
 
 Chaque paquet Wave-2 porte une signature Ed25519 sur le tampon canonique
-`BuildSignableData(packet)` (`src/Aether.Security/Services/PacketSigningService.cs`,
+`BuildSignableData(packet)` (`src/AetherMesh.Security/Services/PacketSigningService.cs`,
 PROTOCOL_SPEC §2.4). Les paquets falsifiés échouent à la vérification et sont rejetés
 à chaque saut connaissant la clé publique d'identité de la source. Les paquets Route
 Reply (RREP) sont signés par la destination revendiquée — les nœuds intermédiaires ne
@@ -87,14 +87,14 @@ privée Ed25519 de la destination.
   les attaques de pré-enregistrement où un adversaire plante un nonce chez un destinataire
   pour bloquer le premier paquet de l'expéditeur légitime.
 
-Compteurs : `aether.nonces.replayed`, `aether.timestamps.stale`.
+Compteurs : `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`.
 
 ### 2.4. Secret de transmission (compromission de clés passées)
 
 Le Double Ratchet dérive une nouvelle clé de chaîne d'envoi à chaque étape de rotation
 DH (KDF_RK, HKDF-SHA256 sur `salt = current_root_key`,
 `info = "aether-ratchet-rk-v1"`, bloc 64 octets divisé 32+32 en nouvelle clé racine
-et clé de chaîne — `src/Aether.Security/Services/SignalProtocolService.cs`).
+et clé de chaîne — `src/AetherMesh.Security/Services/SignalProtocolService.cs`).
 Un attaquant qui compromet l'état de session courant ne peut déchiffrer aucun message
 antérieur : chaque clé de message précédente a été dérivée et mise à zéro
 (`CryptographicOperations.ZeroMemory`) avant l'étape de ratchet suivante.
@@ -116,7 +116,7 @@ Chaque clé pré-key à usage unique (OPK) est consommée exactement une fois. L
 référence C# embarque un pool de 100 OPK avec émission FIFO, rechargement paresseux
 à chaque génération de bundle et consommation atomique protégée par verrou
 (`SignalProtocolService.TopUpOpkPoolNoLock`, vérifié par
-`tests/Aether.Core.Tests/PreKeyPoolTests.cs`). Une OPK est supprimée et remise à zéro
+`tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`). Une OPK est supprimée et remise à zéro
 dès que le répondeur la consomme lors du X3DH, de sorte qu'un message PreKey rejoué
 qui réutilise le même identifiant d'OPK ne peut établir une session.
 
@@ -227,7 +227,7 @@ l'horizon temporel pertinent.
 
 ### 3.5. Messagerie de groupe à grande échelle
 
-`Aether.Security` embarque une interface `IGroupKeyProvider`, mais le protocole
+`AetherMesh.Security` embarque une interface `IGroupKeyProvider`, mais le protocole
 complet Signal Sender Keys (la construction de messagerie de groupe asynchrone utilisée
 par Signal) **n'est pas** implémenté dans HEAD. Les hôtes qui ont besoin de messagerie
 de groupe aujourd'hui se rabattent sur N sessions par paires — ce qui fonctionne mais
@@ -322,7 +322,7 @@ d'eux se brise, la propriété de sécurité correspondante est perdue.
 **Atténuation :** l'UX hôte doit exposer un flux de comparaison du numéro de sécurité /
 de l'empreinte de clé publique avant de traiter un contact comme vérifié. Une surface
 d'API publique pour la dérivation du numéro de sécurité n'est pas encore embarquée dans
-`Aether.Security` ; suivi comme lacune.
+`AetherMesh.Security` ; suivi comme lacune.
 
 ### 5.2. Retard de rotation de la clé pré-signée
 

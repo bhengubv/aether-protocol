@@ -7,7 +7,7 @@ mod common;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use aether_protocol::{
+use aethermesh_protocol::{
     constants::{DEFAULT_TTL, ROUTE_EXPIRY_SECONDS},
     models::RouteEntry,
     protocol::PacketType,
@@ -31,7 +31,7 @@ async fn new_svc() -> (RoutingService, Arc<FakeMeshSender>, Arc<InMemoryRouteSto
         sender.clone(),
         store.clone(),
         Arc::new(AcceptAllRouteReplyVerifier),
-        Arc::new(aether_protocol::extensibility::NoopIncentiveProvider),
+        Arc::new(aethermesh_protocol::extensibility::NoopIncentiveProvider),
     );
     (svc, sender, store)
 }
@@ -158,7 +158,7 @@ async fn handle_rrep_rejects_when_verifier_fails() {
     struct Reject;
     #[async_trait::async_trait]
     impl RouteReplyVerifier for Reject {
-        async fn verify(&self, _: &aether_protocol::protocol::MeshPacket) -> bool {
+        async fn verify(&self, _: &aethermesh_protocol::protocol::MeshPacket) -> bool {
             false
         }
     }
@@ -168,7 +168,7 @@ async fn handle_rrep_rejects_when_verifier_fails() {
         sender.clone(),
         store.clone(),
         Arc::new(Reject),
-        Arc::new(aether_protocol::extensibility::NoopIncentiveProvider),
+        Arc::new(aethermesh_protocol::extensibility::NoopIncentiveProvider),
     );
     let rrep = new_rrep("carol", LOCAL, DEFAULT_TTL);
     svc.handle_route_reply(&mut rrep.clone()).await;

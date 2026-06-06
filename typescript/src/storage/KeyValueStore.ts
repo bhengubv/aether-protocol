@@ -13,7 +13,7 @@
  * {@link EncryptedKeyValueStore} wrapper composes with any of them.
  *
  * Mirrors the C# {@code IKeyValueStore} interface in
- * src/Aether.Storage/IKeyValueStore.cs.
+ * src/AetherMesh.Storage/IKeyValueStore.cs.
  *
  * SPDX-License-Identifier: MIT
  */

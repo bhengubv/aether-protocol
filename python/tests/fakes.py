@@ -7,9 +7,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from aether.models import PeerInfo
-from aether.protocol.mesh_packet import MeshPacket
-from aether.routing.sender import MeshSender
+from aethermesh.models import PeerInfo
+from aethermesh.protocol.mesh_packet import MeshPacket
+from aethermesh.routing.sender import MeshSender
 
 
 @dataclass

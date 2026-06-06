@@ -33,7 +33,7 @@ Phase 7 introduces 8 new packet types (27-34). All travel as standard `MeshPacke
 | 33 | `WatchChunkRequest` | Request a specific content chunk from a peer (StreamFromHost mode) | Downloader -> Seeder | 50-100 bytes |
 | 34 | `TorrentMetadata` | BitTorrent .torrent metadata broadcast to watch-together participants | Host -> All (broadcast) | 1-50 KB |
 
-All packet types are defined in `Aether.Protocol.PacketType` (open-source) and `TheGeekNetwork.Shared.Aether.Protocol.Models.PacketType` (private).
+All packet types are defined in `AetherMesh.Protocol.PacketType` (open-source) and `TheGeekNetwork.Shared.AetherMesh.Protocol.Models.PacketType` (private).
 
 ---
 
@@ -662,18 +662,18 @@ All 6 video feature flags are seeded as disabled. Enable them progressively in p
 
 | Flag Key | Display Name | Parent Dependency | What It Gates |
 |----------|-------------|-------------------|---------------|
-| `AETHER_VIDEO_CALL` | Video Calling | `AETHER_VOICE` | P2P video calls, codec negotiation, capability detection |
-| `AETHER_VIDEO_GROUP` | Group Video | `AETHER_VIDEO_CALL` | Multi-party video sessions, FullMesh/SFU topology |
-| `AETHER_SCREEN_SHARE` | Screen Sharing | `AETHER_VIDEO_CALL` | Screen capture frame sharing in calls |
-| `AETHER_WATCH_TOGETHER` | Watch Together | `AETHER_CONTENT_P2P` | Synchronized media playback sessions |
-| `AETHER_WATCH_REACTIONS` | Watch Reactions | `AETHER_WATCH_TOGETHER` | Emoji and voice reactions during sessions |
-| `AETHER_TORRENT_INGEST` | BitTorrent Ingest | `AETHER_CONTENT_P2P` | Accept torrent files for watch-together |
+| `AETHERMESH_VIDEO_CALL` | Video Calling | `AETHERMESH_VOICE` | P2P video calls, codec negotiation, capability detection |
+| `AETHERMESH_VIDEO_GROUP` | Group Video | `AETHERMESH_VIDEO_CALL` | Multi-party video sessions, FullMesh/SFU topology |
+| `AETHERMESH_SCREEN_SHARE` | Screen Sharing | `AETHERMESH_VIDEO_CALL` | Screen capture frame sharing in calls |
+| `AETHERMESH_WATCH_TOGETHER` | Watch Together | `AETHERMESH_CONTENT_P2P` | Synchronized media playback sessions |
+| `AETHERMESH_WATCH_REACTIONS` | Watch Reactions | `AETHERMESH_WATCH_TOGETHER` | Emoji and voice reactions during sessions |
+| `AETHERMESH_TORRENT_INGEST` | BitTorrent Ingest | `AETHERMESH_CONTENT_P2P` | Accept torrent files for watch-together |
 
-**Parent dependency** means the parent flag must be enabled before the child flag can be activated. For example, `AETHER_VIDEO_GROUP` requires `AETHER_VIDEO_CALL` which in turn requires `AETHER_VOICE`.
+**Parent dependency** means the parent flag must be enabled before the child flag can be activated. For example, `AETHERMESH_VIDEO_GROUP` requires `AETHERMESH_VIDEO_CALL` which in turn requires `AETHERMESH_VOICE`.
 
 ---
 
-## Database Schema (AetherAPI)
+## Database Schema (AetherMeshAPI)
 
 Migration `010_VideoWatchTogether.sql` creates 8 tables in PostgreSQL. All use `gen_random_uuid()` for primary keys.
 
@@ -826,7 +826,7 @@ Index: `chip_in_id`
 
 ## API Endpoints
 
-AetherAPI exposes 17 endpoints across two endpoint groups, all requiring `NodeAuth` authorization.
+AetherMeshAPI exposes 17 endpoints across two endpoint groups, all requiring `NodeAuth` authorization.
 
 ### Video Endpoints (`/api/aether/video`)
 
@@ -938,7 +938,7 @@ public enum VideoCodec
     AV1 = 3     // New codec
 }
 
-// aether-protocol/src/Aether.Streaming/Models/VideoModels.cs
+// aether-protocol/src/AetherMesh.Streaming/Models/VideoModels.cs
 public enum VideoCodec : byte
 {
     H264 = 0,
@@ -1014,7 +1014,7 @@ public class PriorityWeightedStrategy : IChunkSelectionStrategy
 
 ### Registering Video Services in DI
 
-All video services are registered in `AetherExtensions.AddAetherLink()`:
+All video services are registered in `AetherMeshExtensions.AddAetherMeshLink()`:
 
 ```csharp
 // Phase 7: Video
@@ -1027,7 +1027,7 @@ services.AddSingleton<IWatchTogetherService, WatchTogetherService>();
 To register a custom service, add it after the standard registrations:
 
 ```csharp
-services.AddAetherLink();
+services.AddAetherMeshLink();
 services.AddSingleton<IVideoCodecService, MyCustomCodecService>();
 ```
 
@@ -1090,7 +1090,7 @@ Optional dependencies (Signal Protocol, voice call service, jitter buffer) are i
 1. Check if `CollectedAmountZar >= TargetAmountZar` in the local `ChipInPool` object -- if true, manually transition to `Funded`
 2. If contributions were lost due to offline state, have participants re-send contributions when connectivity is restored
 3. Monitor `ChipInUpdated` events -- the state should transition to `Funded` immediately when the threshold is crossed
-4. If the issue persists, inspect the `chip_in_pools` and `chip_in_contributions` tables in the `aether_db` database
+4. If the issue persists, inspect the `chip_in_pools` and `chip_in_contributions` tables in the `aethermesh_db` database
 
 ---
 
@@ -1169,8 +1169,8 @@ if (node.HasCapability(NodeCapabilities.Video))
 | `VideoJitterBuffer.cs` | `Shared.Aether/Video/Services/` | Adaptive jitter buffer with keyframe-aware dropping |
 | `WatchTogetherService.cs` | `Shared.Aether/Video/Services/` | Watch-together with all three modes + ChipIn |
 | `SequentialFromPosition.cs` | `Shared.Aether/Content/Strategies/` | Chunk selection biased to playback position |
-| `010_VideoWatchTogether.sql` | `AetherAPI/Migrations/` | 8 PostgreSQL tables + 6 feature flags |
-| `VideoEndpoints.cs` | `AetherAPI/Endpoints/` | 8 video API endpoints |
-| `WatchEndpoints.cs` | `AetherAPI/Endpoints/` | 9 watch-together API endpoints |
-| `AetherExtensions.cs` | `Shared.Aether/DependencyInjection/` | DI registration for all video services |
+| `010_VideoWatchTogether.sql` | `AetherMeshAPI/Migrations/` | 8 PostgreSQL tables + 6 feature flags |
+| `VideoEndpoints.cs` | `AetherMeshAPI/Endpoints/` | 8 video API endpoints |
+| `WatchEndpoints.cs` | `AetherMeshAPI/Endpoints/` | 9 watch-together API endpoints |
+| `AetherMeshExtensions.cs` | `Shared.Aether/DependencyInjection/` | DI registration for all video services |
 | `ProtocolConstants.cs` | `Shared.Aether/Protocol/Constants/` | Video-related configuration constants |

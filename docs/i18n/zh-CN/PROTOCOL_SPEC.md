@@ -8,10 +8,10 @@
 > **读者提示。** 本文档的早期草稿早于 8 语言线路格式对齐以及全系列移植至 X25519 + Signal Double Ratchet 之前。截至 2026-05-05，§2（数据包格式）、§3（路由）、§4（密钥交换）、§9（DTN）描述已实现的协议；§10（视频流）和 §11（一起观看）描述目标协议——它们已完成线路定义和夹具测试，但编解码器 / BitTorrent / ChipIn 流水线尚未绑定到脚手架。在本文档与实现存在分歧的地方，C# 参考实现具有权威性。
 >
 > - 规范线路字节：`fixtures/expected/*.bin`（10 个命名用例）
-> - 参考序列化器：`src/Aether.Core/Protocol/PacketSerializer.cs`
-> - 参考 Signal 栈：`src/Aether.Security/Services/SignalProtocolService.cs`
-> - 参考路由：`src/Aether.Core/Routing/RoutingService.cs`
-> - 参考 DTN：`src/Aether.Core/Dtn/DtnService.cs`
+> - 参考序列化器：`src/AetherMesh.Core/Protocol/PacketSerializer.cs`
+> - 参考 Signal 栈：`src/AetherMesh.Security/Services/SignalProtocolService.cs`
+> - 参考路由：`src/AetherMesh.Core/Routing/RoutingService.cs`
+> - 参考 DTN：`src/AetherMesh.Core/Dtn/DtnService.cs`
 > - 跨语言线路互操作证明：`fixtures/README.md`
 > - 跨语言 Signal 互操作证明：`fixtures/signal/README.md`
 
@@ -41,7 +41,7 @@ Aether 是一种去中心化网状网络协议，专为网络连接间歇或完�
 
 ## 2. 数据包格式
 
-> 已于 2026-05-05 对照 `src/Aether.Core/Protocol/PacketSerializer.cs` 及 `fixtures/expected/` 下的 10 个夹具用例进行对齐。
+> 已于 2026-05-05 对照 `src/AetherMesh.Core/Protocol/PacketSerializer.cs` 及 `fixtures/expected/` 下的 10 个夹具用例进行对齐。
 
 ### 2.1 MeshPacket 线路布局
 
@@ -136,7 +136,7 @@ PacketNonce (8 bytes)
 
 > 注意与 §2.1 线路布局的刻意差异：可签名数据对 `Type`、`Length`、`Ttl` 和 `Priority` 使用 **4 字节 int32**，而线路分别使用 1 字节 / 2 字节 / 4 字节 / 1 字节。这是有意为之——可签名形式跨语言可移植，使用固定宽度字段；线路形式为 BLE PDU 经济性而设计得紧凑。实现必须在编码可签名字节前将 `Priority` 截断到 `[0,255]`，否则接收方（在线路字节中看到 0..255）会推导出不同的可签名缓冲区，导致验证失败。
 
-参考实现位于 `src/Aether.Security/Services/PacketSigningService.cs::BuildSignableData`，移植时必须阅读。
+参考实现位于 `src/AetherMesh.Security/Services/PacketSigningService.cs::BuildSignableData`，移植时必须阅读。
 
 ### 2.5 数据包类型
 
@@ -267,7 +267,7 @@ Aether 使用基于按需距离向量路由（AODV）的反应式路由协议，
 
 ## 4. 密钥交换
 
-> 已于 2026-05-05 对照 `src/Aether.Security/Services/SignalProtocolService.cs` 的 C# 参考实现及 `fixtures/signal/` 下的跨语言夹具语料库进行对齐。C# 参考实现通过 X25519 提供完整的 X3DH + Double Ratchet（Signal §3 + §5）。Go、Python、TypeScript、Rust、Swift 和 Kotlin 已移植到相同的信封，在 X3DH 和 KDF_RK 夹具级别字节等效。C 语言仅提供 X25519 + KDF_RK + 对称棘轮原语——足以通过夹具验证器，但尚无完整的会话机制。在本节与代码存在分歧的地方，代码具有权威性；请在 `OPEN_ISSUES.md` 中提交问题。
+> 已于 2026-05-05 对照 `src/AetherMesh.Security/Services/SignalProtocolService.cs` 的 C# 参考实现及 `fixtures/signal/` 下的跨语言夹具语料库进行对齐。C# 参考实现通过 X25519 提供完整的 X3DH + Double Ratchet（Signal §3 + §5）。Go、Python、TypeScript、Rust、Swift 和 Kotlin 已移植到相同的信封，在 X3DH 和 KDF_RK 夹具级别字节等效。C 语言仅提供 X25519 + KDF_RK + 对称棘轮原语——足以通过夹具验证器，但尚无完整的会话机制。在本节与代码存在分歧的地方，代码具有权威性；请在 `OPEN_ISSUES.md` 中提交问题。
 
 Aether 实现 **X3DH**（扩展三次 Diffie-Hellman，Signal §3）用于异步会话建立，随后使用 **Signal Double Ratchet**（Signal §5）实现持续的前向保密和后妥协安全。所有会话密码学均基于 Curve25519：**X25519**（RFC 7748）用于 ECDH，**Ed25519**（RFC 8032）用于签名。
 
@@ -303,11 +303,11 @@ PreKeyBundle {
 }
 ```
 
-参考：`Aether.Security.Models.PreKeyBundle`。线路形状契约在所有 8 种语言中相同。
+参考：`AetherMesh.Security.Models.PreKeyBundle`。线路形状契约在所有 8 种语言中相同。
 
 **一次性预密钥（OPK）池。** 每个响应方维护包含 `OpkPoolSize`（默认 100，与 Signal 发布的指导一致）个 X25519 OPK 的池。包生成时从 FIFO 队列中弹出下一个未使用的 id，然后将池补充到目标大小。每个 OPK 只被消耗一次：响应方在第一个引用其 id 的 PreKey 消息时删除并清零私钥的一半。在 `_preKeyLock` 下，争用同一 OPK id 的并发发起方中只有一个 `EstablishResponderSession` 能成功；失败者抛出 `CryptographicException`。
 
-参考：`SignalProtocolService.TopUpOpkPoolNoLock`（行 494-518），`SignalProtocolService.EstablishResponderSession`（行 636-718）。池语义由 `tests/Aether.Core.Tests/PreKeyPoolTests.cs` 验证。
+参考：`SignalProtocolService.TopUpOpkPoolNoLock`（行 494-518），`SignalProtocolService.EstablishResponderSession`（行 636-718）。池语义由 `tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs` 验证。
 
 **已签名预密钥（SPK）轮换。** SPK 在首次调用包时懒惰生成，并在后续调用中复用，以防止在 X3DH 运行前并发获取包的发起方互相使彼此的包失效。定期 SPK 轮换（Signal §3.3 建议每周）是显式操作，而非包生成的副作用。
 
@@ -442,7 +442,7 @@ EncryptedPayload {
 }
 ```
 
-参考：`Aether.Security.Models.EncryptedPayload`（`SecurityModels.cs` 行 55-66）。`InitiatorEphemeralKeyX25519` 字段是预 Double-Ratchet 线路信封的向后兼容别名，在 PreKey 消息中等于 `SenderEphemeralKeyX25519`；新的消费者应忽略它。
+参考：`AetherMesh.Security.Models.EncryptedPayload`（`SecurityModels.cs` 行 55-66）。`InitiatorEphemeralKeyX25519` 字段是预 Double-Ratchet 线路信封的向后兼容别名，在 PreKey 消息中等于 `SenderEphemeralKeyX25519`；新的消费者应忽略它。
 
 AES-GCM 参数：256 位密钥，96 位随机数（`AesNonceSize = 12`），128 位标签（`AesTagSize = 16`），标签拼接到密文后。消息密钥在 AES-GCM 加密/解密后立即通过 `finally` 块清零。
 
@@ -457,7 +457,7 @@ AES-GCM 参数：256 位密钥，96 位随机数（`AesNonceSize = 12`），128 
 | Rust | 完整 | 完整（§5） | 池，默认 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift | 完整 | 完整（§5） | 池，默认 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin | 完整 | 完整（§5） | 池，默认 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C | 仅原语——`aether_x25519_*`、`aether_signal_kdf_rk` | 未实现 | — | 仅 kdf_rk_basic |
+| C | 仅原语——`aethermesh_x25519_*`、`aethermesh_signal_kdf_rk` | 未实现 | — | 仅 kdf_rk_basic |
 
 所有 7 种具备会话能力的语言（C# + Go + TypeScript + Python + Kotlin + Swift + Rust）均包含带懒惰补充和锁保护消耗的 100 密钥 FIFO OPK 池，与 C# 参考契约匹配。C 语言仅提供原语；完整会话机制在 `OPEN_ISSUES.md` 条目 11 中追踪。
 
@@ -504,7 +504,7 @@ Aether 与传输层无关。任何满足 `ITransportService` 契约的物理通�
 2. **有效载荷大小：** 若有效载荷大小不超过 `BleMaxPayloadBytes`（1,024 字节），则优先选择 BLE 以节省功耗。更大的有效载荷优先选择 Wi-Fi Direct。
 3. **功耗权重：** 在可用传输中，常规流量优先选择较低的 `PowerCostRelative` 值。高优先级数据包（SOS、语音）可能覆盖此偏好。
 4. **对等体连通性：** 如果传输已与目标对等体建立活跃连接（`IsConnected` 返回 true），则优先选择它以避免连接建立开销。
-5. **回退：** 若没有本地传输可达目标，则通过 AetherAPI 将数据包排队进行服务器中继。
+5. **回退：** 若没有本地传输可达目标，则通过 AetherMeshAPI 将数据包排队进行服务器中继。
 
 ### 5.3 参考传输
 
@@ -679,7 +679,7 @@ SOS 机制是一种双路径紧急洪泛，专为用户处于危险且需要同�
    ```
 3. **双路径分发：** SOS 同时通过以下方式发送：
    - **网格洪泛：** 通过所有可用传输广播给所有已连接对等体。
-   - **API 调用：** 发送到 AetherAPI 进行服务器端分发并桥接到 PanikAPI（短信/邮件分发）。
+   - **API 调用：** 发送到 AetherMeshAPI 进行服务器端分发并桥接到 PanikAPI（短信/邮件分发）。
 4. 两条路径相互独立地触发即忘。若 API 调用失败，网格洪泛独立继续。
 
 ### 8.3 中继行为
@@ -735,7 +735,7 @@ DtnBundle {
 
 1. **创建：** 发送方使用加密有效载荷（通过与接收方的 Signal 会话加密）创建包。`Status = Pending`，`CopyCount = 1`。
 2. **立即投递尝试：** 发送方首先尝试直接网格路由（RREQ/RREP）。若路由存在，包立即投递，`Status` 转换为 `Delivered`。
-3. **服务器中继尝试：** 若网格路由失败，发送方尝试通过 AetherAPI 中继。若服务器能到达接收方（或将消息排队），投递成功。
+3. **服务器中继尝试：** 若网格路由失败，发送方尝试通过 AetherMeshAPI 中继。若服务器能到达接收方（或将消息排队），投递成功。
 4. **存储转发：** 若网格和服务器中继均失败，包留在本地存储（`Pending` 状态）等待下次投递扫描。
 
 ### 9.3 投递扫描
@@ -788,7 +788,7 @@ DtnBundle {
    }
    ```
 3. 收到回执后，发送方从其存储中删除包并触发 `BundleDelivered` 事件。
-4. 回执也同步到 AetherAPI 用于分析。
+4. 回执也同步到 AetherMeshAPI 用于分析。
 
 ### 9.7 包过期
 
@@ -809,7 +809,7 @@ DtnBundle {
 
 ## 10. 视频流
 
-> **截至 2026-05-05 的状态——设计 + C# 脚手架，无正式上线的编解码器流水线。** 数据包类型 `StreamAnnounce`（11）、`StreamSegment`（12）、`StreamSubscribe`（13）、`StreamUnsubscribe`（14）、`VideoCall`（27）、`VideoSignaling`（28）、`VideoFrame`（31）、`ScreenShare`（32）均已完成线路定义，并通过跨语言夹具语料库的往返测试。C# `Aether.Streaming` 模块提供接口、模型和骨架服务（`StreamingService`、`VideoCallService`、`WatchTogetherService`），这些服务连接路由/DI 接缝和单播片段扇出——但没有实际的视频编解码器绑定。其他 7 种语言仅有线路类型。`docs/adaptive-secure-streaming-spec.md` 的前瞻设计文档是目标架构。将以下文字视为这些服务**将**实现内容的规范；生产就绪差距请参见 `OPEN_ISSUES.md`。
+> **截至 2026-05-05 的状态——设计 + C# 脚手架，无正式上线的编解码器流水线。** 数据包类型 `StreamAnnounce`（11）、`StreamSegment`（12）、`StreamSubscribe`（13）、`StreamUnsubscribe`（14）、`VideoCall`（27）、`VideoSignaling`（28）、`VideoFrame`（31）、`ScreenShare`（32）均已完成线路定义，并通过跨语言夹具语料库的往返测试。C# `AetherMesh.Streaming` 模块提供接口、模型和骨架服务（`StreamingService`、`VideoCallService`、`WatchTogetherService`），这些服务连接路由/DI 接缝和单播片段扇出——但没有实际的视频编解码器绑定。其他 7 种语言仅有线路类型。`docs/adaptive-secure-streaming-spec.md` 的前瞻设计文档是目标架构。将以下文字视为这些服务**将**实现内容的规范；生产就绪差距请参见 `OPEN_ISSUES.md`。
 
 Aether 支持三种视频模式：点对点视频通话、群组视频（无限参与者，动态拓扑）和直播。所有视频帧均使用 Signal 协议加密，并用 Ed25519 签名。
 
@@ -912,7 +912,7 @@ Aether 支持三种视频模式：点对点视频通话、群组视频（无限�
 
 ## 11. 一起观看
 
-> **截至 2026-05-05 的状态——设计 + C# 脚手架，成熟度与 §10 相同。** 数据包类型 `WatchSync`（29）、`WatchReaction`（30）、`WatchChunkRequest`（33）、`TorrentMetadata`（34）均已完成线路定义和夹具测试。`Aether.Streaming.WatchTogetherService` 提供协调骨架（会话状态、通过 `IMeshSender` 传播同步命令、RTT 补偿辅助工具）；BitTorrent 摄取、ChipIn SDPKT 结算和从对等体获取块在任何语言中均未实现。将以下文字视为目标协议；`docs/adaptive-secure-streaming-spec.md` 的前瞻设计文档以更多细节涵盖相同内容。
+> **截至 2026-05-05 的状态——设计 + C# 脚手架，成熟度与 §10 相同。** 数据包类型 `WatchSync`（29）、`WatchReaction`（30）、`WatchChunkRequest`（33）、`TorrentMetadata`（34）均已完成线路定义和夹具测试。`AetherMesh.Streaming.WatchTogetherService` 提供协调骨架（会话状态、通过 `IMeshSender` 传播同步命令、RTT 补偿辅助工具）；BitTorrent 摄取、ChipIn SDPKT 结算和从对等体获取块在任何语言中均未实现。将以下文字视为目标协议；`docs/adaptive-secure-streaming-spec.md` 的前瞻设计文档以更多细节涵盖相同内容。
 
 一起观看（Watch Together）使一组网格对等体能够同步媒体播放。主持人对播放拥有独占控制权（播放、暂停、跳转、速度）。同步命令包含用于 RTT 补偿的挂钟时间戳。
 
@@ -1036,12 +1036,12 @@ ChipIn 使群组成员能够集资（以 ZAR 计价，通过 LedgerAPI 经 SDPKT
 
 | 开关 | 父级 | 描述 |
 |------|--------|-------------|
-| AETHER_VIDEO_CALL | AETHER_VOICE | P2P 和群组视频通话 |
-| AETHER_VIDEO_GROUP | AETHER_VIDEO_CALL | 多方视频会话 |
-| AETHER_SCREEN_SHARE | AETHER_VIDEO_CALL | 视频通话中的屏幕共享 |
-| AETHER_WATCH_TOGETHER | AETHER_CONTENT_P2P | 同步媒体播放 |
-| AETHER_WATCH_REACTIONS | AETHER_WATCH_TOGETHER | 表情和语音反应 |
-| AETHER_TORRENT_INGEST | AETHER_CONTENT_P2P | BitTorrent 文件接受用于网格分发 |
+| AETHERMESH_VIDEO_CALL | AETHERMESH_VOICE | P2P 和群组视频通话 |
+| AETHERMESH_VIDEO_GROUP | AETHERMESH_VIDEO_CALL | 多方视频会话 |
+| AETHERMESH_SCREEN_SHARE | AETHERMESH_VIDEO_CALL | 视频通话中的屏幕共享 |
+| AETHERMESH_WATCH_TOGETHER | AETHERMESH_CONTENT_P2P | 同步媒体播放 |
+| AETHERMESH_WATCH_REACTIONS | AETHERMESH_WATCH_TOGETHER | 表情和语音反应 |
+| AETHERMESH_TORRENT_INGEST | AETHERMESH_CONTENT_P2P | BitTorrent 文件接受用于网格分发 |
 
 功能开关具有父级依赖：子级开关只有在其父级也启用时才能启用。这允许渐进式部署。
 
@@ -1068,7 +1068,7 @@ ChipIn 使群组成员能够集资（以 ZAR 计价，通过 LedgerAPI 经 SDPKT
 | BleAdvertiseIntervalMs | 1000 |
 | BleUuidRotationSeconds | 900 |
 | BleScanJitterMaxMs | 2000 |
-| AetherBleServiceUuid | A3E7-1001-0001-0000-000000000000 |
+| AetherMeshBleServiceUuid | A3E7-1001-0001-0000-000000000000 |
 
 ### 安全
 | 常量 | 值 |

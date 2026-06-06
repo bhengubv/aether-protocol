@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "aether/transport.h"
-#include "aether/predictive_selector.h"
+#include "aethermesh/transport.h"
+#include "aethermesh/predictive_selector.h"
 
 // ── RUN macro ─────────────────────────────────────────────────────────────────
 
@@ -26,8 +26,8 @@ static bool fake_send(void *h, const char *p, const uint8_t *d, size_t n)
 
 /** Make an available transport (send != NULL). */
 static void make_transport(
-    aether_transport_vtable_t *vtable,
-    aether_transport_t        *transport,
+    aethermesh_transport_vtable_t *vtable,
+    aethermesh_transport_t        *transport,
     const char                *name,
     int64_t                    bps,
     int32_t                    power,
@@ -49,58 +49,58 @@ static void make_transport(
 
 static void kalman_converges_on_steady_state(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt; aether_transport_t t;
+    aethermesh_transport_vtable_t vt; aethermesh_transport_t t;
     make_transport(&vt, &t, "t", 500000, 1, true);
-    assert(aether_predictive_selector_register(&sel, &t, 200.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t, 200.0));
 
     for (int i = 0; i < 50; i++)
-        aether_predictive_selector_observe(&sel, &t, 100, true, 1000);
+        aethermesh_predictive_selector_observe(&sel, &t, 100, true, 1000);
 
     double rtt, drift, variance;
-    assert(aether_predictive_selector_kalman_state(&sel, &t, &rtt, &drift, &variance));
+    assert(aethermesh_predictive_selector_kalman_state(&sel, &t, &rtt, &drift, &variance));
     /* After 50 identical observations the estimate must be within 5 ms of 100. */
     assert(fabs(rtt - 100.0) < 5.0);
 }
 
 static void kalman_variance_decreases_with_observations(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt; aether_transport_t t;
+    aethermesh_transport_vtable_t vt; aethermesh_transport_t t;
     make_transport(&vt, &t, "t", 500000, 1, true);
-    assert(aether_predictive_selector_register(&sel, &t, 200.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t, 200.0));
 
     /* Record initial variance (before any observations). */
     double rtt0, drift0, var0;
-    assert(aether_predictive_selector_kalman_state(&sel, &t, &rtt0, &drift0, &var0));
+    assert(aethermesh_predictive_selector_kalman_state(&sel, &t, &rtt0, &drift0, &var0));
 
     for (int i = 0; i < 10; i++)
-        aether_predictive_selector_observe(&sel, &t, 200, true, 1000);
+        aethermesh_predictive_selector_observe(&sel, &t, 200, true, 1000);
 
     double rtt1, drift1, var1;
-    assert(aether_predictive_selector_kalman_state(&sel, &t, &rtt1, &drift1, &var1));
+    assert(aethermesh_predictive_selector_kalman_state(&sel, &t, &rtt1, &drift1, &var1));
     /* Posterior variance must be strictly smaller than the prior. */
     assert(var1 < var0);
 }
 
 static void kalman_detects_positive_drift_for_rising_rtt(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt; aether_transport_t t;
+    aethermesh_transport_vtable_t vt; aethermesh_transport_t t;
     make_transport(&vt, &t, "t", 500000, 1, true);
-    assert(aether_predictive_selector_register(&sel, &t, 100.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t, 100.0));
 
     for (int i = 0; i < 10; i++)
-        aether_predictive_selector_observe(&sel, &t, (uint64_t)(100 + (i + 1) * 15), true, 1000);
+        aethermesh_predictive_selector_observe(&sel, &t, (uint64_t)(100 + (i + 1) * 15), true, 1000);
 
     double rtt, drift, variance;
-    assert(aether_predictive_selector_kalman_state(&sel, &t, &rtt, &drift, &variance));
+    assert(aethermesh_predictive_selector_kalman_state(&sel, &t, &rtt, &drift, &variance));
     /* Rising RTT must produce positive drift estimate. */
     assert(drift > 0.0);
 }
@@ -109,24 +109,24 @@ static void kalman_detects_positive_drift_for_rising_rtt(void)
 
 static void register_and_rank_fast_transport_first(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt_fast, vt_slow;
-    aether_transport_t t_fast, t_slow;
+    aethermesh_transport_vtable_t vt_fast, vt_slow;
+    aethermesh_transport_t t_fast, t_slow;
     make_transport(&vt_fast, &t_fast, "fast", 1000000L, 1, true);
     make_transport(&vt_slow, &t_slow, "slow", 10000L,   10, true);
 
-    assert(aether_predictive_selector_register(&sel, &t_fast, 50.0));
-    assert(aether_predictive_selector_register(&sel, &t_slow, 150.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t_fast, 50.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t_slow, 150.0));
 
     /* Feed a few good observations to the fast transport to confirm ranking. */
     for (int i = 0; i < 5; i++)
-        aether_predictive_selector_observe(&sel, &t_fast, 50, true, 1000);
+        aethermesh_predictive_selector_observe(&sel, &t_fast, 50, true, 1000);
 
-    aether_predictive_rank_entry_t ranked[AETHER_PREDICTIVE_MAX_TRANSPORTS];
+    aethermesh_predictive_rank_entry_t ranked[AETHERMESH_PREDICTIVE_MAX_TRANSPORTS];
     size_t count = 0;
-    aether_predictive_selector_rank(&sel, 100, ranked, &count);
+    aethermesh_predictive_selector_rank(&sel, 100, ranked, &count);
 
     assert(count == 2);
     assert(ranked[0].transport == &t_fast);
@@ -135,20 +135,20 @@ static void register_and_rank_fast_transport_first(void)
 
 static void unavailable_transport_excluded_from_rank(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt_avail, vt_unavail;
-    aether_transport_t t_avail, t_unavail;
+    aethermesh_transport_vtable_t vt_avail, vt_unavail;
+    aethermesh_transport_t t_avail, t_unavail;
     make_transport(&vt_avail,   &t_avail,   "avail",   500000L, 1, true);
     make_transport(&vt_unavail, &t_unavail, "unavail", 500000L, 1, false);
 
-    assert(aether_predictive_selector_register(&sel, &t_avail,   100.0));
-    assert(aether_predictive_selector_register(&sel, &t_unavail, 100.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t_avail,   100.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t_unavail, 100.0));
 
-    aether_predictive_rank_entry_t ranked[AETHER_PREDICTIVE_MAX_TRANSPORTS];
+    aethermesh_predictive_rank_entry_t ranked[AETHERMESH_PREDICTIVE_MAX_TRANSPORTS];
     size_t count = 0;
-    aether_predictive_selector_rank(&sel, 0, ranked, &count);
+    aethermesh_predictive_selector_rank(&sel, 0, ranked, &count);
 
     assert(count == 1);
     assert(ranked[0].transport == &t_avail);
@@ -156,55 +156,55 @@ static void unavailable_transport_excluded_from_rank(void)
 
 static void unregister_removes_transport(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt; aether_transport_t t;
+    aethermesh_transport_vtable_t vt; aethermesh_transport_t t;
     make_transport(&vt, &t, "t", 500000, 1, true);
-    assert(aether_predictive_selector_register(&sel, &t, 100.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t, 100.0));
 
-    aether_predictive_selector_unregister(&sel, &t);
+    aethermesh_predictive_selector_unregister(&sel, &t);
 
-    aether_predictive_rank_entry_t ranked[AETHER_PREDICTIVE_MAX_TRANSPORTS];
+    aethermesh_predictive_rank_entry_t ranked[AETHERMESH_PREDICTIVE_MAX_TRANSPORTS];
     size_t count = 0;
-    aether_predictive_selector_rank(&sel, 0, ranked, &count);
+    aethermesh_predictive_selector_rank(&sel, 0, ranked, &count);
     assert(count == 0);
 }
 
 static void select_best_returns_null_when_empty(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
-    assert(aether_predictive_selector_best(&sel, 100) == NULL);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
+    assert(aethermesh_predictive_selector_best(&sel, 100) == NULL);
 }
 
 static void duplicate_register_is_noop(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt; aether_transport_t t;
+    aethermesh_transport_vtable_t vt; aethermesh_transport_t t;
     make_transport(&vt, &t, "t", 500000, 1, true);
-    assert(aether_predictive_selector_register(&sel, &t, 100.0));
-    assert(!aether_predictive_selector_register(&sel, &t, 200.0)); /* duplicate: false */
+    assert(aethermesh_predictive_selector_register(&sel, &t, 100.0));
+    assert(!aethermesh_predictive_selector_register(&sel, &t, 200.0)); /* duplicate: false */
 
-    aether_predictive_rank_entry_t ranked[AETHER_PREDICTIVE_MAX_TRANSPORTS];
+    aethermesh_predictive_rank_entry_t ranked[AETHERMESH_PREDICTIVE_MAX_TRANSPORTS];
     size_t count = 0;
-    aether_predictive_selector_rank(&sel, 0, ranked, &count);
+    aethermesh_predictive_selector_rank(&sel, 0, ranked, &count);
     assert(count == 1);
 }
 
 static void kalman_state_initial_values_are_correct(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt; aether_transport_t t;
+    aethermesh_transport_vtable_t vt; aethermesh_transport_t t;
     make_transport(&vt, &t, "t", 500000, 1, true);
-    assert(aether_predictive_selector_register(&sel, &t, 123.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t, 123.0));
 
     double rtt, drift, variance;
-    assert(aether_predictive_selector_kalman_state(&sel, &t, &rtt, &drift, &variance));
+    assert(aethermesh_predictive_selector_kalman_state(&sel, &t, &rtt, &drift, &variance));
     assert(fabs(rtt   - 123.0) < 1e-9);
     assert(fabs(drift - 0.0)   < 1e-9);
     assert(variance > 0.0);
@@ -212,52 +212,52 @@ static void kalman_state_initial_values_are_correct(void)
 
 static void kalman_state_unregistered_transport_returns_false(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt; aether_transport_t t;
+    aethermesh_transport_vtable_t vt; aethermesh_transport_t t;
     make_transport(&vt, &t, "t", 500000, 1, true);
     /* Never register — state query must return false. */
 
     double rtt, drift, variance;
-    assert(!aether_predictive_selector_kalman_state(&sel, &t, &rtt, &drift, &variance));
+    assert(!aethermesh_predictive_selector_kalman_state(&sel, &t, &rtt, &drift, &variance));
 }
 
 static void rank_returns_positive_score(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt; aether_transport_t t;
+    aethermesh_transport_vtable_t vt; aethermesh_transport_t t;
     make_transport(&vt, &t, "t", 500000, 1, true);
-    assert(aether_predictive_selector_register(&sel, &t, 100.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t, 100.0));
 
-    aether_predictive_rank_entry_t ranked[AETHER_PREDICTIVE_MAX_TRANSPORTS];
+    aethermesh_predictive_rank_entry_t ranked[AETHERMESH_PREDICTIVE_MAX_TRANSPORTS];
     size_t count = 0;
-    aether_predictive_selector_rank(&sel, 0, ranked, &count);
+    aethermesh_predictive_selector_rank(&sel, 0, ranked, &count);
     assert(count == 1);
     assert(ranked[0].score > 0.0);
 }
 
 static void score_improves_after_good_observations(void)
 {
-    aether_predictive_selector_t sel;
-    aether_predictive_selector_init(&sel);
+    aethermesh_predictive_selector_t sel;
+    aethermesh_predictive_selector_init(&sel);
 
-    aether_transport_vtable_t vt; aether_transport_t t;
+    aethermesh_transport_vtable_t vt; aethermesh_transport_t t;
     make_transport(&vt, &t, "t", 500000, 1, true);
-    assert(aether_predictive_selector_register(&sel, &t, 200.0));
+    assert(aethermesh_predictive_selector_register(&sel, &t, 200.0));
 
-    aether_predictive_rank_entry_t ranked[AETHER_PREDICTIVE_MAX_TRANSPORTS];
+    aethermesh_predictive_rank_entry_t ranked[AETHERMESH_PREDICTIVE_MAX_TRANSPORTS];
     size_t count = 0;
-    aether_predictive_selector_rank(&sel, 0, ranked, &count);
+    aethermesh_predictive_selector_rank(&sel, 0, ranked, &count);
     assert(count == 1);
     double score_before = ranked[0].score;
 
     for (int i = 0; i < 10; i++)
-        aether_predictive_selector_observe(&sel, &t, 20, true, 5000);
+        aethermesh_predictive_selector_observe(&sel, &t, 20, true, 5000);
 
-    aether_predictive_selector_rank(&sel, 0, ranked, &count);
+    aethermesh_predictive_selector_rank(&sel, 0, ranked, &count);
     assert(count == 1);
     double score_after = ranked[0].score;
 

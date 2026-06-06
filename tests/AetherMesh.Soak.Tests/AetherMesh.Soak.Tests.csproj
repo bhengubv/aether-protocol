@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Soak runs allocate aggressively; lock to Release-friendly GC defaults
+         so the leak/growth assertions don't flap on Server vs Workstation GC.
+         (xunit's runner respects whatever the consuming `dotnet test`
+         configuration sets — Release is the default invocation per README.) -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <Description>Long-running soak tests for the Aether crypto + messaging stack — surface memory leaks, key-zeroing failures, session-state corruption, and resource exhaustion that point-in-time unit tests miss.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/AetherMesh.Core/AetherMesh.Core.csproj" />
+    <ProjectReference Include="../../src/AetherMesh.Security/AetherMesh.Security.csproj" />
+    <ProjectReference Include="../../src/AetherMesh.Messaging/AetherMesh.Messaging.csproj" />
+    <ProjectReference Include="../../src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -9,33 +9,33 @@
 ## Install
 
 ```bash
-dotnet add package Aether.Core
-dotnet add package Aether.Security
-dotnet add package Aether.Messaging
-dotnet add package Aether.DependencyInjection
+dotnet add package AetherMesh.Core
+dotnet add package AetherMesh.Security
+dotnet add package AetherMesh.Messaging
+dotnet add package AetherMesh.DependencyInjection
 ```
 
 ## Register
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
-using Aether.DependencyInjection;
+using AetherMesh.DependencyInjection;
 
 var services = new ServiceCollection();
-services.AddAetherCore();
-services.AddAetherSecurity();
-services.AddAetherMessaging();
+services.AddAetherMeshCore();
+services.AddAetherMeshSecurity();
+services.AddAetherMeshMessaging();
 
 var provider = services.BuildServiceProvider();
 ```
 
-See <xref:Aether.DependencyInjection> in the API reference for the full extension-method
+See <xref:AetherMesh.DependencyInjection> in the API reference for the full extension-method
 surface.
 
 ## Send a packet
 
-The high-level entry point is `IMessagingService` in `Aether.Messaging`. Look up the
-interface at <xref:Aether.Messaging.IMessagingService> for the current method signatures —
+The high-level entry point is `IMessagingService` in `AetherMesh.Messaging`. Look up the
+interface at <xref:AetherMesh.Messaging.IMessagingService> for the current method signatures —
 the XML doc comments are the authoritative description.
 
 ## Where next

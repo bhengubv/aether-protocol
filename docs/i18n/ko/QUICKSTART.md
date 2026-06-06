@@ -15,20 +15,20 @@ Aether 라이브러리는 아직 NuGet에 게시되지 않았습니다. 현재�
 
 ```xml
 <ItemGroup>
-  <ProjectReference Include="../aether-protocol/src/Aether.DependencyInjection/Aether.DependencyInjection.csproj" />
-  <ProjectReference Include="../aether-protocol/src/Aether.Storage/Aether.Storage.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherMesh.Storage/AetherMesh.Storage.csproj" />
 </ItemGroup>
 ```
 
-`Aether.DependencyInjection`은 `Aether.Core`,
-`Aether.Security`, `Aether.Messaging`, `Aether.Transport`, `Aether.Streaming`,
-`Aether.Voice`, `Aether.Content`를 전이적으로 가져옵니다 — 메시지 스택에 필요한 모든 것입니다. `Aether.Storage`는 디스크 기반 영속성을 원하는 경우에만 필요한 별도 의존성입니다 (섹션 6 참조).
+`AetherMesh.DependencyInjection`은 `AetherMesh.Core`,
+`AetherMesh.Security`, `AetherMesh.Messaging`, `AetherMesh.Transport`, `AetherMesh.Streaming`,
+`AetherMesh.Voice`, `AetherMesh.Content`를 전이적으로 가져옵니다 — 메시지 스택에 필요한 모든 것입니다. `AetherMesh.Storage`는 디스크 기반 영속성을 원하는 경우에만 필요한 별도 의존성입니다 (섹션 6 참조).
 
 패키지가 NuGet에 게시되면 다음과 같이 됩니다:
 
 ```bash
-dotnet add package Aether.DependencyInjection
-dotnet add package Aether.Storage   # 선택 사항, 영속성을 위해
+dotnet add package AetherMesh.DependencyInjection
+dotnet add package AetherMesh.Storage   # 선택 사항, 영속성을 위해
 ```
 
 패키지 API는 프로젝트 참조 방식과 NuGet 방식 사이에서 변경되지 않습니다.
@@ -37,12 +37,12 @@ dotnet add package Aether.Storage   # 선택 사항, 영속성을 위해
 
 ## 2. 연동 — 정식 전체 스택 등록
 
-DI 확장 `AddAetherProtocol(...)`은 플루언트 빌더를 반환합니다. 각
+DI 확장 `AddAetherMeshProtocol(...)`은 플루언트 빌더를 반환합니다. 각
 기능은 옵트인 방식입니다: 라우팅만 필요한 호스트는 `.AddRouting()`만
 체인하면 됩니다. 아래는 일반적인 채택자가 원하는 전체 스택입니다.
 
 ```csharp
-using Aether.DependencyInjection;
+using AetherMesh.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -52,7 +52,7 @@ const string LocalUhid = "aether:alice:01";
 
 builder.Services.AddHealthChecks();          // host-side prerequisite for AddHealthChecks() below
 builder.Services
-    .AddAetherProtocol(opts => opts.LocalUhid = LocalUhid)
+    .AddAetherMeshProtocol(opts => opts.LocalUhid = LocalUhid)
     .AddSignalProtocol()                     // X3DH + Double Ratchet (registers ISignalProtocolService, IPacketSigningService)
     .AddRouting()                            // AODV-style RREQ/RREP + InMemoryRouteStore
     .AddDtn()                                // 72h store-and-forward custody + InMemoryDtnBundleStore
@@ -65,14 +65,14 @@ using var app = builder.Build();
 await app.StartAsync();
 ```
 
-`AddAetherProtocol`과 체인된 모든 메서드는 동일한 `IServiceCollection`에서
+`AddAetherMeshProtocol`과 체인된 모든 메서드는 동일한 `IServiceCollection`에서
 멱등성이 있습니다 — 두 번 호출해도 이중 등록이 되지 않습니다. 순서가 중요한
 곳은 한 곳입니다: `AddSignalProtocol()` 또는 `AddRouting()` 중 하나라도
 먼저 호출되지 않으면 `AddMessaging()`은 `InvalidOperationException`을 발생시킵니다.
 
 `InProcessTransport`는 테스트 및 데모용입니다. 프로덕션에서는 물리적 계층
 (BLE GATT, Wi-Fi Direct, NearLink, LoRa, …)을 위해
-`Aether.Transport.Abstractions.ITransportService`를 구현하고, 패킷을 해당 계층으로
+`AetherMesh.Transport.Abstractions.ITransportService`를 구현하고, 패킷을 해당 계층으로
 연결하는 `IMeshSender`를 등록합니다. 그 위에서 라우팅/DTN/메시지 서비스가 변경 없이 실행됩니다.
 
 ---
@@ -84,7 +84,7 @@ X3DH는 비대칭입니다. **개시자**는 **응답자**가 게시한 번들�
 자동으로 수립됩니다.
 
 ```csharp
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -127,8 +127,8 @@ Console.WriteLine(Encoding.UTF8.GetString(plaintext)); // "The mesh is alive."
 서명하고, `MessagingService.SendAsync`가 라우팅, 재시도, DTN 폴백을 처리하도록 합니다:
 
 ```csharp
-using Aether.Messaging;
-using Aether.Messaging.Models;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
 
 var messaging = serviceProvider.GetRequiredService<IMessagingService>();
 
@@ -153,14 +153,14 @@ var handed = await messaging.SendAsync(outgoing, Encoding.UTF8.GetBytes("hi from
 
 ## 5. 50줄로 구현하는 양방향 왕복
 
-실행 가능한 스크립트입니다. `Program.cs`에 복사하고, `Aether.Security.csproj`에
-`<ProjectReference>`를 추가한 후 (`Aether.Core`와 BCL 암호화를 가져옵니다),
+실행 가능한 스크립트입니다. `Program.cs`에 복사하고, `AetherMesh.Security.csproj`에
+`<ProjectReference>`를 추가한 후 (`AetherMesh.Core`와 BCL 암호화를 가져옵니다),
 `dotnet run`을 실행하십시오.
 
 ```csharp
 using System.Text;
-using Aether.Security.Models;
-using Aether.Security.Services;
+using AetherMesh.Security.Models;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -205,7 +205,7 @@ Alice got: "ack"
 더 풍부한 종단 간 데모를 위해 번들된 콘솔을 실행하십시오:
 
 ```bash
-dotnet run --project samples/Aether.Demo.Console
+dotnet run --project samples/AetherMesh.Demo.Console
 ```
 
 DTN 보관 단계 (데모의 9단계)는 프로덕션 연동의 정석 패턴입니다:
@@ -220,13 +220,13 @@ DTN 보관 단계 (데모의 9단계)는 프로덕션 연동의 정석 패턴입
 (이전 세션 복호화 불가), OPK 풀 손실 (새 개시자의 응답자 X3DH가 실패하기 시작),
 Double Ratchet 상태 손실 (전달 비밀성은 유지되나 메시지 순서가 깨짐).
 
-`Aether.Storage.FileSystemKeyValueStore`는 최소한의 디스크 기반
+`AetherMesh.Storage.FileSystemKeyValueStore`는 최소한의 디스크 기반
 `IKeyValueStore`입니다 (항목당 파일 하나, 원자적 임시 파일 이름 변경). `KeyValue*Store`
 어댑터를 통해 연결하십시오:
 
 ```csharp
-using Aether.Storage;
-using Aether.Security.Services;
+using AetherMesh.Storage;
+using AetherMesh.Security.Services;
 
 var kv = new FileSystemKeyValueStore(
     rootDirectory: Path.Combine(AppContext.BaseDirectory, "aether-state"),
@@ -249,7 +249,7 @@ var preKeys = new KeyValuePreKeyStore(kv);
 `.AddRouting()` / `.AddDtn()` / `.AddMessaging()`을 체인하기 전에
 DI 컨테이너에 기본값이 아닌 `IRouteStore`, `IDtnBundleStore`, `IMessageStore`를
 등록할 수도 있습니다 — 빌더는 `TryAdd*`를 사용하고 컨테이너에 먼저 넣은 것을
-존중합니다. `Aether.Storage`의 `KeyValueRouteStore`, `KeyValueDtnBundleStore`,
+존중합니다. `AetherMesh.Storage`의 `KeyValueRouteStore`, `KeyValueDtnBundleStore`,
 `KeyValueMessageStore` 어댑터는 모든 `IKeyValueStore`에 대해 해당 슬롯을 커버합니다.
 
 ---
@@ -263,33 +263,33 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 builder.Services.AddOpenTelemetry()
-    .WithMetrics(m => m.AddMeter("Aether.Protocol"))
-    .WithTracing(t => t.AddSource("Aether.Protocol"));
+    .WithMetrics(m => m.AddMeter("AetherMesh.Protocol"))
+    .WithTracing(t => t.AddSource("AetherMesh.Protocol"));
 ```
 
 제공되는 항목:
 
-- **카운터**: `aether.messages.encrypted`, `aether.messages.decrypted`,
-  `aether.signatures.validated`, `aether.signatures.rejected`,
-  `aether.nonces.replayed`, `aether.timestamps.stale`,
-  `aether.sessions.established`, `aether.ratchet.dh_steps`,
-  `aether.route.requests_emitted`, `aether.route.replies_received`,
-  `aether.route.cache_hits`, `aether.dtn.bundles_accepted`,
-  `aether.dtn.bundles_delivered`, `aether.dtn.bundles_expired`,
-  `aether.sos.broadcasts`, `aether.sos.rebroadcasts_suppressed`,
-  `aether.messaging.messages_sent`, `aether.messaging.messages_queued`,
-  `aether.messaging.dtn_fallback`.
-- **히스토그램** (ms): `aether.encrypt.latency`, `aether.decrypt.latency`,
-  `aether.route.lookup_latency`, `aether.sign.verify_latency`.
+- **카운터**: `aethermesh.messages.encrypted`, `aethermesh.messages.decrypted`,
+  `aethermesh.signatures.validated`, `aethermesh.signatures.rejected`,
+  `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`,
+  `aethermesh.sessions.established`, `aethermesh.ratchet.dh_steps`,
+  `aethermesh.route.requests_emitted`, `aethermesh.route.replies_received`,
+  `aethermesh.route.cache_hits`, `aethermesh.dtn.bundles_accepted`,
+  `aethermesh.dtn.bundles_delivered`, `aethermesh.dtn.bundles_expired`,
+  `aethermesh.sos.broadcasts`, `aethermesh.sos.rebroadcasts_suppressed`,
+  `aethermesh.messaging.messages_sent`, `aethermesh.messaging.messages_queued`,
+  `aethermesh.messaging.dtn_fallback`.
+- **히스토그램** (ms): `aethermesh.encrypt.latency`, `aethermesh.decrypt.latency`,
+  `aethermesh.route.lookup_latency`, `aethermesh.sign.verify_latency`.
 - **PII가 삭제된 UHID 태그가 있는 활동**:
-  `Aether.Encrypt`, `Aether.Decrypt`, `Aether.DhRatchet.Step`,
-  `Aether.Sign.Packet`, `Aether.Verify.Packet`, 라우팅 및 DTN 스팬 포함.
+  `AetherMesh.Encrypt`, `AetherMesh.Decrypt`, `AetherMesh.DhRatchet.Step`,
+  `AetherMesh.Sign.Packet`, `AetherMesh.Verify.Packet`, 라우팅 및 DTN 스팬 포함.
 
 리스너가 연결되지 않은 경우 핫 패스에서 아무것도 할당하지 않습니다 — 카운터 `Add`는
 휘발성 읽기로 저하되고 `StartActivity`는 `null`을 반환합니다.
 
 전체 계측 목록과 PII 계약은
-`src/Aether.Core/Diagnostics/AetherTelemetry.cs`에 있습니다.
+`src/AetherMesh.Core/Diagnostics/AetherMeshTelemetry.cs`에 있습니다.
 
 ---
 
@@ -305,7 +305,7 @@ builder.Services.AddOpenTelemetry()
 | `aether-signal`             | 사용 가능한 OPK + 활성 세션 수                               | OPK 하한 → `MinAvailableOpks` (기본 10) 미만 시 비정상; 세션 상한 → 1,000 초과 시 저하 |
 | `aether-messaging-outbox`   | 대기 중인 발신함 깊이 + 샘플 간 증가량                        | < 100 → ≥ 100 → ≥ 100이면서 증가 중                             |
 
-`AetherOptions.Routing`, `Dtn`, `Signal`, `Messaging` 속성으로 조정하십시오. 호스트는
+`AetherMeshOptions.Routing`, `Dtn`, `Signal`, `Messaging` 속성으로 조정하십시오. 호스트는
 `MapHealthChecks(...)`에서 등록이 보이려면 Aether 빌더의 `.AddHealthChecks()` 전에
 `services.AddHealthChecks()`를 호출해야 합니다.
 
@@ -320,7 +320,7 @@ builder.Services.AddOpenTelemetry()
 - **`OPEN_ISSUES.md`** — 알려진 제한 사항, 추적된 로드맵 항목,
   C 언어 세션 메커니즘 격차.
 - **`SECURITY.md`** — 책임 있는 공개 정책.
-- **`samples/Aether.Demo.Console/Program.cs`** — 실행 가능한 9단계 종단 간
+- **`samples/AetherMesh.Demo.Console/Program.cs`** — 실행 가능한 9단계 종단 간
   워크스루. 9단계 (MessagingService + DTN)가 프로덕션 연동 패턴입니다.
 - **`fixtures/signal/`** — 언어 간 테스트 벡터. Aether를 다른 언어로 포팅하는 경우,
   구현체가 일치해야 하는 바이트 고정 출력입니다.

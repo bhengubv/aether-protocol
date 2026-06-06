@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 //! Capability handshake — Hello / HelloAck protocol-version + capability
-//! negotiation. Mirror of `Aether.Core.Handshake.HandshakeService` from the
+//! negotiation. Mirror of `AetherMesh.Core.Handshake.HandshakeService` from the
 //! C# reference implementation.
 //!
 //! Two peers exchange a Hello (and a HelloAck reply) carrying their

@@ -11,9 +11,9 @@ import time
 import unittest
 import uuid
 
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.voice.service import VoiceCallService, VoiceCallState, _pack_voice_frame
-from aether.voice.group_service import GroupVoiceCallService, _pack_group_frame
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.voice.service import VoiceCallService, VoiceCallState, _pack_voice_frame
+from aethermesh.voice.group_service import GroupVoiceCallService, _pack_group_frame
 
 from tests.fakes import FakeMeshSender
 

@@ -6,7 +6,7 @@
 //! pre-key state live alongside the protocol code in
 //! [`crate::security::session_store`] and [`crate::security::prekey_store`].
 //!
-//! Mirrors `Aether.Storage.IKeyValueStore` and friends from the C# reference,
+//! Mirrors `AetherMesh.Storage.IKeyValueStore` and friends from the C# reference,
 //! including the encryption-at-rest wrapper layout.
 
 pub mod encrypted_kv;

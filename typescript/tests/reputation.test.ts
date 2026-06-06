@@ -2,7 +2,7 @@
  * Unit tests for NodeReputationService.
  *
  * Mirrors the C# NodeReputationServiceTests scenarios in
- * tests/Aether.Core.Tests/NodeReputationServiceTests.cs.
+ * tests/AetherMesh.Core.Tests/NodeReputationServiceTests.cs.
  *
  * Run with: tsx --test typescript/tests/reputation.test.ts
  *

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AetherMesh.Benchmarks</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <!-- BenchmarkDotNet auto-spawns a Release-mode child process; running
+         under Debug only emits a warning, but we lock to Release here so the
+         intent matches the README and CI scripts. -->
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <Description>BenchmarkDotNet harness for the Aether crypto, serializer, routing, and chunk-distribution hot paths.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/AetherMesh.Core/AetherMesh.Core.csproj" />
+    <ProjectReference Include="../../src/AetherMesh.Security/AetherMesh.Security.csproj" />
+    <ProjectReference Include="../../src/AetherMesh.Messaging/AetherMesh.Messaging.csproj" />
+    <ProjectReference Include="../../src/AetherMesh.Content/AetherMesh.Content.csproj" />
+    <ProjectReference Include="../../src/AetherMesh.Transport/AetherMesh.Transport.csproj" />
+  </ItemGroup>
+
+</Project>

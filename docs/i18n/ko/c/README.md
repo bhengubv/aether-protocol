@@ -134,43 +134,43 @@ ctest --output-on-failure
 
 int main(void) {
     // Create a packet
-    aether_mesh_packet_t *packet = aether_packet_new();
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
     if (!packet) return 1;
 
     // Set fields
-    aether_packet_set_source_uhid(packet, "node-alice");
-    aether_packet_set_destination_uhid(packet, "node-bob");
-    aether_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
+    aethermesh_packet_set_source_uhid(packet, "node-alice");
+    aethermesh_packet_set_destination_uhid(packet, "node-bob");
+    aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
 
     // Generate and sign
-    uint8_t private_key[AETHER_ED25519_PRIVATE_KEY_SIZE];
-    uint8_t public_key[AETHER_ED25519_PUBLIC_KEY_SIZE];
-    aether_ed25519_generate_keypair(private_key, public_key);
+    uint8_t private_key[AETHERMESH_ED25519_PRIVATE_KEY_SIZE];
+    uint8_t public_key[AETHERMESH_ED25519_PUBLIC_KEY_SIZE];
+    aethermesh_ed25519_generate_keypair(private_key, public_key);
 
     size_t signable_len = 0;
-    uint8_t *signable = aether_packet_get_signable_data(packet, &signable_len);
+    uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
     if (signable) {
-        uint8_t signature[AETHER_ED25519_SIGNATURE_SIZE];
-        aether_ed25519_sign(private_key, signable, signable_len, signature);
-        aether_packet_set_signature(packet, signature, AETHER_ED25519_SIGNATURE_SIZE);
+        uint8_t signature[AETHERMESH_ED25519_SIGNATURE_SIZE];
+        aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
+        aethermesh_packet_set_signature(packet, signature, AETHERMESH_ED25519_SIGNATURE_SIZE);
         free(signable);
     }
 
     // Serialize
     uint8_t buffer[4096];
-    int size = aether_packet_serialize(packet, buffer, sizeof(buffer));
+    int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
     if (size > 0) {
         printf("Packet serialized: %d bytes\n", size);
     }
 
     // Deserialize
-    aether_mesh_packet_t *received = aether_packet_deserialize(buffer, size);
+    aethermesh_mesh_packet_t *received = aethermesh_packet_deserialize(buffer, size);
     if (received) {
         printf("Received from: %s\n", received->source_uhid);
-        aether_packet_free(received);
+        aethermesh_packet_free(received);
     }
 
-    aether_packet_free(packet);
+    aethermesh_packet_free(packet);
     return 0;
 }
 ```
@@ -180,60 +180,60 @@ int main(void) {
 ### 프로토콜
 
 #### 패킷 관리
-- `aether_mesh_packet_t *aether_packet_new(void)` — 새 패킷 생성
-- `void aether_packet_free(aether_mesh_packet_t *packet)` — 패킷 해제
-- `aether_mesh_packet_t *aether_packet_clone(const aether_mesh_packet_t *packet)` — 패킷 복제
+- `aethermesh_mesh_packet_t *aethermesh_packet_new(void)` — 새 패킷 생성
+- `void aethermesh_packet_free(aethermesh_mesh_packet_t *packet)` — 패킷 해제
+- `aethermesh_mesh_packet_t *aethermesh_packet_clone(const aethermesh_mesh_packet_t *packet)` — 패킷 복제
 
 #### 직렬화
-- `int aether_packet_serialize(const aether_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — 와이어 포맷으로 직렬화
-- `aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data, size_t data_len)` — 와이어 포맷에서 역직렬화
-- `size_t aether_packet_estimate_size(const aether_mesh_packet_t *packet)` — 와이어 크기 추정
+- `int aethermesh_packet_serialize(const aethermesh_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — 와이어 포맷으로 직렬화
+- `aethermesh_mesh_packet_t *aethermesh_packet_deserialize(const uint8_t *data, size_t data_len)` — 와이어 포맷에서 역직렬화
+- `size_t aethermesh_packet_estimate_size(const aethermesh_mesh_packet_t *packet)` — 와이어 크기 추정
 
 #### 패킷 필드
-- `bool aether_packet_set_source_uhid(aether_mesh_packet_t *packet, const char *uhid)` — 출발지 설정
-- `bool aether_packet_set_destination_uhid(aether_mesh_packet_t *packet, const char *uhid)` — 목적지 설정
-- `bool aether_packet_set_payload(aether_mesh_packet_t *packet, const uint8_t *data, size_t len)` — 페이로드 설정
-- `bool aether_packet_set_signature(aether_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — 서명 설정
+- `bool aethermesh_packet_set_source_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — 출발지 설정
+- `bool aethermesh_packet_set_destination_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — 목적지 설정
+- `bool aethermesh_packet_set_payload(aethermesh_mesh_packet_t *packet, const uint8_t *data, size_t len)` — 페이로드 설정
+- `bool aethermesh_packet_set_signature(aethermesh_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — 서명 설정
 
 #### 유효성 검사
-- `bool aether_packet_is_expired(const aether_mesh_packet_t *packet, int max_age_seconds)` — 만료 여부 확인
-- `bool aether_packet_can_forward(const aether_mesh_packet_t *packet)` — TTL > 0 여부 확인
+- `bool aethermesh_packet_is_expired(const aethermesh_mesh_packet_t *packet, int max_age_seconds)` — 만료 여부 확인
+- `bool aethermesh_packet_can_forward(const aethermesh_mesh_packet_t *packet)` — TTL > 0 여부 확인
 
 #### 서명 데이터
-- `uint8_t *aether_packet_get_signable_data(const aether_mesh_packet_t *packet, size_t *out_len)` — 결정론적 서명 가능 바이트 가져오기 (호출자가 해제해야 함)
+- `uint8_t *aethermesh_packet_get_signable_data(const aethermesh_mesh_packet_t *packet, size_t *out_len)` — 결정론적 서명 가능 바이트 가져오기 (호출자가 해제해야 함)
 
 ### 보안
 
 #### Ed25519
-- `bool aether_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — 32+32 바이트 키 생성
-- `bool aether_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — 서명 (64 바이트 생성)
-- `bool aether_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — 검증
+- `bool aethermesh_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — 32+32 바이트 키 생성
+- `bool aethermesh_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — 서명 (64 바이트 생성)
+- `bool aethermesh_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — 검증
 
 #### AES-256-GCM
-- `bool aether_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — 암호화 (nonce가 NULL이면 자동 생성)
-- `bool aether_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — 복호화
+- `bool aethermesh_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — 암호화 (nonce가 NULL이면 자동 생성)
+- `bool aethermesh_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — 복호화
 
 #### HMAC 및 해시
-- `bool aether_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 바이트)
-- `bool aether_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 바이트)
-- `bool aether_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
+- `bool aethermesh_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 바이트)
+- `bool aethermesh_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 바이트)
+- `bool aethermesh_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
 
 #### 유틸리티
-- `void aether_zeroize(void *mem, size_t len)` — 상수 시간 메모리 초기화
-- `bool aether_random_bytes(uint8_t *out, size_t len)` — 암호학적으로 안전한 난수 바이트
+- `void aethermesh_zeroize(void *mem, size_t len)` — 상수 시간 메모리 초기화
+- `bool aethermesh_random_bytes(uint8_t *out, size_t len)` — 암호학적으로 안전한 난수 바이트
 
 ### 전송
 
 #### 공통 함수
-- `bool aether_transport_send(aether_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — 데이터 전송
-- `bool aether_transport_is_connected(aether_transport_t *transport, const char *peer_uhid)` — 연결 상태 확인
-- `void aether_transport_set_on_data_received(aether_transport_t *transport, aether_transport_on_data_received callback, void *user_data)` — 콜백 등록
-- `void aether_transport_destroy(aether_transport_t *transport)` — 정리
+- `bool aethermesh_transport_send(aethermesh_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — 데이터 전송
+- `bool aethermesh_transport_is_connected(aethermesh_transport_t *transport, const char *peer_uhid)` — 연결 상태 확인
+- `void aethermesh_transport_set_on_data_received(aethermesh_transport_t *transport, aethermesh_transport_on_data_received callback, void *user_data)` — 콜백 등록
+- `void aethermesh_transport_destroy(aethermesh_transport_t *transport)` — 정리
 
 #### 인프로세스 전송
-- `aether_transport_t *aether_inprocess_transport_new(void)` — 공유 인프로세스 전송 생성
-- `bool aether_inprocess_transport_register_node(aether_transport_t *transport, const char *uhid)` — 노드 등록
-- `bool aether_inprocess_transport_unregister_node(aether_transport_t *transport, const char *uhid)` — 노드 등록 해제
+- `aethermesh_transport_t *aethermesh_inprocess_transport_new(void)` — 공유 인프로세스 전송 생성
+- `bool aethermesh_inprocess_transport_register_node(aethermesh_transport_t *transport, const char *uhid)` — 노드 등록
+- `bool aethermesh_inprocess_transport_unregister_node(aethermesh_transport_t *transport, const char *uhid)` — 노드 등록 해제
 
 ## 와이어 포맷 호환성
 
@@ -294,7 +294,7 @@ int main(void) {
 
 ### 메모리 사용량
 - 최소 패킷: ~52 바이트
-- 최대 패킷: 65KB (`AETHER_MAX_PAYLOAD_LEN`을 통해 구성 가능)
+- 최대 패킷: 65KB (`AETHERMESH_MAX_PAYLOAD_LEN`을 통해 구성 가능)
 - 256 노드 피어 테이블: ~32KB
 - 메모리 내 단일 메시 패킷: ~8KB (최대 필드의 최악 경우)
 
@@ -331,8 +331,8 @@ ctest --output-on-failure --verbose
 ## Aether 에코시스템과의 통합
 
 이 C 라이브러리는 다음과 통합되도록 설계되었습니다:
-- **AetherAPI** (C#) — 서버 측 메시 릴레이 및 분석
-- **Aether.Core** (C#) — 참조 구현 (상호 운용 가능한 와이어 포맷)
+- **AetherMeshAPI** (C#) — 서버 측 메시 릴레이 및 분석
+- **AetherMesh.Core** (C#) — 참조 구현 (상호 운용 가능한 와이어 포맷)
 - **Meshtastic** — 오픈소스 메시 라디오 펌웨어
 - **esp-idf** — Espressif IoT 개발 프레임워크
 - 커스텀 임베디드 애플리케이션
@@ -355,7 +355,7 @@ SPDX-License-Identifier: MIT
 ## 참고 자료
 
 - 프로토콜 명세: `/Users/admin/Code/Dev/aether-protocol/docs/PROTOCOL_SPEC.md`
-- C# 참조: `/Users/admin/Code/Dev/aether-protocol/src/Aether.Core/`
+- C# 참조: `/Users/admin/Code/Dev/aether-protocol/src/AetherMesh.Core/`
 - libsodium: https://libsodium.org/
 - RFC 5869 (HKDF): https://tools.ietf.org/html/rfc5869
 - RFC 3561 (AODV): https://tools.ietf.org/html/rfc3561

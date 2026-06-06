@@ -3,4 +3,4 @@
  * SPDX-License-Identifier: MIT
  */
 
-export { AetherTag } from "./AetherTag.js";
+export { AetherMeshTag } from "./AetherMeshTag.js";

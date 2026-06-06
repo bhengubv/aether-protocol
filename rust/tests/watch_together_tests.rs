@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-use aether_protocol::{
+use aethermesh_protocol::{
     extensibility::NoopIncentiveProvider,
     protocol::{MeshPacket, PacketType},
     routing::{verifier::AcceptAllRouteReplyVerifier, InMemoryRouteStore, RoutingService},

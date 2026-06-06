@@ -55,7 +55,7 @@ export function isRouteExpired(route: RouteEntry, now: Date = new Date()): boole
 /**
  * Aether node representation
  */
-export interface AetherNode {
+export interface AetherMeshNode {
   uhid: string;
   publicKey: Uint8Array;
   capabilities: number; // Bitfield (see PROTOCOL_SPEC Section 2.5)

@@ -4,10 +4,10 @@
 
 | File / Area | Owner |
 |---|---|
-| AetherMedia.slnx / aether-protocol.slnx | ONE agent only |
+| AetherMeshMedia.slnx / aether-protocol.slnx | ONE agent only |
 | Directory.Build.props | ONE agent only |
-| src/Aether.Core/Constants/ProtocolConstants.cs | ONE agent only |
-| src/Aether.Core/Protocol/MeshPacket.cs | ONE agent only |
+| src/AetherMesh.Core/Constants/ProtocolConstants.cs | ONE agent only |
+| src/AetherMesh.Core/Protocol/MeshPacket.cs | ONE agent only |
 | Any *.sln or *.slnx | ONE agent only |
 
 ## Safe: non-overlapping language tracks

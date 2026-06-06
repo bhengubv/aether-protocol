@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 import XCTest
-@testable import AetherProtocol
+@testable import AetherMeshProtocol
 
 final class SecurityTests: XCTestCase {
     func testEd25519KeyGeneration() {

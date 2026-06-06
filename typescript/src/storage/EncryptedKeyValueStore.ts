@@ -24,7 +24,7 @@
  * callers).
  *
  * Mirrors the C# {@code EncryptedKeyValueStore} in
- * src/Aether.Storage/EncryptedKeyValueStore.cs.
+ * src/AetherMesh.Storage/EncryptedKeyValueStore.cs.
  *
  * SPDX-License-Identifier: MIT
  */

@@ -217,7 +217,7 @@ interface OneTimePreKey {
  * empties under steady load.
  *
  * Mirrors the C# {@code PreKeyState} layout in
- * src/Aether.Security/Services/SignalProtocolService.cs.
+ * src/AetherMesh.Security/Services/SignalProtocolService.cs.
  */
 interface PreKeyState {
   /**

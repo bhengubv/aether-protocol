@@ -155,7 +155,7 @@ export function verifyPacket(
  * (5 minutes) so we don't blanket-clear recent legitimate nonces.
  *
  * Mirrors the C# `PacketSigningService._seenNonces` design at
- * src/Aether.Security/Services/PacketSigningService.cs.
+ * src/AetherMesh.Security/Services/PacketSigningService.cs.
  */
 export class PacketDeduplicator {
   /** Composite key "senderUhid:hex(nonce)" -> ms epoch when first seen. */
@@ -229,7 +229,7 @@ export class PacketDeduplicator {
  * verification with optional reputation signalling.
  *
  * Mirrors the C# `PacketSigningService` at
- * src/Aether.Security/Services/PacketSigningService.cs — specifically the
+ * src/AetherMesh.Security/Services/PacketSigningService.cs — specifically the
  * two hooks added in Item 21:
  *
  *   - `reputation?.RecordReplayAttemptAsync(packet.SourceUhid)` when the

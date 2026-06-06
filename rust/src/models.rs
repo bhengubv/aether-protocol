@@ -115,7 +115,7 @@ impl RouteEntry {
 
 /// An Aether mesh network node
 #[derive(Debug, Clone)]
-pub struct AetherNode {
+pub struct AetherMeshNode {
     pub uhid: String,
     pub identity_public_key: Vec<u8>,
     pub identity_private_key: Vec<u8>,
@@ -124,9 +124,9 @@ pub struct AetherNode {
     pub routes: Vec<RouteEntry>,
 }
 
-impl AetherNode {
+impl AetherMeshNode {
     pub fn new(uhid: String, identity_public_key: Vec<u8>, identity_private_key: Vec<u8>) -> Self {
-        AetherNode {
+        AetherMeshNode {
             uhid,
             identity_public_key,
             identity_private_key,

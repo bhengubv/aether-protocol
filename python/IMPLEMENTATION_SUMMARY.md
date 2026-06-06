@@ -59,7 +59,7 @@ A complete, wire-compatible Python implementation of the Aether mesh networking 
   - Presence, voice, streaming: timing parameters
 
 - **models.py** (57 lines): Data structures
-  - `AetherNode`: Local node with keys, peers, routing table
+  - `AetherMeshNode`: Local node with keys, peers, routing table
   - `PeerInfo`: Peer metadata with reliability scoring
   - `RouteEntry`: Routing table entries with expiry
 
@@ -70,7 +70,7 @@ A complete, wire-compatible Python implementation of the Aether mesh networking 
 Comprehensive demonstration with colorful ANSI output showing:
 
 1. **Ed25519 Cryptography**: Key generation, signing, verification
-2. **Node Creation**: Initialize AetherNode instances
+2. **Node Creation**: Initialize AetherMeshNode instances
 3. **Signal Protocol**: X3DH key exchange and session establishment
 4. **Message Encryption**: AES-256-GCM with symmetric ratchet
 5. **Packet Serialization**: Binary wire format encode/decode
@@ -152,7 +152,7 @@ The binary serialization matches the C# implementation **byte-for-byte**:
 
 ### Key Derivation (HKDF-SHA256)
 - `cryptography.hazmat.primitives.kdf.hkdf.HKDF`
-- Salt: `b"AetherSignal"`
+- Salt: `b"AetherMeshSignal"`
 - Derivation contexts:
   - Root: `b"aether-root-v1"`
   - Send chain: `b"aether-chain-send-v1"`
@@ -261,8 +261,8 @@ python3 demo.py
 ### Import in Your Code
 ```python
 from aether import MeshPacket, PacketType
-from aether.security.ed25519_service import Ed25519SigningService
-from aether.security.signal_protocol import SignalProtocolService
+from aethermesh.security.ed25519_service import Ed25519SigningService
+from aethermesh.security.signal_protocol import SignalProtocolService
 ```
 
 ## Compliance

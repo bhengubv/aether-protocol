@@ -39,7 +39,7 @@ cargo run --release
 ### 1. Generate Identity Keys
 
 ```rust
-use aether_protocol::security::Ed25519SigningService;
+use aethermesh_protocol::security::Ed25519SigningService;
 
 let (private_key, public_key) = Ed25519SigningService::generate_keypair();
 // private_key: 32 bytes
@@ -49,7 +49,7 @@ let (private_key, public_key) = Ed25519SigningService::generate_keypair();
 ### 2. Establish Encrypted Session
 
 ```rust
-use aether_protocol::security::SignalProtocolService;
+use aethermesh_protocol::security::SignalProtocolService;
 
 let mut alice = SignalProtocolService::new();
 let mut bob = SignalProtocolService::new();
@@ -86,8 +86,8 @@ assert_eq!(decrypted, plaintext);
 ### 5. Create and Sign Packet
 
 ```rust
-use aether_protocol::protocol::{MeshPacket, PacketType};
-use aether_protocol::security::PacketSigningService;
+use aethermesh_protocol::protocol::{MeshPacket, PacketType};
+use aethermesh_protocol::security::PacketSigningService;
 
 let mut packet = MeshPacket::new(PacketType::Data, "alice".to_string());
 packet.destination_uhid = "bob".to_string();
@@ -101,7 +101,7 @@ signer.sign_packet(&mut packet, &private_key)?;
 ### 6. Serialize Packet
 
 ```rust
-use aether_protocol::protocol::serializer::PacketSerializer;
+use aethermesh_protocol::protocol::serializer::PacketSerializer;
 
 let bytes = PacketSerializer::serialize(&packet)?;
 // bytes: Vec<u8> with wire format
@@ -110,7 +110,7 @@ let bytes = PacketSerializer::serialize(&packet)?;
 ### 7. Send via Transport
 
 ```rust
-use aether_protocol::transport::InProcessTransport;
+use aethermesh_protocol::transport::InProcessTransport;
 
 let mut transport = InProcessTransport::new("alice".to_string());
 transport.register()?;
@@ -195,9 +195,9 @@ cargo test -- --nocapture --test-threads=1
 ### Create a Node
 
 ```rust
-use aether_protocol::models::AetherNode;
+use aethermesh_protocol::models::AetherMeshNode;
 
-let mut node = AetherNode::new(
+let mut node = AetherMeshNode::new(
     "my-uhid".to_string(),
     public_key.clone(),
     private_key.clone(),
@@ -207,7 +207,7 @@ let mut node = AetherNode::new(
 ### Add Peer
 
 ```rust
-use aether_protocol::models::PeerInfo;
+use aethermesh_protocol::models::PeerInfo;
 
 let peer = PeerInfo::new("peer-uhid".to_string(), peer_public_key);
 node.add_peer(peer);
@@ -216,7 +216,7 @@ node.add_peer(peer);
 ### Create Route
 
 ```rust
-use aether_protocol::models::RouteEntry;
+use aethermesh_protocol::models::RouteEntry;
 
 let route = RouteEntry::new(
     "destination-uhid".to_string(),

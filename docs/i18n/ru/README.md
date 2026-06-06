@@ -107,7 +107,7 @@
 |--------|------|------:|----------:|--------|
 | 🔵 Aether Blue | BLE GATT | ~100 м | 1 Мбит/с | ✅ Windows + Android (`android/blue/`) |
 | 🟢 Aether Green | Wi-Fi Direct | ~200 м | 250 Мбит/с | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | Сотовая HTTP-ретрансляция | Неограничено | ~10 Мбит/с | ✅ Windows — сервер ретрансляции в `samples/Aether.RelayServer/` |
+| 🟣 Aether Purple | Сотовая HTTP-ретрансляция | Неограничено | ~10 Мбит/с | ✅ Windows — сервер ретрансляции в `samples/AetherMesh.RelayServer/` |
 | ⚪ Aether White | NFC HCE | ~5 см | 848 кбит/с | ⚠️ Android HCE (`android/white/`); Windows: NDEF-over-BLE-GATT + приближение ACR122U PC/SC (функция `Windows.Networking.Proximity` удалена в Win 11) |
 | 🩵 Aether Teal | NearLink | ~600 м | 12 Мбит/с | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`; Windows + Android: приближение SSAP-over-BLE (API-аналогично, не совместимо на уровне проводного протокола) |
 | 🔴 Aether Red | LoRa / CircleLink | ~15 км | 37,5 кбит/с | ⚠️ Формат Meshtastic по BLE LR (~1,3 км); замена радио на SX1276/SX1278 при наличии модуля LoRa |
@@ -221,7 +221,7 @@ cd aether-protocol
 ### C# (.NET 10 SDK)
 
 ```bash
-dotnet run --project samples/Aether.Demo.Console
+dotnet run --project samples/AetherMesh.Demo.Console
 ```
 
 Демонстрация проходит 8 шагов: генерация ключей идентификации Ed25519 для трёх узлов (Alice, Bob, Charlie), установка сеансов Signal Protocol, отправка зашифрованных сообщений, ретрансляция сообщения через Charlie (который не может его прочитать), отображение двоичного формата проводного протокола и демонстрация прямой секретности на 5 последовательных сообщениях. Вывод с цветовым кодированием и паузами между шагами.
@@ -431,28 +431,28 @@ cd c && mkdir -p build && cd build && cmake .. && make && ./aether-demo
 **Отправка сообщения на C:**
 
 ```c
-aether_mesh_packet_t *packet = aether_packet_new();
-packet->type = AETHER_PACKET_TYPE_DATA;
+aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+packet->type = AETHERMESH_PACKET_TYPE_DATA;
 packet->ttl = 7;
 
-aether_packet_set_source_uhid(packet, "alice");
-aether_packet_set_destination_uhid(packet, "bob");
-aether_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
+aethermesh_packet_set_source_uhid(packet, "alice");
+aethermesh_packet_set_destination_uhid(packet, "bob");
+aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
 
 // Sign
 size_t signable_len = 0;
-uint8_t *signable = aether_packet_get_signable_data(packet, &signable_len);
+uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
 uint8_t signature[64];
-aether_ed25519_sign(private_key, signable, signable_len, signature);
-aether_packet_set_signature(packet, signature, 64);
+aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
+aethermesh_packet_set_signature(packet, signature, 64);
 free(signable);
 
 // Serialize and send
 uint8_t buffer[2048];
-int size = aether_packet_serialize(packet, buffer, sizeof(buffer));
+int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
 // send buffer[0..size-1] over transport
 
-aether_packet_free(packet);
+aethermesh_packet_free(packet);
 ```
 
 ## Дорожная карта
@@ -483,11 +483,11 @@ aether_packet_free(packet);
 - ✅ **Видеозвонки (1-на-1)** — согласование кодека/разрешения/fps/битрейта в сигнализации, сигналы запроса ключевого кадра и изменения качества, двоичный формат `VideoFrame`, соответствующий голосовому формату.
 - ✅ **Совместный просмотр** — хост передаёт авторитетные команды `WatchSync` (play/pause/seek/speed); последователи применяют с компенсацией RTT (`position = positionMs + elapsed × playbackSpeed`); `WatchReaction` «выстрели и забудь».
 - ✅ **Пул одноразовых предварительных ключей (OPK)** — по умолчанию 100, выдача FIFO, ленивое пополнение, защищённое блокировками потребление на всех 8 языках. Устраняет уязвимость конкурентного доступа при наличии одного OPK.
-- ✅ **C: полный сеанс Signal** — `aether_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` в `c/src/signal_protocol.c`; 6 сквозных двухузловых тестов в `c/tests/test_signal_session.c`. Все 8 языков теперь имеют полный Signal Protocol с поддержкой сеансов.
+- ✅ **C: полный сеанс Signal** — `aethermesh_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` в `c/src/signal_protocol.c`; 6 сквозных двухузловых тестов в `c/tests/test_signal_session.c`. Все 8 языков теперь имеют полный Signal Protocol с поддержкой сеансов.
 
 **Готово (только эталонная реализация C#):**
-- ✅ **Шаг 9 демонстрации — MessagingService + сквозной DTN-запасной вариант** — `samples/Aether.Demo.Console` демонстрирует реальный обмен сообщениями с шифрованием Signal и DTN-хранением и пересылкой при офлайн-получателе.
-- ✅ **Мост `Aether.Messaging` ↔ `Aether.Security`** — `SignalMessageEnvelopeCipher` обеспечивает сквозное шифрование уровня обмена сообщениями по умолчанию; сообщения без сеанса Signal ставятся в очередь, но никогда не отправляются незашифрованными.
+- ✅ **Шаг 9 демонстрации — MessagingService + сквозной DTN-запасной вариант** — `samples/AetherMesh.Demo.Console` демонстрирует реальный обмен сообщениями с шифрованием Signal и DTN-хранением и пересылкой при офлайн-получателе.
+- ✅ **Мост `AetherMesh.Messaging` ↔ `AetherMesh.Security`** — `SignalMessageEnvelopeCipher` обеспечивает сквозное шифрование уровня обмена сообщениями по умолчанию; сообщения без сеанса Signal ставятся в очередь, но никогда не отправляются незашифрованными.
 - ✅ **Адаптивная потоковая передача с изменяемым битрейтом** — `AdaptiveBitrateController` с предписанными спецификацией лестницами битрейтов для профиля A (реальное время), B (прямая трансляция) и C (VOD). Издатель выбирает максимально устойчивую ступень (запас 20%) и передаёт `StreamAbandon` (`PacketType.StreamAbandon`) вместо сегмента при падении ниже минимума. `IStreamingService` предоставляет `UpdateBandwidthEstimate` и `GetCurrentBitrateRung`.
 - ✅ **Совместный просмотр: прием BitTorrent + групповое финансирование ChipIn** — модели `TorrentInfo` / `TorrentFile`; `WatchTogetherService` обрабатывает `PacketType.TorrentMetadata` и инициирует `TorrentReceived`. Конечный автомат `ChipInPool` / `ChipInContribution` (Collecting → Funded → Purchasing → Acquired / Failed / Refunded); `StartChipInAsync` / `ContributeAsync` / `GetChipIn` на `IWatchTogetherService`.
 - ✅ **Групповые видеозвонки с автоматической SFU-ретрансляцией** — `GroupVideoService` / `IGroupVideoService`. Топология FullMesh для ≤ 3 участников; автоматическое переключение на SFU при `SfuThresholdParticipants` (4) с переназначением ретранслятора через `GroupVideoSignaling(SfuAssigned)`. Рассылка в FullMesh, только ретрансляция в режиме SFU. Тип пакета сигнализации `GroupVideoSignaling = 35`.
@@ -497,9 +497,9 @@ aether_packet_free(packet);
 - ✅ **Симуляционные тесты включения RF** — Двухузловые тесты интероперабельности (`SimulatedTransportTests`): круговой обход `MeshPacket` по BLE + NearLink, передача нагрузки 64 КБ по WiFi Direct. Программный уровень полностью верифицирован; для аппаратной валидации необходима лабораторная сессия с физическими устройствами.
 
 **Готово (транспортный уровень C# — все fail-fast):**
-- ✅ **Настоящий транспорт BLE GATT** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (Android GATT-сервер). Полный тест включения RF в `samples/Aether.BleRfTest/`.
-- ✅ **Настоящий транспорт Wi-Fi Direct** — `WinWifiDirectTransportService` (WinRT, `WiFiDirectAdvertisementPublisher` + TCP StreamSocket порт 8888) + `android/green/` (`WifiP2pManager`). Тест RF в `samples/Aether.WifiDirectRfTest/`.
-- ✅ **HTTP-транспорт ретрансляции (Aether Purple)** — `HttpRelayTransportService` с длинным опросом 10 секунд, `PowerCostRelative = 100`, всегда последний вариант. Сервер ретрансляции в `samples/Aether.RelayServer/` (минимальный API ASP.NET Core, порт 5200). Тест RF в `samples/Aether.RelayRfTest/`.
+- ✅ **Настоящий транспорт BLE GATT** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (Android GATT-сервер). Полный тест включения RF в `samples/AetherMesh.BleRfTest/`.
+- ✅ **Настоящий транспорт Wi-Fi Direct** — `WinWifiDirectTransportService` (WinRT, `WiFiDirectAdvertisementPublisher` + TCP StreamSocket порт 8888) + `android/green/` (`WifiP2pManager`). Тест RF в `samples/AetherMesh.WifiDirectRfTest/`.
+- ✅ **HTTP-транспорт ретрансляции (Aether Purple)** — `HttpRelayTransportService` с длинным опросом 10 секунд, `PowerCostRelative = 100`, всегда последний вариант. Сервер ретрансляции в `samples/AetherMesh.RelayServer/` (минимальный API ASP.NET Core, порт 5200). Тест RF в `samples/AetherMesh.RelayRfTest/`.
 - ✅ **NFC (Aether White)** — `android/white/` реализует `HostApduService` с AID `F061657468657200`. `WinNfcStubTransportService` документирует два пути приближения на Windows: (1) NDEF-over-BLE-GATT с порогом RSSI ≥ −40 дБм (симулирует подключение касанием без NFC-кремния, `IsAvailable = Bluetooth present`); (2) считыватель USB ACR122U через `Windows.Devices.SmartCards` PC/SC (`IsAvailable = contactless reader enumerated`). Путь обновления: реализовать `ITransportService` когда Microsoft выпустит первоклассный P2P NFC API.
 - ✅ **NearLink (Aether Teal)** — **`harmonyos/teal/`** — полная реализация ArkTS для HarmonyOS 5.0.1 (API 13) с использованием `@kit.NearLinkKit` (`scan.startScan` + `ssap.createClient` + `advertising.startAdvertising`); `isAvailable` зондируется во время выполнения. `WinNearLinkStubTransportService` + `android/teal/` документируют приближение SSAP-over-BLE: BLE GATT с UUID сервиса Aether SLE `61657468-6572-0003-0000-000000000000` — API-аналогично SSAP, не совместимо на уровне проводного протокола с реальным оборудованием NearLink. Путь обновления: заменить вызовы BLE GATT на вызовы SDK `ssapc_*`/`ssaps_*`; UUID и слот `TransportManager` не меняются.
 - ✅ **LoRa / CircleLink (Aether Red)** — `LoRaCircleLinkStub` + `android/red/` документируют приближение Meshtastic-over-BLE-LR: полный формат Meshtastic (16-байтовый заголовок + AES-256-CTR protobuf) по BLE 5.0 Coded PHY S=8 (~1,3 км на открытом воздухе), с управляемой flood-маршрутизацией и окном конкуренции с взвешиванием RSSI. Федерация мостовых узлов с реальным оборудованием LoRa работает автоматически (тот же формат пакета Meshtastic, без трансляции). Путь обновления: заменить BLE LR-радио на AT-команды SX1276/SX1278 или SPI-драйвер; формат пакета и маршрутизация не меняются.
@@ -518,19 +518,19 @@ aether_packet_free(packet);
 ```
 aether-protocol/
   src/
-    Aether.Core/          Модели протокола, константы, сериализация пакетов
-    Aether.Security/      Signal Protocol, Ed25519, подпись пакетов
-    Aether.Transport/     Абстракции транспорта, NearLink, симулятор внутри процесса
-    Aether.Messaging/     Обработка и ретрансляция сообщений
-    Aether.Storage/       Персистентное хранение DTN
-    Aether.Streaming/     Адаптивная потоковая передача, видеомодели и интерфейсы
-    Aether.Voice/         Голосовые звонки и групповой голос
-    Aether.Content/       Верификация контента и передача по частям
+    AetherMesh.Core/          Модели протокола, константы, сериализация пакетов
+    AetherMesh.Security/      Signal Protocol, Ed25519, подпись пакетов
+    AetherMesh.Transport/     Абстракции транспорта, NearLink, симулятор внутри процесса
+    AetherMesh.Messaging/     Обработка и ретрансляция сообщений
+    AetherMesh.Storage/       Персистентное хранение DTN
+    AetherMesh.Streaming/     Адаптивная потоковая передача, видеомодели и интерфейсы
+    AetherMesh.Voice/         Голосовые звонки и групповой голос
+    AetherMesh.Content/       Верификация контента и передача по частям
   samples/
-    Aether.Demo.Console/  Интерактивная демонстрация
+    AetherMesh.Demo.Console/  Интерактивная демонстрация
   tests/
-    Aether.Security.Tests/
-    Aether.Protocol.Tests/
+    AetherMesh.Security.Tests/
+    AetherMesh.Protocol.Tests/
   rust/                   Реализация на Rust
   typescript/             Реализация на TypeScript
   python/                 Реализация на Python
@@ -576,9 +576,9 @@ public class LoRaTransportService : ITransportService
 
 Протокол работает автономно. Эти интерфейсы позволяют подключить собственный бэкенд при необходимости:
 
-- `IAetherIncentiveProvider` — вознаграждение узлов, ретранслирующих трафик (заглушка по умолчанию: альтруистичная ретрансляция)
-- `IAetherBackendClient` — синхронизация с сервером при наличии интернета (заглушка по умолчанию: полностью офлайн)
-- `IAetherFeatureFlagProvider` — переключение возможностей протокола во время выполнения (заглушка по умолчанию: всё включено)
+- `IAetherMeshIncentiveProvider` — вознаграждение узлов, ретранслирующих трафик (заглушка по умолчанию: альтруистичная ретрансляция)
+- `IAetherMeshBackendClient` — синхронизация с сервером при наличии интернета (заглушка по умолчанию: полностью офлайн)
+- `IAetherMeshFeatureFlagProvider` — переключение возможностей протокола во время выполнения (заглушка по умолчанию: всё включено)
 
 Все три поставляются с заглушками. Уберите их — ничего не сломается.
 

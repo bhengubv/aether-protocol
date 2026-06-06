@@ -2,7 +2,7 @@
 
 # aether-protocol — TypeScript Benchmarks
 
-`tinybench` harness mirroring the C# Aether.Benchmarks suite, the Go
+`tinybench` harness mirroring the C# AetherMesh.Benchmarks suite, the Go
 `go/bench` harness, the Python `python/benchmarks/test_benchmark.py`,
 and the C `c/benchmarks/` runner — same hot paths so a regression in
 any language shows up as a delta against the committed baseline.

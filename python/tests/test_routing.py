@@ -2,7 +2,7 @@
 
 """Unit tests for the Aether routing service.
 
-Mirror of tests/Aether.Core.Tests/RoutingServiceTests.cs and go/routing/service_test.go.
+Mirror of tests/AetherMesh.Core.Tests/RoutingServiceTests.cs and go/routing/service_test.go.
 Run with: python -m unittest python/tests/test_routing.py
 """
 
@@ -15,15 +15,15 @@ from uuid import uuid4
 
 import pytest
 
-from aether import constants
-from aether.models import RouteEntry
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.routing import (
+from aethermesh import constants
+from aethermesh.models import RouteEntry
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.routing import (
     AcceptAllRouteReplyVerifier,
     InMemoryRouteStore,
     RoutingService,
 )
-from aether.routing.verifier import RouteReplyVerifier
+from aethermesh.routing.verifier import RouteReplyVerifier
 
 from tests.fakes import FakeMeshSender
 

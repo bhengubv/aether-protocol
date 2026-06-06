@@ -2,7 +2,7 @@
 
 **HEAD `b8b3d22`（2026-05-06）に対してレビュー済み。** このドキュメントは、`aether-protocol` の暗号プロトコル層が何を防御するか、明示的にスコープ外となるもの、およびセキュリティ主張が依拠する前提条件を説明します。意図的に正直な記述となっています: このドキュメントを読んだ攻撃者は、プロトコルが防御 **しない** すべての攻撃を列挙できるべきであり、README のマーケティング文言に惑わされるべきではありません。
 
-関連ドキュメントは [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7（セキュリティモデル）です。両者が食い違う場合は、`src/Aether.Security/` の実装が権威を持ちます。
+関連ドキュメントは [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7（セキュリティモデル）です。両者が食い違う場合は、`src/AetherMesh.Security/` の実装が権威を持ちます。
 
 ---
 
@@ -32,11 +32,11 @@ Signal プロトコルスタイルのエンドツーエンド暗号化メッセ�
 
 すべてのペイロードは、ダブルラチェットの対称チェーン（Signal §5.1、`0x01`/`0x02` ドメイン分離付き HMAC-SHA256）から導出されたメッセージごとの鍵で AES-256-GCM 暗号化されています。Alice と Bob の間のすべてのパケットを傍受した攻撃者も、セッション鍵の 1 つなしには何も復元できません。
 
-`tests/Aether.Security.Tests/SignalProtocolEncryptionTests.cs` および クロス言語フィクスチャ `fixtures/signal/expected/ratchet_step_basic.json` ベクターによって検証されています。
+`tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs` および クロス言語フィクスチャ `fixtures/signal/expected/ratchet_step_basic.json` ベクターによって検証されています。
 
 ### 2.2. メッセージ偽造
 
-すべての Wave-2 パケットは、標準的な `BuildSignableData(packet)` バッファ（`src/Aether.Security/Services/PacketSigningService.cs`、PROTOCOL_SPEC §2.4）に対する Ed25519 署名を持ちます。偽造されたパケットは検証に失敗し、送信元のアイデンティティ公開鍵を知っているすべてのホップで破棄されます。ルートリプライパケット（RREP）は主張する宛先によって署名されます — 中間ノードは宛先の Ed25519 秘密鍵を保持していないため、宛先になりすますことができません。
+すべての Wave-2 パケットは、標準的な `BuildSignableData(packet)` バッファ（`src/AetherMesh.Security/Services/PacketSigningService.cs`、PROTOCOL_SPEC §2.4）に対する Ed25519 署名を持ちます。偽造されたパケットは検証に失敗し、送信元のアイデンティティ公開鍵を知っているすべてのホップで破棄されます。ルートリプライパケット（RREP）は主張する宛先によって署名されます — 中間ノードは宛先の Ed25519 秘密鍵を保持していないため、宛先になりすますことができません。
 
 ### 2.3. リプレイ攻撃
 
@@ -45,11 +45,11 @@ Signal プロトコルスタイルのエンドツーエンド暗号化メッセ�
 - `TimestampMs` がローカル UTC から 5 分以上ずれているパケットを拒否します（`FreshnessWindowMs = 5 * 60 * 1000`）。
 - `(SourceUhid, PacketNonce)` をキーとして 5 分間の TTL を持つインメモリ重複除去マップを維持します。重複除去キーは、コミット `5bd52a9` で `nonce` 単体から `(source, nonce)` に変更されました。これにより 2 つの障害モードが修正されています: 正規のトラフィックをドロップするクロスセンダーのノンス衝突と、受信者に対してノンスを植え付けて正規の送信者の最初のパケットをブロックする事前登録攻撃です。
 
-カウンター: `aether.nonces.replayed`、`aether.timestamps.stale`。
+カウンター: `aethermesh.nonces.replayed`、`aethermesh.timestamps.stale`。
 
 ### 2.4. フォワードセクレシー（過去の鍵侵害）
 
-ダブルラチェットは、すべての DH ローテーションステップで新しい送信チェーン鍵を導出します（KDF_RK、`salt = current_root_key`、`info = "aether-ratchet-rk-v1"` で HKDF-SHA256 を使用し、64 バイトブロックを新しいルートキーとチェーンキーに 32+32 に分割 — `src/Aether.Security/Services/SignalProtocolService.cs`）。現在のセッション状態を侵害した攻撃者は、過去のメッセージを復号できません: 各過去のメッセージ鍵は導出され、次のラチェットステップの前にゼロ化されていました（`CryptographicOperations.ZeroMemory`）。
+ダブルラチェットは、すべての DH ローテーションステップで新しい送信チェーン鍵を導出します（KDF_RK、`salt = current_root_key`、`info = "aether-ratchet-rk-v1"` で HKDF-SHA256 を使用し、64 バイトブロックを新しいルートキーとチェーンキーに 32+32 に分割 — `src/AetherMesh.Security/Services/SignalProtocolService.cs`）。現在のセッション状態を侵害した攻撃者は、過去のメッセージを復号できません: 各過去のメッセージ鍵は導出され、次のラチェットステップの前にゼロ化されていました（`CryptographicOperations.ZeroMemory`）。
 
 ### 2.5. ポストコンプロマイズセキュリティ（将来の鍵回復）
 
@@ -59,7 +59,7 @@ Signal プロトコルスタイルのエンドツーエンド暗号化メッセ�
 
 ### 2.6. 1 回限りのプリキーのリプレイ
 
-各ワンタイムプリキー（OPK）はちょうど 1 回だけ消費されます。C# リファレンスは、FIFO 発行、すべてのバンドル生成時の遅延補充、ロック保護されたシングルショット消費（`SignalProtocolService.TopUpOpkPoolNoLock`、`tests/Aether.Core.Tests/PreKeyPoolTests.cs` によって検証済み）を持つ 100-OPK プールを提供します。OPK は X3DH 中にレスポンダーが消費した瞬間に削除されゼロ化されます。そのため、同じ OPK ID を再使用するリプレイされたプリキーメッセージはセッションを確立できません。
+各ワンタイムプリキー（OPK）はちょうど 1 回だけ消費されます。C# リファレンスは、FIFO 発行、すべてのバンドル生成時の遅延補充、ロック保護されたシングルショット消費（`SignalProtocolService.TopUpOpkPoolNoLock`、`tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs` によって検証済み）を持つ 100-OPK プールを提供します。OPK は X3DH 中にレスポンダーが消費した瞬間に削除されゼロ化されます。そのため、同じ OPK ID を再使用するリプレイされたプリキーメッセージはセッションを確立できません。
 
 他の 7 言語はまだセッションごとに 1 つの OPK を発行します — 連続ワークロードでは機能的に正しいですが、同時バンドルフェッチ下でコンカレンシーハザードを露出します。`OPEN_ISSUES.md` §9 として追跡されています。
 
@@ -123,7 +123,7 @@ X25519（RFC 7748）と Ed25519（RFC 8032）はどちらも、Shor のアルゴ
 
 ### 3.5. 大規模グループメッセージング
 
-`Aether.Security` は `IGroupKeyProvider` シームを提供していますが、完全な Signal Sender Keys プロトコル（Signal が使用する非同期グループメッセージング構成）は HEAD 時点では実装 **されていません**。今日グループメッセージングが必要なホストは、N 個のペアワイズセッションにフォールバックします — これは機能しますが、グループ送信ごとに O(N) のコストがかかります。PROTOCOL_SPEC §7 は単一受信者の脅威のみをカバーしています。
+`AetherMesh.Security` は `IGroupKeyProvider` シームを提供していますが、完全な Signal Sender Keys プロトコル（Signal が使用する非同期グループメッセージング構成）は HEAD 時点では実装 **されていません**。今日グループメッセージングが必要なホストは、N 個のペアワイズセッションにフォールバックします — これは機能しますが、グループ送信ごとに O(N) のコストがかかります。PROTOCOL_SPEC §7 は単一受信者の脅威のみをカバーしています。
 
 ### 3.6. 最初の接触でのアイデンティティ検証（TOFU）
 
@@ -164,7 +164,7 @@ Aether は「アイデンティティキー X を保持しているピアがこ�
 ### 5.1. 最初の接触での中間者攻撃（TOFU）
 
 **脆弱性:** 最初のバンドル交換中にピアツーピアリンクを制御している積極的な攻撃者は、自分自身のバンドルに置き換えてトラフィックをプロキシできます。
-**軽減策:** ホスト UX は、コンタクトを検証済みとして扱う前にセーフティナンバー / 公開鍵フィンガープリント比較フローを公開しなければなりません。セーフティナンバー導出のための公開 API サーフェスはまだ `Aether.Security` に含まれていません; ギャップとして追跡中。
+**軽減策:** ホスト UX は、コンタクトを検証済みとして扱う前にセーフティナンバー / 公開鍵フィンガープリント比較フローを公開しなければなりません。セーフティナンバー導出のための公開 API サーフェスはまだ `AetherMesh.Security` に含まれていません; ギャップとして追跡中。
 
 ### 5.2. 署名済みプリキーのローテーション遅延
 

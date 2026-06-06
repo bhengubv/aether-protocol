@@ -4,7 +4,7 @@
 // Single-threaded reference implementation. Hosts pumping packets from multiple
 // threads must serialise calls behind their own mutex.
 //
-// Subscriber list per stream: fixed-size array, max AETHER_MAX_STREAM_SUBSCRIBERS (64).
+// Subscriber list per stream: fixed-size array, max AETHERMESH_MAX_STREAM_SUBSCRIBERS (64).
 // Exceeding this limit silently drops new subscribers — document in your host layer.
 //
 // JSON via cJSON (wired in CMakeLists.txt via FetchContent).
@@ -12,9 +12,9 @@
 // NOTE: Build verification requires Linux/macOS with cmake + libsodium.
 // CI on ubuntu-latest is the verification gate.
 
-#include "aether/streaming.h"
-#include "aether/voice.h"     // for aether_voice_call_state_t values
-#include "aether/constants.h"
+#include "aethermesh/streaming.h"
+#include "aethermesh/voice.h"     // for aethermesh_voice_call_state_t values
+#include "aethermesh/constants.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -157,8 +157,8 @@ static bool parse_av_frame(
 // ─── Send helpers ─────────────────────────────────────────
 
 static void st_send_json_unicast(
-    aether_transport_t *transport,
-    aether_routing_service_t *routing,
+    aethermesh_transport_t *transport,
+    aethermesh_routing_service_t *routing,
     const char *local_uhid,
     cJSON *obj,
     const char *to_uhid,
@@ -170,27 +170,27 @@ static void st_send_json_unicast(
     cJSON_Delete(obj);
     if (!body) return;
 
-    aether_mesh_packet_t *pkt = aether_packet_new();
+    aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
     if (!pkt) { free(body); return; }
     pkt->type = pkt_type;
-    aether_packet_set_source_uhid(pkt, local_uhid);
-    aether_packet_set_destination_uhid(pkt, to_uhid);
-    pkt->ttl      = AETHER_DEFAULT_TTL;
+    aethermesh_packet_set_source_uhid(pkt, local_uhid);
+    aethermesh_packet_set_destination_uhid(pkt, to_uhid);
+    pkt->ttl      = AETHERMESH_DEFAULT_TTL;
     pkt->priority = priority;
-    aether_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
+    aethermesh_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
     free(body);
 
-    aether_route_entry_t *route = NULL;
-    if (aether_routing_find_cached(routing, to_uhid, &route)) {
-        /* Host serialises + sends: aether_packet_serialize(pkt, buf, buf_len) then transport->vtable->send */
-        aether_route_entry_free(route);
+    aethermesh_route_entry_t *route = NULL;
+    if (aethermesh_routing_find_cached(routing, to_uhid, &route)) {
+        /* Host serialises + sends: aethermesh_packet_serialize(pkt, buf, buf_len) then transport->vtable->send */
+        aethermesh_route_entry_free(route);
     }
-    aether_packet_free(pkt);
+    aethermesh_packet_free(pkt);
 }
 
 static void st_broadcast_json(
-    aether_transport_t *transport,
-    aether_routing_service_t *routing,
+    aethermesh_transport_t *transport,
+    aethermesh_routing_service_t *routing,
     const char *local_uhid,
     cJSON *obj,
     uint8_t pkt_type,
@@ -201,18 +201,18 @@ static void st_broadcast_json(
     cJSON_Delete(obj);
     if (!body) return;
 
-    aether_mesh_packet_t *pkt = aether_packet_new();
+    aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
     if (!pkt) { free(body); return; }
     pkt->type = pkt_type;
-    aether_packet_set_source_uhid(pkt, local_uhid);
-    pkt->ttl      = AETHER_DEFAULT_TTL;
+    aethermesh_packet_set_source_uhid(pkt, local_uhid);
+    pkt->ttl      = AETHERMESH_DEFAULT_TTL;
     pkt->priority = priority;
-    aether_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
+    aethermesh_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
     free(body);
 
     /* Host calls transport->vtable->broadcast equivalent */
     (void)transport; (void)routing;
-    aether_packet_free(pkt);
+    aethermesh_packet_free(pkt);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -226,36 +226,36 @@ typedef struct {
     char    *publisher_uhid;   // owned
     char    *title;            // owned
     char    *mime_type;        // owned
-    char    *subscribers[AETHER_MAX_STREAM_SUBSCRIBERS];  // owned
+    char    *subscribers[AETHERMESH_MAX_STREAM_SUBSCRIBERS];  // owned
     int      subscriber_count;
     uint32_t next_seq;
     bool     active;
     bool     subscribed;       // true if this node is a subscriber (not publisher)
 } stream_record_t;
 
-struct aether_streaming_service {
-    aether_transport_t       *transport;
-    aether_routing_service_t *routing;
+struct aethermesh_streaming_service {
+    aethermesh_transport_t       *transport;
+    aethermesh_routing_service_t *routing;
     char                     *local_uhid;
 
     stream_record_t streams[ST_MAX_STREAMS];
 
-    aether_stream_announced_cb announced_cb;
+    aethermesh_stream_announced_cb announced_cb;
     void                      *announced_cb_ud;
-    aether_stream_segment_cb   segment_cb;
+    aethermesh_stream_segment_cb   segment_cb;
     void                      *segment_cb_ud;
-    aether_stream_ended_cb     ended_cb;
+    aethermesh_stream_ended_cb     ended_cb;
     void                      *ended_cb_ud;
 };
 
-static stream_record_t *st_find_stream(aether_streaming_service_t *svc, const uint8_t id[16]) {
+static stream_record_t *st_find_stream(aethermesh_streaming_service_t *svc, const uint8_t id[16]) {
     for (int i = 0; i < ST_MAX_STREAMS; i++)
         if (svc->streams[i].active && memcmp(svc->streams[i].stream_id, id, 16) == 0)
             return &svc->streams[i];
     return NULL;
 }
 
-static stream_record_t *st_alloc_stream(aether_streaming_service_t *svc) {
+static stream_record_t *st_alloc_stream(aethermesh_streaming_service_t *svc) {
     for (int i = 0; i < ST_MAX_STREAMS; i++)
         if (!svc->streams[i].active) return &svc->streams[i];
     return NULL;
@@ -272,11 +272,11 @@ static void st_free_stream(stream_record_t *s) {
     s->subscribed = false;
 }
 
-aether_streaming_service_t *aether_streaming_service_create(
-    aether_transport_t *transport, aether_routing_service_t *routing, const char *local_uhid
+aethermesh_streaming_service_t *aethermesh_streaming_service_create(
+    aethermesh_transport_t *transport, aethermesh_routing_service_t *routing, const char *local_uhid
 ) {
     if (!transport || !routing || !local_uhid) return NULL;
-    aether_streaming_service_t *svc = (aether_streaming_service_t *)calloc(1, sizeof(aether_streaming_service_t));
+    aethermesh_streaming_service_t *svc = (aethermesh_streaming_service_t *)calloc(1, sizeof(aethermesh_streaming_service_t));
     if (!svc) return NULL;
     svc->transport  = transport;
     svc->routing    = routing;
@@ -285,25 +285,25 @@ aether_streaming_service_t *aether_streaming_service_create(
     return svc;
 }
 
-void aether_streaming_service_destroy(aether_streaming_service_t *svc) {
+void aethermesh_streaming_service_destroy(aethermesh_streaming_service_t *svc) {
     if (!svc) return;
     for (int i = 0; i < ST_MAX_STREAMS; i++) st_free_stream(&svc->streams[i]);
     free(svc->local_uhid);
     free(svc);
 }
 
-void aether_streaming_set_announced_cb(aether_streaming_service_t *svc, aether_stream_announced_cb cb, void *ud) {
+void aethermesh_streaming_set_announced_cb(aethermesh_streaming_service_t *svc, aethermesh_stream_announced_cb cb, void *ud) {
     if (svc) { svc->announced_cb = cb; svc->announced_cb_ud = ud; }
 }
-void aether_streaming_set_segment_cb(aether_streaming_service_t *svc, aether_stream_segment_cb cb, void *ud) {
+void aethermesh_streaming_set_segment_cb(aethermesh_streaming_service_t *svc, aethermesh_stream_segment_cb cb, void *ud) {
     if (svc) { svc->segment_cb = cb; svc->segment_cb_ud = ud; }
 }
-void aether_streaming_set_ended_cb(aether_streaming_service_t *svc, aether_stream_ended_cb cb, void *ud) {
+void aethermesh_streaming_set_ended_cb(aethermesh_streaming_service_t *svc, aethermesh_stream_ended_cb cb, void *ud) {
     if (svc) { svc->ended_cb = cb; svc->ended_cb_ud = ud; }
 }
 
-int aether_streaming_start(
-    aether_streaming_service_t *svc, const char *title, const char *mime_type, uint8_t stream_id_out[16]
+int aethermesh_streaming_start(
+    aethermesh_streaming_service_t *svc, const char *title, const char *mime_type, uint8_t stream_id_out[16]
 ) {
     if (!svc || !title) return -1;
     stream_record_t *rec = st_alloc_stream(svc);
@@ -328,11 +328,11 @@ int aether_streaming_start(
     cJSON_AddStringToObject(obj, "mime_type", rec->mime_type);
     cJSON_AddStringToObject(obj, "signal_type", "announce");
     st_broadcast_json(svc->transport, svc->routing, svc->local_uhid, obj,
-                      AETHER_PACKET_TYPE_STREAM_ANNOUNCE, 32);
+                      AETHERMESH_PACKET_TYPE_STREAM_ANNOUNCE, 32);
     return 0;
 }
 
-int aether_streaming_end(aether_streaming_service_t *svc, const uint8_t stream_id[16]) {
+int aethermesh_streaming_end(aethermesh_streaming_service_t *svc, const uint8_t stream_id[16]) {
     if (!svc) return -1;
     stream_record_t *rec = st_find_stream(svc, stream_id);
     if (!rec) return -1;
@@ -349,7 +349,7 @@ int aether_streaming_end(aether_streaming_service_t *svc, const uint8_t stream_i
         if (rec->subscribers[i]) {
             cJSON *dup = cJSON_Duplicate(obj, 1);
             st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, dup,
-                                 rec->subscribers[i], AETHER_PACKET_TYPE_STREAM_UNSUBSCRIBE, 32);
+                                 rec->subscribers[i], AETHERMESH_PACKET_TYPE_STREAM_UNSUBSCRIBE, 32);
         }
     }
     cJSON_Delete(obj);
@@ -359,8 +359,8 @@ int aether_streaming_end(aether_streaming_service_t *svc, const uint8_t stream_i
     return 0;
 }
 
-int aether_streaming_publish_segment(
-    aether_streaming_service_t *svc,
+int aethermesh_streaming_publish_segment(
+    aethermesh_streaming_service_t *svc,
     const uint8_t *stream_id, const uint8_t *data, size_t data_len, int is_keyframe
 ) {
     if (!svc || !stream_id) return -1;
@@ -377,27 +377,27 @@ int aether_streaming_publish_segment(
     for (int i = 0; i < rec->subscriber_count; i++) {
         const char *sub = rec->subscribers[i];
         if (!sub) continue;
-        aether_mesh_packet_t *pkt = aether_packet_new();
+        aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
         if (!pkt) continue;
-        pkt->type = AETHER_PACKET_TYPE_STREAM_SEGMENT;
-        aether_packet_set_source_uhid(pkt, svc->local_uhid);
-        aether_packet_set_destination_uhid(pkt, sub);
-        pkt->ttl      = AETHER_DEFAULT_TTL;
+        pkt->type = AETHERMESH_PACKET_TYPE_STREAM_SEGMENT;
+        aethermesh_packet_set_source_uhid(pkt, svc->local_uhid);
+        aethermesh_packet_set_destination_uhid(pkt, sub);
+        pkt->ttl      = AETHERMESH_DEFAULT_TTL;
         pkt->priority = 16;
-        aether_packet_set_payload(pkt, frame, frame_len);
-        aether_route_entry_t *route = NULL;
-        if (aether_routing_find_cached(svc->routing, sub, &route)) {
+        aethermesh_packet_set_payload(pkt, frame, frame_len);
+        aethermesh_route_entry_t *route = NULL;
+        if (aethermesh_routing_find_cached(svc->routing, sub, &route)) {
             /* Host serialises + sends */
-            aether_route_entry_free(route);
+            aethermesh_route_entry_free(route);
         }
-        aether_packet_free(pkt);
+        aethermesh_packet_free(pkt);
     }
     free(frame);
     return 0;
 }
 
-int aether_streaming_subscribe(
-    aether_streaming_service_t *svc, const uint8_t *stream_id, const char *publisher_uhid
+int aethermesh_streaming_subscribe(
+    aethermesh_streaming_service_t *svc, const uint8_t *stream_id, const char *publisher_uhid
 ) {
     if (!svc || !stream_id || !publisher_uhid) return -1;
 
@@ -417,12 +417,12 @@ int aether_streaming_subscribe(
     cJSON_AddStringToObject(obj, "stream_id", id_str);
     cJSON_AddStringToObject(obj, "subscriber_uhid", svc->local_uhid);
     st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj,
-                         publisher_uhid, AETHER_PACKET_TYPE_STREAM_SUBSCRIBE, 32);
+                         publisher_uhid, AETHERMESH_PACKET_TYPE_STREAM_SUBSCRIBE, 32);
     return 0;
 }
 
-int aether_streaming_unsubscribe(
-    aether_streaming_service_t *svc, const uint8_t *stream_id, const char *publisher_uhid
+int aethermesh_streaming_unsubscribe(
+    aethermesh_streaming_service_t *svc, const uint8_t *stream_id, const char *publisher_uhid
 ) {
     if (!svc || !stream_id || !publisher_uhid) return -1;
     stream_record_t *rec = st_find_stream(svc, stream_id);
@@ -434,14 +434,14 @@ int aether_streaming_unsubscribe(
     cJSON_AddStringToObject(obj, "stream_id", id_str);
     cJSON_AddStringToObject(obj, "subscriber_uhid", svc->local_uhid);
     st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj,
-                         publisher_uhid, AETHER_PACKET_TYPE_STREAM_UNSUBSCRIBE, 32);
+                         publisher_uhid, AETHERMESH_PACKET_TYPE_STREAM_UNSUBSCRIBE, 32);
     return 0;
 }
 
-int aether_streaming_handle_packet(aether_streaming_service_t *svc, const aether_packet_t *packet) {
+int aethermesh_streaming_handle_packet(aethermesh_streaming_service_t *svc, const aethermesh_packet_t *packet) {
     if (!svc || !packet) return -1;
 
-    if (packet->type == AETHER_PACKET_TYPE_STREAM_SEGMENT) {
+    if (packet->type == AETHERMESH_PACKET_TYPE_STREAM_SEGMENT) {
         if (!packet->payload || packet->payload_len < 29) return -1;
         uint8_t id[16]; uint32_t seq; int64_t ts; uint8_t flag;
         const uint8_t *payload; size_t payload_len;
@@ -453,8 +453,8 @@ int aether_streaming_handle_packet(aether_streaming_service_t *svc, const aether
         return 0;
     }
 
-    if (packet->type == AETHER_PACKET_TYPE_STREAM_ANNOUNCE ||
-        packet->type == AETHER_PACKET_TYPE_STREAM_UNSUBSCRIBE) {
+    if (packet->type == AETHERMESH_PACKET_TYPE_STREAM_ANNOUNCE ||
+        packet->type == AETHERMESH_PACKET_TYPE_STREAM_UNSUBSCRIBE) {
         if (!packet->payload || packet->payload_len == 0) return -1;
         cJSON *obj = cJSON_ParseWithLength((const char *)packet->payload, packet->payload_len);
         if (!obj) return -1;
@@ -495,7 +495,7 @@ int aether_streaming_handle_packet(aether_streaming_service_t *svc, const aether
         return 0;
     }
 
-    if (packet->type == AETHER_PACKET_TYPE_STREAM_SUBSCRIBE) {
+    if (packet->type == AETHERMESH_PACKET_TYPE_STREAM_SUBSCRIBE) {
         if (!packet->payload || packet->payload_len == 0) return -1;
         cJSON *obj = cJSON_ParseWithLength((const char *)packet->payload, packet->payload_len);
         if (!obj) return -1;
@@ -506,7 +506,7 @@ int aether_streaming_handle_packet(aether_streaming_service_t *svc, const aether
         uint8_t stream_id[16] = {0};
         if (id_str && st_parse_uuid(id_str, stream_id) && sub) {
             stream_record_t *rec = st_find_stream(svc, stream_id);
-            if (rec && rec->subscriber_count < AETHER_MAX_STREAM_SUBSCRIBERS) {
+            if (rec && rec->subscriber_count < AETHERMESH_MAX_STREAM_SUBSCRIBERS) {
                 bool exists = false;
                 for (int i = 0; i < rec->subscriber_count; i++)
                     if (rec->subscribers[i] && strcmp(rec->subscribers[i], sub) == 0) { exists = true; break; }
@@ -529,37 +529,37 @@ int aether_streaming_handle_packet(aether_streaming_service_t *svc, const aether
 typedef struct {
     uint8_t  call_id[16];
     char    *remote_uhid;   // owned
-    int      state;         // aether_voice_call_state_t
+    int      state;         // aethermesh_voice_call_state_t
     uint32_t next_seq;
     bool     active;
 } video_call_record_t;
 
-struct aether_video_call_service {
-    aether_transport_t       *transport;
-    aether_routing_service_t *routing;
+struct aethermesh_video_call_service {
+    aethermesh_transport_t       *transport;
+    aethermesh_routing_service_t *routing;
     char                     *local_uhid;
 
     video_call_record_t calls[VC_MAX_CALLS];
 
-    aether_video_incoming_cb        incoming_cb;
+    aethermesh_video_incoming_cb        incoming_cb;
     void                           *incoming_cb_ud;
-    aether_video_state_changed_cb   state_cb;
+    aethermesh_video_state_changed_cb   state_cb;
     void                           *state_cb_ud;
-    aether_video_frame_cb           frame_cb;
+    aethermesh_video_frame_cb           frame_cb;
     void                           *frame_cb_ud;
-    aether_video_keyframe_request_cb kfr_cb;
+    aethermesh_video_keyframe_request_cb kfr_cb;
     void                            *kfr_cb_ud;
-    aether_video_quality_changed_cb  quality_cb;
+    aethermesh_video_quality_changed_cb  quality_cb;
     void                            *quality_cb_ud;
 };
 
-static video_call_record_t *vc_find(aether_video_call_service_t *svc, const uint8_t id[16]) {
+static video_call_record_t *vc_find(aethermesh_video_call_service_t *svc, const uint8_t id[16]) {
     for (int i = 0; i < VC_MAX_CALLS; i++)
         if (svc->calls[i].active && memcmp(svc->calls[i].call_id, id, 16) == 0) return &svc->calls[i];
     return NULL;
 }
 
-static video_call_record_t *vc_alloc(aether_video_call_service_t *svc) {
+static video_call_record_t *vc_alloc(aethermesh_video_call_service_t *svc) {
     for (int i = 0; i < VC_MAX_CALLS; i++)
         if (!svc->calls[i].active) return &svc->calls[i];
     return NULL;
@@ -570,11 +570,11 @@ static void vc_free(video_call_record_t *c) {
     free(c->remote_uhid); c->remote_uhid = NULL; c->active = false;
 }
 
-aether_video_call_service_t *aether_video_call_service_create(
-    aether_transport_t *transport, aether_routing_service_t *routing, const char *local_uhid
+aethermesh_video_call_service_t *aethermesh_video_call_service_create(
+    aethermesh_transport_t *transport, aethermesh_routing_service_t *routing, const char *local_uhid
 ) {
     if (!transport || !routing || !local_uhid) return NULL;
-    aether_video_call_service_t *svc = (aether_video_call_service_t *)calloc(1, sizeof(aether_video_call_service_t));
+    aethermesh_video_call_service_t *svc = (aethermesh_video_call_service_t *)calloc(1, sizeof(aethermesh_video_call_service_t));
     if (!svc) return NULL;
     svc->transport  = transport;
     svc->routing    = routing;
@@ -583,31 +583,31 @@ aether_video_call_service_t *aether_video_call_service_create(
     return svc;
 }
 
-void aether_video_call_service_destroy(aether_video_call_service_t *svc) {
+void aethermesh_video_call_service_destroy(aethermesh_video_call_service_t *svc) {
     if (!svc) return;
     for (int i = 0; i < VC_MAX_CALLS; i++) vc_free(&svc->calls[i]);
     free(svc->local_uhid);
     free(svc);
 }
 
-void aether_video_set_incoming_cb(aether_video_call_service_t *svc, aether_video_incoming_cb cb, void *ud) {
+void aethermesh_video_set_incoming_cb(aethermesh_video_call_service_t *svc, aethermesh_video_incoming_cb cb, void *ud) {
     if (svc) { svc->incoming_cb = cb; svc->incoming_cb_ud = ud; }
 }
-void aether_video_set_state_changed_cb(aether_video_call_service_t *svc, aether_video_state_changed_cb cb, void *ud) {
+void aethermesh_video_set_state_changed_cb(aethermesh_video_call_service_t *svc, aethermesh_video_state_changed_cb cb, void *ud) {
     if (svc) { svc->state_cb = cb; svc->state_cb_ud = ud; }
 }
-void aether_video_set_frame_cb(aether_video_call_service_t *svc, aether_video_frame_cb cb, void *ud) {
+void aethermesh_video_set_frame_cb(aethermesh_video_call_service_t *svc, aethermesh_video_frame_cb cb, void *ud) {
     if (svc) { svc->frame_cb = cb; svc->frame_cb_ud = ud; }
 }
-void aether_video_set_keyframe_request_cb(aether_video_call_service_t *svc, aether_video_keyframe_request_cb cb, void *ud) {
+void aethermesh_video_set_keyframe_request_cb(aethermesh_video_call_service_t *svc, aethermesh_video_keyframe_request_cb cb, void *ud) {
     if (svc) { svc->kfr_cb = cb; svc->kfr_cb_ud = ud; }
 }
-void aether_video_set_quality_changed_cb(aether_video_call_service_t *svc, aether_video_quality_changed_cb cb, void *ud) {
+void aethermesh_video_set_quality_changed_cb(aethermesh_video_call_service_t *svc, aethermesh_video_quality_changed_cb cb, void *ud) {
     if (svc) { svc->quality_cb = cb; svc->quality_cb_ud = ud; }
 }
 
-int aether_video_send_offer(
-    aether_video_call_service_t *svc,
+int aethermesh_video_send_offer(
+    aethermesh_video_call_service_t *svc,
     const char *to_uhid,
     const char **video_codecs, int vc_count,
     const char **audio_codecs, int ac_count,
@@ -620,7 +620,7 @@ int aether_video_send_offer(
     st_gen_uuid_v4(rec->call_id);
     rec->remote_uhid = st_str_dup(to_uhid);
     if (!rec->remote_uhid) return -1;
-    rec->state    = AETHER_VOICE_STATE_OUTGOING;
+    rec->state    = AETHERMESH_VOICE_STATE_OUTGOING;
     rec->next_seq = 0;
     rec->active   = true;
     memcpy(call_id_out, rec->call_id, 16);
@@ -638,26 +638,26 @@ int aether_video_send_offer(
     cJSON *aa = cJSON_CreateArray();
     for (int i = 0; i < ac_count; i++) if (audio_codecs[i]) cJSON_AddItemToArray(aa, cJSON_CreateString(audio_codecs[i]));
     cJSON_AddItemToObject(obj, "audio_codecs", aa);
-    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, to_uhid, AETHER_PACKET_TYPE_VIDEO_SIGNALING, 32);
+    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, to_uhid, AETHERMESH_PACKET_TYPE_VIDEO_SIGNALING, 32);
     return 0;
 }
 
-int aether_video_accept_call(aether_video_call_service_t *svc, const uint8_t call_id[16]) {
+int aethermesh_video_accept_call(aethermesh_video_call_service_t *svc, const uint8_t call_id[16]) {
     if (!svc) return -1;
     video_call_record_t *rec = vc_find(svc, call_id);
-    if (!rec || rec->state != AETHER_VOICE_STATE_INCOMING) return -1;
-    rec->state = AETHER_VOICE_STATE_CONNECTED; rec->next_seq = 0;
+    if (!rec || rec->state != AETHERMESH_VOICE_STATE_INCOMING) return -1;
+    rec->state = AETHERMESH_VOICE_STATE_CONNECTED; rec->next_seq = 0;
     char id_str[37]; st_uuid_to_canonical(rec->call_id, id_str);
     cJSON *obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "call_id", id_str);
     cJSON_AddStringToObject(obj, "from_uhid", svc->local_uhid);
     cJSON_AddStringToObject(obj, "signal_type", "video_accept");
-    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, rec->remote_uhid, AETHER_PACKET_TYPE_VIDEO_SIGNALING, 32);
-    if (svc->state_cb) svc->state_cb(call_id, AETHER_VOICE_STATE_CONNECTED, svc->state_cb_ud);
+    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, rec->remote_uhid, AETHERMESH_PACKET_TYPE_VIDEO_SIGNALING, 32);
+    if (svc->state_cb) svc->state_cb(call_id, AETHERMESH_VOICE_STATE_CONNECTED, svc->state_cb_ud);
     return 0;
 }
 
-int aether_video_hang_up(aether_video_call_service_t *svc, const uint8_t call_id[16]) {
+int aethermesh_video_hang_up(aethermesh_video_call_service_t *svc, const uint8_t call_id[16]) {
     if (!svc) return -1;
     video_call_record_t *rec = vc_find(svc, call_id);
     if (!rec) return -1;
@@ -667,38 +667,38 @@ int aether_video_hang_up(aether_video_call_service_t *svc, const uint8_t call_id
     cJSON_AddStringToObject(obj, "from_uhid", svc->local_uhid);
     cJSON_AddStringToObject(obj, "signal_type", "video_hangup");
     const char *remote = rec->remote_uhid;
-    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, remote, AETHER_PACKET_TYPE_VIDEO_SIGNALING, 32);
-    if (svc->state_cb) svc->state_cb(call_id, AETHER_VOICE_STATE_ENDED, svc->state_cb_ud);
+    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, remote, AETHERMESH_PACKET_TYPE_VIDEO_SIGNALING, 32);
+    if (svc->state_cb) svc->state_cb(call_id, AETHERMESH_VOICE_STATE_ENDED, svc->state_cb_ud);
     vc_free(rec);
     return 0;
 }
 
-int aether_video_send_frame(
-    aether_video_call_service_t *svc, const uint8_t *call_id, const uint8_t *video, size_t video_len, int is_keyframe
+int aethermesh_video_send_frame(
+    aethermesh_video_call_service_t *svc, const uint8_t *call_id, const uint8_t *video, size_t video_len, int is_keyframe
 ) {
     if (!svc || !call_id) return -1;
     video_call_record_t *rec = vc_find(svc, call_id);
-    if (!rec || rec->state != AETHER_VOICE_STATE_CONNECTED) return -1;
+    if (!rec || rec->state != AETHERMESH_VOICE_STATE_CONNECTED) return -1;
     uint32_t seq = rec->next_seq++;
     int64_t ts_ms = st_now_ms();
     uint32_t frame_len = 0;
     uint8_t *frame = build_av_frame(call_id, seq, ts_ms, (uint8_t)(is_keyframe ? 1 : 0), video, video_len, &frame_len);
     if (!frame) return -1;
-    aether_mesh_packet_t *pkt = aether_packet_new();
+    aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
     if (!pkt) { free(frame); return -1; }
-    pkt->type = AETHER_PACKET_TYPE_VIDEO_FRAME;
-    aether_packet_set_source_uhid(pkt, svc->local_uhid);
-    aether_packet_set_destination_uhid(pkt, rec->remote_uhid);
-    pkt->ttl = AETHER_DEFAULT_TTL; pkt->priority = 64;
-    aether_packet_set_payload(pkt, frame, frame_len);
+    pkt->type = AETHERMESH_PACKET_TYPE_VIDEO_FRAME;
+    aethermesh_packet_set_source_uhid(pkt, svc->local_uhid);
+    aethermesh_packet_set_destination_uhid(pkt, rec->remote_uhid);
+    pkt->ttl = AETHERMESH_DEFAULT_TTL; pkt->priority = 64;
+    aethermesh_packet_set_payload(pkt, frame, frame_len);
     free(frame);
-    aether_route_entry_t *route = NULL;
-    if (aether_routing_find_cached(svc->routing, rec->remote_uhid, &route)) aether_route_entry_free(route);
-    aether_packet_free(pkt);
+    aethermesh_route_entry_t *route = NULL;
+    if (aethermesh_routing_find_cached(svc->routing, rec->remote_uhid, &route)) aethermesh_route_entry_free(route);
+    aethermesh_packet_free(pkt);
     return 0;
 }
 
-int aether_video_request_keyframe(aether_video_call_service_t *svc, const uint8_t call_id[16]) {
+int aethermesh_video_request_keyframe(aethermesh_video_call_service_t *svc, const uint8_t call_id[16]) {
     if (!svc) return -1;
     video_call_record_t *rec = vc_find(svc, call_id);
     if (!rec) return -1;
@@ -707,11 +707,11 @@ int aether_video_request_keyframe(aether_video_call_service_t *svc, const uint8_
     cJSON_AddStringToObject(obj, "call_id", id_str);
     cJSON_AddStringToObject(obj, "from_uhid", svc->local_uhid);
     cJSON_AddStringToObject(obj, "signal_type", "keyframe_request");
-    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, rec->remote_uhid, AETHER_PACKET_TYPE_VIDEO_SIGNALING, 32);
+    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, rec->remote_uhid, AETHERMESH_PACKET_TYPE_VIDEO_SIGNALING, 32);
     return 0;
 }
 
-int aether_video_notify_quality_change(aether_video_call_service_t *svc, const uint8_t call_id[16], const char *quality) {
+int aethermesh_video_notify_quality_change(aethermesh_video_call_service_t *svc, const uint8_t call_id[16], const char *quality) {
     if (!svc || !quality) return -1;
     video_call_record_t *rec = vc_find(svc, call_id);
     if (!rec) return -1;
@@ -721,14 +721,14 @@ int aether_video_notify_quality_change(aether_video_call_service_t *svc, const u
     cJSON_AddStringToObject(obj, "from_uhid", svc->local_uhid);
     cJSON_AddStringToObject(obj, "quality", quality);
     cJSON_AddStringToObject(obj, "signal_type", "quality_change");
-    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, rec->remote_uhid, AETHER_PACKET_TYPE_VIDEO_SIGNALING, 32);
+    st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, obj, rec->remote_uhid, AETHERMESH_PACKET_TYPE_VIDEO_SIGNALING, 32);
     return 0;
 }
 
-int aether_video_handle_packet(aether_video_call_service_t *svc, const aether_packet_t *packet) {
+int aethermesh_video_handle_packet(aethermesh_video_call_service_t *svc, const aethermesh_packet_t *packet) {
     if (!svc || !packet) return -1;
 
-    if (packet->type == AETHER_PACKET_TYPE_VIDEO_FRAME) {
+    if (packet->type == AETHERMESH_PACKET_TYPE_VIDEO_FRAME) {
         if (!packet->payload || packet->payload_len < 29) return -1;
         uint8_t id[16]; uint32_t seq; int64_t ts; uint8_t flag;
         const uint8_t *vid; size_t vid_len;
@@ -737,7 +737,7 @@ int aether_video_handle_packet(aether_video_call_service_t *svc, const aether_pa
         return 0;
     }
 
-    if (packet->type == AETHER_PACKET_TYPE_VIDEO_SIGNALING) {
+    if (packet->type == AETHERMESH_PACKET_TYPE_VIDEO_SIGNALING) {
         if (!packet->payload || packet->payload_len == 0) return -1;
         cJSON *obj = cJSON_ParseWithLength((const char *)packet->payload, packet->payload_len);
         if (!obj) return -1;
@@ -756,7 +756,7 @@ int aether_video_handle_packet(aether_video_call_service_t *svc, const aether_pa
             if (rec) {
                 memcpy(rec->call_id, call_id, 16);
                 rec->remote_uhid = st_str_dup(packet->source_uhid);
-                rec->state = AETHER_VOICE_STATE_INCOMING; rec->active = true;
+                rec->state = AETHERMESH_VOICE_STATE_INCOMING; rec->active = true;
                 if (svc->incoming_cb) {
                     cJSON *jva = cJSON_GetObjectItemCaseSensitive(obj, "video_codecs");
                     cJSON *jaa = cJSON_GetObjectItemCaseSensitive(obj, "audio_codecs");
@@ -772,10 +772,10 @@ int aether_video_handle_packet(aether_video_call_service_t *svc, const aether_pa
             }
         } else if (strcmp(sig, "video_accept") == 0) {
             video_call_record_t *rec = vc_find(svc, call_id);
-            if (rec) { rec->state = AETHER_VOICE_STATE_CONNECTED; if (svc->state_cb) svc->state_cb(call_id, AETHER_VOICE_STATE_CONNECTED, svc->state_cb_ud); }
+            if (rec) { rec->state = AETHERMESH_VOICE_STATE_CONNECTED; if (svc->state_cb) svc->state_cb(call_id, AETHERMESH_VOICE_STATE_CONNECTED, svc->state_cb_ud); }
         } else if (strcmp(sig, "video_hangup") == 0) {
             video_call_record_t *rec = vc_find(svc, call_id);
-            if (rec) { if (svc->state_cb) svc->state_cb(call_id, AETHER_VOICE_STATE_ENDED, svc->state_cb_ud); vc_free(rec); }
+            if (rec) { if (svc->state_cb) svc->state_cb(call_id, AETHERMESH_VOICE_STATE_ENDED, svc->state_cb_ud); vc_free(rec); }
         } else if (strcmp(sig, "keyframe_request") == 0) {
             if (svc->kfr_cb) svc->kfr_cb(call_id, svc->kfr_cb_ud);
         } else if (strcmp(sig, "quality_change") == 0) {
@@ -807,32 +807,32 @@ typedef struct {
     bool     active;
 } watch_session_t;
 
-struct aether_watch_together_service {
-    aether_transport_t       *transport;
-    aether_routing_service_t *routing;
+struct aethermesh_watch_together_service {
+    aethermesh_transport_t       *transport;
+    aethermesh_routing_service_t *routing;
     char                     *local_uhid;
 
     watch_session_t sessions[WT_MAX_SESSIONS];
 
-    aether_watch_invite_cb    invite_cb;
+    aethermesh_watch_invite_cb    invite_cb;
     void                     *invite_cb_ud;
-    aether_watch_playback_cb  playback_cb;
+    aethermesh_watch_playback_cb  playback_cb;
     void                     *playback_cb_ud;
-    aether_watch_reaction_cb  reaction_cb;
+    aethermesh_watch_reaction_cb  reaction_cb;
     void                     *reaction_cb_ud;
-    aether_watch_member_cb    member_joined_cb;
+    aethermesh_watch_member_cb    member_joined_cb;
     void                     *member_joined_cb_ud;
-    aether_watch_member_cb    member_left_cb;
+    aethermesh_watch_member_cb    member_left_cb;
     void                     *member_left_cb_ud;
 };
 
-static watch_session_t *wt_find(aether_watch_together_service_t *svc, const uint8_t id[16]) {
+static watch_session_t *wt_find(aethermesh_watch_together_service_t *svc, const uint8_t id[16]) {
     for (int i = 0; i < WT_MAX_SESSIONS; i++)
         if (svc->sessions[i].active && memcmp(svc->sessions[i].session_id, id, 16) == 0) return &svc->sessions[i];
     return NULL;
 }
 
-static watch_session_t *wt_alloc(aether_watch_together_service_t *svc) {
+static watch_session_t *wt_alloc(aethermesh_watch_together_service_t *svc) {
     for (int i = 0; i < WT_MAX_SESSIONS; i++)
         if (!svc->sessions[i].active) return &svc->sessions[i];
     return NULL;
@@ -847,7 +847,7 @@ static void wt_free_session(watch_session_t *s) {
     s->active = false;
 }
 
-static void wt_broadcast(aether_watch_together_service_t *svc, watch_session_t *ses, cJSON *obj, uint8_t pkt_type) {
+static void wt_broadcast(aethermesh_watch_together_service_t *svc, watch_session_t *ses, cJSON *obj, uint8_t pkt_type) {
     for (int i = 0; i < ses->member_count; i++) {
         const char *uhid = ses->members[i];
         if (!uhid) continue;
@@ -858,11 +858,11 @@ static void wt_broadcast(aether_watch_together_service_t *svc, watch_session_t *
     cJSON_Delete(obj);
 }
 
-aether_watch_together_service_t *aether_watch_together_service_create(
-    aether_transport_t *transport, aether_routing_service_t *routing, const char *local_uhid
+aethermesh_watch_together_service_t *aethermesh_watch_together_service_create(
+    aethermesh_transport_t *transport, aethermesh_routing_service_t *routing, const char *local_uhid
 ) {
     if (!transport || !routing || !local_uhid) return NULL;
-    aether_watch_together_service_t *svc = (aether_watch_together_service_t *)calloc(1, sizeof(aether_watch_together_service_t));
+    aethermesh_watch_together_service_t *svc = (aethermesh_watch_together_service_t *)calloc(1, sizeof(aethermesh_watch_together_service_t));
     if (!svc) return NULL;
     svc->transport  = transport;
     svc->routing    = routing;
@@ -871,21 +871,21 @@ aether_watch_together_service_t *aether_watch_together_service_create(
     return svc;
 }
 
-void aether_watch_together_service_destroy(aether_watch_together_service_t *svc) {
+void aethermesh_watch_together_service_destroy(aethermesh_watch_together_service_t *svc) {
     if (!svc) return;
     for (int i = 0; i < WT_MAX_SESSIONS; i++) wt_free_session(&svc->sessions[i]);
     free(svc->local_uhid);
     free(svc);
 }
 
-void aether_watch_set_invite_cb(aether_watch_together_service_t *svc, aether_watch_invite_cb cb, void *ud) { if (svc) { svc->invite_cb = cb; svc->invite_cb_ud = ud; } }
-void aether_watch_set_playback_cb(aether_watch_together_service_t *svc, aether_watch_playback_cb cb, void *ud) { if (svc) { svc->playback_cb = cb; svc->playback_cb_ud = ud; } }
-void aether_watch_set_reaction_cb(aether_watch_together_service_t *svc, aether_watch_reaction_cb cb, void *ud) { if (svc) { svc->reaction_cb = cb; svc->reaction_cb_ud = ud; } }
-void aether_watch_set_member_joined_cb(aether_watch_together_service_t *svc, aether_watch_member_cb cb, void *ud) { if (svc) { svc->member_joined_cb = cb; svc->member_joined_cb_ud = ud; } }
-void aether_watch_set_member_left_cb(aether_watch_together_service_t *svc, aether_watch_member_cb cb, void *ud) { if (svc) { svc->member_left_cb = cb; svc->member_left_cb_ud = ud; } }
+void aethermesh_watch_set_invite_cb(aethermesh_watch_together_service_t *svc, aethermesh_watch_invite_cb cb, void *ud) { if (svc) { svc->invite_cb = cb; svc->invite_cb_ud = ud; } }
+void aethermesh_watch_set_playback_cb(aethermesh_watch_together_service_t *svc, aethermesh_watch_playback_cb cb, void *ud) { if (svc) { svc->playback_cb = cb; svc->playback_cb_ud = ud; } }
+void aethermesh_watch_set_reaction_cb(aethermesh_watch_together_service_t *svc, aethermesh_watch_reaction_cb cb, void *ud) { if (svc) { svc->reaction_cb = cb; svc->reaction_cb_ud = ud; } }
+void aethermesh_watch_set_member_joined_cb(aethermesh_watch_together_service_t *svc, aethermesh_watch_member_cb cb, void *ud) { if (svc) { svc->member_joined_cb = cb; svc->member_joined_cb_ud = ud; } }
+void aethermesh_watch_set_member_left_cb(aethermesh_watch_together_service_t *svc, aethermesh_watch_member_cb cb, void *ud) { if (svc) { svc->member_left_cb = cb; svc->member_left_cb_ud = ud; } }
 
-int aether_watch_invite_to_session(
-    aether_watch_together_service_t *svc, const char **to_uhids, int to_count, const char *media_url, uint8_t session_id_out[16]
+int aethermesh_watch_invite_to_session(
+    aethermesh_watch_together_service_t *svc, const char **to_uhids, int to_count, const char *media_url, uint8_t session_id_out[16]
 ) {
     if (!svc || !media_url) return -1;
     watch_session_t *ses = wt_alloc(svc);
@@ -918,13 +918,13 @@ int aether_watch_invite_to_session(
     for (int i = 0; i < to_count; i++) {
         if (!to_uhids[i]) continue;
         cJSON *dup = cJSON_Duplicate(obj, 1);
-        st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, dup, to_uhids[i], AETHER_PACKET_TYPE_WATCH_SYNC, 32);
+        st_send_json_unicast(svc->transport, svc->routing, svc->local_uhid, dup, to_uhids[i], AETHERMESH_PACKET_TYPE_WATCH_SYNC, 32);
     }
     cJSON_Delete(obj);
     return 0;
 }
 
-int aether_watch_play(aether_watch_together_service_t *svc, const uint8_t session_id[16], int64_t position_ms) {
+int aethermesh_watch_play(aethermesh_watch_together_service_t *svc, const uint8_t session_id[16], int64_t position_ms) {
     if (!svc) return -1;
     watch_session_t *ses = wt_find(svc, session_id);
     if (!ses) return -1;
@@ -936,11 +936,11 @@ int aether_watch_play(aether_watch_together_service_t *svc, const uint8_t sessio
     cJSON_AddNumberToObject(obj, "position_ms", (double)position_ms);
     cJSON_AddNumberToObject(obj, "sent_at_ms", (double)st_now_ms());
     cJSON_AddStringToObject(obj, "signal_type", "watch_play");
-    wt_broadcast(svc, ses, obj, AETHER_PACKET_TYPE_WATCH_SYNC);
+    wt_broadcast(svc, ses, obj, AETHERMESH_PACKET_TYPE_WATCH_SYNC);
     return 0;
 }
 
-int aether_watch_pause(aether_watch_together_service_t *svc, const uint8_t session_id[16], int64_t position_ms) {
+int aethermesh_watch_pause(aethermesh_watch_together_service_t *svc, const uint8_t session_id[16], int64_t position_ms) {
     if (!svc) return -1;
     watch_session_t *ses = wt_find(svc, session_id);
     if (!ses) return -1;
@@ -951,11 +951,11 @@ int aether_watch_pause(aether_watch_together_service_t *svc, const uint8_t sessi
     cJSON_AddStringToObject(obj, "from_uhid", svc->local_uhid);
     cJSON_AddNumberToObject(obj, "position_ms", (double)position_ms);
     cJSON_AddStringToObject(obj, "signal_type", "watch_pause");
-    wt_broadcast(svc, ses, obj, AETHER_PACKET_TYPE_WATCH_SYNC);
+    wt_broadcast(svc, ses, obj, AETHERMESH_PACKET_TYPE_WATCH_SYNC);
     return 0;
 }
 
-int aether_watch_seek(aether_watch_together_service_t *svc, const uint8_t session_id[16], int64_t position_ms) {
+int aethermesh_watch_seek(aethermesh_watch_together_service_t *svc, const uint8_t session_id[16], int64_t position_ms) {
     if (!svc) return -1;
     watch_session_t *ses = wt_find(svc, session_id);
     if (!ses) return -1;
@@ -967,11 +967,11 @@ int aether_watch_seek(aether_watch_together_service_t *svc, const uint8_t sessio
     cJSON_AddNumberToObject(obj, "position_ms", (double)position_ms);
     cJSON_AddNumberToObject(obj, "sent_at_ms", (double)st_now_ms());
     cJSON_AddStringToObject(obj, "signal_type", "watch_seek");
-    wt_broadcast(svc, ses, obj, AETHER_PACKET_TYPE_WATCH_SYNC);
+    wt_broadcast(svc, ses, obj, AETHERMESH_PACKET_TYPE_WATCH_SYNC);
     return 0;
 }
 
-int aether_watch_set_speed(aether_watch_together_service_t *svc, const uint8_t session_id[16], double speed) {
+int aethermesh_watch_set_speed(aethermesh_watch_together_service_t *svc, const uint8_t session_id[16], double speed) {
     if (!svc) return -1;
     watch_session_t *ses = wt_find(svc, session_id);
     if (!ses) return -1;
@@ -982,11 +982,11 @@ int aether_watch_set_speed(aether_watch_together_service_t *svc, const uint8_t s
     cJSON_AddStringToObject(obj, "from_uhid", svc->local_uhid);
     cJSON_AddNumberToObject(obj, "speed", speed);
     cJSON_AddStringToObject(obj, "signal_type", "watch_speed");
-    wt_broadcast(svc, ses, obj, AETHER_PACKET_TYPE_WATCH_SYNC);
+    wt_broadcast(svc, ses, obj, AETHERMESH_PACKET_TYPE_WATCH_SYNC);
     return 0;
 }
 
-int aether_watch_send_reaction(aether_watch_together_service_t *svc, const uint8_t session_id[16], const char *emoji) {
+int aethermesh_watch_send_reaction(aethermesh_watch_together_service_t *svc, const uint8_t session_id[16], const char *emoji) {
     if (!svc || !emoji) return -1;
     watch_session_t *ses = wt_find(svc, session_id);
     if (!ses) return -1;
@@ -996,13 +996,13 @@ int aether_watch_send_reaction(aether_watch_together_service_t *svc, const uint8
     cJSON_AddStringToObject(obj, "from_uhid", svc->local_uhid);
     cJSON_AddStringToObject(obj, "emoji", emoji);
     cJSON_AddNumberToObject(obj, "sent_at_ms", (double)st_now_ms());
-    wt_broadcast(svc, ses, obj, AETHER_PACKET_TYPE_WATCH_REACTION);
+    wt_broadcast(svc, ses, obj, AETHERMESH_PACKET_TYPE_WATCH_REACTION);
     return 0;
 }
 
-int aether_watch_handle_packet(aether_watch_together_service_t *svc, const aether_packet_t *packet) {
+int aethermesh_watch_handle_packet(aethermesh_watch_together_service_t *svc, const aethermesh_packet_t *packet) {
     if (!svc || !packet) return -1;
-    if (packet->type != AETHER_PACKET_TYPE_WATCH_SYNC && packet->type != AETHER_PACKET_TYPE_WATCH_REACTION) return -1;
+    if (packet->type != AETHERMESH_PACKET_TYPE_WATCH_SYNC && packet->type != AETHERMESH_PACKET_TYPE_WATCH_REACTION) return -1;
     if (!packet->payload || packet->payload_len == 0) return -1;
 
     cJSON *obj = cJSON_ParseWithLength((const char *)packet->payload, packet->payload_len);
@@ -1070,7 +1070,7 @@ int aether_watch_handle_packet(aether_watch_together_service_t *svc, const aethe
         watch_session_t *ses = wt_find(svc, session_id);
         cJSON *jsp = cJSON_GetObjectItemCaseSensitive(obj, "speed");
         if (ses && cJSON_IsNumber(jsp)) ses->playback_speed = jsp->valuedouble;
-    } else if (packet->type == AETHER_PACKET_TYPE_WATCH_REACTION) {
+    } else if (packet->type == AETHERMESH_PACKET_TYPE_WATCH_REACTION) {
         cJSON *jfrom  = cJSON_GetObjectItemCaseSensitive(obj, "from_uhid");
         cJSON *jemoji = cJSON_GetObjectItemCaseSensitive(obj, "emoji");
         if (svc->reaction_cb && cJSON_IsString(jfrom) && cJSON_IsString(jemoji)) {

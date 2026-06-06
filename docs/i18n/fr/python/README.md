@@ -39,10 +39,10 @@ pip install -e ".[dev]"
 
 ```python
 import asyncio
-from aether.security.ed25519_service import Ed25519SigningService
-from aether.security.signal_protocol import SignalProtocolService
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.protocol.serializer import PacketSerializer
+from aethermesh.security.ed25519_service import Ed25519SigningService
+from aethermesh.security.signal_protocol import SignalProtocolService
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.protocol.serializer import PacketSerializer
 
 # Generate Ed25519 keys
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -64,7 +64,7 @@ print(f"Signature valid: {is_valid}")
 aether/
 ├── __init__.py              # Package exports
 ├── constants.py             # Protocol constants
-├── models.py                # Data models (AetherNode, PeerInfo, RouteEntry)
+├── models.py                # Data models (AetherMeshNode, PeerInfo, RouteEntry)
 ├── protocol/
 │   ├── __init__.py
 │   ├── mesh_packet.py       # MeshPacket and PacketType definitions
@@ -87,7 +87,7 @@ aether/
 Utilise PyNaCl (libsodium) pour les opérations cryptographiques :
 
 ```python
-from aether.security.ed25519_service import Ed25519SigningService
+from aethermesh.security.ed25519_service import Ed25519SigningService
 
 # Generate a key pair
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -109,7 +109,7 @@ is_valid = Ed25519SigningService.verify(public_key, data, signature)
 Implémente l'échange de clés X3DH avec un cliquet symétrique pour la confidentialité persistante :
 
 ```python
-from aether.security.signal_protocol import SignalProtocolService
+from aethermesh.security.signal_protocol import SignalProtocolService
 
 # Create protocol instances
 alice_signal = SignalProtocolService()
@@ -134,7 +134,7 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 ```
 
 **Dérivation de clé :**
-- Utilise HKDF-SHA256 avec le sel : `"AetherSignal"`
+- Utilise HKDF-SHA256 avec le sel : `"AetherMeshSignal"`
 - Informations de clé racine : `"aether-root-v1"`
 - Informations de chaîne d'envoi : `"aether-chain-send-v1"`
 - Informations de chaîne de réception : `"aether-chain-recv-v1"`
@@ -150,8 +150,8 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 Format binaire compatible au niveau réseau correspondant à l'implémentation C# :
 
 ```python
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.protocol.serializer import PacketSerializer
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.protocol.serializer import PacketSerializer
 
 # Create a packet
 packet = MeshPacket(
@@ -188,7 +188,7 @@ decoded_packet = PacketSerializer.deserialize(binary)
 Signe les paquets avec Ed25519 et détecte les attaques par rejeu :
 
 ```python
-from aether.security.packet_signing import PacketSigningService
+from aethermesh.security.packet_signing import PacketSigningService
 
 signing_service = PacketSigningService()
 
@@ -220,7 +220,7 @@ Conformément à la section 2.3 de la spécification du protocole, la signature 
 Classe de base abstraite pour les transports physiques (BLE, Wi-Fi Direct, etc.) :
 
 ```python
-from aether.transport.in_process import InProcessTransport
+from aethermesh.transport.in_process import InProcessTransport
 
 # Create in-process transport instances
 alice_transport = InProcessTransport("alice-001")
@@ -279,7 +279,7 @@ python3 demo.py
 
 La démonstration couvre :
 1. Génération de clés Ed25519 et signature
-2. Création de nœud avec AetherNode
+2. Création de nœud avec AetherMeshNode
 3. Échange de clés X3DH du protocole Signal
 4. Chiffrement et déchiffrement des messages
 5. Sérialisation/désérialisation des paquets

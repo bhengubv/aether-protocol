@@ -13,7 +13,7 @@
 - **Signal Protocol**: Согласование ключей X3DH + симметричный трещоточный механизм для сквозного шифрования
 - **Сервис подписи пакетов**: Дедупликация nonce с TTL 5 минут для защиты от воспроизведения
 - **Внутрипроцессный транспорт**: Транспорт на основе памяти для тестирования и межпроцессного взаимодействия
-- **Модели**: Структуры AetherNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
+- **Модели**: Структуры AetherMeshNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
 - **Константы протокола**: Все константы маршрутизации, обнаружения, безопасности и транспорта
 
 ## Структура модуля
@@ -173,7 +173,7 @@ fmt.Println(inProcTransport.IsConnected("bob"))    // true
 
 ```go
 // Node in the mesh
-node := &models.AetherNode{
+node := &models.AetherMeshNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

@@ -8,8 +8,8 @@
  * access through its own pre-key lock before calling.
  *
  * Mirrors the C# {@code IPreKeyStore} interface and its companion DTOs in
- * src/Aether.Security/Services/ISecurityServices.cs (with persistence
- * adapters in src/Aether.Storage/KeyValuePreKeyStore.cs).
+ * src/AetherMesh.Security/Services/ISecurityServices.cs (with persistence
+ * adapters in src/AetherMesh.Storage/KeyValuePreKeyStore.cs).
  *
  * SPDX-License-Identifier: MIT
  */

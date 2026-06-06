@@ -19,9 +19,9 @@ type HmacSha256 = Hmac<Sha256>;
 
 fn repo_root() -> PathBuf {
     let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR")); // .../aether-protocol/rust
-    while !p.join("AetherProtocol.slnx").is_file() {
+    while !p.join("AetherMeshProtocol.slnx").is_file() {
         if !p.pop() {
-            panic!("AetherProtocol.slnx not found above CARGO_MANIFEST_DIR");
+            panic!("AetherMeshProtocol.slnx not found above CARGO_MANIFEST_DIR");
         }
     }
     p

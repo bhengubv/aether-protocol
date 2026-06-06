@@ -10,7 +10,7 @@
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 
-use aether_protocol::{
+use aethermesh_protocol::{
     models::PeerInfo,
     protocol::{MeshPacket, PacketType},
     routing::sender::MeshSender,

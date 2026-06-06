@@ -1,7 +1,7 @@
 # CircleAether → aether-protocol Parity Guide
 
 This document lists every concrete change needed to bring the internal
-`Shared.CircleAether` / `CircleAetherAPI` implementation up to parity with the
+`Shared.CircleAether` / `CircleAetherMeshAPI` implementation up to parity with the
 public `bhengubv/aether-protocol` contracts. Apply them in order — later items
 depend on earlier ones.
 
@@ -59,24 +59,24 @@ var sharedSecret     = x25519.Agree(myKey, theirKey)!;
 Update the UHID derivation to match the public contract:
 
 ```csharp
-// public repo: AetherTag.FromPublicKey(ed25519PublicKeyBytes)
-var uhid = AetherTag.FromPublicKey(publicKeyBytes).ToString();
+// public repo: AetherMeshTag.FromPublicKey(ed25519PublicKeyBytes)
+var uhid = AetherMeshTag.FromPublicKey(publicKeyBytes).ToString();
 ```
 
-`AetherTag.FromPublicKey` is in `Aether.Core` (`Aether.Core.Identity` namespace)
-— add a project/package reference to `Aether.Core` if not already present.
+`AetherMeshTag.FromPublicKey` is in `AetherMesh.Core` (`AetherMesh.Core.Identity` namespace)
+— add a project/package reference to `AetherMesh.Core` if not already present.
 
 ---
 
-## 2 — Implement `IAetherIncentiveProvider` on `AetherRewardService`
+## 2 — Implement `IAetherMeshIncentiveProvider` on `AetherMeshRewardService`
 
-File: `code/Shared/TheGeekNetwork.Shared.CircleAether/Incentives/Services/AetherRewardService.cs`
+File: `code/Shared/TheGeekNetwork.Shared.CircleAether/Incentives/Services/AetherMeshRewardService.cs`
 
 ```csharp
-using Aether.Extensibility;   // IAetherIncentiveProvider
-using Aether.Protocol;        // MeshPacket
+using AetherMesh.Extensibility;   // IAetherMeshIncentiveProvider
+using AetherMesh.Protocol;        // MeshPacket
 
-public sealed class AetherRewardService : IAetherIncentiveProvider
+public sealed class AetherMeshRewardService : IAetherMeshIncentiveProvider
 {
     // ... existing fields ...
 
@@ -106,23 +106,23 @@ public sealed class AetherRewardService : IAetherIncentiveProvider
 
 ---
 
-## 3 — Implement `IAetherBackendClient` on `AetherApiClient`
+## 3 — Implement `IAetherMeshBackendClient` on `AetherMeshApiClient`
 
-File: `code/Shared/TheGeekNetwork.Shared.CircleAether/ApiClients/AetherApiClient.cs`
+File: `code/Shared/TheGeekNetwork.Shared.CircleAether/ApiClients/AetherMeshApiClient.cs`
 
 ```csharp
-using Aether.Extensibility;
-using Aether.Models;   // AetherNode, DtnBundle, SosAlert
+using AetherMesh.Extensibility;
+using AetherMesh.Models;   // AetherMeshNode, DtnBundle, SosAlert
 
-public sealed class AetherApiClient : IAetherBackendClient
+public sealed class AetherMeshApiClient : IAetherMeshBackendClient
 {
     /// <inheritdoc/>
     public async Task<bool> SyncNodeAsync(
-        AetherNode node,
+        AetherMeshNode node,
         CancellationToken cancellationToken = default)
     {
         // Use existing RegisterNodeAsync / HeartbeatAsync logic.
-        // Map AetherNode fields → your existing DTO.
+        // Map AetherMeshNode fields → your existing DTO.
         try
         {
             await RegisterNodeAsync(new NodeRegistrationDto
@@ -167,7 +167,7 @@ public sealed class AetherApiClient : IAetherBackendClient
         SosAlert alert,
         CancellationToken cancellationToken = default)
     {
-        // Forward to your existing SosBridgeService / CircleAetherAPI SOS endpoint.
+        // Forward to your existing SosBridgeService / CircleAetherMeshAPI SOS endpoint.
         try
         {
             await PostSosAlertAsync(alert, cancellationToken);
@@ -203,14 +203,14 @@ public sealed class AetherApiClient : IAetherBackendClient
 
 ---
 
-## 4 — Implement `IAetherFeatureFlagProvider` on `AetherFeatureFlagService`
+## 4 — Implement `IAetherMeshFeatureFlagProvider` on `AetherMeshFeatureFlagService`
 
-File: `code/Shared/TheGeekNetwork.Shared.CircleAether/FeatureFlags/AetherFeatureFlagService.cs`
+File: `code/Shared/TheGeekNetwork.Shared.CircleAether/FeatureFlags/AetherMeshFeatureFlagService.cs`
 
 ```csharp
-using Aether.Extensibility;
+using AetherMesh.Extensibility;
 
-public sealed class AetherFeatureFlagService : IAetherFeatureFlagProvider
+public sealed class AetherMeshFeatureFlagService : IAetherMeshFeatureFlagProvider
 {
     /// <inheritdoc/>
     public Task<bool> IsEnabledAsync(
@@ -228,20 +228,20 @@ public sealed class AetherFeatureFlagService : IAetherFeatureFlagProvider
 
 ## 5 — Storage: Register `SqliteKeyValueStore` as `IKeyValueStore`
 
-The public `Aether.Storage` package's `KeyValueDtnBundleStore`,
+The public `AetherMesh.Storage` package's `KeyValueDtnBundleStore`,
 `KeyValueMessageStore`, `KeyValueRouteStore`, etc. all depend on `IKeyValueStore`.
 Providing a SQLite-backed implementation lets you retire the hand-rolled CRUD
-in `AetherStorageService` one table at a time.
+in `AetherMeshStorageService` one table at a time.
 
 Create: `code/Shared/TheGeekNetwork.Shared.CircleAether/Storage/SqliteKeyValueStore.cs`
 
 ```csharp
-using Aether.Storage;
+using AetherMesh.Storage;
 using Dapper;
 using Microsoft.Data.Sqlite;
 
 /// <summary>
-/// IKeyValueStore backed by the existing aether_local.db SQLite database.
+/// IKeyValueStore backed by the existing aethermesh_local.db SQLite database.
 /// Uses a single `kv_store` table (key TEXT PK, value BLOB, expires_at INTEGER).
 /// </summary>
 public sealed class SqliteKeyValueStore : IKeyValueStore
@@ -307,20 +307,20 @@ CREATE INDEX IF NOT EXISTS ix_kv_store_expires ON kv_store(expires_at)
 
 ---
 
-## 6 — DI alignment: wire `AddCircleAether()` through `IAetherProtocolBuilder`
+## 6 — DI alignment: wire `AddCircleAether()` through `IAetherMeshProtocolBuilder`
 
-File: `code/Shared/TheGeekNetwork.Shared.CircleAether/AetherExtensions.cs`
+File: `code/Shared/TheGeekNetwork.Shared.CircleAether/AetherMeshExtensions.cs`
 
 Register CircleAether's concrete implementations **before** calling
-`AddAetherProtocol` so `TryAddSingleton` picks them up instead of the in-memory
+`AddAetherMeshProtocol` so `TryAddSingleton` picks them up instead of the in-memory
 defaults:
 
 ```csharp
-using Aether.DependencyInjection;
-using Aether.Extensibility;
-using Aether.Storage;
+using AetherMesh.DependencyInjection;
+using AetherMesh.Extensibility;
+using AetherMesh.Storage;
 
-public static class AetherExtensions
+public static class AetherMeshExtensions
 {
     public static IServiceCollection AddCircleAether(
         this IServiceCollection services,
@@ -329,18 +329,18 @@ public static class AetherExtensions
         // 1. Register CircleAether-specific seam implementations first.
         //    TryAddSingleton means the public builder's defaults are skipped
         //    for anything registered here.
-        services.TryAddSingleton<IAetherBackendClient, AetherApiClient>();
-        services.TryAddSingleton<IAetherIncentiveProvider, AetherRewardService>();
-        services.TryAddSingleton<IAetherFeatureFlagProvider, AetherFeatureFlagService>();
+        services.TryAddSingleton<IAetherMeshBackendClient, AetherMeshApiClient>();
+        services.TryAddSingleton<IAetherMeshIncentiveProvider, AetherMeshRewardService>();
+        services.TryAddSingleton<IAetherMeshFeatureFlagProvider, AetherMeshFeatureFlagService>();
         services.TryAddSingleton<IKeyValueStore>(sp =>
-            new SqliteKeyValueStore(AetherStorageService.ConnectionString));
+            new SqliteKeyValueStore(AetherMeshStorageService.ConnectionString));
 
         // 2. Platform BLE / Wi-Fi Direct — registered in MauiProgram.cs via
         //    #if ANDROID / #if IOS guards as before. No change needed there.
 
         // 3. Wire the public protocol stack.
         services
-            .AddAetherProtocol(opts => opts.LocalUhid = localUhid)
+            .AddAetherMeshProtocol(opts => opts.LocalUhid = localUhid)
             .AddSignalProtocol()
             .AddRouting()
             .AddDtn()
@@ -359,7 +359,7 @@ public static class AetherExtensions
             .AddHealthChecks();
 
         // 4. Remaining CircleAether-only services (no public equivalent).
-        services.AddSingleton<AetherFeatureFlagService>();   // also concrete for GetCachedFlagsAsync
+        services.AddSingleton<AetherMeshFeatureFlagService>();   // also concrete for GetCachedFlagsAsync
         services.AddSingleton<NodeInitializationService>();
         services.AddSingleton<MeshProtocolService>();        // heartbeat orchestrator
         services.AddSingleton<GatewayService>();
@@ -375,19 +375,19 @@ public static class AetherExtensions
 ## 7 — NuGet package references to add to `Shared.CircleAether.csproj`
 
 ```xml
-<PackageReference Include="Aether.Core"                   Version="1.*" />
-<PackageReference Include="Aether.Security"               Version="1.*" />
-<PackageReference Include="Aether.Messaging"              Version="1.*" />
-<PackageReference Include="Aether.Transport"              Version="1.*" />
-<PackageReference Include="Aether.Storage"                Version="1.*" />
-<PackageReference Include="Aether.Streaming"              Version="1.*" />
-<PackageReference Include="Aether.Voice"                  Version="1.*" />
-<PackageReference Include="Aether.Content"                Version="1.*" />
-<PackageReference Include="Aether.DependencyInjection"    Version="1.*" />
+<PackageReference Include="AetherMesh.Core"                   Version="1.*" />
+<PackageReference Include="AetherMesh.Security"               Version="1.*" />
+<PackageReference Include="AetherMesh.Messaging"              Version="1.*" />
+<PackageReference Include="AetherMesh.Transport"              Version="1.*" />
+<PackageReference Include="AetherMesh.Storage"                Version="1.*" />
+<PackageReference Include="AetherMesh.Streaming"              Version="1.*" />
+<PackageReference Include="AetherMesh.Voice"                  Version="1.*" />
+<PackageReference Include="AetherMesh.Content"                Version="1.*" />
+<PackageReference Include="AetherMesh.DependencyInjection"    Version="1.*" />
 <PackageReference Include="NSec.Cryptography"             Version="24.*" />
 ```
 
-Remove the private NuGet feed reference for `Aether.Protocol.*` once the above
+Remove the private NuGet feed reference for `AetherMesh.Protocol.*` once the above
 are resolving from nuget.org.
 
 ---

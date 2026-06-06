@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AetherMesh.Security</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Security and cryptography library for the Aether mesh networking protocol. Implements X3DH key agreement, Double Ratchet messaging, Ed25519 packet signing, AES-256-GCM encryption, HKDF/HMAC key derivation, signed pre-key rotation, and OPK pool management — wire-compatible across all 8 language implementations.</Description>
+    <PackageTags>mesh;security;signal-protocol;x3dh;double-ratchet;x25519;ed25519;aes-gcm;hkdf;hmac;aether;e2e-encryption</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NSec.Cryptography" Version="25.4.0" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherMesh.Core/AetherMesh.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AetherMesh.InteropTest" />
+    <InternalsVisibleTo Include="AetherMesh.Storage" />
+    <InternalsVisibleTo Include="AetherMesh.Core.Tests" />
+  </ItemGroup>
+
+</Project>

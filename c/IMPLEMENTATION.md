@@ -20,9 +20,9 @@ A production-ready, embedded-friendly C implementation of the Aether mesh networ
 - Security constants (key sizes, nonce sizes, limits)
 
 **`include/aether/protocol.h`** — Core packet types and serialization
-- `aether_mesh_packet_t` struct (fixed + variable-length fields)
-- `aether_packet_type_t` enum (26 packet types)
-- `aether_capabilities_t` bitfield
+- `aethermesh_mesh_packet_t` struct (fixed + variable-length fields)
+- `aethermesh_packet_type_t` enum (26 packet types)
+- `aethermesh_capabilities_t` bitfield
 - 16 packet management functions
 - Serialization to/from little-endian binary
 - Signable data construction (deterministic, per spec)
@@ -143,7 +143,7 @@ A production-ready, embedded-friendly C implementation of the Aether mesh networ
 
 ## Wire Format Compliance
 
-Verified against `/Users/admin/Code/Dev/aether-protocol/src/Aether.Core/Protocol/PacketSerializer.cs`:
+Verified against `/Users/admin/Code/Dev/aether-protocol/src/AetherMesh.Core/Protocol/PacketSerializer.cs`:
 
 | Field | Size | Format | Implementation |
 |-------|------|--------|-----------------|

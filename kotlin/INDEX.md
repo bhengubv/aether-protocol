@@ -65,7 +65,7 @@ cd /Users/admin/Code/Dev/aether-protocol/kotlin
 - Out-of-order message handling (1000 skipped keys)
 
 ### Models ✓
-- AetherNode (node identity)
+- AetherMeshNode (node identity)
 - PeerInfo (known peers)
 - RouteEntry (routing table)
 - NodeCapabilities (bitfield)

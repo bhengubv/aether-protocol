@@ -13,7 +13,7 @@ C# 참조 구현과 와이어 호환성을 갖춘 Aether 메시 네트워킹 프
 - **Signal 프로토콜**: 종단 간 암호화를 위한 X3DH 키 합의 + 대칭 래칫
 - **패킷 서명 서비스**: 재전송 방지를 위한 5분 TTL 논스 중복 제거
 - **인프로세스 전송**: 테스트 및 프로세스 간 통신을 위한 메모리 기반 전송
-- **모델**: AetherNode, PeerInfo, RouteEntry, DtnBundle, SosAlert 구조체
+- **모델**: AetherMeshNode, PeerInfo, RouteEntry, DtnBundle, SosAlert 구조체
 - **프로토콜 상수**: 모든 라우팅, 탐색, 보안 및 전송 상수
 
 ## 모듈 구조
@@ -173,7 +173,7 @@ fmt.Println(inProcTransport.IsConnected("bob"))    // true
 
 ```go
 // Node in the mesh
-node := &models.AetherNode{
+node := &models.AetherMeshNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

@@ -29,7 +29,7 @@ Aether یک پروتکل شبکه‌سازی مِش غیرمتمرکز برای 
 │       ├── Constants.kt                      # Protocol constants (TTL, timeouts, HKDF info strings)
 │       ├── Demo.kt                           # Demo application (key generation, encryption, signing)
 │       ├── models/
-│       │   └── Models.kt                     # Domain models (AetherNode, PeerInfo, DtnBundle, etc.)
+│       │   └── Models.kt                     # Domain models (AetherMeshNode, PeerInfo, DtnBundle, etc.)
 │       ├── protocol/
 │       │   ├── MeshPacket.kt                 # Packet data class (wire-compatible with C#)
 │       │   ├── PacketType.kt                 # Packet type enum (23 types, matching C# values)
@@ -147,7 +147,7 @@ interface TransportService {
 
 ### ۵. مدل‌های دامنه (`Models.kt`)
 
-- **AetherNode**: هویت گره با UHID، کلید عمومی، قابلیت‌ها، geohash
+- **AetherMeshNode**: هویت گره با UHID، کلید عمومی، قابلیت‌ها، geohash
 - **PeerInfo**: همتای شناخته‌شده با امتیاز قابلیت اطمینان و مهر زمانی آخرین مشاهده
 - **RouteEntry**: ورودی جدول مسیریابی با تعداد hop و امتیاز کیفیت
 - **NodeCapabilities**: فیلد بیت (BLE، Wi-Fi Direct، Gateway، Relay، SOS، Streaming، Voice، DTN)

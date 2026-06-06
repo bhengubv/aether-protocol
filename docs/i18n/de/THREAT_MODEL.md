@@ -10,7 +10,7 @@ README in die Irre geführt werden.
 
 Das begleitende Dokument ist [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7
 (Sicherheitsmodell). Wenn die beiden voneinander abweichen, ist die Implementierung
-in `src/Aether.Security/` maßgebend.
+in `src/AetherMesh.Security/` maßgebend.
 
 ---
 
@@ -65,13 +65,13 @@ der aus der symmetrischen Kette des Double Ratchets abgeleitet wird (Signal §5.
 HMAC-SHA256 mit `0x01`/`0x02` Domain-Separation). Ein Angreifer, der jedes Paket
 zwischen Alice und Bob abfängt, erhält ohne einen ihrer Sitzungsschlüssel nichts.
 
-Verifiziert durch `tests/Aether.Security.Tests/SignalProtocolEncryptionTests.cs`
+Verifiziert durch `tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs`
 und die sprachübergreifenden `fixtures/signal/expected/ratchet_step_basic.json`-Vektoren.
 
 ### 2.2. Nachrichtenfälschung
 
 Jedes Wave-2-Paket trägt eine Ed25519-Signatur über den kanonischen
-`BuildSignableData(packet)`-Puffer (`src/Aether.Security/Services/PacketSigningService.cs`,
+`BuildSignableData(packet)`-Puffer (`src/AetherMesh.Security/Services/PacketSigningService.cs`,
 PROTOCOL_SPEC §2.4). Gefälschte Pakete schlagen bei der Verifizierung fehl und werden
 an jedem Hop verworfen, der den öffentlichen Identitätsschlüssel der Quelle kennt.
 Route-Reply-Pakete (RREP) werden vom behaupteten Ziel signiert — Zwischenknoten können
@@ -90,14 +90,14 @@ Ziele nicht vortäuschen, da sie den privaten Ed25519-Schlüssel des Ziels nicht
   Pre-Registration-Angriffe, bei denen ein Angreifer eine Nonce gegen einen Empfänger
   platziert, um das erste Paket des legitimen Senders zu blockieren.
 
-Zähler: `aether.nonces.replayed`, `aether.timestamps.stale`.
+Zähler: `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`.
 
 ### 2.4. Forward Secrecy (Vergangenheitsschlüssel-Kompromittierung)
 
 Der Double Ratchet leitet bei jedem DH-Rotationsschritt einen neuen Sendekettenschlüssel
 ab (KDF_RK, HKDF-SHA256 über `salt = current_root_key`,
 `info = "aether-ratchet-rk-v1"`, 64-Byte-Block aufgeteilt 32+32 in neuen Root-
-und Kettenschlüssel — `src/Aether.Security/Services/SignalProtocolService.cs`).
+und Kettenschlüssel — `src/AetherMesh.Security/Services/SignalProtocolService.cs`).
 Ein Angreifer, der den aktuellen Sitzungszustand kompromittiert, kann keine
 vorherige Nachricht entschlüsseln: Jeder vorherige Nachrichtenschlüssel wurde
 abgeleitet und genullt (`CryptographicOperations.ZeroMemory`), bevor der nächste
@@ -120,7 +120,7 @@ siehe `OPEN_ISSUES.md` Punkt 2 für die familienweite Commit-Liste.
 Jeder One-Time-Pre-Key (OPK) wird genau einmal verbraucht. Die C#-Referenz
 liefert einen 100-OPK-Pool mit FIFO-Ausgabe, lazy Top-Up bei jeder Bundle-Generierung
 und lock-geschütztem Single-Shot-Verbrauch (`SignalProtocolService.TopUpOpkPoolNoLock`,
-verifiziert durch `tests/Aether.Core.Tests/PreKeyPoolTests.cs`). Ein OPK wird
+verifiziert durch `tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`). Ein OPK wird
 entfernt und genullt, sobald der Responder ihn während X3DH verbraucht, sodass
 eine wiederholte PreKey-Nachricht, die dieselbe OPK-ID wiederverwendet, keine
 Sitzung aufbauen kann.
@@ -230,7 +230,7 @@ CRQC innerhalb des relevanten Zeithorizonts eintrifft.
 
 ### 3.5. Gruppen-Messaging im großen Maßstab
 
-`Aether.Security` liefert eine `IGroupKeyProvider`-Naht, aber das vollständige
+`AetherMesh.Security` liefert eine `IGroupKeyProvider`-Naht, aber das vollständige
 Signal Sender Keys-Protokoll (die asynchrone Gruppen-Messaging-Konstruktion, die
 Signal verwendet) ist ab HEAD **nicht** implementiert. Hosts, die heute
 Gruppen-Messaging benötigen, fallen auf N paarweise Sitzungen zurück — was
@@ -326,7 +326,7 @@ des allerersten Bundle-Austauschs kontrolliert, kann sein eigenes Bundle
 einsetzen und als Proxy für den Traffic fungieren.
 **Gegenmaßnahme:** Host-UX muss einen Safety-Number-/Public-Key-Fingerabdruckvergleichs-
 Fluss bereitstellen, bevor ein Kontakt als verifiziert behandelt wird. Eine öffentliche
-API-Oberfläche für die Safety-Number-Ableitung ist noch nicht in `Aether.Security`
+API-Oberfläche für die Safety-Number-Ableitung ist noch nicht in `AetherMesh.Security`
 enthalten; wird als Lücke verfolgt.
 
 ### 5.2. Verzögerung bei der Signed-Pre-Key-Rotation

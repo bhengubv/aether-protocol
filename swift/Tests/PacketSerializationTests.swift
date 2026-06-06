@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 import XCTest
-@testable import AetherProtocol
+@testable import AetherMeshProtocol
 
 final class PacketSerializationTests: XCTestCase {
     func testSerializeDeserializeRoundTrip() throws {

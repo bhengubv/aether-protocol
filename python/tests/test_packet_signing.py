@@ -17,9 +17,9 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.security.ed25519_service import Ed25519SigningService
-from aether.security.packet_signing import PacketSigningService
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.security.ed25519_service import Ed25519SigningService
+from aethermesh.security.packet_signing import PacketSigningService
 
 
 # ─── helpers ───────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 // Unit tests for PredictiveTransportSelector — Kalman RTT filter and scoring.
 
 import XCTest
-@testable import AetherProtocol
+@testable import AetherMeshProtocol
 
 // ── FakeTransport — minimal TransportService stub ─────────────────────────────
 

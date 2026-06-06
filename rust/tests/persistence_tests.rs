@@ -12,7 +12,7 @@
 use std::sync::Arc;
 use tempfile::TempDir;
 
-use aether_protocol::{
+use aethermesh_protocol::{
     FileSystemKeyValueStore, KvPreKeyStore, KvSignalSessionStore, KeyValueStore, PreKeyStore,
     SignalProtocolService, SignalSessionStore,
 };

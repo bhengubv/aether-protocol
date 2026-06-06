@@ -9,7 +9,7 @@
 
 Сопутствующий документ — [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7 (Модель
 безопасности). При расхождении между ними авторитетной является реализация в
-`src/Aether.Security/`.
+`src/AetherMesh.Security/`.
 
 ---
 
@@ -60,13 +60,13 @@ flood). Основные гарантии безопасности:
 разделением доменов `0x01`/`0x02`). Злоумышленник, перехвативший каждый пакет
 между Алисой и Бобом, не получит ничего без одного из их сессионных ключей.
 
-Верифицируется тестами `tests/Aether.Security.Tests/SignalProtocolEncryptionTests.cs`
+Верифицируется тестами `tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs`
 и кросс-языковыми векторами `fixtures/signal/expected/ratchet_step_basic.json`.
 
 ### 2.2. Подделка сообщений
 
 Каждый пакет Wave-2 несёт подпись Ed25519 над каноническим буфером
-`BuildSignableData(packet)` (`src/Aether.Security/Services/PacketSigningService.cs`,
+`BuildSignableData(packet)` (`src/AetherMesh.Security/Services/PacketSigningService.cs`,
 PROTOCOL_SPEC §2.4). Поддельные пакеты не проходят верификацию и отбрасываются на
 каждом хопе, которому известен открытый ключ идентификации источника. Пакеты Route Reply
 (RREP) подписываются заявленным получателем — промежуточные узлы не могут
@@ -85,14 +85,14 @@ PROTOCOL_SPEC §2.4). Поддельные пакеты не проходят в
   злоумышленник заблаговременно занимает nonce получателя, блокируя первый пакет
   легитимного отправителя.
 
-Счётчики: `aether.nonces.replayed`, `aether.timestamps.stale`.
+Счётчики: `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`.
 
 ### 2.4. Прямая секретность (компрометация прошлых ключей)
 
 Double Ratchet производит новый ключ отправляющей цепочки на каждом шаге DH-ротации
 (KDF_RK, HKDF-SHA256 над `salt = current_root_key`,
 `info = "aether-ratchet-rk-v1"`, 64-байтовый блок, разбитый 32+32 на новый корневой
-ключ и ключ цепочки — `src/Aether.Security/Services/SignalProtocolService.cs`).
+ключ и ключ цепочки — `src/AetherMesh.Security/Services/SignalProtocolService.cs`).
 Злоумышленник, скомпрометировавший текущее состояние сессии, не сможет расшифровать
 ни одно предыдущее сообщение: каждый предыдущий ключ сообщения был извлечён и обнулён
 (`CryptographicOperations.ZeroMemory`) до следующего шага ratchet.
@@ -114,7 +114,7 @@ Double Ratchet производит новый ключ отправляющей
 реализация на C# включает пул из 100 OPK с выдачей по FIFO, «ленивым» пополнением при
 каждой генерации пакета и потокобезопасным однократным потреблением
 (`SignalProtocolService.TopUpOpkPoolNoLock`, верифицируется тестами
-`tests/Aether.Core.Tests/PreKeyPoolTests.cs`). OPK удаляется и обнуляется в момент,
+`tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`). OPK удаляется и обнуляется в момент,
 когда ответчик потребляет его в ходе X3DH, — повторно воспроизведённое PreKey-сообщение
 с тем же идентификатором OPK не может установить сессию.
 
@@ -222,7 +222,7 @@ Ed25519 — известная проблема, которая пока не з
 
 ### 3.5. Групповые сообщения в масштабе
 
-`Aether.Security` предоставляет шов `IGroupKeyProvider`, однако полный протокол
+`AetherMesh.Security` предоставляет шов `IGroupKeyProvider`, однако полный протокол
 Signal Sender Keys (асинхронная конструкция групповых сообщений, используемая Signal)
 **не реализован** по состоянию на HEAD. Хосты, которым сегодня нужны групповые
 сообщения, деградируют до N парных сессий — что работает, но имеет стоимость O(N)
@@ -315,7 +315,7 @@ Sybil-флуд краткоживущими узлами, не успевшим�
 и проксировать трафик.
 **Мера защиты:** UX хоста должен предоставлять процедуру сравнения safety number /
 отпечатка открытого ключа, прежде чем считать контакт верифицированным. Публичный API
-для вычисления safety number в `Aether.Security` пока не реализован; проблема
+для вычисления safety number в `AetherMesh.Security` пока не реализован; проблема
 отслеживается как пробел.
 
 ### 5.2. Задержка ротации подписанного pre-key

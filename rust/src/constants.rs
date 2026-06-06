@@ -144,4 +144,4 @@ pub const HKDF_CHAIN_SEND_INFO: &[u8] = b"aether-chain-send-v1";
 pub const HKDF_CHAIN_RECV_INFO: &[u8] = b"aether-chain-recv-v1";
 
 /// HKDF salt value
-pub const HKDF_SALT: &[u8] = b"AetherSignal";
+pub const HKDF_SALT: &[u8] = b"AetherMeshSignal";

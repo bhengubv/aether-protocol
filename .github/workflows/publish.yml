@@ -48,19 +48,19 @@ jobs:
         shell: bash
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - run: dotnet restore AetherProtocol.slnx
+      - run: dotnet restore AetherMeshProtocol.slnx
 
-      - run: dotnet build AetherProtocol.slnx -c Release --no-restore
+      - run: dotnet build AetherMeshProtocol.slnx -c Release --no-restore
 
       - name: Test (core + interop)
         run: |
-          dotnet test tests/Aether.Core.Tests/Aether.Core.Tests.csproj -c Release --no-build --nologo
-          dotnet test tests/cross-language/runners/csharp/Aether.InteropTest.csproj -c Release --no-build --nologo
+          dotnet test tests/AetherMesh.Core.Tests/AetherMesh.Core.Tests.csproj -c Release --no-build --nologo
+          dotnet test tests/cross-language/runners/csharp/AetherMesh.InteropTest.csproj -c Release --no-build --nologo
 
       - name: Pack
         shell: bash
         run: |
-          dotnet pack AetherProtocol.slnx -c Release --no-build --nologo \
+          dotnet pack AetherMeshProtocol.slnx -c Release --no-build --nologo \
             -p:VersionPrefix=${{ steps.version.outputs.version }}
 
       - name: Push .nupkg to NuGet.org
@@ -249,7 +249,7 @@ jobs:
   # Swift Package Manager resolves directly from the git tag. No extra publish
   # step required. Consumers declare:
   #   .package(url: "https://github.com/bhengubv/aether-protocol", from: "1.0.0")
-  #   .product(name: "AetherProtocol", package: "aether-protocol")
+  #   .product(name: "AetherMeshProtocol", package: "aether-protocol")
   verify-swift:
     name: Swift — verify SPM build at release tag
     runs-on: macos-latest

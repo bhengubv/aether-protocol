@@ -24,7 +24,7 @@ The project follows [Semantic Versioning 2.0.0](https://semver.org/).
 ```bash
 # In CI, set VersionSuffix for pre-release builds:
 dotnet pack -c Release -p:VersionSuffix=alpha.1
-# Produces: Aether.Core.0.1.0-alpha.1.nupkg
+# Produces: AetherMesh.Core.0.1.0-alpha.1.nupkg
 ```
 
 ### Stable release (manual)
@@ -48,7 +48,7 @@ Every non-patch release **must** pass the cross-language fixture suite before ta
 
 ```bash
 # C#
-dotnet test tests/cross-language/runners/csharp/Aether.InteropTest.csproj
+dotnet test tests/cross-language/runners/csharp/AetherMesh.InteropTest.csproj
 
 # Go
 cd go && go test ./...

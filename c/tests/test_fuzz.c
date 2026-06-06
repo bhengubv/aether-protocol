@@ -6,9 +6,9 @@
 // lives in the C# reference. So the fuzz surface here is the same surface
 // any C adopter would call from their own session layer:
 //
-//   - aether_x25519_derive_public  / aether_x25519_agree
-//   - aether_hkdf_sha256
-//   - aether_hmac_sha256
+//   - aethermesh_x25519_derive_public  / aethermesh_x25519_agree
+//   - aethermesh_hkdf_sha256
+//   - aethermesh_hmac_sha256
 //
 // Each iteration draws a 4096-byte random buffer from a deterministic PRNG
 // and slices it across the three primitive families. The contract every
@@ -26,7 +26,7 @@
 // drawn from a seedable PCG-style mixer so failures reproduce.
 //
 // Iteration count defaults to 10k (smoke, <2s on a modern laptop), tunable
-// via env AETHER_FUZZ_ITERATIONS for adversarial local runs (100k+ takes
+// via env AETHERMESH_FUZZ_ITERATIONS for adversarial local runs (100k+ takes
 // ~15s and is the default we use locally before pushing).
 
 #include <assert.h>
@@ -35,13 +35,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aether/security.h"
+#include "aethermesh/security.h"
 
 // ─── Deterministic PRNG ──────────────────────────────────────────────────
 //
 // SplitMix64 — one of the fastest passable mixers. Same source seed →
 // same byte stream, so a CI failure can be reproduced by setting
-// AETHER_FUZZ_SEED. We do NOT need cryptographic strength here; we need
+// AETHERMESH_FUZZ_SEED. We do NOT need cryptographic strength here; we need
 // reproducibility and decent statistical coverage of the input space.
 
 static uint64_t splitmix_state;
@@ -102,7 +102,7 @@ static int fuzz_x25519(const uint8_t *buf, size_t len) {
     memset(guard_before, GUARD_BYTE, GUARD_LEN);
     memset(guard_after,  GUARD_BYTE, GUARD_LEN);
 
-    if (!aether_x25519_derive_public(alice_priv, alice_pub)) {
+    if (!aethermesh_x25519_derive_public(alice_priv, alice_pub)) {
         fprintf(stderr, "fuzz: derive_public failed unexpectedly\n");
         return 1;
     }
@@ -113,10 +113,10 @@ static int fuzz_x25519(const uint8_t *buf, size_t len) {
     }
 
     uint8_t bob_pub[32];
-    if (!aether_x25519_derive_public(bob_priv, bob_pub)) return 1;
+    if (!aethermesh_x25519_derive_public(bob_priv, bob_pub)) return 1;
 
     uint8_t shared[32];
-    bool ok = aether_x25519_agree(alice_priv, bob_pub, shared);
+    bool ok = aethermesh_x25519_agree(alice_priv, bob_pub, shared);
     if (ok) {
         // Successful agree must yield a non-zero shared secret (RFC 7748
         // §6.1 — the all-zero case must have been rejected).
@@ -130,7 +130,7 @@ static int fuzz_x25519(const uint8_t *buf, size_t len) {
     // ok == false is fine — that's the low-order-public rejection.
 
     // Self-agree (using own pub) must also be well-defined.
-    (void)aether_x25519_agree(alice_priv, alice_pub, shared);
+    (void)aethermesh_x25519_agree(alice_priv, alice_pub, shared);
 
     return 0;
 }
@@ -163,7 +163,7 @@ static int fuzz_hkdf(const uint8_t *buf, size_t len) {
     uint8_t out_with_guard[96 + GUARD_LEN];
     memset(out_with_guard, GUARD_BYTE, sizeof(out_with_guard));
 
-    bool ok = aether_hkdf_sha256(salt_len ? salt : NULL, salt_len,
+    bool ok = aethermesh_hkdf_sha256(salt_len ? salt : NULL, salt_len,
                                  ikm, ikm_len,
                                  info_len ? info : NULL, info_len,
                                  out_len, out_with_guard);
@@ -194,7 +194,7 @@ static int fuzz_hmac(const uint8_t *buf, size_t len) {
     uint8_t out_with_guard[32 + GUARD_LEN];
     memset(out_with_guard, GUARD_BYTE, sizeof(out_with_guard));
 
-    bool ok = aether_hmac_sha256(key, key_len, data, data_len, out_with_guard);
+    bool ok = aethermesh_hmac_sha256(key, key_len, data, data_len, out_with_guard);
     if (!ok) {
         fprintf(stderr, "fuzz: hmac failed (key=%zu data=%zu)\n", key_len, data_len);
         return 1;
@@ -210,18 +210,18 @@ static int fuzz_hmac(const uint8_t *buf, size_t len) {
 
 int main(void) {
     // Defaults: 10k iterations (~1s on a laptop, smoke-test profile). Bump
-    // via AETHER_FUZZ_ITERATIONS for local adversarial runs.
+    // via AETHERMESH_FUZZ_ITERATIONS for local adversarial runs.
     size_t iterations = 10000;
     splitmix_state = 0xA37E1B23DEADBEEFULL;
 
-    const char *iter_env = getenv("AETHER_FUZZ_ITERATIONS");
+    const char *iter_env = getenv("AETHERMESH_FUZZ_ITERATIONS");
     if (iter_env && *iter_env) {
         long parsed = strtol(iter_env, NULL, 10);
         if (parsed > 0 && parsed < (long)(1ULL << 30)) {
             iterations = (size_t)parsed;
         }
     }
-    const char *seed_env = getenv("AETHER_FUZZ_SEED");
+    const char *seed_env = getenv("AETHERMESH_FUZZ_SEED");
     if (seed_env && *seed_env) {
         splitmix_state = (uint64_t)strtoull(seed_env, NULL, 0);
     }

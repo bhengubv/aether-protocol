@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-"""Tests for :class:`aether.storage.EncryptedKeyValueStore`.
+"""Tests for :class:`aethermesh.storage.EncryptedKeyValueStore`.
 
 Covers the AES-256-GCM round trip, MAC failure on wrong-key reads, tamper
 detection, key-version rotation, and composition with the existing KV
@@ -13,7 +13,7 @@ import os
 
 import pytest
 
-from aether.storage import (
+from aethermesh.storage import (
     EncryptedKeyValueStore,
     InMemoryKeyValueStore,
     StaticDataAtRestKeyProvider,
@@ -262,9 +262,9 @@ async def test_wraps_signal_session_persistence():
     SignalSessionStore on top, write/read a session via the
     SignalProtocolService, and verify the inner store holds ciphertext.
     """
-    from aether.security import SignalProtocolService
-    from aether.security.session_store import KeyValueSignalSessionStore
-    from aether.security.pre_key_store import KeyValuePreKeyStore
+    from aethermesh.security import SignalProtocolService
+    from aethermesh.security.session_store import KeyValueSignalSessionStore
+    from aethermesh.security.pre_key_store import KeyValuePreKeyStore
 
     inner = InMemoryKeyValueStore()
     encrypted = EncryptedKeyValueStore(inner, StaticDataAtRestKeyProvider(_random_key()))

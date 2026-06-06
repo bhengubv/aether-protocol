@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(aether-protocol C)
+project(aethermesh-protocol C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -24,7 +24,7 @@ FetchContent_MakeAvailable(cjson)
 
 # ─── BLAKE3 (portable C reference, no SIMD) ────────────────────────────────
 # We fetch the upstream BLAKE3 repo and compile only the portable three-file
-# subset directly into aether-protocol. This avoids SIMD toolchain issues on
+# subset directly into aethermesh-protocol. This avoids SIMD toolchain issues on
 # cross-compile CI targets while remaining wire-compatible with every other
 # language implementation in this family.
 FetchContent_Declare(
@@ -49,7 +49,7 @@ configure_file("${cjson_SOURCE_DIR}/cJSON.h"
                "${CJSON_SHIM_DIR}/cjson/cJSON.h" COPYONLY)
 
 # Add the library
-add_library(aether-protocol STATIC
+add_library(aethermesh-protocol STATIC
     src/protocol.c
     src/security.c
     src/signal_protocol.c
@@ -63,10 +63,10 @@ add_library(aether-protocol STATIC
     src/voice.c
     src/group_voice.c
     src/streaming.c
-    src/aether_reputation.c
-    src/aether_anomaly.c
-    src/aether_gossip.c
-    src/aether_tag.c
+    src/aethermesh_reputation.c
+    src/aethermesh_anomaly.c
+    src/aethermesh_gossip.c
+    src/aethermesh_tag.c
     src/chunk_bitmap.c
     # BLAKE3 portable subset (no SIMD — compile-time defines below disable all
     # optional SIMD backends; only blake3_portable.c is linked in practice)
@@ -75,7 +75,7 @@ add_library(aether-protocol STATIC
     ${blake3_src_SOURCE_DIR}/c/blake3_portable.c
 )
 
-target_include_directories(aether-protocol
+target_include_directories(aethermesh-protocol
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
@@ -89,7 +89,7 @@ target_include_directories(aether-protocol
 # Each define removes one optional .c file from the dispatch chain;
 # without them blake3_dispatch.c would try to compile SSE2/AVX2/NEON
 # assembly stubs which may not exist on all CI toolchains.
-target_compile_definitions(aether-protocol PRIVATE
+target_compile_definitions(aethermesh-protocol PRIVATE
     BLAKE3_NO_SSE2=1
     BLAKE3_NO_SSE41=1
     BLAKE3_NO_AVX2=1
@@ -97,12 +97,12 @@ target_compile_definitions(aether-protocol PRIVATE
     BLAKE3_NO_NEON=1
 )
 
-target_link_directories(aether-protocol
+target_link_directories(aethermesh-protocol
     PUBLIC
         ${LIBSODIUM_LIBRARY_DIRS}
 )
 
-target_link_libraries(aether-protocol
+target_link_libraries(aethermesh-protocol
     PUBLIC
         pthread
     PRIVATE
@@ -111,28 +111,28 @@ target_link_libraries(aether-protocol
 )
 
 # Add the demo executable
-add_executable(aether-demo
+add_executable(aethermesh-demo
     src/demo.c
 )
 
-target_include_directories(aether-demo
+target_include_directories(aethermesh-demo
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_include_directories(aether-demo
+target_include_directories(aethermesh-demo
     PRIVATE
         ${LIBSODIUM_INCLUDE_DIRS}
 )
 
-target_link_directories(aether-demo
+target_link_directories(aethermesh-demo
     PRIVATE
         ${LIBSODIUM_LIBRARY_DIRS}
 )
 
-target_link_libraries(aether-demo
+target_link_libraries(aethermesh-demo
     PRIVATE
-        aether-protocol
+        aethermesh-protocol
         ${LIBSODIUM_LIBRARIES}
         pthread
 )

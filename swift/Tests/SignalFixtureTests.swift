@@ -2,7 +2,7 @@
 import XCTest
 import Crypto
 import Foundation
-@testable import AetherProtocol
+@testable import AetherMeshProtocol
 
 /// Cross-language Signal-protocol fixture verifier and end-to-end exercises.
 ///
@@ -396,13 +396,13 @@ final class SignalFixtureTests: XCTestCase {
     private func repoRoot() throws -> URL {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         for _ in 0..<10 {
-            if FileManager.default.fileExists(atPath: dir.appendingPathComponent("AetherProtocol.slnx").path) {
+            if FileManager.default.fileExists(atPath: dir.appendingPathComponent("AetherMeshProtocol.slnx").path) {
                 return dir
             }
             dir = dir.deletingLastPathComponent()
         }
         throw NSError(domain: "fixture", code: 3,
-                      userInfo: [NSLocalizedDescriptionKey: "AetherProtocol.slnx not found above \(#filePath)"])
+                      userInfo: [NSLocalizedDescriptionKey: "AetherMeshProtocol.slnx not found above \(#filePath)"])
     }
 
     private func mustHex(_ s: String) throws -> Data {

@@ -43,7 +43,7 @@ Aether は、断続的またはインターネット接続が存在しない環�
 - **InProcessTransport**: テストおよびローカル通信用のメモリ内トランスポート
 
 #### モデル
-- **AetherNode**: UHID とアイデンティティ鍵を持つノード表現
+- **AetherMeshNode**: UHID とアイデンティティ鍵を持つノード表現
 - **PreKeyBundle**: 非同期セッション確立用のバンドル
 - **EncryptedPayload**: 暗号化されたメッセージラッパー
 - **DtnBundle**: 遅延耐性ネットワーキングバンドル
@@ -66,7 +66,7 @@ Package.swift で:
 .target(
     name: "YourTarget",
     dependencies: [
-        .product(name: "AetherProtocol", package: "aether-protocol-swift")
+        .product(name: "AetherMeshProtocol", package: "aether-protocol-swift")
     ]
 )
 ```
@@ -76,7 +76,7 @@ Package.swift で:
 ### 1. パケットシリアライゼーション
 
 ```swift
-import AetherProtocol
+import AetherMeshProtocol
 
 // Create a packet
 var packet = MeshPacket(
@@ -274,7 +274,7 @@ Test 5: End-to-End Messaging (Full Stack)
 ## 相互運用性
 
 ワイヤー形式は以下と互換性があります:
-- **Aether.Core**（C#）- リファレンス実装
+- **AetherMesh.Core**（C#）- リファレンス実装
 - **aether-protocol-go** - Go 実装
 - **aether-protocol-rust** - Rust 実装
 

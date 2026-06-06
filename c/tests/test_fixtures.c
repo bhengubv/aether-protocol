@@ -14,8 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aether/constants.h"
-#include "aether/protocol.h"
+#include "aethermesh/constants.h"
+#include "aethermesh/protocol.h"
 
 typedef struct {
     char *name;
@@ -169,26 +169,26 @@ static int parse_inputs(const char *json, fixture_input_t **out) {
     return count;
 }
 
-static aether_mesh_packet_t *build_packet(const fixture_input_t *fi) {
-    aether_mesh_packet_t *p = aether_packet_new();
+static aethermesh_mesh_packet_t *build_packet(const fixture_input_t *fi) {
+    aethermesh_mesh_packet_t *p = aethermesh_packet_new();
     parse_uuid(fi->id, p->packet_id);
     p->type = (uint8_t)fi->type;
     p->ttl = fi->ttl;
     p->priority = (uint8_t)fi->priority;
     p->protocol_version = (uint8_t)fi->protocol_version;
     p->timestamp_ms = fi->timestamp_ms;
-    aether_packet_set_source_uhid(p, fi->source_uhid);
-    aether_packet_set_destination_uhid(p, fi->destination_uhid);
+    aethermesh_packet_set_source_uhid(p, fi->source_uhid);
+    aethermesh_packet_set_destination_uhid(p, fi->destination_uhid);
     if (fi->payload_len) {
-        aether_packet_set_payload(p, fi->payload, fi->payload_len);
+        aethermesh_packet_set_payload(p, fi->payload, fi->payload_len);
     }
     if (fi->signature_len) {
-        aether_packet_set_signature(p, fi->signature, fi->signature_len);
+        aethermesh_packet_set_signature(p, fi->signature, fi->signature_len);
     }
     if (fi->packet_nonce_len) {
         memcpy(p->packet_nonce, fi->packet_nonce,
-               fi->packet_nonce_len < AETHER_PACKET_NONCE_SIZE
-                   ? fi->packet_nonce_len : AETHER_PACKET_NONCE_SIZE);
+               fi->packet_nonce_len < AETHERMESH_PACKET_NONCE_SIZE
+                   ? fi->packet_nonce_len : AETHERMESH_PACKET_NONCE_SIZE);
     }
     return p;
 }
@@ -244,15 +244,15 @@ int main(void) {
     int failed = 0;
     for (int i = 0; i < n; i++) {
         const fixture_input_t *fi = &inputs[i];
-        aether_mesh_packet_t *p = build_packet(fi);
+        aethermesh_mesh_packet_t *p = build_packet(fi);
 
-        size_t cap = aether_packet_estimate_size(p) + 64;
+        size_t cap = aethermesh_packet_estimate_size(p) + 64;
         uint8_t *out = (uint8_t *)malloc(cap);
-        int written = aether_packet_serialize(p, out, cap);
+        int written = aethermesh_packet_serialize(p, out, cap);
         if (written < 0) {
             fprintf(stderr, "TEST: %-20s SERIALIZE FAILED\n", fi->name);
             failed++;
-            free(out); aether_packet_free(p); continue;
+            free(out); aethermesh_packet_free(p); continue;
         }
 
         char path[512];
@@ -262,7 +262,7 @@ int main(void) {
         if (!exp) {
             fprintf(stderr, "TEST: %-20s NO EXPECTED FILE (%s)\n", fi->name, path);
             failed++;
-            free(out); aether_packet_free(p); continue;
+            free(out); aethermesh_packet_free(p); continue;
         }
 
         if ((size_t)written != exp_len || memcmp(out, exp, exp_len) != 0) {
@@ -273,7 +273,7 @@ int main(void) {
             printf("TEST: %-20s OK\n", fi->name);
         }
 
-        free(exp); free(out); aether_packet_free(p);
+        free(exp); free(out); aethermesh_packet_free(p);
     }
 
     for (int i = 0; i < n; i++) free_input(&inputs[i]);

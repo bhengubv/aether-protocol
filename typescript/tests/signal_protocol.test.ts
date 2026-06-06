@@ -38,13 +38,13 @@ function repoRoot(): string {
   let dir = __dirname;
   for (let i = 0; i < 10; i++) {
     try {
-      readFileSync(join(dir, "AetherProtocol.slnx"));
+      readFileSync(join(dir, "AetherMeshProtocol.slnx"));
       return dir;
     } catch {
       dir = join(dir, "..");
     }
   }
-  throw new Error(`AetherProtocol.slnx not found above ${__dirname}`);
+  throw new Error(`AetherMeshProtocol.slnx not found above ${__dirname}`);
 }
 
 function loadFixturePair(caseName: string): { inputs: any; expected: any } {

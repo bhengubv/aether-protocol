@@ -80,7 +80,7 @@ IMPLEMENTATION COMPLETENESS
    - Suitable for testing and demonstrations
 
 ✅ MODELS
-   - AetherNode: mesh node with peers, routes, capabilities
+   - AetherMeshNode: mesh node with peers, routes, capabilities
    - PeerInfo: peer metadata with reliability scoring
    - RouteEntry: routing table entries with expiry
    - PreKeyBundle: pre-key material for session establishment

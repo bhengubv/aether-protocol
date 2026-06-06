@@ -136,43 +136,43 @@ ctest --output-on-failure
 
 int main(void) {
     // Create a packet
-    aether_mesh_packet_t *packet = aether_packet_new();
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
     if (!packet) return 1;
 
     // Set fields
-    aether_packet_set_source_uhid(packet, "node-alice");
-    aether_packet_set_destination_uhid(packet, "node-bob");
-    aether_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
+    aethermesh_packet_set_source_uhid(packet, "node-alice");
+    aethermesh_packet_set_destination_uhid(packet, "node-bob");
+    aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
 
     // Generate and sign
-    uint8_t private_key[AETHER_ED25519_PRIVATE_KEY_SIZE];
-    uint8_t public_key[AETHER_ED25519_PUBLIC_KEY_SIZE];
-    aether_ed25519_generate_keypair(private_key, public_key);
+    uint8_t private_key[AETHERMESH_ED25519_PRIVATE_KEY_SIZE];
+    uint8_t public_key[AETHERMESH_ED25519_PUBLIC_KEY_SIZE];
+    aethermesh_ed25519_generate_keypair(private_key, public_key);
 
     size_t signable_len = 0;
-    uint8_t *signable = aether_packet_get_signable_data(packet, &signable_len);
+    uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
     if (signable) {
-        uint8_t signature[AETHER_ED25519_SIGNATURE_SIZE];
-        aether_ed25519_sign(private_key, signable, signable_len, signature);
-        aether_packet_set_signature(packet, signature, AETHER_ED25519_SIGNATURE_SIZE);
+        uint8_t signature[AETHERMESH_ED25519_SIGNATURE_SIZE];
+        aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
+        aethermesh_packet_set_signature(packet, signature, AETHERMESH_ED25519_SIGNATURE_SIZE);
         free(signable);
     }
 
     // Serialize
     uint8_t buffer[4096];
-    int size = aether_packet_serialize(packet, buffer, sizeof(buffer));
+    int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
     if (size > 0) {
         printf("Packet serialized: %d bytes\n", size);
     }
 
     // Deserialize
-    aether_mesh_packet_t *received = aether_packet_deserialize(buffer, size);
+    aethermesh_mesh_packet_t *received = aethermesh_packet_deserialize(buffer, size);
     if (received) {
         printf("Received from: %s\n", received->source_uhid);
-        aether_packet_free(received);
+        aethermesh_packet_free(received);
     }
 
-    aether_packet_free(packet);
+    aethermesh_packet_free(packet);
     return 0;
 }
 ```
@@ -182,60 +182,60 @@ int main(void) {
 ### پروتکل
 
 #### مدیریت بسته
-- `aether_mesh_packet_t *aether_packet_new(void)` — ایجاد یک بسته جدید
-- `void aether_packet_free(aether_mesh_packet_t *packet)` — آزادسازی یک بسته
-- `aether_mesh_packet_t *aether_packet_clone(const aether_mesh_packet_t *packet)` — کلون‌سازی یک بسته
+- `aethermesh_mesh_packet_t *aethermesh_packet_new(void)` — ایجاد یک بسته جدید
+- `void aethermesh_packet_free(aethermesh_mesh_packet_t *packet)` — آزادسازی یک بسته
+- `aethermesh_mesh_packet_t *aethermesh_packet_clone(const aethermesh_mesh_packet_t *packet)` — کلون‌سازی یک بسته
 
 #### سریال‌سازی
-- `int aether_packet_serialize(const aether_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — سریال‌سازی به قالب سیمی
-- `aether_mesh_packet_t *aether_packet_deserialize(const uint8_t *data, size_t data_len)` — سریال‌زدایی از قالب سیمی
-- `size_t aether_packet_estimate_size(const aether_mesh_packet_t *packet)` — تخمین اندازه سیمی
+- `int aethermesh_packet_serialize(const aethermesh_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — سریال‌سازی به قالب سیمی
+- `aethermesh_mesh_packet_t *aethermesh_packet_deserialize(const uint8_t *data, size_t data_len)` — سریال‌زدایی از قالب سیمی
+- `size_t aethermesh_packet_estimate_size(const aethermesh_mesh_packet_t *packet)` — تخمین اندازه سیمی
 
 #### فیلدهای بسته
-- `bool aether_packet_set_source_uhid(aether_mesh_packet_t *packet, const char *uhid)` — تنظیم منبع
-- `bool aether_packet_set_destination_uhid(aether_mesh_packet_t *packet, const char *uhid)` — تنظیم مقصد
-- `bool aether_packet_set_payload(aether_mesh_packet_t *packet, const uint8_t *data, size_t len)` — تنظیم محموله
-- `bool aether_packet_set_signature(aether_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — تنظیم امضا
+- `bool aethermesh_packet_set_source_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — تنظیم منبع
+- `bool aethermesh_packet_set_destination_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — تنظیم مقصد
+- `bool aethermesh_packet_set_payload(aethermesh_mesh_packet_t *packet, const uint8_t *data, size_t len)` — تنظیم محموله
+- `bool aethermesh_packet_set_signature(aethermesh_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — تنظیم امضا
 
 #### اعتبارسنجی
-- `bool aether_packet_is_expired(const aether_mesh_packet_t *packet, int max_age_seconds)` — بررسی انقضا
-- `bool aether_packet_can_forward(const aether_mesh_packet_t *packet)` — بررسی اینکه TTL > 0 باشد
+- `bool aethermesh_packet_is_expired(const aethermesh_mesh_packet_t *packet, int max_age_seconds)` — بررسی انقضا
+- `bool aethermesh_packet_can_forward(const aethermesh_mesh_packet_t *packet)` — بررسی اینکه TTL > 0 باشد
 
 #### داده‌های امضا
-- `uint8_t *aether_packet_get_signable_data(const aether_mesh_packet_t *packet, size_t *out_len)` — دریافت بایت‌های قابل امضای قطعی (فراخواننده باید آزاد کند)
+- `uint8_t *aethermesh_packet_get_signable_data(const aethermesh_mesh_packet_t *packet, size_t *out_len)` — دریافت بایت‌های قابل امضای قطعی (فراخواننده باید آزاد کند)
 
 ### امنیت
 
 #### Ed25519
-- `bool aether_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — تولید کلیدهای 32+32 بایتی
-- `bool aether_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — امضا (تولید 64 بایت)
-- `bool aether_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — تأیید
+- `bool aethermesh_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — تولید کلیدهای 32+32 بایتی
+- `bool aethermesh_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — امضا (تولید 64 بایت)
+- `bool aethermesh_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — تأیید
 
 #### AES-256-GCM
-- `bool aether_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — رمزنگاری (nonce در صورت NULL به‌صورت خودکار تولید می‌شود)
-- `bool aether_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — رمزگشایی
+- `bool aethermesh_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — رمزنگاری (nonce در صورت NULL به‌صورت خودکار تولید می‌شود)
+- `bool aethermesh_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — رمزگشایی
 
 #### HMAC و Hash
-- `bool aether_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 بایت)
-- `bool aether_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 بایت)
-- `bool aether_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
+- `bool aethermesh_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 بایت)
+- `bool aethermesh_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 بایت)
+- `bool aethermesh_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
 
 #### ابزارها
-- `void aether_zeroize(void *mem, size_t len)` — پاک‌سازی حافظه با زمان ثابت
-- `bool aether_random_bytes(uint8_t *out, size_t len)` — بایت‌های تصادفی رمزنگاری‌شده
+- `void aethermesh_zeroize(void *mem, size_t len)` — پاک‌سازی حافظه با زمان ثابت
+- `bool aethermesh_random_bytes(uint8_t *out, size_t len)` — بایت‌های تصادفی رمزنگاری‌شده
 
 ### حمل‌ونقل
 
 #### توابع عمومی
-- `bool aether_transport_send(aether_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — ارسال داده
-- `bool aether_transport_is_connected(aether_transport_t *transport, const char *peer_uhid)` — بررسی اتصال
-- `void aether_transport_set_on_data_received(aether_transport_t *transport, aether_transport_on_data_received callback, void *user_data)` — ثبت callback
-- `void aether_transport_destroy(aether_transport_t *transport)` — پاک‌سازی
+- `bool aethermesh_transport_send(aethermesh_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — ارسال داده
+- `bool aethermesh_transport_is_connected(aethermesh_transport_t *transport, const char *peer_uhid)` — بررسی اتصال
+- `void aethermesh_transport_set_on_data_received(aethermesh_transport_t *transport, aethermesh_transport_on_data_received callback, void *user_data)` — ثبت callback
+- `void aethermesh_transport_destroy(aethermesh_transport_t *transport)` — پاک‌سازی
 
 #### حمل‌ونقل درون‌فرایندی
-- `aether_transport_t *aether_inprocess_transport_new(void)` — ایجاد حمل‌ونقل درون‌فرایندی مشترک
-- `bool aether_inprocess_transport_register_node(aether_transport_t *transport, const char *uhid)` — ثبت یک گره
-- `bool aether_inprocess_transport_unregister_node(aether_transport_t *transport, const char *uhid)` — لغو ثبت یک گره
+- `aethermesh_transport_t *aethermesh_inprocess_transport_new(void)` — ایجاد حمل‌ونقل درون‌فرایندی مشترک
+- `bool aethermesh_inprocess_transport_register_node(aethermesh_transport_t *transport, const char *uhid)` — ثبت یک گره
+- `bool aethermesh_inprocess_transport_unregister_node(aethermesh_transport_t *transport, const char *uhid)` — لغو ثبت یک گره
 
 ## سازگاری قالب سیمی
 
@@ -296,7 +296,7 @@ int main(void) {
 
 ### مصرف حافظه
 - حداقل بسته: ~52 بایت
-- حداکثر بسته: 65KB (قابل تنظیم از طریق `AETHER_MAX_PAYLOAD_LEN`)
+- حداکثر بسته: 65KB (قابل تنظیم از طریق `AETHERMESH_MAX_PAYLOAD_LEN`)
 - جدول همتا با 256 گره: ~32KB
 - یک بسته مِش در حافظه: ~8KB (بدترین حالت با حداکثر فیلدها)
 
@@ -333,8 +333,8 @@ ctest --output-on-failure --verbose
 ## یکپارچه‌سازی با اکوسیستم Aether
 
 این کتابخانه C برای یکپارچه‌سازی با موارد زیر طراحی شده است:
-- **AetherAPI** (C#) — رله مِش سمت سرور و تحلیلگر
-- **Aether.Core** (C#) — پیاده‌سازی مرجع (قالب سیمی قابل همکاری)
+- **AetherMeshAPI** (C#) — رله مِش سمت سرور و تحلیلگر
+- **AetherMesh.Core** (C#) — پیاده‌سازی مرجع (قالب سیمی قابل همکاری)
 - **Meshtastic** — فریمور رادیو مِش متن‌باز
 - **esp-idf** — چارچوب توسعه IoT اسپرسیف
 - برنامه‌های جاسازی‌شده سفارشی
@@ -357,7 +357,7 @@ SPDX-License-Identifier: MIT
 ## منابع
 
 - مشخصات پروتکل: `/Users/admin/Code/Dev/aether-protocol/docs/PROTOCOL_SPEC.md`
-- مرجع C#: `/Users/admin/Code/Dev/aether-protocol/src/Aether.Core/`
+- مرجع C#: `/Users/admin/Code/Dev/aether-protocol/src/AetherMesh.Core/`
 - libsodium: https://libsodium.org/
 - RFC 5869 (HKDF): https://tools.ietf.org/html/rfc5869
 - RFC 3561 (AODV): https://tools.ietf.org/html/rfc3561

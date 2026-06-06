@@ -168,7 +168,7 @@ let encrypted = try await service.encrypt(peerUhid: "bob", plaintext: data)
 ### Wire Format Validation
 
 The implementation has been designed for compatibility with:
-- **Aether.Core** (C#) - Reference implementation
+- **AetherMesh.Core** (C#) - Reference implementation
 - **aether-protocol-go** - Go implementation (future)
 - **aether-protocol-rust** - Rust implementation (future)
 

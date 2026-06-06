@@ -14,7 +14,7 @@
 //     (AES-256-GCM with a fresh random nonce each call), and both ciphertexts
 //     decrypt to the original plaintext.
 
-use aether_protocol::security::signal_protocol::SignalProtocolService;
+use aethermesh_protocol::security::signal_protocol::SignalProtocolService;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -211,7 +211,7 @@ fn skipped_key_cache_within_limit_out_of_order_delivery_decrypts() {
 /// duration exceeds the cache capacity.
 #[test]
 fn skipped_key_cache_limit_exceeded_rejects_cleanly() {
-    use aether_protocol::security::signal_protocol::MAX_SKIPPED_KEYS;
+    use aethermesh_protocol::security::signal_protocol::MAX_SKIPPED_KEYS;
 
     let mut alice = SignalProtocolService::new();
     let mut bob = SignalProtocolService::new();

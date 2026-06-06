@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from aether.anomaly_detector import AnomalyDetectorOptions, BehavioralAnomalyDetector
+from aethermesh.anomaly_detector import AnomalyDetectorOptions, BehavioralAnomalyDetector
 
 
 # ---------------------------------------------------------------------------

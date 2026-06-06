@@ -103,7 +103,7 @@ Closed by the same commit that adds this RESOLVED block.
 ### 5. Demo program signing fix
 
 **RESOLVED 2026-05-05 — partially:** the C# demo program (`samples/
-Aether.Demo.Console`) was extended in `b816f8b` (Step 9 —
+AetherMesh.Demo.Console`) was extended in `b816f8b` (Step 9 —
 MessagingService + DTN fallback end-to-end) to sign packets via the
 canonical `PacketSigningService` rather than the visualisation shortcut.
 The per-language demos in `go/cmd/demo`, `python/demo.py`,
@@ -160,7 +160,7 @@ per-language E2E tests prove the full session+ratchet stack is correct.
 have real (or correctly-stubbed) implementations:
 - ✅ Aether Blue (BLE): `WinBleGattTransportService` + `android/blue/`
 - ✅ Aether Green (Wi-Fi Direct): `WinWifiDirectTransportService` + `android/green/`
-- ✅ Aether Purple (HTTP relay): `HttpRelayTransportService` + `samples/Aether.RelayServer/`
+- ✅ Aether Purple (HTTP relay): `HttpRelayTransportService` + `samples/AetherMesh.RelayServer/`
 - ⚠️ Aether White (NFC): `android/white/` HCE; Windows uses NDEF-over-BLE-GATT + ACR122U PC/SC (see item 14)
 - ✅ Aether Teal (NearLink): `harmonyos/teal/` full ArkTS SLE; all others use SSAP-over-BLE approximation (see item 12)
 - ⚠️ Aether Red (LoRa): Meshtastic wire format over BLE LR — radio swap when module present (see item 13)
@@ -190,8 +190,8 @@ Kit: `import { scan, advertising, ssap, constant } from '@kit.NearLinkKit'`
 
 *Peripheral (server) role:*
 - **Server:** `ssap.createServer()` → `server.addService(aetherService)` — registers
-  `AETHER_SLE_SERVICE_UUID = 61657468-6572-0003-0000-000000000000` with a single
-  data property `AETHER_SLE_DATA_PROPERTY_UUID = 61657468-6572-0003-0001-000000000000`
+  `AETHERMESH_SLE_SERVICE_UUID = 61657468-6572-0003-0000-000000000000` with a single
+  data property `AETHERMESH_SLE_DATA_PROPERTY_UUID = 61657468-6572-0003-0001-000000000000`
 - **Receive (client→server):** `server.on('propertyWrite', (req: ssap.PropertyWriteRequest) => …)`
 - **Send (server→clients):** `server.notifyPropertyChanged(clientAddr, property, false)` —
   broadcasts to all entries in the `_connectedClients` Set
@@ -333,7 +333,7 @@ the serialized wire bytes. Confirmed per-language:
 - Kotlin: `PacketSigning.signPacket(packet, privateKey)` → `constructSignableData(packet)` in `kotlin/.../Demo.kt`
 - Swift: `PacketSigningService.signPacket(&packet)` → `constructSignableData(packet)` in `swift/.../main.swift`
 - Rust: `packet_signing_service.sign_packet(&mut packet, key)` → `packet.signable_data()` in `rust/`
-- C: `aether_packet_get_signable_data(packet, &len)` + manual `aether_ed25519_sign(...)` in `c/src/demo.c`
+- C: `aethermesh_packet_get_signable_data(packet, &len)` + manual `aethermesh_ed25519_sign(...)` in `c/src/demo.c`
 
 ~~**What needs to change.** Per-language: replace the wire-byte signing
 shortcut with the canonical `BuildSignableData` path; add a code comment
@@ -343,16 +343,16 @@ calling out "what's signed vs. what's on the wire".~~
 
 **RESOLVED 2026-05-07:** `c/include/aether/signal_protocol.h` and
 `c/src/signal_protocol.c` implement the full Signal session API surface:
-`aether_signal_service_init`, `aether_signal_generate_pre_key_bundle`,
-`aether_signal_process_pre_key_bundle`, `aether_signal_encrypt`,
-`aether_signal_decrypt`, `aether_signal_has_session`.
+`aethermesh_signal_service_init`, `aethermesh_signal_generate_pre_key_bundle`,
+`aethermesh_signal_process_pre_key_bundle`, `aethermesh_signal_encrypt`,
+`aethermesh_signal_decrypt`, `aethermesh_signal_has_session`.
 
 Construction: 4-DH X3DH (same algorithm as all other languages, verified
 against `fixtures/signal/expected/x3dh_basic.json`), full Double Ratchet
 with DH-ratchet steps on receive, symmetric ratchet (HMAC-SHA256 §5.1),
 OPK pool (100 keys, FIFO consumed), skipped-key cache (100 entries max —
 embedded constraint; documented). All sensitive key material zeroed with
-`aether_zeroize` on ratchet rotation.
+`aethermesh_zeroize` on ratchet rotation.
 
 6 two-node E2E test cases in `c/tests/test_signal_session.c` (basic
 session, bidirectional, 5-step ratchet, has_session, SPK-sig rejection,
@@ -449,8 +449,8 @@ propagation implemented:
 - Self-echo guard: nodes discard their own re-broadcast.
 - Delta clamped to [−1, 1] on both broadcast and receive.
 
-C# `ReputationGossipService` lives in `Aether.Security` (uses
-`IPacketSigningService`); interface `IReputationGossipService` in `Aether.Core`.
+C# `ReputationGossipService` lives in `AetherMesh.Security` (uses
+`IPacketSigningService`); interface `IReputationGossipService` in `AetherMesh.Core`.
 DI registration: `AddGossip()` requires `AddReputation()` + `AddSignal()`.
 
 Test counts: C# 14, Go 12, Python 12, TypeScript 12, C 10, Rust 12, Kotlin 12.
@@ -481,8 +481,8 @@ Go and Rust already had this hook. All five remaining languages are now done:
   msvcrt.lib — same as Items 16–18).
 - **C**: `rreq_source_ts_t` ring-buffer linked list; `find_source_ts` /
   `get_or_create_source_ts` / `rreq_rate_limit_check_and_record` helpers;
-  `rreq_sources` + `reputation` fields in `aether_routing_service`; flood
-  fires `aether_reputation_record_rreq_flood`; 3 tests in `test_routing.c`
+  `rreq_sources` + `reputation` fields in `aethermesh_routing_service`; flood
+  fires `aethermesh_reputation_record_rreq_flood`; 3 tests in `test_routing.c`
   (`test_rreq_flood_fires_reputation`, `test_rreq_normal_traffic_not_penalised`,
   `test_rreq_no_reputation_no_crash`). Build verification blocked by WSL vs
   MSVC CMake environment — code is correct and logic-verified by inspection.
@@ -544,7 +544,7 @@ and `NotifySignatureFailure`; backward-compatible with existing `IsNonceSeen`/
 `RecordNonce`. TypeScript wrapped existing module-level functions in a new
 `PacketSigningService` class with `verifyAndDedup`. Kotlin hooks into `isNewPacket`
 and `verifyPacket` on the `object`. Swift made `verifyPacket` `async`. C added
-full `AetherPacketSigningService` struct + `aether_nonce_store_t` (4096-entry
+full `AetherMeshPacketSigningService` struct + `aethermesh_nonce_store_t` (4096-entry
 FIFO cache, TTL-pruned). All guards are nil-safe (`reputation != nil`).
 
 Test counts per language (new tests): Go +4, Python +4, TypeScript +11,

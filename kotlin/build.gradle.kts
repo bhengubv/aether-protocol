@@ -16,7 +16,7 @@ plugins {
     kotlin("plugin.allopen") version "1.9.21"
 }
 
-group = "dev.aether"
+group = "dev.aethermesh"
 version = "1.0.0"
 
 repositories {
@@ -96,7 +96,7 @@ java {
 }
 
 application {
-    mainClass.set("aether.DemoKt")
+    mainClass.set("aethermesh.DemoKt")
 }
 
 tasks.test {
@@ -152,16 +152,16 @@ allOpen {
 //       credentials { username = "GITHUB_USER"; password = "GITHUB_TOKEN" }
 //     }
 //   }
-//   dependencies { implementation("dev.aether:aether-protocol-kotlin:1.0.0") }
+//   dependencies { implementation("dev.aethermesh:aethermesh-protocol-kotlin:1.0.0") }
 //
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
-            artifactId = "aether-protocol-kotlin"
+            artifactId = "aethermesh-protocol-kotlin"
             from(components["java"])
             pom {
-                name.set("Aether Protocol Kotlin")
-                description.set("Kotlin/JVM implementation of the Aether mesh networking protocol")
+                name.set("AetherMesh Protocol Kotlin")
+                description.set("Kotlin/JVM implementation of the AetherMesh mesh networking protocol")
                 url.set("https://github.com/bhengubv/aether-protocol")
                 licenses {
                     license {

@@ -7,7 +7,7 @@
  * accept the first PreKey message and reject the second.
  *
  * Mirrors the C# unit-suite in
- * src/Aether.Core.Tests/Security/SignalProtocolService.OpkPoolTests.cs.
+ * src/AetherMesh.Core.Tests/Security/SignalProtocolService.OpkPoolTests.cs.
  *
  * SPDX-License-Identifier: MIT
  */

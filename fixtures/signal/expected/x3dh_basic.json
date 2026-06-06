@@ -1,5 +1,5 @@
 {
-  "$schema": "Expected outputs for the x3dh_basic case in fixtures/signal/inputs.json. Every language implementation must produce these exact bytes given those inputs. Regenerate via tests/Aether.Core.Tests/SignalFixtureGenerator (un-skip Generate_ExpectedFixtures) only when intentionally changing the protocol — and re-verify every language afterwards.",
+  "$schema": "Expected outputs for the x3dh_basic case in fixtures/signal/inputs.json. Every language implementation must produce these exact bytes given those inputs. Regenerate via tests/AetherMesh.Core.Tests/SignalFixtureGenerator (un-skip Generate_ExpectedFixtures) only when intentionally changing the protocol — and re-verify every language afterwards.",
 
   "alice_identity_pub_hex": "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209",
   "alice_ephemeral_pub_hex": "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59",

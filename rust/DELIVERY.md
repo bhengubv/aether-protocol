@@ -26,7 +26,7 @@ Complete, production-ready Rust implementation of the Aether mesh networking pro
 - `src/transport/in_process.rs` — In-memory testing transport
 
 ✅ **Core Structures**
-- `src/models.rs` — AetherNode, PeerInfo, RouteEntry, PreKeyBundle, etc.
+- `src/models.rs` — AetherMeshNode, PeerInfo, RouteEntry, PreKeyBundle, etc.
 - `src/constants.rs` — 80+ protocol constants
 - `src/lib.rs` — Public API exports
 - `src/main.rs` — Demonstration application
@@ -232,8 +232,8 @@ cargo build --lib # Build library only
 
 ### As a Library
 ```rust
-use aether_protocol::security::{Ed25519SigningService, SignalProtocolService};
-use aether_protocol::protocol::{MeshPacket, PacketType};
+use aethermesh_protocol::security::{Ed25519SigningService, SignalProtocolService};
+use aethermesh_protocol::protocol::{MeshPacket, PacketType};
 
 let (priv_key, pub_key) = Ed25519SigningService::generate_keypair();
 let mut service = SignalProtocolService::new();

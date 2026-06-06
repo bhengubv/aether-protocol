@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "AetherTeal"
+rootProject.name = "AetherMeshTeal"
 include(":app")

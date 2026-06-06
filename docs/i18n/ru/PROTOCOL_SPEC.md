@@ -16,10 +16,10 @@
 > настоящий документ и реализация расходятся.
 >
 > - Канонические байты wire: `fixtures/expected/*.bin` (10 именованных случаев)
-> - Эталонный сериализатор: `src/Aether.Core/Protocol/PacketSerializer.cs`
-> - Эталонный стек Signal: `src/Aether.Security/Services/SignalProtocolService.cs`
-> - Эталонная маршрутизация: `src/Aether.Core/Routing/RoutingService.cs`
-> - Эталонный DTN: `src/Aether.Core/Dtn/DtnService.cs`
+> - Эталонный сериализатор: `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
+> - Эталонный стек Signal: `src/AetherMesh.Security/Services/SignalProtocolService.cs`
+> - Эталонная маршрутизация: `src/AetherMesh.Core/Routing/RoutingService.cs`
+> - Эталонный DTN: `src/AetherMesh.Core/Dtn/DtnService.cs`
 > - Подтверждение совместимости wire между языками: `fixtures/README.md`
 > - Подтверждение совместимости Signal между языками: `fixtures/signal/README.md`
 
@@ -50,7 +50,7 @@ Aether — это децентрализованный протокол ячеи
 ## 2. Формат пакета
 
 > Сверено 2026-05-05 с эталонной реализацией на C# в
-> `src/Aether.Core/Protocol/PacketSerializer.cs`
+> `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
 > и 10 fixture-случаями в `fixtures/expected/`.
 
 ### 2.1. Структура MeshPacket на уровне wire
@@ -165,7 +165,7 @@ PacketNonce (8 bytes)
 > подписываемые байты, иначе получатель (видящий байт wire 0..255)
 > получит другой подписываемый буфер, и верификация завершится неудачей.
 
-Эталонная реализация находится в `src/Aether.Security/Services/
+Эталонная реализация находится в `src/AetherMesh.Security/Services/
 PacketSigningService.cs::BuildSignableData` и является обязательным чтением при
 портировании.
 
@@ -299,7 +299,7 @@ Aether использует реактивный протокол маршрут
 ## 4. Обмен ключами
 
 > Сверено 2026-05-05 с эталонной реализацией на C# в
-> `src/Aether.Security/Services/SignalProtocolService.cs` и
+> `src/AetherMesh.Security/Services/SignalProtocolService.cs` и
 > corpus fixture между языками в `fixtures/signal/`. Реализация на C#
 > включает полный X3DH + Double Ratchet (Signal §3 + §5) над X25519. Go,
 > Python, TypeScript, Rust, Swift и Kotlin портированы на тот же конверт
@@ -356,7 +356,7 @@ PreKeyBundle {
 }
 ```
 
-Ссылка: `Aether.Security.Models.PreKeyBundle`. Контракт wire-формата одинаков
+Ссылка: `AetherMesh.Security.Models.PreKeyBundle`. Контракт wire-формата одинаков
 для всех 8 языков.
 
 **Пул одноразовых pre-key (OPK).** Каждый ответчик поддерживает пул из
@@ -369,7 +369,7 @@ OPK. При генерации пакета берётся следующий н
 
 Ссылка: `SignalProtocolService.TopUpOpkPoolNoLock` (строки 494–518),
 `SignalProtocolService.EstablishResponderSession` (строки 636–718). Семантика пула
-проверяется в `tests/Aether.Core.Tests/PreKeyPoolTests.cs`.
+проверяется в `tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`.
 
 **Ротация подписанного pre-key (SPK).** SPK генерируется лениво при первом
 вызове bundle и повторно используется в последующих вызовах, чтобы параллельные инициаторы,
@@ -557,7 +557,7 @@ EncryptedPayload {
 }
 ```
 
-Ссылка: `Aether.Security.Models.EncryptedPayload` (строки 55–66 файла
+Ссылка: `AetherMesh.Security.Models.EncryptedPayload` (строки 55–66 файла
 `SecurityModels.cs`). Поле `InitiatorEphemeralKeyX25519` является
 псевдонимом для обратной совместимости с pre-Double-Ratchet wire-конвертом и
 равно `SenderEphemeralKeyX25519` в сообщениях PreKey; новые потребители
@@ -578,7 +578,7 @@ EncryptedPayload {
 | Rust        | полный               | полный (§5)    | пул, по умолчанию 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | полный               | полный (§5)    | пул, по умолчанию 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | полный               | полный (§5)    | пул, по умолчанию 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | только примитивы — `aether_x25519_*`, `aether_signal_kdf_rk` | не реализован | — | только kdf_rk_basic |
+| C           | только примитивы — `aethermesh_x25519_*`, `aethermesh_signal_kdf_rk` | не реализован | — | только kdf_rk_basic |
 
 Все 7 языков с поддержкой сессий (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) включают пул FIFO OPK из 100 ключей с ленивым пополнением и потокобезопасным потреблением, соответствующим эталонному контракту C#. C реализует только примитивы; полная машинерия сессии отслеживается в пункте 11 `OPEN_ISSUES.md`.
 
@@ -625,7 +625,7 @@ Aether не зависит от транспорта. Любой физичес�
 2. **Размер полезной нагрузки:** Если размер полезной нагрузки не превышает `BleMaxPayloadBytes` (1 024 байта), для энергоэффективности предпочитается BLE. Для больших полезных нагрузок предпочтительнее Wi-Fi Direct.
 3. **Взвешивание по энергозатратам:** Среди доступных транспортов для обычного трафика предпочитаются более низкие значения `PowerCostRelative`. Для высокоприоритетных пакетов (SOS, голос) это предпочтение может быть переопределено.
 4. **Подключение к узлу:** Если транспорт уже имеет активное соединение с целевым узлом (`IsConnected` возвращает true), он предпочтительнее для избежания накладных расходов на установление соединения.
-5. **Резервный вариант:** Если ни один локальный транспорт не может достичь цели, пакет ставится в очередь для ретрансляции через сервер посредством AetherAPI.
+5. **Резервный вариант:** Если ни один локальный транспорт не может достичь цели, пакет ставится в очередь для ретрансляции через сервер посредством AetherMeshAPI.
 
 ### 5.3. Эталонные транспорты
 
@@ -800,7 +800,7 @@ Aether предполагает следующие возможности про
    ```
 3. **Двухпутёвая отправка:** SOS отправляется одновременно через:
    - **Mesh-флуд:** Широковещательная рассылка всем подключённым узлам через все доступные транспорты.
-   - **API-вызов:** Отправляется в AetherAPI для серверного распространения и моста к PanikAPI (отправка SMS/email).
+   - **API-вызов:** Отправляется в AetherMeshAPI для серверного распространения и моста к PanikAPI (отправка SMS/email).
 4. Оба пути являются независимыми (fire-and-forget). В случае сбоя API-вызова mesh-флуд продолжается независимо.
 
 ### 8.3. Поведение при ретрансляции
@@ -856,7 +856,7 @@ DtnBundle {
 
 1. **Создание:** Отправитель создаёт бандл с зашифрованной полезной нагрузкой (зашифрованной через Signal-сессию с получателем). `Status = Pending`, `CopyCount = 1`.
 2. **Немедленная попытка доставки:** Отправитель сначала пытается использовать прямую mesh-маршрутизацию (RREQ/RREP). Если маршрут существует — бандл доставляется немедленно и `Status` переходит в `Delivered`.
-3. **Попытка ретрансляции через сервер:** При сбое mesh-маршрутизации отправитель пытается ретранслировать через AetherAPI. Если сервер может достичь получателя (или поставить сообщение в очередь) — доставка успешна.
+3. **Попытка ретрансляции через сервер:** При сбое mesh-маршрутизации отправитель пытается ретранслировать через AetherMeshAPI. Если сервер может достичь получателя (или поставить сообщение в очередь) — доставка успешна.
 4. **Store-and-forward:** При сбое как mesh-, так и серверной ретрансляции бандл остаётся в локальном хранилище (статус `Pending`) до следующего цикла сканирования доставки.
 
 ### 9.3. Цикл сканирования доставки
@@ -909,7 +909,7 @@ DtnBundle {
    }
    ```
 3. При получении квитанции отправитель удаляет бандл из своего хранилища и инициирует событие `BundleDelivered`.
-4. Квитанция также синхронизируется с AetherAPI для аналитики.
+4. Квитанция также синхронизируется с AetherMeshAPI для аналитики.
 
 ### 9.7. Истечение срока действия бандла
 
@@ -935,7 +935,7 @@ DtnBundle {
 > `StreamSubscribe` (13), `StreamUnsubscribe` (14), `VideoCall` (27),
 > `VideoSignaling` (28), `VideoFrame` (31), `ScreenShare` (32) определены
 > на уровне wire и передаются по cross-language fixture corpus.
-> Модуль C# `Aether.Streaming` включает интерфейсы, модели и скелетные
+> Модуль C# `AetherMesh.Streaming` включает интерфейсы, модели и скелетные
 > сервисы (`StreamingService`, `VideoCallService`, `WatchTogetherService`),
 > подключающие стыки маршрутизации/DI и юникастное распределение сегментов —
 > но фактическое кодирование/декодирование видео к ним не привязано. Остальные
@@ -1049,7 +1049,7 @@ Aether поддерживает три видеорежима: P2P-видеоз�
 > **Статус по состоянию на 2026-05-05 — проектирование + каркас C#, та же зрелость, что и §10.**
 > Типы пакетов `WatchSync` (29), `WatchReaction` (30),
 > `WatchChunkRequest` (33), `TorrentMetadata` (34) определены на wire и
-> протестированы с помощью fixture. `Aether.Streaming.WatchTogetherService` предоставляет
+> протестированы с помощью fixture. `AetherMesh.Streaming.WatchTogetherService` предоставляет
 > координационный каркас (состояние сессии, распространение sync-команд через
 > `IMeshSender`, вспомогательные функции компенсации RTT); приём BitTorrent, расчёт
 > SDPKT через ChipIn и загрузка фрагментов от узлов не реализованы ни на одном
@@ -1179,12 +1179,12 @@ ChipIn позволяет участникам группы объединять
 
 | Флаг | Родитель | Описание |
 |------|----------|----------|
-| AETHER_VIDEO_CALL | AETHER_VOICE | P2P и групповые видеозвонки |
-| AETHER_VIDEO_GROUP | AETHER_VIDEO_CALL | Многосторонние видеосессии |
-| AETHER_SCREEN_SHARE | AETHER_VIDEO_CALL | Демонстрация экрана в видеозвонках |
-| AETHER_WATCH_TOGETHER | AETHER_CONTENT_P2P | Синхронизированное воспроизведение медиа |
-| AETHER_WATCH_REACTIONS | AETHER_WATCH_TOGETHER | Реакции эмодзи и голосовые реакции |
-| AETHER_TORRENT_INGEST | AETHER_CONTENT_P2P | Принятие файлов BitTorrent для распространения через mesh |
+| AETHERMESH_VIDEO_CALL | AETHERMESH_VOICE | P2P и групповые видеозвонки |
+| AETHERMESH_VIDEO_GROUP | AETHERMESH_VIDEO_CALL | Многосторонние видеосессии |
+| AETHERMESH_SCREEN_SHARE | AETHERMESH_VIDEO_CALL | Демонстрация экрана в видеозвонках |
+| AETHERMESH_WATCH_TOGETHER | AETHERMESH_CONTENT_P2P | Синхронизированное воспроизведение медиа |
+| AETHERMESH_WATCH_REACTIONS | AETHERMESH_WATCH_TOGETHER | Реакции эмодзи и голосовые реакции |
+| AETHERMESH_TORRENT_INGEST | AETHERMESH_CONTENT_P2P | Принятие файлов BitTorrent для распространения через mesh |
 
 Флаги функций имеют родительские зависимости: дочерний флаг может быть включён только при включённом родительском. Это обеспечивает поэтапное развёртывание.
 
@@ -1211,7 +1211,7 @@ ChipIn позволяет участникам группы объединять
 | BleAdvertiseIntervalMs    | 1000     |
 | BleUuidRotationSeconds    | 900      |
 | BleScanJitterMaxMs        | 2000     |
-| AetherBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
+| AetherMeshBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
 
 ### Безопасность
 | Константа                 | Значение |

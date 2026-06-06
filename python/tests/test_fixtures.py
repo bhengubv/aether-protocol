@@ -18,8 +18,8 @@ import unittest
 from pathlib import Path
 from uuid import UUID
 
-from aether.protocol.mesh_packet import MeshPacket, PacketType
-from aether.protocol.serializer import PacketSerializer
+from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
+from aethermesh.protocol.serializer import PacketSerializer
 
 
 def _fixtures_dir() -> Path:

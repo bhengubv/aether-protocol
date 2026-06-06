@@ -23,7 +23,7 @@
 #include <unistd.h>
 #endif
 
-#include "aether/security.h"
+#include "aethermesh/security.h"
 
 // ─── Hex helpers ─────────────────────────────────────────────────────────
 
@@ -125,7 +125,7 @@ static int find_repo_root(void) {
     if (!getcwd(cwd, sizeof(cwd))) return 0;
     char path[1280];
     for (int depth = 0; depth < 10; depth++) {
-        snprintf(path, sizeof(path), "%s/AetherProtocol.slnx", cwd);
+        snprintf(path, sizeof(path), "%s/AetherMeshProtocol.slnx", cwd);
         FILE *f = fopen(path, "rb");
         if (f) { fclose(f); strncpy(repo_root_path, cwd, sizeof(repo_root_path) - 1); return 1; }
         // Walk up one level.
@@ -155,7 +155,7 @@ static char *load_expected(const char *case_name) {
 
 static int hmac_one(const uint8_t *key, size_t key_len, uint8_t b, uint8_t out[32]) {
     uint8_t msg[1] = { b };
-    return aether_hmac_sha256(key, key_len, msg, sizeof(msg), out) ? 1 : 0;
+    return aethermesh_hmac_sha256(key, key_len, msg, sizeof(msg), out) ? 1 : 0;
 }
 
 // ─── Test cases ──────────────────────────────────────────────────────────
@@ -201,17 +201,17 @@ static int test_x3dh_basic(void) {
     json_get_str(case_obj, "hkdf_chain_initiator_recv_info_utf8", recv_info, sizeof(recv_info));
 
     uint8_t alice_ik_pub[32], alice_ek_pub[32], bob_ik_pub[32], bob_spk_pub[32], bob_opk_pub[32];
-    aether_x25519_derive_public(alice_ik, alice_ik_pub);
-    aether_x25519_derive_public(alice_ek, alice_ek_pub);
-    aether_x25519_derive_public(bob_ik, bob_ik_pub);
-    aether_x25519_derive_public(bob_spk, bob_spk_pub);
-    aether_x25519_derive_public(bob_opk, bob_opk_pub);
+    aethermesh_x25519_derive_public(alice_ik, alice_ik_pub);
+    aethermesh_x25519_derive_public(alice_ek, alice_ek_pub);
+    aethermesh_x25519_derive_public(bob_ik, bob_ik_pub);
+    aethermesh_x25519_derive_public(bob_spk, bob_spk_pub);
+    aethermesh_x25519_derive_public(bob_opk, bob_opk_pub);
 
     uint8_t dh1[32], dh2[32], dh3[32], dh4[32];
-    aether_x25519_agree(alice_ik, bob_spk_pub, dh1);
-    aether_x25519_agree(alice_ek, bob_ik_pub, dh2);
-    aether_x25519_agree(alice_ek, bob_spk_pub, dh3);
-    aether_x25519_agree(alice_ek, bob_opk_pub, dh4);
+    aethermesh_x25519_agree(alice_ik, bob_spk_pub, dh1);
+    aethermesh_x25519_agree(alice_ek, bob_ik_pub, dh2);
+    aethermesh_x25519_agree(alice_ek, bob_spk_pub, dh3);
+    aethermesh_x25519_agree(alice_ek, bob_opk_pub, dh4);
 
     uint8_t shared[128];
     memcpy(shared, dh1, 32);
@@ -220,11 +220,11 @@ static int test_x3dh_basic(void) {
     memcpy(shared + 96, dh4, 32);
 
     uint8_t root_key[32], send_chain[32], recv_chain[32];
-    aether_hkdf_sha256(NULL, 0, shared, sizeof(shared),
+    aethermesh_hkdf_sha256(NULL, 0, shared, sizeof(shared),
                       (const uint8_t *)root_info, strlen(root_info), 32, root_key);
-    aether_hkdf_sha256(NULL, 0, root_key, 32,
+    aethermesh_hkdf_sha256(NULL, 0, root_key, 32,
                       (const uint8_t *)send_info, strlen(send_info), 32, send_chain);
-    aether_hkdf_sha256(NULL, 0, root_key, 32,
+    aethermesh_hkdf_sha256(NULL, 0, root_key, 32,
                       (const uint8_t *)recv_info, strlen(recv_info), 32, recv_chain);
 
     // Compare against expected
@@ -343,8 +343,8 @@ static int test_kdf_rk_basic(void) {
     hex_decode(hex, dh_output, 32);
 
     uint8_t new_root[32], new_chain[32];
-    if (!aether_signal_kdf_rk(root_key, dh_output, new_root, new_chain)) {
-        fprintf(stderr, "  aether_signal_kdf_rk returned false\n");
+    if (!aethermesh_signal_kdf_rk(root_key, dh_output, new_root, new_chain)) {
+        fprintf(stderr, "  aethermesh_signal_kdf_rk returned false\n");
         free(inputs_json); free(case_obj); free(expected_json);
         return 0;
     }
@@ -363,7 +363,7 @@ static int test_kdf_rk_basic(void) {
 
 int main(void) {
     if (!find_repo_root()) {
-        fprintf(stderr, "Cannot locate repo root (looking for AetherProtocol.slnx).\n");
+        fprintf(stderr, "Cannot locate repo root (looking for AetherMeshProtocol.slnx).\n");
         return 1;
     }
     printf("Signal fixture verifier — repo root: %s\n", repo_root_path);

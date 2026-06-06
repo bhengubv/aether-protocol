@@ -20,18 +20,18 @@
 
 ```xml
 <ItemGroup>
-  <ProjectReference Include="../aether-protocol/src/Aether.DependencyInjection/Aether.DependencyInjection.csproj" />
-  <ProjectReference Include="../aether-protocol/src/Aether.Storage/Aether.Storage.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherMesh.Storage/AetherMesh.Storage.csproj" />
 </ItemGroup>
 ```
 
-`Aether.DependencyInjection` يسحب `Aether.Core` و`Aether.Security` و`Aether.Messaging` و`Aether.Transport` و`Aether.Streaming` و`Aether.Voice` و`Aether.Content` بشكل متعدي — كل ما تحتاجه لمكدس المراسلة. `Aether.Storage` تبعية منفصلة فقط إذا أردت استمرارية مدعومة بالقرص (انظر القسم 6).
+`AetherMesh.DependencyInjection` يسحب `AetherMesh.Core` و`AetherMesh.Security` و`AetherMesh.Messaging` و`AetherMesh.Transport` و`AetherMesh.Streaming` و`AetherMesh.Voice` و`AetherMesh.Content` بشكل متعدي — كل ما تحتاجه لمكدس المراسلة. `AetherMesh.Storage` تبعية منفصلة فقط إذا أردت استمرارية مدعومة بالقرص (انظر القسم 6).
 
 بمجرد نشر الحزمة على NuGet، يصبح هذا:
 
 ```bash
-dotnet add package Aether.DependencyInjection
-dotnet add package Aether.Storage   # optional, for persistence
+dotnet add package AetherMesh.DependencyInjection
+dotnet add package AetherMesh.Storage   # optional, for persistence
 ```
 
 واجهات برمجة الحزمة لن تتغير بين تدفق مرجع المشروع وتدفق NuGet.
@@ -40,10 +40,10 @@ dotnet add package Aether.Storage   # optional, for persistence
 
 ## 2. الربط — تسجيل المكدس الكامل القانوني
 
-امتداد DI `AddAetherProtocol(...)` يُرجع منشئاً fluent. كل قدرة اختيارية: مضيف يحتاج فقط التوجيه يُسلسل `.AddRouting()` ويتوقف هناك. فيما يلي المكدس الكامل الذي يريده المستخدم النموذجي.
+امتداد DI `AddAetherMeshProtocol(...)` يُرجع منشئاً fluent. كل قدرة اختيارية: مضيف يحتاج فقط التوجيه يُسلسل `.AddRouting()` ويتوقف هناك. فيما يلي المكدس الكامل الذي يريده المستخدم النموذجي.
 
 ```csharp
-using Aether.DependencyInjection;
+using AetherMesh.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -53,7 +53,7 @@ const string LocalUhid = "aether:alice:01";
 
 builder.Services.AddHealthChecks();          // host-side prerequisite for AddHealthChecks() below
 builder.Services
-    .AddAetherProtocol(opts => opts.LocalUhid = LocalUhid)
+    .AddAetherMeshProtocol(opts => opts.LocalUhid = LocalUhid)
     .AddSignalProtocol()                     // X3DH + Double Ratchet (registers ISignalProtocolService, IPacketSigningService)
     .AddRouting()                            // AODV-style RREQ/RREP + InMemoryRouteStore
     .AddDtn()                                // 72h store-and-forward custody + InMemoryDtnBundleStore
@@ -66,9 +66,9 @@ using var app = builder.Build();
 await app.StartAsync();
 ```
 
-`AddAetherProtocol` وكل طريقة مُسلسلة بعده هي idempotent على نفس `IServiceCollection` — استدعاؤها مرتين لا يُسجّل مرتين. الترتيب مهم في مكان واحد: `AddMessaging()` يُلقي `InvalidOperationException` إذا لم يُستدعَ `AddSignalProtocol()` أو `AddRouting()` أولاً.
+`AddAetherMeshProtocol` وكل طريقة مُسلسلة بعده هي idempotent على نفس `IServiceCollection` — استدعاؤها مرتين لا يُسجّل مرتين. الترتيب مهم في مكان واحد: `AddMessaging()` يُلقي `InvalidOperationException` إذا لم يُستدعَ `AddSignalProtocol()` أو `AddRouting()` أولاً.
 
-`InProcessTransport` للاختبارات والعروض التوضيحية. في الإنتاج تُطبّق `Aether.Transport.Abstractions.ITransportService` للطبقة الفيزيائية (BLE GATT، Wi-Fi Direct، NearLink، LoRa، …) وتُسجّل `IMeshSender` يجسر الحزم عليها. خدمات التوجيه/DTN/المراسلة تعمل بعد ذلك دون تغيير فوقها.
+`InProcessTransport` للاختبارات والعروض التوضيحية. في الإنتاج تُطبّق `AetherMesh.Transport.Abstractions.ITransportService` للطبقة الفيزيائية (BLE GATT، Wi-Fi Direct، NearLink، LoRa، …) وتُسجّل `IMeshSender` يجسر الحزم عليها. خدمات التوجيه/DTN/المراسلة تعمل بعد ذلك دون تغيير فوقها.
 
 ---
 
@@ -77,7 +77,7 @@ await app.StartAsync();
 X3DH غير متماثل. **المُبادر** يعالج حزمة منشورة من **المستجيب**؛ جلسة المستجيب تُنشأ تلقائياً عندما يستلم أول رسالة مشفرة من المُبادر (رسالة "PreKey").
 
 ```csharp
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -116,8 +116,8 @@ Console.WriteLine(Encoding.UTF8.GetString(plaintext)); // "The mesh is alive."
 في الإنتاج تُغلّف النص المشفر في `MeshPacket`، وتوقّعه بـ`PacketSigningService.SignPacketAsync`، وتدع `MessagingService.SendAsync` يتولى التوجيه وإعادة المحاولات وDTN كبديل:
 
 ```csharp
-using Aether.Messaging;
-using Aether.Messaging.Models;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
 
 var messaging = serviceProvider.GetRequiredService<IMessagingService>();
 
@@ -139,12 +139,12 @@ var handed = await messaging.SendAsync(outgoing, Encoding.UTF8.GetBytes("hi from
 
 ## 5. رحلة ذهاباً وإياباً بين عقدتين في 50 سطراً
 
-هذا سكريبت قابل للتشغيل. انسخه في `Program.cs`، أضف `<ProjectReference>` إلى `Aether.Security.csproj` (الذي يسحب `Aether.Core` وتشفير BCL)، وشغّل `dotnet run`.
+هذا سكريبت قابل للتشغيل. انسخه في `Program.cs`، أضف `<ProjectReference>` إلى `AetherMesh.Security.csproj` (الذي يسحب `AetherMesh.Core` وتشفير BCL)، وشغّل `dotnet run`.
 
 ```csharp
 using System.Text;
-using Aether.Security.Models;
-using Aether.Security.Services;
+using AetherMesh.Security.Models;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -188,7 +188,7 @@ Alice got: "ack"
 للحصول على عرض توضيحي أغنى من طرف إلى طرف — يشمل توقيع الحزم، وترحيل متعدد القفزات عبر Charlie، وMessagingService، وDTN custody كبديل — شغّل وحدة التحكم المُرفقة:
 
 ```bash
-dotnet run --project samples/Aether.Demo.Console
+dotnet run --project samples/AetherMesh.Demo.Console
 ```
 
 خطوة حضانة DTN (الخطوة 9 من العرض التوضيحي) هي النمط القانوني للربط الإنتاجي: `MessagingService` + `RoutingService` + `DtnService` مُجمَّعة مقابل محول `IMeshSender` فوق وسيلة النقل الحقيقية.
@@ -199,11 +199,11 @@ dotnet run --project samples/Aether.Demo.Console
 
 افتراضياً `SignalProtocolService` يحفظ كل جلسة، ومفتاح هوية، ومفتاح أولي موقَّع، ومفتاح أحادي الاستخدام في ذاكرة العملية. تعني الأعطال: فقدان الهوية (لا يمكن فك تشفير أي جلسة سابقة)، وفقدان مجموعة OPK (X3DH للمستجيب يبدأ في الفشل للمُبادرين الجدد)، وفقدان حالة Double Ratchet (السرية الأمامية سليمة لكن ترتيب الرسائل يتعطل).
 
-`Aether.Storage.FileSystemKeyValueStore` هو `IKeyValueStore` بسيط مدعوم بالقرص (ملف واحد لكل مدخلة، إعادة تسمية ذرية عبر ملف مؤقت). ربطه عبر محولات `KeyValue*Store`:
+`AetherMesh.Storage.FileSystemKeyValueStore` هو `IKeyValueStore` بسيط مدعوم بالقرص (ملف واحد لكل مدخلة، إعادة تسمية ذرية عبر ملف مؤقت). ربطه عبر محولات `KeyValue*Store`:
 
 ```csharp
-using Aether.Storage;
-using Aether.Security.Services;
+using AetherMesh.Storage;
+using AetherMesh.Security.Services;
 
 var kv = new FileSystemKeyValueStore(
     rootDirectory: Path.Combine(AppContext.BaseDirectory, "aether-state"),
@@ -233,32 +233,32 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 builder.Services.AddOpenTelemetry()
-    .WithMetrics(m => m.AddMeter("Aether.Protocol"))
-    .WithTracing(t => t.AddSource("Aether.Protocol"));
+    .WithMetrics(m => m.AddMeter("AetherMesh.Protocol"))
+    .WithTracing(t => t.AddSource("AetherMesh.Protocol"));
 ```
 
 ما تحصل عليه:
 
-- **العدادات**: `aether.messages.encrypted`، `aether.messages.decrypted`،
-  `aether.signatures.validated`، `aether.signatures.rejected`،
-  `aether.nonces.replayed`، `aether.timestamps.stale`،
-  `aether.sessions.established`، `aether.ratchet.dh_steps`،
-  `aether.route.requests_emitted`، `aether.route.replies_received`،
-  `aether.route.cache_hits`، `aether.dtn.bundles_accepted`،
-  `aether.dtn.bundles_delivered`، `aether.dtn.bundles_expired`،
-  `aether.sos.broadcasts`، `aether.sos.rebroadcasts_suppressed`،
-  `aether.messaging.messages_sent`، `aether.messaging.messages_queued`،
-  `aether.messaging.dtn_fallback`.
-- **المدرجات التكرارية** (بالملي ثانية): `aether.encrypt.latency`، `aether.decrypt.latency`،
-  `aether.route.lookup_latency`، `aether.sign.verify_latency`.
+- **العدادات**: `aethermesh.messages.encrypted`، `aethermesh.messages.decrypted`،
+  `aethermesh.signatures.validated`، `aethermesh.signatures.rejected`،
+  `aethermesh.nonces.replayed`، `aethermesh.timestamps.stale`،
+  `aethermesh.sessions.established`، `aethermesh.ratchet.dh_steps`،
+  `aethermesh.route.requests_emitted`، `aethermesh.route.replies_received`،
+  `aethermesh.route.cache_hits`، `aethermesh.dtn.bundles_accepted`،
+  `aethermesh.dtn.bundles_delivered`، `aethermesh.dtn.bundles_expired`،
+  `aethermesh.sos.broadcasts`، `aethermesh.sos.rebroadcasts_suppressed`،
+  `aethermesh.messaging.messages_sent`، `aethermesh.messaging.messages_queued`،
+  `aethermesh.messaging.dtn_fallback`.
+- **المدرجات التكرارية** (بالملي ثانية): `aethermesh.encrypt.latency`، `aethermesh.decrypt.latency`،
+  `aethermesh.route.lookup_latency`، `aethermesh.sign.verify_latency`.
 - **الأنشطة** مع وسوم UHID معقّمة من PII:
-  `Aether.Encrypt`، `Aether.Decrypt`، `Aether.DhRatchet.Step`،
-  `Aether.Sign.Packet`، `Aether.Verify.Packet`، بالإضافة إلى نطاقات التوجيه وDTN.
+  `AetherMesh.Encrypt`، `AetherMesh.Decrypt`، `AetherMesh.DhRatchet.Step`،
+  `AetherMesh.Sign.Packet`، `AetherMesh.Verify.Packet`، بالإضافة إلى نطاقات التوجيه وDTN.
 
 عندما لا يكون هناك مستمع مُرتبط، لا تُخصص المسارات الساخنة شيئاً — `counter Add` يُخفَّض إلى قراءة volatile و`StartActivity` يُرجع `null`.
 
 مخزون الأدوات الكامل وعقد PII موجودان في
-`src/Aether.Core/Diagnostics/AetherTelemetry.cs`.
+`src/AetherMesh.Core/Diagnostics/AetherMeshTelemetry.cs`.
 
 ---
 
@@ -273,7 +273,7 @@ builder.Services.AddOpenTelemetry()
 | `aether-signal` | OPKs المتاحة + عدد الجلسات النشطة | حد OPK الأدنى → غير صحي دون `MinAvailableOpks` (افتراضي 10)؛ حد الجلسة الأقصى → متدهور فوق 1,000 |
 | `aether-messaging-outbox` | عمق صندوق الصادر المعلق + النمو بين العينات | < 100 → ≥ 100 → ≥ 100 وينمو |
 
-اضبط عبر أكياس `AetherOptions.Routing` و`Dtn` و`Signal` و`Messaging`. يجب على المضيف استدعاء `services.AddHealthChecks()` قبل `.AddHealthChecks()` الخاص بمنشئ Aether لتكون التسجيلات مرئية لـ`MapHealthChecks(...)`.
+اضبط عبر أكياس `AetherMeshOptions.Routing` و`Dtn` و`Signal` و`Messaging`. يجب على المضيف استدعاء `services.AddHealthChecks()` قبل `.AddHealthChecks()` الخاص بمنشئ Aether لتكون التسجيلات مرئية لـ`MapHealthChecks(...)`.
 
 ---
 
@@ -283,7 +283,7 @@ builder.Services.AddOpenTelemetry()
 - **`docs/THREAT_MODEL.md`** — ما يدافع عنه التشفير، وما هو خارج النطاق صراحةً، والافتراضات التي تعتمد عليها ادعاءات الأمان.
 - **`OPEN_ISSUES.md`** — القيود المعروفة، وعناصر خارطة الطريق المتتبعة، وفجوة آلية جلسة لغة C.
 - **`SECURITY.md`** — سياسة الإفصاح المسؤول.
-- **`samples/Aether.Demo.Console/Program.cs`** — جولة كاملة قابلة للتشغيل بـ9 خطوات من طرف إلى طرف. الخطوة 9 (MessagingService + DTN) هي نمط الربط الإنتاجي.
+- **`samples/AetherMesh.Demo.Console/Program.cs`** — جولة كاملة قابلة للتشغيل بـ9 خطوات من طرف إلى طرف. الخطوة 9 (MessagingService + DTN) هي نمط الربط الإنتاجي.
 - **`fixtures/signal/`** — متجهات اختبار متعددة اللغات. إذا كنت تنقل Aether إلى لغة أخرى، هذه هي المخرجات المثبتة بالبايت التي يجب أن يُطابقها تطبيقك.
 
 وجدت خطأ؟ سجّله على GitHub. وجدت ثغرة أمنية؟ انظر `SECURITY.md`.

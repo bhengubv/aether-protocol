@@ -271,7 +271,7 @@ import (
 
 func main() {
     // Create a node
-    alice := &models.AetherNode{
+    alice := &models.AetherMeshNode{
         UHID: "node-alice-001",
         IdentityKey: make([]byte, 32),
         Capabilities: models.CapabilityBLE | models.CapabilityRelay,

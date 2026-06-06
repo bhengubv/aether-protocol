@@ -24,13 +24,13 @@ from typing import Tuple
 
 import pytest
 
-from aether.security import (
+from aethermesh.security import (
     SignalProtocolService,
     SignedPreKeyRotationOptions,
 )
-from aether.security.session_store import KeyValueSignalSessionStore
-from aether.security.pre_key_store import KeyValuePreKeyStore
-from aether.storage import InMemoryKeyValueStore, KeyValueStore
+from aethermesh.security.session_store import KeyValueSignalSessionStore
+from aethermesh.security.pre_key_store import KeyValuePreKeyStore
+from aethermesh.storage import InMemoryKeyValueStore, KeyValueStore
 
 
 _RESPONDER_UHID = "responder-rotation"

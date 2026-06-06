@@ -63,7 +63,7 @@ This Rust implementation provides complete protocol compatibility with the C# re
 
 ### `models.rs` — Core Data Structures
 
-- `AetherNode` — Represents a mesh node with peers and routes
+- `AetherMeshNode` — Represents a mesh node with peers and routes
 - `PeerInfo` — Metadata about known peers
 - `RouteEntry` — Routing table entries with expiry
 - `Capabilities` — Bitfield of node features (BLE, gateway, relay, etc.)
@@ -258,7 +258,7 @@ End-to-end demo showing:
 ## Interoperability
 
 This implementation is designed to interoperate with:
-- C# Aether.Core, Aether.Security, Aether.Transport libraries
+- C# AetherMesh.Core, AetherMesh.Security, AetherMesh.Transport libraries
 - iOS/Android MAUI implementations
 - Web-based gateway nodes
 

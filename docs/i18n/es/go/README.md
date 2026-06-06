@@ -13,7 +13,7 @@ Este módulo implementa el protocolo de redes en malla descentralizado Aether pa
 - **Protocolo Signal**: Acuerdo de claves X3DH + trinquete simétrico para cifrado de extremo a extremo
 - **Servicio de Firma de Paquetes**: Deduplicación de nonces con TTL de 5 minutos para prevención de ataques de repetición
 - **Transporte en Proceso**: Transporte basado en memoria para pruebas y comunicación entre procesos
-- **Modelos**: Estructuras AetherNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
+- **Modelos**: Estructuras AetherMeshNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
 - **Constantes del Protocolo**: Todas las constantes de enrutamiento, descubrimiento, seguridad y transporte
 
 ## Estructura del Módulo
@@ -173,7 +173,7 @@ Estructuras completas para redes en malla:
 
 ```go
 // Node in the mesh
-node := &models.AetherNode{
+node := &models.AetherMeshNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

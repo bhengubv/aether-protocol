@@ -70,7 +70,7 @@ A production-ready Kotlin implementation of the Aether mesh networking protocol 
 - **NodeCapabilities**: Bitfield (BLE, Wi-Fi Direct, Gateway, Relay, SOS, Streaming, Voice, DTN)
 - **PeerInfo**: UHID, identity key, capabilities, reliability score, last-seen, geohash
 - **RouteEntry**: Routing table with destination, next hop, hop count, quality score, expiry
-- **AetherNode**: Node identity with UHID, public key, capabilities, geohash
+- **AetherMeshNode**: Node identity with UHID, public key, capabilities, geohash
 - **DtnBundle**: Store-and-forward bundle with sender, recipient, encrypted payload, priority, status, copy count, expiry
 
 ### Demo & Documentation
@@ -215,7 +215,7 @@ This implementation is production-ready for:
 
 1. **Mobile apps** (Android via Kotlin multiplatform)
 2. **Desktop apps** (JVM with Gradle)
-3. **Server integration** (AetherAPI backend)
+3. **Server integration** (AetherMeshAPI backend)
 4. **Cross-platform testing** (C# ↔ Kotlin interop)
 
 ## Next Steps
@@ -223,7 +223,7 @@ This implementation is production-ready for:
 1. **Transport implementation**: Create Android BLE transport using `TransportService` interface
 2. **Router service**: Implement AODV routing with routing table management
 3. **DTN service**: Implement store-and-forward with SQLite persistence
-4. **Integration testing**: Wire up with AetherAPI backend
+4. **Integration testing**: Wire up with AetherMeshAPI backend
 5. **Performance tuning**: Profile crypto operations, optimize serialization
 6. **Android app integration**: Use in Bruh.Mobile with auth flow
 

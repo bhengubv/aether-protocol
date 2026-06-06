@@ -2,19 +2,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "AetherProtocol",
+    name: "AetherMeshProtocol",
     platforms: [
         .macOS(.v13),
         .iOS(.v16)
     ],
     products: [
         .library(
-            name: "AetherProtocol",
-            targets: ["AetherProtocol"]
+            name: "AetherMeshProtocol",
+            targets: ["AetherMeshProtocol"]
         ),
         .executable(
-            name: "aether-demo",
-            targets: ["AetherDemo"]
+            name: "aethermesh-demo",
+            targets: ["AetherMeshDemo"]
         )
     ],
     dependencies: [
@@ -22,20 +22,20 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "AetherProtocol",
+            name: "AetherMeshProtocol",
             dependencies: [
                 .product(name: "Crypto", package: "swift-crypto")
             ],
-            path: "Sources/AetherProtocol"
+            path: "Sources/AetherMeshProtocol"
         ),
         .executableTarget(
-            name: "AetherDemo",
-            dependencies: ["AetherProtocol"],
-            path: "Sources/AetherDemo"
+            name: "AetherMeshDemo",
+            dependencies: ["AetherMeshProtocol"],
+            path: "Sources/AetherMeshDemo"
         ),
         .testTarget(
-            name: "AetherProtocolTests",
-            dependencies: ["AetherProtocol"],
+            name: "AetherMeshProtocolTests",
+            dependencies: ["AetherMeshProtocol"],
             path: "Tests"
         )
     ]

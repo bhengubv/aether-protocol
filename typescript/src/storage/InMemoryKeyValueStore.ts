@@ -3,7 +3,7 @@
  * Suitable for tests and demos. Loses everything on process exit.
  *
  * Mirrors the C# {@code InMemoryKeyValueStore} in
- * src/Aether.Storage/InMemoryKeyValueStore.cs.
+ * src/AetherMesh.Storage/InMemoryKeyValueStore.cs.
  *
  * SPDX-License-Identifier: MIT
  */

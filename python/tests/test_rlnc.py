@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import unittest
 
-from aether.transport.rlnc import (
+from aethermesh.transport.rlnc import (
     RlncCodec,
     RlncDecoder,
     RlncEncoder,

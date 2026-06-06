@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-// Unit tests for aether_anomaly.c (BehavioralAnomalyDetector).
+// Unit tests for aethermesh_anomaly.c (BehavioralAnomalyDetector).
 
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "aether_reputation.h"
-#include "aether_anomaly.h"
+#include "aethermesh_reputation.h"
+#include "aethermesh_anomaly.h"
 
 // ─── Test runner ─────────────────────────────────────────────────────────────
 
@@ -16,9 +16,9 @@ static int tests_run = 0;
 
 // ─── Shared helper: build options with small thresholds ──────────────────────
 
-static AetherAnomalyOptions test_opts(void)
+static AetherMeshAnomalyOptions test_opts(void)
 {
-    AetherAnomalyOptions o;
+    AetherMeshAnomalyOptions o;
     o.volume_window_ms        = 100;   /* small window for easy testing      */
     o.volume_spike_multiplier = 2.0;   /* fires when count > 2 × ewma        */
     o.ewma_alpha              = 0.20;
@@ -34,25 +34,25 @@ static AetherAnomalyOptions test_opts(void)
 
 static void volume_no_spike_first_window(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
-    AetherAnomalyOptions o = test_opts();
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshAnomalyOptions o = test_opts();
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
     /* Send 20 packets from "src-a" within window[0] (t=0..99). */
     for (int i = 0; i < 20; i++) {
-        aether_anomaly_observe_packet(det, "src-a", "dst-x", (int64_t)i);
+        aethermesh_anomaly_observe_packet(det, "src-a", "dst-x", (int64_t)i);
     }
     /* Roll into window[1]: timestamp 100 triggers the roll. */
-    aether_anomaly_observe_packet(det, "src-a", "dst-x", 100);
+    aethermesh_anomaly_observe_packet(det, "src-a", "dst-x", 100);
 
     /* Score must be 1.0 — first window only seeds EWMA, no flood fired. */
-    double score = aether_reputation_get_score(&rep, "src-a");
+    double score = aethermesh_reputation_get_score(&rep, "src-a");
     assert(fabs(score - 1.0) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── 2. volume_spike_fires ────────────────────────────────────────────────────
@@ -61,34 +61,34 @@ static void volume_no_spike_first_window(void)
 
 static void volume_spike_fires(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
-    AetherAnomalyOptions o = test_opts();
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshAnomalyOptions o = test_opts();
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
     /* Window 0: t=0..4 → 5 packets (window_start = 0, window_count = 5). */
     for (int i = 0; i < 5; i++) {
-        aether_anomaly_observe_packet(det, "src-b", "dst-y", (int64_t)i);
+        aethermesh_anomaly_observe_packet(det, "src-b", "dst-y", (int64_t)i);
     }
 
     /* t=100 rolls window 0 → EWMA = 5.  window 1 starts, window_count = 1. */
-    aether_anomaly_observe_packet(det, "src-b", "dst-y", 100);
+    aethermesh_anomaly_observe_packet(det, "src-b", "dst-y", 100);
 
     /* Window 1: add 10 more packets at t=101..110 → total window_count = 11. */
     for (int i = 1; i <= 10; i++) {
-        aether_anomaly_observe_packet(det, "src-b", "dst-y", (int64_t)(100 + i));
+        aethermesh_anomaly_observe_packet(det, "src-b", "dst-y", (int64_t)(100 + i));
     }
 
     /* t=200 rolls window 1 → count=11 > 2.0×5=10 → fires rreq_flood. */
-    aether_anomaly_observe_packet(det, "src-b", "dst-y", 200);
+    aethermesh_anomaly_observe_packet(det, "src-b", "dst-y", 200);
 
-    double score = aether_reputation_get_score(&rep, "src-b");
+    double score = aethermesh_reputation_get_score(&rep, "src-b");
     /* rreq_flood: −0.05 → 0.95 */
     assert(fabs(score - 0.95) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── 3. volume_no_spike_same_window ──────────────────────────────────────────
@@ -96,22 +96,22 @@ static void volume_spike_fires(void)
 
 static void volume_no_spike_same_window(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
-    AetherAnomalyOptions o = test_opts();
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshAnomalyOptions o = test_opts();
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
     /* 99 packets all within t=0..99 (volume_window_ms=100). */
     for (int i = 0; i < 99; i++) {
-        aether_anomaly_observe_packet(det, "src-c", "dst-z", (int64_t)i);
+        aethermesh_anomaly_observe_packet(det, "src-c", "dst-z", (int64_t)i);
     }
 
-    double score = aether_reputation_get_score(&rep, "src-c");
+    double score = aethermesh_reputation_get_score(&rep, "src-c");
     assert(fabs(score - 1.0) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── 4. scatter_below_threshold ──────────────────────────────────────────────
@@ -119,22 +119,22 @@ static void volume_no_spike_same_window(void)
 
 static void scatter_below_threshold(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
-    AetherAnomalyOptions o = test_opts();
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshAnomalyOptions o = test_opts();
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
     /* 3 unique destinations — at threshold, not over it. */
-    aether_anomaly_observe_packet(det, "src-d", "d1", 1000);
-    aether_anomaly_observe_packet(det, "src-d", "d2", 1001);
-    aether_anomaly_observe_packet(det, "src-d", "d3", 1002);
+    aethermesh_anomaly_observe_packet(det, "src-d", "d1", 1000);
+    aethermesh_anomaly_observe_packet(det, "src-d", "d2", 1001);
+    aethermesh_anomaly_observe_packet(det, "src-d", "d3", 1002);
 
-    double score = aether_reputation_get_score(&rep, "src-d");
+    double score = aethermesh_reputation_get_score(&rep, "src-d");
     assert(fabs(score - 1.0) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── 5. scatter_at_threshold ─────────────────────────────────────────────────
@@ -142,24 +142,24 @@ static void scatter_below_threshold(void)
 
 static void scatter_at_threshold(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
-    AetherAnomalyOptions o = test_opts();
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshAnomalyOptions o = test_opts();
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
-    aether_anomaly_observe_packet(det, "src-e", "e1", 2000);
-    aether_anomaly_observe_packet(det, "src-e", "e2", 2001);
-    aether_anomaly_observe_packet(det, "src-e", "e3", 2002);
+    aethermesh_anomaly_observe_packet(det, "src-e", "e1", 2000);
+    aethermesh_anomaly_observe_packet(det, "src-e", "e2", 2001);
+    aethermesh_anomaly_observe_packet(det, "src-e", "e3", 2002);
     /* 4th unique dest → unique count = 4 > 3 → fires. */
-    aether_anomaly_observe_packet(det, "src-e", "e4", 2003);
+    aethermesh_anomaly_observe_packet(det, "src-e", "e4", 2003);
 
-    double score = aether_reputation_get_score(&rep, "src-e");
+    double score = aethermesh_reputation_get_score(&rep, "src-e");
     /* rreq_flood: −0.05 → 0.95. */
     assert(fabs(score - 0.95) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── 6. scatter_old_entries_pruned ───────────────────────────────────────────
@@ -167,29 +167,29 @@ static void scatter_at_threshold(void)
 
 static void scatter_old_entries_pruned(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
     /* Use a tiny scatter window so we can expire entries easily. */
-    AetherAnomalyOptions o = test_opts();
+    AetherMeshAnomalyOptions o = test_opts();
     o.scatter_window_ms = 5000; /* 5 seconds */
 
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
     /* t=0: 3 unique dests in the past (will be old). */
-    aether_anomaly_observe_packet(det, "src-f", "f1", 0);
-    aether_anomaly_observe_packet(det, "src-f", "f2", 1);
-    aether_anomaly_observe_packet(det, "src-f", "f3", 2);
+    aethermesh_anomaly_observe_packet(det, "src-f", "f1", 0);
+    aethermesh_anomaly_observe_packet(det, "src-f", "f2", 1);
+    aethermesh_anomaly_observe_packet(det, "src-f", "f3", 2);
 
     /* t=6000: well outside the 5 s window.
        Only 1 new unique dest — total live unique = 1 → no fire. */
-    aether_anomaly_observe_packet(det, "src-f", "f4", 6000);
+    aethermesh_anomaly_observe_packet(det, "src-f", "f4", 6000);
 
-    double score = aether_reputation_get_score(&rep, "src-f");
+    double score = aethermesh_reputation_get_score(&rep, "src-f");
     assert(fabs(score - 1.0) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── 7. geohash_match_no_fire ────────────────────────────────────────────────
@@ -197,21 +197,21 @@ static void scatter_old_entries_pruned(void)
 
 static void geohash_match_no_fire(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
-    AetherAnomalyOptions o = test_opts();
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshAnomalyOptions o = test_opts();
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
-    aether_anomaly_observe_geohash_claim(det, "node-g",
+    aethermesh_anomaly_observe_geohash_claim(det, "node-g",
                                           "abcd1234",  /* claimed   */
                                           "abcd5678"); /* observed  */
     /* Prefixes "abcd" == "abcd" → no fire. */
-    double score = aether_reputation_get_score(&rep, "node-g");
+    double score = aethermesh_reputation_get_score(&rep, "node-g");
     assert(fabs(score - 1.0) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── 8. geohash_mismatch_fires ───────────────────────────────────────────────
@@ -219,22 +219,22 @@ static void geohash_match_no_fire(void)
 
 static void geohash_mismatch_fires(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
-    AetherAnomalyOptions o = test_opts();
+    AetherMeshAnomalyOptions o = test_opts();
     o.geohash_rate_limit_ms = 0; /* every mismatch fires */
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
-    aether_anomaly_observe_geohash_claim(det, "node-h",
+    aethermesh_anomaly_observe_geohash_claim(det, "node-h",
                                           "xyzw1234",  /* claimed   */
                                           "abcd5678"); /* observed  */
     /* "xyzw" != "abcd" → sig_failure: 1.0 − 0.20 = 0.80. */
-    double score = aether_reputation_get_score(&rep, "node-h");
+    double score = aethermesh_reputation_get_score(&rep, "node-h");
     assert(fabs(score - 0.80) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── 9. geohash_rate_limit ───────────────────────────────────────────────────
@@ -242,29 +242,29 @@ static void geohash_mismatch_fires(void)
 
 static void geohash_rate_limit(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
-    AetherAnomalyOptions o = test_opts();
+    AetherMeshAnomalyOptions o = test_opts();
     o.geohash_rate_limit_ms = 60000; /* 60 s rate limit */
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
     /* First mismatch → fires. */
-    aether_anomaly_observe_geohash_claim(det, "node-i",
+    aethermesh_anomaly_observe_geohash_claim(det, "node-i",
                                           "xyzw1234",
                                           "abcd5678");
 
     /* Second mismatch within rate-limit window → does NOT fire. */
-    aether_anomaly_observe_geohash_claim(det, "node-i",
+    aethermesh_anomaly_observe_geohash_claim(det, "node-i",
                                           "xyzw1234",
                                           "abcd5678");
 
-    double score = aether_reputation_get_score(&rep, "node-i");
+    double score = aethermesh_reputation_get_score(&rep, "node-i");
     /* Only one sig_failure fired: 1.0 − 0.20 = 0.80. */
     assert(fabs(score - 0.80) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── 10. spk_sig_failure_passthrough ─────────────────────────────────────────
@@ -272,20 +272,20 @@ static void geohash_rate_limit(void)
 
 static void spk_sig_failure_passthrough(void)
 {
-    AetherNodeReputationService rep;
-    aether_reputation_init(&rep);
+    AetherMeshNodeReputationService rep;
+    aethermesh_reputation_init(&rep);
 
-    AetherAnomalyOptions o = test_opts();
-    AetherBehavioralAnomalyDetector *det = aether_anomaly_create(&rep, &o);
+    AetherMeshAnomalyOptions o = test_opts();
+    AetherMeshBehavioralAnomalyDetector *det = aethermesh_anomaly_create(&rep, &o);
     assert(det != NULL);
 
-    aether_anomaly_observe_spk_sig_failure(det, "node-j");
+    aethermesh_anomaly_observe_spk_sig_failure(det, "node-j");
 
-    double score = aether_reputation_get_score(&rep, "node-j");
+    double score = aethermesh_reputation_get_score(&rep, "node-j");
     /* sig_failure: 1.0 − 0.20 = 0.80. */
     assert(fabs(score - 0.80) < 1e-9);
 
-    aether_anomaly_destroy(det);
+    aethermesh_anomaly_destroy(det);
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────

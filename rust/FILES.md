@@ -63,7 +63,7 @@
 ### Core Structures
 
 **`src/models.rs`** (450 lines)
-- `AetherNode`: Mesh node with peers, routes, capabilities
+- `AetherMeshNode`: Mesh node with peers, routes, capabilities
 - `PeerInfo`: Peer metadata with reliability score
 - `RouteEntry`: Routing table entry with expiry
 - `Capabilities`: 8-bit flag struct for node features

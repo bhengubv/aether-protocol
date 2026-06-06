@@ -18,22 +18,22 @@ einen `<ProjectReference>` auf das lokale Repository:
 
 ```xml
 <ItemGroup>
-  <ProjectReference Include="../aether-protocol/src/Aether.DependencyInjection/Aether.DependencyInjection.csproj" />
-  <ProjectReference Include="../aether-protocol/src/Aether.Storage/Aether.Storage.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherMesh.Storage/AetherMesh.Storage.csproj" />
 </ItemGroup>
 ```
 
-`Aether.DependencyInjection` zieht transitiv `Aether.Core`,
-`Aether.Security`, `Aether.Messaging`, `Aether.Transport`, `Aether.Streaming`,
-`Aether.Voice` und `Aether.Content` ein — alles, was Sie für den Messaging-Stack benötigen.
-`Aether.Storage` ist eine separate Abhängigkeit, nur wenn Sie disk-gestützte
+`AetherMesh.DependencyInjection` zieht transitiv `AetherMesh.Core`,
+`AetherMesh.Security`, `AetherMesh.Messaging`, `AetherMesh.Transport`, `AetherMesh.Streaming`,
+`AetherMesh.Voice` und `AetherMesh.Content` ein — alles, was Sie für den Messaging-Stack benötigen.
+`AetherMesh.Storage` ist eine separate Abhängigkeit, nur wenn Sie disk-gestützte
 Persistenz möchten (siehe Abschnitt 6).
 
 Sobald das Paket auf NuGet erscheint, wird daraus:
 
 ```bash
-dotnet add package Aether.DependencyInjection
-dotnet add package Aether.Storage   # optional, für Persistenz
+dotnet add package AetherMesh.DependencyInjection
+dotnet add package AetherMesh.Storage   # optional, für Persistenz
 ```
 
 Die Paket-APIs ändern sich zwischen dem Projekt-Referenz-Ablauf und dem
@@ -43,12 +43,12 @@ NuGet-Ablauf nicht.
 
 ## 2. Einrichten — kanonische Vollstack-Registrierung
 
-Die DI-Erweiterung `AddAetherProtocol(...)` gibt einen Fluent-Builder zurück. Jede
+Die DI-Erweiterung `AddAetherMeshProtocol(...)` gibt einen Fluent-Builder zurück. Jede
 Fähigkeit ist opt-in: Ein Host, der nur Routing benötigt, verkettet `.AddRouting()`
 und hört dort auf. Unten ist der vollständige Stack, den ein typischer Anwender möchte.
 
 ```csharp
-using Aether.DependencyInjection;
+using AetherMesh.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -58,7 +58,7 @@ const string LocalUhid = "aether:alice:01";
 
 builder.Services.AddHealthChecks();          // host-side prerequisite for AddHealthChecks() below
 builder.Services
-    .AddAetherProtocol(opts => opts.LocalUhid = LocalUhid)
+    .AddAetherMeshProtocol(opts => opts.LocalUhid = LocalUhid)
     .AddSignalProtocol()                     // X3DH + Double Ratchet (registers ISignalProtocolService, IPacketSigningService)
     .AddRouting()                            // AODV-style RREQ/RREP + InMemoryRouteStore
     .AddDtn()                                // 72h store-and-forward custody + InMemoryDtnBundleStore
@@ -71,13 +71,13 @@ using var app = builder.Build();
 await app.StartAsync();
 ```
 
-`AddAetherProtocol` und jede verkettete Methode sind idempotent auf derselben
+`AddAetherMeshProtocol` und jede verkettete Methode sind idempotent auf derselben
 `IServiceCollection` — zweimaliges Aufrufen führt zu keiner Doppelregistrierung. Die Reihenfolge
 ist an einer Stelle wichtig: `AddMessaging()` wirft `InvalidOperationException`, wenn
 entweder `AddSignalProtocol()` oder `AddRouting()` nicht zuerst aufgerufen wurde.
 
 Der `InProcessTransport` ist für Tests und Demos. In der Produktion implementieren Sie
-`Aether.Transport.Abstractions.ITransportService` für Ihre physische Schicht (BLE
+`AetherMesh.Transport.Abstractions.ITransportService` für Ihre physische Schicht (BLE
 GATT, Wi-Fi Direct, NearLink, LoRa, …) und registrieren einen `IMeshSender`, der
 Pakete darauf überbrückt. Die Routing-/DTN-/Messaging-Dienste laufen dann unverändert
 darüber.
@@ -91,7 +91,7 @@ X3DH ist asymmetrisch. Der **Initiator** verarbeitet ein veröffentlichtes Bundl
 erste verschlüsselte Nachricht des Initiators empfängt (eine „PreKey-Nachricht").
 
 ```csharp
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -135,8 +135,8 @@ In der Produktion verpacken Sie den Chiffretext in ein `MeshPacket`, signieren e
 Routing, Wiederholungsversuche und DTN-Fallback übernehmen:
 
 ```csharp
-using Aether.Messaging;
-using Aether.Messaging.Models;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
 
 var messaging = serviceProvider.GetRequiredService<IMessagingService>();
 
@@ -162,13 +162,13 @@ um zu erfahren, wann ein Pre-Key-Bundle eines Peers abgerufen und
 ## 5. Zwei-Knoten-Hin-und-Rücklauf in 50 Zeilen
 
 Dies ist ein ausführbares Skript. In `Program.cs` einfügen, einen `<ProjectReference>`
-auf `Aether.Security.csproj` hinzufügen (der `Aether.Core` und die BCL-Krypto einzieht),
+auf `AetherMesh.Security.csproj` hinzufügen (der `AetherMesh.Core` und die BCL-Krypto einzieht),
 und `dotnet run` ausführen.
 
 ```csharp
 using System.Text;
-using Aether.Security.Models;
-using Aether.Security.Services;
+using AetherMesh.Security.Models;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -214,7 +214,7 @@ durch Charlie, MessagingService und DTN-Custody-Fallback — führen Sie die mit
 Konsole aus:
 
 ```bash
-dotnet run --project samples/Aether.Demo.Console
+dotnet run --project samples/AetherMesh.Demo.Console
 ```
 
 Der DTN-Custody-Schritt (Schritt 9 der Demo) ist das kanonische Muster für
@@ -231,13 +231,13 @@ Pre-Key und Einmal-Pre-Key im Prozessspeicher. Ein Absturz bedeutet: verlorene I
 für neue Initiatoren zu versagen), verlorener Double-Ratchet-Zustand (Forward Secrecy ist
 intakt, aber die Nachrichtenreihenfolge bricht zusammen).
 
-`Aether.Storage.FileSystemKeyValueStore` ist ein minimaler disk-gestützter
+`AetherMesh.Storage.FileSystemKeyValueStore` ist ein minimaler disk-gestützter
 `IKeyValueStore` (eine Datei pro Eintrag, atomares Temp-Datei-Umbenennen). Verdrahten Sie ihn
 durch die `KeyValue*Store`-Adapter:
 
 ```csharp
-using Aether.Storage;
-using Aether.Security.Services;
+using AetherMesh.Storage;
+using AetherMesh.Security.Services;
 
 var kv = new FileSystemKeyValueStore(
     rootDirectory: Path.Combine(AppContext.BaseDirectory, "aether-state"),
@@ -262,7 +262,7 @@ Sie können auch einen nicht standardmäßigen `IRouteStore`, `IDtnBundleStore` 
 `.AddRouting()`/`.AddDtn()`/`.AddMessaging()` verkettet wird — der Builder verwendet
 `TryAdd*` und respektiert, was Sie zuerst in den Container gestellt haben. Die
 `KeyValueRouteStore`-, `KeyValueDtnBundleStore`- und `KeyValueMessageStore`-
-Adapter in `Aether.Storage` decken diese Slots gegen jeden `IKeyValueStore` ab.
+Adapter in `AetherMesh.Storage` decken diese Slots gegen jeden `IKeyValueStore` ab.
 
 ---
 
@@ -277,33 +277,33 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 builder.Services.AddOpenTelemetry()
-    .WithMetrics(m => m.AddMeter("Aether.Protocol"))
-    .WithTracing(t => t.AddSource("Aether.Protocol"));
+    .WithMetrics(m => m.AddMeter("AetherMesh.Protocol"))
+    .WithTracing(t => t.AddSource("AetherMesh.Protocol"));
 ```
 
 Was Sie erhalten:
 
-- **Zähler**: `aether.messages.encrypted`, `aether.messages.decrypted`,
-  `aether.signatures.validated`, `aether.signatures.rejected`,
-  `aether.nonces.replayed`, `aether.timestamps.stale`,
-  `aether.sessions.established`, `aether.ratchet.dh_steps`,
-  `aether.route.requests_emitted`, `aether.route.replies_received`,
-  `aether.route.cache_hits`, `aether.dtn.bundles_accepted`,
-  `aether.dtn.bundles_delivered`, `aether.dtn.bundles_expired`,
-  `aether.sos.broadcasts`, `aether.sos.rebroadcasts_suppressed`,
-  `aether.messaging.messages_sent`, `aether.messaging.messages_queued`,
-  `aether.messaging.dtn_fallback`.
-- **Histogramme** (ms): `aether.encrypt.latency`, `aether.decrypt.latency`,
-  `aether.route.lookup_latency`, `aether.sign.verify_latency`.
+- **Zähler**: `aethermesh.messages.encrypted`, `aethermesh.messages.decrypted`,
+  `aethermesh.signatures.validated`, `aethermesh.signatures.rejected`,
+  `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`,
+  `aethermesh.sessions.established`, `aethermesh.ratchet.dh_steps`,
+  `aethermesh.route.requests_emitted`, `aethermesh.route.replies_received`,
+  `aethermesh.route.cache_hits`, `aethermesh.dtn.bundles_accepted`,
+  `aethermesh.dtn.bundles_delivered`, `aethermesh.dtn.bundles_expired`,
+  `aethermesh.sos.broadcasts`, `aethermesh.sos.rebroadcasts_suppressed`,
+  `aethermesh.messaging.messages_sent`, `aethermesh.messaging.messages_queued`,
+  `aethermesh.messaging.dtn_fallback`.
+- **Histogramme** (ms): `aethermesh.encrypt.latency`, `aethermesh.decrypt.latency`,
+  `aethermesh.route.lookup_latency`, `aethermesh.sign.verify_latency`.
 - **Aktivitäten** mit PII-bereinigten UHID-Tags:
-  `Aether.Encrypt`, `Aether.Decrypt`, `Aether.DhRatchet.Step`,
-  `Aether.Sign.Packet`, `Aether.Verify.Packet`, sowie Routing- und DTN-Spans.
+  `AetherMesh.Encrypt`, `AetherMesh.Decrypt`, `AetherMesh.DhRatchet.Step`,
+  `AetherMesh.Sign.Packet`, `AetherMesh.Verify.Packet`, sowie Routing- und DTN-Spans.
 
 Wenn kein Listener angehängt ist, allozieren die Hot Paths nichts — `counter.Add`
 degradiert zu einem volatilen Lesezugriff und `StartActivity` gibt `null` zurück.
 
 Das vollständige Instrumentenverzeichnis und der PII-Vertrag befinden sich in
-`src/Aether.Core/Diagnostics/AetherTelemetry.cs`.
+`src/AetherMesh.Core/Diagnostics/AetherMeshTelemetry.cs`.
 
 ---
 
@@ -320,7 +320,7 @@ nützlich für Dashboards.
 | `aether-signal` | verfügbare OPKs + aktive Sitzungsanzahl | OPK-Boden → ungesund unter `MinAvailableOpks` (Standard 10); Sitzungsdecke → degradiert über 1 000 |
 | `aether-messaging-outbox` | ausstehende Outbox-Tiefe + Wachstum zwischen Abtastungen | < 100 → ≥ 100 → ≥ 100 UND wachsend |
 
-Abstimmen über `AetherOptions.Routing`-, `Dtn`-, `Signal`- und `Messaging`-Bags. Der
+Abstimmen über `AetherMeshOptions.Routing`-, `Dtn`-, `Signal`- und `Messaging`-Bags. Der
 Host muss `services.AddHealthChecks()` vor dem `AddHealthChecks()` des Aether-Builders
 aufrufen, damit die Registrierungen für `MapHealthChecks(...)` sichtbar sind.
 
@@ -334,7 +334,7 @@ aufrufen, damit die Registrierungen für `MapHealthChecks(...)` sichtbar sind.
 - **`OPEN_ISSUES.md`** — Bekannte Einschränkungen, verfolgte Roadmap-Elemente und die
   C-Sprachen-Sitzungsmaschinerie-Lücke.
 - **`SECURITY.md`** — Richtlinie zur verantwortungsvollen Offenlegung.
-- **`samples/Aether.Demo.Console/Program.cs`** — Ausführbarer 9-Schritt-Ende-zu-Ende-
+- **`samples/AetherMesh.Demo.Console/Program.cs`** — Ausführbarer 9-Schritt-Ende-zu-Ende-
   Durchlauf. Schritt 9 (MessagingService + DTN) ist das Produktionsverdrahtungsmuster.
 - **`fixtures/signal/`** — Sprachübergreifende Testvektoren. Wenn Sie Aether in eine andere Sprache portieren, sind dies die byte-gepinnten Ausgaben, die Ihre Implementierung erzeugen muss.
 

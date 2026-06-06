@@ -185,7 +185,7 @@ jobs:
         # BenchmarkDotNet requires Release build; --filter * runs all cases.
         # Export to JSON for machine-readable parsing.
         run: |
-          dotnet run -c Release --project bench/Aether.Benchmarks -- \
+          dotnet run -c Release --project bench/AetherMesh.Benchmarks -- \
             --exporters json \
             --filter '*' \
             --artifacts /tmp/bdn_artifacts 2>&1 | tee /tmp/csharp_stdout.txt
@@ -321,7 +321,7 @@ jobs:
 
       - name: Run benchmarks
         run: |
-          ./build-bench/bench/aether_bench | tee /tmp/c_bench.txt
+          ./build-bench/bench/aethermesh_bench | tee /tmp/c_bench.txt
         working-directory: c
 
       - name: Check regression

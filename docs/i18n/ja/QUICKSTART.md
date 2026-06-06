@@ -13,18 +13,18 @@ Aetherライブラリはまだ NuGet で公開されていません。現時点�
 
 ```xml
 <ItemGroup>
-  <ProjectReference Include="../aether-protocol/src/Aether.DependencyInjection/Aether.DependencyInjection.csproj" />
-  <ProjectReference Include="../aether-protocol/src/Aether.Storage/Aether.Storage.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherMesh.Storage/AetherMesh.Storage.csproj" />
 </ItemGroup>
 ```
 
-`Aether.DependencyInjection` は `Aether.Core`、`Aether.Security`、`Aether.Messaging`、`Aether.Transport`、`Aether.Streaming`、`Aether.Voice`、`Aether.Content` を推移的に取り込みます — メッセージングスタックに必要なすべてが揃います。`Aether.Storage` はディスクバックドの永続化が必要な場合のみ別途依存します（セクション6参照）。
+`AetherMesh.DependencyInjection` は `AetherMesh.Core`、`AetherMesh.Security`、`AetherMesh.Messaging`、`AetherMesh.Transport`、`AetherMesh.Streaming`、`AetherMesh.Voice`、`AetherMesh.Content` を推移的に取り込みます — メッセージングスタックに必要なすべてが揃います。`AetherMesh.Storage` はディスクバックドの永続化が必要な場合のみ別途依存します（セクション6参照）。
 
 パッケージが NuGet で公開されると、次のようになります:
 
 ```bash
-dotnet add package Aether.DependencyInjection
-dotnet add package Aether.Storage   # オプション、永続化用
+dotnet add package AetherMesh.DependencyInjection
+dotnet add package AetherMesh.Storage   # オプション、永続化用
 ```
 
 プロジェクト参照フローと NuGet フローでパッケージのAPIは変わりません。
@@ -33,10 +33,10 @@ dotnet add package Aether.Storage   # オプション、永続化用
 
 ## 2. 接続 — 標準的なフルスタック登録
 
-DI拡張 `AddAetherProtocol(...)` はフルエントビルダーを返します。各機能はオプトイン: ルーティングだけ必要なホストは `.AddRouting()` をチェーンしてそこで止めます。以下は典型的な採用者が求めるフルスタックです。
+DI拡張 `AddAetherMeshProtocol(...)` はフルエントビルダーを返します。各機能はオプトイン: ルーティングだけ必要なホストは `.AddRouting()` をチェーンしてそこで止めます。以下は典型的な採用者が求めるフルスタックです。
 
 ```csharp
-using Aether.DependencyInjection;
+using AetherMesh.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -46,7 +46,7 @@ const string LocalUhid = "aether:alice:01";
 
 builder.Services.AddHealthChecks();          // 以下のAddHealthChecks()のホスト側前提条件
 builder.Services
-    .AddAetherProtocol(opts => opts.LocalUhid = LocalUhid)
+    .AddAetherMeshProtocol(opts => opts.LocalUhid = LocalUhid)
     .AddSignalProtocol()                     // X3DH + Double Ratchet (ISignalProtocolService, IPacketSigningServiceを登録)
     .AddRouting()                            // AODVスタイルのRREQ/RREP + InMemoryRouteStore
     .AddDtn()                                // 72時間ストアアンドフォワード保管 + InMemoryDtnBundleStore
@@ -59,9 +59,9 @@ using var app = builder.Build();
 await app.StartAsync();
 ```
 
-`AddAetherProtocol` と連鎖したすべてのメソッドは同じ `IServiceCollection` 上でべき等です — 2回呼び出しても二重登録されません。順序が重要な箇所が1つあります: `AddSignalProtocol()` または `AddRouting()` が先に呼ばれていない場合、`AddMessaging()` は `InvalidOperationException` をスローします。
+`AddAetherMeshProtocol` と連鎖したすべてのメソッドは同じ `IServiceCollection` 上でべき等です — 2回呼び出しても二重登録されません。順序が重要な箇所が1つあります: `AddSignalProtocol()` または `AddRouting()` が先に呼ばれていない場合、`AddMessaging()` は `InvalidOperationException` をスローします。
 
-`InProcessTransport` はテストとデモ用です。本番では物理層（BLE GATT、Wi-Fi Direct、NearLink、LoRaなど）向けに `Aether.Transport.Abstractions.ITransportService` を実装し、パケットをそこにブリッジする `IMeshSender` を登録します。Routing/DTN/Messagingサービスはその上で変更なく動作します。
+`InProcessTransport` はテストとデモ用です。本番では物理層（BLE GATT、Wi-Fi Direct、NearLink、LoRaなど）向けに `AetherMesh.Transport.Abstractions.ITransportService` を実装し、パケットをそこにブリッジする `IMeshSender` を登録します。Routing/DTN/Messagingサービスはその上で変更なく動作します。
 
 ---
 
@@ -70,7 +70,7 @@ await app.StartAsync();
 X3DHは非対称です。**イニシエーター**は**レスポンダー**から公開されたバンドルを処理します; レスポンダーのセッションはイニシエーターの最初の暗号化メッセージ（「PreKeyメッセージ」）を受信したときに自動的に確立されます。
 
 ```csharp
-using Aether.Security.Services;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -109,8 +109,8 @@ Console.WriteLine(Encoding.UTF8.GetString(plaintext)); // "The mesh is alive."
 本番では暗号文を `MeshPacket` でラップし、`PacketSigningService.SignPacketAsync` で署名し、`MessagingService.SendAsync` にルーティング、リトライ、DTNフォールバックを処理させます:
 
 ```csharp
-using Aether.Messaging;
-using Aether.Messaging.Models;
+using AetherMesh.Messaging;
+using AetherMesh.Messaging.Models;
 
 var messaging = serviceProvider.GetRequiredService<IMessagingService>();
 
@@ -132,12 +132,12 @@ var handed = await messaging.SendAsync(outgoing, Encoding.UTF8.GetBytes("hi from
 
 ## 5. 50行での2ノードラウンドトリップ
 
-これは実行可能なスクリプトです。`Program.cs` にコピーし、`Aether.Security.csproj`（`Aether.Core`とBCL暗号を取り込む）への `<ProjectReference>` を追加し、`dotnet run` を実行します。
+これは実行可能なスクリプトです。`Program.cs` にコピーし、`AetherMesh.Security.csproj`（`AetherMesh.Core`とBCL暗号を取り込む）への `<ProjectReference>` を追加し、`dotnet run` を実行します。
 
 ```csharp
 using System.Text;
-using Aether.Security.Models;
-using Aether.Security.Services;
+using AetherMesh.Security.Models;
+using AetherMesh.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -180,7 +180,7 @@ Alice got: "ack"
 パケット署名、Charlie経由のマルチホップリレー、MessagingService、DTN保管フォールバックを含む、より豊富なエンドツーエンドデモは付属のコンソールを実行してください:
 
 ```bash
-dotnet run --project samples/Aether.Demo.Console
+dotnet run --project samples/AetherMesh.Demo.Console
 ```
 
 DTN保管ステップ（デモのステップ9）は本番接続のための標準パターンです: `MessagingService` + `RoutingService` + `DtnService` を実トランスポート上の `IMeshSender` アダプターに対して組み合わせます。
@@ -191,11 +191,11 @@ DTN保管ステップ（デモのステップ9）は本番接続のための標�
 
 デフォルトでは `SignalProtocolService` はすべてのセッション、アイデンティティキー、署名済みプレキー、ワンタイムプレキーをプロセスメモリに保持します。クラッシュが意味すること: アイデンティティの喪失（以前のセッションを復号できない）、OPKプールの喪失（新しいイニシエーターのレスポンダーX3DHが失敗し始める）、Double Ratchet状態の喪失（前方秘匿性は保たれますがメッセージ順序が崩れます）。
 
-`Aether.Storage.FileSystemKeyValueStore` は最小限のディスクバックドの `IKeyValueStore`（エントリ1つにつき1ファイル、アトミックな一時ファイルリネーム）です。`KeyValue*Store` アダプター経由で接続します:
+`AetherMesh.Storage.FileSystemKeyValueStore` は最小限のディスクバックドの `IKeyValueStore`（エントリ1つにつき1ファイル、アトミックな一時ファイルリネーム）です。`KeyValue*Store` アダプター経由で接続します:
 
 ```csharp
-using Aether.Storage;
-using Aether.Security.Services;
+using AetherMesh.Storage;
+using AetherMesh.Security.Services;
 
 var kv = new FileSystemKeyValueStore(
     rootDirectory: Path.Combine(AppContext.BaseDirectory, "aether-state"),
@@ -212,7 +212,7 @@ var preKeys = new KeyValuePreKeyStore(kv);
 
 `FileSystemKeyValueStore` は意図的にシンプルです: コンパクションなし、クロスキートランザクションなし、保存時暗号化なし。保存時暗号化の場合は `EncryptedKeyValueStore` をファイルシステム（または独自のKV）の上に重ねて、`IDataAtRestKeyProvider` を提供します — ホストがキーラッパーを所有し、プロトコルではありません。
 
-DIコンテナに `.AddRouting()` / `.AddDtn()` / `.AddMessaging()` のチェーン前に非デフォルトの `IRouteStore`、`IDtnBundleStore`、`IMessageStore` を登録することもできます — ビルダーは `TryAdd*` を使用し、最初にコンテナに入れたものを尊重します。`Aether.Storage` の `KeyValueRouteStore`、`KeyValueDtnBundleStore`、`KeyValueMessageStore` アダプターは任意の `IKeyValueStore` に対してこれらのスロットをカバーします。
+DIコンテナに `.AddRouting()` / `.AddDtn()` / `.AddMessaging()` のチェーン前に非デフォルトの `IRouteStore`、`IDtnBundleStore`、`IMessageStore` を登録することもできます — ビルダーは `TryAdd*` を使用し、最初にコンテナに入れたものを尊重します。`AetherMesh.Storage` の `KeyValueRouteStore`、`KeyValueDtnBundleStore`、`KeyValueMessageStore` アダプターは任意の `IKeyValueStore` に対してこれらのスロットをカバーします。
 
 ---
 
@@ -225,31 +225,31 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 builder.Services.AddOpenTelemetry()
-    .WithMetrics(m => m.AddMeter("Aether.Protocol"))
-    .WithTracing(t => t.AddSource("Aether.Protocol"));
+    .WithMetrics(m => m.AddMeter("AetherMesh.Protocol"))
+    .WithTracing(t => t.AddSource("AetherMesh.Protocol"));
 ```
 
 取得できるもの:
 
-- **カウンター**: `aether.messages.encrypted`、`aether.messages.decrypted`、
-  `aether.signatures.validated`、`aether.signatures.rejected`、
-  `aether.nonces.replayed`、`aether.timestamps.stale`、
-  `aether.sessions.established`、`aether.ratchet.dh_steps`、
-  `aether.route.requests_emitted`、`aether.route.replies_received`、
-  `aether.route.cache_hits`、`aether.dtn.bundles_accepted`、
-  `aether.dtn.bundles_delivered`、`aether.dtn.bundles_expired`、
-  `aether.sos.broadcasts`、`aether.sos.rebroadcasts_suppressed`、
-  `aether.messaging.messages_sent`、`aether.messaging.messages_queued`、
-  `aether.messaging.dtn_fallback`。
-- **ヒストグラム**（ms）: `aether.encrypt.latency`、`aether.decrypt.latency`、
-  `aether.route.lookup_latency`、`aether.sign.verify_latency`。
+- **カウンター**: `aethermesh.messages.encrypted`、`aethermesh.messages.decrypted`、
+  `aethermesh.signatures.validated`、`aethermesh.signatures.rejected`、
+  `aethermesh.nonces.replayed`、`aethermesh.timestamps.stale`、
+  `aethermesh.sessions.established`、`aethermesh.ratchet.dh_steps`、
+  `aethermesh.route.requests_emitted`、`aethermesh.route.replies_received`、
+  `aethermesh.route.cache_hits`、`aethermesh.dtn.bundles_accepted`、
+  `aethermesh.dtn.bundles_delivered`、`aethermesh.dtn.bundles_expired`、
+  `aethermesh.sos.broadcasts`、`aethermesh.sos.rebroadcasts_suppressed`、
+  `aethermesh.messaging.messages_sent`、`aethermesh.messaging.messages_queued`、
+  `aethermesh.messaging.dtn_fallback`。
+- **ヒストグラム**（ms）: `aethermesh.encrypt.latency`、`aethermesh.decrypt.latency`、
+  `aethermesh.route.lookup_latency`、`aethermesh.sign.verify_latency`。
 - **PIIサニタイズされたUHIDタグ付きのアクティビティ**:
-  `Aether.Encrypt`、`Aether.Decrypt`、`Aether.DhRatchet.Step`、
-  `Aether.Sign.Packet`、`Aether.Verify.Packet`、ルーティングとDTNスパン。
+  `AetherMesh.Encrypt`、`AetherMesh.Decrypt`、`AetherMesh.DhRatchet.Step`、
+  `AetherMesh.Sign.Packet`、`AetherMesh.Verify.Packet`、ルーティングとDTNスパン。
 
 リスナーが接続されていない場合、ホットパスは何も割り当てません — カウンターの `Add` はボラタイル読み取りに劣化し、`StartActivity` は `null` を返します。
 
-完全なインストゥルメントインベントリとPII契約は `src/Aether.Core/Diagnostics/AetherTelemetry.cs` にあります。
+完全なインストゥルメントインベントリとPII契約は `src/AetherMesh.Core/Diagnostics/AetherMeshTelemetry.cs` にあります。
 
 ---
 
@@ -264,7 +264,7 @@ builder.Services.AddOpenTelemetry()
 | `aether-signal` | 利用可能なOPK数 + アクティブセッション数 | OPKフロア → `MinAvailableOpks`（デフォルト10）以下で異常; セッション上限 → 1,000超で劣化 |
 | `aether-messaging-outbox` | 保留中の送信ボックスの深さ + サンプル間の増加 | < 100 → ≥ 100 → ≥ 100かつ増加中 |
 
-`AetherOptions.Routing`、`Dtn`、`Signal`、`Messaging` バッグで調整します。Aetherビルダーの `.AddHealthChecks()` が `MapHealthChecks(...)` に表示されるためには、ホストが事前に `services.AddHealthChecks()` を呼び出す必要があります。
+`AetherMeshOptions.Routing`、`Dtn`、`Signal`、`Messaging` バッグで調整します。Aetherビルダーの `.AddHealthChecks()` が `MapHealthChecks(...)` に表示されるためには、ホストが事前に `services.AddHealthChecks()` を呼び出す必要があります。
 
 ---
 
@@ -274,7 +274,7 @@ builder.Services.AddOpenTelemetry()
 - **`docs/THREAT_MODEL.md`** — 暗号が何を守るか、明示的にスコープ外のもの、セキュリティクレームが依存する前提条件。
 - **`OPEN_ISSUES.md`** — 既知の制限、追跡中のロードマップ項目、C言語セッションメカニズムのギャップ。
 - **`SECURITY.md`** — 責任ある開示ポリシー。
-- **`samples/Aether.Demo.Console/Program.cs`** — 実行可能な9ステップのエンドツーエンドウォークスルー。ステップ9（MessagingService + DTN）は本番接続パターンです。
+- **`samples/AetherMesh.Demo.Console/Program.cs`** — 実行可能な9ステップのエンドツーエンドウォークスルー。ステップ9（MessagingService + DTN）は本番接続パターンです。
 - **`fixtures/signal/`** — クロス言語テストベクター。Aetherを別の言語に移植する場合、これらが実装で一致させなければならないバイト固定の出力です。
 
 バグを見つけたら？GitHubに報告してください。脆弱性を見つけたら？`SECURITY.md` を参照してください。

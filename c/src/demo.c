@@ -6,9 +6,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "aether/protocol.h"
-#include "aether/security.h"
-#include "aether/transport.h"
+#include "aethermesh/protocol.h"
+#include "aethermesh/security.h"
+#include "aethermesh/transport.h"
 
 /**
  * Print hex dump of data.
@@ -30,45 +30,45 @@ int main(void) {
 
     // Demo 1: Key Generation
     printf("--- Demo 1: Ed25519 Key Generation ---\n");
-    uint8_t private_key[AETHER_ED25519_PRIVATE_KEY_SIZE];
-    uint8_t public_key[AETHER_ED25519_PUBLIC_KEY_SIZE];
+    uint8_t private_key[AETHERMESH_ED25519_PRIVATE_KEY_SIZE];
+    uint8_t public_key[AETHERMESH_ED25519_PUBLIC_KEY_SIZE];
 
-    if (!aether_ed25519_generate_keypair(private_key, public_key)) {
+    if (!aethermesh_ed25519_generate_keypair(private_key, public_key)) {
         printf("ERROR: Failed to generate keypair\n");
         return 1;
     }
 
-    hex_dump("Private Key", private_key, AETHER_ED25519_PRIVATE_KEY_SIZE);
-    hex_dump("Public Key", public_key, AETHER_ED25519_PUBLIC_KEY_SIZE);
+    hex_dump("Private Key", private_key, AETHERMESH_ED25519_PRIVATE_KEY_SIZE);
+    hex_dump("Public Key", public_key, AETHERMESH_ED25519_PUBLIC_KEY_SIZE);
 
     // Demo 2: Packet Creation and Signing
     printf("\n--- Demo 2: Packet Creation and Signing ---\n");
-    aether_mesh_packet_t *packet = aether_packet_new();
+    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
     if (!packet) {
         printf("ERROR: Failed to create packet\n");
         return 1;
     }
 
-    packet->type = AETHER_PACKET_TYPE_DATA;
+    packet->type = AETHERMESH_PACKET_TYPE_DATA;
     packet->ttl = 7;
     packet->priority = 0;
 
-    if (!aether_packet_set_source_uhid(packet, "node-alice-001")) {
+    if (!aethermesh_packet_set_source_uhid(packet, "node-alice-001")) {
         printf("ERROR: Failed to set source UHID\n");
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
-    if (!aether_packet_set_destination_uhid(packet, "node-bob-002")) {
+    if (!aethermesh_packet_set_destination_uhid(packet, "node-bob-002")) {
         printf("ERROR: Failed to set destination UHID\n");
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
     const char *payload_str = "Hello from Aether mesh!";
-    if (!aether_packet_set_payload(packet, (const uint8_t *)payload_str, strlen(payload_str))) {
+    if (!aethermesh_packet_set_payload(packet, (const uint8_t *)payload_str, strlen(payload_str))) {
         printf("ERROR: Failed to set payload\n");
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
@@ -81,39 +81,39 @@ int main(void) {
 
     // Get signable data and sign
     size_t signable_len = 0;
-    uint8_t *signable_data = aether_packet_get_signable_data(packet, &signable_len);
+    uint8_t *signable_data = aethermesh_packet_get_signable_data(packet, &signable_len);
     if (!signable_data) {
         printf("ERROR: Failed to get signable data\n");
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
     hex_dump("Signable Data", signable_data, signable_len);
 
-    uint8_t signature[AETHER_ED25519_SIGNATURE_SIZE];
-    if (!aether_ed25519_sign(private_key, signable_data, signable_len, signature)) {
+    uint8_t signature[AETHERMESH_ED25519_SIGNATURE_SIZE];
+    if (!aethermesh_ed25519_sign(private_key, signable_data, signable_len, signature)) {
         printf("ERROR: Failed to sign packet\n");
         free(signable_data);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
-    hex_dump("Signature", signature, AETHER_ED25519_SIGNATURE_SIZE);
+    hex_dump("Signature", signature, AETHERMESH_ED25519_SIGNATURE_SIZE);
 
-    if (!aether_packet_set_signature(packet, signature, AETHER_ED25519_SIGNATURE_SIZE)) {
+    if (!aethermesh_packet_set_signature(packet, signature, AETHERMESH_ED25519_SIGNATURE_SIZE)) {
         printf("ERROR: Failed to set signature\n");
         free(signable_data);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
     // Verify signature
-    if (aether_ed25519_verify(public_key, signable_data, signable_len, signature)) {
+    if (aethermesh_ed25519_verify(public_key, signable_data, signable_len, signature)) {
         printf("✓ Signature verification PASSED\n");
     } else {
         printf("✗ Signature verification FAILED\n");
         free(signable_data);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
@@ -121,21 +121,21 @@ int main(void) {
 
     // Demo 3: Packet Serialization
     printf("\n--- Demo 3: Packet Serialization ---\n");
-    size_t estimated_size = aether_packet_estimate_size(packet);
+    size_t estimated_size = aethermesh_packet_estimate_size(packet);
     printf("Estimated packet size: %zu bytes\n", estimated_size);
 
     uint8_t *buffer = (uint8_t *)malloc(estimated_size + 256);  // Add some margin
     if (!buffer) {
         printf("ERROR: Failed to allocate buffer\n");
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
-    int serialized_size = aether_packet_serialize(packet, buffer, estimated_size + 256);
+    int serialized_size = aethermesh_packet_serialize(packet, buffer, estimated_size + 256);
     if (serialized_size < 0) {
         printf("ERROR: Failed to serialize packet\n");
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
@@ -144,11 +144,11 @@ int main(void) {
 
     // Demo 4: Packet Deserialization
     printf("\n--- Demo 4: Packet Deserialization ---\n");
-    aether_mesh_packet_t *deserialized = aether_packet_deserialize(buffer, serialized_size);
+    aethermesh_mesh_packet_t *deserialized = aethermesh_packet_deserialize(buffer, serialized_size);
     if (!deserialized) {
         printf("ERROR: Failed to deserialize packet\n");
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
@@ -160,23 +160,23 @@ int main(void) {
     printf("  Signature length: %d bytes\n", deserialized->signature_len);
 
     // Verify the deserialized packet's signature
-    signable_data = aether_packet_get_signable_data(deserialized, &signable_len);
+    signable_data = aethermesh_packet_get_signable_data(deserialized, &signable_len);
     if (!signable_data) {
         printf("ERROR: Failed to get signable data for deserialized packet\n");
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
-    if (aether_ed25519_verify(public_key, signable_data, signable_len, deserialized->signature)) {
+    if (aethermesh_ed25519_verify(public_key, signable_data, signable_len, deserialized->signature)) {
         printf("✓ Deserialized packet signature verification PASSED\n");
     } else {
         printf("✗ Deserialized packet signature verification FAILED\n");
         free(signable_data);
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
@@ -185,11 +185,11 @@ int main(void) {
     // Demo 5: AES-GCM Encryption/Decryption
     printf("\n--- Demo 5: AES-256-GCM Encryption/Decryption ---\n");
     uint8_t aes_key[32];
-    if (!aether_random_bytes(aes_key, 32)) {
+    if (!aethermesh_random_bytes(aes_key, 32)) {
         printf("ERROR: Failed to generate AES key\n");
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
@@ -197,10 +197,10 @@ int main(void) {
     size_t plaintext_len = strlen(plaintext);
 
     uint8_t ciphertext[256];
-    uint8_t tag[AETHER_AES_GCM_TAG_SIZE];
-    uint8_t nonce[AETHER_AES_GCM_NONCE_SIZE];
+    uint8_t tag[AETHERMESH_AES_GCM_TAG_SIZE];
+    uint8_t nonce[AETHERMESH_AES_GCM_NONCE_SIZE];
 
-    if (!aether_aes256_gcm_encrypt((const uint8_t *)plaintext,
+    if (!aethermesh_aes256_gcm_encrypt((const uint8_t *)plaintext,
                                   plaintext_len,
                                   aes_key,
                                   NULL,  // Generate random nonce
@@ -210,20 +210,20 @@ int main(void) {
                                   tag,
                                   nonce)) {
         printf("ERROR: AES-GCM encryption failed\n");
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
     printf("Plaintext: %s (%zu bytes)\n", plaintext, plaintext_len);
     hex_dump("Ciphertext", ciphertext, plaintext_len);
-    hex_dump("Tag", tag, AETHER_AES_GCM_TAG_SIZE);
-    hex_dump("Nonce", nonce, AETHER_AES_GCM_NONCE_SIZE);
+    hex_dump("Tag", tag, AETHERMESH_AES_GCM_TAG_SIZE);
+    hex_dump("Nonce", nonce, AETHERMESH_AES_GCM_NONCE_SIZE);
 
     // Decrypt
     uint8_t decrypted[256];
-    if (!aether_aes256_gcm_decrypt(ciphertext,
+    if (!aethermesh_aes256_gcm_decrypt(ciphertext,
                                   plaintext_len,
                                   aes_key,
                                   nonce,
@@ -232,9 +232,9 @@ int main(void) {
                                   0,
                                   decrypted)) {
         printf("ERROR: AES-GCM decryption failed\n");
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
@@ -244,9 +244,9 @@ int main(void) {
         printf("✓ Encryption/decryption round-trip PASSED\n");
     } else {
         printf("✗ Encryption/decryption round-trip FAILED\n");
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
@@ -254,44 +254,44 @@ int main(void) {
     printf("\n--- Demo 6: HMAC-SHA256 ---\n");
     const char *hmac_msg = "Test message for HMAC";
     uint8_t hmac_key[32];
-    if (!aether_random_bytes(hmac_key, 32)) {
+    if (!aethermesh_random_bytes(hmac_key, 32)) {
         printf("ERROR: Failed to generate HMAC key\n");
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
-    uint8_t hmac_result[AETHER_HMAC_SHA256_SIZE];
-    if (!aether_hmac_sha256(hmac_key, 32, (const uint8_t *)hmac_msg, strlen(hmac_msg), hmac_result)) {
+    uint8_t hmac_result[AETHERMESH_HMAC_SHA256_SIZE];
+    if (!aethermesh_hmac_sha256(hmac_key, 32, (const uint8_t *)hmac_msg, strlen(hmac_msg), hmac_result)) {
         printf("ERROR: HMAC-SHA256 failed\n");
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
-    hex_dump("HMAC-SHA256", hmac_result, AETHER_HMAC_SHA256_SIZE);
+    hex_dump("HMAC-SHA256", hmac_result, AETHERMESH_HMAC_SHA256_SIZE);
     printf("✓ HMAC-SHA256 computed successfully\n");
 
     // Demo 7: HKDF-SHA256
     printf("\n--- Demo 7: HKDF-SHA256 Key Derivation ---\n");
     uint8_t ikm[32];
-    if (!aether_random_bytes(ikm, 32)) {
+    if (!aethermesh_random_bytes(ikm, 32)) {
         printf("ERROR: Failed to generate IKM\n");
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
     uint8_t derived_key[32];
     const char *info_str = "aether-root-v1";
-    if (!aether_hkdf_sha256(NULL, 0, ikm, 32, (const uint8_t *)info_str, strlen(info_str), 32, derived_key)) {
+    if (!aethermesh_hkdf_sha256(NULL, 0, ikm, 32, (const uint8_t *)info_str, strlen(info_str), 32, derived_key)) {
         printf("ERROR: HKDF-SHA256 failed\n");
-        aether_packet_free(deserialized);
+        aethermesh_packet_free(deserialized);
         free(buffer);
-        aether_packet_free(packet);
+        aethermesh_packet_free(packet);
         return 1;
     }
 
@@ -300,8 +300,8 @@ int main(void) {
 
     // Cleanup
     printf("\n--- Cleanup ---\n");
-    aether_packet_free(packet);
-    aether_packet_free(deserialized);
+    aethermesh_packet_free(packet);
+    aethermesh_packet_free(deserialized);
     free(buffer);
 
     printf("\n=== All demos completed successfully! ===\n");

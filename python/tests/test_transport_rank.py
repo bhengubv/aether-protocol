@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
 
-"""Unit tests for aether.transport.rank and aether.transport.per_transport_metrics."""
+"""Unit tests for aethermesh.transport.rank and aethermesh.transport.per_transport_metrics."""
 
 from __future__ import annotations
 
 import unittest
 
-from aether.transport.per_transport_metrics import PerTransportMetrics
-from aether.transport.rank import RankedTransport, rank_transports
+from aethermesh.transport.per_transport_metrics import PerTransportMetrics
+from aethermesh.transport.rank import RankedTransport, rank_transports
 
 
 # ── FakeTransport — minimal duck-typed stub ───────────────────────────────────

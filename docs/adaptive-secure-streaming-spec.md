@@ -56,8 +56,8 @@ This spec is **not self-contained**. It builds on top of the Aether mesh protoco
 | **DTN store-and-forward (72h)** | Holding parents for a receiver who is briefly offline; cross-device sync at reconnect | `aether-protocol` DTN layer |
 | **Mesh peer discovery (BLE / Wi-Fi Direct / NearLink)** | Establishing the actual transport hops a route uses | `aether-protocol` Transport layer |
 | **DHT publication / lookup** | Publishing device-key lists, pre-key bundle availability counts, sender-key rotation hints for Broadcast | `aether-protocol` DHT layer |
-| **Reputation primitive (Qi / Karma)** | Inputs to red / grey / green route classification; publisher trust state behavioural signals | `IAetherIncentiveProvider` extension seam (no-op default in OSS, real implementation in Aether by Circle) |
-| **Pre-key bundle distribution** | New-pair X3DH bootstrap when the peer is not in direct mesh range | `CircleAetherAPI` `/api/aether/prekey-bundles/{uhid}` |
+| **Reputation primitive (Qi / Karma)** | Inputs to red / grey / green route classification; publisher trust state behavioural signals | `IAetherMeshIncentiveProvider` extension seam (no-op default in OSS, real implementation in Aether by Circle) |
+| **Pre-key bundle distribution** | New-pair X3DH bootstrap when the peer is not in direct mesh range | `CircleAetherMeshAPI` `/api/aether/prekey-bundles/{uhid}` |
 
 ### Implementation status notes (as of this spec revision)
 
@@ -65,9 +65,9 @@ These are not part of the spec itself — they are notes for implementers so the
 
 - **Ed25519, X3DH, AES-256-GCM, packet serializer:** present across all 8 language implementations of `aether-protocol`, with cross-language wire-compat issues (UUID byte order, signature endianness, ratchet construction) tracked separately. A streaming implementation must wait for those gaps to close before it can interoperate cross-language.
 - **AODV routing, DTN, SOS broadcast:** referenced in the `aether-protocol` README but not implemented in any language. A streaming implementation that depends on these primitives must either ship them as part of the same effort or wait for them to land.
-- **Pre-key bundle distribution endpoint:** present in `CircleAetherAPI` (server + typed clients).
+- **Pre-key bundle distribution endpoint:** present in `CircleAetherMeshAPI` (server + typed clients).
 - **BLE / Wi-Fi Direct / NearLink transports:** in-process simulator only at the open-source layer; the private CircleAether implementation has BLE and Wi-Fi Direct platform shims pending physical-device validation.
-- **Reputation primitive:** `IAetherIncentiveProvider` and related extension seams exist in the open-source layer with no-op defaults. Real Qi/Karma scoring lives in the private Aether-by-Circle implementation. An open-source-only deployment of this streaming protocol gets degraded route classification (only `silent` / `forged` reputation signals — see *Probe Authentication and Asymmetric Reputation Impact*).
+- **Reputation primitive:** `IAetherMeshIncentiveProvider` and related extension seams exist in the open-source layer with no-op defaults. Real Qi/Karma scoring lives in the private Aether-by-Circle implementation. An open-source-only deployment of this streaming protocol gets degraded route classification (only `silent` / `forged` reputation signals — see *Probe Authentication and Asymmetric Reputation Impact*).
 
 ### What this spec adds on top of the substrate
 
@@ -508,7 +508,7 @@ Per-device key binding works inside a single device's lifetime. A real user chan
 - Date added
 - Signature by the master key
 
-The list is published to the mesh DHT and to `CircleAetherAPI` (when reachable). Sources fetch the latest list before establishing new sessions.
+The list is published to the mesh DHT and to `CircleAetherMeshAPI` (when reachable). Sources fetch the latest list before establishing new sessions.
 
 **Adding a new device.**
 
@@ -1134,7 +1134,7 @@ All previously open items have protocol-level defaults. Implementations may over
 | ~~Exact rolling failure threshold window~~ | "Rolling Failure Threshold Window" subsection of "Repeated Failure Policy" |
 | ~~Exact biometric binding mechanism~~ | "Biometric Binding Mechanism" subsection of "Rekey After Shred" |
 | ~~Exact red/grey/green Karma thresholds~~ | "Route-Class Thresholds" subsection of "Routing Model" |
-| Exact `Qi` and `Karma` formulas | Live one layer above this protocol — see *Substrate Dependencies* / `IAetherIncentiveProvider`. The streaming protocol consumes Karma as a numeric input; the formulas that produce it are out of scope for this document and are defined by the implementation that owns the reputation primitive. |
+| Exact `Qi` and `Karma` formulas | Live one layer above this protocol — see *Substrate Dependencies* / `IAetherMeshIncentiveProvider`. The streaming protocol consumes Karma as a numeric input; the formulas that produce it are out of scope for this document and are defined by the implementation that owns the reputation primitive. |
 
 ## Implementation Prompt
 

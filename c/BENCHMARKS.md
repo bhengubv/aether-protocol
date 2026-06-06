@@ -35,7 +35,7 @@ regressions.
 
 ```bash
 # 100k iterations / case for tighter signal.
-AETHER_BENCH_ITERATIONS=100000 ./build/bench/bench
+AETHERMESH_BENCH_ITERATIONS=100000 ./build/bench/bench
 ```
 
 Default is 1000 iterations / case — sub-second total wall clock on a
@@ -89,4 +89,4 @@ high-level Signal session implementation on top — so the
 `signal_encrypt` / `signal_decrypt` / `packet_serialize` /
 `packet_deserialize` cases the Go / Python benches pin do not exist
 here. The reference high-level implementation is the C#
-`SignalProtocolService` in `src/Aether.Protocol/Security/`.
+`SignalProtocolService` in `src/AetherMesh.Protocol/Security/`.
