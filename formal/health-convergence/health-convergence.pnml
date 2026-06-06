@@ -9,6 +9,8 @@
       <place id="P_DTN_Degraded"><initialMarking><text>1</text></initialMarking></place>
       <place id="P_DTN_Healthy"><initialMarking><text>0</text></initialMarking></place>
       <place id="P_Overall_Healthy"><initialMarking><text>0</text></initialMarking></place>
+      <!-- single-shot trigger so T_OverallReady fires at most once (prevents unbounded re-firing) -->
+      <place id="P_OverallNotYetReady"><initialMarking><text>1</text></initialMarking></place>
 
       <transition id="T_RoutingHeals"/>
       <arc id="A1" source="P_Routing_Degraded" target="T_RoutingHeals"><inscription><text>1</text></inscription></arc>
@@ -24,6 +26,8 @@
       <arc id="A7" source="T_OverallReady" target="P_Routing_Healthy"><inscription><text>1</text></inscription></arc>
       <arc id="A8" source="T_OverallReady" target="P_DTN_Healthy"><inscription><text>1</text></inscription></arc>
       <arc id="A9" source="T_OverallReady" target="P_Overall_Healthy"><inscription><text>1</text></inscription></arc>
+      <!-- single-shot guard: consumes the trigger so transition fires once -->
+      <arc id="A10" source="P_OverallNotYetReady" target="T_OverallReady"><inscription><text>1</text></inscription></arc>
 
     </page>
   </net>

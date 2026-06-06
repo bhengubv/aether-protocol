@@ -4,6 +4,15 @@ This directory contains formal Petri net models of the AetherMesh protocol.
 Each model produces **machine-checkable proofs** of the safety and liveness
 properties that unit tests alone cannot cover.
 
+📊 **[See VERIFICATION.md](VERIFICATION.md) for the latest machine-checked
+verification results across all 20 models.**
+
+Quick check from this directory:
+
+```bash
+cd tools && python verify.py --all
+```
+
 ## Why Petri Nets?
 
 AetherMesh is an offline-first, peer-to-peer mesh protocol where:
