@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AetherMesh DTN Custody Transfer — Petri Net Model
+  ===================================================
+  ISO/IEC 15909-2 Petri Net Markup Language (PNML) — P/T Net type.
+
+  Models the one-relay custody transfer scenario from IAetherMeshDtnService:
+    Source ─[transfer]─► Relay ─[deliver]─► Destination
+
+  With relay failure and self-healing:
+    Relay fails ─► custody returns to Source ─► retried after recovery
+
+  Proved properties (see properties.md):
+    P1  Bundle Conservation (safety invariant): tokens never created or destroyed
+    P2  No Deadlock: every non-terminal state has an enabled transition
+    P3  Delivery Reachable: happy path M₀ → M₁ → M₂ exists
+    P4  Self-Healing: from any relay-failure state, delivery is still reachable
+    P5  Termination: bounded by TTL (encoded in coloured extension dtn-custody.cpn)
+
+  Verification:
+    TAPAAL: File > Open > dtn-custody.pnml
+    LoLA:   lola dtn-custody.pnml - -check reachability
+
+  Repository: https://github.com/bhengubv/aether-protocol
+  SPDX-License-Identifier: MIT
+-->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="dtn-custody"
+       type="http://www.pnml.org/version-2009/grammar/ptnet">
+
+    <name><text>AetherMesh DTN Custody Transfer</text></name>
+
+    <page id="page-main">
+
+      <!-- ═══════════════════════════════════════════════════════════
+           PLACES
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!--
+        P_Source — Source node holds custody of the bundle.
+        Initial marking: 1 token (one bundle to deliver).
+      -->
+      <place id="P_Source">
+        <name><text>Source</text></name>
+        <graphics><position x="100" y="200"/></graphics>
+        <initialMarking><text>1</text></initialMarking>
+        <toolspecific tool="aethermesh-formal" version="1.0">
+          <comment>
+            Source has custody. Corresponds to the node that called
+            IAetherMeshDtnService.CreateBundleAsync(). The token represents
+            one bundle awaiting delivery.
+          </comment>
+        </toolspecific>
+      </place>
+
+      <!--
+        P_Relay — Relay node holds custody (has called AcceptCustody).
+        Initial marking: 0 tokens.
+      -->
+      <place id="P_Relay">
+        <name><text>Relay</text></name>
+        <graphics><position x="400" y="200"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+        <toolspecific tool="aethermesh-formal" version="1.0">
+          <comment>
+            Relay node has accepted custody via IAetherMeshDtnService.HandleAsync()
+            and stores the bundle in IBundleStore pending forwarding.
+          </comment>
+        </toolspecific>
+      </place>
+
+      <!--
+        P_Delivered — Bundle has reached the destination. Terminal place.
+        Initial marking: 0 tokens.
+      -->
+      <place id="P_Delivered">
+        <name><text>Delivered</text></name>
+        <graphics><position x="700" y="100"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+        <toolspecific tool="aethermesh-formal" version="1.0">
+          <comment>
+            Terminal: bundle successfully delivered. Corresponds to
+            IAetherMeshDtnService.BundleDelivered event firing on the
+            destination node.
+          </comment>
+        </toolspecific>
+      </place>
+
+      <!--
+        P_Expired — Bundle TTL exhausted. Terminal place.
+        Initial marking: 0 tokens.
+      -->
+      <place id="P_Expired">
+        <name><text>Expired</text></name>
+        <graphics><position x="700" y="300"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+        <toolspecific tool="aethermesh-formal" version="1.0">
+          <comment>
+            Terminal: TTL elapsed. Corresponds to IAetherMeshDtnService.ExpireStaleAsync()
+            removing the bundle from IBundleStore.
+          </comment>
+        </toolspecific>
+      </place>
+
+      <!--
+        P_RelayUp — Relay node is operational.
+        Initial marking: 1 token (relay starts up).
+        Together with P_RelayDown, models a binary node state.
+        Invariant: P_RelayUp + P_RelayDown = 1 always.
+      -->
+      <place id="P_RelayUp">
+        <name><text>RelayUp</text></name>
+        <graphics><position x="400" y="50"/></graphics>
+        <initialMarking><text>1</text></initialMarking>
+        <toolspecific tool="aethermesh-formal" version="1.0">
+          <comment>
+            Relay operational state token. Guards T_Transfer and T_RelayFail.
+            Invariant with P_RelayDown: exactly one token across both places.
+          </comment>
+        </toolspecific>
+      </place>
+
+      <!--
+        P_RelayDown — Relay node has failed.
+        Initial marking: 0 tokens.
+      -->
+      <place id="P_RelayDown">
+        <name><text>RelayDown</text></name>
+        <graphics><position x="400" y="350"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+        <toolspecific tool="aethermesh-formal" version="1.0">
+          <comment>
+            Relay failed state token. Enabled by T_RelayFail; consumed by T_Recover.
+          </comment>
+        </toolspecific>
+      </place>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           TRANSITIONS
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!--
+        T_Transfer — Source hands custody to Relay.
+        Guards: P_Source ≥ 1 AND P_RelayUp ≥ 1.
+        Consuming P_RelayUp and re-producing it makes this a test arc
+        (relay must be up; its state does not change).
+        AetherMesh: Source calls IAetherMeshDtnService with relay's UHID;
+        relay calls HandleAsync() → AcceptCustody → adds to IBundleStore.
+      -->
+      <transition id="T_Transfer">
+        <name><text>Transfer</text></name>
+        <graphics><position x="250" y="200"/></graphics>
+      </transition>
+
+      <!--
+        T_Deliver — Relay delivers bundle to Destination.
+        Guard: P_Relay ≥ 1.
+        AetherMesh: Relay's RunDeliveryScanAsync() finds a route to the
+        destination UHID and sends the bundle; destination fires BundleDelivered.
+      -->
+      <transition id="T_Deliver">
+        <name><text>Deliver</text></name>
+        <graphics><position x="550" y="150"/></graphics>
+      </transition>
+
+      <!--
+        T_RelayFail — Relay fails while holding custody.
+        Guards: P_Relay ≥ 1 AND P_RelayUp ≥ 1.
+        Custody RETURNS to Source (self-healing): the bundle token moves from
+        P_Relay back to P_Source, and the relay state flips from Up to Down.
+        AetherMesh: This models the epidemic replication strategy —
+        GeohashEpidemicStrategy ensures the source retains a copy until an ACK.
+        On relay failure, no ACK arrives, so the source re-attempts delivery.
+      -->
+      <transition id="T_RelayFail">
+        <name><text>RelayFail</text></name>
+        <graphics><position x="250" y="300"/></graphics>
+      </transition>
+
+      <!--
+        T_Recover — Relay comes back online.
+        Guard: P_RelayDown ≥ 1.
+        State flips from Down back to Up. The relay is now available for
+        the next custody transfer attempt.
+        AetherMesh: Corresponds to the relay node rejoining the mesh;
+        IHandshakeMeshService.PeerNegotiated fires on reconnect.
+      -->
+      <transition id="T_Recover">
+        <name><text>Recover</text></name>
+        <graphics><position x="400" y="450"/></graphics>
+      </transition>
+
+      <!--
+        T_ExpireSource — Bundle TTL exhausted while at Source.
+        Guard: P_Source ≥ 1.
+        AetherMesh: IAetherMeshDtnService.ExpireStaleAsync() called on Source node.
+        In the coloured extension, this transition is only enabled when
+        the token's TTL attribute has reached 0.
+      -->
+      <transition id="T_ExpireSource">
+        <name><text>ExpireAtSource</text></name>
+        <graphics><position x="100" y="350"/></graphics>
+      </transition>
+
+      <!--
+        T_ExpireRelay — Bundle TTL exhausted while at Relay.
+        Guard: P_Relay ≥ 1.
+        AetherMesh: Relay's ExpireStaleAsync() removes the bundle.
+      -->
+      <transition id="T_ExpireRelay">
+        <name><text>ExpireAtRelay</text></name>
+        <graphics><position x="550" y="280"/></graphics>
+      </transition>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           ARCS
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- T_Transfer: consumes Source, RelayUp; produces Relay, RelayUp -->
+      <arc id="A_Source_Transfer" source="P_Source" target="T_Transfer">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_RelayUp_Transfer_in" source="P_RelayUp" target="T_Transfer">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_Transfer_Relay" source="T_Transfer" target="P_Relay">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_Transfer_RelayUp_out" source="T_Transfer" target="P_RelayUp">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- T_Deliver: consumes Relay; produces Delivered -->
+      <arc id="A_Relay_Deliver" source="P_Relay" target="T_Deliver">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_Deliver_Delivered" source="T_Deliver" target="P_Delivered">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- T_RelayFail: consumes Relay + RelayUp; produces Source + RelayDown -->
+      <arc id="A_Relay_RelayFail" source="P_Relay" target="T_RelayFail">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_RelayUp_RelayFail" source="P_RelayUp" target="T_RelayFail">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_RelayFail_Source" source="T_RelayFail" target="P_Source">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_RelayFail_RelayDown" source="T_RelayFail" target="P_RelayDown">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- T_Recover: consumes RelayDown; produces RelayUp -->
+      <arc id="A_RelayDown_Recover" source="P_RelayDown" target="T_Recover">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_Recover_RelayUp" source="T_Recover" target="P_RelayUp">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- T_ExpireSource: consumes Source; produces Expired -->
+      <arc id="A_Source_ExpireSource" source="P_Source" target="T_ExpireSource">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_ExpireSource_Expired" source="T_ExpireSource" target="P_Expired">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- T_ExpireRelay: consumes Relay; produces Expired -->
+      <arc id="A_Relay_ExpireRelay" source="P_Relay" target="T_ExpireRelay">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_ExpireRelay_Expired" source="T_ExpireRelay" target="P_Expired">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+    </page>
+
+    <!-- ═════════════════════════════════════════════════════════════
+         REACHABILITY QUERIES (TAPAAL / LoLA format annotations)
+         ═════════════════════════════════════════════════════════════
+
+    Query Q1 — Bundle conservation (safety invariant):
+      AG (P_Source + P_Relay + P_Delivered + P_Expired = 1)
+
+    Query Q2 — No deadlock:
+      AG (EX true)
+
+    Query Q3 — Delivery reachable:
+      EF (P_Delivered = 1)
+
+    Query Q4 — Self-healing from relay failure:
+      AG (P_Source = 1 AND P_RelayDown = 1 => EF (P_Delivered = 1))
+
+    Query Q5 — Expiry reachable (termination witness):
+      EF (P_Expired = 1)
+
+    ═══════════════════════════════════════════════════════════════ -->
+
+  </net>
+</pnml>
