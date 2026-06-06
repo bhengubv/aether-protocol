@@ -1,7 +1,7 @@
 /**
  * tinybench harness for the TypeScript aether-protocol hot paths.
  *
- * Mirrors the C# AetherMesh.Benchmarks suite, the Go `go/bench` harness,
+ * Mirrors the C# AetherNet.Benchmarks suite, the Go `go/bench` harness,
  * the Python `python/benchmarks/test_benchmark.py`, and the C
  * `c/benchmarks/` runner — same eleven hot paths so a regression in any
  * language shows up as a delta against the committed baseline.

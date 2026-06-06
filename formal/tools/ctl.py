@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Lightweight CTL evaluator for AetherMesh formal models.
+Lightweight CTL evaluator for AetherNet formal models.
 ========================================================
 
 Parses the subset of CTL used in the .q files:

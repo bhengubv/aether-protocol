@@ -31,12 +31,12 @@ csharp      BenchmarkDotNet custom export; one line per case:
             "x25519_agree | 98.21 ns"
 
 kotlin      JMH output:
-            "aethermesh.bench.Benchmarks.x25519_agree  thrpt  N  12345.678 ops/s"
+            "aethernet.bench.Benchmarks.x25519_agree  thrpt  N  12345.678 ops/s"
 
 swift       XCTest measure output:
             "x25519_agree: measured [0.000000098 s]"
 
-c           aethermesh_bench wall-clock output; one line per case:
+c           aethernet_bench wall-clock output; one line per case:
             "x25519_agree: 98 ns"
 """
 
@@ -196,7 +196,7 @@ def parse_kotlin(text: str) -> dict[str, float]:
     Parse JMH output.
     JMH reports ops/s by default; convert to ns/op.
     Typical line:
-        aethermesh.bench.Benchmarks.x25519Agree  thrpt   5  12345678.000 ± 12345.000  ops/s
+        aethernet.bench.Benchmarks.x25519Agree  thrpt   5  12345678.000 ± 12345.000  ops/s
     """
     results: dict[str, float] = {}
     pattern = re.compile(
@@ -244,7 +244,7 @@ def parse_swift(text: str) -> dict[str, float]:
 
 def parse_c(text: str) -> dict[str, float]:
     """
-    Parse aethermesh_bench wall-clock output.
+    Parse aethernet_bench wall-clock output.
     Expected format (one case per line):
         x25519_agree: 98 ns
     """

@@ -4,19 +4,19 @@
       "src": [
         {
           "files": [
-            "src/AetherMesh.Core/AetherMesh.Core.csproj",
-            "src/AetherMesh.Security/AetherMesh.Security.csproj",
-            "src/AetherMesh.Messaging/AetherMesh.Messaging.csproj",
-            "src/AetherMesh.Storage/AetherMesh.Storage.csproj",
-            "src/AetherMesh.Transport/AetherMesh.Transport.csproj",
-            "src/AetherMesh.Streaming/AetherMesh.Streaming.csproj",
-            "src/AetherMesh.Voice/AetherMesh.Voice.csproj",
-            "src/AetherMesh.Content/AetherMesh.Content.csproj",
-            "src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj",
-            "src/AetherMesh.Space/AetherMesh.Space.csproj",
-            "src/AetherMesh.Forge/AetherMesh.Forge.csproj",
-            "src/AetherMesh.Vault/AetherMesh.Vault.csproj",
-            "src/AetherMesh.Market/AetherMesh.Market.csproj"
+            "src/AetherNet.Core/AetherNet.Core.csproj",
+            "src/AetherNet.Security/AetherNet.Security.csproj",
+            "src/AetherNet.Messaging/AetherNet.Messaging.csproj",
+            "src/AetherNet.Storage/AetherNet.Storage.csproj",
+            "src/AetherNet.Transport/AetherNet.Transport.csproj",
+            "src/AetherNet.Streaming/AetherNet.Streaming.csproj",
+            "src/AetherNet.Voice/AetherNet.Voice.csproj",
+            "src/AetherNet.Content/AetherNet.Content.csproj",
+            "src/AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj",
+            "src/AetherNet.Space/AetherNet.Space.csproj",
+            "src/AetherNet.Forge/AetherNet.Forge.csproj",
+            "src/AetherNet.Vault/AetherNet.Vault.csproj",
+            "src/AetherNet.Market/AetherNet.Market.csproj"
           ],
           "exclude": [
             "**/bin/**",

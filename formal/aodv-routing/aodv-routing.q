@@ -1,4 +1,4 @@
-/* AetherMesh AODV Routing — TAPAAL/CTL queries
+/* AetherNet AODV Routing — TAPAAL/CTL queries
    All queries expected: SATISFIED
    SPDX-License-Identifier: MIT */
 

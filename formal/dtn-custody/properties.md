@@ -8,7 +8,7 @@ arrives at a Destination node. The Relay may fail at any point; the network
 must self-heal without losing the bundle.
 
 This is the minimal scenario that exercises every safety-critical path in
-`IAetherMeshDtnService`:
+`IAetherNetDtnService`:
 
 - `CreateBundleAsync` (bundle creation at Source)
 - `HandleAsync` / `AcceptCustody` (Relay accepts)

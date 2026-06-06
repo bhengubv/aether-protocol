@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  AetherMesh Signal Protocol — Forward + Future Secrecy Petri Net
+  AetherNet Signal Protocol — Forward + Future Secrecy Petri Net
   ================================================================
   ISO/IEC 15909-2 Petri Net Markup Language (PNML) — P/T Net type.
 
@@ -31,7 +31,7 @@
   <net id="signal-protocol"
        type="http://www.pnml.org/version-2009/grammar/ptnet">
 
-    <name><text>AetherMesh Signal Protocol — Forward + Future Secrecy</text></name>
+    <name><text>AetherNet Signal Protocol — Forward + Future Secrecy</text></name>
 
     <page id="page-main">
 
@@ -118,7 +118,7 @@
         that re-creates P_ChainKey_E0 once it has been consumed. This is
         the structural representation of HKDF one-wayness in the protocol.
 
-        AetherMesh: ISignalMeshProtocolService.OnRatchet() — when a new
+        AetherNet: ISignalMeshProtocolService.OnRatchet() — when a new
         ephemeral public key arrives in a message header, derive new
         root key + chain keys via HKDF, discard old chain key.
       -->

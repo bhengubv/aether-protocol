@@ -134,43 +134,43 @@ ctest --output-on-failure
 
 int main(void) {
     // Create a packet
-    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+    aethernet_mesh_packet_t *packet = aethernet_packet_new();
     if (!packet) return 1;
 
     // Set fields
-    aethermesh_packet_set_source_uhid(packet, "node-alice");
-    aethermesh_packet_set_destination_uhid(packet, "node-bob");
-    aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
+    aethernet_packet_set_source_uhid(packet, "node-alice");
+    aethernet_packet_set_destination_uhid(packet, "node-bob");
+    aethernet_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
 
     // Generate and sign
-    uint8_t private_key[AETHERMESH_ED25519_PRIVATE_KEY_SIZE];
-    uint8_t public_key[AETHERMESH_ED25519_PUBLIC_KEY_SIZE];
-    aethermesh_ed25519_generate_keypair(private_key, public_key);
+    uint8_t private_key[AETHERNET_ED25519_PRIVATE_KEY_SIZE];
+    uint8_t public_key[AETHERNET_ED25519_PUBLIC_KEY_SIZE];
+    aethernet_ed25519_generate_keypair(private_key, public_key);
 
     size_t signable_len = 0;
-    uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
+    uint8_t *signable = aethernet_packet_get_signable_data(packet, &signable_len);
     if (signable) {
-        uint8_t signature[AETHERMESH_ED25519_SIGNATURE_SIZE];
-        aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
-        aethermesh_packet_set_signature(packet, signature, AETHERMESH_ED25519_SIGNATURE_SIZE);
+        uint8_t signature[AETHERNET_ED25519_SIGNATURE_SIZE];
+        aethernet_ed25519_sign(private_key, signable, signable_len, signature);
+        aethernet_packet_set_signature(packet, signature, AETHERNET_ED25519_SIGNATURE_SIZE);
         free(signable);
     }
 
     // Serialize
     uint8_t buffer[4096];
-    int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
+    int size = aethernet_packet_serialize(packet, buffer, sizeof(buffer));
     if (size > 0) {
         printf("Packet serialized: %d bytes\n", size);
     }
 
     // Deserialize
-    aethermesh_mesh_packet_t *received = aethermesh_packet_deserialize(buffer, size);
+    aethernet_mesh_packet_t *received = aethernet_packet_deserialize(buffer, size);
     if (received) {
         printf("Received from: %s\n", received->source_uhid);
-        aethermesh_packet_free(received);
+        aethernet_packet_free(received);
     }
 
-    aethermesh_packet_free(packet);
+    aethernet_packet_free(packet);
     return 0;
 }
 ```
@@ -180,60 +180,60 @@ int main(void) {
 ### 协议
 
 #### 数据包管理
-- `aethermesh_mesh_packet_t *aethermesh_packet_new(void)` — 创建新数据包
-- `void aethermesh_packet_free(aethermesh_mesh_packet_t *packet)` — 释放数据包
-- `aethermesh_mesh_packet_t *aethermesh_packet_clone(const aethermesh_mesh_packet_t *packet)` — 克隆数据包
+- `aethernet_mesh_packet_t *aethernet_packet_new(void)` — 创建新数据包
+- `void aethernet_packet_free(aethernet_mesh_packet_t *packet)` — 释放数据包
+- `aethernet_mesh_packet_t *aethernet_packet_clone(const aethernet_mesh_packet_t *packet)` — 克隆数据包
 
 #### 序列化
-- `int aethermesh_packet_serialize(const aethermesh_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — 序列化为线格式
-- `aethermesh_mesh_packet_t *aethermesh_packet_deserialize(const uint8_t *data, size_t data_len)` — 从线格式反序列化
-- `size_t aethermesh_packet_estimate_size(const aethermesh_mesh_packet_t *packet)` — 估算线格式大小
+- `int aethernet_packet_serialize(const aethernet_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — 序列化为线格式
+- `aethernet_mesh_packet_t *aethernet_packet_deserialize(const uint8_t *data, size_t data_len)` — 从线格式反序列化
+- `size_t aethernet_packet_estimate_size(const aethernet_mesh_packet_t *packet)` — 估算线格式大小
 
 #### 数据包字段
-- `bool aethermesh_packet_set_source_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — 设置来源
-- `bool aethermesh_packet_set_destination_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — 设置目标
-- `bool aethermesh_packet_set_payload(aethermesh_mesh_packet_t *packet, const uint8_t *data, size_t len)` — 设置载荷
-- `bool aethermesh_packet_set_signature(aethermesh_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — 设置签名
+- `bool aethernet_packet_set_source_uhid(aethernet_mesh_packet_t *packet, const char *uhid)` — 设置来源
+- `bool aethernet_packet_set_destination_uhid(aethernet_mesh_packet_t *packet, const char *uhid)` — 设置目标
+- `bool aethernet_packet_set_payload(aethernet_mesh_packet_t *packet, const uint8_t *data, size_t len)` — 设置载荷
+- `bool aethernet_packet_set_signature(aethernet_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — 设置签名
 
 #### 验证
-- `bool aethermesh_packet_is_expired(const aethermesh_mesh_packet_t *packet, int max_age_seconds)` — 检查是否已过期
-- `bool aethermesh_packet_can_forward(const aethermesh_mesh_packet_t *packet)` — 检查 TTL 是否大于 0
+- `bool aethernet_packet_is_expired(const aethernet_mesh_packet_t *packet, int max_age_seconds)` — 检查是否已过期
+- `bool aethernet_packet_can_forward(const aethernet_mesh_packet_t *packet)` — 检查 TTL 是否大于 0
 
 #### 签名数据
-- `uint8_t *aethermesh_packet_get_signable_data(const aethermesh_mesh_packet_t *packet, size_t *out_len)` — 获取确定性可签名字节（调用方负责释放）
+- `uint8_t *aethernet_packet_get_signable_data(const aethernet_mesh_packet_t *packet, size_t *out_len)` — 获取确定性可签名字节（调用方负责释放）
 
 ### 安全
 
 #### Ed25519
-- `bool aethermesh_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — 生成 32+32 字节密钥对
-- `bool aethermesh_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — 签名（生成 64 字节）
-- `bool aethermesh_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — 验证
+- `bool aethernet_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — 生成 32+32 字节密钥对
+- `bool aethernet_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — 签名（生成 64 字节）
+- `bool aethernet_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — 验证
 
 #### AES-256-GCM
-- `bool aethermesh_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — 加密（若 nonce 为 NULL 则自动生成）
-- `bool aethermesh_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — 解密
+- `bool aethernet_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — 加密（若 nonce 为 NULL 则自动生成）
+- `bool aethernet_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — 解密
 
 #### HMAC 与哈希
-- `bool aethermesh_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256（32 字节）
-- `bool aethermesh_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256（32 字节）
-- `bool aethermesh_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF（RFC 5869）
+- `bool aethernet_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256（32 字节）
+- `bool aethernet_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256（32 字节）
+- `bool aethernet_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF（RFC 5869）
 
 #### 工具函数
-- `void aethermesh_zeroize(void *mem, size_t len)` — 常量时间内存清零
-- `bool aethermesh_random_bytes(uint8_t *out, size_t len)` — 密码学安全随机字节
+- `void aethernet_zeroize(void *mem, size_t len)` — 常量时间内存清零
+- `bool aethernet_random_bytes(uint8_t *out, size_t len)` — 密码学安全随机字节
 
 ### 传输
 
 #### 通用函数
-- `bool aethermesh_transport_send(aethermesh_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — 发送数据
-- `bool aethermesh_transport_is_connected(aethermesh_transport_t *transport, const char *peer_uhid)` — 检查连接状态
-- `void aethermesh_transport_set_on_data_received(aethermesh_transport_t *transport, aethermesh_transport_on_data_received callback, void *user_data)` — 注册回调
-- `void aethermesh_transport_destroy(aethermesh_transport_t *transport)` — 清理资源
+- `bool aethernet_transport_send(aethernet_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — 发送数据
+- `bool aethernet_transport_is_connected(aethernet_transport_t *transport, const char *peer_uhid)` — 检查连接状态
+- `void aethernet_transport_set_on_data_received(aethernet_transport_t *transport, aethernet_transport_on_data_received callback, void *user_data)` — 注册回调
+- `void aethernet_transport_destroy(aethernet_transport_t *transport)` — 清理资源
 
 #### 进程内传输
-- `aethermesh_transport_t *aethermesh_inprocess_transport_new(void)` — 创建共享进程内传输
-- `bool aethermesh_inprocess_transport_register_node(aethermesh_transport_t *transport, const char *uhid)` — 注册节点
-- `bool aethermesh_inprocess_transport_unregister_node(aethermesh_transport_t *transport, const char *uhid)` — 注销节点
+- `aethernet_transport_t *aethernet_inprocess_transport_new(void)` — 创建共享进程内传输
+- `bool aethernet_inprocess_transport_register_node(aethernet_transport_t *transport, const char *uhid)` — 注册节点
+- `bool aethernet_inprocess_transport_unregister_node(aethernet_transport_t *transport, const char *uhid)` — 注销节点
 
 ## 线格式合规性
 
@@ -294,7 +294,7 @@ int main(void) {
 
 ### 内存使用
 - 最小数据包：约 52 字节
-- 最大数据包：65KB（可通过 `AETHERMESH_MAX_PAYLOAD_LEN` 配置）
+- 最大数据包：65KB（可通过 `AETHERNET_MAX_PAYLOAD_LEN` 配置）
 - 256 节点对等表：约 32KB
 - 内存中单个网状数据包：约 8KB（最大字段情况下的最坏情形）
 
@@ -331,8 +331,8 @@ ctest --output-on-failure --verbose
 ## 与 Aether 生态系统集成
 
 本 C 库设计为与以下系统集成：
-- **AetherMeshAPI**（C#）— 服务端网状中继与分析
-- **AetherMesh.Core**（C#）— 参考实现（可互操作的线格式）
+- **AetherNetAPI**（C#）— 服务端网状中继与分析
+- **AetherNet.Core**（C#）— 参考实现（可互操作的线格式）
 - **Meshtastic** — 开源网状无线电固件
 - **esp-idf** — Espressif 物联网开发框架
 - 自定义嵌入式应用
@@ -355,7 +355,7 @@ SPDX-License-Identifier: MIT
 ## 参考资料
 
 - 协议规范：`/Users/admin/Code/Dev/aether-protocol/docs/PROTOCOL_SPEC.md`
-- C# 参考实现：`/Users/admin/Code/Dev/aether-protocol/src/AetherMesh.Core/`
+- C# 参考实现：`/Users/admin/Code/Dev/aether-protocol/src/AetherNet.Core/`
 - libsodium: https://libsodium.org/
 - RFC 5869 (HKDF): https://tools.ietf.org/html/rfc5869
 - RFC 3561 (AODV): https://tools.ietf.org/html/rfc3561

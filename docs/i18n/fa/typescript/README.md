@@ -143,7 +143,7 @@ PacketNonce (8 bytes)
 ### پروتکل Signal (بخش ۴)
 
 - **تبادل کلید**: X3DH با ECDH P-256
-- **HKDF**: SHA256 با salt="AetherMeshSignal"
+- **HKDF**: SHA256 با salt="AetherNetSignal"
 - **رشته‌های Info**: "aether-root-v1"، "aether-chain-send-v1"، "aether-chain-recv-v1"
 - **رمزنگاری**: AES-256-GCM با nonce 12 بایتی، tag 16 بایتی
 - **رچت زنجیره**: HMAC-SHA256 با پیشبرد شمارنده

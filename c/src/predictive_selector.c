@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Predictive transport selector — 2-state Kalman RTT filter implementation.
 //
-// See: c/include/aethermesh/predictive_selector.h for the public API.
+// See: c/include/aethernet/predictive_selector.h for the public API.
 
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stddef.h>
 
-#include "aethermesh/predictive_selector.h"
+#include "aethernet/predictive_selector.h"
 
 // ── Spin-lock helpers (same pattern as transport_metrics.c) ───────────────────
 
@@ -22,9 +22,9 @@ static inline void _sel_unlock(volatile int *spin)
     __sync_lock_release(spin);
 }
 
-// ── aethermesh_kalman_filter_init ─────────────────────────────────────────────────
+// ── aethernet_kalman_filter_init ─────────────────────────────────────────────────
 
-void aethermesh_kalman_filter_init(aethermesh_kalman_rtt_filter_t *f, double initial_rtt_ms)
+void aethernet_kalman_filter_init(aethernet_kalman_rtt_filter_t *f, double initial_rtt_ms)
 {
     if (!f) return;
     f->q_rtt   = 25.0;
@@ -37,9 +37,9 @@ void aethermesh_kalman_filter_init(aethermesh_kalman_rtt_filter_t *f, double ini
     f->p11     = 100.0;   /* large initial drift uncertainty */
 }
 
-// ── aethermesh_kalman_filter_update ───────────────────────────────────────────────
+// ── aethernet_kalman_filter_update ───────────────────────────────────────────────
 
-double aethermesh_kalman_filter_update(aethermesh_kalman_rtt_filter_t *f, double measured_rtt_ms)
+double aethernet_kalman_filter_update(aethernet_kalman_rtt_filter_t *f, double measured_rtt_ms)
 {
     if (!f) return 0.0;
 
@@ -76,20 +76,20 @@ double aethermesh_kalman_filter_update(aethermesh_kalman_rtt_filter_t *f, double
     return f->rtt;
 }
 
-// ── aethermesh_predictive_selector_init ──────────────────────────────────────────
+// ── aethernet_predictive_selector_init ──────────────────────────────────────────
 
-void aethermesh_predictive_selector_init(aethermesh_predictive_selector_t *sel)
+void aethernet_predictive_selector_init(aethernet_predictive_selector_t *sel)
 {
     if (!sel) return;
     memset(sel, 0, sizeof(*sel));
     /* All entries already NULL (zero-initialised). count = 0. */
 }
 
-// ── aethermesh_predictive_selector_register ──────────────────────────────────────
+// ── aethernet_predictive_selector_register ──────────────────────────────────────
 
-bool aethermesh_predictive_selector_register(
-    aethermesh_predictive_selector_t *sel,
-    aethermesh_transport_t           *transport,
+bool aethernet_predictive_selector_register(
+    aethernet_predictive_selector_t *sel,
+    aethernet_transport_t           *transport,
     double                        initial_rtt_ms)
 {
     if (!sel || !transport) return false;
@@ -97,7 +97,7 @@ bool aethermesh_predictive_selector_register(
     _sel_lock(&sel->lock);
 
     /* Check if already registered. */
-    for (size_t i = 0; i < AETHERMESH_PREDICTIVE_MAX_TRANSPORTS; i++) {
+    for (size_t i = 0; i < AETHERNET_PREDICTIVE_MAX_TRANSPORTS; i++) {
         if (sel->entries[i].transport == transport) {
             _sel_unlock(&sel->lock);
             return false; /* already registered — no-op */
@@ -105,10 +105,10 @@ bool aethermesh_predictive_selector_register(
     }
 
     /* Find an empty slot. */
-    for (size_t i = 0; i < AETHERMESH_PREDICTIVE_MAX_TRANSPORTS; i++) {
+    for (size_t i = 0; i < AETHERNET_PREDICTIVE_MAX_TRANSPORTS; i++) {
         if (sel->entries[i].transport == NULL) {
             sel->entries[i].transport = transport;
-            aethermesh_kalman_filter_init(&sel->entries[i].filter, initial_rtt_ms);
+            aethernet_kalman_filter_init(&sel->entries[i].filter, initial_rtt_ms);
             sel->count++;
             _sel_unlock(&sel->lock);
             return true;
@@ -119,16 +119,16 @@ bool aethermesh_predictive_selector_register(
     return false; /* table full */
 }
 
-// ── aethermesh_predictive_selector_unregister ────────────────────────────────────
+// ── aethernet_predictive_selector_unregister ────────────────────────────────────
 
-void aethermesh_predictive_selector_unregister(
-    aethermesh_predictive_selector_t *sel,
-    aethermesh_transport_t           *transport)
+void aethernet_predictive_selector_unregister(
+    aethernet_predictive_selector_t *sel,
+    aethernet_transport_t           *transport)
 {
     if (!sel || !transport) return;
 
     _sel_lock(&sel->lock);
-    for (size_t i = 0; i < AETHERMESH_PREDICTIVE_MAX_TRANSPORTS; i++) {
+    for (size_t i = 0; i < AETHERNET_PREDICTIVE_MAX_TRANSPORTS; i++) {
         if (sel->entries[i].transport == transport) {
             memset(&sel->entries[i], 0, sizeof(sel->entries[i]));
             if (sel->count > 0) sel->count--;
@@ -138,11 +138,11 @@ void aethermesh_predictive_selector_unregister(
     _sel_unlock(&sel->lock);
 }
 
-// ── aethermesh_predictive_selector_observe ───────────────────────────────────────
+// ── aethernet_predictive_selector_observe ───────────────────────────────────────
 
-void aethermesh_predictive_selector_observe(
-    aethermesh_predictive_selector_t *sel,
-    aethermesh_transport_t           *transport,
+void aethernet_predictive_selector_observe(
+    aethernet_predictive_selector_t *sel,
+    aethernet_transport_t           *transport,
     uint64_t                      rtt_ms,
     bool                          success,
     uint64_t                      bytes_transferred)
@@ -151,10 +151,10 @@ void aethermesh_predictive_selector_observe(
 
     /* Forward to PerTransportMetrics EWMA if the transport exposes it. */
     if (transport->vtable && transport->vtable->get_metrics) {
-        aethermesh_transport_metrics_t *m =
+        aethernet_transport_metrics_t *m =
             transport->vtable->get_metrics(transport->handle);
         if (m) {
-            aethermesh_transport_metrics_record_sample(m, rtt_ms, success, bytes_transferred);
+            aethernet_transport_metrics_record_sample(m, rtt_ms, success, bytes_transferred);
         }
     }
 
@@ -162,9 +162,9 @@ void aethermesh_predictive_selector_observe(
     if (rtt_ms == 0 || !success) return;
 
     _sel_lock(&sel->lock);
-    for (size_t i = 0; i < AETHERMESH_PREDICTIVE_MAX_TRANSPORTS; i++) {
+    for (size_t i = 0; i < AETHERNET_PREDICTIVE_MAX_TRANSPORTS; i++) {
         if (sel->entries[i].transport == transport) {
-            aethermesh_kalman_filter_update(&sel->entries[i].filter, (double)rtt_ms);
+            aethernet_kalman_filter_update(&sel->entries[i].filter, (double)rtt_ms);
             break;
         }
     }
@@ -175,19 +175,19 @@ void aethermesh_predictive_selector_observe(
 
 static int _pred_rank_cmp(const void *a, const void *b)
 {
-    const aethermesh_predictive_rank_entry_t *ea = (const aethermesh_predictive_rank_entry_t *)a;
-    const aethermesh_predictive_rank_entry_t *eb = (const aethermesh_predictive_rank_entry_t *)b;
+    const aethernet_predictive_rank_entry_t *ea = (const aethernet_predictive_rank_entry_t *)a;
+    const aethernet_predictive_rank_entry_t *eb = (const aethernet_predictive_rank_entry_t *)b;
     if (eb->score > ea->score) return  1;
     if (eb->score < ea->score) return -1;
     return 0;
 }
 
-// ── aethermesh_predictive_selector_rank ──────────────────────────────────────────
+// ── aethernet_predictive_selector_rank ──────────────────────────────────────────
 
-void aethermesh_predictive_selector_rank(
-    aethermesh_predictive_selector_t     *sel,
+void aethernet_predictive_selector_rank(
+    aethernet_predictive_selector_t     *sel,
     int                               payload_bytes,
-    aethermesh_predictive_rank_entry_t   *out_ranked,
+    aethernet_predictive_rank_entry_t   *out_ranked,
     size_t                           *out_count)
 {
     if (!sel || !out_ranked || !out_count) return;
@@ -195,8 +195,8 @@ void aethermesh_predictive_selector_rank(
 
     _sel_lock(&sel->lock);
 
-    for (size_t i = 0; i < AETHERMESH_PREDICTIVE_MAX_TRANSPORTS; i++) {
-        aethermesh_transport_t *t = sel->entries[i].transport;
+    for (size_t i = 0; i < AETHERNET_PREDICTIVE_MAX_TRANSPORTS; i++) {
+        aethernet_transport_t *t = sel->entries[i].transport;
         if (!t || !t->vtable) continue;
 
         /* Skip unavailable transports (no send function = not usable). */
@@ -210,13 +210,13 @@ void aethermesh_predictive_selector_rank(
         }
 
         /* Retrieve live EWMA metrics if available. */
-        aethermesh_transport_metrics_t *m = NULL;
+        aethernet_transport_metrics_t *m = NULL;
         if (t->vtable->get_metrics) {
             m = t->vtable->get_metrics(t->handle);
         }
 
         /* Kalman state. */
-        const aethermesh_kalman_rtt_filter_t *f = &sel->entries[i].filter;
+        const aethernet_kalman_rtt_filter_t *f = &sel->entries[i].filter;
         double kalman_rtt = f->rtt < 1.0 ? 1.0 : f->rtt;
         double variance   = f->p00;
         double stddev     = sqrt(variance);
@@ -263,31 +263,31 @@ void aethermesh_predictive_selector_rank(
     /* Sort descending by score. */
     if (*out_count > 1) {
         qsort(out_ranked, *out_count,
-              sizeof(aethermesh_predictive_rank_entry_t),
+              sizeof(aethernet_predictive_rank_entry_t),
               _pred_rank_cmp);
     }
 }
 
-// ── aethermesh_predictive_selector_best ──────────────────────────────────────────
+// ── aethernet_predictive_selector_best ──────────────────────────────────────────
 
-aethermesh_transport_t *aethermesh_predictive_selector_best(
-    aethermesh_predictive_selector_t *sel,
+aethernet_transport_t *aethernet_predictive_selector_best(
+    aethernet_predictive_selector_t *sel,
     int                           payload_bytes)
 {
     if (!sel) return NULL;
 
-    aethermesh_predictive_rank_entry_t ranked[AETHERMESH_PREDICTIVE_MAX_TRANSPORTS];
+    aethernet_predictive_rank_entry_t ranked[AETHERNET_PREDICTIVE_MAX_TRANSPORTS];
     size_t count = 0;
-    aethermesh_predictive_selector_rank(sel, payload_bytes, ranked, &count);
+    aethernet_predictive_selector_rank(sel, payload_bytes, ranked, &count);
 
     return (count > 0) ? ranked[0].transport : NULL;
 }
 
-// ── aethermesh_predictive_selector_kalman_state ───────────────────────────────────
+// ── aethernet_predictive_selector_kalman_state ───────────────────────────────────
 
-bool aethermesh_predictive_selector_kalman_state(
-    aethermesh_predictive_selector_t *sel,
-    aethermesh_transport_t           *transport,
+bool aethernet_predictive_selector_kalman_state(
+    aethernet_predictive_selector_t *sel,
+    aethernet_transport_t           *transport,
     double                       *out_rtt_ms,
     double                       *out_drift_ms,
     double                       *out_variance)
@@ -295,9 +295,9 @@ bool aethermesh_predictive_selector_kalman_state(
     if (!sel || !transport) return false;
 
     _sel_lock(&sel->lock);
-    for (size_t i = 0; i < AETHERMESH_PREDICTIVE_MAX_TRANSPORTS; i++) {
+    for (size_t i = 0; i < AETHERNET_PREDICTIVE_MAX_TRANSPORTS; i++) {
         if (sel->entries[i].transport == transport) {
-            const aethermesh_kalman_rtt_filter_t *f = &sel->entries[i].filter;
+            const aethernet_kalman_rtt_filter_t *f = &sel->entries[i].filter;
             if (out_rtt_ms)    *out_rtt_ms    = f->rtt;
             if (out_drift_ms)  *out_drift_ms  = f->drift;
             if (out_variance)  *out_variance  = f->p00;

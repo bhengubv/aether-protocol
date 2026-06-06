@@ -4,14 +4,14 @@
 // NOTE: This implementation is single-threaded; hosts that pump packets from
 // multiple threads must wrap the service in their own mutex. JSON encoding /
 // decoding of bundle payloads is intentionally out of scope here — the wire
-// format is documented in c/include/aethermesh/dtn.h, and hosts plug in cJSON or
+// format is documented in c/include/aethernet/dtn.h, and hosts plug in cJSON or
 // json-c on their side. Encoding helpers below produce minimal valid JSON
 // suitable for cross-language round-trip; decoding is left as a TODO so the
 // service compiles cleanly without a JSON dep.
 
-#include "aethermesh/dtn.h"
-#include "aethermesh/constants.h"
-#include "aethermesh_reputation.h"
+#include "aethernet/dtn.h"
+#include "aethernet/constants.h"
+#include "aethernet_reputation.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,12 +21,12 @@
 // ─── Internal store nodes ────────────────────────────────
 
 typedef struct bundle_node {
-    aethermesh_dtn_bundle_t *bundle;
+    aethernet_dtn_bundle_t *bundle;
     struct bundle_node *next;
 } bundle_node_t;
 
 typedef struct custody_node {
-    uint8_t bundle_id[AETHERMESH_PACKET_ID_SIZE];
+    uint8_t bundle_id[AETHERNET_PACKET_ID_SIZE];
     char *from_uhid;     // owned
     char *to_uhid;       // owned
     bool accepted;
@@ -34,11 +34,11 @@ typedef struct custody_node {
     struct custody_node *next;
 } custody_node_t;
 
-struct aethermesh_dtn_service {
-    aethermesh_mesh_sender_t *sender;
+struct aethernet_dtn_service {
+    aethernet_mesh_sender_t *sender;
     bundle_node_t *bundles;
     custody_node_t *custody_records;
-    AetherMeshNodeReputationService *reputation; // optional, may be NULL
+    AetherNetNodeReputationService *reputation; // optional, may be NULL
 };
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -57,27 +57,27 @@ static char *str_dup_dtn(const char *s) {
     return out;
 }
 
-static int active_bundle_count(aethermesh_dtn_service_t *svc) {
+static int active_bundle_count(aethernet_dtn_service_t *svc) {
     int count = 0;
     int64_t now = now_ms_dtn();
     for (bundle_node_t *n = svc->bundles; n; n = n->next) {
-        const aethermesh_dtn_bundle_t *b = n->bundle;
+        const aethernet_dtn_bundle_t *b = n->bundle;
         if (!b) continue;
         if (b->expires_at_ms <= now) continue;
-        if (b->status == AETHERMESH_BUNDLE_STATUS_PENDING
-            || b->status == AETHERMESH_BUNDLE_STATUS_IN_CUSTODY) count++;
+        if (b->status == AETHERNET_BUNDLE_STATUS_PENDING
+            || b->status == AETHERNET_BUNDLE_STATUS_IN_CUSTODY) count++;
     }
     return count;
 }
 
-static bundle_node_t *find_bundle_node(aethermesh_dtn_service_t *svc, const uint8_t id[AETHERMESH_PACKET_ID_SIZE]) {
+static bundle_node_t *find_bundle_node(aethernet_dtn_service_t *svc, const uint8_t id[AETHERNET_PACKET_ID_SIZE]) {
     for (bundle_node_t *n = svc->bundles; n; n = n->next) {
-        if (n->bundle && memcmp(n->bundle->id, id, AETHERMESH_PACKET_ID_SIZE) == 0) return n;
+        if (n->bundle && memcmp(n->bundle->id, id, AETHERNET_PACKET_ID_SIZE) == 0) return n;
     }
     return NULL;
 }
 
-static bool bundle_to_packet_payload(const aethermesh_dtn_bundle_t *b, uint8_t **out_payload, uint32_t *out_len) {
+static bool bundle_to_packet_payload(const aethernet_dtn_bundle_t *b, uint8_t **out_payload, uint32_t *out_len) {
     // Minimal JSON encode. Cross-language stable shape; see DtnService.cs / dtn.go for canonical reference.
     // Format: {"id":"<hex32>","sender_uhid":"...","recipient_uhid":"...","encrypted_payload":[...],
     //          "priority":<int>,"status":<int>,"copy_count":<int>,"max_copies":<int>,
@@ -125,48 +125,48 @@ static bool bundle_to_packet_payload(const aethermesh_dtn_bundle_t *b, uint8_t *
     return true;
 }
 
-static aethermesh_mesh_packet_t *build_bundle_packet(aethermesh_dtn_service_t *svc, const aethermesh_dtn_bundle_t *bundle) {
-    aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
+static aethernet_mesh_packet_t *build_bundle_packet(aethernet_dtn_service_t *svc, const aethernet_dtn_bundle_t *bundle) {
+    aethernet_mesh_packet_t *pkt = aethernet_packet_new();
     if (!pkt) return NULL;
-    memcpy(pkt->packet_id, bundle->id, AETHERMESH_PACKET_ID_SIZE);
-    pkt->type = AETHERMESH_PACKET_TYPE_DTN_BUNDLE;
-    aethermesh_packet_set_source_uhid(pkt, svc->sender->local_uhid);
-    aethermesh_packet_set_destination_uhid(pkt, bundle->recipient_uhid);
-    pkt->ttl = AETHERMESH_DTN_TTL;
+    memcpy(pkt->packet_id, bundle->id, AETHERNET_PACKET_ID_SIZE);
+    pkt->type = AETHERNET_PACKET_TYPE_DTN_BUNDLE;
+    aethernet_packet_set_source_uhid(pkt, svc->sender->local_uhid);
+    aethernet_packet_set_destination_uhid(pkt, bundle->recipient_uhid);
+    pkt->ttl = AETHERNET_DTN_TTL;
     pkt->priority = bundle->priority;
 
     uint8_t *body = NULL;
     uint32_t body_len = 0;
     if (bundle_to_packet_payload(bundle, &body, &body_len)) {
-        aethermesh_packet_set_payload(pkt, body, body_len);
+        aethernet_packet_set_payload(pkt, body, body_len);
         free(body);
     }
     return pkt;
 }
 
-static bool try_direct_delivery(aethermesh_dtn_service_t *svc, const aethermesh_dtn_bundle_t *bundle) {
-    aethermesh_mesh_packet_t *pkt = build_bundle_packet(svc, bundle);
+static bool try_direct_delivery(aethernet_dtn_service_t *svc, const aethernet_dtn_bundle_t *bundle) {
+    aethernet_mesh_packet_t *pkt = build_bundle_packet(svc, bundle);
     if (!pkt) return false;
     bool delivered = svc->sender->send(svc->sender, pkt, bundle->recipient_uhid);
-    aethermesh_packet_free(pkt);
+    aethernet_packet_free(pkt);
     return delivered;
 }
 
 // ─── Public API ──────────────────────────────────────────
 
-aethermesh_dtn_bundle_t *aethermesh_dtn_bundle_new(void) {
-    aethermesh_dtn_bundle_t *b = (aethermesh_dtn_bundle_t *)calloc(1, sizeof(aethermesh_dtn_bundle_t));
+aethernet_dtn_bundle_t *aethernet_dtn_bundle_new(void) {
+    aethernet_dtn_bundle_t *b = (aethernet_dtn_bundle_t *)calloc(1, sizeof(aethernet_dtn_bundle_t));
     if (!b) return NULL;
-    b->priority = AETHERMESH_BUNDLE_PRIORITY_NORMAL;
-    b->status = AETHERMESH_BUNDLE_STATUS_PENDING;
+    b->priority = AETHERNET_BUNDLE_PRIORITY_NORMAL;
+    b->status = AETHERNET_BUNDLE_STATUS_PENDING;
     b->copy_count = 1;
-    b->max_copies = AETHERMESH_DTN_MAX_COPIES;
+    b->max_copies = AETHERNET_DTN_MAX_COPIES;
     b->created_at_ms = now_ms_dtn();
-    b->expires_at_ms = b->created_at_ms + (int64_t)AETHERMESH_DTN_BUNDLE_TTL_HOURS * 3600 * 1000;
+    b->expires_at_ms = b->created_at_ms + (int64_t)AETHERNET_DTN_BUNDLE_TTL_HOURS * 3600 * 1000;
     return b;
 }
 
-void aethermesh_dtn_bundle_free(aethermesh_dtn_bundle_t *bundle) {
+void aethernet_dtn_bundle_free(aethernet_dtn_bundle_t *bundle) {
     if (!bundle) return;
     free(bundle->sender_uhid);
     free(bundle->recipient_uhid);
@@ -176,24 +176,24 @@ void aethermesh_dtn_bundle_free(aethermesh_dtn_bundle_t *bundle) {
     free(bundle);
 }
 
-bool aethermesh_dtn_bundle_is_expired(const aethermesh_dtn_bundle_t *bundle) {
+bool aethernet_dtn_bundle_is_expired(const aethernet_dtn_bundle_t *bundle) {
     if (!bundle) return true;
     return now_ms_dtn() >= bundle->expires_at_ms;
 }
 
-aethermesh_dtn_service_t *aethermesh_dtn_service_new(aethermesh_mesh_sender_t *sender) {
+aethernet_dtn_service_t *aethernet_dtn_service_new(aethernet_mesh_sender_t *sender) {
     if (!sender) return NULL;
-    aethermesh_dtn_service_t *svc = (aethermesh_dtn_service_t *)calloc(1, sizeof(aethermesh_dtn_service_t));
+    aethernet_dtn_service_t *svc = (aethernet_dtn_service_t *)calloc(1, sizeof(aethernet_dtn_service_t));
     if (!svc) return NULL;
     svc->sender = sender;
     return svc;
 }
 
-void aethermesh_dtn_service_free(aethermesh_dtn_service_t *service) {
+void aethernet_dtn_service_free(aethernet_dtn_service_t *service) {
     if (!service) return;
     while (service->bundles) {
         bundle_node_t *next = service->bundles->next;
-        aethermesh_dtn_bundle_free(service->bundles->bundle);
+        aethernet_dtn_bundle_free(service->bundles->bundle);
         free(service->bundles);
         service->bundles = next;
     }
@@ -207,26 +207,26 @@ void aethermesh_dtn_service_free(aethermesh_dtn_service_t *service) {
     free(service);
 }
 
-void aethermesh_dtn_set_reputation(aethermesh_dtn_service_t *svc, AetherMeshNodeReputationService *rep) {
+void aethernet_dtn_set_reputation(aethernet_dtn_service_t *svc, AetherNetNodeReputationService *rep) {
     if (!svc) return;
     svc->reputation = rep;
 }
 
-int aethermesh_dtn_create_bundle(aethermesh_dtn_service_t *service,
+int aethernet_dtn_create_bundle(aethernet_dtn_service_t *service,
                              const char *recipient_uhid,
                              const uint8_t *encrypted_payload,
                              uint32_t encrypted_payload_len,
-                             aethermesh_bundle_priority_t priority,
+                             aethernet_bundle_priority_t priority,
                              const char *recipient_last_geohash) {
     if (!service || !recipient_uhid) return -1;
-    aethermesh_dtn_bundle_t *bundle = aethermesh_dtn_bundle_new();
+    aethernet_dtn_bundle_t *bundle = aethernet_dtn_bundle_new();
     if (!bundle) return -1;
 
     bundle->sender_uhid = str_dup_dtn(service->sender->local_uhid);
     bundle->recipient_uhid = str_dup_dtn(recipient_uhid);
     if (encrypted_payload && encrypted_payload_len) {
         bundle->encrypted_payload = (uint8_t *)malloc(encrypted_payload_len);
-        if (!bundle->encrypted_payload) { aethermesh_dtn_bundle_free(bundle); return -1; }
+        if (!bundle->encrypted_payload) { aethernet_dtn_bundle_free(bundle); return -1; }
         memcpy(bundle->encrypted_payload, encrypted_payload, encrypted_payload_len);
         bundle->encrypted_payload_len = encrypted_payload_len;
     }
@@ -235,71 +235,71 @@ int aethermesh_dtn_create_bundle(aethermesh_dtn_service_t *service,
     bundle->recipient_last_geohash = str_dup_dtn(recipient_last_geohash);
 
     bundle_node_t *node = (bundle_node_t *)calloc(1, sizeof(bundle_node_t));
-    if (!node) { aethermesh_dtn_bundle_free(bundle); return -1; }
+    if (!node) { aethernet_dtn_bundle_free(bundle); return -1; }
     node->bundle = bundle;
     node->next = service->bundles;
     service->bundles = node;
 
     if (try_direct_delivery(service, bundle)) {
-        bundle->status = AETHERMESH_BUNDLE_STATUS_DELIVERED;
+        bundle->status = AETHERNET_BUNDLE_STATUS_DELIVERED;
     }
     return 0;
 }
 
-void aethermesh_dtn_handle_packet(aethermesh_dtn_service_t *service, const aethermesh_mesh_packet_t *packet) {
+void aethernet_dtn_handle_packet(aethernet_dtn_service_t *service, const aethernet_mesh_packet_t *packet) {
     if (!service || !packet) return;
     // The full handler decodes bundle / custody-ack / delivery-receipt JSON
     // payloads. See header note: hosts wire up a JSON library on receive side
     // for production. The reference impl ships a placeholder so the service
     // compiles cleanly without a JSON dep.
 
-    if (packet->type == AETHERMESH_PACKET_TYPE_DTN_BUNDLE) {
+    if (packet->type == AETHERNET_PACKET_TYPE_DTN_BUNDLE) {
         // Bundle addressed to this node — record delivery success for the sender.
         if (service->sender->local_uhid
                 && packet->destination_uhid
                 && strcmp(packet->destination_uhid, service->sender->local_uhid) == 0) {
             if (service->reputation != NULL) {
-                aethermesh_reputation_record_delivery_success(service->reputation,
+                aethernet_reputation_record_delivery_success(service->reputation,
                                                          packet->source_uhid, 0);
             }
         }
-    } else if (packet->type == AETHERMESH_PACKET_TYPE_DTN_CUSTODY_ACK) {
+    } else if (packet->type == AETHERNET_PACKET_TYPE_DTN_CUSTODY_ACK) {
         // Custody-ack refusal: hosts set payload[0] = 0 when the peer declines
         // custody (accepted == 0). JSON hosts encode this in the body; the
         // reference impl reads the first raw byte so it compiles without a JSON dep.
         if (packet->payload && packet->payload_len >= 1 && packet->payload[0] == 0) {
             if (service->reputation != NULL) {
-                aethermesh_reputation_record_custody_refusal(service->reputation,
+                aethernet_reputation_record_custody_refusal(service->reputation,
                                                         packet->source_uhid);
             }
         }
     }
 }
 
-void aethermesh_dtn_run_delivery_scan(aethermesh_dtn_service_t *service) {
+void aethernet_dtn_run_delivery_scan(aethernet_dtn_service_t *service) {
     if (!service) return;
     int64_t now = now_ms_dtn();
     for (bundle_node_t *n = service->bundles; n; n = n->next) {
-        aethermesh_dtn_bundle_t *b = n->bundle;
+        aethernet_dtn_bundle_t *b = n->bundle;
         if (!b) continue;
-        if (b->status == AETHERMESH_BUNDLE_STATUS_DELIVERED) continue;
+        if (b->status == AETHERNET_BUNDLE_STATUS_DELIVERED) continue;
         if (b->expires_at_ms <= now) continue;
         if (try_direct_delivery(service, b)) {
-            b->status = AETHERMESH_BUNDLE_STATUS_DELIVERED;
+            b->status = AETHERNET_BUNDLE_STATUS_DELIVERED;
         }
     }
     (void)active_bundle_count;  // referenced by future replication logic
 }
 
-int aethermesh_dtn_expire_stale(aethermesh_dtn_service_t *service) {
+int aethernet_dtn_expire_stale(aethernet_dtn_service_t *service) {
     if (!service) return 0;
     int expired = 0;
     int64_t now = now_ms_dtn();
     for (bundle_node_t *n = service->bundles; n; n = n->next) {
-        aethermesh_dtn_bundle_t *b = n->bundle;
+        aethernet_dtn_bundle_t *b = n->bundle;
         if (!b) continue;
-        if (b->expires_at_ms <= now && b->status != AETHERMESH_BUNDLE_STATUS_EXPIRED) {
-            b->status = AETHERMESH_BUNDLE_STATUS_EXPIRED;
+        if (b->expires_at_ms <= now && b->status != AETHERNET_BUNDLE_STATUS_EXPIRED) {
+            b->status = AETHERNET_BUNDLE_STATUS_EXPIRED;
             expired++;
         }
     }

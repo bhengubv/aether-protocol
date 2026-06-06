@@ -15,7 +15,7 @@
 - **بروتوكول Signal**: اتفاقية مفتاح X3DH + ضامة تماثلية للتشفير الكامل من طرف إلى طرف
 - **خدمة توقيع الحزم**: إلغاء تكرار nonce مع TTL مدته 5 دقائق لمنع إعادة التشغيل
 - **النقل داخل العملية**: نقل مستند إلى الذاكرة للاختبار والاتصال بين العمليات
-- **النماذج**: هياكل AetherMeshNode وPeerInfo وRouteEntry وDtnBundle وSosAlert
+- **النماذج**: هياكل AetherNetNode وPeerInfo وRouteEntry وDtnBundle وSosAlert
 - **ثوابت البروتوكول**: جميع ثوابت التوجيه والاكتشاف والأمان والنقل
 
 ## هيكل الوحدة
@@ -175,7 +175,7 @@ fmt.Println(inProcTransport.IsConnected("bob"))    // true
 
 ```go
 // Node in the mesh
-node := &models.AetherMeshNode{
+node := &models.AetherNetNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

@@ -55,10 +55,10 @@ from uuid import UUID, uuid4
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.protocol.serializer import PacketSerializer
-from aethermesh.security.dtos import StoredSignalSession
-from aethermesh.security.session_store import deserialize_session, serialize_session
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.protocol.serializer import PacketSerializer
+from aethernet.security.dtos import StoredSignalSession
+from aethernet.security.session_store import deserialize_session, serialize_session
 
 
 # ─── Settings profiles ─────────────────────────────────────────────────

@@ -21,7 +21,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;
 
-namespace AetherMesh.InteropTest;
+namespace AetherNet.InteropTest;
 
 // ── Model types ───────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
-  AetherMesh Vault Erasure — Coloured Petri Net (CPN Tools 4)
+  AetherNet Vault Erasure — Coloured Petri Net (CPN Tools 4)
   ===========================================================
   Coloured upgrade: shards carry (doc_id, shard_index) identity.
   Proves K-of-N recoverability per specific shard set, not just

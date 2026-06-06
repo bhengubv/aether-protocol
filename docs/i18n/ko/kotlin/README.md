@@ -27,7 +27,7 @@ Aether는 간헐적이거나 인터넷 연결이 없는 환경을 위한 탈중�
 │       ├── Constants.kt                      # Protocol constants (TTL, timeouts, HKDF info strings)
 │       ├── Demo.kt                           # Demo application (key generation, encryption, signing)
 │       ├── models/
-│       │   └── Models.kt                     # Domain models (AetherMeshNode, PeerInfo, DtnBundle, etc.)
+│       │   └── Models.kt                     # Domain models (AetherNetNode, PeerInfo, DtnBundle, etc.)
 │       ├── protocol/
 │       │   ├── MeshPacket.kt                 # Packet data class (wire-compatible with C#)
 │       │   ├── PacketType.kt                 # Packet type enum (23 types, matching C# values)
@@ -145,7 +145,7 @@ interface TransportService {
 
 ### 5. 도메인 모델 (`Models.kt`)
 
-- **AetherMeshNode**: UHID, 공개키, 기능, 지오해시를 가진 노드 신원
+- **AetherNetNode**: UHID, 공개키, 기능, 지오해시를 가진 노드 신원
 - **PeerInfo**: 신뢰도 점수 및 마지막 확인 타임스탬프를 가진 알려진 피어
 - **RouteEntry**: 홉 수 및 품질 점수를 가진 라우팅 테이블 항목
 - **NodeCapabilities**: 비트 필드 (BLE, Wi-Fi Direct, 게이트웨이, 릴레이, SOS, 스트리밍, 음성, DTN)

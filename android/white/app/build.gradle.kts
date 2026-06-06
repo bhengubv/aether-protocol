@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "aethermesh.white"
+    namespace = "aethernet.white"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "aethermesh.white"
+        applicationId = "aethernet.white"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

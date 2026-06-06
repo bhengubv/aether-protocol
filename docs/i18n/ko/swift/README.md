@@ -43,7 +43,7 @@ Aether는 간헐적이거나 인터넷 연결이 없는 환경을 위해 설계�
 - **InProcessTransport**: 테스트 및 로컬 통신을 위한 인-메모리 전송
 
 #### 모델
-- **AetherMeshNode**: UHID 및 신원 키를 갖춘 노드 표현
+- **AetherNetNode**: UHID 및 신원 키를 갖춘 노드 표현
 - **PreKeyBundle**: 비동기 세션 설정을 위한 번들
 - **EncryptedPayload**: 암호화된 메시지 래퍼
 - **DtnBundle**: 지연 허용 네트워킹 번들
@@ -66,7 +66,7 @@ Package.swift에서:
 .target(
     name: "YourTarget",
     dependencies: [
-        .product(name: "AetherMeshProtocol", package: "aether-protocol-swift")
+        .product(name: "AetherNetProtocol", package: "aether-protocol-swift")
     ]
 )
 ```
@@ -76,7 +76,7 @@ Package.swift에서:
 ### 1. 패킷 직렬화
 
 ```swift
-import AetherMeshProtocol
+import AetherNetProtocol
 
 // Create a packet
 var packet = MeshPacket(
@@ -274,7 +274,7 @@ Test 5: End-to-End Messaging (Full Stack)
 ## 상호 운용성
 
 와이어 형식은 다음과 호환됩니다:
-- **AetherMesh.Core** (C#) - 레퍼런스 구현
+- **AetherNet.Core** (C#) - 레퍼런스 구현
 - **aether-protocol-go** - Go 구현
 - **aether-protocol-rust** - Rust 구현
 

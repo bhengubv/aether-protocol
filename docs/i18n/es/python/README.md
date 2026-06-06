@@ -39,10 +39,10 @@ pip install -e ".[dev]"
 
 ```python
 import asyncio
-from aethermesh.security.ed25519_service import Ed25519SigningService
-from aethermesh.security.signal_protocol import SignalProtocolService
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.protocol.serializer import PacketSerializer
+from aethernet.security.ed25519_service import Ed25519SigningService
+from aethernet.security.signal_protocol import SignalProtocolService
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.protocol.serializer import PacketSerializer
 
 # Generate Ed25519 keys
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -64,7 +64,7 @@ print(f"Signature valid: {is_valid}")
 aether/
 ├── __init__.py              # Package exports
 ├── constants.py             # Protocol constants
-├── models.py                # Data models (AetherMeshNode, PeerInfo, RouteEntry)
+├── models.py                # Data models (AetherNetNode, PeerInfo, RouteEntry)
 ├── protocol/
 │   ├── __init__.py
 │   ├── mesh_packet.py       # MeshPacket and PacketType definitions
@@ -87,7 +87,7 @@ aether/
 Utiliza PyNaCl (libsodium) para operaciones criptográficas:
 
 ```python
-from aethermesh.security.ed25519_service import Ed25519SigningService
+from aethernet.security.ed25519_service import Ed25519SigningService
 
 # Generate a key pair
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -109,7 +109,7 @@ is_valid = Ed25519SigningService.verify(public_key, data, signature)
 Implementa el intercambio de claves X3DH con trinquete simétrico para secreto hacia adelante:
 
 ```python
-from aethermesh.security.signal_protocol import SignalProtocolService
+from aethernet.security.signal_protocol import SignalProtocolService
 
 # Create protocol instances
 alice_signal = SignalProtocolService()
@@ -134,7 +134,7 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 ```
 
 **Derivación de claves:**
-- Usa HKDF-SHA256 con sal: `"AetherMeshSignal"`
+- Usa HKDF-SHA256 con sal: `"AetherNetSignal"`
 - Info de clave raíz: `"aether-root-v1"`
 - Info de cadena de envío: `"aether-chain-send-v1"`
 - Info de cadena de recepción: `"aether-chain-recv-v1"`
@@ -150,8 +150,8 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 Formato binario compatible a nivel de cable con la implementación en C#:
 
 ```python
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.protocol.serializer import PacketSerializer
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.protocol.serializer import PacketSerializer
 
 # Create a packet
 packet = MeshPacket(
@@ -188,7 +188,7 @@ decoded_packet = PacketSerializer.deserialize(binary)
 Firma paquetes usando Ed25519 y detecta ataques de repetición:
 
 ```python
-from aethermesh.security.packet_signing import PacketSigningService
+from aethernet.security.packet_signing import PacketSigningService
 
 signing_service = PacketSigningService()
 
@@ -220,7 +220,7 @@ Según la sección 2.3 de la especificación del protocolo, la firma cubre:
 Clase base abstracta para transportes físicos (BLE, Wi-Fi Direct, etc.):
 
 ```python
-from aethermesh.transport.in_process import InProcessTransport
+from aethernet.transport.in_process import InProcessTransport
 
 # Create in-process transport instances
 alice_transport = InProcessTransport("alice-001")
@@ -279,7 +279,7 @@ python3 demo.py
 
 La demostración cubre:
 1. Generación de claves Ed25519 y firma
-2. Creación de nodos con AetherMeshNode
+2. Creación de nodos con AetherNetNode
 3. Intercambio de claves Signal Protocol X3DH
 4. Cifrado y descifrado de mensajes
 5. Serialización/deserialización de paquetes

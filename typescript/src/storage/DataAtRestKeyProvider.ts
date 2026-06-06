@@ -20,7 +20,7 @@
  * exactly 32 bytes (AES-256).
  *
  * Mirrors the C# {@code IDataAtRestKeyProvider} interface in
- * src/AetherMesh.Storage/IDataAtRestKeyProvider.cs.
+ * src/AetherNet.Storage/IDataAtRestKeyProvider.cs.
  *
  * SPDX-License-Identifier: MIT
  */

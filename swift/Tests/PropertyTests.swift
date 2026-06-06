@@ -33,7 +33,7 @@
 ///      protocol over a JSON-friendly transport (REST, WebSocket, IndexedDB)
 ///      needs this codec to round-trip every wire-significant field.
 import XCTest
-@testable import AetherMeshProtocol
+@testable import AetherNetProtocol
 
 final class PropertyTests: XCTestCase {
 

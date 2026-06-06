@@ -66,36 +66,36 @@ takes caller-allocated output buffers — no heap returned by the library.
 #include "aether/security.h"
 
 // X25519 key agreement (RFC 7748 — raw 32-byte u-coordinate wire format).
-bool aethermesh_x25519_generate_keypair(uint8_t *out_priv, uint8_t *out_pub);
-bool aethermesh_x25519_derive_public(const uint8_t *priv, uint8_t *out_pub);
-bool aethermesh_x25519_agree(const uint8_t *local_priv,
+bool aethernet_x25519_generate_keypair(uint8_t *out_priv, uint8_t *out_pub);
+bool aethernet_x25519_derive_public(const uint8_t *priv, uint8_t *out_pub);
+bool aethernet_x25519_agree(const uint8_t *local_priv,
                          const uint8_t *remote_pub,
                          uint8_t *out_shared);  // false on all-zero / low-order
 
 // Ed25519 (32-byte seed private, 32-byte public, 64-byte signature).
-bool aethermesh_ed25519_generate_keypair(uint8_t *out_priv, uint8_t *out_pub);
-bool aethermesh_ed25519_sign(const uint8_t *priv, const uint8_t *data,
+bool aethernet_ed25519_generate_keypair(uint8_t *out_priv, uint8_t *out_pub);
+bool aethernet_ed25519_sign(const uint8_t *priv, const uint8_t *data,
                          size_t data_len, uint8_t *out_sig);
-bool aethermesh_ed25519_verify(const uint8_t *pub, const uint8_t *data,
+bool aethernet_ed25519_verify(const uint8_t *pub, const uint8_t *data,
                           size_t data_len, const uint8_t *sig);
 
 // AES-256-GCM (12-byte nonce, 16-byte tag).
-bool aethermesh_aes256_gcm_encrypt(/* … */);
-bool aethermesh_aes256_gcm_decrypt(/* … */);
+bool aethernet_aes256_gcm_encrypt(/* … */);
+bool aethernet_aes256_gcm_decrypt(/* … */);
 
 // SHA-256, HMAC-SHA256, HKDF-SHA256 (RFC 5869 extract-and-expand).
-bool aethermesh_sha256(/* … */);
-bool aethermesh_hmac_sha256(/* … */);
-bool aethermesh_hkdf_sha256(/* … */);
+bool aethernet_sha256(/* … */);
+bool aethernet_hmac_sha256(/* … */);
+bool aethernet_hkdf_sha256(/* … */);
 
 // Signal §5.2 KDF_RK — the high-level wrapper everyone implements.
-bool aethermesh_signal_kdf_rk(const uint8_t *root_key,
+bool aethernet_signal_kdf_rk(const uint8_t *root_key,
                           const uint8_t *dh_output,
                           uint8_t *out_new_root_key,
                           uint8_t *out_new_chain_key);
 
-void aethermesh_zeroize(void *mem, size_t len);
-bool aethermesh_random_bytes(uint8_t *out, size_t len);
+void aethernet_zeroize(void *mem, size_t len);
+bool aethernet_random_bytes(uint8_t *out, size_t len);
 ```
 
 ## 5. Worked example — Alice agrees a shared secret with Bob
@@ -106,23 +106,23 @@ bool aethermesh_random_bytes(uint8_t *out, size_t len);
 
 uint8_t alice_priv[32], alice_pub[32];
 uint8_t bob_priv[32],   bob_pub[32];
-assert(aethermesh_x25519_generate_keypair(alice_priv, alice_pub));
-assert(aethermesh_x25519_generate_keypair(bob_priv,   bob_pub));
+assert(aethernet_x25519_generate_keypair(alice_priv, alice_pub));
+assert(aethernet_x25519_generate_keypair(bob_priv,   bob_pub));
 
 uint8_t alice_shared[32], bob_shared[32];
-assert(aethermesh_x25519_agree(alice_priv, bob_pub, alice_shared));
-assert(aethermesh_x25519_agree(bob_priv,   alice_pub, bob_shared));
+assert(aethernet_x25519_agree(alice_priv, bob_pub, alice_shared));
+assert(aethernet_x25519_agree(bob_priv,   alice_pub, bob_shared));
 // alice_shared == bob_shared.
 
 // Derive a 64-byte (RK || CK) initial root from a 4×DH X3DH concatenation.
 // (Show only the HKDF call — the X3DH X25519 chain is application-defined.)
 uint8_t okm[64];
 const uint8_t info[] = "aether-ratchet-rk-v1";
-assert(aethermesh_hkdf_sha256(NULL, 0, alice_shared, sizeof(alice_shared),
+assert(aethernet_hkdf_sha256(NULL, 0, alice_shared, sizeof(alice_shared),
                           info, sizeof(info) - 1, sizeof(okm), okm));
 
-aethermesh_zeroize(alice_priv, sizeof(alice_priv));
-aethermesh_zeroize(bob_priv,   sizeof(bob_priv));
+aethernet_zeroize(alice_priv, sizeof(alice_priv));
+aethernet_zeroize(bob_priv,   sizeof(bob_priv));
 ```
 
 ## 6. Cross-language interop
@@ -161,6 +161,6 @@ random input through the X25519 / HKDF / HMAC entry points (with
 sentinel-byte output-buffer guards). Tunable via:
 
 ```bash
-AETHERMESH_FUZZ_ITERATIONS=1000000 AETHERMESH_FUZZ_SEED=0x42 \
+AETHERNET_FUZZ_ITERATIONS=1000000 AETHERNET_FUZZ_SEED=0x42 \
     ./build/tests/test-fuzz
 ```

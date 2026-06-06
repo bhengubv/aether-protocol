@@ -19,20 +19,20 @@
 
 ```xml
 <ItemGroup>
-  <ProjectReference Include="../aether-protocol/src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj" />
-  <ProjectReference Include="../aether-protocol/src/AetherMesh.Storage/AetherMesh.Storage.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherNet.Storage/AetherNet.Storage.csproj" />
 </ItemGroup>
 ```
 
-`AetherMesh.DependencyInjection` به‌صورت transitively `AetherMesh.Core`،
-`AetherMesh.Security`، `AetherMesh.Messaging`، `AetherMesh.Transport`، `AetherMesh.Streaming`،
-`AetherMesh.Voice` و `AetherMesh.Content` را وارد می‌کند — همه چیز برای پشته پیام‌رسانی. `AetherMesh.Storage` یک وابستگی جداگانه است فقط اگر پایداری مبتنی بر دیسک می‌خواهید (بخش ۶ را ببینید).
+`AetherNet.DependencyInjection` به‌صورت transitively `AetherNet.Core`،
+`AetherNet.Security`، `AetherNet.Messaging`، `AetherNet.Transport`، `AetherNet.Streaming`،
+`AetherNet.Voice` و `AetherNet.Content` را وارد می‌کند — همه چیز برای پشته پیام‌رسانی. `AetherNet.Storage` یک وابستگی جداگانه است فقط اگر پایداری مبتنی بر دیسک می‌خواهید (بخش ۶ را ببینید).
 
 وقتی پکیج روی NuGet منتشر شود، این تبدیل می‌شود به:
 
 ```bash
-dotnet add package AetherMesh.DependencyInjection
-dotnet add package AetherMesh.Storage   # اختیاری، برای پایداری
+dotnet add package AetherNet.DependencyInjection
+dotnet add package AetherNet.Storage   # اختیاری، برای پایداری
 ```
 
 API پکیج‌ها بین جریان project-reference و NuGet تغییر نمی‌کنند.
@@ -41,12 +41,12 @@ API پکیج‌ها بین جریان project-reference و NuGet تغییر نم
 
 ## ۲. اتصال — ثبت کامل پشته استاندارد
 
-پسوند DI `AddAetherMeshProtocol(...)` یک builder fluent برمی‌گرداند. هر
+پسوند DI `AddAetherNetProtocol(...)` یک builder fluent برمی‌گرداند. هر
 قابلیت opt-in است: یک host که فقط به مسیریابی نیاز دارد `.AddRouting()`
 را زنجیر می‌کند و همانجا می‌ایستد. در زیر پشته کاملی است که یک پذیرنده معمولی می‌خواهد.
 
 ```csharp
-using AetherMesh.DependencyInjection;
+using AetherNet.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -56,7 +56,7 @@ const string LocalUhid = "aether:alice:01";
 
 builder.Services.AddHealthChecks();          // پیش‌نیاز سمت host برای AddHealthChecks() زیر
 builder.Services
-    .AddAetherMeshProtocol(opts => opts.LocalUhid = LocalUhid)
+    .AddAetherNetProtocol(opts => opts.LocalUhid = LocalUhid)
     .AddSignalProtocol()                     // X3DH + Double Ratchet (ISignalProtocolService، IPacketSigningService را ثبت می‌کند)
     .AddRouting()                            // RREQ/RREP به‌سبک AODV + InMemoryRouteStore
     .AddDtn()                                // حضانت store-and-forward 72 ساعته + InMemoryDtnBundleStore
@@ -69,11 +69,11 @@ using var app = builder.Build();
 await app.StartAsync();
 ```
 
-`AddAetherMeshProtocol` و هر متد زنجیرشده روی همان
+`AddAetherNetProtocol` و هر متد زنجیرشده روی همان
 `IServiceCollection` idempotent هستند — فراخوانی دو بار آن‌ها را دو بار ثبت نمی‌کند. ترتیب در یک جا مهم است: `AddMessaging()` در صورتی که `AddSignalProtocol()` یا `AddRouting()` قبلاً فراخوانی نشده باشند `InvalidOperationException` می‌اندازد.
 
 `InProcessTransport` برای آزمون‌ها و دموهاست. در تولید
-`AetherMesh.Transport.Abstractions.ITransportService` را برای لایه فیزیکی خود (BLE
+`AetherNet.Transport.Abstractions.ITransportService` را برای لایه فیزیکی خود (BLE
 GATT، Wi-Fi Direct، NearLink، LoRa، …) پیاده‌سازی می‌کنید و یک `IMeshSender` ثبت می‌کنید که بسته‌ها را به آن پل می‌زند. سرویس‌های Routing/DTN/Messaging سپس بدون تغییر بر روی آن اجرا می‌شوند.
 
 ---
@@ -83,7 +83,7 @@ GATT، Wi-Fi Direct، NearLink، LoRa، …) پیاده‌سازی می‌کنی
 X3DH نامتقارن است. **آغازگر** یک بسته منتشرشده از **پاسخگو** را پردازش می‌کند؛ جلسه پاسخگو به‌طور خودکار وقتی اولین پیام رمزگذاری‌شده آغازگر را دریافت می‌کند (یک "پیام PreKey") برقرار می‌شود.
 
 ```csharp
-using AetherMesh.Security.Services;
+using AetherNet.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -124,8 +124,8 @@ Console.WriteLine(Encoding.UTF8.GetString(plaintext)); // "The mesh is alive."
 را برای مدیریت مسیریابی، تلاش مجدد و fallback DTN می‌گذارید:
 
 ```csharp
-using AetherMesh.Messaging;
-using AetherMesh.Messaging.Models;
+using AetherNet.Messaging;
+using AetherNet.Messaging.Models;
 
 var messaging = serviceProvider.GetRequiredService<IMessagingService>();
 
@@ -148,12 +148,12 @@ var handed = await messaging.SendAsync(outgoing, Encoding.UTF8.GetBytes("hi from
 ## ۵. رفت‌وبرگشت دو-گره در ۵۰ خط
 
 این یک اسکریپت قابل اجراست. در `Program.cs` کپی کنید، یک `<ProjectReference>`
-به `AetherMesh.Security.csproj` اضافه کنید (که `AetherMesh.Core` و رمزنگاری BCL را وارد می‌کند)، و `dotnet run` بزنید.
+به `AetherNet.Security.csproj` اضافه کنید (که `AetherNet.Core` و رمزنگاری BCL را وارد می‌کند)، و `dotnet run` بزنید.
 
 ```csharp
 using System.Text;
-using AetherMesh.Security.Models;
-using AetherMesh.Security.Services;
+using AetherNet.Security.Models;
+using AetherNet.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -196,7 +196,7 @@ Alice got: "ack"
 برای یک دمو غنی‌تر انتها-به-انتها — شامل امضای بسته، رله چند-هاپی از طریق Charlie، MessagingService و DTN custody fallback — کنسول همراه را اجرا کنید:
 
 ```bash
-dotnet run --project samples/AetherMesh.Demo.Console
+dotnet run --project samples/AetherNet.Demo.Console
 ```
 
 مرحله حضانت DTN (مرحله ۹ دمو) الگوی استاندارد برای اتصال تولید است: `MessagingService` + `RoutingService` + `DtnService` ترکیب‌شده در برابر یک آداپتور `IMeshSender` روی انتقال واقعی.
@@ -207,11 +207,11 @@ dotnet run --project samples/AetherMesh.Demo.Console
 
 به‌طور پیش‌فرض `SignalProtocolService` هر جلسه، کلید هویتی، کلید پیش‌امضاشده و کلید پیش‌پرداخت یک‌بار مصرف را در حافظه پروسه نگه می‌دارد. یک crash به معنای: هویت گمشده (نمی‌توان هیچ جلسه قبلی را رمزگشایی کرد)، مخزن OPK گمشده (X3DH پاسخگو برای آغازگرهای جدید شروع به شکست خوردن می‌کند)، وضعیت Double Ratchet گمشده (رازداری رو به جلو سالم است اما ترتیب پیام شکسته می‌شود).
 
-`AetherMesh.Storage.FileSystemKeyValueStore` یک `IKeyValueStore` مبتنی بر دیسک حداقلی است (یک فایل per entry، تغییر نام فایل موقت اتمیک). آن را از طریق آداپتورهای `KeyValue*Store` وصل کنید:
+`AetherNet.Storage.FileSystemKeyValueStore` یک `IKeyValueStore` مبتنی بر دیسک حداقلی است (یک فایل per entry، تغییر نام فایل موقت اتمیک). آن را از طریق آداپتورهای `KeyValue*Store` وصل کنید:
 
 ```csharp
-using AetherMesh.Storage;
-using AetherMesh.Security.Services;
+using AetherNet.Storage;
+using AetherNet.Security.Services;
 
 var kv = new FileSystemKeyValueStore(
     rootDirectory: Path.Combine(AppContext.BaseDirectory, "aether-state"),
@@ -227,7 +227,7 @@ var preKeys = new KeyValuePreKeyStore(kv);
 
 `FileSystemKeyValueStore` عمداً ساده است: بدون فشرده‌سازی، بدون تراکنش‌های cross-key، بدون رمزگذاری در حالت استراحت. برای رمزگذاری در حالت استراحت `EncryptedKeyValueStore` را روی فایل سیستم (یا KV خودتان) لایه کنید و یک `IDataAtRestKeyProvider` تأمین کنید — host مالک wrapper کلید است، نه پروتکل.
 
-همچنین می‌توانید `IRouteStore`، `IDtnBundleStore` و `IMessageStore` غیرپیش‌فرض را در برابر container DI قبل از زنجیرکردن `.AddRouting()` / `.AddDtn()` / `.AddMessaging()` ثبت کنید — builder از `TryAdd*` استفاده می‌کند و هر چیزی که اول در container گذاشتید را رعایت می‌کند. آداپتورهای `KeyValueRouteStore`، `KeyValueDtnBundleStore` و `KeyValueMessageStore` در `AetherMesh.Storage` آن slot‌ها را در برابر هر `IKeyValueStore` پوشش می‌دهند.
+همچنین می‌توانید `IRouteStore`، `IDtnBundleStore` و `IMessageStore` غیرپیش‌فرض را در برابر container DI قبل از زنجیرکردن `.AddRouting()` / `.AddDtn()` / `.AddMessaging()` ثبت کنید — builder از `TryAdd*` استفاده می‌کند و هر چیزی که اول در container گذاشتید را رعایت می‌کند. آداپتورهای `KeyValueRouteStore`، `KeyValueDtnBundleStore` و `KeyValueMessageStore` در `AetherNet.Storage` آن slot‌ها را در برابر هر `IKeyValueStore` پوشش می‌دهند.
 
 ---
 
@@ -240,32 +240,32 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 builder.Services.AddOpenTelemetry()
-    .WithMetrics(m => m.AddMeter("AetherMesh.Protocol"))
-    .WithTracing(t => t.AddSource("AetherMesh.Protocol"));
+    .WithMetrics(m => m.AddMeter("AetherNet.Protocol"))
+    .WithTracing(t => t.AddSource("AetherNet.Protocol"));
 ```
 
 آنچه به دست می‌آورید:
 
-- **شمارنده‌ها**: `aethermesh.messages.encrypted`، `aethermesh.messages.decrypted`،
-  `aethermesh.signatures.validated`، `aethermesh.signatures.rejected`،
-  `aethermesh.nonces.replayed`، `aethermesh.timestamps.stale`،
-  `aethermesh.sessions.established`، `aethermesh.ratchet.dh_steps`،
-  `aethermesh.route.requests_emitted`، `aethermesh.route.replies_received`،
-  `aethermesh.route.cache_hits`، `aethermesh.dtn.bundles_accepted`،
-  `aethermesh.dtn.bundles_delivered`، `aethermesh.dtn.bundles_expired`،
-  `aethermesh.sos.broadcasts`، `aethermesh.sos.rebroadcasts_suppressed`،
-  `aethermesh.messaging.messages_sent`، `aethermesh.messaging.messages_queued`،
-  `aethermesh.messaging.dtn_fallback`.
-- **هیستوگرام‌ها** (میلی‌ثانیه): `aethermesh.encrypt.latency`، `aethermesh.decrypt.latency`،
-  `aethermesh.route.lookup_latency`، `aethermesh.sign.verify_latency`.
+- **شمارنده‌ها**: `aethernet.messages.encrypted`، `aethernet.messages.decrypted`،
+  `aethernet.signatures.validated`، `aethernet.signatures.rejected`،
+  `aethernet.nonces.replayed`، `aethernet.timestamps.stale`،
+  `aethernet.sessions.established`، `aethernet.ratchet.dh_steps`،
+  `aethernet.route.requests_emitted`، `aethernet.route.replies_received`،
+  `aethernet.route.cache_hits`، `aethernet.dtn.bundles_accepted`،
+  `aethernet.dtn.bundles_delivered`، `aethernet.dtn.bundles_expired`،
+  `aethernet.sos.broadcasts`، `aethernet.sos.rebroadcasts_suppressed`،
+  `aethernet.messaging.messages_sent`، `aethernet.messaging.messages_queued`،
+  `aethernet.messaging.dtn_fallback`.
+- **هیستوگرام‌ها** (میلی‌ثانیه): `aethernet.encrypt.latency`، `aethernet.decrypt.latency`،
+  `aethernet.route.lookup_latency`، `aethernet.sign.verify_latency`.
 - **فعالیت‌ها** با برچسب‌های UHID پاک‌شده از PII:
-  `AetherMesh.Encrypt`، `AetherMesh.Decrypt`، `AetherMesh.DhRatchet.Step`،
-  `AetherMesh.Sign.Packet`، `AetherMesh.Verify.Packet`، به‌علاوه spans مسیریابی و DTN.
+  `AetherNet.Encrypt`، `AetherNet.Decrypt`، `AetherNet.DhRatchet.Step`،
+  `AetherNet.Sign.Packet`، `AetherNet.Verify.Packet`، به‌علاوه spans مسیریابی و DTN.
 
 وقتی هیچ listener‌ای وصل نیست مسیرهای گرم هیچ تخصیصی انجام نمی‌دهند — `Add` شمارنده به یک خواندن volatile تنزل می‌یابد و `StartActivity` مقدار `null` برمی‌گرداند.
 
 موجودی کامل ابزار و قرارداد PII در
-`src/AetherMesh.Core/Diagnostics/AetherMeshTelemetry.cs` زندگی می‌کنند.
+`src/AetherNet.Core/Diagnostics/AetherNetTelemetry.cs` زندگی می‌کنند.
 
 ---
 
@@ -280,7 +280,7 @@ builder.Services.AddOpenTelemetry()
 | `aether-signal`             | OPKهای موجود + تعداد جلسات فعال                      | کف OPK → ناسالم زیر `MinAvailableOpks` (پیش‌فرض ۱۰)؛ سقف جلسه → تخریب‌شده بالای ۱,۰۰۰ |
 | `aether-messaging-outbox`   | عمق صندوق خروجی معلق + رشد بین نمونه‌ها              | < ۱۰۰ → ≥ ۱۰۰ → ≥ ۱۰۰ و در حال رشد                              |
 
-از طریق کیف‌های `AetherMeshOptions.Routing`، `Dtn`، `Signal` و `Messaging` تنظیم کنید. Host باید قبل از `.AddHealthChecks()` builder Aether `services.AddHealthChecks()` را فراخوانی کند تا ثبت‌ها برای `MapHealthChecks(...)` قابل مشاهده باشند.
+از طریق کیف‌های `AetherNetOptions.Routing`، `Dtn`، `Signal` و `Messaging` تنظیم کنید. Host باید قبل از `.AddHealthChecks()` builder Aether `services.AddHealthChecks()` را فراخوانی کند تا ثبت‌ها برای `MapHealthChecks(...)` قابل مشاهده باشند.
 
 ---
 
@@ -290,7 +290,7 @@ builder.Services.AddOpenTelemetry()
 - **`docs/THREAT_MODEL.md`** — آنچه رمزنگاری در برابرش محافظت می‌کند، آنچه صریحاً خارج از حوزه است، و فرض‌هایی که ادعاهای امنیتی به آن‌ها متکی هستند.
 - **`OPEN_ISSUES.md`** — محدودیت‌های شناخته‌شده، آیتم‌های نقشه راه ردیابی‌شده، و شکاف ماشین‌آلات جلسه زبان C.
 - **`SECURITY.md`** — سیاست افشای مسئولانه.
-- **`samples/AetherMesh.Demo.Console/Program.cs`** — پیاده‌روی انتها-به-انتها ۹-مرحله‌ای قابل اجرا. مرحله ۹ (MessagingService + DTN) الگوی اتصال تولید است.
+- **`samples/AetherNet.Demo.Console/Program.cs`** — پیاده‌روی انتها-به-انتها ۹-مرحله‌ای قابل اجرا. مرحله ۹ (MessagingService + DTN) الگوی اتصال تولید است.
 - **`fixtures/signal/`** — بردارهای آزمون بین‌زبانی. اگر در حال پورت کردن Aether به زبان دیگری هستید، اینها خروجی‌های byte-pinned هستند که پیاده‌سازی شما باید با آن‌ها مطابقت داشته باشد.
 
 باگ پیدا کردید؟ روی GitHub ثبت کنید. آسیب‌پذیری پیدا کردید؟ `SECURITY.md` را ببینید.

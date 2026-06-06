@@ -6,8 +6,8 @@
 // side is left as a TODO so the service compiles cleanly without a JSON dep —
 // hosts plug in cJSON or json-c on their side.
 
-#include "aethermesh/sos.h"
-#include "aethermesh/constants.h"
+#include "aethernet/sos.h"
+#include "aethernet/constants.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +17,7 @@
 // ─── Internal state ──────────────────────────────────────
 
 typedef struct seen_node {
-    uint8_t id[AETHERMESH_PACKET_ID_SIZE];
+    uint8_t id[AETHERNET_PACKET_ID_SIZE];
     int64_t seen_at_ms;
     struct seen_node *next;
 } seen_node_t;
@@ -28,18 +28,18 @@ typedef struct origin_node {
 } origin_node_t;
 
 typedef struct active_node {
-    aethermesh_sos_alert_t *alert;
+    aethernet_sos_alert_t *alert;
     struct active_node *next;
 } active_node_t;
 
-struct aethermesh_sos_service {
-    aethermesh_mesh_sender_t *sender;
+struct aethernet_sos_service {
+    aethernet_mesh_sender_t *sender;
     seen_node_t *seen;
     origin_node_t *recent_origins;
     int recent_origin_count;
     active_node_t *active_alerts;
 
-    aethermesh_sos_received_cb received_cb;
+    aethernet_sos_received_cb received_cb;
     void *received_cb_user_data;
 };
 
@@ -59,7 +59,7 @@ static char *str_dup_sos(const char *s) {
     return out;
 }
 
-static void prune_old_origins(aethermesh_sos_service_t *svc) {
+static void prune_old_origins(aethernet_sos_service_t *svc) {
     int64_t cutoff = now_ms_sos() - (int64_t)3600 * 1000;
     while (svc->recent_origins && svc->recent_origins->at_ms < cutoff) {
         origin_node_t *next = svc->recent_origins->next;
@@ -69,28 +69,28 @@ static void prune_old_origins(aethermesh_sos_service_t *svc) {
     }
 }
 
-static bool seen_contains(aethermesh_sos_service_t *svc, const uint8_t id[AETHERMESH_PACKET_ID_SIZE]) {
+static bool seen_contains(aethernet_sos_service_t *svc, const uint8_t id[AETHERNET_PACKET_ID_SIZE]) {
     for (seen_node_t *n = svc->seen; n; n = n->next) {
-        if (memcmp(n->id, id, AETHERMESH_PACKET_ID_SIZE) == 0) return true;
+        if (memcmp(n->id, id, AETHERNET_PACKET_ID_SIZE) == 0) return true;
     }
     return false;
 }
 
-static void seen_add(aethermesh_sos_service_t *svc, const uint8_t id[AETHERMESH_PACKET_ID_SIZE]) {
+static void seen_add(aethernet_sos_service_t *svc, const uint8_t id[AETHERNET_PACKET_ID_SIZE]) {
     seen_node_t *node = (seen_node_t *)malloc(sizeof(seen_node_t));
     if (!node) return;
-    memcpy(node->id, id, AETHERMESH_PACKET_ID_SIZE);
+    memcpy(node->id, id, AETHERNET_PACKET_ID_SIZE);
     node->seen_at_ms = now_ms_sos();
     node->next = svc->seen;
     svc->seen = node;
 }
 
-static void random_uuid(uint8_t out[AETHERMESH_PACKET_ID_SIZE]) {
+static void random_uuid(uint8_t out[AETHERNET_PACKET_ID_SIZE]) {
     // Reference impl uses rand() seeded once. Hosts that need cryptographic
     // randomness for SOS broadcast IDs supply their own UUID source.
     static int seeded = 0;
     if (!seeded) { srand((unsigned int)(now_ms_sos() & 0x7FFFFFFF)); seeded = 1; }
-    for (int i = 0; i < AETHERMESH_PACKET_ID_SIZE; i++) {
+    for (int i = 0; i < AETHERNET_PACKET_ID_SIZE; i++) {
         out[i] = (uint8_t)(rand() & 0xFF);
     }
     // Set RFC 4122 v4 marker bits
@@ -98,7 +98,7 @@ static void random_uuid(uint8_t out[AETHERMESH_PACKET_ID_SIZE]) {
     out[8] = (uint8_t)((out[8] & 0x3F) | 0x80);
 }
 
-static bool encode_sos_payload(const uint8_t broadcast_id[AETHERMESH_PACKET_ID_SIZE],
+static bool encode_sos_payload(const uint8_t broadcast_id[AETHERNET_PACKET_ID_SIZE],
                                const char *broadcast_type,
                                const char *message,
                                double latitude,
@@ -138,15 +138,15 @@ static bool encode_sos_payload(const uint8_t broadcast_id[AETHERMESH_PACKET_ID_S
 
 // ─── Public API ──────────────────────────────────────────
 
-aethermesh_sos_alert_t *aethermesh_sos_alert_new(void) {
-    aethermesh_sos_alert_t *a = (aethermesh_sos_alert_t *)calloc(1, sizeof(aethermesh_sos_alert_t));
+aethernet_sos_alert_t *aethernet_sos_alert_new(void) {
+    aethernet_sos_alert_t *a = (aethernet_sos_alert_t *)calloc(1, sizeof(aethernet_sos_alert_t));
     if (!a) return NULL;
     random_uuid(a->id);
     a->received_at_ms = now_ms_sos();
     return a;
 }
 
-void aethermesh_sos_alert_free(aethermesh_sos_alert_t *alert) {
+void aethernet_sos_alert_free(aethernet_sos_alert_t *alert) {
     if (!alert) return;
     free(alert->sender_uhid);
     free(alert->broadcast_type);
@@ -155,15 +155,15 @@ void aethermesh_sos_alert_free(aethermesh_sos_alert_t *alert) {
     free(alert);
 }
 
-aethermesh_sos_service_t *aethermesh_sos_service_new(aethermesh_mesh_sender_t *sender) {
+aethernet_sos_service_t *aethernet_sos_service_new(aethernet_mesh_sender_t *sender) {
     if (!sender) return NULL;
-    aethermesh_sos_service_t *svc = (aethermesh_sos_service_t *)calloc(1, sizeof(aethermesh_sos_service_t));
+    aethernet_sos_service_t *svc = (aethernet_sos_service_t *)calloc(1, sizeof(aethernet_sos_service_t));
     if (!svc) return NULL;
     svc->sender = sender;
     return svc;
 }
 
-void aethermesh_sos_service_free(aethermesh_sos_service_t *service) {
+void aethernet_sos_service_free(aethernet_sos_service_t *service) {
     if (!service) return;
     while (service->seen) {
         seen_node_t *next = service->seen->next;
@@ -177,14 +177,14 @@ void aethermesh_sos_service_free(aethermesh_sos_service_t *service) {
     }
     while (service->active_alerts) {
         active_node_t *next = service->active_alerts->next;
-        aethermesh_sos_alert_free(service->active_alerts->alert);
+        aethernet_sos_alert_free(service->active_alerts->alert);
         free(service->active_alerts);
         service->active_alerts = next;
     }
     free(service);
 }
 
-int aethermesh_sos_broadcast(aethermesh_sos_service_t *service,
+int aethernet_sos_broadcast(aethernet_sos_service_t *service,
                          const char *broadcast_type,
                          const char *message,
                          double latitude,
@@ -193,7 +193,7 @@ int aethermesh_sos_broadcast(aethermesh_sos_service_t *service,
     if (!service || !broadcast_type) return -1;
 
     prune_old_origins(service);
-    if (service->recent_origin_count >= AETHERMESH_MAX_SOS_BROADCASTS_PER_HOUR) return 1;
+    if (service->recent_origin_count >= AETHERNET_MAX_SOS_BROADCASTS_PER_HOUR) return 1;
 
     origin_node_t *origin = (origin_node_t *)malloc(sizeof(origin_node_t));
     if (!origin) return -1;
@@ -202,7 +202,7 @@ int aethermesh_sos_broadcast(aethermesh_sos_service_t *service,
     service->recent_origins = origin;
     service->recent_origin_count++;
 
-    aethermesh_sos_alert_t *alert = aethermesh_sos_alert_new();
+    aethernet_sos_alert_t *alert = aethernet_sos_alert_new();
     if (!alert) return -1;
     alert->sender_uhid = str_dup_sos(service->sender->local_uhid);
     alert->broadcast_type = str_dup_sos(broadcast_type);
@@ -212,7 +212,7 @@ int aethermesh_sos_broadcast(aethermesh_sos_service_t *service,
     alert->geohash = str_dup_sos(geohash);
 
     active_node_t *node = (active_node_t *)calloc(1, sizeof(active_node_t));
-    if (!node) { aethermesh_sos_alert_free(alert); return -1; }
+    if (!node) { aethernet_sos_alert_free(alert); return -1; }
     node->alert = alert;
     node->next = service->active_alerts;
     service->active_alerts = node;
@@ -224,24 +224,24 @@ int aethermesh_sos_broadcast(aethermesh_sos_service_t *service,
         return -1;
     }
 
-    aethermesh_mesh_packet_t *pkt = aethermesh_packet_new();
+    aethernet_mesh_packet_t *pkt = aethernet_packet_new();
     if (!pkt) { free(body); return -1; }
-    pkt->type = AETHERMESH_PACKET_TYPE_SOS_BROADCAST;
-    aethermesh_packet_set_source_uhid(pkt, service->sender->local_uhid);
-    pkt->ttl = AETHERMESH_SOS_TTL;
-    pkt->priority = AETHERMESH_SOS_PRIORITY;
-    aethermesh_packet_set_payload(pkt, body, body_len);
+    pkt->type = AETHERNET_PACKET_TYPE_SOS_BROADCAST;
+    aethernet_packet_set_source_uhid(pkt, service->sender->local_uhid);
+    pkt->ttl = AETHERNET_SOS_TTL;
+    pkt->priority = AETHERNET_SOS_PRIORITY;
+    aethernet_packet_set_payload(pkt, body, body_len);
     free(body);
     seen_add(service, pkt->packet_id);
 
     service->sender->broadcast(service->sender, pkt);
-    aethermesh_packet_free(pkt);
+    aethernet_packet_free(pkt);
     return 0;
 }
 
-void aethermesh_sos_handle_packet(aethermesh_sos_service_t *service, aethermesh_mesh_packet_t *packet) {
+void aethernet_sos_handle_packet(aethernet_sos_service_t *service, aethernet_mesh_packet_t *packet) {
     if (!service || !packet) return;
-    if (packet->type != AETHERMESH_PACKET_TYPE_SOS_BROADCAST) return;
+    if (packet->type != AETHERNET_PACKET_TYPE_SOS_BROADCAST) return;
     if (seen_contains(service, packet->packet_id)) return;
     seen_add(service, packet->packet_id);
 
@@ -250,7 +250,7 @@ void aethermesh_sos_handle_packet(aethermesh_sos_service_t *service, aethermesh_
 
     // Surface the alert. Wire-format JSON parsing on receive side is left to
     // hosts; here we surface only what the packet headers tell us.
-    aethermesh_sos_alert_t *alert = aethermesh_sos_alert_new();
+    aethernet_sos_alert_t *alert = aethernet_sos_alert_new();
     if (alert) {
         alert->sender_uhid = str_dup_sos(packet->source_uhid);
         alert->broadcast_type = str_dup_sos("sos");
@@ -261,7 +261,7 @@ void aethermesh_sos_handle_packet(aethermesh_sos_service_t *service, aethermesh_
             service->active_alerts = node;
             if (service->received_cb) service->received_cb(alert, service->received_cb_user_data);
         } else {
-            aethermesh_sos_alert_free(alert);
+            aethernet_sos_alert_free(alert);
         }
     }
 
@@ -271,14 +271,14 @@ void aethermesh_sos_handle_packet(aethermesh_sos_service_t *service, aethermesh_
     }
 }
 
-void aethermesh_sos_resolve(aethermesh_sos_service_t *service, const uint8_t broadcast_id[AETHERMESH_PACKET_ID_SIZE]) {
+void aethernet_sos_resolve(aethernet_sos_service_t *service, const uint8_t broadcast_id[AETHERNET_PACKET_ID_SIZE]) {
     if (!service) return;
     active_node_t **prev = &service->active_alerts;
     while (*prev) {
         active_node_t *node = *prev;
-        if (node->alert && memcmp(node->alert->id, broadcast_id, AETHERMESH_PACKET_ID_SIZE) == 0) {
+        if (node->alert && memcmp(node->alert->id, broadcast_id, AETHERNET_PACKET_ID_SIZE) == 0) {
             *prev = node->next;
-            aethermesh_sos_alert_free(node->alert);
+            aethernet_sos_alert_free(node->alert);
             free(node);
             return;
         }
@@ -286,8 +286,8 @@ void aethermesh_sos_resolve(aethermesh_sos_service_t *service, const uint8_t bro
     }
 }
 
-void aethermesh_sos_set_received_cb(aethermesh_sos_service_t *service,
-                                aethermesh_sos_received_cb cb,
+void aethernet_sos_set_received_cb(aethernet_sos_service_t *service,
+                                aethernet_sos_received_cb cb,
                                 void *user_data) {
     if (!service) return;
     service->received_cb = cb;

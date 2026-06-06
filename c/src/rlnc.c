@@ -3,7 +3,7 @@
 //
 // Primitive polynomial: x⁸ + x⁴ + x³ + x² + 1 (0x11D — same as AES Rijndael).
 //
-// See: c/include/aethermesh/rlnc.h for the public API.
+// See: c/include/aethernet/rlnc.h for the public API.
 
 /* _GNU_SOURCE exposes syscall() prototype on Linux (required with -std=c11). */
 #if defined(__linux__) && !defined(_GNU_SOURCE)
@@ -28,13 +28,13 @@
 #  define _RLNC_HAVE_ARC4RANDOM 1
 #endif
 
-#include "aethermesh/rlnc.h"
+#include "aethernet/rlnc.h"
 
 // ── GF(2⁸) table storage ─────────────────────────────────────────────────────
 
 /* 512-entry exp table (doubled to eliminate modular wrap in gf256_mul).
    256-entry log table.  Both are zero-initialised at program start;
-   filled by aethermesh_gf256_init(). */
+   filled by aethernet_gf256_init(). */
 static uint8_t _gf256_exp[512];
 static uint8_t _gf256_log[256];
 
@@ -54,9 +54,9 @@ static inline void _unlock(volatile int *spin)
     __sync_lock_release(spin);
 }
 
-// ── aethermesh_gf256_init ─────────────────────────────────────────────────────────
+// ── aethernet_gf256_init ─────────────────────────────────────────────────────────
 
-void aethermesh_gf256_init(void)
+void aethernet_gf256_init(void)
 {
     if (_gf256_ready) return;   /* fast path: already done */
 
@@ -82,15 +82,15 @@ void aethermesh_gf256_init(void)
     _unlock(&_gf256_lock);
 }
 
-// ── aethermesh_gf256_mul / inv ────────────────────────────────────────────────────
+// ── aethernet_gf256_mul / inv ────────────────────────────────────────────────────
 
-uint8_t aethermesh_gf256_mul(uint8_t a, uint8_t b)
+uint8_t aethernet_gf256_mul(uint8_t a, uint8_t b)
 {
     if (a == 0 || b == 0) return 0;
     return _gf256_exp[(int)_gf256_log[a] + (int)_gf256_log[b]];
 }
 
-uint8_t aethermesh_gf256_inv(uint8_t a)
+uint8_t aethernet_gf256_inv(uint8_t a)
 {
     /* a == 0 is undefined — assert in debug builds only. */
     return _gf256_exp[255 - (int)_gf256_log[a]];
@@ -141,24 +141,24 @@ static void _encode_symbol(
         if (c == 0) continue;
         const uint8_t *sym = source[j];
         for (int i = 0; i < symbol_size; i++) {
-            out[i] = aethermesh_gf256_add(out[i], aethermesh_gf256_mul(c, sym[i]));
+            out[i] = aethernet_gf256_add(out[i], aethernet_gf256_mul(c, sym[i]));
         }
     }
 }
 
-// ── aethermesh_rlnc_encoder_new ───────────────────────────────────────────────────
+// ── aethernet_rlnc_encoder_new ───────────────────────────────────────────────────
 
-aethermesh_rlnc_encoder_t *aethermesh_rlnc_encoder_new(
+aethernet_rlnc_encoder_t *aethernet_rlnc_encoder_new(
     const uint8_t * const *source,
     int                    k,
     int                    symbol_size,
     bool                   systematic)
 {
     if (!source || k < 1 || k > 255 || symbol_size < 1) return NULL;
-    aethermesh_gf256_init();
+    aethernet_gf256_init();
 
-    aethermesh_rlnc_encoder_t *enc =
-        (aethermesh_rlnc_encoder_t *)calloc(1, sizeof(*enc));
+    aethernet_rlnc_encoder_t *enc =
+        (aethernet_rlnc_encoder_t *)calloc(1, sizeof(*enc));
     if (!enc) return NULL;
 
     enc->k           = k;
@@ -186,10 +186,10 @@ aethermesh_rlnc_encoder_t *aethermesh_rlnc_encoder_new(
     return enc;
 }
 
-// ── aethermesh_rlnc_encoder_next_packet ──────────────────────────────────────────
+// ── aethernet_rlnc_encoder_next_packet ──────────────────────────────────────────
 
-void aethermesh_rlnc_encoder_next_packet(
-    aethermesh_rlnc_encoder_t *enc,
+void aethernet_rlnc_encoder_next_packet(
+    aethernet_rlnc_encoder_t *enc,
     uint8_t               *out_coeff,
     uint8_t               *out_data)
 {
@@ -221,9 +221,9 @@ void aethermesh_rlnc_encoder_next_packet(
     enc->next_index++;
 }
 
-// ── aethermesh_rlnc_encoder_free ──────────────────────────────────────────────────
+// ── aethernet_rlnc_encoder_free ──────────────────────────────────────────────────
 
-void aethermesh_rlnc_encoder_free(aethermesh_rlnc_encoder_t *enc)
+void aethernet_rlnc_encoder_free(aethernet_rlnc_encoder_t *enc)
 {
     if (!enc) return;
     if (enc->source) {
@@ -233,15 +233,15 @@ void aethermesh_rlnc_encoder_free(aethermesh_rlnc_encoder_t *enc)
     free(enc);
 }
 
-// ── aethermesh_rlnc_decoder_new ───────────────────────────────────────────────────
+// ── aethernet_rlnc_decoder_new ───────────────────────────────────────────────────
 
-aethermesh_rlnc_decoder_t *aethermesh_rlnc_decoder_new(int k, int symbol_size)
+aethernet_rlnc_decoder_t *aethernet_rlnc_decoder_new(int k, int symbol_size)
 {
     if (k < 1 || k > 255 || symbol_size < 1) return NULL;
-    aethermesh_gf256_init();
+    aethernet_gf256_init();
 
-    aethermesh_rlnc_decoder_t *dec =
-        (aethermesh_rlnc_decoder_t *)calloc(1, sizeof(*dec));
+    aethernet_rlnc_decoder_t *dec =
+        (aethernet_rlnc_decoder_t *)calloc(1, sizeof(*dec));
     if (!dec) return NULL;
 
     dec->k           = k;
@@ -262,10 +262,10 @@ aethermesh_rlnc_decoder_t *aethermesh_rlnc_decoder_new(int k, int symbol_size)
     return dec;
 }
 
-// ── aethermesh_rlnc_decoder_add_packet ───────────────────────────────────────────
+// ── aethernet_rlnc_decoder_add_packet ───────────────────────────────────────────
 
-bool aethermesh_rlnc_decoder_add_packet(
-    aethermesh_rlnc_decoder_t *dec,
+bool aethernet_rlnc_decoder_add_packet(
+    aethernet_rlnc_decoder_t *dec,
     const uint8_t         *coeff,
     const uint8_t         *data)
 {
@@ -291,10 +291,10 @@ bool aethermesh_rlnc_decoder_add_packet(
         uint8_t *pd = dec->pivot_data[j];
 
         for (int i = 0; i < k; i++) {
-            row[i]  = aethermesh_gf256_add(row[i],  aethermesh_gf256_mul(c, pr[i]));
+            row[i]  = aethernet_gf256_add(row[i],  aethernet_gf256_mul(c, pr[i]));
         }
         for (int i = 0; i < s; i++) {
-            drow[i] = aethermesh_gf256_add(drow[i], aethermesh_gf256_mul(c, pd[i]));
+            drow[i] = aethernet_gf256_add(drow[i], aethernet_gf256_mul(c, pd[i]));
         }
     }
 
@@ -310,9 +310,9 @@ bool aethermesh_rlnc_decoder_add_packet(
     }
 
     /* ── Normalise: scale so pivot element = 1 ───────────────────────────── */
-    uint8_t inv = aethermesh_gf256_inv(row[pivot_col]);
-    for (int i = 0; i < k; i++) row[i]  = aethermesh_gf256_mul(inv, row[i]);
-    for (int i = 0; i < s; i++) drow[i] = aethermesh_gf256_mul(inv, drow[i]);
+    uint8_t inv = aethernet_gf256_inv(row[pivot_col]);
+    for (int i = 0; i < k; i++) row[i]  = aethernet_gf256_mul(inv, row[i]);
+    for (int i = 0; i < s; i++) drow[i] = aethernet_gf256_mul(inv, drow[i]);
 
     /* ── Back-substitution: eliminate the pivot column from all other rows ── */
     for (int r = 0; r < k; r++) {
@@ -324,10 +324,10 @@ bool aethermesh_rlnc_decoder_add_packet(
 
         uint8_t *pd = dec->pivot_data[r];
         for (int i = 0; i < k; i++) {
-            pr[i] = aethermesh_gf256_add(pr[i], aethermesh_gf256_mul(c, row[i]));
+            pr[i] = aethernet_gf256_add(pr[i], aethernet_gf256_mul(c, row[i]));
         }
         for (int i = 0; i < s; i++) {
-            pd[i] = aethermesh_gf256_add(pd[i], aethermesh_gf256_mul(c, drow[i]));
+            pd[i] = aethernet_gf256_add(pd[i], aethernet_gf256_mul(c, drow[i]));
         }
     }
 
@@ -338,28 +338,28 @@ bool aethermesh_rlnc_decoder_add_packet(
     return true;
 }
 
-// ── aethermesh_rlnc_decoder_rank / is_complete ───────────────────────────────────
+// ── aethernet_rlnc_decoder_rank / is_complete ───────────────────────────────────
 
-int aethermesh_rlnc_decoder_rank(const aethermesh_rlnc_decoder_t *dec)
+int aethernet_rlnc_decoder_rank(const aethernet_rlnc_decoder_t *dec)
 {
     if (!dec) return 0;
     return dec->rank;
 }
 
-bool aethermesh_rlnc_decoder_is_complete(const aethermesh_rlnc_decoder_t *dec)
+bool aethernet_rlnc_decoder_is_complete(const aethernet_rlnc_decoder_t *dec)
 {
     if (!dec) return false;
     return dec->rank == dec->k;
 }
 
-// ── aethermesh_rlnc_decoder_try_decode ───────────────────────────────────────────
+// ── aethernet_rlnc_decoder_try_decode ───────────────────────────────────────────
 
-uint8_t *aethermesh_rlnc_decoder_try_decode(
-    const aethermesh_rlnc_decoder_t *dec,
+uint8_t *aethernet_rlnc_decoder_try_decode(
+    const aethernet_rlnc_decoder_t *dec,
     size_t                      *out_len)
 {
     if (!dec || !out_len) return NULL;
-    if (!aethermesh_rlnc_decoder_is_complete(dec)) return NULL;
+    if (!aethernet_rlnc_decoder_is_complete(dec)) return NULL;
 
     int k = dec->k;
     int s = dec->symbol_size;
@@ -379,9 +379,9 @@ uint8_t *aethermesh_rlnc_decoder_try_decode(
     return result;
 }
 
-// ── aethermesh_rlnc_decoder_free ─────────────────────────────────────────────────
+// ── aethernet_rlnc_decoder_free ─────────────────────────────────────────────────
 
-void aethermesh_rlnc_decoder_free(aethermesh_rlnc_decoder_t *dec)
+void aethernet_rlnc_decoder_free(aethernet_rlnc_decoder_t *dec)
 {
     if (!dec) return;
     if (dec->pivot_coeff) {
@@ -439,7 +439,7 @@ static void _free_symbols(uint8_t **syms, int k)
 // ── Vtable: _rlnc_encode ─────────────────────────────────────────────────────
 
 static uint8_t *_rlnc_encode(
-    const aethermesh_fec_codec_t *codec,
+    const aethernet_fec_codec_t *codec,
     const uint8_t            *source,
     size_t                    source_len,
     int                       target_symbol_count,
@@ -448,7 +448,7 @@ static uint8_t *_rlnc_encode(
     if (!codec || !source || source_len == 0
             || target_symbol_count <= 0 || !out_len) return NULL;
 
-    const aethermesh_rlnc_codec_t *self = (const aethermesh_rlnc_codec_t *)codec;
+    const aethernet_rlnc_codec_t *self = (const aethernet_rlnc_codec_t *)codec;
     int    k           = self->k;
     int    symbol_size = (int)((source_len + (size_t)k - 1) / (size_t)k);
     int    packet_size = k + symbol_size;
@@ -456,23 +456,23 @@ static uint8_t *_rlnc_encode(
     uint8_t **syms = _split_into_symbols(source, source_len, k, symbol_size);
     if (!syms) return NULL;
 
-    aethermesh_rlnc_encoder_t *enc = aethermesh_rlnc_encoder_new(
+    aethernet_rlnc_encoder_t *enc = aethernet_rlnc_encoder_new(
         (const uint8_t * const *)syms, k, symbol_size, true);
     _free_symbols(syms, k);
     if (!enc) return NULL;
 
     size_t total = (size_t)target_symbol_count * (size_t)packet_size;
     uint8_t *output = (uint8_t *)malloc(total);
-    if (!output) { aethermesh_rlnc_encoder_free(enc); return NULL; }
+    if (!output) { aethernet_rlnc_encoder_free(enc); return NULL; }
 
     for (int i = 0; i < target_symbol_count; i++) {
         uint8_t *pkt    = output + (size_t)i * (size_t)packet_size;
         uint8_t *coeff  = pkt;
         uint8_t *data   = pkt + k;
-        aethermesh_rlnc_encoder_next_packet(enc, coeff, data);
+        aethernet_rlnc_encoder_next_packet(enc, coeff, data);
     }
 
-    aethermesh_rlnc_encoder_free(enc);
+    aethernet_rlnc_encoder_free(enc);
     *out_len = total;
     return output;
 }
@@ -480,7 +480,7 @@ static uint8_t *_rlnc_encode(
 // ── Vtable: _rlnc_try_decode ─────────────────────────────────────────────────
 
 static uint8_t *_rlnc_try_decode(
-    const aethermesh_fec_codec_t *codec,
+    const aethernet_fec_codec_t *codec,
     const uint8_t           **received_symbols,
     const size_t             *symbol_lengths,
     int                       received_count,
@@ -492,42 +492,42 @@ static uint8_t *_rlnc_try_decode(
     if (!codec || !received_symbols || !symbol_lengths
             || received_count <= 0 || !out_len) return NULL;
 
-    const aethermesh_rlnc_codec_t *self = (const aethermesh_rlnc_codec_t *)codec;
+    const aethernet_rlnc_codec_t *self = (const aethernet_rlnc_codec_t *)codec;
     int k = self->k;
 
     /* Derive symbol_size from the first packet: packet_len = k + symbol_size. */
     if (symbol_lengths[0] <= (size_t)k) return NULL;
     int symbol_size = (int)(symbol_lengths[0] - (size_t)k);
 
-    aethermesh_rlnc_decoder_t *dec = aethermesh_rlnc_decoder_new(k, symbol_size);
+    aethernet_rlnc_decoder_t *dec = aethernet_rlnc_decoder_new(k, symbol_size);
     if (!dec) return NULL;
 
     for (int i = 0; i < received_count; i++) {
         if (symbol_lengths[i] < (size_t)k + (size_t)symbol_size) continue;
         const uint8_t *pkt  = received_symbols[i];
-        aethermesh_rlnc_decoder_add_packet(dec, pkt, pkt + k);
-        if (aethermesh_rlnc_decoder_is_complete(dec)) break;
+        aethernet_rlnc_decoder_add_packet(dec, pkt, pkt + k);
+        if (aethernet_rlnc_decoder_is_complete(dec)) break;
     }
 
-    uint8_t *result = aethermesh_rlnc_decoder_try_decode(dec, out_len);
-    aethermesh_rlnc_decoder_free(dec);
+    uint8_t *result = aethernet_rlnc_decoder_try_decode(dec, out_len);
+    aethernet_rlnc_decoder_free(dec);
     return result;
 }
 
-// ── aethermesh_rlnc_codec_new ────────────────────────────────────────────────────
+// ── aethernet_rlnc_codec_new ────────────────────────────────────────────────────
 
-aethermesh_rlnc_codec_t *aethermesh_rlnc_codec_new(int generation_size)
+aethernet_rlnc_codec_t *aethernet_rlnc_codec_new(int generation_size)
 {
     if (generation_size < 1 || generation_size > 255) return NULL;
-    aethermesh_gf256_init();
+    aethernet_gf256_init();
 
-    aethermesh_rlnc_codec_t *c =
-        (aethermesh_rlnc_codec_t *)calloc(1, sizeof(*c));
+    aethernet_rlnc_codec_t *c =
+        (aethernet_rlnc_codec_t *)calloc(1, sizeof(*c));
     if (!c) return NULL;
 
     c->k = generation_size;
 
-    /* Populate the vtable fields in the embedded aethermesh_fec_codec_t. */
+    /* Populate the vtable fields in the embedded aethernet_fec_codec_t. */
     c->base.codec_name            = "RLNC-GF256";
     c->base.device_tier_required  = 0;
     c->base.overhead_fraction     = 0.05;
@@ -538,9 +538,9 @@ aethermesh_rlnc_codec_t *aethermesh_rlnc_codec_new(int generation_size)
     return c;
 }
 
-// ── aethermesh_rlnc_codec_free ───────────────────────────────────────────────────
+// ── aethernet_rlnc_codec_free ───────────────────────────────────────────────────
 
-void aethermesh_rlnc_codec_free(aethermesh_rlnc_codec_t *codec)
+void aethernet_rlnc_codec_free(aethernet_rlnc_codec_t *codec)
 {
     free(codec);
 }

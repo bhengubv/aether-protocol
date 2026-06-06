@@ -134,43 +134,43 @@ ctest --output-on-failure
 
 int main(void) {
     // Create a packet
-    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+    aethernet_mesh_packet_t *packet = aethernet_packet_new();
     if (!packet) return 1;
 
     // Set fields
-    aethermesh_packet_set_source_uhid(packet, "node-alice");
-    aethermesh_packet_set_destination_uhid(packet, "node-bob");
-    aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
+    aethernet_packet_set_source_uhid(packet, "node-alice");
+    aethernet_packet_set_destination_uhid(packet, "node-bob");
+    aethernet_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
 
     // Generate and sign
-    uint8_t private_key[AETHERMESH_ED25519_PRIVATE_KEY_SIZE];
-    uint8_t public_key[AETHERMESH_ED25519_PUBLIC_KEY_SIZE];
-    aethermesh_ed25519_generate_keypair(private_key, public_key);
+    uint8_t private_key[AETHERNET_ED25519_PRIVATE_KEY_SIZE];
+    uint8_t public_key[AETHERNET_ED25519_PUBLIC_KEY_SIZE];
+    aethernet_ed25519_generate_keypair(private_key, public_key);
 
     size_t signable_len = 0;
-    uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
+    uint8_t *signable = aethernet_packet_get_signable_data(packet, &signable_len);
     if (signable) {
-        uint8_t signature[AETHERMESH_ED25519_SIGNATURE_SIZE];
-        aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
-        aethermesh_packet_set_signature(packet, signature, AETHERMESH_ED25519_SIGNATURE_SIZE);
+        uint8_t signature[AETHERNET_ED25519_SIGNATURE_SIZE];
+        aethernet_ed25519_sign(private_key, signable, signable_len, signature);
+        aethernet_packet_set_signature(packet, signature, AETHERNET_ED25519_SIGNATURE_SIZE);
         free(signable);
     }
 
     // Serialize
     uint8_t buffer[4096];
-    int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
+    int size = aethernet_packet_serialize(packet, buffer, sizeof(buffer));
     if (size > 0) {
         printf("Packet serialized: %d bytes\n", size);
     }
 
     // Deserialize
-    aethermesh_mesh_packet_t *received = aethermesh_packet_deserialize(buffer, size);
+    aethernet_mesh_packet_t *received = aethernet_packet_deserialize(buffer, size);
     if (received) {
         printf("Received from: %s\n", received->source_uhid);
-        aethermesh_packet_free(received);
+        aethernet_packet_free(received);
     }
 
-    aethermesh_packet_free(packet);
+    aethernet_packet_free(packet);
     return 0;
 }
 ```
@@ -180,60 +180,60 @@ int main(void) {
 ### Протокол
 
 #### Управление пакетами
-- `aethermesh_mesh_packet_t *aethermesh_packet_new(void)` — Создать новый пакет
-- `void aethermesh_packet_free(aethermesh_mesh_packet_t *packet)` — Освободить пакет
-- `aethermesh_mesh_packet_t *aethermesh_packet_clone(const aethermesh_mesh_packet_t *packet)` — Клонировать пакет
+- `aethernet_mesh_packet_t *aethernet_packet_new(void)` — Создать новый пакет
+- `void aethernet_packet_free(aethernet_mesh_packet_t *packet)` — Освободить пакет
+- `aethernet_mesh_packet_t *aethernet_packet_clone(const aethernet_mesh_packet_t *packet)` — Клонировать пакет
 
 #### Сериализация
-- `int aethermesh_packet_serialize(const aethermesh_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — Сериализовать в проводной формат
-- `aethermesh_mesh_packet_t *aethermesh_packet_deserialize(const uint8_t *data, size_t data_len)` — Десериализовать из проводного формата
-- `size_t aethermesh_packet_estimate_size(const aethermesh_mesh_packet_t *packet)` — Оценить размер в проводном формате
+- `int aethernet_packet_serialize(const aethernet_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — Сериализовать в проводной формат
+- `aethernet_mesh_packet_t *aethernet_packet_deserialize(const uint8_t *data, size_t data_len)` — Десериализовать из проводного формата
+- `size_t aethernet_packet_estimate_size(const aethernet_mesh_packet_t *packet)` — Оценить размер в проводном формате
 
 #### Поля пакета
-- `bool aethermesh_packet_set_source_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — Установить источник
-- `bool aethermesh_packet_set_destination_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — Установить назначение
-- `bool aethermesh_packet_set_payload(aethermesh_mesh_packet_t *packet, const uint8_t *data, size_t len)` — Установить полезную нагрузку
-- `bool aethermesh_packet_set_signature(aethermesh_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — Установить подпись
+- `bool aethernet_packet_set_source_uhid(aethernet_mesh_packet_t *packet, const char *uhid)` — Установить источник
+- `bool aethernet_packet_set_destination_uhid(aethernet_mesh_packet_t *packet, const char *uhid)` — Установить назначение
+- `bool aethernet_packet_set_payload(aethernet_mesh_packet_t *packet, const uint8_t *data, size_t len)` — Установить полезную нагрузку
+- `bool aethernet_packet_set_signature(aethernet_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — Установить подпись
 
 #### Валидация
-- `bool aethermesh_packet_is_expired(const aethermesh_mesh_packet_t *packet, int max_age_seconds)` — Проверить, истёк ли срок действия
-- `bool aethermesh_packet_can_forward(const aethermesh_mesh_packet_t *packet)` — Проверить, что TTL > 0
+- `bool aethernet_packet_is_expired(const aethernet_mesh_packet_t *packet, int max_age_seconds)` — Проверить, истёк ли срок действия
+- `bool aethernet_packet_can_forward(const aethernet_mesh_packet_t *packet)` — Проверить, что TTL > 0
 
 #### Данные для подписи
-- `uint8_t *aethermesh_packet_get_signable_data(const aethermesh_mesh_packet_t *packet, size_t *out_len)` — Получить детерминированные байты для подписи (вызывающий обязан освободить память)
+- `uint8_t *aethernet_packet_get_signable_data(const aethernet_mesh_packet_t *packet, size_t *out_len)` — Получить детерминированные байты для подписи (вызывающий обязан освободить память)
 
 ### Безопасность
 
 #### Ed25519
-- `bool aethermesh_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — Сгенерировать ключи 32+32 байта
-- `bool aethermesh_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — Подписать (результат — 64 байта)
-- `bool aethermesh_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — Проверить подпись
+- `bool aethernet_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — Сгенерировать ключи 32+32 байта
+- `bool aethernet_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — Подписать (результат — 64 байта)
+- `bool aethernet_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — Проверить подпись
 
 #### AES-256-GCM
-- `bool aethermesh_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — Зашифровать (nonce генерируется автоматически, если NULL)
-- `bool aethermesh_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — Расшифровать
+- `bool aethernet_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — Зашифровать (nonce генерируется автоматически, если NULL)
+- `bool aethernet_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — Расшифровать
 
 #### HMAC и хеш
-- `bool aethermesh_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 байта)
-- `bool aethermesh_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 байта)
-- `bool aethermesh_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
+- `bool aethernet_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 байта)
+- `bool aethernet_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 байта)
+- `bool aethernet_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
 
 #### Утилиты
-- `void aethermesh_zeroize(void *mem, size_t len)` — Очистка памяти за постоянное время
-- `bool aethermesh_random_bytes(uint8_t *out, size_t len)` — Криптографически случайные байты
+- `void aethernet_zeroize(void *mem, size_t len)` — Очистка памяти за постоянное время
+- `bool aethernet_random_bytes(uint8_t *out, size_t len)` — Криптографически случайные байты
 
 ### Транспорт
 
 #### Общие функции
-- `bool aethermesh_transport_send(aethermesh_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — Отправить данные
-- `bool aethermesh_transport_is_connected(aethermesh_transport_t *transport, const char *peer_uhid)` — Проверить соединение
-- `void aethermesh_transport_set_on_data_received(aethermesh_transport_t *transport, aethermesh_transport_on_data_received callback, void *user_data)` — Зарегистрировать обратный вызов
-- `void aethermesh_transport_destroy(aethermesh_transport_t *transport)` — Освободить ресурсы
+- `bool aethernet_transport_send(aethernet_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — Отправить данные
+- `bool aethernet_transport_is_connected(aethernet_transport_t *transport, const char *peer_uhid)` — Проверить соединение
+- `void aethernet_transport_set_on_data_received(aethernet_transport_t *transport, aethernet_transport_on_data_received callback, void *user_data)` — Зарегистрировать обратный вызов
+- `void aethernet_transport_destroy(aethernet_transport_t *transport)` — Освободить ресурсы
 
 #### Внутрипроцессный транспорт
-- `aethermesh_transport_t *aethermesh_inprocess_transport_new(void)` — Создать общий внутрипроцессный транспорт
-- `bool aethermesh_inprocess_transport_register_node(aethermesh_transport_t *transport, const char *uhid)` — Зарегистрировать узел
-- `bool aethermesh_inprocess_transport_unregister_node(aethermesh_transport_t *transport, const char *uhid)` — Отменить регистрацию узла
+- `aethernet_transport_t *aethernet_inprocess_transport_new(void)` — Создать общий внутрипроцессный транспорт
+- `bool aethernet_inprocess_transport_register_node(aethernet_transport_t *transport, const char *uhid)` — Зарегистрировать узел
+- `bool aethernet_inprocess_transport_unregister_node(aethernet_transport_t *transport, const char *uhid)` — Отменить регистрацию узла
 
 ## Соответствие проводному формату
 
@@ -294,7 +294,7 @@ int main(void) {
 
 ### Использование памяти
 - Минимальный пакет: ~52 байта
-- Максимальный пакет: 65 КБ (настраивается через `AETHERMESH_MAX_PAYLOAD_LEN`)
+- Максимальный пакет: 65 КБ (настраивается через `AETHERNET_MAX_PAYLOAD_LEN`)
 - Таблица одноранговых узлов на 256 записей: ~32 КБ
 - Один ячеистый пакет в памяти: ~8 КБ (наихудший случай с максимальными полями)
 
@@ -331,8 +331,8 @@ ctest --output-on-failure --verbose
 ## Интеграция с экосистемой Aether
 
 Данная библиотека на C предназначена для интеграции с:
-- **AetherMeshAPI** (C#) — серверный ретранслятор ячеистой сети и аналитика
-- **AetherMesh.Core** (C#) — эталонная реализация (совместимый проводной формат)
+- **AetherNetAPI** (C#) — серверный ретранслятор ячеистой сети и аналитика
+- **AetherNet.Core** (C#) — эталонная реализация (совместимый проводной формат)
 - **Meshtastic** — прошивка для ячеистого радио с открытым исходным кодом
 - **esp-idf** — фреймворк Espressif для разработки IoT
 - Пользовательские встраиваемые приложения
@@ -355,7 +355,7 @@ SPDX-License-Identifier: MIT
 ## Ссылки
 
 - Protocol Spec: `/Users/admin/Code/Dev/aether-protocol/docs/PROTOCOL_SPEC.md`
-- C# Reference: `/Users/admin/Code/Dev/aether-protocol/src/AetherMesh.Core/`
+- C# Reference: `/Users/admin/Code/Dev/aether-protocol/src/AetherNet.Core/`
 - libsodium: https://libsodium.org/
 - RFC 5869 (HKDF): https://tools.ietf.org/html/rfc5869
 - RFC 3561 (AODV): https://tools.ietf.org/html/rfc3561

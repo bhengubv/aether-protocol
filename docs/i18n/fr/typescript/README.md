@@ -141,7 +141,7 @@ PacketNonce (8 bytes)
 ### Protocole Signal (Section 4)
 
 - **Échange de clés** : X3DH avec ECDH P-256
-- **HKDF** : SHA256 avec salt="AetherMeshSignal"
+- **HKDF** : SHA256 avec salt="AetherNetSignal"
 - **Chaînes d'information** : "aether-root-v1", "aether-chain-send-v1", "aether-chain-recv-v1"
 - **Chiffrement** : AES-256-GCM avec nonce de 12 octets, étiquette de 16 octets
 - **Cliquet de chaîne** : HMAC-SHA256 avec avancement de compteur

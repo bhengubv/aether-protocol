@@ -107,7 +107,7 @@ Cada transporte tem um nome de cor usado em todo o código-fonte. `IsAvailable` 
 |--------|------|------:|----------:|--------|
 | 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
 | 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | Relay HTTP celular | Ilimitado | ~10 Mbps | ✅ Windows — servidor relay em `samples/AetherMesh.RelayServer/` |
+| 🟣 Aether Purple | Relay HTTP celular | Ilimitado | ~10 Mbps | ✅ Windows — servidor relay em `samples/AetherNet.RelayServer/` |
 | ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE (`android/white/`); Windows: NDEF-over-BLE-GATT + ACR122U PC/SC aproximado (`Windows.Networking.Proximity` removido no Win 11) |
 | 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`; Windows + Android: aproximação SSAP-over-BLE (análoga à API, sem compatibilidade de wire) |
 | 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ Formato wire Meshtastic sobre BLE LR (~1.3 km); troca de rádio para SX1276/SX1278 quando módulo LoRa presente |
@@ -221,7 +221,7 @@ cd aether-protocol
 ### C# (.NET 10 SDK)
 
 ```bash
-dotnet run --project samples/AetherMesh.Demo.Console
+dotnet run --project samples/AetherNet.Demo.Console
 ```
 
 O demo percorre 8 etapas: geração de chaves de identidade Ed25519 para três nós (Alice, Bob, Charlie), estabelecimento de sessões Signal Protocol, envio de mensagens criptografadas, retransmissão de uma mensagem pelo Charlie (que não consegue lê-la), exibição do formato wire binário e demonstração de sigilo futuro em 5 mensagens consecutivas. A saída é colorida e faz pausas entre as etapas.
@@ -431,28 +431,28 @@ O demo executa 7 demonstrações: geração de chave Ed25519, criação e assina
 **Enviando uma mensagem em C:**
 
 ```c
-aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
-packet->type = AETHERMESH_PACKET_TYPE_DATA;
+aethernet_mesh_packet_t *packet = aethernet_packet_new();
+packet->type = AETHERNET_PACKET_TYPE_DATA;
 packet->ttl = 7;
 
-aethermesh_packet_set_source_uhid(packet, "alice");
-aethermesh_packet_set_destination_uhid(packet, "bob");
-aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
+aethernet_packet_set_source_uhid(packet, "alice");
+aethernet_packet_set_destination_uhid(packet, "bob");
+aethernet_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
 
 // Sign
 size_t signable_len = 0;
-uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
+uint8_t *signable = aethernet_packet_get_signable_data(packet, &signable_len);
 uint8_t signature[64];
-aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
-aethermesh_packet_set_signature(packet, signature, 64);
+aethernet_ed25519_sign(private_key, signable, signable_len, signature);
+aethernet_packet_set_signature(packet, signature, 64);
 free(signable);
 
 // Serialize and send
 uint8_t buffer[2048];
-int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
+int size = aethernet_packet_serialize(packet, buffer, sizeof(buffer));
 // send buffer[0..size-1] over transport
 
-aethermesh_packet_free(packet);
+aethernet_packet_free(packet);
 ```
 
 ## Roteiro
@@ -483,11 +483,11 @@ O que foi construído e o que vem a seguir.
 - ✅ **Chamadas de vídeo (1-para-1)** — negociação de codec/resolução/fps/bitrate na sinalização, sinais de requisição de keyframe e mudança de qualidade, formato binário `VideoFrame` correspondente ao layout de voz.
 - ✅ **Watch Together** — o host emite comandos `WatchSync` autoritativos (play/pause/seek/speed); seguidores aplicam com compensação de RTT (`position = positionMs + elapsed × playbackSpeed`); `WatchReaction` fire-and-forget.
 - ✅ **Pool de chave pré-uso única (OPK)** — padrão 100, emissão FIFO, reposição lazy, consumo com proteção de lock em todas as 8 linguagens. Corrige a vulnerabilidade de concorrência de OPK único.
-- ✅ **C: sessão Signal completa** — `aethermesh_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` em `c/src/signal_protocol.c`; 6 testes E2E de dois nós em `c/tests/test_signal_session.c`. Todas as 8 linguagens agora têm Signal Protocol com sessão completa.
+- ✅ **C: sessão Signal completa** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` em `c/src/signal_protocol.c`; 6 testes E2E de dois nós em `c/tests/test_signal_session.c`. Todas as 8 linguagens agora têm Signal Protocol com sessão completa.
 
 **Concluído (apenas referência C#):**
-- ✅ **Demo Etapa 9 — MessagingService + DTN fallback de ponta a ponta** — `samples/AetherMesh.Demo.Console` percorre mensagens criptografadas Signal reais com DTN store-and-forward quando o destinatário está offline.
-- ✅ **Bridge `AetherMesh.Messaging` ↔ `AetherMesh.Security`** — `SignalMessageEnvelopeCipher` torna a camada de mensagens criptografada de ponta a ponta por padrão; mensagens sem sessão Signal são enfileiradas, nunca enviadas de forma insegura.
+- ✅ **Demo Etapa 9 — MessagingService + DTN fallback de ponta a ponta** — `samples/AetherNet.Demo.Console` percorre mensagens criptografadas Signal reais com DTN store-and-forward quando o destinatário está offline.
+- ✅ **Bridge `AetherNet.Messaging` ↔ `AetherNet.Security`** — `SignalMessageEnvelopeCipher` torna a camada de mensagens criptografada de ponta a ponta por padrão; mensagens sem sessão Signal são enfileiradas, nunca enviadas de forma insegura.
 - ✅ **Streaming de taxa de bits adaptativa** — `AdaptiveBitrateController` com escadas de bitrate definidas pela especificação para os Perfis A (tempo real), B (transmissão ao vivo) e C (VOD). O publicador seleciona o degrau sustentável mais alto (20% de margem) e emite `StreamAbandon` (`PacketType.StreamAbandon`) em vez de um segmento quando abaixo do piso. `IStreamingService` expõe `UpdateBandwidthEstimate` e `GetCurrentBitrateRung`.
 - ✅ **Watch Together: ingestão BitTorrent + ChipIn de financiamento coletivo** — modelos `TorrentInfo` / `TorrentFile`; `WatchTogetherService` trata `PacketType.TorrentMetadata` e dispara `TorrentReceived`. Máquina de estado `ChipInPool` / `ChipInContribution` (Collecting → Funded → Purchasing → Acquired / Failed / Refunded); `StartChipInAsync` / `ContributeAsync` / `GetChipIn` em `IWatchTogetherService`.
 - ✅ **Chamadas de vídeo em grupo com relay SFU automático** — `GroupVideoService` / `IGroupVideoService`. Topologia FullMesh para ≤ 3 participantes; switch automático para SFU no `SfuThresholdParticipants` (4) com reatribuição de relay via `GroupVideoSignaling(SfuAssigned)`. Fan-out em FullMesh, envio somente via relay no modo SFU. Tipo de pacote de sinalização `GroupVideoSignaling = 35`.
@@ -497,9 +497,9 @@ O que foi construído e o que vem a seguir.
 - ✅ **Testes de simulação de inicialização RF** — Testes de interoperabilidade de dois nós (`SimulatedTransportTests`): ida e volta de `MeshPacket` BLE + NearLink, transferência de payload de 64 KB via WiFi Direct. Camada de software totalmente verificada; sessão de laboratório em dispositivo físico necessária para validação em hardware.
 
 **Concluído (camada de transporte C# — todos fail-fast):**
-- ✅ **Transporte BLE GATT real** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (servidor Android GATT). Teste completo de inicialização RF em `samples/AetherMesh.BleRfTest/`.
-- ✅ **Transporte Wi-Fi Direct real** — `WinWifiDirectTransportService` (WinRT, `WiFiDirectAdvertisementPublisher` + TCP StreamSocket porta 8888) + `android/green/` (`WifiP2pManager`). Teste RF em `samples/AetherMesh.WifiDirectRfTest/`.
-- ✅ **Transporte relay HTTP (Aether Purple)** — `HttpRelayTransportService` com long-poll de 10 segundos, `PowerCostRelative = 100`, sempre último recurso. Servidor relay em `samples/AetherMesh.RelayServer/` (ASP.NET Core minimal API, porta 5200). Teste RF em `samples/AetherMesh.RelayRfTest/`.
+- ✅ **Transporte BLE GATT real** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (servidor Android GATT). Teste completo de inicialização RF em `samples/AetherNet.BleRfTest/`.
+- ✅ **Transporte Wi-Fi Direct real** — `WinWifiDirectTransportService` (WinRT, `WiFiDirectAdvertisementPublisher` + TCP StreamSocket porta 8888) + `android/green/` (`WifiP2pManager`). Teste RF em `samples/AetherNet.WifiDirectRfTest/`.
+- ✅ **Transporte relay HTTP (Aether Purple)** — `HttpRelayTransportService` com long-poll de 10 segundos, `PowerCostRelative = 100`, sempre último recurso. Servidor relay em `samples/AetherNet.RelayServer/` (ASP.NET Core minimal API, porta 5200). Teste RF em `samples/AetherNet.RelayRfTest/`.
 - ✅ **NFC (Aether White)** — `android/white/` implementa `HostApduService` com AID `F061657468657200`. `WinNfcStubTransportService` documenta dois caminhos de aproximação no Windows: (1) NDEF-over-BLE-GATT com gate de RSSI ≥ −40 dBm (simula tap-to-connect sem silício NFC, `IsAvailable = Bluetooth presente`); (2) leitor USB ACR122U via `Windows.Devices.SmartCards` PC/SC (`IsAvailable = leitor sem contato enumerado`). Caminho de upgrade: implementar `ITransportService` quando a Microsoft lançar uma API P2P NFC oficial.
 - ✅ **NearLink (Aether Teal)** — **`harmonyos/teal/`** — implementação ArkTS HarmonyOS 5.0.1 (API 13) completa usando `@kit.NearLinkKit` (`scan.startScan` + `ssap.createClient` + `advertising.startAdvertising`); `isAvailable` verificado em tempo de execução. `WinNearLinkStubTransportService` + `android/teal/` documentam a aproximação SSAP-over-BLE: BLE GATT com UUID do serviço Aether SLE `61657468-6572-0003-0000-000000000000` — análogo à API do SSAP, sem compatibilidade de wire com hardware NearLink real. Caminho de upgrade: substituir chamadas BLE GATT por chamadas SDK `ssapc_*`/`ssaps_*`; UUIDs e slot no `TransportManager` inalterados.
 - ✅ **LoRa / CircleLink (Aether Red)** — `LoRaCircleLinkStub` + `android/red/` documentam a aproximação Meshtastic-over-BLE-LR: formato wire Meshtastic completo (header de 16 bytes + AES-256-CTR protobuf) sobre BLE 5.0 Coded PHY S=8 (~1.3 km ao ar livre), com roteamento managed-flood e janela de contenção ponderada por RSSI. A federação de nós-ponte com hardware LoRa real funciona automaticamente (mesmo formato de pacote Meshtastic, sem tradução). Caminho de upgrade: substituir rádio BLE LR por driver AT-command ou SPI SX1276/SX1278; formato de pacote e roteamento inalterados.
@@ -518,19 +518,19 @@ O que foi construído e o que vem a seguir.
 ```
 aether-protocol/
   src/
-    AetherMesh.Core/          Modelos de protocolo, constantes, serialização de pacotes
-    AetherMesh.Security/      Signal Protocol, Ed25519, assinatura de pacotes
-    AetherMesh.Transport/     Abstrações de transporte, NearLink, simulador em processo
-    AetherMesh.Messaging/     Tratamento e retransmissão de mensagens
-    AetherMesh.Storage/       Persistência DTN store-and-forward
-    AetherMesh.Streaming/     Streaming de taxa de bits adaptativa, modelos e interfaces de vídeo
-    AetherMesh.Voice/         Chamadas de voz e voz em grupo
-    AetherMesh.Content/       Verificação de conteúdo e transferência em chunks
+    AetherNet.Core/          Modelos de protocolo, constantes, serialização de pacotes
+    AetherNet.Security/      Signal Protocol, Ed25519, assinatura de pacotes
+    AetherNet.Transport/     Abstrações de transporte, NearLink, simulador em processo
+    AetherNet.Messaging/     Tratamento e retransmissão de mensagens
+    AetherNet.Storage/       Persistência DTN store-and-forward
+    AetherNet.Streaming/     Streaming de taxa de bits adaptativa, modelos e interfaces de vídeo
+    AetherNet.Voice/         Chamadas de voz e voz em grupo
+    AetherNet.Content/       Verificação de conteúdo e transferência em chunks
   samples/
-    AetherMesh.Demo.Console/  Demo interativo
+    AetherNet.Demo.Console/  Demo interativo
   tests/
-    AetherMesh.Security.Tests/
-    AetherMesh.Protocol.Tests/
+    AetherNet.Security.Tests/
+    AetherNet.Protocol.Tests/
   rust/                   Implementação Rust
   typescript/             Implementação TypeScript
   python/                 Implementação Python
@@ -576,9 +576,9 @@ Registre no DI e o `TransportManager` o incluirá automaticamente na seleção d
 
 O protocolo funciona de forma independente. Estas interfaces permitem conectar seu próprio backend, se quiser:
 
-- `IAetherMeshIncentiveProvider` — recompensa nós que retransmitem tráfego (padrão noop: retransmissão altruísta)
-- `IAetherMeshBackendClient` — sincroniza com um servidor quando há internet disponível (padrão noop: totalmente offline)
-- `IAetherMeshFeatureFlagProvider` — ativa/desativa funcionalidades do protocolo em tempo de execução (padrão noop: tudo habilitado)
+- `IAetherNetIncentiveProvider` — recompensa nós que retransmitem tráfego (padrão noop: retransmissão altruísta)
+- `IAetherNetBackendClient` — sincroniza com um servidor quando há internet disponível (padrão noop: totalmente offline)
+- `IAetherNetFeatureFlagProvider` — ativa/desativa funcionalidades do protocolo em tempo de execução (padrão noop: tudo habilitado)
 
 Os três vêm com implementações noop. Remova-os e nada quebra.
 

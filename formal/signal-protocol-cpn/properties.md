@@ -64,7 +64,7 @@ This is the structural witness for per-(session, epoch) forward secrecy.
 
 ## Mapping to Code
 
-| CPN element | AetherMesh implementation |
+| CPN element | AetherNet implementation |
 |---|---|
 | `KEY = SESSION × EPOCH` | `SignalSession.{SessionId, RatchetGen}` |
 | Per-session arc binding | `SignalProtocolMeshService._sessions[sessionId]` |

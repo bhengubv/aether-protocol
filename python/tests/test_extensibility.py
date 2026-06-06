@@ -9,13 +9,13 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from aethermesh.extensibility import (
+from aethernet.extensibility import (
     NoopIncentiveProvider,
     NoopBackendClient,
     NoopFeatureFlagProvider,
 )
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.models import DtnBundle, SosAlert
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.models import DtnBundle, SosAlert
 
 
 def _run(coro):

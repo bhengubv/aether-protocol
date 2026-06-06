@@ -39,10 +39,10 @@ pip install -e ".[dev]"
 
 ```python
 import asyncio
-from aethermesh.security.ed25519_service import Ed25519SigningService
-from aethermesh.security.signal_protocol import SignalProtocolService
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.protocol.serializer import PacketSerializer
+from aethernet.security.ed25519_service import Ed25519SigningService
+from aethernet.security.signal_protocol import SignalProtocolService
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.protocol.serializer import PacketSerializer
 
 # Generate Ed25519 keys
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -64,7 +64,7 @@ print(f"Signature valid: {is_valid}")
 aether/
 ├── __init__.py              # Package exports
 ├── constants.py             # Protocol constants
-├── models.py                # Data models (AetherMeshNode, PeerInfo, RouteEntry)
+├── models.py                # Data models (AetherNetNode, PeerInfo, RouteEntry)
 ├── protocol/
 │   ├── __init__.py
 │   ├── mesh_packet.py       # MeshPacket and PacketType definitions
@@ -87,7 +87,7 @@ aether/
 使用 PyNaCl（libsodium）进行密码学操作：
 
 ```python
-from aethermesh.security.ed25519_service import Ed25519SigningService
+from aethernet.security.ed25519_service import Ed25519SigningService
 
 # Generate a key pair
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -109,7 +109,7 @@ is_valid = Ed25519SigningService.verify(public_key, data, signature)
 实现了带对称棘轮的 X3DH 密钥交换，以提供前向保密性：
 
 ```python
-from aethermesh.security.signal_protocol import SignalProtocolService
+from aethernet.security.signal_protocol import SignalProtocolService
 
 # Create protocol instances
 alice_signal = SignalProtocolService()
@@ -134,7 +134,7 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 ```
 
 **密钥派生：**
-- 使用 HKDF-SHA256，盐值为 `"AetherMeshSignal"`
+- 使用 HKDF-SHA256，盐值为 `"AetherNetSignal"`
 - 根密钥信息字符串：`"aether-root-v1"`
 - 发送链信息字符串：`"aether-chain-send-v1"`
 - 接收链信息字符串：`"aether-chain-recv-v1"`
@@ -150,8 +150,8 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 与 C# 实现兼容的二进制线格式：
 
 ```python
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.protocol.serializer import PacketSerializer
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.protocol.serializer import PacketSerializer
 
 # Create a packet
 packet = MeshPacket(
@@ -188,7 +188,7 @@ decoded_packet = PacketSerializer.deserialize(binary)
 使用 Ed25519 对数据包进行签名并检测重放攻击：
 
 ```python
-from aethermesh.security.packet_signing import PacketSigningService
+from aethernet.security.packet_signing import PacketSigningService
 
 signing_service = PacketSigningService()
 
@@ -220,7 +220,7 @@ is_valid = signing_service.verify_packet(packet, public_key)
 物理传输层（BLE、Wi-Fi Direct 等）的抽象基类：
 
 ```python
-from aethermesh.transport.in_process import InProcessTransport
+from aethernet.transport.in_process import InProcessTransport
 
 # Create in-process transport instances
 alice_transport = InProcessTransport("alice-001")
@@ -279,7 +279,7 @@ python3 demo.py
 
 演示内容：
 1. Ed25519 密钥生成与签名
-2. 使用 AetherMeshNode 创建节点
+2. 使用 AetherNetNode 创建节点
 3. Signal 协议 X3DH 密钥交换
 4. 消息加密与解密
 5. 数据包序列化/反序列化

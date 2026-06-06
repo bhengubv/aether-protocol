@@ -7,7 +7,7 @@
 오도되어서는 안 됩니다.
 
 동반 문서는 [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7 (보안 모델)입니다. 두 문서가
-상충하는 경우, `src/AetherMesh.Security/`의 구현이 권위를 가집니다.
+상충하는 경우, `src/AetherNet.Security/`의 구현이 권위를 가집니다.
 
 ---
 
@@ -52,13 +52,13 @@ Signal Protocol 방식의 종단 간 암호화 메시징 라이브러리에 메�
 (Signal §5.1, HMAC-SHA256, `0x01`/`0x02` 도메인 분리). Alice와 Bob 사이의 모든 패킷을
 캡처한 공격자는 세션 키 중 하나 없이는 아무것도 복원할 수 없습니다.
 
-`tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs` 및 크로스-언어
+`tests/AetherNet.Security.Tests/SignalProtocolEncryptionTests.cs` 및 크로스-언어
 `fixtures/signal/expected/ratchet_step_basic.json` 벡터로 검증됩니다.
 
 ### 2.2. 메시지 위조
 
 모든 Wave-2 패킷은 정규적인 `BuildSignableData(packet)` 버퍼에 대한 Ed25519 서명을 포함합니다
-(`src/AetherMesh.Security/Services/PacketSigningService.cs`, PROTOCOL_SPEC §2.4). 위조된 패킷은
+(`src/AetherNet.Security/Services/PacketSigningService.cs`, PROTOCOL_SPEC §2.4). 위조된 패킷은
 소스의 신원 공개 키를 아는 모든 홉에서 검증에 실패하여 삭제됩니다. 경로 응답 패킷(RREP)은
 주장된 목적지가 서명합니다 — 중간 노드는 목적지의 Ed25519 개인 키를 보유하지 않으므로
 목적지를 사칭할 수 없습니다.
@@ -75,13 +75,13 @@ Signal Protocol 방식의 종단 간 암호화 메시징 라이브러리에 메�
   그리고 적대자가 수신자에 대해 논스를 심어 정당한 발신자의 첫 번째 패킷을 차단하는
   사전 등록 공격.
 
-카운터: `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`.
+카운터: `aethernet.nonces.replayed`, `aethernet.timestamps.stale`.
 
 ### 2.4. 순방향 비밀성 (과거 키 타협)
 
 이중 래칫은 모든 DH-로테이션 단계에서 새로운 전송 체인 키를 파생합니다 (KDF_RK,
 HKDF-SHA256, `salt = current_root_key`, `info = "aether-ratchet-rk-v1"`, 64바이트 블록을
-새로운 루트와 체인 키로 32+32 분할 — `src/AetherMesh.Security/Services/SignalProtocolService.cs`).
+새로운 루트와 체인 키로 32+32 분할 — `src/AetherNet.Security/Services/SignalProtocolService.cs`).
 현재 세션 상태를 탈취한 공격자는 이전 메시지를 복호화할 수 없습니다: 각 이전 메시지 키는
 다음 래칫 단계 전에 파생되고 제로화(`CryptographicOperations.ZeroMemory`)되었기 때문입니다.
 
@@ -99,7 +99,7 @@ DH-래칫 단계를 실행합니다 (Signal §5.2). 공격자의 캐시된 세�
 
 각 일회용 사전 키(OPK)는 정확히 한 번만 사용됩니다. C# 레퍼런스는 FIFO 발급, 모든 번들
 생성 시 지연 보충, 그리고 잠금 보호된 단일 소비(`SignalProtocolService.TopUpOpkPoolNoLock`,
-`tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`로 검증)가 포함된 100-OPK 풀을 제공합니다.
+`tests/AetherNet.Core.Tests/PreKeyPoolTests.cs`로 검증)가 포함된 100-OPK 풀을 제공합니다.
 OPK는 응답자가 X3DH 중에 소비하는 즉시 제거되고 제로화되므로, 동일한 OPK id를 재사용하는
 재전송된 사전 키 메시지는 세션을 확립할 수 없습니다.
 
@@ -197,7 +197,7 @@ Kyber + X25519 / Dilithium + Ed25519 방식으로의 향후 마이그레이션�
 
 ### 3.5. 대규모 그룹 메시징
 
-`AetherMesh.Security`는 `IGroupKeyProvider` 이음새를 제공하지만, 완전한 Signal 발신자 키
+`AetherNet.Security`는 `IGroupKeyProvider` 이음새를 제공하지만, 완전한 Signal 발신자 키
 프로토콜(Signal이 사용하는 비동기 그룹 메시징 구조)은 HEAD 기준으로 **구현되지 않았습니다**.
 오늘날 그룹 메시징이 필요한 호스트는 N개의 쌍별 세션으로 폴백합니다 — 작동하지만
 그룹 전송당 O(N) 비용이 발생합니다. PROTOCOL_SPEC §7은 단일 수신자 위협만 다룹니다.
@@ -273,7 +273,7 @@ Aether는 "신원 키-X를 보유한 피어가 이것을 서명했다"는 것을
 **취약점:** 최초 번들 교환 중에 피어-투-피어 링크를 제어하는 능동적 공격자가 자신의 번들을
 대체하고 트래픽을 프록시할 수 있습니다.
 **완화 방법:** 호스트 UX는 연락처를 검증된 것으로 취급하기 전에 안전 번호 / 공개 키 지문
-비교 플로우를 노출해야 합니다. 안전 번호 파생을 위한 공개 API 표면은 아직 `AetherMesh.Security`에
+비교 플로우를 노출해야 합니다. 안전 번호 파생을 위한 공개 API 표면은 아직 `AetherNet.Security`에
 제공되지 않습니다; gap으로 추적됩니다.
 
 ### 5.2. 서명된 사전 키 로테이션 지연

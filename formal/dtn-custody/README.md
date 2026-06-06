@@ -2,7 +2,7 @@
 
 ## What This Proves
 
-This model provides **mathematical proof** that the AetherMesh DTN
+This model provides **mathematical proof** that the AetherNet DTN
 custody-transfer mechanism is:
 
 | Property | Claim | Status |
@@ -27,7 +27,7 @@ probabilistic coverage, no untested code path.
   Source recovers custody ──► waits for Relay to recover ──► retries transfer
 ```
 
-This is the core of `IAetherMeshDtnService`:
+This is the core of `IAetherNetDtnService`:
 
 ```csharp
 // Source creates a bundle:

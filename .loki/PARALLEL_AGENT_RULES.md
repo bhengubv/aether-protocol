@@ -4,10 +4,10 @@
 
 | File / Area | Owner |
 |---|---|
-| AetherMeshMedia.slnx / aether-protocol.slnx | ONE agent only |
+| AetherNetMedia.slnx / aether-protocol.slnx | ONE agent only |
 | Directory.Build.props | ONE agent only |
-| src/AetherMesh.Core/Constants/ProtocolConstants.cs | ONE agent only |
-| src/AetherMesh.Core/Protocol/MeshPacket.cs | ONE agent only |
+| src/AetherNet.Core/Constants/ProtocolConstants.cs | ONE agent only |
+| src/AetherNet.Core/Protocol/MeshPacket.cs | ONE agent only |
 | Any *.sln or *.slnx | ONE agent only |
 
 ## Safe: non-overlapping language tracks
@@ -35,4 +35,4 @@ Final:  [HH:mm:ss] DONE: summary | Tests: N passed
 
 ## PowerShell log helper
 $log = "C:\Dev\Solutions\com.bhengubv\aether-protocol\.loki\progress\track-N.log"
-Add-Content $log "[$(Get-Date -Format HH:mm:ss)] STEP: Created IRoutingService.py"
+Add-Content $log "[$(Get-Date -Format HH:mm:ss)] STEP: Created IRoutingService.py"

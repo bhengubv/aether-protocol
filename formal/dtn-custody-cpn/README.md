@@ -55,7 +55,7 @@ colset BUNDLE_TTL   = product BUNDLE * TTL;
 ## Relationship to Production Code
 
 The colour set `BUNDLE_ID` corresponds to `DtnBundle.Id` (a `Guid`) in
-`AetherMesh.Core.Dtn.DtnMeshService`. The custody-handoff transition
+`AetherNet.Core.Dtn.DtnMeshService`. The custody-handoff transition
 corresponds to `AcceptCustodyAsync` which copies the bundle (with its
 ID) from one node's pending set to another's, never duplicating.
 

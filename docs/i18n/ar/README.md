@@ -109,7 +109,7 @@
 |--------|------|------:|----------:|--------|
 | 🔵 Aether Blue | BLE GATT | ~100 م | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
 | 🟢 Aether Green | Wi-Fi Direct | ~200 م | 250 Mbps | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | ترحيل HTTP خلوي | غير محدود | ~10 Mbps | ✅ Windows — خادم الترحيل في `samples/AetherMesh.RelayServer/` |
+| 🟣 Aether Purple | ترحيل HTTP خلوي | غير محدود | ~10 Mbps | ✅ Windows — خادم الترحيل في `samples/AetherNet.RelayServer/` |
 | ⚪ Aether White | NFC HCE | ~5 سم | 848 kbps | ⚠️ Android HCE (`android/white/`)؛ Windows: NDEF-over-BLE-GATT + ACR122U PC/SC تقريباً (`Windows.Networking.Proximity` أُزيل في Win 11) |
 | 🩵 Aether Teal | NearLink | ~600 م | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`؛ Windows + Android: تقريب SSAP-over-BLE (مماثل للواجهة البرمجية، غير متوافق مع الأسلاك) |
 | 🔴 Aether Red | LoRa / CircleLink | ~15 كم | 37.5 kbps | ⚠️ تنسيق أسلاك Meshtastic عبر BLE LR (~1.3 كم)؛ التبديل إلى SX1276/SX1278 عند وجود وحدة LoRa |
@@ -223,7 +223,7 @@ cd aether-protocol
 ### C# (.NET 10 SDK)
 
 ```bash
-dotnet run --project samples/AetherMesh.Demo.Console
+dotnet run --project samples/AetherNet.Demo.Console
 ```
 
 يأخذك العرض التوضيحي عبر 8 خطوات: توليد مفاتيح هوية Ed25519 لثلاث عقد (Alice وBob وCharlie)، وإنشاء جلسات بروتوكول Signal، وإرسال رسائل مشفرة، وترحيل رسالة عبر Charlie (الذي لا يستطيع قراءتها)، وعرض تنسيق الأسلاك الثنائي، وإظهار السرية الأمامية عبر 5 رسائل متتالية. المخرجات ملونة وتتوقف بين الخطوات.
@@ -433,28 +433,28 @@ cd c && mkdir -p build && cd build && cmake .. && make && ./aether-demo
 **إرسال رسالة بـC:**
 
 ```c
-aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
-packet->type = AETHERMESH_PACKET_TYPE_DATA;
+aethernet_mesh_packet_t *packet = aethernet_packet_new();
+packet->type = AETHERNET_PACKET_TYPE_DATA;
 packet->ttl = 7;
 
-aethermesh_packet_set_source_uhid(packet, "alice");
-aethermesh_packet_set_destination_uhid(packet, "bob");
-aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
+aethernet_packet_set_source_uhid(packet, "alice");
+aethernet_packet_set_destination_uhid(packet, "bob");
+aethernet_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
 
 // Sign
 size_t signable_len = 0;
-uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
+uint8_t *signable = aethernet_packet_get_signable_data(packet, &signable_len);
 uint8_t signature[64];
-aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
-aethermesh_packet_set_signature(packet, signature, 64);
+aethernet_ed25519_sign(private_key, signable, signable_len, signature);
+aethernet_packet_set_signature(packet, signature, 64);
 free(signable);
 
 // Serialize and send
 uint8_t buffer[2048];
-int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
+int size = aethernet_packet_serialize(packet, buffer, sizeof(buffer));
 // send buffer[0..size-1] over transport
 
-aethermesh_packet_free(packet);
+aethernet_packet_free(packet);
 ```
 
 ## خارطة الطريق
@@ -485,11 +485,11 @@ aethermesh_packet_free(packet);
 - ✅ **مكالمات فيديو (1-to-1)** — التفاوض على الترميز/الدقة/معدل الإطارات/معدل البت في الإشارة، وإشارات طلب الإطار الرئيسي وتغيير الجودة.
 - ✅ **المشاهدة الجماعية** — يصدر المضيف أوامر `WatchSync` موثوقة (تشغيل/إيقاف مؤقت/بحث/سرعة)؛ يطبقها المتابعون مع تعويض RTT؛ `WatchReaction` بدون تأكيد.
 - ✅ **مجموعة مفاتيح أحادية الاستخدام (OPK)** — 100 افتراضياً، إصدار FIFO، تعبئة كسولة، استهلاك محمي بالقفل عبر جميع اللغات الثماني.
-- ✅ **C: جلسة Signal كاملة** — `aethermesh_signal_service_init` و`generate_pre_key_bundle` و`process_pre_key_bundle` و`encrypt` و`decrypt` في `c/src/signal_protocol.c`.
+- ✅ **C: جلسة Signal كاملة** — `aethernet_signal_service_init` و`generate_pre_key_bundle` و`process_pre_key_bundle` و`encrypt` و`decrypt` في `c/src/signal_protocol.c`.
 
 **مكتمل (مرجع C# فقط):**
 - ✅ **العرض التوضيحي الخطوة 9 — MessagingService + DTN fallback من طرف إلى طرف**
-- ✅ **جسر `AetherMesh.Messaging` ↔ `AetherMesh.Security`** — `SignalMessageEnvelopeCipher` يجعل طبقة المراسلة مشفرة من طرف إلى طرف افتراضياً.
+- ✅ **جسر `AetherNet.Messaging` ↔ `AetherNet.Security`** — `SignalMessageEnvelopeCipher` يجعل طبقة المراسلة مشفرة من طرف إلى طرف افتراضياً.
 - ✅ **البث التكيفي متغير معدل البت** — `AdaptiveBitrateController` مع سلالم معدل البت المحددة في المواصفات للملفات الشخصية A وB وC.
 - ✅ **المشاهدة الجماعية: استيعاب BitTorrent + تمويل ChipIn الجماعي**
 - ✅ **مكالمات فيديو جماعية مع ترحيل SFU تلقائي** — `GroupVideoService` / `IGroupVideoService`. طبولوجيا FullMesh لـ≤ 3 مشاركين؛ تبديل تلقائي إلى SFU عند `SfuThresholdParticipants` (4).
@@ -519,19 +519,19 @@ aethermesh_packet_free(packet);
 ```
 aether-protocol/
   src/
-    AetherMesh.Core/          Protocol models, constants, packet serialization
-    AetherMesh.Security/      Signal Protocol, Ed25519, packet signing
-    AetherMesh.Transport/     Transport abstractions, NearLink, in-process simulator
-    AetherMesh.Messaging/     Message handling and relay
-    AetherMesh.Storage/       DTN store-and-forward persistence
-    AetherMesh.Streaming/     Adaptive bitrate streaming, video models and interfaces
-    AetherMesh.Voice/         Voice calls and group voice
-    AetherMesh.Content/       Content verification and chunked transfer
+    AetherNet.Core/          Protocol models, constants, packet serialization
+    AetherNet.Security/      Signal Protocol, Ed25519, packet signing
+    AetherNet.Transport/     Transport abstractions, NearLink, in-process simulator
+    AetherNet.Messaging/     Message handling and relay
+    AetherNet.Storage/       DTN store-and-forward persistence
+    AetherNet.Streaming/     Adaptive bitrate streaming, video models and interfaces
+    AetherNet.Voice/         Voice calls and group voice
+    AetherNet.Content/       Content verification and chunked transfer
   samples/
-    AetherMesh.Demo.Console/  Interactive demo
+    AetherNet.Demo.Console/  Interactive demo
   tests/
-    AetherMesh.Security.Tests/
-    AetherMesh.Protocol.Tests/
+    AetherNet.Security.Tests/
+    AetherNet.Protocol.Tests/
   rust/                   Rust implementation
   typescript/             TypeScript implementation
   python/                 Python implementation
@@ -577,9 +577,9 @@ public class LoRaTransportService : ITransportService
 
 يعمل البروتوكول بشكل مستقل. هذه الواجهات تتيح لك توصيل خلفيتك الخاصة إذا أردت:
 
-- `IAetherMeshIncentiveProvider` — مكافأة العقد التي تُرحّل حركة المرور (افتراضي no-op: ترحيل إيثاري)
-- `IAetherMeshBackendClient` — المزامنة مع خادم عند توفر الإنترنت (افتراضي no-op: غير متصل بالكامل)
-- `IAetherMeshFeatureFlagProvider` — تبديل ميزات البروتوكول في وقت التشغيل (افتراضي no-op: كل شيء مُفعَّل)
+- `IAetherNetIncentiveProvider` — مكافأة العقد التي تُرحّل حركة المرور (افتراضي no-op: ترحيل إيثاري)
+- `IAetherNetBackendClient` — المزامنة مع خادم عند توفر الإنترنت (افتراضي no-op: غير متصل بالكامل)
+- `IAetherNetFeatureFlagProvider` — تبديل ميزات البروتوكول في وقت التشغيل (افتراضي no-op: كل شيء مُفعَّل)
 
 تشحن الثلاثة مع تطبيقات no-op. أزلها ولن يتعطل شيء.
 

@@ -197,6 +197,6 @@ In every case, the sum P_RelayUp + P_RelayDown is unchanged by firing.
 Since it equals 1 at M₀ (base case), it equals 1 in every reachable marking. ✓
 
 **Interpretation:** The relay is always in exactly one of two states (up or down),
-never simultaneously both nor neither. This mirrors the AetherMesh guarantee that
+never simultaneously both nor neither. This mirrors the AetherNet guarantee that
 `IHandshakeMeshService.PeerNegotiated` and disconnect events are mutually exclusive
 for a given peer UHID.

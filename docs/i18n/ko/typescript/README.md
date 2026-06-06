@@ -141,7 +141,7 @@ PacketNonce (8 bytes)
 ### Signal Protocol (섹션 4)
 
 - **키 교환**: ECDH P-256을 사용한 X3DH
-- **HKDF**: salt="AetherMeshSignal"을 사용한 SHA256
+- **HKDF**: salt="AetherNetSignal"을 사용한 SHA256
 - **정보 문자열**: "aether-root-v1", "aether-chain-send-v1", "aether-chain-recv-v1"
 - **암호화**: 12바이트 논스, 16바이트 태그를 사용한 AES-256-GCM
 - **체인 래칫**: 카운터 전진을 갖춘 HMAC-SHA256

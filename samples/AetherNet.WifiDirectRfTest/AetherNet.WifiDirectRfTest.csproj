@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>AetherNet.WifiDirectRfTest</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>
+      RF bring-up test for the Aether Green Wi-Fi Direct transport.
+      Advertises as a Wi-Fi Direct Group Owner, waits for the Android aethernet.green app to
+      connect, sends one Aether wire-format packet, reads the echo response, and prints
+      round-trip time.
+    </Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/AetherNet.Transport.Windows/AetherNet.Transport.Windows.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Security/AetherNet.Security.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.2" />
+  </ItemGroup>
+
+</Project>

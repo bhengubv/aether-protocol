@@ -1,4 +1,4 @@
-/* AetherMesh Vault Erasure Coding — K-of-N reachability queries
+/* AetherNet Vault Erasure Coding — K-of-N reachability queries
    Run: verifytapn --trace some vault-erasure.pnml --query vault-erasure.q
    All queries expected: SATISFIED
    SPDX-License-Identifier: MIT */

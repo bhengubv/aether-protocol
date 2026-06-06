@@ -2,7 +2,7 @@
 
 ## What This Proves
 
-This model provides **mathematical proof** that the AetherMesh distributed
+This model provides **mathematical proof** that the AetherNet distributed
 vault provides:
 
 | Property | Claim | Status |
@@ -37,7 +37,7 @@ vault provides:
 ```
 
 The model uses (K=2, N=3) — the smallest case that exhibits all the
-interesting properties. The production AetherMesh uses (K=10, N=14)
+interesting properties. The production AetherNet uses (K=10, N=14)
 via `IVaultMeshService.StoreAsync(content, k=10, n=14)`. The structural
 properties generalise by induction.
 
@@ -67,7 +67,7 @@ lola vault-erasure.pnml --formula "AGEF P_Recovered = 1 OR P_Lost = 1"
 
 ## Relationship to Code
 
-In `src/AetherMesh.Vault/InMemoryVaultMeshService.cs`:
+In `src/AetherNet.Vault/InMemoryVaultMeshService.cs`:
 
 | Petri net | Code |
 |---|---|
@@ -113,5 +113,5 @@ exponential reduction in loss probability per added redundancy shard.
   the unrecoverable probability remains 10⁻¹¹
 - Heal capacity is **unconstrained**. Real systems have bandwidth
   limits; if heal-throughput < failure-throughput, the steady state
-  drifts toward the unrecoverable region. AetherMesh monitors this
+  drifts toward the unrecoverable region. AetherNet monitors this
   via `IVaultMeshService.HealthAsync()`

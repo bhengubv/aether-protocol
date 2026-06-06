@@ -15,7 +15,7 @@
 - **پروتکل سیگنال**: توافق کلید X3DH + چرخ لنگر متقارن برای رمزنگاری سرتاسری
 - **سرویس امضای بسته**: حذف تکراری nonce با TTL 5 دقیقه‌ای برای جلوگیری از حملات بازپخش
 - **حمل‌ونقل درون‌فرایندی**: حمل‌ونقل مبتنی بر حافظه برای آزمون و ارتباط بین‌فرایندی
-- **مدل‌ها**: ساختارهای AetherMeshNode، PeerInfo، RouteEntry، DtnBundle، SosAlert
+- **مدل‌ها**: ساختارهای AetherNetNode، PeerInfo، RouteEntry، DtnBundle، SosAlert
 - **ثوابت پروتکل**: تمام ثوابت مسیریابی، کشف، امنیت و حمل‌ونقل
 
 ## ساختار ماژول
@@ -175,7 +175,7 @@ fmt.Println(inProcTransport.IsConnected("bob"))    // true
 
 ```go
 // Node in the mesh
-node := &models.AetherMeshNode{
+node := &models.AetherNetNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

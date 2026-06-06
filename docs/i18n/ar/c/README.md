@@ -136,43 +136,43 @@ ctest --output-on-failure
 
 int main(void) {
     // Create a packet
-    aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
+    aethernet_mesh_packet_t *packet = aethernet_packet_new();
     if (!packet) return 1;
 
     // Set fields
-    aethermesh_packet_set_source_uhid(packet, "node-alice");
-    aethermesh_packet_set_destination_uhid(packet, "node-bob");
-    aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
+    aethernet_packet_set_source_uhid(packet, "node-alice");
+    aethernet_packet_set_destination_uhid(packet, "node-bob");
+    aethernet_packet_set_payload(packet, (const uint8_t *)"Hello mesh!", 11);
 
     // Generate and sign
-    uint8_t private_key[AETHERMESH_ED25519_PRIVATE_KEY_SIZE];
-    uint8_t public_key[AETHERMESH_ED25519_PUBLIC_KEY_SIZE];
-    aethermesh_ed25519_generate_keypair(private_key, public_key);
+    uint8_t private_key[AETHERNET_ED25519_PRIVATE_KEY_SIZE];
+    uint8_t public_key[AETHERNET_ED25519_PUBLIC_KEY_SIZE];
+    aethernet_ed25519_generate_keypair(private_key, public_key);
 
     size_t signable_len = 0;
-    uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
+    uint8_t *signable = aethernet_packet_get_signable_data(packet, &signable_len);
     if (signable) {
-        uint8_t signature[AETHERMESH_ED25519_SIGNATURE_SIZE];
-        aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
-        aethermesh_packet_set_signature(packet, signature, AETHERMESH_ED25519_SIGNATURE_SIZE);
+        uint8_t signature[AETHERNET_ED25519_SIGNATURE_SIZE];
+        aethernet_ed25519_sign(private_key, signable, signable_len, signature);
+        aethernet_packet_set_signature(packet, signature, AETHERNET_ED25519_SIGNATURE_SIZE);
         free(signable);
     }
 
     // Serialize
     uint8_t buffer[4096];
-    int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
+    int size = aethernet_packet_serialize(packet, buffer, sizeof(buffer));
     if (size > 0) {
         printf("Packet serialized: %d bytes\n", size);
     }
 
     // Deserialize
-    aethermesh_mesh_packet_t *received = aethermesh_packet_deserialize(buffer, size);
+    aethernet_mesh_packet_t *received = aethernet_packet_deserialize(buffer, size);
     if (received) {
         printf("Received from: %s\n", received->source_uhid);
-        aethermesh_packet_free(received);
+        aethernet_packet_free(received);
     }
 
-    aethermesh_packet_free(packet);
+    aethernet_packet_free(packet);
     return 0;
 }
 ```
@@ -182,60 +182,60 @@ int main(void) {
 ### البروتوكول
 
 #### إدارة الحزم
-- `aethermesh_mesh_packet_t *aethermesh_packet_new(void)` — إنشاء حزمة جديدة
-- `void aethermesh_packet_free(aethermesh_mesh_packet_t *packet)` — تحرير حزمة
-- `aethermesh_mesh_packet_t *aethermesh_packet_clone(const aethermesh_mesh_packet_t *packet)` — استنساخ حزمة
+- `aethernet_mesh_packet_t *aethernet_packet_new(void)` — إنشاء حزمة جديدة
+- `void aethernet_packet_free(aethernet_mesh_packet_t *packet)` — تحرير حزمة
+- `aethernet_mesh_packet_t *aethernet_packet_clone(const aethernet_mesh_packet_t *packet)` — استنساخ حزمة
 
 #### التسلسل
-- `int aethermesh_packet_serialize(const aethermesh_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — التسلسل إلى التنسيق السلكي
-- `aethermesh_mesh_packet_t *aethermesh_packet_deserialize(const uint8_t *data, size_t data_len)` — إلغاء التسلسل من التنسيق السلكي
-- `size_t aethermesh_packet_estimate_size(const aethermesh_mesh_packet_t *packet)` — تقدير الحجم السلكي
+- `int aethernet_packet_serialize(const aethernet_mesh_packet_t *packet, uint8_t *buffer, size_t buffer_len)` — التسلسل إلى التنسيق السلكي
+- `aethernet_mesh_packet_t *aethernet_packet_deserialize(const uint8_t *data, size_t data_len)` — إلغاء التسلسل من التنسيق السلكي
+- `size_t aethernet_packet_estimate_size(const aethernet_mesh_packet_t *packet)` — تقدير الحجم السلكي
 
 #### حقول الحزمة
-- `bool aethermesh_packet_set_source_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — تعيين المصدر
-- `bool aethermesh_packet_set_destination_uhid(aethermesh_mesh_packet_t *packet, const char *uhid)` — تعيين الوجهة
-- `bool aethermesh_packet_set_payload(aethermesh_mesh_packet_t *packet, const uint8_t *data, size_t len)` — تعيين الحمولة
-- `bool aethermesh_packet_set_signature(aethermesh_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — تعيين التوقيع
+- `bool aethernet_packet_set_source_uhid(aethernet_mesh_packet_t *packet, const char *uhid)` — تعيين المصدر
+- `bool aethernet_packet_set_destination_uhid(aethernet_mesh_packet_t *packet, const char *uhid)` — تعيين الوجهة
+- `bool aethernet_packet_set_payload(aethernet_mesh_packet_t *packet, const uint8_t *data, size_t len)` — تعيين الحمولة
+- `bool aethernet_packet_set_signature(aethernet_mesh_packet_t *packet, const uint8_t *sig, size_t len)` — تعيين التوقيع
 
 #### التحقق
-- `bool aethermesh_packet_is_expired(const aethermesh_mesh_packet_t *packet, int max_age_seconds)` — التحقق من انتهاء الصلاحية
-- `bool aethermesh_packet_can_forward(const aethermesh_mesh_packet_t *packet)` — التحقق من أن TTL > 0
+- `bool aethernet_packet_is_expired(const aethernet_mesh_packet_t *packet, int max_age_seconds)` — التحقق من انتهاء الصلاحية
+- `bool aethernet_packet_can_forward(const aethernet_mesh_packet_t *packet)` — التحقق من أن TTL > 0
 
 #### بيانات التوقيع
-- `uint8_t *aethermesh_packet_get_signable_data(const aethermesh_mesh_packet_t *packet, size_t *out_len)` — الحصول على البايتات الحتمية القابلة للتوقيع (يجب على المستدعي تحريرها)
+- `uint8_t *aethernet_packet_get_signable_data(const aethernet_mesh_packet_t *packet, size_t *out_len)` — الحصول على البايتات الحتمية القابلة للتوقيع (يجب على المستدعي تحريرها)
 
 ### الأمان
 
 #### Ed25519
-- `bool aethermesh_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — توليد مفاتيح بحجم 32+32 بايت
-- `bool aethermesh_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — التوقيع (ينتج 64 بايت)
-- `bool aethermesh_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — التحقق
+- `bool aethernet_ed25519_generate_keypair(uint8_t *out_private, uint8_t *out_public)` — توليد مفاتيح بحجم 32+32 بايت
+- `bool aethernet_ed25519_sign(const uint8_t *private_key, const uint8_t *data, size_t data_len, uint8_t *out_signature)` — التوقيع (ينتج 64 بايت)
+- `bool aethernet_ed25519_verify(const uint8_t *public_key, const uint8_t *data, size_t data_len, const uint8_t *signature)` — التحقق
 
 #### AES-256-GCM
-- `bool aethermesh_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — التشفير (يُولَّد nonce تلقائياً إذا كانت NULL)
-- `bool aethermesh_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — فك التشفير
+- `bool aethernet_aes256_gcm_encrypt(const uint8_t *plaintext, size_t plaintext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *aad, size_t aad_len, uint8_t *out_ciphertext, uint8_t *out_tag, uint8_t *out_nonce)` — التشفير (يُولَّد nonce تلقائياً إذا كانت NULL)
+- `bool aethernet_aes256_gcm_decrypt(const uint8_t *ciphertext, size_t ciphertext_len, const uint8_t *key, const uint8_t *nonce, const uint8_t *tag, const uint8_t *aad, size_t aad_len, uint8_t *out_plaintext)` — فك التشفير
 
 #### HMAC والتجزئة
-- `bool aethermesh_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 بايت)
-- `bool aethermesh_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 بايت)
-- `bool aethermesh_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
+- `bool aethernet_hmac_sha256(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out_hash)` — HMAC-SHA256 (32 بايت)
+- `bool aethernet_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash)` — SHA-256 (32 بايت)
+- `bool aethernet_hkdf_sha256(const uint8_t *salt, size_t salt_len, const uint8_t *ikm, size_t ikm_len, const uint8_t *info, size_t info_len, size_t output_len, uint8_t *out_okm)` — HKDF (RFC 5869)
 
 #### الأدوات المساعدة
-- `void aethermesh_zeroize(void *mem, size_t len)` — مسح الذاكرة في وقت ثابت
-- `bool aethermesh_random_bytes(uint8_t *out, size_t len)` — بايتات عشوائية تشفيرياً
+- `void aethernet_zeroize(void *mem, size_t len)` — مسح الذاكرة في وقت ثابت
+- `bool aethernet_random_bytes(uint8_t *out, size_t len)` — بايتات عشوائية تشفيرياً
 
 ### النقل
 
 #### الدوال العامة
-- `bool aethermesh_transport_send(aethermesh_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — إرسال البيانات
-- `bool aethermesh_transport_is_connected(aethermesh_transport_t *transport, const char *peer_uhid)` — التحقق من الاتصال
-- `void aethermesh_transport_set_on_data_received(aethermesh_transport_t *transport, aethermesh_transport_on_data_received callback, void *user_data)` — تسجيل callback
-- `void aethermesh_transport_destroy(aethermesh_transport_t *transport)` — التنظيف
+- `bool aethernet_transport_send(aethernet_transport_t *transport, const char *peer_uhid, const uint8_t *data, size_t data_len)` — إرسال البيانات
+- `bool aethernet_transport_is_connected(aethernet_transport_t *transport, const char *peer_uhid)` — التحقق من الاتصال
+- `void aethernet_transport_set_on_data_received(aethernet_transport_t *transport, aethernet_transport_on_data_received callback, void *user_data)` — تسجيل callback
+- `void aethernet_transport_destroy(aethernet_transport_t *transport)` — التنظيف
 
 #### النقل داخل العملية
-- `aethermesh_transport_t *aethermesh_inprocess_transport_new(void)` — إنشاء نقل داخل العملية مشترك
-- `bool aethermesh_inprocess_transport_register_node(aethermesh_transport_t *transport, const char *uhid)` — تسجيل عقدة
-- `bool aethermesh_inprocess_transport_unregister_node(aethermesh_transport_t *transport, const char *uhid)` — إلغاء تسجيل عقدة
+- `aethernet_transport_t *aethernet_inprocess_transport_new(void)` — إنشاء نقل داخل العملية مشترك
+- `bool aethernet_inprocess_transport_register_node(aethernet_transport_t *transport, const char *uhid)` — تسجيل عقدة
+- `bool aethernet_inprocess_transport_unregister_node(aethernet_transport_t *transport, const char *uhid)` — إلغاء تسجيل عقدة
 
 ## توافق التنسيق السلكي
 
@@ -296,7 +296,7 @@ int main(void) {
 
 ### استخدام الذاكرة
 - الحزمة الدنيا: ~52 بايت
-- الحزمة القصوى: 65 كيلوبايت (قابل للتهيئة عبر `AETHERMESH_MAX_PAYLOAD_LEN`)
+- الحزمة القصوى: 65 كيلوبايت (قابل للتهيئة عبر `AETHERNET_MAX_PAYLOAD_LEN`)
 - جدول نظير مكون من 256 عقدة: ~32 كيلوبايت
 - حزمة ميش واحدة في الذاكرة: ~8 كيلوبايت (أسوأ الحالات مع الحقول القصوى)
 
@@ -333,8 +333,8 @@ ctest --output-on-failure --verbose
 ## التكامل مع نظام Aether البيئي
 
 تم تصميم مكتبة C هذه للتكامل مع:
-- **AetherMeshAPI** (C#) — ترحيل الميش من جانب الخادم والتحليلات
-- **AetherMesh.Core** (C#) — التطبيق المرجعي (تنسيق سلكي قابل للتشغيل البيني)
+- **AetherNetAPI** (C#) — ترحيل الميش من جانب الخادم والتحليلات
+- **AetherNet.Core** (C#) — التطبيق المرجعي (تنسيق سلكي قابل للتشغيل البيني)
 - **Meshtastic** — برمجيات راديو الميش مفتوحة المصدر
 - **esp-idf** — إطار تطوير إنترنت الأشياء من Espressif
 - التطبيقات المدمجة المخصصة
@@ -357,7 +357,7 @@ SPDX-License-Identifier: MIT
 ## المراجع
 
 - مواصفات البروتوكول: `/Users/admin/Code/Dev/aether-protocol/docs/PROTOCOL_SPEC.md`
-- المرجع C#: `/Users/admin/Code/Dev/aether-protocol/src/AetherMesh.Core/`
+- المرجع C#: `/Users/admin/Code/Dev/aether-protocol/src/AetherNet.Core/`
 - libsodium: https://libsodium.org/
 - RFC 5869 (HKDF): https://tools.ietf.org/html/rfc5869
 - RFC 3561 (AODV): https://tools.ietf.org/html/rfc3561

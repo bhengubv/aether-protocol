@@ -2,7 +2,7 @@
 
 ## What This Proves
 
-The AetherMesh routing layer (`AODVRoutingMeshService` / `IRoutingMeshService`)
+The AetherNet routing layer (`AODVRoutingMeshService` / `IRoutingMeshService`)
 uses an AODV-derived reactive routing algorithm. This model proves the three
 properties any mesh routing protocol must hold to be safe:
 

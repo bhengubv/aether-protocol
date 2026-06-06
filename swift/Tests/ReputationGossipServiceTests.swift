@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import XCTest
-@testable import AetherMeshProtocol
+@testable import AetherNetProtocol
 
 // MARK: - Test doubles
 

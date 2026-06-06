@@ -13,7 +13,7 @@ Ce module implémente le protocole de réseau maillé décentralisé Aether pour
 - **Protocole Signal** : accord de clé X3DH + cliquet symétrique pour le chiffrement de bout en bout
 - **Service de signature de paquets** : déduplication de nonce avec TTL de 5 minutes pour la prévention des attaques par rejeu
 - **Transport en cours de processus** : transport basé sur la mémoire pour les tests et la communication inter-processus
-- **Modèles** : structures AetherMeshNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
+- **Modèles** : structures AetherNetNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
 - **Constantes de protocole** : toutes les constantes de routage, de découverte, de sécurité et de transport
 
 ## Structure du module
@@ -173,7 +173,7 @@ Structures complètes pour le réseau maillé :
 
 ```go
 // Node in the mesh
-node := &models.AetherMeshNode{
+node := &models.AetherNetNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

@@ -1,8 +1,8 @@
-# AetherMesh Conformance Kit
+# AetherNet Conformance Kit
 
 ## What This Is
 
-A test suite anyone can run against a candidate AetherMesh implementation
+A test suite anyone can run against a candidate AetherNet implementation
 to assert compliance with the formal model. Drives the same state-space
 sequence used in the Petri net verification through the implementation;
 asserts identical externally-observable transitions.
@@ -40,13 +40,13 @@ Skeleton planned. Implementation tracked as task #46.
 cd conformance-kit && make
 
 # Run against your implementation
-./conformance --impl path/to/your/aethermesh/binary
+./conformance --impl path/to/your/aethernet/binary
 # Expected: ALL TESTS PASSED
 ```
 
 ## Why It Matters
 
-The conformance kit is what turns AetherMesh from "an open-source
+The conformance kit is what turns AetherNet from "an open-source
 protocol" into "**a protocol anyone can implement and certify
 compliance with**." Without it, alternative implementations could
 diverge subtly and break interop. With it, divergence is detected
@@ -54,4 +54,4 @@ immediately at test-time.
 
 This is how internet 1.0 protocols achieve broad adoption: TCP/IP
 has stack-conformance tests, HTTP has WPT (Web Platform Tests),
-QUIC has interop matrices. AetherMesh joins that lineage.
+QUIC has interop matrices. AetherNet joins that lineage.

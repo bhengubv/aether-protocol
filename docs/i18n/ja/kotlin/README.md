@@ -27,7 +27,7 @@ Aether は、断続的またはインターネット接続が存在しない環�
 │       ├── Constants.kt                      # Protocol constants (TTL, timeouts, HKDF info strings)
 │       ├── Demo.kt                           # Demo application (key generation, encryption, signing)
 │       ├── models/
-│       │   └── Models.kt                     # Domain models (AetherMeshNode, PeerInfo, DtnBundle, etc.)
+│       │   └── Models.kt                     # Domain models (AetherNetNode, PeerInfo, DtnBundle, etc.)
 │       ├── protocol/
 │       │   ├── MeshPacket.kt                 # Packet data class (wire-compatible with C#)
 │       │   ├── PacketType.kt                 # Packet type enum (23 types, matching C# values)
@@ -145,7 +145,7 @@ interface TransportService {
 
 ### 5. ドメインモデル (`Models.kt`)
 
-- **AetherMeshNode**: UHID、公開鍵、ケイパビリティ、ジオハッシュを持つノードアイデンティティ
+- **AetherNetNode**: UHID、公開鍵、ケイパビリティ、ジオハッシュを持つノードアイデンティティ
 - **PeerInfo**: 信頼性スコアと最終確認タイムスタンプを持つ既知ピア
 - **RouteEntry**: ホップカウントとクオリティスコアを持つルーティングテーブルエントリ
 - **NodeCapabilities**: ビットフィールド（BLE、Wi-Fi Direct、ゲートウェイ、リレー、SOS、ストリーミング、音声、DTN）

@@ -15,7 +15,7 @@ Why (K=2, N=3)? It is the smallest non-trivial case that exhibits:
 - A reachable unrecoverable state
 - Self-healing transitions that preserve the K-of-N invariant
 
-The production AetherMesh uses `(K=10, N=14)` in `IVaultMeshService`.
+The production AetherNet uses `(K=10, N=14)` in `IVaultMeshService`.
 The structural argument generalises by induction on (N, K).
 
 ## Places
@@ -234,7 +234,7 @@ places. Both must hold tokens for the transition to fire. So
 This is the **fundamental K-of-N Reed-Solomon guarantee** — formalised
 and proved on the protocol's state space.
 
-## Mapping to AetherMesh Implementation
+## Mapping to AetherNet Implementation
 
 | Petri net | `IVaultMeshService` (production K=10, N=14) |
 |---|---|
@@ -268,5 +268,5 @@ state.
 | (K=2, N=3) is small | The structural argument is parametric in (K, N); proof generalises by induction |
 | Heal is atomic | Real heal takes time; timed extension `vault-erasure-timed.cpn` adds a `Healing` intermediate place with bounded duration |
 | Failures are independent | Real correlated failures (rack power loss) modelled by coupled `T_Fail` transitions; the model becomes a 2-of-3 with reduced effective N |
-| No incentive layer | Real custody is paid via `IAetherMeshIncentiveProvider`; extension adds `P_Payment` token flow with bounded delay before custody expires |
+| No incentive layer | Real custody is paid via `IAetherNetIncentiveProvider`; extension adds `P_Payment` token flow with bounded delay before custody expires |
 | Single bundle | Multi-bundle modelled by colouring tokens with bundle ID; conservation follows by token additivity |

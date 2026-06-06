@@ -9,11 +9,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "aethermesh/constants.h"
-#include "aethermesh/protocol.h"
-#include "aethermesh/routing.h"
-#include "aethermesh/transport.h"
-#include "aethermesh/streaming.h"
+#include "aethernet/constants.h"
+#include "aethernet/protocol.h"
+#include "aethernet/routing.h"
+#include "aethernet/transport.h"
+#include "aethernet/streaming.h"
 
 // ── Fake transport ────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ static bool ft_send(void *h, const char *peer, const uint8_t *d, size_t n) {
 static bool ft_is_connected(void *h, const char *peer) {
     (void)h; (void)peer; return false;
 }
-static aethermesh_transport_vtable_t g_vtable = {
+static aethernet_transport_vtable_t g_vtable = {
     .name                 = "fake",
     .max_bandwidth_bps    = 1000000,
     .power_cost_relative  = 1,
@@ -34,46 +34,46 @@ static aethermesh_transport_vtable_t g_vtable = {
     .destroy              = NULL,
     .get_metrics          = NULL,
 };
-static aethermesh_transport_t g_transport = { .vtable = &g_vtable, .handle = NULL };
+static aethernet_transport_t g_transport = { .vtable = &g_vtable, .handle = NULL };
 
 // ── Fake routing sender ───────────────────────────────────────
 
-static bool rs_send(aethermesh_mesh_sender_t *s, const aethermesh_mesh_packet_t *p, const char *hop) {
+static bool rs_send(aethernet_mesh_sender_t *s, const aethernet_mesh_packet_t *p, const char *hop) {
     (void)s; (void)p; (void)hop; return true;
 }
-static int rs_broadcast(aethermesh_mesh_sender_t *s, const aethermesh_mesh_packet_t *p) {
+static int rs_broadcast(aethernet_mesh_sender_t *s, const aethernet_mesh_packet_t *p) {
     (void)s; (void)p; return 0;
 }
 
 // ── Service factory ───────────────────────────────────────────
 
-static aethermesh_watch_together_service_t *make_watch_svc(const char *local_uhid) {
-    static aethermesh_mesh_sender_t rs;
+static aethernet_watch_together_service_t *make_watch_svc(const char *local_uhid) {
+    static aethernet_mesh_sender_t rs;
     rs.local_uhid = local_uhid;
     rs.send       = rs_send;
     rs.broadcast  = rs_broadcast;
     rs.user_data  = NULL;
-    aethermesh_routing_service_t *routing = aethermesh_routing_service_new(&rs);
-    return aethermesh_watch_together_service_create(&g_transport, routing, local_uhid);
+    aethernet_routing_service_t *routing = aethernet_routing_service_new(&rs);
+    return aethernet_watch_together_service_create(&g_transport, routing, local_uhid);
 }
 
 // ── Packet builders ───────────────────────────────────────────
 
-static aethermesh_packet_t *make_watch_sync_pkt(const char *from, const char *json) {
-    aethermesh_packet_t *p = aethermesh_packet_new();
+static aethernet_packet_t *make_watch_sync_pkt(const char *from, const char *json) {
+    aethernet_packet_t *p = aethernet_packet_new();
     if (!p) return NULL;
-    p->type = AETHERMESH_PACKET_TYPE_WATCH_SYNC;
-    aethermesh_packet_set_source_uhid(p, from);
-    aethermesh_packet_set_payload(p, (const uint8_t *)json, (uint32_t)strlen(json));
+    p->type = AETHERNET_PACKET_TYPE_WATCH_SYNC;
+    aethernet_packet_set_source_uhid(p, from);
+    aethernet_packet_set_payload(p, (const uint8_t *)json, (uint32_t)strlen(json));
     return p;
 }
 
-static aethermesh_packet_t *make_watch_reaction_pkt(const char *from, const char *json) {
-    aethermesh_packet_t *p = aethermesh_packet_new();
+static aethernet_packet_t *make_watch_reaction_pkt(const char *from, const char *json) {
+    aethernet_packet_t *p = aethernet_packet_new();
     if (!p) return NULL;
-    p->type = AETHERMESH_PACKET_TYPE_WATCH_REACTION;
-    aethermesh_packet_set_source_uhid(p, from);
-    aethermesh_packet_set_payload(p, (const uint8_t *)json, (uint32_t)strlen(json));
+    p->type = AETHERNET_PACKET_TYPE_WATCH_REACTION;
+    aethernet_packet_set_source_uhid(p, from);
+    aethernet_packet_set_payload(p, (const uint8_t *)json, (uint32_t)strlen(json));
     return p;
 }
 
@@ -81,7 +81,7 @@ static aethermesh_packet_t *make_watch_reaction_pkt(const char *from, const char
 static const char *k_sid_str = "aabbccdd-eeff-4001-8002-aabbccddeeff";
 
 // Helper: register an inbound invite so subsequent play/pause/seek have a session.
-static void recv_invite(aethermesh_watch_together_service_t *svc) {
+static void recv_invite(aethernet_watch_together_service_t *svc) {
     char json[512];
     snprintf(json, sizeof(json),
         "{\"session_id\":\"%s\",\"host_uhid\":\"bob\","
@@ -89,9 +89,9 @@ static void recv_invite(aethermesh_watch_together_service_t *svc) {
         "\"signal_type\":\"watch_invite\","
         "\"members\":[\"alice\",\"bob\"]}",
         k_sid_str);
-    aethermesh_packet_t *pkt = make_watch_sync_pkt("bob", json);
-    aethermesh_watch_handle_packet(svc, pkt);
-    aethermesh_packet_free(pkt);
+    aethernet_packet_t *pkt = make_watch_sync_pkt("bob", json);
+    aethernet_watch_handle_packet(svc, pkt);
+    aethernet_packet_free(pkt);
 }
 
 // ── Callback capture ──────────────────────────────────────────
@@ -139,121 +139,121 @@ static int tests_run = 0;
 // ── Tests ─────────────────────────────────────────────────────
 
 static void invite_returns_session_id(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     const char *to[] = { "bob", "carol" };
     uint8_t session_id[16] = {0};
-    int rc = aethermesh_watch_invite_to_session(
+    int rc = aethernet_watch_invite_to_session(
         svc, to, 2, "https://example.com/stream.m3u8", session_id);
     assert(rc == 0);
     int nonzero = 0;
     for (int i = 0; i < 16; i++) nonzero += (session_id[i] != 0 ? 1 : 0);
     assert(nonzero > 0);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void invite_null_media_url_returns_error(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     const char *to[] = { "bob" };
     uint8_t session_id[16] = {0};
-    int rc = aethermesh_watch_invite_to_session(svc, to, 1, NULL, session_id);
+    int rc = aethernet_watch_invite_to_session(svc, to, 1, NULL, session_id);
     assert(rc == -1);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void play_unknown_session_returns_error(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     uint8_t unknown[16] = {0x01, 0x02, 0x03};
-    int rc = aethermesh_watch_play(svc, unknown, 1000);
+    int rc = aethernet_watch_play(svc, unknown, 1000);
     assert(rc == -1);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void play_known_session_returns_ok(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     const char *to[] = { "bob" };
     uint8_t session_id[16] = {0};
-    aethermesh_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
-    int rc = aethermesh_watch_play(svc, session_id, 5000);
+    aethernet_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
+    int rc = aethernet_watch_play(svc, session_id, 5000);
     assert(rc == 0);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void pause_unknown_session_returns_error(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     uint8_t unknown[16] = {0x01, 0x02, 0x03};
-    int rc = aethermesh_watch_pause(svc, unknown, 1000);
+    int rc = aethernet_watch_pause(svc, unknown, 1000);
     assert(rc == -1);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void pause_known_session_returns_ok(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     const char *to[] = { "bob" };
     uint8_t session_id[16] = {0};
-    aethermesh_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
-    int rc = aethermesh_watch_pause(svc, session_id, 5000);
+    aethernet_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
+    int rc = aethernet_watch_pause(svc, session_id, 5000);
     assert(rc == 0);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void seek_unknown_session_returns_error(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     uint8_t unknown[16] = {0x01, 0x02, 0x03};
-    int rc = aethermesh_watch_seek(svc, unknown, 30000);
+    int rc = aethernet_watch_seek(svc, unknown, 30000);
     assert(rc == -1);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void seek_known_session_returns_ok(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     const char *to[] = { "bob" };
     uint8_t session_id[16] = {0};
-    aethermesh_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
-    int rc = aethermesh_watch_seek(svc, session_id, 30000);
+    aethernet_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
+    int rc = aethernet_watch_seek(svc, session_id, 30000);
     assert(rc == 0);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void set_speed_unknown_session_returns_error(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     uint8_t unknown[16] = {0x01, 0x02, 0x03};
-    int rc = aethermesh_watch_set_speed(svc, unknown, 1.5);
+    int rc = aethernet_watch_set_speed(svc, unknown, 1.5);
     assert(rc == -1);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void set_speed_known_session_returns_ok(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     const char *to[] = { "bob" };
     uint8_t session_id[16] = {0};
-    aethermesh_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
-    int rc = aethermesh_watch_set_speed(svc, session_id, 2.0);
+    aethernet_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
+    int rc = aethernet_watch_set_speed(svc, session_id, 2.0);
     assert(rc == 0);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void send_reaction_unknown_session_returns_error(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     uint8_t unknown[16] = {0x01, 0x02, 0x03};
-    int rc = aethermesh_watch_send_reaction(svc, unknown, "thumbsup");
+    int rc = aethernet_watch_send_reaction(svc, unknown, "thumbsup");
     assert(rc == -1);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void send_reaction_known_session_returns_ok(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     const char *to[] = { "bob" };
     uint8_t session_id[16] = {0};
-    aethermesh_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
-    int rc = aethermesh_watch_send_reaction(svc, session_id, "heart");
+    aethernet_watch_invite_to_session(svc, to, 1, "https://example.com/stream.m3u8", session_id);
+    int rc = aethernet_watch_send_reaction(svc, session_id, "heart");
     assert(rc == 0);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void handle_packet_inbound_invite_fires_invite_cb(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     g_invite_count = 0;
-    aethermesh_watch_set_invite_cb(svc, on_invite, NULL);
+    aethernet_watch_set_invite_cb(svc, on_invite, NULL);
 
     char json[512];
     snprintf(json, sizeof(json),
@@ -263,21 +263,21 @@ static void handle_packet_inbound_invite_fires_invite_cb(void) {
         "\"members\":[\"alice\",\"bob\"]}",
         k_sid_str);
 
-    aethermesh_packet_t *pkt = make_watch_sync_pkt("bob", json);
-    int rc = aethermesh_watch_handle_packet(svc, pkt);
+    aethernet_packet_t *pkt = make_watch_sync_pkt("bob", json);
+    int rc = aethernet_watch_handle_packet(svc, pkt);
     assert(rc == 0);
     assert(g_invite_count == 1);
     assert(strcmp(g_invite_host, "bob") == 0);
     assert(strcmp(g_invite_url, "https://example.com/stream.m3u8") == 0);
 
-    aethermesh_packet_free(pkt);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_packet_free(pkt);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void handle_packet_inbound_play_fires_playback_cb(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     g_playback_count = 0; g_last_is_playing = -1;
-    aethermesh_watch_set_playback_cb(svc, on_playback, NULL);
+    aethernet_watch_set_playback_cb(svc, on_playback, NULL);
     recv_invite(svc);
 
     // sent_at_ms in the far future keeps RTT compensation non-positive so the
@@ -290,21 +290,21 @@ static void handle_packet_inbound_play_fires_playback_cb(void) {
         "\"signal_type\":\"watch_play\"}",
         k_sid_str);
 
-    aethermesh_packet_t *pkt = make_watch_sync_pkt("bob", json);
-    int rc = aethermesh_watch_handle_packet(svc, pkt);
+    aethernet_packet_t *pkt = make_watch_sync_pkt("bob", json);
+    int rc = aethernet_watch_handle_packet(svc, pkt);
     assert(rc == 0);
     assert(g_playback_count == 1);
     assert(g_last_is_playing == 1);
 
-    aethermesh_packet_free(pkt);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_packet_free(pkt);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void handle_packet_inbound_pause_uses_exact_position(void) {
     // Pause has no RTT compensation — callback must receive the raw position_ms.
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     g_playback_count = 0; g_last_is_playing = -1; g_last_position_ms = -1;
-    aethermesh_watch_set_playback_cb(svc, on_playback, NULL);
+    aethernet_watch_set_playback_cb(svc, on_playback, NULL);
     recv_invite(svc);
 
     char json[256];
@@ -314,21 +314,21 @@ static void handle_packet_inbound_pause_uses_exact_position(void) {
         "\"signal_type\":\"watch_pause\"}",
         k_sid_str);
 
-    aethermesh_packet_t *pkt = make_watch_sync_pkt("bob", json);
-    int rc = aethermesh_watch_handle_packet(svc, pkt);
+    aethernet_packet_t *pkt = make_watch_sync_pkt("bob", json);
+    int rc = aethernet_watch_handle_packet(svc, pkt);
     assert(rc == 0);
     assert(g_playback_count == 1);
     assert(g_last_is_playing == 0);
     assert(g_last_position_ms == 12345);
 
-    aethermesh_packet_free(pkt);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_packet_free(pkt);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void handle_packet_inbound_seek_fires_playback_cb(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     g_playback_count = 0; g_last_is_playing = -1;
-    aethermesh_watch_set_playback_cb(svc, on_playback, NULL);
+    aethernet_watch_set_playback_cb(svc, on_playback, NULL);
     recv_invite(svc);
 
     char json[512];
@@ -339,19 +339,19 @@ static void handle_packet_inbound_seek_fires_playback_cb(void) {
         "\"signal_type\":\"watch_seek\"}",
         k_sid_str);
 
-    aethermesh_packet_t *pkt = make_watch_sync_pkt("bob", json);
-    int rc = aethermesh_watch_handle_packet(svc, pkt);
+    aethernet_packet_t *pkt = make_watch_sync_pkt("bob", json);
+    int rc = aethernet_watch_handle_packet(svc, pkt);
     assert(rc == 0);
     assert(g_playback_count == 1);
 
-    aethermesh_packet_free(pkt);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_packet_free(pkt);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 static void handle_packet_inbound_reaction_fires_reaction_cb(void) {
-    aethermesh_watch_together_service_t *svc = make_watch_svc("alice");
+    aethernet_watch_together_service_t *svc = make_watch_svc("alice");
     g_reaction_count = 0;
-    aethermesh_watch_set_reaction_cb(svc, on_reaction, NULL);
+    aethernet_watch_set_reaction_cb(svc, on_reaction, NULL);
 
     char json[512];
     snprintf(json, sizeof(json),
@@ -360,15 +360,15 @@ static void handle_packet_inbound_reaction_fires_reaction_cb(void) {
         "\"sent_at_ms\":1700000000000}",
         k_sid_str);
 
-    aethermesh_packet_t *pkt = make_watch_reaction_pkt("bob", json);
-    int rc = aethermesh_watch_handle_packet(svc, pkt);
+    aethernet_packet_t *pkt = make_watch_reaction_pkt("bob", json);
+    int rc = aethernet_watch_handle_packet(svc, pkt);
     assert(rc == 0);
     assert(g_reaction_count == 1);
     assert(strcmp(g_reaction_from, "bob") == 0);
     assert(strcmp(g_reaction_emoji, "lol") == 0);
 
-    aethermesh_packet_free(pkt);
-    aethermesh_watch_together_service_destroy(svc);
+    aethernet_packet_free(pkt);
+    aethernet_watch_together_service_destroy(svc);
 }
 
 int main(void) {

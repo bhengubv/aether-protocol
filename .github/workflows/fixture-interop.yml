@@ -28,15 +28,15 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Run FixtureTests + SignalFixtureTests (AetherMesh.Core.Tests)
+      - name: Run FixtureTests + SignalFixtureTests (AetherNet.Core.Tests)
         run: |
-          dotnet test tests/AetherMesh.Core.Tests/AetherMesh.Core.Tests.csproj \
+          dotnet test tests/AetherNet.Core.Tests/AetherNet.Core.Tests.csproj \
             -c Release \
             --nologo \
             --filter "FullyQualifiedName~FixtureTests|FullyQualifiedName~SignalFixtureTests"
-      - name: Run cross-language Signal runner (AetherMesh.InteropTest)
+      - name: Run cross-language Signal runner (AetherNet.InteropTest)
         run: |
-          dotnet test tests/cross-language/runners/csharp/AetherMesh.InteropTest.csproj \
+          dotnet test tests/cross-language/runners/csharp/AetherNet.InteropTest.csproj \
             -c Release \
             --nologo
 
@@ -155,8 +155,8 @@ jobs:
       - name: Run FixtureTest + SignalFixtureTest
         run: |
           ./gradlew test \
-            --tests "aethermesh.protocol.FixtureTest" \
-            --tests "aethermesh.security.SignalFixtureTest"
+            --tests "aethernet.protocol.FixtureTest" \
+            --tests "aethernet.security.SignalFixtureTest"
 
   swift-fixtures:
     name: Swift fixture tests

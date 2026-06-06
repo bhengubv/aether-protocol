@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
-  AetherMesh DTN Custody — Coloured Petri Net (CPN Tools 4 format)
+  AetherNet DTN Custody — Coloured Petri Net (CPN Tools 4 format)
   =================================================================
   Coloured upgrade of the dtn-custody P/T model. Bundles carry their
   identity (BUNDLE_ID) as token colour. Proves per-bundle conservation,

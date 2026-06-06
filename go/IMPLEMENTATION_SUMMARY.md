@@ -33,7 +33,7 @@
 │   └── in_process.go                   Global sync.Map in-memory transport
 │
 ├── models/
-│   └── models.go                       AetherMeshNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
+│   └── models.go                       AetherNetNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
 │
 ├── constants/
 │   └── constants.go                    All protocol constants (Appendix A)
@@ -143,7 +143,7 @@
 #### `models/models.go`
 - **NodeCapabilities** bitfield (8 bits):
   - CapabilityBLE, CapabilityWifiDirect, CapabilityGateway, CapabilityRelay, CapabilitySos, CapabilityStreaming, CapabilityVoice, CapabilityDtnCarrier
-- **AetherMeshNode**: UHID, IdentityKey, Capabilities, IsLocal, LastSeen, ReliabilityScore
+- **AetherNetNode**: UHID, IdentityKey, Capabilities, IsLocal, LastSeen, ReliabilityScore
 - **PeerInfo**: UHID, Addresses, Capabilities, LastSeen, HopCount, ReliabilityScore
 - **RouteEntry**: DestinationUhid, NextHop, HopCount, ExpiresAt, QualityScore, SourceUhid
   - IsStale() method

@@ -4,7 +4,7 @@
 
 **بررسی‌شده در برابر HEAD `b8b3d22` (2026-05-06).** این سند توضیح می‌دهد که لایه پروتکل رمزنگاری `aether-protocol` در برابر چه چیزی دفاع می‌کند، چه چیزی صراحتاً خارج از دامنه است، و ادعاهای امنیتی به چه پیش‌فرض‌هایی متکی هستند. عمداً صادقانه است: یک مهاجم که این سند را می‌خواند باید بتواند تمام حملاتی را که پروتکل **جلوگیری نمی‌کند** برشمارد، و نباید توسط بازاریابی README گمراه شود.
 
-سند همراه [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7 (مدل امنیتی) است. در صورت تناقض بین دو سند، پیاده‌سازی در `src/AetherMesh.Security/` مرجع است.
+سند همراه [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7 (مدل امنیتی) است. در صورت تناقض بین دو سند، پیاده‌سازی در `src/AetherNet.Security/` مرجع است.
 
 ---
 
@@ -34,12 +34,12 @@
 
 هر payload با AES-256-GCM تحت یک کلید per-message مشتق‌شده از زنجیره متقارن Double Ratchet (Signal §5.1، HMAC-SHA256 با جداسازی دامنه `0x01`/`0x02`) رمزگذاری می‌شود. مهاجمی که هر بسته بین Alice و Bob را ضبط می‌کند بدون یکی از کلیدهای جلسه آن‌ها چیزی بازیابی نمی‌کند.
 
-تأیید شده توسط `tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs`
+تأیید شده توسط `tests/AetherNet.Security.Tests/SignalProtocolEncryptionTests.cs`
 و بردارهای چندزبانه `fixtures/signal/expected/ratchet_step_basic.json`.
 
 ### ۲.۲. جعل پیام
 
-هر بسته Wave-2 یک امضای Ed25519 روی buffer `BuildSignableData(packet)` canonical حمل می‌کند (`src/AetherMesh.Security/Services/PacketSigningService.cs`، PROTOCOL_SPEC §2.4). بسته‌های جعلی در تأیید شکست می‌خورند و در هر hop که کلید عمومی هویت منبع را می‌داند رد می‌شوند. بسته‌های Route Reply (RREP) توسط مقصد ادعاشده امضا می‌شوند — گره‌های میانی نمی‌توانند مقصدها را جعل هویت کنند چون کلید خصوصی Ed25519 مقصد را در اختیار ندارند.
+هر بسته Wave-2 یک امضای Ed25519 روی buffer `BuildSignableData(packet)` canonical حمل می‌کند (`src/AetherNet.Security/Services/PacketSigningService.cs`، PROTOCOL_SPEC §2.4). بسته‌های جعلی در تأیید شکست می‌خورند و در هر hop که کلید عمومی هویت منبع را می‌داند رد می‌شوند. بسته‌های Route Reply (RREP) توسط مقصد ادعاشده امضا می‌شوند — گره‌های میانی نمی‌توانند مقصدها را جعل هویت کنند چون کلید خصوصی Ed25519 مقصد را در اختیار ندارند.
 
 ### ۲.۳. حملات بازپخش
 
@@ -48,11 +48,11 @@
 - بسته‌هایی که `TimestampMs` آن‌ها بیش از ۵ دقیقه با UTC محلی اختلاف دارد رد می‌کند (`FreshnessWindowMs = 5 * 60 * 1000`).
 - یک نقشه dedup در حافظه با کلید `(SourceUhid, PacketNonce)` و TTL ۵ دقیقه‌ای نگه‌داری می‌کند. کلید dedup در commit `5bd52a9` از `nonce` تنها به `(source, nonce)` تغییر کرد تا دو حالت شکست را برطرف کند: برخورد nonce بین فرستنده‌های مختلف که ترافیک مشروع را می‌انداخت، و حملات پیش‌ثبت‌نام که مهاجم یک nonce را برای یک گیرنده می‌کاشت تا اولین بسته فرستنده مشروع را مسدود کند.
 
-شمارنده‌ها: `aethermesh.nonces.replayed`، `aethermesh.timestamps.stale`.
+شمارنده‌ها: `aethernet.nonces.replayed`، `aethernet.timestamps.stale`.
 
 ### ۲.۴. محرمانگی رو به جلو (مخل کلید گذشته)
 
-Double Ratchet در هر مرحله DH-rotation یک کلید زنجیره ارسال جدید مشتق می‌کند (KDF_RK، HKDF-SHA256 روی `salt = current_root_key`، `info = "aether-ratchet-rk-v1"`، بلوک ۶۴ بایتی به صورت ۳۲+۳۲ به کلیدهای root و chain جدید تقسیم می‌شود — `src/AetherMesh.Security/Services/SignalProtocolService.cs`). مهاجمی که وضعیت جلسه فعلی را به خطر می‌اندازد نمی‌تواند هیچ پیام قبلی را رمزگشایی کند: هر کلید پیام قبلی قبل از مرحله ratchet بعدی مشتق و صفر شده بود (`CryptographicOperations.ZeroMemory`).
+Double Ratchet در هر مرحله DH-rotation یک کلید زنجیره ارسال جدید مشتق می‌کند (KDF_RK، HKDF-SHA256 روی `salt = current_root_key`، `info = "aether-ratchet-rk-v1"`، بلوک ۶۴ بایتی به صورت ۳۲+۳۲ به کلیدهای root و chain جدید تقسیم می‌شود — `src/AetherNet.Security/Services/SignalProtocolService.cs`). مهاجمی که وضعیت جلسه فعلی را به خطر می‌اندازد نمی‌تواند هیچ پیام قبلی را رمزگشایی کند: هر کلید پیام قبلی قبل از مرحله ratchet بعدی مشتق و صفر شده بود (`CryptographicOperations.ZeroMemory`).
 
 ### ۲.۵. امنیت پس از مخل (بازیابی کلید آینده)
 
@@ -62,7 +62,7 @@ Double Ratchet در هر مرحله DH-rotation یک کلید زنجیره ار�
 
 ### ۲.۶. بازپخش کلید یکبار مصرف (OPK)
 
-هر OPK دقیقاً یک بار مصرف می‌شود. مرجع C# یک pool صد OPK با صدور FIFO، پر کردن تنبل در هر تولید bundle، و مصرف تک‌باره با قفل ارائه می‌دهد (`SignalProtocolService.TopUpOpkPoolNoLock`، تأیید شده توسط `tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`). یک OPK لحظه‌ای که پاسخ‌دهنده آن را در طول X3DH مصرف می‌کند حذف و صفر می‌شود، بنابراین یک پیام PreKey بازپخش‌شده که از همان id OPK استفاده می‌کند نمی‌تواند جلسه برقرار کند.
+هر OPK دقیقاً یک بار مصرف می‌شود. مرجع C# یک pool صد OPK با صدور FIFO، پر کردن تنبل در هر تولید bundle، و مصرف تک‌باره با قفل ارائه می‌دهد (`SignalProtocolService.TopUpOpkPoolNoLock`، تأیید شده توسط `tests/AetherNet.Core.Tests/PreKeyPoolTests.cs`). یک OPK لحظه‌ای که پاسخ‌دهنده آن را در طول X3DH مصرف می‌کند حذف و صفر می‌شود، بنابراین یک پیام PreKey بازپخش‌شده که از همان id OPK استفاده می‌کند نمی‌تواند جلسه برقرار کند.
 
 ۷ زبان دیگر هنوز یک OPK منفرد در هر جلسه صادر می‌کنند — از نظر عملکردی برای بارهای کاری متوالی درست است اما در زیر fetch‌های bundle همزمان یک خطر همزمانی را نمایان می‌کند. در `OPEN_ISSUES.md` §9 ردیابی می‌شود.
 
@@ -126,7 +126,7 @@ X25519 (RFC 7748) و Ed25519 (RFC 8032) هر دو زیر یک کامپیوتر �
 
 ### ۳.۵. پیام‌رسانی گروهی در مقیاس
 
-`AetherMesh.Security` یک درز `IGroupKeyProvider` دارد، اما پروتکل کامل Signal Sender Keys (ساختار پیام‌رسانی گروهی ناهمزمانی که Signal استفاده می‌کند) **از HEAD پیاده‌سازی نشده است**. میزبان‌هایی که امروز به پیام‌رسانی گروهی نیاز دارند به N جلسه دوبه‌دو برمی‌گردند — که کار می‌کند اما هزینه O(N) در هر ارسال گروهی دارد. PROTOCOL_SPEC §7 تنها تهدیدات تک‌گیرنده را پوشش می‌دهد.
+`AetherNet.Security` یک درز `IGroupKeyProvider` دارد، اما پروتکل کامل Signal Sender Keys (ساختار پیام‌رسانی گروهی ناهمزمانی که Signal استفاده می‌کند) **از HEAD پیاده‌سازی نشده است**. میزبان‌هایی که امروز به پیام‌رسانی گروهی نیاز دارند به N جلسه دوبه‌دو برمی‌گردند — که کار می‌کند اما هزینه O(N) در هر ارسال گروهی دارد. PROTOCOL_SPEC §7 تنها تهدیدات تک‌گیرنده را پوشش می‌دهد.
 
 ### ۳.۶. تأیید هویت در اولین تماس (TOFU)
 
@@ -167,7 +167,7 @@ Aether احراز هویت می‌کند که "همتایی که identity-key-X 
 ### ۵.۱. MitM اولین تماس (TOFU)
 
 **ضعف:** یک مهاجم فعال که لینک peer-to-peer را در طول اولین تبادل bundle کنترل می‌کند می‌تواند bundle خودش را جایگزین کند و ترافیک را proxy کند.
-**کاهش:** UX میزبان باید یک جریان مقایسه safety-number / اثر انگشت کلید عمومی را قبل از تلقی یک تماس به عنوان تأیید‌شده در معرض قرار دهد. یک سطح API عمومی برای مشتق‌سازی safety-number هنوز در `AetherMesh.Security` منتشر نشده؛ به عنوان یک شکاف ردیابی می‌شود.
+**کاهش:** UX میزبان باید یک جریان مقایسه safety-number / اثر انگشت کلید عمومی را قبل از تلقی یک تماس به عنوان تأیید‌شده در معرض قرار دهد. یک سطح API عمومی برای مشتق‌سازی safety-number هنوز در `AetherNet.Security` منتشر نشده؛ به عنوان یک شکاف ردیابی می‌شود.
 
 ### ۵.۲. تأخیر چرخش signed-pre-key
 

@@ -14,6 +14,6 @@ target_include_directories(bench
 
 target_link_libraries(bench
     PRIVATE
-        aethermesh-protocol
+        aethernet-protocol
         pthread
 )

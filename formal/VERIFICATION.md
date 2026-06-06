@@ -1,4 +1,4 @@
-# AetherMesh Formal Verification — Summary
+# AetherNet Formal Verification — Summary
 
 **Last run:** Machine-checked exhaustive reachability via `tools/verify.py`.
 

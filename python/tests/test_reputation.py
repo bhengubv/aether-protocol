@@ -2,7 +2,7 @@
 
 """Unit tests for NodeReputationService.
 
-Mirror of tests/AetherMesh.Core.Tests/NodeReputationServiceTests.cs.
+Mirror of tests/AetherNet.Core.Tests/NodeReputationServiceTests.cs.
 Run with: python -m pytest tests/test_reputation.py -v
 """
 
@@ -12,7 +12,7 @@ import math
 
 import pytest
 
-from aethermesh.reputation import NodeReputationService
+from aethernet.reputation import NodeReputationService
 
 
 ALICE = "alice-uhid"

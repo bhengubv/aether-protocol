@@ -1,11 +1,11 @@
-# AetherMesh Formal Verification — Roadmap
+# AetherNet Formal Verification — Roadmap
 
-> **Why this matters:** AetherMesh launching with machine-checked
+> **Why this matters:** AetherNet launching with machine-checked
 > formal proofs is the credibility surface that lets IETF, regulators,
 > and other open-source projects treat this as a real network protocol
 > rather than another P2P toy. Every layer of the conventional internet
 > stack has gatekeepers (ICANN, ASNs, CAs, ISPs). Formal verification
-> is how AetherMesh proves its replacement layers actually work.
+> is how AetherNet proves its replacement layers actually work.
 
 ## Current State (committed)
 
@@ -95,7 +95,7 @@ Tasks: F1 – F4
 
 Tasks: G1 – G4
 
-- IETF Internet-Draft (`draft-bhengubv-aethermesh-00`)
+- IETF Internet-Draft (`draft-bhengubv-aethernet-00`)
 - SARB Exempt 17 submission deck (PoV eKYC)
 - Academic paper (FORMATS or TACAS target)
 - Conformance kit for third-party implementations

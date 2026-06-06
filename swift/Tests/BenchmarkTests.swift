@@ -3,7 +3,7 @@
 /// XCTest `measure`-block benchmark harness for the Swift aether-protocol
 /// hot paths.
 ///
-/// Mirrors the C# AetherMesh.Benchmarks suite, the Go `go/bench` harness, the
+/// Mirrors the C# AetherNet.Benchmarks suite, the Go `go/bench` harness, the
 /// Python `python/benchmarks/test_benchmark.py`, the C `c/benchmarks/`
 /// runner, and the TypeScript `benchmarks/bench.ts` — same eleven hot
 /// paths so a regression in any language shows up as a delta against the
@@ -42,7 +42,7 @@
 import XCTest
 import Crypto
 import Foundation
-@testable import AetherMeshProtocol
+@testable import AetherNetProtocol
 
 final class BenchmarkTests: XCTestCase {
 

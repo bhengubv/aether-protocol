@@ -9,7 +9,7 @@ ser enganado pelo marketing do README.
 
 O documento complementar é [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7
 (Modelo de Segurança). Quando os dois divergirem, a implementação em
-`src/AetherMesh.Security/` é a autoridade.
+`src/AetherNet.Security/` é a autoridade.
 
 ---
 
@@ -59,13 +59,13 @@ da cadeia simétrica do Double Ratchet (Signal §5.1, HMAC-SHA256 com
 separação de domínio `0x01`/`0x02`). Um atacante que capture todos os pacotes
 entre Alice e Bob não recupera nada sem uma das suas chaves de sessão.
 
-Verificado por `tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs`
+Verificado por `tests/AetherNet.Security.Tests/SignalProtocolEncryptionTests.cs`
 e pelos vetores de referência entre linguagens em `fixtures/signal/expected/ratchet_step_basic.json`.
 
 ### 2.2. Falsificação de mensagens
 
 Cada pacote Wave-2 carrega uma assinatura Ed25519 sobre o buffer
-`BuildSignableData(packet)` canônico (`src/AetherMesh.Security/Services/PacketSigningService.cs`,
+`BuildSignableData(packet)` canônico (`src/AetherNet.Security/Services/PacketSigningService.cs`,
 PROTOCOL_SPEC §2.4). Pacotes falsificados falham na verificação e são descartados em
 cada salto que conhece a chave pública de identidade da origem. Pacotes Route Reply (RREP)
 são assinados pelo destino declarado — nós intermediários não podem se passar pelo destino
@@ -84,14 +84,14 @@ porque não possuem a chave privada Ed25519 do destino.
   pré-registro onde um adversário planta um nonce contra um destinatário para
   bloquear o primeiro pacote do remetente legítimo.
 
-Contadores: `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`.
+Contadores: `aethernet.nonces.replayed`, `aethernet.timestamps.stale`.
 
 ### 2.4. Sigilo futuro (comprometimento de chave passada)
 
 O Double Ratchet deriva uma nova chave de cadeia de envio a cada passo de rotação DH
 (KDF_RK, HKDF-SHA256 sobre `salt = current_root_key`,
 `info = "aether-ratchet-rk-v1"`, bloco de 64 bytes dividido 32+32 em nova
-chave raiz e de cadeia — `src/AetherMesh.Security/Services/SignalProtocolService.cs`).
+chave raiz e de cadeia — `src/AetherNet.Security/Services/SignalProtocolService.cs`).
 Um atacante que comprometa o estado atual da sessão não consegue descriptografar nenhuma
 mensagem anterior: cada chave de mensagem anterior foi derivada e zerada
 (`CryptographicOperations.ZeroMemory`) antes do próximo passo do ratchet.
@@ -113,7 +113,7 @@ Cada pré-chave de uso único (OPK) é consumida exatamente uma vez. A referênc
 conta com um pool de 100 OPKs com emissão FIFO, recarga preguiçosa a cada geração de
 bundle e consumo único protegido por lock
 (`SignalProtocolService.TopUpOpkPoolNoLock`, verificado por
-`tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`). Uma OPK é removida e zerada no momento
+`tests/AetherNet.Core.Tests/PreKeyPoolTests.cs`). Uma OPK é removida e zerada no momento
 em que o respondedor a consome durante o X3DH, então uma mensagem PreKey repetida
 que reutilize o mesmo id de OPK não consegue estabelecer uma sessão.
 
@@ -222,7 +222,7 @@ horizonte de tempo relevante.
 
 ### 3.5. Mensagens em grupo em escala
 
-`AetherMesh.Security` disponibiliza uma costura `IGroupKeyProvider`, mas o protocolo
+`AetherNet.Security` disponibiliza uma costura `IGroupKeyProvider`, mas o protocolo
 completo Signal Sender Keys (a construção assíncrona de mensagens em grupo que o Signal
 usa) **não está** implementado a partir do HEAD. Hosts que precisam de mensagens em grupo
 hoje recorrem a N sessões pairwise — o que funciona, mas tem custo O(N) por envio ao grupo.
@@ -315,7 +315,7 @@ troca de bundle pode substituir seu próprio bundle e intermediar o tráfego.
 **Mitigação:** o UX do host deve expor um fluxo de comparação de número de segurança /
 impressão digital de chave pública antes de tratar um contato como verificado. Uma
 superfície de API pública para derivação de número de segurança ainda não está disponível
-no `AetherMesh.Security`; rastreado como lacuna.
+no `AetherNet.Security`; rastreado como lacuna.
 
 ### 5.2. Atraso na rotação da pré-chave assinada
 
@@ -388,4 +388,4 @@ espere confirmação em 48 horas e uma avaliação inicial em 7 dias.
 
 Problemas que estão fora do escopo de acordo com a Seção 3 ainda são bem-vindos como
 relatos — preferimos saber do que não estamos nos defendendo do que ter um usuário
-descobrir a lacuna em produção.
+descobrir a lacuna em produção.

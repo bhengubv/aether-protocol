@@ -100,11 +100,11 @@
       "type": "eng-backend",
       "priority": 7,
       "payload": {
-        "description": "Add IAetherMeshTelemetry.Publish() call sites throughout C# services. HandshakeService: publish AetherMeshNodeEvent on join/left. RoutingService: publish AetherMeshRouteEvent on discovery/failure. ContentService: publish AetherMeshNetworkEvent on content complete.",
+        "description": "Add IAetherNetTelemetry.Publish() call sites throughout C# services. HandshakeService: publish AetherNetNodeEvent on join/left. RoutingService: publish AetherNetRouteEvent on discovery/failure. ContentService: publish AetherNetNetworkEvent on content complete.",
         "files": [
-          "src/AetherMesh.Core/Handshake/HandshakeService.cs",
-          "src/AetherMesh.Core/Routing/RoutingService.cs",
-          "src/AetherMesh.Content/ContentService.cs"
+          "src/AetherNet.Core/Handshake/HandshakeService.cs",
+          "src/AetherNet.Core/Routing/RoutingService.cs",
+          "src/AetherNet.Content/ContentService.cs"
         ]
       },
       "status": "pending"
@@ -115,7 +115,7 @@
       "priority": 6,
       "payload": {
         "description": "Implement aether-space extension. PacketType.SpaceBreadcrumb=40. SpaceBreadcrumb model (contentHash, geoHash, anchorUhid, ttlHours, type, signature). ISpaceService (Drop/Scan/Pin/Delete). Propagation: 3-cell radius limit. Emergency type bypasses radius via ISosBroadcastService.",
-        "output_dir": "src/AetherMesh.Space/"
+        "output_dir": "src/AetherNet.Space/"
       },
       "status": "pending"
     },
@@ -125,7 +125,7 @@
       "priority": 6,
       "payload": {
         "description": "Implement aether-forge extension. ForgeEntry + ForgeStats models. IForgeService (Query/Cache/Fetch/GetStats). HTTP CONNECT proxy daemon in go/cmd/aether-forge-proxy/. Content-addressed via IContentService.PublishAsync().",
-        "output_dir": "src/AetherMesh.Forge/"
+        "output_dir": "src/AetherNet.Forge/"
       },
       "status": "pending"
     },
@@ -134,8 +134,8 @@
       "type": "eng-backend",
       "priority": 5,
       "payload": {
-        "description": "Implement aether-vault extension. Reed-Solomon k=10 m=4 erasure coding (libfec or pure C#). VaultManifest + VaultShard models. IVaultService (Store/Recover/CheckHealth/Replicate). Shard storage via IContentService. Incentive via IAetherMeshIncentiveProvider.",
-        "output_dir": "src/AetherMesh.Vault/"
+        "description": "Implement aether-vault extension. Reed-Solomon k=10 m=4 erasure coding (libfec or pure C#). VaultManifest + VaultShard models. IVaultService (Store/Recover/CheckHealth/Replicate). Shard storage via IContentService. Incentive via IAetherNetIncentiveProvider.",
+        "output_dir": "src/AetherNet.Vault/"
       },
       "status": "pending"
     },
@@ -145,7 +145,7 @@
       "priority": 4,
       "payload": {
         "description": "Implement aether-market extension. Requires Space + Vault. PoVToken (BLE co-presence, Ed25519 countersign). PoVScore (decay 6-month half-life, defection penalty 20%). MarketListing + TradeEscrow models. IPoVService + IMarketService.",
-        "output_dir": "src/AetherMesh.Market/",
+        "output_dir": "src/AetherNet.Market/",
         "dependencies": ["ext-aether-space", "ext-aether-vault"]
       },
       "status": "pending"
@@ -161,4 +161,4 @@
       "status": "pending"
     }
   ]
-}
+}

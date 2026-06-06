@@ -3,7 +3,7 @@
 // Bench harness for the C primitive crypto hot paths.
 //
 // Mirrors the cases pinned by the Go bench (`go/bench/bench_test.go`,
-// commit f873543) and the C# AetherMesh.Benchmarks suite — same hot paths so
+// commit f873543) and the C# AetherNet.Benchmarks suite — same hot paths so
 // a regression in any language shows up as a delta against the committed
 // baseline. The C subtree is primitives-only, so we skip the high-level
 // Signal Encrypt/Decrypt and packet serialize/deserialize cases that
@@ -15,7 +15,7 @@
 // separate `cmake --build . --target bench && ./bench/bench` invocation.
 //
 // Default iterations: 1000 / case (sub-second on a laptop). Bump via
-// AETHERMESH_BENCH_ITERATIONS for tighter signal.
+// AETHERNET_BENCH_ITERATIONS for tighter signal.
 
 // Ensure POSIX clock_gettime / CLOCK_MONOTONIC are visible under strict
 // C11 builds where C_EXTENSIONS=OFF strips the GNU defaults.
@@ -29,7 +29,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "aethermesh/security.h"
+#include "aethernet/security.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -89,13 +89,13 @@ static void touch(const uint8_t *buf, size_t len) {
 static double bench_x25519_agree(size_t iterations) {
     uint8_t alice_priv[32], alice_pub[32];
     uint8_t bob_priv[32], bob_pub[32];
-    aethermesh_x25519_generate_keypair(alice_priv, alice_pub);
-    aethermesh_x25519_generate_keypair(bob_priv, bob_pub);
+    aethernet_x25519_generate_keypair(alice_priv, alice_pub);
+    aethernet_x25519_generate_keypair(bob_priv, bob_pub);
 
     uint8_t shared[32];
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_x25519_agree(alice_priv, bob_pub, shared);
+        aethernet_x25519_agree(alice_priv, bob_pub, shared);
     }
     uint64_t end = now_ns();
     touch(shared, sizeof(shared));
@@ -106,14 +106,14 @@ static double bench_x25519_agree(size_t iterations) {
 // §5.2 (32-byte new RK + 32-byte new CK), called once per DH-ratchet step.
 static double bench_hkdf_sha256_64b(size_t iterations) {
     uint8_t salt[32], ikm[32];
-    aethermesh_random_bytes(salt, sizeof(salt));
-    aethermesh_random_bytes(ikm,  sizeof(ikm));
+    aethernet_random_bytes(salt, sizeof(salt));
+    aethernet_random_bytes(ikm,  sizeof(ikm));
     const uint8_t info[] = "aether-ratchet-rk-v1";
     uint8_t out[64];
 
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_hkdf_sha256(salt, sizeof(salt), ikm, sizeof(ikm),
+        aethernet_hkdf_sha256(salt, sizeof(salt), ikm, sizeof(ikm),
                           info, sizeof(info) - 1, sizeof(out), out);
     }
     uint64_t end = now_ns();
@@ -125,13 +125,13 @@ static double bench_hkdf_sha256_64b(size_t iterations) {
 // header exports. Slightly more allocation overhead than raw HKDF.
 static double bench_signal_kdf_rk(size_t iterations) {
     uint8_t rk[32], dh[32];
-    aethermesh_random_bytes(rk, sizeof(rk));
-    aethermesh_random_bytes(dh, sizeof(dh));
+    aethernet_random_bytes(rk, sizeof(rk));
+    aethernet_random_bytes(dh, sizeof(dh));
     uint8_t new_rk[32], new_ck[32];
 
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_signal_kdf_rk(rk, dh, new_rk, new_ck);
+        aethernet_signal_kdf_rk(rk, dh, new_rk, new_ck);
     }
     uint64_t end = now_ns();
     touch(new_rk, sizeof(new_rk));
@@ -143,13 +143,13 @@ static double bench_signal_kdf_rk(size_t iterations) {
 // ratchet's chain-step shape (HMAC(CK, byte) -> next CK / message key).
 static double bench_hmac_sha256(size_t iterations) {
     uint8_t key[32], msg[32];
-    aethermesh_random_bytes(key, sizeof(key));
-    aethermesh_random_bytes(msg, sizeof(msg));
+    aethernet_random_bytes(key, sizeof(key));
+    aethernet_random_bytes(msg, sizeof(msg));
     uint8_t out[32];
 
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_hmac_sha256(key, sizeof(key), msg, sizeof(msg), out);
+        aethernet_hmac_sha256(key, sizeof(key), msg, sizeof(msg), out);
     }
     uint64_t end = now_ns();
     touch(out, sizeof(out));
@@ -160,16 +160,16 @@ static double bench_hmac_sha256(size_t iterations) {
 // after Signal ciphertext expansion.
 static double bench_aes256_gcm_encrypt(size_t iterations) {
     uint8_t key[32];
-    aethermesh_random_bytes(key, sizeof(key));
+    aethernet_random_bytes(key, sizeof(key));
     uint8_t plaintext[256];
-    aethermesh_random_bytes(plaintext, sizeof(plaintext));
+    aethernet_random_bytes(plaintext, sizeof(plaintext));
     uint8_t ciphertext[256];
     uint8_t tag[16];
     uint8_t nonce[12];
 
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_aes256_gcm_encrypt(plaintext, sizeof(plaintext), key, NULL, NULL, 0,
+        aethernet_aes256_gcm_encrypt(plaintext, sizeof(plaintext), key, NULL, NULL, 0,
                                   ciphertext, tag, nonce);
     }
     uint64_t end = now_ns();
@@ -181,19 +181,19 @@ static double bench_aes256_gcm_encrypt(size_t iterations) {
 // sees a constant ciphertext (no setup leak into the timed region).
 static double bench_aes256_gcm_decrypt(size_t iterations) {
     uint8_t key[32];
-    aethermesh_random_bytes(key, sizeof(key));
+    aethernet_random_bytes(key, sizeof(key));
     uint8_t plaintext[256];
-    aethermesh_random_bytes(plaintext, sizeof(plaintext));
+    aethernet_random_bytes(plaintext, sizeof(plaintext));
     uint8_t ciphertext[256];
     uint8_t tag[16];
     uint8_t nonce[12];
-    aethermesh_aes256_gcm_encrypt(plaintext, sizeof(plaintext), key, NULL, NULL, 0,
+    aethernet_aes256_gcm_encrypt(plaintext, sizeof(plaintext), key, NULL, NULL, 0,
                               ciphertext, tag, nonce);
 
     uint8_t recovered[256];
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_aes256_gcm_decrypt(ciphertext, sizeof(ciphertext), key,
+        aethernet_aes256_gcm_decrypt(ciphertext, sizeof(ciphertext), key,
                                   nonce, tag, NULL, 0, recovered);
     }
     uint64_t end = now_ns();
@@ -204,14 +204,14 @@ static double bench_aes256_gcm_decrypt(size_t iterations) {
 // Ed25519 sign over a 256-byte message — pre-key-bundle signing path.
 static double bench_ed25519_sign(size_t iterations) {
     uint8_t priv[32], pub[32];
-    aethermesh_ed25519_generate_keypair(priv, pub);
+    aethernet_ed25519_generate_keypair(priv, pub);
     uint8_t msg[256];
-    aethermesh_random_bytes(msg, sizeof(msg));
+    aethernet_random_bytes(msg, sizeof(msg));
     uint8_t sig[64];
 
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_ed25519_sign(priv, msg, sizeof(msg), sig);
+        aethernet_ed25519_sign(priv, msg, sizeof(msg), sig);
     }
     uint64_t end = now_ns();
     touch(sig, sizeof(sig));
@@ -221,15 +221,15 @@ static double bench_ed25519_sign(size_t iterations) {
 // Ed25519 verify — pre-key-bundle verification path.
 static double bench_ed25519_verify(size_t iterations) {
     uint8_t priv[32], pub[32];
-    aethermesh_ed25519_generate_keypair(priv, pub);
+    aethernet_ed25519_generate_keypair(priv, pub);
     uint8_t msg[256];
-    aethermesh_random_bytes(msg, sizeof(msg));
+    aethernet_random_bytes(msg, sizeof(msg));
     uint8_t sig[64];
-    aethermesh_ed25519_sign(priv, msg, sizeof(msg), sig);
+    aethernet_ed25519_sign(priv, msg, sizeof(msg), sig);
 
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        (void)aethermesh_ed25519_verify(pub, msg, sizeof(msg), sig);
+        (void)aethernet_ed25519_verify(pub, msg, sizeof(msg), sig);
     }
     uint64_t end = now_ns();
     return (double)(end - start) / (double)iterations;
@@ -239,12 +239,12 @@ static double bench_ed25519_verify(size_t iterations) {
 // it on every key-rotation (DH-ratchet send-step).
 static double bench_x25519_derive_public(size_t iterations) {
     uint8_t priv[32];
-    aethermesh_random_bytes(priv, sizeof(priv));
+    aethernet_random_bytes(priv, sizeof(priv));
     uint8_t pub[32];
 
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_x25519_derive_public(priv, pub);
+        aethernet_x25519_derive_public(priv, pub);
     }
     uint64_t end = now_ns();
     touch(pub, sizeof(pub));
@@ -258,7 +258,7 @@ static double bench_x25519_generate_keypair(size_t iterations) {
 
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_x25519_generate_keypair(priv, pub);
+        aethernet_x25519_generate_keypair(priv, pub);
     }
     uint64_t end = now_ns();
     touch(pub, sizeof(pub));
@@ -268,12 +268,12 @@ static double bench_x25519_generate_keypair(size_t iterations) {
 // SHA-256 of a 1 KB input — common for fingerprinting / packet hashing.
 static double bench_sha256_1kb(size_t iterations) {
     uint8_t input[1024];
-    aethermesh_random_bytes(input, sizeof(input));
+    aethernet_random_bytes(input, sizeof(input));
     uint8_t out[32];
 
     uint64_t start = now_ns();
     for (size_t i = 0; i < iterations; i++) {
-        aethermesh_sha256(input, sizeof(input), out);
+        aethernet_sha256(input, sizeof(input), out);
     }
     uint64_t end = now_ns();
     touch(out, sizeof(out));
@@ -298,7 +298,7 @@ static const bench_case_t cases[] = {
 
 int main(void) {
     size_t iterations = 1000;
-    const char *iter_env = getenv("AETHERMESH_BENCH_ITERATIONS");
+    const char *iter_env = getenv("AETHERNET_BENCH_ITERATIONS");
     if (iter_env && *iter_env) {
         long parsed = strtol(iter_env, NULL, 10);
         if (parsed > 0 && parsed < (long)(1ULL << 28)) {
@@ -306,7 +306,7 @@ int main(void) {
         }
     }
 
-    fprintf(stderr, "aethermesh-protocol C bench: %zu iterations / case\n", iterations);
+    fprintf(stderr, "aethernet-protocol C bench: %zu iterations / case\n", iterations);
 
     // Markdown header — pipe stdout to tee bench/baseline.md to pin.
     printf("| op | ns/op | ops/sec |\n");

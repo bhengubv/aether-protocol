@@ -8,8 +8,8 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "aethermesh/rlnc.h"
-#include "aethermesh/transport.h"
+#include "aethernet/rlnc.h"
+#include "aethernet/transport.h"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -35,47 +35,47 @@ static void free_source(uint8_t **src, int k) {
 // ── GF(2⁸) arithmetic ────────────────────────────────────────────────────────
 
 static void test_gf256_add_is_xor(void) {
-    aethermesh_gf256_init();
-    assert(aethermesh_gf256_add(0xAB, 0xCD) == (uint8_t)(0xAB ^ 0xCD));
-    assert(aethermesh_gf256_add(0x00, 0xFF) == 0xFF);
-    assert(aethermesh_gf256_add(0xFF, 0xFF) == 0x00);
+    aethernet_gf256_init();
+    assert(aethernet_gf256_add(0xAB, 0xCD) == (uint8_t)(0xAB ^ 0xCD));
+    assert(aethernet_gf256_add(0x00, 0xFF) == 0xFF);
+    assert(aethernet_gf256_add(0xFF, 0xFF) == 0x00);
     printf("  PASS test_gf256_add_is_xor\n");
 }
 
 static void test_gf256_mul_by_zero(void) {
-    aethermesh_gf256_init();
+    aethernet_gf256_init();
     for (int a = 0; a < 256; a++) {
-        assert(aethermesh_gf256_mul((uint8_t)a, 0) == 0);
-        assert(aethermesh_gf256_mul(0, (uint8_t)a) == 0);
+        assert(aethernet_gf256_mul((uint8_t)a, 0) == 0);
+        assert(aethernet_gf256_mul(0, (uint8_t)a) == 0);
     }
     printf("  PASS test_gf256_mul_by_zero\n");
 }
 
 static void test_gf256_mul_by_one(void) {
-    aethermesh_gf256_init();
+    aethernet_gf256_init();
     for (int a = 0; a < 256; a++) {
-        assert(aethermesh_gf256_mul((uint8_t)a, 1) == (uint8_t)a);
-        assert(aethermesh_gf256_mul(1, (uint8_t)a) == (uint8_t)a);
+        assert(aethernet_gf256_mul((uint8_t)a, 1) == (uint8_t)a);
+        assert(aethernet_gf256_mul(1, (uint8_t)a) == (uint8_t)a);
     }
     printf("  PASS test_gf256_mul_by_one\n");
 }
 
 static void test_gf256_mul_inv_round_trip(void) {
-    aethermesh_gf256_init();
+    aethernet_gf256_init();
     for (int a = 1; a < 256; a++) {
-        uint8_t inv = aethermesh_gf256_inv((uint8_t)a);
-        uint8_t one = aethermesh_gf256_mul((uint8_t)a, inv);
+        uint8_t inv = aethernet_gf256_inv((uint8_t)a);
+        uint8_t one = aethernet_gf256_mul((uint8_t)a, inv);
         assert(one == 1);
     }
     printf("  PASS test_gf256_mul_inv_round_trip\n");
 }
 
 static void test_gf256_mul_commutativity(void) {
-    aethermesh_gf256_init();
+    aethernet_gf256_init();
     for (int a = 0; a < 256; a++) {
         for (int b = 0; b < 256; b++) {
-            assert(aethermesh_gf256_mul((uint8_t)a, (uint8_t)b) ==
-                   aethermesh_gf256_mul((uint8_t)b, (uint8_t)a));
+            assert(aethernet_gf256_mul((uint8_t)a, (uint8_t)b) ==
+                   aethernet_gf256_mul((uint8_t)b, (uint8_t)a));
         }
     }
     printf("  PASS test_gf256_mul_commutativity\n");
@@ -83,10 +83,10 @@ static void test_gf256_mul_commutativity(void) {
 
 static void test_gf256_mul_distributivity(void) {
     // a*(b+c) == a*b + a*c
-    aethermesh_gf256_init();
+    aethernet_gf256_init();
     uint8_t a = 0x53, b = 0xCA, c = 0x71;
-    uint8_t lhs = aethermesh_gf256_mul(a, aethermesh_gf256_add(b, c));
-    uint8_t rhs = aethermesh_gf256_add(aethermesh_gf256_mul(a, b), aethermesh_gf256_mul(a, c));
+    uint8_t lhs = aethernet_gf256_mul(a, aethernet_gf256_add(b, c));
+    uint8_t rhs = aethernet_gf256_add(aethernet_gf256_mul(a, b), aethernet_gf256_mul(a, c));
     assert(lhs == rhs);
     printf("  PASS test_gf256_mul_distributivity\n");
 }
@@ -96,14 +96,14 @@ static void test_gf256_mul_distributivity(void) {
 static void test_encoder_systematic_first_k_packets(void) {
     int k = 4, sym = 8;
     uint8_t **src = make_source(k, sym);
-    aethermesh_rlnc_encoder_t *enc = aethermesh_rlnc_encoder_new(
+    aethernet_rlnc_encoder_t *enc = aethernet_rlnc_encoder_new(
         (const uint8_t * const *)src, k, sym, true);
     assert(enc != NULL);
 
     uint8_t *coeff = (uint8_t *)malloc((size_t)k);
     uint8_t *data  = (uint8_t *)malloc((size_t)sym);
     for (int i = 0; i < k; i++) {
-        aethermesh_rlnc_encoder_next_packet(enc, coeff, data);
+        aethernet_rlnc_encoder_next_packet(enc, coeff, data);
         // Coefficient vector must be e_i.
         assert(coeff[i] == 1);
         for (int j = 0; j < k; j++) {
@@ -114,7 +114,7 @@ static void test_encoder_systematic_first_k_packets(void) {
     }
     free(coeff);
     free(data);
-    aethermesh_rlnc_encoder_free(enc);
+    aethernet_rlnc_encoder_free(enc);
     free_source(src, k);
     printf("  PASS test_encoder_systematic_first_k_packets\n");
 }
@@ -123,14 +123,14 @@ static void test_encoder_repair_packets_not_all_zero(void) {
     int k = 3, sym = 4;
     uint8_t **src = make_source(k, sym);
     // Non-systematic encoder — every packet is a repair packet.
-    aethermesh_rlnc_encoder_t *enc = aethermesh_rlnc_encoder_new(
+    aethernet_rlnc_encoder_t *enc = aethernet_rlnc_encoder_new(
         (const uint8_t * const *)src, k, sym, false);
     assert(enc != NULL);
 
     uint8_t *coeff = (uint8_t *)malloc((size_t)k);
     uint8_t *data  = (uint8_t *)malloc((size_t)sym);
     for (int i = 0; i < 20; i++) {
-        aethermesh_rlnc_encoder_next_packet(enc, coeff, data);
+        aethernet_rlnc_encoder_next_packet(enc, coeff, data);
         bool any_nonzero = false;
         for (int j = 0; j < k; j++) {
             if (coeff[j] != 0) { any_nonzero = true; break; }
@@ -139,7 +139,7 @@ static void test_encoder_repair_packets_not_all_zero(void) {
     }
     free(coeff);
     free(data);
-    aethermesh_rlnc_encoder_free(enc);
+    aethernet_rlnc_encoder_free(enc);
     free_source(src, k);
     printf("  PASS test_encoder_repair_packets_not_all_zero\n");
 }
@@ -149,22 +149,22 @@ static void test_encoder_repair_packets_not_all_zero(void) {
 static void test_decoder_round_trip_k4(void) {
     int k = 4, sym = 8;
     uint8_t **src = make_source(k, sym);
-    aethermesh_rlnc_encoder_t *enc = aethermesh_rlnc_encoder_new(
+    aethernet_rlnc_encoder_t *enc = aethernet_rlnc_encoder_new(
         (const uint8_t * const *)src, k, sym, true);
-    aethermesh_rlnc_decoder_t *dec = aethermesh_rlnc_decoder_new(k, sym);
+    aethernet_rlnc_decoder_t *dec = aethernet_rlnc_decoder_new(k, sym);
     assert(enc && dec);
 
     uint8_t *coeff = (uint8_t *)malloc((size_t)k);
     uint8_t *data  = (uint8_t *)malloc((size_t)sym);
-    while (!aethermesh_rlnc_decoder_is_complete(dec)) {
-        aethermesh_rlnc_encoder_next_packet(enc, coeff, data);
-        aethermesh_rlnc_decoder_add_packet(dec, coeff, data);
+    while (!aethernet_rlnc_decoder_is_complete(dec)) {
+        aethernet_rlnc_encoder_next_packet(enc, coeff, data);
+        aethernet_rlnc_decoder_add_packet(dec, coeff, data);
     }
     free(coeff);
     free(data);
 
     size_t decoded_len = 0;
-    uint8_t *decoded = aethermesh_rlnc_decoder_try_decode(dec, &decoded_len);
+    uint8_t *decoded = aethernet_rlnc_decoder_try_decode(dec, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == k * sym);
 
@@ -172,8 +172,8 @@ static void test_decoder_round_trip_k4(void) {
         assert(memcmp(decoded + i * sym, src[i], (size_t)sym) == 0);
     }
     free(decoded);
-    aethermesh_rlnc_decoder_free(dec);
-    aethermesh_rlnc_encoder_free(enc);
+    aethernet_rlnc_decoder_free(dec);
+    aethernet_rlnc_encoder_free(enc);
     free_source(src, k);
     printf("  PASS test_decoder_round_trip_k4\n");
 }
@@ -181,24 +181,24 @@ static void test_decoder_round_trip_k4(void) {
 static void test_decoder_exactly_k_systematic_complete(void) {
     int k = 3, sym = 4;
     uint8_t **src = make_source(k, sym);
-    aethermesh_rlnc_encoder_t *enc = aethermesh_rlnc_encoder_new(
+    aethernet_rlnc_encoder_t *enc = aethernet_rlnc_encoder_new(
         (const uint8_t * const *)src, k, sym, true);
-    aethermesh_rlnc_decoder_t *dec = aethermesh_rlnc_decoder_new(k, sym);
+    aethernet_rlnc_decoder_t *dec = aethernet_rlnc_decoder_new(k, sym);
 
     uint8_t *coeff = (uint8_t *)malloc((size_t)k);
     uint8_t *data  = (uint8_t *)malloc((size_t)sym);
     for (int i = 0; i < k; i++) {
-        aethermesh_rlnc_encoder_next_packet(enc, coeff, data);
-        aethermesh_rlnc_decoder_add_packet(dec, coeff, data);
+        aethernet_rlnc_encoder_next_packet(enc, coeff, data);
+        aethernet_rlnc_decoder_add_packet(dec, coeff, data);
     }
     free(coeff);
     free(data);
 
-    assert(aethermesh_rlnc_decoder_is_complete(dec));
-    assert(aethermesh_rlnc_decoder_rank(dec) == k);
+    assert(aethernet_rlnc_decoder_is_complete(dec));
+    assert(aethernet_rlnc_decoder_rank(dec) == k);
 
-    aethermesh_rlnc_decoder_free(dec);
-    aethermesh_rlnc_encoder_free(enc);
+    aethernet_rlnc_decoder_free(dec);
+    aethernet_rlnc_encoder_free(enc);
     free_source(src, k);
     printf("  PASS test_decoder_exactly_k_systematic_complete\n");
 }
@@ -206,21 +206,21 @@ static void test_decoder_exactly_k_systematic_complete(void) {
 static void test_decoder_linearly_dependent_packet_ignored(void) {
     int k = 2, sym = 4;
     uint8_t **src = make_source(k, sym);
-    aethermesh_rlnc_encoder_t *enc = aethermesh_rlnc_encoder_new(
+    aethernet_rlnc_encoder_t *enc = aethernet_rlnc_encoder_new(
         (const uint8_t * const *)src, k, sym, true);
-    aethermesh_rlnc_decoder_t *dec = aethermesh_rlnc_decoder_new(k, sym);
+    aethernet_rlnc_decoder_t *dec = aethernet_rlnc_decoder_new(k, sym);
 
     uint8_t coeff0[2], data0[4];
-    aethermesh_rlnc_encoder_next_packet(enc, coeff0, data0);
-    bool added1 = aethermesh_rlnc_decoder_add_packet(dec, coeff0, data0);
-    int rank_before = aethermesh_rlnc_decoder_rank(dec);
-    bool added2 = aethermesh_rlnc_decoder_add_packet(dec, coeff0, data0); // duplicate
+    aethernet_rlnc_encoder_next_packet(enc, coeff0, data0);
+    bool added1 = aethernet_rlnc_decoder_add_packet(dec, coeff0, data0);
+    int rank_before = aethernet_rlnc_decoder_rank(dec);
+    bool added2 = aethernet_rlnc_decoder_add_packet(dec, coeff0, data0); // duplicate
     (void)added1; (void)added2;
-    assert(aethermesh_rlnc_decoder_rank(dec) == rank_before &&
+    assert(aethernet_rlnc_decoder_rank(dec) == rank_before &&
            "duplicate packet should not increase rank");
 
-    aethermesh_rlnc_decoder_free(dec);
-    aethermesh_rlnc_encoder_free(enc);
+    aethernet_rlnc_decoder_free(dec);
+    aethernet_rlnc_encoder_free(enc);
     free_source(src, k);
     printf("  PASS test_decoder_linearly_dependent_packet_ignored\n");
 }
@@ -228,22 +228,22 @@ static void test_decoder_linearly_dependent_packet_ignored(void) {
 static void test_decoder_is_complete_at_rank_k(void) {
     int k = 2, sym = 3;
     uint8_t **src = make_source(k, sym);
-    aethermesh_rlnc_encoder_t *enc = aethermesh_rlnc_encoder_new(
+    aethernet_rlnc_encoder_t *enc = aethernet_rlnc_encoder_new(
         (const uint8_t * const *)src, k, sym, true);
-    aethermesh_rlnc_decoder_t *dec = aethermesh_rlnc_decoder_new(k, sym);
+    aethernet_rlnc_decoder_t *dec = aethernet_rlnc_decoder_new(k, sym);
 
     uint8_t *c = (uint8_t *)malloc((size_t)k);
     uint8_t *d = (uint8_t *)malloc((size_t)sym);
 
-    assert(!aethermesh_rlnc_decoder_is_complete(dec));
-    aethermesh_rlnc_encoder_next_packet(enc, c, d); aethermesh_rlnc_decoder_add_packet(dec, c, d);
-    assert(!aethermesh_rlnc_decoder_is_complete(dec));
-    aethermesh_rlnc_encoder_next_packet(enc, c, d); aethermesh_rlnc_decoder_add_packet(dec, c, d);
-    assert(aethermesh_rlnc_decoder_is_complete(dec));
+    assert(!aethernet_rlnc_decoder_is_complete(dec));
+    aethernet_rlnc_encoder_next_packet(enc, c, d); aethernet_rlnc_decoder_add_packet(dec, c, d);
+    assert(!aethernet_rlnc_decoder_is_complete(dec));
+    aethernet_rlnc_encoder_next_packet(enc, c, d); aethernet_rlnc_decoder_add_packet(dec, c, d);
+    assert(aethernet_rlnc_decoder_is_complete(dec));
 
     free(c); free(d);
-    aethermesh_rlnc_decoder_free(dec);
-    aethermesh_rlnc_encoder_free(enc);
+    aethernet_rlnc_decoder_free(dec);
+    aethernet_rlnc_encoder_free(enc);
     free_source(src, k);
     printf("  PASS test_decoder_is_complete_at_rank_k\n");
 }
@@ -252,30 +252,30 @@ static void test_decoder_repair_only_round_trip(void) {
     int k = 4, sym = 8;
     uint8_t **src = make_source(k, sym);
     // Non-systematic encoder — all repair packets.
-    aethermesh_rlnc_encoder_t *enc = aethermesh_rlnc_encoder_new(
+    aethernet_rlnc_encoder_t *enc = aethernet_rlnc_encoder_new(
         (const uint8_t * const *)src, k, sym, false);
-    aethermesh_rlnc_decoder_t *dec = aethermesh_rlnc_decoder_new(k, sym);
+    aethernet_rlnc_decoder_t *dec = aethernet_rlnc_decoder_new(k, sym);
 
     uint8_t *c = (uint8_t *)malloc((size_t)k);
     uint8_t *d = (uint8_t *)malloc((size_t)sym);
     int attempts = 0;
-    while (!aethermesh_rlnc_decoder_is_complete(dec)) {
-        aethermesh_rlnc_encoder_next_packet(enc, c, d);
-        aethermesh_rlnc_decoder_add_packet(dec, c, d);
+    while (!aethernet_rlnc_decoder_is_complete(dec)) {
+        aethernet_rlnc_encoder_next_packet(enc, c, d);
+        aethernet_rlnc_decoder_add_packet(dec, c, d);
         assert(++attempts < 200 && "repair-only decoder stalled");
     }
     free(c); free(d);
 
     size_t decoded_len = 0;
-    uint8_t *decoded = aethermesh_rlnc_decoder_try_decode(dec, &decoded_len);
+    uint8_t *decoded = aethernet_rlnc_decoder_try_decode(dec, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == k * sym);
     for (int i = 0; i < k; i++) {
         assert(memcmp(decoded + i * sym, src[i], (size_t)sym) == 0);
     }
     free(decoded);
-    aethermesh_rlnc_decoder_free(dec);
-    aethermesh_rlnc_encoder_free(enc);
+    aethernet_rlnc_decoder_free(dec);
+    aethernet_rlnc_encoder_free(enc);
     free_source(src, k);
     printf("  PASS test_decoder_repair_only_round_trip\n");
 }
@@ -283,9 +283,9 @@ static void test_decoder_repair_only_round_trip(void) {
 // ── RlncCodec (vtable) ────────────────────────────────────────────────────────
 
 static void test_codec_k1_single_symbol(void) {
-    aethermesh_rlnc_codec_t *codec = aethermesh_rlnc_codec_new(1);
+    aethernet_rlnc_codec_t *codec = aethernet_rlnc_codec_new(1);
     assert(codec != NULL);
-    aethermesh_fec_codec_t *base = (aethermesh_fec_codec_t *)codec;
+    aethernet_fec_codec_t *base = (aethernet_fec_codec_t *)codec;
 
     const uint8_t source[] = {0xDE, 0xAD, 0xBE, 0xEF};
     size_t source_len = sizeof(source);
@@ -314,15 +314,15 @@ static void test_codec_k1_single_symbol(void) {
     free(lengths);
     free(pkts);
     free(encoded);
-    aethermesh_rlnc_codec_free(codec);
+    aethernet_rlnc_codec_free(codec);
     printf("  PASS test_codec_k1_single_symbol\n");
 }
 
 static void test_codec_large_payload_round_trip(void) {
     int k = 16;
-    aethermesh_rlnc_codec_t *codec = aethermesh_rlnc_codec_new(k);
+    aethernet_rlnc_codec_t *codec = aethernet_rlnc_codec_new(k);
     assert(codec != NULL);
-    aethermesh_fec_codec_t *base = (aethermesh_fec_codec_t *)codec;
+    aethernet_fec_codec_t *base = (aethernet_fec_codec_t *)codec;
 
     // 1024-byte source.
     size_t source_len = 1024;
@@ -353,7 +353,7 @@ static void test_codec_large_payload_round_trip(void) {
     free(pkts);
     free(encoded);
     free(source);
-    aethermesh_rlnc_codec_free(codec);
+    aethernet_rlnc_codec_free(codec);
     printf("  PASS test_codec_large_payload_round_trip\n");
 }
 

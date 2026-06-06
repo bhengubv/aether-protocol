@@ -58,7 +58,7 @@ explodes to ~`4^16 ≈ 4×10^9` markings. CPN Tools handles this via
 **place-flow analysis** without enumerating the full state space —
 proving the per-bundle property by structural decomposition.
 
-For production AetherMesh with 1000+ in-flight bundles, the
+For production AetherNet with 1000+ in-flight bundles, the
 structural argument (Phase 6 paper) generalises by induction: the
 property holds for arbitrary `N` because each bundle's lifecycle is
 independent of the others'.

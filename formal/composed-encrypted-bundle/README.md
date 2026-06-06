@@ -25,7 +25,7 @@ End-to-end emergent property:
 > **AND** these properties compose — they hold *simultaneously*,
 > not just individually.
 
-This composition is the **trust surface** for AetherMesh as an internet
+This composition is the **trust surface** for AetherNet as an internet
 replacement. Each subsystem-proof in isolation is necessary but not
 sufficient; the composition is what makes the protocol usable.
 

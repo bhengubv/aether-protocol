@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-AetherMesh Petri Net Verifier
+AetherNet Petri Net Verifier
 ==============================
 
-Exhaustive reachability + property checker for the AetherMesh formal
+Exhaustive reachability + property checker for the AetherNet formal
 models. Reads PNML, builds the reachability graph by BFS from the
 initial marking, and reports:
 
@@ -311,7 +311,7 @@ def main():
                 if r:
                     results.append(r)
         # Summary table
-        print("# AetherMesh Formal Verification — Summary")
+        print("# AetherNet Formal Verification — Summary")
         print()
         print("| Model | States | Goal | Safety |")
         print("|---|---|---|---|")

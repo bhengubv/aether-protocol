@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
-  AetherMesh Signal Protocol — Coloured Petri Net (CPN Tools 4)
+  AetherNet Signal Protocol — Coloured Petri Net (CPN Tools 4)
   =============================================================
   Coloured upgrade: chain keys carry (session, epoch) identity.
   Proves per-(session, epoch) forward + future secrecy.

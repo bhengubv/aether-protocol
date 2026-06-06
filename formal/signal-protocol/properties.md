@@ -219,9 +219,9 @@ This is the practical Signal Protocol property: an attacker who breaks
 in once gets the current state and (forward secrecy) no past states;
 after the next ratchet, they (future secrecy) lose access again.
 
-## Mapping to AetherMesh Implementation
+## Mapping to AetherNet Implementation
 
-| Petri net element | AetherMesh implementation |
+| Petri net element | AetherNet implementation |
 |---|---|
 | P_ChainKey_E_i | `SignalSession.RootKey` after the i-th DH ratchet |
 | P_FreshDH_E_i | `SignalSession.EphemeralKeyPair.PublicKey` rotated each ratchet |

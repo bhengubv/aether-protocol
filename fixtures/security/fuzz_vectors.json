@@ -88,7 +88,7 @@
       "payload": "{\"root_hash\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"chunk_count\":8,\"have_bitset\":\"!!!NOT_BASE64!!!\",\"generation\":1}"
     },
     "expected": "rejected",
-    "notes": "Base64 decode errors must throw AetherMeshProtocolException, not FormatException bubbled to caller."
+    "notes": "Base64 decode errors must throw AetherNetProtocolException, not FormatException bubbled to caller."
   },
   {
     "name": "fuzz_sybil_rapid_join",
@@ -97,7 +97,7 @@
     "vulnerability_class": "BusinessLogic",
     "bughunter_skill": "hunt-business-logic",
     "packet": "generate 1000 HelloPayload packets with unique UHIDs within 100ms window",
-    "expected": "AnomalyScore > 0.8 for all nodes, AetherMeshSecurityEvent emitted",
+    "expected": "AnomalyScore > 0.8 for all nodes, AetherNetSecurityEvent emitted",
     "notes": "Rapid join storm is a classic Sybil indicator. BehavioralAnomalyDetector should track join rate per time window."
   }
-]
+]

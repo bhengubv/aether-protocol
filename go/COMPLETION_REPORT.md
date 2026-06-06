@@ -82,7 +82,7 @@ The Go implementation of the Aether mesh networking protocol is **fully complete
 ### ✓ Models Package (1 file, 200 lines)
 - [x] `models/models.go`
   - NodeCapabilities bitfield (8 bits)
-  - AetherMeshNode struct
+  - AetherNetNode struct
   - PeerInfo struct
   - RouteEntry struct with IsStale() method
   - DtnBundle struct with priority and status
@@ -362,7 +362,7 @@ All demos completed successfully!
 - [x] Context-aware cancellation
 
 ### Data Model Features
-- [x] AetherMeshNode with capabilities
+- [x] AetherNetNode with capabilities
 - [x] PeerInfo with multiple addresses
 - [x] RouteEntry with quality scoring
 - [x] DtnBundle with priority/status

@@ -2,7 +2,7 @@
 
 ## `verify.py` — Custom Petri Net Reachability + Property Checker
 
-Lightweight verifier for AetherMesh's formal models. Parses PNML, does
+Lightweight verifier for AetherNet's formal models. Parses PNML, does
 exhaustive BFS reachability from the initial marking (up to 10,000
 distinct states), and checks:
 

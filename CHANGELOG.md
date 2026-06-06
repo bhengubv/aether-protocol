@@ -63,24 +63,24 @@ respective package registries from a single CI/CD pipeline.
   NearLink, NFC, LoRa, HTTP relay)
 
 **Extensibility**
-- `IAetherMeshAiProvider` — AI integration point (route suggestion, transport
+- `IAetherNetAiProvider` — AI integration point (route suggestion, transport
   biasing, threat assessment); null-provider contract guarantees safe
   unconditional call on all methods
-- `NullAetherMeshAiProvider` — canonical reference implementation; allocation-free
+- `NullAetherNetAiProvider` — canonical reference implementation; allocation-free
   on hot path
-- `IAetherMeshIncentiveProvider` — node-tipping / relay-incentive hook
-- `IAetherMeshBackendClient` — optional cloud-relay fallback
+- `IAetherNetIncentiveProvider` — node-tipping / relay-incentive hook
+- `IAetherNetBackendClient` — optional cloud-relay fallback
 
 **Identity**
-- `AetherMeshTag` — human-readable Ed25519-derived identifiers (e.g. `KXJB7-MN2P4`)
+- `AetherNetTag` — human-readable Ed25519-derived identifiers (e.g. `KXJB7-MN2P4`)
 - UHID-based routing; all packets signed to source UHID
 
 **Android companions** (Blue / Green / White)
-- `AetherMeshGattServer` — BLE GATT server with companion-object packet parsing
+- `AetherNetGattServer` — BLE GATT server with companion-object packet parsing
   and TTL decrement; 23 JVM unit tests
-- `AetherMeshWifiDirectService` — Wi-Fi Direct transport with companion-object
+- `AetherNetWifiDirectService` — Wi-Fi Direct transport with companion-object
   framing; 19 JVM unit tests
-- `AetherMeshHceService` — NFC HCE with companion-object AID recognition; 18
+- `AetherNetHceService` — NFC HCE with companion-object AID recognition; 18
   JVM unit tests
 
 **Infrastructure**

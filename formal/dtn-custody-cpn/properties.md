@@ -67,7 +67,7 @@ is the `bid` produced as the delivered identifier. ✓
 
 ## Mapping to Code
 
-| CPN element | AetherMesh implementation |
+| CPN element | AetherNet implementation |
 |---|---|
 | `BUNDLE_ID` colour set | `DtnBundle.Id` (Guid) |
 | `NODE_ID` colour set | `IMeshSender.LocalUhid` |

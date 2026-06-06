@@ -4,7 +4,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use aethermesh_protocol::transport::{
+use aethernet_protocol::transport::{
     PerTransportMetrics, PredictiveTransportSelector, TransportService,
 };
 

@@ -33,7 +33,7 @@ to anyone (or pass the UHID to `generatePreKeyBundle`, which sets it as
 a side-effect).
 
 ```kotlin
-import aethermesh.security.SignalProtocol
+import aethernet.security.SignalProtocol
 
 val alice = SignalProtocol()
 alice.setLocalUhid("alice-uhid-0001")
@@ -89,7 +89,7 @@ println(String(plaintext)) // "hello, mesh"
 Unlike the Python and TypeScript implementations, the Kotlin module
 does not yet ship a `KeyValueSignalSessionStore`-style abstraction.
 `SignalSession` and `PreKeyStateInternal` are `internal` to the
-`aethermesh.security` package and hold the live ratchet state in memory
+`aethernet.security` package and hold the live ratchet state in memory
 only. Adopters who need durable sessions can either:
 
 1. Persist the published `PreKeyBundle` and re-establish on every
@@ -98,7 +98,7 @@ only. Adopters who need durable sessions can either:
 2. Wire a custom store by extending the `SignalProtocol` class to
    expose snapshot/restore hooks — see the C# `IPreKeyStore` /
    `ISignalSessionStore` interfaces in
-   `src/AetherMesh.Protocol/Security/` for the API shape to mirror.
+   `src/AetherNet.Protocol/Security/` for the API shape to mirror.
 
 If you ship #2 to upstream, the property-test harness in
 `src/test/kotlin/aether/property/PropertyTests.kt` already includes a
@@ -140,7 +140,7 @@ wire.
 ./gradlew test
 
 # Property tests only — kotest-property, 1000 runs/property by default.
-./gradlew test --tests "aethermesh.property.*"
+./gradlew test --tests "aethernet.property.*"
 
 # Bench harness — kotlinx-benchmark over JMH, 11 hot paths,
 # JMH-format summary table to stdout.

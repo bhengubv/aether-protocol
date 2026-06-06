@@ -1,1 +1,1 @@
-rootProject.name = "aethermesh-protocol"
+rootProject.name = "aethernet-protocol"

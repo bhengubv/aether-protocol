@@ -1,5 +1,5 @@
 {
-  "name": "@bhengubv/aethermesh-protocol",
+  "name": "@bhengubv/aethernet-protocol",
   "version": "1.0.0",
   "description": "TypeScript implementation of the Aether mesh networking protocol — offline-first P2P mesh via BLE, Wi-Fi Direct, LoRa, NFC, NearLink, and cellular relay",
   "type": "module",

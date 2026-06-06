@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Transport.Windows</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <Description>Windows BLE GATT transport for the Aether mesh protocol. Uses WinRT Windows.Devices.Bluetooth APIs to act as a BLE central connecting to Aether-compatible peripherals (phones, Pi nodes).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Transport/AetherNet.Transport.csproj" />
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+</Project>

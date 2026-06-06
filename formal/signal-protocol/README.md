@@ -2,7 +2,7 @@
 
 ## What This Proves
 
-This model provides **mathematical proof** that the AetherMesh Signal
+This model provides **mathematical proof** that the AetherNet Signal
 Protocol implementation provides:
 
 | Property | Claim | Status |
@@ -77,7 +77,7 @@ lola signal-protocol.pnml --formula "EF P_ChainKey_E2 = 1"
 
 ## Relationship to Code
 
-In `src/AetherMesh.Security/Services/SignalProtocolMeshService.cs`:
+In `src/AetherNet.Security/Services/SignalProtocolMeshService.cs`:
 
 | Petri net | Code |
 |---|---|
@@ -105,7 +105,7 @@ doesn't capture:
   extraction. Mitigated by `ZeroMemory` in `DhRatchet`.
 - **Active attackers** (MITM at ratchet time): the model treats DH
   exchange as atomic. Real systems require authenticated DH (handled
-  by Ed25519 signatures over each ratchet message in AetherMesh).
+  by Ed25519 signatures over each ratchet message in AetherNet).
 - **Key reuse bugs**: if an implementation incorrectly archives chain
   keys (e.g., a debug logger), the structural argument breaks. The
   model assumes correct destruction.

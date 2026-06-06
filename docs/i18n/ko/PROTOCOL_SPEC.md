@@ -14,10 +14,10 @@
 > 이 문서와 구현이 일치하지 않는 경우 C# 레퍼런스가 최종 권위를 갖습니다.
 >
 > - 표준 와이어 바이트: `fixtures/expected/*.bin` (10개 지정 케이스)
-> - 레퍼런스 직렬화기: `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
-> - 레퍼런스 Signal 스택: `src/AetherMesh.Security/Services/SignalProtocolService.cs`
-> - 레퍼런스 라우팅: `src/AetherMesh.Core/Routing/RoutingService.cs`
-> - 레퍼런스 DTN: `src/AetherMesh.Core/Dtn/DtnService.cs`
+> - 레퍼런스 직렬화기: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
+> - 레퍼런스 Signal 스택: `src/AetherNet.Security/Services/SignalProtocolService.cs`
+> - 레퍼런스 라우팅: `src/AetherNet.Core/Routing/RoutingService.cs`
+> - 레퍼런스 DTN: `src/AetherNet.Core/Dtn/DtnService.cs`
 > - 크로스 언어 와이어 상호운용성 증명: `fixtures/README.md`
 > - 크로스 언어 Signal 상호운용성 증명: `fixtures/signal/README.md`
 
@@ -47,7 +47,7 @@ Aether는 인터넷 연결이 불안정하거나 전혀 없는 환경을 위해 
 
 ## 2. 패킷 포맷
 
-> 2026-05-05에 `src/AetherMesh.Core/Protocol/PacketSerializer.cs` 및
+> 2026-05-05에 `src/AetherNet.Core/Protocol/PacketSerializer.cs` 및
 > `fixtures/expected/` 하위의 10개 픽스처 케이스와 대조하여 일치 확인 완료.
 
 ### 2.1. MeshPacket 와이어 레이아웃
@@ -156,7 +156,7 @@ PacketNonce (8 bytes)
 > 구현체는 서명 가능 바이트로 인코딩하기 전에 `Priority`를 `[0,255]`로 클램프해야 합니다.
 > 그렇지 않으면 수신자(와이어 바이트 0..255를 확인)가 서명 가능 버퍼를 다르게 계산하여 검증에 실패합니다.
 
-레퍼런스 구현은 `src/AetherMesh.Security/Services/
+레퍼런스 구현은 `src/AetherNet.Security/Services/
 PacketSigningService.cs::BuildSignableData`에 있으며 이식 시 반드시 참고해야 합니다.
 
 ### 2.5. 패킷 타입
@@ -288,7 +288,7 @@ Aether는 암호학적 라우트 인증 및 QoS 가중 라우트 선택으로 �
 
 ## 4. 키 교환
 
-> 2026-05-05에 `src/AetherMesh.Security/Services/SignalProtocolService.cs`의 C# 레퍼런스 구현 및
+> 2026-05-05에 `src/AetherNet.Security/Services/SignalProtocolService.cs`의 C# 레퍼런스 구현 및
 > `fixtures/signal/` 하위의 크로스 언어 픽스처 모음과 대조하여 일치 확인 완료.
 > C# 레퍼런스는 X25519를 기반으로 하는 완전한 X3DH + Double Ratchet (Signal §3 + §5)를 제공합니다.
 > Go, Python, TypeScript, Rust, Swift, Kotlin은 동일한 엔벨로프로 이식되었으며
@@ -343,7 +343,7 @@ PreKeyBundle {
 }
 ```
 
-레퍼런스: `AetherMesh.Security.Models.PreKeyBundle`. 와이어 형상 계약은
+레퍼런스: `AetherNet.Security.Models.PreKeyBundle`. 와이어 형상 계약은
 모든 8개 언어에서 동일합니다.
 
 **일회성 프리 키 (OPK) 풀.** 각 응답자는 `OpkPoolSize` (기본 100, Signal 공개 가이드라인 반영)개의 X25519
@@ -354,7 +354,7 @@ OPK 풀을 유지합니다. 번들 생성 시 FIFO 큐에서 다음으로 미사
 
 레퍼런스: `SignalProtocolService.TopUpOpkPoolNoLock` (494–518번 줄),
 `SignalProtocolService.EstablishResponderSession` (636–718번 줄). 풀 동작은
-`tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`에서 검증됩니다.
+`tests/AetherNet.Core.Tests/PreKeyPoolTests.cs`에서 검증됩니다.
 
 **서명된 프리 키 (SPK) 교체.** SPK는 첫 번째 번들 호출 시 지연 생성되며 이후 호출에서 재사용됩니다.
 이를 통해 X3DH 실행 전에 번들을 가져오는 동시 발신자들이 서로의 번들을 무효화하지 않습니다.
@@ -524,7 +524,7 @@ EncryptedPayload {
 }
 ```
 
-레퍼런스: `AetherMesh.Security.Models.EncryptedPayload` (`SecurityModels.cs` 55–66번 줄).
+레퍼런스: `AetherNet.Security.Models.EncryptedPayload` (`SecurityModels.cs` 55–66번 줄).
 `InitiatorEphemeralKeyX25519` 필드는 Double-Ratchet 이전 와이어 엔벨로프의 하위 호환성 별칭으로
 PreKey 메시지에서 `SenderEphemeralKeyX25519`와 동일합니다; 새 소비자는 이를 무시해야 합니다.
 
@@ -543,7 +543,7 @@ AES-GCM 파라미터: 256비트 키, 96비트 논스 (`AesNonceSize = 12`),
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethermesh_x25519_*`, `aethermesh_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
 
 세션 기능을 갖춘 7개 언어 (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) 모두 C# 레퍼런스 계약과 일치하는 100-키 FIFO OPK 풀(지연 보충 및 잠금 보호 소비 방식)을 제공합니다. C는 프리미티브만 제공하며, 완전한 세션 기계 장치는 `OPEN_ISSUES.md` 항목 11에서 추적 중입니다.
 
@@ -590,7 +590,7 @@ Aether는 전송 계층에 독립적입니다. `ITransportService` 계약을 충
 2. **페이로드 크기:** 페이로드 크기가 `BleMaxPayloadBytes` (1,024바이트) 이하이면 전력 효율을 위해 BLE가 선호됩니다. 더 큰 페이로드는 Wi-Fi Direct를 선호합니다.
 3. **전력 비용 가중:** 가용한 전송 수단 중 일반 트래픽에는 `PowerCostRelative` 값이 낮은 것이 선호됩니다. 고우선순위 패킷 (SOS, 음성)은 이 선호도를 재정의할 수 있습니다.
 4. **피어 연결성:** 전송 수단이 이미 목적지 피어에 대한 활성 연결을 보유하고 있으면 (`IsConnected`가 true를 반환) 연결 설정 오버헤드를 피하기 위해 선호됩니다.
-5. **폴백:** 로컬 전송 수단이 목적지에 도달할 수 없으면 패킷은 AetherMeshAPI를 통한 서버 릴레이를 위해 큐에 대기합니다.
+5. **폴백:** 로컬 전송 수단이 목적지에 도달할 수 없으면 패킷은 AetherNetAPI를 통한 서버 릴레이를 위해 큐에 대기합니다.
 
 ### 5.3. 레퍼런스 전송 수단
 
@@ -767,7 +767,7 @@ SOS 메커니즘은 사용자가 위험에 처해 근처 메시 피어 및/또�
    ```
 3. **이중 경로 전송:** SOS는 동시에 다음을 통해 전송됩니다:
    - **메시 플러드:** 모든 가용한 전송 수단을 통해 연결된 모든 피어에게 브로드캐스트.
-   - **API 호출:** 서버 측 배포 및 PanikAPI 연결(SMS/이메일 전송)을 위해 AetherMeshAPI로 전송.
+   - **API 호출:** 서버 측 배포 및 PanikAPI 연결(SMS/이메일 전송)을 위해 AetherNetAPI로 전송.
 4. 두 경로는 서로에 대해 fire-and-forget입니다. API 호출이 실패해도 메시 플러드는 독립적으로 진행됩니다.
 
 ### 8.3. 릴레이 동작
@@ -823,7 +823,7 @@ DtnBundle {
 
 1. **생성:** 송신자는 암호화된 페이로드 (수신자와의 Signal 세션을 통해 암호화)로 번들을 생성합니다. `Status = Pending`, `CopyCount = 1`.
 2. **즉시 전달 시도:** 송신자는 먼저 직접 메시 라우팅 (RREQ/RREP)을 시도합니다. 라우트가 있으면 번들이 즉시 전달되고 `Status`가 `Delivered`로 전환됩니다.
-3. **서버 릴레이 시도:** 메시 라우팅이 실패하면 송신자는 AetherMeshAPI를 통한 릴레이를 시도합니다. 서버가 수신자에 도달할 수 있으면 (또는 메시지를 큐에 넣을 수 있으면) 전달에 성공합니다.
+3. **서버 릴레이 시도:** 메시 라우팅이 실패하면 송신자는 AetherNetAPI를 통한 릴레이를 시도합니다. 서버가 수신자에 도달할 수 있으면 (또는 메시지를 큐에 넣을 수 있으면) 전달에 성공합니다.
 4. **저장 후 전달:** 메시와 서버 릴레이 모두 실패하면 번들은 다음 전달 스캔을 기다리며 로컬 저장소 (`Pending` 상태)에 남습니다.
 
 ### 9.3. 전달 스캔
@@ -876,7 +876,7 @@ DtnBundle {
    }
    ```
 3. 영수증을 수신하면 송신자는 저장소에서 번들을 제거하고 `BundleDelivered` 이벤트를 발생시킵니다.
-4. 영수증은 분석을 위해 AetherMeshAPI에도 동기화됩니다.
+4. 영수증은 분석을 위해 AetherNetAPI에도 동기화됩니다.
 
 ### 9.7. 번들 만료
 
@@ -902,7 +902,7 @@ DtnBundle {
 > `StreamSubscribe` (13), `StreamUnsubscribe` (14), `VideoCall` (27),
 > `VideoSignaling` (28), `VideoFrame` (31), `ScreenShare` (32)는
 > 와이어 정의가 완료되었으며 크로스 언어 픽스처 모음을 통해 왕복 검증되었습니다.
-> C# `AetherMesh.Streaming` 모듈은 인터페이스, 모델, 스켈레톤 서비스
+> C# `AetherNet.Streaming` 모듈은 인터페이스, 모델, 스켈레톤 서비스
 > (`StreamingService`, `VideoCallService`, `WatchTogetherService`)를 제공하며
 > 라우팅/DI 이음매와 유니캐스트 세그먼트 팬아웃을 연결합니다 — 하지만 실제
 > 비디오 인코딩/디코딩은 연결되어 있지 않습니다. 나머지 7개 언어는 와이어 타입만 있습니다.
@@ -1014,7 +1014,7 @@ Aether는 세 가지 비디오 모드를 지원합니다: P2P 비디오 통화, 
 > **2026-05-05 현재 상태 — 설계 + C# 스캐폴딩, §10과 동일한 성숙도.**
 > 패킷 타입 `WatchSync` (29), `WatchReaction` (30),
 > `WatchChunkRequest` (33), `TorrentMetadata` (34)는 와이어 정의가 완료되었으며
-> 픽스처 테스트가 완료되었습니다. `AetherMesh.Streaming.WatchTogetherService`는
+> 픽스처 테스트가 완료되었습니다. `AetherNet.Streaming.WatchTogetherService`는
 > 조율 스켈레톤 (세션 상태, `IMeshSender`를 통한 동기화 명령 전파, RTT 보상 헬퍼)을 제공합니다;
 > BitTorrent 수집, ChipIn SDPKT 정산, 피어로부터의 청크 가져오기는
 > 어느 언어에서도 구현되지 않았습니다. 아래 산문은 목표 프로토콜로 취급하시고,
@@ -1142,12 +1142,12 @@ ChipIn은 그룹 멤버들이 공동 시청을 위한 콘텐츠를 공동으로 
 
 | Flag | Parent | 설명 |
 |------|--------|-------------|
-| AETHERMESH_VIDEO_CALL | AETHERMESH_VOICE | P2P 및 그룹 비디오 통화 |
-| AETHERMESH_VIDEO_GROUP | AETHERMESH_VIDEO_CALL | 다중 참가자 비디오 세션 |
-| AETHERMESH_SCREEN_SHARE | AETHERMESH_VIDEO_CALL | 비디오 통화 중 화면 공유 |
-| AETHERMESH_WATCH_TOGETHER | AETHERMESH_CONTENT_P2P | 동기화된 미디어 재생 |
-| AETHERMESH_WATCH_REACTIONS | AETHERMESH_WATCH_TOGETHER | 이모지 및 음성 반응 |
-| AETHERMESH_TORRENT_INGEST | AETHERMESH_CONTENT_P2P | 메시 배포를 위한 BitTorrent 파일 수락 |
+| AETHERNET_VIDEO_CALL | AETHERNET_VOICE | P2P 및 그룹 비디오 통화 |
+| AETHERNET_VIDEO_GROUP | AETHERNET_VIDEO_CALL | 다중 참가자 비디오 세션 |
+| AETHERNET_SCREEN_SHARE | AETHERNET_VIDEO_CALL | 비디오 통화 중 화면 공유 |
+| AETHERNET_WATCH_TOGETHER | AETHERNET_CONTENT_P2P | 동기화된 미디어 재생 |
+| AETHERNET_WATCH_REACTIONS | AETHERNET_WATCH_TOGETHER | 이모지 및 음성 반응 |
+| AETHERNET_TORRENT_INGEST | AETHERNET_CONTENT_P2P | 메시 배포를 위한 BitTorrent 파일 수락 |
 
 기능 플래그에는 부모 종속성이 있습니다: 자식 플래그는 부모도 활성화된 경우에만 활성화할 수 있습니다. 이를 통해 점진적인 롤아웃이 가능합니다.
 
@@ -1174,7 +1174,7 @@ ChipIn은 그룹 멤버들이 공동 시청을 위한 콘텐츠를 공동으로 
 | BleAdvertiseIntervalMs    | 1000   |
 | BleUuidRotationSeconds    | 900    |
 | BleScanJitterMaxMs        | 2000   |
-| AetherMeshBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
+| AetherNetBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
 
 ### 보안
 | Constant                  | Value  |

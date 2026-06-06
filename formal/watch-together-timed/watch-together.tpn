@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  AetherMesh Watch-Together — Timed Petri Net (TAPAAL TPN format)
+  AetherNet Watch-Together — Timed Petri Net (TAPAAL TPN format)
   ===============================================================
   Timed extension of watch-together/ model. Each transition has a
   firing interval [min, max] in milliseconds. Proves ±100ms convergence

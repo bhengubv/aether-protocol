@@ -1,21 +1,21 @@
 # Standards Submissions
 
 This directory holds the standards-track and regulatory submission
-artefacts for AetherMesh.
+artefacts for AetherNet.
 
 ## IETF Internet-Drafts
 
 | File | Status |
 |---|---|
-| `draft-bhengubv-aethermesh-00.md` | Skeleton — first draft |
+| `draft-bhengubv-aethernet-00.md` | Skeleton — first draft |
 
 ### Building the I-D
 
 Use `kramdown-rfc` (`gem install kramdown-rfc`):
 
 ```bash
-kramdown-rfc draft-bhengubv-aethermesh-00.md > draft-bhengubv-aethermesh-00.xml
-xml2rfc draft-bhengubv-aethermesh-00.xml --text --html
+kramdown-rfc draft-bhengubv-aethernet-00.md > draft-bhengubv-aethernet-00.xml
+xml2rfc draft-bhengubv-aethernet-00.xml --text --html
 ```
 
 ### Submission

@@ -11,9 +11,9 @@ import time
 import unittest
 import uuid
 
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.streaming.video_service import VideoCallService, VideoCallState, _pack_video_frame
-from aethermesh.streaming.watch_together import WatchTogetherService
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.streaming.video_service import VideoCallService, VideoCallState, _pack_video_frame
+from aethernet.streaming.watch_together import WatchTogetherService
 
 from tests.fakes import FakeMeshSender
 

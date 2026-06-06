@@ -179,7 +179,7 @@ steady-state probability of being in the unrecoverable region
 P(unrecoverable) ≈ (λ_fail / λ_heal)²    (small-failure-rate limit)
 ```
 
-For production AetherMesh's (K=10, N=14):
+For production AetherNet's (K=10, N=14):
 
 ```
 P(unrecoverable) ≈ C(N, N-K+1) × (λ_fail / λ_heal)^(N-K+1)

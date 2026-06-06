@@ -10,15 +10,15 @@
 ## Working Title
 
 > "Petri Nets as a Protocol Design Discipline: A Case Study with the
-> AetherMesh Offline-First Mesh Protocol"
+> AetherNet Offline-First Mesh Protocol"
 
 ## Abstract Draft
 
-This paper presents AetherMesh, an offline-first peer-to-peer mesh
+This paper presents AetherNet, an offline-first peer-to-peer mesh
 networking protocol whose specification is co-developed with 33
 formal Petri net models covering every protocol layer. Unlike
 traditional protocol design where formal verification is added as
-an afterthought, AetherMesh treats Petri nets as a normative
+an afterthought, AetherNet treats Petri nets as a normative
 artefact — the formal model IS part of the protocol specification.
 
 We describe the modelling methodology, the verification toolchain
@@ -31,14 +31,14 @@ discuss how the discovery shaped the inhibitor-arc fix.
 
 We argue that the credibility surface created by machine-checkable
 formal proofs is essential for a protocol seeking standardisation
-(IETF) or regulatory acceptance (financial). The AetherMesh PoV
+(IETF) or regulatory acceptance (financial). The AetherNet PoV
 anti-Sybil proof is presented as the basis for a SARB Exempt 17
 eKYC pathway for mobile-money onboarding without phone numbers.
 
 ## Sections (Outline)
 
 1. Introduction — protocol design and formal verification today
-2. AetherMesh overview — the protocol stack
+2. AetherNet overview — the protocol stack
 3. Methodology — Petri nets as normative artefacts
 4. Models — 33 across 8 categories
    - Core: DTN, Signal, Vault

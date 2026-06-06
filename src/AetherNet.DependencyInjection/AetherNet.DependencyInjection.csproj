@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.DependencyInjection</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>One-call DI registration and health checks for the Aether mesh networking protocol stack. Hosts call services.AddAetherNetProtocol(...) to wire routing, DTN, Signal Protocol, and messaging — opt-in per capability.</Description>
+    <PackageTags>mesh;di;dependency-injection;aether;aspnetcore;extensions;health-checks;signal-protocol;dtn;routing</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
+    <ProjectReference Include="../AetherNet.Messaging/AetherNet.Messaging.csproj" />
+    <ProjectReference Include="../AetherNet.Transport/AetherNet.Transport.csproj" />
+    <ProjectReference Include="../AetherNet.Storage/AetherNet.Storage.csproj" />
+    <ProjectReference Include="../AetherNet.Streaming/AetherNet.Streaming.csproj" />
+    <ProjectReference Include="../AetherNet.Voice/AetherNet.Voice.csproj" />
+    <ProjectReference Include="../AetherNet.Content/AetherNet.Content.csproj" />
+    <ProjectReference Include="../AetherNet.Space/AetherNet.Space.csproj" />
+    <ProjectReference Include="../AetherNet.Forge/AetherNet.Forge.csproj" />
+    <ProjectReference Include="../AetherNet.Vault/AetherNet.Vault.csproj" />
+    <ProjectReference Include="../AetherNet.Market/AetherNet.Market.csproj" />
+  </ItemGroup>
+
+</Project>

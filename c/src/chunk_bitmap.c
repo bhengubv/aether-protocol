@@ -13,7 +13,7 @@
 #  define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include "aethermesh/chunk_bitmap.h"
+#include "aethernet/chunk_bitmap.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -54,13 +54,13 @@ static char *b64_encode(const uint8_t *data, size_t len)
     return out;
 }
 
-// ── aethermesh_bitset_encode ──────────────────────────────────────────────────────
+// ── aethernet_bitset_encode ──────────────────────────────────────────────────────
 
-aethermesh_bitset_t aethermesh_bitset_encode(int        chunk_count,
+aethernet_bitset_t aethernet_bitset_encode(int        chunk_count,
                                      const int *have_indices,
                                      int        index_count)
 {
-    aethermesh_bitset_t result = {NULL, 0};
+    aethernet_bitset_t result = {NULL, 0};
     if (chunk_count <= 0)
         return result;
 
@@ -81,9 +81,9 @@ aethermesh_bitset_t aethermesh_bitset_encode(int        chunk_count,
     return result;
 }
 
-// ── aethermesh_bitset_decode ──────────────────────────────────────────────────────
+// ── aethernet_bitset_decode ──────────────────────────────────────────────────────
 
-int *aethermesh_bitset_decode(const uint8_t *bitset,
+int *aethernet_bitset_decode(const uint8_t *bitset,
                           size_t         bitset_len,
                           int            chunk_count,
                           int           *out_count)
@@ -118,16 +118,16 @@ int *aethermesh_bitset_decode(const uint8_t *bitset,
     return result;
 }
 
-// ── aethermesh_bitset_free ────────────────────────────────────────────────────────
+// ── aethernet_bitset_free ────────────────────────────────────────────────────────
 
-void aethermesh_bitset_free(aethermesh_bitset_t bs)
+void aethernet_bitset_free(aethernet_bitset_t bs)
 {
     free(bs.bytes);
 }
 
-// ── aethermesh_chunk_bitmap_marshal_json ─────────────────────────────────────────
+// ── aethernet_chunk_bitmap_marshal_json ─────────────────────────────────────────
 
-char *aethermesh_chunk_bitmap_marshal_json(const char    *root_hash,
+char *aethernet_chunk_bitmap_marshal_json(const char    *root_hash,
                                        int            chunk_count,
                                        const uint8_t *have_bitset,
                                        size_t         have_bitset_len,

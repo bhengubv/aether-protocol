@@ -18,7 +18,7 @@ Swift Package. Add it to your `Package.swift`:
 then declare the target dependency:
 
 ```swift
-.product(name: "AetherMeshProtocol", package: "aether-protocol")
+.product(name: "AetherNetProtocol", package: "aether-protocol")
 ```
 
 The single runtime dependency is Apple's
@@ -33,7 +33,7 @@ pre-key bundles, X25519 for X3DH ECDH. `SignalProtocolService` is an
 `actor` that generates them on first construction:
 
 ```swift
-import AetherMeshProtocol
+import AetherNetProtocol
 
 let alice = SignalProtocolService()
 await alice.setLocalUhid("alice-uhid-0001")

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Streaming</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Live broadcast streaming, video calls, and watch-together synchronization for the Aether mesh networking protocol. Provides segment-based live streaming with subscriber fan-out, video-call signaling and frame transport, and host-driven watch-together sync. Codec implementations (Opus, H264/H265/VP8/AV1) are supplied by hosts via IVideoCodec.</Description>
+    <PackageTags>mesh;streaming;video;live-stream;watch-together;aether;broadcast;h264;av1;vp8</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AetherNet.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+  </ItemGroup>
+
+</Project>

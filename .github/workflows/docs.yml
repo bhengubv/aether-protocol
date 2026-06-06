@@ -6,7 +6,7 @@
 #
 # To run locally instead:
 #   dotnet tool install -g docfx
-#   dotnet build AetherMeshProtocol.slnx -c Release
+#   dotnet build AetherNetProtocol.slnx -c Release
 #   docfx metadata docfx.json
 #   docfx build docfx.json
 #   open _site/index.html
@@ -48,15 +48,15 @@
 #
 #       - name: Restore + build C# projects (DocFX needs the assemblies)
 #         run: |
-#           dotnet build src/AetherMesh.Core/AetherMesh.Core.csproj -c Release
-#           dotnet build src/AetherMesh.Security/AetherMesh.Security.csproj -c Release
-#           dotnet build src/AetherMesh.Messaging/AetherMesh.Messaging.csproj -c Release
-#           dotnet build src/AetherMesh.Storage/AetherMesh.Storage.csproj -c Release
-#           dotnet build src/AetherMesh.Transport/AetherMesh.Transport.csproj -c Release
-#           dotnet build src/AetherMesh.Streaming/AetherMesh.Streaming.csproj -c Release
-#           dotnet build src/AetherMesh.Voice/AetherMesh.Voice.csproj -c Release
-#           dotnet build src/AetherMesh.Content/AetherMesh.Content.csproj -c Release
-#           dotnet build src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj -c Release
+#           dotnet build src/AetherNet.Core/AetherNet.Core.csproj -c Release
+#           dotnet build src/AetherNet.Security/AetherNet.Security.csproj -c Release
+#           dotnet build src/AetherNet.Messaging/AetherNet.Messaging.csproj -c Release
+#           dotnet build src/AetherNet.Storage/AetherNet.Storage.csproj -c Release
+#           dotnet build src/AetherNet.Transport/AetherNet.Transport.csproj -c Release
+#           dotnet build src/AetherNet.Streaming/AetherNet.Streaming.csproj -c Release
+#           dotnet build src/AetherNet.Voice/AetherNet.Voice.csproj -c Release
+#           dotnet build src/AetherNet.Content/AetherNet.Content.csproj -c Release
+#           dotnet build src/AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj -c Release
 #
 #       - name: DocFX metadata
 #         run: docfx metadata docfx.json

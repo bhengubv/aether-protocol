@@ -107,7 +107,7 @@
 |--------|------|------:|----------:|--------|
 | 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
 | 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | セルラーHTTPリレー | 無制限 | ~10 Mbps | ✅ Windows — リレーサーバーは `samples/AetherMesh.RelayServer/` |
+| 🟣 Aether Purple | セルラーHTTPリレー | 無制限 | ~10 Mbps | ✅ Windows — リレーサーバーは `samples/AetherNet.RelayServer/` |
 | ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE (`android/white/`); Windows: NDEF-over-BLE-GATT + ACR122U PC/SC 近似（`Windows.Networking.Proximity` はWin 11で削除済み） |
 | 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`; Windows + Android: SSAP-over-BLE 近似（API同等、ワイヤー互換ではない） |
 | 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ BLE LR経由Meshtasticワイヤーフォーマット（~1.3 km）; LoRaモジュール存在時はSX1276/SX1278へのラジオスワップ |
@@ -221,7 +221,7 @@ cd aether-protocol
 ### C# (.NET 10 SDK)
 
 ```bash
-dotnet run --project samples/AetherMesh.Demo.Console
+dotnet run --project samples/AetherNet.Demo.Console
 ```
 
 このデモでは8つのステップを体験できます: 3つのノード（Alice、Bob、Charlie）のEd25519アイデンティティキー生成、Signal Protocolセッションの確立、暗号化されたメッセージの送信、Charlie経由のメッセージリレー（Charlieは内容を読めない）、バイナリワイヤーフォーマットの表示、5つの連続メッセージにわたる前方秘匿性のデモ。出力はカラーコード付きで、ステップ間に一時停止します。
@@ -431,28 +431,28 @@ cd c && mkdir -p build && cd build && cmake .. && make && ./aether-demo
 **Cでメッセージを送信する:**
 
 ```c
-aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
-packet->type = AETHERMESH_PACKET_TYPE_DATA;
+aethernet_mesh_packet_t *packet = aethernet_packet_new();
+packet->type = AETHERNET_PACKET_TYPE_DATA;
 packet->ttl = 7;
 
-aethermesh_packet_set_source_uhid(packet, "alice");
-aethermesh_packet_set_destination_uhid(packet, "bob");
-aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
+aethernet_packet_set_source_uhid(packet, "alice");
+aethernet_packet_set_destination_uhid(packet, "bob");
+aethernet_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
 
 // 署名
 size_t signable_len = 0;
-uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
+uint8_t *signable = aethernet_packet_get_signable_data(packet, &signable_len);
 uint8_t signature[64];
-aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
-aethermesh_packet_set_signature(packet, signature, 64);
+aethernet_ed25519_sign(private_key, signable, signable_len, signature);
+aethernet_packet_set_signature(packet, signature, 64);
 free(signable);
 
 // シリアライズして送信
 uint8_t buffer[2048];
-int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
+int size = aethernet_packet_serialize(packet, buffer, sizeof(buffer));
 // buffer[0..size-1] をトランスポート経由で送信
 
-aethermesh_packet_free(packet);
+aethernet_packet_free(packet);
 ```
 
 ## ロードマップ
@@ -483,11 +483,11 @@ aethermesh_packet_free(packet);
 - ✅ **ビデオ通話（1対1）** — シグナリングでのコーデック/解像度/fps/ビットレートネゴシエーション、キーフレームリクエストと品質変更シグナル、音声レイアウトと一致するバイナリ`VideoFrame`フォーマット。
 - ✅ **ウォッチトゥゲザー** — ホストが権威ある`WatchSync`（再生/一時停止/シーク/速度）コマンドを発行; フォロワーはRTT補正で適用（`position = positionMs + elapsed × playbackSpeed`）; ファイアアンドフォーゲットの`WatchReaction`。
 - ✅ **ワンタイムプレキー（OPK）プール** — デフォルト100、FIFOイシュー、レイジートップアップ、全8言語でのロック保護消費。単一OPK並行性の危険性を排除。
-- ✅ **C: 完全なSignalセッション** — `c/src/signal_protocol.c`の`aethermesh_signal_service_init`、`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`; `c/tests/test_signal_session.c`の6つの2ノードE2Eテスト。全8言語で完全なセッション対応Signal Protocolが揃いました。
+- ✅ **C: 完全なSignalセッション** — `c/src/signal_protocol.c`の`aethernet_signal_service_init`、`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`; `c/tests/test_signal_session.c`の6つの2ノードE2Eテスト。全8言語で完全なセッション対応Signal Protocolが揃いました。
 
 **完了（C#リファレンスのみ）:**
-- ✅ **デモステップ9 — MessagingService + DTNフォールバックのエンドツーエンド** — `samples/AetherMesh.Demo.Console`では、受信者がオフラインの場合のDTNストアアンドフォワードを使った実際のSignal暗号化メッセージングのウォークスルー。
-- ✅ **`AetherMesh.Messaging` ↔ `AetherMesh.Security` ブリッジ** — `SignalMessageEnvelopeCipher`はメッセージング層をデフォルトでエンドツーエンド暗号化にします; Signalセッションのないメッセージはキューに入れられ、安全でない状態では送信されません。
+- ✅ **デモステップ9 — MessagingService + DTNフォールバックのエンドツーエンド** — `samples/AetherNet.Demo.Console`では、受信者がオフラインの場合のDTNストアアンドフォワードを使った実際のSignal暗号化メッセージングのウォークスルー。
+- ✅ **`AetherNet.Messaging` ↔ `AetherNet.Security` ブリッジ** — `SignalMessageEnvelopeCipher`はメッセージング層をデフォルトでエンドツーエンド暗号化にします; Signalセッションのないメッセージはキューに入れられ、安全でない状態では送信されません。
 - ✅ **アダプティブビットレートストリーミング** — プロファイルA（リアルタイム）、B（ライブブロードキャスト）、C（VOD）のスペック準拠ビットレートラダーを持つ`AdaptiveBitrateController`。パブリッシャーは最高持続可能なランクを選択し（20%ヘッドルーム）、フロア以下の場合はセグメントの代わりに`StreamAbandon`（`PacketType.StreamAbandon`）を発行。`IStreamingService`は`UpdateBandwidthEstimate`と`GetCurrentBitrateRung`を公開。
 - ✅ **ウォッチトゥゲザー: BitTorrentインジェスト + ChipInグループファンディング** — `TorrentInfo` / `TorrentFile`モデル; `WatchTogetherService`は`PacketType.TorrentMetadata`を処理し`TorrentReceived`を発火。`ChipInPool` / `ChipInContribution`ステートマシン（Collecting → Funded → Purchasing → Acquired / Failed / Refunded）; `IWatchTogetherService`の`StartChipInAsync` / `ContributeAsync` / `GetChipIn`。
 - ✅ **自動SFUリレーによるグループビデオ通話** — `GroupVideoService` / `IGroupVideoService`。参加者が3人以下の場合はFullMeshトポロジー; `SfuThresholdParticipants`（4）で自動的にSFUに切り替えと`GroupVideoSignaling(SfuAssigned)`によるリレー再割り当て。FullMeshではファンアウト、SFUモードではリレーのみ送信。シグナリングパケットタイプ`GroupVideoSignaling = 35`。
@@ -497,9 +497,9 @@ aethermesh_packet_free(packet);
 - ✅ **RF立ち上げシミュレーションテスト** — 2ノード相互運用テスト（`SimulatedTransportTests`）: BLE + NearLink `MeshPacket`のラウンドトリップ、WiFi Direct 64 KBペイロード転送。ソフトウェア層は完全に検証済み; ハードウェア上での検証には実機デバイスラボセッションが必要。
 
 **完了（C#トランスポート層 — すべてフェイルファスト）:**
-- ✅ **BLE GATTリアルトランスポート** — `WinBleGattTransportService`（Windows WinRT）+ `android/blue/`（Android GATTサーバー）。`samples/AetherMesh.BleRfTest/`の完全RF立ち上げテスト。
-- ✅ **Wi-Fi Directリアルトランスポート** — `WinWifiDirectTransportService`（WinRT、`WiFiDirectAdvertisementPublisher` + TCP StreamSocketポート8888）+ `android/green/`（`WifiP2pManager`）。`samples/AetherMesh.WifiDirectRfTest/`のRFテスト。
-- ✅ **HTTPリレートランスポート（Aether Purple）** — 10秒ロングポール、`PowerCostRelative = 100`、常に最終手段の`HttpRelayTransportService`。`samples/AetherMesh.RelayServer/`のリレーサーバー（ASP.NET Coreミニマルアプリ、ポート5200）。`samples/AetherMesh.RelayRfTest/`のRFテスト。
+- ✅ **BLE GATTリアルトランスポート** — `WinBleGattTransportService`（Windows WinRT）+ `android/blue/`（Android GATTサーバー）。`samples/AetherNet.BleRfTest/`の完全RF立ち上げテスト。
+- ✅ **Wi-Fi Directリアルトランスポート** — `WinWifiDirectTransportService`（WinRT、`WiFiDirectAdvertisementPublisher` + TCP StreamSocketポート8888）+ `android/green/`（`WifiP2pManager`）。`samples/AetherNet.WifiDirectRfTest/`のRFテスト。
+- ✅ **HTTPリレートランスポート（Aether Purple）** — 10秒ロングポール、`PowerCostRelative = 100`、常に最終手段の`HttpRelayTransportService`。`samples/AetherNet.RelayServer/`のリレーサーバー（ASP.NET Coreミニマルアプリ、ポート5200）。`samples/AetherNet.RelayRfTest/`のRFテスト。
 - ✅ **NFC（Aether White）** — `android/white/`はAID `F061657468657200`で`HostApduService`を実装。`WinNfcStubTransportService`は2つのWindowsの近似パスを文書化: (1) RSSI ゲート ≥ −40 dBm（NFCシリコンなしのタップ接続をシミュレート、`IsAvailable = Bluetooth present`）を持つNDEF-over-BLE-GATT; (2) `Windows.Devices.SmartCards` PC/SC経由のACR122U USBリーダー（`IsAvailable = contactless reader enumerated`）。アップグレードパス: MicrosoftがファーストパーティのピアツーピアNFC APIを提供したら`ITransportService`を実装。
 - ✅ **NearLink（Aether Teal）** — **`harmonyos/teal/`** — `@kit.NearLinkKit`（`scan.startScan` + `ssap.createClient` + `advertising.startAdvertising`）を使用したHarmonyOS 5.0.1（API 13）ArkTS完全実装; `isAvailable`は実行時にプローブ。`WinNearLinkStubTransportService` + `android/teal/`はSSAP-over-BLE近似を文書化: Aether SLEサービスUUID `61657468-6572-0003-0000-000000000000`を持つBLE GATT — SSAPとAPI同等、本物のNearLinkハードウェアとはワイヤー互換ではない。アップグレードパス: BLE GATTコールを`ssapc_*`/`ssaps_*` SDKコールに置き換え; UUIDと`TransportManager`スロットは変更なし。
 - ✅ **LoRa / CircleLink（Aether Red）** — `LoRaCircleLinkStub` + `android/red/`は、BLE 5.0 Coded PHY S=8（~1.3 km屋外）上で完全なMeshtasticワイヤーフォーマット（16バイトヘッダー + AES-256-CTR protobuf）を使用したMeshtastic-over-BLE-LR近似を文書化: マネージドフラッドルーティングとRSSI重み付けコンテンションウィンドウ付き。本物のLoRaハードウェアとのブリッジノードフェデレーションは自動的に機能します（同じMeshtasticパケットフォーマット、翻訳なし）。アップグレードパス: BLE LRラジオをSX1276/SX1278のATコマンドまたはSPIドライバに置き換え; パケットフォーマットとルーティングは変更なし。
@@ -518,19 +518,19 @@ aethermesh_packet_free(packet);
 ```
 aether-protocol/
   src/
-    AetherMesh.Core/          プロトコルモデル、定数、パケットシリアライズ
-    AetherMesh.Security/      Signal Protocol、Ed25519、パケット署名
-    AetherMesh.Transport/     トランスポート抽象化、NearLink、プロセス内シミュレーター
-    AetherMesh.Messaging/     メッセージ処理とリレー
-    AetherMesh.Storage/       DTNストアアンドフォワード永続化
-    AetherMesh.Streaming/     アダプティブビットレートストリーミング、ビデオモデルとインターフェース
-    AetherMesh.Voice/         音声通話とグループ音声
-    AetherMesh.Content/       コンテンツ検証とチャンク転送
+    AetherNet.Core/          プロトコルモデル、定数、パケットシリアライズ
+    AetherNet.Security/      Signal Protocol、Ed25519、パケット署名
+    AetherNet.Transport/     トランスポート抽象化、NearLink、プロセス内シミュレーター
+    AetherNet.Messaging/     メッセージ処理とリレー
+    AetherNet.Storage/       DTNストアアンドフォワード永続化
+    AetherNet.Streaming/     アダプティブビットレートストリーミング、ビデオモデルとインターフェース
+    AetherNet.Voice/         音声通話とグループ音声
+    AetherNet.Content/       コンテンツ検証とチャンク転送
   samples/
-    AetherMesh.Demo.Console/  インタラクティブデモ
+    AetherNet.Demo.Console/  インタラクティブデモ
   tests/
-    AetherMesh.Security.Tests/
-    AetherMesh.Protocol.Tests/
+    AetherNet.Security.Tests/
+    AetherNet.Protocol.Tests/
   rust/                   Rust実装
   typescript/             TypeScript実装
   python/                 Python実装
@@ -576,9 +576,9 @@ DIに登録すると、`TransportManager`は自動的にトランスポート選
 
 プロトコルはスタンドアローンで動作します。これらのインターフェースを使うと独自のバックエンドをプラグインできます:
 
-- `IAetherMeshIncentiveProvider` — トラフィックを中継するノードに報酬を与える（Noopデフォルト: 利他的中継）
-- `IAetherMeshBackendClient` — インターネット利用時にサーバーと同期する（Noopデフォルト: 完全オフライン）
-- `IAetherMeshFeatureFlagProvider` — 実行時にプロトコル機能を切り替える（Noopデフォルト: すべて有効）
+- `IAetherNetIncentiveProvider` — トラフィックを中継するノードに報酬を与える（Noopデフォルト: 利他的中継）
+- `IAetherNetBackendClient` — インターネット利用時にサーバーと同期する（Noopデフォルト: 完全オフライン）
+- `IAetherNetFeatureFlagProvider` — 実行時にプロトコル機能を切り替える（Noopデフォルト: すべて有効）
 
 3つすべてにNoopの実装が付属しています。削除しても何も壊れません。
 

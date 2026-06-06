@@ -13,7 +13,7 @@ Aether 网状网络协议的完整 Go 语言实现，与 C# 参考实现在线�
 - **Signal 协议**：X3DH 密钥协商 + 对称棘轮，用于端对端加密
 - **数据包签名服务**：具有 5 分钟 TTL 的随机数去重，用于防重放攻击
 - **进程内传输**：基于内存的传输，用于测试和进程间通信
-- **模型**：AetherMeshNode、PeerInfo、RouteEntry、DtnBundle、SosAlert 结构
+- **模型**：AetherNetNode、PeerInfo、RouteEntry、DtnBundle、SosAlert 结构
 - **协议常量**：所有路由、发现、安全和传输常量
 
 ## 模块结构
@@ -173,7 +173,7 @@ fmt.Println(inProcTransport.IsConnected("bob"))    // true
 
 ```go
 // Node in the mesh
-node := &models.AetherMeshNode{
+node := &models.AetherNetNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

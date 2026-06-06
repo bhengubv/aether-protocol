@@ -2,7 +2,7 @@
 
 """pytest-benchmark harness for the Python aether-protocol hot paths.
 
-Mirrors the C# AetherMesh.Benchmarks suite and the Go ``go/bench`` harness —
+Mirrors the C# AetherNet.Benchmarks suite and the Go ``go/bench`` harness —
 the same hot paths so a regression in any language shows up as a delta
 against the committed baseline. Eleven benchmark cases:
 
@@ -32,8 +32,8 @@ Compare a future run::
     python -m pytest benchmarks/ --benchmark-only \
         --benchmark-compare=python_baseline -q
 
-The benches only call exported APIs from :mod:`aethermesh.security`,
-:mod:`aethermesh.protocol`, and :mod:`aethermesh.routing`; lower-level
+The benches only call exported APIs from :mod:`aethernet.security`,
+:mod:`aethernet.protocol`, and :mod:`aethernet.routing`; lower-level
 primitives (X25519, HKDF) come from :mod:`cryptography.hazmat`, the same
 library the production code uses, so the numbers are directly comparable
 to the C# / Go runs.
@@ -59,11 +59,11 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
-from aethermesh.models import RouteEntry
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.protocol.serializer import PacketSerializer
-from aethermesh.routing.store import InMemoryRouteStore
-from aethermesh.security.signal_protocol import SignalProtocolService
+from aethernet.models import RouteEntry
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.protocol.serializer import PacketSerializer
+from aethernet.routing.store import InMemoryRouteStore
+from aethernet.security.signal_protocol import SignalProtocolService
 
 
 _ALICE = "alice-uhid"

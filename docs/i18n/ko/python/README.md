@@ -39,10 +39,10 @@ pip install -e ".[dev]"
 
 ```python
 import asyncio
-from aethermesh.security.ed25519_service import Ed25519SigningService
-from aethermesh.security.signal_protocol import SignalProtocolService
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.protocol.serializer import PacketSerializer
+from aethernet.security.ed25519_service import Ed25519SigningService
+from aethernet.security.signal_protocol import SignalProtocolService
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.protocol.serializer import PacketSerializer
 
 # Generate Ed25519 keys
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -64,7 +64,7 @@ print(f"Signature valid: {is_valid}")
 aether/
 ├── __init__.py              # Package exports
 ├── constants.py             # Protocol constants
-├── models.py                # Data models (AetherMeshNode, PeerInfo, RouteEntry)
+├── models.py                # Data models (AetherNetNode, PeerInfo, RouteEntry)
 ├── protocol/
 │   ├── __init__.py
 │   ├── mesh_packet.py       # MeshPacket and PacketType definitions
@@ -87,7 +87,7 @@ aether/
 암호화 연산에 PyNaCl(libsodium)을 사용합니다:
 
 ```python
-from aethermesh.security.ed25519_service import Ed25519SigningService
+from aethernet.security.ed25519_service import Ed25519SigningService
 
 # Generate a key pair
 private_key, public_key = Ed25519SigningService.generate_keypair()
@@ -109,7 +109,7 @@ is_valid = Ed25519SigningService.verify(public_key, data, signature)
 전방 비밀성을 위한 대칭 래칫을 갖춘 X3DH 키 교환을 구현합니다:
 
 ```python
-from aethermesh.security.signal_protocol import SignalProtocolService
+from aethernet.security.signal_protocol import SignalProtocolService
 
 # Create protocol instances
 alice_signal = SignalProtocolService()
@@ -134,7 +134,7 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 ```
 
 **키 유도:**
-- 솔트 `"AetherMeshSignal"`을 사용한 HKDF-SHA256
+- 솔트 `"AetherNetSignal"`을 사용한 HKDF-SHA256
 - 루트 키 정보: `"aether-root-v1"`
 - 송신 체인 정보: `"aether-chain-send-v1"`
 - 수신 체인 정보: `"aether-chain-recv-v1"`
@@ -150,8 +150,8 @@ decrypted = await bob_signal.decrypt("alice-001", encrypted)
 C# 구현과 일치하는 와이어 호환 이진 형식:
 
 ```python
-from aethermesh.protocol.mesh_packet import MeshPacket, PacketType
-from aethermesh.protocol.serializer import PacketSerializer
+from aethernet.protocol.mesh_packet import MeshPacket, PacketType
+from aethernet.protocol.serializer import PacketSerializer
 
 # Create a packet
 packet = MeshPacket(
@@ -188,7 +188,7 @@ decoded_packet = PacketSerializer.deserialize(binary)
 Ed25519를 사용하여 패킷에 서명하고 재전송 공격을 탐지합니다:
 
 ```python
-from aethermesh.security.packet_signing import PacketSigningService
+from aethernet.security.packet_signing import PacketSigningService
 
 signing_service = PacketSigningService()
 
@@ -220,7 +220,7 @@ is_valid = signing_service.verify_packet(packet, public_key)
 물리적 전송(BLE, Wi-Fi Direct 등)을 위한 추상 기반 클래스:
 
 ```python
-from aethermesh.transport.in_process import InProcessTransport
+from aethernet.transport.in_process import InProcessTransport
 
 # Create in-process transport instances
 alice_transport = InProcessTransport("alice-001")
@@ -279,7 +279,7 @@ python3 demo.py
 
 데모 내용:
 1. Ed25519 키 생성 및 서명
-2. AetherMeshNode를 사용한 노드 생성
+2. AetherNetNode를 사용한 노드 생성
 3. Signal Protocol X3DH 키 교환
 4. 메시지 암호화 및 복호화
 5. 패킷 직렬화/역직렬화

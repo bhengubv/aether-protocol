@@ -1,6 +1,6 @@
-# AetherMesh — Formal Models
+# AetherNet — Formal Models
 
-This directory contains formal Petri net models of the AetherMesh protocol.
+This directory contains formal Petri net models of the AetherNet protocol.
 Each model produces **machine-checkable proofs** of the safety and liveness
 properties that unit tests alone cannot cover.
 
@@ -15,7 +15,7 @@ cd tools && python verify.py --all
 
 ## Why Petri Nets?
 
-AetherMesh is an offline-first, peer-to-peer mesh protocol where:
+AetherNet is an offline-first, peer-to-peer mesh protocol where:
 
 - Multiple concurrent nodes exchange messages with **no central coordinator**
 - Node failures are **expected** events, not edge cases
@@ -33,7 +33,7 @@ testing cannot find.
 
 | Model | Protocol component | Key property proved |
 |---|---|---|
-| [`dtn-custody/`](dtn-custody/) | `IAetherMeshDtnService` custody transfer | Bundle conservation + self-healing after relay failure |
+| [`dtn-custody/`](dtn-custody/) | `IAetherNetDtnService` custody transfer | Bundle conservation + self-healing after relay failure |
 | [`signal-protocol/`](signal-protocol/) | `ISignalMeshProtocolService` X3DH + ratchet | Forward + future secrecy across 3 epochs |
 | [`vault-erasure/`](vault-erasure/) | `IVaultMeshService` K-of-N Reed-Solomon | Recoverability iff ≥K shards exist; bounded loss probability |
 
@@ -152,7 +152,7 @@ byzantine resistance — the full critical-correctness surface of the
 protocol.
 
 **Standards artifacts** under [`standards/`](standards/):
-- IETF Internet-Draft (`draft-bhengubv-aethermesh-00`)
+- IETF Internet-Draft (`draft-bhengubv-aethernet-00`)
 - SARB Exempt 17 eKYC submission ([`sarb-exempt-17/`](standards/sarb-exempt-17/))
 - Academic paper outline ([`paper/`](standards/paper/))
 
@@ -199,9 +199,9 @@ the same scenario programmatically:
 
 | Model property | Implementation test |
 |---|---|
-| Bundle conservation | `AetherMeshCore.Tests` — `DtnServiceTests.BundleConservation` |
-| Self-healing after relay fail | `AetherMeshCore.Tests` — `DtnServiceTests.RelayFailureSelfHeals` |
-| Delivery or expiry | `AetherMesh.Soak.Tests` — `DtnSoakTest.AllBundlesTerminate` |
+| Bundle conservation | `AetherNetCore.Tests` — `DtnServiceTests.BundleConservation` |
+| Self-healing after relay fail | `AetherNetCore.Tests` — `DtnServiceTests.RelayFailureSelfHeals` |
+| Delivery or expiry | `AetherNet.Soak.Tests` — `DtnSoakTest.AllBundlesTerminate` |
 
 The Petri net proofs cover *all* reachable states; the tests cover sampled
 scenarios. Both are necessary — the formal models catch the corner cases

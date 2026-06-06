@@ -43,7 +43,7 @@ Aether — это децентрализованный протокол mesh-с�
 - **InProcessTransport**: транспорт в памяти для тестирования и локальной коммуникации
 
 #### Модели
-- **AetherMeshNode**: представление узла с UHID и идентификационным ключом
+- **AetherNetNode**: представление узла с UHID и идентификационным ключом
 - **PreKeyBundle**: набор для асинхронного установления сеанса
 - **EncryptedPayload**: обёртка зашифрованного сообщения
 - **DtnBundle**: пакет для сетей с задержками (DTN)
@@ -66,7 +66,7 @@ Aether — это децентрализованный протокол mesh-с�
 .target(
     name: "YourTarget",
     dependencies: [
-        .product(name: "AetherMeshProtocol", package: "aether-protocol-swift")
+        .product(name: "AetherNetProtocol", package: "aether-protocol-swift")
     ]
 )
 ```
@@ -76,7 +76,7 @@ Aether — это децентрализованный протокол mesh-с�
 ### 1. Сериализация пакетов
 
 ```swift
-import AetherMeshProtocol
+import AetherNetProtocol
 
 // Создание пакета
 var packet = MeshPacket(
@@ -274,7 +274,7 @@ Test 5: End-to-End Messaging (Full Stack)
 ## Совместимость
 
 Проводной формат совместим с:
-- **AetherMesh.Core** (C#) — эталонная реализация
+- **AetherNet.Core** (C#) — эталонная реализация
 - **aether-protocol-go** — реализация на Go
 - **aether-protocol-rust** — реализация на Rust
 

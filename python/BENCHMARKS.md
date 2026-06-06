@@ -2,7 +2,7 @@
 
 # aether-protocol — Python Benchmarks
 
-`pytest-benchmark` harness mirroring the C# AetherMesh.Benchmarks suite
+`pytest-benchmark` harness mirroring the C# AetherNet.Benchmarks suite
 and the Go `go/bench` harness — same hot paths so a regression in any
 language shows up as a delta against the committed baseline.
 

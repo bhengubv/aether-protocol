@@ -1,101 +1,101 @@
-<Project>
-  <!--
-    Shared MSBuild properties for every project in the aether-protocol repo.
-    Projects that should NOT produce NuGet packages (tests, bench, samples)
-    must keep <IsPackable>false</IsPackable> in their own csproj — this file
-    does not set IsPackable so those overrides are respected.
-
-    Generated packages go to `artifacts/packages/`.
-    Publish via: dotnet pack -c Release && dotnet nuget push ...
-  -->
-
-  <PropertyGroup>
-    <!-- NuGet identity -->
-    <Authors>The Other Bhengu (Pty) Ltd t/a The Geek Network</Authors>
-    <Company>The Other Bhengu (Pty) Ltd</Company>
-    <Copyright>Copyright © 2024–2026 The Other Bhengu (Pty) Ltd. MIT License.</Copyright>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/bhengubv/aether-protocol</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/bhengubv/aether-protocol</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-
-    <!-- Version — bump in a single place before each release.
-         Pre-release: set VersionSuffix in CI (e.g. -alpha.1, -rc.1). -->
-    <VersionPrefix>1.1.0</VersionPrefix>
-
-    <!-- AetherMesh identity — package, assembly AND namespace, fully consistent.
-         The `Aether.*` prefix on nuget.org is RESERVED by another owner
-         (nkast/tainicom, of `AetherMesh.Physics2D` — the third-party package whose
-         name we cannot change), so any push of an `Aether.*`
-         id is rejected with HTTP 409 "package ID is reserved". The whole .NET
-         surface is therefore published under the unreserved, unbranded
-         `AetherMesh.*` prefix.
-
-         As of 1.0.3, PackageId, AssemblyName and every C# `namespace` are all
-         `AetherMesh.*`: restoring `AetherMesh.Core` yields `AetherMesh.Core.dll`
-         containing `namespace AetherMesh.Core`. This is a deliberate breaking
-         change from 1.0.2 (which shipped `AetherMesh.*` packages that still
-         contained `Aether.*` assemblies/namespaces). Project folders, .csproj
-         filenames and the .slnx keep their `Aether.*` names — only the build
-         OUTPUT identity is renamed — so the publish script that globs
-         `src/Aether.*` is unaffected.
-
-         One transform drives all of it:
-           AetherMesh.Core              -> AetherMesh.Core
-           AetherMesh.Transport.Windows -> AetherMesh.Transport.Windows -->
-    <PackageId>$(MSBuildProjectName.Replace('Aether.', 'AetherMesh.'))</PackageId>
-    <AssemblyName>$(MSBuildProjectName.Replace('Aether.', 'AetherMesh.'))</AssemblyName>
-
-    <!-- Source link + deterministic builds -->
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <Deterministic>true</Deterministic>
-
-    <!-- Artifacts output — keeps nupkg/snupkg out of each project's bin/ -->
-    <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages</PackageOutputPath>
-
-    <!-- README embedded in every package -->
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-  </PropertyGroup>
-
-  <!-- Include each PROJECT's own README.md in its NuGet package.
-       Each src/AetherMesh.X/ ships its own README.md with a per-package
-       quick-start; that file is what NuGet displays on the package page.
-       (We deliberately do NOT pack the repo-root README — it's a
-       long-form project overview, not a package quick-start.) -->
-  <ItemGroup Condition="'$(IsPackable)' != 'false' AND Exists('$(MSBuildProjectDirectory)\README.md')">
-    <None
-      Include="$(MSBuildProjectDirectory)\README.md"
-      Pack="true"
-      PackagePath="\" />
-  </ItemGroup>
-
-  <!-- Source-link for GitHub — enables "Go to Definition → GitHub source" in IDEs -->
-  <ItemGroup>
-    <PackageReference
-      Include="Microsoft.SourceLink.GitHub"
-      Version="8.0.0"
-      PrivateAssets="All"
-      Condition="'$(EnableSourceLink)' != 'false'" />
-  </ItemGroup>
-
-  <!--
-    Coverlet code-coverage exclusions (apply to all projects via dotnet test
-    with the XPlat Code Coverage collector).
-
-    Excluded patterns:
-      *.g.cs         - C# source-generator output (Roslyn, T4, etc.)
-      *.designer.cs  - WinForms / WPF designer glue
-      GeneratedCode  - [System.CodeDom.Compiler.GeneratedCode] attribute
-      ExcludeFromCodeCoverage - [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-
-    These files inflate coverage denominators with machine-produced lines that
-    no developer writes tests for, causing the 80% gate to fire on phantom misses.
-  -->
-  <PropertyGroup>
-    <CoverletExcludeByAttribute>GeneratedCode;ExcludeFromCodeCoverage</CoverletExcludeByAttribute>
-    <CoverletExcludeByFile>**/*.g.cs;**/*.designer.cs</CoverletExcludeByFile>
-  </PropertyGroup>
-</Project>
+<Project>
+  <!--
+    Shared MSBuild properties for every project in the aether-protocol repo.
+    Projects that should NOT produce NuGet packages (tests, bench, samples)
+    must keep <IsPackable>false</IsPackable> in their own csproj — this file
+    does not set IsPackable so those overrides are respected.
+
+    Generated packages go to `artifacts/packages/`.
+    Publish via: dotnet pack -c Release && dotnet nuget push ...
+  -->
+
+  <PropertyGroup>
+    <!-- NuGet identity -->
+    <Authors>The Other Bhengu (Pty) Ltd t/a The Geek Network</Authors>
+    <Company>The Other Bhengu (Pty) Ltd</Company>
+    <Copyright>Copyright © 2024–2026 The Other Bhengu (Pty) Ltd. MIT License.</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/bhengubv/aether-protocol</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/bhengubv/aether-protocol</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- Version — bump in a single place before each release.
+         Pre-release: set VersionSuffix in CI (e.g. -alpha.1, -rc.1). -->
+    <VersionPrefix>1.1.0</VersionPrefix>
+
+    <!-- AetherNet identity — package, assembly AND namespace, fully consistent.
+         The `Aether.*` prefix on nuget.org is RESERVED by another owner
+         (nkast/tainicom, of `AetherNet.Physics2D` — the third-party package whose
+         name we cannot change), so any push of an `Aether.*`
+         id is rejected with HTTP 409 "package ID is reserved". The whole .NET
+         surface is therefore published under the unreserved, unbranded
+         `AetherNet.*` prefix.
+
+         As of 1.0.3, PackageId, AssemblyName and every C# `namespace` are all
+         `AetherNet.*`: restoring `AetherNet.Core` yields `AetherNet.Core.dll`
+         containing `namespace AetherNet.Core`. This is a deliberate breaking
+         change from 1.0.2 (which shipped `AetherNet.*` packages that still
+         contained `Aether.*` assemblies/namespaces). Project folders, .csproj
+         filenames and the .slnx keep their `Aether.*` names — only the build
+         OUTPUT identity is renamed — so the publish script that globs
+         `src/Aether.*` is unaffected.
+
+         One transform drives all of it:
+           AetherNet.Core              -> AetherNet.Core
+           AetherNet.Transport.Windows -> AetherNet.Transport.Windows -->
+    <PackageId>$(MSBuildProjectName.Replace('Aether.', 'AetherNet.'))</PackageId>
+    <AssemblyName>$(MSBuildProjectName.Replace('Aether.', 'AetherNet.'))</AssemblyName>
+
+    <!-- Source link + deterministic builds -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Deterministic>true</Deterministic>
+
+    <!-- Artifacts output — keeps nupkg/snupkg out of each project's bin/ -->
+    <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages</PackageOutputPath>
+
+    <!-- README embedded in every package -->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <!-- Include each PROJECT's own README.md in its NuGet package.
+       Each src/AetherNet.X/ ships its own README.md with a per-package
+       quick-start; that file is what NuGet displays on the package page.
+       (We deliberately do NOT pack the repo-root README — it's a
+       long-form project overview, not a package quick-start.) -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false' AND Exists('$(MSBuildProjectDirectory)\README.md')">
+    <None
+      Include="$(MSBuildProjectDirectory)\README.md"
+      Pack="true"
+      PackagePath="\" />
+  </ItemGroup>
+
+  <!-- Source-link for GitHub — enables "Go to Definition → GitHub source" in IDEs -->
+  <ItemGroup>
+    <PackageReference
+      Include="Microsoft.SourceLink.GitHub"
+      Version="8.0.0"
+      PrivateAssets="All"
+      Condition="'$(EnableSourceLink)' != 'false'" />
+  </ItemGroup>
+
+  <!--
+    Coverlet code-coverage exclusions (apply to all projects via dotnet test
+    with the XPlat Code Coverage collector).
+
+    Excluded patterns:
+      *.g.cs         - C# source-generator output (Roslyn, T4, etc.)
+      *.designer.cs  - WinForms / WPF designer glue
+      GeneratedCode  - [System.CodeDom.Compiler.GeneratedCode] attribute
+      ExcludeFromCodeCoverage - [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+
+    These files inflate coverage denominators with machine-produced lines that
+    no developer writes tests for, causing the 80% gate to fire on phantom misses.
+  -->
+  <PropertyGroup>
+    <CoverletExcludeByAttribute>GeneratedCode;ExcludeFromCodeCoverage</CoverletExcludeByAttribute>
+    <CoverletExcludeByFile>**/*.g.cs;**/*.designer.cs</CoverletExcludeByFile>
+  </PropertyGroup>
+</Project>

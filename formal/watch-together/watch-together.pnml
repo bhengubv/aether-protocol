@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  AetherMesh Watch-Together — Bounded-Jitter Convergence
+  AetherNet Watch-Together — Bounded-Jitter Convergence
   =======================================================
   P/T net. One host + 2 followers. Host issues a Play command;
   followers each consume a SyncPacket and advance to the host's
@@ -10,7 +10,7 @@
 -->
 <pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
   <net id="watch-together" type="http://www.pnml.org/version-2009/grammar/ptnet">
-    <name><text>AetherMesh Watch-Together</text></name>
+    <name><text>AetherNet Watch-Together</text></name>
     <page id="page-main">
 
       <!-- Host state -->

@@ -34,6 +34,6 @@ behavioural fact via reachability. This CPN proves it
 **structurally** via place-flow invariants — the proof generalises
 to arbitrary numbers of sessions and epochs without re-enumeration.
 
-For production AetherMesh with 1000+ concurrent sessions, this
+For production AetherNet with 1000+ concurrent sessions, this
 generalisation is the only feasible proof technique. Exhaustive
 state-space search at that scale would require ~10^9 markings.

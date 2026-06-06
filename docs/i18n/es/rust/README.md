@@ -120,7 +120,7 @@ Red en malla simulada para pruebas:
 ### Generación básica de claves y firma
 
 ```rust
-use aethermesh_protocol::security::Ed25519SigningService;
+use aethernet_protocol::security::Ed25519SigningService;
 
 let (private_key, public_key) = Ed25519SigningService::generate_keypair();
 
@@ -133,7 +133,7 @@ assert!(Ed25519SigningService::verify(&public_key, message, &signature));
 ### Sesión de Signal Protocol
 
 ```rust
-use aethermesh_protocol::security::SignalProtocolService;
+use aethernet_protocol::security::SignalProtocolService;
 
 let mut alice = SignalProtocolService::new();
 let mut bob = SignalProtocolService::new();
@@ -159,8 +159,8 @@ assert_eq!(decrypted, plaintext);
 ### Serialización de paquetes
 
 ```rust
-use aethermesh_protocol::protocol::{MeshPacket, PacketType};
-use aethermesh_protocol::protocol::serializer::PacketSerializer;
+use aethernet_protocol::protocol::{MeshPacket, PacketType};
+use aethernet_protocol::protocol::serializer::PacketSerializer;
 
 let mut packet = MeshPacket::new(PacketType::Data, "alice".to_string());
 packet.destination_uhid = "bob".to_string();
@@ -175,8 +175,8 @@ assert_eq!(deserialized.source_uhid, "alice");
 ### Firma de paquetes
 
 ```rust
-use aethermesh_protocol::security::PacketSigningService;
-use aethermesh_protocol::protocol::MeshPacket;
+use aethernet_protocol::security::PacketSigningService;
+use aethernet_protocol::protocol::MeshPacket;
 
 let mut signer = PacketSigningService::new();
 let (private_key, public_key) = Ed25519SigningService::generate_keypair();
@@ -192,7 +192,7 @@ assert!(is_valid);
 ### Transporte en proceso
 
 ```rust
-use aethermesh_protocol::transport::InProcessTransport;
+use aethernet_protocol::transport::InProcessTransport;
 
 let mut node_a = InProcessTransport::new("node-a".to_string());
 let mut node_b = InProcessTransport::new("node-b".to_string());

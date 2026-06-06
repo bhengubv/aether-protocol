@@ -130,7 +130,7 @@
 - `NodeCapabilities`: 8 bits (BLE, WiFiDirect, Gateway, Relay, Sos, Streaming, Voice, DtnCarrier)
 
 *Structs*:
-- `AetherMeshNode`: UHID, IdentityKey, Capabilities, IsLocal, LastSeen, ReliabilityScore
+- `AetherNetNode`: UHID, IdentityKey, Capabilities, IsLocal, LastSeen, ReliabilityScore
 - `PeerInfo`: UHID, Addresses, Capabilities, LastSeen, HopCount, ReliabilityScore
 - `RouteEntry`: DestinationUhid, NextHop, HopCount, ExpiresAt, QualityScore, SourceUhid + `IsStale()` method
 - `DtnBundle`: ID, SenderUhid, RecipientUhid, EncryptedPayload, Priority, Status, CopyCount, MaxCopies, geohashes, HopCount, timestamps

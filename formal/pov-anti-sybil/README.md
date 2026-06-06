@@ -2,7 +2,7 @@
 
 ## What This Proves
 
-The AetherMesh Proof-of-Vicinity (PoV) extension builds a trust graph
+The AetherNet Proof-of-Vicinity (PoV) extension builds a trust graph
 where identities are vouched for by other physically co-present humans.
 This model proves the anti-Sybil property that lets PoV serve as the
 **eKYC pathway under SARB Exempt 17** for SDPKT mobile money onboarding

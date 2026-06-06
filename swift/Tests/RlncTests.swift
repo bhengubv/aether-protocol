@@ -2,7 +2,7 @@
 // Unit tests for RlncEngine — GF(2⁸) arithmetic, encoder, decoder, codec.
 
 import XCTest
-@testable import AetherMeshProtocol
+@testable import AetherNetProtocol
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

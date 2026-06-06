@@ -7,8 +7,8 @@
  * exact same state (or null if no session was previously stored).
  *
  * Mirrors the C# {@code ISignalSessionStore} interface and its companions
- * in src/AetherMesh.Security/Services/ISecurityServices.cs (with persistence
- * adapters in src/AetherMesh.Storage/KeyValueSignalSessionStore.cs).
+ * in src/AetherNet.Security/Services/ISecurityServices.cs (with persistence
+ * adapters in src/AetherNet.Storage/KeyValueSignalSessionStore.cs).
  *
  * SPDX-License-Identifier: MIT
  */

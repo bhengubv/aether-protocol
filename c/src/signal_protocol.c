@@ -13,9 +13,9 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "aethermesh/signal_protocol.h"
-#include "aethermesh/security.h"
-#include "aethermesh/constants.h"
+#include "aethernet/signal_protocol.h"
+#include "aethernet/security.h"
+#include "aethernet/constants.h"
 
 // ─── Internal HKDF info strings (must match Rust / C# exactly) ───────────
 
@@ -33,12 +33,12 @@ static bool ct_eq(const uint8_t *a, const uint8_t *b, size_t n)
 }
 
 /** Locate an existing active session by peer UHID.  Returns NULL if absent. */
-static aethermesh_signal_session_t *find_session(aethermesh_signal_service_t *svc,
+static aethernet_signal_session_t *find_session(aethernet_signal_service_t *svc,
                                              const char *peer_uhid)
 {
-    for (int i = 0; i < AETHERMESH_SIGNAL_MAX_SESSIONS; i++) {
+    for (int i = 0; i < AETHERNET_SIGNAL_MAX_SESSIONS; i++) {
         if (svc->sessions[i].active &&
-            strncmp(svc->sessions[i].peer_uhid, peer_uhid, AETHERMESH_MAX_UHID_LEN) == 0) {
+            strncmp(svc->sessions[i].peer_uhid, peer_uhid, AETHERNET_MAX_UHID_LEN) == 0) {
             return &svc->sessions[i];
         }
     }
@@ -46,22 +46,22 @@ static aethermesh_signal_session_t *find_session(aethermesh_signal_service_t *sv
 }
 
 /** Allocate (or reuse) a session slot for peer_uhid.  Returns NULL if full. */
-static aethermesh_signal_session_t *alloc_session(aethermesh_signal_service_t *svc,
+static aethernet_signal_session_t *alloc_session(aethernet_signal_service_t *svc,
                                               const char *peer_uhid)
 {
     /* Reuse existing slot for the same peer (re-key). */
-    aethermesh_signal_session_t *existing = find_session(svc, peer_uhid);
+    aethernet_signal_session_t *existing = find_session(svc, peer_uhid);
     if (existing) {
-        aethermesh_zeroize(existing, sizeof(*existing));
+        aethernet_zeroize(existing, sizeof(*existing));
         existing->active = false; /* reset before re-init below */
     }
 
     /* Find a free slot. */
-    for (int i = 0; i < AETHERMESH_SIGNAL_MAX_SESSIONS; i++) {
+    for (int i = 0; i < AETHERNET_SIGNAL_MAX_SESSIONS; i++) {
         if (!svc->sessions[i].active) {
             memset(&svc->sessions[i], 0, sizeof(svc->sessions[i]));
-            strncpy(svc->sessions[i].peer_uhid, peer_uhid, AETHERMESH_MAX_UHID_LEN);
-            svc->sessions[i].peer_uhid[AETHERMESH_MAX_UHID_LEN] = '\0';
+            strncpy(svc->sessions[i].peer_uhid, peer_uhid, AETHERNET_MAX_UHID_LEN);
+            svc->sessions[i].peer_uhid[AETHERNET_MAX_UHID_LEN] = '\0';
             svc->sessions[i].active = true;
             return &svc->sessions[i];
         }
@@ -84,8 +84,8 @@ static bool ratchet_chain_key(const uint8_t *ck,
                               uint8_t out_next_ck[32])
 {
     uint8_t d0 = 0x01, d1 = 0x02;
-    if (!aethermesh_hmac_sha256(ck, 32, &d0, 1, out_mk))      return false;
-    if (!aethermesh_hmac_sha256(ck, 32, &d1, 1, out_next_ck)) return false;
+    if (!aethernet_hmac_sha256(ck, 32, &d0, 1, out_mk))      return false;
+    if (!aethernet_hmac_sha256(ck, 32, &d1, 1, out_next_ck)) return false;
     return true;
 }
 
@@ -96,17 +96,17 @@ static bool ratchet_chain_key(const uint8_t *ck,
  * Returns pointer to the key bytes, or NULL if not found.
  * The slot is marked invalid (consumed) on return — use once.
  */
-static uint8_t *skipped_key_pop(aethermesh_signal_session_t *s,
+static uint8_t *skipped_key_pop(aethernet_signal_session_t *s,
                                 const uint8_t ratchet_pub[32],
                                 uint32_t counter,
                                 uint8_t out_key[32])
 {
-    for (int i = 0; i < AETHERMESH_SIGNAL_MAX_SKIPPED; i++) {
-        aethermesh_skipped_key_entry_t *e = &s->skipped[i];
+    for (int i = 0; i < AETHERNET_SIGNAL_MAX_SKIPPED; i++) {
+        aethernet_skipped_key_entry_t *e = &s->skipped[i];
         if (e->valid && e->counter == counter &&
             ct_eq(e->ratchet_pub, ratchet_pub, 32)) {
             memcpy(out_key, e->key, 32);
-            aethermesh_zeroize(e->key, 32);
+            aethernet_zeroize(e->key, 32);
             e->valid = false;
             s->skipped_count--;
             return out_key;
@@ -119,13 +119,13 @@ static uint8_t *skipped_key_pop(aethermesh_signal_session_t *s,
  * Cache a skipped message key.  Evicts the oldest valid entry when full.
  * Returns false only on an impossible internal error (no slots at all).
  */
-static bool skipped_key_push(aethermesh_signal_session_t *s,
+static bool skipped_key_push(aethernet_signal_session_t *s,
                              const uint8_t ratchet_pub[32],
                              uint32_t counter,
                              const uint8_t key[32])
 {
     /* Prefer an empty slot. */
-    for (int i = 0; i < AETHERMESH_SIGNAL_MAX_SKIPPED; i++) {
+    for (int i = 0; i < AETHERNET_SIGNAL_MAX_SKIPPED; i++) {
         if (!s->skipped[i].valid) {
             memcpy(s->skipped[i].ratchet_pub, ratchet_pub, 32);
             s->skipped[i].counter = counter;
@@ -136,7 +136,7 @@ static bool skipped_key_push(aethermesh_signal_session_t *s,
         }
     }
     /* Evict slot 0 (oldest by index). */
-    aethermesh_zeroize(s->skipped[0].key, 32);
+    aethernet_zeroize(s->skipped[0].key, 32);
     memcpy(s->skipped[0].ratchet_pub, ratchet_pub, 32);
     s->skipped[0].counter = counter;
     memcpy(s->skipped[0].key, key, 32);
@@ -149,23 +149,23 @@ static bool skipped_key_push(aethermesh_signal_session_t *s,
 /**
  * skip_message_keys — save any unread recv-chain keys up to `until`.
  *
- * Bounded by AETHERMESH_SIGNAL_MAX_SKIPPED.  Returns false if the gap is too
+ * Bounded by AETHERNET_SIGNAL_MAX_SKIPPED.  Returns false if the gap is too
  * large (session re-establishment required).
  */
-static bool skip_message_keys(aethermesh_signal_session_t *s, uint32_t until)
+static bool skip_message_keys(aethernet_signal_session_t *s, uint32_t until)
 {
     if (!s->has_dhr)          return true; /* no recv chain yet, nothing to skip */
     if (!s->has_recv_chain)   return true;
     if (until <= s->nr)       return true;
-    if ((until - s->nr) > AETHERMESH_SIGNAL_MAX_SKIPPED) return false;
+    if ((until - s->nr) > AETHERNET_SIGNAL_MAX_SKIPPED) return false;
 
     while (s->nr < until) {
         uint8_t mk[32], next_ck[32];
         if (!ratchet_chain_key(s->ckr, mk, next_ck)) return false;
         memcpy(s->ckr, next_ck, 32);
-        aethermesh_zeroize(next_ck, 32);
+        aethernet_zeroize(next_ck, 32);
         if (!skipped_key_push(s, s->dhr, s->nr, mk)) return false;
-        aethermesh_zeroize(mk, 32);
+        aethernet_zeroize(mk, 32);
         s->nr++;
     }
     return true;
@@ -180,7 +180,7 @@ static bool skip_message_keys(aethermesh_signal_session_t *s, uint32_t until)
  *  3. rotate dhs to fresh keypair
  *  4. dh2 = X25519(new_dhs_priv, new_dhr); (rk, cks) = KDF_RK(rk, dh2)
  */
-static bool dh_ratchet_receive(aethermesh_signal_session_t *s,
+static bool dh_ratchet_receive(aethernet_signal_session_t *s,
                                const uint8_t new_dhr[32])
 {
     /* Signal §5.2 — step pn/ns/nr. */
@@ -194,39 +194,39 @@ static bool dh_ratchet_receive(aethermesh_signal_session_t *s,
 
     /* Step 2: derive new receiving chain. */
     uint8_t dh1[32];
-    if (!aethermesh_x25519_agree(s->dhs_priv, new_dhr, dh1)) return false;
+    if (!aethernet_x25519_agree(s->dhs_priv, new_dhr, dh1)) return false;
 
     uint8_t new_rk[32], new_ckr[32];
-    if (!aethermesh_signal_kdf_rk(s->root_key, dh1, new_rk, new_ckr)) {
-        aethermesh_zeroize(dh1, 32);
+    if (!aethernet_signal_kdf_rk(s->root_key, dh1, new_rk, new_ckr)) {
+        aethernet_zeroize(dh1, 32);
         return false;
     }
-    aethermesh_zeroize(dh1, 32);
+    aethernet_zeroize(dh1, 32);
     memcpy(s->root_key, new_rk, 32);
     memcpy(s->ckr, new_ckr, 32);
     s->has_recv_chain = true;
-    aethermesh_zeroize(new_rk, 32);
-    aethermesh_zeroize(new_ckr, 32);
+    aethernet_zeroize(new_rk, 32);
+    aethernet_zeroize(new_ckr, 32);
 
     /* Step 3: rotate DHs to a fresh keypair. */
-    aethermesh_zeroize(s->dhs_priv, 32);
-    if (!aethermesh_x25519_generate_keypair(s->dhs_priv, s->dhs_pub)) return false;
+    aethernet_zeroize(s->dhs_priv, 32);
+    if (!aethernet_x25519_generate_keypair(s->dhs_priv, s->dhs_pub)) return false;
 
     /* Step 4: derive new sending chain from new DHs · new DHr. */
     uint8_t dh2[32];
-    if (!aethermesh_x25519_agree(s->dhs_priv, new_dhr, dh2)) return false;
+    if (!aethernet_x25519_agree(s->dhs_priv, new_dhr, dh2)) return false;
 
     uint8_t new_rk2[32], new_cks[32];
-    if (!aethermesh_signal_kdf_rk(s->root_key, dh2, new_rk2, new_cks)) {
-        aethermesh_zeroize(dh2, 32);
+    if (!aethernet_signal_kdf_rk(s->root_key, dh2, new_rk2, new_cks)) {
+        aethernet_zeroize(dh2, 32);
         return false;
     }
-    aethermesh_zeroize(dh2, 32);
+    aethernet_zeroize(dh2, 32);
     memcpy(s->root_key, new_rk2, 32);
     memcpy(s->cks, new_cks, 32);
     s->has_send_chain = true;
-    aethermesh_zeroize(new_rk2, 32);
-    aethermesh_zeroize(new_cks, 32);
+    aethernet_zeroize(new_rk2, 32);
+    aethernet_zeroize(new_cks, 32);
 
     return true;
 }
@@ -241,23 +241,23 @@ static bool dh_ratchet_receive(aethermesh_signal_session_t *s,
  *   dh = X25519(dhs_priv, remote_pub)
  *   (rk, cks) = KDF_RK(rk, dh)
  */
-static bool dh_ratchet_send_only(aethermesh_signal_session_t *s,
+static bool dh_ratchet_send_only(aethernet_signal_session_t *s,
                                  const uint8_t remote_pub[32])
 {
     uint8_t dh[32];
-    if (!aethermesh_x25519_agree(s->dhs_priv, remote_pub, dh)) return false;
+    if (!aethernet_x25519_agree(s->dhs_priv, remote_pub, dh)) return false;
 
     uint8_t new_rk[32], new_cks[32];
-    if (!aethermesh_signal_kdf_rk(s->root_key, dh, new_rk, new_cks)) {
-        aethermesh_zeroize(dh, 32);
+    if (!aethernet_signal_kdf_rk(s->root_key, dh, new_rk, new_cks)) {
+        aethernet_zeroize(dh, 32);
         return false;
     }
-    aethermesh_zeroize(dh, 32);
+    aethernet_zeroize(dh, 32);
     memcpy(s->root_key, new_rk, 32);
     memcpy(s->cks, new_cks, 32);
     s->has_send_chain = true;
-    aethermesh_zeroize(new_rk, 32);
-    aethermesh_zeroize(new_cks, 32);
+    aethernet_zeroize(new_rk, 32);
+    aethernet_zeroize(new_cks, 32);
     return true;
 }
 
@@ -278,7 +278,7 @@ static bool x3dh_derive_root_key(const uint8_t dh_concat[128],
                                  uint8_t out_root_key[32])
 {
     static const uint8_t zeros32[32] = {0};
-    return aethermesh_hkdf_sha256(
+    return aethernet_hkdf_sha256(
         zeros32, 32,
         dh_concat, 128,
         HKDF_X3DH_ROOT_INFO, HKDF_X3DH_ROOT_INFO_LEN,
@@ -304,7 +304,7 @@ static bool x3dh_derive_root_key(const uint8_t dh_concat[128],
  * subsequent dh_ratchet_receive (triggered by the first decrypt) re-keys
  * both chains.
  */
-static bool establish_responder_session(aethermesh_signal_service_t *svc,
+static bool establish_responder_session(aethernet_signal_service_t *svc,
                                         const char *peer_uhid,
                                         const uint8_t initiator_ik[32],
                                         const uint8_t initiator_ek[32],
@@ -317,11 +317,11 @@ static bool establish_responder_session(aethermesh_signal_service_t *svc,
     /* Find and consume the OPK by id. */
     uint8_t opk_priv[32];
     bool found_opk = false;
-    for (int i = 0; i < AETHERMESH_SIGNAL_OPK_POOL_SIZE; i++) {
+    for (int i = 0; i < AETHERNET_SIGNAL_OPK_POOL_SIZE; i++) {
         if (!svc->opks[i].consumed &&
             (int32_t)svc->opks[i].opk_id == used_opk_id) {
             memcpy(opk_priv, svc->opks[i].priv_key, 32);
-            aethermesh_zeroize(svc->opks[i].priv_key, 32);
+            aethernet_zeroize(svc->opks[i].priv_key, 32);
             svc->opks[i].consumed = true;
             found_opk = true;
             break;
@@ -331,29 +331,29 @@ static bool establish_responder_session(aethermesh_signal_service_t *svc,
 
     /* X3DH step 1 (responder): DH1 = X25519(SPK_B_priv, IK_A) */
     uint8_t dh1[32], dh2[32], dh3[32], dh4[32];
-    if (!aethermesh_x25519_agree(svc->spk_priv, initiator_ik, dh1)) {
-        aethermesh_zeroize(opk_priv, 32);
+    if (!aethernet_x25519_agree(svc->spk_priv, initiator_ik, dh1)) {
+        aethernet_zeroize(opk_priv, 32);
         return false;
     }
     /* X3DH step 2 (responder): DH2 = X25519(IK_B_priv, EK_A) */
-    if (!aethermesh_x25519_agree(svc->ik_x25519_priv, initiator_ek, dh2)) {
-        aethermesh_zeroize(opk_priv, 32);
-        aethermesh_zeroize(dh1, 32);
+    if (!aethernet_x25519_agree(svc->ik_x25519_priv, initiator_ek, dh2)) {
+        aethernet_zeroize(opk_priv, 32);
+        aethernet_zeroize(dh1, 32);
         return false;
     }
     /* X3DH step 3 (responder): DH3 = X25519(SPK_B_priv, EK_A) */
-    if (!aethermesh_x25519_agree(svc->spk_priv, initiator_ek, dh3)) {
-        aethermesh_zeroize(opk_priv, 32);
-        aethermesh_zeroize(dh1, 32); aethermesh_zeroize(dh2, 32);
+    if (!aethernet_x25519_agree(svc->spk_priv, initiator_ek, dh3)) {
+        aethernet_zeroize(opk_priv, 32);
+        aethernet_zeroize(dh1, 32); aethernet_zeroize(dh2, 32);
         return false;
     }
     /* X3DH step 4 (responder): DH4 = X25519(OPK_B_priv, EK_A) */
-    if (!aethermesh_x25519_agree(opk_priv, initiator_ek, dh4)) {
-        aethermesh_zeroize(opk_priv, 32);
-        aethermesh_zeroize(dh1, 32); aethermesh_zeroize(dh2, 32); aethermesh_zeroize(dh3, 32);
+    if (!aethernet_x25519_agree(opk_priv, initiator_ek, dh4)) {
+        aethernet_zeroize(opk_priv, 32);
+        aethernet_zeroize(dh1, 32); aethernet_zeroize(dh2, 32); aethernet_zeroize(dh3, 32);
         return false;
     }
-    aethermesh_zeroize(opk_priv, 32);
+    aethernet_zeroize(opk_priv, 32);
 
     /* Concatenate: master = DH1||DH2||DH3||DH4 */
     uint8_t master[128];
@@ -361,20 +361,20 @@ static bool establish_responder_session(aethermesh_signal_service_t *svc,
     memcpy(master + 32,  dh2, 32);
     memcpy(master + 64,  dh3, 32);
     memcpy(master + 96,  dh4, 32);
-    aethermesh_zeroize(dh1, 32); aethermesh_zeroize(dh2, 32);
-    aethermesh_zeroize(dh3, 32); aethermesh_zeroize(dh4, 32);
+    aethernet_zeroize(dh1, 32); aethernet_zeroize(dh2, 32);
+    aethernet_zeroize(dh3, 32); aethernet_zeroize(dh4, 32);
 
     /* Derive root key via HKDF-SHA256. */
     uint8_t root_key[32];
     if (!x3dh_derive_root_key(master, root_key)) {
-        aethermesh_zeroize(master, sizeof(master));
+        aethernet_zeroize(master, sizeof(master));
         return false;
     }
-    aethermesh_zeroize(master, sizeof(master));
+    aethernet_zeroize(master, sizeof(master));
 
     /* Allocate/reuse session slot. */
-    aethermesh_signal_session_t *sess = alloc_session(svc, peer_uhid);
-    if (!sess) { aethermesh_zeroize(root_key, 32); return false; }
+    aethernet_signal_session_t *sess = alloc_session(svc, peer_uhid);
+    if (!sess) { aethernet_zeroize(root_key, 32); return false; }
 
     /* Adopt SPK as initial DHs (responder), DHr left unset. */
     memcpy(sess->root_key,  root_key,      32);
@@ -385,39 +385,39 @@ static bool establish_responder_session(aethermesh_signal_service_t *svc,
     sess->has_recv_chain = false;
     sess->pending_pre_key = false;
     /* ns/nr/pn already 0 from alloc_session memset. */
-    aethermesh_zeroize(root_key, 32);
+    aethernet_zeroize(root_key, 32);
     return true;
 }
 
 // ─── Public API implementation ────────────────────────────────────────────
 
-bool aethermesh_signal_service_init(aethermesh_signal_service_t *svc, const char *uhid)
+bool aethernet_signal_service_init(aethernet_signal_service_t *svc, const char *uhid)
 {
     if (!svc || !uhid) return false;
 
     /* Zero entire struct first (safe padding, no uninitialised bytes). */
     memset(svc, 0, sizeof(*svc));
 
-    strncpy(svc->local_uhid, uhid, AETHERMESH_MAX_UHID_LEN);
-    svc->local_uhid[AETHERMESH_MAX_UHID_LEN] = '\0';
+    strncpy(svc->local_uhid, uhid, AETHERNET_MAX_UHID_LEN);
+    svc->local_uhid[AETHERNET_MAX_UHID_LEN] = '\0';
 
     /* Generate Ed25519 identity keypair. */
-    if (!aethermesh_ed25519_generate_keypair(svc->ed_priv, svc->ed_pub)) return false;
+    if (!aethernet_ed25519_generate_keypair(svc->ed_priv, svc->ed_pub)) return false;
 
     /* Generate X25519 identity keypair (for X3DH DH1/DH2). */
-    if (!aethermesh_x25519_generate_keypair(svc->ik_x25519_priv, svc->ik_x25519_pub)) return false;
+    if (!aethernet_x25519_generate_keypair(svc->ik_x25519_priv, svc->ik_x25519_pub)) return false;
 
     /* Generate signed pre-key (SPK): X25519 keypair + Ed25519 signature. */
-    if (!aethermesh_x25519_generate_keypair(svc->spk_priv, svc->spk_pub)) return false;
-    if (!aethermesh_ed25519_sign(svc->ed_priv, svc->spk_pub, 32, svc->spk_sig)) return false;
+    if (!aethernet_x25519_generate_keypair(svc->spk_priv, svc->spk_pub)) return false;
+    if (!aethernet_ed25519_sign(svc->ed_priv, svc->spk_pub, 32, svc->spk_sig)) return false;
     svc->spk_id = 1;
 
-    /* Generate OPK pool: IDs 1..AETHERMESH_SIGNAL_OPK_POOL_SIZE. */
+    /* Generate OPK pool: IDs 1..AETHERNET_SIGNAL_OPK_POOL_SIZE. */
     svc->opk_next_id = 1;
-    for (int i = 0; i < AETHERMESH_SIGNAL_OPK_POOL_SIZE; i++) {
+    for (int i = 0; i < AETHERNET_SIGNAL_OPK_POOL_SIZE; i++) {
         svc->opks[i].opk_id   = (uint32_t)(svc->opk_next_id++);
         svc->opks[i].consumed = false;
-        if (!aethermesh_x25519_generate_keypair(svc->opks[i].priv_key,
+        if (!aethernet_x25519_generate_keypair(svc->opks[i].priv_key,
                                             svc->opks[i].pub_key)) {
             return false;
         }
@@ -427,20 +427,20 @@ bool aethermesh_signal_service_init(aethermesh_signal_service_t *svc, const char
     return true;
 }
 
-void aethermesh_signal_service_destroy(aethermesh_signal_service_t *svc)
+void aethernet_signal_service_destroy(aethernet_signal_service_t *svc)
 {
     if (!svc) return;
-    aethermesh_zeroize(svc, sizeof(*svc));
+    aethernet_zeroize(svc, sizeof(*svc));
 }
 
-bool aethermesh_signal_generate_pre_key_bundle(aethermesh_signal_service_t *svc,
-                                           aethermesh_pre_key_bundle_t *out)
+bool aethernet_signal_generate_pre_key_bundle(aethernet_signal_service_t *svc,
+                                           aethernet_pre_key_bundle_t *out)
 {
     if (!svc || !out) return false;
     memset(out, 0, sizeof(*out));
 
-    strncpy(out->uhid, svc->local_uhid, AETHERMESH_MAX_UHID_LEN);
-    out->uhid[AETHERMESH_MAX_UHID_LEN] = '\0';
+    strncpy(out->uhid, svc->local_uhid, AETHERNET_MAX_UHID_LEN);
+    out->uhid[AETHERNET_MAX_UHID_LEN] = '\0';
 
     memcpy(out->identity_key_ed25519,      svc->ed_pub,       32);
     memcpy(out->identity_key_x25519,       svc->ik_x25519_pub, 32);
@@ -450,7 +450,7 @@ bool aethermesh_signal_generate_pre_key_bundle(aethermesh_signal_service_t *svc,
 
     /* Pick the first unconsumed OPK. */
     out->has_pre_key = false;
-    for (int i = 0; i < AETHERMESH_SIGNAL_OPK_POOL_SIZE; i++) {
+    for (int i = 0; i < AETHERNET_SIGNAL_OPK_POOL_SIZE; i++) {
         if (!svc->opks[i].consumed) {
             memcpy(out->pre_key, svc->opks[i].pub_key, 32);
             out->pre_key_id  = (int32_t)svc->opks[i].opk_id;
@@ -461,14 +461,14 @@ bool aethermesh_signal_generate_pre_key_bundle(aethermesh_signal_service_t *svc,
     return true;
 }
 
-bool aethermesh_signal_process_pre_key_bundle(aethermesh_signal_service_t *svc,
-                                          const aethermesh_pre_key_bundle_t *bundle)
+bool aethernet_signal_process_pre_key_bundle(aethernet_signal_service_t *svc,
+                                          const aethernet_pre_key_bundle_t *bundle)
 {
     if (!svc || !bundle) return false;
     if (!bundle->has_pre_key) return false; /* OPK required for this implementation */
 
     /* Verify SPK signature: Ed25519.Verify(identity_key_ed25519, spk_pub, sig). */
-    if (!aethermesh_ed25519_verify(bundle->identity_key_ed25519,
+    if (!aethernet_ed25519_verify(bundle->identity_key_ed25519,
                                bundle->signed_pre_key, 32,
                                bundle->signed_pre_key_signature)) {
         return false;
@@ -476,28 +476,28 @@ bool aethermesh_signal_process_pre_key_bundle(aethermesh_signal_service_t *svc,
 
     /* Generate ephemeral X25519 keypair (EK_A). */
     uint8_t ek_priv[32], ek_pub[32];
-    if (!aethermesh_x25519_generate_keypair(ek_priv, ek_pub)) return false;
+    if (!aethernet_x25519_generate_keypair(ek_priv, ek_pub)) return false;
 
     /* X3DH step 1 (initiator): DH1 = X25519(IK_A_priv, SPK_B_pub) */
     uint8_t dh1[32], dh2[32], dh3[32], dh4[32];
-    if (!aethermesh_x25519_agree(svc->ik_x25519_priv, bundle->signed_pre_key, dh1)) {
-        aethermesh_zeroize(ek_priv, 32);
+    if (!aethernet_x25519_agree(svc->ik_x25519_priv, bundle->signed_pre_key, dh1)) {
+        aethernet_zeroize(ek_priv, 32);
         return false;
     }
     /* X3DH step 2 (initiator): DH2 = X25519(EK_A_priv, IK_B_pub) */
-    if (!aethermesh_x25519_agree(ek_priv, bundle->identity_key_x25519, dh2)) {
-        aethermesh_zeroize(ek_priv, 32); aethermesh_zeroize(dh1, 32);
+    if (!aethernet_x25519_agree(ek_priv, bundle->identity_key_x25519, dh2)) {
+        aethernet_zeroize(ek_priv, 32); aethernet_zeroize(dh1, 32);
         return false;
     }
     /* X3DH step 3 (initiator): DH3 = X25519(EK_A_priv, SPK_B_pub) */
-    if (!aethermesh_x25519_agree(ek_priv, bundle->signed_pre_key, dh3)) {
-        aethermesh_zeroize(ek_priv, 32); aethermesh_zeroize(dh1, 32); aethermesh_zeroize(dh2, 32);
+    if (!aethernet_x25519_agree(ek_priv, bundle->signed_pre_key, dh3)) {
+        aethernet_zeroize(ek_priv, 32); aethernet_zeroize(dh1, 32); aethernet_zeroize(dh2, 32);
         return false;
     }
     /* X3DH step 4 (initiator): DH4 = X25519(EK_A_priv, OPK_B_pub) */
-    if (!aethermesh_x25519_agree(ek_priv, bundle->pre_key, dh4)) {
-        aethermesh_zeroize(ek_priv, 32);
-        aethermesh_zeroize(dh1, 32); aethermesh_zeroize(dh2, 32); aethermesh_zeroize(dh3, 32);
+    if (!aethernet_x25519_agree(ek_priv, bundle->pre_key, dh4)) {
+        aethernet_zeroize(ek_priv, 32);
+        aethernet_zeroize(dh1, 32); aethernet_zeroize(dh2, 32); aethernet_zeroize(dh3, 32);
         return false;
     }
 
@@ -507,23 +507,23 @@ bool aethermesh_signal_process_pre_key_bundle(aethermesh_signal_service_t *svc,
     memcpy(master + 32,  dh2, 32);
     memcpy(master + 64,  dh3, 32);
     memcpy(master + 96,  dh4, 32);
-    aethermesh_zeroize(dh1, 32); aethermesh_zeroize(dh2, 32);
-    aethermesh_zeroize(dh3, 32); aethermesh_zeroize(dh4, 32);
+    aethernet_zeroize(dh1, 32); aethernet_zeroize(dh2, 32);
+    aethernet_zeroize(dh3, 32); aethernet_zeroize(dh4, 32);
 
     /* Derive root key via HKDF-SHA256 with zeros32 salt. */
     uint8_t root_key[32];
     if (!x3dh_derive_root_key(master, root_key)) {
-        aethermesh_zeroize(master, sizeof(master));
-        aethermesh_zeroize(ek_priv, 32);
+        aethernet_zeroize(master, sizeof(master));
+        aethernet_zeroize(ek_priv, 32);
         return false;
     }
-    aethermesh_zeroize(master, sizeof(master));
+    aethernet_zeroize(master, sizeof(master));
 
     /* Allocate session slot. */
-    aethermesh_signal_session_t *sess = alloc_session(svc, bundle->uhid);
+    aethernet_signal_session_t *sess = alloc_session(svc, bundle->uhid);
     if (!sess) {
-        aethermesh_zeroize(root_key, 32);
-        aethermesh_zeroize(ek_priv, 32);
+        aethernet_zeroize(root_key, 32);
+        aethernet_zeroize(ek_priv, 32);
         return false;
     }
 
@@ -542,20 +542,20 @@ bool aethermesh_signal_process_pre_key_bundle(aethermesh_signal_service_t *svc,
     sess->used_spk_id         = bundle->signed_pre_key_id;
     sess->used_opk_id         = bundle->pre_key_id;
 
-    aethermesh_zeroize(root_key, 32);
-    aethermesh_zeroize(ek_priv, 32);
+    aethernet_zeroize(root_key, 32);
+    aethernet_zeroize(ek_priv, 32);
     return true;
 }
 
-bool aethermesh_signal_encrypt(aethermesh_signal_service_t *svc,
+bool aethernet_signal_encrypt(aethernet_signal_service_t *svc,
                            const char *peer_uhid,
                            const uint8_t *plaintext,
                            size_t plen,
-                           aethermesh_signal_message_t *out_msg)
+                           aethernet_signal_message_t *out_msg)
 {
     if (!svc || !peer_uhid || !plaintext || !out_msg) return false;
 
-    aethermesh_signal_session_t *sess = find_session(svc, peer_uhid);
+    aethernet_signal_session_t *sess = find_session(svc, peer_uhid);
     if (!sess) return false;
 
     /* Lazy CKs init for the initiator's first send. */
@@ -568,32 +568,32 @@ bool aethermesh_signal_encrypt(aethermesh_signal_service_t *svc,
     uint8_t mk[32], next_cks[32];
     if (!ratchet_chain_key(sess->cks, mk, next_cks)) return false;
     memcpy(sess->cks, next_cks, 32);
-    aethermesh_zeroize(next_cks, 32);
+    aethernet_zeroize(next_cks, 32);
 
     /* Generate random 12-byte nonce. */
     uint8_t nonce[12];
-    if (!aethermesh_random_bytes(nonce, 12)) {
-        aethermesh_zeroize(mk, 32);
+    if (!aethernet_random_bytes(nonce, 12)) {
+        aethernet_zeroize(mk, 32);
         return false;
     }
 
     /* AES-256-GCM encrypt: ciphertext_len = plen; tag is separate. */
     uint8_t *ct = (uint8_t *)malloc(plen);
-    if (!ct) { aethermesh_zeroize(mk, 32); return false; }
+    if (!ct) { aethernet_zeroize(mk, 32); return false; }
 
     uint8_t tag[16];
-    uint8_t nonce_out[12]; /* aethermesh_aes256_gcm_encrypt requires non-NULL out_nonce */
-    /* aethermesh_aes256_gcm_encrypt: out_ciphertext size == plaintext_len; tag separate. */
-    if (!aethermesh_aes256_gcm_encrypt(plaintext, plen, mk, nonce, NULL, 0, ct, tag, nonce_out)) {
+    uint8_t nonce_out[12]; /* aethernet_aes256_gcm_encrypt requires non-NULL out_nonce */
+    /* aethernet_aes256_gcm_encrypt: out_ciphertext size == plaintext_len; tag separate. */
+    if (!aethernet_aes256_gcm_encrypt(plaintext, plen, mk, nonce, NULL, 0, ct, tag, nonce_out)) {
         free(ct);
-        aethermesh_zeroize(mk, 32);
+        aethernet_zeroize(mk, 32);
         return false;
     }
-    aethermesh_zeroize(mk, 32);
+    aethernet_zeroize(mk, 32);
 
     /* Fill output message. */
     memset(out_msg, 0, sizeof(*out_msg));
-    out_msg->message_type     = AETHERMESH_SIGNAL_MSG_TYPE_NORMAL;
+    out_msg->message_type     = AETHERNET_SIGNAL_MSG_TYPE_NORMAL;
     memcpy(out_msg->sender_ratchet_pub, sess->dhs_pub, 32);
     memcpy(out_msg->nonce,              nonce,         12);
     memcpy(out_msg->tag,                tag,           16);
@@ -605,7 +605,7 @@ bool aethermesh_signal_encrypt(aethermesh_signal_service_t *svc,
 
     /* PreKey header on first message from initiator. */
     if (sess->pending_pre_key) {
-        out_msg->message_type = AETHERMESH_SIGNAL_MSG_TYPE_PRE_KEY;
+        out_msg->message_type = AETHERNET_SIGNAL_MSG_TYPE_PRE_KEY;
         memcpy(out_msg->initiator_ik_x25519, sess->initiator_ik_x25519, 32);
         memcpy(out_msg->initiator_ek_x25519, sess->initiator_ek_x25519, 32);
         out_msg->used_spk_id  = sess->used_spk_id;
@@ -616,20 +616,20 @@ bool aethermesh_signal_encrypt(aethermesh_signal_service_t *svc,
     return true;
 }
 
-bool aethermesh_signal_decrypt(aethermesh_signal_service_t *svc,
+bool aethernet_signal_decrypt(aethernet_signal_service_t *svc,
                            const char *sender_uhid,
-                           const aethermesh_signal_message_t *msg,
+                           const aethernet_signal_message_t *msg,
                            uint8_t **out_plaintext,
                            size_t *out_len)
 {
     if (!svc || !sender_uhid || !msg || !out_plaintext || !out_len) return false;
 
     /* Establish responder session from a PreKey message if needed. */
-    if (msg->message_type == AETHERMESH_SIGNAL_MSG_TYPE_PRE_KEY) {
+    if (msg->message_type == AETHERNET_SIGNAL_MSG_TYPE_PRE_KEY) {
         /* Allow re-keying: destroy existing session first. */
-        aethermesh_signal_session_t *existing = find_session(svc, sender_uhid);
+        aethernet_signal_session_t *existing = find_session(svc, sender_uhid);
         if (existing) {
-            aethermesh_zeroize(existing, sizeof(*existing));
+            aethernet_zeroize(existing, sizeof(*existing));
         }
         if (!establish_responder_session(svc, sender_uhid,
                                          msg->initiator_ik_x25519,
@@ -640,7 +640,7 @@ bool aethermesh_signal_decrypt(aethermesh_signal_service_t *svc,
         }
     }
 
-    aethermesh_signal_session_t *sess = find_session(svc, sender_uhid);
+    aethernet_signal_session_t *sess = find_session(svc, sender_uhid);
     if (!sess) return false;
 
     const uint8_t *sender_rp = msg->sender_ratchet_pub;
@@ -662,25 +662,25 @@ bool aethermesh_signal_decrypt(aethermesh_signal_service_t *svc,
     uint8_t mk[32];
     if (from_cache) {
         memcpy(mk, cached_mk, 32);
-        aethermesh_zeroize(cached_mk, 32);
+        aethernet_zeroize(cached_mk, 32);
     } else {
         if (!sess->has_recv_chain) return false;
 
         /* Gap check. */
         if (msg->counter < sess->nr) return false; /* replay / already consumed */
-        if ((msg->counter - sess->nr) > AETHERMESH_SIGNAL_MAX_SKIPPED) return false;
+        if ((msg->counter - sess->nr) > AETHERNET_SIGNAL_MAX_SKIPPED) return false;
 
         /* Skip ahead, caching intermediate keys. */
         while (sess->nr < msg->counter) {
             uint8_t skip_mk[32], next_ck[32];
             if (!ratchet_chain_key(sess->ckr, skip_mk, next_ck)) return false;
             memcpy(sess->ckr, next_ck, 32);
-            aethermesh_zeroize(next_ck, 32);
+            aethernet_zeroize(next_ck, 32);
             if (!skipped_key_push(sess, sender_rp, sess->nr, skip_mk)) {
-                aethermesh_zeroize(skip_mk, 32);
+                aethernet_zeroize(skip_mk, 32);
                 return false;
             }
-            aethermesh_zeroize(skip_mk, 32);
+            aethernet_zeroize(skip_mk, 32);
             sess->nr++;
         }
 
@@ -688,46 +688,46 @@ bool aethermesh_signal_decrypt(aethermesh_signal_service_t *svc,
         uint8_t next_ck[32];
         if (!ratchet_chain_key(sess->ckr, mk, next_ck)) return false;
         memcpy(sess->ckr, next_ck, 32);
-        aethermesh_zeroize(next_ck, 32);
+        aethernet_zeroize(next_ck, 32);
         sess->nr++;
     }
 
     /* AES-256-GCM decrypt. */
     uint8_t *pt = (uint8_t *)malloc(msg->ciphertext_len);
-    if (!pt) { aethermesh_zeroize(mk, 32); return false; }
+    if (!pt) { aethernet_zeroize(mk, 32); return false; }
 
-    if (!aethermesh_aes256_gcm_decrypt(msg->ciphertext, msg->ciphertext_len,
+    if (!aethernet_aes256_gcm_decrypt(msg->ciphertext, msg->ciphertext_len,
                                    mk, msg->nonce, msg->tag,
                                    NULL, 0, pt)) {
-        aethermesh_zeroize(mk, 32);
+        aethernet_zeroize(mk, 32);
         free(pt);
         return false;
     }
-    aethermesh_zeroize(mk, 32);
+    aethernet_zeroize(mk, 32);
 
     *out_plaintext = pt;
     *out_len       = msg->ciphertext_len;
     return true;
 }
 
-bool aethermesh_signal_has_session(const aethermesh_signal_service_t *svc,
+bool aethernet_signal_has_session(const aethernet_signal_service_t *svc,
                                const char *peer_uhid)
 {
     if (!svc || !peer_uhid) return false;
-    for (int i = 0; i < AETHERMESH_SIGNAL_MAX_SESSIONS; i++) {
+    for (int i = 0; i < AETHERNET_SIGNAL_MAX_SESSIONS; i++) {
         if (svc->sessions[i].active &&
-            strncmp(svc->sessions[i].peer_uhid, peer_uhid, AETHERMESH_MAX_UHID_LEN) == 0) {
+            strncmp(svc->sessions[i].peer_uhid, peer_uhid, AETHERNET_MAX_UHID_LEN) == 0) {
             return true;
         }
     }
     return false;
 }
 
-void aethermesh_signal_message_free(aethermesh_signal_message_t *msg)
+void aethernet_signal_message_free(aethernet_signal_message_t *msg)
 {
     if (!msg) return;
     if (msg->ciphertext) {
-        aethermesh_zeroize(msg->ciphertext, msg->ciphertext_len);
+        aethernet_zeroize(msg->ciphertext, msg->ciphertext_len);
         free(msg->ciphertext);
         msg->ciphertext     = NULL;
         msg->ciphertext_len = 0;

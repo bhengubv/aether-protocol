@@ -8,7 +8,7 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use aethermesh_protocol::{
+use aethernet_protocol::{
     constants::{MAX_SOS_BROADCASTS_PER_HOUR, SOS_PRIORITY, SOS_TTL},
     extensibility::{NoopBackendClient, NoopIncentiveProvider},
     protocol::{MeshPacket, PacketType},

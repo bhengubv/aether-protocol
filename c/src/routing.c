@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // AODV-inspired routing implementation for the Aether mesh.
 
-#include "aethermesh/routing.h"
-#include "aethermesh/constants.h"
-#include "aethermesh_reputation.h"
+#include "aethernet/routing.h"
+#include "aethernet/constants.h"
+#include "aethernet_reputation.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -12,14 +12,14 @@
 // ─── Internal route table node ───────────────────────────
 
 typedef struct route_node {
-    aethermesh_route_entry_t entry;
+    aethernet_route_entry_t entry;
     struct route_node *next;
 } route_node_t;
 
 // ─── Internal RREQ dedup entry ───────────────────────────
 
 typedef struct rreq_seen {
-    uint8_t id[AETHERMESH_PACKET_ID_SIZE];
+    uint8_t id[AETHERNET_PACKET_ID_SIZE];
     int64_t seen_at_ms;
     struct rreq_seen *next;
 } rreq_seen_t;
@@ -34,13 +34,13 @@ typedef struct rreq_source_ts {
     struct rreq_source_ts *next;
 } rreq_source_ts_t;
 
-struct aethermesh_routing_service {
-    aethermesh_mesh_sender_t         *sender;
+struct aethernet_routing_service {
+    aethernet_mesh_sender_t         *sender;
     route_node_t                 *routes;         // singly-linked list
     rreq_seen_t                  *seen_rreqs;     // singly-linked list
     int                           seen_count;
     rreq_source_ts_t             *rreq_sources;   /* per-source timestamps */
-    AetherMeshNodeReputationService  *reputation;     /* optional, may be NULL */
+    AetherNetNodeReputationService  *reputation;     /* optional, may be NULL */
 };
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -59,7 +59,7 @@ static char *str_dup_safe(const char *s) {
     return out;
 }
 
-static void route_entry_clear(aethermesh_route_entry_t *e) {
+static void route_entry_clear(aethernet_route_entry_t *e) {
     if (!e) return;
     free(e->destination_uhid);
     free(e->next_hop_uhid);
@@ -67,8 +67,8 @@ static void route_entry_clear(aethermesh_route_entry_t *e) {
     e->next_hop_uhid = NULL;
 }
 
-static aethermesh_route_entry_t *route_entry_clone(const aethermesh_route_entry_t *src) {
-    aethermesh_route_entry_t *out = (aethermesh_route_entry_t *)calloc(1, sizeof(aethermesh_route_entry_t));
+static aethernet_route_entry_t *route_entry_clone(const aethernet_route_entry_t *src) {
+    aethernet_route_entry_t *out = (aethernet_route_entry_t *)calloc(1, sizeof(aethernet_route_entry_t));
     if (!out) return NULL;
     out->destination_uhid = str_dup_safe(src->destination_uhid);
     out->next_hop_uhid = str_dup_safe(src->next_hop_uhid);
@@ -77,13 +77,13 @@ static aethermesh_route_entry_t *route_entry_clone(const aethermesh_route_entry_
     out->expires_at_ms = src->expires_at_ms;
     if ((!out->destination_uhid && src->destination_uhid)
         || (!out->next_hop_uhid && src->next_hop_uhid)) {
-        aethermesh_route_entry_free(out);
+        aethernet_route_entry_free(out);
         return NULL;
     }
     return out;
 }
 
-static route_node_t *find_route_node(aethermesh_routing_service_t *svc, const char *destination) {
+static route_node_t *find_route_node(aethernet_routing_service_t *svc, const char *destination) {
     if (!destination) return NULL;
     for (route_node_t *n = svc->routes; n; n = n->next) {
         if (n->entry.destination_uhid && strcmp(n->entry.destination_uhid, destination) == 0) return n;
@@ -91,17 +91,17 @@ static route_node_t *find_route_node(aethermesh_routing_service_t *svc, const ch
     return NULL;
 }
 
-static bool rreq_seen_contains(aethermesh_routing_service_t *svc, const uint8_t id[AETHERMESH_PACKET_ID_SIZE]) {
+static bool rreq_seen_contains(aethernet_routing_service_t *svc, const uint8_t id[AETHERNET_PACKET_ID_SIZE]) {
     for (rreq_seen_t *r = svc->seen_rreqs; r; r = r->next) {
-        if (memcmp(r->id, id, AETHERMESH_PACKET_ID_SIZE) == 0) return true;
+        if (memcmp(r->id, id, AETHERNET_PACKET_ID_SIZE) == 0) return true;
     }
     return false;
 }
 
-static void rreq_seen_add(aethermesh_routing_service_t *svc, const uint8_t id[AETHERMESH_PACKET_ID_SIZE]) {
+static void rreq_seen_add(aethernet_routing_service_t *svc, const uint8_t id[AETHERNET_PACKET_ID_SIZE]) {
     rreq_seen_t *r = (rreq_seen_t *)malloc(sizeof(rreq_seen_t));
     if (!r) return;
-    memcpy(r->id, id, AETHERMESH_PACKET_ID_SIZE);
+    memcpy(r->id, id, AETHERNET_PACKET_ID_SIZE);
     r->seen_at_ms = now_ms();
     r->next = svc->seen_rreqs;
     svc->seen_rreqs = r;
@@ -110,14 +110,14 @@ static void rreq_seen_add(aethermesh_routing_service_t *svc, const uint8_t id[AE
 
 // ─── Per-source RREQ rate-limit helpers ──────────────────
 
-static rreq_source_ts_t *find_source_ts(aethermesh_routing_service_t *svc, const char *uhid) {
+static rreq_source_ts_t *find_source_ts(aethernet_routing_service_t *svc, const char *uhid) {
     for (rreq_source_ts_t *s = svc->rreq_sources; s; s = s->next) {
         if (strncmp(s->uhid, uhid, sizeof(s->uhid) - 1) == 0) return s;
     }
     return NULL;
 }
 
-static rreq_source_ts_t *get_or_create_source_ts(aethermesh_routing_service_t *svc, const char *uhid) {
+static rreq_source_ts_t *get_or_create_source_ts(aethernet_routing_service_t *svc, const char *uhid) {
     rreq_source_ts_t *s = find_source_ts(svc, uhid);
     if (!s) {
         s = (rreq_source_ts_t *)calloc(1, sizeof(rreq_source_ts_t));
@@ -131,12 +131,12 @@ static rreq_source_ts_t *get_or_create_source_ts(aethermesh_routing_service_t *s
 
 /* Returns true iff the source has exceeded the per-window RREQ limit.
  * Also prunes stale timestamps and (if not flooded) appends now_s. */
-static bool rreq_rate_limit_check_and_record(aethermesh_routing_service_t *svc,
+static bool rreq_rate_limit_check_and_record(aethernet_routing_service_t *svc,
                                               const char *uhid, int64_t now_s) {
     rreq_source_ts_t *src = get_or_create_source_ts(svc, uhid);
     if (!src) return false;  /* allocation failure — permit packet */
 
-    int64_t window_start = now_s - AETHERMESH_RREQ_RATE_LIMIT_WINDOW_S;
+    int64_t window_start = now_s - AETHERNET_RREQ_RATE_LIMIT_WINDOW_S;
 
     /* Compact: remove timestamps outside the window. */
     int out = 0;
@@ -147,7 +147,7 @@ static bool rreq_rate_limit_check_and_record(aethermesh_routing_service_t *svc,
     }
     src->count = out;
 
-    if (src->count >= AETHERMESH_RREQ_RATE_LIMIT_MAX) {
+    if (src->count >= AETHERNET_RREQ_RATE_LIMIT_MAX) {
         return true;  /* flood: caller drops packet + records reputation */
     }
 
@@ -158,7 +158,7 @@ static bool rreq_rate_limit_check_and_record(aethermesh_routing_service_t *svc,
     return false;
 }
 
-static void install_route(aethermesh_routing_service_t *svc,
+static void install_route(aethernet_routing_service_t *svc,
                           const char *destination,
                           const char *next_hop,
                           int32_t hop_count) {
@@ -168,7 +168,7 @@ static void install_route(aethermesh_routing_service_t *svc,
         existing->entry.next_hop_uhid = str_dup_safe(next_hop);
         existing->entry.hop_count = hop_count;
         existing->entry.quality_score = 50;
-        existing->entry.expires_at_ms = now_ms() + (int64_t)AETHERMESH_ROUTE_EXPIRY_SECONDS * 1000;
+        existing->entry.expires_at_ms = now_ms() + (int64_t)AETHERNET_ROUTE_EXPIRY_SECONDS * 1000;
         return;
     }
     route_node_t *node = (route_node_t *)calloc(1, sizeof(route_node_t));
@@ -177,22 +177,22 @@ static void install_route(aethermesh_routing_service_t *svc,
     node->entry.next_hop_uhid = str_dup_safe(next_hop);
     node->entry.hop_count = hop_count;
     node->entry.quality_score = 50;
-    node->entry.expires_at_ms = now_ms() + (int64_t)AETHERMESH_ROUTE_EXPIRY_SECONDS * 1000;
+    node->entry.expires_at_ms = now_ms() + (int64_t)AETHERNET_ROUTE_EXPIRY_SECONDS * 1000;
     node->next = svc->routes;
     svc->routes = node;
 }
 
 // ─── Public API ──────────────────────────────────────────
 
-aethermesh_routing_service_t *aethermesh_routing_service_new(aethermesh_mesh_sender_t *sender) {
+aethernet_routing_service_t *aethernet_routing_service_new(aethernet_mesh_sender_t *sender) {
     if (!sender) return NULL;
-    aethermesh_routing_service_t *svc = (aethermesh_routing_service_t *)calloc(1, sizeof(aethermesh_routing_service_t));
+    aethernet_routing_service_t *svc = (aethernet_routing_service_t *)calloc(1, sizeof(aethernet_routing_service_t));
     if (!svc) return NULL;
     svc->sender = sender;
     return svc;
 }
 
-void aethermesh_routing_service_free(aethermesh_routing_service_t *service) {
+void aethernet_routing_service_free(aethernet_routing_service_t *service) {
     if (!service) return;
     while (service->routes) {
         route_node_t *next = service->routes->next;
@@ -213,15 +213,15 @@ void aethermesh_routing_service_free(aethermesh_routing_service_t *service) {
     free(service);
 }
 
-void aethermesh_routing_set_reputation(aethermesh_routing_service_t *service,
-                                   AetherMeshNodeReputationService *reputation) {
+void aethernet_routing_set_reputation(aethernet_routing_service_t *service,
+                                   AetherNetNodeReputationService *reputation) {
     if (!service) return;
     service->reputation = reputation;
 }
 
-bool aethermesh_routing_find_cached(aethermesh_routing_service_t *service,
+bool aethernet_routing_find_cached(aethernet_routing_service_t *service,
                                 const char *destination_uhid,
-                                aethermesh_route_entry_t **out_route) {
+                                aethernet_route_entry_t **out_route) {
     if (!service || !destination_uhid || !out_route) return false;
     route_node_t *n = find_route_node(service, destination_uhid);
     if (!n || n->entry.expires_at_ms <= now_ms()) return false;
@@ -229,33 +229,33 @@ bool aethermesh_routing_find_cached(aethermesh_routing_service_t *service,
     return *out_route != NULL;
 }
 
-int aethermesh_routing_discover(aethermesh_routing_service_t *service, const char *destination_uhid) {
+int aethernet_routing_discover(aethernet_routing_service_t *service, const char *destination_uhid) {
     if (!service || !destination_uhid) return -1;
     route_node_t *cached = find_route_node(service, destination_uhid);
     if (cached && cached->entry.expires_at_ms > now_ms()) return 1;
 
-    aethermesh_mesh_packet_t *rreq = aethermesh_packet_new();
+    aethernet_mesh_packet_t *rreq = aethernet_packet_new();
     if (!rreq) return -1;
-    rreq->type = AETHERMESH_PACKET_TYPE_ROUTE_REQUEST;
-    aethermesh_packet_set_source_uhid(rreq, service->sender->local_uhid);
-    aethermesh_packet_set_destination_uhid(rreq, destination_uhid);
-    rreq->ttl = AETHERMESH_DEFAULT_TTL;
+    rreq->type = AETHERNET_PACKET_TYPE_ROUTE_REQUEST;
+    aethernet_packet_set_source_uhid(rreq, service->sender->local_uhid);
+    aethernet_packet_set_destination_uhid(rreq, destination_uhid);
+    rreq->ttl = AETHERNET_DEFAULT_TTL;
     rreq->priority = 0;
 
     int fanout = service->sender->broadcast(service->sender, rreq);
-    aethermesh_packet_free(rreq);
+    aethernet_packet_free(rreq);
     return (fanout > 0) ? 0 : -1;
 }
 
-void aethermesh_routing_handle_rreq(aethermesh_routing_service_t *service, aethermesh_mesh_packet_t *rreq) {
-    if (!service || !rreq || rreq->type != AETHERMESH_PACKET_TYPE_ROUTE_REQUEST) return;
+void aethernet_routing_handle_rreq(aethernet_routing_service_t *service, aethernet_mesh_packet_t *rreq) {
+    if (!service || !rreq || rreq->type != AETHERNET_PACKET_TYPE_ROUTE_REQUEST) return;
     if (rreq_seen_contains(service, rreq->packet_id)) return;
     /* Per-source RREQ rate limiting — mirrors Go/Rust RoutingService. */
     if (rreq->source_uhid) {
         int64_t now_s = now_ms() / 1000;
         if (rreq_rate_limit_check_and_record(service, rreq->source_uhid, now_s)) {
             if (service->reputation) {
-                aethermesh_reputation_record_rreq_flood(service->reputation, rreq->source_uhid);
+                aethernet_reputation_record_rreq_flood(service->reputation, rreq->source_uhid);
             }
             return;  /* silently drop: source is flooding unique RREQs */
         }
@@ -265,7 +265,7 @@ void aethermesh_routing_handle_rreq(aethermesh_routing_service_t *service, aethe
     const char *local = service->sender->local_uhid;
     if (!rreq->source_uhid || (local && strcmp(rreq->source_uhid, local) == 0)) return;
 
-    int32_t hop_count = AETHERMESH_DEFAULT_TTL - rreq->ttl + 1;
+    int32_t hop_count = AETHERNET_DEFAULT_TTL - rreq->ttl + 1;
     if (hop_count < 1) hop_count = 1;
     install_route(service, rreq->source_uhid, rreq->source_uhid, hop_count);
 
@@ -278,14 +278,14 @@ void aethermesh_routing_handle_rreq(aethermesh_routing_service_t *service, aethe
     }
 
     if (we_are_destination || we_know_destination) {
-        aethermesh_mesh_packet_t *rrep = aethermesh_packet_new();
+        aethernet_mesh_packet_t *rrep = aethernet_packet_new();
         if (rrep) {
-            rrep->type = AETHERMESH_PACKET_TYPE_ROUTE_REPLY;
-            aethermesh_packet_set_source_uhid(rrep,
+            rrep->type = AETHERNET_PACKET_TYPE_ROUTE_REPLY;
+            aethernet_packet_set_source_uhid(rrep,
                 we_are_destination ? local : rreq->destination_uhid);
-            aethermesh_packet_set_destination_uhid(rrep, rreq->source_uhid);
-            rrep->ttl = AETHERMESH_DEFAULT_TTL;
-            aethermesh_packet_set_payload(rrep, rreq->payload, rreq->payload_len);
+            aethernet_packet_set_destination_uhid(rrep, rreq->source_uhid);
+            rrep->ttl = AETHERNET_DEFAULT_TTL;
+            aethernet_packet_set_payload(rrep, rreq->payload, rreq->payload_len);
             // Send via reverse route's next-hop, or broadcast as fallback.
             route_node_t *reverse = find_route_node(service, rreq->source_uhid);
             if (reverse && reverse->entry.expires_at_ms > now_ms() && reverse->entry.next_hop_uhid) {
@@ -293,7 +293,7 @@ void aethermesh_routing_handle_rreq(aethermesh_routing_service_t *service, aethe
             } else {
                 service->sender->broadcast(service->sender, rrep);
             }
-            aethermesh_packet_free(rrep);
+            aethernet_packet_free(rrep);
         }
         return;
     }
@@ -304,12 +304,12 @@ void aethermesh_routing_handle_rreq(aethermesh_routing_service_t *service, aethe
     }
 }
 
-void aethermesh_routing_handle_rrep(aethermesh_routing_service_t *service, aethermesh_mesh_packet_t *rrep) {
-    if (!service || !rrep || rrep->type != AETHERMESH_PACKET_TYPE_ROUTE_REPLY) return;
+void aethernet_routing_handle_rrep(aethernet_routing_service_t *service, aethernet_mesh_packet_t *rrep) {
+    if (!service || !rrep || rrep->type != AETHERNET_PACKET_TYPE_ROUTE_REPLY) return;
     const char *local = service->sender->local_uhid;
     if (!rrep->source_uhid || (local && strcmp(rrep->source_uhid, local) == 0)) return;
 
-    int32_t hop_count = AETHERMESH_DEFAULT_TTL - rrep->ttl + 1;
+    int32_t hop_count = AETHERNET_DEFAULT_TTL - rrep->ttl + 1;
     if (hop_count < 1) hop_count = 1;
     install_route(service, rrep->source_uhid, rrep->source_uhid, hop_count);
 
@@ -325,7 +325,7 @@ void aethermesh_routing_handle_rrep(aethermesh_routing_service_t *service, aethe
     }
 }
 
-int aethermesh_routing_prune(aethermesh_routing_service_t *service) {
+int aethernet_routing_prune(aethernet_routing_service_t *service) {
     if (!service) return 0;
     int evicted = 0;
     int64_t cutoff = now_ms();
@@ -352,7 +352,7 @@ int aethermesh_routing_prune(aethermesh_routing_service_t *service) {
     return evicted;
 }
 
-void aethermesh_route_entry_free(aethermesh_route_entry_t *route) {
+void aethernet_route_entry_free(aethernet_route_entry_t *route) {
     if (!route) return;
     route_entry_clear(route);
     free(route);

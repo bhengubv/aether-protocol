@@ -23,10 +23,10 @@ authoritative file in the repository instead.
 
 | Concern                | C# file                                                            |
 |------------------------|--------------------------------------------------------------------|
-| Wire format            | `src/AetherMesh.Core/Protocol/PacketSerializer.cs`                     |
-| Signal stack           | `src/AetherMesh.Security/Services/SignalProtocolService.cs`            |
-| Routing                | `src/AetherMesh.Core/Routing/RoutingService.cs`                        |
-| DTN                    | `src/AetherMesh.Core/Dtn/DtnService.cs`                                |
+| Wire format            | `src/AetherNet.Core/Protocol/PacketSerializer.cs`                     |
+| Signal stack           | `src/AetherNet.Security/Services/SignalProtocolService.cs`            |
+| Routing                | `src/AetherNet.Core/Routing/RoutingService.cs`                        |
+| DTN                    | `src/AetherNet.Core/Dtn/DtnService.cs`                                |
 
 For interop verification across the eight reference languages, see
 [Cross-Language Fixtures](fixtures.md).

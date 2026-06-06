@@ -141,7 +141,7 @@ PacketNonce (8 bytes)
 ### Signal 协议（第 4 节）
 
 - **密钥交换**：带 ECDH P-256 的 X3DH
-- **HKDF**：SHA256，盐值为 "AetherMeshSignal"
+- **HKDF**：SHA256，盐值为 "AetherNetSignal"
 - **信息字符串**："aether-root-v1"、"aether-chain-send-v1"、"aether-chain-recv-v1"
 - **加密**：AES-256-GCM，12 字节随机数，16 字节认证标签
 - **链棘轮**：带计数器推进的 HMAC-SHA256

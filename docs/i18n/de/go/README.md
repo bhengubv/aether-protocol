@@ -13,7 +13,7 @@ Dieses Modul implementiert das dezentrale Aether-Mesh-Netzwerkprotokoll für Umg
 - **Signal-Protokoll**: X3DH-Schlüsselvereinbarung und symmetrischer Ratchet für Ende-zu-Ende-Verschlüsselung
 - **Paketsignierungsdienst**: Nonce-Deduplizierung mit 5-minütigem TTL zum Schutz vor Replay-Angriffen
 - **In-Process-Transport**: Speicherbasierter Transport für Tests und Interprozesskommunikation
-- **Modelle**: Strukturen für AetherMeshNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
+- **Modelle**: Strukturen für AetherNetNode, PeerInfo, RouteEntry, DtnBundle, SosAlert
 - **Protokollkonstanten**: Alle Routing-, Discovery-, Sicherheits- und Transportkonstanten
 
 ## Modulstruktur
@@ -173,7 +173,7 @@ Vollständige Strukturen für Mesh-Netzwerke:
 
 ```go
 // Node in the mesh
-node := &models.AetherMeshNode{
+node := &models.AetherNetNode{
     UHID: "node-alice-001",
     IdentityKey: publicKey,
     Capabilities: models.CapabilityBLE | models.CapabilityRelay,

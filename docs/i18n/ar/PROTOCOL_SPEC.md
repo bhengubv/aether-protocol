@@ -10,10 +10,10 @@
 > **ملاحظة للقارئ.** المسودات السابقة من هذه الوثيقة سبقت توحيد تنسيق الإرسال عبر 8 لغات والتحويل الشامل للعائلة إلى X25519 + Signal Double Ratchet. اعتبارًا من 2026-05-05، تصف §2 (تنسيق الحزمة) و§3 (التوجيه) و§4 (تبادل المفاتيح) و§9 (DTN) البروتوكول المُنفَّذ؛ بينما تصف §10 (بث الفيديو) و§11 (المشاهدة المشتركة) البروتوكول المستهدف — فهي مُعرَّفة على مستوى الإرسال وتم اختبارها بالبيانات الثابتة، لكن خطوط أنابيب الترميز / BitTorrent / ChipIn لم تُرتبط بعد بالهياكل التجريبية. يُعدّ المرجع بلغة C# الأساسَ الموثوق في كل مكان يختلف فيه هذا المستند عن التنفيذ الفعلي.
 >
 > - البايتات الأصلية للإرسال: `fixtures/expected/*.bin` (10 حالات مسمّاة)
-> - المُسلسِل المرجعي: `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
-> - مكدّس Signal المرجعي: `src/AetherMesh.Security/Services/SignalProtocolService.cs`
-> - التوجيه المرجعي: `src/AetherMesh.Core/Routing/RoutingService.cs`
-> - DTN المرجعي: `src/AetherMesh.Core/Dtn/DtnService.cs`
+> - المُسلسِل المرجعي: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
+> - مكدّس Signal المرجعي: `src/AetherNet.Security/Services/SignalProtocolService.cs`
+> - التوجيه المرجعي: `src/AetherNet.Core/Routing/RoutingService.cs`
+> - DTN المرجعي: `src/AetherNet.Core/Dtn/DtnService.cs`
 > - إثبات التوافق بين اللغات على مستوى الإرسال: `fixtures/README.md`
 > - إثبات توافق Signal بين اللغات: `fixtures/signal/README.md`
 
@@ -43,7 +43,7 @@ Aether هو بروتوكول شبكة شبكية لامركزية مُصمَّم
 
 ## 2. تنسيق الحزمة
 
-> تم التوافق في 2026-05-05 مع `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
+> تم التوافق في 2026-05-05 مع `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > و10 حالات ثابتة تحت `fixtures/expected/`.
 
 ### 2.1. تخطيط إرسال MeshPacket
@@ -139,7 +139,7 @@ PacketNonce (8 bytes)
 
 > لاحظ الاختلاف المقصود عن تخطيط السلك في §2.1: تستخدم البيانات القابلة للتوقيع **4 بايت int32** لـ `Type` و`Length` و`Ttl` و`Priority`، بينما يستخدم السلك 1 بايت / 2 بايت / 4 بايت / 1 بايت على التوالي. هذا مقصود — الشكل القابل للتوقيع محمول عبر اللغات ويستخدم حقولًا ذات عرض ثابت؛ أما شكل السلك فمضغوط لاقتصاد BLE PDU. يجب على التطبيقات اقتطاع `Priority` إلى `[0,255]` قبل الترميز في بايتات قابلة للتوقيع، وإلا فإن المستلم (الذي يرى بايت السلك 0..255) يشتق مخزن بايتات قابل للتوقيع مختلفًا ويفشل التحقق.
 
-يوجد التطبيق المرجعي في `src/AetherMesh.Security/Services/PacketSigningService.cs::BuildSignableData` وهو قراءة إلزامية للنقل.
+يوجد التطبيق المرجعي في `src/AetherNet.Security/Services/PacketSigningService.cs::BuildSignableData` وهو قراءة إلزامية للنقل.
 
 ### 2.5. أنواع الحزم
 
@@ -271,7 +271,7 @@ PacketNonce (8 bytes)
 ## 4. تبادل المفاتيح
 
 > تم التوافق في 2026-05-05 مع التطبيق المرجعي C# في
-> `src/AetherMesh.Security/Services/SignalProtocolService.cs` ومجموعة البيانات الثابتة
+> `src/AetherNet.Security/Services/SignalProtocolService.cs` ومجموعة البيانات الثابتة
 > عبر اللغات تحت `fixtures/signal/`. يشحن المرجع C# X3DH كاملًا + Double Ratchet
 > (Signal §3 + §5) عبر X25519. تم نقل Go وPython وTypeScript وRust وSwift وKotlin
 > إلى نفس المغلف وهي مكافئة على مستوى البايتات عند مستوى X3DH وKDF_RK. يشحن C
@@ -313,11 +313,11 @@ PreKeyBundle {
 }
 ```
 
-مرجع: `AetherMesh.Security.Models.PreKeyBundle`. عقد شكل السلك متطابق عبر جميع اللغات الثماني.
+مرجع: `AetherNet.Security.Models.PreKeyBundle`. عقد شكل السلك متطابق عبر جميع اللغات الثماني.
 
 **مجموعة المفاتيح المسبقة لمرة واحدة (OPK).** يحتفظ كل مستجيب بمجموعة من `OpkPoolSize` (الافتراضي 100، يعكس إرشادات Signal المنشورة) من OPKs X25519. يسحب إنشاء الحزمة معرفًا غير مستخدم من طابور FIFO، ثم يملأ المجموعة مجددًا حتى حجمها المستهدف. كل OPK يُستهلك مرة واحدة بالضبط: يزيل المستجيب ويُصفّر النصف الخاص عند أول رسالة PreKey تشير إلى معرفه. المبادرون المتنافسون على نفس معرف OPK سيرون نجاح `EstablishResponderSession` واحد بالضبط تحت `_preKeyLock`؛ الخاسر يُثير `CryptographicException`.
 
-مرجع: `SignalProtocolService.TopUpOpkPoolNoLock` (الأسطر 494–518)، `SignalProtocolService.EstablishResponderSession` (الأسطر 636–718). تمارس الاختبارات دلالات المجموعة في `tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`.
+مرجع: `SignalProtocolService.TopUpOpkPoolNoLock` (الأسطر 494–518)، `SignalProtocolService.EstablishResponderSession` (الأسطر 636–718). تمارس الاختبارات دلالات المجموعة في `tests/AetherNet.Core.Tests/PreKeyPoolTests.cs`.
 
 **تدوير المفتاح المسبق الموقَّع (SPK).** يُنشأ SPK كسولًا عند أول استدعاء للحزمة ويُعاد استخدامه عبر الاستدعاءات اللاحقة حتى لا يُلغي المبادرون المتزامنون الذين يجلبون حزمًا قبل تشغيل X3DH حزم بعضهم البعض. تدوير SPK الدوري (Signal §3.3 يوصي أسبوعيًا) عملية صريحة، وليس أثرًا جانبيًا لإنشاء الحزمة.
 
@@ -453,7 +453,7 @@ EncryptedPayload {
 }
 ```
 
-مرجع: `AetherMesh.Security.Models.EncryptedPayload` (الأسطر 55–66 من `SecurityModels.cs`). حقل `InitiatorEphemeralKeyX25519` هو اسم بديل للتوافق الخلفي مع مغلف السلك ما قبل Double-Ratchet ويساوي `SenderEphemeralKeyX25519` في رسائل PreKey؛ يجب على المستهلكين الجدد تجاهله.
+مرجع: `AetherNet.Security.Models.EncryptedPayload` (الأسطر 55–66 من `SecurityModels.cs`). حقل `InitiatorEphemeralKeyX25519` هو اسم بديل للتوافق الخلفي مع مغلف السلك ما قبل Double-Ratchet ويساوي `SenderEphemeralKeyX25519` في رسائل PreKey؛ يجب على المستهلكين الجدد تجاهله.
 
 معاملات AES-GCM: مفتاح 256 بت، nonce 96 بت (`AesNonceSize = 12`)، بطاقة 128 بت (`AesTagSize = 16`)، البطاقة مسلسلة بالنص المشفَّر. تُصفَّر مفاتيح الرسائل في كتل `finally` مباشرةً بعد تشفير/فكّ تشفير AES-GCM.
 
@@ -468,7 +468,7 @@ EncryptedPayload {
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethermesh_x25519_*`, `aethermesh_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
 
 جميع اللغات الـ 7 القادرة على الجلسات (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) تشحن مجموعة OPK FIFO ذات 100 مفتاح مع تعبئة كسولة واستهلاك محمي بقفل، مطابِقةً لعقد المرجع C#. يشحن C البدائيات فقط؛ آلية الجلسة الكاملة متتبَّعة في `OPEN_ISSUES.md` البند 11.
 
@@ -515,7 +515,7 @@ Aether مستقل عن طبقة النقل. أي قناة اتصال مادية 
 2. **حجم الحمولة:** إذا كان حجم الحمولة أقل من أو يساوي `BleMaxPayloadBytes` (1,024 بايت)، يُفضَّل BLE لكفاءة الطاقة. الحمولات الأكبر تُفضّل Wi-Fi Direct.
 3. **ترجيح تكلفة الطاقة:** بين وسائل النقل المتاحة، تُفضَّل قيم `PowerCostRelative` الأدنى لحركة المرور الاعتيادية. الحزم عالية الأولوية (SOS، الصوت) قد تتجاوز هذا التفضيل.
 4. **اتصال الند:** إذا كان لوسيلة نقل اتصال نشط بالفعل مع الند المستهدف (يُعيد `IsConnected` true)، تُفضَّل لتجنب مصاريف إعداد الاتصال.
-5. **الاحتياط:** إذا لم تستطع أي وسيلة نقل محلية الوصول إلى الهدف، تُضاف الحزمة إلى طابور ترحيل الخادم عبر AetherMeshAPI.
+5. **الاحتياط:** إذا لم تستطع أي وسيلة نقل محلية الوصول إلى الهدف، تُضاف الحزمة إلى طابور ترحيل الخادم عبر AetherNetAPI.
 
 ### 5.3. وسائل النقل المرجعية
 
@@ -690,7 +690,7 @@ geohash الكاملة الدقة لا تُرسَل أبدًا عبر الشبك
    ```
 3. **إرسال بمسار مزدوج:** يُرسَل SOS في آنٍ واحد عبر:
    - **فيضان الشبكة الشبكية:** يُبثّ إلى جميع الأقران المتصلين عبر جميع وسائل النقل المتاحة.
-   - **استدعاء API:** يُرسَل إلى AetherMeshAPI للتوزيع من جانب الخادم والجسر إلى PanikAPI (إرسال SMS/بريد إلكتروني).
+   - **استدعاء API:** يُرسَل إلى AetherNetAPI للتوزيع من جانب الخادم والجسر إلى PanikAPI (إرسال SMS/بريد إلكتروني).
 4. كلا المسارين يعملان بطريقة أطلق وانسَ بالنسبة لبعضهما البعض. إذا فشل استدعاء API، يستمر فيضان الشبكة الشبكية باستقلالية.
 
 ### 8.3. سلوك الترحيل
@@ -746,7 +746,7 @@ DtnBundle {
 
 1. **الإنشاء:** يُنشئ المُرسِل حزمة بحمولة مشفَّرة (مشفَّرة عبر جلسة Signal مع المستلم). `Status = Pending`، `CopyCount = 1`.
 2. **محاولة التسليم المباشر:** يحاول المُرسِل أولًا التوجيه المباشر عبر الشبكة الشبكية (RREQ/RREP). إذا وُجد مسار، تُسلَّم الحزمة فورًا وينتقل `Status` إلى `Delivered`.
-3. **محاولة ترحيل الخادم:** إذا فشل توجيه الشبكة الشبكية، يحاول المُرسِل الترحيل عبر AetherMeshAPI. إذا استطاع الخادم الوصول إلى المستلم (أو تخزين الرسالة في طابور)، ينجح التسليم.
+3. **محاولة ترحيل الخادم:** إذا فشل توجيه الشبكة الشبكية، يحاول المُرسِل الترحيل عبر AetherNetAPI. إذا استطاع الخادم الوصول إلى المستلم (أو تخزين الرسالة في طابور)، ينجح التسليم.
 4. **التخزين والإعادة:** إذا فشل كلا توجيه الشبكة الشبكية وترحيل الخادم، تبقى الحزمة في التخزين المحلي (حالة `Pending`) بانتظار الفحص التالي للتسليم.
 
 ### 9.3. فحص التسليم
@@ -799,7 +799,7 @@ DtnBundle {
    }
    ```
 3. عند استلام الإيصال، يُزيل المُرسِل الحزمة من متجره ويُطلق حدث `BundleDelivered`.
-4. يُزامَن الإيصال أيضًا مع AetherMeshAPI للتحليلات.
+4. يُزامَن الإيصال أيضًا مع AetherNetAPI للتحليلات.
 
 ### 9.7. انتهاء صلاحية الحزمة
 
@@ -820,7 +820,7 @@ DtnBundle {
 
 ## 10. بث الفيديو
 
-> **الحالة اعتبارًا من 2026-05-05 — تصميم + هيكل C# التجريبي، لا خط أنابيب ترميز شاحن.** أنواع الحزم `StreamAnnounce` (11) و`StreamSegment` (12) و`StreamSubscribe` (13) و`StreamUnsubscribe` (14) و`VideoCall` (27) و`VideoSignaling` (28) و`VideoFrame` (31) و`ScreenShare` (32) مُعرَّفة على مستوى الإرسال وتعمل ذهابًا وإيابًا عبر مجموعة البيانات الثابتة متعددة اللغات. تشحن وحدة `AetherMesh.Streaming` بـ C# واجهات ونماذج وخدمات هيكلية (`StreamingService`، `VideoCallService`، `WatchTogetherService`) تربط منافذ التوجيه/DI وتوزيع المقاطع أحادية الاتجاه — لكن لا ترميز/فكّ ترميز فيديو فعلي مربوط بها. اللغات الأخرى السبع لديها أنواع إرسال فقط. وثيقة التصميم الأمامي في `docs/adaptive-secure-streaming-spec.md` هي البنية المستهدفة. تعامل مع النثر أدناه كمواصفات لما ستُنفِّذه تلك الخدمات؛ راجع `OPEN_ISSUES.md` للثغرات الجاهزة للإنتاج.
+> **الحالة اعتبارًا من 2026-05-05 — تصميم + هيكل C# التجريبي، لا خط أنابيب ترميز شاحن.** أنواع الحزم `StreamAnnounce` (11) و`StreamSegment` (12) و`StreamSubscribe` (13) و`StreamUnsubscribe` (14) و`VideoCall` (27) و`VideoSignaling` (28) و`VideoFrame` (31) و`ScreenShare` (32) مُعرَّفة على مستوى الإرسال وتعمل ذهابًا وإيابًا عبر مجموعة البيانات الثابتة متعددة اللغات. تشحن وحدة `AetherNet.Streaming` بـ C# واجهات ونماذج وخدمات هيكلية (`StreamingService`، `VideoCallService`، `WatchTogetherService`) تربط منافذ التوجيه/DI وتوزيع المقاطع أحادية الاتجاه — لكن لا ترميز/فكّ ترميز فيديو فعلي مربوط بها. اللغات الأخرى السبع لديها أنواع إرسال فقط. وثيقة التصميم الأمامي في `docs/adaptive-secure-streaming-spec.md` هي البنية المستهدفة. تعامل مع النثر أدناه كمواصفات لما ستُنفِّذه تلك الخدمات؛ راجع `OPEN_ISSUES.md` للثغرات الجاهزة للإنتاج.
 
 يدعم Aether ثلاثة أوضاع فيديو: مكالمات فيديو من ند إلى ند، وفيديو جماعي (مشاركون غير محدودين بطوبولوجيا ديناميكية)، وبث مباشر. جميع إطارات الفيديو مشفَّرة ببروتوكول Signal وموقَّعة بـ Ed25519.
 
@@ -923,7 +923,7 @@ DtnBundle {
 
 ## 11. المشاهدة المشتركة
 
-> **الحالة اعتبارًا من 2026-05-05 — تصميم + هيكل C# التجريبي، نفس مستوى نضج §10.** أنواع الحزم `WatchSync` (29) و`WatchReaction` (30) و`WatchChunkRequest` (33) و`TorrentMetadata` (34) مُعرَّفة على مستوى الإرسال ومختبرة بالبيانات الثابتة. توفر `AetherMesh.Streaming.WatchTogetherService` هيكل التنسيق (حالة الجلسة، نشر أوامر المزامنة عبر `IMeshSender`، مساعدات تعويض RTT)؛ أما استيعاب BitTorrent وتسوية ChipIn SDPKT وجلب المقاطع من الأقران فغير مُنفَّذة في أي لغة. تعامل مع النثر أدناه كبروتوكول هدف؛ وثيقة التصميم الأمامي في `docs/adaptive-secure-streaming-spec.md` تغطي نفس الموضوع بتفصيل أكثر.
+> **الحالة اعتبارًا من 2026-05-05 — تصميم + هيكل C# التجريبي، نفس مستوى نضج §10.** أنواع الحزم `WatchSync` (29) و`WatchReaction` (30) و`WatchChunkRequest` (33) و`TorrentMetadata` (34) مُعرَّفة على مستوى الإرسال ومختبرة بالبيانات الثابتة. توفر `AetherNet.Streaming.WatchTogetherService` هيكل التنسيق (حالة الجلسة، نشر أوامر المزامنة عبر `IMeshSender`، مساعدات تعويض RTT)؛ أما استيعاب BitTorrent وتسوية ChipIn SDPKT وجلب المقاطع من الأقران فغير مُنفَّذة في أي لغة. تعامل مع النثر أدناه كبروتوكول هدف؛ وثيقة التصميم الأمامي في `docs/adaptive-secure-streaming-spec.md` تغطي نفس الموضوع بتفصيل أكثر.
 
 تتيح المشاهدة المشتركة تشغيل وسائط متزامنة عبر مجموعة من أقران الشبكة الشبكية. المضيف لديه تحكم حصري في التشغيل (تشغيل، إيقاف مؤقت، بحث، سرعة). تتضمن أوامر المزامنة طوابع زمنية لساعة الحائط لتعويض RTT.
 
@@ -1047,12 +1047,12 @@ DtnBundle {
 
 | Flag | Parent | Description |
 |------|--------|-------------|
-| AETHERMESH_VIDEO_CALL | AETHERMESH_VOICE | مكالمات الفيديو P2P والجماعية |
-| AETHERMESH_VIDEO_GROUP | AETHERMESH_VIDEO_CALL | جلسات فيديو متعددة الأطراف |
-| AETHERMESH_SCREEN_SHARE | AETHERMESH_VIDEO_CALL | مشاركة الشاشة في مكالمات الفيديو |
-| AETHERMESH_WATCH_TOGETHER | AETHERMESH_CONTENT_P2P | تشغيل الوسائط المتزامن |
-| AETHERMESH_WATCH_REACTIONS | AETHERMESH_WATCH_TOGETHER | تفاعلات الإيموجي والصوت |
-| AETHERMESH_TORRENT_INGEST | AETHERMESH_CONTENT_P2P | قبول ملف BitTorrent للتوزيع عبر الشبكة الشبكية |
+| AETHERNET_VIDEO_CALL | AETHERNET_VOICE | مكالمات الفيديو P2P والجماعية |
+| AETHERNET_VIDEO_GROUP | AETHERNET_VIDEO_CALL | جلسات فيديو متعددة الأطراف |
+| AETHERNET_SCREEN_SHARE | AETHERNET_VIDEO_CALL | مشاركة الشاشة في مكالمات الفيديو |
+| AETHERNET_WATCH_TOGETHER | AETHERNET_CONTENT_P2P | تشغيل الوسائط المتزامن |
+| AETHERNET_WATCH_REACTIONS | AETHERNET_WATCH_TOGETHER | تفاعلات الإيموجي والصوت |
+| AETHERNET_TORRENT_INGEST | AETHERNET_CONTENT_P2P | قبول ملف BitTorrent للتوزيع عبر الشبكة الشبكية |
 
 لأعلام الميزات تبعيات للوالد: يمكن تمكين علم الطفل فقط إذا كان والده مُمكَّنًا أيضًا. هذا يتيح الطرح التدريجي.
 
@@ -1079,7 +1079,7 @@ DtnBundle {
 | BleAdvertiseIntervalMs    | 1000   |
 | BleUuidRotationSeconds    | 900    |
 | BleScanJitterMaxMs        | 2000   |
-| AetherMeshBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
+| AetherNetBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
 
 ### الأمان
 | Constant                  | Value  |

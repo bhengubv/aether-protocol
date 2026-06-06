@@ -29,7 +29,7 @@ Aether هو بروتوكول شبكات ميش لامركزي للبيئات ذ�
 │       ├── Constants.kt                      # Protocol constants (TTL, timeouts, HKDF info strings)
 │       ├── Demo.kt                           # Demo application (key generation, encryption, signing)
 │       ├── models/
-│       │   └── Models.kt                     # Domain models (AetherMeshNode, PeerInfo, DtnBundle, etc.)
+│       │   └── Models.kt                     # Domain models (AetherNetNode, PeerInfo, DtnBundle, etc.)
 │       ├── protocol/
 │       │   ├── MeshPacket.kt                 # Packet data class (wire-compatible with C#)
 │       │   ├── PacketType.kt                 # Packet type enum (23 types, matching C# values)
@@ -147,7 +147,7 @@ interface TransportService {
 
 ### 5. نماذج المجال (`Models.kt`)
 
-- **AetherMeshNode**: هوية العقدة مع UHID والمفتاح العام والإمكانيات والـ geohash
+- **AetherNetNode**: هوية العقدة مع UHID والمفتاح العام والإمكانيات والـ geohash
 - **PeerInfo**: نظير معروف مع درجة موثوقية وطابع زمني لآخر ظهور
 - **RouteEntry**: إدخال جدول التوجيه مع عدد القفزات ودرجة الجودة
 - **NodeCapabilities**: حقل بت (BLE وWi-Fi Direct وBوابة وترحيل وSOS وبث وصوت وDTN)

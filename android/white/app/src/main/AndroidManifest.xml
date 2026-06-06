@@ -24,7 +24,7 @@
 
         <!-- HCE service — handles SELECT AID F061657468657200 -->
         <service
-            android:name=".AetherMeshHceService"
+            android:name=".AetherNetHceService"
             android:exported="true"
             android:permission="android.permission.BIND_NFC_SERVICE">
             <intent-filter>

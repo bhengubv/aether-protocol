@@ -2,7 +2,7 @@
 
 ## What This Adds
 
-Proves the production AetherMesh DTN custody window — a bundle either
+Proves the production AetherNet DTN custody window — a bundle either
 delivers or expires **within 72 hours of creation**, never lost in
 limbo. The base P/T net proved "eventually delivers or expires"; the
 timed net proves "**within 72h** delivers or expires."
@@ -31,5 +31,5 @@ Every bundle reaches a terminal state within 72 hours.
 
 ## Maps To
 
-`AetherMesh.Core.Dtn.DtnMeshService` — `IDtnService.MaxCustodyDuration`
+`AetherNet.Core.Dtn.DtnMeshService` — `IDtnService.MaxCustodyDuration`
 constant (`ProtocolConstants.DtnBundleTtl = 72h`).

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  AetherMesh AODV Routing — Loop Freedom + Convergence Petri Net
+  AetherNet AODV Routing — Loop Freedom + Convergence Petri Net
   ===============================================================
   PNML P/T net. Three-node line topology: A ↔ B ↔ C.
 
@@ -19,7 +19,7 @@
 -->
 <pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
   <net id="aodv-routing" type="http://www.pnml.org/version-2009/grammar/ptnet">
-    <name><text>AetherMesh AODV Routing — Loop Freedom + Convergence</text></name>
+    <name><text>AetherNet AODV Routing — Loop Freedom + Convergence</text></name>
     <page id="page-main">
 
       <!-- Route-table state per node, per destination -->

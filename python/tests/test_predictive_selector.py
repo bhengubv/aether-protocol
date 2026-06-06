@@ -6,8 +6,8 @@ from __future__ import annotations
 import math
 import unittest
 
-from aethermesh.transport.predictive_selector import PredictiveTransportSelector
-from aethermesh.transport.per_transport_metrics import PerTransportMetrics
+from aethernet.transport.predictive_selector import PredictiveTransportSelector
+from aethernet.transport.per_transport_metrics import PerTransportMetrics
 
 
 # ── FakeTransport — minimal duck-typed stub ────────────────────────────────────

@@ -4,7 +4,7 @@
  * Aggregates observed signals into a score in [0.0, 1.0].
  * Unknown peers default to 1.0 (benefit of the doubt).
  * Mirrors the C# InMemoryNodeReputationService in
- * src/AetherMesh.Core/Reputation/InMemoryNodeReputationService.cs.
+ * src/AetherNet.Core/Reputation/InMemoryNodeReputationService.cs.
  *
  * SPDX-License-Identifier: MIT
  */

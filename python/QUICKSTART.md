@@ -29,7 +29,7 @@ across process restarts.
 
 ```python
 import asyncio
-from aethermesh.security.signal_protocol import SignalProtocolService
+from aethernet.security.signal_protocol import SignalProtocolService
 
 async def main() -> None:
     alice = SignalProtocolService()
@@ -86,10 +86,10 @@ Wire `KeyValueSignalSessionStore` and `KeyValuePreKeyStore` over any
 and the OPK pool all snapshot after every mutation.
 
 ```python
-from aethermesh.storage.in_memory_kv import InMemoryKeyValueStore
-from aethermesh.storage.filesystem_kv import FileSystemKeyValueStore
-from aethermesh.security.session_store import KeyValueSignalSessionStore
-from aethermesh.security.pre_key_store import KeyValuePreKeyStore
+from aethernet.storage.in_memory_kv import InMemoryKeyValueStore
+from aethernet.storage.filesystem_kv import FileSystemKeyValueStore
+from aethernet.security.session_store import KeyValueSignalSessionStore
+from aethernet.security.pre_key_store import KeyValuePreKeyStore
 
 # Volatile (tests) — InMemoryKeyValueStore.
 # Durable — FileSystemKeyValueStore(root_dir="./aether-data").
@@ -110,8 +110,8 @@ every value before it touches disk. Keys are passed through unchanged
 so list / range queries continue to work.
 
 ```python
-from aethermesh.storage.encrypted_kv import EncryptedKeyValueStore
-from aethermesh.storage.static_key_provider import StaticDataAtRestKeyProvider
+from aethernet.storage.encrypted_kv import EncryptedKeyValueStore
+from aethernet.storage.static_key_provider import StaticDataAtRestKeyProvider
 
 key_provider = StaticDataAtRestKeyProvider(
     current_version=1,

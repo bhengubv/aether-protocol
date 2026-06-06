@@ -1,8 +1,8 @@
 # Aether Protocol — Mesh Security Threat Model
 
 > Integration: [Claude-BugHunter](https://github.com/bhengubv/Claude-BugHunter)
-> Each threat class maps to a `hunt-*` skill and an `AetherMeshVulnerabilityClass` enum value.
-> Use `IAetherMeshSecurityAudit` to programmatically surface findings in CI or live monitoring.
+> Each threat class maps to a `hunt-*` skill and an `AetherNetVulnerabilityClass` enum value.
+> Use `IAetherNetSecurityAudit` to programmatically surface findings in CI or live monitoring.
 
 ---
 
@@ -12,7 +12,7 @@ Aether's attack surface spans four layers:
 
 | Layer | Components | Primary threats |
 |---|---|---|
-| **Identity** | UHID derivation, Ed25519 keys, AetherMeshTag | Spoofing, key compromise |
+| **Identity** | UHID derivation, Ed25519 keys, AetherNetTag | Spoofing, key compromise |
 | **Handshake** | HelloPayload, capability exchange | Auth bypass, downgrade |
 | **Routing** | AODV flood, route table, forwarding | Route injection, replay |
 | **Content** | Chunk hash, ChunkShuffle, DTN bundles | Poisoning, free-rider, enumeration |
@@ -23,7 +23,7 @@ Aether's attack surface spans four layers:
 
 ### T-01 — UHID Spoofing / Auth Bypass
 **BugHunter skill:** `hunt-auth-bypass`
-**Class:** `AetherMeshVulnerabilityClass.AuthBypass`
+**Class:** `AetherNetVulnerabilityClass.AuthBypass`
 **Severity:** Critical
 
 A malicious node presents a forged or replayed UHID during handshake.
@@ -39,7 +39,7 @@ it accepts a fake identity and grants that node routing access.
 
 ### T-02 — Packet Replay
 **BugHunter skill:** `hunt-race-condition` (packet-ordering variant)
-**Class:** `AetherMeshVulnerabilityClass.ReplayAttack`
+**Class:** `AetherNetVulnerabilityClass.ReplayAttack`
 **Severity:** High
 
 An attacker captures a valid signed packet and re-sends it to re-trigger
@@ -55,7 +55,7 @@ an action (re-route, re-deliver a chunk, replay a SOS alert).
 
 ### T-03 — Sybil Attack
 **BugHunter skill:** `hunt-business-logic`
-**Class:** `AetherMeshVulnerabilityClass.BusinessLogic`
+**Class:** `AetherNetVulnerabilityClass.BusinessLogic`
 **Severity:** High
 
 An attacker creates many fake node identities to gain disproportionate
@@ -65,13 +65,13 @@ influence over routing, reputation, or content distribution.
 - `INodeReputationService` tracks per-UHID behaviour scores.
 - `IBehavioralAnomalyDetector` flags abnormal connection patterns.
 - `aether-market` PoVToken requires physical co-presence (BLE) to earn trust.
-- `IAetherMeshAiProvider.AssessThreatAsync` can correlate Sybil patterns.
+- `IAetherNetAiProvider.AssessThreatAsync` can correlate Sybil patterns.
 
 ---
 
 ### T-04 — Malicious Route Injection (AODV Poisoning)
 **BugHunter skill:** `hunt-business-logic` (routing variant)
-**Class:** `AetherMeshVulnerabilityClass.BusinessLogic`
+**Class:** `AetherNetVulnerabilityClass.BusinessLogic`
 **Severity:** High
 
 A node injects false route advertisements to redirect traffic through itself,
@@ -79,15 +79,15 @@ enabling MITM or traffic analysis.
 
 **Mitigations:**
 - `IRouteReplyVerifier` validates RREP signatures before updating the route table.
-- `IAetherMeshAiProvider.SuggestRoutesAsync` cross-checks AI-predicted paths.
-- `AetherMeshRouteEvent` emitted to `IAetherMeshTelemetry` — AI Security Layer detects
-  rapid route churn as `AetherMeshSecurityEventKind.RoutingAnomaly`.
+- `IAetherNetAiProvider.SuggestRoutesAsync` cross-checks AI-predicted paths.
+- `AetherNetRouteEvent` emitted to `IAetherNetTelemetry` — AI Security Layer detects
+  rapid route churn as `AetherNetSecurityEventKind.RoutingAnomaly`.
 
 ---
 
 ### T-05 — Content Poisoning
 **BugHunter skill:** `hunt-business-logic` (content variant)
-**Class:** `AetherMeshVulnerabilityClass.ContentPoisoning`
+**Class:** `AetherNetVulnerabilityClass.ContentPoisoning`
 **Severity:** High
 
 A malicious peer advertises a `ContentDescriptor` with a valid root hash
@@ -103,7 +103,7 @@ but serves corrupted chunk data, aiming to corrupt the receiver's local store.
 
 ### T-06 — Free-Rider / Relay Abuse
 **BugHunter skill:** `hunt-business-logic` + `hunt-ssrf`
-**Class:** `AetherMeshVulnerabilityClass.RelayAbuse`
+**Class:** `AetherNetVulnerabilityClass.RelayAbuse`
 **Severity:** Medium
 
 A node requests relay forwarding without contributing any relaying itself,
@@ -111,15 +111,15 @@ or abuses a relay node as an SSRF proxy to reach services not otherwise
 accessible to the attacker.
 
 **Mitigations:**
-- `IAetherMeshIncentiveProvider.ShouldPrioritizeAsync` can deprioritise free-riders.
-- `IAetherMeshIncentiveProvider.RecordRelayAsync` tracks per-node relay contribution.
+- `IAetherNetIncentiveProvider.ShouldPrioritizeAsync` can deprioritise free-riders.
+- `IAetherNetIncentiveProvider.RecordRelayAsync` tracks per-node relay contribution.
 - HTTP relay transport (`Aether Purple`) must not forward to private RFC-1918 addresses.
 
 ---
 
 ### T-07 — NodeCapability Escalation
 **BugHunter skill:** `hunt-api-misconfig`
-**Class:** `AetherMeshVulnerabilityClass.ProtocolMisconfiguration`
+**Class:** `AetherNetVulnerabilityClass.ProtocolMisconfiguration`
 **Severity:** Medium
 
 A node claims capabilities (e.g. `NodeCapabilities.Streaming`) it does not
@@ -135,7 +135,7 @@ hold, tricking peers into sending traffic it cannot handle.
 
 ### T-08 — UHID / Content Hash Enumeration
 **BugHunter skill:** `hunt-idor`
-**Class:** `AetherMeshVulnerabilityClass.InformationDisclosure`
+**Class:** `AetherNetVulnerabilityClass.InformationDisclosure`
 **Severity:** Low–Medium
 
 Sequential or predictable UHIDs or content hashes allow an attacker to enumerate
@@ -151,7 +151,7 @@ mesh participants or discover private content catalogues without authorisation.
 
 ### T-09 — Mesh Flooding / DoS
 **BugHunter skill:** `hunt-dos`
-**Class:** `AetherMeshVulnerabilityClass.DenialOfService`
+**Class:** `AetherNetVulnerabilityClass.DenialOfService`
 **Severity:** Medium
 
 A node floods the mesh with AODV requests or `ChunkRequest` packets,
@@ -160,13 +160,13 @@ exhausting BLE bandwidth (typically 2–6 Mbit/s shared across all nodes).
 **Mitigations:**
 - `ProtocolConstants.MaxConcurrentChunkTransfers` caps per-peer in-flight requests.
 - `INodeReputationService` penalises nodes with abnormally high packet rates.
-- `IBehavioralAnomalyDetector` triggers `AetherMeshSecurityEventKind.NodeBehaviourChange`.
+- `IBehavioralAnomalyDetector` triggers `AetherNetSecurityEventKind.NodeBehaviourChange`.
 
 ---
 
 ### T-10 — Malformed Packet RCE
 **BugHunter skill:** `hunt-rce`
-**Class:** `AetherMeshVulnerabilityClass.RemoteCodeExecution`
+**Class:** `AetherNetVulnerabilityClass.RemoteCodeExecution`
 **Severity:** Critical
 
 A crafted packet with oversized fields, malformed JSON, or type confusion
@@ -175,13 +175,13 @@ triggers a parser exception or buffer overflow in a language implementation.
 **Mitigations:**
 - `PacketSerializer` validates all fields before deserialisation.
 - Fuzz test all 8 language implementations against `fixtures/security/fuzz_vectors.json`.
-- `IAetherMeshSecurityAudit.AuditPacketsAsync` includes a fuzz-pattern scan.
+- `IAetherNetSecurityAudit.AuditPacketsAsync` includes a fuzz-pattern scan.
 
 ---
 
 ### T-11 — Traffic Analysis / Deanonymisation
 **BugHunter skill:** `hunt-misc` (timing correlation)
-**Class:** `AetherMeshVulnerabilityClass.TrafficAnalysis`
+**Class:** `AetherNetVulnerabilityClass.TrafficAnalysis`
 **Severity:** Low
 
 Packet timing and size correlation across BLE advertisements can link
@@ -194,9 +194,9 @@ pseudonymous UHIDs to physical device locations or social relationships.
 
 ---
 
-## BugHunter skill → AetherMeshVulnerabilityClass mapping
+## BugHunter skill → AetherNetVulnerabilityClass mapping
 
-| BugHunter skill | AetherMeshVulnerabilityClass | Threat ID |
+| BugHunter skill | AetherNetVulnerabilityClass | Threat ID |
 |---|---|---|
 | `hunt-auth-bypass` | `AuthBypass` | T-01 |
 | `hunt-race-condition` | `ReplayAttack`, `RaceCondition` | T-02 |
@@ -211,14 +211,14 @@ pseudonymous UHIDs to physical device locations or social relationships.
 
 ---
 
-## Using IAetherMeshSecurityAudit in CI
+## Using IAetherNetSecurityAudit in CI
 
 ```csharp
 // In your integration test setup:
-services.AddSingleton<IAetherMeshSecurityAudit, MyMeshAuditProvider>();
+services.AddSingleton<IAetherNetSecurityAudit, MyMeshAuditProvider>();
 
 // In your test:
-var audit = services.GetRequiredService<IAetherMeshSecurityAudit>();
+var audit = services.GetRequiredService<IAetherNetSecurityAudit>();
 var findings = await audit.AuditPacketsAsync(capturedSession);
 Assert.Empty(findings.Where(f => f.IsHighSeverity));
 ```
@@ -228,4 +228,4 @@ Assert.Empty(findings.Where(f => f.IsHighSeverity));
 1. Install: `git clone https://github.com/bhengubv/Claude-BugHunter.git ~/.claude/skills/Claude-BugHunter`
 2. Open aether-protocol in Claude Code
 3. Describe what you're testing: *"I see a HelloPayload with no signature field — test auth bypass"*
-4. Claude auto-loads `hunt-auth-bypass` and walks you through T-01 patterns
+4. Claude auto-loads `hunt-auth-bypass` and walks you through T-01 patterns

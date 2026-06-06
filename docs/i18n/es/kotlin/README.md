@@ -27,7 +27,7 @@ Aether es un protocolo de redes en malla descentralizado para entornos con conec
 │       ├── Constants.kt                      # Protocol constants (TTL, timeouts, HKDF info strings)
 │       ├── Demo.kt                           # Demo application (key generation, encryption, signing)
 │       ├── models/
-│       │   └── Models.kt                     # Domain models (AetherMeshNode, PeerInfo, DtnBundle, etc.)
+│       │   └── Models.kt                     # Domain models (AetherNetNode, PeerInfo, DtnBundle, etc.)
 │       ├── protocol/
 │       │   ├── MeshPacket.kt                 # Packet data class (wire-compatible with C#)
 │       │   ├── PacketType.kt                 # Packet type enum (23 types, matching C# values)
@@ -145,7 +145,7 @@ interface TransportService {
 
 ### 5. Modelos de Dominio (`Models.kt`)
 
-- **AetherMeshNode**: Identidad del nodo con UHID, clave pública, capacidades, geohash
+- **AetherNetNode**: Identidad del nodo con UHID, clave pública, capacidades, geohash
 - **PeerInfo**: Par conocido con puntuación de fiabilidad y marca de tiempo del último avistamiento
 - **RouteEntry**: Entrada de tabla de enrutamiento con conteo de saltos y puntuación de calidad
 - **NodeCapabilities**: Campo de bits (BLE, Wi-Fi Direct, Gateway, Relay, SOS, Streaming, Voice, DTN)

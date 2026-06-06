@@ -15,10 +15,10 @@
 > C# リファレンスが正式なものとして扱われます。
 >
 > - 正規ワイヤーバイト列: `fixtures/expected/*.bin`（10の名前付きケース）
-> - リファレンスシリアライザ: `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
-> - リファレンスシグナルスタック: `src/AetherMesh.Security/Services/SignalProtocolService.cs`
-> - リファレンスルーティング: `src/AetherMesh.Core/Routing/RoutingService.cs`
-> - リファレンス DTN: `src/AetherMesh.Core/Dtn/DtnService.cs`
+> - リファレンスシリアライザ: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
+> - リファレンスシグナルスタック: `src/AetherNet.Security/Services/SignalProtocolService.cs`
+> - リファレンスルーティング: `src/AetherNet.Core/Routing/RoutingService.cs`
+> - リファレンス DTN: `src/AetherNet.Core/Dtn/DtnService.cs`
 > - クロス言語ワイヤー相互運用証明: `fixtures/README.md`
 > - クロス言語シグナル相互運用証明: `fixtures/signal/README.md`
 
@@ -48,7 +48,7 @@ Aether は、インターネット接続が断続的または存在しない環�
 
 ## 2. パケットフォーマット
 
-> 2026-05-05 に `src/AetherMesh.Core/Protocol/PacketSerializer.cs` および
+> 2026-05-05 に `src/AetherNet.Core/Protocol/PacketSerializer.cs` および
 > `fixtures/expected/` 配下の 10 フィクスチャケースと照合済み。
 
 ### 2.1. MeshPacket ワイヤーレイアウト
@@ -158,7 +158,7 @@ PacketNonce (8 bytes)
 > そうしないと受信者（ワイヤーバイト 0..255 を参照する）が異なる署名対象バッファを導出し、
 > 検証が失敗します。
 
-リファレンス実装は `src/AetherMesh.Security/Services/
+リファレンス実装は `src/AetherNet.Security/Services/
 PacketSigningService.cs::BuildSignableData` にあり、移植作業において必読です。
 
 ### 2.5. パケットタイプ
@@ -290,7 +290,7 @@ Aether は、暗号学的なルート認証と QoS 重み付きルート選択�
 
 ## 4. 鍵交換
 
-> 2026-05-05 に `src/AetherMesh.Security/Services/SignalProtocolService.cs` の C# リファレンス実装
+> 2026-05-05 に `src/AetherNet.Security/Services/SignalProtocolService.cs` の C# リファレンス実装
 > および `fixtures/signal/` 配下のクロス言語フィクスチャコーパスと照合済み。C# リファレンスは
 > X25519 上で完全な X3DH + Double Ratchet（Signal §3 + §5）を実装しています。Go、Python、
 > TypeScript、Rust、Swift、Kotlin は同じエンベロープに移植済みで、X3DH および KDF_RK
@@ -346,7 +346,7 @@ PreKeyBundle {
 }
 ```
 
-リファレンス: `AetherMesh.Security.Models.PreKeyBundle`。ワイヤーシェイプのコントラクトは
+リファレンス: `AetherNet.Security.Models.PreKeyBundle`。ワイヤーシェイプのコントラクトは
 8つの言語すべてで同一です。
 
 **ワンタイムプレキー（OPK）プール。** 各レスポンダは `OpkPoolSize`（デフォルト 100、
@@ -359,7 +359,7 @@ FIFO キューから未使用の次の id をポップし、プールをター�
 
 リファレンス: `SignalProtocolService.TopUpOpkPoolNoLock`（494–518行）、
 `SignalProtocolService.EstablishResponderSession`（636–718行）。プールのセマンティクスは
-`tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs` でテストされています。
+`tests/AetherNet.Core.Tests/PreKeyPoolTests.cs` でテストされています。
 
 **署名済みプレキー（SPK）のローテーション。** SPK は最初のバンドル呼び出し時に遅延生成され、
 後続の呼び出し間で再利用されます。これにより、X3DH 実行前にバンドルをフェッチする
@@ -543,7 +543,7 @@ EncryptedPayload {
 }
 ```
 
-リファレンス: `AetherMesh.Security.Models.EncryptedPayload`（`SecurityModels.cs` の 55–66行）。
+リファレンス: `AetherNet.Security.Models.EncryptedPayload`（`SecurityModels.cs` の 55–66行）。
 `InitiatorEphemeralKeyX25519` フィールドは Pre-Double-Ratchet ワイヤーエンベロープの
 後方互換エイリアスであり、PreKey メッセージでは `SenderEphemeralKeyX25519` と等しいです。
 新しいコンシューマはこれを無視するべきです。
@@ -563,7 +563,7 @@ AES-GCM パラメータ: 256ビットキー、96ビットノンス（`AesNonceSi
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethermesh_x25519_*`, `aethermesh_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
 
 セッション対応の 7 言語すべて（C# + Go + TypeScript + Python + Kotlin + Swift + Rust）は、
 C# リファレンスコントラクトに合わせた遅延補充とロック保護消費を備えた 100 キー FIFO OPK プールを実装しています。
@@ -612,7 +612,7 @@ Aether はトランスポート非依存です。`ITransportService` コント�
 2. **ペイロードサイズ:** ペイロードサイズが `BleMaxPayloadBytes`（1,024バイト）以下の場合、電力効率のために BLE が優先されます。それより大きいペイロードは Wi-Fi Direct を優先します。
 3. **消費電力の重み付け:** 利用可能なトランスポートの中で、通常トラフィックには低い `PowerCostRelative` 値が優先されます。高優先度パケット（SOS、音声）はこの優先設定を上書きする場合があります。
 4. **ピア接続性:** ターゲットピアへのアクティブな接続がすでにあるトランスポート（`IsConnected` が true を返す）は、接続セットアップのオーバーヘッドを避けるために優先されます。
-5. **フォールバック:** どのローカルトランスポートもターゲットに到達できない場合、パケットは AetherMeshAPI 経由のサーバーリレーのためにキューに入れられます。
+5. **フォールバック:** どのローカルトランスポートもターゲットに到達できない場合、パケットは AetherNetAPI 経由のサーバーリレーのためにキューに入れられます。
 
 ### 5.3. リファレンストランスポート
 
@@ -826,7 +826,7 @@ SOS メカニズムは、ユーザーが危険な状況にあり、近くのメ�
    ```
 3. **デュアルパスディスパッチ:** SOS は同時に以下を介して送信されます:
    - **メッシュフラッド:** 利用可能なすべてのトランスポートを通じて接続されたすべてのピアにブロードキャスト。
-   - **API コール:** サーバーサイドの配信と PanikAPI へのブリッジ（SMS/メールディスパッチ）のために AetherMeshAPI に送信。
+   - **API コール:** サーバーサイドの配信と PanikAPI へのブリッジ（SMS/メールディスパッチ）のために AetherNetAPI に送信。
 4. 両方のパスは互いに対してファイアアンドフォゲットです。
    API コールが失敗しても、メッシュフラッドは独立して継続されます。
 
@@ -893,7 +893,7 @@ DtnBundle {
 
 1. **作成:** 送信者は暗号化されたペイロードを含むバンドルを作成します（受信者との Signal セッションで暗号化）。`Status = Pending`、`CopyCount = 1`。
 2. **即時配信の試行:** 送信者はまず直接メッシュルーティング（RREQ/RREP）を試みます。ルートが存在する場合、バンドルは即座に配信され、`Status` が `Delivered` に遷移します。
-3. **サーバーリレーの試行:** メッシュルーティングが失敗した場合、送信者は AetherMeshAPI を介したリレーを試みます。サーバーが受信者に到達できる（またはメッセージをキューに入れられる）場合、配信は成功します。
+3. **サーバーリレーの試行:** メッシュルーティングが失敗した場合、送信者は AetherNetAPI を介したリレーを試みます。サーバーが受信者に到達できる（またはメッセージをキューに入れられる）場合、配信は成功します。
 4. **ストアアンドフォワード:** メッシュとサーバーリレーの両方が失敗した場合、バンドルはローカルストレージに残ります（`Pending` ステータス）。次の配信スキャンを待ちます。
 
 ### 9.3. 配信スキャン
@@ -950,7 +950,7 @@ DtnBundle {
    }
    ```
 3. レシートを受信すると、送信者はストアからバンドルを削除して `BundleDelivered` イベントを発火します。
-4. レシートはアナリティクスのために AetherMeshAPI にも同期されます。
+4. レシートはアナリティクスのために AetherNetAPI にも同期されます。
 
 ### 9.7. バンドル有効期限
 
@@ -976,7 +976,7 @@ DtnBundle {
 > `StreamSubscribe`（13）、`StreamUnsubscribe`（14）、`VideoCall`（27）、
 > `VideoSignaling`（28）、`VideoFrame`（31）、`ScreenShare`（32）は
 > ワイヤー定義済みでクロス言語フィクスチャコーパスでのラウンドトリップが確認されています。
-> C# の `AetherMesh.Streaming` モジュールはインターフェース、モデル、スケルトンサービス
+> C# の `AetherNet.Streaming` モジュールはインターフェース、モデル、スケルトンサービス
 > （`StreamingService`、`VideoCallService`、`WatchTogetherService`）を実装しており、
 > ルーティング/DI のシームとユニキャストセグメントファンアウトを接続していますが、
 > 実際のビデオエンコード/デコードは結合されていません。他の 7 言語はワイヤータイプのみです。
@@ -1112,7 +1112,7 @@ SFU モードでは、フレームはリレーノードの UHID に送信され�
 > **2026-05-05 時点のステータス — 設計 + C# スキャフォールディング、§10 と同じ成熟度。**
 > パケットタイプ `WatchSync`（29）、`WatchReaction`（30）、
 > `WatchChunkRequest`（33）、`TorrentMetadata`（34）はワイヤー定義済みで
-> フィクスチャテスト済みです。`AetherMesh.Streaming.WatchTogetherService` は
+> フィクスチャテスト済みです。`AetherNet.Streaming.WatchTogetherService` は
 > コーディネーションスケルトン（セッション状態、`IMeshSender` 経由の同期コマンド伝播、
 > RTT 補償ヘルパー）を提供していますが、BitTorrent インジェスト、
 > ChipIn SDPKT 決済、ピアからのチャンクフェッチはいずれの言語にも実装されていません。
@@ -1257,12 +1257,12 @@ ChipIn により、グループメンバーが資金をプール（ZAR 建て、
 
 | Flag | Parent | Description |
 |------|--------|-------------|
-| AETHERMESH_VIDEO_CALL | AETHERMESH_VOICE | P2P およびグループビデオ通話 |
-| AETHERMESH_VIDEO_GROUP | AETHERMESH_VIDEO_CALL | マルチパーティビデオセッション |
-| AETHERMESH_SCREEN_SHARE | AETHERMESH_VIDEO_CALL | ビデオ通話での画面共有 |
-| AETHERMESH_WATCH_TOGETHER | AETHERMESH_CONTENT_P2P | 同期メディア再生 |
-| AETHERMESH_WATCH_REACTIONS | AETHERMESH_WATCH_TOGETHER | 絵文字および音声リアクション |
-| AETHERMESH_TORRENT_INGEST | AETHERMESH_CONTENT_P2P | メッシュ配信用の BitTorrent ファイル受け入れ |
+| AETHERNET_VIDEO_CALL | AETHERNET_VOICE | P2P およびグループビデオ通話 |
+| AETHERNET_VIDEO_GROUP | AETHERNET_VIDEO_CALL | マルチパーティビデオセッション |
+| AETHERNET_SCREEN_SHARE | AETHERNET_VIDEO_CALL | ビデオ通話での画面共有 |
+| AETHERNET_WATCH_TOGETHER | AETHERNET_CONTENT_P2P | 同期メディア再生 |
+| AETHERNET_WATCH_REACTIONS | AETHERNET_WATCH_TOGETHER | 絵文字および音声リアクション |
+| AETHERNET_TORRENT_INGEST | AETHERNET_CONTENT_P2P | メッシュ配信用の BitTorrent ファイル受け入れ |
 
 機能フラグには親の依存関係があります: 子フラグは親も有効な場合にのみ有効にできます。
 これにより段階的なロールアウトが可能になります。
@@ -1290,7 +1290,7 @@ ChipIn により、グループメンバーが資金をプール（ZAR 建て、
 | BleAdvertiseIntervalMs    | 1000   |
 | BleUuidRotationSeconds    | 900    |
 | BleScanJitterMaxMs        | 2000   |
-| AetherMeshBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
+| AetherNetBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
 
 ### セキュリティ
 | Constant                  | Value  |

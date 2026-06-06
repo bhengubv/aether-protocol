@@ -12,7 +12,7 @@ verification mechanism (Proof-of-Vicinity, "PoV") in place of
 phone-number-based onboarding for SDPKT low-value mobile money
 accounts (≤ R500 daily transaction limit).
 
-The PoV mechanism is built into the AetherMesh open-source mesh
+The PoV mechanism is built into the AetherNet open-source mesh
 networking protocol (https://github.com/bhengubv/aether-protocol) and
 is supported by **mathematical proofs** of its anti-Sybil properties.
 

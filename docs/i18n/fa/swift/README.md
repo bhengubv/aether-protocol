@@ -45,7 +45,7 @@ Aether یک پروتکل شبکه مِش غیرمتمرکز است که برای
 - **InProcessTransport**: انتقال درون‌حافظه برای آزمایش و ارتباط محلی
 
 #### مدل‌ها
-- **AetherMeshNode**: نمایش گره با UHID و کلید هویتی
+- **AetherNetNode**: نمایش گره با UHID و کلید هویتی
 - **PreKeyBundle**: Bundle برای برقراری نشست ناهمزمان
 - **EncryptedPayload**: پوشش پیام رمزنگاری‌شده
 - **DtnBundle**: Bundle شبکه تحمل‌پذیر در برابر تأخیر
@@ -68,7 +68,7 @@ Aether یک پروتکل شبکه مِش غیرمتمرکز است که برای
 .target(
     name: "YourTarget",
     dependencies: [
-        .product(name: "AetherMeshProtocol", package: "aether-protocol-swift")
+        .product(name: "AetherNetProtocol", package: "aether-protocol-swift")
     ]
 )
 ```
@@ -78,7 +78,7 @@ Aether یک پروتکل شبکه مِش غیرمتمرکز است که برای
 ### ۱. سریال‌سازی بسته
 
 ```swift
-import AetherMeshProtocol
+import AetherNetProtocol
 
 // Create a packet
 var packet = MeshPacket(
@@ -276,7 +276,7 @@ Test 5: End-to-End Messaging (Full Stack)
 ## قابلیت همکاری
 
 فرمت سیمی با موارد زیر سازگار است:
-- **AetherMesh.Core** (C#) - پیاده‌سازی مرجع
+- **AetherNet.Core** (C#) - پیاده‌سازی مرجع
 - **aether-protocol-go** - پیاده‌سازی Go
 - **aether-protocol-rust** - پیاده‌سازی Rust
 

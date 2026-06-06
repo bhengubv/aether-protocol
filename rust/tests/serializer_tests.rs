@@ -6,7 +6,7 @@
 
 use uuid::Uuid;
 
-use aethermesh_protocol::protocol::{
+use aethernet_protocol::protocol::{
     serializer::PacketSerializer, MeshPacket, PacketType,
 };
 

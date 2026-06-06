@@ -18,21 +18,21 @@
 
 ```xml
 <ItemGroup>
-  <ProjectReference Include="../aether-protocol/src/AetherMesh.DependencyInjection/AetherMesh.DependencyInjection.csproj" />
-  <ProjectReference Include="../aether-protocol/src/AetherMesh.Storage/AetherMesh.Storage.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
+  <ProjectReference Include="../aether-protocol/src/AetherNet.Storage/AetherNet.Storage.csproj" />
 </ItemGroup>
 ```
 
-`AetherMesh.DependencyInjection` транзитивно включает `AetherMesh.Core`,
-`AetherMesh.Security`, `AetherMesh.Messaging`, `AetherMesh.Transport`, `AetherMesh.Streaming`,
-`AetherMesh.Voice` и `AetherMesh.Content` — всё необходимое для стека обмена сообщениями. `AetherMesh.Storage` — отдельная зависимость только если вам нужна
+`AetherNet.DependencyInjection` транзитивно включает `AetherNet.Core`,
+`AetherNet.Security`, `AetherNet.Messaging`, `AetherNet.Transport`, `AetherNet.Streaming`,
+`AetherNet.Voice` и `AetherNet.Content` — всё необходимое для стека обмена сообщениями. `AetherNet.Storage` — отдельная зависимость только если вам нужна
 персистентность на диске (см. раздел 6).
 
 После публикации пакета на NuGet это примет вид:
 
 ```bash
-dotnet add package AetherMesh.DependencyInjection
-dotnet add package AetherMesh.Storage   # optional, for persistence
+dotnet add package AetherNet.DependencyInjection
+dotnet add package AetherNet.Storage   # optional, for persistence
 ```
 
 API пакетов не изменится между вариантом с project-reference и вариантом с NuGet.
@@ -41,12 +41,12 @@ API пакетов не изменится между вариантом с proj
 
 ## 2. Регистрация — каноническая регистрация полного стека
 
-DI-расширение `AddAetherMeshProtocol(...)` возвращает fluent-строитель. Каждая
+DI-расширение `AddAetherNetProtocol(...)` возвращает fluent-строитель. Каждая
 возможность подключается явно: хост, которому нужна только маршрутизация, цепляет `.AddRouting()`
 и останавливается. Ниже показан полный стек, который обычно нужен разработчику.
 
 ```csharp
-using AetherMesh.DependencyInjection;
+using AetherNet.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -56,7 +56,7 @@ const string LocalUhid = "aether:alice:01";
 
 builder.Services.AddHealthChecks();          // host-side prerequisite for AddHealthChecks() below
 builder.Services
-    .AddAetherMeshProtocol(opts => opts.LocalUhid = LocalUhid)
+    .AddAetherNetProtocol(opts => opts.LocalUhid = LocalUhid)
     .AddSignalProtocol()                     // X3DH + Double Ratchet (registers ISignalProtocolService, IPacketSigningService)
     .AddRouting()                            // AODV-style RREQ/RREP + InMemoryRouteStore
     .AddDtn()                                // 72h store-and-forward custody + InMemoryDtnBundleStore
@@ -69,13 +69,13 @@ using var app = builder.Build();
 await app.StartAsync();
 ```
 
-`AddAetherMeshProtocol` и каждый цепочечный метод идемпотентны на одном
+`AddAetherNetProtocol` и каждый цепочечный метод идемпотентны на одном
 `IServiceCollection` — двойной вызов не приводит к двойной регистрации. Порядок
 важен в одном месте: `AddMessaging()` выбрасывает `InvalidOperationException`, если
 ни `AddSignalProtocol()`, ни `AddRouting()` не были вызваны ранее.
 
 `InProcessTransport` предназначен для тестов и демонстраций. В продакшне вы реализуете
-`AetherMesh.Transport.Abstractions.ITransportService` для вашего физического уровня (BLE
+`AetherNet.Transport.Abstractions.ITransportService` для вашего физического уровня (BLE
 GATT, Wi-Fi Direct, NearLink, LoRa, …) и регистрируете `IMeshSender`, который
 передаёт пакеты на него. Сервисы Routing/DTN/Messaging затем работают неизменно
 поверх.
@@ -89,7 +89,7 @@ X3DH асимметричен. **Инициатор** обрабатывает �
 зашифрованного сообщения инициатора (сообщение «PreKey»).
 
 ```csharp
-using AetherMesh.Security.Services;
+using AetherNet.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -133,8 +133,8 @@ Console.WriteLine(Encoding.UTF8.GetString(plaintext)); // "The mesh is alive."
 обрабатывать маршрутизацию, повторные попытки и DTN-запасной вариант:
 
 ```csharp
-using AetherMesh.Messaging;
-using AetherMesh.Messaging.Models;
+using AetherNet.Messaging;
+using AetherNet.Messaging.Models;
 
 var messaging = serviceProvider.GetRequiredService<IMessagingService>();
 
@@ -160,13 +160,13 @@ var handed = await messaging.SendAsync(outgoing, Encoding.UTF8.GetBytes("hi from
 ## 5. Круговой обход двух узлов в 50 строках
 
 Это запускаемый скрипт. Скопируйте в `Program.cs`, добавьте `<ProjectReference>`
-к `AetherMesh.Security.csproj` (который включает `AetherMesh.Core` и BCL-криптографию),
+к `AetherNet.Security.csproj` (который включает `AetherNet.Core` и BCL-криптографию),
 и выполните `dotnet run`.
 
 ```csharp
 using System.Text;
-using AetherMesh.Security.Models;
-using AetherMesh.Security.Services;
+using AetherNet.Security.Models;
+using AetherNet.Security.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 var alice = new SignalProtocolService(NullLogger<SignalProtocolService>.Instance);
@@ -211,7 +211,7 @@ Alice got: "ack"
 через Charlie, MessagingService и DTN-запасной вариант с передачей хранения — запустите встроенную консоль:
 
 ```bash
-dotnet run --project samples/AetherMesh.Demo.Console
+dotnet run --project samples/AetherNet.Demo.Console
 ```
 
 Шаг DTN-хранения (шаг 9 демонстрации) — канонический паттерн продакшн-подключения:
@@ -228,13 +228,13 @@ dotnet run --project samples/AetherMesh.Demo.Console
 давать сбои для новых инициаторов), потерю состояния Double Ratchet (прямая секретность
 сохраняется, но нарушается порядок сообщений).
 
-`AetherMesh.Storage.FileSystemKeyValueStore` — минимальное дисковое
+`AetherNet.Storage.FileSystemKeyValueStore` — минимальное дисковое
 `IKeyValueStore` (один файл на запись, атомарное переименование через временный файл). Подключите его
 через адаптеры `KeyValue*Store`:
 
 ```csharp
-using AetherMesh.Storage;
-using AetherMesh.Security.Services;
+using AetherNet.Storage;
+using AetherNet.Security.Services;
 
 var kv = new FileSystemKeyValueStore(
     rootDirectory: Path.Combine(AppContext.BaseDirectory, "aether-state"),
@@ -259,7 +259,7 @@ var preKeys = new KeyValuePreKeyStore(kv);
 `.AddRouting()` / `.AddDtn()` / `.AddMessaging()` — строитель использует
 `TryAdd*` и уважает всё, что вы поместили в контейнер первым. Адаптеры
 `KeyValueRouteStore`, `KeyValueDtnBundleStore` и `KeyValueMessageStore`
-в `AetherMesh.Storage` покрывают эти слоты для любого `IKeyValueStore`.
+в `AetherNet.Storage` покрывают эти слоты для любого `IKeyValueStore`.
 
 ---
 
@@ -274,33 +274,33 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 builder.Services.AddOpenTelemetry()
-    .WithMetrics(m => m.AddMeter("AetherMesh.Protocol"))
-    .WithTracing(t => t.AddSource("AetherMesh.Protocol"));
+    .WithMetrics(m => m.AddMeter("AetherNet.Protocol"))
+    .WithTracing(t => t.AddSource("AetherNet.Protocol"));
 ```
 
 Что вы получите:
 
-- **Счётчики**: `aethermesh.messages.encrypted`, `aethermesh.messages.decrypted`,
-  `aethermesh.signatures.validated`, `aethermesh.signatures.rejected`,
-  `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`,
-  `aethermesh.sessions.established`, `aethermesh.ratchet.dh_steps`,
-  `aethermesh.route.requests_emitted`, `aethermesh.route.replies_received`,
-  `aethermesh.route.cache_hits`, `aethermesh.dtn.bundles_accepted`,
-  `aethermesh.dtn.bundles_delivered`, `aethermesh.dtn.bundles_expired`,
-  `aethermesh.sos.broadcasts`, `aethermesh.sos.rebroadcasts_suppressed`,
-  `aethermesh.messaging.messages_sent`, `aethermesh.messaging.messages_queued`,
-  `aethermesh.messaging.dtn_fallback`.
-- **Гистограммы** (мс): `aethermesh.encrypt.latency`, `aethermesh.decrypt.latency`,
-  `aethermesh.route.lookup_latency`, `aethermesh.sign.verify_latency`.
+- **Счётчики**: `aethernet.messages.encrypted`, `aethernet.messages.decrypted`,
+  `aethernet.signatures.validated`, `aethernet.signatures.rejected`,
+  `aethernet.nonces.replayed`, `aethernet.timestamps.stale`,
+  `aethernet.sessions.established`, `aethernet.ratchet.dh_steps`,
+  `aethernet.route.requests_emitted`, `aethernet.route.replies_received`,
+  `aethernet.route.cache_hits`, `aethernet.dtn.bundles_accepted`,
+  `aethernet.dtn.bundles_delivered`, `aethernet.dtn.bundles_expired`,
+  `aethernet.sos.broadcasts`, `aethernet.sos.rebroadcasts_suppressed`,
+  `aethernet.messaging.messages_sent`, `aethernet.messaging.messages_queued`,
+  `aethernet.messaging.dtn_fallback`.
+- **Гистограммы** (мс): `aethernet.encrypt.latency`, `aethernet.decrypt.latency`,
+  `aethernet.route.lookup_latency`, `aethernet.sign.verify_latency`.
 - **Активности** с тегами UHID, очищенными от PII:
-  `AetherMesh.Encrypt`, `AetherMesh.Decrypt`, `AetherMesh.DhRatchet.Step`,
-  `AetherMesh.Sign.Packet`, `AetherMesh.Verify.Packet`, плюс спаны маршрутизации и DTN.
+  `AetherNet.Encrypt`, `AetherNet.Decrypt`, `AetherNet.DhRatchet.Step`,
+  `AetherNet.Sign.Packet`, `AetherNet.Verify.Packet`, плюс спаны маршрутизации и DTN.
 
 Когда слушатель не подключён, горячие пути не выделяют память — `counter.Add`
 деградирует до чтения volatile-переменной, а `StartActivity` возвращает `null`.
 
 Полный инвентарь инструментов и контракт PII находятся в
-`src/AetherMesh.Core/Diagnostics/AetherMeshTelemetry.cs`.
+`src/AetherNet.Core/Diagnostics/AetherNetTelemetry.cs`.
 
 ---
 
@@ -317,7 +317,7 @@ builder.Services.AddOpenTelemetry()
 | `aether-signal`             | доступные OPK + количество активных сеансов                | порог OPK → unhealthy ниже `MinAvailableOpks` (умолч. 10); потолок сеансов → degraded выше 1 000 |
 | `aether-messaging-outbox`   | глубина очереди + рост между измерениями                   | < 100 → ≥ 100 → ≥ 100 И растёт |
 
-Настройка через пакеты `AetherMeshOptions.Routing`, `Dtn`, `Signal` и `Messaging`. Хост должен
+Настройка через пакеты `AetherNetOptions.Routing`, `Dtn`, `Signal` и `Messaging`. Хост должен
 вызвать `services.AddHealthChecks()` перед `.AddHealthChecks()` строителя Aether для видимости
 регистраций в `MapHealthChecks(...)`.
 
@@ -332,7 +332,7 @@ builder.Services.AddOpenTelemetry()
 - **`OPEN_ISSUES.md`** — известные ограничения, отслеживаемые элементы дорожной карты и
   разрыв в механизме сеансов языка C.
 - **`SECURITY.md`** — политика ответственного раскрытия.
-- **`samples/AetherMesh.Demo.Console/Program.cs`** — запускаемое сквозное руководство из 9 шагов.
+- **`samples/AetherNet.Demo.Console/Program.cs`** — запускаемое сквозное руководство из 9 шагов.
   Шаг 9 (MessagingService + DTN) — паттерн продакшн-подключения.
 - **`fixtures/signal/`** — кросс-языковые тестовые векторы. Если вы портируете
   Aether на другой язык, это побайтово закреплённые результаты, которые ваша

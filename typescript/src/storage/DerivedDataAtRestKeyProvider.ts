@@ -21,7 +21,7 @@
  * decryption.
  *
  * Mirrors the C# {@code DerivedDataAtRestKeyProvider} in
- * src/AetherMesh.Storage/DerivedDataAtRestKeyProvider.cs (which uses PBKDF2
+ * src/AetherNet.Storage/DerivedDataAtRestKeyProvider.cs (which uses PBKDF2
  * 600k — chosen because the .NET BCL ships PBKDF2 but not scrypt).
  * TypeScript uses scrypt because Node's BCL ships scrypt but only ships
  * PBKDF2 via the much-slower software path; both reach the OWASP

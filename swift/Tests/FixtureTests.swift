@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import Foundation
 import XCTest
-@testable import AetherMeshProtocol
+@testable import AetherNetProtocol
 
 /// Cross-language wire-format fixture verifier. Reads
 /// `../../fixtures/inputs.json` and `../../fixtures/expected/<name>.bin` and

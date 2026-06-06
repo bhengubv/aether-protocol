@@ -4,7 +4,7 @@
 
 This directory holds the regulatory submission for South African
 Reserve Bank (SARB) Exempt 17 / Directive 1 of 2017 (simplified due
-diligence for low-value mobile-money accounts), citing the AetherMesh
+diligence for low-value mobile-money accounts), citing the AetherNet
 PoV anti-Sybil formal proof as the eKYC pathway.
 
 ## What SARB Exempt 17 Permits
@@ -16,7 +16,7 @@ Under SARB Exempt 17 / Directive 1 of 2017:
 - Alternative identity-verification mechanisms acceptable **if they
   meet equivalent anti-fraud guarantees**
 
-## What AetherMesh / SDPKT Proposes
+## What AetherNet / SDPKT Proposes
 
 Replace phone-number onboarding with **Proof-of-Vicinity** (PoV):
 - New users vouched for by ≥ N existing users (production N = 10)

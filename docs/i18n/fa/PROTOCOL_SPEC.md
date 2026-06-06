@@ -10,10 +10,10 @@
 > **یادداشت برای خواننده.** پیش‌نویس‌های قدیمی‌تر این سند پیش از هم‌ترازی فرمت سیم ۸ زبانه و انتقال سراسری به X25519 + Signal Double Ratchet نوشته شده‌اند. از تاریخ 2026-05-05، بخش‌های §2 (فرمت بسته)، §3 (مسیریابی)، §4 (تبادل کلید)، §9 (DTN) پروتکل پیاده‌سازی‌شده را توصیف می‌کنند؛ §10 (پخش ویدیو) و §11 (تماشای مشترک) پروتکل هدف را توصیف می‌کنند — این بخش‌ها در سطح سیم تعریف شده و آزمون‌های fixture دارند، اما خط‌لوله‌های کدک / BitTorrent / ChipIn هنوز به داربست متصل نشده‌اند. پیاده‌سازی مرجع C# در هر جایی که این سند با پیاده‌سازی تفاوت دارد، معتبر است.
 >
 > - بایت‌های سیم متعارف: `fixtures/expected/*.bin` (۱۰ حالت نام‌گذاری‌شده)
-> - سریالایزر مرجع: `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
-> - پشته‌ی Signal مرجع: `src/AetherMesh.Security/Services/SignalProtocolService.cs`
-> - مسیریابی مرجع: `src/AetherMesh.Core/Routing/RoutingService.cs`
-> - DTN مرجع: `src/AetherMesh.Core/Dtn/DtnService.cs`
+> - سریالایزر مرجع: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
+> - پشته‌ی Signal مرجع: `src/AetherNet.Security/Services/SignalProtocolService.cs`
+> - مسیریابی مرجع: `src/AetherNet.Core/Routing/RoutingService.cs`
+> - DTN مرجع: `src/AetherNet.Core/Dtn/DtnService.cs`
 > - اثبات قابلیت همکاری سیم چندزبانه: `fixtures/README.md`
 > - اثبات قابلیت همکاری Signal چندزبانه: `fixtures/signal/README.md`
 
@@ -43,7 +43,7 @@ Aether یک پروتکل شبکه‌ی مِش غیرمتمرکز است که ب�
 
 ## 2. فرمت بسته
 
-> تطبیق‌یافته در 2026-05-05 با `src/AetherMesh.Core/Protocol/PacketSerializer.cs`
+> تطبیق‌یافته در 2026-05-05 با `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > و ۱۰ حالت fixture زیر `fixtures/expected/`.
 
 ### 2.1. چیدمان سیم MeshPacket
@@ -139,7 +139,7 @@ PacketNonce (8 bytes)
 
 > توجه به تفاوت عمدی با چیدمان سیم در §2.1: داده‌ی قابل امضا از **int32 چهاربایتی** برای `Type`، `Length`، `Ttl`، و `Priority` استفاده می‌کند، در حالی که سیم به ترتیب از ۱ بایت / ۲ بایت / ۴ بایت / ۱ بایت استفاده می‌کند. این عمدی است — فرم قابل امضا در میان زبان‌ها قابل حمل است و از فیلدهای عرض ثابت استفاده می‌کند؛ فرم سیم برای صرفه‌جویی در PDU بلوتوث کم‌انرژی فشرده است. پیاده‌سازی‌ها باید `Priority` را قبل از رمزگذاری در بایت‌های قابل امضا به `[0,255]` کلامپ کنند، در غیر این صورت گیرنده (که بایت سیم ۰..۲۵۵ را می‌بیند) یک بافر قابل امضای متفاوت استخراج می‌کند و تأیید شکست می‌خورد.
 
-پیاده‌سازی مرجع در `src/AetherMesh.Security/Services/PacketSigningService.cs::BuildSignableData` قرار دارد و برای انتقال به زبان‌های دیگر خواندنی ضروری است.
+پیاده‌سازی مرجع در `src/AetherNet.Security/Services/PacketSigningService.cs::BuildSignableData` قرار دارد و برای انتقال به زبان‌های دیگر خواندنی ضروری است.
 
 ### 2.5. انواع بسته
 
@@ -271,7 +271,7 @@ Aether از یک پروتکل مسیریابی واکنشی بر اساس مسی
 ## 4. تبادل کلید
 
 > تطبیق‌یافته در 2026-05-05 با پیاده‌سازی مرجع C# در
-> `src/AetherMesh.Security/Services/SignalProtocolService.cs` و
+> `src/AetherNet.Security/Services/SignalProtocolService.cs` و
 > مجموعه‌ی fixture چندزبانه زیر `fixtures/signal/`. مرجع C#
 > X3DH کامل + Double Ratchet (Signal §3 + §5) روی X25519 ارسال می‌کند. Go،
 > Python، TypeScript، Rust، Swift، و Kotlin به همان پوشه پورت شده‌اند و در
@@ -316,12 +316,12 @@ PreKeyBundle {
 }
 ```
 
-مرجع: `AetherMesh.Security.Models.PreKeyBundle`. قرارداد شکل سیم در هر ۸ زبان یکسان است.
+مرجع: `AetherNet.Security.Models.PreKeyBundle`. قرارداد شکل سیم در هر ۸ زبان یکسان است.
 
 **استخر کلید پیشین یکبار مصرف (OPK).** هر پاسخ‌دهنده یک استخر از `OpkPoolSize` (پیش‌فرض ۱۰۰، آینه‌ی راهنمایی منتشرشده‌ی Signal) کلید X25519 OPK نگه می‌دارد. تولید بسته، شناسه‌ی بعدی استفاده‌نشده را از یک صف FIFO بیرون می‌کشد، سپس استخر را به اندازه‌ی هدفش پر می‌کند. هر OPK دقیقاً یک بار مصرف می‌شود: پاسخ‌دهنده نیمه‌ی خصوصی را در اولین پیام PreKey که به شناسه‌اش اشاره دارد حذف و صفر می‌کند. آغازگرهای هم‌زمانی که برای همان شناسه‌ی OPK رقابت می‌کنند، دقیقاً یک `EstablishResponderSession` موفق را زیر `_preKeyLock` می‌بینند؛ بازنده `CryptographicException` بالا می‌اندازد.
 
 مرجع: `SignalProtocolService.TopUpOpkPoolNoLock` (خطوط 494–518)،
-`SignalProtocolService.EstablishResponderSession` (خطوط 636–718). معناشناسی استخر توسط `tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs` آزمایش می‌شود.
+`SignalProtocolService.EstablishResponderSession` (خطوط 636–718). معناشناسی استخر توسط `tests/AetherNet.Core.Tests/PreKeyPoolTests.cs` آزمایش می‌شود.
 
 **چرخش کلید پیشین امضاشده (SPK).** SPK به صورت تنبل در اولین فراخوانی بسته تولید می‌شود و در فراخوانی‌های بعدی مجدداً استفاده می‌شود تا آغازگرهای هم‌زمانی که بسته‌ها را قبل از اجرای X3DH می‌گیرند بسته‌های یکدیگر را باطل نکنند. چرخش دوره‌ای SPK (Signal §3.3 چرخش هفتگی توصیه می‌کند) یک عملیات صریح است، نه اثر جانبی تولید بسته.
 
@@ -456,7 +456,7 @@ EncryptedPayload {
 }
 ```
 
-مرجع: `AetherMesh.Security.Models.EncryptedPayload` (خطوط 55–66 از `SecurityModels.cs`). فیلد `InitiatorEphemeralKeyX25519` یک نام‌مستعار سازگار با نسخه‌های قبلی برای پوشه‌ی سیم پیش از Double-Ratchet است و برابر `SenderEphemeralKeyX25519` در پیام‌های PreKey است؛ مصرف‌کنندگان جدید باید آن را نادیده بگیرند.
+مرجع: `AetherNet.Security.Models.EncryptedPayload` (خطوط 55–66 از `SecurityModels.cs`). فیلد `InitiatorEphemeralKeyX25519` یک نام‌مستعار سازگار با نسخه‌های قبلی برای پوشه‌ی سیم پیش از Double-Ratchet است و برابر `SenderEphemeralKeyX25519` در پیام‌های PreKey است؛ مصرف‌کنندگان جدید باید آن را نادیده بگیرند.
 
 پارامترهای AES-GCM: کلید ۲۵۶ بیتی، nonce 96 بیتی (`AesNonceSize = 12`)، برچسب ۱۲۸ بیتی (`AesTagSize = 16`)، برچسب الحاق‌شده به ciphertext. کلیدهای پیام در بلوک‌های `finally` بلافاصله پس از رمزگذاری/رمزگشایی AES-GCM صفر می‌شوند.
 
@@ -471,7 +471,7 @@ EncryptedPayload {
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethermesh_x25519_*`, `aethermesh_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
 
 همه‌ی ۷ زبان قادر به session (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) استخر FIFO صد کلیدی OPK با پرکردن تنبل و مصرف محافظت‌شده با قفل ارسال می‌کنند، که با قرارداد مرجع C# مطابقت دارد. C فقط اولیه‌ها را ارسال می‌کند؛ ماشینری کامل session در `OPEN_ISSUES.md` آیتم ۱۱ ردیابی می‌شود.
 
@@ -518,7 +518,7 @@ Aether مستقل از انتقال است. هر کانال ارتباطی فی�
 2. **اندازه‌ی payload:** اگر اندازه‌ی payload در `BleMaxPayloadBytes` (1٬024 بایت) یا کمتر باشد، BLE برای بهره‌وری برق ترجیح داده می‌شود. payload‌های بزرگ‌تر Wi-Fi Direct را ترجیح می‌دهند.
 3. **وزن‌دهی هزینه‌ی برق:** در میان انتقال‌های در دسترس، مقادیر پایین‌تر `PowerCostRelative` برای ترافیک معمولی ترجیح داده می‌شوند. بسته‌های اولویت بالا (SOS، صدا) ممکن است این ترجیح را نادیده بگیرند.
 4. **اتصال‌پذیری همتا:** اگر یک انتقال از قبل اتصال فعالی به همتای هدف دارد (`IsConnected` برمی‌گرداند true)، برای جلوگیری از سربار راه‌اندازی اتصال ترجیح داده می‌شود.
-5. **Fallback:** اگر هیچ انتقال محلی نتواند به هدف برسد، بسته برای رله‌ی سرور از طریق AetherMeshAPI در صف قرار می‌گیرد.
+5. **Fallback:** اگر هیچ انتقال محلی نتواند به هدف برسد، بسته برای رله‌ی سرور از طریق AetherNetAPI در صف قرار می‌گیرد.
 
 ### 5.3. انتقال‌های مرجع
 
@@ -693,7 +693,7 @@ Aether قابلیت‌های زیر را برای دشمن فرض می‌کند:
    ```
 3. **ارسال دو مسیره:** SOS به طور هم‌زمان از طریق موارد زیر ارسال می‌شود:
    - **سیل مِش:** پخش عمومی به تمام همتایان متصل از طریق تمام انتقال‌های در دسترس.
-   - **فراخوانی API:** برای توزیع سمت سرور و پل به PanikAPI (ارسال SMS/ایمیل) به AetherMeshAPI ارسال می‌شود.
+   - **فراخوانی API:** برای توزیع سمت سرور و پل به PanikAPI (ارسال SMS/ایمیل) به AetherNetAPI ارسال می‌شود.
 4. هر دو مسیر نسبت به یکدیگر fire-and-forget هستند. اگر فراخوانی API شکست بخورد، سیل مِش به طور مستقل ادامه می‌یابد.
 
 ### 8.3. رفتار رله
@@ -749,7 +749,7 @@ DtnBundle {
 
 1. **ایجاد:** فرستنده یک بسته با payload رمزگذاری‌شده (رمزگذاری‌شده از طریق session Signal با گیرنده) ایجاد می‌کند. `Status = Pending`، `CopyCount = 1`.
 2. **تلاش تحویل فوری:** فرستنده ابتدا مسیریابی مِش مستقیم (RREQ/RREP) را امتحان می‌کند. اگر مسیری وجود داشته باشد، بسته بلافاصله تحویل داده می‌شود و `Status` به `Delivered` انتقال می‌یابد.
-3. **تلاش رله‌ی سرور:** اگر مسیریابی مِش شکست بخورد، فرستنده تلاش می‌کند از طریق AetherMeshAPI رله کند. اگر سرور بتواند به گیرنده برسد (یا پیام را در صف قرار دهد)، تحویل موفق می‌شود.
+3. **تلاش رله‌ی سرور:** اگر مسیریابی مِش شکست بخورد، فرستنده تلاش می‌کند از طریق AetherNetAPI رله کند. اگر سرور بتواند به گیرنده برسد (یا پیام را در صف قرار دهد)، تحویل موفق می‌شود.
 4. **ذخیره و ارسال:** اگر هر دوی مِش و رله‌ی سرور شکست بخورند، بسته در ذخیره‌سازی محلی (`Pending` status) منتظر اسکن تحویل بعدی می‌ماند.
 
 ### 9.3. اسکن تحویل
@@ -802,7 +802,7 @@ DtnBundle {
    }
    ```
 3. پس از دریافت رسید، فرستنده بسته را از فروشگاهش حذف می‌کند و رویداد `BundleDelivered` را فعال می‌کند.
-4. رسید همچنین برای آنالیتیکس با AetherMeshAPI همگام می‌شود.
+4. رسید همچنین برای آنالیتیکس با AetherNetAPI همگام می‌شود.
 
 ### 9.7. انقضای بسته‌ی DTN
 
@@ -823,7 +823,7 @@ DtnBundle {
 
 ## 10. پخش ویدیو
 
-> **وضعیت در 2026-05-05 — طراحی + داربست C#، هیچ خط‌لوله‌ی کدک ارسال‌شده‌ای ندارد.** انواع بسته `StreamAnnounce` (11)، `StreamSegment` (12)، `StreamSubscribe` (13)، `StreamUnsubscribe` (14)، `VideoCall` (27)، `VideoSignaling` (28)، `VideoFrame` (31)، `ScreenShare` (32) در سطح سیم تعریف شده و از طریق مجموعه‌ی fixture چندزبانه رفت‌وبرگشت می‌کنند. ماژول C# `AetherMesh.Streaming` اینترفیس‌ها، مدل‌ها، و سرویس‌های اسکلتی (`StreamingService`، `VideoCallService`، `WatchTogetherService`) ارسال می‌کند که درزهای مسیریابی/DI و fan-out بخش unicast را سیم‌کشی می‌کنند — اما هیچ رمزگذاری/رمزگشایی ویدیوی واقعی به آن‌ها متصل نشده است. ۷ زبان دیگر فقط انواع سیم دارند. سند طراحی رو به جلو در `docs/adaptive-secure-streaming-spec.md` معماری هدف است. نثر زیر را به عنوان مشخصات آنچه آن سرویس‌ها پیاده‌سازی خواهند کرد در نظر بگیرید؛ برای شکاف‌های آمادگی تولید به `OPEN_ISSUES.md` مراجعه کنید.
+> **وضعیت در 2026-05-05 — طراحی + داربست C#، هیچ خط‌لوله‌ی کدک ارسال‌شده‌ای ندارد.** انواع بسته `StreamAnnounce` (11)، `StreamSegment` (12)، `StreamSubscribe` (13)، `StreamUnsubscribe` (14)، `VideoCall` (27)، `VideoSignaling` (28)، `VideoFrame` (31)، `ScreenShare` (32) در سطح سیم تعریف شده و از طریق مجموعه‌ی fixture چندزبانه رفت‌وبرگشت می‌کنند. ماژول C# `AetherNet.Streaming` اینترفیس‌ها، مدل‌ها، و سرویس‌های اسکلتی (`StreamingService`، `VideoCallService`، `WatchTogetherService`) ارسال می‌کند که درزهای مسیریابی/DI و fan-out بخش unicast را سیم‌کشی می‌کنند — اما هیچ رمزگذاری/رمزگشایی ویدیوی واقعی به آن‌ها متصل نشده است. ۷ زبان دیگر فقط انواع سیم دارند. سند طراحی رو به جلو در `docs/adaptive-secure-streaming-spec.md` معماری هدف است. نثر زیر را به عنوان مشخصات آنچه آن سرویس‌ها پیاده‌سازی خواهند کرد در نظر بگیرید؛ برای شکاف‌های آمادگی تولید به `OPEN_ISSUES.md` مراجعه کنید.
 
 Aether از سه حالت ویدیو پشتیبانی می‌کند: تماس ویدیوی نقطه‌به‌نقطه، ویدیوی گروهی (شرکت‌کنندگان نامحدود با توپولوژی پویا)، و پخش زنده. تمام قاب‌های ویدیو با پروتکل Signal رمزگذاری شده و با Ed25519 امضا می‌شوند.
 
@@ -926,7 +926,7 @@ session‌های ویدیوی گروهی از شرکت‌کنندگان نامح
 
 ## 11. تماشای مشترک
 
-> **وضعیت در 2026-05-05 — طراحی + داربست C#، همان بلوغ §10.** انواع بسته `WatchSync` (29)، `WatchReaction` (30)، `WatchChunkRequest` (33)، `TorrentMetadata` (34) در سطح سیم تعریف شده و آزمون fixture دارند. `AetherMesh.Streaming.WatchTogetherService` اسکلت هماهنگی (وضعیت session، انتشار دستور همگام‌سازی از طریق `IMeshSender`، کمک‌های جبران RTT) را فراهم می‌کند؛ بلع BitTorrent، تسویه‌ی SDPKT ChipIn، و واکشی قطعه از همتایان در هیچ زبانی پیاده‌سازی نشده است. نثر زیر را به عنوان پروتکل هدف در نظر بگیرید؛ سند طراحی رو به جلو در `docs/adaptive-secure-streaming-spec.md` همین موضوع را با جزئیات بیشتری پوشش می‌دهد.
+> **وضعیت در 2026-05-05 — طراحی + داربست C#، همان بلوغ §10.** انواع بسته `WatchSync` (29)، `WatchReaction` (30)، `WatchChunkRequest` (33)، `TorrentMetadata` (34) در سطح سیم تعریف شده و آزمون fixture دارند. `AetherNet.Streaming.WatchTogetherService` اسکلت هماهنگی (وضعیت session، انتشار دستور همگام‌سازی از طریق `IMeshSender`، کمک‌های جبران RTT) را فراهم می‌کند؛ بلع BitTorrent، تسویه‌ی SDPKT ChipIn، و واکشی قطعه از همتایان در هیچ زبانی پیاده‌سازی نشده است. نثر زیر را به عنوان پروتکل هدف در نظر بگیرید؛ سند طراحی رو به جلو در `docs/adaptive-secure-streaming-spec.md` همین موضوع را با جزئیات بیشتری پوشش می‌دهد.
 
 تماشای مشترک پخش رسانه‌ای همگام‌شده را در یک گروه از همتایان مِش ممکن می‌کند. میزبان کنترل انحصاری بر پخش (play، pause، seek، speed) دارد. دستورات همگام‌سازی شامل مُهرهای زمانی ساعت دیواری برای جبران RTT هستند.
 
@@ -1050,12 +1050,12 @@ ChipIn اعضای گروه را قادر می‌سازد وجوه (به ریال
 
 | Flag | Parent | Description |
 |------|--------|-------------|
-| AETHERMESH_VIDEO_CALL | AETHERMESH_VOICE | تماس ویدیوی P2P و گروهی |
-| AETHERMESH_VIDEO_GROUP | AETHERMESH_VIDEO_CALL | session‌های ویدیوی چندطرفه |
-| AETHERMESH_SCREEN_SHARE | AETHERMESH_VIDEO_CALL | اشتراک صفحه در تماس‌های ویدیو |
-| AETHERMESH_WATCH_TOGETHER | AETHERMESH_CONTENT_P2P | پخش رسانه‌ای همگام‌شده |
-| AETHERMESH_WATCH_REACTIONS | AETHERMESH_WATCH_TOGETHER | واکنش‌های ایموجی و صوتی |
-| AETHERMESH_TORRENT_INGEST | AETHERMESH_CONTENT_P2P | پذیرش فایل BitTorrent برای توزیع مِش |
+| AETHERNET_VIDEO_CALL | AETHERNET_VOICE | تماس ویدیوی P2P و گروهی |
+| AETHERNET_VIDEO_GROUP | AETHERNET_VIDEO_CALL | session‌های ویدیوی چندطرفه |
+| AETHERNET_SCREEN_SHARE | AETHERNET_VIDEO_CALL | اشتراک صفحه در تماس‌های ویدیو |
+| AETHERNET_WATCH_TOGETHER | AETHERNET_CONTENT_P2P | پخش رسانه‌ای همگام‌شده |
+| AETHERNET_WATCH_REACTIONS | AETHERNET_WATCH_TOGETHER | واکنش‌های ایموجی و صوتی |
+| AETHERNET_TORRENT_INGEST | AETHERNET_CONTENT_P2P | پذیرش فایل BitTorrent برای توزیع مِش |
 
 پرچم‌های قابلیت وابستگی‌های والد دارند: یک پرچم فرزند فقط می‌تواند فعال شود اگر والدش هم فعال باشد. این عرضه‌ی تدریجی را ممکن می‌کند.
 
@@ -1082,7 +1082,7 @@ ChipIn اعضای گروه را قادر می‌سازد وجوه (به ریال
 | BleAdvertiseIntervalMs    | 1000   |
 | BleUuidRotationSeconds    | 900    |
 | BleScanJitterMaxMs        | 2000   |
-| AetherMeshBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
+| AetherNetBleServiceUuid      | A3E7-1001-0001-0000-000000000000 |
 
 ### امنیت
 | Constant                  | Value  |

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  AetherMesh DTN Custody Transfer — Petri Net Model
+  AetherNet DTN Custody Transfer — Petri Net Model
   ===================================================
   ISO/IEC 15909-2 Petri Net Markup Language (PNML) — P/T Net type.
 
-  Models the one-relay custody transfer scenario from IAetherMeshDtnService:
+  Models the one-relay custody transfer scenario from IAetherNetDtnService:
     Source ─[transfer]─► Relay ─[deliver]─► Destination
 
   With relay failure and self-healing:
@@ -28,7 +28,7 @@
   <net id="dtn-custody"
        type="http://www.pnml.org/version-2009/grammar/ptnet">
 
-    <name><text>AetherMesh DTN Custody Transfer</text></name>
+    <name><text>AetherNet DTN Custody Transfer</text></name>
 
     <page id="page-main">
 
@@ -44,10 +44,10 @@
         <name><text>Source</text></name>
         <graphics><position x="100" y="200"/></graphics>
         <initialMarking><text>1</text></initialMarking>
-        <toolspecific tool="aethermesh-formal" version="1.0">
+        <toolspecific tool="aethernet-formal" version="1.0">
           <comment>
             Source has custody. Corresponds to the node that called
-            IAetherMeshDtnService.CreateBundleAsync(). The token represents
+            IAetherNetDtnService.CreateBundleAsync(). The token represents
             one bundle awaiting delivery.
           </comment>
         </toolspecific>
@@ -61,9 +61,9 @@
         <name><text>Relay</text></name>
         <graphics><position x="400" y="200"/></graphics>
         <initialMarking><text>0</text></initialMarking>
-        <toolspecific tool="aethermesh-formal" version="1.0">
+        <toolspecific tool="aethernet-formal" version="1.0">
           <comment>
-            Relay node has accepted custody via IAetherMeshDtnService.HandleAsync()
+            Relay node has accepted custody via IAetherNetDtnService.HandleAsync()
             and stores the bundle in IBundleStore pending forwarding.
           </comment>
         </toolspecific>
@@ -77,10 +77,10 @@
         <name><text>Delivered</text></name>
         <graphics><position x="700" y="100"/></graphics>
         <initialMarking><text>0</text></initialMarking>
-        <toolspecific tool="aethermesh-formal" version="1.0">
+        <toolspecific tool="aethernet-formal" version="1.0">
           <comment>
             Terminal: bundle successfully delivered. Corresponds to
-            IAetherMeshDtnService.BundleDelivered event firing on the
+            IAetherNetDtnService.BundleDelivered event firing on the
             destination node.
           </comment>
         </toolspecific>
@@ -94,9 +94,9 @@
         <name><text>Expired</text></name>
         <graphics><position x="700" y="300"/></graphics>
         <initialMarking><text>0</text></initialMarking>
-        <toolspecific tool="aethermesh-formal" version="1.0">
+        <toolspecific tool="aethernet-formal" version="1.0">
           <comment>
-            Terminal: TTL elapsed. Corresponds to IAetherMeshDtnService.ExpireStaleAsync()
+            Terminal: TTL elapsed. Corresponds to IAetherNetDtnService.ExpireStaleAsync()
             removing the bundle from IBundleStore.
           </comment>
         </toolspecific>
@@ -112,7 +112,7 @@
         <name><text>RelayUp</text></name>
         <graphics><position x="400" y="50"/></graphics>
         <initialMarking><text>1</text></initialMarking>
-        <toolspecific tool="aethermesh-formal" version="1.0">
+        <toolspecific tool="aethernet-formal" version="1.0">
           <comment>
             Relay operational state token. Guards T_Transfer and T_RelayFail.
             Invariant with P_RelayDown: exactly one token across both places.
@@ -128,7 +128,7 @@
         <name><text>RelayDown</text></name>
         <graphics><position x="400" y="350"/></graphics>
         <initialMarking><text>0</text></initialMarking>
-        <toolspecific tool="aethermesh-formal" version="1.0">
+        <toolspecific tool="aethernet-formal" version="1.0">
           <comment>
             Relay failed state token. Enabled by T_RelayFail; consumed by T_Recover.
           </comment>
@@ -144,7 +144,7 @@
         Guards: P_Source ≥ 1 AND P_RelayUp ≥ 1.
         Consuming P_RelayUp and re-producing it makes this a test arc
         (relay must be up; its state does not change).
-        AetherMesh: Source calls IAetherMeshDtnService with relay's UHID;
+        AetherNet: Source calls IAetherNetDtnService with relay's UHID;
         relay calls HandleAsync() → AcceptCustody → adds to IBundleStore.
       -->
       <transition id="T_Transfer">
@@ -155,7 +155,7 @@
       <!--
         T_Deliver — Relay delivers bundle to Destination.
         Guard: P_Relay ≥ 1.
-        AetherMesh: Relay's RunDeliveryScanAsync() finds a route to the
+        AetherNet: Relay's RunDeliveryScanAsync() finds a route to the
         destination UHID and sends the bundle; destination fires BundleDelivered.
       -->
       <transition id="T_Deliver">
@@ -168,7 +168,7 @@
         Guards: P_Relay ≥ 1 AND P_RelayUp ≥ 1.
         Custody RETURNS to Source (self-healing): the bundle token moves from
         P_Relay back to P_Source, and the relay state flips from Up to Down.
-        AetherMesh: This models the epidemic replication strategy —
+        AetherNet: This models the epidemic replication strategy —
         GeohashEpidemicStrategy ensures the source retains a copy until an ACK.
         On relay failure, no ACK arrives, so the source re-attempts delivery.
       -->
@@ -182,7 +182,7 @@
         Guard: P_RelayDown ≥ 1.
         State flips from Down back to Up. The relay is now available for
         the next custody transfer attempt.
-        AetherMesh: Corresponds to the relay node rejoining the mesh;
+        AetherNet: Corresponds to the relay node rejoining the mesh;
         IHandshakeMeshService.PeerNegotiated fires on reconnect.
       -->
       <transition id="T_Recover">
@@ -193,7 +193,7 @@
       <!--
         T_ExpireSource — Bundle TTL exhausted while at Source.
         Guard: P_Source ≥ 1.
-        AetherMesh: IAetherMeshDtnService.ExpireStaleAsync() called on Source node.
+        AetherNet: IAetherNetDtnService.ExpireStaleAsync() called on Source node.
         In the coloured extension, this transition is only enabled when
         the token's TTL attribute has reached 0.
       -->
@@ -205,7 +205,7 @@
       <!--
         T_ExpireRelay — Bundle TTL exhausted while at Relay.
         Guard: P_Relay ≥ 1.
-        AetherMesh: Relay's ExpireStaleAsync() removes the bundle.
+        AetherNet: Relay's ExpireStaleAsync() removes the bundle.
       -->
       <transition id="T_ExpireRelay">
         <name><text>ExpireAtRelay</text></name>

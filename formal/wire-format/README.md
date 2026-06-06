@@ -2,7 +2,7 @@
 
 ## What This Proves
 
-AetherMesh has 8 language implementations of the same wire protocol.
+AetherNet has 8 language implementations of the same wire protocol.
 This model proves they all produce **byte-identical** serialisations
 for the same logical packet — the bedrock of cross-language interop.
 

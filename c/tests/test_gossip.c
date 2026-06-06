@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Unit tests for aethermesh_gossip.c (ReputationGossipService).
+// Unit tests for aethernet_gossip.c (ReputationGossipService).
 //
 // Fake callbacks keep the tests self-contained: no real crypto, no network.
 // sign_packet copies the input unchanged (identity transform).
@@ -17,8 +17,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "aethermesh_reputation.h"
-#include "aethermesh_gossip.h"
+#include "aethernet_reputation.h"
+#include "aethernet_gossip.h"
 
 // ─── Test runner ─────────────────────────────────────────────────────────────
 
@@ -62,9 +62,9 @@ static bool fake_verify(const char *json_packet,
 }
 
 /* Build a standard callbacks struct for local_uhid "local-node". */
-static AetherMeshGossipCallbacks make_callbacks(const char *local_uhid)
+static AetherNetGossipCallbacks make_callbacks(const char *local_uhid)
 {
-    AetherMeshGossipCallbacks cb;
+    AetherNetGossipCallbacks cb;
     memset(&cb, 0, sizeof(cb));
     cb.local_uhid    = local_uhid;
     cb.broadcast     = fake_broadcast;
@@ -85,8 +85,8 @@ static void reset_globals(void)
 }
 
 // ─── Helper: build a gossip packet JSON string manually ───────────────────────
-// Used to inject inbound packets into aethermesh_gossip_handle without going
-// through aethermesh_gossip_broadcast (which would stamp timestamp_ms = 0 from the
+// Used to inject inbound packets into aethernet_gossip_handle without going
+// through aethernet_gossip_broadcast (which would stamp timestamp_ms = 0 from the
 // stub clock, matching the freshness check perfectly).
 
 static void build_packet(char *buf, size_t buf_len,
@@ -113,19 +113,19 @@ static void broadcast_returns_delivered_count(void)
 {
     reset_globals();
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
-    int delivered = aethermesh_gossip_broadcast(svc, "peer-a", -0.10, "bad-behaviour");
+    int delivered = aethernet_gossip_broadcast(svc, "peer-a", -0.10, "bad-behaviour");
     /* fake_broadcast always returns 3 */
     assert(delivered == 3);
     assert(g_broadcast_count == 1);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── 2. broadcast_payload_has_correct_fields ─────────────────────────────────
@@ -134,21 +134,21 @@ static void broadcast_payload_has_correct_fields(void)
 {
     reset_globals();
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
-    aethermesh_gossip_broadcast(svc, "peer-b", -0.05, "flood");
+    aethernet_gossip_broadcast(svc, "peer-b", -0.05, "flood");
 
     /* The signed (identity-transformed) packet must contain both UHIDs. */
     assert(strstr(g_last_packet, "\"reporter_uhid\":\"local-node\"") != NULL);
     assert(strstr(g_last_packet, "\"target_uhid\":\"peer-b\"") != NULL);
     assert(strstr(g_last_packet, "\"type\":52") != NULL);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── 3. broadcast_clamps_delta_above_1 ───────────────────────────────────────
@@ -157,20 +157,20 @@ static void broadcast_clamps_delta_above_1(void)
 {
     reset_globals();
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
     /* Pass a delta of +5.0 — should be clamped to 1.0 in the packet. */
-    aethermesh_gossip_broadcast(svc, "peer-c", 5.0, "bonus");
+    aethernet_gossip_broadcast(svc, "peer-c", 5.0, "bonus");
 
     /* The JSON should contain score_delta:1.000000 (or close). */
     assert(strstr(g_last_packet, "\"score_delta\":1.000000") != NULL);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── 4. broadcast_clamps_delta_below_minus_1 ─────────────────────────────────
@@ -179,19 +179,19 @@ static void broadcast_clamps_delta_below_minus_1(void)
 {
     reset_globals();
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
     /* Pass a delta of -9.9 — should be clamped to -1.0. */
-    aethermesh_gossip_broadcast(svc, "peer-d", -9.9, "punish");
+    aethernet_gossip_broadcast(svc, "peer-d", -9.9, "punish");
 
     assert(strstr(g_last_packet, "\"score_delta\":-1.000000") != NULL);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── 5. handle_wrong_type_returns_false ──────────────────────────────────────
@@ -200,11 +200,11 @@ static void handle_wrong_type_returns_false(void)
 {
     reset_globals();
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
     /* Build a packet with type 99 (not 52). */
@@ -216,14 +216,14 @@ static void handle_wrong_type_returns_false(void)
         "\"score_delta\":-0.10,\"timestamp_ms\":0,\"reason\":\"test\"},"
         "\"timestamp_ms\":0}");
 
-    bool accepted = aethermesh_gossip_handle(svc, pkt, NULL, 0);
+    bool accepted = aethernet_gossip_handle(svc, pkt, NULL, 0);
     assert(accepted == false);
 
     /* Victim's score must be untouched (1.0). */
-    double score = aethermesh_reputation_get_score(&rep, "victim");
+    double score = aethernet_reputation_get_score(&rep, "victim");
     assert(fabs(score - 1.0) < 1e-9);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── 6. handle_invalid_signature_returns_false ───────────────────────────────
@@ -233,24 +233,24 @@ static void handle_invalid_signature_returns_false(void)
     reset_globals();
     g_verify_ok = false;   /* make verify always fail */
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
     char pkt[2048];
     build_packet(pkt, sizeof(pkt), "remote-a", "target-a", -0.20, 0LL);
 
-    bool accepted = aethermesh_gossip_handle(svc, pkt, NULL, 0);
+    bool accepted = aethernet_gossip_handle(svc, pkt, NULL, 0);
     assert(accepted == false);
 
     /* Score must be untouched. */
-    double score = aethermesh_reputation_get_score(&rep, "target-a");
+    double score = aethernet_reputation_get_score(&rep, "target-a");
     assert(fabs(score - 1.0) < 1e-9);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── 7. handle_stale_timestamp_returns_false ─────────────────────────────────
@@ -262,25 +262,25 @@ static void handle_stale_timestamp_returns_false(void)
 {
     reset_globals();
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
     /* timestamp_ms = -(FRESHNESS_WINDOW_MS + 1) → stale */
-    long long stale_ts = -((long long)AETHERMESH_GOSSIP_FRESHNESS_MS + 1LL);
+    long long stale_ts = -((long long)AETHERNET_GOSSIP_FRESHNESS_MS + 1LL);
     char pkt[2048];
     build_packet(pkt, sizeof(pkt), "remote-b", "target-b", -0.10, stale_ts);
 
-    bool accepted = aethermesh_gossip_handle(svc, pkt, NULL, 0);
+    bool accepted = aethernet_gossip_handle(svc, pkt, NULL, 0);
     assert(accepted == false);
 
-    double score = aethermesh_reputation_get_score(&rep, "target-b");
+    double score = aethernet_reputation_get_score(&rep, "target-b");
     assert(fabs(score - 1.0) < 1e-9);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── 8. handle_own_gossip_returns_false ──────────────────────────────────────
@@ -290,24 +290,24 @@ static void handle_own_gossip_returns_false(void)
 {
     reset_globals();
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
     /* reporter = local-node (same as local_uhid) */
     char pkt[2048];
     build_packet(pkt, sizeof(pkt), "local-node", "target-c", -0.10, 0LL);
 
-    bool accepted = aethermesh_gossip_handle(svc, pkt, NULL, 0);
+    bool accepted = aethernet_gossip_handle(svc, pkt, NULL, 0);
     assert(accepted == false);
 
-    double score = aethermesh_reputation_get_score(&rep, "target-c");
+    double score = aethernet_reputation_get_score(&rep, "target-c");
     assert(fabs(score - 1.0) < 1e-9);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── 9. handle_unknown_reporter_full_delta ───────────────────────────────────
@@ -318,24 +318,24 @@ static void handle_unknown_reporter_full_delta(void)
 {
     reset_globals();
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
     char pkt[2048];
     build_packet(pkt, sizeof(pkt), "unknown-reporter", "target-d", -0.20, 0LL);
 
-    bool accepted = aethermesh_gossip_handle(svc, pkt, NULL, 0);
+    bool accepted = aethernet_gossip_handle(svc, pkt, NULL, 0);
     assert(accepted == true);
 
     /* R = 1.0 (unknown), effective = -0.20 × 1.0 = -0.20 → 1.0 - 0.20 = 0.80 */
-    double score = aethermesh_reputation_get_score(&rep, "target-d");
+    double score = aethernet_reputation_get_score(&rep, "target-d");
     assert(fabs(score - 0.80) < 1e-9);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── 10. handle_degraded_reporter_weighted_delta ─────────────────────────────
@@ -346,39 +346,39 @@ static void handle_degraded_reporter_weighted_delta(void)
 {
     reset_globals();
 
-    AetherMeshNodeReputationService rep;
-    aethermesh_reputation_init(&rep);
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
 
     /* Degrade the reporter's score to 0.5 (5 × -0.10 from 1.0). */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.95 */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.90 */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.85 */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.80 */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.75 */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.70 */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.65 */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.60 */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.55 */
-    aethermesh_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.50 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.95 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.90 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.85 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.80 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.75 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.70 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.65 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.60 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.55 */
+    aethernet_reputation_record_rreq_flood(&rep, "degraded-reporter"); /* -0.05 → 0.50 */
 
-    double reporter_score = aethermesh_reputation_get_score(&rep, "degraded-reporter");
+    double reporter_score = aethernet_reputation_get_score(&rep, "degraded-reporter");
     assert(fabs(reporter_score - 0.50) < 1e-9);
 
-    AetherMeshGossipCallbacks cb = make_callbacks("local-node");
-    AetherMeshGossipService *svc = aethermesh_gossip_create(&rep, &cb);
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
     /* delta = -0.20, R = 0.50 → effective = -0.10 → target = 1.0 - 0.10 = 0.90 */
     char pkt[2048];
     build_packet(pkt, sizeof(pkt), "degraded-reporter", "target-e", -0.20, 0LL);
 
-    bool accepted = aethermesh_gossip_handle(svc, pkt, NULL, 0);
+    bool accepted = aethernet_gossip_handle(svc, pkt, NULL, 0);
     assert(accepted == true);
 
-    double score = aethermesh_reputation_get_score(&rep, "target-e");
+    double score = aethernet_reputation_get_score(&rep, "target-e");
     assert(fabs(score - 0.90) < 1e-9);
 
-    aethermesh_gossip_destroy(svc);
+    aethernet_gossip_destroy(svc);
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────

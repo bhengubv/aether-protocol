@@ -8,7 +8,7 @@ protocolo **no** detiene, y no debe ser engañado por el marketing del README.
 
 El documento complementario es [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §7
 (Modelo de seguridad). Donde los dos divergen, la implementación en
-`src/AetherMesh.Security/` es la autoridad.
+`src/AetherNet.Security/` es la autoridad.
 
 ---
 
@@ -60,13 +60,13 @@ cadena simétrica del Double Ratchet (Signal §5.1, HMAC-SHA256 con separación 
 `0x01`/`0x02`). Un atacante que captura cada paquete entre Alice y Bob no recupera nada
 sin una de sus claves de sesión.
 
-Verificado por `tests/AetherMesh.Security.Tests/SignalProtocolEncryptionTests.cs`
+Verificado por `tests/AetherNet.Security.Tests/SignalProtocolEncryptionTests.cs`
 y los vectores de `fixtures/signal/expected/ratchet_step_basic.json` entre idiomas.
 
 ### 2.2. Falsificación de mensajes
 
 Cada paquete Wave-2 lleva una firma Ed25519 sobre el búfer canónico
-`BuildSignableData(packet)` (`src/AetherMesh.Security/Services/PacketSigningService.cs`,
+`BuildSignableData(packet)` (`src/AetherNet.Security/Services/PacketSigningService.cs`,
 PROTOCOL_SPEC §2.4). Los paquetes falsificados fallan la verificación y se descartan en
 cada salto que conoce la clave pública de identidad del origen. Los paquetes de Respuesta
 de Ruta (RREP) están firmados por el destino reclamado — los nodos intermedios no pueden
@@ -85,14 +85,14 @@ suplantar destinos porque no poseen la clave privada Ed25519 del destino.
   ataques de pre-registro donde un adversario planta un nonce contra un destinatario para
   bloquear el primer paquete del remitente legítimo.
 
-Contadores: `aethermesh.nonces.replayed`, `aethermesh.timestamps.stale`.
+Contadores: `aethernet.nonces.replayed`, `aethernet.timestamps.stale`.
 
 ### 2.4. Secreto hacia adelante (compromiso de clave pasada)
 
 El Double Ratchet deriva una nueva clave de cadena de envío en cada paso de rotación DH
 (KDF_RK, HKDF-SHA256 sobre `salt = current_root_key`,
 `info = "aether-ratchet-rk-v1"`, bloque de 64 bytes dividido 32+32 en nueva
-clave raíz y de cadena — `src/AetherMesh.Security/Services/SignalProtocolService.cs`).
+clave raíz y de cadena — `src/AetherNet.Security/Services/SignalProtocolService.cs`).
 Un atacante que compromete el estado de sesión actual no puede descifrar ningún mensaje
 anterior: cada clave de mensaje anterior fue derivada y puesta a cero
 (`CryptographicOperations.ZeroMemory`) antes del siguiente paso del trinquete.
@@ -114,7 +114,7 @@ Cada pre-clave de un solo uso (OPK) se consume exactamente una vez. La referenci
 incluye un pool de 100 OPK con emisión FIFO, recarga diferida en cada generación de
 paquete, y consumo de instancia única protegido por cerrojo
 (`SignalProtocolService.TopUpOpkPoolNoLock`, verificado por
-`tests/AetherMesh.Core.Tests/PreKeyPoolTests.cs`). Una OPK se elimina y pone a cero en el
+`tests/AetherNet.Core.Tests/PreKeyPoolTests.cs`). Una OPK se elimina y pone a cero en el
 momento en que el respondedor la consume durante X3DH, por lo que un mensaje PreKey
 repetido que reutilice el mismo id de OPK no puede establecer una sesión.
 
@@ -228,7 +228,7 @@ horizonte temporal relevante.
 
 ### 3.5. Mensajería grupal a escala
 
-`AetherMesh.Security` incluye un punto de extensión `IGroupKeyProvider`, pero el protocolo
+`AetherNet.Security` incluye un punto de extensión `IGroupKeyProvider`, pero el protocolo
 Signal Sender Keys completo (la construcción de mensajería grupal asíncrona que usa
 Signal) **no** está implementado en HEAD. Los anfitriones que necesitan mensajería grupal
 hoy recurren a N sesiones por pares — lo que funciona pero tiene un costo O(N) por envío
@@ -322,7 +322,7 @@ intercambio de paquetes puede sustituir su propio paquete y enrutar el tráfico.
 **Mitigación:** la UX del anfitrión debe exponer un flujo de comparación de número de
 seguridad / huella digital de clave pública antes de tratar un contacto como verificado.
 Una superficie de API pública para la derivación del número de seguridad aún no está
-disponible en `AetherMesh.Security`; rastreando como brecha.
+disponible en `AetherNet.Security`; rastreando como brecha.
 
 ### 5.2. Retraso en la rotación de la clave pre-firmada
 

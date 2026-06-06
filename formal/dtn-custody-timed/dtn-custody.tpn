@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  AetherMesh DTN Custody — Timed Petri Net
+  AetherNet DTN Custody — Timed Petri Net
   Proves: every bundle reaches Delivered ∨ Expired within 72h.
   SPDX-License-Identifier: MIT
 -->

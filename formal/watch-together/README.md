@@ -2,7 +2,7 @@
 
 ## What This Proves
 
-The AetherMesh `IWatchTogetherMeshService` lets a host control playback
+The AetherNet `IWatchTogetherMeshService` lets a host control playback
 across N participants over the mesh. This model proves the sync property
 that makes watch parties feel alive instead of janky:
 

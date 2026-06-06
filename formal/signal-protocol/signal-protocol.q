@@ -1,4 +1,4 @@
-/* AetherMesh Signal Protocol — Forward + Future Secrecy queries
+/* AetherNet Signal Protocol — Forward + Future Secrecy queries
    Run: verifytapn --trace some signal-protocol.pnml --query signal-protocol.q
    All queries expected: SATISFIED
    SPDX-License-Identifier: MIT */

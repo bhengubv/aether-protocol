@@ -1,4 +1,4 @@
-/* AetherMesh DTN Custody — TAPAAL / CTL verification queries
+/* AetherNet DTN Custody — TAPAAL / CTL verification queries
    Run: verifytapn --trace some dtn-custody.pnml --query dtn-custody.q
    All queries expected: SATISFIED
    SPDX-License-Identifier: MIT */

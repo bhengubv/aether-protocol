@@ -2,7 +2,7 @@
 
 # aether-protocol — Swift Benchmarks
 
-XCTest `measure`-block harness mirroring the C# AetherMesh.Benchmarks
+XCTest `measure`-block harness mirroring the C# AetherNet.Benchmarks
 suite, the Go `go/bench` harness, the Python
 `python/benchmarks/test_benchmark.py`, the C `c/benchmarks/` runner,
 and the TypeScript `benchmarks/bench.ts` — same eleven hot paths so a

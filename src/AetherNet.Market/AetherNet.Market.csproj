@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Market</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Offline-capable P2P commerce layer for the Aether mesh — PoV anti-Sybil trust, geo-pinned listings via aether-space, document escrow via aether-vault.</Description>
+    <PackageTags>mesh;market;commerce;pov;trust;geo;escrow;aether;offline;p2p</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.Space/AetherNet.Space.csproj" />
+    <ProjectReference Include="../AetherNet.Vault/AetherNet.Vault.csproj" />
+  </ItemGroup>
+
+</Project>

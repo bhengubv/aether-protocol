@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  AetherMesh Vault Erasure Coding — K-of-N Reachability Petri Net
+  AetherNet Vault Erasure Coding — K-of-N Reachability Petri Net
   ================================================================
   ISO/IEC 15909-2 Petri Net Markup Language (PNML) — P/T Net type.
 
@@ -24,7 +24,7 @@
         only via deliberate progression past the recovery threshold
     P6  Conservation: every reachable marking respects the K-of-N invariant
 
-  Production AetherMesh uses (K=10, N=14). The structural argument
+  Production AetherNet uses (K=10, N=14). The structural argument
   here generalises: induction on (N, K) shows that for any K ≤ N,
   the recoverable states form a closed subset bounded by the
   failure-count = N-K hyperplane.
@@ -38,7 +38,7 @@
   <net id="vault-erasure"
        type="http://www.pnml.org/version-2009/grammar/ptnet">
 
-    <name><text>AetherMesh Vault — K-of-N Erasure Reachability</text></name>
+    <name><text>AetherNet Vault — K-of-N Erasure Reachability</text></name>
 
     <page id="page-main">
 
@@ -114,7 +114,7 @@
         Consumes: P_Has_Shard_i
         Produces: P_No_Shard_i
 
-        AetherMesh: the node holding the shard goes offline; its custody
+        AetherNet: the node holding the shard goes offline; its custody
         record in IVaultMeshService.ShardCustody is marked as expired.
       -->
       <transition id="T_Fail_1">
@@ -148,7 +148,7 @@
                 + P_Has_Shard_3 (test arc)
         Produces: P_Has_Shard_1 (back to alive)
 
-        AetherMesh: a healthy node fetches K shards via
+        AetherNet: a healthy node fetches K shards via
         IVaultMeshService.RecoverShardAsync(missingIndex), reconstructs
         the original, re-shards, and places the missing shard on a new
         custodian via IDtnMeshService.CreateBundleAsync.

@@ -20,8 +20,8 @@
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "advapi32.lib")
 
-/* ── aethermesh_random_bytes ──────────────────────────────────────────── */
-bool aethermesh_random_bytes(uint8_t *out, size_t len) {
+/* ── aethernet_random_bytes ──────────────────────────────────────────── */
+bool aethernet_random_bytes(uint8_t *out, size_t len) {
     if (!out || len == 0) return false;
     /* rand_s fills 4 bytes at a time; use CryptGenRandom for arbitrary lengths */
     HCRYPTPROV hProv = 0;
@@ -35,8 +35,8 @@ bool aethermesh_random_bytes(uint8_t *out, size_t len) {
     return ok != 0;
 }
 
-/* ── aethermesh_sha256 ────────────────────────────────────────────────── */
-bool aethermesh_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash) {
+/* ── aethernet_sha256 ────────────────────────────────────────────────── */
+bool aethernet_sha256(const uint8_t *data, size_t data_len, uint8_t *out_hash) {
     if (!out_hash) return false;
     BCRYPT_ALG_HANDLE hAlg = NULL;
     BCRYPT_HASH_HANDLE hHash = NULL;
@@ -66,8 +66,8 @@ cleanup:
     return result;
 }
 
-/* ── aethermesh_zeroize ───────────────────────────────────────────────── */
-void aethermesh_zeroize(void *mem, size_t len) {
+/* ── aethernet_zeroize ───────────────────────────────────────────────── */
+void aethernet_zeroize(void *mem, size_t len) {
     if (mem && len > 0) {
         SecureZeroMemory(mem, len);
     }

@@ -107,7 +107,7 @@
 |--------|------|------:|----------:|--------|
 | 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android（`android/blue/`） |
 | 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android（`android/green/`） |
-| 🟣 Aether Purple | 蜂窝 HTTP 中继 | 无限 | ~10 Mbps | ✅ Windows——中继服务器位于 `samples/AetherMesh.RelayServer/` |
+| 🟣 Aether Purple | 蜂窝 HTTP 中继 | 无限 | ~10 Mbps | ✅ Windows——中继服务器位于 `samples/AetherNet.RelayServer/` |
 | ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE（`android/white/`）；Windows：NDEF-over-BLE-GATT + ACR122U PC/SC 近似（`Windows.Networking.Proximity` 在 Win 11 中已移除） |
 | 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`；Windows + Android：SSAP-over-BLE 近似（API 兼容，非线路兼容） |
 | 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ BLE LR 上的 Meshtastic 线路格式（~1.3 km）；存在 LoRa 模块时切换至 SX1276/SX1278 |
@@ -221,7 +221,7 @@ cd aether-protocol
 ### C# (.NET 10 SDK)
 
 ```bash
-dotnet run --project samples/AetherMesh.Demo.Console
+dotnet run --project samples/AetherNet.Demo.Console
 ```
 
 演示分 8 步进行：为三个节点（Alice、Bob、Charlie）生成 Ed25519 身份密钥，建立 Signal Protocol 会话，发送加密消息，通过 Charlie 中继消息（Charlie 无法读取内容），显示二进制线路格式，并在 5 条连续消息中演示前向保密性。输出带有颜色编码，并在步骤之间暂停。
@@ -431,28 +431,28 @@ cd c && mkdir -p build && cd build && cmake .. && make && ./aether-demo
 **用 C 发送消息：**
 
 ```c
-aethermesh_mesh_packet_t *packet = aethermesh_packet_new();
-packet->type = AETHERMESH_PACKET_TYPE_DATA;
+aethernet_mesh_packet_t *packet = aethernet_packet_new();
+packet->type = AETHERNET_PACKET_TYPE_DATA;
 packet->ttl = 7;
 
-aethermesh_packet_set_source_uhid(packet, "alice");
-aethermesh_packet_set_destination_uhid(packet, "bob");
-aethermesh_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
+aethernet_packet_set_source_uhid(packet, "alice");
+aethernet_packet_set_destination_uhid(packet, "bob");
+aethernet_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
 
 // Sign
 size_t signable_len = 0;
-uint8_t *signable = aethermesh_packet_get_signable_data(packet, &signable_len);
+uint8_t *signable = aethernet_packet_get_signable_data(packet, &signable_len);
 uint8_t signature[64];
-aethermesh_ed25519_sign(private_key, signable, signable_len, signature);
-aethermesh_packet_set_signature(packet, signature, 64);
+aethernet_ed25519_sign(private_key, signable, signable_len, signature);
+aethernet_packet_set_signature(packet, signature, 64);
 free(signable);
 
 // Serialize and send
 uint8_t buffer[2048];
-int size = aethermesh_packet_serialize(packet, buffer, sizeof(buffer));
+int size = aethernet_packet_serialize(packet, buffer, sizeof(buffer));
 // send buffer[0..size-1] over transport
 
-aethermesh_packet_free(packet);
+aethernet_packet_free(packet);
 ```
 
 ## 路线图
@@ -483,11 +483,11 @@ aethermesh_packet_free(packet);
 - ✅ **视频通话（一对一）** — 信令中的编解码器/分辨率/帧率/码率协商，关键帧请求和质量变更信号，与语音布局匹配的二进制 `VideoFrame` 格式。
 - ✅ **共同观影** — 主机发出权威性 `WatchSync`（播放/暂停/跳转/速度）命令；跟随者以 RTT 补偿应用（`position = positionMs + elapsed × playbackSpeed`）；即发即忘的 `WatchReaction`。
 - ✅ **一次性预密钥（OPK）池** — 默认 100 个，FIFO 发放，懒惰补充，全部 8 种语言的锁保护消费。解决单 OPK 并发风险。
-- ✅ **C：完整 Signal 会话** — `c/src/signal_protocol.c` 中的 `aethermesh_signal_service_init`、`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`；`c/tests/test_signal_session.c` 中的 6 个双节点端到端测试。所有 8 种语言现已具备完整会话能力的 Signal Protocol。
+- ✅ **C：完整 Signal 会话** — `c/src/signal_protocol.c` 中的 `aethernet_signal_service_init`、`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`；`c/tests/test_signal_session.c` 中的 6 个双节点端到端测试。所有 8 种语言现已具备完整会话能力的 Signal Protocol。
 
 **已完成（仅 C# 参考实现）：**
-- ✅ **演示步骤 9 — MessagingService + DTN 回退端到端** — `samples/AetherMesh.Demo.Console` 演示在接收方离线时使用 DTN 存储转发的真实 Signal 加密消息传递。
-- ✅ **`AetherMesh.Messaging` ↔ `AetherMesh.Security` 桥接** — `SignalMessageEnvelopeCipher` 使消息层默认端到端加密；没有 Signal 会话的消息会进入队列，永不以明文发送。
+- ✅ **演示步骤 9 — MessagingService + DTN 回退端到端** — `samples/AetherNet.Demo.Console` 演示在接收方离线时使用 DTN 存储转发的真实 Signal 加密消息传递。
+- ✅ **`AetherNet.Messaging` ↔ `AetherNet.Security` 桥接** — `SignalMessageEnvelopeCipher` 使消息层默认端到端加密；没有 Signal 会话的消息会进入队列，永不以明文发送。
 - ✅ **自适应码率流媒体** — 带规范码率阶梯的 `AdaptiveBitrateController`（配置文件 A 实时、B 直播广播、C 点播）。发布者选择最高可持续档次（20% 余量），低于最低档时发出 `StreamAbandon`（`PacketType.StreamAbandon`）而非片段。`IStreamingService` 暴露 `UpdateBandwidthEstimate` 和 `GetCurrentBitrateRung`。
 - ✅ **共同观影：BitTorrent 导入 + ChipIn 群组众筹** — `TorrentInfo` / `TorrentFile` 模型；`WatchTogetherService` 处理 `PacketType.TorrentMetadata` 并触发 `TorrentReceived`。`ChipInPool` / `ChipInContribution` 状态机（收集中→已筹够→购买中→已获得/失败/退款）；`IWatchTogetherService` 上的 `StartChipInAsync` / `ContributeAsync` / `GetChipIn`。
 - ✅ **带自动 SFU 中继的群组视频通话** — `GroupVideoService` / `IGroupVideoService`。≤ 3 名参与者使用全网格拓扑；在 `SfuThresholdParticipants`（4）处自动切换到 SFU，通过 `GroupVideoSignaling(SfuAssigned)` 重新分配中继。全网格模式下扇出，SFU 模式下仅发送中继。信令数据包类型 `GroupVideoSignaling = 35`。
@@ -497,9 +497,9 @@ aethermesh_packet_free(packet);
 - ✅ **RF 启动模拟测试** — 双节点互操作测试（`SimulatedTransportTests`）：BLE + NearLink `MeshPacket` 往返，WiFi Direct 64 KB 负载传输。软件层完全验证；需要硬件设备实验室进行板上验证。
 
 **已完成（C# 传输层——全部快速失败）：**
-- ✅ **BLE GATT 真实传输** — `WinBleGattTransportService`（Windows WinRT）+ `android/blue/`（Android GATT 服务器）。完整 RF 启动测试位于 `samples/AetherMesh.BleRfTest/`。
-- ✅ **Wi-Fi Direct 真实传输** — `WinWifiDirectTransportService`（WinRT，`WiFiDirectAdvertisementPublisher` + TCP StreamSocket 端口 8888）+ `android/green/`（`WifiP2pManager`）。RF 测试位于 `samples/AetherMesh.WifiDirectRfTest/`。
-- ✅ **HTTP 中继传输（Aether Purple）** — 带 10 秒长轮询、`PowerCostRelative = 100`、始终作为最后手段的 `HttpRelayTransportService`。中继服务器位于 `samples/AetherMesh.RelayServer/`（ASP.NET Core minimal API，端口 5200）。RF 测试位于 `samples/AetherMesh.RelayRfTest/`。
+- ✅ **BLE GATT 真实传输** — `WinBleGattTransportService`（Windows WinRT）+ `android/blue/`（Android GATT 服务器）。完整 RF 启动测试位于 `samples/AetherNet.BleRfTest/`。
+- ✅ **Wi-Fi Direct 真实传输** — `WinWifiDirectTransportService`（WinRT，`WiFiDirectAdvertisementPublisher` + TCP StreamSocket 端口 8888）+ `android/green/`（`WifiP2pManager`）。RF 测试位于 `samples/AetherNet.WifiDirectRfTest/`。
+- ✅ **HTTP 中继传输（Aether Purple）** — 带 10 秒长轮询、`PowerCostRelative = 100`、始终作为最后手段的 `HttpRelayTransportService`。中继服务器位于 `samples/AetherNet.RelayServer/`（ASP.NET Core minimal API，端口 5200）。RF 测试位于 `samples/AetherNet.RelayRfTest/`。
 - ✅ **NFC（Aether White）** — `android/white/` 实现带 AID `F061657468657200` 的 `HostApduService`。`WinNfcStubTransportService` 记录了两种 Windows 近似路径：(1) 带 RSSI 门限 ≥ −40 dBm 的 NDEF-over-BLE-GATT（无 NFC 芯片时模拟轻触连接，`IsAvailable = 蓝牙可用`）；(2) 通过 `Windows.Devices.SmartCards` PC/SC 使用 ACR122U USB 读卡器（`IsAvailable = 已枚举非接触式读卡器`）。升级路径：当 Microsoft 推出第一方 P2P NFC API 时实现 `ITransportService`。
 - ✅ **NearLink（Aether Teal）** — **`harmonyos/teal/`** — 使用 `@kit.NearLinkKit`（`scan.startScan` + `ssap.createClient` + `advertising.startAdvertising`）的完整 HarmonyOS 5.0.1（API 13）ArkTS 实现；`isAvailable` 在运行时探测。`WinNearLinkStubTransportService` + `android/teal/` 记录了 SSAP-over-BLE 近似：带 Aether SLE 服务 UUID `61657468-6572-0003-0000-000000000000` 的 BLE GATT——API 与 SSAP 类似，与真实 NearLink 硬件不具有线路兼容性。升级路径：将 BLE GATT 调用替换为 `ssapc_*`/`ssaps_*` SDK 调用；UUID 和 `TransportManager` 插槽不变。
 - ✅ **LoRa / CircleLink（Aether Red）** — `LoRaCircleLinkStub` + `android/red/` 记录了 Meshtastic-over-BLE-LR 近似：BLE 5.0 编码物理层 S=8（室外约 1.3 km）上的完整 Meshtastic 线路格式（16 字节头 + AES-256-CTR protobuf），带托管洪泛路由和 RSSI 加权竞争窗口。与真实 LoRa 硬件的桥接节点联合自动工作（相同的 Meshtastic 数据包格式，无需转换）。升级路径：将 BLE LR 无线电替换为 SX1276/SX1278 AT 命令或 SPI 驱动；数据包格式和路由不变。
@@ -518,19 +518,19 @@ aethermesh_packet_free(packet);
 ```
 aether-protocol/
   src/
-    AetherMesh.Core/          Protocol models, constants, packet serialization
-    AetherMesh.Security/      Signal Protocol, Ed25519, packet signing
-    AetherMesh.Transport/     Transport abstractions, NearLink, in-process simulator
-    AetherMesh.Messaging/     Message handling and relay
-    AetherMesh.Storage/       DTN store-and-forward persistence
-    AetherMesh.Streaming/     Adaptive bitrate streaming, video models and interfaces
-    AetherMesh.Voice/         Voice calls and group voice
-    AetherMesh.Content/       Content verification and chunked transfer
+    AetherNet.Core/          Protocol models, constants, packet serialization
+    AetherNet.Security/      Signal Protocol, Ed25519, packet signing
+    AetherNet.Transport/     Transport abstractions, NearLink, in-process simulator
+    AetherNet.Messaging/     Message handling and relay
+    AetherNet.Storage/       DTN store-and-forward persistence
+    AetherNet.Streaming/     Adaptive bitrate streaming, video models and interfaces
+    AetherNet.Voice/         Voice calls and group voice
+    AetherNet.Content/       Content verification and chunked transfer
   samples/
-    AetherMesh.Demo.Console/  Interactive demo
+    AetherNet.Demo.Console/  Interactive demo
   tests/
-    AetherMesh.Security.Tests/
-    AetherMesh.Protocol.Tests/
+    AetherNet.Security.Tests/
+    AetherNet.Protocol.Tests/
   rust/                   Rust implementation
   typescript/             TypeScript implementation
   python/                 Python implementation
@@ -576,9 +576,9 @@ public class LoRaTransportService : ITransportService
 
 协议可独立工作。这些接口允许你在需要时接入自己的后端：
 
-- `IAetherMeshIncentiveProvider` — 奖励中继流量的节点（无操作默认值：利他中继）
-- `IAetherMeshBackendClient` — 有互联网时与服务器同步（无操作默认值：完全离线）
-- `IAetherMeshFeatureFlagProvider` — 在运行时切换协议功能（无操作默认值：全部启用）
+- `IAetherNetIncentiveProvider` — 奖励中继流量的节点（无操作默认值：利他中继）
+- `IAetherNetBackendClient` — 有互联网时与服务器同步（无操作默认值：完全离线）
+- `IAetherNetFeatureFlagProvider` — 在运行时切换协议功能（无操作默认值：全部启用）
 
 三者都附带无操作实现。移除它们，一切照常运行。
 

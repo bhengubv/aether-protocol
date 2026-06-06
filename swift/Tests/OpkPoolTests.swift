@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 import XCTest
-@testable import AetherMeshProtocol
+@testable import AetherNetProtocol
 
 /// Unit tests for the one-time-pre-key pool inside `SignalProtocolService`.
 /// Mirrors the C# `SignalProtocolServiceTests` OPK-pool cases so the two
