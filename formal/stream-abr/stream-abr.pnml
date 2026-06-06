@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="stream-abr" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Stream ABR</text></name>
+    <page id="page-main">
+
+      <place id="P_Rung_Low"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_Rung_Mid"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Rung_High"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_BufferOk"><initialMarking><text>3</text></initialMarking></place>
+      <place id="P_Segments_Delivered"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_UpshiftToMid"/>
+      <arc id="A1" source="P_Rung_Low" target="T_UpshiftToMid"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_UpshiftToMid" target="P_Rung_Mid"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_UpshiftToHigh"/>
+      <arc id="A3" source="P_Rung_Mid" target="T_UpshiftToHigh"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_UpshiftToHigh" target="P_Rung_High"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DownshiftFromHigh"/>
+      <arc id="A5" source="P_Rung_High" target="T_DownshiftFromHigh"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_DownshiftFromHigh" target="P_Rung_Mid"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_Deliver"/>
+      <arc id="A7" source="P_BufferOk" target="T_Deliver"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_Deliver" target="P_Segments_Delivered"><inscription><text>1</text></inscription></arc>
+      <arc id="A9" source="T_Deliver" target="P_BufferOk"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

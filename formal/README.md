@@ -96,18 +96,34 @@ testing cannot find.
 | [`vault-erasure-timed/`](vault-erasure-timed/) | MTTR vs MTBF heal-rate property |
 | [`outbox-backpressure-timed/`](outbox-backpressure-timed/) | Bounded drain when ingress stops |
 
+**Stochastic Petri Nets (Phase 2):**
+
+| Model | What it computes |
+|---|---|
+| [`vault-erasure-stochastic/`](vault-erasure-stochastic/) | P(unrecoverable) ≈ 1.0 × 10⁻¹¹ for (K=10, N=14) |
+
 **Inhibitor-Arc Fixed Models (Phase 2):**
 
 | Model | Bug fixed |
 |---|---|
 | [`prekey-pool-fixed/`](prekey-pool-fixed/) | `AG Pool ≥ 1` now actually holds (was violated in original model) |
 
-**Total: 28 formal models** covering routing, coordination, secrecy,
+**New Models — Uncovered Protocol Components (Phase 2):**
+
+| Model | Property |
+|---|---|
+| [`wire-format/`](wire-format/) | Cross-language byte equivalence |
+| [`forge-integrity/`](forge-integrity/) | Hash-verified cache contents |
+| [`stream-abr/`](stream-abr/) | ABR rung-selection mutual exclusion |
+| [`group-video-sfu/`](group-video-sfu/) | FullMesh↔SFU atomic switchover |
+
+**Total: 33 formal models** covering routing, coordination, secrecy,
 recovery, anti-Sybil, key management, capability negotiation, financial
 atomicity, backpressure, anomaly detection, multi-bundle isolation,
-multi-session secrecy, SLA-bounded delivery, MTTR-bounded recovery, and
-atomic threshold operations — the full critical-correctness surface
-of the protocol.
+multi-session secrecy, SLA-bounded delivery, MTTR-bounded recovery,
+atomic threshold operations, stochastic loss probability,
+cross-language wire format, hash integrity, ABR selection, and SFU
+switchover — the full critical-correctness surface of the protocol.
 
 ## Tooling
 

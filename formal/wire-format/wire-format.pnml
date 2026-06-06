@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="wire-format" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Wire Format Cross-Language Equivalence</text></name>
+    <page id="page-main">
+
+      <place id="P_Packet_Logical"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_Bytes_FromCSharp"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Bytes_FromTypeScript"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Bytes_FromRust"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Decoded_AtCSharp"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Decoded_AtTypeScript"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Decoded_AtRust"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_CSharp_Encode"/>
+      <arc id="A1" source="P_Packet_Logical" target="T_CSharp_Encode"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_CSharp_Encode" target="P_Packet_Logical"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_CSharp_Encode" target="P_Bytes_FromCSharp"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_TS_Encode"/>
+      <arc id="A4" source="P_Packet_Logical" target="T_TS_Encode"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="T_TS_Encode" target="P_Packet_Logical"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_TS_Encode" target="P_Bytes_FromTypeScript"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_Rust_Encode"/>
+      <arc id="A7" source="P_Packet_Logical" target="T_Rust_Encode"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_Rust_Encode" target="P_Packet_Logical"><inscription><text>1</text></inscription></arc>
+      <arc id="A9" source="T_Rust_Encode" target="P_Bytes_FromRust"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_CSharp_Decode_TS"/>
+      <arc id="A10" source="P_Bytes_FromTypeScript" target="T_CSharp_Decode_TS"><inscription><text>1</text></inscription></arc>
+      <arc id="A11" source="T_CSharp_Decode_TS" target="P_Decoded_AtCSharp"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_TS_Decode_Rust"/>
+      <arc id="A12" source="P_Bytes_FromRust" target="T_TS_Decode_Rust"><inscription><text>1</text></inscription></arc>
+      <arc id="A13" source="T_TS_Decode_Rust" target="P_Decoded_AtTypeScript"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_Rust_Decode_CSharp"/>
+      <arc id="A14" source="P_Bytes_FromCSharp" target="T_Rust_Decode_CSharp"><inscription><text>1</text></inscription></arc>
+      <arc id="A15" source="T_Rust_Decode_CSharp" target="P_Decoded_AtRust"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

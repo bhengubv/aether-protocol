@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="group-video-sfu" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Group Video SFU Switchover</text></name>
+    <page id="page-main">
+
+      <place id="P_FullMesh"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_SFU"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Participants"><initialMarking><text>2</text></initialMarking></place>
+      <place id="P_FrameQueue"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_AddParticipant"/>
+      <arc id="A1" source="T_AddParticipant" target="P_Participants"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_SwitchToSFU"/>
+      <arc id="A2" source="P_FullMesh" target="T_SwitchToSFU"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="P_Participants" target="T_SwitchToSFU"><inscription><text>5</text></inscription></arc>
+      <arc id="A4" source="T_SwitchToSFU" target="P_SFU"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="T_SwitchToSFU" target="P_Participants"><inscription><text>5</text></inscription></arc>
+
+      <transition id="T_DeliverFrame_FullMesh"/>
+      <arc id="A6" source="P_FullMesh" target="T_DeliverFrame_FullMesh"><inscription><text>1</text></inscription></arc>
+      <arc id="A7" source="T_DeliverFrame_FullMesh" target="P_FullMesh"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_DeliverFrame_FullMesh" target="P_FrameQueue"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DeliverFrame_SFU"/>
+      <arc id="A9" source="P_SFU" target="T_DeliverFrame_SFU"><inscription><text>1</text></inscription></arc>
+      <arc id="A10" source="T_DeliverFrame_SFU" target="P_SFU"><inscription><text>1</text></inscription></arc>
+      <arc id="A11" source="T_DeliverFrame_SFU" target="P_FrameQueue"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>
