@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.informatik.hu-berlin.de/top/pnml/ptNetb">
+  <net id="ComposedModel" type="P/T net">
+    <name><text>Outbox Drain Timed</text></name>
+
+    <place id="P_Ingress" initialMarking="5" invariant="&lt; inf"/>
+    <place id="P_Outbox" initialMarking="0" invariant="&lt; inf"/>
+    <place id="P_OutboxSlots" initialMarking="3" invariant="&lt; inf"/>
+    <place id="P_DTN" initialMarking="0" invariant="&lt; inf"/>
+    <place id="P_Delivered" initialMarking="0" invariant="&lt; inf"/>
+
+    <!-- Each enter-outbox completes in [0, 100] ms (queue time) -->
+    <transition id="T_Enter" earliestFiringTime="0" latestFiringTime="100"/>
+    <arc id="A1" source="P_Ingress" target="T_Enter" inscription="1"/>
+    <arc id="A2" source="P_OutboxSlots" target="T_Enter" inscription="1"/>
+    <arc id="A3" source="T_Enter" target="P_Outbox" inscription="1"/>
+
+    <!-- Spillover to DTN [0, 500] ms when slots full -->
+    <transition id="T_Spill" earliestFiringTime="0" latestFiringTime="500"/>
+    <arc id="A4" source="P_Ingress" target="T_Spill" inscription="1"/>
+    <arc id="A5" source="T_Spill" target="P_DTN" inscription="1"/>
+
+    <!-- Delivery [10, 1000] ms per message -->
+    <transition id="T_Deliver" earliestFiringTime="10" latestFiringTime="1000"/>
+    <arc id="A6" source="P_Outbox" target="T_Deliver" inscription="1"/>
+    <arc id="A7" source="T_Deliver" target="P_Delivered" inscription="1"/>
+    <arc id="A8" source="T_Deliver" target="P_OutboxSlots" inscription="1"/>
+
+    <!-- DTN rehome [0, 10000] ms (10s) -->
+    <transition id="T_Rehome" earliestFiringTime="0" latestFiringTime="10000"/>
+    <arc id="A9" source="P_DTN" target="T_Rehome" inscription="1"/>
+    <arc id="A10" source="P_OutboxSlots" target="T_Rehome" inscription="1"/>
+    <arc id="A11" source="T_Rehome" target="P_Outbox" inscription="1"/>
+  </net>
+</pnml>

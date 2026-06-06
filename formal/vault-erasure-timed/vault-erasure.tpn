@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.informatik.hu-berlin.de/top/pnml/ptNetb">
+  <net id="ComposedModel" type="P/T net">
+    <name><text>Vault Erasure Timed (K=2 N=3)</text></name>
+
+    <place id="P_Has_Shard_1" initialMarking="1" invariant="&lt; inf"/>
+    <place id="P_No_Shard_1" initialMarking="0" invariant="&lt; inf"/>
+    <place id="P_Has_Shard_2" initialMarking="1" invariant="&lt; inf"/>
+    <place id="P_No_Shard_2" initialMarking="0" invariant="&lt; inf"/>
+    <place id="P_Has_Shard_3" initialMarking="1" invariant="&lt; inf"/>
+    <place id="P_No_Shard_3" initialMarking="0" invariant="&lt; inf"/>
+
+    <!-- Failure transitions: 0 to MTBF seconds (30 days = 2,592,000s)
+         Worst-case "any time within the 30 day window" -->
+    <transition id="T_Fail_1" earliestFiringTime="0" latestFiringTime="2592000"/>
+    <transition id="T_Fail_2" earliestFiringTime="0" latestFiringTime="2592000"/>
+    <transition id="T_Fail_3" earliestFiringTime="0" latestFiringTime="2592000"/>
+
+    <!-- Healing transitions: 0 to MTTR seconds (1h = 3600s) -->
+    <transition id="T_Heal_1" earliestFiringTime="0" latestFiringTime="3600"/>
+    <transition id="T_Heal_2" earliestFiringTime="0" latestFiringTime="3600"/>
+    <transition id="T_Heal_3" earliestFiringTime="0" latestFiringTime="3600"/>
+
+    <arc id="F1a" source="P_Has_Shard_1" target="T_Fail_1" inscription="1"/>
+    <arc id="F1b" source="T_Fail_1" target="P_No_Shard_1" inscription="1"/>
+    <arc id="F2a" source="P_Has_Shard_2" target="T_Fail_2" inscription="1"/>
+    <arc id="F2b" source="T_Fail_2" target="P_No_Shard_2" inscription="1"/>
+    <arc id="F3a" source="P_Has_Shard_3" target="T_Fail_3" inscription="1"/>
+    <arc id="F3b" source="T_Fail_3" target="P_No_Shard_3" inscription="1"/>
+
+    <arc id="H1a" source="P_No_Shard_1" target="T_Heal_1" inscription="1"/>
+    <arc id="H1b" source="T_Heal_1" target="P_Has_Shard_1" inscription="1"/>
+    <arc id="H2a" source="P_No_Shard_2" target="T_Heal_2" inscription="1"/>
+    <arc id="H2b" source="T_Heal_2" target="P_Has_Shard_2" inscription="1"/>
+    <arc id="H3a" source="P_No_Shard_3" target="T_Heal_3" inscription="1"/>
+    <arc id="H3b" source="T_Heal_3" target="P_Has_Shard_3" inscription="1"/>
+  </net>
+</pnml>

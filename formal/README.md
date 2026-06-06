@@ -87,18 +87,27 @@ testing cannot find.
 | [`signal-protocol-cpn/`](signal-protocol-cpn/) | Per-(session, epoch) forward secrecy |
 | [`vault-erasure-cpn/`](vault-erasure-cpn/) | Per-document recovery; no shard substitution |
 
-**Timed Petri Nets (Phase 2, in progress):**
+**Timed Petri Nets (Phase 2):**
 
 | Model | SLA proved |
 |---|---|
 | [`watch-together-timed/`](watch-together-timed/) | ±100ms convergence between participants |
 | [`dtn-custody-timed/`](dtn-custody-timed/) | Every bundle terminates within 72h |
+| [`vault-erasure-timed/`](vault-erasure-timed/) | MTTR vs MTBF heal-rate property |
+| [`outbox-backpressure-timed/`](outbox-backpressure-timed/) | Bounded drain when ingress stops |
 
-**Total: 25 formal models** covering routing, coordination, secrecy,
+**Inhibitor-Arc Fixed Models (Phase 2):**
+
+| Model | Bug fixed |
+|---|---|
+| [`prekey-pool-fixed/`](prekey-pool-fixed/) | `AG Pool ≥ 1` now actually holds (was violated in original model) |
+
+**Total: 28 formal models** covering routing, coordination, secrecy,
 recovery, anti-Sybil, key management, capability negotiation, financial
 atomicity, backpressure, anomaly detection, multi-bundle isolation,
-multi-session secrecy, and SLA-bounded delivery — the full critical-
-correctness surface of the protocol.
+multi-session secrecy, SLA-bounded delivery, MTTR-bounded recovery, and
+atomic threshold operations — the full critical-correctness surface
+of the protocol.
 
 ## Tooling
 
