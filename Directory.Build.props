@@ -21,7 +21,7 @@
 
     <!-- Version — bump in a single place before each release.
          Pre-release: set VersionSuffix in CI (e.g. -alpha.1, -rc.1). -->
-    <VersionPrefix>1.0.4</VersionPrefix>
+    <VersionPrefix>1.1.0</VersionPrefix>
 
     <!-- AetherMesh identity — package, assembly AND namespace, fully consistent.
          The `Aether.*` prefix on nuget.org is RESERVED by another owner
@@ -60,10 +60,14 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
-  <!-- Include the root README.md in the NuGet package -->
-  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+  <!-- Include each PROJECT's own README.md in its NuGet package.
+       Each src/AetherMesh.X/ ships its own README.md with a per-package
+       quick-start; that file is what NuGet displays on the package page.
+       (We deliberately do NOT pack the repo-root README — it's a
+       long-form project overview, not a package quick-start.) -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false' AND Exists('$(MSBuildProjectDirectory)\README.md')">
     <None
-      Include="$(MSBuildThisFileDirectory)README.md"
+      Include="$(MSBuildProjectDirectory)\README.md"
       Pack="true"
       PackagePath="\" />
   </ItemGroup>
