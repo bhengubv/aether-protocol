@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="backend-fallback" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Backend Fallback</text></name>
+    <page id="page-main">
+      <place id="P_Pending"><initialMarking><text>3</text></initialMarking></place>
+      <place id="P_TryMesh"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_TryDtn"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_TryBackend"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Delivered"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_Start"/>
+      <arc id="A1" source="P_Pending" target="T_Start"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_Start" target="P_TryMesh"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_MeshFails"/>
+      <arc id="A3" source="P_TryMesh" target="T_MeshFails"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_MeshFails" target="P_TryDtn"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DtnFails"/>
+      <arc id="A5" source="P_TryDtn" target="T_DtnFails"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_DtnFails" target="P_TryBackend"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DeliverViaMesh"/>
+      <arc id="A7" source="P_TryMesh" target="T_DeliverViaMesh"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_DeliverViaMesh" target="P_Delivered"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DeliverViaDtn"/>
+      <arc id="A9" source="P_TryDtn" target="T_DeliverViaDtn"><inscription><text>1</text></inscription></arc>
+      <arc id="A10" source="T_DeliverViaDtn" target="P_Delivered"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DeliverViaBackend"/>
+      <arc id="A11" source="P_TryBackend" target="T_DeliverViaBackend"><inscription><text>1</text></inscription></arc>
+      <arc id="A12" source="T_DeliverViaBackend" target="P_Delivered"><inscription><text>1</text></inscription></arc>
+    </page>
+  </net>
+</pnml>

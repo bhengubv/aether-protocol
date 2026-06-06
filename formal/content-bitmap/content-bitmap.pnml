@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="content-bitmap" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Content Bitmap</text></name>
+    <page id="page-main">
+      <place id="P_Sender_Has"><initialMarking><text>4</text></initialMarking></place>
+      <place id="P_Receiver_Missing"><initialMarking><text>4</text></initialMarking></place>
+      <place id="P_InFlight"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Receiver_Has"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_Request"/>
+      <arc id="A1" source="P_Receiver_Missing" target="T_Request"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="P_Sender_Has" target="T_Request"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_Request" target="P_Sender_Has"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_Request" target="P_InFlight"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_Receive"/>
+      <arc id="A5" source="P_InFlight" target="T_Receive"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_Receive" target="P_Receiver_Has"><inscription><text>1</text></inscription></arc>
+    </page>
+  </net>
+</pnml>

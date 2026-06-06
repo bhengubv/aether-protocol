@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="handshake-version" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Handshake Version</text></name>
+    <page id="page-main">
+      <place id="P_A_v1"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_A_v2"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_B_v2"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_AgreedV2"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_NoCommonVersion"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_Agree_v2"/>
+      <arc id="A1" source="P_A_v2" target="T_Agree_v2"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="P_B_v2" target="T_Agree_v2"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_Agree_v2" target="P_AgreedV2"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_NoMatch"/>
+      <arc id="A4" source="P_A_v1" target="T_NoMatch"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="T_NoMatch" target="P_NoCommonVersion"><inscription><text>1</text></inscription></arc>
+    </page>
+  </net>
+</pnml>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="space-breadcrumb" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Space Breadcrumb</text></name>
+    <page id="page-main">
+      <place id="P_Drop"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_AtNode1"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_AtNode2"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Expired"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_Drop"/>
+      <arc id="A1" source="P_Drop" target="T_Drop"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_Drop" target="P_AtNode1"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_Propagate"/>
+      <arc id="A3" source="P_AtNode1" target="T_Propagate"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_Propagate" target="P_AtNode1"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="T_Propagate" target="P_AtNode2"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_Decay"/>
+      <arc id="A6" source="P_AtNode1" target="T_Decay"><inscription><text>1</text></inscription></arc>
+      <arc id="A7" source="T_Decay" target="P_Expired"><inscription><text>1</text></inscription></arc>
+    </page>
+  </net>
+</pnml>

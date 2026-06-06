@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="dtn-replication" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>DTN Replication Strategies</text></name>
+    <page id="page-main">
+      <place id="P_Bundle"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_Replicas_Geohash"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Custody_N1"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Custody_N2"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Delivered"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_GeohashReplicate"/>
+      <arc id="A1" source="P_Bundle" target="T_GeohashReplicate"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_GeohashReplicate" target="P_Replicas_Geohash"><inscription><text>3</text></inscription></arc>
+
+      <transition id="T_CustodyHandoff"/>
+      <arc id="A3" source="P_Bundle" target="T_CustodyHandoff"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_CustodyHandoff" target="P_Custody_N1"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_CustodyChain"/>
+      <arc id="A5" source="P_Custody_N1" target="T_CustodyChain"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_CustodyChain" target="P_Custody_N2"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DeliverFromGeohash"/>
+      <arc id="A7" source="P_Replicas_Geohash" target="T_DeliverFromGeohash"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_DeliverFromGeohash" target="P_Delivered"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DeliverFromCustody"/>
+      <arc id="A9" source="P_Custody_N2" target="T_DeliverFromCustody"><inscription><text>1</text></inscription></arc>
+      <arc id="A10" source="T_DeliverFromCustody" target="P_Delivered"><inscription><text>1</text></inscription></arc>
+    </page>
+  </net>
+</pnml>

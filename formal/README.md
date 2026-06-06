@@ -117,13 +117,46 @@ testing cannot find.
 | [`stream-abr/`](stream-abr/) | ABR rung-selection mutual exclusion |
 | [`group-video-sfu/`](group-video-sfu/) | FullMesh↔SFU atomic switchover |
 
-**Total: 33 formal models** covering routing, coordination, secrecy,
+**Additional New Models (Phase 2 final batch):**
+
+| Model | Property |
+|---|---|
+| [`dtn-replication/`](dtn-replication/) | Geohash + custody strategies preserve conservation |
+| [`voice-jitter/`](voice-jitter/) | In-order playout under reordering |
+| [`handshake-version/`](handshake-version/) | Version negotiation reaches terminal state |
+| [`backend-fallback/`](backend-fallback/) | Mesh → DTN → backend chain delivers |
+| [`content-bitmap/`](content-bitmap/) | Chunk exchange completes; sender retains all |
+| [`space-breadcrumb/`](space-breadcrumb/) | Geo-propagation + TTL decay |
+
+**Composed End-to-End Scenarios (Phase 2):**
+
+| Model | What it composes |
+|---|---|
+| [`composed-encrypted-bundle/`](composed-encrypted-bundle/) | Signal + AODV + DTN + Signal-decrypt |
+
+**Adversarial Extensions (Phase 2):**
+
+| Model | Adversary modelled |
+|---|---|
+| [`byzantine-routing/`](byzantine-routing/) | Malicious node injecting fake RREPs |
+
+**Total: 41 formal models** covering routing, coordination, secrecy,
 recovery, anti-Sybil, key management, capability negotiation, financial
 atomicity, backpressure, anomaly detection, multi-bundle isolation,
 multi-session secrecy, SLA-bounded delivery, MTTR-bounded recovery,
 atomic threshold operations, stochastic loss probability,
-cross-language wire format, hash integrity, ABR selection, and SFU
-switchover — the full critical-correctness surface of the protocol.
+cross-language wire format, hash integrity, ABR selection, SFU
+switchover, voice jitter, version negotiation, multi-tier fallback,
+bitmap exchange, geo-propagation, end-to-end composition, and
+byzantine resistance — the full critical-correctness surface of the
+protocol.
+
+**Standards artifacts** under [`standards/`](standards/):
+- IETF Internet-Draft (`draft-bhengubv-aethermesh-00`)
+- SARB Exempt 17 eKYC submission ([`sarb-exempt-17/`](standards/sarb-exempt-17/))
+- Academic paper outline ([`paper/`](standards/paper/))
+
+**[Conformance kit](conformance-kit/)** for third-party implementations.
 
 ## Tooling
 

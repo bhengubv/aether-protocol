@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="byzantine-routing" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Byzantine Routing</text></name>
+    <page id="page-main">
+      <place id="P_A_RouteTable"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_HonestRREP"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_MaliciousRREP_Stale"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_MaliciousRREP_Unsigned"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_FreshSeqAvailable"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_RejectedAttacks"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_HonestRREP_Arrives"/>
+      <arc id="A1" source="P_FreshSeqAvailable" target="T_HonestRREP_Arrives"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_HonestRREP_Arrives" target="P_HonestRREP"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_AcceptHonest"/>
+      <arc id="A3" source="P_HonestRREP" target="T_AcceptHonest"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_AcceptHonest" target="P_A_RouteTable"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_RejectStaleSeq"/>
+      <arc id="A5" source="P_MaliciousRREP_Stale" target="T_RejectStaleSeq"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_RejectStaleSeq" target="P_RejectedAttacks"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_RejectUnsigned"/>
+      <arc id="A7" source="P_MaliciousRREP_Unsigned" target="T_RejectUnsigned"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_RejectUnsigned" target="P_RejectedAttacks"><inscription><text>1</text></inscription></arc>
+    </page>
+  </net>
+</pnml>

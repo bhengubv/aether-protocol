@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="composed-encrypted-bundle" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Composed: Encrypted Bundle End-to-End</text></name>
+    <page id="page-main">
+      <place id="P_Plaintext"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_Encrypted"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Routed"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_InCustody"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_DeliveredBundle"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_DecryptedAtBob"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_RouteAvailable"><initialMarking><text>1</text></initialMarking></place>
+
+      <transition id="T_Encrypt"/>
+      <arc id="A1" source="P_Plaintext" target="T_Encrypt"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_Encrypt" target="P_Encrypted"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_LookupRoute"/>
+      <arc id="A3" source="P_Encrypted" target="T_LookupRoute"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="P_RouteAvailable" target="T_LookupRoute"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="T_LookupRoute" target="P_RouteAvailable"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_LookupRoute" target="P_Routed"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_AcceptCustody"/>
+      <arc id="A7" source="P_Routed" target="T_AcceptCustody"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_AcceptCustody" target="P_InCustody"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_Deliver"/>
+      <arc id="A9" source="P_InCustody" target="T_Deliver"><inscription><text>1</text></inscription></arc>
+      <arc id="A10" source="T_Deliver" target="P_DeliveredBundle"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_Decrypt"/>
+      <arc id="A11" source="P_DeliveredBundle" target="T_Decrypt"><inscription><text>1</text></inscription></arc>
+      <arc id="A12" source="T_Decrypt" target="P_DecryptedAtBob"><inscription><text>1</text></inscription></arc>
+    </page>
+  </net>
+</pnml>
