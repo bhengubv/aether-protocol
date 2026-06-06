@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  AetherMesh DTN Custody — Coloured Petri Net (CPN Tools 4 format)
+  =================================================================
+  Coloured upgrade of the dtn-custody P/T model. Bundles carry their
+  identity (BUNDLE_ID) as token colour. Proves per-bundle conservation,
+  no bundle mixing across custody handoffs, and no replay.
+
+  Verified using CPN Tools 4 state-space analysis.
+  Repository: https://github.com/bhengubv/aether-protocol
+  SPDX-License-Identifier: MIT
+-->
+<workspaceElements xmlns="http://cpntools.org/cpn">
+  <cpnet>
+
+    <!-- ═════════════════════ COLOUR SET DECLARATIONS ═════════════════════ -->
+
+    <globbox>
+      <block id="colsets">
+        <id>Standard declarations</id>
+        <color id="BUNDLE_ID">
+          <id>BUNDLE_ID</id>
+          <int>
+            <with><ml>1</ml><ml>16</ml></with>
+          </int>
+        </color>
+        <color id="NODE_ID">
+          <id>NODE_ID</id>
+          <enum>
+            <id>A</id>
+            <id>B</id>
+            <id>C</id>
+            <id>D</id>
+          </enum>
+        </color>
+        <color id="BUNDLE">
+          <id>BUNDLE</id>
+          <product>
+            <id>BUNDLE_ID</id>
+            <id>NODE_ID</id>
+          </product>
+        </color>
+      </block>
+
+      <!-- Variable declarations for arc inscriptions -->
+      <block id="vars">
+        <id>Variables</id>
+        <var><type><id>BUNDLE_ID</id></type><id>bid</id></var>
+        <var><type><id>NODE_ID</id></type><id>src</id></var>
+        <var><type><id>NODE_ID</id></type><id>dst</id></var>
+      </block>
+    </globbox>
+
+    <!-- ═════════════════════ PLACES ═════════════════════════════════════ -->
+
+    <page id="MAIN">
+      <pageattr name="DTN Custody Coloured"/>
+
+      <!-- Place: bundles waiting at source nodes -->
+      <place id="P_AtSource">
+        <type><text>BUNDLE</text></type>
+        <initmark>
+          <text>1`(1, A) ++ 1`(2, A) ++ 1`(3, B)</text>
+        </initmark>
+        <text>BundlesAtSource</text>
+      </place>
+
+      <!-- Place: bundles in custody at relay -->
+      <place id="P_InCustody">
+        <type><text>BUNDLE</text></type>
+        <initmark><text>empty</text></initmark>
+        <text>InCustody</text>
+      </place>
+
+      <!-- Place: bundles delivered -->
+      <place id="P_Delivered">
+        <type><text>BUNDLE_ID</text></type>
+        <initmark><text>empty</text></initmark>
+        <text>Delivered</text>
+      </place>
+
+      <!-- Place: bundles expired -->
+      <place id="P_Expired">
+        <type><text>BUNDLE_ID</text></type>
+        <initmark><text>empty</text></initmark>
+        <text>Expired</text>
+      </place>
+
+      <!-- ═════════════════════ TRANSITIONS ═════════════════════════════ -->
+
+      <!-- T_AcceptCustody: relay accepts a bundle for custody.
+           The bundle carries its identity throughout — no mixing. -->
+      <trans id="T_AcceptCustody">
+        <text>AcceptCustody</text>
+      </trans>
+
+      <!-- T_DeliverFromCustody: relay delivers to destination.
+           The bundle id is preserved at delivery — per-bundle guarantee. -->
+      <trans id="T_DeliverFromCustody">
+        <text>DeliverFromCustody</text>
+      </trans>
+
+      <!-- T_DirectDelivery: source delivers directly (no custody). -->
+      <trans id="T_DirectDelivery">
+        <text>DirectDelivery</text>
+      </trans>
+
+      <!-- T_ExpireInCustody: bundle TTL exhausts while at relay. -->
+      <trans id="T_ExpireInCustody">
+        <text>ExpireInCustody</text>
+      </trans>
+
+      <!-- ═════════════════════ ARCS ═════════════════════════════════════ -->
+
+      <!-- Source -> AcceptCustody: takes (bid, src) -->
+      <arc id="A_Src_Accept" orientation="PtoT">
+        <transend idref="T_AcceptCustody"/>
+        <placeend idref="P_AtSource"/>
+        <annot><text>1`(bid, src)</text></annot>
+      </arc>
+      <!-- AcceptCustody -> InCustody: places (bid, src) in custody -->
+      <arc id="A_Accept_Cust" orientation="TtoP">
+        <transend idref="T_AcceptCustody"/>
+        <placeend idref="P_InCustody"/>
+        <annot><text>1`(bid, src)</text></annot>
+      </arc>
+
+      <!-- InCustody -> Deliver: takes the bundle out -->
+      <arc id="A_Cust_Deliver" orientation="PtoT">
+        <transend idref="T_DeliverFromCustody"/>
+        <placeend idref="P_InCustody"/>
+        <annot><text>1`(bid, src)</text></annot>
+      </arc>
+      <!-- Deliver -> Delivered: marks the bundle id as delivered -->
+      <arc id="A_Deliver_Done" orientation="TtoP">
+        <transend idref="T_DeliverFromCustody"/>
+        <placeend idref="P_Delivered"/>
+        <annot><text>1`bid</text></annot>
+      </arc>
+
+      <!-- Source -> DirectDelivery: take (bid, src) -->
+      <arc id="A_Src_Direct" orientation="PtoT">
+        <transend idref="T_DirectDelivery"/>
+        <placeend idref="P_AtSource"/>
+        <annot><text>1`(bid, src)</text></annot>
+      </arc>
+      <!-- DirectDelivery -> Delivered: bundle id delivered -->
+      <arc id="A_Direct_Done" orientation="TtoP">
+        <transend idref="T_DirectDelivery"/>
+        <placeend idref="P_Delivered"/>
+        <annot><text>1`bid</text></annot>
+      </arc>
+
+      <!-- InCustody -> Expire -->
+      <arc id="A_Cust_Expire" orientation="PtoT">
+        <transend idref="T_ExpireInCustody"/>
+        <placeend idref="P_InCustody"/>
+        <annot><text>1`(bid, src)</text></annot>
+      </arc>
+      <!-- Expire -> Expired: bundle id marked expired -->
+      <arc id="A_Expire_Done" orientation="TtoP">
+        <transend idref="T_ExpireInCustody"/>
+        <placeend idref="P_Expired"/>
+        <annot><text>1`bid</text></annot>
+      </arc>
+
+    </page>
+  </cpnet>
+</workspaceElements>

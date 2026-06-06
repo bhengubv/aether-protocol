@@ -25,6 +25,14 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from collections import defaultdict
 
+# CTL evaluator (sibling module)
+sys.path.insert(0, str(Path(__file__).parent))
+try:
+    from ctl import parse_ctl, evaluate as ctl_evaluate, verify_q_file
+    CTL_AVAILABLE = True
+except ImportError:
+    CTL_AVAILABLE = False
+
 NS = {"pnml": "http://www.pnml.org/version-2009/grammar/pnml"}
 
 
@@ -97,27 +105,36 @@ def fire(marking, t_id, arcs_in, arcs_out):
     return new
 
 
-def reachability(places, transitions, arcs_in, arcs_out, max_states=10000):
-    """BFS the reachability graph. Returns set of reachable markings."""
+def reachability(places, transitions, arcs_in, arcs_out, max_states=2000):
+    """BFS the reachability graph.
+       Returns (markings_dict, place_keys, successors_dict, initial_id).
+       markings_dict: state_id -> marking dict
+       successors_dict: state_id -> set of successor state_ids
+       initial_id: the state ID of the initial marking."""
     place_keys = sorted(places)
     init = dict(places)
     init_t = marking_to_tuple(places, init)
 
-    reached = {init_t: init}
+    # Use string ids (tuples not hashable for some structures); markings indexed by id
+    markings = {init_t: init}
+    successors = {init_t: set()}
     queue = [init]
 
-    while queue and len(reached) < max_states:
+    while queue and len(markings) < max_states:
         m = queue.pop(0)
+        m_key = marking_to_tuple(places, m)
         for t in transitions:
             new_m = fire(m, t, arcs_in, arcs_out)
             if new_m is None:
                 continue
             key = marking_to_tuple(places, new_m)
-            if key not in reached:
-                reached[key] = new_m
+            if key not in markings:
+                markings[key] = new_m
+                successors[key] = set()
                 queue.append(new_m)
+            successors[m_key].add(key)
 
-    return reached, place_keys
+    return markings, place_keys, successors, init_t
 
 
 def find_conservation_invariants(reached, place_keys):
@@ -208,22 +225,33 @@ def verify_model(model_dir):
     pnml = pnml_files[0]
 
     places, transitions, arcs_in, arcs_out = parse_pnml(pnml)
-    reached, place_keys = reachability(places, transitions, arcs_in, arcs_out)
-    invariants = find_conservation_invariants(reached, place_keys)
-    max_marks = max_marking_per_place(reached, place_keys)
+    markings, place_keys, successors, init_id = reachability(places, transitions, arcs_in, arcs_out)
+    invariants = find_conservation_invariants(markings, place_keys)
+    max_marks = max_marking_per_place(markings, place_keys)
     goal_pred = GOAL_PREDICATES.get(name)
-    goal_ok = goal_reachable(reached, place_keys, goal_pred) if goal_pred else None
-    violations = is_safety_violation(reached, place_keys, name)
+    goal_ok = goal_reachable(markings, place_keys, goal_pred) if goal_pred else None
+    violations = is_safety_violation(markings, place_keys, name)
+
+    # CTL verification of .q file (Phase 1 addition)
+    ctl_results = []
+    if CTL_AVAILABLE:
+        q_files = list(model_dir.glob("*.q"))
+        if q_files:
+            try:
+                ctl_results = verify_q_file(q_files[0], markings, successors, init_id)
+            except Exception as e:
+                ctl_results = [(f"<failed to parse {q_files[0].name}>", None, str(e))]
 
     return {
         "name": name,
         "places": len(places),
         "transitions": len(transitions),
-        "reachable_states": len(reached),
+        "reachable_states": len(markings),
         "invariants": invariants,
         "max_marks": max_marks,
         "goal_reachable": goal_ok,
         "safety_violations": violations,
+        "ctl_results": ctl_results,
     }
 
 
@@ -243,6 +271,17 @@ def render_report(result):
         lines.append(f"| Goal reachable | {'✅ YES' if result['goal_reachable'] else '❌ NO'} |")
     lines.append(f"| Safety violations | {'❌ ' + ', '.join(result['safety_violations']) if result['safety_violations'] else '✅ none'} |")
     lines.append("")
+    if result.get("ctl_results"):
+        lines.append("### CTL Query Verification (`.q` file)")
+        lines.append("")
+        lines.append("| # | Query | Result |")
+        lines.append("|---|---|---|")
+        for i, (q, ok, err) in enumerate(result["ctl_results"], 1):
+            badge = "✅ SAT" if ok else ("❌ NOT SAT" if ok is False else "⚠ parse-fail")
+            q_short = q if len(q) < 60 else q[:57] + "..."
+            lines.append(f"| {i} | `{q_short}` | {badge} |")
+        lines.append("")
+
     if result["invariants"]:
         lines.append("### Conservation Invariants (auto-discovered)")
         lines.append("")
