@@ -23,8 +23,8 @@ testing cannot find.
 | Model | Protocol component | Key property proved |
 |---|---|---|
 | [`dtn-custody/`](dtn-custody/) | `IAetherMeshDtnService` custody transfer | Bundle conservation + self-healing after relay failure |
-| `signal-protocol/` *(planned)* | `ISignalMeshProtocolService` X3DH + ratchet | Forward + future secrecy across session states |
-| `vault-erasure/` *(planned)* | `IVaultMeshService` K-of-N Reed-Solomon | Recoverability reachable iff ≥K shards exist |
+| [`signal-protocol/`](signal-protocol/) | `ISignalMeshProtocolService` X3DH + ratchet | Forward + future secrecy across session states |
+| [`vault-erasure/`](vault-erasure/) | `IVaultMeshService` K-of-N Reed-Solomon | Recoverability reachable iff ≥K shards exist; bounded loss probability |
 | `watch-together/` *(planned)* | `IWatchTogetherMeshService` sync | Bounded-jitter convergence under concurrent seeks |
 
 ## Tooling

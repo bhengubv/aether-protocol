@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AetherMesh Signal Protocol — Forward + Future Secrecy Petri Net
+  ================================================================
+  ISO/IEC 15909-2 Petri Net Markup Language (PNML) — P/T Net type.
+
+  Models the Double Ratchet key evolution across THREE consecutive epochs
+  (E0 → E1 → E2), with explicit "attacker compromise" transitions to verify:
+
+    FORWARD SECRECY:
+      If an attacker compromises the chain key at epoch E_i, they CANNOT
+      learn the chain key for any epoch E_j where j < i. (Past messages
+      stay secret even after future compromise.)
+
+    FUTURE SECRECY (post-compromise security):
+      After compromise at epoch E_i, a fresh DH ratchet step into E_{i+1}
+      produces a chain key the attacker does NOT have. (Future messages
+      become secret again after a single ratchet step.)
+
+  Each epoch's chain key is a distinct place. The DH ratchet transition
+  consumes the old chain key and produces a new one — the old key is
+  GONE from the net, mirroring the cryptographic one-wayness of HKDF.
+
+  Verification: open in TAPAAL or run LoLA with the queries in
+  signal-protocol.q. All 6 queries expected SATISFIED.
+
+  Repository: https://github.com/bhengubv/aether-protocol
+  SPDX-License-Identifier: MIT
+-->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="signal-protocol"
+       type="http://www.pnml.org/version-2009/grammar/ptnet">
+
+    <name><text>AetherMesh Signal Protocol — Forward + Future Secrecy</text></name>
+
+    <page id="page-main">
+
+      <!-- ═══════════════════════════════════════════════════════════
+           PLACES — chain key state per epoch
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- Epoch E0 (initial). Chain key derived from X3DH key agreement. -->
+      <place id="P_ChainKey_E0">
+        <name><text>ChainKey_E0</text></name>
+        <graphics><position x="100" y="100"/></graphics>
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+
+      <!-- Epoch E1 (after first DH ratchet). Created when T_Ratchet_0to1 fires. -->
+      <place id="P_ChainKey_E1">
+        <name><text>ChainKey_E1</text></name>
+        <graphics><position x="350" y="100"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- Epoch E2 (after second DH ratchet). -->
+      <place id="P_ChainKey_E2">
+        <name><text>ChainKey_E2</text></name>
+        <graphics><position x="600" y="100"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           PLACES — fresh DH key material for each ratchet step
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- Fresh DH key needed to ratchet from E0 to E1. -->
+      <place id="P_FreshDH_E1">
+        <name><text>FreshDH_E1</text></name>
+        <graphics><position x="225" y="200"/></graphics>
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+
+      <!-- Fresh DH key needed to ratchet from E1 to E2. -->
+      <place id="P_FreshDH_E2">
+        <name><text>FreshDH_E2</text></name>
+        <graphics><position x="475" y="200"/></graphics>
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           PLACES — attacker's knowledge per epoch
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!--
+        These places hold tokens representing the attacker having
+        captured the chain key for that epoch. The attacker NEVER
+        loses knowledge — once a token is in P_Attacker_E_i, it stays.
+        This is enforced by giving every consumer of these places a
+        test arc (read-only).
+      -->
+      <place id="P_Attacker_E0">
+        <name><text>Attacker_E0</text></name>
+        <graphics><position x="100" y="350"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+      <place id="P_Attacker_E1">
+        <name><text>Attacker_E1</text></name>
+        <graphics><position x="350" y="350"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+      <place id="P_Attacker_E2">
+        <name><text>Attacker_E2</text></name>
+        <graphics><position x="600" y="350"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           TRANSITIONS — DH ratchet steps (key evolution)
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!--
+        T_Ratchet_0to1 — DH ratchet from E0 to E1.
+        Consumes: P_ChainKey_E0 + P_FreshDH_E1
+        Produces: P_ChainKey_E1
+
+        Critically, the OLD chain key is DESTROYED — there is no transition
+        that re-creates P_ChainKey_E0 once it has been consumed. This is
+        the structural representation of HKDF one-wayness in the protocol.
+
+        AetherMesh: ISignalMeshProtocolService.OnRatchet() — when a new
+        ephemeral public key arrives in a message header, derive new
+        root key + chain keys via HKDF, discard old chain key.
+      -->
+      <transition id="T_Ratchet_0to1">
+        <name><text>Ratchet_E0_to_E1</text></name>
+        <graphics><position x="225" y="100"/></graphics>
+      </transition>
+
+      <!-- T_Ratchet_1to2 — DH ratchet from E1 to E2. -->
+      <transition id="T_Ratchet_1to2">
+        <name><text>Ratchet_E1_to_E2</text></name>
+        <graphics><position x="475" y="100"/></graphics>
+      </transition>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           TRANSITIONS — attacker compromise
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!--
+        T_Compromise_E0 — attacker captures the E0 chain key.
+        Consumes: P_ChainKey_E0 (test arc — does not destroy)
+        Produces: P_Attacker_E0 (sets attacker's knowledge flag)
+
+        Test-arc semantics (consume + produce same place) means the
+        attacker reads but does not destroy. So the legitimate parties
+        can still ratchet forward after compromise.
+
+        The transition is only ENABLED when P_ChainKey_E0 holds a token,
+        i.e., the chain key currently exists. This is the key property:
+        once T_Ratchet_0to1 has fired, P_ChainKey_E0 = 0, and
+        T_Compromise_E0 can NEVER fire again. That is FORWARD SECRECY.
+      -->
+      <transition id="T_Compromise_E0">
+        <name><text>Compromise_E0</text></name>
+        <graphics><position x="100" y="225"/></graphics>
+      </transition>
+
+      <!-- T_Compromise_E1 — attacker captures the E1 chain key. -->
+      <transition id="T_Compromise_E1">
+        <name><text>Compromise_E1</text></name>
+        <graphics><position x="350" y="225"/></graphics>
+      </transition>
+
+      <!-- T_Compromise_E2 — attacker captures the E2 chain key. -->
+      <transition id="T_Compromise_E2">
+        <name><text>Compromise_E2</text></name>
+        <graphics><position x="600" y="225"/></graphics>
+      </transition>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           ARCS — Ratchet E0 to E1
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- consumes E0 chain key (destroyed) -->
+      <arc id="A_E0_R01" source="P_ChainKey_E0" target="T_Ratchet_0to1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <!-- consumes fresh DH material for E1 -->
+      <arc id="A_DH1_R01" source="P_FreshDH_E1" target="T_Ratchet_0to1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <!-- produces E1 chain key -->
+      <arc id="A_R01_E1" source="T_Ratchet_0to1" target="P_ChainKey_E1">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           ARCS — Ratchet E1 to E2
+           ═══════════════════════════════════════════════════════════ -->
+
+      <arc id="A_E1_R12" source="P_ChainKey_E1" target="T_Ratchet_1to2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_DH2_R12" source="P_FreshDH_E2" target="T_Ratchet_1to2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R12_E2" source="T_Ratchet_1to2" target="P_ChainKey_E2">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           ARCS — Compromise transitions (test arcs)
+
+           Each T_Compromise_E_i requires that P_ChainKey_E_i currently
+           holds a token. We implement the "test arc" semantics by
+           consuming and re-producing the chain key token: the firing
+           reads but does not destroy. This is the standard P/T net
+           encoding of a read-only guard.
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- T_Compromise_E0 test-arc: P_ChainKey_E0 ⇄ T_Compromise_E0 -->
+      <arc id="A_E0_C0_in"  source="P_ChainKey_E0"   target="T_Compromise_E0">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_E0_C0_out" source="T_Compromise_E0" target="P_ChainKey_E0">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_C0_Atk0"   source="T_Compromise_E0" target="P_Attacker_E0">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- T_Compromise_E1 test-arc: P_ChainKey_E1 ⇄ T_Compromise_E1 -->
+      <arc id="A_E1_C1_in"  source="P_ChainKey_E1"   target="T_Compromise_E1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_E1_C1_out" source="T_Compromise_E1" target="P_ChainKey_E1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_C1_Atk1"   source="T_Compromise_E1" target="P_Attacker_E1">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- T_Compromise_E2 test-arc: P_ChainKey_E2 ⇄ T_Compromise_E2 -->
+      <arc id="A_E2_C2_in"  source="P_ChainKey_E2"   target="T_Compromise_E2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_E2_C2_out" source="T_Compromise_E2" target="P_ChainKey_E2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_C2_Atk2"   source="T_Compromise_E2" target="P_Attacker_E2">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+    </page>
+
+    <!-- ═════════════════════════════════════════════════════════════
+         REACHABILITY / CTL QUERIES (see signal-protocol.q)
+
+         Forward secrecy queries:
+           AG (P_ChainKey_E0 = 0 => AG (P_Attacker_E0 = 0
+                                        OR  EX false))
+
+         Future secrecy queries:
+           EF (P_Attacker_E0 = 1 AND P_ChainKey_E1 = 1 AND P_Attacker_E1 = 0)
+           — there exists a state where the attacker has E0 but not E1,
+           even though E1 exists.
+         ═════════════════════════════════════════════════════════════ -->
+
+  </net>
+</pnml>

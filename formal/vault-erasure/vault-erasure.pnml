@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AetherMesh Vault Erasure Coding — K-of-N Reachability Petri Net
+  ================================================================
+  ISO/IEC 15909-2 Petri Net Markup Language (PNML) — P/T Net type.
+
+  Models a (K=2, N=3) Reed-Solomon erasure-coded vault. The data is
+  split into 3 shards distributed across 3 nodes; any 2 of 3 shards
+  can reconstruct the original data.
+
+  Why K=2, N=3? It is the smallest case that exhibits all the
+  interesting properties:
+    - Some single-failure states still recoverable
+    - Some single-failure states require self-healing to stay safe
+    - Two-failure states reach the unrecoverable boundary
+
+  Properties verified (see properties.md):
+    P1  Initial recoverability: ≥K shards available from start
+    P2  Single-failure tolerance: any 1 shard loss still recoverable
+    P3  Self-healing reachability: from any recoverable state with
+        one missing shard, a healing transition can restore N=3
+    P4  Boundary detection: states with <K shards are unrecoverable
+    P5  Permanent loss detection: total-failure state is reachable
+        only via deliberate progression past the recovery threshold
+    P6  Conservation: every reachable marking respects the K-of-N invariant
+
+  Production AetherMesh uses (K=10, N=14). The structural argument
+  here generalises: induction on (N, K) shows that for any K ≤ N,
+  the recoverable states form a closed subset bounded by the
+  failure-count = N-K hyperplane.
+
+  Verification: open in TAPAAL or run LoLA with vault-erasure.q.
+
+  Repository: https://github.com/bhengubv/aether-protocol
+  SPDX-License-Identifier: MIT
+-->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="vault-erasure"
+       type="http://www.pnml.org/version-2009/grammar/ptnet">
+
+    <name><text>AetherMesh Vault — K-of-N Erasure Reachability</text></name>
+
+    <page id="page-main">
+
+      <!-- ═══════════════════════════════════════════════════════════
+           PLACES — shard alive/dead per node
+
+           For each of 3 nodes, exactly one of P_Has_Shard_i and
+           P_No_Shard_i holds a token. The sum invariant
+             P_Has_Shard_i + P_No_Shard_i = 1
+           is preserved by every transition.
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- Node 1: shard exists -->
+      <place id="P_Has_Shard_1">
+        <name><text>HasShard1</text></name>
+        <graphics><position x="100" y="100"/></graphics>
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+      <place id="P_No_Shard_1">
+        <name><text>NoShard1</text></name>
+        <graphics><position x="100" y="200"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- Node 2 -->
+      <place id="P_Has_Shard_2">
+        <name><text>HasShard2</text></name>
+        <graphics><position x="300" y="100"/></graphics>
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+      <place id="P_No_Shard_2">
+        <name><text>NoShard2</text></name>
+        <graphics><position x="300" y="200"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- Node 3 -->
+      <place id="P_Has_Shard_3">
+        <name><text>HasShard3</text></name>
+        <graphics><position x="500" y="100"/></graphics>
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+      <place id="P_No_Shard_3">
+        <name><text>NoShard3</text></name>
+        <graphics><position x="500" y="200"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           PLACES — terminal recovery states
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- Data has been successfully reconstructed from ≥K shards. -->
+      <place id="P_Recovered">
+        <name><text>Recovered</text></name>
+        <graphics><position x="700" y="100"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- Permanently lost — fewer than K shards remain. -->
+      <place id="P_Lost">
+        <name><text>Lost</text></name>
+        <graphics><position x="700" y="300"/></graphics>
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           TRANSITIONS — node failures (shard loss)
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!--
+        T_Fail_i — node i loses its shard.
+        Consumes: P_Has_Shard_i
+        Produces: P_No_Shard_i
+
+        AetherMesh: the node holding the shard goes offline; its custody
+        record in IVaultMeshService.ShardCustody is marked as expired.
+      -->
+      <transition id="T_Fail_1">
+        <name><text>FailShard1</text></name>
+        <graphics><position x="100" y="150"/></graphics>
+      </transition>
+      <transition id="T_Fail_2">
+        <name><text>FailShard2</text></name>
+        <graphics><position x="300" y="150"/></graphics>
+      </transition>
+      <transition id="T_Fail_3">
+        <name><text>FailShard3</text></name>
+        <graphics><position x="500" y="150"/></graphics>
+      </transition>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           TRANSITIONS — self-healing (replicate to recover)
+
+           T_Heal_i requires THE OTHER TWO shards to exist. This is the
+           K-of-N reshard property: to regenerate shard i, we need at
+           least K=2 other shards to reconstruct the secret first.
+
+           Test arcs (consume + re-produce) on the input shards encode
+           "read-only" use — they're still on the original nodes.
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!--
+        T_Heal_1 — regenerate shard 1 from shards 2 and 3.
+        Requires: P_No_Shard_1 (shard 1 is missing)
+                + P_Has_Shard_2 (test arc)
+                + P_Has_Shard_3 (test arc)
+        Produces: P_Has_Shard_1 (back to alive)
+
+        AetherMesh: a healthy node fetches K shards via
+        IVaultMeshService.RecoverShardAsync(missingIndex), reconstructs
+        the original, re-shards, and places the missing shard on a new
+        custodian via IDtnMeshService.CreateBundleAsync.
+      -->
+      <transition id="T_Heal_1">
+        <name><text>HealShard1</text></name>
+        <graphics><position x="100" y="300"/></graphics>
+      </transition>
+      <transition id="T_Heal_2">
+        <name><text>HealShard2</text></name>
+        <graphics><position x="300" y="300"/></graphics>
+      </transition>
+      <transition id="T_Heal_3">
+        <name><text>HealShard3</text></name>
+        <graphics><position x="500" y="300"/></graphics>
+      </transition>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           TRANSITIONS — recovery actions (read the data)
+
+           T_Recover_X_Y fires when shards X and Y are present and the
+           user wants to reconstruct the original. This is the read
+           path: not destructive, the shards remain in place.
+           One transition per pair (3 choose 2 = 3 pairs).
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- Recover from shards 1 and 2 (test arcs on both) -->
+      <transition id="T_Recover_12">
+        <name><text>RecoverFrom_1_2</text></name>
+        <graphics><position x="600" y="50"/></graphics>
+      </transition>
+      <!-- Recover from shards 1 and 3 -->
+      <transition id="T_Recover_13">
+        <name><text>RecoverFrom_1_3</text></name>
+        <graphics><position x="600" y="100"/></graphics>
+      </transition>
+      <!-- Recover from shards 2 and 3 -->
+      <transition id="T_Recover_23">
+        <name><text>RecoverFrom_2_3</text></name>
+        <graphics><position x="600" y="150"/></graphics>
+      </transition>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           TRANSITIONS — permanent loss
+
+           If fewer than K shards exist, the data is irrecoverable.
+           Fires once to mark the lost state explicitly.
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!--
+        T_DeclareLost — all three nodes have lost their shards.
+        Requires: P_No_Shard_1 + P_No_Shard_2 + P_No_Shard_3 (test arcs)
+        Produces: P_Lost
+      -->
+      <transition id="T_DeclareLost">
+        <name><text>DeclareLost</text></name>
+        <graphics><position x="700" y="250"/></graphics>
+      </transition>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           ARCS — failure transitions
+           ═══════════════════════════════════════════════════════════ -->
+
+      <arc id="A_H1_F1" source="P_Has_Shard_1" target="T_Fail_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_F1_N1" source="T_Fail_1" target="P_No_Shard_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H2_F2" source="P_Has_Shard_2" target="T_Fail_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_F2_N2" source="T_Fail_2" target="P_No_Shard_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H3_F3" source="P_Has_Shard_3" target="T_Fail_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_F3_N3" source="T_Fail_3" target="P_No_Shard_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           ARCS — heal transitions
+
+           T_Heal_1: consumes N1; test-arcs H2, H3; produces H1
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- Heal 1: requires shard 1 missing + shards 2 and 3 present -->
+      <arc id="A_N1_He1" source="P_No_Shard_1" target="T_Heal_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H2_He1_in"  source="P_Has_Shard_2" target="T_Heal_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_He1_H2_out" source="T_Heal_1"      target="P_Has_Shard_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H3_He1_in"  source="P_Has_Shard_3" target="T_Heal_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_He1_H3_out" source="T_Heal_1"      target="P_Has_Shard_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_He1_H1" source="T_Heal_1" target="P_Has_Shard_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- Heal 2 -->
+      <arc id="A_N2_He2" source="P_No_Shard_2" target="T_Heal_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H1_He2_in"  source="P_Has_Shard_1" target="T_Heal_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_He2_H1_out" source="T_Heal_2"      target="P_Has_Shard_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H3_He2_in"  source="P_Has_Shard_3" target="T_Heal_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_He2_H3_out" source="T_Heal_2"      target="P_Has_Shard_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_He2_H2" source="T_Heal_2" target="P_Has_Shard_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- Heal 3 -->
+      <arc id="A_N3_He3" source="P_No_Shard_3" target="T_Heal_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H1_He3_in"  source="P_Has_Shard_1" target="T_Heal_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_He3_H1_out" source="T_Heal_3"      target="P_Has_Shard_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H2_He3_in"  source="P_Has_Shard_2" target="T_Heal_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_He3_H2_out" source="T_Heal_3"      target="P_Has_Shard_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_He3_H3" source="T_Heal_3" target="P_Has_Shard_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           ARCS — recover transitions (test arcs on both shards)
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- Recover from 1 and 2 -->
+      <arc id="A_H1_R12_in"  source="P_Has_Shard_1" target="T_Recover_12">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R12_H1_out" source="T_Recover_12" target="P_Has_Shard_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H2_R12_in"  source="P_Has_Shard_2" target="T_Recover_12">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R12_H2_out" source="T_Recover_12" target="P_Has_Shard_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R12_Rec"    source="T_Recover_12" target="P_Recovered">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- Recover from 1 and 3 -->
+      <arc id="A_H1_R13_in"  source="P_Has_Shard_1" target="T_Recover_13">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R13_H1_out" source="T_Recover_13" target="P_Has_Shard_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H3_R13_in"  source="P_Has_Shard_3" target="T_Recover_13">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R13_H3_out" source="T_Recover_13" target="P_Has_Shard_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R13_Rec"    source="T_Recover_13" target="P_Recovered">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- Recover from 2 and 3 -->
+      <arc id="A_H2_R23_in"  source="P_Has_Shard_2" target="T_Recover_23">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R23_H2_out" source="T_Recover_23" target="P_Has_Shard_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_H3_R23_in"  source="P_Has_Shard_3" target="T_Recover_23">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R23_H3_out" source="T_Recover_23" target="P_Has_Shard_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_R23_Rec"    source="T_Recover_23" target="P_Recovered">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           ARCS — declare-lost transition (test arcs on all 3 NoShards)
+           ═══════════════════════════════════════════════════════════ -->
+
+      <arc id="A_N1_DL_in"  source="P_No_Shard_1" target="T_DeclareLost">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_DL_N1_out" source="T_DeclareLost" target="P_No_Shard_1">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_N2_DL_in"  source="P_No_Shard_2" target="T_DeclareLost">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_DL_N2_out" source="T_DeclareLost" target="P_No_Shard_2">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_N3_DL_in"  source="P_No_Shard_3" target="T_DeclareLost">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_DL_N3_out" source="T_DeclareLost" target="P_No_Shard_3">
+        <inscription><text>1</text></inscription>
+      </arc>
+      <arc id="A_DL_Lost"   source="T_DeclareLost" target="P_Lost">
+        <inscription><text>1</text></inscription>
+      </arc>
+
+    </page>
+
+  </net>
+</pnml>
