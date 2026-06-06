@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="outbox-backpressure" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Outbox + DTN Backpressure</text></name>
+    <page id="page-main">
+
+      <place id="P_Ingress"><initialMarking><text>5</text></initialMarking></place>
+      <place id="P_Outbox"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_OutboxSlotsFree"><initialMarking><text>3</text></initialMarking></place>
+      <place id="P_DTN"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Delivered"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_EnterOutbox"/>
+      <arc id="A1" source="P_Ingress" target="T_EnterOutbox"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="P_OutboxSlotsFree" target="T_EnterOutbox"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_EnterOutbox" target="P_Outbox"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_SpillToDTN"/>
+      <arc id="A4" source="P_Ingress" target="T_SpillToDTN"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="T_SpillToDTN" target="P_DTN"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_Deliver"/>
+      <arc id="A6" source="P_Outbox" target="T_Deliver"><inscription><text>1</text></inscription></arc>
+      <arc id="A7" source="T_Deliver" target="P_Delivered"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_Deliver" target="P_OutboxSlotsFree"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DTNRehome"/>
+      <arc id="A9" source="P_DTN" target="T_DTNRehome"><inscription><text>1</text></inscription></arc>
+      <arc id="A10" source="P_OutboxSlotsFree" target="T_DTNRehome"><inscription><text>1</text></inscription></arc>
+      <arc id="A11" source="T_DTNRehome" target="P_Outbox"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ChipIn — atomicity model -->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="chipin-atomicity" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>ChipIn Atomicity</text></name>
+    <page id="page-main">
+
+      <place id="P_C1_Balance"><initialMarking><text>50</text></initialMarking></place>
+      <place id="P_C2_Balance"><initialMarking><text>50</text></initialMarking></place>
+      <place id="P_Pool"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_CreatorBalance"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_C1_Contribute"/>
+      <arc id="A1" source="P_C1_Balance" target="T_C1_Contribute"><inscription><text>50</text></inscription></arc>
+      <arc id="A2" source="T_C1_Contribute" target="P_Pool"><inscription><text>50</text></inscription></arc>
+
+      <transition id="T_C2_Contribute"/>
+      <arc id="A3" source="P_C2_Balance" target="T_C2_Contribute"><inscription><text>50</text></inscription></arc>
+      <arc id="A4" source="T_C2_Contribute" target="P_Pool"><inscription><text>50</text></inscription></arc>
+
+      <transition id="T_GoalReached"/>
+      <arc id="A5" source="P_Pool" target="T_GoalReached"><inscription><text>100</text></inscription></arc>
+      <arc id="A6" source="T_GoalReached" target="P_CreatorBalance"><inscription><text>100</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

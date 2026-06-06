@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Reputation gossip — convergence -->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="reputation-gossip" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Reputation Gossip</text></name>
+    <page id="page-main">
+
+      <place id="P_N1_KnowsScore"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_N2_KnowsScore"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_N3_KnowsScore"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Gossip12"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Gossip23"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_N1_Gossip"/>
+      <arc id="A1" source="P_N1_KnowsScore" target="T_N1_Gossip"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_N1_Gossip" target="P_N1_KnowsScore"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_N1_Gossip" target="P_Gossip12"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_N2_MergeAndGossip"/>
+      <arc id="A4" source="P_Gossip12" target="T_N2_MergeAndGossip"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="T_N2_MergeAndGossip" target="P_N2_KnowsScore"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_N2_MergeAndGossip" target="P_Gossip23"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_N3_Merge"/>
+      <arc id="A7" source="P_Gossip23" target="T_N3_Merge"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_N3_Merge" target="P_N3_KnowsScore"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

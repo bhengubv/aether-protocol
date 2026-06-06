@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="health-convergence" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Health Convergence</text></name>
+    <page id="page-main">
+
+      <place id="P_Routing_Degraded"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_Routing_Healthy"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_DTN_Degraded"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_DTN_Healthy"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Overall_Healthy"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_RoutingHeals"/>
+      <arc id="A1" source="P_Routing_Degraded" target="T_RoutingHeals"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_RoutingHeals" target="P_Routing_Healthy"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_DTNHeals"/>
+      <arc id="A3" source="P_DTN_Degraded" target="T_DTNHeals"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_DTNHeals" target="P_DTN_Healthy"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_OverallReady"/>
+      <arc id="A5" source="P_Routing_Healthy" target="T_OverallReady"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="P_DTN_Healthy" target="T_OverallReady"><inscription><text>1</text></inscription></arc>
+      <arc id="A7" source="T_OverallReady" target="P_Routing_Healthy"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_OverallReady" target="P_DTN_Healthy"><inscription><text>1</text></inscription></arc>
+      <arc id="A9" source="T_OverallReady" target="P_Overall_Healthy"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="market-escrow" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Market Escrow</text></name>
+    <page id="page-main">
+
+      <place id="P_Buyer_HasFunds"><initialMarking><text>100</text></initialMarking></place>
+      <place id="P_Seller_HasVault"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_Escrow_Funds"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Escrow_Vault"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Buyer_HasVault"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Seller_HasFunds"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_DisputeRaised"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_DisputeResolved"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_BuyerDeposit"/>
+      <arc id="A1" source="P_Buyer_HasFunds" target="T_BuyerDeposit"><inscription><text>100</text></inscription></arc>
+      <arc id="A2" source="T_BuyerDeposit" target="P_Escrow_Funds"><inscription><text>100</text></inscription></arc>
+
+      <transition id="T_SellerDeposit"/>
+      <arc id="A3" source="P_Seller_HasVault" target="T_SellerDeposit"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_SellerDeposit" target="P_Escrow_Vault"><inscription><text>1</text></inscription></arc>
+
+      <!-- Atomic settlement: both buyer and seller get their counterpart -->
+      <transition id="T_AtomicSettle"/>
+      <arc id="A5" source="P_Escrow_Funds" target="T_AtomicSettle"><inscription><text>100</text></inscription></arc>
+      <arc id="A6" source="P_Escrow_Vault" target="T_AtomicSettle"><inscription><text>1</text></inscription></arc>
+      <arc id="A7" source="T_AtomicSettle" target="P_Buyer_HasVault"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_AtomicSettle" target="P_Seller_HasFunds"><inscription><text>100</text></inscription></arc>
+
+      <transition id="T_RaiseDispute"/>
+      <arc id="A9" source="P_Escrow_Funds" target="T_RaiseDispute"><inscription><text>100</text></inscription></arc>
+      <arc id="A10" source="P_Escrow_Vault" target="T_RaiseDispute"><inscription><text>1</text></inscription></arc>
+      <arc id="A11" source="T_RaiseDispute" target="P_DisputeRaised"><inscription><text>1</text></inscription></arc>
+      <arc id="A12" source="T_RaiseDispute" target="P_Escrow_Funds"><inscription><text>100</text></inscription></arc>
+      <arc id="A13" source="T_RaiseDispute" target="P_Escrow_Vault"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_RefundBuyer"/>
+      <arc id="A14" source="P_DisputeRaised" target="T_RefundBuyer"><inscription><text>1</text></inscription></arc>
+      <arc id="A15" source="P_Escrow_Funds" target="T_RefundBuyer"><inscription><text>100</text></inscription></arc>
+      <arc id="A16" source="P_Escrow_Vault" target="T_RefundBuyer"><inscription><text>1</text></inscription></arc>
+      <arc id="A17" source="T_RefundBuyer" target="P_Buyer_HasFunds"><inscription><text>100</text></inscription></arc>
+      <arc id="A18" source="T_RefundBuyer" target="P_Seller_HasVault"><inscription><text>1</text></inscription></arc>
+      <arc id="A19" source="T_RefundBuyer" target="P_DisputeResolved"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

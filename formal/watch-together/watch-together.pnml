@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AetherMesh Watch-Together — Bounded-Jitter Convergence
+  =======================================================
+  P/T net. One host + 2 followers. Host issues a Play command;
+  followers each consume a SyncPacket and advance to the host's
+  position. Proves all followers reach the host's position in
+  bounded firings.
+  SPDX-License-Identifier: MIT
+-->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="watch-together" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>AetherMesh Watch-Together</text></name>
+    <page id="page-main">
+
+      <!-- Host state -->
+      <place id="P_Host_Paused"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_Host_Playing"><initialMarking><text>0</text></initialMarking></place>
+
+      <!-- Follower positions: 0 = paused at start, 1 = at host's position -->
+      <place id="P_F1_AtStart"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_F1_AtHostPos"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_F2_AtStart"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_F2_AtHostPos"><initialMarking><text>0</text></initialMarking></place>
+
+      <!-- Sync packets in flight -->
+      <place id="P_SyncTo_F1"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_SyncTo_F2"><initialMarking><text>0</text></initialMarking></place>
+
+      <!-- Dedup state per follower (idempotency) -->
+      <place id="P_F1_SyncApplied"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_F2_SyncApplied"><initialMarking><text>0</text></initialMarking></place>
+
+      <!-- Transitions -->
+
+      <!-- T_Host_Play: host transitions from paused to playing, emits 2 sync packets -->
+      <transition id="T_Host_Play"/>
+      <arc id="A1" source="P_Host_Paused" target="T_Host_Play"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_Host_Play" target="P_Host_Playing"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_Host_Play" target="P_SyncTo_F1"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_Host_Play" target="P_SyncTo_F2"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_F1_ApplySync: follower 1 applies sync, moves to host position -->
+      <transition id="T_F1_ApplySync"/>
+      <arc id="A5" source="P_SyncTo_F1" target="T_F1_ApplySync"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="P_F1_AtStart" target="T_F1_ApplySync"><inscription><text>1</text></inscription></arc>
+      <arc id="A7" source="T_F1_ApplySync" target="P_F1_AtHostPos"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_F1_ApplySync" target="P_F1_SyncApplied"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_F1_DropDuplicateSync: follower 1 drops a duplicate sync (idempotent) -->
+      <transition id="T_F1_DropDuplicateSync"/>
+      <arc id="A9" source="P_SyncTo_F1" target="T_F1_DropDuplicateSync"><inscription><text>1</text></inscription></arc>
+      <arc id="A10" source="P_F1_SyncApplied" target="T_F1_DropDuplicateSync"><inscription><text>1</text></inscription></arc>
+      <arc id="A11" source="T_F1_DropDuplicateSync" target="P_F1_SyncApplied"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_F2_ApplySync -->
+      <transition id="T_F2_ApplySync"/>
+      <arc id="A12" source="P_SyncTo_F2" target="T_F2_ApplySync"><inscription><text>1</text></inscription></arc>
+      <arc id="A13" source="P_F2_AtStart" target="T_F2_ApplySync"><inscription><text>1</text></inscription></arc>
+      <arc id="A14" source="T_F2_ApplySync" target="P_F2_AtHostPos"><inscription><text>1</text></inscription></arc>
+      <arc id="A15" source="T_F2_ApplySync" target="P_F2_SyncApplied"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_F2_DropDuplicateSync -->
+      <transition id="T_F2_DropDuplicateSync"/>
+      <arc id="A16" source="P_SyncTo_F2" target="T_F2_DropDuplicateSync"><inscription><text>1</text></inscription></arc>
+      <arc id="A17" source="P_F2_SyncApplied" target="T_F2_DropDuplicateSync"><inscription><text>1</text></inscription></arc>
+      <arc id="A18" source="T_F2_DropDuplicateSync" target="P_F2_SyncApplied"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

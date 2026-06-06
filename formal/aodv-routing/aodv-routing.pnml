@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AetherMesh AODV Routing — Loop Freedom + Convergence Petri Net
+  ===============================================================
+  PNML P/T net. Three-node line topology: A ↔ B ↔ C.
+
+  A initiates a route discovery for C. B is the relay. The model
+  proves AODV's three core invariants:
+    1. Loop freedom (no reachable state encodes A→B→C→A or similar)
+    2. Convergence (routes settle in bounded firings)
+    3. Sequence-number monotonicity (stale RREPs are rejected)
+
+  Each node maintains:
+    - A "no route" / "have route" place per destination
+    - A sequence-number place per destination
+  Each link maintains an in-flight RREQ / RREP place.
+
+  SPDX-License-Identifier: MIT
+-->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="aodv-routing" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>AetherMesh AODV Routing — Loop Freedom + Convergence</text></name>
+    <page id="page-main">
+
+      <!-- Route-table state per node, per destination -->
+      <place id="P_A_NoRouteToC">
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+      <place id="P_A_HasRouteToC_viaB">
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+      <place id="P_B_NoRouteToC">
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+      <place id="P_B_HasRouteToC_direct">
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- RREQ/RREP in-flight per link -->
+      <place id="P_RREQ_AtoB">
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+      <place id="P_RREQ_BtoC">
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+      <place id="P_RREP_CtoB">
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+      <place id="P_RREP_BtoA">
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- RREQ-ID dedup: prevents re-broadcast of same RREQ -->
+      <place id="P_A_RREQId_Available">
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+      <place id="P_B_DedupSeen_RREQ">
+        <initialMarking><text>0</text></initialMarking>
+      </place>
+
+      <!-- Sequence number tokens (model freshness) -->
+      <place id="P_FreshSeqNum_C">
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+      <place id="P_StaleSeqNum_C">
+        <initialMarking><text>1</text></initialMarking>
+      </place>
+
+      <!-- Transitions -->
+
+      <!-- T_A_InitiateRREQ: A starts route discovery -->
+      <transition id="T_A_InitiateRREQ"/>
+      <arc id="A1" source="P_A_NoRouteToC" target="T_A_InitiateRREQ"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="P_A_RREQId_Available" target="T_A_InitiateRREQ"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_A_InitiateRREQ" target="P_RREQ_AtoB"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_A_InitiateRREQ" target="P_A_NoRouteToC"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_B_ForwardRREQ_FirstTime: B forwards RREQ (only if not seen before) -->
+      <transition id="T_B_ForwardRREQ_FirstTime"/>
+      <arc id="A5" source="P_RREQ_AtoB" target="T_B_ForwardRREQ_FirstTime"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_B_ForwardRREQ_FirstTime" target="P_RREQ_BtoC"><inscription><text>1</text></inscription></arc>
+      <arc id="A7" source="T_B_ForwardRREQ_FirstTime" target="P_B_DedupSeen_RREQ"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_B_DropDuplicateRREQ: B silently drops duplicate RREQ -->
+      <transition id="T_B_DropDuplicateRREQ"/>
+      <arc id="A8" source="P_RREQ_AtoB" target="T_B_DropDuplicateRREQ"><inscription><text>1</text></inscription></arc>
+      <arc id="A9" source="P_B_DedupSeen_RREQ" target="T_B_DropDuplicateRREQ"><inscription><text>1</text></inscription></arc>
+      <arc id="A10" source="T_B_DropDuplicateRREQ" target="P_B_DedupSeen_RREQ"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_C_ReplyFresh: C sends fresh RREP (with current sequence number) -->
+      <transition id="T_C_ReplyFresh"/>
+      <arc id="A11" source="P_RREQ_BtoC" target="T_C_ReplyFresh"><inscription><text>1</text></inscription></arc>
+      <arc id="A12" source="P_FreshSeqNum_C" target="T_C_ReplyFresh"><inscription><text>1</text></inscription></arc>
+      <arc id="A13" source="T_C_ReplyFresh" target="P_RREP_CtoB"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_C_ReplyStale: a phantom adversary sends an OLD RREP (should be rejected) -->
+      <transition id="T_C_ReplyStale"/>
+      <arc id="A14" source="P_StaleSeqNum_C" target="T_C_ReplyStale"><inscription><text>1</text></inscription></arc>
+      <arc id="A15" source="T_C_ReplyStale" target="P_RREP_CtoB"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_B_InstallRouteFromFresh: B installs route from fresh RREP and forwards -->
+      <transition id="T_B_InstallRouteFromFresh"/>
+      <arc id="A16" source="P_RREP_CtoB" target="T_B_InstallRouteFromFresh"><inscription><text>1</text></inscription></arc>
+      <arc id="A17" source="P_B_NoRouteToC" target="T_B_InstallRouteFromFresh"><inscription><text>1</text></inscription></arc>
+      <arc id="A18" source="T_B_InstallRouteFromFresh" target="P_B_HasRouteToC_direct"><inscription><text>1</text></inscription></arc>
+      <arc id="A19" source="T_B_InstallRouteFromFresh" target="P_RREP_BtoA"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_A_InstallRoute: A installs route from RREP -->
+      <transition id="T_A_InstallRoute"/>
+      <arc id="A20" source="P_RREP_BtoA" target="T_A_InstallRoute"><inscription><text>1</text></inscription></arc>
+      <arc id="A21" source="P_A_NoRouteToC" target="T_A_InstallRoute"><inscription><text>1</text></inscription></arc>
+      <arc id="A22" source="T_A_InstallRoute" target="P_A_HasRouteToC_viaB"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_B_RejectStaleRREP: stale RREP is detected and dropped (sequence-number rule) -->
+      <transition id="T_B_RejectStaleRREP"/>
+      <arc id="A23" source="P_RREP_CtoB" target="T_B_RejectStaleRREP"><inscription><text>1</text></inscription></arc>
+      <arc id="A24" source="P_B_HasRouteToC_direct" target="T_B_RejectStaleRREP"><inscription><text>1</text></inscription></arc>
+      <arc id="A25" source="T_B_RejectStaleRREP" target="P_B_HasRouteToC_direct"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

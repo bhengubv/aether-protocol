@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="trust-ring" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Trust Ring</text></name>
+    <page id="page-main">
+
+      <place id="P_V1_Available"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_V2_Available"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_V3_Available"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_Signatures"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Attested"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Revoked"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_V1_Sign"/>
+      <arc id="A1" source="P_V1_Available" target="T_V1_Sign"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_V1_Sign" target="P_Signatures"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_V2_Sign"/>
+      <arc id="A3" source="P_V2_Available" target="T_V2_Sign"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_V2_Sign" target="P_Signatures"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_V3_Sign"/>
+      <arc id="A5" source="P_V3_Available" target="T_V3_Sign"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_V3_Sign" target="P_Signatures"><inscription><text>1</text></inscription></arc>
+
+      <!-- Quorum K=2 reaches Attested -->
+      <transition id="T_QuorumReached"/>
+      <arc id="A7" source="P_Signatures" target="T_QuorumReached"><inscription><text>2</text></inscription></arc>
+      <arc id="A8" source="T_QuorumReached" target="P_Attested"><inscription><text>1</text></inscription></arc>
+      <arc id="A9" source="T_QuorumReached" target="P_Signatures"><inscription><text>2</text></inscription></arc>
+
+      <transition id="T_Revoke"/>
+      <arc id="A10" source="P_Attested" target="T_Revoke"><inscription><text>1</text></inscription></arc>
+      <arc id="A11" source="T_Revoke" target="P_Revoked"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

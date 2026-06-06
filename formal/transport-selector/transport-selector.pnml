@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="transport-selector" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Transport Selector</text></name>
+    <page id="page-main">
+
+      <place id="P_BLE_Up"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_BLE_Down"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_WifiDirect_Up"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_LoRa_Up"><initialMarking><text>1</text></initialMarking></place>
+
+      <place id="P_Selected_BLE"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Selected_WifiDirect"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Selected_LoRa"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_SelectBLE"/>
+      <arc id="A1" source="P_BLE_Up" target="T_SelectBLE"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_SelectBLE" target="P_BLE_Up"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_SelectBLE" target="P_Selected_BLE"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_BLE_Fails"/>
+      <arc id="A4" source="P_BLE_Up" target="T_BLE_Fails"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="T_BLE_Fails" target="P_BLE_Down"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_SelectWifiDirect"/>
+      <arc id="A6" source="P_WifiDirect_Up" target="T_SelectWifiDirect"><inscription><text>1</text></inscription></arc>
+      <arc id="A7" source="T_SelectWifiDirect" target="P_WifiDirect_Up"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_SelectWifiDirect" target="P_Selected_WifiDirect"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_SelectLoRa"/>
+      <arc id="A9" source="P_LoRa_Up" target="T_SelectLoRa"><inscription><text>1</text></inscription></arc>
+      <arc id="A10" source="T_SelectLoRa" target="P_LoRa_Up"><inscription><text>1</text></inscription></arc>
+      <arc id="A11" source="T_SelectLoRa" target="P_Selected_LoRa"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

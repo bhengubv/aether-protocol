@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Handshake — no-deadlock model -->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="handshake-deadlock" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Handshake No-Deadlock</text></name>
+    <page id="page-main">
+
+      <place id="P_A_Idle"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_A_HelloSent"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_A_Established"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_A_Rejected"><initialMarking><text>0</text></initialMarking></place>
+
+      <place id="P_B_Idle"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_B_Established"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_B_Rejected"><initialMarking><text>0</text></initialMarking></place>
+
+      <place id="P_HelloInFlight"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_AckInFlight"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_NegAckInFlight"><initialMarking><text>0</text></initialMarking></place>
+
+      <!-- A sends Hello -->
+      <transition id="T_A_SendHello"/>
+      <arc id="A1" source="P_A_Idle" target="T_A_SendHello"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_A_SendHello" target="P_A_HelloSent"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_A_SendHello" target="P_HelloInFlight"><inscription><text>1</text></inscription></arc>
+
+      <!-- B receives Hello and accepts (compatible capabilities) -->
+      <transition id="T_B_Accept"/>
+      <arc id="A4" source="P_HelloInFlight" target="T_B_Accept"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="P_B_Idle" target="T_B_Accept"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_B_Accept" target="P_B_Established"><inscription><text>1</text></inscription></arc>
+      <arc id="A7" source="T_B_Accept" target="P_AckInFlight"><inscription><text>1</text></inscription></arc>
+
+      <!-- B receives Hello and rejects (disjoint capabilities) -->
+      <transition id="T_B_Reject"/>
+      <arc id="A8" source="P_HelloInFlight" target="T_B_Reject"><inscription><text>1</text></inscription></arc>
+      <arc id="A9" source="P_B_Idle" target="T_B_Reject"><inscription><text>1</text></inscription></arc>
+      <arc id="A10" source="T_B_Reject" target="P_B_Rejected"><inscription><text>1</text></inscription></arc>
+      <arc id="A11" source="T_B_Reject" target="P_NegAckInFlight"><inscription><text>1</text></inscription></arc>
+
+      <!-- A processes Ack -> Established -->
+      <transition id="T_A_ProcessAck"/>
+      <arc id="A12" source="P_AckInFlight" target="T_A_ProcessAck"><inscription><text>1</text></inscription></arc>
+      <arc id="A13" source="P_A_HelloSent" target="T_A_ProcessAck"><inscription><text>1</text></inscription></arc>
+      <arc id="A14" source="T_A_ProcessAck" target="P_A_Established"><inscription><text>1</text></inscription></arc>
+
+      <!-- A processes NegAck -> Rejected -->
+      <transition id="T_A_ProcessNegAck"/>
+      <arc id="A15" source="P_NegAckInFlight" target="T_A_ProcessNegAck"><inscription><text>1</text></inscription></arc>
+      <arc id="A16" source="P_A_HelloSent" target="T_A_ProcessNegAck"><inscription><text>1</text></inscription></arc>
+      <arc id="A17" source="T_A_ProcessNegAck" target="P_A_Rejected"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Pre-Key Pool — never-exhaustion model -->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="prekey-pool" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Pre-Key Pool</text></name>
+    <page id="page-main">
+
+      <place id="P_Pool"><initialMarking><text>4</text></initialMarking></place>
+      <place id="P_RefillTrigger"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_RefillCounter1"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_RefillCounter2"><initialMarking><text>0</text></initialMarking></place>
+
+      <!-- T_Consume: session takes one OPK -->
+      <transition id="T_Consume"/>
+      <arc id="A1" source="P_Pool" target="T_Consume"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_TriggerRefill: when pool low (=1), trigger refill (test arc on Pool) -->
+      <transition id="T_TriggerRefill"/>
+      <arc id="A2" source="P_Pool" target="T_TriggerRefill"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_TriggerRefill" target="P_Pool"><inscription><text>1</text></inscription></arc>
+      <arc id="A4" source="T_TriggerRefill" target="P_RefillTrigger"><inscription><text>1</text></inscription></arc>
+
+      <!-- T_Refill: produces 3 OPKs when triggered -->
+      <transition id="T_Refill"/>
+      <arc id="A5" source="P_RefillTrigger" target="T_Refill"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_Refill" target="P_Pool"><inscription><text>3</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

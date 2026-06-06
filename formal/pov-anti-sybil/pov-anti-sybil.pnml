@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PoV Anti-Sybil — Graph Double-Counting Prevention
+  ==================================================
+  3-witness model. Each witness can vouch at most once for subject S.
+  Witness count tracks the unique-voucher integer.
+  SPDX-License-Identifier: MIT
+-->
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="pov-anti-sybil" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>PoV Anti-Sybil</text></name>
+    <page id="page-main">
+
+      <!-- Each witness: Available (can vouch) or Vouched (already did) -->
+      <place id="P_W1_Available"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_W1_Vouched"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_W2_Available"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_W2_Vouched"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_W3_Available"><initialMarking><text>1</text></initialMarking></place>
+      <place id="P_W3_Vouched"><initialMarking><text>0</text></initialMarking></place>
+
+      <!-- Subject's witness count -->
+      <place id="P_S_Count"><initialMarking><text>0</text></initialMarking></place>
+
+      <!-- Fraud / defection state -->
+      <place id="P_S_FraudFlagged"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_W1_Penalty"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_W2_Penalty"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_W3_Penalty"><initialMarking><text>0</text></initialMarking></place>
+
+      <!-- Transitions: each witness vouches at most once -->
+      <transition id="T_W1_Vouch"/>
+      <arc id="A1" source="P_W1_Available" target="T_W1_Vouch"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_W1_Vouch" target="P_W1_Vouched"><inscription><text>1</text></inscription></arc>
+      <arc id="A3" source="T_W1_Vouch" target="P_S_Count"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_W2_Vouch"/>
+      <arc id="A4" source="P_W2_Available" target="T_W2_Vouch"><inscription><text>1</text></inscription></arc>
+      <arc id="A5" source="T_W2_Vouch" target="P_W2_Vouched"><inscription><text>1</text></inscription></arc>
+      <arc id="A6" source="T_W2_Vouch" target="P_S_Count"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_W3_Vouch"/>
+      <arc id="A7" source="P_W3_Available" target="T_W3_Vouch"><inscription><text>1</text></inscription></arc>
+      <arc id="A8" source="T_W3_Vouch" target="P_W3_Vouched"><inscription><text>1</text></inscription></arc>
+      <arc id="A9" source="T_W3_Vouch" target="P_S_Count"><inscription><text>1</text></inscription></arc>
+
+      <!-- Fraud report flags the subject -->
+      <transition id="T_FraudReport"/>
+      <arc id="A10" source="T_FraudReport" target="P_S_FraudFlagged"><inscription><text>1</text></inscription></arc>
+
+      <!-- Defection: each voucher takes a penalty (only if vouched AND fraud flagged) -->
+      <transition id="T_W1_Defect"/>
+      <arc id="A11" source="P_W1_Vouched" target="T_W1_Defect"><inscription><text>1</text></inscription></arc>
+      <arc id="A12" source="P_S_FraudFlagged" target="T_W1_Defect"><inscription><text>1</text></inscription></arc>
+      <arc id="A13" source="T_W1_Defect" target="P_W1_Penalty"><inscription><text>1</text></inscription></arc>
+      <arc id="A14" source="T_W1_Defect" target="P_S_FraudFlagged"><inscription><text>1</text></inscription></arc>
+      <arc id="A15" source="T_W1_Defect" target="P_W1_Vouched"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_W2_Defect"/>
+      <arc id="A16" source="P_W2_Vouched" target="T_W2_Defect"><inscription><text>1</text></inscription></arc>
+      <arc id="A17" source="P_S_FraudFlagged" target="T_W2_Defect"><inscription><text>1</text></inscription></arc>
+      <arc id="A18" source="T_W2_Defect" target="P_W2_Penalty"><inscription><text>1</text></inscription></arc>
+      <arc id="A19" source="T_W2_Defect" target="P_S_FraudFlagged"><inscription><text>1</text></inscription></arc>
+      <arc id="A20" source="T_W2_Defect" target="P_W2_Vouched"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_W3_Defect"/>
+      <arc id="A21" source="P_W3_Vouched" target="T_W3_Defect"><inscription><text>1</text></inscription></arc>
+      <arc id="A22" source="P_S_FraudFlagged" target="T_W3_Defect"><inscription><text>1</text></inscription></arc>
+      <arc id="A23" source="T_W3_Defect" target="P_W3_Penalty"><inscription><text>1</text></inscription></arc>
+      <arc id="A24" source="T_W3_Defect" target="P_S_FraudFlagged"><inscription><text>1</text></inscription></arc>
+      <arc id="A25" source="T_W3_Defect" target="P_W3_Vouched"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>

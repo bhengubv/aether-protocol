@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="anomaly-detector" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Anomaly Detector</text></name>
+    <page id="page-main">
+
+      <place id="P_TrafficNormal"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_TrafficAttack"><initialMarking><text>3</text></initialMarking></place>
+      <place id="P_SignatureSamples"><initialMarking><text>0</text></initialMarking></place>
+      <place id="P_Flagged"><initialMarking><text>0</text></initialMarking></place>
+
+      <transition id="T_ObserveAttack"/>
+      <arc id="A1" source="P_TrafficAttack" target="T_ObserveAttack"><inscription><text>1</text></inscription></arc>
+      <arc id="A2" source="T_ObserveAttack" target="P_SignatureSamples"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_RaiseAlert"/>
+      <arc id="A3" source="P_SignatureSamples" target="T_RaiseAlert"><inscription><text>3</text></inscription></arc>
+      <arc id="A4" source="T_RaiseAlert" target="P_Flagged"><inscription><text>1</text></inscription></arc>
+
+      <transition id="T_ObserveNormal"/>
+      <arc id="A5" source="P_TrafficNormal" target="T_ObserveNormal"><inscription><text>1</text></inscription></arc>
+
+    </page>
+  </net>
+</pnml>
