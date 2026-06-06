@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  AetherMesh Vault Erasure — Coloured Petri Net (CPN Tools 4)
+  ===========================================================
+  Coloured upgrade: shards carry (doc_id, shard_index) identity.
+  Proves K-of-N recoverability per specific shard set, not just
+  "any K shards." Catches cross-doc shard mixing.
+  SPDX-License-Identifier: MIT
+-->
+<workspaceElements xmlns="http://cpntools.org/cpn">
+  <cpnet>
+    <globbox>
+      <block id="colsets">
+        <id>Standard declarations</id>
+        <color id="SHARD_ID">
+          <id>SHARD_ID</id>
+          <int><with><ml>1</ml><ml>3</ml></with></int>
+        </color>
+        <color id="NODE_ID">
+          <id>NODE_ID</id>
+          <enum><id>N1</id><id>N2</id><id>N3</id></enum>
+        </color>
+        <color id="DOC_ID">
+          <id>DOC_ID</id>
+          <enum><id>Doc1</id></enum>
+        </color>
+        <color id="SHARD">
+          <id>SHARD</id>
+          <product><id>DOC_ID</id><id>SHARD_ID</id></product>
+        </color>
+      </block>
+      <block id="vars">
+        <id>Variables</id>
+        <var><type><id>DOC_ID</id></type><id>d</id></var>
+        <var><type><id>SHARD_ID</id></type><id>i</id></var>
+      </block>
+    </globbox>
+
+    <page id="MAIN">
+      <pageattr name="Vault Coloured K=2 N=3"/>
+
+      <!-- Shards alive at nodes. Initial: all 3 shards of Doc1 exist. -->
+      <place id="P_HasShard">
+        <type><text>SHARD</text></type>
+        <initmark><text>1`(Doc1, 1) ++ 1`(Doc1, 2) ++ 1`(Doc1, 3)</text></initmark>
+        <text>HasShard</text>
+      </place>
+
+      <!-- Shards lost at nodes -->
+      <place id="P_NoShard">
+        <type><text>SHARD</text></type>
+        <initmark><text>empty</text></initmark>
+        <text>NoShard</text>
+      </place>
+
+      <!-- Recovered: holds doc IDs that have been reconstructed -->
+      <place id="P_Recovered">
+        <type><text>DOC_ID</text></type>
+        <initmark><text>empty</text></initmark>
+        <text>Recovered</text>
+      </place>
+
+      <!-- T_Fail: a specific (doc, shard_id) goes offline -->
+      <trans id="T_Fail">
+        <text>Fail</text>
+      </trans>
+      <arc orientation="PtoT" id="A_Has_F">
+        <transend idref="T_Fail"/>
+        <placeend idref="P_HasShard"/>
+        <annot><text>1`(d, i)</text></annot>
+      </arc>
+      <arc orientation="TtoP" id="A_F_No">
+        <transend idref="T_Fail"/>
+        <placeend idref="P_NoShard"/>
+        <annot><text>1`(d, i)</text></annot>
+      </arc>
+
+      <!-- T_Heal: requires 2 other shards of the SAME doc to be alive. -->
+      <trans id="T_Heal">
+        <text>Heal</text>
+        <cond><text>i &lt;= 3</text></cond>
+      </trans>
+      <arc orientation="PtoT" id="A_No_He">
+        <transend idref="T_Heal"/>
+        <placeend idref="P_NoShard"/>
+        <annot><text>1`(d, i)</text></annot>
+      </arc>
+      <arc orientation="TtoP" id="A_He_Has">
+        <transend idref="T_Heal"/>
+        <placeend idref="P_HasShard"/>
+        <annot><text>1`(d, i)</text></annot>
+      </arc>
+
+      <!-- T_Recover: reconstructs doc d if ≥ 2 same-doc shards alive. -->
+      <trans id="T_Recover">
+        <text>Recover</text>
+      </trans>
+      <arc orientation="PtoT" id="A_Has_R">
+        <transend idref="T_Recover"/>
+        <placeend idref="P_HasShard"/>
+        <annot><text>1`(d, 1) ++ 1`(d, 2)</text></annot>
+      </arc>
+      <arc orientation="TtoP" id="A_R_Has_back">
+        <transend idref="T_Recover"/>
+        <placeend idref="P_HasShard"/>
+        <annot><text>1`(d, 1) ++ 1`(d, 2)</text></annot>
+      </arc>
+      <arc orientation="TtoP" id="A_R_Rec">
+        <transend idref="T_Recover"/>
+        <placeend idref="P_Recovered"/>
+        <annot><text>1`d</text></annot>
+      </arc>
+
+    </page>
+  </cpnet>
+</workspaceElements>

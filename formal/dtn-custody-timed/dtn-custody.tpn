@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AetherMesh DTN Custody — Timed Petri Net
+  Proves: every bundle reaches Delivered ∨ Expired within 72h.
+  SPDX-License-Identifier: MIT
+-->
+<pnml xmlns="http://www.informatik.hu-berlin.de/top/pnml/ptNetb">
+  <net id="ComposedModel" type="P/T net">
+    <name><text>DTN Custody Timed</text></name>
+
+    <place id="P_Source" initialMarking="1" invariant="&lt; inf"/>
+    <place id="P_InCustody" initialMarking="0" invariant="&lt;= 259200"/>     <!-- 72h in seconds -->
+    <place id="P_Delivered" initialMarking="0" invariant="&lt; inf"/>
+    <place id="P_Expired" initialMarking="0" invariant="&lt; inf"/>
+
+    <!-- Custody acceptance -->
+    <transition id="T_AcceptCustody"
+                earliestFiringTime="0"
+                latestFiringTime="5"/>          <!-- ≤5s -->
+
+    <!-- Delivery -->
+    <transition id="T_Deliver"
+                earliestFiringTime="0"
+                latestFiringTime="60"/>         <!-- ≤60s -->
+
+    <!-- TTL expiry — fires at exactly 72h -->
+    <transition id="T_Expire"
+                earliestFiringTime="259200"
+                latestFiringTime="259200"/>
+
+    <arc id="A1" source="P_Source" target="T_AcceptCustody" inscription="1"/>
+    <arc id="A2" source="T_AcceptCustody" target="P_InCustody" inscription="1"/>
+    <arc id="A3" source="P_InCustody" target="T_Deliver" inscription="1"/>
+    <arc id="A4" source="T_Deliver" target="P_Delivered" inscription="1"/>
+    <arc id="A5" source="P_InCustody" target="T_Expire" inscription="1"/>
+    <arc id="A6" source="T_Expire" target="P_Expired" inscription="1"/>
+  </net>
+</pnml>

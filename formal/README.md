@@ -79,9 +79,25 @@ testing cannot find.
 |---|---|---|
 | [`anomaly-detector/`](anomaly-detector/) | `IBehavioralAnomalyMeshDetector` | No false negatives on matching patterns |
 
-**Total: 20 formal models** covering routing, coordination, secrecy,
+**Coloured Petri Net Upgrades (Phase 2, in progress):**
+
+| Model | Strengthens |
+|---|---|
+| [`dtn-custody-cpn/`](dtn-custody-cpn/) | Per-bundle conservation (vs count-only) |
+| [`signal-protocol-cpn/`](signal-protocol-cpn/) | Per-(session, epoch) forward secrecy |
+| [`vault-erasure-cpn/`](vault-erasure-cpn/) | Per-document recovery; no shard substitution |
+
+**Timed Petri Nets (Phase 2, in progress):**
+
+| Model | SLA proved |
+|---|---|
+| [`watch-together-timed/`](watch-together-timed/) | ±100ms convergence between participants |
+| [`dtn-custody-timed/`](dtn-custody-timed/) | Every bundle terminates within 72h |
+
+**Total: 25 formal models** covering routing, coordination, secrecy,
 recovery, anti-Sybil, key management, capability negotiation, financial
-atomicity, backpressure, and anomaly detection — the full critical-
+atomicity, backpressure, anomaly detection, multi-bundle isolation,
+multi-session secrecy, and SLA-bounded delivery — the full critical-
 correctness surface of the protocol.
 
 ## Tooling

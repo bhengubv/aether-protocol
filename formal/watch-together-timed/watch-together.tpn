@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AetherMesh Watch-Together — Timed Petri Net (TAPAAL TPN format)
+  ===============================================================
+  Timed extension of watch-together/ model. Each transition has a
+  firing interval [min, max] in milliseconds. Proves ±100ms convergence
+  via TAPAAL TCTL queries.
+
+  Run: verifytapn watch-together.tpn --query watch-together.q
+  SPDX-License-Identifier: MIT
+-->
+<pnml xmlns="http://www.informatik.hu-berlin.de/top/pnml/ptNetb">
+  <net id="ComposedModel" type="P/T net">
+    <name><text>Watch-Together Timed</text></name>
+
+    <!-- Places (TAPAAL: <place ... invariant="..."/>) -->
+    <place id="P_Host_Paused" initialMarking="1" invariant="&lt; inf"/>
+    <place id="P_Host_Playing" initialMarking="0" invariant="&lt; inf"/>
+    <place id="P_F1_AtStart" initialMarking="1" invariant="&lt; inf"/>
+    <place id="P_F1_AtHostPos" initialMarking="0" invariant="&lt; inf"/>
+    <place id="P_F2_AtStart" initialMarking="1" invariant="&lt; inf"/>
+    <place id="P_F2_AtHostPos" initialMarking="0" invariant="&lt; inf"/>
+    <place id="P_SyncToF1" initialMarking="0" invariant="&lt; inf"/>
+    <place id="P_SyncToF2" initialMarking="0" invariant="&lt; inf"/>
+
+    <!-- Transitions with firing intervals -->
+    <transition id="T_Host_Play"
+                urgent="true"/>           <!-- fires immediately when enabled -->
+    <transition id="T_F1_ApplySync"
+                earliestFiringTime="10"
+                latestFiringTime="50"/>   <!-- 10-50ms BLE jitter -->
+    <transition id="T_F2_ApplySync"
+                earliestFiringTime="10"
+                latestFiringTime="50"/>
+
+    <!-- Arcs -->
+    <arc id="A1" source="P_Host_Paused" target="T_Host_Play" inscription="1"/>
+    <arc id="A2" source="T_Host_Play" target="P_Host_Playing" inscription="1"/>
+    <arc id="A3" source="T_Host_Play" target="P_SyncToF1" inscription="1"/>
+    <arc id="A4" source="T_Host_Play" target="P_SyncToF2" inscription="1"/>
+
+    <arc id="A5" source="P_SyncToF1" target="T_F1_ApplySync" inscription="1"/>
+    <arc id="A6" source="P_F1_AtStart" target="T_F1_ApplySync" inscription="1"/>
+    <arc id="A7" source="T_F1_ApplySync" target="P_F1_AtHostPos" inscription="1"/>
+
+    <arc id="A8" source="P_SyncToF2" target="T_F2_ApplySync" inscription="1"/>
+    <arc id="A9" source="P_F2_AtStart" target="T_F2_ApplySync" inscription="1"/>
+    <arc id="A10" source="T_F2_ApplySync" target="P_F2_AtHostPos" inscription="1"/>
+  </net>
+</pnml>

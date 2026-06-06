@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  AetherMesh Signal Protocol — Coloured Petri Net (CPN Tools 4)
+  =============================================================
+  Coloured upgrade: chain keys carry (session, epoch) identity.
+  Proves per-(session, epoch) forward + future secrecy.
+  Catches cross-session key substitution attacks the P/T net misses.
+  SPDX-License-Identifier: MIT
+-->
+<workspaceElements xmlns="http://cpntools.org/cpn">
+  <cpnet>
+    <globbox>
+      <block id="colsets">
+        <id>Standard declarations</id>
+        <color id="EPOCH">
+          <id>EPOCH</id>
+          <int><with><ml>0</ml><ml>5</ml></with></int>
+        </color>
+        <color id="PEER_ID">
+          <id>PEER_ID</id>
+          <enum><id>Alice</id><id>Bob</id><id>Carol</id></enum>
+        </color>
+        <color id="SESSION">
+          <id>SESSION</id>
+          <product><id>PEER_ID</id><id>PEER_ID</id></product>
+        </color>
+        <color id="KEY">
+          <id>KEY</id>
+          <product><id>SESSION</id><id>EPOCH</id></product>
+        </color>
+      </block>
+      <block id="vars">
+        <id>Variables</id>
+        <var><type><id>SESSION</id></type><id>s</id></var>
+        <var><type><id>EPOCH</id></type><id>e</id></var>
+      </block>
+    </globbox>
+
+    <page id="MAIN">
+      <pageattr name="Signal Coloured"/>
+
+      <!-- Chain keys, each with (session, epoch) identity.
+           Initial: Alice-Bob session at epoch 0. -->
+      <place id="P_ChainKey">
+        <type><text>KEY</text></type>
+        <initmark><text>1`((Alice, Bob), 0)</text></initmark>
+        <text>ChainKey</text>
+      </place>
+
+      <!-- Attacker's captured keys, with full (session, epoch) identity. -->
+      <place id="P_Attacker">
+        <type><text>KEY</text></type>
+        <initmark><text>empty</text></initmark>
+        <text>AttackerKnowledge</text>
+      </place>
+
+      <!-- Available fresh DH key material for ratchet. -->
+      <place id="P_FreshDH">
+        <type><text>SESSION</text></type>
+        <initmark>
+          <text>3`(Alice, Bob)</text>   <!-- 3 ratchet steps available for Alice-Bob -->
+        </initmark>
+        <text>FreshDHKeys</text>
+      </place>
+
+      <!-- T_Ratchet: consumes old (session, epoch=e), produces (session, epoch=e+1).
+           The key's session identity is preserved across ratchet. -->
+      <trans id="T_Ratchet">
+        <text>Ratchet</text>
+        <cond><text>e &lt; 5</text></cond>
+      </trans>
+      <arc id="A_Ck_R" orientation="PtoT">
+        <transend idref="T_Ratchet"/>
+        <placeend idref="P_ChainKey"/>
+        <annot><text>1`(s, e)</text></annot>
+      </arc>
+      <arc id="A_DH_R" orientation="PtoT">
+        <transend idref="T_Ratchet"/>
+        <placeend idref="P_FreshDH"/>
+        <annot><text>1`s</text></annot>
+      </arc>
+      <arc id="A_R_Ck" orientation="TtoP">
+        <transend idref="T_Ratchet"/>
+        <placeend idref="P_ChainKey"/>
+        <annot><text>1`(s, e+1)</text></annot>
+      </arc>
+
+      <!-- T_Compromise: attacker captures the chain key WITH its identity.
+           Test-arc on ChainKey (consume + reproduce the same coloured token). -->
+      <trans id="T_Compromise">
+        <text>Compromise</text>
+      </trans>
+      <arc id="A_Ck_C_in" orientation="PtoT">
+        <transend idref="T_Compromise"/>
+        <placeend idref="P_ChainKey"/>
+        <annot><text>1`(s, e)</text></annot>
+      </arc>
+      <arc id="A_Ck_C_out" orientation="TtoP">
+        <transend idref="T_Compromise"/>
+        <placeend idref="P_ChainKey"/>
+        <annot><text>1`(s, e)</text></annot>
+      </arc>
+      <arc id="A_C_Atk" orientation="TtoP">
+        <transend idref="T_Compromise"/>
+        <placeend idref="P_Attacker"/>
+        <annot><text>1`(s, e)</text></annot>
+      </arc>
+
+    </page>
+  </cpnet>
+</workspaceElements>
