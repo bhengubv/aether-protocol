@@ -280,3 +280,107 @@ async fn expire_stale_flips_status_for_expired_bundles() {
     );
     let _ = Uuid::nil();
 }
+
+// ─── OnBundleReceived (v1.2.0, Issue #59) ─────────────────────────────────
+
+#[tokio::test]
+async fn inbound_bundle_addressed_to_local_fires_bundle_received_event() {
+    use aethernet_protocol::dtn::DtnBundleReceivedEvent;
+    let sender = FakeMeshSender::new("recipient");
+    let store = Arc::new(InMemoryBundleStore::new());
+    let svc = DtnService::with_dependencies(
+        sender.clone(),
+        store.clone(),
+        Arc::new(aethernet_protocol::dtn::GeohashEpidemicStrategy),
+        Arc::new(NoopIncentiveProvider),
+        Arc::new(NoopBackendClient),
+    );
+
+    let mut rx = svc.subscribe_bundle_received();
+
+    let bundle = DtnBundle {
+        id: Uuid::new_v4(),
+        sender_uhid: "remote-sender".to_string(),
+        recipient_uhid: "recipient".to_string(),
+        encrypted_payload: vec![1, 2, 3, 4],
+        priority: BundlePriority::High,
+        status: BundleStatus::Pending,
+        copy_count: 1,
+        max_copies: 16,
+        sender_geohash: None,
+        recipient_last_geohash: None,
+        hop_count: 2,
+        created_at: now_secs(),
+        expires_at: now_secs() + 72 * 3600,
+    };
+    let pkt = build_bundle_packet("carrier", &bundle);
+    svc.handle(&pkt).await;
+
+    let evt: DtnBundleReceivedEvent = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        rx.recv(),
+    )
+    .await
+    .expect("event channel did not deliver within 500ms")
+    .expect("broadcast channel closed");
+
+    assert_eq!(evt.bundle_id, bundle.id);
+    assert_eq!(evt.sender_uhid, "remote-sender");
+    assert_eq!(evt.recipient_uhid, "recipient");
+    assert_eq!(evt.encrypted_payload, vec![1, 2, 3, 4]);
+    assert_eq!(evt.priority, BundlePriority::High);
+    assert_eq!(evt.hop_count, 2);
+}
+
+#[tokio::test]
+async fn inbound_bundle_for_other_node_does_not_fire_bundle_received_event() {
+    let sender = FakeMeshSender::new("carrier");
+    sender.add_peer(PeerInfo {
+        uhid: "peer-z".into(),
+        public_key: vec![],
+        last_seen: std::time::SystemTime::now(),
+        hop_count: 0,
+        reliability_score: 50,
+        capabilities: 128, // DtnCarrier
+        geohash: None,
+        is_blocked: false,
+    });
+    let store = Arc::new(InMemoryBundleStore::new());
+    let svc = DtnService::with_dependencies(
+        sender.clone(),
+        store.clone(),
+        Arc::new(aethernet_protocol::dtn::GeohashEpidemicStrategy),
+        Arc::new(NoopIncentiveProvider),
+        Arc::new(NoopBackendClient),
+    );
+
+    let mut rx = svc.subscribe_bundle_received();
+
+    let bundle = DtnBundle {
+        id: Uuid::new_v4(),
+        sender_uhid: "remote-sender".to_string(),
+        recipient_uhid: "someone-else".to_string(),
+        encrypted_payload: vec![0xff],
+        priority: BundlePriority::Normal,
+        status: BundleStatus::Pending,
+        copy_count: 1,
+        max_copies: 16,
+        sender_geohash: None,
+        recipient_last_geohash: None,
+        hop_count: 0,
+        created_at: now_secs(),
+        expires_at: now_secs() + 72 * 3600,
+    };
+    let pkt = build_bundle_packet("remote-sender", &bundle);
+    svc.handle(&pkt).await;
+
+    let result = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        rx.recv(),
+    )
+    .await;
+    assert!(
+        result.is_err(),
+        "bundle_received event must NOT fire for relay-custody path"
+    );
+}

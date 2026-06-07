@@ -10,6 +10,7 @@ import aethernet.extensibility.NoopIncentiveProvider
 import aethernet.models.BundlePriority
 import aethernet.models.CustodyRecord
 import aethernet.models.DtnBundle
+import aethernet.models.DtnBundleReceivedEvent
 import aethernet.models.DtnDeliveryReceipt
 import aethernet.protocol.MeshPacket
 import aethernet.protocol.PacketType
@@ -34,6 +35,12 @@ class DtnService(
     fun setReputation(rep: NodeReputationService?) { reputation = rep }
 
     var onBundleDelivered: ((DtnDeliveryReceipt) -> Unit)? = null
+
+    /**
+     * Fires the moment a DTN bundle arrives whose final recipient is the local
+     * node. Added in v1.2.0 - closes the Wave-16 gap surfaced by Issue #59.
+     */
+    var onBundleReceived: ((DtnBundleReceivedEvent) -> Unit)? = null
 
     suspend fun createBundle(
         recipientUhid: String,
@@ -126,8 +133,20 @@ class DtnService(
         if (bundle.recipientUhid == sender.localUhid) {
             val delivered = bundle.copy(status = "Delivered")
             store.save(delivered)
-            sendDeliveryReceipt(delivered)
             reputation?.recordDeliverySuccess(packet.sourceUhid, 0)
+            onBundleReceived?.invoke(
+                DtnBundleReceivedEvent(
+                    bundleId = bundle.id,
+                    senderUhid = bundle.senderUhid,
+                    recipientUhid = bundle.recipientUhid,
+                    encryptedPayload = bundle.encryptedPayload,
+                    priority = runCatching { BundlePriority.fromValue(bundle.priority) }
+                        .getOrDefault(BundlePriority.Normal),
+                    hopCount = bundle.hopCount,
+                    receivedAtUtc = Instant.now()
+                )
+            )
+            sendDeliveryReceipt(delivered)
             return
         }
         if (store.getActiveCount() >= AetherNetConstants.DTN_MAX_BUNDLES_PER_NODE) {

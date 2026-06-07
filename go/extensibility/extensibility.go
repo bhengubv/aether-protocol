@@ -19,6 +19,13 @@ type IncentiveProvider interface {
 	RecordRelay(ctx context.Context, localUhid string, packet *protocol.MeshPacket) error
 	// ShouldPrioritize returns true if a packet should be sent ahead of the queue.
 	ShouldPrioritize(ctx context.Context, packet *protocol.MeshPacket) bool
+	// RecordCreatorTip is called when the local user tips a content author.
+	// Distinct from RecordRelay (relay credit — paid to nodes that forward bytes);
+	// this records direct creator -> consumer settlement (paid to the user who
+	// AUTHORED the content). Host implementations (e.g. SDPKT, BhenguPay) wire
+	// their settlement logic here. Default no-op does nothing.
+	// Added in v1.2.0 — closes Issue #61 surfaced by Wave 16.
+	RecordCreatorTip(ctx context.Context, creatorUhid string, amount float64, contentHash string) error
 }
 
 // BackendClient is the optional cloud-relay seam. Default: returns false everywhere.
@@ -46,6 +53,9 @@ func (NoopIncentiveProvider) RecordRelay(ctx context.Context, localUhid string, 
 }
 func (NoopIncentiveProvider) ShouldPrioritize(ctx context.Context, packet *protocol.MeshPacket) bool {
 	return false
+}
+func (NoopIncentiveProvider) RecordCreatorTip(ctx context.Context, creatorUhid string, amount float64, contentHash string) error {
+	return nil
 }
 
 // NoopBackendClient is the default no-op implementation — every call returns false (offline-only mesh).

@@ -169,6 +169,13 @@ target_include_directories(test-chunk-bitmap PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 target_link_libraries(test-chunk-bitmap PRIVATE aethernet-protocol)
 add_test(NAME ChunkBitmapTests COMMAND test-chunk-bitmap)
 
+add_executable(test-directory-service
+    test_directory_service.c
+)
+target_include_directories(test-directory-service PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-directory-service PRIVATE aethernet-protocol pthread)
+add_test(NAME DirectoryServiceTests COMMAND test-directory-service)
+
 # Convenience target: build every test binary in one step.
 # Usage: cmake --build build --target aether-tests
 add_custom_target(aether-tests
@@ -196,4 +203,5 @@ add_custom_target(aether-tests
         test-gossip
         test-aether-tag
         test-chunk-bitmap
+        test-directory-service
 )

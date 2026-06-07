@@ -5,6 +5,7 @@
 from aethernet.dtn.store import BundleStore, InMemoryBundleStore
 from aethernet.dtn.strategy import ReplicationStrategy, GeohashEpidemicStrategy
 from aethernet.dtn.service import DtnService
+from aethernet.dtn.bundle_received_event import DtnBundleReceivedEvent
 
 __all__ = [
     "BundleStore",
@@ -12,4 +13,5 @@ __all__ = [
     "ReplicationStrategy",
     "GeohashEpidemicStrategy",
     "DtnService",
+    "DtnBundleReceivedEvent",
 ]

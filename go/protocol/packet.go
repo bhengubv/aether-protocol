@@ -47,6 +47,20 @@ const (
 	WatchChunkRequest  PacketType = 33
 	TorrentMetadata    PacketType = 34
 
+	// NamePublish — application-layer name resolution. Sent by IDirectoryService
+	// to announce a (name -> ContentDescriptor) binding to the mesh, or in
+	// response to an inbound NameQuery from a peer that asked for the binding.
+	// Payload is a UTF-8 JSON-encoded NamePublishPayload. Added in v1.2.0 —
+	// closes Issue #60 surfaced by Wave 16.
+	NamePublish PacketType = 38
+
+	// NameQuery — application-layer name resolution. Sent by IDirectoryService
+	// when ResolveAsync misses the local cache; flooded across the mesh so any
+	// node holding the binding can reply with a NamePublish carrying the
+	// matching ContentDescriptor. Payload is a UTF-8 JSON-encoded
+	// NameQueryPayload. Added in v1.2.0 — closes Issue #60.
+	NameQuery PacketType = 39
+
 	// Hello — capability handshake. Sender announces supported
 	// protocol-version range + capability flags. Sent on first contact with
 	// an unknown peer. Payload is a UTF-8 JSON-encoded HelloPayload (see
@@ -208,6 +222,10 @@ func (pt PacketType) String() string {
 		return "WatchChunkRequest"
 	case TorrentMetadata:
 		return "TorrentMetadata"
+	case NamePublish:
+		return "NamePublish"
+	case NameQuery:
+		return "NameQuery"
 	case Hello:
 		return "Hello"
 	case HelloAck:

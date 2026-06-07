@@ -14,6 +14,10 @@ public actor DtnService {
 
     public var onBundleDelivered: (@Sendable (DtnDeliveryReceipt) -> Void)?
 
+    /// Fires the moment a DTN bundle arrives whose final recipient is the local
+    /// node. Added in v1.2.0 - closes the Wave-16 gap surfaced by Issue #59.
+    public var onBundleReceived: (@Sendable (DtnBundleReceivedEvent) -> Void)?
+
     public init(
         sender: any MeshSender,
         store: any BundleStore = InMemoryBundleStore(),
@@ -34,6 +38,10 @@ public actor DtnService {
 
     public func setOnBundleDelivered(_ callback: (@Sendable (DtnDeliveryReceipt) -> Void)?) {
         self.onBundleDelivered = callback
+    }
+
+    public func setOnBundleReceived(_ callback: (@Sendable (DtnBundleReceivedEvent) -> Void)?) {
+        self.onBundleReceived = callback
     }
 
     public func createBundle(
@@ -125,8 +133,20 @@ public actor DtnService {
         if bundle.recipientUhid == sender.localUhid {
             let delivered = withStatus(bundle, status: .delivered)
             await store.save(delivered)
-            await sendDeliveryReceipt(delivered)
             await reputation?.recordDeliverySuccess(uhid: packet.sourceUhid, roundTripMs: 0)
+            if let cb = onBundleReceived {
+                let evt = DtnBundleReceivedEvent(
+                    bundleId: bundle.id,
+                    senderUhid: bundle.senderUhid,
+                    recipientUhid: bundle.recipientUhid,
+                    encryptedPayload: bundle.encryptedPayload,
+                    priority: BundlePriority(rawValue: bundle.priority) ?? .normal,
+                    hopCount: Int(bundle.hopCount),
+                    receivedAtUtc: Date()
+                )
+                cb(evt)
+            }
+            await sendDeliveryReceipt(delivered)
             return
         }
         if await store.getActiveCount() >= ProtocolConstants.dtnMaxBundlesPerNode {

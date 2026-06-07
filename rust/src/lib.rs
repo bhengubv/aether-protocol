@@ -59,3 +59,8 @@ pub use streaming::{
     VideoCallEntry, VideoCallService, VideoCallState, VideoSignalingMessage,
     WatchReactionPayload, WatchSession, WatchSyncPayload, WatchTogetherService,
 };
+pub use content::{
+    ContentDescriptor, DirectoryEntryAnnouncedEvent, DirectoryService, DirectoryServiceApi,
+    NamePublishPayload, NameQueryPayload, DEFAULT_QUERY_TIMEOUT,
+};
+pub use dtn::DtnBundleReceivedEvent;

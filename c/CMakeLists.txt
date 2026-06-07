@@ -68,6 +68,7 @@ add_library(aethernet-protocol STATIC
     src/aethernet_gossip.c
     src/aethernet_tag.c
     src/chunk_bitmap.c
+    src/directory_service.c
     # BLAKE3 portable subset (no SIMD — compile-time defines below disable all
     # optional SIMD backends; only blake3_portable.c is linked in practice)
     ${blake3_src_SOURCE_DIR}/c/blake3.c

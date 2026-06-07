@@ -6,11 +6,19 @@ import Foundation
 public protocol IncentiveProvider: Sendable {
     func recordRelay(localUhid: String, packet: MeshPacket) async
     func shouldPrioritize(packet: MeshPacket) async -> Bool
+    /// Called when the local user tips a content author. Distinct from
+    /// recordRelay (relay credit - paid to nodes that forward bytes); this
+    /// records direct creator -> consumer settlement (paid to the user who
+    /// AUTHORED the content). Host implementations (e.g. SDPKT, BhenguPay)
+    /// wire their settlement logic here. Default no-op does nothing.
+    /// Added in v1.2.0 - closes Issue #61 surfaced by Wave 16.
+    func recordCreatorTip(creatorUhid: String, amount: Decimal, contentHash: String) async throws
 }
 
 public extension IncentiveProvider {
     func recordRelay(localUhid: String, packet: MeshPacket) async {}
     func shouldPrioritize(packet: MeshPacket) async -> Bool { false }
+    func recordCreatorTip(creatorUhid: String, amount: Decimal, contentHash: String) async throws {}
 }
 
 /// Optional cloud-relay seam. Default returns false everywhere.

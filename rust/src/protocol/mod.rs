@@ -45,6 +45,19 @@ pub enum PacketType {
     WatchChunkRequest = 33,
     TorrentMetadata = 34,
 
+    /// NamePublish — application-layer name resolution. Sent by directory
+    /// service to announce a (name -> ContentDescriptor) binding to the mesh,
+    /// or in response to an inbound NameQuery. Payload is a UTF-8 JSON-encoded
+    /// NamePublishPayload. Added in v1.2.0 — closes Issue #60.
+    NamePublish = 38,
+
+    /// NameQuery — application-layer name resolution. Sent by directory
+    /// service when resolve() misses the local cache; flooded across the mesh
+    /// so any node holding the binding can reply with a NamePublish. Payload
+    /// is a UTF-8 JSON-encoded NameQueryPayload. Added in v1.2.0 — closes
+    /// Issue #60.
+    NameQuery = 39,
+
     /// Capability handshake — sender announces supported protocol-version
     /// range + capability flags. Sent on first contact with an unknown peer.
     /// The payload is a UTF-8 JSON-encoded `HelloPayload`. Unauthenticated and
@@ -99,6 +112,8 @@ impl PacketType {
             32 => Some(PacketType::ScreenShare),
             33 => Some(PacketType::WatchChunkRequest),
             34 => Some(PacketType::TorrentMetadata),
+            38 => Some(PacketType::NamePublish),
+            39 => Some(PacketType::NameQuery),
             50 => Some(PacketType::Hello),
             51 => Some(PacketType::HelloAck),
             52 => Some(PacketType::ReputationUpdate),

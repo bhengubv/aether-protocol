@@ -5,6 +5,7 @@ package aethernet.extensibility
 import aethernet.models.DtnBundle
 import aethernet.models.SosAlert
 import aethernet.protocol.MeshPacket
+import java.math.BigDecimal
 
 /**
  * Records relays for reward calculation and decides whether a packet jumps the priority queue.
@@ -13,6 +14,16 @@ import aethernet.protocol.MeshPacket
 interface IncentiveProvider {
     suspend fun recordRelay(localUhid: String, packet: MeshPacket) {}
     suspend fun shouldPrioritize(packet: MeshPacket): Boolean = false
+
+    /**
+     * Called when the local user tips a content author. Distinct from
+     * recordRelay (relay credit - paid to nodes that forward bytes); this
+     * records direct creator -> consumer settlement (paid to the user who
+     * AUTHORED the content). Host implementations (e.g. SDPKT, BhenguPay)
+     * wire their settlement logic here. Default no-op does nothing.
+     * Added in v1.2.0 - closes Issue #61 surfaced by Wave 16.
+     */
+    suspend fun recordCreatorTip(creatorUhid: String, amount: BigDecimal, contentHash: String) {}
 }
 
 /**

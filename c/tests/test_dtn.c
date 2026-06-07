@@ -296,6 +296,111 @@ static void reputation_custody_refusal_fires_on_ack_refused(void) {
     fake_clear(&s);
 }
 
+// ───── OnBundleReceived (v1.2.0, Issue #59) ───────────────
+
+typedef struct {
+    int count;
+    char *last_sender_uhid;
+    char *last_recipient_uhid;
+    uint8_t last_priority;
+    uint8_t last_payload[16];
+    uint32_t last_payload_len;
+} on_received_state_t;
+
+static void on_received_capture(const aethernet_dtn_bundle_received_event_t *evt, void *user_data) {
+    on_received_state_t *s = (on_received_state_t *)user_data;
+    s->count++;
+    free(s->last_sender_uhid);
+    free(s->last_recipient_uhid);
+    s->last_sender_uhid = evt->sender_uhid ? strdup(evt->sender_uhid) : NULL;
+    s->last_recipient_uhid = evt->recipient_uhid ? strdup(evt->recipient_uhid) : NULL;
+    s->last_priority = evt->priority;
+    s->last_payload_len = evt->encrypted_payload_len > sizeof(s->last_payload)
+        ? (uint32_t)sizeof(s->last_payload)
+        : evt->encrypted_payload_len;
+    if (evt->encrypted_payload && s->last_payload_len > 0) {
+        memcpy(s->last_payload, evt->encrypted_payload, s->last_payload_len);
+    }
+}
+
+static void bundle_received_fires_for_local_recipient(void) {
+    fake_state_t s = {0};
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    on_received_state_t cap = {0};
+    aethernet_dtn_set_bundle_received_callback(svc, on_received_capture, &cap);
+
+    uint8_t payload[] = {0x01, 0x02, 0x03, 0x04};
+    aethernet_mesh_packet_t *pkt = make_dtn_packet(
+        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
+        "remote-sender",
+        LOCAL_UHID,
+        payload, sizeof(payload));
+    pkt->priority = (uint8_t)AETHERNET_BUNDLE_PRIORITY_HIGH;
+    aethernet_dtn_handle_packet(svc, pkt);
+    aethernet_packet_free(pkt);
+
+    assert(cap.count == 1);
+    assert(cap.last_sender_uhid && strcmp(cap.last_sender_uhid, "remote-sender") == 0);
+    assert(cap.last_recipient_uhid && strcmp(cap.last_recipient_uhid, LOCAL_UHID) == 0);
+    assert(cap.last_priority == (uint8_t)AETHERNET_BUNDLE_PRIORITY_HIGH);
+    assert(cap.last_payload_len == 4);
+    assert(memcmp(cap.last_payload, payload, 4) == 0);
+
+    free(cap.last_sender_uhid);
+    free(cap.last_recipient_uhid);
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+static void bundle_received_does_not_fire_for_other_recipient(void) {
+    fake_state_t s = {0};
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    on_received_state_t cap = {0};
+    aethernet_dtn_set_bundle_received_callback(svc, on_received_capture, &cap);
+
+    uint8_t payload[] = {0xff};
+    aethernet_mesh_packet_t *pkt = make_dtn_packet(
+        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
+        "remote-sender",
+        "someone-else",
+        payload, sizeof(payload));
+    aethernet_dtn_handle_packet(svc, pkt);
+    aethernet_packet_free(pkt);
+
+    assert(cap.count == 0);
+
+    free(cap.last_sender_uhid);
+    free(cap.last_recipient_uhid);
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+static void bundle_received_unset_callback_does_not_crash(void) {
+    // No callback registered → handler must complete cleanly.
+    fake_state_t s = {0};
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    // Intentionally do not call aethernet_dtn_set_bundle_received_callback.
+
+    uint8_t payload[] = {0x09};
+    aethernet_mesh_packet_t *pkt = make_dtn_packet(
+        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
+        "alice",
+        LOCAL_UHID,
+        payload, sizeof(payload));
+    aethernet_dtn_handle_packet(svc, pkt);
+    aethernet_packet_free(pkt);
+
+    // Reaching here without crash is the assertion.
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
 int main(void) {
     printf("Aether DTN Service — Unit Tests\n");
     printf("================================\n");
@@ -308,6 +413,9 @@ int main(void) {
     RUN(reputation_delivery_success_fires_for_local_bundle);
     RUN(reputation_delivery_success_does_not_fire_for_other_node);
     RUN(reputation_custody_refusal_fires_on_ack_refused);
+    RUN(bundle_received_fires_for_local_recipient);
+    RUN(bundle_received_does_not_fire_for_other_recipient);
+    RUN(bundle_received_unset_callback_does_not_crash);
 
     printf("\n%d tests passed.\n", tests_run);
     return 0;

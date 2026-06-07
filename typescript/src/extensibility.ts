@@ -12,6 +12,15 @@ import { DtnBundle, SosAlert } from "./models/index.js";
 export interface IncentiveProvider {
   recordRelay(localUhid: string, packet: MeshPacket): Promise<void>;
   shouldPrioritize(packet: MeshPacket): Promise<boolean>;
+  /**
+   * Called when the local user tips a content author. Distinct from
+   * recordRelay (relay credit — paid to nodes that forward bytes); this
+   * records direct creator -> consumer settlement (paid to the user who
+   * AUTHORED the content). Host implementations (e.g. SDPKT, BhenguPay)
+   * wire their settlement logic here. Default no-op does nothing.
+   * Added in v1.2.0 — closes Issue #61 surfaced by Wave 16.
+   */
+  recordCreatorTip(creatorUhid: string, amount: number, contentHash: string): Promise<void>;
 }
 
 export interface BackendClient {
@@ -35,6 +44,13 @@ export class NoopIncentiveProvider implements IncentiveProvider {
   }
   async shouldPrioritize(_packet: MeshPacket): Promise<boolean> {
     return false;
+  }
+  async recordCreatorTip(
+    _creatorUhid: string,
+    _amount: number,
+    _contentHash: string,
+  ): Promise<void> {
+    // intentionally no-op
   }
 }
 

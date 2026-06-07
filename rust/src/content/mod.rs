@@ -11,6 +11,35 @@
 //     generation.
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+
+pub mod directory;
+
+pub use directory::{
+    DirectoryEntryAnnouncedEvent, DirectoryService, DirectoryServiceApi, NamePublishPayload,
+    NameQueryPayload, DEFAULT_QUERY_TIMEOUT,
+};
+
+/// Cross-language stable manifest for chunked content. Identifies the content
+/// by a root hash computed over the per-chunk hashes, declares the chunk
+/// layout, and lets receivers verify each chunk independently as it arrives.
+///
+/// Wire shape: JSON, snake_case — byte-equal to the C# `ContentDescriptor` and
+/// the Go / Python / TS / Kotlin / Swift ports. Added in v1.2.0.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub struct ContentDescriptor {
+    pub root_hash: String,
+    pub name: String,
+    pub total_bytes: u64,
+    pub chunk_size_bytes: u32,
+    pub chunk_count: u32,
+    pub chunk_hashes: Vec<String>,
+    pub content_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<DateTime<Utc>>,
+}
 
 /// Encode chunk indices into an LSB-first compact bitset.
 ///

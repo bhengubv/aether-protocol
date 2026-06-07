@@ -310,3 +310,78 @@ test("dtnReputationNullNoError", async () => {
   await svc.handle(pkt);
   // Reaching here without exception is the assertion
 });
+
+// ─── OnBundleReceived (v1.2.0, Issue #59) ────────────────────────────────────
+
+describe("DtnService — onBundleReceived (v1.2.0, Issue #59)", () => {
+  it("fires when inbound bundle is addressed to the local node", async () => {
+    const sender = new FakeMeshSender("recipient");
+    const store = new InMemoryDtnBundleStore();
+    const svc = new DtnService(sender, store);
+
+    const captured: any[] = [];
+    svc.onBundleReceived = (e) => {
+      captured.push(e);
+    };
+
+    const bundle: DtnBundle = {
+      id: crypto.randomUUID(),
+      senderUhid: "remote-sender",
+      recipientUhid: "recipient",
+      encryptedPayload: new Uint8Array([1, 2, 3, 4]),
+      priority: BundlePriority.High,
+      status: BundleStatus.Pending,
+      copyCount: 1,
+      maxCopies: 16,
+      hopCount: 2,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 72 * 3600 * 1000),
+    };
+    await svc.handle(buildBundlePacket("carrier", bundle));
+
+    assert.equal(captured.length, 1);
+    const evt = captured[0];
+    assert.equal(evt.bundleId, bundle.id);
+    assert.equal(evt.senderUhid, "remote-sender");
+    assert.equal(evt.recipientUhid, "recipient");
+    assert.equal(evt.priority, BundlePriority.High);
+    assert.equal(evt.hopCount, 2);
+    assert.ok(evt.receivedAtUtc instanceof Date);
+    assert.deepEqual(Array.from(evt.encryptedPayload), [1, 2, 3, 4]);
+  });
+
+  it("does NOT fire when bundle is addressed to a different node (custody-relay path)", async () => {
+    const sender = new FakeMeshSender("carrier");
+    sender.addPeer({
+      uhid: "peer-z",
+      publicKey: new Uint8Array(),
+      lastSeen: new Date(),
+      reliabilityScore: 50,
+      capabilities: NodeCapabilities.DtnCarrier,
+    });
+    const store = new InMemoryDtnBundleStore();
+    const svc = new DtnService(sender, store);
+
+    let fired = false;
+    svc.onBundleReceived = () => {
+      fired = true;
+    };
+
+    const bundle: DtnBundle = {
+      id: crypto.randomUUID(),
+      senderUhid: "remote-sender",
+      recipientUhid: "someone-else",
+      encryptedPayload: new Uint8Array([0xff]),
+      priority: BundlePriority.Normal,
+      status: BundleStatus.Pending,
+      copyCount: 1,
+      maxCopies: 16,
+      hopCount: 0,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 72 * 3600 * 1000),
+    };
+    await svc.handle(buildBundlePacket("remote-sender", bundle));
+
+    assert.equal(fired, false, "onBundleReceived must fire ONLY when local node is recipient");
+  });
+});

@@ -29,6 +29,7 @@ from aethernet.reputation import NodeReputationService
 from aethernet.routing.sender import MeshSender
 from aethernet.dtn.store import BundleStore, InMemoryBundleStore
 from aethernet.dtn.strategy import GeohashEpidemicStrategy, ReplicationStrategy
+from aethernet.dtn.bundle_received_event import DtnBundleReceivedEvent
 
 
 _LOG = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class DtnService:
         self._backend = backend or NoopBackendClient()
         self._reputation: Optional[NodeReputationService] = None
         self.on_bundle_delivered: Optional[Callable[[DtnDeliveryReceipt], None]] = None
+        self.on_bundle_received: Optional[Callable[[DtnBundleReceivedEvent], None]] = None
 
     def set_reputation(self, reputation: Optional[NodeReputationService]) -> None:
         """Attach a :class:`NodeReputationService` to receive DTN reputation signals.
@@ -155,9 +157,18 @@ class DtnService:
         if bundle.recipient_uhid == self._sender.local_uhid:
             bundle.status = BundleStatus.DELIVERED
             await self._store.save(bundle)
-            await self._send_delivery_receipt(bundle)
             if self._reputation is not None:
                 self._reputation.record_delivery_success(packet.source_uhid, 0)
+            if self.on_bundle_received is not None:
+                self.on_bundle_received(DtnBundleReceivedEvent(
+                    bundle_id=bundle.id,
+                    sender_uhid=bundle.sender_uhid,
+                    recipient_uhid=bundle.recipient_uhid,
+                    encrypted_payload=bundle.encrypted_payload,
+                    priority=bundle.priority,
+                    hop_count=bundle.hop_count,
+                ))
+            await self._send_delivery_receipt(bundle)
             return
 
         if await self._store.get_active_count() >= constants.DTN_MAX_BUNDLES_PER_NODE:

@@ -138,6 +138,21 @@ export interface DtnDeliveryReceipt {
   deliveredAt: Date;
 }
 
+/**
+ * Event payload delivered to DtnService.onBundleReceived the moment a DTN
+ * bundle addressed to the local node lands. Mirrors the C# /
+ * DtnBundleReceivedEventArgs. Added in v1.2.0 — closes Issue #59.
+ */
+export interface DtnBundleReceivedEvent {
+  bundleId: string;
+  senderUhid: string;
+  recipientUhid: string;
+  encryptedPayload: Uint8Array;
+  priority: BundlePriority;
+  hopCount: number;
+  receivedAtUtc: Date;
+}
+
 // ────────────────────────────── SOS ──────────────────────────────
 
 export interface SosAlert {

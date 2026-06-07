@@ -33,6 +33,11 @@ type Service struct {
 	mu sync.Mutex
 
 	OnBundleDelivered func(receipt *models.DtnDeliveryReceipt)
+
+	// OnBundleReceived fires the moment a DTN bundle arrives whose final
+	// recipient is the local node — see DtnBundleReceivedEvent. Added in
+	// v1.2.0 — closes the Wave-16 gap surfaced by Issue #59.
+	OnBundleReceived func(*DtnBundleReceivedEvent)
 }
 
 // SetReputation attaches an optional NodeReputationService to the DTN service.
@@ -236,6 +241,17 @@ func (s *Service) handleBundle(ctx context.Context, packet *protocol.MeshPacket)
 		_ = s.store.Save(ctx, bundle)
 		if rep := s.reputation; rep != nil {
 			rep.RecordDeliverySuccess(packet.SourceUhid, 0)
+		}
+		if cb := s.OnBundleReceived; cb != nil {
+			cb(&DtnBundleReceivedEvent{
+				BundleID:         bundle.ID,
+				SenderUhid:       bundle.SenderUhid,
+				RecipientUhid:    bundle.RecipientUhid,
+				EncryptedPayload: bundle.EncryptedPayload,
+				Priority:         bundle.Priority,
+				HopCount:         bundle.HopCount,
+				ReceivedAtUtc:    time.Now().UTC(),
+			})
 		}
 		return s.sendDeliveryReceipt(ctx, bundle)
 	}

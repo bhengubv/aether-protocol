@@ -16,6 +16,7 @@ import {
   BundleStatus,
   CustodyRecord,
   DtnBundle,
+  DtnBundleReceivedEvent,
   DtnDeliveryReceipt,
   isBundleExpired,
   newDtnBundle,
@@ -38,6 +39,13 @@ const DTN_BUNDLE_TTL_FOR_PACKET = 30; // ProtocolConstants.DtnTtl
 
 export class DtnService {
   onBundleDelivered?: (receipt: DtnDeliveryReceipt) => void;
+
+  /**
+   * Fires the moment a DTN bundle arrives whose final recipient is the local
+   * node — see DtnBundleReceivedEvent. Added in v1.2.0 — closes the Wave-16
+   * gap surfaced by Issue #59.
+   */
+  onBundleReceived?: (event: DtnBundleReceivedEvent) => void;
 
   private reputation: NodeReputationService | null = null;
 
@@ -153,8 +161,17 @@ export class DtnService {
     if (bundle.recipientUhid === this.sender.localUhid) {
       bundle.status = BundleStatus.Delivered;
       await this.store.save(bundle);
-      await this.sendDeliveryReceipt(bundle);
       this.reputation?.recordDeliverySuccess(packet.sourceUhid, 0);
+      this.onBundleReceived?.({
+        bundleId: bundle.id,
+        senderUhid: bundle.senderUhid,
+        recipientUhid: bundle.recipientUhid,
+        encryptedPayload: bundle.encryptedPayload,
+        priority: bundle.priority,
+        hopCount: bundle.hopCount,
+        receivedAtUtc: new Date(),
+      });
+      await this.sendDeliveryReceipt(bundle);
       return;
     }
 

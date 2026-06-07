@@ -278,6 +278,58 @@ class DtnServiceTest {
         assertEquals(1, rep.custodyRefusals.size)
         assertEquals("carrier", rep.custodyRefusals[0])
     }
+
+    // ─── OnBundleReceived (v1.2.0, Issue #59) ────────────────────────────────
+
+    @Test fun handle_inboundBundleAddressedToLocal_firesOnBundleReceived() = runBlocking {
+        val sender = FakeMeshSender("recipient")
+        val store = InMemoryBundleStore()
+        val svc = DtnService(sender, store)
+
+        val captured = mutableListOf<aethernet.models.DtnBundleReceivedEvent>()
+        svc.onBundleReceived = { captured.add(it) }
+
+        val b = DtnBundle(
+            senderUhid = "remote-sender",
+            recipientUhid = "recipient",
+            encryptedPayload = byteArrayOf(1, 2, 3, 4),
+            priority = aethernet.models.BundlePriority.High.value,
+            hopCount = 2,
+        )
+        svc.handle(buildBundlePacket("carrier", b))
+
+        assertEquals(1, captured.size)
+        val e = captured[0]
+        assertEquals(b.id, e.bundleId)
+        assertEquals("remote-sender", e.senderUhid)
+        assertEquals("recipient", e.recipientUhid)
+        assertEquals(2, e.hopCount)
+        assertEquals(aethernet.models.BundlePriority.High, e.priority)
+        assertTrue(e.encryptedPayload.contentEquals(byteArrayOf(1, 2, 3, 4)))
+    }
+
+    @Test fun handle_inboundBundleForOtherNode_doesNotFireOnBundleReceived() = runBlocking {
+        val sender = FakeMeshSender("carrier")
+        sender.addPeer(PeerInfo(
+            uhid = "peer-z",
+            identityKey = ByteArray(0),
+            capabilities = NodeCapabilities(dtnCarrier = true),
+        ))
+        val store = InMemoryBundleStore()
+        val svc = DtnService(sender, store)
+
+        var fired = false
+        svc.onBundleReceived = { fired = true }
+
+        val b = DtnBundle(
+            senderUhid = "remote-sender",
+            recipientUhid = "someone-else",
+            encryptedPayload = byteArrayOf(0xff.toByte()),
+        )
+        svc.handle(buildBundlePacket("remote-sender", b))
+
+        assertFalse(fired, "onBundleReceived must fire ONLY when local node is recipient")
+    }
 }
 
 /** Test double for [NodeReputationService] that records calls without side-effects. */

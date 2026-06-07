@@ -47,6 +47,20 @@ class PacketType(IntEnum):
     WatchChunkRequest = 33
     TorrentMetadata = 34
 
+    # NamePublish — application-layer name resolution. Sent by IDirectoryService
+    # to announce a (name -> ContentDescriptor) binding to the mesh, or in
+    # response to an inbound NameQuery from a peer that asked for the binding.
+    # Payload is a UTF-8 JSON-encoded NamePublishPayload. Added in v1.2.0 —
+    # closes Issue #60 surfaced by Wave 16.
+    NamePublish = 38
+
+    # NameQuery — application-layer name resolution. Sent by IDirectoryService
+    # when resolve() misses the local cache; flooded across the mesh so any
+    # node holding the binding can reply with a NamePublish carrying the
+    # matching ContentDescriptor. Payload is a UTF-8 JSON-encoded
+    # NameQueryPayload. Added in v1.2.0 — closes Issue #60.
+    NameQuery = 39
+
     # Capability handshake — sender announces supported protocol-version range
     # + capability tags. Sent on first contact with an unknown peer. The
     # payload is a UTF-8 JSON-encoded HelloPayload. Unauthenticated and

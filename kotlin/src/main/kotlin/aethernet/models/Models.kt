@@ -246,6 +246,44 @@ data class DtnDeliveryReceipt(
     val deliveredAt: Instant = Instant.now()
 )
 
+/**
+ * Event payload delivered to DtnService.onBundleReceived the moment a DTN
+ * bundle addressed to the local node lands. Mirrors C# DtnBundleReceivedEventArgs.
+ * Added in v1.2.0 - closes Issue #59 surfaced by Wave 16.
+ */
+data class DtnBundleReceivedEvent(
+    val bundleId: java.util.UUID,
+    val senderUhid: String,
+    val recipientUhid: String,
+    val encryptedPayload: ByteArray,
+    val priority: BundlePriority,
+    val hopCount: Int,
+    val receivedAtUtc: Instant = Instant.now()
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is DtnBundleReceivedEvent) return false
+        if (bundleId != other.bundleId) return false
+        if (senderUhid != other.senderUhid) return false
+        if (recipientUhid != other.recipientUhid) return false
+        if (!encryptedPayload.contentEquals(other.encryptedPayload)) return false
+        if (priority != other.priority) return false
+        if (hopCount != other.hopCount) return false
+        if (receivedAtUtc != other.receivedAtUtc) return false
+        return true
+    }
+    override fun hashCode(): Int {
+        var result = bundleId.hashCode()
+        result = 31 * result + senderUhid.hashCode()
+        result = 31 * result + recipientUhid.hashCode()
+        result = 31 * result + encryptedPayload.contentHashCode()
+        result = 31 * result + priority.hashCode()
+        result = 31 * result + hopCount
+        result = 31 * result + receivedAtUtc.hashCode()
+        return result
+    }
+}
+
 // ─────────────────────────────────────────────────────────
 // SOS
 // ─────────────────────────────────────────────────────────

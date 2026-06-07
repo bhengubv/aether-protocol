@@ -39,6 +39,8 @@ struct aethernet_dtn_service {
     bundle_node_t *bundles;
     custody_node_t *custody_records;
     AetherNetNodeReputationService *reputation; // optional, may be NULL
+    aethernet_dtn_bundle_received_cb on_bundle_received;     // optional
+    void *on_bundle_received_user_data;                       // opaque, caller-owned
 };
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -212,6 +214,15 @@ void aethernet_dtn_set_reputation(aethernet_dtn_service_t *svc, AetherNetNodeRep
     svc->reputation = rep;
 }
 
+void aethernet_dtn_set_bundle_received_callback(
+    aethernet_dtn_service_t *service,
+    aethernet_dtn_bundle_received_cb cb,
+    void *user_data) {
+    if (!service) return;
+    service->on_bundle_received = cb;
+    service->on_bundle_received_user_data = user_data;
+}
+
 int aethernet_dtn_create_bundle(aethernet_dtn_service_t *service,
                              const char *recipient_uhid,
                              const uint8_t *encrypted_payload,
@@ -261,6 +272,24 @@ void aethernet_dtn_handle_packet(aethernet_dtn_service_t *service, const aethern
             if (service->reputation != NULL) {
                 aethernet_reputation_record_delivery_success(service->reputation,
                                                          packet->source_uhid, 0);
+            }
+            // Fire BundleReceived callback (v1.2.0, Issue #59). The reference
+            // impl doesn't decode the JSON payload; consumers that need bundle
+            // metadata beyond the packet headers should decode the payload
+            // themselves via cJSON. Sender/recipient UHIDs in the event are
+            // taken from the packet headers; the inner bundle JSON wire is
+            // delivered raw via encrypted_payload pointer.
+            if (service->on_bundle_received != NULL) {
+                aethernet_dtn_bundle_received_event_t evt;
+                memcpy(evt.bundle_id, packet->packet_id, AETHERNET_PACKET_ID_SIZE);
+                evt.sender_uhid = packet->source_uhid;
+                evt.recipient_uhid = packet->destination_uhid;
+                evt.encrypted_payload = packet->payload;
+                evt.encrypted_payload_len = packet->payload_len;
+                evt.priority = packet->priority;
+                evt.hop_count = 0;  // not decoded from JSON in reference impl
+                evt.received_at_ms = now_ms_dtn();
+                service->on_bundle_received(&evt, service->on_bundle_received_user_data);
             }
         }
     } else if (packet->type == AETHERNET_PACKET_TYPE_DTN_CUSTODY_ACK) {

@@ -316,4 +316,71 @@ final class DtnServiceTests: XCTestCase {
         XCTAssertLessThan(score, 1.0, "custody refusal must lower the refusing peer's reputation score")
         XCTAssertEqual(score, 0.95, accuracy: 1e-9)
     }
+
+    // MARK: - OnBundleReceived (v1.2.0, Issue #59)
+
+    func test_handle_inboundBundleAddressedToLocal_firesOnBundleReceived() async {
+        let sender = FakeMeshSender(localUhid: "recipient")
+        let store = InMemoryBundleStore()
+        let svc = DtnService(sender: sender, store: store)
+
+        actor Captured {
+            var events: [DtnBundleReceivedEvent] = []
+            func add(_ e: DtnBundleReceivedEvent) { events.append(e) }
+            func snapshot() -> [DtnBundleReceivedEvent] { events }
+        }
+        let captured = Captured()
+        await svc.setOnBundleReceived { e in
+            Task { await captured.add(e) }
+        }
+
+        let bundle = DtnBundle(
+            senderUhid: "remote-sender",
+            recipientUhid: "recipient",
+            encryptedPayload: Data([0x01, 0x02, 0x03, 0x04]),
+            priority: BundlePriority.high.rawValue,
+            hopCount: 2
+        )
+        await svc.handle(buildBundlePacket(source: "carrier", bundle: bundle))
+
+        // give the Task time to land
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        let events = await captured.snapshot()
+        XCTAssertEqual(events.count, 1)
+        let evt = events[0]
+        XCTAssertEqual(evt.bundleId, bundle.id)
+        XCTAssertEqual(evt.senderUhid, "remote-sender")
+        XCTAssertEqual(evt.recipientUhid, "recipient")
+        XCTAssertEqual(evt.encryptedPayload, Data([0x01, 0x02, 0x03, 0x04]))
+        XCTAssertEqual(evt.priority, .high)
+        XCTAssertEqual(evt.hopCount, 2)
+    }
+
+    func test_handle_inboundBundleForOtherNode_doesNotFireOnBundleReceived() async {
+        let sender = FakeMeshSender(localUhid: "carrier")
+        let store = InMemoryBundleStore()
+        let svc = DtnService(sender: sender, store: store)
+
+        actor Captured {
+            var fired = false
+            func mark() { fired = true }
+            func value() -> Bool { fired }
+        }
+        let captured = Captured()
+        await svc.setOnBundleReceived { _ in
+            Task { await captured.mark() }
+        }
+
+        let bundle = DtnBundle(
+            senderUhid: "remote-sender",
+            recipientUhid: "someone-else",
+            encryptedPayload: Data([0xff])
+        )
+        await svc.handle(buildBundlePacket(source: "remote-sender", bundle: bundle))
+
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        let fired = await captured.value()
+        XCTAssertFalse(fired, "onBundleReceived must fire ONLY when local node is recipient")
+    }
 }

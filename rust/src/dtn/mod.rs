@@ -8,4 +8,4 @@ pub mod service;
 
 pub use store::{BundleStore, InMemoryBundleStore};
 pub use strategy::{GeohashEpidemicStrategy, ReplicationStrategy};
-pub use service::DtnService;
+pub use service::{DtnBundleReceivedEvent, DtnService};

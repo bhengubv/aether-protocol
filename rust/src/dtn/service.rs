@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use crate::constants::{DEFAULT_TTL, DTN_BUNDLE_TTL_HOURS, DTN_MAX_BUNDLES_PER_NODE, DTN_MAX_COPIES};
@@ -19,6 +20,23 @@ use super::store::{BundleStore, InMemoryBundleStore};
 use super::strategy::{GeohashEpidemicStrategy, ReplicationStrategy};
 
 const DTN_TTL: i32 = 30;
+const BUNDLE_RECEIVED_CHANNEL_CAPACITY: usize = 64;
+
+/// Event delivered to subscribers of [`DtnService::subscribe_bundle_received`] the
+/// moment a DTN bundle arrives whose final recipient is the local node.
+///
+/// Added in v1.2.0 — closes the Wave-16 gap surfaced by Issue #59. Mirrors the
+/// C# `DtnBundleReceivedEventArgs` and the Go / Python / TS / Kotlin / Swift ports.
+#[derive(Debug, Clone)]
+pub struct DtnBundleReceivedEvent {
+    pub bundle_id: Uuid,
+    pub sender_uhid: String,
+    pub recipient_uhid: String,
+    pub encrypted_payload: Vec<u8>,
+    pub priority: BundlePriority,
+    pub hop_count: i32,
+    pub received_at_ms: i64,
+}
 
 /// JSON wire envelope for a DTN bundle. Cross-language stable.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +79,10 @@ pub struct DtnService {
     backend: Arc<dyn BackendClient>,
     /// Optional reputation service; `None` disables reputation tracking.
     reputation: Option<Arc<NodeReputationService>>,
+    /// Broadcast channel for inbound-bundle events; subscribers receive an event
+    /// each time a DTN bundle arrives addressed to the local node. Added in
+    /// v1.2.0 — Issue #59.
+    bundle_received_tx: broadcast::Sender<DtnBundleReceivedEvent>,
 }
 
 impl DtnService {
@@ -82,6 +104,7 @@ impl DtnService {
         incentives: Arc<dyn IncentiveProvider>,
         backend: Arc<dyn BackendClient>,
     ) -> Self {
+        let (bundle_received_tx, _) = broadcast::channel(BUNDLE_RECEIVED_CHANNEL_CAPACITY);
         Self {
             sender,
             store,
@@ -89,7 +112,15 @@ impl DtnService {
             incentives,
             backend,
             reputation: None,
+            bundle_received_tx,
         }
+    }
+
+    /// Subscribe to inbound-bundle events. Each subscriber receives an event
+    /// the moment a DTN bundle arrives addressed to the local node. Added in
+    /// v1.2.0 — closes Issue #59.
+    pub fn subscribe_bundle_received(&self) -> broadcast::Receiver<DtnBundleReceivedEvent> {
+        self.bundle_received_tx.subscribe()
     }
 
     /// Attaches a reputation service so that delivery successes and custody
@@ -219,10 +250,21 @@ impl DtnService {
             let mut delivered = bundle.clone();
             delivered.status = BundleStatus::Delivered;
             self.store.save(delivered.clone()).await;
-            self.send_delivery_receipt(&delivered).await;
             if let Some(rep) = &self.reputation {
                 rep.record_delivery_success(&packet.source_uhid, 0);
             }
+            // Best-effort: deliver to any subscribers. Ignore SendError when
+            // there are no live receivers (the v1.2.0 contract is fire-and-forget).
+            let _ = self.bundle_received_tx.send(DtnBundleReceivedEvent {
+                bundle_id: bundle.id,
+                sender_uhid: bundle.sender_uhid.clone(),
+                recipient_uhid: bundle.recipient_uhid.clone(),
+                encrypted_payload: bundle.encrypted_payload.clone(),
+                priority: bundle.priority,
+                hop_count: bundle.hop_count,
+                received_at_ms: unix_millis(),
+            });
+            self.send_delivery_receipt(&delivered).await;
             return;
         }
 

@@ -8,6 +8,7 @@ the protocol layer call through these uniformly.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from decimal import Decimal
 from typing import Optional
 
 from aethernet.protocol.mesh_packet import MeshPacket
@@ -22,6 +23,18 @@ class IncentiveProvider(ABC):
 
     async def should_prioritize(self, packet: MeshPacket) -> bool:
         return False
+
+    async def record_creator_tip(
+        self, creator_uhid: str, amount: Decimal, content_hash: str
+    ) -> None:
+        """Called when the local user tips a content author. Distinct from
+        record_relay (relay credit - paid to nodes that forward bytes); this
+        records direct creator -> consumer settlement (paid to the user who
+        AUTHORED the content). Host implementations (e.g. SDPKT, BhenguPay)
+        wire their settlement logic here. Default no-op does nothing.
+        Added in v1.2.0 - closes Issue #61 surfaced by Wave 16.
+        """
+        return None
 
 
 class BackendClient(ABC):

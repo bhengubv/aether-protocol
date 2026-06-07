@@ -97,6 +97,45 @@ void aethernet_dtn_run_delivery_scan(aethernet_dtn_service_t *service);
 /// Mark every expired bundle as Expired in the store. Returns the count affected.
 int aethernet_dtn_expire_stale(aethernet_dtn_service_t *service);
 
+/**
+ * Event payload delivered to aethernet_dtn_bundle_received_cb the moment a
+ * DTN bundle addressed to the local node lands. The pointer fields point into
+ * the receive-pump's transient buffers and remain valid only for the duration
+ * of the callback — consumers must copy any value they need to retain. Added
+ * in v1.2.0 — closes Issue #59 surfaced by Wave 16.
+ */
+typedef struct {
+    uint8_t        bundle_id[AETHERNET_PACKET_ID_SIZE];
+    const char    *sender_uhid;
+    const char    *recipient_uhid;
+    const uint8_t *encrypted_payload;
+    uint32_t       encrypted_payload_len;
+    uint8_t        priority;     // aethernet_bundle_priority_t
+    int32_t        hop_count;
+    int64_t        received_at_ms;
+} aethernet_dtn_bundle_received_event_t;
+
+/**
+ * Callback type — invoked the moment a DTN bundle addressed to the local
+ * node arrives. The `event` pointer is valid only for the duration of the
+ * callback. `user_data` is the opaque pointer registered via
+ * aethernet_dtn_set_bundle_received_callback().
+ */
+typedef void (*aethernet_dtn_bundle_received_cb)(
+    const aethernet_dtn_bundle_received_event_t *event,
+    void *user_data);
+
+/**
+ * Register a callback fired the moment a DTN bundle addressed to the local
+ * node arrives. Pass NULL `cb` to detach. The caller retains ownership of
+ * `user_data` — the DTN service stores the pointer but never frees it.
+ * Added in v1.2.0 — closes Issue #59.
+ */
+void aethernet_dtn_set_bundle_received_callback(
+    aethernet_dtn_service_t *service,
+    aethernet_dtn_bundle_received_cb cb,
+    void *user_data);
+
 #ifdef __cplusplus
 }
 #endif
