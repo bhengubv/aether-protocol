@@ -297,4 +297,57 @@ public class DtnServiceTests
         var stored = await store.GetAsync(bundle.Id);
         Assert.True(stored!.CopyCount >= 2);
     }
+
+    // ─── BundleReceived event (v1.2.0, Issue #59) ────────────────────────
+
+    [Fact]
+    public async Task HandleAsync_InboundBundleAddressedToLocal_RaisesBundleReceived()
+    {
+        var (svc, _, _) = NewService(localUhid: "recipient");
+
+        DtnBundleReceivedEventArgs? captured = null;
+        svc.BundleReceived += (_, e) => captured = e;
+
+        var bundle = new DtnBundle
+        {
+            SenderUhid = "remote-sender",
+            RecipientUhid = "recipient", // matches local
+            EncryptedPayload = new byte[] { 0x01, 0x02, 0x03, 0x04 },
+            Priority = BundlePriority.High,
+            HopCount = 2,
+        };
+        var packet = BuildBundlePacketFor(bundle, sourceUhid: "carrier");
+        await svc.HandleAsync(packet);
+
+        Assert.NotNull(captured);
+        Assert.Equal(bundle.Id, captured!.BundleId);
+        Assert.Equal("remote-sender", captured.SenderUhid);
+        Assert.Equal("recipient", captured.RecipientUhid);
+        Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x04 }, captured.EncryptedPayload);
+        Assert.Equal(BundlePriority.High, captured.Priority);
+        Assert.Equal(2, captured.HopCount);
+    }
+
+    [Fact]
+    public async Task HandleAsync_InboundBundleForOtherNode_DoesNotRaiseBundleReceived()
+    {
+        var (svc, sender, _) = NewService(localUhid: "carrier");
+        // Pretend we have capacity to accept custody.
+        sender.AddPeer(new PeerInfo { Uhid = "peer-z" });
+
+        var raised = false;
+        svc.BundleReceived += (_, _) => raised = true;
+
+        var bundle = new DtnBundle
+        {
+            SenderUhid = "remote-sender",
+            RecipientUhid = "someone-else", // NOT local
+            EncryptedPayload = new byte[] { 0xff },
+            Priority = BundlePriority.Normal,
+        };
+        var packet = BuildBundlePacketFor(bundle, sourceUhid: "remote-sender");
+        await svc.HandleAsync(packet);
+
+        Assert.False(raised, "BundleReceived must fire ONLY when the local node is the final recipient.");
+    }
 }

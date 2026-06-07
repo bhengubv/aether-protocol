@@ -52,6 +52,7 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _voiceAdded;
     private bool _groupVoiceAdded;
     private bool _contentAdded;
+    private bool _directoryAdded;
     private bool _spaceAdded;
     private bool _forgeAdded;
     private bool _vaultAdded;
@@ -512,6 +513,25 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
                              ?? NullLogger<ContentService>.Instance;
             var telemetry  = sp.GetService<IAetherNetTelemetry>();
             return new ContentService(sender, routing, store, incentives, logger, telemetry);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddDirectory()
+    {
+        if (!_routingAdded)
+            throw new InvalidOperationException(
+                "AddDirectory() requires AddRouting() to have been called first.");
+        if (_directoryAdded) return this;
+        _directoryAdded = true;
+
+        Services.TryAddSingleton<IDirectoryService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<DirectoryService>>()
+                         ?? NullLogger<DirectoryService>.Instance;
+            return new DirectoryService(sender, logger);
         });
 
         return this;

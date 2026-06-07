@@ -77,9 +77,29 @@ public enum PacketType : byte
     //     (nodes MUST ignore unrecognised PacketType values gracefully).
     //   • IDs 38–39 are currently unassigned — reserved for future core use.
     //
-    //   38 = (unassigned — reserved)
-    //   39 = (unassigned — reserved)
+    //   38 = NamePublish (v1.2.0 — IDirectoryService application-layer naming)
+    //   39 = NameQuery   (v1.2.0 — IDirectoryService application-layer naming)
     //
+
+    /// <summary>
+    /// Application-layer name → ContentDescriptor announcement. Either an unsolicited
+    /// broadcast from a publisher ("I have name X"), or a unicast response to a prior
+    /// <see cref="NameQuery"/> with the optional <c>in_response_to_query_id</c> field
+    /// populated. Payload is a JSON-encoded <c>NamePublishPayload</c> (snake_case).
+    /// Added in v1.2.0 — closes the consumer-protocol-surface gap surfaced by Wave 16.
+    /// </summary>
+    NamePublish = 38,
+
+    /// <summary>
+    /// Application-layer name resolution query. A node broadcasts this when it wants
+    /// to resolve a name to its <see cref="AetherNet.Content.Models.ContentDescriptor"/>
+    /// but does not have the descriptor in its local catalogue. Peers that hold the
+    /// name unicast a <see cref="NamePublish"/> response back with the matching
+    /// <c>query_id</c>. Payload is a JSON-encoded <c>NameQueryPayload</c> (snake_case).
+    /// Added in v1.2.0.
+    /// </summary>
+    NameQuery = 39,
+
     /// <summary>
     /// Geo-pinned content breadcrumb — part of the <c>aether-space</c> Phase-2
     /// extension. A node drops a <c>SpaceBreadcrumb</c> at a geohash coordinate;

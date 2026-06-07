@@ -34,6 +34,21 @@ public interface IAetherNetIncentiveProvider
     /// <returns>True if the packet should receive priority forwarding.</returns>
     Task<bool> ShouldPrioritizeAsync(MeshPacket packet, CancellationToken cancellationToken = default)
         => Task.FromResult(false);
+
+    /// <summary>
+    /// Called when the local user tips a content author. Distinct from
+    /// <see cref="RecordRelayAsync"/> (relay credit — paid to nodes that forward bytes);
+    /// this records direct creator → consumer settlement (paid to the user who
+    /// AUTHORED the content). Host implementations (e.g. SDPKT, BhenguPay) wire
+    /// their settlement logic here. Default no-op does nothing.
+    /// Added in v1.2.0 — closes Issue #61 surfaced by Wave 16.
+    /// </summary>
+    /// <param name="creatorUhid">UHID of the content's author (recipient of the tip).</param>
+    /// <param name="amount">Tip amount in the host's settlement currency (typically ZAR for SDPKT-backed hosts).</param>
+    /// <param name="contentHash">Root hash of the tipped content.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task RecordCreatorTipAsync(string creatorUhid, decimal amount, string contentHash, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 }
 
 /// <summary>

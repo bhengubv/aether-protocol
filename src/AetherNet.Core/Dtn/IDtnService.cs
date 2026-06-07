@@ -15,6 +15,16 @@ public interface IDtnService
     /// <summary>Raised once when a bundle this node sent is confirmed delivered.</summary>
     event EventHandler<DtnDeliveryReceipt>? BundleDelivered;
 
+    /// <summary>
+    /// Raised when a DTN bundle addressed to the local node has been received.
+    /// Distinct from <see cref="BundleDelivered"/> (which fires on the SENDER side
+    /// once a delivery receipt flows back). Subscribers that want to know "a bundle
+    /// arrived for me" should listen here; subscribers that want to confirm "my
+    /// outbound bundle reached the recipient" should listen to <see cref="BundleDelivered"/>.
+    /// Added in v1.2.0.
+    /// </summary>
+    event EventHandler<DtnBundleReceivedEventArgs>? BundleReceived;
+
     /// <summary>Create and queue a new bundle. Attempts immediate mesh delivery; falls back to the store on failure.</summary>
     Task<DtnBundle> CreateBundleAsync(string recipientUhid, byte[] encryptedPayload, BundlePriority priority = BundlePriority.Normal, string? recipientLastGeohash = null, CancellationToken cancellationToken = default);
 

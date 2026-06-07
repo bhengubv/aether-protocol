@@ -315,6 +315,7 @@ public class HealthCheckTests
 
 #pragma warning disable CS0067 // event-stub for interface contract
         public event EventHandler<DtnDeliveryReceipt>? BundleDelivered;
+        public event EventHandler<DtnBundleReceivedEventArgs>? BundleReceived;
 #pragma warning restore CS0067
         public Task<DtnBundle> CreateBundleAsync(string recipientUhid, byte[] encryptedPayload, BundlePriority priority = BundlePriority.Normal, string? recipientLastGeohash = null, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();

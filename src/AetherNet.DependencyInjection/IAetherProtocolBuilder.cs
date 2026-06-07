@@ -172,6 +172,15 @@ public interface IAetherNetProtocolBuilder
     /// </summary>
     IAetherNetProtocolBuilder AddContent();
 
+    /// <summary>
+    /// Register <c>DirectoryService</c> as a singleton <c>IDirectoryService</c>.
+    /// Requires <see cref="AddRouting"/>. The directory provides application-layer
+    /// name → <c>ContentDescriptor</c> resolution (broadcast publish, query-by-name)
+    /// so mesh-first fetchers can discover content by name without prior knowledge of
+    /// its root hash. Added in v1.2.0 — closes Issue #60.
+    /// </summary>
+    IAetherNetProtocolBuilder AddDirectory();
+
     // ── Extensibility ─────────────────────────────────────────────────────────
 
     /// <summary>
