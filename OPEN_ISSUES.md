@@ -565,6 +565,92 @@ Kotlin +4, Swift +3, Rust +4, C +3.
 
 ---
 
+## Medium — consumer protocol surface (Wave 16)
+
+Surfaced while wiring the first non-trivial consumer (AetherMedia.LocalLibrary,
+`aether-media` commit [`07a695e`](https://github.com/bhengubv/aether-media/commit/07a695e))
+against AetherNet 1.1.0. Not security correctness — protocol-shape gaps that every
+future consumer in every language will hit unless the protocol fills them at the
+interface level. All three are 2.0 candidates (interface contract changes).
+
+### 22. `IDtnService.BundleReceived` event for inbound bundles
+
+**Tracked in:** GitHub issue [#59](https://github.com/bhengubv/aether-protocol/issues/59).
+
+**State.** `BundleDelivered` fires for SENT bundles whose delivery was confirmed via
+custody ack. Nothing fires when a peer routes a bundle TO us — receiving consumers
+have to inspect `HandleAsync(packet)` directly to notice. Every DTN consumer in
+every language reinvents this hook.
+
+**What needs to change.** Add `event EventHandler<DtnBundleReceivedEventArgs> BundleReceived`
+to `IDtnService`; raise it inside the existing receive path before the custody-ack
+reply. Mirror across all 8 language SDKs.
+
+**Test anchor.** Two-node in-process E2E (same pattern as items 19/20).
+
+**Surfaced by.** `aether-media` commit `07a695e` —
+`AetherMedia.LocalLibrary.Audio.Mesh.MeshIntegrationTests` had to subscribe to
+`IDtnService.HandleAsync` indirectly via the host shell.
+
+### 23. Application-layer naming / discovery directory
+
+**Tracked in:** GitHub issue [#60](https://github.com/bhengubv/aether-protocol/issues/60).
+This is the biggest of the three Wave-16 protocol gaps.
+
+**State.** `IContentService` is content-addressed: `BroadcastBitmapAsync` takes a
+`rootHash`, `RequestChunksAsync` takes a `rootHash`. A real mesh-first fetcher
+(e.g. *"fetch the descriptor for podcast episode X by name, then chunk-fetch"*)
+does **not** know the rootHash — that is precisely what it is trying to discover.
+
+Wave 16 consumers all derive a fake content key from `(artist + album)` /
+`(podcast guid)` / `(reel title)` and hope the peer's `InMemoryContentService`
+(or equivalent test double) treats it as a name lookup. The C# in-memory double
+honours this; the real protocol does not. Net effect: every mesh-first fetcher
+in every consumer in every language reinvents the same hack at this seam.
+
+**What needs to change.** Either a directory service (`IDirectoryService` with
+`ResolveAsync(name) → ContentDescriptor`) or a topic system (extend
+`IContentService` with `SubscribeAsync(topic)` filtered `ContentAnnounced`).
+Either way: interface contract change, 2.0 candidate.
+
+**Test anchor.** Cross-language fixture: producer publishes descriptor under a
+name, consumer in a different language resolves by name without prior rootHash
+knowledge.
+
+**Severity.** Formal Petri-net models assume `rootHash` is known — that is the
+input boundary. The verification surface and the protocol surface are subtly
+out of phase, so this gap doesn't surface in any test today.
+
+**Surfaced by.** `aether-media` commit `07a695e` — `MeshIntegrationTests.cs`
+mesh-first fetchers across podcast / reel / track / skin / preset all share
+this shape.
+
+### 24. Author-tipping interface
+
+**Tracked in:** GitHub issue [#61](https://github.com/bhengubv/aether-protocol/issues/61).
+
+**State.** `IAetherNetIncentiveProvider` exists for **relay credit** — *"this node
+carried bytes, settle ZAR."* It does not model **creator payment** — *"this user
+authored this content, the consumer wants to tip them."* The plugin / skin /
+preset / podcast / track / reel author-tipping use case currently has no
+protocol-level path; consumers call SDPKT directly, bypassing the protocol and
+losing the ability to settle through any other ledger.
+
+**What needs to change.** Either extend the existing interface with
+`RecordCreatorTipAsync(creatorUhid, amount, contentHash)` (recommended — single
+ledger-binding seam) or add a sibling `IAetherNetCreatorIncentiveProvider`
+(clearer separation).
+
+**Test anchor.** Cross-language fixture: consumer records creator tip; provider
+receives `(creatorUhid, amount, contentHash)`; existing relay-credit path
+unaffected.
+
+**Surfaced by.** `aether-media` commit `07a695e` — `AetherMedia.Distribution`
+author-tipping path calls SDPKT directly, bypassing the protocol's incentive
+seam.
+
+---
+
 ## How to use this file
 
 When a Phase 3 session lands work that closes one of these items:
