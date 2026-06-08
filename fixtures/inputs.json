@@ -208,5 +208,50 @@
     "signature_hex": "",
     "timestamp_ms": 1710528000000,
     "protocol_version": 2
+  },
+  {
+    "name": "name_publish_unsolicited",
+    "description": "IDirectoryService.PublishAsync broadcast — anchors PacketType.NamePublish=38 (v1.2.0). in_response_to_query_id is null.",
+    "id": "2024aaaa-bbbb-cccc-dddd-000000000038",
+    "type": 38,
+    "source_uhid": "publisher",
+    "destination_uhid": "",
+    "ttl": 7,
+    "priority": 0,
+    "payload_hex": "7b226e616d65223a22706f64636173743a616263222c2264657363726970746f72223a7b22726f6f745f68617368223a226465616462656566222c226e616d65223a22457069736f6465203432222c22746f74616c5f6279746573223a313032342c226368756e6b5f73697a655f6279746573223a3235362c226368756e6b5f636f756e74223a342c226368756e6b5f686173686573223a5b226830222c226831222c226832222c226833225d2c22636f6e74656e745f74797065223a22617564696f2f666c6163222c22637265617465645f6174223a22323032362d30362d30375430303a30303a30305a227d2c22696e5f726573706f6e73655f746f5f71756572795f6964223a6e756c6c7d",
+    "packet_nonce_hex": "0102030405060708",
+    "signature_hex": "",
+    "timestamp_ms": 1717718400000,
+    "protocol_version": 2
+  },
+  {
+    "name": "name_publish_response",
+    "description": "IDirectoryService unicast response to a prior NameQuery — anchors NamePublish with in_response_to_query_id populated (v1.2.0).",
+    "id": "2024bbbb-cccc-dddd-eeee-000000000038",
+    "type": 38,
+    "source_uhid": "holder",
+    "destination_uhid": "asker",
+    "ttl": 7,
+    "priority": 0,
+    "payload_hex": "7b226e616d65223a227265656c3a3432222c2264657363726970746f72223a7b22726f6f745f68617368223a226361666562616265222c226e616d65223a2253686f727420436c6970222c22746f74616c5f6279746573223a3531322c226368756e6b5f73697a655f6279746573223a3235362c226368756e6b5f636f756e74223a322c226368756e6b5f686173686573223a5b226830222c226831225d2c22636f6e74656e745f74797065223a22766964656f2f6d7034222c22637265617465645f6174223a22323032362d30362d30375430303a30303a30305a227d2c22696e5f726573706f6e73655f746f5f71756572795f6964223a2235353065383430302d653239622d343164342d613731362d343436363535343430303030227d",
+    "packet_nonce_hex": "0a0b0c0d0e0f1011",
+    "signature_hex": "",
+    "timestamp_ms": 1717718400000,
+    "protocol_version": 2
+  },
+  {
+    "name": "name_query_basic",
+    "description": "IDirectoryService.ResolveAsync broadcast for an unknown name — anchors PacketType.NameQuery=39 (v1.2.0).",
+    "id": "2024cccc-dddd-eeee-ffff-000000000039",
+    "type": 39,
+    "source_uhid": "asker",
+    "destination_uhid": "",
+    "ttl": 7,
+    "priority": 0,
+    "payload_hex": "7b226e616d65223a22616c62756d3a6e61732f7374696c6c6d61746963222c2271756572795f6964223a2235353065383430302d653239622d343164342d613731362d343436363535343430303030227d",
+    "packet_nonce_hex": "1112131415161718",
+    "signature_hex": "",
+    "timestamp_ms": 1717718400000,
+    "protocol_version": 2
   }
 ]
