@@ -8,6 +8,63 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [1.2.0] — 2026-06-07
+
+### Added — consumer-protocol-surface (Wave 16 / 17)
+
+Three additive interface extensions surfaced while wiring
+AetherMedia.LocalLibrary against AetherNet 1.1.0. All non-breaking
+(default interface methods + new event handlers + new packet types in
+previously-reserved enum slots). Existing consumers compile and run
+unchanged.
+
+- **`IDtnService.BundleReceived` event** — fires when a DTN bundle
+  addressed to the local node arrives. Distinct from `BundleDelivered`
+  (which fires on the SENDER side once a delivery receipt flows back).
+  Subscribers that want to know "a bundle arrived for me" now have a
+  clean signal — previously they had to inspect `HandleAsync(packet)`
+  indirectly via the host shell. Closes [#59](https://github.com/bhengubv/aether-protocol/issues/59).
+- **`IDirectoryService` — application-layer name resolution** — new
+  interface in `AetherNet.Content` that maps human/application names
+  (e.g. `"podcast:abc123"`, `"reel:hash"`, `"album:artist/title"`) to
+  `ContentDescriptor`. Closes the gap where mesh-first fetchers had to
+  derive a fake content key from `(artist + album)` etc. because
+  `IContentService.BroadcastBitmapAsync` is `rootHash`-keyed.
+  - Two new packet types: `NamePublish = 38`, `NameQuery = 39`
+    (snake_case JSON wire format for cross-language interop)
+  - Methods: `PublishAsync(name, descriptor)`, `ResolveAsync(name, timeout?)`,
+    `ListNamesAsync()`, `HandleAsync(packet)`
+  - Event: `EntryAnnounced`
+  - DI registration: `AddDirectory()` (requires `AddRouting()`)
+  - Closes [#60](https://github.com/bhengubv/aether-protocol/issues/60).
+- **`IAetherNetIncentiveProvider.RecordCreatorTipAsync`** — new
+  default-method on the existing extensibility interface. Distinct from
+  `RecordRelayAsync` (which records relay credit for nodes forwarding
+  bytes); this records direct creator → consumer settlement (the user
+  who AUTHORED the content). Hosts (SDPKT, BhenguPay) wire their
+  settlement logic; default no-op preserves backward compatibility.
+  Closes [#61](https://github.com/bhengubv/aether-protocol/issues/61).
+
+### Cross-language
+
+The 7 non-C# implementations ship the same three additions with
+language-idiomatic patterns (callbacks/channels for events, suspend/
+async functions for futures). Wire format is byte-equal across all 8
+languages via snake_case JSON. Per-language status as of 1.2.0 release:
+Go / Python / TypeScript / Kotlin fully build + test green on dev
+machines. Swift / Rust / C verified syntax-clean (`swiftc -parse` /
+`cargo check` / `gcc -fsyntax-only`); full build verification awaits
+Linux CI on this tag.
+
+### Internal — 8-language surface
+
+628/628 C# Core tests pass (was 615, +13). 11/11 Soak tests pass.
+Tests added per language: Go +14, Python +16, TypeScript +12,
+Kotlin +13, Swift +13 (syntax-verified), Rust +14 (syntax-verified),
+C +11 (syntax-verified). No regressions across any language.
+
+---
+
 ## [1.0.1] — 2026-05-21
 
 ### Fixed
