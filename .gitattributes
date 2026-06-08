@@ -1,0 +1,7 @@
+# Force LF line endings for Rust sources — rustc 1.91+ rejects bare CR in
+# source files (CRCRLF on Windows checkouts otherwise breaks `cargo check`
+# with "carriage return must be followed by newline").
+rust/**/*.rs    text eol=lf
+rust/**/*.toml  text eol=lf
+rust/Cargo.toml text eol=lf
+rust/Cargo.lock text eol=lf
