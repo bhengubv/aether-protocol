@@ -198,6 +198,46 @@ void aethernet_transport_rank(
     aethernet_transport_rank_entry_t *out_ranked,
     size_t *out_count);
 
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * Forward-error-correction codec base interface (v1.2.x+)
+ *
+ * Concrete codecs (RLNC, future Reed-Solomon, etc.) embed an instance of
+ * aethernet_fec_codec_t as their FIRST struct member, so an
+ * aethernet_rlnc_codec_t* can be freely cast to aethernet_fec_codec_t* and
+ * passed to the generic transport layer. Standard C-style inheritance.
+ *
+ * Used by c/src/rlnc.c (and any future FEC codec). Mirrors the shape that
+ * code already references — this header declaration was missing prior to
+ * the v1.2.1 fix.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+typedef struct aethernet_fec_codec aethernet_fec_codec_t;
+
+struct aethernet_fec_codec {
+    const char *codec_name;                  /* e.g. "RLNC-GF256" */
+    int         device_tier_required;        /* 0 = any device, 1+ = tier gate */
+    double      overhead_fraction;           /* expected coding overhead, [0,1) */
+    int         fixed_symbol_size_bytes;     /* 0 = variable-symbol codec */
+
+    /* Encode source bytes into `target_symbol_count` independently-decodable
+     * symbols. Caller owns the returned buffer (malloc'd, *out_len bytes). */
+    uint8_t *(*encode)(const aethernet_fec_codec_t *codec,
+                       const uint8_t              *source,
+                       size_t                      source_len,
+                       int                         target_symbol_count,
+                       size_t                     *out_len);
+
+    /* Attempt to decode source bytes from received_count symbols.
+     * Returns NULL if rank deficient (need more symbols). Caller owns buffer. */
+    uint8_t *(*try_decode)(const aethernet_fec_codec_t *codec,
+                           const uint8_t              **received_symbols,
+                           const size_t                *symbol_lengths,
+                           int                          received_count,
+                           int                          source_symbol_count,
+                           size_t                      *out_len);
+};
+
 #ifdef __cplusplus
 }
 #endif
