@@ -116,6 +116,20 @@ bool aethernet_sha256(const uint8_t *data,
                   uint8_t *out_hash);
 
 /**
+ * BLAKE3 hash.
+ *
+ * Wire-compatible with the BLAKE3 implementations in every other
+ * language binding (32-byte output via the standard one-shot API).
+ *
+ * Returns: true on success.
+ * Output:
+ *   out_hash: AETHERNET_BLAKE3_SIZE bytes (caller allocates)
+ */
+bool aethernet_blake3(const uint8_t *data,
+                  size_t data_len,
+                  uint8_t *out_hash);
+
+/**
  * HKDF-SHA256 (HMAC-based Key Derivation Function).
  * Implements RFC 5869 with extract-and-expand.
  *

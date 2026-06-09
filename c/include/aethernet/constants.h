@@ -40,6 +40,7 @@
 #define AETHERNET_AES_GCM_TAG_SIZE          16
 #define AETHERNET_SHA256_SIZE               32
 #define AETHERNET_HMAC_SHA256_SIZE          32
+#define AETHERNET_BLAKE3_SIZE               32
 
 // BLE discovery
 #define AETHERNET_BLE_DISCOVERY_INTERVAL_MS  10000

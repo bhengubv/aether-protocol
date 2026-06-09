@@ -9,6 +9,7 @@
 #include "aethernet/protocol.h"
 
 #include <sodium.h>
+#include <blake3.h>
 
 /* ─── Cross-platform "wall-clock seconds since epoch" ─────────────────── */
 static int64_t security_now_seconds(void) {
@@ -246,6 +247,27 @@ bool aethernet_sha256(const uint8_t *data,
     memcpy(out_hash, hash, crypto_hash_sha256_BYTES);
     sodium_memzero(hash, sizeof(hash));
 
+    return true;
+}
+
+/**
+ * BLAKE3 hash (32-byte output, portable C reference).
+ *
+ * Wraps the upstream blake3_hasher one-shot pattern. Wire-compatible
+ * with the BLAKE3 implementations in every other language in this
+ * repo (Rust, Go, C#, Swift, Python, JS).
+ */
+bool aethernet_blake3(const uint8_t *data,
+                  size_t data_len,
+                  uint8_t *out_hash) {
+    if (!out_hash) return false;
+
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
+    if (data != NULL && data_len > 0) {
+        blake3_hasher_update(&hasher, data, data_len);
+    }
+    blake3_hasher_finalize(&hasher, out_hash, BLAKE3_OUT_LEN);
     return true;
 }
 
