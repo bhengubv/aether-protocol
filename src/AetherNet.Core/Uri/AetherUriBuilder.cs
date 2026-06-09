@@ -3,7 +3,7 @@
 using System.Collections.Generic;
 using AetherNet.Identity;
 
-namespace AetherNet.Uri;
+namespace AetherNet.Addressing;
 
 /// <summary>
 /// Fluent builder for <see cref="AetherUri"/>. Use when programmatically constructing

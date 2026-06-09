@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using AetherNet.Identity;
-using AetherNet.Uri;
+using AetherNet.Addressing;
 using Xunit;
 
 namespace AetherNet.Core.Tests.Uri;

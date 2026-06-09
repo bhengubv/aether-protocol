@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text;
 using AetherNet.Identity;
 
-namespace AetherNet.Uri;
+namespace AetherNet.Addressing;
 
 /// <summary>
 /// Aether URI — the canonical addressing format for resources on the Aether mesh.

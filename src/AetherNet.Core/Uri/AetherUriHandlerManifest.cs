@@ -3,7 +3,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace AetherNet.Uri;
+namespace AetherNet.Addressing;
 
 /// <summary>
 /// Describes a single handler an app exposes on its <c>aether://</c> URI surface.

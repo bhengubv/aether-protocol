@@ -284,12 +284,12 @@ the grammar are major versions and require a new `aether2://` scheme.
 
 The C# reference implementation:
 
-- `AetherNet.Uri.AetherUri` (value type)
-- `AetherNet.Uri.AetherUriBuilder`
-- `AetherNet.Uri.AetherUriException`
-- `AetherNet.Uri.AetherUriHandlerDescriptor`
-- `AetherNet.Uri.AetherUriHandlerManifest`
-- `AetherNet.Uri.IAetherUriRouter`, `AetherNet.Uri.AetherUriRouter`
+- `AetherNet.Addressing.AetherUri` (value type)
+- `AetherNet.Addressing.AetherUriBuilder`
+- `AetherNet.Addressing.AetherUriException`
+- `AetherNet.Addressing.AetherUriHandlerDescriptor`
+- `AetherNet.Addressing.AetherUriHandlerManifest`
+- `AetherNet.Addressing.IAetherUriRouter`, `AetherNet.Addressing.AetherUriRouter`
 
 Tests live in `tests/AetherNet.Core.Tests/Uri/`.
 

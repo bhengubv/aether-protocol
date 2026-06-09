@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace AetherNet.Uri;
+namespace AetherNet.Addressing;
 
 /// <summary>
 /// Thrown when an <c>aether://</c> URI fails to parse, build, or dispatch.

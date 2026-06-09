@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AetherNet.Uri;
+namespace AetherNet.Addressing;
 
 /// <summary>
 /// Context delivered to a registered URI handler when its route matches.

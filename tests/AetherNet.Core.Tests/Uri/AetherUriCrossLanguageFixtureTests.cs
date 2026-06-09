@@ -3,7 +3,7 @@
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using AetherNet.Uri;
+using AetherNet.Addressing;
 using Xunit;
 
 namespace AetherNet.Core.Tests.Uri;
