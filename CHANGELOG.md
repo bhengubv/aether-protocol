@@ -8,6 +8,75 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [1.5.0] — 2026-06-09
+
+Second move-upstream wave: two more protocol-level classes promoted out of
+`AetherMedia.LocalLibrary` into the AetherNet packages that own their domain.
+Neither class ever had any media-specific code; they were just living in the
+wrong repo.
+
+### Added — `AetherNet.Security.AesGcmEnvelope`
+
+Canonical AES-256-GCM envelope for self-to-self payloads. Wire layout:
+`[nonce(12)][tag(16)][cipher(N)]`. The same envelope is used by
+scrobbles, bookmark + play-history sync, message-draft sync, vault-shard
+metadata, and any other sender→self payload on the mesh — so a single
+shared encryption pipeline keeps the key-management story honest (one
+user key, one envelope, one decrypt path).
+
+- `Encrypt(byte[] key, ReadOnlySpan<byte> plaintext) → byte[]` (random nonce per call)
+- `Decrypt(byte[] key, byte[] envelope) → byte[]`
+- `KeySize = 32` (AES-256)
+
+Promoted from `AetherMedia.LocalLibrary.Audio.Mesh.AesGcmEnvelope`.
+
+### Added — `AetherNet.Forge.MeshPackageDistributor`
+
+Generic mesh-distribution layer that composes
+`IForgeService` + `IContentService` + `IAetherNetIncentiveProvider` into a
+single publish/fetch/relay-credit pipeline. Originally built for media
+plugin packages (skins, Milkdrop presets, AVS effects) but the mechanism
+is fully generic — any AetherNet consumer wanting to distribute any kind
+of package by stable identifier (plugins, themes, code-cache artifacts,
+shader presets) now has a one-line API.
+
+- `PublishAsync(packageId, payload, contentType, ct)` → `ForgeEntry`
+- `TryFetchAsync(packageId, ct)` → `byte[]?` (cache-hit → direct path,
+  cache-miss → `IDirectoryService.ResolveAsync` → chunk request →
+  assemble → re-cache)
+- `RecordChunkRelayAsync(packet, ct)` → drives `IAetherNetIncentiveProvider`
+- `SkinPackageId(name)` / `PresetPackageId(family, name)` / `PluginPackageId(id, version)` — generic stable-identifier conventions
+- `IntegrityHash(payload)` — SHA-256 over the bytes
+
+Maps to formal models `forge-integrity`, `content-bitmap`, `forge-eviction`.
+
+Promoted from `AetherMedia.LocalLibrary.Audio.Mesh.MeshPackageDistributor`.
+
+### Changed
+
+- `AetherNet.Forge` now `ProjectReference`s `AetherNet.Content` (was just `Core`).
+  Required because `MeshPackageDistributor` calls `IContentService`.
+
+### Verification
+
+- New tests: `tests/AetherNet.Core.Tests/Security/AesGcmEnvelopeTests.cs`
+  (13 cases), `tests/AetherNet.Core.Tests/Forge/MeshPackageDistributorTests.cs`
+  (21 cases). **34/34 pass** on net10.0.
+- Full Core test suite: **green**.
+- Downstream `AetherMedia.LocalLibrary.Tests`: **192/192 pass** on net9.0
+  and net10.0.
+- Downstream `AetherMedia.Social.Tests`: **68/68 pass** on net9.0 and net10.0.
+
+### Why
+"All core AetherNet functions should be on AetherNet." Following the
+1.3.0 `MeshInvariants` move and the 1.4.0 `aether://` URI scheme, this
+wave brings the symmetric-encryption envelope and the generic
+mesh-package distributor where they belong — the protocol repo — so
+every C# consumer (Bruh!, SDPKT, txtMe!, third-party) can use them
+without taking a transitive dependency on `AetherMedia`.
+
+---
+
 ## [1.4.0] — 2026-06-09
 
 ### Added — `aether://` URI scheme

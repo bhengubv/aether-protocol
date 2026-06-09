@@ -29,6 +29,7 @@
     <ProjectReference Include="../../src/AetherNet.Storage/AetherNet.Storage.csproj" />
     <ProjectReference Include="../../src/AetherNet.Voice/AetherNet.Voice.csproj" />
     <ProjectReference Include="../../src/AetherNet.Content/AetherNet.Content.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Forge/AetherNet.Forge.csproj" />
     <ProjectReference Include="../../src/AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
   </ItemGroup>
 
