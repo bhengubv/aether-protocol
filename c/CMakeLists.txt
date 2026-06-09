@@ -95,7 +95,11 @@ target_compile_definitions(aethernet-protocol PRIVATE
     BLAKE3_NO_SSE41=1
     BLAKE3_NO_AVX2=1
     BLAKE3_NO_AVX512=1
-    BLAKE3_NO_NEON=1
+    # Upstream BLAKE3 uses BLAKE3_USE_NEON (0|1), NOT BLAKE3_NO_NEON,
+    # to gate ARM NEON. On Apple Silicon the autodetect defaults to 1
+    # and the dispatch tries to link blake3_hash_many_neon - which we
+    # never compile here. Force the portable path.
+    BLAKE3_USE_NEON=0
 )
 
 target_link_directories(aethernet-protocol
