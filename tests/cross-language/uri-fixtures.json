@@ -1,0 +1,202 @@
+{
+  "$schema": "uri-fixtures-1",
+  "description": "Cross-language test corpus for the aether:// URI scheme. Every AetherNet SDK MUST parse the same inputs to the same canonical components. Generated from the C# reference implementation; byte-equal across all 8 languages.",
+  "version": "1.4.0",
+  "valid": [
+    {
+      "name": "authority_only",
+      "input": "aether://KXJB7-MN2P4",
+      "canonical": "aether://KXJB7-MN2P4",
+      "authority": "KXJB7-MN2P4",
+      "path": "",
+      "handlerName": "",
+      "pathSegments": [],
+      "query": {},
+      "fragment": ""
+    },
+    {
+      "name": "authority_without_dash_canonicalises",
+      "input": "aether://KXJB7MN2P4",
+      "canonical": "aether://KXJB7-MN2P4",
+      "authority": "KXJB7-MN2P4",
+      "path": "",
+      "handlerName": "",
+      "pathSegments": [],
+      "query": {},
+      "fragment": ""
+    },
+    {
+      "name": "authority_lowercase_canonicalises",
+      "input": "aether://kxjb7-mn2p4",
+      "canonical": "aether://KXJB7-MN2P4",
+      "authority": "KXJB7-MN2P4",
+      "path": "",
+      "handlerName": "",
+      "pathSegments": [],
+      "query": {},
+      "fragment": ""
+    },
+    {
+      "name": "single_segment_path",
+      "input": "aether://KXJB7-MN2P4/profile",
+      "canonical": "aether://KXJB7-MN2P4/profile",
+      "authority": "KXJB7-MN2P4",
+      "path": "profile",
+      "handlerName": "profile",
+      "pathSegments": ["profile"],
+      "query": {},
+      "fragment": ""
+    },
+    {
+      "name": "two_segment_path",
+      "input": "aether://KXJB7-MN2P4/content/sha256-abc123",
+      "canonical": "aether://KXJB7-MN2P4/content/sha256-abc123",
+      "authority": "KXJB7-MN2P4",
+      "path": "content/sha256-abc123",
+      "handlerName": "content",
+      "pathSegments": ["content", "sha256-abc123"],
+      "query": {},
+      "fragment": ""
+    },
+    {
+      "name": "with_query",
+      "input": "aether://KXJB7-MN2P4/content/abc?codec=opus&bitrate=128",
+      "canonical": "aether://KXJB7-MN2P4/content/abc?codec=opus&bitrate=128",
+      "authority": "KXJB7-MN2P4",
+      "path": "content/abc",
+      "handlerName": "content",
+      "pathSegments": ["content", "abc"],
+      "query": {"codec": "opus", "bitrate": "128"},
+      "fragment": ""
+    },
+    {
+      "name": "with_fragment",
+      "input": "aether://KXJB7-MN2P4/stream/live#t=1m30s",
+      "canonical": "aether://KXJB7-MN2P4/stream/live#t=1m30s",
+      "authority": "KXJB7-MN2P4",
+      "path": "stream/live",
+      "handlerName": "stream",
+      "pathSegments": ["stream", "live"],
+      "query": {},
+      "fragment": "t=1m30s"
+    },
+    {
+      "name": "query_and_fragment",
+      "input": "aether://KXJB7-MN2P4/x?a=b#frag",
+      "canonical": "aether://KXJB7-MN2P4/x?a=b#frag",
+      "authority": "KXJB7-MN2P4",
+      "path": "x",
+      "handlerName": "x",
+      "pathSegments": ["x"],
+      "query": {"a": "b"},
+      "fragment": "frag"
+    },
+    {
+      "name": "flag_query",
+      "input": "aether://KXJB7-MN2P4/x?flag",
+      "canonical": "aether://KXJB7-MN2P4/x?flag",
+      "authority": "KXJB7-MN2P4",
+      "path": "x",
+      "handlerName": "x",
+      "pathSegments": ["x"],
+      "query": {"flag": ""},
+      "fragment": ""
+    },
+    {
+      "name": "uhid_64hex",
+      "input": "aether://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/inbox",
+      "canonical": "aether://AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/inbox",
+      "authority": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "path": "inbox",
+      "handlerName": "inbox",
+      "pathSegments": ["inbox"],
+      "query": {},
+      "fragment": ""
+    },
+    {
+      "name": "percent_encoded_query_space",
+      "input": "aether://KXJB7-MN2P4/inbox?title=hello%20world",
+      "canonical": "aether://KXJB7-MN2P4/inbox?title=hello%20world",
+      "authority": "KXJB7-MN2P4",
+      "path": "inbox",
+      "handlerName": "inbox",
+      "pathSegments": ["inbox"],
+      "query": {"title": "hello world"},
+      "fragment": ""
+    },
+    {
+      "name": "percent_encoded_path_segment",
+      "input": "aether://KXJB7-MN2P4/inbox/Hello%20World",
+      "canonical": "aether://KXJB7-MN2P4/inbox/Hello%20World",
+      "authority": "KXJB7-MN2P4",
+      "path": "inbox/Hello World",
+      "handlerName": "inbox",
+      "pathSegments": ["inbox", "Hello World"],
+      "query": {},
+      "fragment": ""
+    },
+    {
+      "name": "percent_encoded_utf8",
+      "input": "aether://KXJB7-MN2P4/inbox?title=caf%C3%A9",
+      "canonical": "aether://KXJB7-MN2P4/inbox?title=caf%C3%A9",
+      "authority": "KXJB7-MN2P4",
+      "path": "inbox",
+      "handlerName": "inbox",
+      "pathSegments": ["inbox"],
+      "query": {"title": "café"},
+      "fragment": ""
+    },
+    {
+      "name": "scheme_case_insensitive",
+      "input": "AETHER://KXJB7-MN2P4/profile",
+      "canonical": "aether://KXJB7-MN2P4/profile",
+      "authority": "KXJB7-MN2P4",
+      "path": "profile",
+      "handlerName": "profile",
+      "pathSegments": ["profile"],
+      "query": {},
+      "fragment": ""
+    },
+    {
+      "name": "fragment_with_equals_not_encoded",
+      "input": "aether://KXJB7-MN2P4/x#t=1m30s",
+      "canonical": "aether://KXJB7-MN2P4/x#t=1m30s",
+      "authority": "KXJB7-MN2P4",
+      "path": "x",
+      "handlerName": "x",
+      "pathSegments": ["x"],
+      "query": {},
+      "fragment": "t=1m30s"
+    }
+  ],
+  "invalid": [
+    {"name": "empty_string", "input": ""},
+    {"name": "wrong_scheme", "input": "http://KXJB7-MN2P4/"},
+    {"name": "missing_slashslash", "input": "aether:KXJB7-MN2P4"},
+    {"name": "single_slash", "input": "aether:/KXJB7-MN2P4"},
+    {"name": "empty_authority", "input": "aether:///profile"},
+    {"name": "non_crockford_authority", "input": "aether://INVALID-AUTH1/x"},
+    {"name": "too_short_authority", "input": "aether://ABC"},
+    {"name": "consecutive_slashes_in_path", "input": "aether://KXJB7-MN2P4/a//b"},
+    {"name": "illegal_path_char_space", "input": "aether://KXJB7-MN2P4/has space"},
+    {"name": "malformed_percent_encoding", "input": "aether://KXJB7-MN2P4/inbox/%2"},
+    {"name": "empty_query_key", "input": "aether://KXJB7-MN2P4/x?=value"}
+  ],
+  "manifest": {
+    "appId": "aether.media",
+    "handlers": [
+      {"handlerName": "profile",              "pathTemplate": ""},
+      {"handlerName": "profile",              "pathTemplate": "avatar"},
+      {"handlerName": "content",              "pathTemplate": "{hash}"},
+      {"handlerName": "watch",                "pathTemplate": "{sessionId}/join"}
+    ],
+    "matches": [
+      {"input": "aether://KXJB7-MN2P4/profile",              "matched": true,  "handlerIndex": 0, "captures": {}},
+      {"input": "aether://KXJB7-MN2P4/profile/avatar",       "matched": true,  "handlerIndex": 1, "captures": {}},
+      {"input": "aether://KXJB7-MN2P4/content/sha256-abc",   "matched": true,  "handlerIndex": 2, "captures": {"hash": "sha256-abc"}},
+      {"input": "aether://KXJB7-MN2P4/watch/sess-99/join",   "matched": true,  "handlerIndex": 3, "captures": {"sessionId": "sess-99"}},
+      {"input": "aether://KXJB7-MN2P4/unknown",              "matched": false},
+      {"input": "aether://KXJB7-MN2P4/watch/sess-99",        "matched": false}
+    ]
+  }
+}

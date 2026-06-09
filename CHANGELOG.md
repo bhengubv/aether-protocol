@@ -8,6 +8,48 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [1.4.0] — 2026-06-09
+
+### Added — `aether://` URI scheme
+
+New first-class URI scheme for addressing resources on the Aether mesh. A URI
+like `aether://KXJB7-MN2P4/content/sha256-abc?codec=opus#t=1m30s` parses
+identically across all 8 SDKs and dispatches to a per-app handler manifest.
+
+**C# reference implementation (`AetherNet.Core/Uri/`)**
+
+- `AetherUri` — readonly struct, immutable value. `Parse(s)` / `TryParse(s, out u, out err)`.
+- `AetherUriBuilder` — fluent builder.
+- `AetherUriException` — parse/build/dispatch failure.
+- `AetherUriHandlerDescriptor` — `(handlerName, pathTemplate, expectedQueryKeys, description)`
+  with `{param}` route capture.
+- `AetherUriHandlerManifest` — per-app registry of handlers with `Resolve(uri)`.
+- `IAetherUriRouter` + `AetherUriRouter` — thread-safe in-process dispatcher.
+
+**Documentation**
+
+- `docs/aether-uri-scheme.md` — RFC-style ABNF grammar, design principles,
+  reserved-handler list, security notes, cross-language conformance contract.
+
+**Cross-language conformance corpus**
+
+- `tests/cross-language/uri-fixtures.json` — 14 valid + 11 invalid + 6 manifest
+  cases. Every AetherNet SDK MUST drive this corpus through its parser; the
+  fixture is the source of truth for byte-equal canonical output.
+
+**Tests**
+
+- `tests/AetherNet.Core.Tests/Uri/` — 58 hand-written + 32 fixture-driven =
+  90/90 pass.
+- Full Core test suite: **713/713 pass** on net10.0.
+
+### Why
+Apps need a stable, OS-routable address format. Without it, deep-links,
+QR codes, and cross-app navigation (AetherMedia opening a watch session shared
+via AetherTxTMe) cannot work. `aether://` is that contract.
+
+---
+
 ## [1.3.0] — 2026-06-09
 
 ### Added — AetherNet.Content.Diagnostics.MeshInvariants
