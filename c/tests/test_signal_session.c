@@ -17,12 +17,12 @@
 // ─── Test harness macros (same style as test_routing.c) ──────────────────
 
 #define PASS() do { return; } while (0)
-#define FAIL(msg) do { \
-    fprintf(stderr, "FAIL: %s:%d: %s\n", __FILE__, __LINE__, (msg)); \
-    abort(); \
+#define FAIL(msg) do { \
+    fprintf(stderr, "FAIL: %s:%d: %s\n", __FILE__, __LINE__, (msg)); \
+    abort(); \
 } while (0)
-#define ASSERT(cond) do { \
-    if (!(cond)) FAIL(#cond); \
+#define ASSERT(cond) do { \
+    if (!(cond)) FAIL(#cond); \
 } while (0)
 
 static int tests_run = 0;
