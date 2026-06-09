@@ -48,6 +48,23 @@ Apps need a stable, OS-routable address format. Without it, deep-links,
 QR codes, and cross-app navigation (AetherMedia opening a watch session shared
 via AetherTxTMe) cannot work. `aether://` is that contract.
 
+### Language ports — full 8-SDK coverage
+
+| SDK | Location | Tests | Verification |
+|-----|----------|-------|--------------|
+| C# (reference)   | `src/AetherNet.Core/Uri/`                       | 90/90 pass         | `dotnet test` net10.0 |
+| Go               | `go/uri/`                                       | 90 cases pass      | `go test` + `go vet` + `-race` clean |
+| Python           | `python/aethernet/uri/`                         | 87 pass            | `pytest` + `pyflakes` + `ruff` clean |
+| TypeScript       | `typescript/src/uri/`                           | 62 pass            | `vitest`, `tsc --noEmit` clean (scope) |
+| Kotlin           | `kotlin/src/main/kotlin/aethernet/uri/`         | 123 pass           | `./gradlew test` BUILD SUCCESSFUL |
+| Rust             | `rust/src/uri/`                                 | 60 pass            | `cargo test` + `cargo build --release` clean |
+| Swift            | `swift/Sources/AetherNetProtocol/URI/`          | type-check clean   | `swiftc -typecheck -strict-concurrency=complete -swift-version 6`; Mac/Linux CI runs full XCTest |
+| C                | `c/src/aethernet_uri.c` + `c/include/aethernet/aethernet_uri.h` | 63 pass | gcc `-Wall -Wextra -Werror` clean; Mac cmake+ctest verified post-push |
+
+Every SDK drives the same `tests/cross-language/uri-fixtures.json` corpus
+(14 valid + 11 invalid + 6 manifest cases) — byte-equal canonical output is
+the conformance contract.
+
 ---
 
 ## [1.3.0] — 2026-06-09

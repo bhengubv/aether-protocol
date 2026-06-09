@@ -82,6 +82,9 @@ export * from "./streaming/index.js";
 // Identity
 export * from "./identity/index.js";
 
+// URI scheme
+export * from "./uri/index.js";
+
 // Content (descriptors + directory)
 export * from "./content/index.js";
 

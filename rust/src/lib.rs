@@ -17,6 +17,7 @@ pub mod sos;
 pub mod storage;
 pub mod streaming;
 pub mod transport;
+pub mod uri;
 pub mod voice;
 
 pub use handshake::{
