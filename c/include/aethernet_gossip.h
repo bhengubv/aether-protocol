@@ -12,6 +12,7 @@
 #define AETHERNET_GOSSIP_H
 
 #include "aethernet_reputation.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
