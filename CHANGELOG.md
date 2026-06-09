@@ -8,6 +8,61 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [1.3.0] — 2026-06-09
+
+### Added — AetherNet.Content.Diagnostics.MeshInvariants
+
+Promoted the formal-property runtime predicates from
+`AetherMedia.LocalLibrary.Audio.Mesh.MeshInvariants` to
+`AetherNet.Content.Diagnostics.MeshInvariants`. Core AetherNet functions
+belong on AetherNet — every C# consumer (Bruh!, SDPKT, txtMe!, third-party)
+can now use these without depending on the AetherMedia package.
+
+Five existing predicates moved (unchanged behaviour, dependency on
+`MeshPackageDistributor.IntegrityHash` inlined to `SHA256.HashData`):
+
+- `DtnCustodyEventuallyTerminates` ← `formal/dtn-custody`
+- `MultiDeviceSyncConverges` ← `formal/multi-device-sync`
+- `ContentBitmapEventuallyComplete` ← `formal/content-bitmap`
+- `ForgeIntegrity` ← `formal/forge-integrity` (now self-contained)
+- `StreamSequenceMonotonic` ← `formal/stream-abr`
+
+Three new predicates added (closes `02_REMAINING_WORK.md` §10):
+
+- `WatchTogetherBoundedLatency(hostMs, followerMs[], toleranceMs)` ←
+  `formal/watch-together-timed`. Follower drift after RTT compensation must
+  stay within tolerance (default 100 ms).
+- `OutboxBounded(currentDepth, maxDepth)` ← `formal/outbox-backpressure`.
+  Outbox queue never exceeds its cap; new work is rejected at the limit.
+- `ByzantineQuorumReached<T>(votes, out agreed, faultTolerance = N/3)` ←
+  `formal/byzantine-routing`. Agreement requires (N − f) peers reporting
+  the same value; gates cover-art / lyric / news-source / route-reply trust.
+
+### Internal
+
+- All 6 C library repo-health fixes (commits `54c6431` → `ecbecb7`) shipped
+  along with 1.3.0: `aethernet_transport_metrics_t` + `_rank_entry_t` + macro
+  + vtable fields; `aethernet_fec_codec_t`; `aethernet_blake3` + macro + impl;
+  `max_range_meters` vtable field; `aethernet_gossip.h` `size_t` include;
+  `test_signal_session.c` line-continuation repair; in-process transport
+  global-callback + metrics implementation. Mac cmake build now passes
+  end-to-end with 24/24 ctest tests green (was build-blocked under #62).
+
+### Tests
+
+- AetherNet.Core.Tests: 655/655 pass (was 628 in 1.2.0 — +27 new tests for the
+  3 new predicates and surrounding hardening)
+- C library: 24/24 ctest pass on Mac (rustc/cmake/libsodium/cjson/blake3 toolchain)
+
+### Migration from 1.2.0
+
+Consumers of `AetherMedia.LocalLibrary.Audio.Mesh.MeshInvariants` should
+update the `using` to `AetherNet.Content.Diagnostics` and the
+`PackageReference` to `AetherNet.Content` 1.3.0. The five existing predicates
+keep identical signatures and behaviour.
+
+---
+
 ## [1.2.0] — 2026-06-07
 
 ### Added — consumer-protocol-surface (Wave 16 / 17)

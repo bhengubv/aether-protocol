@@ -5,3 +5,5 @@ rust/**/*.rs    text eol=lf
 rust/**/*.toml  text eol=lf
 rust/Cargo.toml text eol=lf
 rust/Cargo.lock text eol=lf
+
+# Rust: rustc 1.91+ rejects bare CR in source. Force LF on checkout/checkin.
