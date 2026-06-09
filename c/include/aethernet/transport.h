@@ -61,6 +61,7 @@ typedef struct {
     /* Conservative defaults if a transport doesn't fill them: 0 = unknown. */
     int64_t  max_bandwidth_bps;        /* Headline link capacity in bits/sec. */
     int32_t  power_cost_relative;      /* Relative battery cost; 1=cheap, 100=expensive. */
+    int32_t  max_range_meters;         /* Max link range in metres; 0 = unknown / unbounded. */
 
     /* Live EWMA metrics accessor. NULL when the transport doesn't expose metrics. */
     aethernet_transport_metrics_t *(*get_metrics)(void *transport_handle);
