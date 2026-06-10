@@ -357,7 +357,7 @@ func repoRoot(t *testing.T) string {
 		t.Fatalf("getwd: %v", err)
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "AetherProtocol.slnx")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "AetherNetProtocol.slnx")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
