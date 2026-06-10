@@ -2,13 +2,18 @@
 
 package aethernet.security
 
-import org.bouncycastle.crypto.agreement.X25519Agreement
-import org.bouncycastle.crypto.generators.X25519KeyPairGenerator
-import org.bouncycastle.crypto.params.X25519KeyGenerationParameters
-import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
-import org.bouncycastle.crypto.params.X25519PublicKeyParameters
+import java.math.BigInteger
+import java.security.KeyFactory
+import java.security.KeyPairGenerator
 import java.security.MessageDigest
+import java.security.PrivateKey
+import java.security.PublicKey
 import java.security.SecureRandom
+import java.security.interfaces.XECPrivateKey
+import java.security.interfaces.XECPublicKey
+import java.security.spec.NamedParameterSpec
+import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.XECPublicKeySpec
 import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Cipher
 import javax.crypto.Mac
@@ -908,12 +913,14 @@ class SignalProtocol(
 
     /** Fresh X25519 keypair — raw 32-byte private + 32-byte public, RFC 7748. */
     private fun generateX25519KeyPair(): Pair<ByteArray, ByteArray> {
-        val gen = X25519KeyPairGenerator()
-        gen.init(X25519KeyGenerationParameters(rng))
-        val kp = gen.generateKeyPair()
-        val priv = kp.private as X25519PrivateKeyParameters
-        val pub = kp.public as X25519PublicKeyParameters
-        return priv.encoded to pub.encoded
+        // JDK-native X25519 (Android API 33+ / JDK 11+). Bouncy Castle's standalone
+        // X25519 classes are stripped by AOSP's external/bouncycastle build.
+        val kpg = KeyPairGenerator.getInstance("X25519")
+        val kp = kpg.generateKeyPair()
+        val rawPriv = (kp.private as XECPrivateKey).scalar
+            .orElseThrow { IllegalStateException("JDK XECPrivateKey.scalar absent") }
+        val rawPub = xecPublicKeyToRaw(kp.public as XECPublicKey)
+        return rawPriv to rawPub
     }
 
     /**
@@ -922,12 +929,14 @@ class SignalProtocol(
      * RFC 7748 §6.1: detect the all-zero output (small-subgroup attack).
      */
     private fun x25519Agree(localPriv: ByteArray, remotePub: ByteArray): ByteArray {
-        val priv = X25519PrivateKeyParameters(localPriv, 0)
-        val pub = X25519PublicKeyParameters(remotePub, 0)
-        val agreement = X25519Agreement()
-        agreement.init(priv)
-        val shared = ByteArray(agreement.agreementSize)
-        agreement.calculateAgreement(pub, shared, 0)
+        val kf = KeyFactory.getInstance("X25519")
+        val privKey = rawToXecPrivateKey(kf, localPriv)
+        val pubKey  = rawToXecPublicKey(kf, remotePub)
+        val ka = javax.crypto.KeyAgreement.getInstance("X25519")
+        ka.init(privKey)
+        ka.doPhase(pubKey, true)
+        val shared = ka.generateSecret()
+        // RFC 7748 §6.1: all-zero output = low-order point — reject.
         var nonZero = 0
         for (b in shared) nonZero = nonZero or b.toInt()
         if ((nonZero and 0xFF) == 0) {
@@ -935,6 +944,66 @@ class SignalProtocol(
             throw IllegalStateException("X25519 produced an all-zero shared secret (low-order point)")
         }
         return shared
+    }
+
+    // ── JDK ↔ raw-32-byte X25519 key conversion helpers ─────────────────────
+    //
+    // Wire protocol uses raw 32-byte keys (little-endian u-coordinate for public
+    // keys, raw scalar for private keys) — identical to Bouncy Castle's encoding.
+    // JDK uses PKCS#8 / X.509 DER wrapping internally, so we convert on the way
+    // in and out. Conversions are not on the hot path (only called during key
+    // setup and ratchet steps).
+
+    /**
+     * Reconstruct a JDK [PublicKey] from a raw 32-byte little-endian
+     * X25519 u-coordinate (RFC 7748 §5 wire format).
+     */
+    private fun rawToXecPublicKey(kf: KeyFactory, raw: ByteArray): PublicKey {
+        // RFC 7748: u-coordinate is little-endian; BigInteger expects big-endian.
+        val beBytes = raw.copyOf().also { it.reverse() }
+        val u = BigInteger(1, beBytes)   // 1 = treat as positive (unsigned)
+        return kf.generatePublic(XECPublicKeySpec(NamedParameterSpec.X25519, u))
+    }
+
+    /**
+     * Reconstruct a JDK [PrivateKey] from a raw 32-byte X25519 scalar via a
+     * minimal hand-constructed PKCS#8 DER envelope (RFC 8410 §7).
+     *
+     * DER layout (48 bytes total):
+     *   30 2e          SEQUENCE 46
+     *     02 01 00     INTEGER version=0
+     *     30 05        SEQUENCE AlgorithmIdentifier 5
+     *       06 03 2b 65 6e  OID 1.3.101.110 (id-X25519)
+     *     04 22        OCTET STRING 34
+     *       04 20      OCTET STRING 32  ← the raw scalar
+     *         <32 bytes>
+     */
+    private fun rawToXecPrivateKey(kf: KeyFactory, raw: ByteArray): PrivateKey {
+        val pkcs8 = byteArrayOf(
+            0x30, 0x2e.toByte(),
+            0x02, 0x01, 0x00,
+            0x30, 0x05,
+            0x06, 0x03, 0x2b, 0x65, 0x6e,
+            0x04, 0x22.toByte(),
+            0x04, 0x20.toByte()
+        ) + raw
+        return kf.generatePrivate(PKCS8EncodedKeySpec(pkcs8))
+    }
+
+    /**
+     * Convert a JDK [XECPublicKey] to raw 32-byte little-endian wire format.
+     *
+     * [XECPublicKey.u] returns the u-coordinate as a positive BigInteger
+     * (big-endian, no sign byte). We reverse to little-endian for the wire.
+     */
+    private fun xecPublicKeyToRaw(key: XECPublicKey): ByteArray {
+        val be = key.u.toByteArray()      // may have leading 0x00 sign byte
+        val raw = ByteArray(32)
+        val srcStart = if (be.size > 32) be.size - 32 else 0
+        val copyLen  = minOf(be.size, 32)
+        System.arraycopy(be, srcStart, raw, 32 - copyLen, copyLen)
+        raw.reverse()                      // big-endian → little-endian
+        return raw
     }
 
     /** HKDF-SHA256 with no salt, fixed 32-byte output. Matches C# HKDF.DeriveKey. */
