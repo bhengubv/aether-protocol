@@ -1,6 +1,6 @@
 plugins {
-    kotlin("jvm") version "1.9.21"
-    kotlin("plugin.serialization") version "1.9.21"
+    kotlin("jvm") version "2.2.0"
+    kotlin("plugin.serialization") version "2.2.0"
     application
     `maven-publish`
     // kotlinx-benchmark — the Kotlin-native bench harness. Mirrors the
@@ -13,7 +13,7 @@ plugins {
     // Required by kotlinx-benchmark for JVM bench source sets — the
     // plugin uses the allopen plugin to relax the `final` restriction
     // on @State-annotated bench classes (JMH instantiates them).
-    kotlin("plugin.allopen") version "1.9.21"
+    kotlin("plugin.allopen") version "2.2.0"
 }
 
 group = "dev.aethernet"
@@ -69,12 +69,12 @@ dependencies {
     // + the JUnit5 runner; we do NOT pull in kotest-assertions because
     // the existing tests use the kotlin.test assertion surface and we
     // don't want two dialects in the same suite.
-    testImplementation("io.kotest:kotest-runner-junit5:5.8.0")
-    testImplementation("io.kotest:kotest-property:5.8.0")
+    testImplementation("io.kotest:kotest-runner-junit5:6.1.11")
+    testImplementation("io.kotest:kotest-property:6.1.11")
 
     // Benchmark runtime — kotlinx-benchmark layers a friendly DSL over
     // JMH and ships the JMH runtime jars transitively.
-    "benchmarkImplementation"("org.jetbrains.kotlinx:kotlinx-benchmark-runtime:0.4.10")
+    "benchmarkImplementation"("org.jetbrains.kotlinx:kotlinx-benchmark-runtime:0.4.17")
 }
 
 kotlin {
