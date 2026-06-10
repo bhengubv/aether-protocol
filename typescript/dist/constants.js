@@ -1,12 +1,17 @@
 /**
+
  * Protocol constants from PROTOCOL_SPEC.md Appendix A
+
  * SPDX-License-Identifier: MIT
+
  */
 // Routing
 export const DEFAULT_TTL = 7;
 export const SOS_TTL = 15;
 export const ROUTE_TIMEOUT_MS = 5000;
 export const ROUTE_EXPIRY_SECONDS = 300;
+export const RREQ_RATE_LIMIT_MAX = 10; // max unique RREQs per source per sliding window
+export const RREQ_RATE_LIMIT_WINDOW_SECONDS = 10; // sliding window duration in seconds
 // Security
 export const PACKET_NONCE_SIZE = 8;
 export const MAX_PACKET_AGE_SECONDS = 300;
@@ -16,7 +21,10 @@ export const MAX_SKIPPED_KEYS = 1000;
 export const AES_GCM_NONCE_SIZE = 12;
 export const AES_GCM_TAG_SIZE = 16;
 // SOS
-export const SOS_PRIORITY = 999;
+// SOS_PRIORITY: byte value used in MeshPacket.priority for emergency packets.
+// Was originally 999 — invalid for a single byte; corrected to 255 to match the
+// C# reference (ProtocolConstants.SosPriority).
+export const SOS_PRIORITY = 255;
 export const MAX_SOS_BROADCASTS_PER_HOUR = 3;
 // DTN
 export const DTN_BUNDLE_TTL_HOURS = 72;
@@ -36,7 +44,7 @@ export const BLE_SCAN_OFF_MS = 8000;
 export const BLE_ADVERTISE_INTERVAL_MS = 1000;
 export const BLE_UUID_ROTATION_SECONDS = 900;
 export const BLE_SCAN_JITTER_MAX_MS = 2000;
-export const AETHER_BLE_SERVICE_UUID = "A3E7-1001-0001-0000-000000000000";
+export const AETHERNET_BLE_SERVICE_UUID = "A3E7-1001-0001-0000-000000000000";
 // Heartbeat
 export const HEARTBEAT_INTERVAL_SECONDS = 300;
 export const NODE_OFFLINE_THRESHOLD_SECONDS = 900;
@@ -60,7 +68,7 @@ export const STREAM_SEGMENT_BUFFER_SIZE = 10;
 export const BLE_AUDIO_BITRATE_KBPS = 64;
 export const WIFI_DIRECT_VIDEO_BITRATE_KBPS = 500;
 // HKDF Info Strings
-export const HKDF_SALT = Buffer.from("AetherSignal", "utf-8");
+export const HKDF_SALT = Buffer.from("AetherNetSignal", "utf-8");
 export const HKDF_INFO_ROOT = Buffer.from("aether-root-v1", "utf-8");
 export const HKDF_INFO_CHAIN_SEND = Buffer.from("aether-chain-send-v1", "utf-8");
 export const HKDF_INFO_CHAIN_RECV = Buffer.from("aether-chain-recv-v1", "utf-8");

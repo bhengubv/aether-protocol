@@ -1,11 +1,16 @@
 /**
+
  * Protocol constants from PROTOCOL_SPEC.md Appendix A
+
  * SPDX-License-Identifier: MIT
+
  */
 export declare const DEFAULT_TTL = 7;
 export declare const SOS_TTL = 15;
 export declare const ROUTE_TIMEOUT_MS = 5000;
 export declare const ROUTE_EXPIRY_SECONDS = 300;
+export declare const RREQ_RATE_LIMIT_MAX = 10;
+export declare const RREQ_RATE_LIMIT_WINDOW_SECONDS = 10;
 export declare const PACKET_NONCE_SIZE = 8;
 export declare const MAX_PACKET_AGE_SECONDS = 300;
 export declare const PROTOCOL_VERSION_UNSIGNED = 1;
@@ -13,7 +18,7 @@ export declare const PROTOCOL_VERSION_SIGNED = 2;
 export declare const MAX_SKIPPED_KEYS = 1000;
 export declare const AES_GCM_NONCE_SIZE = 12;
 export declare const AES_GCM_TAG_SIZE = 16;
-export declare const SOS_PRIORITY = 999;
+export declare const SOS_PRIORITY = 255;
 export declare const MAX_SOS_BROADCASTS_PER_HOUR = 3;
 export declare const DTN_BUNDLE_TTL_HOURS = 72;
 export declare const DTN_MAX_COPIES = 3;
@@ -30,7 +35,7 @@ export declare const BLE_SCAN_OFF_MS = 8000;
 export declare const BLE_ADVERTISE_INTERVAL_MS = 1000;
 export declare const BLE_UUID_ROTATION_SECONDS = 900;
 export declare const BLE_SCAN_JITTER_MAX_MS = 2000;
-export declare const AETHER_BLE_SERVICE_UUID = "A3E7-1001-0001-0000-000000000000";
+export declare const AETHERNET_BLE_SERVICE_UUID = "A3E7-1001-0001-0000-000000000000";
 export declare const HEARTBEAT_INTERVAL_SECONDS = 300;
 export declare const NODE_OFFLINE_THRESHOLD_SECONDS = 900;
 export declare const PRESENCE_BEACON_INTERVAL_MS = 15000;

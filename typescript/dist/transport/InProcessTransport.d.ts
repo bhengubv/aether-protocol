@@ -3,7 +3,7 @@
  * Simulates a network using a static registry
  * SPDX-License-Identifier: MIT
  */
-import { ITransportService } from "./ITransportService.js";
+import { ITransportService, PerTransportMetrics } from "./ITransportService.js";
 /**
  * In-memory transport for testing and demos. Simulates a network of nodes using a static
  * registry. Each instance represents one node; sending data to a peer delivers it directly
@@ -19,6 +19,7 @@ export declare class InProcessTransport implements ITransportService {
     maxRangeMeters: number;
     powerCostRelative: number;
     maxConcurrentPeers: number;
+    readonly metrics: PerTransportMetrics;
     onDataReceived?: (senderUhid: string, data: Uint8Array) => void;
     /**
      * Creates a new in-process transport node and registers it in the simulated network.
