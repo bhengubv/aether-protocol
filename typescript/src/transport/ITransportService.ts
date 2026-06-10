@@ -205,3 +205,40 @@ export interface ITransportService {
    */
   onDataReceived?: (senderUhid: string, data: Uint8Array) => void;
 }
+
+/**
+ * Forward Error Correction codec contract.
+ *
+ * Implementations encode `source` into a stream of `targetSymbolCount`
+ * packets and reconstruct the original from any `>= sourceSymbolCount`
+ * received packets. Each packet is opaque bytes; coefficients are codec-defined.
+ *
+ * Reference impl: {@link ../transport/rlnc.RlncCodec | RlncCodec} (RLNC over GF(2^8)).
+ */
+export interface IFecCodec {
+  /** Human-readable codec name (e.g. "RLNC-GF256", "RS-32-16"). */
+  readonly codecName: string;
+
+  /** Minimum device-tier required to run this codec (0 = phone-class baseline). */
+  readonly deviceTierRequired: number;
+
+  /** Expected bandwidth overhead fraction (e.g. 0.05 = 5 % redundancy). */
+  readonly overheadFraction: number;
+
+  /** Fixed packet symbol size in bytes, or 0 if size is derived from the source. */
+  readonly fixedSymbolSizeBytes: number;
+
+  /**
+   * Encode `source` into `targetSymbolCount` packets, concatenated into a single
+   * Uint8Array of length `targetSymbolCount * packetSize`.
+   */
+  encode(source: Uint8Array, targetSymbolCount: number): Uint8Array;
+
+  /**
+   * Attempt to reconstruct the original source from `receivedSymbols` packets.
+   * Returns the source bytes on success or `null` if more packets are needed.
+   *
+   * @param sourceSymbolCount Number of symbols the original source was split into.
+   */
+  tryDecode(receivedSymbols: Uint8Array[], sourceSymbolCount: number): Uint8Array | null;
+}

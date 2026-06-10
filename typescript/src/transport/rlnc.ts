@@ -80,8 +80,12 @@ export class RlncEncoder {
       encodedSymbol = this.source[this.nextIndex].slice();
     } else {
       // Repair: random GF(256) coefficients.
-      coefficients = new Uint8Array(k);
-      crypto.getRandomValues(coefficients);
+      // TS 5.x + @types/node 25 distinguishes Uint8Array<SharedArrayBuffer>
+      // from Uint8Array<ArrayBuffer>; webcrypto's getRandomValues requires
+      // the latter. Explicitly back the buffer with ArrayBuffer to satisfy it.
+      const buf = new Uint8Array(new ArrayBuffer(k));
+      crypto.getRandomValues(buf);
+      coefficients = buf;
       if (coefficients.every(c => c === 0)) coefficients[0] = 1;
       encodedSymbol = this._encodeSymbol(coefficients);
     }

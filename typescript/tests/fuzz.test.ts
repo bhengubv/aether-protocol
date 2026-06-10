@@ -303,7 +303,9 @@ const storedSignalSessionArb: fc.Arbitrary<StoredSignalSession> = fc
       fc.tuple(
         fc
           .tuple(
-            fc.hexaString({ minLength: 2, maxLength: 32 }),
+            // fast-check 4.x removed `fc.hexaString`; stringMatching with a
+            // hex-only regex preserves the original semantics.
+            fc.stringMatching(/^[0-9a-f]{2,32}$/),
             fc.integer({ min: 0, max: 0x7fffffff })
           )
           .map(([h, c]) => `${h.toUpperCase()}:${c}`),
