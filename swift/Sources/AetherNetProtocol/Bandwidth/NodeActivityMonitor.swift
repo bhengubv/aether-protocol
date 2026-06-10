@@ -21,14 +21,22 @@ public final actor NodeActivityMonitor {
     // MARK: - Configuration
 
     /// How often the monitor re-samples (milliseconds). Default: 500.
-    public var sampleIntervalMs: Int = 500 {
-        didSet { sampleIntervalMs = max(100, min(sampleIntervalMs, 60_000)) }
-    }
+    /// Set via ``setSampleIntervalMs(_:)`` — actor-isolated state cannot be
+    /// assigned across the actor boundary (Swift 6).
+    public private(set) var sampleIntervalMs: Int = 500
 
     /// How long without observed traffic before a transport is considered idle (seconds).
-    /// Default: 5.
-    public var idleThresholdSeconds: Int = 5 {
-        didSet { idleThresholdSeconds = max(1, min(idleThresholdSeconds, 300)) }
+    /// Default: 5. Set via ``setIdleThresholdSeconds(_:)``.
+    public private(set) var idleThresholdSeconds: Int = 5
+
+    /// Set the sample interval (clamped to [100, 60000] ms).
+    public func setSampleIntervalMs(_ value: Int) {
+        sampleIntervalMs = max(100, min(value, 60_000))
+    }
+
+    /// Set the idle threshold (clamped to [1, 300] s).
+    public func setIdleThresholdSeconds(_ value: Int) {
+        idleThresholdSeconds = max(1, min(value, 300))
     }
 
     // MARK: - Registered transports

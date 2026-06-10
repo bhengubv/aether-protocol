@@ -545,14 +545,14 @@ final class NodeActivityMonitorTests: XCTestCase {
 
     func testSampleIntervalClampedToMinimum() async {
         let monitor = NodeActivityMonitor()
-        await { monitor.sampleIntervalMs = 10 }()
+        await monitor.setSampleIntervalMs(10)
         let val = await monitor.sampleIntervalMs
         XCTAssertGreaterThanOrEqual(val, 100)
     }
 
     func testIdleThresholdClampedToMinimum() async {
         let monitor = NodeActivityMonitor()
-        await { monitor.idleThresholdSeconds = 0 }()
+        await monitor.setIdleThresholdSeconds(0)
         let val = await monitor.idleThresholdSeconds
         XCTAssertGreaterThanOrEqual(val, 1)
     }
