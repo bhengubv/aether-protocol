@@ -139,6 +139,20 @@ public enum PacketType: UInt8, Codable {
     /// Gossip-layer reputation update. Payload is a UTF-8 JSON-encoded
     /// `ReputationUpdatePayload`. Broadcast with TTL = 3, destination = "*".
     case reputationUpdate = 52
+
+    /// Active bandwidth probe packet (ABMF W18-5). Sent to a target peer to
+    /// measure RTT and delivery rate. Payload carries four timestamps per RFC 5136 §3.
+    case bandwidthProbe = 53
+
+    /// Bandwidth probe acknowledgement (ABMF W18-5). The receiver echoes back all
+    /// four timestamps from the probe so the sender can compute RTT and OWD without
+    /// requiring clock synchronisation.
+    case bandwidthAck = 54
+
+    /// Bandwidth gossip warm-start payload (ABMF W18-5). Broadcast during handshake
+    /// to pre-seed the new peer estimator with a non-zero BtlBw estimate, eliminating
+    /// the cold-start penalty that QUIC and TCP always incur (RFC 6928 §2).
+    case bandwidthGossip = 55
 }
 
 /// Node capabilities as a bitfield.

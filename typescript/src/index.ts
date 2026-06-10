@@ -91,6 +91,9 @@ export * from "./content/index.js";
 // Constants
 export * from "./constants.js";
 
+// Bandwidth Measurement Framework (ABMF, W18-5)
+export * from "./bandwidth/index.js";
+
 // Reputation gossip
 export {
   ReputationGossipService,

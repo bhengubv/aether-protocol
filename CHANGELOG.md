@@ -8,6 +8,56 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [1.6.1] — 2026-06-10
+
+ABMF cross-language completion + consistency pass. Brings the Bandwidth
+Measurement Framework to all 8 SDKs and fixes three defects surfaced by a
+cross-language audit.
+
+### Added — ABMF ports to all 7 non-C# SDKs
+
+Go, Python, TypeScript, Kotlin, Swift, Rust, and C now implement the full
+ABMF surface introduced in 1.6.0 (C#):
+- `BandwidthEstimator` (BBRv3 BtlBw + RTprop + RFC 6298 + PHY RSSI cap + confidence tiers)
+- `BandwidthDirector` (cross-transport matrix + gossip warm-start)
+- `NodeActivityMonitor` (activity state + per-transport stats + subscribe)
+- Packet types `BandwidthProbe (53)`, `BandwidthAck (54)`, `BandwidthGossip (55)`
+
+Test counts: Go 27, Python 55, TypeScript 32, Kotlin 24 (bandwidth), Rust 24,
+C 39, Swift 36 (Mac CI). C# 49.
+
+### Fixed
+
+1. **`ActivePeers` always reported 0.** The C# `NodeActivityMonitor` declared an
+   `activePeers` counter but the tick never incremented it — so a node moving
+   real traffic showed "0 peers" on any UI bound to the snapshot. Added
+   peer-aware `RecordIngress(transport, peerUhid, bytes)` /
+   `RecordEgress(transport, peerUhid, bytes)` overloads + a peer-last-seen
+   table; the tick now counts distinct peers active within the idle window and
+   prunes stale entries. Fixed identically across all 8 SDKs.
+
+2. **Transport-selection scoring diverged across languages.** The BDP-fit bonus
+   for oversize payloads was `0.0` in C#/TypeScript/Kotlin/Swift/C but `1.0` in
+   Go/Python/Rust (those agents read the spec prose, not the reference). `0.0`
+   collapses every oversize-payload candidate's score to zero, degrading
+   selection to a tie-break instead of ranking by bandwidth. Unified to the
+   **neutral `1.0`** everywhere so `RecommendTransport` ranks identically in all
+   8 languages.
+
+3. **Kotlin `RecommendTransport` could return null for a valid peer.** Used
+   `Double.MIN_VALUE` (the smallest *positive* double) as the best-score
+   sentinel; a first candidate scoring 0 failed `score > bestScore` and was
+   skipped. Changed to `Double.NEGATIVE_INFINITY` to match C#'s `double.MinValue`
+   semantics.
+
+### Why
+"All core AetherNet functions should be on AetherNet" — and consistently. A
+bandwidth framework that selects different transports in Kotlin vs Go is worse
+than none. The audit that caught items 2 and 3 is exactly why every port drives
+toward a single reference.
+
+---
+
 ## [1.6.0] — 2026-06-10
 
 ### Added — AetherNet Bandwidth Measurement Framework (ABMF)

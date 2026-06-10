@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+pub mod bandwidth;
 pub mod identity;
 pub mod anomaly_detector;
 pub mod constants;

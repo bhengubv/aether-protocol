@@ -77,6 +77,21 @@ const (
 	// Flooded with TTL=3 so reputation signals propagate across the mesh
 	// without overwhelming it. Payload is a JSON-encoded ReputationUpdatePayload.
 	PacketTypeReputationUpdate PacketType = 52
+
+	// PacketTypeBandwidthProbe is sent to a target peer to measure RTT and
+	// delivery rate. Overhead is kept below 0.5 % of the current BDP estimate
+	// (same discipline as QUIC probe-at-1.25×BDP, RFC 9002 §7.7).
+	// Payload is a four-timestamp probe descriptor (W18-5 ABMF).
+	PacketTypeBandwidthProbe PacketType = 53
+
+	// PacketTypeBandwidthAck is the reply to a PacketTypeBandwidthProbe.
+	// Carries four timestamps for clock-sync-free RTT calculation (RFC 5136 §3).
+	PacketTypeBandwidthAck PacketType = 54
+
+	// PacketTypeBandwidthGossip carries a BandwidthGossipPayload during peer
+	// handshake, pre-warming the new session's BtlBw estimate so it does not
+	// cold-start at ~14.6 kB/s (RFC 6928 §2).
+	PacketTypeBandwidthGossip PacketType = 55
 )
 
 // MeshPacket is the core packet transmitted across the Aether mesh network.
@@ -232,6 +247,12 @@ func (pt PacketType) String() string {
 		return "HelloAck"
 	case PacketTypeReputationUpdate:
 		return "ReputationUpdate"
+	case PacketTypeBandwidthProbe:
+		return "BandwidthProbe"
+	case PacketTypeBandwidthAck:
+		return "BandwidthAck"
+	case PacketTypeBandwidthGossip:
+		return "BandwidthGossip"
 	default:
 		return "Unknown"
 	}

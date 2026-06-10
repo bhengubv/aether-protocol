@@ -72,6 +72,26 @@ export enum PacketType {
    * flags. Same JSON payload shape as Hello.
    */
   HelloAck = 51,
+
+  /**
+   * BandwidthProbe — active probe packet sent to a peer to measure RTT and
+   * delivery rate. Payload carries four timestamps per RFC 5136 §3.
+   * Part of the AetherNet Bandwidth Measurement Framework (ABMF, W18-5).
+   */
+  BandwidthProbe = 53,
+
+  /**
+   * BandwidthAck — ACK response to a BandwidthProbe.  Carries the receiver
+   * timestamps so the sender can compute RTT without clock synchronisation.
+   */
+  BandwidthAck = 54,
+
+  /**
+   * BandwidthGossip — gossip payload broadcast during handshake to warm-start
+   * a new session's BtlBw estimate from a previously measured value.
+   * Unique to AetherNet; QUIC/TCP always cold-start.
+   */
+  BandwidthGossip = 55,
 }
 
 export function packetTypeToString(type: PacketType): string {
@@ -152,6 +172,12 @@ export function packetTypeToString(type: PacketType): string {
       return "Hello";
     case PacketType.HelloAck:
       return "HelloAck";
+    case PacketType.BandwidthProbe:
+      return "BandwidthProbe";
+    case PacketType.BandwidthAck:
+      return "BandwidthAck";
+    case PacketType.BandwidthGossip:
+      return "BandwidthGossip";
     default:
       return `Unknown(${type})`;
   }

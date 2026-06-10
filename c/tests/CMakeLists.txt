@@ -183,6 +183,13 @@ target_include_directories(test-directory-service PRIVATE ${CMAKE_CURRENT_SOURCE
 target_link_libraries(test-directory-service PRIVATE aethernet-protocol pthread)
 add_test(NAME DirectoryServiceTests COMMAND test-directory-service)
 
+add_executable(test-bandwidth
+    test_bandwidth.c
+)
+target_include_directories(test-bandwidth PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-bandwidth PRIVATE aethernet-protocol pthread m)
+add_test(NAME BandwidthTests COMMAND test-bandwidth)
+
 # Convenience target: build every test binary in one step.
 # Usage: cmake --build build --target aether-tests
 add_custom_target(aether-tests
@@ -212,4 +219,5 @@ add_custom_target(aether-tests
         test-uri
         test-chunk-bitmap
         test-directory-service
+        test-bandwidth
 )

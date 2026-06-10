@@ -31,6 +31,17 @@ public sealed class NodeActivityMonitor : INodeActivityMonitor, IDisposable
     private readonly ConcurrentDictionary<string, (IBandwidthEstimator Estimator, TransportTraffic Traffic)>
         _transports = new(StringComparer.OrdinalIgnoreCase);
 
+    // ── Active-peer tracking ─────────────────────────────────────────────────
+    // Maps peerUhid → last-seen Unix ms. A peer is "active" if it had ingress or
+    // egress within IdleThresholdSeconds. Populated only by the peer-aware
+    // RecordIngress/RecordEgress overloads; the transport-only overloads do not
+    // contribute (the caller did not supply a peer). Stale entries are pruned
+    // each tick so the dictionary stays bounded by the count of recently-active
+    // peers, not the lifetime peer set.
+
+    private readonly ConcurrentDictionary<string, long> _lastSeenPeerMs =
+        new(StringComparer.Ordinal);
+
     // ── Timer ────────────────────────────────────────────────────────────────
 
     private Timer? _timer;
@@ -104,6 +115,28 @@ public sealed class NodeActivityMonitor : INodeActivityMonitor, IDisposable
         }
     }
 
+    /// <summary>
+    /// Record inbound bytes on a transport from a specific peer.
+    /// Tracks the peer for the <see cref="NodeActivitySnapshot.ActivePeers"/> count.
+    /// </summary>
+    public void RecordIngress(string transportName, string peerUhid, int bytes)
+    {
+        RecordIngress(transportName, bytes);
+        if (!string.IsNullOrEmpty(peerUhid))
+            _lastSeenPeerMs[peerUhid] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    }
+
+    /// <summary>
+    /// Record outbound bytes on a transport to a specific peer.
+    /// Tracks the peer for the <see cref="NodeActivitySnapshot.ActivePeers"/> count.
+    /// </summary>
+    public void RecordEgress(string transportName, string peerUhid, int bytes)
+    {
+        RecordEgress(transportName, bytes);
+        if (!string.IsNullOrEmpty(peerUhid))
+            _lastSeenPeerMs[peerUhid] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    }
+
     // ── Timer callback ────────────────────────────────────────────────────────
 
     private void OnTick(object? _)
@@ -114,8 +147,19 @@ public sealed class NodeActivityMonitor : INodeActivityMonitor, IDisposable
 
         var transportSnapshots = new List<TransportActivitySnapshot>(_transports.Count);
         long totalIngress = 0, totalEgress = 0;
-        int activePeers = 0, activeTransports = 0;
+        int activeTransports = 0;
         var idleThresholdMs = _idleThresholdSeconds * 1000L;
+
+        // Count distinct peers active within the idle window; prune stale entries
+        // so the dictionary stays bounded by recently-active peers.
+        var activePeers = 0;
+        foreach (var kv in _lastSeenPeerMs)
+        {
+            if (nowMs - kv.Value < idleThresholdMs)
+                activePeers++;
+            else
+                _lastSeenPeerMs.TryRemove(kv.Key, out long _);
+        }
 
         foreach (var (name, (estimator, traffic)) in _transports)
         {

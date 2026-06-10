@@ -92,8 +92,12 @@ public sealed class BandwidthDirector : IBandwidthDirector
             var powerCost = (double)DefaultPowerCosts.GetValueOrDefault(s.TransportName, 5);
             var available = (double)s.AvailableBps;
 
-            // Prefer larger BDP for large payloads.
-            var bdpBonus = payloadBytes > s.BdpBytes ? 0.0 : 1.5;
+            // BDP-fit bonus: reward a transport whose BDP can hold the whole payload
+            // in a single in-flight window (no extra round-trips). Payloads that exceed
+            // the BDP get a NEUTRAL 1.0 (not 0.0) so the available-bandwidth/power-cost
+            // term still ranks them — for a large payload the highest-bandwidth transport
+            // wins on its own merit rather than every candidate collapsing to a zero score.
+            var bdpBonus = payloadBytes > s.BdpBytes ? 1.0 : 1.5;
 
             // Penalise untrusted estimates.
             var confidenceFactor = s.Confidence == BandwidthConfidence.None ? 0.5 : 1.0;

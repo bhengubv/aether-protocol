@@ -73,6 +73,20 @@ pub enum PacketType {
     /// Gossip packet carrying a signed reputation-score delta for a target UHID.
     /// Payload is UTF-8 JSON-encoded [`crate::gossip::ReputationUpdatePayload`].
     ReputationUpdate = 52,
+
+    /// Active bandwidth probe packet (ABMF W18-5).
+    /// Payload carries a sequence number and probe size; the receiver replies
+    /// with `BandwidthAck` embedding four timestamps for RTT computation.
+    BandwidthProbe = 53,
+
+    /// Bandwidth probe acknowledgement (ABMF W18-5).
+    /// Payload is a serialised `BandwidthProbeAck` (four timestamps + probe size).
+    BandwidthAck = 54,
+
+    /// Mesh gossip payload carrying a BtlBw estimate (ABMF W18-5).
+    /// Broadcast during handshake to warm-start the peer's estimator.
+    /// Payload is a serialised `BandwidthGossipPayload`.
+    BandwidthGossip = 55,
 }
 
 impl PacketType {
@@ -117,6 +131,9 @@ impl PacketType {
             50 => Some(PacketType::Hello),
             51 => Some(PacketType::HelloAck),
             52 => Some(PacketType::ReputationUpdate),
+            53 => Some(PacketType::BandwidthProbe),
+            54 => Some(PacketType::BandwidthAck),
+            55 => Some(PacketType::BandwidthGossip),
             _ => None,
         }
     }

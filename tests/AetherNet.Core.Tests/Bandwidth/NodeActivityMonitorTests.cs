@@ -91,6 +91,53 @@ public class NodeActivityMonitorTests : IDisposable
         Assert.True(received.Count >= 2, $"Expected ≥2 snapshots, got {received.Count}");
     }
 
+    // ── Active-peer tracking ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task PeerAwareEgress_CountsDistinctActivePeers()
+    {
+        _monitor.SampleIntervalMs = 100;
+        _monitor.Start();
+
+        // Two distinct peers send via BLE.
+        _monitor.RecordEgress("BLE", "peer-A", 1_000);
+        _monitor.RecordEgress("BLE", "peer-B", 1_000);
+
+        var tcs = new TaskCompletionSource<NodeActivitySnapshot>();
+        _monitor.SnapshotChanged += (_, snap) =>
+        {
+            if (snap.ActivePeers >= 2) tcs.TrySetResult(snap);
+        };
+
+        // Keep traffic alive across a few ticks so the snapshot observes both peers.
+        for (var i = 0; i < 5 && !tcs.Task.IsCompleted; i++)
+        {
+            _monitor.RecordEgress("BLE", "peer-A", 1_000);
+            _monitor.RecordEgress("BLE", "peer-B", 1_000);
+            await Task.Delay(60);
+        }
+
+        var snap = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(snap.ActivePeers >= 2, $"Expected ≥2 active peers, got {snap.ActivePeers}");
+    }
+
+    [Fact]
+    public void PeerAwareEgress_UnknownTransport_DoesNotThrow()
+    {
+        // Recording to an unregistered transport is a no-op for byte counters but
+        // must not throw — the peer is still tracked for the active-peer count.
+        _monitor.RecordEgress("No-Such-Transport", "peer-X", 5_000);
+        _monitor.RecordIngress("No-Such-Transport", "peer-Y", 5_000);
+    }
+
+    [Fact]
+    public void TransportOnlyEgress_DoesNotInflatePeerCount()
+    {
+        // The transport-only overload supplies no peer → must not count a peer.
+        _monitor.RecordEgress("BLE", 1_000);
+        Assert.Equal(0, _monitor.Current.ActivePeers);
+    }
+
     // ── INodeActivityMonitor properties ───────────────────────────────────
 
     [Fact]

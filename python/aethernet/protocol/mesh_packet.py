@@ -73,6 +73,17 @@ class PacketType(IntEnum):
     # Same JSON payload shape as Hello.
     HelloAck = 51
 
+    # ABMF (W18-5) — Bandwidth Measurement Framework packet types.
+    # BandwidthProbe (53): active probe packet sent to a peer to measure RTT
+    #   and delivery rate. Payload carries a sequence number and probe size.
+    # BandwidthAck (54): four-timestamp reply to a BandwidthProbe; used to
+    #   derive RTT (clock-sync-free) and forward OWD (RFC 5136 §3).
+    # BandwidthGossip (55): warm-start payload broadcast during handshake so
+    #   a new session starts with a non-zero BtlBw estimate.
+    BandwidthProbe  = 53
+    BandwidthAck    = 54
+    BandwidthGossip = 55
+
 
 @dataclass
 class MeshPacket:
