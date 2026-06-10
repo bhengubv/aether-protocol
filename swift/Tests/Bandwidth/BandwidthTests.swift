@@ -315,8 +315,8 @@ final class BandwidthEstimatorTests: XCTestCase {
         var sample = await est.currentSample
         XCTAssertEqual(sample.confidence, .low)
 
-        // 5–19 probes → medium
-        for i in 3..<20 {
+        // 5–19 probes → medium. Loop 1 ran 3 rounds; run 16 more → 19 total.
+        for i in 3..<19 {
             await est.recordDelivery(
                 bytes: 1000,
                 sendUs: Int64(i) * 100_000,
@@ -326,8 +326,8 @@ final class BandwidthEstimatorTests: XCTestCase {
         sample = await est.currentSample
         XCTAssertEqual(sample.confidence, .medium)
 
-        // ≥ 20 probes → high
-        for i in 20..<25 {
+        // ≥ 20 probes → high. 19 so far; run 6 more → 25 total.
+        for i in 19..<25 {
             await est.recordDelivery(
                 bytes: 1000,
                 sendUs: Int64(i) * 100_000,
