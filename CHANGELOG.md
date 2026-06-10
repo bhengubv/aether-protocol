@@ -8,6 +8,50 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [1.6.0] — 2026-06-10
+
+### Added — AetherNet Bandwidth Measurement Framework (ABMF)
+
+First release of a complete, standards-exceeding bandwidth measurement layer.
+No existing protocol (TCP, QUIC, BBRv3, GCC/RMCAT) addresses multi-transport
+mesh bandwidth with UI-surfaceable activity state.
+
+**Core interfaces (`src/AetherNet.Core/Bandwidth/`):**
+- `IBandwidthEstimator` — per-transport BBRv3-inspired state machine: BtlBw
+  max-filter, RTprop min-filter, RFC 6298 SRTT/RTTVAR, confidence tiers.
+- `IBandwidthProbeService` — active probing via `BandwidthProbe`/`BandwidthAck` packets.
+- `IBandwidthDirector` — cross-transport synthesis + gossip warm-start.
+- `INodeActivityMonitor` — observable activity state + per-transport stats for UI.
+- `BandwidthSample`, `BandwidthProbeAck`, `BandwidthGossipPayload`,
+  `NodeActivitySnapshot`, `TransportActivitySnapshot`, `NodeActivityState` — wire models.
+
+**Reference implementations (`src/AetherNet.Transport/Bandwidth/`):**
+- `BandwidthEstimator` — BBRv3 BtlBw max-filter + RTprop + RFC 6298 + PHY RSSI capping.
+- `BandwidthDirector` — BDP-matrix transport selector + gossip coordinator.
+- `NodeActivityMonitor` — 500 ms sampling loop; zero-dep `MeshSubject<T>` observable.
+
+**New packet types:**
+- `BandwidthProbe (53)` — active probe with send timestamp.
+- `BandwidthAck (54)` — four-timestamp ack for clock-sync-free RTT.
+- `BandwidthGossip (55)` — gossip warm-start on handshake.
+
+**What exceeds existing standards (RFC 6298, RFC 9002/BBRv3, RFC 8836/GCC):**
+1. **Cross-transport BDP matrix** — simultaneous BLE/Wi-Fi Direct/NearLink measurement.
+2. **Gossip warm-start** — new sessions start with a measured estimate, not zero.
+3. **PHY-layer RSSI capping** — BLE RSSI constrains estimates before probes complete.
+4. **UI-surfaceable activity monitor** — `NodeActivityState` (Offline/Idle/Active/Busy/Degraded),
+   per-transport utilization fraction, observable stream for dashboards and status bars.
+5. **Confidence tiers** — explicit Low/Medium/High quality signal for ABR consumers.
+6. **Formal convergence proof** — `formal/bandwidth-convergence.pnml`.
+
+**Documentation:** `docs/bandwidth-estimation.md` — full algorithm specification,
+RSSI calibration tables, transport selection scoring, gossip protocol.
+
+**Tests:** 46/46 bandwidth tests pass (BandwidthEstimatorTests, NodeActivityMonitorTests,
+BandwidthDirectorTests). Full Core suite: **819/819 pass**.
+
+---
+
 ## [1.5.0] — 2026-06-09
 
 Second move-upstream wave: two more protocol-level classes promoted out of

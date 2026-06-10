@@ -155,6 +155,25 @@ public enum PacketType : byte
     /// reputation score before applying it (see <c>ReputationUpdatePayload</c>).
     /// </summary>
     ReputationUpdate = 52,
+
+    // ── Bandwidth Measurement Framework (ABMF) ────────────────────
+    /// <summary>Active bandwidth probe (sender → receiver).
+    /// Payload: [seq:u32][send_us:i64][padding:≤48 B].
+    /// Receiver MUST reply with BandwidthAck.
+    /// </summary>
+    BandwidthProbe = 53,
+
+    /// <summary>Active probe acknowledgment (receiver → sender).
+    /// Payload: [seq:u32][send_us:i64][recv_us:i64][ack_send_us:i64][probe_bytes:i32].
+    /// Sender derives RTT and delivery rate from the four timestamps.
+    /// </summary>
+    BandwidthAck = 54,
+
+    /// <summary>Gossip warm-start payload (emitted during handshake).
+    /// Payload: [btlbw_bps:i64][rtprop_us:i32][confidence:u8].
+    /// Allows new sessions to start with a non-zero bandwidth estimate.
+    /// </summary>
+    BandwidthGossip = 55,
 }
 
 /// <summary>
