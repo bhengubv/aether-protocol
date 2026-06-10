@@ -69,8 +69,8 @@ dependencies {
     // + the JUnit5 runner; we do NOT pull in kotest-assertions because
     // the existing tests use the kotlin.test assertion surface and we
     // don't want two dialects in the same suite.
-    testImplementation("io.kotest:kotest-runner-junit5:5.8.0")
-    testImplementation("io.kotest:kotest-property:5.8.0")
+    testImplementation("io.kotest:kotest-runner-junit5:6.1.11")
+    testImplementation("io.kotest:kotest-property:6.1.11")
 
     // Benchmark runtime — kotlinx-benchmark layers a friendly DSL over
     // JMH and ships the JMH runtime jars transitively.
