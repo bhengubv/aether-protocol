@@ -1,0 +1,178 @@
+{
+  "$schema": "bandwidth-fixtures-1",
+  "description": "Cross-language numeric conformance corpus for the AetherNet Bandwidth Measurement Framework (ABMF). Every SDK MUST drive this corpus and produce identical results. Integer/string fields are asserted EXACTLY; floating-point fields (srttMs, rttVarMs, rtPropMs, lossRate) within toleranceAbs of the expected value (IEEE-754 same-order arithmetic is identical across languages, but tolerance guards against FMA contraction differences). Generated from the C# reference implementation; C# validates against it in AetherNet.Core.Tests/Bandwidth/BandwidthFixtureTests.cs.",
+  "version": "1.6.1",
+  "toleranceAbs": 0.01,
+
+  "probeAck": [
+    {
+      "name": "basic_rtt",
+      "senderSendUs": 100, "receiverReceiveUs": 150, "receiverSendUs": 160, "senderReceiveUs": 220, "probeBytes": 64,
+      "expectRttUs": 110, "expectForwardOwdUs": 50
+    },
+    {
+      "name": "offset_clock",
+      "senderSendUs": 1000, "receiverReceiveUs": 1050, "receiverSendUs": 1060, "senderReceiveUs": 1120, "probeBytes": 64,
+      "expectRttUs": 110, "expectForwardOwdUs": 50
+    },
+    {
+      "name": "large_rtt",
+      "senderSendUs": 0, "receiverReceiveUs": 5000, "receiverSendUs": 5100, "senderReceiveUs": 20200, "probeBytes": 1500,
+      "expectRttUs": 20100, "expectForwardOwdUs": 5000
+    }
+  ],
+
+  "rto": [
+    { "name": "no_clamp",       "srttMs": 100.0,   "rttVarMs": 30.0, "expectRtoMs": 220.0 },
+    { "name": "floor_clamp_90", "srttMs": 50.0,    "rttVarMs": 10.0, "expectRtoMs": 200.0 },
+    { "name": "floor_clamp_2",  "srttMs": 1.0,     "rttVarMs": 0.0,  "expectRtoMs": 200.0 },
+    { "name": "ceiling_clamp",  "srttMs": 70000.0, "rttVarMs": 0.0,  "expectRtoMs": 60000.0 }
+  ],
+
+  "phyCap": [
+    { "name": "excellent_-40", "rssiDbm": -40,  "expectCapBps": 600000000 },
+    { "name": "strong_-67",    "rssiDbm": -67,  "expectCapBps": 200000000 },
+    { "name": "ble_2m_-70",    "rssiDbm": -70,  "expectCapBps": 2000000 },
+    { "name": "weak_-85",      "rssiDbm": -85,  "expectCapBps": 500000 },
+    { "name": "marginal_-100", "rssiDbm": -100, "expectCapBps": 40000 }
+  ],
+
+  "estimator": [
+    {
+      "name": "single_delivery",
+      "transport": "BLE", "maxBps": 2000000,
+      "ops": [ { "op": "delivery", "bytes": 1024, "sendUs": 0, "deliverUs": 10000 } ],
+      "expect": {
+        "btlBwBps": 819200, "effectiveBps": 819200, "bdpBytes": 1024,
+        "srttMs": 10.0, "rttVarMs": 5.0, "rtPropMs": 10.0, "lossRate": 0.0,
+        "confidence": "Low"
+      }
+    },
+    {
+      "name": "three_deliveries_max_filter",
+      "transport": "BLE", "maxBps": 2000000,
+      "ops": [
+        { "op": "delivery", "bytes": 1000, "sendUs": 0,     "deliverUs": 10000 },
+        { "op": "delivery", "bytes": 2000, "sendUs": 20000, "deliverUs": 30000 },
+        { "op": "delivery", "bytes": 1500, "sendUs": 40000, "deliverUs": 50000 }
+      ],
+      "expect": {
+        "btlBwBps": 1600000, "effectiveBps": 1600000, "bdpBytes": 2000,
+        "srttMs": 10.0, "rttVarMs": 2.8125, "rtPropMs": 10.0, "lossRate": 0.0,
+        "confidence": "Low"
+      }
+    },
+    {
+      "name": "twenty_deliveries_high_confidence",
+      "transport": "BLE", "maxBps": 2000000,
+      "ops": [
+        { "op": "delivery", "bytes": 1024, "sendUs": 0,      "deliverUs": 10000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 20000,  "deliverUs": 30000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 40000,  "deliverUs": 50000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 60000,  "deliverUs": 70000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 80000,  "deliverUs": 90000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 100000, "deliverUs": 110000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 120000, "deliverUs": 130000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 140000, "deliverUs": 150000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 160000, "deliverUs": 170000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 180000, "deliverUs": 190000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 200000, "deliverUs": 210000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 220000, "deliverUs": 230000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 240000, "deliverUs": 250000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 260000, "deliverUs": 270000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 280000, "deliverUs": 290000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 300000, "deliverUs": 310000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 320000, "deliverUs": 330000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 340000, "deliverUs": 350000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 360000, "deliverUs": 370000 },
+        { "op": "delivery", "bytes": 1024, "sendUs": 380000, "deliverUs": 390000 }
+      ],
+      "expect": {
+        "btlBwBps": 819200, "effectiveBps": 819200, "bdpBytes": 1024,
+        "srttMs": 10.0, "rtPropMs": 10.0, "lossRate": 0.0,
+        "confidence": "High"
+      }
+    },
+    {
+      "name": "loss_raises_loss_rate",
+      "transport": "BLE", "maxBps": 2000000,
+      "ops": [
+        { "op": "delivery", "bytes": 1024, "sendUs": 0, "deliverUs": 10000 },
+        { "op": "loss", "bytes": 512 }
+      ],
+      "expect": {
+        "btlBwBps": 819200, "effectiveBps": 819200, "availableBps": 737280,
+        "lossRate": 0.10, "confidence": "Low"
+      }
+    },
+    {
+      "name": "phy_hint_caps_estimate",
+      "transport": "BLE", "maxBps": 2000000000,
+      "ops": [
+        { "op": "delivery", "bytes": 1024, "sendUs": 0, "deliverUs": 1000 },
+        { "op": "phyHint", "rssiDbm": -100 }
+      ],
+      "expect": {
+        "btlBwBps": 40000, "effectiveBps": 40000, "phyCapBps": 40000,
+        "confidence": "Low"
+      }
+    },
+    {
+      "name": "warm_from_gossip_seeds",
+      "transport": "BLE", "maxBps": 2000000,
+      "ops": [
+        { "op": "gossip", "btlBwBps": 500000, "rtPropMs": 15.0, "confidence": "Medium" }
+      ],
+      "expect": {
+        "btlBwBps": 500000, "effectiveBps": 500000, "bdpBytes": 937,
+        "srttMs": 15.0, "rttVarMs": 7.5, "rtPropMs": 15.0,
+        "confidence": "Low"
+      }
+    },
+    {
+      "name": "gossip_then_delivery_no_downgrade",
+      "transport": "BLE", "maxBps": 2000000,
+      "ops": [
+        { "op": "delivery", "bytes": 2000, "sendUs": 0, "deliverUs": 10000 },
+        { "op": "gossip", "btlBwBps": 10, "rtPropMs": 1000.0, "confidence": "High" }
+      ],
+      "expect": {
+        "btlBwBps": 1600000, "effectiveBps": 1600000,
+        "confidence": "Low"
+      }
+    }
+  ],
+
+  "director": [
+    {
+      "_comment": "Harness MUST register one estimator per distinct transport named in gossips, apply each gossip, then recommend.",
+      "name": "single_transport",
+      "register": [ "BLE" ],
+      "gossips": [
+        { "peerUhid": "p1", "transport": "BLE", "btlBwBps": 1500000, "rtPropUs": 20000, "confidence": "High" }
+      ],
+      "recommend": { "peerUhid": "p1", "payloadBytes": 100 },
+      "expectTransport": "BLE"
+    },
+    {
+      "name": "prefers_higher_bandwidth_large_payload",
+      "register": [ "BLE", "Wi-Fi Direct" ],
+      "gossips": [
+        { "peerUhid": "p2", "transport": "BLE",          "btlBwBps": 1500000,  "rtPropUs": 20000, "confidence": "High" },
+        { "peerUhid": "p2", "transport": "Wi-Fi Direct", "btlBwBps": 50000000, "rtPropUs": 5000,  "confidence": "High" }
+      ],
+      "recommend": { "peerUhid": "p2", "payloadBytes": 1000000 },
+      "expectTransport": "Wi-Fi Direct"
+    },
+    {
+      "_comment": "No data for the queried peer, but estimators registered → fallback to the lowest-power registered transport (BLE=2 < Wi-Fi Direct=3).",
+      "name": "unknown_peer_falls_back_to_lowest_power",
+      "register": [ "BLE", "Wi-Fi Direct" ],
+      "gossips": [
+        { "peerUhid": "p3", "transport": "BLE", "btlBwBps": 1500000, "rtPropUs": 20000, "confidence": "High" }
+      ],
+      "recommend": { "peerUhid": "no-such-peer", "payloadBytes": 100 },
+      "expectTransport": "BLE"
+    }
+  ]
+}
