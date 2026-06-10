@@ -3,8 +3,6 @@
 package aethernet.reputation
 
 import aethernet.security.NodeReputationService
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import kotlin.math.abs
 import kotlin.test.assertEquals
@@ -60,7 +58,7 @@ private fun makeValidPacket(
         timestampMs  = tsMs,
         reason       = reason,
     )
-    val bytes = Json.encodeToString(payload).toByteArray(Charsets.UTF_8)
+    val bytes = payload.toJson().toByteArray(Charsets.UTF_8)
     return ReputationGossipService.GossipPacket(
         packetType      = 52.toByte(),   // PacketType.ReputationUpdate.value
         sourceUhid      = reporter,
@@ -98,7 +96,7 @@ class ReputationGossipServiceTest {
 
         val pkt = sender.packets.single()
         val json = pkt.payload.toString(Charsets.UTF_8)
-        val payload = Json.decodeFromString<ReputationGossipService.ReputationUpdatePayload>(json)
+        val payload = ReputationGossipService.ReputationUpdatePayload.fromJson(json)!!
 
         assertEquals(LOCAL_UHID, payload.reporterUhid)
         assertEquals(TARGET, payload.targetUhid)
@@ -114,7 +112,7 @@ class ReputationGossipServiceTest {
         svc.broadcastReputationUpdate(TARGET, 5.0, "spike")
 
         val json = sender.packets.single().payload.toString(Charsets.UTF_8)
-        val payload = Json.decodeFromString<ReputationGossipService.ReputationUpdatePayload>(json)
+        val payload = ReputationGossipService.ReputationUpdatePayload.fromJson(json)!!
         assertEquals(1.0, payload.scoreDelta, EPSILON)
     }
 
@@ -125,7 +123,7 @@ class ReputationGossipServiceTest {
         svc.broadcastReputationUpdate(TARGET, -9.0, "flood")
 
         val json = sender.packets.single().payload.toString(Charsets.UTF_8)
-        val payload = Json.decodeFromString<ReputationGossipService.ReputationUpdatePayload>(json)
+        val payload = ReputationGossipService.ReputationUpdatePayload.fromJson(json)!!
         assertEquals(-1.0, payload.scoreDelta, EPSILON)
     }
 

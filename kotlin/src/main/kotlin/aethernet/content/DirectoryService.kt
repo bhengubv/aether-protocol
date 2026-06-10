@@ -8,9 +8,6 @@ import aethernet.protocol.PacketType
 import aethernet.routing.MeshSender
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -83,10 +80,9 @@ class DefaultDirectoryService(
     private val sender: MeshSender,
 ) : DirectoryService {
 
-    private val json: Json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
+    // Wire codec is hand-rolled on the payload types (NamePublishPayload.toJson /
+    // .fromJson, NameQueryPayload.toJson / .fromJson) so this service compiles
+    // under AOSP Soong without the kotlinx-serialization compiler plugin.
 
     // Local catalogue: name -> descriptor. Names are application-defined
     // opaque identifiers (not case-insensitive labels) so plain
@@ -115,7 +111,7 @@ class DefaultDirectoryService(
             sourceUhid = sender.localUhid,
             destinationUhid = "",
             ttl = AetherNetConstants.DEFAULT_TTL,
-            payload = json.encodeToString(payload).toByteArray(Charsets.UTF_8),
+            payload = payload.toJson().toByteArray(Charsets.UTF_8),
         )
         sender.broadcast(packet)
     }
@@ -136,7 +132,7 @@ class DefaultDirectoryService(
                 sourceUhid = sender.localUhid,
                 destinationUhid = "",
                 ttl = AetherNetConstants.DEFAULT_TTL,
-                payload = json.encodeToString(query).toByteArray(Charsets.UTF_8),
+                payload = query.toJson().toByteArray(Charsets.UTF_8),
             )
             sender.broadcast(packet)
 
@@ -157,7 +153,7 @@ class DefaultDirectoryService(
     }
 
     private fun handlePublish(packet: MeshPacket) {
-        val body = decode<NamePublishPayload>(packet.payload) ?: return
+        val body = NamePublishPayload.fromJson(String(packet.payload, Charsets.UTF_8)) ?: return
         if (body.name.isEmpty()) return
 
         catalogue[body.name] = body.descriptor
@@ -179,7 +175,7 @@ class DefaultDirectoryService(
     }
 
     private suspend fun handleQuery(packet: MeshPacket) {
-        val query = decode<NameQueryPayload>(packet.payload) ?: return
+        val query = NameQueryPayload.fromJson(String(packet.payload, Charsets.UTF_8)) ?: return
         if (query.name.isEmpty()) return
 
         val descriptor = catalogue[query.name] ?: return  // silently ignore — others may answer
@@ -194,15 +190,9 @@ class DefaultDirectoryService(
             sourceUhid = sender.localUhid,
             destinationUhid = packet.sourceUhid,
             ttl = AetherNetConstants.DEFAULT_TTL,
-            payload = json.encodeToString(response).toByteArray(Charsets.UTF_8),
+            payload = response.toJson().toByteArray(Charsets.UTF_8),
         )
         sender.send(responsePacket, packet.sourceUhid)
-    }
-
-    private inline fun <reified T> decode(bytes: ByteArray): T? = try {
-        json.decodeFromString<T>(String(bytes, Charsets.UTF_8))
-    } catch (_: Exception) {
-        null
     }
 
     private fun tryParseUuid(s: String): UUID? = try { UUID.fromString(s) } catch (_: Exception) { null }

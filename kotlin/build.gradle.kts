@@ -48,9 +48,18 @@ dependencies {
     // Coroutines for async operations
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
-    // JSON serialization — used by ReputationGossipService wire format
-    // 1.6.3 is the last release compatible with Kotlin 1.9.x (1.7.x requires Kotlin 2.0+)
+    // JSON serialization — kept for any host that wants kotlinx on the Gradle
+    // path. NOTE: the wire-format types in aethernet.content / aethernet.reputation
+    // deliberately do NOT use kotlinx — they hand-roll JSON (buildString encode +
+    // org.json decode) so they compile under AOSP Soong, which runs plain kotlinc
+    // without the kotlinx-serialization compiler plugin. Do not "simplify" those
+    // back to @Serializable. 1.6.3 is the last release compatible with Kotlin 1.9.x.
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
+    // org.json — manual JSON parse for the Soong-compatible wire types. On AOSP
+    // this is provided by the platform (framework bootclasspath), so the Soong
+    // Android.bp needs NO static_lib for it; only the Gradle/JVM build declares it.
+    implementation("org.json:json:20240303")
 
     // Kotlin stdlib
     implementation(kotlin("stdlib"))

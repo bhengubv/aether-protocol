@@ -9,9 +9,6 @@ import aethernet.protocol.PacketType
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -24,8 +21,6 @@ import kotlin.test.assertTrue
  * v1.2.0 (Issue #60). Mirrors the C# DirectoryServiceTests.cs suite.
  */
 class DirectoryServiceTest {
-
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     private fun sampleDescriptor(rootHash: String = "deadbeef") = ContentDescriptor(
         rootHash = rootHash,
@@ -101,7 +96,7 @@ class DirectoryServiceTest {
             type = PacketType.NamePublish,
             sourceUhid = "peer-publisher",
             destinationUhid = "",
-            payload = json.encodeToString(publishBody).toByteArray(Charsets.UTF_8),
+            payload = publishBody.toJson().toByteArray(Charsets.UTF_8),
         )
         dir.handle(packet)
 
@@ -133,7 +128,7 @@ class DirectoryServiceTest {
             type = PacketType.NameQuery,
             sourceUhid = "asker",
             destinationUhid = "",
-            payload = json.encodeToString(query).toByteArray(Charsets.UTF_8),
+            payload = query.toJson().toByteArray(Charsets.UTF_8),
         )
 
         dir.handle(queryPacket)
@@ -144,9 +139,9 @@ class DirectoryServiceTest {
         assertEquals("asker", nextHop)
         assertEquals(PacketType.NamePublish, responsePacket.type)
 
-        val responseBody = json.decodeFromString<NamePublishPayload>(
+        val responseBody = NamePublishPayload.fromJson(
             String(responsePacket.payload, Charsets.UTF_8)
-        )
+        )!!
         assertEquals("album:test", responseBody.name)
         assertEquals("album-root", responseBody.descriptor.rootHash)
         assertEquals(queryId, responseBody.inResponseToQueryId)
@@ -162,7 +157,7 @@ class DirectoryServiceTest {
             type = PacketType.NameQuery,
             sourceUhid = "asker",
             destinationUhid = "",
-            payload = json.encodeToString(query).toByteArray(Charsets.UTF_8),
+            payload = query.toJson().toByteArray(Charsets.UTF_8),
         )
 
         dir.handle(packet)
@@ -204,9 +199,9 @@ class DirectoryServiceTest {
         assertEquals(1, sender.broadcasts.size)
         val queryBroadcast = sender.broadcasts.first()
         assertEquals(PacketType.NameQuery, queryBroadcast.type)
-        val query = json.decodeFromString<NameQueryPayload>(
+        val query = NameQueryPayload.fromJson(
             String(queryBroadcast.payload, Charsets.UTF_8)
-        )
+        )!!
 
         // Simulate a peer responding with a NamePublish carrying inResponseToQueryId.
         val descriptor = sampleDescriptor("remote-root")
@@ -219,7 +214,7 @@ class DirectoryServiceTest {
             type = PacketType.NamePublish,
             sourceUhid = "peer-1",
             destinationUhid = "local",
-            payload = json.encodeToString(responseBody).toByteArray(Charsets.UTF_8),
+            payload = responseBody.toJson().toByteArray(Charsets.UTF_8),
         )
         dir.handle(responsePacket)
 

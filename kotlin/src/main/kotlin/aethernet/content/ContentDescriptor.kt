@@ -2,8 +2,8 @@
 
 package aethernet.content
 
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import org.json.JSONArray
+import org.json.JSONObject
 import java.security.MessageDigest
 
 /**
@@ -18,35 +18,91 @@ import java.security.MessageDigest
  *
  * Mirrors the C# `AetherNet.Content.Models.ContentDescriptor`. Added in v1.2.0
  * (Issue #60 — paired with [aethernet.content.DirectoryService]).
+ *
+ * Wire codec is hand-rolled (buildString encode, [org.json.JSONObject] decode)
+ * rather than kotlinx.serialization so the type compiles under AOSP Soong's
+ * plain kotlinc (no serialization compiler plugin). Canonical JSON key order:
+ * root_hash, name, total_bytes, chunk_size_bytes, chunk_count, chunk_hashes,
+ * content_type, created_at — must stay byte-identical to the C# reference and
+ * the `fixtures/expected/name_publish_*.bin` golden vectors.
  */
-@Serializable
 data class ContentDescriptor(
-    /** SHA-256 over the concatenation of all chunk hashes, in order. Hex-encoded lowercase. */
-    @SerialName("root_hash") val rootHash: String = "",
+    /** SHA-256 over the concatenation of all chunk hashes, in order. Hex-encoded lowercase. Wire key: `root_hash`. */
+    val rootHash: String = "",
 
     /** Original file name as the publisher named it. Hint only — never used as a path on the receiver. */
     val name: String = "",
 
-    /** Total size of the original content in bytes. */
-    @SerialName("total_bytes") val totalBytes: Long = 0L,
+    /** Total size of the original content in bytes. Wire key: `total_bytes`. */
+    val totalBytes: Long = 0L,
 
-    /** Bytes per chunk for every chunk except possibly the last. */
-    @SerialName("chunk_size_bytes") val chunkSizeBytes: Int = DEFAULT_CHUNK_SIZE_BYTES,
+    /** Bytes per chunk for every chunk except possibly the last. Wire key: `chunk_size_bytes`. */
+    val chunkSizeBytes: Int = DEFAULT_CHUNK_SIZE_BYTES,
 
-    /** Total number of chunks. Equal to ceil(totalBytes / chunkSizeBytes). */
-    @SerialName("chunk_count") val chunkCount: Int = 0,
+    /** Total number of chunks. Equal to ceil(totalBytes / chunkSizeBytes). Wire key: `chunk_count`. */
+    val chunkCount: Int = 0,
 
-    /** SHA-256 of each chunk's bytes, in chunk-index order. Hex-encoded lowercase. */
-    @SerialName("chunk_hashes") val chunkHashes: List<String> = emptyList(),
+    /** SHA-256 of each chunk's bytes, in chunk-index order. Hex-encoded lowercase. Wire key: `chunk_hashes`. */
+    val chunkHashes: List<String> = emptyList(),
 
-    /** Caller-defined MIME type or media kind. Opaque to the protocol. */
-    @SerialName("content_type") val contentType: String = "application/octet-stream",
+    /** Caller-defined MIME type or media kind. Opaque to the protocol. Wire key: `content_type`. */
+    val contentType: String = "application/octet-stream",
 
-    /** UTC creation time of the descriptor, ISO-8601 string for cross-language stability. */
-    @SerialName("created_at") val createdAt: String = nowIsoUtc(),
+    /** UTC creation time of the descriptor, ISO-8601 string for cross-language stability. Wire key: `created_at`. */
+    val createdAt: String = nowIsoUtc(),
 ) {
+    /**
+     * Canonical wire JSON. Field order is fixed (see class doc) so output is
+     * byte-identical across languages. Used directly and nested inside
+     * [NamePublishPayload].
+     */
+    fun toJson(): String = buildString { appendJsonTo(this) }
+
+    /** Append this descriptor's canonical JSON object onto [sb] (no surrounding whitespace). */
+    fun appendJsonTo(sb: StringBuilder) {
+        sb.append("{\"root_hash\":"); sb.appendJsonString(rootHash)
+        sb.append(",\"name\":"); sb.appendJsonString(name)
+        sb.append(",\"total_bytes\":").append(totalBytes)
+        sb.append(",\"chunk_size_bytes\":").append(chunkSizeBytes)
+        sb.append(",\"chunk_count\":").append(chunkCount)
+        sb.append(",\"chunk_hashes\":[")
+        for (i in chunkHashes.indices) {
+            if (i > 0) sb.append(',')
+            sb.appendJsonString(chunkHashes[i])
+        }
+        sb.append("],\"content_type\":"); sb.appendJsonString(contentType)
+        sb.append(",\"created_at\":"); sb.appendJsonString(createdAt)
+        sb.append('}')
+    }
+
     companion object {
         const val DEFAULT_CHUNK_SIZE_BYTES = 262144
+
+        /** Parse a descriptor from its canonical JSON string. Returns null on malformed input. */
+        fun fromJson(json: String): ContentDescriptor? = try {
+            fromJsonObject(JSONObject(json))
+        } catch (_: Exception) {
+            null
+        }
+
+        /** Parse a descriptor from an already-parsed [JSONObject] (used for nested decode). */
+        fun fromJsonObject(o: JSONObject): ContentDescriptor {
+            val hashesArr: JSONArray? = o.optJSONArray("chunk_hashes")
+            val hashes = if (hashesArr == null) emptyList() else
+                ArrayList<String>(hashesArr.length()).apply {
+                    for (i in 0 until hashesArr.length()) add(hashesArr.getString(i))
+                }
+            return ContentDescriptor(
+                rootHash       = o.optString("root_hash", ""),
+                name           = o.optString("name", ""),
+                totalBytes     = o.optLong("total_bytes", 0L),
+                chunkSizeBytes = o.optInt("chunk_size_bytes", DEFAULT_CHUNK_SIZE_BYTES),
+                chunkCount     = o.optInt("chunk_count", 0),
+                chunkHashes    = hashes,
+                contentType    = o.optString("content_type", "application/octet-stream"),
+                createdAt      = o.optString("created_at", ""),
+            )
+        }
 
         /**
          * Build a descriptor from a buffer. Splits into [chunkSizeBytes]-sized chunks
@@ -146,4 +202,26 @@ data class ContentDescriptor(
         }
         return out
     }
+}
+
+/**
+ * Append [s] as a JSON string literal (with surrounding quotes) onto the receiver,
+ * escaping per RFC 8259. Shared by the hand-rolled wire encoders in the
+ * `aethernet.content` package (ContentDescriptor, NamePublishPayload,
+ * NameQueryPayload) so their output stays byte-identical to the C# reference.
+ */
+internal fun StringBuilder.appendJsonString(s: String) {
+    append('"')
+    for (c in s) {
+        when (c) {
+            '"'      -> append("\\\"")
+            '\\'     -> append("\\\\")
+            '\n'     -> append("\\n")
+            '\r'     -> append("\\r")
+            '\t'     -> append("\\t")
+            '\b'     -> append("\\b")
+            else     -> if (c < ' ') append("\\u").append(c.code.toString(16).padStart(4, '0')) else append(c)
+        }
+    }
+    append('"')
 }

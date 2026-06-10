@@ -4,11 +4,7 @@ package aethernet.reputation
 
 import aethernet.protocol.PacketType
 import aethernet.security.NodeReputationService
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import org.json.JSONObject
 
 /**
  * Signed peer-to-peer reputation-score propagation service.
@@ -52,14 +48,46 @@ class ReputationGossipService(
 
     // ── Wire types ────────────────────────────────────────────────────────────
 
-    @Serializable
+    /**
+     * Reputation-update wire payload. Hand-rolled JSON codec (buildString encode,
+     * [org.json.JSONObject] decode) rather than kotlinx.serialization so this type
+     * compiles under AOSP Soong's plain kotlinc (no serialization plugin).
+     * Canonical key order: reporter_uhid, target_uhid, score_delta, timestamp_ms,
+     * reason — must stay byte-identical to the C# reference.
+     */
     data class ReputationUpdatePayload(
-        @SerialName("reporter_uhid") val reporterUhid: String,
-        @SerialName("target_uhid")   val targetUhid: String,
-        @SerialName("score_delta")   val scoreDelta: Double,
-        @SerialName("timestamp_ms")  val timestampMs: Long,
+        val reporterUhid: String,   // wire key: reporter_uhid
+        val targetUhid: String,     // wire key: target_uhid
+        val scoreDelta: Double,     // wire key: score_delta
+        val timestampMs: Long,      // wire key: timestamp_ms
         val reason: String,
-    )
+    ) {
+        /** Canonical wire JSON. Fixed key order — see class doc. */
+        fun toJson(): String = buildString {
+            append("{\"reporter_uhid\":"); appendJsonStr(reporterUhid)
+            append(",\"target_uhid\":"); appendJsonStr(targetUhid)
+            append(",\"score_delta\":").append(scoreDelta)
+            append(",\"timestamp_ms\":").append(timestampMs)
+            append(",\"reason\":"); appendJsonStr(reason)
+            append('}')
+        }
+
+        companion object {
+            /** Parse from canonical JSON. Returns null on malformed/missing-field input. */
+            fun fromJson(json: String): ReputationUpdatePayload? = try {
+                val o = JSONObject(json)
+                ReputationUpdatePayload(
+                    reporterUhid = o.getString("reporter_uhid"),
+                    targetUhid   = o.getString("target_uhid"),
+                    scoreDelta   = o.getDouble("score_delta"),
+                    timestampMs  = o.getLong("timestamp_ms"),
+                    reason       = o.getString("reason"),
+                )
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
 
     data class GossipPacket(
         val packetType: Byte,
@@ -91,7 +119,7 @@ class ReputationGossipService(
             timestampMs  = nowMs,
             reason       = reason,
         )
-        val payloadBytes = Json.encodeToString(payload).toByteArray(Charsets.UTF_8)
+        val payloadBytes = payload.toJson().toByteArray(Charsets.UTF_8)
         val packet = GossipPacket(
             packetType       = PacketType.ReputationUpdate.value,
             sourceUhid       = meshSender.localUhid,
@@ -126,13 +154,9 @@ class ReputationGossipService(
         // 2. Signature
         if (!packetSigner.verify(packet, senderPublicKey)) return false
         // 3. Parse payload
-        val payload = try {
-            Json.decodeFromString<ReputationUpdatePayload>(
-                packet.payload.toString(Charsets.UTF_8)
-            )
-        } catch (_: Exception) {
-            return false
-        }
+        val payload = ReputationUpdatePayload.fromJson(
+            packet.payload.toString(Charsets.UTF_8)
+        ) ?: return false
         // 4. Freshness (±5 min)
         val nowMs = System.currentTimeMillis()
         if (kotlin.math.abs(nowMs - payload.timestampMs) > FRESHNESS_WINDOW_MS) return false
@@ -151,4 +175,25 @@ class ReputationGossipService(
     private companion object {
         const val FRESHNESS_WINDOW_MS = 5L * 60L * 1000L // 5 minutes
     }
+}
+
+/**
+ * Append [s] as a JSON string literal (with quotes) onto the receiver, escaping
+ * per RFC 8259. Local to the reputation wire encoder so it stays self-contained
+ * for AOSP Soong (no cross-package helper dependency).
+ */
+private fun StringBuilder.appendJsonStr(s: String) {
+    append('"')
+    for (c in s) {
+        when (c) {
+            '"'  -> append("\\\"")
+            '\\' -> append("\\\\")
+            '\n' -> append("\\n")
+            '\r' -> append("\\r")
+            '\t' -> append("\\t")
+            '\b' -> append("\\b")
+            else -> if (c < ' ') append("\\u").append(c.code.toString(16).padStart(4, '0')) else append(c)
+        }
+    }
+    append('"')
 }
