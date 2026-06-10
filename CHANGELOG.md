@@ -8,6 +8,66 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [1.6.2] — 2026-06-10
+
+ABMF cross-language **numeric parity proof**. Adds an executable conformance
+oracle and fixes six silent cross-language divergences it caught — bugs that
+would have made the 8 SDKs report different bandwidth numbers or pick different
+transports for the same inputs, with no error anywhere.
+
+### Added — `tests/cross-language/bandwidth-fixtures.json`
+
+A deterministic conformance corpus (3 probe-ack + 4 RTO + 5 PHY-cap + 7
+estimator + 3 director cases) with expected outputs generated from the C#
+reference. Every SDK drives this same corpus and must produce identical
+results — integer/enum fields exact, floats within 0.01. This is the bandwidth
+analogue of `uri-fixtures.json`. Drivers added in all 8 languages
+(`BandwidthFixtureTests` / `fixture_test.go` / `test_bandwidth_fixtures.*` / etc.).
+
+### Changed — BDP derives from the effective (PHY-capped) rate
+
+`BandwidthSample.BdpBytes` is now computed from the **effective** rate
+(`min(BtlBw, PhyCap)`), not the raw BtlBw. The BDP must size the in-flight
+window to the rate the link can actually carry. A discriminating fixture
+(`phy_hint_caps_estimate`, `bdpBytes: 5`) locks this. Applied to all 8 SDKs.
+
+### Fixed — six divergences surfaced by the corpus
+
+1. **TS** — `Math.round` where C# casts `(long)` (truncates). 937.5 → 938 vs 937.
+   Changed all rate/BDP/available derivations to `Math.trunc`.
+2. **Kotlin** — `srtt`/`rttVar` floored to whole milliseconds via `.toLong()`
+   (2.8125 → 2.0). Now built from nanoseconds, preserving fractional ms.
+3. **C** — constructor seeded `max_bps` into the BtlBw max-filter window, so the
+   first ~10 samples reported `max(seed, real_rate)`. Now leaves the window empty
+   (initial display snapshot still shows max_bps, matching C#).
+4. **Rust** — `get_estimates` seeded the matrix from live estimators on every
+   query, making the unknown-peer fallback dead code (returned Wi-Fi Direct
+   instead of the lowest-power BLE). Now a pure matrix read, matching C#.
+5. **Go / TS / Kotlin / Swift / Rust / C** — BDP computed from raw BtlBw instead
+   of the effective rate (see "Changed" above).
+6. **Swift** — `BandwidthDirector` mutated an estimator actor's
+   `onSampleImproved` across the actor boundary (Swift-6 compile error on macOS,
+   missed by the Windows typecheck). Added `addSampleImprovedHandler` so the
+   append happens inside the actor.
+
+(The earlier 1.6.1 audit also fixed the `bdpBonus` 0.0-vs-1.0 split and a Kotlin
+`Double.MIN_VALUE` sentinel bug — see that entry.)
+
+### Verification
+
+- C# Core suite: **844/844**. Fixture oracle: 22/22.
+- Go 22, Python 22, TypeScript 22, Kotlin 22, Rust 22, C 22 fixtures — all pass.
+- Swift typechecks clean (strict concurrency, Swift 6); macOS CI runs its 22.
+- macOS: C `ctest` BandwidthTests pass; Swift `BandwidthFixtureTests` run on CI.
+
+### Why
+Most protocols never prove cross-language numeric identity — they assume it and
+ship drift. AetherNet now proves it with an oracle that fails loudly on any
+divergence. Six real bugs in one pass is the evidence that "identical by
+construction" was never enough.
+
+---
+
 ## [1.6.1] — 2026-06-10
 
 ABMF cross-language completion + consistency pass. Brings the Bandwidth

@@ -94,7 +94,8 @@ static void estimator_new_initial_state(void)
     assert(s.confidence == AETHERNET_BW_CONFIDENCE_NONE);
     assert(strcmp(s.transport_name, "BLE") == 0);
     assert(s.loss_rate == 0.0);
-    /* Initial estimate is seeded with max_bps so btlbw > 0. */
+    /* The BtlBw window starts EMPTY, but the initial display snapshot reports
+     * max_bps as btlbw_bps (matching the C# reference), so btlbw > 0. */
     assert(s.btlbw_bps > 0);
     assert(s.rto_us >= 200000LL);   /* clamped ≥ 200 ms */
     assert(s.rto_us <= 60000000LL); /* clamped ≤ 60 s  */

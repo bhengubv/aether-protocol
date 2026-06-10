@@ -370,15 +370,19 @@ func (e *BandwidthEstimator) buildSnapshot(btlBw int64, rtProp time.Duration) *B
 
 	loss := clampFloat64(e.lossRate, 0.0, 1.0)
 
-	var bdp int64
-	if btlBw > 0 {
-		bdp = int64(float64(btlBw) / 8.0 * rtProp.Seconds())
-	}
-
+	// Effective = the PHY-capped deliverable rate. BDP and AvailableBps are both
+	// derived from the EFFECTIVE rate — the BDP must size the in-flight window to
+	// the rate the link can actually carry, not the uncapped BtlBw.
 	effective := btlBw
 	if e.phyCapBps > 0 && e.phyCapBps < btlBw {
 		effective = e.phyCapBps
 	}
+
+	var bdp int64
+	if effective > 0 {
+		bdp = int64(float64(effective) / 8.0 * rtProp.Seconds())
+	}
+
 	effectiveAvail := int64(float64(effective) * (1.0 - loss))
 
 	return &BandwidthSample{

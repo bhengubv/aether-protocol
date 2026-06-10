@@ -339,6 +339,13 @@ def _compute_transport_state(
     btlbw_bps: int,
     is_recent: bool,
 ) -> NodeActivityState:
+    # Mirrors the C# reference NodeActivityMonitor.ComputeTransportState exactly:
+    # a transport with no recent egress AND zero current rates is Idle; a transport
+    # with zero current rates (regardless of recency) is also Idle. Otherwise the
+    # loss/utilization logic applies. ``is_recent`` = (now - last_egress) < idle
+    # threshold, tracked per-transport on the egress path.
+    if not is_recent and egress_bps == 0 and ingress_bps == 0:
+        return NodeActivityState.Idle
     if egress_bps == 0 and ingress_bps == 0:
         return NodeActivityState.Idle
 

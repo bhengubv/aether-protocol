@@ -302,17 +302,21 @@ class BandwidthEstimator(val transportName: String, val maxBandwidthBps: Long) {
     }
 
     private fun buildSnapshot(btlBw: Long, rtProp: Duration): BandwidthSample {
-        val srtt = Duration.ofMillis(maxOf(1L, srttMs.toLong()))
-        val rttVar = Duration.ofMillis(maxOf(0L, rttVarMs.toLong()))
+        // Preserve fractional-millisecond precision (matches C#'s TimeSpan.FromMilliseconds(double)).
+        // Floor srtt at 1.0 ms and rttVar at 0.0 ms BEFORE converting, mirroring
+        // Math.Max(1.0, _srttMs) / Math.Max(0.0, _rttVarMs) in the C# reference.
+        val srtt = Duration.ofNanos((maxOf(1.0, srttMs) * 1_000_000.0).toLong())
+        val rttVar = Duration.ofNanos((maxOf(0.0, rttVarMs) * 1_000_000.0).toLong())
         val clampedLoss = lossRate.coerceIn(0.0, 1.0)
-        val available = (btlBw * (1.0 - clampedLoss)).toLong()
-        val bdp = if (btlBw > 0) (btlBw / 8.0 * (rtProp.toMillis() / 1000.0)).toLong() else 0L
+        // BDP and available are derived from the EFFECTIVE (PHY-capped) rate, not the raw BtlBw.
         val effective = if (phyCapBps > 0) minOf(btlBw, phyCapBps) else btlBw
+        val available = (effective * (1.0 - clampedLoss)).toLong()
+        val bdp = if (effective > 0) (effective / 8.0 * (rtProp.toMillis() / 1000.0)).toLong() else 0L
 
         return BandwidthSample(
             transportName = transportName,
             btlBwBps = effective,
-            availableBps = (effective * (1.0 - clampedLoss)).toLong(),
+            availableBps = available,
             bdpBytes = bdp,
             srtt = srtt,
             rttVar = rttVar,

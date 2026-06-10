@@ -82,7 +82,17 @@ public final actor BandwidthEstimator {
 
     /// Fires when BtlBw improves by ≥ 5 % or `confidence` advances.
     /// Consumers: ABR controller, transport selector, streaming bitrate ladder.
-    public var onSampleImproved: [(BandwidthSample) -> Void] = []
+    ///
+    /// Append handlers via ``addSampleImprovedHandler(_:)`` — this is
+    /// actor-isolated state and cannot be mutated across the actor boundary
+    /// (Swift 6 forbids `await estimator.onSampleImproved.append(...)`).
+    public private(set) var onSampleImproved: [@Sendable (BandwidthSample) -> Void] = []
+
+    /// Register a handler fired when the sample improves. The append happens
+    /// inside the actor, satisfying Swift 6 actor isolation.
+    public func addSampleImprovedHandler(_ handler: @escaping @Sendable (BandwidthSample) -> Void) {
+        onSampleImproved.append(handler)
+    }
 
     // MARK: - Init
 
@@ -320,10 +330,14 @@ public final actor BandwidthEstimator {
         probeRounds: Int,
         warmedFromGossip: Bool
     ) -> BandwidthSample {
-        let effectiveBtlBw = phyCapBps > 0 ? min(btlBw, phyCapBps) : btlBw
-        let clampedLoss    = max(0.0, min(lossRate, 1.0))
-        let available      = Int64(Double(effectiveBtlBw) * (1.0 - clampedLoss))
-        let bdp: Int64     = btlBw > 0 ? Int64(Double(btlBw) / 8.0 * rtProp) : 0
+        // Effective = the PHY-capped deliverable rate. BDP and available are
+        // both derived from the EFFECTIVE rate — the BDP must size the in-flight
+        // window to the rate the link can actually carry, not the uncapped BtlBw.
+        // Int64() truncates toward zero, matching C# `(long)`.
+        let effective   = phyCapBps > 0 ? min(btlBw, phyCapBps) : btlBw
+        let clampedLoss = max(0.0, min(lossRate, 1.0))
+        let available   = Int64(Double(effective) * (1.0 - clampedLoss))
+        let bdp: Int64  = effective > 0 ? Int64(Double(effective) / 8.0 * rtProp) : 0
 
         let conf: BandwidthConfidence
         if probeRounds == 0 && !warmedFromGossip { conf = .none }
@@ -334,7 +348,7 @@ public final actor BandwidthEstimator {
 
         return BandwidthSample(
             transportName: transportName,
-            btlBwBps:      effectiveBtlBw,
+            btlBwBps:      effective,
             availableBps:  available,
             bdpBytes:      bdp,
             srtt:          srttSec,

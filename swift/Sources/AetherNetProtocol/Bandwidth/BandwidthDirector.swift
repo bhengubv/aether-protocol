@@ -57,7 +57,7 @@ public final actor BandwidthDirector {
         estimators[name] = estimator
 
         // Subscribe to sample improvements so the matrix stays current.
-        await estimator.onSampleImproved.append { [weak self] sample in
+        await estimator.addSampleImprovedHandler { [weak self] sample in
             guard let self else { return }
             Task { await self.handleSampleImproved(sample) }
         }

@@ -215,9 +215,14 @@ static aethernet_bw_confidence_t compute_confidence(const struct aethernet_bw_es
 
 /* ── Snapshot rebuild ─────────────────────────────────────────────────────── */
 
-static void rebuild_snapshot(struct aethernet_bw_estimator *e)
+/* Build the display snapshot from current estimator state, using `btlbw` as the
+ * BtlBw value to report. Callers normally pass btlbw_max(e); the constructor
+ * passes max_bps so a freshly-built estimator reports its advertised ceiling for
+ * display WITHOUT seeding the (still-empty) BtlBw max-filter window — matching
+ * the C# reference constructor, whose BuildSnapshot(maxBandwidthBps,…) populates
+ * the initial display without inserting into the window. */
+static void build_snapshot(struct aethernet_bw_estimator *e, int64_t btlbw)
 {
-    int64_t btlbw   = btlbw_max(e);
     double  rtprop  = rtprop_min_ms(e);   /* ms */
     double  srtt_us = fmax(1000.0, e->srtt_ms * 1000.0);
     double  rttv_us = fmax(0.0,   e->rttvar_ms * 1000.0);
@@ -231,9 +236,12 @@ static void rebuild_snapshot(struct aethernet_bw_estimator *e)
                                               : btlbw;
     int64_t available = (int64_t)((double)effective * (1.0 - loss));
     int64_t bdp = 0;
-    if (btlbw > 0 && rtprop > 0.0) {
-        /* BDP = (btlbw_bps / 8) × rtprop_seconds */
-        bdp = (int64_t)((double)btlbw / 8.0 * rtprop / 1000.0);
+    if (effective > 0 && rtprop > 0.0) {
+        /* BDP is derived from the EFFECTIVE (PHY-capped) rate, not the raw
+         * BtlBw — matching the C# reference. With a PHY cap below BtlBw the
+         * cap, not the measured rate, bounds the in-flight window.
+         * BDP = (effective_bps / 8) × rtprop_seconds */
+        bdp = (int64_t)((double)effective / 8.0 * rtprop / 1000.0);
     }
 
     aethernet_bw_sample_t *s = &e->current;
@@ -250,6 +258,12 @@ static void rebuild_snapshot(struct aethernet_bw_estimator *e)
     s->confidence   = compute_confidence(e);
     s->rto_us       = rto_us;
     s->effective_bps = effective;
+}
+
+/* Rebuild the snapshot from the live BtlBw max-filter window. */
+static void rebuild_snapshot(struct aethernet_bw_estimator *e)
+{
+    build_snapshot(e, btlbw_max(e));
 }
 
 /* ── RFC 6298 RTT update ──────────────────────────────────────────────────── */
@@ -289,15 +303,14 @@ aethernet_bw_estimator_t *aethernet_bw_estimator_new(const char *transport_name,
     e->first_rtt = 1;
     e->srtt_ms   = 50.0;   /* Optimistic warm-start at 50 ms */
 
-    /* Seed the ring with max_bps so initial sample is non-zero. */
-    if (max_bps > 0) {
-        double ts = now_ms();
-        e->bw_rate_bps[0] = max_bps;
-        e->bw_ts_ms[0]    = ts;
-        e->bw_head  = 1;
-        e->bw_count = 1;
-    }
-    rebuild_snapshot(e);
+    /* Do NOT seed the BtlBw max-filter window — it stays EMPTY (bw_count = 0)
+     * until the first real delivery/probe/gossip sample, matching the C#
+     * reference constructor. Seeding would make btlbw_max() return
+     * max(max_bps, real_rate) for the first ~10 samples and skew every derived
+     * field. The initial DISPLAY snapshot still reports max_bps as btlbw_bps
+     * (via build_snapshot below) so a freshly-constructed estimator advertises
+     * its ceiling — exactly as C# BuildSnapshot(maxBandwidthBps,…) does. */
+    build_snapshot(e, (max_bps > 0) ? max_bps : 0);
     return e;
 }
 

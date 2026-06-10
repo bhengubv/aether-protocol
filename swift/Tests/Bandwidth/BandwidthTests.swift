@@ -290,9 +290,9 @@ final class BandwidthEstimatorTests: XCTestCase {
         let est = BandwidthEstimator(transportName: "BLE", maxBandwidthBps: 2_000_000)
 
         let expectation = XCTestExpectation(description: "onSampleImproved fired")
-        await est.onSampleImproved.append({ _ in
+        await est.addSampleImprovedHandler { _ in
             expectation.fulfill()
-        })
+        }
 
         await est.recordDelivery(bytes: 10_000, sendUs: 0, deliverUs: 50_000)
 

@@ -73,54 +73,28 @@ impl BandwidthDirector {
 
     /// Get the bandwidth estimate for a specific peer on a specific transport.
     /// Returns `None` if no estimate exists yet.
+    ///
+    /// Pure read of the (peer × transport) matrix — mirrors the C# reference
+    /// `GetEstimate`. The matrix is populated by [`apply_gossip`](Self::apply_gossip)
+    /// (and, in the full design, by estimator improvement callbacks); querying an
+    /// unseen peer/transport never fabricates an entry from a registered estimator.
     pub fn get_estimate(&self, peer_uhid: &str, transport: &str) -> Option<BandwidthSample> {
-        // First check the matrix cache.
-        {
-            let m = self.matrix.lock().unwrap();
-            if let Some(s) = m.get(&(peer_uhid.to_string(), transport.to_string())) {
-                return Some(s.clone());
-            }
-        }
-        // Fall back to the estimator's current sample and seed the matrix.
-        let est = {
-            let g = self.estimators.lock().unwrap();
-            g.get(transport).cloned()
-        };
-        if let Some(arc) = est {
-            let sample = arc.lock().unwrap().current_sample();
-            let mut m = self.matrix.lock().unwrap();
-            m.insert(
-                (peer_uhid.to_string(), transport.to_string()),
-                sample.clone(),
-            );
-            Some(sample)
-        } else {
-            None
-        }
+        let m = self.matrix.lock().unwrap();
+        m.iter()
+            .find(|((peer, t), _)| {
+                peer.eq_ignore_ascii_case(peer_uhid) && t.eq_ignore_ascii_case(transport)
+            })
+            .map(|(_, s)| s.clone())
     }
 
     /// Get all current estimates for a peer across all transports,
     /// ranked by `available_bps` descending.
+    ///
+    /// Pure read of the matrix — mirrors the C# reference `GetEstimates`. Returns
+    /// an empty vec for a peer with no recorded samples (which drives
+    /// [`recommend_transport`](Self::recommend_transport) into its lowest-power
+    /// fallback), rather than seeding entries from every registered estimator.
     pub fn get_estimates(&self, peer_uhid: &str) -> Vec<BandwidthSample> {
-        // Refresh matrix from all estimators for this peer.
-        let transport_names: Vec<String> = self
-            .estimators
-            .lock()
-            .unwrap()
-            .keys()
-            .cloned()
-            .collect();
-        for name in &transport_names {
-            let est = self.estimators.lock().unwrap().get(name).cloned();
-            if let Some(arc) = est {
-                let sample = arc.lock().unwrap().current_sample();
-                self.matrix
-                    .lock()
-                    .unwrap()
-                    .insert((peer_uhid.to_string(), name.clone()), sample);
-            }
-        }
-
         let m = self.matrix.lock().unwrap();
         let mut results: Vec<BandwidthSample> = m
             .iter()

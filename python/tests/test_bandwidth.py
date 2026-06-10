@@ -26,6 +26,7 @@ from aethernet.bandwidth import (
     NodeActivityMonitor,
     NodeActivityState,
 )
+from aethernet.bandwidth.monitor import _compute_transport_state
 from aethernet.protocol.mesh_packet import PacketType
 
 
@@ -725,6 +726,112 @@ class TestMonitorTrafficRecording:
                 time.sleep(0.05)
             assert received, "expected at least one snapshot"
             assert all(s.active_peers == 0 for s in received)
+        finally:
+            monitor.stop()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Transport state computation — Idle-state guard parity with the C# reference
+# (NodeActivityMonitor.ComputeTransportState).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestComputeTransportStateIdleGuard:
+    """Mirrors the C# reference ComputeTransportState truth table exactly.
+
+    C# semantics:
+        if (!isRecent && egress == 0 && ingress == 0) return Idle;
+        if (egress == 0 && ingress == 0)              return Idle;
+        if (lossRate > 0.05)                          return Degraded;
+        util = egress / btlbw; return util >= 0.5 ? Busy : Active;
+    """
+
+    def test_no_recent_egress_and_zero_rates_is_idle(self) -> None:
+        # No recent egress AND zero current rates → Idle (first C# guard).
+        state = _compute_transport_state(
+            egress_bps=0, ingress_bps=0, loss_rate=0.0, btlbw_bps=1_000_000,
+            is_recent=False,
+        )
+        assert state is NodeActivityState.Idle
+
+    def test_recent_egress_but_zero_rates_is_idle(self) -> None:
+        # Recent egress but zero current rates → still Idle (second C# guard).
+        state = _compute_transport_state(
+            egress_bps=0, ingress_bps=0, loss_rate=0.0, btlbw_bps=1_000_000,
+            is_recent=True,
+        )
+        assert state is NodeActivityState.Idle
+
+    def test_low_utilization_is_active(self) -> None:
+        # Data flowing, util < 0.5 → Active. is_recent must not force Idle here.
+        state = _compute_transport_state(
+            egress_bps=100_000, ingress_bps=0, loss_rate=0.0, btlbw_bps=1_000_000,
+            is_recent=True,
+        )
+        assert state is NodeActivityState.Active
+
+    def test_active_even_when_not_recent_if_rates_nonzero(self) -> None:
+        # Non-zero current rates → the Idle guards do NOT fire even if !is_recent.
+        state = _compute_transport_state(
+            egress_bps=100_000, ingress_bps=0, loss_rate=0.0, btlbw_bps=1_000_000,
+            is_recent=False,
+        )
+        assert state is NodeActivityState.Active
+
+    def test_high_utilization_is_busy(self) -> None:
+        # util >= 0.5 → Busy.
+        state = _compute_transport_state(
+            egress_bps=600_000, ingress_bps=0, loss_rate=0.0, btlbw_bps=1_000_000,
+            is_recent=True,
+        )
+        assert state is NodeActivityState.Busy
+
+    def test_high_loss_is_degraded(self) -> None:
+        # loss_rate > 0.05 with data flowing → Degraded (takes priority over util).
+        state = _compute_transport_state(
+            egress_bps=600_000, ingress_bps=0, loss_rate=0.10, btlbw_bps=1_000_000,
+            is_recent=True,
+        )
+        assert state is NodeActivityState.Degraded
+
+    def test_ingress_only_keeps_transport_out_of_idle(self) -> None:
+        # Ingress alone (no egress) is still activity → not Idle.
+        state = _compute_transport_state(
+            egress_bps=0, ingress_bps=50_000, loss_rate=0.0, btlbw_bps=1_000_000,
+            is_recent=False,
+        )
+        assert state is NodeActivityState.Active
+
+    def test_idle_transition_via_monitor_after_threshold(self) -> None:
+        """End-to-end: a registered transport with no egress ticks to Idle.
+
+        Uses a 1-second idle threshold and a tight sample interval so the
+        ``is_recent`` flag flips from recent (at registration) to stale, and the
+        transport settles into Idle — the exact transition Task B aligns with C#.
+        """
+        monitor = NodeActivityMonitor()
+        e = _make_estimator("BLE")
+        monitor.register("BLE", e)
+        monitor.sample_interval_ms = 100
+        monitor.idle_threshold_seconds = 1
+
+        received: list = []
+        monitor.subscribe(received.append)
+        monitor.start()
+        try:
+            # Wait long enough for last_egress (set at construction) to go stale
+            # AND for several ticks to fire with zero traffic.
+            deadline = time.time() + 3.0
+            while time.time() < deadline:
+                snap = monitor.current()
+                if snap.transports and snap.transports[0].state is NodeActivityState.Idle:
+                    break
+                time.sleep(0.05)
+
+            snap = monitor.current()
+            assert snap.transports, "expected at least one transport snapshot"
+            assert snap.transports[0].state is NodeActivityState.Idle
+            assert snap.state is NodeActivityState.Idle
         finally:
             monitor.stop()
 

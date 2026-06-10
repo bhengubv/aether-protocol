@@ -115,7 +115,9 @@ export class BandwidthEstimator {
     if (bytes <= 0 || deliverUs <= sendUs) return;
 
     const elapsedMs = Number(deliverUs - sendUs) / 1000.0;
-    const deliveryRateBps = BigInt(Math.round((bytes * 8.0) / (elapsedMs / 1000.0)));
+    // Math.trunc — C# casts to (long) which truncates toward zero; Math.round
+    // would diverge on .5 boundaries (see bandwidth-fixtures.json conformance).
+    const deliveryRateBps = BigInt(Math.trunc((bytes * 8.0) / (elapsedMs / 1000.0)));
     const rttMs = elapsedMs; // one-way → treat as RTT estimate (conservative)
 
     this._addToBtlBwWindow(deliveryRateBps, this._nowMs());
@@ -144,7 +146,7 @@ export class BandwidthEstimator {
     // Delivery rate from probe: bytes × 8 / RTT
     const deliveryRateBps =
       ack.probeBytes > 0
-        ? BigInt(Math.round((ack.probeBytes * 8.0) / (rttMs / 1000.0)))
+        ? BigInt(Math.trunc((ack.probeBytes * 8.0) / (rttMs / 1000.0)))
         : 0n;
 
     this._updateRttEstimates(rttMs);
@@ -301,7 +303,7 @@ export class BandwidthEstimator {
     const prevBtl = prev.btlBwBps;
     const improved =
       prevBtl === 0n ||
-      cur.btlBwBps - prevBtl > BigInt(Math.round(Number(prevBtl) * IMPROVEMENT_THRESHOLD)) ||
+      Number(cur.btlBwBps - prevBtl) > Number(prevBtl) * IMPROVEMENT_THRESHOLD ||
       cur.confidence > prev.confidence;
 
     if (improved && this.onSampleImproved.length > 0) {
@@ -317,14 +319,16 @@ export class BandwidthEstimator {
     const srttMs  = Math.max(1.0, this._srttMs);
     const rttVarMs = Math.max(0.0, this._rttVarMs);
     const lossClamp = Math.min(Math.max(this._lossRate, 0.0), 1.0);
-    const available = BigInt(Math.round(Number(btlBw) * (1.0 - lossClamp)));
-    const bdpBytes  = btlBw > 0n
-      ? BigInt(Math.round(Number(btlBw) / 8.0 * (rtPropMs / 1000.0)))
-      : 0n;
+    // Effective = the PHY-capped deliverable rate. BDP and availableBps are
+    // both derived from the EFFECTIVE rate — the BDP must size the in-flight
+    // window to the rate the link can actually carry, not the uncapped BtlBw.
     const effective = this._phyCapBps > 0n
       ? (btlBw < this._phyCapBps ? btlBw : this._phyCapBps)
       : btlBw;
-    const effectiveAvailable = BigInt(Math.round(Number(effective) * (1.0 - lossClamp)));
+    const bdpBytes  = effective > 0n
+      ? BigInt(Math.trunc(Number(effective) / 8.0 * (rtPropMs / 1000.0)))
+      : 0n;
+    const effectiveAvailable = BigInt(Math.trunc(Number(effective) * (1.0 - lossClamp)));
 
     return makeBandwidthSample({
       transportName: this.transportName,

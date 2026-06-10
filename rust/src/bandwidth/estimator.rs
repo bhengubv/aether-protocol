@@ -185,10 +185,13 @@ impl Inner {
         let clamped_loss = loss_rate.clamp(0.0, 1.0);
         let srtt = Duration::from_micros((srtt_ms.max(1.0) * 1000.0) as u64);
         let rtt_var = Duration::from_micros((rtt_var_ms.max(0.0) * 1000.0) as u64);
+        // Effective = the PHY-capped deliverable rate. BDP and available are both
+        // derived from the EFFECTIVE rate — the BDP must size the in-flight window
+        // to the rate the link can actually carry, not the uncapped BtlBw.
         let effective = if phy_cap_bps > 0 { btl_bw.min(phy_cap_bps) } else { btl_bw };
         let available = (effective as f64 * (1.0 - clamped_loss)) as i64;
-        let bdp = if btl_bw > 0 {
-            (btl_bw as f64 / 8.0 * rt_prop.as_secs_f64()) as i64
+        let bdp = if effective > 0 {
+            (effective as f64 / 8.0 * rt_prop.as_secs_f64()) as i64
         } else {
             0
         };

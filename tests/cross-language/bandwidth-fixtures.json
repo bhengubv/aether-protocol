@@ -106,6 +106,7 @@
       }
     },
     {
+      "_comment": "Discriminating case: bdpBytes is computed from the EFFECTIVE (PHY-capped) rate, not the raw BtlBw. raw=8192000 would give bdp=1024; effective=40000 gives bdp=5. Catches any port that derives BDP from the uncapped rate.",
       "name": "phy_hint_caps_estimate",
       "transport": "BLE", "maxBps": 2000000000,
       "ops": [
@@ -113,7 +114,7 @@
         { "op": "phyHint", "rssiDbm": -100 }
       ],
       "expect": {
-        "btlBwBps": 40000, "effectiveBps": 40000, "phyCapBps": 40000,
+        "btlBwBps": 40000, "effectiveBps": 40000, "phyCapBps": 40000, "bdpBytes": 5,
         "confidence": "Low"
       }
     },

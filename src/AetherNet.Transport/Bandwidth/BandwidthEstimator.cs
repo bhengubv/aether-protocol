@@ -323,14 +323,17 @@ public sealed class BandwidthEstimator : IBandwidthEstimator
     {
         var srtt = TimeSpan.FromMilliseconds(Math.Max(1.0, _srttMs));
         var rttVar = TimeSpan.FromMilliseconds(Math.Max(0.0, _rttVarMs));
-        var available = (long)(btlBw * (1.0 - Math.Clamp(_lossRate, 0.0, 1.0)));
-        var bdp = btlBw > 0 ? (long)(btlBw / 8.0 * rtProp.TotalSeconds) : 0L;
+        var lossClamp = Math.Clamp(_lossRate, 0.0, 1.0);
+        // Effective = the PHY-capped deliverable rate. BDP and AvailableBps are
+        // both derived from the EFFECTIVE rate — the BDP must size the in-flight
+        // window to the rate the link can actually carry, not the uncapped BtlBw.
         var effective = _phyCapBps > 0 ? Math.Min(btlBw, _phyCapBps) : btlBw;
+        var bdp = effective > 0 ? (long)(effective / 8.0 * rtProp.TotalSeconds) : 0L;
 
         return new BandwidthSample(
             TransportName,
             effective,          // BtlBwBps capped by PHY hint
-            (long)(effective * (1.0 - Math.Clamp(_lossRate, 0.0, 1.0))),
+            (long)(effective * (1.0 - lossClamp)),
             bdp,
             srtt,
             rttVar,

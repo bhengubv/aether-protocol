@@ -190,6 +190,17 @@ target_include_directories(test-bandwidth PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
 target_link_libraries(test-bandwidth PRIVATE aethernet-protocol pthread m)
 add_test(NAME BandwidthTests COMMAND test-bandwidth)
 
+# Cross-language ABMF numeric-conformance driver. Transcribes the 22 cases from
+# tests/cross-language/bandwidth-fixtures.json (no JSON parser on the test
+# surface) and drives the C ABMF through them, mirroring the C# reference driver
+# in tests/AetherNet.Core.Tests/Bandwidth/BandwidthFixtureTests.cs.
+add_executable(test-bandwidth-fixtures
+    test_bandwidth_fixtures.c
+)
+target_include_directories(test-bandwidth-fixtures PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-bandwidth-fixtures PRIVATE aethernet-protocol pthread m)
+add_test(NAME BandwidthFixtureTests COMMAND test-bandwidth-fixtures)
+
 # Convenience target: build every test binary in one step.
 # Usage: cmake --build build --target aether-tests
 add_custom_target(aether-tests
@@ -220,4 +231,5 @@ add_custom_target(aether-tests
         test-chunk-bitmap
         test-directory-service
         test-bandwidth
+        test-bandwidth-fixtures
 )

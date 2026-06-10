@@ -37,3 +37,6 @@ pub use monitor::NodeActivityMonitor;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod fixture_tests;
