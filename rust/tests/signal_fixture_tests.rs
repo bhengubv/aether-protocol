@@ -78,7 +78,9 @@ fn hkdf32(ikm: &[u8], info: &[u8]) -> Vec<u8> {
 }
 
 fn hmac_one(key: &[u8], b: u8) -> Vec<u8> {
-    let mut mac = HmacSha256::new_from_slice(key).unwrap();
+    // hmac 0.13 moved `new_from_slice` to the `KeyInit` trait (from `digest`).
+    use hmac::digest::KeyInit;
+    let mut mac = <HmacSha256 as KeyInit>::new_from_slice(key).unwrap();
     mac.update(&[b]);
     mac.finalize().into_bytes().to_vec()
 }

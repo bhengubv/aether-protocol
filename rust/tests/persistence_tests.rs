@@ -79,7 +79,22 @@ async fn session_persists_across_restart_via_filesystem() {
 
     let m1 = alice.encrypt("bob", b"first").unwrap();
     bob.decrypt("alice", &m1).unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // `spawn_persist` is fire-and-forget. Poll until the session is on-disk
+    // before dropping bob, with a generous 5 s ceiling. Replaces a fragile
+    // sleep(100ms) that races against ~100 sequential OPK file writes on
+    // Windows tempdirs.
+    // 60 s rather than 5/30 — under parallel `cargo test` load on Windows
+    // the async save tasks contend hard for the tokio worker threads and
+    // disk IO; a single-thread test run completes in ~1 s but a full
+    // parallel run can take tens of seconds.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while std::time::Instant::now() < deadline {
+        if session_store.load("alice").await.unwrap().is_some() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
     drop(bob);
 
     // Rebuild bob from the same on-disk state.
@@ -115,7 +130,22 @@ async fn pre_key_state_persists_across_restart_via_filesystem() {
     let pre_restart_bundle = bob.generate_pre_key_bundle("bob").unwrap();
     let active_spk_id = bob.active_signed_pre_key_id();
     let pool_status = bob.pre_key_pool_status();
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // `spawn_persist` is fire-and-forget. The original `sleep(100ms)` was
+    // racy on Windows (100 sequential file writes in a tempdir can exceed
+    // 100ms). Poll until the on-disk OPK count matches the in-memory pool
+    // before dropping bob, with a generous 5 s ceiling.
+    let target = pool_status.0;
+    // 60 s rather than 5/30 — under parallel `cargo test` load on Windows
+    // the async save tasks contend hard for the tokio worker threads and
+    // disk IO; a single-thread test run completes in ~1 s but a full
+    // parallel run can take tens of seconds.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while std::time::Instant::now() < deadline {
+        let loaded = pre_key_store.load_one_time_pre_keys().await.unwrap();
+        if loaded.len() >= target { break; }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
     drop(bob);
 
     let mut bob2 = SignalProtocolService::builder()

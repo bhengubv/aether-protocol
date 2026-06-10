@@ -1385,13 +1385,15 @@ fn kdf_rk(
 ///   message_key   = HMAC-SHA256(chain_key, 0x01)
 ///   new_chain_key = HMAC-SHA256(chain_key, 0x02)
 fn ratchet_chain_key(chain_key: &[u8]) -> (Vec<u8>, Vec<u8>) {
-    let mut mac1 =
-        <HmacSha256 as Mac>::new_from_slice(chain_key).expect("HMAC keys are arbitrary-length");
+    // hmac 0.13 moved `new_from_slice` to the `KeyInit` trait (from `digest`).
+    use hmac::digest::KeyInit;
+    let mut mac1 = <HmacSha256 as KeyInit>::new_from_slice(chain_key)
+        .expect("HMAC keys are arbitrary-length");
     mac1.update(&[0x01]);
     let message_key = mac1.finalize().into_bytes().to_vec();
 
-    let mut mac2 =
-        <HmacSha256 as Mac>::new_from_slice(chain_key).expect("HMAC keys are arbitrary-length");
+    let mut mac2 = <HmacSha256 as KeyInit>::new_from_slice(chain_key)
+        .expect("HMAC keys are arbitrary-length");
     mac2.update(&[0x02]);
     let new_chain = mac2.finalize().into_bytes().to_vec();
     (new_chain, message_key)

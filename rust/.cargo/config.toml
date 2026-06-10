@@ -1,9 +1,37 @@
 # SPDX-License-Identifier: MIT
-# Workaround: VS 18 Insiders only ships onecore libs; point the linker at
-# VS 2022 Community's onecore/x64 which contains msvcrt.lib.
+#
+# Windows-specific cargo config for the MSVC toolchain.
+#
+# Two layers:
+#   1. [target.x86_64-pc-windows-msvc] rustflags — adds /LIBPATH to the
+#      linker invocation for *crate* builds (works for lib + integration tests).
+#   2. [env] INCLUDE + LIB — sets the C-compiler and linker search paths for
+#      ANY rustc invocation, including the ones rustdoc spawns for doctests
+#      (rustflags from above don't propagate to those).
+#
+# Paths point at:
+#   - VS 2022 Community MSVC headers/libs (the compiler that ships with
+#     Visual Studio's C++ workload — automatic on this user's install)
+#   - Windows 10 SDK 10.0.26100.0 ucrt + um/shared (auto-installed with VS)
+#
+# On Linux / macOS these env vars are unused by the rust toolchain, so the
+# section is inert outside Windows. Set INCLUDE / LIB yourself before
+# invoking cargo to override; user-provided values win because
+# `force = false` (the cargo default).
+#
+# If you're on a Windows machine where the paths below don't exist:
+#   * Install VS 2022 Community with the "Desktop development with C++"
+#     workload, OR
+#   * Set INCLUDE and LIB manually to your MSVC + Windows SDK paths before
+#     running cargo.
+
 [target.x86_64-pc-windows-msvc]
 rustflags = [
   "-Clink-arg=/LIBPATH:C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\lib\\onecore\\x64",
   "-Clink-arg=/LIBPATH:C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\x64",
   "-Clink-arg=/LIBPATH:C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\x64",
 ]
+
+[env]
+INCLUDE = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\SDK\\ScopeCppSDK\\vc15\\VC\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\um;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\shared"
+LIB     = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\lib\\onecore\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\x64"
