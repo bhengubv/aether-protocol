@@ -9,7 +9,7 @@ plugins {
     // Configures a `benchmark` source set, registers tasks via the
     // benchmarks {} extension below, and runs the JMH machinery
     // underneath so the numbers are JMH-comparable.
-    id("org.jetbrains.kotlinx.benchmark") version "0.4.10"
+    id("org.jetbrains.kotlinx.benchmark") version "0.4.17"
     // Required by kotlinx-benchmark for JVM bench source sets — the
     // plugin uses the allopen plugin to relax the `final` restriction
     // on @State-annotated bench classes (JMH instantiates them).
@@ -74,7 +74,7 @@ dependencies {
 
     // Benchmark runtime — kotlinx-benchmark layers a friendly DSL over
     // JMH and ships the JMH runtime jars transitively.
-    "benchmarkImplementation"("org.jetbrains.kotlinx:kotlinx-benchmark-runtime:0.4.10")
+    "benchmarkImplementation"("org.jetbrains.kotlinx:kotlinx-benchmark-runtime:0.4.17")
 }
 
 kotlin {
