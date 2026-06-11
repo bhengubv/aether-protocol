@@ -478,13 +478,13 @@ func TestHelloPayload_JSONShape_IsSnakeCase(t *testing.T) {
 		MinVersion:     1,
 		MaxVersion:     2,
 		Capabilities:   []string{"signal-x3dh"},
-		Implementation: "aether-go/1.0.0",
+		Implementation: "aether/2",
 	})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
 	got := string(body)
-	for _, key := range []string{`"min_version":1`, `"max_version":2`, `"capabilities":["signal-x3dh"]`, `"implementation":"aether-go/1.0.0"`} {
+	for _, key := range []string{`"min_version":1`, `"max_version":2`, `"capabilities":["signal-x3dh"]`, `"implementation":"aether/2"`} {
 		if !contains(got, key) {
 			t.Errorf("expected %q in JSON, got %s", key, got)
 		}

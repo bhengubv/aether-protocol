@@ -59,7 +59,7 @@ final class HandshakeServiceTests: XCTestCase {
             minVersion: 1,
             maxVersion: 2,
             capabilities: ["signal-x3dh", "double-ratchet"],
-            implementation: "aether-swift/1.0.0"
+            implementation: "aether/2"
         )
         let bytes = try payload.toJsonBytes()
         let str = String(decoding: bytes, as: UTF8.self)

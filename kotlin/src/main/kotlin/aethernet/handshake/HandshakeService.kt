@@ -299,6 +299,6 @@ class HandshakeService(
         )
 
         /** Default implementation banner emitted in our Hello / HelloAck. */
-        const val DEFAULT_IMPLEMENTATION: String = "aether-kotlin/1.0.0"
+        const val DEFAULT_IMPLEMENTATION: String = "aether/2"
     }
 }

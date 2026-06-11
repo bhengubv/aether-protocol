@@ -53,7 +53,7 @@ def test_hello_payload_json_shape_uses_snake_case_keys():
         min_version=1,
         max_version=2,
         capabilities=["signal-x3dh", "double-ratchet"],
-        implementation="aether-python/1.0.0",
+        implementation="aether/2",
     )
     raw = payload.to_json_bytes()
     obj = json.loads(raw.decode("utf-8"))
@@ -64,7 +64,7 @@ def test_hello_payload_json_shape_uses_snake_case_keys():
     assert obj["min_version"] == 1
     assert obj["max_version"] == 2
     assert obj["capabilities"] == ["signal-x3dh", "double-ratchet"]
-    assert obj["implementation"] == "aether-python/1.0.0"
+    assert obj["implementation"] == "aether/2"
 
 
 def test_hello_payload_round_trips():

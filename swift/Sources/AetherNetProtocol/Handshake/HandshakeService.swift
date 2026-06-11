@@ -43,7 +43,7 @@ public actor HandshakeService {
     ]
 
     /// Default implementation banner emitted in our Hello/HelloAck.
-    public static let defaultImplementation: String = "aether-swift/1.0.0"
+    public static let defaultImplementation: String = "aether/2"
 
     /// Default highest protocol version we speak. Matches
     /// `ProtocolConstants.protocolVersionSigned` (the current signed-packet

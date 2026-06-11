@@ -44,7 +44,7 @@ export const DEFAULT_CAPABILITIES: ReadonlySet<string> = new Set<string>([
 ]);
 
 /** Default implementation banner emitted in our Hello/HelloAck. */
-export const DEFAULT_IMPLEMENTATION = "aether-typescript/1.0.0";
+export const DEFAULT_IMPLEMENTATION = "aether/2";
 
 /** Listener for negotiation-complete events. */
 export type PeerNegotiatedListener = (caps: PeerCapabilities) => void;

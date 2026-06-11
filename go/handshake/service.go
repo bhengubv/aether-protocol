@@ -71,7 +71,7 @@ var DefaultCapabilities = []string{
 // DefaultImplementation is the default implementation banner emitted in our
 // Hello / HelloAck. Mirrors C#'s "aether-csharp/1.0.0" with the language tag
 // switched.
-const DefaultImplementation = "aether-go/1.0.0"
+const DefaultImplementation = "aether/2"
 
 // Service is the concrete IHandshakeService implementation. Tracks the
 // peers we've Hello'd, the peers we've finished negotiating with, and

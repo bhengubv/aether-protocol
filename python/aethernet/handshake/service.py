@@ -47,7 +47,7 @@ DEFAULT_CAPABILITIES: FrozenSet[str] = frozenset({
 })
 
 # Free-form implementation banner emitted in our Hello/HelloAck.
-DEFAULT_IMPLEMENTATION: str = "aether-python/1.0.0"
+DEFAULT_IMPLEMENTATION: str = "aether/2"
 
 # Highest protocol version this implementation can speak. Matches the C#
 # `ProtocolConstants.CurrentProtocolVersion`. Bump when the wire format

@@ -43,7 +43,7 @@ pub fn default_capabilities() -> HashSet<String> {
 }
 
 /// Default implementation banner emitted in our Hello/HelloAck.
-pub const DEFAULT_IMPLEMENTATION: &str = "aether-rust/0.1.0";
+pub const DEFAULT_IMPLEMENTATION: &str = "aether/2";
 
 /// Outcome of a single received Hello / HelloAck.
 #[derive(Debug, Clone, PartialEq, Eq)]

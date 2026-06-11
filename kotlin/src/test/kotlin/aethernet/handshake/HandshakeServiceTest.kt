@@ -370,14 +370,14 @@ class HandshakeServiceTest {
         val p = HelloPayload(
             minVersion = 1, maxVersion = 2,
             capabilities = listOf("signal-x3dh", "voice"),
-            implementation = "aether-kotlin/1.0.0",
+            implementation = "aether/2",
         )
         val json = String(p.toJsonBytes(), Charsets.UTF_8)
 
         assertTrue(json.contains("\"min_version\":1"))
         assertTrue(json.contains("\"max_version\":2"))
         assertTrue(json.contains("\"capabilities\":[\"signal-x3dh\",\"voice\"]"))
-        assertTrue(json.contains("\"implementation\":\"aether-kotlin/1.0.0\""))
+        assertTrue(json.contains("\"implementation\":\"aether/2\""))
     }
 
     @Test
