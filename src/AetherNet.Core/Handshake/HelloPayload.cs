@@ -17,7 +17,7 @@ namespace AetherNet.Handshake;
 ///   "min_version": 1,
 ///   "max_version": 2,
 ///   "capabilities": ["signal-x3dh", "double-ratchet", "dtn-custody"],
-///   "implementation": "aether-csharp/1.0.0"
+///   "implementation": "aether/2"
 /// }
 /// </code>
 ///
@@ -44,7 +44,7 @@ public sealed class HelloPayload
     public List<string> Capabilities { get; set; } = new();
 
     /// <summary>
-    /// Free-form implementation banner (e.g. <c>"aether-csharp/1.0.0"</c>).
+    /// Free-form implementation banner (e.g. <c>"aether/2"</c>).
     /// Diagnostic only; not used for compatibility decisions.
     /// </summary>
     [JsonPropertyName("implementation")]

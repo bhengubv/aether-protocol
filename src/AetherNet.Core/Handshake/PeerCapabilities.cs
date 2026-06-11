@@ -26,7 +26,7 @@ namespace AetherNet.Handshake;
 /// </param>
 /// <param name="ImplementationVersion">
 /// Free-form implementation banner the peer announced (e.g.
-/// <c>"aether-csharp/1.0.0"</c>). Empty for peers that never replied.
+/// <c>"aether/2"</c>). Empty for peers that never replied.
 /// </param>
 /// <param name="NegotiatedAt">UTC timestamp when negotiation completed.</param>
 public sealed record PeerCapabilities(

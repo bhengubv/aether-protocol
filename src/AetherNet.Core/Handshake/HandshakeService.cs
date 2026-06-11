@@ -49,7 +49,7 @@ public sealed class HandshakeService : IHandshakeService
     };
 
     /// <summary>Default implementation banner emitted in our Hello/HelloAck.</summary>
-    public const string DefaultImplementation = "aether-csharp/1.0.0";
+    public const string DefaultImplementation = "aether/2";
 
     private readonly IMeshSender _sender;
     private readonly ILogger<HandshakeService> _logger;
