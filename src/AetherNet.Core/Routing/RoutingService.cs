@@ -40,6 +40,10 @@ public sealed class RoutingService : IRoutingService
     // where an attacker replays old RREQs after the size-only eviction clears them.
     private readonly ConcurrentDictionary<Guid, long> _seenRreqs = new();
 
+    // Relay flood cap on RREQ discovery. Distinct-Id floods slip past the dedup set above, so
+    // this drops them before they touch any state. Default caps; see RequestRateLimiter.
+    private readonly RequestRateLimiter _rateLimiter = new();
+
     private int _loaded;
 
     public RoutingService(
@@ -126,6 +130,17 @@ public sealed class RoutingService : IRoutingService
         ArgumentNullException.ThrowIfNull(routeRequest);
         if (routeRequest.Type != PacketType.RouteRequest)
             throw new ArgumentException($"Expected RouteRequest, got {routeRequest.Type}", nameof(routeRequest));
+
+        // Relay flood cap: a legit node discovers a route a handful of times then caches it, so
+        // anything above the cap is a flood. Drop it before it touches dedup state or is
+        // forwarded, and score the source so a persistent flooder is excommunicated.
+        if (!string.IsNullOrEmpty(routeRequest.SourceUhid)
+            && routeRequest.SourceUhid != _sender.LocalUhid
+            && !_rateLimiter.TryAcquire(routeRequest.SourceUhid))
+        {
+            _ = _reputation?.RecordRreqFloodAttemptAsync(routeRequest.SourceUhid);
+            return;
+        }
 
         var expiryTick = Environment.TickCount64 + (ProtocolConstants.DeduplicationWindowSeconds * 1_000L);
         if (!_seenRreqs.TryAdd(routeRequest.Id, expiryTick))

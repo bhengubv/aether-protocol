@@ -5,6 +5,7 @@ using AetherNet.Core.Tests.Fakes;
 using AetherNet.Models;
 using AetherNet.Protocol;
 using AetherNet.Routing;
+using AetherNet.Reputation;
 using Xunit;
 
 namespace AetherNet.Core.Tests;
@@ -48,6 +49,24 @@ public class RoutingServiceTests
     }
 
     // ─── HandleRouteRequest ──────────────────────────────────────
+
+    [Fact]
+    public async Task HandleRouteRequest_RateLimitsDistinctIdFlood_FromOneSource()
+    {
+        var sender = new FakeMeshSender(Local);
+        var reputation = new InMemoryNodeReputationService();
+        var svc = new RoutingService(sender, reputation: reputation);
+
+        // 11 distinct-Id RREQs from one source bypass the duplicate set - only the relay
+        // rate cap (default burst of 10) stops them.
+        for (int i = 0; i < 11; i++)
+            await svc.HandleRouteRequestAsync(NewRreq("flooder", "bob"));
+
+        // The 11th exceeded the per-source burst -> dropped at the relay, and the source is
+        // scored down exactly once (a persistent flooder slides toward excommunication).
+        var score = await reputation.GetReputationScoreAsync("flooder");
+        Assert.Equal(0.95, score, precision: 6); // 1.0 - 0.05 (one RreqFlood ding)
+    }
 
     [Fact]
     public async Task HandleRouteRequest_DropsDuplicateById()
