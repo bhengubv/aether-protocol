@@ -50,6 +50,16 @@ public interface INodeReputationService
     /// </summary>
     Task<double> GetReputationScoreAsync(string uhid, CancellationToken ct = default);
 
+    /// <summary>
+    /// The weight this node's gossiped REPORTS carry — earned, not granted. Returns 0 for an
+    /// unknown reporter (one we hold no first-hand record of), else their standing score. This is
+    /// what defeats sybil brigading: a swarm of fresh identities we have never interacted with
+    /// carries zero aggregate weight, so it cannot move a victim's score. Distinct from
+    /// <see cref="GetReputationScoreAsync"/>, whose 1.0 innocent-until-proven default must never
+    /// leak into gossip weight.
+    /// </summary>
+    Task<double> GetGossipWeightAsync(string uhid, CancellationToken ct = default);
+
     /// <summary>Returns a snapshot of all known reputation scores.</summary>
     Task<IReadOnlyDictionary<string, double>> GetAllScoresAsync(CancellationToken ct = default);
 

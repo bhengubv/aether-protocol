@@ -208,20 +208,26 @@ public sealed class ReputationGossipServiceTests
     }
 
     [Fact]
-    public async Task HandleGossip_UnknownReporter_AppliesFullDelta()
+    public async Task HandleGossip_UnknownReporter_CarriesZeroWeight_TargetUnchanged()
     {
+        // SYBIL DEFENSE: a reporter we hold no first-hand record of carries ZERO gossip weight, so
+        // its report cannot move the target's score. (This previously applied FULL weight — the
+        // vulnerability that let a swarm of fresh identities brigade anyone toward excommunication.)
         var (svc, _, _, reputation) = Build();
         var pkt = MakeValidGossipPacket("aether:reporter:03", "aether:target:04", -0.20);
 
-        Assert.True(await svc.HandleGossipPacketAsync(pkt, new byte[32]));
-        // target: 1.0 + (-0.20 × 1.0) = 0.80
-        Assert.Equal(0.80, await reputation.GetReputationScoreAsync("aether:target:04"), precision: 6);
+        Assert.True(await svc.HandleGossipPacketAsync(pkt, new byte[32])); // processed, but zero effect
+        Assert.Equal(1.0, await reputation.GetReputationScoreAsync("aether:target:04"), precision: 6);
     }
 
     [Fact]
     public async Task HandleGossip_FullyTrustedReporter_AppliesFullDelta()
     {
+        // A reporter we have first-hand evidence about — one successful delivery makes them KNOWN at
+        // standing 1.0 — carries full gossip weight. Earned, not granted.
         var (svc, _, _, reputation) = Build();
+        await reputation.RecordDeliverySuccessAsync("aether:reporter:03", roundTripMs: 50);
+
         var pkt = MakeValidGossipPacket("aether:reporter:03", "aether:target:04", -0.15);
 
         Assert.True(await svc.HandleGossipPacketAsync(pkt, new byte[32]));
@@ -265,10 +271,29 @@ public sealed class ReputationGossipServiceTests
     {
         var (svc, _, _, reputation) = Build();
         await reputation.RecordSignatureFailureAsync("aether:target:09"); // target at 0.80
+        await reputation.RecordDeliverySuccessAsync("aether:reporter:10", roundTripMs: 50); // reporter known, weight 1.0
         var pkt = MakeValidGossipPacket("aether:reporter:10", "aether:target:09", +0.10, "good_behavior");
 
         Assert.True(await svc.HandleGossipPacketAsync(pkt, new byte[32]));
         // 0.80 + (0.10 × 1.0) = 0.90
         Assert.Equal(0.90, await reputation.GetReputationScoreAsync("aether:target:09"), precision: 6);
+    }
+
+    [Fact]
+    public async Task HandleGossip_SybilSwarm_CannotBrigadeTarget()
+    {
+        // The headline sybil defense: 50 fresh reporters, each one we've never interacted with,
+        // each gossiping the worst possible −1.0 against a single victim. Every report is well-formed
+        // and signed — but each reporter carries zero earned weight, so the swarm's aggregate effect
+        // on the victim is exactly zero. Trust has to be earned first-hand; it can't be manufactured
+        // by spinning up identities.
+        var (svc, _, _, reputation) = Build();
+        for (var i = 0; i < 50; i++)
+        {
+            var pkt = MakeValidGossipPacket($"aether:sybil:{i:D2}", "aether:victim:99", -1.0);
+            Assert.True(await svc.HandleGossipPacketAsync(pkt, new byte[32]));
+        }
+
+        Assert.Equal(1.0, await reputation.GetReputationScoreAsync("aether:victim:99"), precision: 6);
     }
 }

@@ -152,9 +152,11 @@ public sealed class ReputationGossipService : IReputationGossipService
         // Clamp claimed delta to valid range.
         var claimedDelta = Math.Clamp(payload.ScoreDelta, -1.0, 1.0);
 
-        // 4. Fetch reporter's local reputation R and weight the delta.
+        // 4. Fetch the reporter's EARNED gossip weight R (0 for unknowns) and weight the delta.
+        //    Earned weight — not raw standing — is what stops a sybil swarm: fresh identities we
+        //    hold no first-hand record of carry zero weight, so they can't brigade the target.
         var reporterReputation = await _reputation
-            .GetReputationScoreAsync(payload.ReporterUhid, ct)
+            .GetGossipWeightAsync(payload.ReporterUhid, ct)
             .ConfigureAwait(false);
 
         var effectiveDelta = claimedDelta * reporterReputation;

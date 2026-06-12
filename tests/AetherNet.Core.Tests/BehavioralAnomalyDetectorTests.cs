@@ -259,6 +259,9 @@ public class BehavioralAnomalyDetectorTests
         public Task<double> GetReputationScoreAsync(string uhid, CancellationToken ct = default)
             => Task.FromResult(1.0);
 
+        public Task<double> GetGossipWeightAsync(string uhid, CancellationToken ct = default)
+            => Task.FromResult(1.0);
+
         public Task<IReadOnlyDictionary<string, double>> GetAllScoresAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyDictionary<string, double>>(new Dictionary<string, double>());
 

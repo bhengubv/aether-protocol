@@ -79,6 +79,16 @@ public sealed class InMemoryNodeReputationService : INodeReputationService
     }
 
     /// <inheritdoc />
+    public Task<double> GetGossipWeightAsync(string uhid, CancellationToken ct = default)
+    {
+        // Earned, not granted: an unknown reporter (no first-hand record) carries ZERO weight, so
+        // a swarm of fresh sybils can't brigade a target's score. A reporter we DO hold evidence
+        // about is weighted by their standing. The 1.0 standing default deliberately does NOT apply.
+        var weight = _scores.TryGetValue(uhid, out var s) ? s : 0.0;
+        return Task.FromResult(weight);
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyDictionary<string, double>> GetAllScoresAsync(CancellationToken ct = default)
     {
         // Snapshot: copy under no lock (ConcurrentDictionary enumeration is safe).
