@@ -29,6 +29,13 @@ public class DirectoryServiceTests
         };
     }
 
+    // Mirrors DirectoryService.HashName — pins the salted-hash value so the 7 language ports must
+    // reproduce it exactly (cross-language parity), and proves the plaintext name never hits the wire.
+    private const string NameHashSalt = "aether-dir-name-v1:";
+    private static string ExpectedHash(string name)
+        => System.Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+               System.Text.Encoding.UTF8.GetBytes(NameHashSalt + name))).ToLowerInvariant();
+
     // ─── PublishAsync ────────────────────────────────────────────────────
 
     [Fact]
@@ -98,7 +105,9 @@ public class DirectoryServiceTests
 
         // Event fired.
         Assert.NotNull(captured);
-        Assert.Equal("reel:hello", captured!.Name);
+        // PRIVACY: the event carries only the salted hash; the plaintext name is not on the wire.
+        Assert.Equal(ExpectedHash("reel:hello"), captured!.NameHash);
+        Assert.DoesNotContain("reel:hello", System.Text.Encoding.UTF8.GetString(broadcast.Payload));
         Assert.Equal("peer-publisher", captured.SourceUhid);
         Assert.Equal("from-peer", captured.Descriptor.RootHash);
     }
@@ -118,7 +127,7 @@ public class DirectoryServiceTests
         // Build a NameQuery as if from `asker`.
         var queryId = Guid.NewGuid();
         var queryPayload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
-            new NameQueryPayload { Name = "album:test", QueryId = queryId },
+            new NameQueryPayload { NameHash = ExpectedHash("album:test"), QueryId = queryId },
             new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower });
         var queryPacket = new MeshPacket
         {
@@ -139,7 +148,7 @@ public class DirectoryServiceTests
             responsePacket.Payload,
             new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower });
         Assert.NotNull(responseBody);
-        Assert.Equal("album:test", responseBody!.Name);
+        Assert.Equal(ExpectedHash("album:test"), responseBody!.NameHash);
         Assert.Equal("album-root", responseBody.Descriptor.RootHash);
         Assert.Equal(queryId, responseBody.InResponseToQueryId);
     }
@@ -152,7 +161,7 @@ public class DirectoryServiceTests
         var dir = new DirectoryService(sender);
 
         var queryPayload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
-            new NameQueryPayload { Name = "nothing-here", QueryId = Guid.NewGuid() },
+            new NameQueryPayload { NameHash = ExpectedHash("nothing-here"), QueryId = Guid.NewGuid() },
             new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower });
         var queryPacket = new MeshPacket
         {
@@ -208,7 +217,7 @@ public class DirectoryServiceTests
         var responsePayload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
             new NamePublishPayload
             {
-                Name = "podcast:remote",
+                NameHash = ExpectedHash("podcast:remote"),
                 Descriptor = descriptor,
                 InResponseToQueryId = query!.QueryId,
             },

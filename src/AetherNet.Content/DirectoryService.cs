@@ -29,12 +29,21 @@ public sealed class DirectoryService : IDirectoryService
     /// <summary>Default timeout for <see cref="ResolveAsync"/> when no value is supplied.</summary>
     public static readonly TimeSpan DefaultQueryTimeout = TimeSpan.FromSeconds(5);
 
+    // PRIVACY: domain-separation prefix for the name hash that travels on the wire. The plaintext
+    // name never leaves a node; peers match on this salted hash (private DNS-style resolution).
+    private const string NameHashSalt = "aether-dir-name-v1:";
+
     private readonly IMeshSender _sender;
     private readonly ILogger<DirectoryService> _logger;
 
-    // Local catalogue: name → descriptor. StringComparer.Ordinal because names are
-    // application-defined opaque identifiers, not case-insensitive labels.
+    // Local catalogue: PLAINTEXT name → descriptor. Stays local to this node (never serialized);
+    // backs ListNamesAsync. StringComparer.Ordinal — names are opaque, case-sensitive identifiers.
     private readonly ConcurrentDictionary<string, ContentDescriptor> _catalogue =
+        new(StringComparer.Ordinal);
+
+    // Wire index: salted name-hash → descriptor. The wire only ever carries the hash, so a holder
+    // can answer a hashed query without any plaintext name leaving (or entering) a node.
+    private readonly ConcurrentDictionary<string, ContentDescriptor> _catalogueByHash =
         new(StringComparer.Ordinal);
 
     // Outstanding queries keyed by QueryId. Completed when a matching NamePublish arrives,
@@ -56,10 +65,12 @@ public sealed class DirectoryService : IDirectoryService
         ArgumentNullException.ThrowIfNull(descriptor);
 
         _catalogue[name] = descriptor;
+        var nameHash = HashName(name);
+        _catalogueByHash[nameHash] = descriptor;
 
         var payload = JsonSerializer.SerializeToUtf8Bytes(new NamePublishPayload
         {
-            Name = name,
+            NameHash = nameHash,
             Descriptor = descriptor,
             InResponseToQueryId = null,
         }, JsonOptions);
@@ -86,9 +97,17 @@ public sealed class DirectoryService : IDirectoryService
             return cached;
         }
 
+        // A name learned from an inbound (hashed) announce lives in the hash index only — check it
+        // too before going to the network. We know the plaintext here, so we can hash it and match.
+        var nameHash = HashName(name);
+        if (_catalogueByHash.TryGetValue(nameHash, out var cachedByHash))
+        {
+            return cachedByHash;
+        }
+
         var query = new NameQueryPayload
         {
-            Name = name,
+            NameHash = nameHash,
             QueryId = Guid.NewGuid(),
         };
         var tcs = new TaskCompletionSource<ContentDescriptor?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -111,7 +130,14 @@ public sealed class DirectoryService : IDirectoryService
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             await using var registration = linkedCts.Token.Register(() => tcs.TrySetResult(null)).ConfigureAwait(false);
 
-            return await tcs.Task.ConfigureAwait(false);
+            var resolved = await tcs.Task.ConfigureAwait(false);
+            if (resolved is not null)
+            {
+                // We know this plaintext name (we asked for it) → cache locally by both keys.
+                _catalogue[name] = resolved;
+                _catalogueByHash[query.NameHash] = resolved;
+            }
+            return resolved;
         }
         finally
         {
@@ -155,12 +181,14 @@ public sealed class DirectoryService : IDirectoryService
             _logger.LogWarning(ex, "Directory: failed to deserialize NamePublish payload from packet {Id}", packet.Id);
             return;
         }
-        if (payload is null || string.IsNullOrEmpty(payload.Name) || payload.Descriptor is null)
+        if (payload is null || string.IsNullOrEmpty(payload.NameHash) || payload.Descriptor is null)
         {
             return;
         }
 
-        _catalogue[payload.Name] = payload.Descriptor;
+        // Cache by hash — for an unsolicited announce we only ever learn the hash, never the
+        // plaintext name. (ResolveAsync caches the plaintext locally for names this node asked for.)
+        _catalogueByHash[payload.NameHash] = payload.Descriptor;
 
         // Query-response correlation.
         if (payload.InResponseToQueryId is { } queryId
@@ -171,7 +199,7 @@ public sealed class DirectoryService : IDirectoryService
 
         EntryAnnounced?.Invoke(this, new DirectoryEntryAnnouncedEventArgs
         {
-            Name = payload.Name,
+            NameHash = payload.NameHash,
             Descriptor = payload.Descriptor,
             SourceUhid = packet.SourceUhid,
             AnnouncedAtUtc = DateTime.UtcNow,
@@ -190,12 +218,12 @@ public sealed class DirectoryService : IDirectoryService
             _logger.LogWarning(ex, "Directory: failed to deserialize NameQuery payload from packet {Id}", packet.Id);
             return;
         }
-        if (query is null || string.IsNullOrEmpty(query.Name))
+        if (query is null || string.IsNullOrEmpty(query.NameHash))
         {
             return;
         }
 
-        if (!_catalogue.TryGetValue(query.Name, out var descriptor))
+        if (!_catalogueByHash.TryGetValue(query.NameHash, out var descriptor))
         {
             // We don't hold this name — silently ignore. Other peers may answer.
             return;
@@ -203,7 +231,7 @@ public sealed class DirectoryService : IDirectoryService
 
         var responsePayload = JsonSerializer.SerializeToUtf8Bytes(new NamePublishPayload
         {
-            Name = query.Name,
+            NameHash = query.NameHash,
             Descriptor = descriptor,
             InResponseToQueryId = query.QueryId,
         }, JsonOptions);
@@ -218,6 +246,14 @@ public sealed class DirectoryService : IDirectoryService
         };
 
         await _sender.SendAsync(response, packet.SourceUhid, cancellationToken).ConfigureAwait(false);
-        _logger.LogDebug("Directory: answered query for {Name} from {Asker}", query.Name, packet.SourceUhid);
+        _logger.LogDebug("Directory: answered query for {NameHash} from {Asker}", query.NameHash, packet.SourceUhid);
     }
+
+    // Salted hash of an application name for the wire. Names are case-sensitive opaque identifiers
+    // (StringComparer.Ordinal), so the exact UTF-8 bytes are hashed — no normalisation.
+    private static string HashName(string name)
+        => Convert.ToHexString(
+               System.Security.Cryptography.SHA256.HashData(
+                   System.Text.Encoding.UTF8.GetBytes(NameHashSalt + name)))
+           .ToLowerInvariant();
 }

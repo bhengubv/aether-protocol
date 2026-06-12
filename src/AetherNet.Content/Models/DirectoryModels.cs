@@ -18,8 +18,14 @@ namespace AetherNet.Content.Models;
 /// </summary>
 public sealed class NamePublishPayload
 {
-    /// <summary>The application-layer name being announced.</summary>
-    public string Name { get; set; } = string.Empty;
+    /// <summary>
+    /// PRIVACY: the SALTED HASH of the application-layer name being announced — never the plaintext.
+    /// The directory is a private, DNS-style resolver: only a node that already knows the exact name
+    /// (and hashes it identically) can match this, so an eavesdropper cannot harvest what names exist.
+    /// NOTE: a fixed-salt hash stops passive harvesting; a determined attacker can still dictionary-guess
+    /// low-entropy names. Airtight privacy for guessable names would need PIR — out of scope here.
+    /// </summary>
+    public string NameHash { get; set; } = string.Empty;
 
     /// <summary>The full descriptor that the name resolves to.</summary>
     public ContentDescriptor Descriptor { get; set; } = new();
@@ -37,8 +43,9 @@ public sealed class NamePublishPayload
 /// </summary>
 public sealed class NameQueryPayload
 {
-    /// <summary>The application-layer name being queried.</summary>
-    public string Name { get; set; } = string.Empty;
+    /// <summary>PRIVACY: the SALTED HASH of the name being queried — never the plaintext.
+    /// See <see cref="NamePublishPayload.NameHash"/>.</summary>
+    public string NameHash { get; set; } = string.Empty;
 
     /// <summary>Correlation id. Echoed by responders in <see cref="NamePublishPayload.InResponseToQueryId"/>
     /// so the querier can match responses to outstanding queries.</summary>
@@ -50,8 +57,9 @@ public sealed class NameQueryPayload
 /// learns a new (or replaced) name → descriptor binding.</summary>
 public sealed class DirectoryEntryAnnouncedEventArgs : EventArgs
 {
-    /// <summary>The newly-learned application-layer name.</summary>
-    public string Name { get; init; } = string.Empty;
+    /// <summary>The salted hash of the newly-learned name. The wire never carries the plaintext;
+    /// this node knows the plaintext only for names it published or queried itself.</summary>
+    public string NameHash { get; init; } = string.Empty;
 
     /// <summary>The descriptor the name resolves to.</summary>
     public ContentDescriptor Descriptor { get; init; } = new();
