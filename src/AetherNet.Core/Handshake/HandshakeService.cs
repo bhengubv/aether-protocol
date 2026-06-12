@@ -48,6 +48,15 @@ public sealed class HandshakeService : IHandshakeService
         "stream",
     };
 
+    /// <summary>
+    /// Capability tag for rotating-ID (ERID) routing. Deliberately NOT in
+    /// <see cref="DefaultCapabilities"/> yet: a node advertises it only once the ERID exchange and
+    /// routing are fully wired, so two peers negotiate ERID addressing strictly when both can honour
+    /// it. Until a node opts in, the stable UHID stays on the wire — the migration is backward
+    /// compatible by construction (an un-upgraded peer simply never sees the tag).
+    /// </summary>
+    public const string CapabilityEridRouting = "erid-routing";
+
     /// <summary>Default implementation banner emitted in our Hello/HelloAck.</summary>
     public const string DefaultImplementation = "aether/2";
 
