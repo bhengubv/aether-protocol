@@ -3,6 +3,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using AetherNet.Diagnostics;
+using AetherNet.Identity;
 using AetherNet.Security.Models;
 using Microsoft.Extensions.Logging;
 
@@ -1230,6 +1231,10 @@ public sealed class SignalProtocolService : ISignalProtocolService
     {
         return Ed25519SigningService.Verify(publicKey, data, signature);
     }
+
+    /// <inheritdoc />
+    public byte[] DeriveEridRoutingKey()
+        => EphemeralRoutingId.DeriveRoutingKey(_ed25519PrivateKey);
 
     /// <summary>Ed25519 public key for this node.</summary>
     public byte[] GetPublicKey() => (byte[])_ed25519PublicKey.Clone();

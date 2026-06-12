@@ -48,6 +48,15 @@ public interface ISignalProtocolService
     /// Verifies an Ed25519 signature against a public key.
     /// </summary>
     bool VerifySignature(byte[] publicKey, byte[] data, byte[] signature);
+
+    /// <summary>
+    /// Derives this node's SECRET ERID routing key from the local identity secret (Ed25519
+    /// private key), domain-separated via HKDF. The identity secret never leaves the service —
+    /// only this purpose-isolated key, which the ERID layer uses to compute the node's rotating
+    /// wire address (<see cref="AetherNet.Identity.EphemeralRoutingId"/> / <c>EridDirectory</c>).
+    /// Stable for the life of the install, so a node's rotation schedule survives restarts.
+    /// </summary>
+    byte[] DeriveEridRoutingKey();
 }
 
 /// <summary>
