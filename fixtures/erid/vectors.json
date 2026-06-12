@@ -1,0 +1,36 @@
+{
+  "note": "Canonical ERID parity vectors from the C# reference. Every language port MUST reproduce these byte-for-byte.",
+  "secret_ascii": "aethernet-erid-parity-v1",
+  "routing_key_hex": "8f3aa76cdbe9a2b47c5813504023a77bda134c31aa096b51392fb29cdd57ddca",
+  "epoch_seconds": 900,
+  "erid_length": 16,
+  "erids_by_epoch": [
+    {
+      "epoch": 0,
+      "erid": "3B38HPPFG9JXE37Q"
+    },
+    {
+      "epoch": 1,
+      "erid": "0Z5BD0HB1Q7W76MY"
+    },
+    {
+      "epoch": 100,
+      "erid": "SJZ1VWA7SK1XR2XV"
+    },
+    {
+      "epoch": 1371,
+      "erid": "50ZJFR0TF1JVNT64"
+    }
+  ],
+  "derive_by_unixseconds": [
+    {
+      "unix": 1000,
+      "erid": "0Z5BD0HB1Q7W76MY"
+    },
+    {
+      "unix": 2000,
+      "erid": "8GX2DTFDKAGTQ96Z"
+    }
+  ],
+  "announcement_encode_hex": "41455244010000038400000010000000208f3aa76cdbe9a2b47c5813504023a77bda134c31aa096b51392fb29cdd57ddca"
+}
