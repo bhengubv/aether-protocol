@@ -292,7 +292,7 @@ public class HealthCheckTests
             => Task.FromResult<RouteEntry?>(null);
         public RouteEntry? GetCachedRoute(string destinationUhid) => null;
         public IReadOnlyList<RouteEntry> GetAllRoutes() => _routes;
-        public Task HandleRouteRequestAsync(AetherNet.Protocol.MeshPacket routeRequest, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task HandleRouteRequestAsync(AetherNet.Protocol.MeshPacket routeRequest, string? linkLayerSenderUhid = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task HandleRouteReplyAsync(AetherNet.Protocol.MeshPacket routeReply, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task PruneAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }

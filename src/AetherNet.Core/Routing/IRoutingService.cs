@@ -32,7 +32,7 @@ public interface IRoutingService
     IReadOnlyList<RouteEntry> GetAllRoutes();
 
     /// <summary>Process an incoming RREQ. Installs a reverse route, replies if we are the destination, otherwise forwards.</summary>
-    Task HandleRouteRequestAsync(MeshPacket routeRequest, CancellationToken cancellationToken = default);
+    Task HandleRouteRequestAsync(MeshPacket routeRequest, string? linkLayerSenderUhid = null, CancellationToken cancellationToken = default);
 
     /// <summary>Process an incoming RREP. Installs the forward route, completes any pending FindRouteAsync, otherwise forwards.</summary>
     Task HandleRouteReplyAsync(MeshPacket routeReply, CancellationToken cancellationToken = default);

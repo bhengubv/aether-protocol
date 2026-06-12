@@ -51,21 +51,22 @@ public class RoutingServiceTests
     // ─── HandleRouteRequest ──────────────────────────────────────
 
     [Fact]
-    public async Task HandleRouteRequest_RateLimitsDistinctIdFlood_FromOneSource()
+    public async Task HandleRouteRequest_FloodCap_ScoresTheNeighbour_NotTheSpoofedSource()
     {
         var sender = new FakeMeshSender(Local);
         var reputation = new InMemoryNodeReputationService();
         var svc = new RoutingService(sender, reputation: reputation);
 
-        // 11 distinct-Id RREQs from one source bypass the duplicate set - only the relay
-        // rate cap (default burst of 10) stops them.
+        // A malicious neighbour "flooder" relays 11 distinct-Id RREQs, each FORGING the source to
+        // a victim's UHID to try to frame them. Distinct Ids slip past the duplicate set, so only
+        // the relay rate cap (default burst of 10) stops the flood.
         for (int i = 0; i < 11; i++)
-            await svc.HandleRouteRequestAsync(NewRreq("flooder", "bob"));
+            await svc.HandleRouteRequestAsync(NewRreq("victim", "bob"), linkLayerSenderUhid: "flooder");
 
-        // The 11th exceeded the per-source burst -> dropped at the relay, and the source is
-        // scored down exactly once (a persistent flooder slides toward excommunication).
-        var score = await reputation.GetReputationScoreAsync("flooder");
-        Assert.Equal(0.95, score, precision: 6); // 1.0 - 0.05 (one RreqFlood ding)
+        // The neighbour we actually received the bytes from is scored down (toward corroborated
+        // excommunication); the spoofed victim is untouched — the cap can't be a framing weapon.
+        Assert.Equal(0.95, await reputation.GetReputationScoreAsync("flooder"), precision: 6); // 1.0 - 0.05
+        Assert.Equal(1.0,  await reputation.GetReputationScoreAsync("victim"),  precision: 6); // never dinged
     }
 
     [Fact]

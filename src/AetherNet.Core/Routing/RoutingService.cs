@@ -125,20 +125,30 @@ public sealed class RoutingService : IRoutingService
     public IReadOnlyList<RouteEntry> GetAllRoutes()
         => _routeCache.Values.Where(r => !r.IsExpired).ToArray();
 
-    public async Task HandleRouteRequestAsync(MeshPacket routeRequest, CancellationToken cancellationToken = default)
+    public async Task HandleRouteRequestAsync(MeshPacket routeRequest, string? linkLayerSenderUhid = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(routeRequest);
         if (routeRequest.Type != PacketType.RouteRequest)
             throw new ArgumentException($"Expected RouteRequest, got {routeRequest.Type}", nameof(routeRequest));
 
+        // Hold the LINK-LAYER neighbour accountable — the peer that actually relayed these bytes
+        // to us (linkLayerSenderUhid) — NEVER the packet's self-declared SourceUhid, which any
+        // node can forge to a victim's identity to drain its budget or frame it toward
+        // excommunication. Fall back to SourceUhid only when no host supplies the neighbour
+        // (e.g. a direct unit test); a real host passes the authenticated transport peer.
+        var accountableUhid = string.IsNullOrEmpty(linkLayerSenderUhid)
+            ? routeRequest.SourceUhid
+            : linkLayerSenderUhid;
+
         // Relay flood cap: a legit node discovers a route a handful of times then caches it, so
         // anything above the cap is a flood. Drop it before it touches dedup state or is
-        // forwarded, and score the source so a persistent flooder is excommunicated.
-        if (!string.IsNullOrEmpty(routeRequest.SourceUhid)
-            && routeRequest.SourceUhid != _sender.LocalUhid
-            && !_rateLimiter.TryAcquire(routeRequest.SourceUhid))
+        // forwarded, and score the neighbour so a persistent flooder is (once corroborated)
+        // excommunicated network-wide.
+        if (!string.IsNullOrEmpty(accountableUhid)
+            && accountableUhid != _sender.LocalUhid
+            && !_rateLimiter.TryAcquire(accountableUhid))
         {
-            _ = _reputation?.RecordRreqFloodAttemptAsync(routeRequest.SourceUhid);
+            _ = _reputation?.RecordRreqFloodAttemptAsync(accountableUhid);
             return;
         }
 
@@ -152,7 +162,7 @@ public sealed class RoutingService : IRoutingService
             if (_seenRreqs.TryGetValue(routeRequest.Id, out var storedExpiry)
                 && Environment.TickCount64 < storedExpiry)
             {
-                _ = _reputation?.RecordRreqFloodAttemptAsync(routeRequest.SourceUhid);
+                _ = _reputation?.RecordRreqFloodAttemptAsync(accountableUhid);
                 return;
             }
             // Expired — overwrite with fresh expiry and fall through to process.
