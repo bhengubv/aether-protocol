@@ -174,6 +174,14 @@ public enum PacketType : byte
     /// Allows new sessions to start with a non-zero bandwidth estimate.
     /// </summary>
     BandwidthGossip = 55,
+
+    /// <summary>Encrypted ERID announcement - the rotating-address handshake control packet.
+    /// Carried inside the established Signal session: the payload is an EncryptedPayload whose
+    /// plaintext is an <c>EridAnnouncementCodec</c> frame sharing the sender's routingKey. A
+    /// receiver decrypts it and records the peer in its <c>EridDirectory</c>; an un-upgraded node
+    /// drops the unknown type. Sent only between peers that negotiated the <c>erid-routing</c>
+    /// capability, so the migration is backward compatible.</summary>
+    EridAnnounce = 56,
 }
 
 /// <summary>
