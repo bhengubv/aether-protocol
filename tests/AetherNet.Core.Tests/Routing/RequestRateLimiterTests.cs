@@ -91,6 +91,24 @@ public class RequestRateLimiterTests
     }
 
     [Fact]
+    public void SingleFlooder_PastItsCap_DoesNotDrainAggregate()
+    {
+        // capacity 3 per source, aggregate 10 (refill frozen). One flooder sends 20: only its own
+        // 3-burst should touch the aggregate; the other 17 are per-source-rejected WITHOUT spending
+        // an aggregate token. A fresh source must then still get its full burst — proving one node
+        // can't drain the shared ceiling on requests it would be per-source-rejected for anyway.
+        var rl = Build(new Clock(), capacity: 3, aggregateCapacity: 10, aggregateRefillPerSec: 0.0001);
+
+        var flooderAllowed = 0;
+        for (var i = 0; i < 20; i++) if (rl.TryAcquire("flooder")) flooderAllowed++;
+        Assert.Equal(3, flooderAllowed); // only its own per-source burst reached the aggregate
+
+        var victimAllowed = 0;
+        for (var i = 0; i < 3; i++) if (rl.TryAcquire("victim")) victimAllowed++;
+        Assert.Equal(3, victimAllowed); // aggregate still had 7 left — a fresh source is unaffected
+    }
+
+    [Fact]
     public void Ctor_RejectsNonPositiveCapacity()
         => Assert.Throws<ArgumentOutOfRangeException>(() => new RequestRateLimiter(capacity: 0));
 

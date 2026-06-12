@@ -17,9 +17,10 @@ namespace AetherNet.Routing;
 ///     <c>refillPerSec</c>). A short burst is allowed so a legit app-launch resolving several
 ///     names at once doesn't trip.</item>
 ///   <item><b>aggregate</b> — a sybil swarm, each node under its own per-source cap, still can't
-///     collectively exceed the relay's ceiling. Checked FIRST, so a saturated relay drops a
-///     request before it ever allocates a per-source bucket — the limiter can't be turned into a
-///     memory-exhaustion vector itself.</item>
+///     collectively exceed the relay's ceiling. A known source is checked against its own bucket
+///     first (so one flooder past its cap can't drain the shared ceiling on requests that would be
+///     rejected anyway); a never-seen source is gated by the aggregate before any bucket is
+///     allocated, so the limiter can't be turned into a memory-exhaustion vector itself.</item>
 /// </list>
 ///
 /// <para>Idle per-source buckets (refilled back to full) are pruned once the map grows large,
@@ -81,8 +82,23 @@ public sealed class RequestRateLimiter
         var key = sourceUhid ?? string.Empty;
         var now = _nowMs();
 
-        // Aggregate FIRST: a saturated relay drops here, before any per-source bucket is created,
-        // so a sybil swarm can't flood the limiter's own map into a memory-exhaustion vector.
+        // 1. KNOWN source → check its per-source bucket FIRST and reject an over-cap flooder here,
+        //    WITHOUT spending an aggregate token. Otherwise a single flooder, already past its own
+        //    cap, would keep draining the shared aggregate on requests that get per-source-rejected
+        //    anyway — starving every other source. (Read-only peek; the authoritative consume is §3.)
+        if (_perSource.TryGetValue(key, out var existing))
+        {
+            lock (existing)
+            {
+                Refill(existing, now, _capacity, _refillPerSec);
+                if (existing.Tokens < 1.0) return false;
+            }
+        }
+
+        // 2. Aggregate gate — checked before a NEW bucket is allocated, so a saturated relay drops
+        //    a never-seen source without growing the map: the limiter can't be a memory-exhaustion
+        //    vector itself. A known source has already passed §1, so it only reaches here within its
+        //    own cap, bounding how much of the aggregate any one source can consume.
         lock (_aggregate)
         {
             Refill(_aggregate, now, _aggregateCapacity, _aggregateRefillPerSec);
@@ -90,6 +106,7 @@ public sealed class RequestRateLimiter
             _aggregate.Tokens -= 1.0;
         }
 
+        // 3. Consume the per-source token (creating the bucket on first sighting).
         var bucket = _perSource.GetOrAdd(key, _ => new Bucket { Tokens = _capacity, LastMs = now });
         bool allowed;
         lock (bucket)
