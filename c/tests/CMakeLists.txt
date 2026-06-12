@@ -169,6 +169,15 @@ target_include_directories(test-uri PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../inclu
 target_link_libraries(test-uri PRIVATE aethernet-protocol pthread)
 add_test(NAME UriTests COMMAND test-uri)
 
+add_executable(test-erid
+    test_erid.c
+)
+target_include_directories(test-erid PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-erid PRIVATE aethernet-protocol pthread)
+# Run from the repo root so find_repo_root() locates AetherNetProtocol.slnx + fixtures/.
+add_test(NAME EridFixtureTests COMMAND test-erid
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 add_executable(test-chunk-bitmap
     test_chunk_bitmap.c
 )
@@ -228,6 +237,7 @@ add_custom_target(aether-tests
         test-gossip
         test-aether-tag
         test-uri
+        test-erid
         test-chunk-bitmap
         test-directory-service
         test-bandwidth

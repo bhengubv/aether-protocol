@@ -67,6 +67,7 @@ add_library(aethernet-protocol STATIC
     src/aethernet_anomaly.c
     src/aethernet_gossip.c
     src/aethernet_tag.c
+    src/erid.c
     src/aethernet_uri.c
     src/aethernet_bandwidth.c
     src/chunk_bitmap.c
