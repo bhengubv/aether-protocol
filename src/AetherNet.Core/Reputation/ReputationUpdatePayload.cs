@@ -37,10 +37,8 @@ public sealed class ReputationUpdatePayload
     /// <summary>Unix timestamp in milliseconds when the observation was made.</summary>
     public long TimestampMs { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-    /// <summary>
-    /// Human-readable reason code for auditing and debugging.
-    /// Examples: "sig_failure", "replay_attack", "rreq_flood", "delivery_failure".
-    /// Not used in scoring logic.
-    /// </summary>
-    public string Reason { get; set; } = string.Empty;
+    // PRIVACY: the free-text "reason" is intentionally NOT a wire field. Broadcasting WHY a
+    // specific named target is being scored, to every peer in range, leaks behavioural
+    // intelligence about named nodes (and a string field could carry worse). The reason is
+    // never used in scoring — only the reporting node logs it locally (ReputationGossipService).
 }

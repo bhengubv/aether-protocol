@@ -61,7 +61,7 @@ public sealed class ReputationGossipService : IReputationGossipService
             TargetUhid   = targetUhid,
             ScoreDelta   = clampedDelta,
             TimestampMs  = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            Reason       = reason ?? string.Empty,
+            // PRIVACY: reason is logged locally by the reporter only — never put on the wire.
         };
 
         var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions);
@@ -166,9 +166,9 @@ public sealed class ReputationGossipService : IReputationGossipService
 
         _logger.LogDebug(
             "Reputation gossip applied: reporter={Reporter}(R={R:F2}) target={Target} " +
-            "claimed={Claimed:+0.00;-0.00} effective={Effective:+0.00;-0.00} reason={Reason}",
+            "claimed={Claimed:+0.00;-0.00} effective={Effective:+0.00;-0.00}",
             payload.ReporterUhid, reporterReputation, payload.TargetUhid,
-            claimedDelta, effectiveDelta, payload.Reason);
+            claimedDelta, effectiveDelta);
 
         return true;
     }

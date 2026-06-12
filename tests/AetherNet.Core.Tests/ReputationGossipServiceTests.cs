@@ -70,8 +70,9 @@ public sealed class ReputationGossipServiceTests
             TargetUhid   = targetUhid,
             ScoreDelta   = delta,
             TimestampMs  = timestampMsOverride ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            Reason       = reason,
+            // reason is intentionally NOT a wire field (privacy) — the param is kept for callers.
         };
+        _ = reason;
         return new MeshPacket
         {
             Type            = PacketType.ReputationUpdate,
@@ -121,7 +122,10 @@ public sealed class ReputationGossipServiceTests
         Assert.Equal("aether:local:01", payload.ReporterUhid);
         Assert.Equal("aether:target:02", payload.TargetUhid);
         Assert.Equal(-0.15, payload.ScoreDelta, precision: 6);
-        Assert.Equal("replay_attack", payload.Reason);
+
+        // PRIVACY: the free-text reason passed to the broadcast must NEVER appear on the wire.
+        var wire = System.Text.Encoding.UTF8.GetString(sender.Broadcasts[0].Payload);
+        Assert.DoesNotContain("replay_attack", wire);
     }
 
     [Fact]
