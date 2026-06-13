@@ -147,7 +147,7 @@ public class MessagingSoakTests : SoakTestBase
 
         public IReadOnlyList<RouteEntry> GetAllRoutes() => _routes.Values.ToArray();
 
-        public Task HandleRouteRequestAsync(MeshPacket routeRequest, CancellationToken cancellationToken = default)
+        public Task HandleRouteRequestAsync(MeshPacket routeRequest, string? linkLayerSenderUhid = null, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
         public Task HandleRouteReplyAsync(MeshPacket routeReply, CancellationToken cancellationToken = default)
