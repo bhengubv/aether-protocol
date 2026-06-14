@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.ApiClients;
 using AetherNet.Content;
 using AetherNet.Dtn;
 using AetherNet.Forge;
@@ -17,6 +18,9 @@ using AetherNet.Routing;
 using AetherNet.Security.Services;
 using AetherNet.Sos;
 using AetherNet.Streaming;
+using AetherNet.Tipping;
+using AetherNet.Tipping.ApiClients;
+using AetherNet.Tipping.Incentives;
 using AetherNet.Transport.Services;
 using AetherNet.Voice;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,6 +51,7 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _anomalyDetectorAdded;
     private bool _gossipAdded;
     private bool _meshTipAdded;
+    private bool _tippingAdded;
     private bool _streamingAdded;
     private bool _watchTogetherAdded;
     private bool _videoCallAdded;
@@ -398,6 +403,96 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
         return this;
     }
 
+    public IAetherNetProtocolBuilder AddTipping()
+    {
+        if (_tippingAdded) return this;
+        _tippingAdded = true;
+
+        // Default in-memory stores unless the host registered durable ones first.
+        Services.TryAddSingleton<IAetherTipStore, InMemoryAetherTipStore>();
+        Services.TryAddSingleton<IAetherRewardStore, InMemoryAetherRewardStore>();
+
+        // Typed backend bridge (server sync when internet available). The host wires the
+        // "AetherApi" named HttpClient with the backend base address + TLS.
+        Services.TryAddSingleton<IAetherApiClient>(sp =>
+        {
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var logger = sp.GetService<ILogger<AetherApiClient>>()
+                ?? NullLogger<AetherApiClient>.Instance;
+            return new AetherApiClient(httpClientFactory, logger);
+        });
+
+        // Incentives — XP reward queue + batch sync.
+        Services.TryAddSingleton<IAetherRewardService>(sp =>
+        {
+            var store = sp.GetRequiredService<IAetherRewardStore>();
+            var apiClient = sp.GetRequiredService<IAetherApiClient>();
+            var logger = sp.GetService<ILogger<AetherRewardService>>()
+                ?? NullLogger<AetherRewardService>.Instance;
+            return new AetherRewardService(store, apiClient, logger);
+        });
+
+        // On-device tipping client. Fully qualified — AetherNet.Tipping.Services is NOT
+        // `using`-imported here to avoid colliding with AetherNet.Reputation's
+        // INodeReputationService used elsewhere in this builder.
+        Services.TryAddSingleton<AetherNet.Tipping.Services.ITippingService>(sp =>
+        {
+            var store = sp.GetRequiredService<IAetherTipStore>();
+            var localNode = sp.GetRequiredService<ILocalNodeProvider>();
+            var apiClient = sp.GetRequiredService<IAetherApiClient>();
+            var rewards = sp.GetRequiredService<IAetherRewardService>();
+            var logger = sp.GetService<ILogger<AetherNet.Tipping.Services.TippingService>>()
+                ?? NullLogger<AetherNet.Tipping.Services.TippingService>.Instance;
+            return new AetherNet.Tipping.Services.TippingService(store, localNode, apiClient, rewards, logger);
+        });
+
+        // Node-operator registration + reputation. Distinct from the routing-trust
+        // AetherNet.Reputation.INodeReputationService registered by AddReputation.
+        Services.TryAddSingleton<AetherNet.Tipping.Services.INodeReputationService>(sp =>
+        {
+            var store = sp.GetRequiredService<IAetherTipStore>();
+            var localNode = sp.GetRequiredService<ILocalNodeProvider>();
+            var apiClient = sp.GetRequiredService<IAetherApiClient>();
+            var logger = sp.GetService<ILogger<AetherNet.Tipping.Services.NodeReputationService>>()
+                ?? NullLogger<AetherNet.Tipping.Services.NodeReputationService>.Instance;
+            return new AetherNet.Tipping.Services.NodeReputationService(store, localNode, apiClient, logger);
+        });
+
+        // Tipper QoS preference tiers.
+        Services.TryAddSingleton<AetherNet.Tipping.Services.ITipperQoSService>(sp =>
+        {
+            var store = sp.GetRequiredService<IAetherTipStore>();
+            var localNode = sp.GetRequiredService<ILocalNodeProvider>();
+            var logger = sp.GetService<ILogger<AetherNet.Tipping.Services.TipperQoSService>>()
+                ?? NullLogger<AetherNet.Tipping.Services.TipperQoSService>.Instance;
+            return new AetherNet.Tipping.Services.TipperQoSService(store, localNode, logger);
+        });
+
+        // Auto-tip-after-relay + gateway TipPacket settlement helper.
+        Services.TryAddSingleton(sp =>
+        {
+            var tipping = sp.GetRequiredService<AetherNet.Tipping.Services.ITippingService>();
+            var apiClient = sp.GetRequiredService<IAetherApiClient>();
+            var logger = sp.GetService<ILogger<AetherNet.Tipping.Services.TipEventHandler>>()
+                ?? NullLogger<AetherNet.Tipping.Services.TipEventHandler>.Instance;
+            return new AetherNet.Tipping.Services.TipEventHandler(tipping, apiClient, logger);
+        });
+
+        // Plug the SDPKT settlement into the protocol-level mesh-tip hook. The generic
+        // MeshTipService (AddMeshTip) calls IAetherNetIncentiveProvider.SettleMeshTipAsync
+        // on an inbound TipPacket; this provider forwards it to the backend for SDPKT-wallet
+        // settlement. TryAdd so a host that registered a richer incentive provider wins.
+        Services.TryAddSingleton<IAetherNetIncentiveProvider>(sp =>
+        {
+            var apiClient = sp.GetRequiredService<IAetherApiClient>();
+            var logger = sp.GetService<ILogger<AetherNet.Tipping.Services.SdpktMeshTipSettlementProvider>>()
+                ?? NullLogger<AetherNet.Tipping.Services.SdpktMeshTipSettlementProvider>.Instance;
+            return new AetherNet.Tipping.Services.SdpktMeshTipSettlementProvider(apiClient, logger);
+        });
+
+        return this;
+    }
+
     // ── Media layer ───────────────────────────────────────────────────────────
 
     public IAetherNetProtocolBuilder AddStreaming()
@@ -630,10 +725,29 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
             throw new InvalidOperationException(
                 "AddMarket() requires AddVault() to have been called first. " +
                 "IMarketService uses IVaultService for document escrow on trades.");
+        if (!_signalAdded)
+            throw new InvalidOperationException(
+                "AddMarket() requires AddSignalProtocol() to have been called first. " +
+                "PoV tokens are signed and verified with real Ed25519 via ISignalProtocolService, and " +
+                "the PoVTokenExchange (43) handler signs the enclosing MeshPacket via IPacketSigningService; " +
+                "both come from AddSignalProtocol().");
         if (_marketAdded) return this;
         _marketAdded = true;
 
+        // PoV trust graph — real Ed25519 signing/verification (self-contained node identity key).
         Services.TryAddSingleton<IPoVService, InMemoryPoVService>();
+
+        // On-mesh directed witness→subject co-presence exchange (PacketType.PoVTokenExchange = 43).
+        Services.TryAddSingleton<IPoVTokenExchangeService>(sp =>
+        {
+            var sender   = sp.GetRequiredService<IMeshSender>();
+            var signing  = sp.GetRequiredService<IPacketSigningService>();
+            var identity = sp.GetRequiredService<ISignalProtocolService>();
+            var logger   = sp.GetService<ILogger<PoVTokenExchangeService>>()
+                           ?? NullLogger<PoVTokenExchangeService>.Instance;
+            return new PoVTokenExchangeService(sender, signing, identity, logger);
+        });
+
         Services.TryAddSingleton<IMarketService, InMemoryMarketService>();
 
         return this;

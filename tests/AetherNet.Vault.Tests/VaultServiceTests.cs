@@ -206,4 +206,211 @@ public sealed class VaultServiceTests
         Assert.Equal(0L, manifest.SizeBytes);
         Assert.Equal(14, manifest.ShardHashes.Length);
     }
+
+    // ── 13. Empty file round-trips to empty (recovers cleanly) ───────────────
+
+    [Fact]
+    public async Task RecoverAsync_EmptyFile_RoundTripsToEmpty()
+    {
+        var svc = new InMemoryVaultService();
+
+        var manifest = await svc.StoreAsync(new MemoryStream(Array.Empty<byte>()), "empty");
+        var recovered = await svc.RecoverAsync(manifest);
+
+        using var ms = new MemoryStream();
+        await recovered.CopyToAsync(ms);
+        Assert.Empty(ms.ToArray());
+    }
+
+    // ── 14. REAL RS: drop M=4 PARITY shards — K data shards remain — recovers ─
+
+    [Fact]
+    public async Task RecoverAsync_AfterDroppingM_ParityShards_StillRecovers()
+    {
+        var svc = new InMemoryVaultService();
+        var original = new byte[2222];
+        Random.Shared.NextBytes(original);
+
+        var manifest = await svc.StoreAsync(new MemoryStream(original), "drop-parity");
+
+        // Drop exactly M=4 shards — the LAST 4 (the parity shards). K=10 data shards remain.
+        svc.RemoveShards(manifest.ShardHashes.TakeLast(manifest.M));
+
+        var recovered = await svc.RecoverAsync(manifest);
+        using var ms = new MemoryStream();
+        await recovered.CopyToAsync(ms);
+
+        Assert.Equal(original, ms.ToArray());
+    }
+
+    // ── 15. REAL RS: drop M=4 DATA shards — recover VIA PARITY (matrix inv) ───
+    //
+    // This is the case ONLY genuine Reed-Solomon can pass: dropping data shards forces recovery to use
+    // the parity shards through Gauss-Jordan matrix inversion. A byte-partition simulation cannot do it.
+
+    [Fact]
+    public async Task RecoverAsync_AfterDroppingM_DataShards_RecoversViaParity()
+    {
+        var svc = new InMemoryVaultService();
+        var original = new byte[5000];
+        Random.Shared.NextBytes(original);
+
+        var manifest = await svc.StoreAsync(new MemoryStream(original), "drop-data");
+
+        // Drop the FIRST 4 shards (data shards 0..3). 6 data + 4 parity = 10 = K remain → RS reconstructs.
+        svc.RemoveShards(manifest.ShardHashes.Take(manifest.M));
+
+        var recovered = await svc.RecoverAsync(manifest);
+        using var ms = new MemoryStream();
+        await recovered.CopyToAsync(ms);
+
+        Assert.Equal(original, ms.ToArray());
+    }
+
+    // ── 16. REAL RS: any K-of-N (data+parity mix) reconstructs ───────────────
+
+    [Fact]
+    public async Task RecoverAsync_FromDataParityMix_OfExactlyK_Recovers()
+    {
+        var svc = new InMemoryVaultService();
+        var original = new byte[4096];
+        Random.Shared.NextBytes(original);
+
+        var manifest = await svc.StoreAsync(new MemoryStream(original), "mix");
+
+        // Keep shards {3,4,5,6,7,8,9, 11,12,13} — drop data shards 0,1,2 and parity shard 10.
+        // That leaves 7 data + 3 parity = 10 = K, forcing the inversion path on a data+parity mix.
+        var keep = new HashSet<int> { 3, 4, 5, 6, 7, 8, 9, 11, 12, 13 };
+        Assert.Equal(manifest.K, keep.Count);
+        var drop = Enumerable.Range(0, manifest.TotalShards)
+            .Where(i => !keep.Contains(i))
+            .Select(i => manifest.ShardHashes[i]);
+        svc.RemoveShards(drop);
+
+        var recovered = await svc.RecoverAsync(manifest);
+        using var ms = new MemoryStream();
+        await recovered.CopyToAsync(ms);
+
+        Assert.Equal(original, ms.ToArray());
+    }
+
+    // ── 17. Losing M+1=5 shards fails cleanly (below K threshold) ────────────
+
+    [Fact]
+    public async Task RecoverAsync_AfterDroppingMPlusOne_ThrowsCleanly()
+    {
+        var svc = new InMemoryVaultService();
+        var original = new byte[1500];
+        Random.Shared.NextBytes(original);
+
+        var manifest = await svc.StoreAsync(new MemoryStream(original), "unrecoverable");
+
+        // Drop M+1=5 shards → only K-1=9 remain (below the K-of-N threshold).
+        svc.RemoveShards(manifest.ShardHashes.Take(manifest.M + 1));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.RecoverAsync(manifest));
+    }
+
+    // ── 18. Round-trip SHA-256 of recovered bytes matches the original ───────
+
+    [Fact]
+    public async Task RecoverAsync_RoundTripSha256_MatchesOriginal()
+    {
+        var svc = new InMemoryVaultService();
+        var original = new byte[7777];
+        Random.Shared.NextBytes(original);
+        var originalSha = System.Security.Cryptography.SHA256.HashData(original);
+
+        var manifest = await svc.StoreAsync(new MemoryStream(original), "sha");
+
+        // Drop a data+parity spread (3 shards), still well above K, then recover and hash.
+        svc.RemoveShards(new[] { manifest.ShardHashes[0], manifest.ShardHashes[5], manifest.ShardHashes[12] });
+
+        var recovered = await svc.RecoverAsync(manifest);
+        using var ms = new MemoryStream();
+        await recovered.CopyToAsync(ms);
+        var recoveredSha = System.Security.Cryptography.SHA256.HashData(ms.ToArray());
+
+        Assert.Equal(originalSha, recoveredSha);
+    }
+}
+
+/// <summary>
+/// Direct unit tests for <see cref="ReedSolomonCodec"/> — the MDS property: any K of the N shards (in
+/// any data/parity combination) reconstruct the K data shards exactly; K-1 or fewer is unrecoverable.
+/// </summary>
+public sealed class ReedSolomonCodecTests
+{
+    [Fact]
+    public void Encode_ProducesNShards_SystematicDataPrefix()
+    {
+        const int k = 10, m = 4, shardSize = 16;
+        var codec = new ReedSolomonCodec(k, m);
+
+        var dataShards = new byte[k][];
+        for (int i = 0; i < k; i++) { dataShards[i] = new byte[shardSize]; Random.Shared.NextBytes(dataShards[i]); }
+
+        var all = codec.Encode(dataShards);
+
+        Assert.Equal(k + m, all.Length);
+        Assert.Equal(k + m, codec.ShardCount);
+        // Systematic: the first K shards are the data shards verbatim.
+        for (int i = 0; i < k; i++)
+            Assert.Equal(dataShards[i], all[i]);
+    }
+
+    [Fact]
+    public void DecodeDataShards_FromAnyKShards_IncludingParityMix_Reconstructs()
+    {
+        const int k = 10, m = 4, shardSize = 16;
+        var codec = new ReedSolomonCodec(k, m);
+
+        var dataShards = new byte[k][];
+        for (int i = 0; i < k; i++) { dataShards[i] = new byte[shardSize]; Random.Shared.NextBytes(dataShards[i]); }
+
+        var all = codec.Encode(dataShards);
+
+        // Recover using shards {4..13}: drop data shards 0..3, keep 6 data + all 4 parity = K. Inversion path.
+        var available = new Dictionary<int, byte[]>();
+        for (int idx = 4; idx < k + m; idx++) available[idx] = all[idx];
+        Assert.Equal(k, available.Count);
+
+        var recovered = codec.DecodeDataShards(available);
+        for (int i = 0; i < k; i++)
+            Assert.Equal(dataShards[i], recovered[i]);
+    }
+
+    [Fact]
+    public void DecodeDataShards_AllDataShardsPresent_FastPath_Reconstructs()
+    {
+        const int k = 10, m = 4, shardSize = 8;
+        var codec = new ReedSolomonCodec(k, m);
+
+        var dataShards = new byte[k][];
+        for (int i = 0; i < k; i++) { dataShards[i] = new byte[shardSize]; Random.Shared.NextBytes(dataShards[i]); }
+
+        var all = codec.Encode(dataShards);
+        var available = new Dictionary<int, byte[]>();
+        for (int idx = 0; idx < k; idx++) available[idx] = all[idx];
+
+        var recovered = codec.DecodeDataShards(available);
+        for (int i = 0; i < k; i++)
+            Assert.Equal(dataShards[i], recovered[i]);
+    }
+
+    [Fact]
+    public void DecodeDataShards_WithKMinusOneShards_Throws()
+    {
+        const int k = 10, m = 4, shardSize = 8;
+        var codec = new ReedSolomonCodec(k, m);
+
+        var dataShards = new byte[k][];
+        for (int i = 0; i < k; i++) { dataShards[i] = new byte[shardSize]; Random.Shared.NextBytes(dataShards[i]); }
+        var all = codec.Encode(dataShards);
+
+        var available = new Dictionary<int, byte[]>();
+        for (int idx = 0; idx < k - 1; idx++) available[idx] = all[idx];
+
+        Assert.Throws<InvalidOperationException>(() => codec.DecodeDataShards(available));
+    }
 }

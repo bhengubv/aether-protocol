@@ -6,9 +6,10 @@ namespace AetherNet.Vault;
 /// <summary>
 /// Erasure-coded encrypted distributed backup (aether-vault Phase-2 extension).
 ///
-/// A file is split into K+M shards; any K shards reconstruct it. The
-/// in-memory implementation uses simple byte partitioning (no real
-/// Reed-Solomon) for testing; production implementations use libfec/RS.
+/// A file is split into K+M shards; any K shards reconstruct it. The in-memory
+/// implementation uses real systematic Cauchy-Reed-Solomon over GF(2⁸)
+/// (<see cref="ReedSolomonCodec"/>) — the K data shards are zero-padded plaintext
+/// slices, the M parity shards are MDS, so any K of the N shards reconstruct.
 ///
 /// NodeCapability: <c>aethernet.vault/v1</c> (<see cref="AetherNet.Models.NodeCapabilities.Vault"/>).
 /// PacketType: <c>VaultShardRequest (42)</c>.

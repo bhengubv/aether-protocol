@@ -135,6 +135,26 @@ public interface IAetherNetProtocolBuilder
     /// </summary>
     IAetherNetProtocolBuilder AddMeshTip();
 
+    /// <summary>
+    /// Register the SDPKT-settlement tipping layer: <c>ITippingService</c>,
+    /// <c>INodeReputationService</c>, <c>ITipperQoSService</c>, <c>TipEventHandler</c>,
+    /// <c>IAetherRewardService</c>, the typed <c>IAetherApiClient</c> backend bridge,
+    /// and the default in-memory tip/reward stores. Also registers
+    /// <c>SdpktMeshTipSettlementProvider</c> as the <c>IAetherNetIncentiveProvider</c>
+    /// so an inbound mesh tip (<c>PacketType.TipPacket</c>) settled through
+    /// <c>IMeshTipService.HandleTipPacketAsync</c> → <c>SettleMeshTipAsync</c> is forwarded
+    /// to the backend for SDPKT-wallet settlement. The host must supply an
+    /// <c>ILocalNodeProvider</c> (the local node's UHID) and configure the
+    /// <c>"AetherApi"</c> named <c>HttpClient</c> with the backend base address.
+    ///
+    /// <para>
+    /// This is a universal wallet-client capability — any node with an SDPKT wallet can
+    /// use it. Durable hosts register their own <c>IAetherTipStore</c> /
+    /// <c>IAetherRewardStore</c> before this call to override the in-memory defaults.
+    /// </para>
+    /// </summary>
+    IAetherNetProtocolBuilder AddTipping();
+
     // ── Media layer ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -282,10 +302,12 @@ public interface IAetherNetProtocolBuilder
     IAetherNetProtocolBuilder AddVault();
 
     /// <summary>
-    /// Register <c>InMemoryPoVService</c> and <c>InMemoryMarketService</c> as singletons
-    /// (aether-market Phase-2 extension — offline P2P commerce with PoV anti-Sybil trust).
-    /// Requires <see cref="AddSpace"/> and <see cref="AddVault"/> to have been called first;
-    /// throws <see cref="InvalidOperationException"/> otherwise.
+    /// Register <c>InMemoryPoVService</c>, <c>PoVTokenExchangeService</c> (the on-mesh
+    /// <c>PoVTokenExchange</c> = 43 handler) and <c>InMemoryMarketService</c> as singletons
+    /// (aether-market Phase-2 extension — offline P2P commerce with PoV anti-Sybil trust). PoV tokens are
+    /// signed and verified with real Ed25519 via the node identity key.
+    /// Requires <see cref="AddSpace"/>, <see cref="AddVault"/> and <see cref="AddSignalProtocol"/> to
+    /// have been called first; throws <see cref="InvalidOperationException"/> otherwise.
     /// </summary>
     IAetherNetProtocolBuilder AddMarket();
 }

@@ -1,39 +1,40 @@
-<Solution>
-  <Folder Name="/bench/">
-    <Project Path="bench/AetherNet.Benchmarks/AetherNet.Benchmarks.csproj" />
-  </Folder>
-  <Folder Name="/samples/">
-    <Project Path="samples/AetherNet.BleRfTest/AetherNet.BleRfTest.csproj" />
-    <Project Path="samples/AetherNet.Demo.Console/AetherNet.Demo.Console.csproj" />
-    <Project Path="samples/AetherNet.RelayServer/AetherNet.RelayServer.csproj" />
-    <Project Path="samples/AetherNet.RelayRfTest/AetherNet.RelayRfTest.csproj" />
-    <Project Path="samples/AetherNet.WifiDirectRfTest/AetherNet.WifiDirectRfTest.csproj" />
-  </Folder>
-  <Folder Name="/src/">
-    <Project Path="src/AetherNet.Content/AetherNet.Content.csproj" />
-    <Project Path="src/AetherNet.Core/AetherNet.Core.csproj" />
-    <Project Path="src/AetherNet.Space/AetherNet.Space.csproj" />
-    <Project Path="src/AetherNet.Forge/AetherNet.Forge.csproj" />
-    <Project Path="src/AetherNet.Vault/AetherNet.Vault.csproj" />
-    <Project Path="src/AetherNet.Market/AetherNet.Market.csproj" />
-    <Project Path="src/AetherNet.Fmhy/AetherNet.Fmhy.csproj" />
-    <Project Path="src/AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
-    <Project Path="src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
-    <Project Path="src/AetherNet.Security/AetherNet.Security.csproj" />
-    <Project Path="src/AetherNet.Storage/AetherNet.Storage.csproj" />
-    <Project Path="src/AetherNet.Streaming/AetherNet.Streaming.csproj" />
-    <Project Path="src/AetherNet.Transport.Windows/AetherNet.Transport.Windows.csproj" />
-    <Project Path="src/AetherNet.Transport/AetherNet.Transport.csproj" />
-    <Project Path="src/AetherNet.Voice/AetherNet.Voice.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/AetherNet.Core.Tests/AetherNet.Core.Tests.csproj" />
-    <Project Path="tests/AetherNet.Space.Tests/AetherNet.Space.Tests.csproj" />
-    <Project Path="tests/AetherNet.Forge.Tests/AetherNet.Forge.Tests.csproj" />
-    <Project Path="tests/AetherNet.Vault.Tests/AetherNet.Vault.Tests.csproj" />
-    <Project Path="tests/AetherNet.Market.Tests/AetherNet.Market.Tests.csproj" />
-    <Project Path="tests/AetherNet.Fmhy.Tests/AetherNet.Fmhy.Tests.csproj" />
-    <Project Path="tests/AetherNet.Soak.Tests/AetherNet.Soak.Tests.csproj" />
-    <Project Path="tests/cross-language/runners/csharp/AetherNet.InteropTest.csproj" />
-  </Folder>
-</Solution>
+<Solution>
+  <Folder Name="/bench/">
+    <Project Path="bench/AetherNet.Benchmarks/AetherNet.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/AetherNet.BleRfTest/AetherNet.BleRfTest.csproj" />
+    <Project Path="samples/AetherNet.Demo.Console/AetherNet.Demo.Console.csproj" />
+    <Project Path="samples/AetherNet.RelayServer/AetherNet.RelayServer.csproj" />
+    <Project Path="samples/AetherNet.RelayRfTest/AetherNet.RelayRfTest.csproj" />
+    <Project Path="samples/AetherNet.WifiDirectRfTest/AetherNet.WifiDirectRfTest.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/AetherNet.Content/AetherNet.Content.csproj" />
+    <Project Path="src/AetherNet.Core/AetherNet.Core.csproj" />
+    <Project Path="src/AetherNet.Space/AetherNet.Space.csproj" />
+    <Project Path="src/AetherNet.Forge/AetherNet.Forge.csproj" />
+    <Project Path="src/AetherNet.Vault/AetherNet.Vault.csproj" />
+    <Project Path="src/AetherNet.Market/AetherNet.Market.csproj" />
+    <Project Path="src/AetherNet.Fmhy/AetherNet.Fmhy.csproj" />
+    <Project Path="src/AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
+    <Project Path="src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
+    <Project Path="src/AetherNet.Security/AetherNet.Security.csproj" />
+    <Project Path="src/AetherNet.Storage/AetherNet.Storage.csproj" />
+    <Project Path="src/AetherNet.Streaming/AetherNet.Streaming.csproj" />
+    <Project Path="src/AetherNet.Transport.Windows/AetherNet.Transport.Windows.csproj" />
+    <Project Path="src/AetherNet.Transport/AetherNet.Transport.csproj" />
+    <Project Path="src/AetherNet.Tipping/AetherNet.Tipping.csproj" />
+    <Project Path="src/AetherNet.Voice/AetherNet.Voice.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AetherNet.Core.Tests/AetherNet.Core.Tests.csproj" />
+    <Project Path="tests/AetherNet.Space.Tests/AetherNet.Space.Tests.csproj" />
+    <Project Path="tests/AetherNet.Forge.Tests/AetherNet.Forge.Tests.csproj" />
+    <Project Path="tests/AetherNet.Vault.Tests/AetherNet.Vault.Tests.csproj" />
+    <Project Path="tests/AetherNet.Market.Tests/AetherNet.Market.Tests.csproj" />
+    <Project Path="tests/AetherNet.Fmhy.Tests/AetherNet.Fmhy.Tests.csproj" />
+    <Project Path="tests/AetherNet.Soak.Tests/AetherNet.Soak.Tests.csproj" />
+    <Project Path="tests/cross-language/runners/csharp/AetherNet.InteropTest.csproj" />
+  </Folder>
+</Solution>

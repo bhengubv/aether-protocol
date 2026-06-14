@@ -9,8 +9,13 @@ namespace AetherNet.Vault;
 /// In-memory <see cref="IVaultService"/> implementation for testing and
 /// single-node scenarios.
 ///
-/// Shard splitting uses byte partitioning (not Reed-Solomon) — sufficient
-/// for unit tests. Production implementations should use libfec/RS.
+/// Shard encoding uses real systematic Cauchy-Reed-Solomon over GF(2⁸)
+/// (<see cref="ReedSolomonCodec"/>, K=10 / M=4 → N=14): the K data shards are the
+/// plaintext partitioned into equal zero-padded slices, the M parity shards are
+/// MDS Reed-Solomon, so ANY K of the N shards reconstruct the original. The
+/// GF(256) field (primitive polynomial 0x11D) is byte-identical to the rest of the
+/// AetherNet FEC stack, so a shard set produced here is decodable by any other node
+/// on the mesh.
 /// </summary>
 public sealed class InMemoryVaultService : IVaultService
 {
@@ -43,49 +48,38 @@ public sealed class InMemoryVaultService : IVaultService
         // Content hash for integrity verification.
         var contentHash = ComputeSha256Hex(plaintext);
 
-        // Split into K=10 data shards.
         const int k = 10;
         const int m = 4;
         int total  = k + m;
         long size  = plaintext.Length;
 
-        // Shard size: ceil(len / k), padded so all data shards are equal length.
+        // Shard size: ceil(len / k), padded so all data shards are equal length. This slicing is the
+        // interop contract — it must stay byte-identical to every other Vault implementation on the mesh.
         int shardSize = size == 0 ? 1 : (int)Math.Ceiling((double)size / k);
 
-        var shardHashes = new string[total];
+        // Build the K systematic data shards (zero-padded slices of the plaintext).
+        var dataShards = new byte[k][];
+        for (int i = 0; i < k; i++)
+        {
+            var shard = new byte[shardSize];
+            int srcOffset = i * shardSize;
+            int copyLen   = (int)Math.Min(shardSize, size - srcOffset);
+            if (copyLen > 0)
+                Buffer.BlockCopy(plaintext, srcOffset, shard, 0, copyLen);
+            dataShards[i] = shard;
+        }
 
+        // Real Cauchy-Reed-Solomon: shards 0..K-1 are the data shards unchanged, K..N-1 are the MDS
+        // parity shards. Any K of the N reconstruct the original.
+        var codec  = new ReedSolomonCodec(k, m);
+        var shards = codec.Encode(dataShards);
+
+        var shardHashes = new string[total];
         for (int i = 0; i < total; i++)
         {
-            byte[] shard;
-            if (i < k)
-            {
-                // Data shard: slice of the plaintext (zero-padded if last shard is short).
-                shard = new byte[shardSize];
-                int srcOffset = i * shardSize;
-                int copyLen   = (int)Math.Min(shardSize, size - srcOffset);
-                if (copyLen > 0)
-                    Buffer.BlockCopy(plaintext, srcOffset, shard, 0, copyLen);
-            }
-            else
-            {
-                // Parity shard (simulation): XOR of data shards 0…k-1 for shard 0,
-                // zero-filled for the rest (simplified — not real RS).
-                shard = new byte[shardSize];
-                if (i == k)
-                {
-                    for (int d = 0; d < k; d++)
-                    {
-                        var dataKey   = shardHashes[d];
-                        var dataBytes = _shards[dataKey];
-                        for (int b = 0; b < shardSize; b++)
-                            shard[b] ^= dataBytes[b];
-                    }
-                }
-            }
-
-            var hash = ComputeSha256Hex(shard);
+            var hash = ComputeSha256Hex(shards[i]);
             shardHashes[i] = hash;
-            _shards[hash]  = shard;
+            _shards[hash]  = shards[i];
         }
 
         var manifest = new VaultManifest
@@ -108,31 +102,32 @@ public sealed class InMemoryVaultService : IVaultService
     {
         ct.ThrowIfCancellationRequested();
 
-        // Collect the first K available shards.
-        var collected = new List<(int index, byte[] data)>();
-        for (int i = 0; i < manifest.ShardHashes.Length && collected.Count < manifest.K; i++)
+        int total = manifest.ShardHashes.Length;
+        int k     = manifest.K;
+        int m     = total - k;
+
+        // Collect every locally-available shard, keyed by its position (index) in the manifest. The
+        // index is what the codec needs to know which generator row each surviving shard came from.
+        var available = new Dictionary<int, byte[]>();
+        for (int i = 0; i < total; i++)
         {
             if (_shards.TryGetValue(manifest.ShardHashes[i], out var shard))
-                collected.Add((i, shard));
+                available[i] = shard;
         }
 
-        if (collected.Count < manifest.K)
+        if (available.Count < k)
             throw new InvalidOperationException(
-                $"Cannot recover: only {collected.Count}/{manifest.K} shards available.");
+                $"Cannot recover: only {available.Count}/{k} shards available.");
 
-        // Reassemble from the K data shards (indices 0..K-1 in order).
-        var dataShards = collected
-            .Where(t => t.index < manifest.K)
-            .OrderBy(t => t.index)
-            .Select(t => t.data)
-            .ToArray();
+        // Reconstruct the K data shards from ANY K survivors (data, parity, or a mix) via Reed-Solomon.
+        var codec = new ReedSolomonCodec(k, m);
+        byte[][] dataShards = codec.DecodeDataShards(available);
 
-        // If we have at least K data shards, concatenate them.
+        // Concatenate the K data shards in order, then trim to the original size.
         using var buffer = new MemoryStream();
         foreach (var shard in dataShards)
             buffer.Write(shard);
 
-        // Trim to original size.
         var result = buffer.ToArray()[..(int)manifest.SizeBytes];
         return Task.FromResult<Stream>(new MemoryStream(result));
     }

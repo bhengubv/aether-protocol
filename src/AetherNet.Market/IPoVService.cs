@@ -23,8 +23,9 @@ public interface IPoVService
     Task<PoVScore> GetScoreAsync(string uhid, CancellationToken ct = default);
 
     /// <summary>
-    /// Verify token signature integrity (both witness and subject signatures present and valid).
-    /// In the in-memory impl this checks that both signature arrays are non-empty.
+    /// Verify token signature integrity: both the witness and the subject signatures must be present,
+    /// the parties distinct, and BOTH signatures valid real Ed25519 over the canonical token body
+    /// (<see cref="PoVTokenCodec"/>). A tampered token fails verification.
     /// </summary>
     Task<bool> VerifyTokenAsync(PoVToken token, CancellationToken ct = default);
 

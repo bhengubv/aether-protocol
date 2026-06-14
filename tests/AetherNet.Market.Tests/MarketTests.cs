@@ -128,6 +128,96 @@ public sealed class MarketTests
         Assert.Equal("subject:02", received.SubjectUhid);
     }
 
+    // ── Real Ed25519 — sign + verify, tamper detection ───────────────────────
+
+    // 8a. An issued token carries 64-byte Ed25519 signatures (not random 32-byte blobs).
+    [Fact]
+    public async Task IssueTokenAsync_ProducesRealEd25519Signatures()
+    {
+        var svc = new InMemoryPoVService();
+
+        var token = await svc.IssueTokenAsync("witness:01", "subject:02");
+
+        Assert.Equal(64, token.WitnessSignature.Length); // Ed25519 signatures are exactly 64 bytes
+        Assert.Equal(64, token.SubjectSignature.Length);
+    }
+
+    // 8b. Tampering with the subject UHID after signing INVALIDATES the signature.
+    [Fact]
+    public async Task VerifyTokenAsync_TamperedSubject_FailsVerification()
+    {
+        var svc = new InMemoryPoVService();
+        var token = await svc.IssueTokenAsync("witness:01", "subject:02");
+
+        // Real signature verifies before tampering.
+        Assert.True(await svc.VerifyTokenAsync(token));
+
+        // Tamper: the canonical signable body covers SubjectUhid — change it and the signature no longer matches.
+        token.SubjectUhid = "attacker:99";
+
+        Assert.False(await svc.VerifyTokenAsync(token));
+    }
+
+    // 8c. Tampering with the timestamp INVALIDATES the signature.
+    [Fact]
+    public async Task VerifyTokenAsync_TamperedTimestamp_FailsVerification()
+    {
+        var svc = new InMemoryPoVService();
+        var token = await svc.IssueTokenAsync("witness:01", "subject:02");
+
+        token.TimestampUtc = token.TimestampUtc.AddSeconds(1);
+
+        Assert.False(await svc.VerifyTokenAsync(token));
+    }
+
+    // 8d. Tampering with the transport INVALIDATES the signature.
+    [Fact]
+    public async Task VerifyTokenAsync_TamperedTransport_FailsVerification()
+    {
+        var svc = new InMemoryPoVService();
+        var token = await svc.IssueTokenAsync("witness:01", "subject:02", PoVTransportType.Ble);
+
+        token.TransportUsed = PoVTransportType.Nfc;
+
+        Assert.False(await svc.VerifyTokenAsync(token));
+    }
+
+    // 8e. A garbage 64-byte signature does NOT verify (real crypto, not a length check).
+    [Fact]
+    public async Task VerifyTokenAsync_GarbageSignature_FailsVerification()
+    {
+        var svc = new InMemoryPoVService();
+        var token = await svc.IssueTokenAsync("witness:01", "subject:02");
+
+        token.WitnessSignature = new byte[64]; // 64 zero bytes — well-formed length, invalid signature
+
+        Assert.False(await svc.VerifyTokenAsync(token));
+    }
+
+    // 8f. witness == subject is rejected (no self-vouching).
+    [Fact]
+    public async Task VerifyTokenAsync_WitnessEqualsSubject_FailsVerification()
+    {
+        var svc = new InMemoryPoVService();
+        var token = await svc.IssueTokenAsync("same:01", "same:01");
+
+        Assert.False(await svc.VerifyTokenAsync(token));
+    }
+
+    // 8g. A tampered token is NOT recorded by AcceptTokenAsync (score stays zero).
+    [Fact]
+    public async Task AcceptTokenAsync_TamperedToken_NotRecorded()
+    {
+        var svc = new InMemoryPoVService();
+        var token = await svc.IssueTokenAsync("witness:01", "subject:02");
+        token.SubjectUhid = "victim:99"; // breaks the signature
+
+        await svc.AcceptTokenAsync(token);
+
+        var score = await svc.GetScoreAsync("victim:99");
+        Assert.Equal(0, score.UniqueWitnesses);
+    }
+
     // ── Market Tests ──────────────────────────────────────────────────────────
 
     // 9. CreateListingAsync stores and returns listing

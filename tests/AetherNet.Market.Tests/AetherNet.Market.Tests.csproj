@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/AetherNet.Market/AetherNet.Market.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Security/AetherNet.Security.csproj" />
   </ItemGroup>
 
 </Project>

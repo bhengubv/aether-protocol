@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Tipping</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Tipping / incentive / SDPKT-settlement layer for the Aether mesh networking protocol. On-device tip queueing with regulated per-traffic-type policies and daily caps, batch sync to the backend, node-operator registration and reputation, tipper QoS tiers, XP reward queueing, the typed backend API bridge, and the SDPKT host implementation of the protocol-level mesh-tip settlement hook. Anyone with an SDPKT wallet can use it — wallet client, not a secret.</Description>
+    <PackageTags>mesh;tipping;incentive;rewards;sdpkt;settlement;reputation;qos;aether</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
+  </ItemGroup>
+
+</Project>
