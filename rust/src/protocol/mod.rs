@@ -45,6 +45,16 @@ pub enum PacketType {
     WatchChunkRequest = 33,
     TorrentMetadata = 34,
 
+    /// PoVTokenExchange — directed, two-key Proof-of-Vicinity co-presence
+    /// proof. A witness mints a token vouching that a subject was physically
+    /// near it over a short-range transport, signs the canonical token body
+    /// with its Ed25519 identity key, and sends it (TTL 1) to the subject, who
+    /// counter-signs. Payload is a UTF-8 JSON-encoded
+    /// [`crate::market::PoVToken`]. The wire byte (43) MUST match the C#
+    /// `PacketType.PoVTokenExchange` value so a token exchanged here
+    /// interoperates with every other language implementation on one mesh.
+    PoVTokenExchange = 43,
+
     /// NamePublish — application-layer name resolution. Sent by directory
     /// service to announce a (name -> ContentDescriptor) binding to the mesh,
     /// or in response to an inbound NameQuery. Payload is a UTF-8 JSON-encoded
@@ -126,6 +136,7 @@ impl PacketType {
             32 => Some(PacketType::ScreenShare),
             33 => Some(PacketType::WatchChunkRequest),
             34 => Some(PacketType::TorrentMetadata),
+            43 => Some(PacketType::PoVTokenExchange),
             38 => Some(PacketType::NamePublish),
             39 => Some(PacketType::NameQuery),
             50 => Some(PacketType::Hello),
@@ -313,9 +324,19 @@ mod tests {
         assert_eq!(PacketType::from_byte(1), Some(PacketType::RouteRequest));
         assert_eq!(PacketType::from_byte(3), Some(PacketType::Data));
         assert_eq!(PacketType::from_byte(23), Some(PacketType::ProfileSync));
+        assert_eq!(PacketType::from_byte(24), Some(PacketType::TipPacket));
+        assert_eq!(PacketType::from_byte(43), Some(PacketType::PoVTokenExchange));
         assert_eq!(PacketType::from_byte(50), Some(PacketType::Hello));
         assert_eq!(PacketType::from_byte(51), Some(PacketType::HelloAck));
         assert_eq!(PacketType::from_byte(99), None);
+    }
+
+    #[test]
+    fn test_incentive_and_market_packet_type_byte_values() {
+        // These wire bytes MUST match the C# / Go / Python PacketType values —
+        // drift here breaks cross-language tip + PoV interop.
+        assert_eq!(PacketType::TipPacket.as_byte(), 24);
+        assert_eq!(PacketType::PoVTokenExchange.as_byte(), 43);
     }
 
     #[test]

@@ -1,0 +1,38 @@
+{
+  "note": "Canonical tipping parity vectors from the C# reference (TipPacketPayload.BuildCanonicalData \u002B Ed25519). Every language port MUST reproduce canonical_bytes and signature byte-for-byte. Canonical layout (LE lengths): TipperLen|Tipper|RecipientLen|Recipient|AmountLen|Amount(invariant G string, UTF-8)|TrafficLen|Traffic|ReferenceId(16, all-zero GUID when null)|TimestampUnixMs(8 LE i64).",
+  "algorithm": "Ed25519",
+  "ed25519_seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+  "cases": [
+    {
+      "tipper_uhid": "aether:tipper:aa",
+      "recipient_uhid": "aether:recipient:bb",
+      "amount": "12.50",
+      "traffic_type": "message-relay",
+      "reference_id": "11112222-3333-4444-5555-666677778888",
+      "timestamp_unix_ms": 1700000000000,
+      "canonical_bytes": "100000006165746865723a7469707065723a6161130000006165746865723a726563697069656e743a62620500000031322e35300d0000006d6573736167652d72656c6179222211113333444455556666777788880068e5cf8b010000",
+      "signature": "60831d07066f9a46da8bc28e00ca44db838b07162b6c17e5b4866aa29c069d8cde27101f1ea062756e147a90450cf530cead1c2d9357e58d92374cf3e180c40b"
+    },
+    {
+      "tipper_uhid": "aether:tipper:zz",
+      "recipient_uhid": "aether:recipient:bb",
+      "amount": "0.0001",
+      "traffic_type": "gateway-share",
+      "reference_id": null,
+      "timestamp_unix_ms": 1699999999001,
+      "canonical_bytes": "100000006165746865723a7469707065723a7a7a130000006165746865723a726563697069656e743a626206000000302e303030310d000000676174657761792d7368617265000000000000000000000000000000001964e5cf8b010000",
+      "signature": "70563193674f88a960232a22bb3da37229063d59bf132c251a271ad64dc92c33e19d223f8ff9d92d96da5bc6d9e7b66452940ad6bdf80db063806caf42a2ae04"
+    },
+    {
+      "tipper_uhid": "aether:node:00",
+      "recipient_uhid": "aether:node:01",
+      "amount": "123456.789",
+      "traffic_type": "stream-relay",
+      "reference_id": "deadbeef-cafe-4bad-8f00-0123456789ab",
+      "timestamp_unix_ms": 1701234567890,
+      "canonical_bytes": "0e0000006165746865723a6e6f64653a30300e0000006165746865723a6e6f64653a30310a0000003132333435362e3738390c00000073747265616d2d72656c6179efbeaddefecaad4b8f000123456789abd26a7b198c010000",
+      "signature": "6e5d747150352b84540296a1720042129359bdb3330cbdcb9615bb9b42f31495688b6a53dbee6fe9d23f21fb101910b357131a50abc5ec0062e23460c7336b07"
+    }
+  ]
+}

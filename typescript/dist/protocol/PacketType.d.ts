@@ -38,6 +38,15 @@ export declare enum PacketType {
     WatchChunkRequest = 33,
     TorrentMetadata = 34,
     /**
+     * PoVTokenExchange — on-mesh Proof-of-Vicinity token exchange. A witness node
+     * issues a directed (TTL 1), Ed25519-signed PoVToken to a co-present subject;
+     * the subject verifies the witness signature, counter-signs the same canonical
+     * body, and records it as a local anti-Sybil routing/identity signal. Carried
+     * as a UTF-8 JSON-encoded PoVToken. Two-key (witness + subject) co-presence
+     * proof — attaches NO value semantics. Matches the C# / Go reference value 43.
+     */
+    PoVTokenExchange = 43,
+    /**
      * NamePublish — application-layer name resolution. Sent by IDirectoryService
      * to announce a (name -> ContentDescriptor) binding to the mesh, or in
      * response to an inbound NameQuery from a peer that asked for the binding.

@@ -52,7 +52,9 @@ typedef enum {
     AETHERNET_PACKET_TYPE_WATCH_CHUNK_REQUEST   = 33,
     AETHERNET_PACKET_TYPE_TORRENT_METADATA      = 34,
     AETHERNET_PACKET_TYPE_NAME_PUBLISH          = 38,
-    AETHERNET_PACKET_TYPE_NAME_QUERY            = 39
+    AETHERNET_PACKET_TYPE_NAME_QUERY            = 39,
+    // Proof-of-Vicinity directed witness->subject token exchange (AetherNet.Market).
+    AETHERNET_PACKET_TYPE_POV_TOKEN_EXCHANGE    = 43
 } aethernet_packet_type_t;
 
 /**

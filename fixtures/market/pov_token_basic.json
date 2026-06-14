@@ -1,0 +1,32 @@
+{
+  "note": "Canonical Proof-of-Vicinity token parity vectors from the C# reference (PoVTokenCodec.BuildSignableTokenData \u002B Ed25519). Canonical body layout: SubjectLen(4 LE i32)|Subject(UTF-8)|TimestampTicks(8 LE i64)|Transport(1 byte). Transport enum: ble=0, nfc=1, nearlink=2. timestamp_ticks is .NET DateTime.Ticks (100ns intervals since 0001-01-01). Every language port MUST reproduce canonical_body and witness_signature byte-for-byte.",
+  "algorithm": "Ed25519",
+  "witness_seed": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+  "witness_public_key": "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+  "cases": [
+    {
+      "subject_uhid": "aether:subject:01",
+      "timestamp_ticks": 638000000000000000,
+      "transport": "ble",
+      "transport_byte": 0,
+      "canonical_body": "110000006165746865723a7375626a6563743a30310000b3a69ea1da0800",
+      "witness_signature": "d4780e376ba00d59fdd07fced1aec4f55197ecc16354e5eac5998b37e018c6d71e080bdcd97cb45f63975a70b43dc8cc5f877c653993bb48a908f4aee557cc0f"
+    },
+    {
+      "subject_uhid": "aether:subject:02",
+      "timestamp_ticks": 638123456789012345,
+      "transport": "nfc",
+      "transport_byte": 1,
+      "canonical_body": "110000006165746865723a7375626a6563743a303279dfc02ce711db0801",
+      "witness_signature": "de9e7b617744861e77a9394ee76613ba39fc0978cb58df3bd1bf5da817ad22fd760ed2df7f88ac9dcbca8a2162eae5731d6803c6f5626bb6d9e994fd594f9704"
+    },
+    {
+      "subject_uhid": "aether:subject:03",
+      "timestamp_ticks": 637900000000000001,
+      "transport": "nearlink",
+      "transport_byte": 2,
+      "canonical_body": "110000006165746865723a7375626a6563743a303301c03896ab46da0802",
+      "witness_signature": "e38c050ec6d22683425b86a58332c5ff1367c18b257e735e2e9b991bc468180a57f48fcfa3b1b69aa564d00a129875bd90dc74426005e309bca016b15a55ce0e"
+    }
+  ]
+}

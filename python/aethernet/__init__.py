@@ -42,6 +42,19 @@ def __getattr__(name: str):
     if name in ("SignalProtocolService",):
         from aethernet.security.signal_protocol import SignalProtocolService
         return SignalProtocolService
+    # Incentive layer — generic value-agnostic relay tips (TipPacket 24).
+    if name in ("TipPacketPayload", "MeshTipService",
+                "MeshTipSettlementProvider", "NoopMeshTipSettlementProvider"):
+        import aethernet.incentive as _incentive
+        return getattr(_incentive, name)
+    # Vault layer — systematic Cauchy-Reed-Solomon erasure codec.
+    if name in ("ReedSolomonCodec",):
+        from aethernet.vault.reed_solomon import ReedSolomonCodec
+        return ReedSolomonCodec
+    # Market layer — Proof-of-Vicinity tokens (PoVTokenExchange 43).
+    if name in ("PoVToken", "PoVTransportType", "PoVScore", "PoVTokenExchangeService"):
+        import aethernet.market as _market
+        return getattr(_market, name)
     raise AttributeError(f"module 'aether' has no attribute {name!r}")
 
 __all__ = [
@@ -70,4 +83,16 @@ __all__ = [
     "ReputationGossipService",
     "ReputationUpdatePayload",
     "REPUTATION_UPDATE_TYPE",
+    # Incentive (relay tips)
+    "TipPacketPayload",
+    "MeshTipService",
+    "MeshTipSettlementProvider",
+    "NoopMeshTipSettlementProvider",
+    # Vault (erasure coding)
+    "ReedSolomonCodec",
+    # Market (Proof-of-Vicinity)
+    "PoVToken",
+    "PoVTransportType",
+    "PoVScore",
+    "PoVTokenExchangeService",
 ]

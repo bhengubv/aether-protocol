@@ -47,6 +47,15 @@ const (
 	WatchChunkRequest  PacketType = 33
 	TorrentMetadata    PacketType = 34
 
+	// PoVTokenExchange — on-mesh Proof-of-Vicinity token exchange. A witness node
+	// sends a directed, witness-signed PoVToken to the subject one short-range hop
+	// away (TTL 1); the subject verifies the witness's Ed25519 signature over the
+	// canonical token body, counter-signs as the subject, and records it as a local
+	// anti-Sybil routing/identity signal. Payload is a UTF-8 JSON-encoded PoVToken
+	// (see the market package). Carries NO value semantics. Mirrors the C#
+	// AetherNet.Market.PoVTokenExchangeService.
+	PoVTokenExchange PacketType = 43
+
 	// NamePublish — application-layer name resolution. Sent by IDirectoryService
 	// to announce a (name -> ContentDescriptor) binding to the mesh, or in
 	// response to an inbound NameQuery from a peer that asked for the binding.
@@ -237,6 +246,8 @@ func (pt PacketType) String() string {
 		return "WatchChunkRequest"
 	case TorrentMetadata:
 		return "TorrentMetadata"
+	case PoVTokenExchange:
+		return "PoVTokenExchange"
 	case NamePublish:
 		return "NamePublish"
 	case NameQuery:

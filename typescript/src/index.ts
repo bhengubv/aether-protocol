@@ -94,6 +94,15 @@ export * from "./constants.js";
 // Bandwidth Measurement Framework (ABMF, W18-5)
 export * from "./bandwidth/index.js";
 
+// Incentive — generic mesh tipping (PacketType.TipPacket = 24)
+export * from "./incentive/index.js";
+
+// Vault — systematic Cauchy-Reed-Solomon erasure coding (GF(2⁸), 0x11D, α=2)
+export * from "./vault/index.js";
+
+// Market — Proof-of-Vicinity tokens + on-mesh exchange (PacketType.PoVTokenExchange = 43)
+export * from "./market/index.js";
+
 // Reputation gossip
 export {
   ReputationGossipService,

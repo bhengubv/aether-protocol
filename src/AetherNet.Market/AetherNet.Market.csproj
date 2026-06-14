@@ -21,6 +21,11 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>AetherNet.Market.Tests</_Parameter1>
     </AssemblyAttribute>
+    <!-- Cross-language fixture generator (CrossLangFixtureGenerator) in AetherNet.Core.Tests
+         uses the internal PoVTokenCodec directly to emit fixtures/market/. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>AetherNet.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

@@ -9,6 +9,8 @@ pub mod gossip;
 pub mod dtn;
 pub mod extensibility;
 pub mod handshake;
+pub mod incentive;
+pub mod market;
 pub mod models;
 pub mod protocol;
 pub mod reputation;
@@ -19,6 +21,7 @@ pub mod storage;
 pub mod streaming;
 pub mod transport;
 pub mod uri;
+pub mod vault;
 pub mod voice;
 
 pub use handshake::{
@@ -66,3 +69,10 @@ pub use content::{
     NamePublishPayload, NameQueryPayload, DEFAULT_QUERY_TIMEOUT,
 };
 pub use dtn::DtnBundleReceivedEvent;
+pub use incentive::{
+    MeshTipService, MeshTipSettlementProvider, NoopMeshTipSettlementProvider, TipPacketPayload,
+};
+pub use market::{
+    build_signable_token_data, PoVScore, PoVToken, PoVTokenExchangeService, PoVTransportType,
+};
+pub use vault::{split_into_data_shards, ReedSolomonCodec, VaultError};

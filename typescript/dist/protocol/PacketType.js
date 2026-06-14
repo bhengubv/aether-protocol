@@ -39,6 +39,15 @@ export var PacketType;
     PacketType[PacketType["WatchChunkRequest"] = 33] = "WatchChunkRequest";
     PacketType[PacketType["TorrentMetadata"] = 34] = "TorrentMetadata";
     /**
+     * PoVTokenExchange — on-mesh Proof-of-Vicinity token exchange. A witness node
+     * issues a directed (TTL 1), Ed25519-signed PoVToken to a co-present subject;
+     * the subject verifies the witness signature, counter-signs the same canonical
+     * body, and records it as a local anti-Sybil routing/identity signal. Carried
+     * as a UTF-8 JSON-encoded PoVToken. Two-key (witness + subject) co-presence
+     * proof — attaches NO value semantics. Matches the C# / Go reference value 43.
+     */
+    PacketType[PacketType["PoVTokenExchange"] = 43] = "PoVTokenExchange";
+    /**
      * NamePublish — application-layer name resolution. Sent by IDirectoryService
      * to announce a (name -> ContentDescriptor) binding to the mesh, or in
      * response to an inbound NameQuery from a peer that asked for the binding.
@@ -156,6 +165,8 @@ export function packetTypeToString(type) {
             return "WatchChunkRequest";
         case PacketType.TorrentMetadata:
             return "TorrentMetadata";
+        case PacketType.PoVTokenExchange:
+            return "PoVTokenExchange";
         case PacketType.NamePublish:
             return "NamePublish";
         case PacketType.NameQuery:

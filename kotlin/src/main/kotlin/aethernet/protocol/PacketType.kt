@@ -43,6 +43,18 @@ enum class PacketType(val value: Byte) {
     TorrentMetadata(34),
 
     /**
+     * PoVTokenExchange - directed, two-key Proof-of-Vicinity co-presence proof.
+     * A witness node issues a token vouching for a co-present subject and sends it
+     * point-to-point (TTL 1 - the subject is one short-range hop away); the subject
+     * verifies the witness's Ed25519 signature over the canonical token body,
+     * counter-signs, and records it as a purely local anti-Sybil routing/identity
+     * signal (NO value semantics). Payload is a UTF-8 JSON-encoded
+     * [aethernet.market.PoVToken]. Wire value 43 - matches the C# and Go
+     * implementations.
+     */
+    PoVTokenExchange(43),
+
+    /**
      * NamePublish - application-layer name resolution. Sent by IDirectoryService
      * to announce a (name -> ContentDescriptor) binding to the mesh, or in
      * response to an inbound NameQuery from a peer. Payload is a UTF-8 JSON-

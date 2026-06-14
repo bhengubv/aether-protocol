@@ -210,10 +210,41 @@ target_include_directories(test-bandwidth-fixtures PRIVATE ${CMAKE_CURRENT_SOURC
 target_link_libraries(test-bandwidth-fixtures PRIVATE aethernet-protocol pthread m)
 add_test(NAME BandwidthFixtureTests COMMAND test-bandwidth-fixtures)
 
+# ── Cross-language parity fixture tests (tipping / vault / PoV) ─────────────
+# Each loads its fixtures/*.json from the repo root, so it runs with the working
+# directory set to ../.. (mirroring FixtureTests / SignalFixtureTests / EridFixtureTests).
+
+add_executable(test-tip-packet
+    test_tip_packet.c
+)
+target_include_directories(test-tip-packet PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-tip-packet PRIVATE aethernet-protocol pthread)
+add_test(NAME TipPacketFixtureTests COMMAND test-tip-packet
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
+add_executable(test-reed-solomon
+    test_reed_solomon.c
+)
+target_include_directories(test-reed-solomon PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-reed-solomon PRIVATE aethernet-protocol pthread)
+add_test(NAME ReedSolomonFixtureTests COMMAND test-reed-solomon
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
+add_executable(test-pov-token
+    test_pov_token.c
+)
+target_include_directories(test-pov-token PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-pov-token PRIVATE aethernet-protocol pthread)
+add_test(NAME PoVTokenFixtureTests COMMAND test-pov-token
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 # Convenience target: build every test binary in one step.
 # Usage: cmake --build build --target aether-tests
 add_custom_target(aether-tests
     DEPENDS
+        test-tip-packet
+        test-reed-solomon
+        test-pov-token
         test-protocol
         test-routing
         test-dtn

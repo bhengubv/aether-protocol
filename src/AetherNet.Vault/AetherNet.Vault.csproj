@@ -18,6 +18,11 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>AetherNet.Vault.Tests</_Parameter1>
     </AssemblyAttribute>
+    <!-- Cross-language fixture generator (CrossLangFixtureGenerator) in AetherNet.Core.Tests
+         uses the internal ReedSolomonCodec directly to emit fixtures/vault/. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>AetherNet.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

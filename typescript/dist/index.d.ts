@@ -28,6 +28,9 @@ export * from "./uri/index.js";
 export * from "./content/index.js";
 export * from "./constants.js";
 export * from "./bandwidth/index.js";
+export * from "./incentive/index.js";
+export * from "./vault/index.js";
+export * from "./market/index.js";
 export { ReputationGossipService, REPUTATION_UPDATE_TYPE, } from "./gossip.js";
 export type { ReputationUpdatePayload, Packet, MeshSender, PacketSigner, } from "./gossip.js";
 //# sourceMappingURL=index.d.ts.map
