@@ -1,0 +1,16 @@
+{
+  // Test module descriptor for the Hypium parity suite. The test runner
+  // (OpenHarmonyTestRunner) executes the suites aggregated by
+  // ets/test/List.test.ets. DevEco Studio wires the TestAbility scaffolding when
+  // the project is opened; on the CLI it is driven by `hvigorw test`.
+  "module": {
+    "name": "aether_protocol_arkts_test",
+    "type": "feature",
+    "deviceTypes": [
+      "phone",
+      "tablet",
+      "2in1"
+    ],
+    "description": "Hypium byte-parity tests for the Aether Protocol ArkTS library."
+  }
+}

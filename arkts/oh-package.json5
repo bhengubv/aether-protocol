@@ -1,0 +1,23 @@
+{
+  // OpenHarmony / HarmonyOS shared-library module (HAR) for the Aether Protocol
+  // ArkTS port — the 9th language implementation of the AetherNet money/vault
+  // features (tipping, Reed-Solomon vault, Proof-of-Vicinity), byte-identical to
+  // the C# reference and proven against the shared cross-language fixtures.
+  "name": "aether-protocol-arkts",
+  "version": "1.0.0",
+  "description": "ArkTS (HarmonyOS) implementation of AetherNet tipping, vault (Reed-Solomon) and Proof-of-Vicinity — byte-compatible with the C# reference.",
+  "main": "Index.ets",
+  "author": "The Other Bhengu (Pty) Ltd t/a The Geek Network <engineering@thegeeknetwork.dev>",
+  "license": "MIT",
+  "types": "Index.ets",
+  "dependencies": {
+    // Pure-JavaScript, byte-stable deterministic Ed25519. Works under both the
+    // ArkTS runtime and Node, so the port reproduces the fixture signatures exactly.
+    "@noble/ed25519": "^2.3.0",
+    // SHA-512 backing for @noble/ed25519 v2 synchronous sign/verify.
+    "@noble/hashes": "^1.8.0"
+  },
+  "devDependencies": {
+    "@ohos/hypium": "1.0.21"
+  }
+}

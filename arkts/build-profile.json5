@@ -1,0 +1,30 @@
+{
+  // Module-level build profile for the Aether Protocol ArkTS HAR.
+  // strictMode mirrors the harmonyos/teal module so the ArkTS strict checks
+  // (no `any`, explicit types, case-sensitive imports, normalized OHM URLs) are
+  // enforced by the DevEco / hvigor build.
+  "apiType": "stageModel",
+  "buildOption": {
+    "strictMode": {
+      "caseSensitiveCheck": true,
+      "useNormalizedOHMUrl": true
+    }
+  },
+  "buildOptionSet": [
+    {
+      "name": "release",
+      "arkOptions": {
+        "obfuscation": {
+          "ruleOptions": {
+            "enable": false
+          }
+        }
+      }
+    }
+  ],
+  "targets": [
+    {
+      "name": "default"
+    }
+  ]
+}

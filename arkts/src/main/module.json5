@@ -1,0 +1,16 @@
+{
+  // Shared-library (HAR) module descriptor. A library module has no abilities and
+  // no entry UI — it exports the Aether Protocol ArkTS APIs via Index.ets for
+  // consumption by HAP/HSP application modules.
+  "module": {
+    "name": "aether_protocol_arkts",
+    "type": "har",
+    "deviceTypes": [
+      "phone",
+      "tablet",
+      "2in1",
+      "wearable"
+    ],
+    "description": "Aether Protocol ArkTS library — tipping, Reed-Solomon vault, Proof-of-Vicinity."
+  }
+}
