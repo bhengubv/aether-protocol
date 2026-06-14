@@ -124,6 +124,14 @@ public enum PacketType: UInt8, Codable {
     /// NameQueryPayload. Added in v1.2.0 - closes Issue #60.
     case nameQuery = 39
 
+    /// On-mesh Proof-of-Vicinity token exchange — the directed, two-key
+    /// witness-to-subject co-presence proof. Carries a snake_case JSON-encoded
+    /// `PoVToken`, sent point-to-point (TTL 1) from the witness to the subject,
+    /// which counter-signs the canonical body on receipt. Value-agnostic: the
+    /// resulting `PoVScore` is a purely local anti-Sybil routing/identity signal.
+    /// Matches `AetherNet.Market.PacketType.PoVTokenExchange (43)`.
+    case povTokenExchange = 43
+
     /// Capability handshake — sender announces supported protocol-version range
     /// + capability flags. Sent on first contact with an unknown peer. The
     /// payload is a UTF-8 JSON-encoded `HelloPayload`. Unauthenticated and
