@@ -8,6 +8,35 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [1.8.0] — 2026-06-14
+
+The money layer, plus real implementations of Vault and Proof-of-Value, at 9-language byte-identical parity.
+
+### Added
+- Generic `TipPacket(24)` money layer (new **AetherNet.Tipping** package) with a `SettleMeshTip` hook.
+- `PoVTokenExchange(43)` packet type.
+
+### Changed
+- **Vault**: stub -> real Cauchy-Reed-Solomon erasure coding.
+- **Proof-of-Value (PoV)**: stub -> real Ed25519.
+- Ports across Go / Python / TS / Kotlin / Rust / C / Swift / ArkTS proven byte-identical via shared fixtures.
+
+### Compatibility
+- Non-breaking — the new provider method is a default interface method.
+
+## [1.7.0] — 2026-06-13
+
+First release of the **Ephemeral Routing Id (ERID)** privacy primitive — the routing-identity stack that lets nodes rotate the identifier they expose on the wire instead of leaking a stable, targetable UHID.
+
+### Added — ERID stack (AetherNet.Core / AetherNet.Security)
+- `EphemeralRoutingId`, `EridDirectory`, `EridAnnouncementCodec`, `EridExchangeService`, and the `EridAnnounce` packet type (all landed after the 1.6.2 cut).
+
+### Fixed
+- `AetherNet.Soak.Tests` `InMemoryRoutingFake` now implements the new `IRoutingService.HandleRouteRequestAsync(MeshPacket, string? linkLayerSenderUhid, CancellationToken)` signature from the gap-#1 anti-spoofing change.
+
+### Released
+- 15 `AetherNet.*` packages to nuget.org. `AetherNet.Core.Tests` 887/887 pass.
+
 ## [1.6.2] — 2026-06-10
 
 ABMF cross-language **numeric parity proof**. Adds an executable conformance
