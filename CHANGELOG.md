@@ -10,32 +10,149 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [1.8.0] — 2026-06-14
 
-The money layer, plus real implementations of Vault and Proof-of-Value, at 9-language byte-identical parity.
+**Money layer + real Vault/PoV + 9-language parity.** A generic mesh-level
+incentive surface so any application can settle a tip on top of an
+established AetherNet relationship without each app inventing its own
+billing protocol — plus the cryptography we promised the threat model.
 
-### Added
-- Generic `TipPacket(24)` money layer (new **AetherNet.Tipping** package) with a `SettleMeshTip` hook.
-- `PoVTokenExchange(43)` packet type.
+### Added — `AetherNet.Tipping`
 
-### Changed
-- **Vault**: stub -> real Cauchy-Reed-Solomon erasure coding.
-- **Proof-of-Value (PoV)**: stub -> real Ed25519.
-- Ports across Go / Python / TS / Kotlin / Rust / C / Swift / ArkTS proven byte-identical via shared fixtures.
+New package shipping the generic `TipPacket(24)` send/receive primitives.
+A node now exposes a `SettleMeshTipAsync` provider hook; routers settle a
+tip across any path the sender can already reach. Tipping is wire-level —
+it does not depend on any single currency layer, including `Sdpkt`.
+
+### Added — `PoVTokenExchange(43)` packet
+
+Pairs with the existing Proof-of-Vault / Proof-of-Velocity stack so the
+network can verify a tip is backed by actual stake without a centralised
+oracle. Default interface method on the relationship provider — existing
+implementations compile unchanged.
+
+### Changed — Vault: stub → real Cauchy–Reed–Solomon
+
+`AetherNet.Security.Vault` replaces the previous placeholder with a
+production Cauchy-Reed-Solomon implementation. Wire format unchanged;
+shard sizes and parity ratios fixed at the values exposed in 1.6.x. The
+codec is implemented once and shared across all 9 SDKs.
+
+### Changed — PoV: stub → real Ed25519
+
+`AetherNet.Security.Pov` replaces the placeholder verifier with real
+Ed25519. Mirrors the canonical RustCrypto reference; conformance fixtures
+in `tests/cross-language/` lock the byte-for-byte outputs across every SDK.
+
+### Added — 9-language parity (ArkTS / HarmonyOS joins as the 9th SDK)
+
+Cross-language parity proven byte-identical on the new tipping +
+Vault + PoV surface across **C#**, **Go**, **Python**, **TypeScript**,
+**Kotlin**, **Rust**, **C**, **Swift**, and **ArkTS (HarmonyOS)**. The
+Swift build is Mac-gated as before; the ArkTS port ships from a
+Windows-side `npx tsx` test harness with the same fixture corpus.
 
 ### Compatibility
-- Non-breaking — the new provider method is a default interface method.
+
+Non-breaking. `SettleMeshTipAsync` and `PoVTokenExchange` are default
+interface methods — existing `IAetherNetRelationship` implementations
+compile and run unchanged.
+
+---
 
 ## [1.7.0] — 2026-06-13
 
-First release of the **Ephemeral Routing Id (ERID)** privacy primitive — the routing-identity stack that lets nodes rotate the identifier they expose on the wire instead of leaking a stable, targetable UHID.
+**ERID — the Ephemeral Routing Id privacy primitive.** Closes the
+single largest metadata-leak surface the 1.6 threat-model audit flagged:
+a node's wire address no longer doubles as a long-term identifier. Pairs
+with eight cross-cutting privacy + anti-spoofing fixes that landed
+alongside.
 
-### Added — ERID stack (AetherNet.Core / AetherNet.Security)
-- `EphemeralRoutingId`, `EridDirectory`, `EridAnnouncementCodec`, `EridExchangeService`, and the `EridAnnounce` packet type (all landed after the 1.6.2 cut).
+### Added — `EphemeralRoutingId` (the T2 primitive)
 
-### Fixed
-- `AetherNet.Soak.Tests` `InMemoryRoutingFake` now implements the new `IRoutingService.HandleRouteRequestAsync(MeshPacket, string? linkLayerSenderUhid, CancellationToken)` signature from the gap-#1 anti-spoofing change.
+A rotating, key-derived wire address. The address itself is a function
+of `(identity, epoch)`; everyone who already knows the identity can
+derive the current ERID, anyone who doesn't sees an opaque rotating
+string. Implemented in `AetherNet.Core` and `AetherNet.Security`.
 
-### Released
-- 15 `AetherNet.*` packages to nuget.org. `AetherNet.Core.Tests` 887/887 pass.
+### Added — `EridDirectory`
+
+Resolves the rotating wire address inside an established relationship.
+Replaces the prior long-term routing table for in-relationship lookups.
+The directory salts entries so the on-the-wire reputation gossip never
+exposes the underlying UHID.
+
+### Added — `EridAnnounce` packet type `(56)`
+
+The handshake frame for advertising the current ERID to an already-
+authenticated peer. Capability-gated (see below) so unupgraded nodes
+silently fall back to the legacy routing.
+
+### Added — `EridAnnouncementCodec`
+
+The canonical wire codec for the ERID handshake. Identical byte output
+across all 8 SDKs, proven via `tests/cross-language/erid-fixtures.json`.
+
+### Added — `EridExchangeService`
+
+Stage-1d in-session ERID exchange. Two peers that already share a
+Signal-derived identity rotate their wire addresses without
+re-handshaking the application layer.
+
+### Added — `erid-routing` capability gate
+
+The capability is declared but **not yet advertised by default** in
+1.7.0; this is the upgrade-window window for downstream apps to adopt
+the new primitive before nodes start filtering on it.
+
+### Changed — Privacy hardening across the wire
+
+- Salt directory names on the wire (private DNS-style resolution).
+- Drop the free-text `Reason` field from reputation gossip so trust
+  reports stop leaking application-layer text.
+- Uniform `aether/2` handshake banner across all 7 language ports —
+  removes the technology fingerprint that allowed network observers to
+  identify CircleAether deployments.
+
+### Fixed — Anti-spoofing / DDoS resistance
+
+- Rate-limit + score the **authenticated** neighbour, not the spoofable
+  `SourceUhid`. Closes the spoof-and-overload pattern the 1.6 audit
+  caught.
+- Sybil-proof reputation gossip — reports are weighted by **earned**
+  trust, not raw standing. A flood of new identities can no longer
+  manipulate the aggregate.
+- Relay rate cap on discovery (`RequestRateLimiter`) — one flooder can
+  no longer drain the shared aggregate for everyone else.
+- Fix rate-limiter ordering so the per-neighbour bucket evaluates before
+  the global aggregate.
+
+### Added — `IRoutingService.HandleRouteRequestAsync(...)` link-layer sender
+
+Anti-spoofing fix surfaced a new parameter on the routing service. Test
+doubles must implement it; the new signature is the 1.7.0 wire contract.
+
+### Added — 8-language parity
+
+ERID + the privacy hardening above proven byte-identical across **C#**,
+**TypeScript**, **Go**, **Python**, **Rust**, **Kotlin**, **Swift**
+(Mac-gated), and **C**. Conformance corpus in `tests/cross-language/`.
+
+### Compatibility
+
+Non-breaking for callers. Test doubles of `IRoutingService` must
+implement the new `linkLayerSenderUhid` parameter; the change is
+required for any custom fake or replay in downstream test suites.
+
+### Tooling / housekeeping
+
+- Coordinated dep-major migration: **Kotlin 2.2 + Gradle 9 + kotest 6**,
+  **RustCrypto v2** (criterion → divan), **Microsoft.NET.Test.Sdk 18.6**,
+  **coverlet 10.0**, **TS dev deps**, **golang.org/x/crypto 0.51**, and
+  five GitHub Actions to current majors.
+- Kotlin AOSP-Soong compatibility: hand-rolled JSON in 4 wire types.
+- Swift fix-ups: actor-isolated monitor config setters; off-by-one in
+  the confidence-progression unit test.
+
+---
 
 ## [1.6.2] — 2026-06-10
 
