@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Transport.WebRtc</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <Description>WebRTC direct peer-to-peer transport for the Aether mesh protocol. Establishes NAT-traversed RTCDataChannel connections (via SIPSorcery, pure C#) between nodes, with SDP/ICE signalling carried over an existing relay transport. Implements ITransportService and sits between the radio mesh and the QUIC/HTTP relay in the transport ladder, so a direct internet path is preferred when one can be negotiated and the relay carries the rest.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Transport/AetherNet.Transport.csproj" />
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
+    <PackageReference Include="SIPSorcery" Version="10.0.10" />
+  </ItemGroup>
+
+</Project>
