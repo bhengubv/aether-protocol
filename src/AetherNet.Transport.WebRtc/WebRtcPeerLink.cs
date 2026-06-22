@@ -11,7 +11,7 @@ namespace AetherNet.Transport.WebRtc;
 /// <see cref="RTCDataChannel"/>, driving the offer/answer/ICE handshake over an
 /// <see cref="IWebRtcSignaling"/> channel and surfacing received bytes.
 /// </summary>
-internal sealed class WebRtcPeerLink : IAsyncDisposable
+internal sealed class WebRtcPeerLink : IAsyncDisposable, IDisposable
 {
     private const string DataChannelLabel = "aether";
 
@@ -188,7 +188,7 @@ internal sealed class WebRtcPeerLink : IAsyncDisposable
         }
     }
 
-    public ValueTask DisposeAsync()
+    public void Dispose()
     {
         if (!_closed)
         {
@@ -197,6 +197,13 @@ internal sealed class WebRtcPeerLink : IAsyncDisposable
         }
         try { _channel?.close(); } catch { /* best effort */ }
         try { _pc.close(); } catch { /* best effort */ }
+    }
+
+    // Teardown is synchronous (SIPSorcery close() calls); the async shape is offered for
+    // hosts that dispose their container asynchronously.
+    public ValueTask DisposeAsync()
+    {
+        Dispose();
         return ValueTask.CompletedTask;
     }
 }

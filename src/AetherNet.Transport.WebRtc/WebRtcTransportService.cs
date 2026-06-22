@@ -19,7 +19,7 @@ namespace AetherNet.Transport.WebRtc;
 /// (cheap, proximity) and the QUIC/HTTP relay (last resort) — a direct internet path is used when
 /// one can be negotiated, otherwise the relay carries the traffic.</para>
 /// </summary>
-public sealed class WebRtcTransportService : ITransportService, IAsyncDisposable
+public sealed class WebRtcTransportService : ITransportService, IAsyncDisposable, IDisposable
 {
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(20);
 
@@ -146,14 +146,20 @@ public sealed class WebRtcTransportService : ITransportService, IAsyncDisposable
 
     private void OnPeerData(string peerUhid, byte[] data) => DataReceived?.Invoke(peerUhid, data);
 
-    public async ValueTask DisposeAsync()
+    public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         _signaling.SignalReceived -= OnSignalReceived;
         foreach (var link in _peers.Values)
-            await link.DisposeAsync().ConfigureAwait(false);
+            link.Dispose();
         _peers.Clear();
         DataReceived = null;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        Dispose();
+        return ValueTask.CompletedTask;
     }
 }

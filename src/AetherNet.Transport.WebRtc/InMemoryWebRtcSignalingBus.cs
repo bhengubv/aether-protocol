@@ -17,7 +17,7 @@ namespace AetherNet.Transport.WebRtc;
 /// in send order and never re-enter the sender's call stack — matching the ordered, reliable
 /// delivery a real signalling channel provides.</para>
 /// </summary>
-public sealed class InMemoryWebRtcSignalingBus : IAsyncDisposable
+public sealed class InMemoryWebRtcSignalingBus : IAsyncDisposable, IDisposable
 {
     private readonly ConcurrentDictionary<string, Endpoint> _endpoints = new();
 
@@ -28,6 +28,13 @@ public sealed class InMemoryWebRtcSignalingBus : IAsyncDisposable
     private bool Route(WebRtcSignal signal) =>
         _endpoints.TryGetValue(signal.ToUhid, out var target) && target.Deliver(signal);
 
+    public void Dispose()
+    {
+        foreach (var endpoint in _endpoints.Values)
+            endpoint.Dispose();
+        _endpoints.Clear();
+    }
+
     public async ValueTask DisposeAsync()
     {
         foreach (var endpoint in _endpoints.Values)
@@ -35,7 +42,7 @@ public sealed class InMemoryWebRtcSignalingBus : IAsyncDisposable
         _endpoints.Clear();
     }
 
-    private sealed class Endpoint : IWebRtcSignaling, IAsyncDisposable
+    private sealed class Endpoint : IWebRtcSignaling, IAsyncDisposable, IDisposable
     {
         private readonly InMemoryWebRtcSignalingBus _bus;
         private readonly Channel<WebRtcSignal> _inbox =
@@ -63,6 +70,8 @@ public sealed class InMemoryWebRtcSignalingBus : IAsyncDisposable
                 catch { /* a misbehaving handler must not stop the queue */ }
             }
         }
+
+        public void Dispose() => _inbox.Writer.TryComplete();
 
         public async ValueTask DisposeAsync()
         {
