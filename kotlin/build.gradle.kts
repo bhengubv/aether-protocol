@@ -48,6 +48,31 @@ dependencies {
     // Coroutines for async operations
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
+    // WebRTC — real, internet-capable P2P data-channel transport (JVM wrapper around
+    // libwebrtc; Apache-2.0). Mirrors SIPSorcery (C#) and pion (Go) in the transport family.
+    // The base artifact carries the Java API; the native libwebrtc binary ships in a
+    // per-platform classifier jar. Maven resolves that classifier via os-maven-plugin's
+    // ${platform.classifier} property, but Gradle does NOT evaluate that Maven property, so the
+    // native jar is never pulled transitively here — we add it explicitly per OS/arch. Without a
+    // native jar on the classpath, PeerConnectionFactory throws UnsatisfiedLinkError at runtime.
+    val webrtcJavaVersion = "0.14.0"
+    implementation("dev.onvoid.webrtc:webrtc-java:$webrtcJavaVersion")
+    // Pick the native jar for the host running the build/tests. Available classifiers:
+    //   windows-x86_64, macos-x86_64, macos-aarch64, linux-x86_64, linux-aarch64, linux-aarch32
+    val osName = System.getProperty("os.name").lowercase()
+    val osArch = System.getProperty("os.arch").lowercase()
+    val webrtcClassifier = when {
+        osName.contains("win") -> "windows-x86_64"
+        osName.contains("mac") || osName.contains("darwin") ->
+            if (osArch.contains("aarch64") || osArch.contains("arm")) "macos-aarch64" else "macos-x86_64"
+        else -> when {
+            osArch.contains("aarch64") -> "linux-aarch64"
+            osArch.contains("arm") -> "linux-aarch32"
+            else -> "linux-x86_64"
+        }
+    }
+    runtimeOnly("dev.onvoid.webrtc:webrtc-java:$webrtcJavaVersion:$webrtcClassifier")
+
     // JSON serialization — kept for any host that wants kotlinx on the Gradle
     // path. NOTE: the wire-format types in aethernet.content / aethernet.reputation
     // deliberately do NOT use kotlinx — they hand-roll JSON (buildString encode +
