@@ -254,7 +254,13 @@ class NodeActivityMonitorTest {
             monitor.recordEgress("BLE", 5_000)
             monitor.recordEgress("Wi-Fi Direct", 50_000)
         }
-        Thread.sleep(300)
+        // Poll until the monitor has sampled both transports, rather than a fixed Thread.sleep:
+        // under the full suite (busy JVM + webrtc-java native threads) the 50ms sampler can miss a
+        // fixed 300ms window, which made this test flaky. Deterministic up to a 5s ceiling.
+        val deadline = System.currentTimeMillis() + 5_000
+        while (monitor.current.transports.size < 2 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(25)
+        }
 
         val s = monitor.current
         assertEquals(2, s.transports.size)
