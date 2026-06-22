@@ -45,7 +45,9 @@ public sealed class WebRtcTransportService : ITransportService, IAsyncDisposable
         _localUhid = localUhid ?? throw new ArgumentNullException(nameof(localUhid));
         _signaling = signaling ?? throw new ArgumentNullException(nameof(signaling));
         _logger = logger;
-        _iceServers = (iceServers is { Count: > 0 } ? iceServers : DefaultIceServers).ToList();
+        // null => the STUN default; an explicit (even empty) list is respected verbatim, so a
+        // caller can pass an empty list to force host-candidate-only ICE (e.g. same-LAN / tests).
+        _iceServers = (iceServers ?? DefaultIceServers).ToList();
         _signaling.SignalReceived += OnSignalReceived;
     }
 
