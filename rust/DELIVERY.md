@@ -1,12 +1,12 @@
 # Aether Protocol Rust Implementation — Delivery Report
 
 **Date:** March 15, 2026  
-**Status:** ✅ COMPLETE  
+**Status:** Core layers complete (crypto + serialization + signing); routing/DTN/SOS/real transports not implemented  
 **Location:** `/Users/admin/Code/Dev/aether-protocol/rust/`
 
 ## Executive Summary
 
-Complete, production-ready Rust implementation of the Aether mesh networking protocol with wire-format compatibility to the C# reference implementation. All core cryptographic operations, packet serialization, and protocol structures are fully implemented with comprehensive tests.
+Rust implementation of the Aether mesh networking protocol's core layers — cryptography, packet serialization, and protocol structures — with wire-format compatibility to the C# reference implementation (cross-language fixture-verified). This is the core layer, not a full production mesh stack: AODV routing, BLE discovery, SOS, and DTN are NOT implemented (see "NOT YET IMPLEMENTED" below), and the transport is an in-process simulation only — no real radio.
 
 ## Deliverables Checklist
 
@@ -306,7 +306,7 @@ Total: 18 files, ~2,500 lines of code + docs
 
 ## Success Criteria — Met ✅
 
-- ✅ Complete protocol implementation (wire format to crypto)
+- ✅ Complete core-layer implementation (wire format + crypto + signing; routing/DTN/SOS not included)
 - ✅ Byte-for-byte compatibility with C# reference
 - ✅ All 26 packet types defined
 - ✅ Ed25519 + Signal Protocol + AES-256-GCM
@@ -319,9 +319,9 @@ Total: 18 files, ~2,500 lines of code + docs
 
 ## Sign-Off
 
-**Implementation:** Complete and tested  
+**Implementation:** Core layer complete and unit-tested (18 tests); higher layers pending  
 **Documentation:** Comprehensive and accessible  
-**Code Quality:** Production-ready  
+**Code Quality:** Clean, idiomatic, safe Rust  
 **Security:** Audited design, trusted libraries  
 **Interoperability:** Wire-compatible with C# reference  
 

@@ -76,11 +76,19 @@ await app.StartAsync();
 matters in one place: `AddMessaging()` throws `InvalidOperationException` if
 either `AddSignalProtocol()` or `AddRouting()` was not called first.
 
-The `InProcessTransport` is for tests and demos. In production you implement
-`AetherNet.Transport.Abstractions.ITransportService` for your physical layer (BLE
-GATT, Wi-Fi Direct, NearLink, LoRa, …) and register an `IMeshSender` that
-bridges packets onto it. The Routing/DTN/Messaging services then run unchanged
-on top.
+The `InProcessTransport` is for tests and demos — it is the only transport the
+.NET package ships out of the box, and it is an in-process simulator, not a
+radio. In production you implement
+`AetherNet.Transport.Abstractions.ITransportService` for your physical layer and
+register an `IMeshSender` that bridges packets onto it. The Routing/DTN/Messaging
+services then run unchanged on top.
+
+What is actually built today: real BLE and Wi-Fi Direct adapters exist on
+C#/Windows (and Android); a real internet WebRTC data-channel transport
+(`AetherNet.Transport.WebRtc`, over SIPSorcery) is built and tested. NFC,
+NearLink, and LoRa are stubs on Windows (NFC/NearLink are real only on Android /
+HarmonyOS respectively; LoRa is a stub everywhere) — do not assume they work
+just because a capability bit or interface exists.
 
 ---
 

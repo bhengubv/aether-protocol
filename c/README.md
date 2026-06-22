@@ -2,7 +2,7 @@
 
 [English](README.md) · [Français](../docs/i18n/fr/c/README.md) · [Español](../docs/i18n/es/c/README.md) · [العربية](../docs/i18n/ar/c/README.md) · [中文简体](../docs/i18n/zh-CN/c/README.md) · [日本語](../docs/i18n/ja/c/README.md) · [Deutsch](../docs/i18n/de/c/README.md) · [Português (BR)](../docs/i18n/pt-BR/c/README.md) · [Русский](../docs/i18n/ru/c/README.md) · [فارسی](../docs/i18n/fa/c/README.md) · [한국어](../docs/i18n/ko/c/README.md)
 
-A high-performance, embedded-friendly C implementation of the Aether mesh networking protocol. Designed for resource-constrained devices like ESP32 and nRF52, with full support for Ed25519 signing, AES-256-GCM encryption, and AODV-based routing.
+A high-performance, embedded-friendly C implementation of the Aether mesh networking protocol primitives. Designed for resource-constrained devices like ESP32 and nRF52, it provides Ed25519 signing, AES-256-GCM encryption, HMAC/HKDF, and wire-format serialization. **Note:** the C port ships protocol *primitives* only — it does not implement AODV routing or the full Signal session machinery (X3DH / Double Ratchet / OPK lifecycle); see `OPEN_ISSUES.md`. Its only mesh transport is an in-process simulator (no real BLE/Wi-Fi Direct radio).
 
 ## Overview
 
@@ -12,7 +12,8 @@ Aether is a decentralised mesh networking protocol for environments with intermi
 - **Cryptographic operations** — Ed25519 signatures, AES-256-GCM encryption, HMAC-SHA256, HKDF-SHA256 (via libsodium)
 - **Packet signing** — deterministic signable data construction per the protocol spec
 - **Transport abstraction** — vtable pattern for custom transport implementations
-- **In-process transport** — built-in test transport for multi-node scenarios
+- **In-process transport** — built-in in-process simulator transport for multi-node test scenarios (not a real radio)
+- **WebRTC transport** — real internet peer-to-peer data-channel transport in `src/transport_webrtc.c`. **Status: written, but NOT yet verified (built/tested) on the dev box** — treat as unproven until the C WebRTC tests run green
 - **Embedded-first design** — fixed-size buffers where possible, minimal allocation, constant-time operations
 
 ## Build Requirements

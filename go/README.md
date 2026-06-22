@@ -2,7 +2,7 @@
 
 [English](README.md) · [Français](../docs/i18n/fr/go/README.md) · [Español](../docs/i18n/es/go/README.md) · [العربية](../docs/i18n/ar/go/README.md) · [中文简体](../docs/i18n/zh-CN/go/README.md) · [日本語](../docs/i18n/ja/go/README.md) · [Deutsch](../docs/i18n/de/go/README.md) · [Português (BR)](../docs/i18n/pt-BR/go/README.md) · [Русский](../docs/i18n/ru/go/README.md) · [فارسی](../docs/i18n/fa/go/README.md) · [한국어](../docs/i18n/ko/go/README.md)
 
-A complete Go implementation of the Aether mesh networking protocol, wire-compatible with the C# reference implementation.
+A Go implementation of the Aether mesh networking protocol's protocol/crypto/serialization layer, wire-compatible with the C# reference implementation (verified against the shared fixture corpus). Note: the mesh *transport* in this port is an in-process simulator, plus a real WebRTC internet transport — there is no real BLE/Wi-Fi Direct radio (see Future Enhancements).
 
 ## Overview
 
@@ -12,7 +12,8 @@ This module implements the Aether decentralised mesh networking protocol for env
 - **Ed25519 Signing**: Cryptographic packet authentication
 - **Signal Protocol**: X3DH key agreement + symmetric ratchet for end-to-end encryption
 - **Packet Signing Service**: Nonce deduplication with 5-minute TTL for replay prevention
-- **In-Process Transport**: Memory-based transport for testing and inter-process communication
+- **In-Process Transport**: Memory-based transport for testing and inter-process communication (an in-process simulator — there is no real BLE/Wi-Fi Direct radio in the Go port)
+- **WebRTC Transport**: Real internet peer-to-peer data-channel transport (over [pion/webrtc](https://github.com/pion/webrtc)) in `transport/webrtc/`. **Built and tested green on this Go port** — it is the one real (non-simulated) transport here
 - **Models**: AetherNetNode, PeerInfo, RouteEntry, DtnBundle, SosAlert structures
 - **Protocol Constants**: All routing, discovery, security, and transport constants
 
@@ -366,9 +367,13 @@ All operations are goroutine-safe using `sync.RWMutex` and `sync.Map` where appr
 
 ## Future Enhancements
 
+Note: a real **WebRTC** internet transport is already implemented and tested in
+`transport/webrtc/` (see above). The radio transports below are NOT implemented
+in the Go port — the in-process transport is a simulator for tests/demos:
+
 - [ ] SQLite persistence for routes and sessions
-- [ ] BLE transport implementation
-- [ ] Wi-Fi Direct transport implementation
+- [ ] BLE transport implementation (real BLE exists only in the C#/Windows + Android stacks)
+- [ ] Wi-Fi Direct transport implementation (real Wi-Fi Direct exists only in the C#/Windows + Android stacks)
 - [ ] AODV routing protocol implementation
 - [ ] DTN epidemic routing
 - [ ] Presence and discovery beacon service

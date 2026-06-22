@@ -1,9 +1,16 @@
 # Introduction
 
 Aether is a peer-to-peer mesh networking protocol with end-to-end encryption built in at the
-packet layer. Devices talk directly over Bluetooth, WiFi Direct, or NearLink — there is no
-server, no internet dependency, and no account. You generate an Ed25519 / X25519 keypair and
-you are on the network.
+packet layer. Devices talk directly over short-range links (Bluetooth, Wi-Fi Direct) and can
+also connect over the internet via a real WebRTC data-channel transport — there is no central
+server and no account. You generate an Ed25519 / X25519 keypair and you are on the network.
+
+> **Transport reality:** real BLE and Wi-Fi Direct adapters exist on C#/Windows and Android;
+> the real internet transport is WebRTC, built and tested on C#, Go, and Kotlin. NFC is
+> Android-only, NearLink is HarmonyOS-only (unverified on-device), and LoRa is a stub
+> everywhere. The six cross-language library ports (Rust, Go, TypeScript, Python, Kotlin, C)
+> simulate their mesh transport in-process; WebRTC is the one real radio-or-wire transport
+> several of them carry. See [`PROTOCOL_SPEC.md` §5.4](https://github.com/bhengubv/aether-protocol/blob/main/docs/PROTOCOL_SPEC.md).
 
 This site documents the .NET / C# 10 reference implementation. The same wire format and
 cryptographic stack is implemented in seven additional languages (Rust, Go, TypeScript,
@@ -25,7 +32,7 @@ Python, Kotlin, Swift, C) and pinned to a shared fixture corpus under `fixtures/
 | `AetherNet.Security`                   | X3DH, Double Ratchet, identity, packet signing                  |
 | `AetherNet.Messaging`                  | High-level send/receive of application messages                 |
 | `AetherNet.Storage`                    | Encrypted at-rest storage of keys, sessions, queued packets     |
-| `AetherNet.Transport`                  | BLE / WiFi Direct / NearLink transport adapters                 |
+| `AetherNet.Transport`                  | Transport contract + in-process simulator; BLE / Wi-Fi Direct adapters are real on C#/Windows + Android (see `AetherNet.Transport.WebRtc` for the real internet transport) |
 | `AetherNet.Streaming`                  | Adaptive secure streaming (video, large files)                  |
 | `AetherNet.Voice`                      | Voice / Opus codec scaffolding                                  |
 | `AetherNet.Content`                    | Content addressing, channels, watch-together                    |

@@ -8,6 +8,40 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [Unreleased]
+
+### Added — real WebRTC internet transport (`AetherNet.Transport.WebRtc`)
+
+A real peer-to-peer **internet** transport built on a WebRTC data channel
+(DTLS-SRTP), with SDP/ICE signalling carried over an injected signalling channel
+(no central media server). This is the first real (non-simulated) transport the
+cross-language library ports can carry. It is an internet transport, not a
+short-range radio, and does not change the wire format.
+
+Per-language status (honest, as of 2026-06-22):
+
+- **Verified — built and tested green:** C# (`src/AetherNet.Transport.WebRtc`,
+  over SIPSorcery), Go (`go/transport/webrtc`, over pion), Kotlin
+  (`kotlin/.../transport/webrtc`).
+- **Written but NOT yet verified on the dev box:** Python
+  (`python/aethernet/transport/webrtc`), Rust (`rust/src/transport/webrtc.rs`),
+  TypeScript (`typescript/src/transport/webrtc`), C
+  (`c/src/transport_webrtc.c`). Treat as unproven until their tests run green.
+- **Written but BLOCKED on a native dependency:** Swift
+  (`swift/Sources/AetherNetWebRTC`) requires `libdatachannel` (via the
+  `CDataChannel` system library) to build; unverified.
+
+### Note — transport scope (no change, clarified)
+
+The radio transports remain unchanged: real **BLE** and **Wi-Fi Direct**
+adapters exist only in the C#/Windows and Android stacks; **NFC** is real only on
+Android (HCE); **NearLink** is real only on HarmonyOS (pending on-device
+verification); **LoRa** is a stub everywhere. The six cross-language library
+ports (Go, Python, Rust, TypeScript, Swift, C) still use an in-process simulator
+for their mesh transport — WebRTC above is the exception. See PROTOCOL_SPEC §5.4.
+
+---
+
 ## [1.8.0] — 2026-06-14
 
 **Money layer + real Vault/PoV + 9-language parity.** A generic mesh-level

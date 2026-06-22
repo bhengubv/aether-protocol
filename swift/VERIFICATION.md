@@ -247,14 +247,14 @@ These are intentional design decisions for Phase 1 (core protocol).
 ✓ **All Core Cryptographic Primitives** implemented and tested
 ✓ **Thread-Safe Concurrent APIs** using Swift actors
 ✓ **Comprehensive Test Coverage** with 22 passing tests
-✓ **Production-Ready Code** with error handling and documentation
+✓ **Robust core-layer code** with error handling and documentation (core protocol/crypto/serialization only; not a full production mesh stack)
 ✓ **Zero External Security Dependencies** (only swift-crypto)
 ✓ **Optimal Performance** on Apple Silicon and Intel platforms
 
 ---
 
 **Verification Date**: 2026-03-15
-**Status**: ✓ COMPLETE
+**Status**: Core layer complete (protocol + crypto + serialization); routing/transports/DTN not implemented
 **Build Status**: ✓ PASSING
 **Test Status**: ✓ ALL TESTS PASS (22/22)
-**Ready for Production**: YES (Phase 1 - Core Protocol)
+**Scope**: Phase 1 core layer (protocol + crypto + serialization) complete and demo-verified; routing/BLE/Wi-Fi Direct/DTN not implemented (see "Known Limitations"). Not yet a full production mesh stack.

@@ -1,8 +1,8 @@
 # Aether Protocol Kotlin Implementation - Summary
 
-## Completion Status: COMPLETE ✓
+## Completion Status: Core layers complete (protocol + crypto + serialization)
 
-A production-ready Kotlin implementation of the Aether mesh networking protocol with full wire-format compatibility with the C# reference implementation.
+A Kotlin implementation of the Aether mesh networking protocol's core layers — packet serialization, cryptography, and signing — with wire-format compatibility with the C# reference implementation (cross-language fixture-verified). Higher layers (AODV routing, DTN, SOS, real BLE/Wi-Fi Direct transports) are NOT implemented; the included transport is an in-process reference only (see "Ready for Future Implementation").
 
 ## Files Created (14 total)
 
@@ -209,9 +209,9 @@ Message sent from Alice to Bob: true
 - [ ] Voice and streaming services
 - [ ] Double Ratchet (when always-on transports available)
 
-## Deployment Ready
+## Integration Surface
 
-This implementation is production-ready for:
+The core layer (protocol + crypto + serialization) is suitable for integration into:
 
 1. **Mobile apps** (Android via Kotlin multiplatform)
 2. **Desktop apps** (JVM with Gradle)
@@ -257,4 +257,4 @@ This implementation is production-ready for:
 **Implementation completed**: 2026-03-15
 **Protocol version**: 2.0
 **JDK target**: 17+
-**Status**: PRODUCTION READY ✓
+**Status**: Core layers complete (protocol + crypto + serialization); routing/DTN/SOS/real transports not implemented

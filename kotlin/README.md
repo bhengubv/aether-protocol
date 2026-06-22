@@ -2,7 +2,7 @@
 
 [English](README.md) · [Français](../docs/i18n/fr/kotlin/README.md) · [Español](../docs/i18n/es/kotlin/README.md) · [العربية](../docs/i18n/ar/kotlin/README.md) · [中文简体](../docs/i18n/zh-CN/kotlin/README.md) · [日本語](../docs/i18n/ja/kotlin/README.md) · [Deutsch](../docs/i18n/de/kotlin/README.md) · [Português (BR)](../docs/i18n/pt-BR/kotlin/README.md) · [Русский](../docs/i18n/ru/kotlin/README.md) · [فارسی](../docs/i18n/fa/kotlin/README.md) · [한국어](../docs/i18n/ko/kotlin/README.md)
 
-A complete, production-ready Kotlin implementation of the Aether mesh networking protocol, with full cross-language wire-format compatibility with the C# reference implementation.
+A Kotlin implementation of the Aether mesh networking protocol, with cross-language wire-format compatibility with the C# reference implementation (verified against the shared fixture corpus).
 
 ## Overview
 
@@ -14,7 +14,8 @@ Aether is a decentralised mesh networking protocol for environments with intermi
 - **ECDH P-256** key agreement for session establishment
 - **Packet serialization/deserialization** with little-endian multi-byte integers
 - **Replay protection** using nonce deduplication
-- **Transport abstraction** for BLE, Wi-Fi Direct, and in-process messaging
+- **Transport abstraction** with an in-process simulator (BLE and Wi-Fi Direct are *interface slots* here — real BLE/Wi-Fi Direct adapters exist only in the C#/Windows + Android stacks)
+- **WebRTC transport** — real internet peer-to-peer data-channel transport in `src/main/kotlin/aethernet/transport/webrtc/`. **Built and tested green on this Kotlin port** — it is the one real (non-simulated) transport here
 
 ## Project Structure
 
@@ -123,7 +124,10 @@ Implements X3DH key agreement with symmetric ratchet:
 
 ### 4. Transport Abstraction (`TransportService`)
 
-Interface for physical transports (BLE, Wi-Fi Direct, etc.):
+Interface for physical transports. The only transports in the Kotlin port are the
+in-process simulator (`InProcessTransport`, for tests/demos) and the real WebRTC
+internet transport (`transport/webrtc/`, built + tested). BLE / Wi-Fi Direct are
+interface slots, not implemented here:
 
 ```kotlin
 interface TransportService {

@@ -2,7 +2,7 @@
 
 [English](README.md) · [Français](../docs/i18n/fr/rust/README.md) · [Español](../docs/i18n/es/rust/README.md) · [العربية](../docs/i18n/ar/rust/README.md) · [中文简体](../docs/i18n/zh-CN/rust/README.md) · [日本語](../docs/i18n/ja/rust/README.md) · [Deutsch](../docs/i18n/de/rust/README.md) · [Português (BR)](../docs/i18n/pt-BR/rust/README.md) · [Русский](../docs/i18n/ru/rust/README.md) · [فارسی](../docs/i18n/fa/rust/README.md) · [한국어](../docs/i18n/ko/rust/README.md)
 
-Complete Rust implementation of the Aether mesh networking protocol, featuring wire-format compatibility with the C# reference implementation.
+Rust implementation of the Aether mesh networking protocol's protocol/crypto/serialization layer, featuring wire-format compatibility with the C# reference implementation (verified against the shared fixture corpus). Note: the mesh *transport* in this port is an in-process simulator (plus a written-but-unverified WebRTC internet transport) — there is no real BLE/Wi-Fi Direct radio.
 
 ## Overview
 
@@ -12,7 +12,8 @@ This crate provides:
 - **Ed25519 signing** — Identity key generation, signing, and verification
 - **Signal Protocol** — X3DH-based key agreement with symmetric ratchet for forward secrecy
 - **Packet signing service** — Nonce deduplication and freshness checks
-- **In-process transport** — Simulated mesh network for testing and demos
+- **In-process transport** — Simulated mesh network for testing and demos (an in-process simulator; there is no real BLE/Wi-Fi Direct radio in the Rust port)
+- **WebRTC transport** — Real internet peer-to-peer data-channel transport in `src/transport/webrtc.rs`. **Status: written, but NOT yet verified (built/tested) on the dev box.** Treat as unproven until the Rust WebRTC tests are run green
 
 ## Project Structure
 

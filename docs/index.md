@@ -33,6 +33,9 @@ Aether reference implementation in C# / .NET 10, with cross-language interoperab
 | Routing (mesh + DTN)           | Implemented   | 72-hour delay-tolerant store-and-forward        |
 | AES-256-GCM payload encryption | Implemented   | All 8 languages                                 |
 | Ed25519 packet signing         | Implemented   | Forged packets dropped by network               |
+| Transports (BLE, Wi-Fi Direct) | Partial       | Real on C#/Windows + Android only; library ports simulate |
+| WebRTC internet transport      | Partial       | Built + tested on C#, Go, Kotlin; written/unverified on Python, Rust, TS, C; Swift blocked on native dep |
+| NFC / NearLink / LoRa          | Not (mostly)  | NFC: Android only. NearLink: HarmonyOS only (unverified). LoRa: stub everywhere |
 | Video streaming pipeline       | Wire-defined  | Codec/BitTorrent/ChipIn binding pending         |
 | Watch Together (synced playback)| Wire-defined | Pending playback adapter binding                |
 | Voice / opus codec             | Scaffolded    | API surface only                                |
@@ -47,8 +50,10 @@ for the residual gap list.
 
 A peer-to-peer mesh networking protocol where every packet is end-to-end encrypted with the
 Signal Double Ratchet, every routing decision is local, and every device on the mesh can be
-the relay that gets a packet to its destination. The transport is Bluetooth, WiFi Direct, or
-NearLink — never the internet.
+the relay that gets a packet to its destination. The short-range transports are Bluetooth and
+WiFi Direct (real on C#/Windows + Android; the cross-language library ports simulate them
+in-process). A real internet WebRTC data-channel transport also exists — built and tested on
+C#, Go, and Kotlin — for peers that do have connectivity.
 
 Think AirDrop, but cross-platform, multi-hop, and built on the same cryptographic primitives
 that secure WhatsApp and Signal.

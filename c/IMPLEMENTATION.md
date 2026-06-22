@@ -1,13 +1,13 @@
-# Aether Protocol C Implementation - Complete
+# Aether Protocol C Implementation - Primitives Layer
 
-**Status:** ✓ Complete
+**Status:** Primitives layer complete (crypto + serialization + signing); routing and full Signal session NOT implemented
 **Location:** `/Users/admin/Code/Dev/aether-protocol/c/`
 **Date:** 2026-03-15
 **Lines of Code:** 2,833 (headers + impl + tests)
 
 ## What Was Built
 
-A production-ready, embedded-friendly C implementation of the Aether mesh networking protocol with full cryptographic support, wire-format compatibility with the C# reference, and comprehensive testing.
+An embedded-friendly C implementation of the Aether mesh networking **primitives** — cryptography, wire-format serialization (compatible with the C# reference), and packet signing. This is a primitives layer only: it does NOT implement AODV routing or the full Signal session state machine (see "Next Steps" / "NOT YET IMPLEMENTED" below). The transport included is an in-process simulation for testing — there is no real radio (BLE / Wi-Fi Direct). Not verified against a real-world device deployment.
 
 ### Deliverables
 
@@ -360,6 +360,6 @@ All serialization uses little-endian byte order and length-prefixed strings, exa
 
 ---
 
-**Implementation Complete** ✓
+**Primitives Layer Complete** ✓
 
-All 10 requirements met. Ready for integration with ESP32, nRF52, or desktop Linux/macOS platforms.
+All 10 primitives-layer requirements met (crypto, serialization, signing, in-process test transport). Routing and the full Signal session state machine are not implemented — see "Next Steps (Phase 2)". The protocol-primitive serialization is cross-language fixture-verified against the C# reference; real-device integration (ESP32, nRF52) is not yet verified.

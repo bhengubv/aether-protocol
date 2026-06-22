@@ -15,7 +15,8 @@ Aether is a decentralized mesh networking protocol designed for environments wit
 - **Symmetric Ratchet**: HMAC-SHA256 based message key derivation with forward secrecy
 - **Packet Serialization**: Little-endian binary wire format matching C# implementation
 - **Replay Attack Prevention**: Nonce-based deduplication with 5-minute TTL
-- **In-Process Transport**: Mock transport for testing mesh communication
+- **In-Process Transport**: Mock/in-process transport for testing mesh communication (a simulator; there is no real BLE/Wi-Fi Direct radio in the Python port)
+- **WebRTC Transport**: Real internet peer-to-peer data-channel transport in `aethernet/transport/webrtc/`. **Status: written, but NOT yet verified (built/tested) on the dev box** — treat as unproven until the Python WebRTC tests run green
 
 ## Installation
 

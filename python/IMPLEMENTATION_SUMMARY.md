@@ -2,7 +2,7 @@
 
 ## Overview
 
-A complete, wire-compatible Python implementation of the Aether mesh networking protocol (v2.0), matching the C# reference implementation exactly.
+A wire-compatible Python implementation of the Aether mesh networking protocol's core layers (v2.0) — packet serialization, cryptography, and signing — matching the C# reference implementation at the wire-format level (cross-language fixture-verified). Routing (AODV), DTN, and SOS are NOT implemented, and the transport is an in-process simulation only — no real radio (see "Next Steps").
 
 ## Deliverables
 
@@ -185,7 +185,7 @@ The binary serialization matches the C# implementation **byte-for-byte**:
 
 ✓ **Testable**: In-process transport for unit testing without physical hardware
 
-✓ **Production-Ready**: Error handling, logging, thread-safe operations
+✓ **Robust core**: Error handling, logging, thread-safe operations (core layer; not a full production mesh stack)
 
 ## Testing
 

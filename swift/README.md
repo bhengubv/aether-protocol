@@ -2,7 +2,7 @@
 
 [English](README.md) · [Français](../docs/i18n/fr/swift/README.md) · [Español](../docs/i18n/es/swift/README.md) · [العربية](../docs/i18n/ar/swift/README.md) · [中文简体](../docs/i18n/zh-CN/swift/README.md) · [日本語](../docs/i18n/ja/swift/README.md) · [Deutsch](../docs/i18n/de/swift/README.md) · [Português (BR)](../docs/i18n/pt-BR/swift/README.md) · [Русский](../docs/i18n/ru/swift/README.md) · [فارسی](../docs/i18n/fa/swift/README.md) · [한국어](../docs/i18n/ko/swift/README.md)
 
-A comprehensive Swift implementation of the Aether mesh networking protocol, providing end-to-end encryption, routing, and peer-to-peer communication for iOS and macOS.
+A Swift implementation of the Aether mesh networking protocol's protocol/crypto/serialization layer, providing end-to-end encryption and wire-compatible packet handling for iOS and macOS (verified against the shared fixture corpus). Note: the mesh *transport* is an in-process simulator; the real WebRTC internet transport is written but blocked on the `libdatachannel` native dependency, and full AODV routing is not yet implemented in this port (see Future Work).
 
 ## Overview
 
@@ -11,7 +11,8 @@ Aether is a decentralized mesh networking protocol designed for environments wit
 - **Wire-compatible serialization** with the C# reference implementation
 - **Ed25519 signing** for packet authentication
 - **Signal Protocol** (X3DH + Symmetric Ratchet) for end-to-end encryption
-- **Transport abstraction** supporting multiple physical layers (BLE, Wi-Fi Direct, NearLink)
+- **Transport abstraction** with an in-process simulator (BLE / Wi-Fi Direct / NearLink are *interface slots*, not implemented in the Swift port)
+- **WebRTC transport** — Real internet peer-to-peer data-channel transport in `Sources/AetherNetWebRTC/`. **Status: written, but BLOCKED on a native dependency** (`libdatachannel` via the `CDataChannel` system library) — it does not build until libdatachannel is installed and linked, and is unverified on the dev box
 - **Thread-safe async APIs** using Swift Concurrency
 
 ## Requirements
@@ -40,7 +41,8 @@ Aether is a decentralized mesh networking protocol designed for environments wit
 
 #### Transport Layer
 - **TransportService**: Protocol defining transport contract
-- **InProcessTransport**: In-memory transport for testing and local communication
+- **InProcessTransport**: In-memory simulator transport for testing and local communication (not a real radio)
+- **AetherNetWebRTC**: Real internet WebRTC data-channel transport — written, but blocked on the `libdatachannel` native dependency (see Future Work); unverified
 
 #### Models
 - **AetherNetNode**: Node representation with UHID and identity key

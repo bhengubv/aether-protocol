@@ -595,6 +595,21 @@ All 7 session-capable languages (C# + Go + TypeScript + Python + Kotlin + Swift 
 
 Aether is transport-agnostic. Any physical communication channel that satisfies the `ITransportService` contract can participate in the mesh.
 
+> **Transport reality (verified 2026-06-22).** This section defines the
+> *contract* every transport implements and the design *characteristics* the
+> selector reasons over. It does NOT imply every transport listed is built on
+> every platform. The honest per-transport / per-platform status is in §5.4 —
+> read it before assuming a radio is available. In short: BLE and Wi-Fi Direct
+> have real platform code (C#/Windows + Android); a real internet WebRTC
+> data-channel transport is built and tested on C#, Go, and Kotlin; NFC is
+> real only on Android (HCE); NearLink is real only on HarmonyOS (pending
+> on-device verification); LoRa is a stub everywhere; and the six
+> cross-language library ports (Go, Python, Rust, TypeScript, Swift, C) ship
+> an **in-process simulator** for their mesh transport, not a real radio. The
+> `MaxBandwidth` / `MaxRange` figures below are the characteristics a real
+> adapter *would* advertise, not a claim that the adapter exists on a given
+> platform.
+
 ### 5.1. ITransportService Interface Contract
 
 Every transport implementation MUST expose the following:
@@ -634,13 +649,41 @@ The `TransportManager` selects the optimal transport for each packet based on:
 4. **Peer connectivity:** If a transport already has an active connection to the target peer (`IsConnected` returns true), it is preferred to avoid connection setup overhead.
 5. **Fallback:** If no local transport can reach the target, the packet is queued for server relay via AetherNetAPI.
 
-### 5.3. Reference Transports
+### 5.3. Transport Characteristics (design parameters)
+
+These are the characteristics a *real* adapter advertises to the selector.
+Listing a transport here is not a claim that its radio is implemented on any
+given platform — see §5.4 for what is actually built.
 
 | Transport    | MaxBandwidth   | MaxRange | PowerCost | MaxPeers | Notes |
 |-------------|----------------|----------|-----------|----------|-------|
 | BLE 5.0     | ~2 Mbps        | 100m     | 1         | 7        | Primary discovery + small packets |
 | Wi-Fi Direct| ~250 Mbps      | 200m     | 5         | 8        | Large transfers, streaming, voice |
-| NearLink    | ~900 Mbps      | 200m     | 3         | 16       | Huawei/HiSilicon, high throughput |
+| NearLink    | ~900 Mbps      | 200m     | 3         | 16       | Huawei/HiSilicon; HarmonyOS only |
+| WebRTC      | link-dependent | internet | 6         | many     | Internet P2P data channel (DTLS-SRTP); not a short-range radio |
+
+### 5.4. Per-Transport / Per-Platform Implementation Status
+
+The protocol is transport-agnostic, but a transport only works where its
+platform code exists. As verified 2026-06-22:
+
+| Transport     | Real where                                              | Stub / not built where                          |
+|---------------|---------------------------------------------------------|-------------------------------------------------|
+| **BLE**       | C# / Windows; Android (`android/blue/`)                  | the 6 library ports use the in-process simulator |
+| **Wi-Fi Direct** | C# / Windows; Android (`android/green/`)             | the 6 library ports use the in-process simulator |
+| **HTTP/QUIC relay** | C# / Windows                                      | —                                               |
+| **WebRTC (internet P2P)** | **Verified (built + tested green): C# (SIPSorcery), Go (pion), Kotlin.** Written but unverified on the dev box: Python, Rust, TypeScript, C. Written but blocked on a native dependency (libdatachannel): Swift. | — |
+| **NFC**       | Android (`android/white/`, HCE)                          | Windows (stub, `IsAvailable=false`)             |
+| **NearLink**  | HarmonyOS (`harmonyos/teal/`, **pending on-device + DevEco verification**) | Android (stub); Windows (stub)        |
+| **LoRa**      | nowhere — **stub everywhere** (`LoRaCircleLinkStub`, `IsAvailable=false`; `android/red/` is UI-only) | all platforms |
+
+The "approximations" referenced elsewhere (NearLink-over-BLE,
+LoRa-over-BLE-Coded-PHY, NFC-over-BLE / PC-SC) are documented **designs, not
+built code**. The six cross-language library ports (Go, Python, Rust,
+TypeScript, Swift, C) have **no real radio transport** — their mesh transport
+is an in-process simulator for tests and demos. WebRTC is the one real
+on-the-internet transport those ports can carry, with the per-language caveats
+in the table above.
 
 **BLE payload limit:** Packets exceeding 1,024 bytes (`BleMaxPayloadBytes`) are automatically routed to Wi-Fi Direct or NearLink. BLE is used for discovery advertisements, small control packets (RREQ/RREP, presence beacons), and low-bandwidth messaging.
 

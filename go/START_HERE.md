@@ -1,6 +1,6 @@
 # Aether Protocol Go Implementation - START HERE
 
-**Welcome!** You now have a complete, production-ready Go implementation of the Aether mesh networking protocol.
+**Welcome!** You now have a Go implementation of the Aether mesh networking protocol's core layers — packet serialization, cryptography, and signing — wire-compatible with the C# reference and cross-language fixture-verified. This is the core layer, not a full production mesh stack: AODV routing, DTN, SOS, and real BLE/Wi-Fi Direct transports are not implemented (the included transport is an in-process simulation — see "Next Steps").
 
 ---
 
@@ -336,13 +336,13 @@ See "Future Enhancements" in [COMPLETION_REPORT.md](COMPLETION_REPORT.md):
 ✓ **1,500+ lines** of documentation
 ✓ **5 demo scenarios** all passing
 ✓ **Wire-compatible** with C# (little-endian)
-✓ **Ready for production** (with additions for persistence, transports)
+✓ **Core layer complete** (routing, DTN, persistence, and real transports still needed for a production mesh stack)
 
 ---
 
 ## TL;DR
 
-You have a **complete Go implementation** of the Aether mesh protocol. Run the demo:
+You have a Go implementation of the Aether mesh protocol's **core layer** (serialization + crypto + signing), cross-language fixture-verified. Routing/DTN/SOS and real transports are not implemented. Run the demo:
 
 ```bash
 cd /Users/admin/Code/Dev/aether-protocol/go
@@ -353,7 +353,7 @@ Then read [QUICK_START.md](QUICK_START.md) for 7 copy-paste code examples.
 
 For technical details, see [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md).
 
-**Status**: ✓ Complete, tested, documented, ready to use.
+**Status**: Core layer complete, demo-tested, and documented. Not a full production mesh stack (no routing/DTN/SOS/real transports).
 
 ---
 

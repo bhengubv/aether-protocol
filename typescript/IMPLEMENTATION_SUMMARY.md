@@ -2,13 +2,13 @@
 
 ## Overview
 
-A complete, production-ready TypeScript/Node.js implementation of the Aether mesh networking protocol, fully compatible with the C# reference implementation at the wire format level.
+A TypeScript/Node.js implementation of the Aether mesh networking protocol's core layers — packet serialization, cryptography, and signing — wire-format compatible with the C# reference implementation. The protocol/crypto/serialization layer is complete and cross-language fixture-verified. Higher layers (routing, DTN, SOS) are NOT implemented and the transport is an in-process simulation only — no real radio (see "Known Limitations" and "Next Steps for Production"). Not production-ready as a full mesh stack.
 
 **Location**: `/Users/admin/Code/Dev/aether-protocol/typescript/`
 
-## Implementation Status: COMPLETE ✓
+## Implementation Status: Core layers complete (protocol + crypto + serialization)
 
-All 13 required modules delivered with 100% protocol compliance.
+All 13 modules of the core layer delivered with wire-format compliance verified against C# fixtures. Routing, DTN, and SOS are out of scope for this layer (see "Known Limitations").
 
 ### Core Modules (12 source files)
 

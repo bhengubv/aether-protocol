@@ -103,18 +103,23 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
 
 ## Transports
 
-Each transport has a colour name used throughout the codebase. `IsAvailable` gates hardware-blocked paths — the `TransportManager` skips them automatically and falls back to the next available transport.
+Each transport has a colour name used throughout the codebase. `IsAvailable` gates hardware-blocked paths — the `TransportManager` skips them and falls back to the next available transport.
+
+**Status key:** ✅ real, built & verified · ⏳ real, verification in progress · ⚠️ real on some platforms, stub on others · ❌ stub (no transport code yet).
 
 | Colour | Name | Range | Bandwidth | Status |
 |--------|------|------:|----------:|--------|
-| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
-| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | Cellular HTTP relay | Unlimited | ~10 Mbps | ✅ Windows — relay server in `samples/AetherNet.RelayServer/` |
-| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE (`android/white/`); Windows: NDEF-over-BLE-GATT + ACR122U PC/SC approximation (`Windows.Networking.Proximity` removed in Win 11) |
-| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`; Windows + Android: SSAP-over-BLE approximation (API-analogous, not wire-compatible) |
-| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ Meshtastic wire format over BLE LR (~1.3 km); radio swap to SX1276/SX1278 when LoRa module present |
+| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Real — Windows (WinRT) + Android (`android/blue/`) |
+| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Real — Windows (WinRT) + Android (`android/green/`) |
+| 🟣 Aether Purple | HTTP / QUIC relay | Unlimited | ~10 Mbps | ✅ Real — Windows; relay server in `samples/AetherNet.RelayServer/` |
+| 🟪 WebRTC P2P | Internet data channel | Unlimited | ~100 Mbps | ⏳ Real + tested in C#, Go, Kotlin; **written, verification pending** in Python, Rust, TypeScript, Swift, C |
+| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Real on Android (`android/white/`); **stub on Windows** (`IsAvailable=false`, `Windows.Networking.Proximity` removed in Win 11) |
+| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ⚠️ Real on HarmonyOS (`harmonyos/teal/`, `@kit.NearLinkKit` — pending on-device verification); **stub on Android + Windows** |
+| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ❌ **Stub** — no radio code yet (needs a LoRa-capable node, or a BLE Coded PHY approximation that isn't built) |
 
-Priority order in `TransportManager`: NearLink → BLE (≤ 1 KB) → Wi-Fi Direct → NFC → LoRa → HTTP Relay (last resort, `PowerCostRelative = 100`).
+The radio transports are real only where platform code exists (C#/Windows, Kotlin/Android, HarmonyOS). The eight language libraries otherwise ship an **in-process simulation** transport for testing — **WebRTC is the first real transport common to all of them** (rollout in progress).
+
+Priority is by power cost: the radio mesh is preferred, then WebRTC as a direct internet path, with the HTTP/QUIC relay as last resort.
 
 ## Deployment tiers
 
@@ -126,15 +131,15 @@ Aether works on any platform that supports Bluetooth or Wi-Fi. The tier you're o
 
 Android · Windows · Linux · macOS · iOS
 
-Aether runs fully on any device with Bluetooth or Wi-Fi hardware. Where a radio is physically absent, each blocked transport is approximated using what is available:
+Aether runs on any device with Bluetooth or Wi-Fi hardware. Where a radio is physically absent, the design calls for approximating each blocked transport over what is available — **but those approximations are not yet implemented. They are documented designs; today they are stubs:**
 
-- **NearLink (Aether Teal)** — approximated over BLE GATT using the canonical Aether SLE service UUID (`61657468-6572-0003-0000-000000000000`). The SSAP application-protocol layer is API-identical to GATT. The radio layer (BPSK/QPSK/8PSK, Polar codes, 1–4 MHz channels) is not — nodes running the standard tier cannot exchange raw bytes with real NearLink hardware; they interoperate with other standard-tier Aether nodes.
-- **LoRa (Aether Red)** — approximated using the full Meshtastic wire format over BLE 5.0 Coded PHY (S=8, ~1.3 km outdoor). Bridge-node federation with real LoRa hardware works automatically — the same Meshtastic packet format rides all hops with no translation.
-- **NFC (Aether White)** — approximated via NDEF-over-BLE-GATT with an RSSI proximity gate (≥ −40 dBm ≈ 5–10 cm) that reproduces tap-to-connect semantics. PC/SC path via USB NFC reader is also supported on Windows.
+- **NearLink (Aether Teal)** — *planned* approximation over BLE GATT (Aether SLE UUID `61657468-6572-0003-…`). **Not built** on Android/Windows. The real NearLink radio exists only on HarmonyOS (`harmonyos/teal/`, pending on-device verification).
+- **LoRa (Aether Red)** — *planned* approximation using the Meshtastic wire format over BLE 5.0 Coded PHY (~1.3 km). **Not built.** Real LoRa needs a LoRa-capable node (gateway, SBC, or rugged handset with a LoRa module).
+- **NFC (Aether White)** — real on Android (HCE). The Windows NDEF-over-BLE / PC/SC path is *planned*, **not built** (`IsAvailable=false`).
 
-All other capabilities — BLE, Wi-Fi Direct, HTTP relay, Signal Protocol security (X3DH + Double Ratchet), AODV routing, DTN store-and-forward, SOS broadcast, voice, streaming — are native and identical to the native tier.
+What is real and identical everywhere: **BLE, Wi-Fi Direct, the HTTP/QUIC relay, and the WebRTC P2P transport (where verified)**, plus Signal Protocol security (X3DH + Double Ratchet), AODV routing, DTN store-and-forward, SOS broadcast, voice, and streaming.
 
-**This is a fully capable, production-grade deployment.** Most apps start here.
+**Honest status:** BLE + Wi-Fi Direct + relay are production-real; WebRTC is real and verified in C#/Go/Kotlin (rolling out to the rest); the NearLink / LoRa / NFC-on-Windows approximations are **not built yet** — don't deploy expecting those three.
 
 ---
 

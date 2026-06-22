@@ -2,7 +2,7 @@
 
 [English](README.md) · [Français](../docs/i18n/fr/typescript/README.md) · [Español](../docs/i18n/es/typescript/README.md) · [العربية](../docs/i18n/ar/typescript/README.md) · [中文简体](../docs/i18n/zh-CN/typescript/README.md) · [日本語](../docs/i18n/ja/typescript/README.md) · [Deutsch](../docs/i18n/de/typescript/README.md) · [Português (BR)](../docs/i18n/pt-BR/typescript/README.md) · [Русский](../docs/i18n/ru/typescript/README.md) · [فارسی](../docs/i18n/fa/typescript/README.md) · [한국어](../docs/i18n/ko/typescript/README.md)
 
-A complete TypeScript/Node.js implementation of the Aether mesh networking protocol, fully wire-format compatible with the C# reference implementation.
+A TypeScript/Node.js implementation of the Aether mesh networking protocol's protocol/crypto/serialization layer, wire-format compatible with the C# reference implementation (verified against the shared fixture corpus). Note: the mesh *transport* in this port is an in-process simulator (plus a written-but-unverified WebRTC internet transport) — there is no real BLE/Wi-Fi Direct radio.
 
 ## Features
 
@@ -10,7 +10,8 @@ A complete TypeScript/Node.js implementation of the Aether mesh networking proto
 - **Ed25519 Signing**: Using TweetNaCl for signature generation and verification
 - **Signal Protocol**: X3DH key exchange with HKDF-SHA256 key derivation and AES-256-GCM encryption
 - **Packet Signing**: Full signable data construction per protocol spec (Section 2.3)
-- **In-Process Transport**: Simulated network for testing and demos
+- **In-Process Transport**: Simulated network for testing and demos (an in-process simulator; there is no real BLE/Wi-Fi Direct radio in the TypeScript port)
+- **WebRTC Transport**: Real internet peer-to-peer data-channel transport in `src/transport/webrtc/`. **Status: written, but NOT yet verified (built/tested) on the dev box** — treat as unproven until the TypeScript WebRTC tests run green
 - **Symmetric Ratchet**: HMAC-SHA256 chain key advancement with out-of-order message support
 - **Protocol Constants**: All 60+ constants from PROTOCOL_SPEC Section A
 

@@ -1,3 +1,4 @@
+> **CORRECTION (2026-06-22) - read first.** Several "RESOLVED" claims in this file overstated the transport layer. Honest status: **Blue / Green (Wi-Fi Direct) / Purple (HTTP-QUIC relay) are real.** NFC is real on Android, stub on Windows. NearLink is real on HarmonyOS (pending on-device verification), stub on Android + Windows. **LoRa is a stub everywhere - no radio code.** The "approximations" in items 8/12/13/14 are forward designs, **NOT built.** A new **WebRTC P2P** internet transport was added: real + tested in C#/Go/Kotlin, written / verification-pending in Python/Rust/TypeScript/Swift/C. The 6 library languages otherwise ship an in-process **simulation** transport only. See README.md for the canonical status.
 # Open Issues — production-readiness remediation
 
 Tracked items remaining before `aether-protocol` can be presented as a
