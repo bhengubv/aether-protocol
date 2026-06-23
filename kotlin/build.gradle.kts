@@ -73,6 +73,11 @@ dependencies {
     }
     runtimeOnly("dev.onvoid.webrtc:webrtc-java:$webrtcJavaVersion:$webrtcClassifier")
 
+    // Real serial LoRa transport (RYLR-class SX127x/SX126x AT command set). JVM/desktop only —
+    // like webrtc-java above this is NOT part of the AOSP Soong core subset. jSerialComm bundles
+    // its own per-OS native serial libraries, so no extra classifier jar is needed.
+    implementation("com.fazecast:jSerialComm:2.10.4")
+
     // JSON serialization — kept for any host that wants kotlinx on the Gradle
     // path. NOTE: the wire-format types in aethernet.content / aethernet.reputation
     // deliberately do NOT use kotlinx — they hand-roll JSON (buildString encode +
