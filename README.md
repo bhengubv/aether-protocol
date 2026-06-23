@@ -112,12 +112,12 @@ Each transport has a colour name used throughout the codebase. `IsAvailable` gat
 | 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Real — Windows (WinRT) + Android (`android/blue/`) |
 | 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Real — Windows (WinRT) + Android (`android/green/`) |
 | 🟣 Aether Purple | HTTP / QUIC relay | Unlimited | ~10 Mbps | ✅ Real — Windows; relay server in `samples/AetherNet.RelayServer/` |
-| 🟪 WebRTC P2P | Internet data channel | Unlimited | ~100 Mbps | ⏳ Real + tested in C#, Go, Kotlin; **written, verification pending** in Python, Rust, TypeScript, Swift, C |
+| 🟪 WebRTC P2P | Internet data channel | Unlimited | ~100 Mbps | ✅ Real in all 8 languages — **loopback-verified** (C#/Go/Kotlin/TypeScript/Python/C/Swift exchange bytes over a real ICE data channel); Rust build-verified |
 | ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Real on Android (`android/white/`); Windows = real BLE-GATT + RSSI −40 dBm proximity approximation (`WinNfcBleTransportService`, compiles net9/10, runtime-unverified) — `Windows.Networking.Proximity` removed in Win 11 |
 | 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ⚠️ Real on HarmonyOS (`harmonyos/teal/`, `@kit.NearLinkKit` — pending on-device verification); Android + Windows = real SSAP-over-BLE approximation (`android/teal/AetherNetSleService`, `WinNearLinkBleTransportService`; compile + unit-test verified, runtime-unverified) |
 | 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ Real RYLR SX127x/SX126x serial driver (`LoRaSerialTransport` in C#/Go/Rust/C; compiles, runtime-unverified — needs a physical module); BLE Coded-PHY bridge still a documented design |
 
-The radio transports are real only where platform code exists (C#/Windows, Kotlin/Android, HarmonyOS). The eight language libraries otherwise ship an **in-process simulation** transport for testing — **WebRTC is the first real transport common to all of them** (rollout in progress).
+The radio transports are real only where platform code exists (C#/Windows, Kotlin/Android, HarmonyOS). The eight language libraries otherwise ship an **in-process simulation** transport for testing — **WebRTC is the first real transport common to all of them** (complete; loopback-verified across the languages).
 
 Priority is by power cost: the radio mesh is preferred, then WebRTC as a direct internet path, with the HTTP/QUIC relay as last resort.
 
@@ -134,12 +134,12 @@ Android · Windows · Linux · macOS · iOS
 Aether runs on any device with Bluetooth or Wi-Fi hardware. Where a radio is physically absent, each blocked transport is approximated over what is available. These approximations are now **real code** (compile-verified; **runtime-unverified** pending a 2-device / hardware RF test):
 
 - **NearLink (Aether Teal)** — real SSAP-over-BLE-GATT approximation (Aether SLE UUID `61657468-6572-0003-…`) on Android (`android/teal/AetherNetSleService`) and Windows (`WinNearLinkBleTransportService`); compile + unit-test verified, runtime-unverified. The real NearLink radio exists only on HarmonyOS (`harmonyos/teal/`, pending on-device verification).
-- **LoRa (Aether Red)** — real RYLR SX127x/SX126x serial driver (`LoRaSerialTransport` in C#/Go/Rust/C; compiles, runtime-unverified — needs a physical module). The Meshtastic-over-BLE-Coded-PHY bridge (~1.3 km) remains a documented design; real long-range LoRa needs a LoRa-capable node (gateway, SBC, or rugged handset with a LoRa module).
+- **LoRa (Aether Red)** — real RYLR SX127x/SX126x serial driver (`LoRaSerialTransport` in **all 8 languages** — C#/Go/Rust/C/Python/TypeScript/Swift/Kotlin; every port compile-verified, including Swift + C on the Mac build server; runtime-unverified — needs a physical module). The Meshtastic-over-BLE-Coded-PHY bridge (~1.3 km) remains a documented design; real long-range LoRa needs a LoRa-capable node (gateway, SBC, or rugged handset with a LoRa module).
 - **NFC (Aether White)** — real on Android (HCE). Windows now has a real BLE-GATT + RSSI −40 dBm proximity approximation (`WinNfcBleTransportService`, compiles net9/10; runtime-unverified); ACR122U PC/SC when a reader is present.
 
-What is real and identical everywhere: **BLE, Wi-Fi Direct, the HTTP/QUIC relay, and the WebRTC P2P transport (where verified)**, plus Signal Protocol security (X3DH + Double Ratchet), AODV routing, DTN store-and-forward, SOS broadcast, voice, and streaming.
+What is real and identical everywhere: **BLE, Wi-Fi Direct, the HTTP/QUIC relay, and the WebRTC P2P transport (loopback-verified in all 8 languages)**, plus Signal Protocol security (X3DH + Double Ratchet), AODV routing, DTN store-and-forward, SOS broadcast, voice, and streaming.
 
-**Honest status:** BLE + Wi-Fi Direct + relay are production-real; WebRTC is real and verified in C#/Go/Kotlin (rolling out to the rest); the NearLink / LoRa / NFC-on-Windows approximations are now real code that compiles (NearLink-Android also unit-tested) but is **runtime-unverified** — no hardware / 2-device RF test yet. They participate in the mesh in code; don't deploy those three expecting field-proven RF.
+**Honest status:** BLE + Wi-Fi Direct + relay are production-real; **WebRTC P2P is real and loopback-verified in all 8 languages** (two peers exchange bytes over a real ICE data channel; Rust build-verified); the NearLink / LoRa / NFC-on-Windows approximations are now real code that compiles (LoRa compile-verified in all 8, incl. Swift + C on the Mac build server; NearLink-Android also unit-tested) but is **runtime-unverified** — no hardware / 2-device RF test yet. They participate in the mesh in code; don't deploy those three expecting field-proven RF.
 
 ---
 
