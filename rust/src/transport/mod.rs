@@ -3,12 +3,22 @@
 pub mod in_process;
 pub mod predictive_selector;
 pub mod rlnc;
+#[cfg(feature = "webrtc")]
+pub mod webrtc;
+#[cfg(feature = "lora")]
+pub mod lora;
 
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 
 pub use in_process::InProcessTransport;
 pub use predictive_selector::{PredictedRankedTransport, PredictiveTransportSelector};
+#[cfg(feature = "webrtc")]
+pub use webrtc::{
+    InMemorySignalingBus, Signal, SignalType, Signaling, WebRtcTransport,
+};
+#[cfg(feature = "lora")]
+pub use lora::{LoRaOptions, LoRaSerialTransport};
 
 // ── PerTransportMetrics ───────────────────────────────────────────────────────
 

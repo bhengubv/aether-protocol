@@ -14,6 +14,15 @@ keywords = ["mesh", "networking", "p2p", "bluetooth", "protocol"]
 categories = ["network-programming", "cryptography"]
 exclude = ["benches/", "tests/", "target/"]
 
+[features]
+# The real WebRTC P2P transport (webrtc-rs). Off by default: it is a heavy
+# native dependency, and the in-process transport covers the default build.
+# `--all-features` (or `--features webrtc`) pulls it in and compiles the
+# `transport::webrtc` module.
+webrtc = ["dep:webrtc", "dep:bytes"]
+# Real LoRa transport (serialport crate). Off by default — pulls a platform serial dependency.
+lora = ["dep:serialport"]
+
 [dependencies]
 ed25519-dalek = "2.1"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
@@ -31,6 +40,17 @@ async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 base64 = "0.22"
+# Real WebRTC P2P transport (pure-Rust webrtc-rs, classic flat-module API).
+# Optional — gated by the `webrtc` feature so the default build stays free of
+# the native stack. Pinned to the 0.12 stable line (not the 0.20 *alpha*, which
+# is a sans-IO rewrite over the `rtc` umbrella crate with a different API).
+webrtc = { version = "0.12", optional = true }
+# Zero-copy byte buffers — the `webrtc` data-channel `send` API takes `&Bytes`.
+# Pulled only with the `webrtc` feature; bytes 1.x is a single compatible major,
+# so it resolves to the same crate version webrtc-rs uses.
+bytes = { version = "1", optional = true }
+# Real LoRa serial transport (RYLR-class SX127x/SX126x AT). Optional — gated by the `lora` feature.
+serialport = { version = "4", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
