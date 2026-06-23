@@ -2,9 +2,9 @@
 // SOS broadcast implementation for the Aether mesh.
 //
 // Single-threaded reference impl; hosts pumping packets from multiple threads
-// must wrap the service in their own mutex. JSON wire decoding on the receive
-// side is left as a TODO so the service compiles cleanly without a JSON dep —
-// hosts plug in cJSON or json-c on their side.
+// must wrap the service in their own mutex. The SOS envelope is encoded with
+// snprintf and decoded on receive with the vendored cJSON (broadcast_type /
+// message / latitude / longitude / geohash), matching the C# reference.
 
 #include "aethernet/sos.h"
 #include "aethernet/constants.h"
@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <cjson/cJSON.h>
 
 // ─── Internal state ──────────────────────────────────────
 
@@ -248,12 +249,39 @@ void aethernet_sos_handle_packet(aethernet_sos_service_t *service, aethernet_mes
     if (packet->source_uhid && service->sender->local_uhid
         && strcmp(packet->source_uhid, service->sender->local_uhid) == 0) return;
 
-    // Surface the alert. Wire-format JSON parsing on receive side is left to
-    // hosts; here we surface only what the packet headers tell us.
+    // Surface the alert, decoding the cleartext SOS envelope from the packet
+    // payload (broadcast_type / message / latitude / longitude / geohash) via cJSON.
     aethernet_sos_alert_t *alert = aethernet_sos_alert_new();
     if (alert) {
         alert->sender_uhid = str_dup_sos(packet->source_uhid);
+        // Decode the envelope — matches the C# reference, which deserializes the
+        // full SOS payload. broadcast_type stays "sos" only if the payload is not
+        // the JSON envelope (e.g. a malformed or probe packet).
         alert->broadcast_type = str_dup_sos("sos");
+        if (packet->payload != NULL && packet->payload_len > 0) {
+            cJSON *env = cJSON_ParseWithLength((const char *)packet->payload,
+                                               packet->payload_len);
+            if (env != NULL) {
+                const cJSON *jtype = cJSON_GetObjectItemCaseSensitive(env, "broadcast_type");
+                const cJSON *jmsg  = cJSON_GetObjectItemCaseSensitive(env, "message");
+                const cJSON *jlat  = cJSON_GetObjectItemCaseSensitive(env, "latitude");
+                const cJSON *jlon  = cJSON_GetObjectItemCaseSensitive(env, "longitude");
+                const cJSON *jgeo  = cJSON_GetObjectItemCaseSensitive(env, "geohash");
+                if (cJSON_IsString(jtype) && jtype->valuestring != NULL) {
+                    free(alert->broadcast_type);
+                    alert->broadcast_type = str_dup_sos(jtype->valuestring);
+                }
+                if (cJSON_IsString(jmsg) && jmsg->valuestring != NULL) {
+                    alert->message = str_dup_sos(jmsg->valuestring);
+                }
+                if (cJSON_IsNumber(jlat)) alert->latitude = jlat->valuedouble;
+                if (cJSON_IsNumber(jlon)) alert->longitude = jlon->valuedouble;
+                if (cJSON_IsString(jgeo) && jgeo->valuestring != NULL) {
+                    alert->geohash = str_dup_sos(jgeo->valuestring);
+                }
+                cJSON_Delete(env);
+            }
+        }
         active_node_t *node = (active_node_t *)calloc(1, sizeof(active_node_t));
         if (node) {
             node->alert = alert;

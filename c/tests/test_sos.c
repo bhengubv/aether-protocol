@@ -97,6 +97,28 @@ static void on_sos(const aethernet_sos_alert_t *alert, void *ud) {
     received_count++;
 }
 
+typedef struct {
+    int count;
+    char broadcast_type[32];
+    char message[64];
+    double latitude;
+    double longitude;
+    char geohash[32];
+} sos_capture_t;
+
+static void on_sos_capture(const aethernet_sos_alert_t *alert, void *ud) {
+    sos_capture_t *c = (sos_capture_t *)ud;
+    c->count++;
+    snprintf(c->broadcast_type, sizeof(c->broadcast_type), "%s",
+             alert->broadcast_type ? alert->broadcast_type : "");
+    snprintf(c->message, sizeof(c->message), "%s",
+             alert->message ? alert->message : "");
+    c->latitude = alert->latitude;
+    c->longitude = alert->longitude;
+    snprintf(c->geohash, sizeof(c->geohash), "%s",
+             alert->geohash ? alert->geohash : "");
+}
+
 // ───── Tests ─────────────────────────────────────────────
 
 static void broadcast_floods_and_stores_alert(void) {
@@ -222,6 +244,43 @@ static void handle_invokes_received_callback(void) {
     fake_clear(&s);
 }
 
+static void handle_decodes_real_sos_body(void) {
+    fake_state_t s = {0};
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    aethernet_sos_service_t *svc = aethernet_sos_service_new(&sender);
+
+    sos_capture_t cap = {0};
+    aethernet_sos_set_received_cb(svc, on_sos_capture, &cap);
+
+    // A real SOS envelope from a remote node — a panic alert with a message and a
+    // GPS fix. The handler must DECODE these from the payload; the old stub dropped
+    // message/lat/long/geohash and hardcoded broadcast_type "sos".
+    aethernet_mesh_packet_t *pkt = aethernet_packet_new();
+    pkt->type = AETHERNET_PACKET_TYPE_SOS_BROADCAST;
+    aethernet_packet_set_source_uhid(pkt, "remote-alice");
+    aethernet_packet_set_destination_uhid(pkt, "");
+    pkt->ttl = 1;  // ttl == 1 → not rebroadcast
+    pkt->priority = AETHERNET_SOS_PRIORITY;
+    const char *body =
+        "{\"broadcast_id\":\"11111111-2222-3333-4444-555555555555\","
+        "\"broadcast_type\":\"panic\",\"message\":\"trapped, water rising\","
+        "\"latitude\":-33.918600,\"longitude\":18.423300,\"geohash\":\"k3vp\"}";
+    aethernet_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
+
+    aethernet_sos_handle_packet(svc, pkt);
+    aethernet_packet_free(pkt);
+
+    assert(cap.count == 1);
+    assert(strcmp(cap.broadcast_type, "panic") == 0);             // decoded, not "sos"
+    assert(strcmp(cap.message, "trapped, water rising") == 0);    // decoded, not dropped
+    assert(cap.latitude < -33.9185 && cap.latitude > -33.9187);   // decoded GPS lat
+    assert(cap.longitude > 18.4232 && cap.longitude < 18.4234);   // decoded GPS lon
+    assert(strcmp(cap.geohash, "k3vp") == 0);                     // decoded, not dropped
+
+    aethernet_sos_service_free(svc);
+    fake_clear(&s);
+}
+
 static void resolve_with_unknown_id_is_safe(void) {
     fake_state_t s = {0};
     aethernet_mesh_sender_t sender = make_sender(&s);
@@ -246,6 +305,7 @@ int main(void) {
     RUN(handle_rebroadcasts_when_ttl_allows);
     RUN(handle_does_not_rebroadcast_when_ttl_exhausted);
     RUN(handle_invokes_received_callback);
+    RUN(handle_decodes_real_sos_body);
     RUN(resolve_with_unknown_id_is_safe);
 
     printf("\n%d tests passed.\n", tests_run);
