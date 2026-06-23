@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Transport.LoRa</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Real LoRa (Aether Red / CircleLink) transport over a serial-attached SX127x/SX126x module that speaks the RYLR-class AT command set. Implements ICircleLinkTransportService — the "hardware adopted" path documented by LoRaCircleLinkStub. Compiles; on-radio bring-up needs a physical module.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Transport/AetherNet.Transport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
+  </ItemGroup>
+
+</Project>
