@@ -2,12 +2,10 @@
 // DTN store-and-forward implementation for the Aether mesh.
 //
 // NOTE: This implementation is single-threaded; hosts that pump packets from
-// multiple threads must wrap the service in their own mutex. JSON encoding /
-// decoding of bundle payloads is intentionally out of scope here — the wire
-// format is documented in c/include/aethernet/dtn.h, and hosts plug in cJSON or
-// json-c on their side. Encoding helpers below produce minimal valid JSON
-// suitable for cross-language round-trip; decoding is left as a TODO so the
-// service compiles cleanly without a JSON dep.
+// multiple threads must wrap the service in their own mutex. The bundle-envelope
+// wire format is documented in c/include/aethernet/dtn.h. Encoding uses snprintf;
+// decoding of the cleartext envelope on receive (e.g. hop_count) uses the vendored
+// cJSON, matching DtnService.HandleAsync in the C# reference.
 
 #include "aethernet/dtn.h"
 #include "aethernet/constants.h"
@@ -17,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <cjson/cJSON.h>
 
 // ─── Internal store nodes ────────────────────────────────
 
@@ -287,7 +286,23 @@ void aethernet_dtn_handle_packet(aethernet_dtn_service_t *service, const aethern
                 evt.encrypted_payload = packet->payload;
                 evt.encrypted_payload_len = packet->payload_len;
                 evt.priority = packet->priority;
-                evt.hop_count = 0;  // not decoded from JSON in reference impl
+                // Decode hop_count from the cleartext bundle-envelope JSON in the
+                // packet payload — matches DtnService.HandleAsync, which deserializes
+                // the bundle and reports bundle.HopCount. Stays 0 only if the payload
+                // is not the JSON envelope (e.g. a raw probe packet).
+                evt.hop_count = 0;
+                if (packet->payload != NULL && packet->payload_len > 0) {
+                    cJSON *env = cJSON_ParseWithLength((const char *)packet->payload,
+                                                       packet->payload_len);
+                    if (env != NULL) {
+                        const cJSON *jhops =
+                            cJSON_GetObjectItemCaseSensitive(env, "hop_count");
+                        if (cJSON_IsNumber(jhops)) {
+                            evt.hop_count = (int32_t)jhops->valuedouble;
+                        }
+                        cJSON_Delete(env);
+                    }
+                }
                 evt.received_at_ms = now_ms_dtn();
                 service->on_bundle_received(&evt, service->on_bundle_received_user_data);
             }

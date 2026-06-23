@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Unit tests for dtn.c (DtnService).
 //
-// NOTE: The C reference DTN service ships a stub `aethernet_dtn_handle_packet`
-// (handler tests are out of scope until hosts wire up a JSON parser); these
-// tests cover the synchronous bookkeeping that runs in-process.
+// NOTE: aethernet_dtn_handle_packet decodes the cleartext bundle envelope (e.g.
+// hop_count) via the vendored cJSON; bundle_received_decodes_real_hop_count below
+// proves the decode is real. These tests also cover the synchronous bookkeeping.
 
 #define _POSIX_C_SOURCE 200809L  // strdup, etc.
 
@@ -303,6 +303,7 @@ typedef struct {
     char *last_sender_uhid;
     char *last_recipient_uhid;
     uint8_t last_priority;
+    int32_t last_hop_count;
     uint8_t last_payload[16];
     uint32_t last_payload_len;
 } on_received_state_t;
@@ -315,6 +316,7 @@ static void on_received_capture(const aethernet_dtn_bundle_received_event_t *evt
     s->last_sender_uhid = evt->sender_uhid ? strdup(evt->sender_uhid) : NULL;
     s->last_recipient_uhid = evt->recipient_uhid ? strdup(evt->recipient_uhid) : NULL;
     s->last_priority = evt->priority;
+    s->last_hop_count = evt->hop_count;
     s->last_payload_len = evt->encrypted_payload_len > sizeof(s->last_payload)
         ? (uint32_t)sizeof(s->last_payload)
         : evt->encrypted_payload_len;
@@ -347,6 +349,42 @@ static void bundle_received_fires_for_local_recipient(void) {
     assert(cap.last_priority == (uint8_t)AETHERNET_BUNDLE_PRIORITY_HIGH);
     assert(cap.last_payload_len == 4);
     assert(memcmp(cap.last_payload, payload, 4) == 0);
+
+    free(cap.last_sender_uhid);
+    free(cap.last_recipient_uhid);
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+static void bundle_received_decodes_real_hop_count(void) {
+    fake_state_t s = {0};
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    on_received_state_t cap = {0};
+    aethernet_dtn_set_bundle_received_callback(svc, on_received_capture, &cap);
+
+    // A real cleartext bundle-envelope JSON (the shape the encoder produces),
+    // carrying hop_count = 7. The handler must DECODE this via cJSON — a regression
+    // to the old "hardcode 0" stub makes the hop_count assertion fail.
+    const char *bundle_json =
+        "{\"id\":\"00112233445566778899aabbccddeeff\","
+        "\"sender_uhid\":\"remote-sender\",\"recipient_uhid\":\"" LOCAL_UHID "\","
+        "\"encrypted_payload\":[1,2,3,4],\"priority\":2,\"status\":0,"
+        "\"copy_count\":1,\"max_copies\":5,\"sender_geohash\":null,"
+        "\"recipient_last_geohash\":null,\"hop_count\":7,"
+        "\"created_at_ms\":1000,\"expires_at_ms\":9999999999999}";
+
+    aethernet_mesh_packet_t *pkt = make_dtn_packet(
+        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
+        "remote-sender",
+        LOCAL_UHID,
+        (const uint8_t *)bundle_json, (uint32_t)strlen(bundle_json));
+    aethernet_dtn_handle_packet(svc, pkt);
+    aethernet_packet_free(pkt);
+
+    assert(cap.count == 1);
+    assert(cap.last_hop_count == 7);  // decoded from JSON; fails if hardcoded 0
 
     free(cap.last_sender_uhid);
     free(cap.last_recipient_uhid);
@@ -414,6 +452,7 @@ int main(void) {
     RUN(reputation_delivery_success_does_not_fire_for_other_node);
     RUN(reputation_custody_refusal_fires_on_ack_refused);
     RUN(bundle_received_fires_for_local_recipient);
+    RUN(bundle_received_decodes_real_hop_count);
     RUN(bundle_received_does_not_fire_for_other_recipient);
     RUN(bundle_received_unset_callback_does_not_crash);
 
