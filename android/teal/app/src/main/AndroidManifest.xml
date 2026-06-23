@@ -1,8 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- NearLink transport stub — no hardware permissions needed on current devices. -->
-    <!-- When a Huawei NearLink SDK ships, add the required SDK permissions here. -->
+    <!-- NearLink (Aether Teal) runs as a real SSAP-over-BLE-GATT peripheral where NearLink
+         silicon is absent, so it needs the BLE advertise/connect/scan permissions. When a
+         Huawei NearLink SDK ships, add its hardware permissions alongside these. -->
+    <!-- BLE permissions (API 31+) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <!-- BLE permissions (API < 31 fallback) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
     <application
         android:allowBackup="false"

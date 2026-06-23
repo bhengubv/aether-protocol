@@ -51,21 +51,20 @@ namespace AetherNet.Transport.Windows;
 ///     </description>
 ///   </item>
 ///   <item>
-///     <term><see cref="WinNearLinkStubTransportService"/></term>
+///     <term><see cref="WinNearLinkBleTransportService"/></term>
 ///     <description>
-///       Aether Teal (NearLink) — BLE-approximation stub. Registered as
-///       <see cref="INearLinkTransportService"/>. <see cref="ITransportService.IsAvailable"/>
-///       returns <c>false</c> until a Windows NearLink SDK is available; placeholder
-///       only. Real NearLink nodes use the HarmonyOS <c>@kit.NearLinkKit</c> SDK.
+///       Aether Teal (NearLink) — real SSAP-over-BLE-GATT central. Registered as
+///       <see cref="INearLinkTransportService"/>. Participates in the Aether Teal mesh over BLE
+///       using the canonical Aether SLE UUIDs and reports NearLink's nominal selection profile.
+///       Real NearLink hardware uses the HarmonyOS <c>@kit.NearLinkKit</c> SDK.
 ///     </description>
 ///   </item>
 ///   <item>
-///     <term><see cref="WinNfcStubTransportService"/></term>
+///     <term><see cref="WinNfcBleTransportService"/></term>
 ///     <description>
-///       Aether White (NFC) — stub. <see cref="ITransportService.IsAvailable"/> is
-///       always <c>false</c> (<c>Windows.Networking.Proximity</c> was removed in
-///       Windows 11). Added to the additional-transports list so future activation
-///       requires only a driver swap.
+///       Aether White (NFC) — real BLE-GATT central with an RSSI −40 dBm proximity gate that
+///       reproduces NFC's tap-to-connect model (<c>Windows.Networking.Proximity</c> was removed
+///       in Windows 11). Added to the additional-transports list.
 ///     </description>
 ///   </item>
 ///   <item>
@@ -122,14 +121,24 @@ public static class AetherNetWindowsTransportExtensions
             return new WinWifiDirectTransportService(localUhid, logger);
         });
 
-        // ── NearLink stub (Aether Teal) ───────────────────────────────────────
-        // IsAvailable == false until a Windows NearLink SDK ships.
-        services.TryAddSingleton<INearLinkTransportService, WinNearLinkStubTransportService>();
+        // ── NearLink (Aether Teal) — real SSAP-over-BLE-GATT central ──────────
+        services.TryAddSingleton<INearLinkTransportService>(sp =>
+        {
+            var localUhid = sp.GetRequiredService<IOptions<AetherNetOptions>>().Value.LocalUhid;
+            var logger    = sp.GetService<ILogger<WinNearLinkBleTransportService>>()
+                            ?? NullLogger<WinNearLinkBleTransportService>.Instance;
+            return new WinNearLinkBleTransportService(localUhid, logger);
+        });
 
-        // ── NFC stub (Aether White) ───────────────────────────────────────────
-        // IsAvailable == false (Windows.Networking.Proximity removed in Win 11).
-        // Registered as ITransportService so it lands in TransportManager.additionalTransports.
-        services.TryAddSingleton<WinNfcStubTransportService>();
+        // ── NFC (Aether White) — real BLE-GATT proximity central ──────────────
+        // Registered as a concrete type so it lands in TransportManager.additionalTransports.
+        services.TryAddSingleton<WinNfcBleTransportService>(sp =>
+        {
+            var localUhid = sp.GetRequiredService<IOptions<AetherNetOptions>>().Value.LocalUhid;
+            var logger    = sp.GetService<ILogger<WinNfcBleTransportService>>()
+                            ?? NullLogger<WinNfcBleTransportService>.Instance;
+            return new WinNfcBleTransportService(localUhid, logger);
+        });
 
         // ── HTTP relay (Aether Purple) ────────────────────────────────────────
         if (httpRelayBaseUrl is not null)
@@ -155,7 +164,7 @@ public static class AetherNetWindowsTransportExtensions
 
             // Collect additional transports: NFC stub + optional HTTP relay.
             var additional = new List<ITransportService>();
-            var nfc = sp.GetService<WinNfcStubTransportService>();
+            var nfc = sp.GetService<WinNfcBleTransportService>();
             if (nfc is not null) additional.Add(nfc);
             var relay = sp.GetService<HttpRelayTransportService>();
             if (relay is not null) additional.Add(relay);

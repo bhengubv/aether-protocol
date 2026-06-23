@@ -54,6 +54,7 @@ add_library(aethernet-protocol STATIC
     src/security.c
     src/signal_protocol.c
     src/transport_inprocess.c
+    src/transport_lora.c
     src/transport_metrics.c
     src/predictive_selector.c
     src/rlnc.c

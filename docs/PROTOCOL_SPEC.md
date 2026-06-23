@@ -602,8 +602,8 @@ Aether is transport-agnostic. Any physical communication channel that satisfies 
 > read it before assuming a radio is available. In short: BLE and Wi-Fi Direct
 > have real platform code (C#/Windows + Android); a real internet WebRTC
 > data-channel transport is built and tested on C#, Go, and Kotlin; NFC is
-> real only on Android (HCE); NearLink is real only on HarmonyOS (pending
-> on-device verification); LoRa is a stub everywhere; and the six
+> real on Android (HCE) + a real BLE-proximity approx on Windows; NearLink is real on HarmonyOS (pending
+> on-device verification) + a real SSAP-over-BLE approx on Android/Windows; LoRa has a real RYLR serial driver (C#/Go/Rust/C) -- these four runtime-unverified; and the six
 > cross-language library ports (Go, Python, Rust, TypeScript, Swift, C) ship
 > an **in-process simulator** for their mesh transport, not a real radio. The
 > `MaxBandwidth` / `MaxRange` figures below are the characteristics a real
@@ -665,7 +665,7 @@ given platform — see §5.4 for what is actually built.
 ### 5.4. Per-Transport / Per-Platform Implementation Status
 
 The protocol is transport-agnostic, but a transport only works where its
-platform code exists. As verified 2026-06-22:
+platform code exists. As verified 2026-06-22 (NFC/NearLink/LoRa upgraded to real approximations 2026-06-23):
 
 | Transport     | Real where                                              | Stub / not built where                          |
 |---------------|---------------------------------------------------------|-------------------------------------------------|
@@ -673,13 +673,12 @@ platform code exists. As verified 2026-06-22:
 | **Wi-Fi Direct** | C# / Windows; Android (`android/green/`)             | the 6 library ports use the in-process simulator |
 | **HTTP/QUIC relay** | C# / Windows                                      | —                                               |
 | **WebRTC (internet P2P)** | **Verified (built + tested green): C# (SIPSorcery), Go (pion), Kotlin.** Written but unverified on the dev box: Python, Rust, TypeScript, C. Written but blocked on a native dependency (libdatachannel): Swift. | — |
-| **NFC**       | Android (`android/white/`, HCE)                          | Windows (stub, `IsAvailable=false`)             |
-| **NearLink**  | HarmonyOS (`harmonyos/teal/`, **pending on-device + DevEco verification**) | Android (stub); Windows (stub)        |
-| **LoRa**      | nowhere — **stub everywhere** (`LoRaCircleLinkStub`, `IsAvailable=false`; `android/red/` is UI-only) | all platforms |
+| **NFC** | Android (`android/white/`, HCE); Windows (`WinNfcBleTransportService` -- real BLE-GATT + RSSI -40 dBm approx, compiles, runtime-unverified) | -- |
+| **NearLink** | HarmonyOS (`harmonyos/teal/`, **pending on-device + DevEco verification**); Android (`AetherNetSleService`) + Windows (`WinNearLinkBleTransportService`) -- real SSAP-over-BLE, compile + unit-test verified, runtime-unverified | -- |
+| **LoRa** | real RYLR SX127x/SX126x serial driver (`LoRaSerialTransport` in C#/Go/Rust/C; compiles, runtime-unverified) | physical module not yet exercised; `android/red/` UI-only; BLE-Coded-PHY bridge still a design |
 
 The "approximations" referenced elsewhere (NearLink-over-BLE,
-LoRa-over-BLE-Coded-PHY, NFC-over-BLE / PC-SC) are documented **designs, not
-built code**. The six cross-language library ports (Go, Python, Rust,
+LoRa-over-BLE-Coded-PHY, NFC-over-BLE / PC-SC) are now real code where noted above -- NearLink-over-BLE and NFC-over-BLE are built (compile-verified, runtime-unverified), the LoRa-over-BLE-Coded-PHY bridge is still a design (real LoRa is the RYLR serial driver). The six cross-language library ports (Go, Python, Rust,
 TypeScript, Swift, C) have **no real radio transport** — their mesh transport
 is an in-process simulator for tests and demos. WebRTC is the one real
 on-the-internet transport those ports can carry, with the per-language caveats

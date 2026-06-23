@@ -1,4 +1,4 @@
-> **CORRECTION (2026-06-22) - read first.** Several "RESOLVED" claims in this file overstated the transport layer. Honest status: **Blue / Green (Wi-Fi Direct) / Purple (HTTP-QUIC relay) are real.** NFC is real on Android, stub on Windows. NearLink is real on HarmonyOS (pending on-device verification), stub on Android + Windows. **LoRa is a stub everywhere - no radio code.** The "approximations" in items 8/12/13/14 are forward designs, **NOT built.** A new **WebRTC P2P** internet transport was added: real + tested in C#/Go/Kotlin, written / verification-pending in Python/Rust/TypeScript/Swift/C. The 6 library languages otherwise ship an in-process **simulation** transport only. See README.md for the canonical status.
+> **CORRECTION (2026-06-22; transports upgraded 2026-06-23) - read first.** Several "RESOLVED" claims in this file overstated the transport layer. Honest status: **Blue / Green (Wi-Fi Direct) / Purple (HTTP-QUIC relay) are real.** NFC is real on Android (HCE) + a real BLE-proximity approximation on Windows. NearLink is real on HarmonyOS (pending on-device verification) + a real SSAP-over-BLE approximation on Android + Windows. **LoRa now has a real RYLR SX127x/SX126x serial driver (C#/Go/Rust/C; compiles, runtime-unverified); the BLE-LR bridge is still a design.** The NearLink-over-BLE and NFC-over-BLE approximations (items 12/14) are now real code (compile-verified, runtime-unverified); the LoRa BLE-LR bridge (item 13) stays a forward design. A new **WebRTC P2P** internet transport was added: real + tested in C#/Go/Kotlin, written / verification-pending in Python/Rust/TypeScript/Swift/C. The 6 library languages otherwise ship an in-process **simulation** transport only. See README.md for the canonical status.
 # Open Issues — production-readiness remediation
 
 Tracked items remaining before `aether-protocol` can be presented as a
@@ -158,13 +158,13 @@ The `fixtures/` corpus proves byte-identity at the serializer layer; the
 per-language E2E tests prove the full session+ratchet stack is correct.
 
 **Transport layer: RESOLVED 2026-05-08.** All six Aether transport colours now
-have real (or correctly-stubbed) implementations:
+have real implementations (NFC/NearLink/LoRa: stubs upgraded to real on 2026-06-23):
 - ✅ Aether Blue (BLE): `WinBleGattTransportService` + `android/blue/`
 - ✅ Aether Green (Wi-Fi Direct): `WinWifiDirectTransportService` + `android/green/`
 - ✅ Aether Purple (HTTP relay): `HttpRelayTransportService` + `samples/AetherNet.RelayServer/`
-- ⚠️ Aether White (NFC): `android/white/` HCE; Windows uses NDEF-over-BLE-GATT + ACR122U PC/SC (see item 14)
-- ✅ Aether Teal (NearLink): `harmonyos/teal/` full ArkTS SLE; all others use SSAP-over-BLE approximation (see item 12)
-- ⚠️ Aether Red (LoRa): Meshtastic wire format over BLE LR — radio swap when module present (see item 13)
+- ⚠️ Aether White (NFC): `android/white/` HCE; Windows `WinNfcBleTransportService` = real BLE-GATT central + RSSI -40 dBm proximity gate; ACR122U PC/SC (see item 14)
+- ✅ Aether Teal (NearLink): `harmonyos/teal/` full ArkTS SLE; `WinNearLinkBleTransportService` + `android/teal/AetherNetSleService` = real SSAP-over-BLE (see item 12)
+- ⚠️ Aether Red (LoRa): real RYLR serial driver (`LoRaSerialTransport`, C#/Go/Rust/C) + Meshtastic-over-BLE-LR bridge — radio swap when module present (see item 13)
 
 **RF bring-up: still open.** Needs at minimum 2 devices exchanging a live BLE
 or Wi-Fi Direct packet. Hardware lab task — out of scope for code-only sessions.
@@ -225,13 +225,13 @@ The standard Pura 70 and all non-Huawei devices: `isAvailable = false`.
 
 `ICircleLinkTransportService` (ArkTS) mirrors the C# seam.
 
-**Windows and Android stubs unchanged.** `WinNearLinkStubTransportService`
-and `android/teal/` remain `IsAvailable = false` — NearLink silicon is a
+**Windows and Android: real SSAP-over-BLE approximation (2026-06-23).** `WinNearLinkBleTransportService`
+and `android/teal/` are now real BLE GATT — NearLink silicon is a
 HarmonyOS hardware feature only.
 
 ### 13. LoRa / CircleLink (Aether Red) — Meshtastic approximation over BLE LR
 
-`LoRaCircleLinkStub` (`IsAvailable = false`) and `android/red/` both document
+A real RYLR SX127x/SX126x serial driver now exists (`LoRaSerialTransport` in C#/Go/Rust/C; compile-verified, runtime-unverified). Separately, `LoRaCircleLinkStub` and `android/red/` document
 what was built instead of a blank stub: the **full Meshtastic protocol layer**
 carried over **BLE 5.0 Coded PHY (Extended Advertising, S=8)**.
 
@@ -267,7 +267,7 @@ with no protocol translation.
 
 ### 14. NFC tap-to-send from Windows (Aether White) — NDEF-over-BLE + PC/SC approximation
 
-`WinNfcStubTransportService` documents two approximation paths built instead
+`WinNfcBleTransportService` (real; formerly the WinNfcStub) implements two approximation paths instead
 of a permanent stub. `Windows.Networking.Proximity` (the only NFC P2P API
 Windows ever shipped) was removed in Windows 11 23H2 with no replacement.
 
