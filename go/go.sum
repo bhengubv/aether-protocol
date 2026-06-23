@@ -34,6 +34,8 @@ github.com/pion/webrtc/v4 v4.2.15 h1:Ir/MauNFCfg+kgyBYPQLiGdVWFlzEcLxqtuzAkYkky0
 github.com/pion/webrtc/v4 v4.2.15/go.mod h1:CPTcyLfIzC4scOkQ4UY4pj6WvbUGhcNLIpK28cP5h6M=
 github.com/wlynxg/anet v0.0.5 h1:J3VJGi1gvo0JwZ/P1/Yc/8p63SoW98B5dHkYDmpgvvU=
 github.com/wlynxg/anet v0.0.5/go.mod h1:eay5PRQr7fIVAMbTbchTnO9gG65Hg/uYGdc7mguHxoA=
+go.bug.st/serial v1.7.1 h1:5aP8wYL0UjEYOVs3oPAGscjaSfRQLHtCvBFXNN/rwtc=
+go.bug.st/serial v1.7.1/go.mod h1:d0MmS16Qt9b1m06yoYRNUXhRRTJV5Qg2S5EKqQtnayQ=
 golang.org/x/crypto v0.51.0 h1:IBPXwPfKxY7cWQZ38ZCIRPI50YLeevDLlLnyC5wRGTI=
 golang.org/x/crypto v0.51.0/go.mod h1:8AdwkbraGNABw2kOX6YFPs3WM22XqI4EXEd8g+x7Oc8=
 golang.org/x/net v0.53.0 h1:d+qAbo5L0orcWAr0a9JweQpjXF19LMXJE8Ey7hwOdUA=
