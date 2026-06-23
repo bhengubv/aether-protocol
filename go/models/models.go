@@ -71,6 +71,11 @@ type PeerInfo struct {
 	// Node capabilities
 	Capabilities NodeCapabilities
 
+	// Geohash of this peer's last-known location (privacy-gated; empty if not
+	// shared). Used by the DTN replication strategy to rank carriers by their
+	// proximity to the bundle recipient's last-known geohash.
+	Geohash string
+
 	// Last seen timestamp
 	LastSeen time.Time
 

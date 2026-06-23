@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "aethernet_reputation.h"
 #include "aethernet_gossip.h"
@@ -24,6 +25,18 @@
 
 #define RUN(name) do { printf("TEST: " #name "..."); name(); printf(" OK\n"); tests_run++; } while (0)
 static int tests_run = 0;
+
+// Real wall-clock milliseconds — identical to the production get_now_ms() in
+// aethernet_gossip.c. Acceptance tests timestamp packets at test_now_ms() so the
+// freshness check runs against the REAL clock. If get_now_ms() ever regressed to
+// a constant (the old "return 0" stub), a fresh packet would read as ~55 years
+// stale and handle_clock_is_real_not_zero would fail — the stub can't come back.
+static long long test_now_ms(void)
+{
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
 
 // ─── Fake callback state ──────────────────────────────────────────────────────
 
@@ -85,9 +98,9 @@ static void reset_globals(void)
 }
 
 // ─── Helper: build a gossip packet JSON string manually ───────────────────────
-// Used to inject inbound packets into aethernet_gossip_handle without going
-// through aethernet_gossip_broadcast (which would stamp timestamp_ms = 0 from the
-// stub clock, matching the freshness check perfectly).
+// Used to inject inbound packets into aethernet_gossip_handle. The caller passes
+// an explicit timestamp_ms: acceptance tests pass test_now_ms() (fresh against the
+// real clock); the staleness test passes a value older than the freshness window.
 
 static void build_packet(char *buf, size_t buf_len,
                           const char *reporter, const char *target,
@@ -254,9 +267,8 @@ static void handle_invalid_signature_returns_false(void)
 }
 
 // ─── 7. handle_stale_timestamp_returns_false ─────────────────────────────────
-// The stub clock returns 0 (get_now_ms).
-// FRESHNESS_WINDOW_MS = 300000 ms (5 min).
-// A timestamp of -(300001) is more than 5 min stale.
+// FRESHNESS_WINDOW_MS = 300000 ms (5 min). A packet timestamped more than 5 min
+// before the real clock is stale and must be rejected.
 
 static void handle_stale_timestamp_returns_false(void)
 {
@@ -269,8 +281,8 @@ static void handle_stale_timestamp_returns_false(void)
     AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
-    /* timestamp_ms = -(FRESHNESS_WINDOW_MS + 1) → stale */
-    long long stale_ts = -((long long)AETHERNET_GOSSIP_FRESHNESS_MS + 1LL);
+    /* A timestamp older than the freshness window, relative to the real clock. */
+    long long stale_ts = test_now_ms() - ((long long)AETHERNET_GOSSIP_FRESHNESS_MS + 60000LL);
     char pkt[2048];
     build_packet(pkt, sizeof(pkt), "remote-b", "target-b", -0.10, stale_ts);
 
@@ -297,9 +309,11 @@ static void handle_own_gossip_returns_false(void)
     AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
     assert(svc != NULL);
 
-    /* reporter = local-node (same as local_uhid) */
+    /* reporter = local-node (same as local_uhid). Fresh timestamp so the
+       rejection is genuinely the own-gossip guard, not staleness (freshness is
+       checked first in the handler). */
     char pkt[2048];
-    build_packet(pkt, sizeof(pkt), "local-node", "target-c", -0.10, 0LL);
+    build_packet(pkt, sizeof(pkt), "local-node", "target-c", -0.10, test_now_ms());
 
     bool accepted = aethernet_gossip_handle(svc, pkt, NULL, 0);
     assert(accepted == false);
@@ -326,7 +340,7 @@ static void handle_unknown_reporter_full_delta(void)
     assert(svc != NULL);
 
     char pkt[2048];
-    build_packet(pkt, sizeof(pkt), "unknown-reporter", "target-d", -0.20, 0LL);
+    build_packet(pkt, sizeof(pkt), "unknown-reporter", "target-d", -0.20, test_now_ms());
 
     bool accepted = aethernet_gossip_handle(svc, pkt, NULL, 0);
     assert(accepted == true);
@@ -370,13 +384,42 @@ static void handle_degraded_reporter_weighted_delta(void)
 
     /* delta = -0.20, R = 0.50 → effective = -0.10 → target = 1.0 - 0.10 = 0.90 */
     char pkt[2048];
-    build_packet(pkt, sizeof(pkt), "degraded-reporter", "target-e", -0.20, 0LL);
+    build_packet(pkt, sizeof(pkt), "degraded-reporter", "target-e", -0.20, test_now_ms());
 
     bool accepted = aethernet_gossip_handle(svc, pkt, NULL, 0);
     assert(accepted == true);
 
     double score = aethernet_reputation_get_score(&rep, "target-e");
     assert(fabs(score - 0.90) < 1e-9);
+
+    aethernet_gossip_destroy(svc);
+}
+
+// ─── 11. handle_clock_is_real_not_zero (regression guard) ────────────────────
+// A valid packet timestamped at the real "now" must be ACCEPTED; the same packet
+// dated one hour ago must be REJECTED. If get_now_ms() ever reverts to a constant
+// stub (the old "return 0"), the fresh packet reads as decades stale and this
+// test fails — so the clock stub can never silently return.
+
+static void handle_clock_is_real_not_zero(void)
+{
+    reset_globals();
+
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
+
+    AetherNetGossipCallbacks cb = make_callbacks("local-node");
+    AetherNetGossipService *svc = aethernet_gossip_create(&rep, &cb);
+    assert(svc != NULL);
+
+    char fresh_pkt[2048];
+    build_packet(fresh_pkt, sizeof(fresh_pkt), "rep-now", "tgt-now", -0.10, test_now_ms());
+    assert(aethernet_gossip_handle(svc, fresh_pkt, NULL, 0) == true);
+
+    char old_pkt[2048];
+    build_packet(old_pkt, sizeof(old_pkt), "rep-old", "tgt-old", -0.10,
+                 test_now_ms() - 3600000LL); /* 1 hour ago → stale */
+    assert(aethernet_gossip_handle(svc, old_pkt, NULL, 0) == false);
 
     aethernet_gossip_destroy(svc);
 }
@@ -398,6 +441,7 @@ int main(void)
     RUN(handle_own_gossip_returns_false);
     RUN(handle_unknown_reporter_full_delta);
     RUN(handle_degraded_reporter_weighted_delta);
+    RUN(handle_clock_is_real_not_zero);
 
     printf("\n%d tests passed.\n", tests_run);
     return 0;

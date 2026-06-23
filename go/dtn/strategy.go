@@ -55,12 +55,13 @@ func (GeohashEpidemicStrategy) SelectTargets(bundle *models.DtnBundle, peers []m
 		localProx := sharedPrefix(localGeohash, bundle.RecipientLastGeohash)
 		ranked := make([]ranking, 0, len(eligible))
 		for _, p := range eligible {
-			prox := sharedPrefix("", bundle.RecipientLastGeohash) // placeholder, see below
-			// Peer geohash isn't currently in PeerInfo on Go — fall back to reliability ordering.
-			// Hosts that want true proximity ranking populate PeerInfo addressing in their adapter.
-			_ = localProx
-			_ = prox
-			ranked = append(ranked, ranking{peer: p, prox: 0})
+			prox := sharedPrefix(p.Geohash, bundle.RecipientLastGeohash)
+			// Epidemic-toward-recipient: only forward to peers at least as close to
+			// the recipient as the local node (matches the C#/Kotlin reference).
+			if prox < localProx {
+				continue
+			}
+			ranked = append(ranked, ranking{peer: p, prox: prox})
 		}
 		sort.SliceStable(ranked, func(i, j int) bool {
 			if ranked[i].prox != ranked[j].prox {

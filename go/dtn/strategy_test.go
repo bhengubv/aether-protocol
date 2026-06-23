@@ -19,6 +19,12 @@ func carrier(uhid string, reliability int32) models.PeerInfo {
 	}
 }
 
+func carrierGeo(uhid string, reliability int32, geohash string) models.PeerInfo {
+	p := carrier(uhid, reliability)
+	p.Geohash = geohash
+	return p
+}
+
 func nonCarrier(uhid string) models.PeerInfo {
 	return models.PeerInfo{UHID: uhid}
 }
@@ -198,20 +204,39 @@ func TestSelectTargets_ReliabilityFallback_RespectsSlotCap(t *testing.T) {
 	}
 }
 
-func TestSelectTargets_RecipientGeohash_UsesReliabilityFallback(t *testing.T) {
-	// In Go, PeerInfo lacks a Geohash field, so even with RecipientLastGeohash set
-	// the strategy falls back to reliability ordering.
-	b := bundleWithGeohash("alice", "gcpv", 1, 3) // 2 slots
+func TestSelectTargets_RecipientGeohash_PrefersProximityOverReliability(t *testing.T) {
+	// Recipient last seen at "gcpvxy"; local node at "gc0000" (shares "gc" → localProx 2).
+	// "near" shares "gcpv" (prox 4) but LOW reliability; "far" shares only "gc" (prox 2)
+	// but HIGH reliability. The geographically closer peer must win — proximity outranks
+	// reliability, matching the C#/Kotlin reference. Both clear the prox>=localProx gate.
+	b := bundleWithGeohash("alice", "gcpvxy", 0, 2) // 2 slots
 	peers := []models.PeerInfo{
-		carrier("low", 10),
-		carrier("high", 80),
+		carrierGeo("far", 99, "gcAAAA"),  // prox 2, high reliability
+		carrierGeo("near", 10, "gcpvAA"), // prox 4, low reliability
 	}
-	result := strat.SelectTargets(b, peers, "gc00")
-	if len(result) < 1 {
-		t.Fatalf("expected at least 1 result, got 0")
+	result := strat.SelectTargets(b, peers, "gc0000") // localProx = 2
+	if len(result) != 2 {
+		t.Fatalf("expected 2 results, got %d (%v)", len(result), result)
 	}
-	// high-reliability peer should be first
-	if result[0] != "high" {
-		t.Errorf("expected 'high' first (reliability sort), got %q", result[0])
+	if result[0] != "near" {
+		t.Errorf("expected geographically-closer 'near' first, got %q", result[0])
+	}
+}
+
+func TestSelectTargets_RecipientGeohash_ExcludesPeersFartherThanLocal(t *testing.T) {
+	// Local node is already close to the recipient (localProx 4). A peer that is
+	// FARTHER (prox 2 < 4) must NOT get a copy — forwarding away from the recipient
+	// wastes a hop. Mirrors the C#/Kotlin "prox >= localProx" gate.
+	b := bundleWithGeohash("alice", "gcpvxy", 0, 3)
+	peers := []models.PeerInfo{
+		carrierGeo("farther", 99, "gcAAAA"), // prox 2 < localProx 4 → excluded
+		carrierGeo("closer", 50, "gcpvxy"),  // prox 6 >= 4 → included
+	}
+	result := strat.SelectTargets(b, peers, "gcpv00") // localProx = sharedPrefix("gcpv00","gcpvxy") = 4
+	if len(result) != 1 {
+		t.Fatalf("expected 1 result (farther peer filtered out), got %d (%v)", len(result), result)
+	}
+	if result[0] != "closer" {
+		t.Errorf("expected only 'closer', got %q", result[0])
 	}
 }

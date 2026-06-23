@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 // ─── Internal buffer sizes ────────────────────────────────────────────────────
 
@@ -39,18 +40,18 @@ struct AetherNetGossipService {
 
 static int64_t i64_abs(int64_t v) { return v < 0 ? -v : v; }
 
-// ─── Helper: naive timestamp_ms — always 0 in embedded / test contexts.
-//     In production the host integrates a real clock via callbacks; for the
-//     gossip service itself we only need a monotonically increasing value to
-//     populate outgoing packet timestamps.  We use 0 here because the test
-//     suite controls timestamps by injecting them directly through the JSON
-//     parsing path.  The spec says to use "now_ms" from the system clock;
-//     replace this stub with a real clock call when integrating. ─────────────
+// ─── Helper: wall-clock milliseconds since the Unix epoch ─────────────────────
+//     Stamps outgoing gossip packets and evaluates the freshness window on
+//     receive.  Uses C11 timespec_get(TIME_UTC) — the same clock the DTN and
+//     SOS services use — so timestamps are consistent across the C SDK. Tests
+//     that need deterministic time inject timestamps through the JSON parse
+//     path, which overrides this for the values under assertion.
 
 static int64_t get_now_ms(void)
 {
-    /* Stub: returns 0. Replace with platform clock in production. */
-    return 0;
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
 // ─── Helper: clamp double to [-1.0, 1.0] ──────────────────────────────────────
