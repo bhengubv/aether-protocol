@@ -1,64 +1,71 @@
-[build-system]
-requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "aethernet-protocol"
-version = "1.0.0"
-description = "Python implementation of the Aether mesh networking protocol"
-readme = "README.md"
-requires-python = ">=3.10"
-license = {text = "MIT"}
-authors = [
-    {name = "The Other Bhengu (Pty) Ltd t/a The Geek Network", email = "engineering@thegeeknetwork.dev"}
-]
-classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Communications",
-    "Topic :: Security :: Cryptography",
-]
-
-[project.urls]
-Homepage = "https://github.com/bhengubv/aether-protocol"
-Repository = "https://github.com/bhengubv/aether-protocol"
-Documentation = "https://github.com/bhengubv/aether-protocol#readme"
-"Issue Tracker" = "https://github.com/bhengubv/aether-protocol/issues"
-
-dependencies = [
-    "pynacl>=1.5.0",
-    "cryptography>=41.0.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-benchmark>=4.0.0",
-    "hypothesis>=6.100.0",
-    "black>=23.0.0",
-    "mypy>=1.5.0",
-    "ruff>=0.1.0",
-]
-
-[tool.setuptools.packages.find]
-where = ["."]
-
-[tool.black]
-line-length = 100
-target-version = ["py310", "py311", "py312"]
-
-[tool.mypy]
-python_version = "3.10"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aethernet-protocol"
+version = "1.0.0"
+description = "Python implementation of the Aether mesh networking protocol"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "The Other Bhengu (Pty) Ltd t/a The Geek Network", email = "engineering@thegeeknetwork.dev"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications",
+    "Topic :: Security :: Cryptography",
+]
+
+[project.urls]
+Homepage = "https://github.com/bhengubv/aether-protocol"
+Repository = "https://github.com/bhengubv/aether-protocol"
+Documentation = "https://github.com/bhengubv/aether-protocol#readme"
+"Issue Tracker" = "https://github.com/bhengubv/aether-protocol/issues"
+
+dependencies = [
+    "pynacl>=1.5.0",
+    "cryptography>=41.0.0",
+    "aiortc>=1.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-benchmark>=4.0.0",
+    "hypothesis>=6.100.0",
+    "black>=23.0.0",
+    "mypy>=1.5.0",
+    "ruff>=0.1.0",
+]
+# Real serial LoRa transport (RYLR-class SX127x/SX126x). Optional — only needed to
+# instantiate aethernet.transport.lora.LoRaSerialTransport against a physical module.
+lora = ["pyserial>=3.5"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

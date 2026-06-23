@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: MIT
+//
+// SwiftPM system-library binding for libdatachannel's stable C API (rtc/rtc.h).
+//
+// libdatachannel (https://github.com/paullouisageneau/libdatachannel) is a portable
+// C/C++ WebRTC implementation (Linux/macOS/Windows). This module surfaces its C header
+// to Swift so `AetherNetWebRTC` can drive real RTCPeerConnection / RTCDataChannel
+// negotiation without a platform-specific framework.
+//
+// The header is reached through the local shim `shim.h`, which `#include <rtc/rtc.h>`.
+// Provide the header + link library to the build via, e.g.:
+//
+//   swift build \
+//     -Xcc -I/usr/local/include \
+//     -Xlinker -L/usr/local/lib -Xlinker -ldatachannel
+//
+// or place a `datachannel.pc` on PKG_CONFIG_PATH (see the target's pkgConfig name).
+module CDataChannel [system] {
+    header "shim.h"
+    link "datachannel"
+    export *
+}

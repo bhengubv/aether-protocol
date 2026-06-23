@@ -48,6 +48,87 @@ file(MAKE_DIRECTORY "${CJSON_SHIM_DIR}/cjson")
 configure_file("${cjson_SOURCE_DIR}/cJSON.h"
                "${CJSON_SHIM_DIR}/cjson/cJSON.h" COPYONLY)
 
+# ─── WebRTC P2P transport (libdatachannel) ─────────────────────────────────
+# Optional, OFF by default: the real RTCDataChannel transport pulls a sizeable
+# C++ dependency tree (libdatachannel + libjuice + usrsctp + MbedTLS) that not
+# every consumer of this library needs. Enable with -DAETHERNET_WITH_WEBRTC=ON.
+#
+# libdatachannel needs a DTLS backend. Rather than depend on a system OpenSSL,
+# we fetch MbedTLS (Apache-2.0, pure C, builds cleanly with MinGW/GCC) and point
+# libdatachannel at it via USE_MBEDTLS — keeping the build self-contained, the
+# same FetchContent-at-configure-time pattern used for cJSON and BLAKE3 above.
+option(AETHERNET_WITH_WEBRTC "Build the real WebRTC P2P transport (libdatachannel)" OFF)
+
+if(AETHERNET_WITH_WEBRTC)
+    # libdatachannel's install(EXPORT LibDataChannelTargets) pulls in the `datachannel`
+    # target, which links our MbedTLS::MbedTLS aggregate INTERFACE target — and that
+    # aggregate isn't in any export set, so the generate step errors. We static-link the
+    # data-channel library into aethernet-protocol and never `make install` it, so disable
+    # install rules entirely for the WebRTC-enabled build.
+    set(CMAKE_SKIP_INSTALL_RULES ON)
+
+    # libdatachannel's bundled libjuice uses POSIX socket APIs (getaddrinfo, NI_*/AI_*,
+    # struct addrinfo) that glibc hides under a strict -std=c99 unless a feature-test macro
+    # is defined. Expose them across the whole WebRTC dependency tree on Linux; this is a
+    # no-op on macOS/BSD, which expose those symbols by default.
+    add_compile_definitions(_GNU_SOURCE)
+
+    enable_language(CXX)   # libdatachannel is C++ internally (C API surface).
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+    # MbedTLS 3.x — DTLS backend for libdatachannel.
+    FetchContent_Declare(
+        mbedtls
+        GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
+        GIT_TAG        v3.6.2
+        GIT_SHALLOW    TRUE
+    )
+    set(ENABLE_TESTING   OFF CACHE BOOL "" FORCE)
+    set(ENABLE_PROGRAMS  OFF CACHE BOOL "" FORCE)
+    set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(mbedtls)
+
+    # libdatachannel's DTLS transport calls MbedTLS's DTLS-SRTP API
+    # (mbedtls_ssl_conf_dtls_srtp_protection_profiles), which MbedTLS only compiles when
+    # MBEDTLS_SSL_DTLS_SRTP is defined — the stock config leaves it off. Enable it on the
+    # MbedTLS targets (PUBLIC so libdatachannel is compiled against the same definition).
+    foreach(_mbed mbedtls mbedx509 mbedcrypto)
+        if(TARGET ${_mbed})
+            target_compile_definitions(${_mbed} PUBLIC MBEDTLS_SSL_DTLS_SRTP)
+        endif()
+    endforeach()
+
+    # libdatachannel's find logic wants a single aggregate MbedTLS::MbedTLS
+    # target (it checks `if(NOT TARGET MbedTLS::MbedTLS)`), but MbedTLS exports
+    # the three component targets. Provide the aggregate so find_package is skipped.
+    if(NOT TARGET MbedTLS::MbedTLS)
+        add_library(MbedTLS_aggregate INTERFACE)
+        target_link_libraries(MbedTLS_aggregate INTERFACE
+            MbedTLS::mbedtls MbedTLS::mbedx509 MbedTLS::mbedcrypto)
+        add_library(MbedTLS::MbedTLS ALIAS MbedTLS_aggregate)
+    endif()
+
+    # libdatachannel — data-channel-only build (no media/SRTP, no WebSocket) to
+    # cut the dependency surface to libjuice + usrsctp + plog + MbedTLS.
+    FetchContent_Declare(
+        libdatachannel
+        GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel.git
+        GIT_TAG        v0.22.4
+        GIT_SHALLOW    TRUE
+        GIT_SUBMODULES_RECURSE TRUE
+    )
+    set(USE_MBEDTLS     ON  CACHE BOOL "" FORCE)
+    set(USE_GNUTLS      OFF CACHE BOOL "" FORCE)
+    set(USE_NICE        OFF CACHE BOOL "" FORCE)
+    set(NO_MEDIA        ON  CACHE BOOL "" FORCE)
+    set(NO_WEBSOCKET    ON  CACHE BOOL "" FORCE)
+    set(NO_EXAMPLES     ON  CACHE BOOL "" FORCE)
+    set(NO_TESTS        ON  CACHE BOOL "" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(libdatachannel)
+endif()
+
 # Add the library
 add_library(aethernet-protocol STATIC
     src/protocol.c
@@ -82,6 +163,15 @@ add_library(aethernet-protocol STATIC
     ${blake3_src_SOURCE_DIR}/c/blake3_dispatch.c
     ${blake3_src_SOURCE_DIR}/c/blake3_portable.c
 )
+
+# WebRTC transport sources compile only when the dependency is built — they
+# #include <rtc/rtc.h>, which only exists once libdatachannel is fetched.
+if(AETHERNET_WITH_WEBRTC)
+    target_sources(aethernet-protocol PRIVATE
+        src/transport_webrtc.c
+        src/transport_webrtc_signaling.c
+    )
+endif()
 
 target_include_directories(aethernet-protocol
     PUBLIC
@@ -121,6 +211,13 @@ target_link_libraries(aethernet-protocol
         ${LIBSODIUM_LIBRARIES}
         cjson
 )
+
+# Link libdatachannel (static) for the WebRTC transport. PUBLIC so that test
+# executables linking aethernet-protocol pull in the data-channel symbols too.
+if(AETHERNET_WITH_WEBRTC)
+    target_link_libraries(aethernet-protocol PUBLIC datachannel-static)
+    target_compile_definitions(aethernet-protocol PUBLIC AETHERNET_WITH_WEBRTC=1)
+endif()
 
 # Add the demo executable
 add_executable(aethernet-demo

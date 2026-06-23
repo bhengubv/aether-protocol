@@ -134,6 +134,19 @@ target_include_directories(test-transport-inprocess PRIVATE ${CMAKE_CURRENT_SOUR
 target_link_libraries(test-transport-inprocess PRIVATE aethernet-protocol pthread)
 add_test(NAME TransportInprocessTests COMMAND test-transport-inprocess)
 
+# Real WebRTC P2P transport (libdatachannel) — only built when the optional
+# dependency is enabled at the top-level (-DAETHERNET_WITH_WEBRTC=ON).
+if(AETHERNET_WITH_WEBRTC)
+    add_executable(test-transport-webrtc
+        test_transport_webrtc.c
+    )
+    target_include_directories(test-transport-webrtc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+    target_link_libraries(test-transport-webrtc PRIVATE aethernet-protocol pthread)
+    # ICE negotiation + DTLS handshake can take a few seconds on a loaded host.
+    add_test(NAME TransportWebRtcTests COMMAND test-transport-webrtc)
+    set_tests_properties(TransportWebRtcTests PROPERTIES TIMEOUT 120)
+endif()
+
 add_executable(test-reputation
     test_reputation.c
 )
