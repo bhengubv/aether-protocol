@@ -112,7 +112,7 @@ Each transport has a colour name used throughout the codebase. `IsAvailable` gat
 | 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Real — Windows (WinRT) + Android (`android/blue/`) |
 | 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Real — Windows (WinRT) + Android (`android/green/`) |
 | 🟣 Aether Purple | HTTP / QUIC relay | Unlimited | ~10 Mbps | ✅ Real — Windows; relay server in `samples/AetherNet.RelayServer/` |
-| 🟪 WebRTC P2P | Internet data channel | Unlimited | ~100 Mbps | ✅ Real in all 8 languages — **loopback-verified** (C#/Go/Kotlin/TypeScript/Python/C/Swift exchange bytes over a real ICE data channel); Rust build-verified |
+| 🟪 WebRTC P2P | Internet data channel | Unlimited | ~100 Mbps | ✅ Real in all 8 languages — **loopback-verified in all 8** (C#/Go/Kotlin/TypeScript/Python/C/Swift/Rust each have two peers exchange bytes over a real ICE data channel) |
 | ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Real on Android (`android/white/`); Windows = real BLE-GATT + RSSI −40 dBm proximity approximation (`WinNfcBleTransportService`, compiles net9/10, runtime-unverified) — `Windows.Networking.Proximity` removed in Win 11 |
 | 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ⚠️ Real on HarmonyOS (`harmonyos/teal/`, `@kit.NearLinkKit` — pending on-device verification); Android + Windows = real SSAP-over-BLE approximation (`android/teal/AetherNetSleService`, `WinNearLinkBleTransportService`; compile + unit-test verified, runtime-unverified) |
 | 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ Real RYLR SX127x/SX126x serial driver (`LoRaSerialTransport` in C#/Go/Rust/C; compiles, runtime-unverified — needs a physical module); BLE Coded-PHY bridge still a documented design |
@@ -139,7 +139,7 @@ Aether runs on any device with Bluetooth or Wi-Fi hardware. Where a radio is phy
 
 What is real and identical everywhere: **BLE, Wi-Fi Direct, the HTTP/QUIC relay, and the WebRTC P2P transport (loopback-verified in all 8 languages)**, plus Signal Protocol security (X3DH + Double Ratchet), AODV routing, DTN store-and-forward, SOS broadcast, voice, and streaming.
 
-**Honest status:** BLE + Wi-Fi Direct + relay are production-real; **WebRTC P2P is real and loopback-verified in all 8 languages** (two peers exchange bytes over a real ICE data channel; Rust build-verified); the NearLink / LoRa / NFC-on-Windows approximations are now real code that compiles (LoRa compile-verified in all 8, incl. Swift + C on the Mac build server; NearLink-Android also unit-tested) but is **runtime-unverified** — no hardware / 2-device RF test yet. They participate in the mesh in code; don't deploy those three expecting field-proven RF.
+**Honest status:** BLE + Wi-Fi Direct + relay are production-real; **WebRTC P2P is real and loopback-verified in all 8 languages** (two peers exchange bytes over a real ICE data channel — Rust confirmed on the `.201` Linux box with working UDP ICE); the NearLink / LoRa / NFC-on-Windows approximations are now real code that compiles (LoRa compile-verified in all 8, incl. Swift + C on the Mac build server; NearLink-Android also unit-tested) but is **runtime-unverified** — no hardware / 2-device RF test yet. They participate in the mesh in code; don't deploy those three expecting field-proven RF.
 
 ---
 

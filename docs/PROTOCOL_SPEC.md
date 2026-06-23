@@ -672,7 +672,7 @@ platform code exists. As verified 2026-06-22 (NFC/NearLink/LoRa upgraded to real
 | **BLE**       | C# / Windows; Android (`android/blue/`)                  | the 6 library ports use the in-process simulator |
 | **Wi-Fi Direct** | C# / Windows; Android (`android/green/`)             | the 6 library ports use the in-process simulator |
 | **HTTP/QUIC relay** | C# / Windows                                      | —                                               |
-| **WebRTC (internet P2P)** | **Loopback-verified (built + two peers exchange bytes over a real ICE data channel): C# (SIPSorcery), Go (pion), Kotlin (webrtc-java), TypeScript (werift), Python (aiortc), C + Swift (libdatachannel) — 7/8. Rust (webrtc-rs) build-verified.** | — |
+| **WebRTC (internet P2P)** | **Loopback-verified in all 8 (built + two peers exchange bytes over a real ICE data channel): C# (SIPSorcery), Go (pion), Kotlin (webrtc-java), TypeScript (werift), Python (aiortc), C + Swift (libdatachannel), Rust (webrtc-rs).** | — |
 | **NFC** | Android (`android/white/`, HCE); Windows (`WinNfcBleTransportService` -- real BLE-GATT + RSSI -40 dBm approx, compiles, runtime-unverified) | -- |
 | **NearLink** | HarmonyOS (`harmonyos/teal/`, **pending on-device + DevEco verification**); Android (`AetherNetSleService`) + Windows (`WinNearLinkBleTransportService`) -- real SSAP-over-BLE, compile + unit-test verified, runtime-unverified | -- |
 | **LoRa** | real RYLR SX127x/SX126x serial driver (`LoRaSerialTransport` in **all 8 languages** — C#/Go/Rust/C/Python/TypeScript/Swift/Kotlin; every port compile-verified incl. Swift + C on the Mac build server, runtime-unverified) | physical module not yet exercised; `android/red/` UI-only; BLE-Coded-PHY bridge still a design |
