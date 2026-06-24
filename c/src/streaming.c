@@ -156,6 +156,31 @@ static bool parse_av_frame(
 
 // ─── Send helpers ─────────────────────────────────────────
 
+/* Serialise the packet and dispatch the wire bytes to the routed next hop via the
+   bound transport. Returns 1 if transmitted, 0 when no transport is bound or no route
+   is known. The real serialise + send the C# StreamingService does via
+   IMeshSender.SendAsync. */
+static int st_route_and_send(aethernet_transport_t *transport,
+                             aethernet_routing_service_t *routing,
+                             const aethernet_mesh_packet_t *pkt, const char *to_uhid) {
+    if (!transport || !transport->vtable || !transport->vtable->send || !pkt || !to_uhid) return 0;
+    aethernet_route_entry_t *route = NULL;
+    if (!aethernet_routing_find_cached(routing, to_uhid, &route)) return 0;
+    int sent = 0;
+    size_t cap = aethernet_packet_estimate_size(pkt) + 64;
+    uint8_t *buf = (uint8_t *)malloc(cap);
+    if (buf) {
+        int n = aethernet_packet_serialize(pkt, buf, cap);
+        if (n > 0) {
+            transport->vtable->send(transport->handle, route->next_hop_uhid, buf, (size_t)n);
+            sent = 1;
+        }
+        free(buf);
+    }
+    aethernet_route_entry_free(route);
+    return sent;
+}
+
 static void st_send_json_unicast(
     aethernet_transport_t *transport,
     aethernet_routing_service_t *routing,
@@ -180,11 +205,8 @@ static void st_send_json_unicast(
     aethernet_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
     free(body);
 
-    aethernet_route_entry_t *route = NULL;
-    if (aethernet_routing_find_cached(routing, to_uhid, &route)) {
-        /* Host serialises + sends: aethernet_packet_serialize(pkt, buf, buf_len) then transport->vtable->send */
-        aethernet_route_entry_free(route);
-    }
+    /* Serialise the packet and transmit it to the routed next hop. */
+    st_route_and_send(transport, routing, pkt, to_uhid);
     aethernet_packet_free(pkt);
 }
 
@@ -210,7 +232,10 @@ static void st_broadcast_json(
     aethernet_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
     free(body);
 
-    /* Host calls transport->vtable->broadcast equivalent */
+    /* Mesh-wide STREAM_ANNOUNCE flood: the low-level transport vtable exposes only a
+       unicast send (no broadcast op) and this service holds no mesh sender, so the
+       discovery announce cannot fan out from here yet. Tracked sub-gap: add a transport
+       broadcast op or wire an aethernet_mesh_sender (sender->broadcast) into streaming. */
     (void)transport; (void)routing;
     aethernet_packet_free(pkt);
 }
@@ -385,11 +410,8 @@ int aethernet_streaming_publish_segment(
         pkt->ttl      = AETHERNET_DEFAULT_TTL;
         pkt->priority = 16;
         aethernet_packet_set_payload(pkt, frame, frame_len);
-        aethernet_route_entry_t *route = NULL;
-        if (aethernet_routing_find_cached(svc->routing, sub, &route)) {
-            /* Host serialises + sends */
-            aethernet_route_entry_free(route);
-        }
+        /* Serialise the segment and transmit it to this subscriber's next hop. */
+        st_route_and_send(svc->transport, svc->routing, pkt, sub);
         aethernet_packet_free(pkt);
     }
     free(frame);
@@ -692,8 +714,8 @@ int aethernet_video_send_frame(
     pkt->ttl = AETHERNET_DEFAULT_TTL; pkt->priority = 64;
     aethernet_packet_set_payload(pkt, frame, frame_len);
     free(frame);
-    aethernet_route_entry_t *route = NULL;
-    if (aethernet_routing_find_cached(svc->routing, rec->remote_uhid, &route)) aethernet_route_entry_free(route);
+    /* Serialise the video frame and transmit it to the routed next hop. */
+    st_route_and_send(svc->transport, svc->routing, pkt, rec->remote_uhid);
     aethernet_packet_free(pkt);
     return 0;
 }
