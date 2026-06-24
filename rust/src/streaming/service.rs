@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
+use tokio::sync::broadcast;
 
 use crate::constants::DEFAULT_TTL;
 use crate::protocol::{MeshPacket, PacketType};
@@ -53,6 +54,31 @@ pub struct StreamEntry {
     pub active: bool,
 }
 
+// ── Inbound events ─────────────────────────────────────────────────────────────
+
+/// Capacity of the inbound broadcast channels; lagging subscribers drop oldest.
+const STREAM_CHANNEL_CAPACITY: usize = 256;
+
+/// An inbound A/V segment decoded from a received STREAM_SEGMENT packet, delivered
+/// to subscribers of [`StreamingService::subscribe_segments`].
+#[derive(Debug, Clone)]
+pub struct StreamSegmentReceivedEvent {
+    pub stream_id: Uuid,
+    pub sender_uhid: String,
+    pub seq: u32,
+    pub timestamp_ms: i64,
+    pub is_keyframe: bool,
+    pub data: Vec<u8>,
+}
+
+/// A remote stream announcement, delivered to subscribers of
+/// [`StreamingService::subscribe_announcements`].
+#[derive(Debug, Clone)]
+pub struct StreamAnnounceReceivedEvent {
+    pub sender_uhid: String,
+    pub announce: StreamAnnouncePayload,
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 pub struct StreamingService {
@@ -62,16 +88,32 @@ pub struct StreamingService {
     streams: Mutex<HashMap<Uuid, StreamEntry>>,
     /// stream_id -> set of subscriber UHIDs.
     subscribers: Mutex<HashMap<Uuid, HashSet<String>>>,
+    segment_received_tx: broadcast::Sender<StreamSegmentReceivedEvent>,
+    announce_received_tx: broadcast::Sender<StreamAnnounceReceivedEvent>,
 }
 
 impl StreamingService {
     pub fn new(sender: Arc<dyn MeshSender>, routing: Arc<RoutingService>) -> Self {
+        let (segment_received_tx, _) = broadcast::channel(STREAM_CHANNEL_CAPACITY);
+        let (announce_received_tx, _) = broadcast::channel(STREAM_CHANNEL_CAPACITY);
         Self {
             sender,
             routing,
             streams: Mutex::new(HashMap::new()),
             subscribers: Mutex::new(HashMap::new()),
+            segment_received_tx,
+            announce_received_tx,
         }
+    }
+
+    /// Subscribe to inbound A/V segments decoded from received STREAM_SEGMENT packets.
+    pub fn subscribe_segments(&self) -> broadcast::Receiver<StreamSegmentReceivedEvent> {
+        self.segment_received_tx.subscribe()
+    }
+
+    /// Subscribe to remote stream announcements decoded from STREAM_ANNOUNCE packets.
+    pub fn subscribe_announcements(&self) -> broadcast::Receiver<StreamAnnounceReceivedEvent> {
+        self.announce_received_tx.subscribe()
     }
 
     /// Start a new stream. Returns the stream_id.
@@ -245,7 +287,7 @@ impl StreamingService {
             PacketType::StreamAnnounce => self.handle_announce(packet).await,
             PacketType::StreamSubscribe => self.handle_subscribe(packet).await,
             PacketType::StreamUnsubscribe => self.handle_unsubscribe(packet).await,
-            PacketType::StreamSegment => Ok(()), // surfaced to app layer
+            PacketType::StreamSegment => self.handle_segment(packet).await,
             _ => Ok(()),
         }
     }
@@ -264,8 +306,37 @@ impl StreamingService {
         self.sender.broadcast(&pkt).await;
     }
 
-    async fn handle_announce(&self, _packet: &MeshPacket) -> Result<(), String> {
-        // Announcements from remote publishers are surfaced to the app layer.
+    async fn handle_announce(&self, packet: &MeshPacket) -> Result<(), String> {
+        // Decode a remote stream announcement and surface it to subscribers.
+        let announce: StreamAnnouncePayload = serde_json::from_slice(&packet.payload)
+            .map_err(|e| format!("bad announce payload: {}", e))?;
+        let _ = self.announce_received_tx.send(StreamAnnounceReceivedEvent {
+            sender_uhid: packet.source_uhid.clone(),
+            announce,
+        });
+        Ok(())
+    }
+
+    /// Decode an inbound A/V segment and surface it to segment subscribers.
+    /// Layout (build_stream_segment): [16] stream_id | [4] seq LE | [8] ts LE | [1] keyframe | [N] data.
+    async fn handle_segment(&self, packet: &MeshPacket) -> Result<(), String> {
+        let p = &packet.payload;
+        if p.len() < 29 {
+            return Err("stream segment too short".to_string());
+        }
+        let stream_id = Uuid::from_slice(&p[0..16]).map_err(|e| e.to_string())?;
+        let seq = u32::from_le_bytes(p[16..20].try_into().unwrap());
+        let timestamp_ms = i64::from_le_bytes(p[20..28].try_into().unwrap());
+        let is_keyframe = p[28] != 0;
+        let data = p[29..].to_vec();
+        let _ = self.segment_received_tx.send(StreamSegmentReceivedEvent {
+            stream_id,
+            sender_uhid: packet.source_uhid.clone(),
+            seq,
+            timestamp_ms,
+            is_keyframe,
+            data,
+        });
         Ok(())
     }
 

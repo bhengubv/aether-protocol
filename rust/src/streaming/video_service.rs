@@ -12,6 +12,7 @@ use crate::constants::DEFAULT_TTL;
 use crate::protocol::{MeshPacket, PacketType};
 use crate::routing::sender::MeshSender;
 use crate::routing::RoutingService;
+use tokio::sync::broadcast;
 
 // ── Signaling wire type ────────────────────────────────────────────────────────
 
@@ -59,19 +60,43 @@ pub struct VideoCallEntry {
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
+/// Capacity of the inbound-frame broadcast channel; lagging subscribers drop oldest.
+const FRAME_RECEIVED_CHANNEL_CAPACITY: usize = 256;
+
+/// An inbound video/call frame decoded from a received VIDEO_FRAME/VIDEO_CALL packet,
+/// delivered to subscribers of [`VideoCallService::subscribe_frames`].
+#[derive(Debug, Clone)]
+pub struct VideoFrameReceivedEvent {
+    pub call_id: Uuid,
+    pub sender_uhid: String,
+    pub seq: u32,
+    pub timestamp_ms: i64,
+    pub is_keyframe: bool,
+    pub data: Vec<u8>,
+}
+
 pub struct VideoCallService {
     sender: Arc<dyn MeshSender>,
     routing: Arc<RoutingService>,
     calls: Mutex<HashMap<Uuid, VideoCallEntry>>,
+    frame_received_tx: broadcast::Sender<VideoFrameReceivedEvent>,
 }
 
 impl VideoCallService {
     pub fn new(sender: Arc<dyn MeshSender>, routing: Arc<RoutingService>) -> Self {
+        let (frame_received_tx, _) = broadcast::channel(FRAME_RECEIVED_CHANNEL_CAPACITY);
         Self {
             sender,
             routing,
             calls: Mutex::new(HashMap::new()),
+            frame_received_tx,
         }
+    }
+
+    /// Subscribe to inbound video/call frames decoded from received VIDEO_FRAME /
+    /// VIDEO_CALL packets.
+    pub fn subscribe_frames(&self) -> broadcast::Receiver<VideoFrameReceivedEvent> {
+        self.frame_received_tx.subscribe()
     }
 
     /// Originate a video call to `to_uhid`. Returns the new call-id.
@@ -277,9 +302,32 @@ impl VideoCallService {
     pub async fn handle_packet(&self, packet: &MeshPacket) -> Result<(), String> {
         match packet.packet_type {
             PacketType::VideoSignaling => self.handle_signaling(packet).await,
-            PacketType::VideoFrame | PacketType::VideoCall => Ok(()), // surfaced to app layer
+            PacketType::VideoFrame | PacketType::VideoCall => self.handle_video_frame(packet).await,
             _ => Ok(()),
         }
+    }
+
+    /// Decode an inbound video/call frame and surface it to subscribers.
+    /// Layout (build_video_frame): [16] call_id | [4] seq LE | [8] ts LE | [1] keyframe | [N] data.
+    async fn handle_video_frame(&self, packet: &MeshPacket) -> Result<(), String> {
+        let p = &packet.payload;
+        if p.len() < 29 {
+            return Err("video frame too short".to_string());
+        }
+        let call_id = Uuid::from_slice(&p[0..16]).map_err(|e| e.to_string())?;
+        let seq = u32::from_le_bytes(p[16..20].try_into().unwrap());
+        let timestamp_ms = i64::from_le_bytes(p[20..28].try_into().unwrap());
+        let is_keyframe = p[28] != 0;
+        let data = p[29..].to_vec();
+        let _ = self.frame_received_tx.send(VideoFrameReceivedEvent {
+            call_id,
+            sender_uhid: packet.source_uhid.clone(),
+            seq,
+            timestamp_ms,
+            is_keyframe,
+            data,
+        });
+        Ok(())
     }
 
     // ── private ────────────────────────────────────────────────────────────────

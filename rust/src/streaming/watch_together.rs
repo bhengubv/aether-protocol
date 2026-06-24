@@ -12,6 +12,7 @@ use crate::constants::DEFAULT_TTL;
 use crate::protocol::{MeshPacket, PacketType};
 use crate::routing::sender::MeshSender;
 use crate::routing::RoutingService;
+use tokio::sync::broadcast;
 
 // ── Wire types ─────────────────────────────────────────────────────────────────
 
@@ -54,19 +55,39 @@ pub struct WatchSession {
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
+/// Capacity of the inbound-reaction broadcast channel; lagging subscribers drop oldest.
+const REACTION_CHANNEL_CAPACITY: usize = 256;
+
+/// An inbound watch-party reaction decoded from a received WATCH_REACTION packet,
+/// delivered to subscribers of [`WatchTogetherService::subscribe_reactions`].
+#[derive(Debug, Clone)]
+pub struct WatchReactionReceivedEvent {
+    pub session_id: Uuid,
+    pub sender_uhid: String,
+    pub reaction: String,
+}
+
 pub struct WatchTogetherService {
     sender: Arc<dyn MeshSender>,
     routing: Arc<RoutingService>,
     sessions: Mutex<HashMap<Uuid, WatchSession>>,
+    reaction_received_tx: broadcast::Sender<WatchReactionReceivedEvent>,
 }
 
 impl WatchTogetherService {
     pub fn new(sender: Arc<dyn MeshSender>, routing: Arc<RoutingService>) -> Self {
+        let (reaction_received_tx, _) = broadcast::channel(REACTION_CHANNEL_CAPACITY);
         Self {
             sender,
             routing,
             sessions: Mutex::new(HashMap::new()),
+            reaction_received_tx,
         }
+    }
+
+    /// Subscribe to inbound watch-party reactions decoded from WATCH_REACTION packets.
+    pub fn subscribe_reactions(&self) -> broadcast::Receiver<WatchReactionReceivedEvent> {
+        self.reaction_received_tx.subscribe()
     }
 
     /// Invite members to a new or existing watch session. The content_id
@@ -229,9 +250,21 @@ impl WatchTogetherService {
     pub async fn handle_packet(&self, packet: &MeshPacket) -> Result<(), String> {
         match packet.packet_type {
             PacketType::WatchSync => self.handle_sync(packet).await,
-            PacketType::WatchReaction => Ok(()), // surfaced to app layer
+            PacketType::WatchReaction => self.handle_reaction(packet).await,
             _ => Ok(()),
         }
+    }
+
+    /// Decode an inbound watch-party reaction and surface it to subscribers.
+    async fn handle_reaction(&self, packet: &MeshPacket) -> Result<(), String> {
+        let payload: WatchReactionPayload = serde_json::from_slice(&packet.payload)
+            .map_err(|e| format!("bad watch reaction payload: {}", e))?;
+        let _ = self.reaction_received_tx.send(WatchReactionReceivedEvent {
+            session_id: payload.session_id,
+            sender_uhid: packet.source_uhid.clone(),
+            reaction: payload.reaction,
+        });
+        Ok(())
     }
 
     // ── private ────────────────────────────────────────────────────────────────
