@@ -17,6 +17,7 @@ Detectable patterns:
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -139,43 +140,14 @@ class BehavioralAnomalyDetector:
             claimed_geohash:          Geohash string the node advertised.
             observed_routing_geohash: Geohash derived from actual routing behaviour.
         """
-        pl = self._opts.geohash_prefix_length
-        claimed_prefix = claimed_geohash[:pl]
-        observed_prefix = observed_routing_geohash[:pl]
-
-        if claimed_prefix == observed_prefix:
-            return  # no mismatch — nothing to do
-
-        # Rate-limit: emit at most one signal per geohash_rate_limit_ms per node
-        # We use timestamp 0 as a sentinel when we have no previous signal — but we need
-        # a real "now".  The caller doesn't pass a timestamp here (by design), so we rely
-        # on the monotonic-ish signal tracking using a sentinel value of -inf (i.e. -1).
-        # We deliberately use -1 so that the very first call always fires.
-        with self._geo_lock:
-            last_ms = self._geo_last_signal_ms.get(uhid, -1)
-
-        # Because observe_geohash_claim has no timestamp parameter we use a virtual clock:
-        # for rate-limiting purposes we compare the *count* of calls rather than wall time.
-        # However, to stay consistent with the rest of the API and to allow unit-testing
-        # with synthetic time, we track whether we've already signalled recently.
-        # For simplicity the rate-limit here is implemented as a boolean "has signalled"
-        # per node per window.  Resetting happens automatically because we store the
-        # actual timestamp received from a parallel path — but since this method has no
-        # timestamp we use a sentinel-based approach:
-        #   • last_ms == -1  → never signalled → fire now and mark as "signalled"
-        #   • last_ms == 0   → signalled (rate-limited, no real timestamp available)
-        #
-        # This matches the test `test_geohash_rate_limited` which sets rate_limit_ms to
-        # sys.maxsize so that the second consecutive call is suppressed regardless of
-        # wall time.
-        if last_ms == -1:
-            with self._geo_lock:
-                # double-checked locking
-                last_ms2 = self._geo_last_signal_ms.get(uhid, -1)
-                if last_ms2 == -1:
-                    self._geo_last_signal_ms[uhid] = 0  # mark as "signalled"
-            self._reputation.record_signature_failure(uhid)
-        # else: rate-limited — suppress the signal
+        # No caller-supplied timestamp here, so capture the system wall-clock and delegate
+        # to the timestamp-aware path. This gives a REAL per-node time window — fire on the
+        # first prefix mismatch, suppress repeats within geohash_rate_limit_ms, then reset
+        # once the window elapses — instead of the previous fire-once-per-node sentinel that
+        # set last_ms=0 and never reset, silently dropping every later mismatch (so a
+        # persistent geohash spoofer was penalised exactly once, then ignored forever).
+        now_ms = int(time.time() * 1000)
+        self.observe_geohash_claim_ts(uhid, claimed_geohash, observed_routing_geohash, now_ms)
 
     def observe_geohash_claim_ts(
         self,

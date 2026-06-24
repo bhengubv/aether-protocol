@@ -195,6 +195,24 @@ class TestGeohashMismatch:
         assert len(spy.sig_failure_calls) == 2
         assert spy.sig_failure_calls == [ALICE, ALICE]
 
+    def test_geohash_no_timestamp_refires_after_window(self, monkeypatch) -> None:
+        """The no-timestamp observe_geohash_claim must re-fire after the rate-limit window
+        elapses. It previously set last_ms=0 and fired exactly once per node forever, so a
+        persistent geohash spoofer evaded detection after the first mismatch; it now captures
+        the system wall-clock and delegates to the windowed path."""
+        import aethernet.anomaly_detector as ad
+        spy, det = _make(AnomalyDetectorOptions(geohash_rate_limit_ms=1_000))
+        clock = {"now": 10_000.0}  # seconds since epoch
+        monkeypatch.setattr(ad.time, "time", lambda: clock["now"])
+
+        det.observe_geohash_claim(ALICE, "aaaa11", "bbbb99")   # fires
+        clock["now"] += 0.5
+        det.observe_geohash_claim(ALICE, "aaaa11", "bbbb99")   # within window -> suppressed
+        clock["now"] += 1.0
+        det.observe_geohash_claim(ALICE, "aaaa11", "bbbb99")   # window elapsed -> fires again
+
+        assert spy.sig_failure_calls == [ALICE, ALICE]
+
 
 # ---------------------------------------------------------------------------
 # SPK-sig failure tests
