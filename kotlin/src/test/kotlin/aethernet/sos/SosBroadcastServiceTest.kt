@@ -3,6 +3,7 @@ package aethernet.sos
 
 import aethernet.AetherNetConstants
 import aethernet.FakeMeshSender
+import aethernet.models.SosAlert
 import aethernet.protocol.MeshPacket
 import aethernet.protocol.PacketType
 import kotlinx.coroutines.runBlocking
@@ -101,6 +102,35 @@ class SosBroadcastServiceTest {
         val (svc, sender) = newSvc()
         svc.handle(newSosPacket("alice", 1))
         assertEquals(0, sender.broadcasts.size)
+    }
+
+    @Test fun handle_decodesRealSosBody() = runBlocking {
+        val (svc, _) = newSvc()
+        var received: SosAlert? = null
+        svc.onSosReceived = { received = it }
+
+        // A real panic SOS from a remote node — message + GPS fix. The handler must
+        // DECODE these; the old stub dropped message/lat/long/geohash and forced "sos".
+        val body = "{\"broadcast_id\":\"${UUID.randomUUID()}\"," +
+            "\"broadcast_type\":\"panic\",\"message\":\"trapped, water rising\"," +
+            "\"latitude\":-33.9186,\"longitude\":18.4233,\"geohash\":\"k3vp\"}"
+        val pkt = MeshPacket(
+            type = PacketType.SosBroadcast,
+            sourceUhid = "remote-alice",
+            destinationUhid = "",
+            ttl = 1,
+            priority = AetherNetConstants.SOS_PRIORITY.toByte(),
+            payload = body.toByteArray(Charsets.UTF_8),
+        )
+        svc.handle(pkt)
+
+        val a = received
+        assertTrue(a != null, "onSosReceived should fire")
+        assertEquals("panic", a!!.broadcastType)             // decoded, not "sos"
+        assertEquals("trapped, water rising", a.message)     // decoded, not dropped
+        assertEquals(-33.9186, a.latitude, 1e-6)             // decoded GPS lat
+        assertEquals(18.4233, a.longitude, 1e-6)             // decoded GPS lon
+        assertEquals("k3vp", a.geohash)                      // decoded, not dropped
     }
 
     // ─── Resolve ────────────────────────────────────────────

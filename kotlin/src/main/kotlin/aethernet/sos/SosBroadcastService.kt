@@ -11,6 +11,7 @@ import aethernet.models.SosAlert
 import aethernet.protocol.MeshPacket
 import aethernet.protocol.PacketType
 import aethernet.routing.MeshSender
+import aethernet.voice.JsonReader
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -88,15 +89,17 @@ class SosBroadcastService(
 
         if (packet.sourceUhid == sender.localUhid) return
 
-        // Wire decoding kept minimal here — see DtnService note. Hosts wire up a JSON
-        // library on receive side; for now we surface the alert with packet metadata only.
+        // Decode the cleartext SOS envelope from the payload (broadcast_type / message /
+        // latitude / longitude / geohash) via the shared JsonReader — matches the C#
+        // reference. An SOS must carry its message and GPS fix, not just packet headers.
+        val json = packet.payload.toString(Charsets.UTF_8)
         val alert = SosAlert(
             senderUhid = packet.sourceUhid,
-            broadcastType = "sos",
-            message = null,
-            latitude = 0.0,
-            longitude = 0.0,
-            geohash = null
+            broadcastType = JsonReader.readString(json, "broadcast_type") ?: "sos",
+            message = JsonReader.readString(json, "message"),
+            latitude = JsonReader.readDouble(json, "latitude") ?: 0.0,
+            longitude = JsonReader.readDouble(json, "longitude") ?: 0.0,
+            geohash = JsonReader.readString(json, "geohash")
         )
         activeAlerts[alert.id] = alert
         onSosReceived?.invoke(alert)
