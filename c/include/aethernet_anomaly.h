@@ -74,6 +74,22 @@ void aethernet_anomaly_observe_geohash_claim(
 );
 
 /**
+ * Timestamped variant of aethernet_anomaly_observe_geohash_claim.  Uses the
+ * caller-supplied `timestamp_ms` (e.g. the packet observation time) for
+ * wall-clock rate-limiting: the first mismatch per UHID fires, and a later
+ * mismatch fires again only once `geohash_rate_limit_ms` has elapsed since the
+ * last signal.  The no-timestamp form above delegates here using the system
+ * clock, so a persistent spoofer is re-detected every window instead of once.
+ */
+void aethernet_anomaly_observe_geohash_claim_ts(
+    AetherNetBehavioralAnomalyDetector *det,
+    const char *uhid,
+    const char *claimed_geohash,
+    const char *observed_routing_geohash,
+    int64_t     timestamp_ms
+);
+
+/**
  * Called when a SPK/Ed25519 signature verification fails.
  * Direct passthrough to aethernet_reputation_record_sig_failure.
  */

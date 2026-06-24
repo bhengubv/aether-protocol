@@ -20,6 +20,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 // ─── Compile-time limits ──────────────────────────────────────────────────────
 
@@ -304,72 +305,64 @@ void aethernet_anomaly_observe_packet(
     scatter_observe(det, n, destination_uhid, timestamp_ms);
 }
 
-void aethernet_anomaly_observe_geohash_claim(
+/* Wall-clock milliseconds since the Unix epoch, used by the no-timestamp geohash
+   entry point so its rate-limit window advances in real time. */
+static int64_t geohash_now_ms(void)
+{
+    struct timespec ts;
+    if (timespec_get(&ts, TIME_UTC) == TIME_UTC) {
+        return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    }
+    return (int64_t)time(NULL) * 1000;
+}
+
+void aethernet_anomaly_observe_geohash_claim_ts(
     AetherNetBehavioralAnomalyDetector *det,
     const char *uhid,
     const char *claimed_geohash,
-    const char *observed_routing_geohash)
+    const char *observed_routing_geohash,
+    int64_t     timestamp_ms)
 {
     const AetherNetAnomalyOptions *o = &det->opts;
     int prefix_len = o->geohash_prefix_length;
 
-    /* Compare first prefix_len characters. */
+    /* A matching prefix is not a claim worth scoring. */
     int mismatch = (strncmp(claimed_geohash, observed_routing_geohash,
                             (size_t)prefix_len) != 0);
     if (!mismatch) {
         return;
     }
 
-    /* Find or create the geohash rate-limit record.
-       We piggyback on the anomaly node table (geohash state lives there). */
     AnomalyNode *n = get_or_create_node(det, uhid);
 
-    /* Rate-limit: don't fire more than once per geohash_rate_limit_ms. */
-    /* Note: last_signal_ms == -1 means "never fired" — always fire first time
-       when rate_limit_ms > 0. When rate_limit_ms == 0 every mismatch fires. */
+    /* Windowed rate-limit, identical in shape to the Rust and Python detectors:
+       fire on the first mismatch ever (last_signal_ms == -1), then again only
+       once geohash_rate_limit_ms has elapsed since the last signal. With
+       rate_limit_ms == 0 every mismatch fires, because timestamp_ms is monotonic
+       non-decreasing so the delta is always >= 0. The previous implementation
+       stored a 0 "already-fired" sentinel and never re-fired, so a persistent
+       geohash spoofer evaded detection after its very first mismatch. */
     int64_t last = n->geohash.last_signal_ms;
-
-    /* We need a timestamp here; use the same observation time.  The geohash
-       claim API doesn't receive a timestamp, so we synthesise one via a
-       monotonic counter embedded in last_signal_ms.  To keep the API clean we
-       use 0 as the "now" proxy: callers that need real rate-limiting pass
-       non-zero geohash_rate_limit_ms and the test harness drives last_signal_ms
-       directly via the internal state.
-
-       Actually: since the public API has no timestamp parameter we cannot
-       implement wall-clock rate-limiting without a clock dependency.  Instead
-       we store the observation index (call count) as a proxy so tests can
-       exercise the path.  The spec says geohash_rate_limit_ms=0 means "every
-       mismatch fires" and geohash_rate_limit_ms>0 means "only first mismatch
-       per window fires".  We model this with a simple "already_fired" boolean
-       when rate_limit > 0, reset only via explicit state.
-
-       Re-reading the spec: the test uses geohash_rate_limit_ms=0 for the
-       "fires every time" case and a non-zero value for the "rate limited" case.
-       The third geohash test (geohash_rate_limit) expects that the SECOND call
-       within the window does NOT fire.  The simplest correct model: track the
-       timestamp of the last signal using the timestamp embedded in the _packet_
-       flow; but geohash_claim has no timestamp.
-
-       Resolution: store a monotonic call-index (int64_t) in last_signal_ms and
-       use it as a "same-burst" sentinel.  When rate_limit_ms == 0, always fire.
-       When rate_limit_ms > 0, fire only if last_signal_ms == -1 (never fired)
-       or if the flag has been explicitly reset (not possible through this API).
-       This matches all 3 geohash test cases exactly. */
-
-    int should_fire;
-    if (o->geohash_rate_limit_ms == 0) {
-        /* Zero rate limit → always fire on mismatch. */
-        should_fire = 1;
-    } else {
-        /* Non-zero rate limit → fire only on the first mismatch (never == -1). */
-        should_fire = (last == -1);
-    }
+    int should_fire = (last == -1) ||
+                      (timestamp_ms - last >= o->geohash_rate_limit_ms);
 
     if (should_fire) {
         aethernet_reputation_record_sig_failure(det->reputation, uhid);
-        n->geohash.last_signal_ms = 0; /* mark as fired */
+        n->geohash.last_signal_ms = timestamp_ms;
     }
+}
+
+void aethernet_anomaly_observe_geohash_claim(
+    AetherNetBehavioralAnomalyDetector *det,
+    const char *uhid,
+    const char *claimed_geohash,
+    const char *observed_routing_geohash)
+{
+    /* No caller timestamp: delegate to the windowed path using the system
+       wall-clock so the rate-limit window still advances in real time, instead
+       of firing exactly once per node for the lifetime of the process. */
+    aethernet_anomaly_observe_geohash_claim_ts(
+        det, uhid, claimed_geohash, observed_routing_geohash, geohash_now_ms());
 }
 
 void aethernet_anomaly_observe_spk_sig_failure(

@@ -267,6 +267,39 @@ static void geohash_rate_limit(void)
     aethernet_anomaly_destroy(det);
 }
 
+// --- 9b. geohash_ts_refires_after_window --------------------------------------
+// Regression: a persistent geohash spoofer must be re-detected every rate-limit
+// window. The windowed _ts entry point fires, suppresses within the window, then
+// fires again once the window elapses. The pre-fix path fired once per node ever.
+
+static void geohash_ts_refires_after_window(void)
+{
+    AetherNetNodeReputationService rep;
+    aethernet_reputation_init(&rep);
+
+    AetherNetAnomalyOptions o = test_opts();
+    o.geohash_rate_limit_ms = 60000; /* 60 s window */
+    AetherNetBehavioralAnomalyDetector *det = aethernet_anomaly_create(&rep, &o);
+    assert(det != NULL);
+
+    /* t=0 -> first mismatch fires. */
+    aethernet_anomaly_observe_geohash_claim_ts(det, "node-j",
+                                          "xyzw1234", "abcd5678", 0);
+    /* t=30000 -> within the 60 s window -> suppressed. */
+    aethernet_anomaly_observe_geohash_claim_ts(det, "node-j",
+                                          "xyzw1234", "abcd5678", 30000);
+    /* t=60000 -> window elapsed -> fires again. */
+    aethernet_anomaly_observe_geohash_claim_ts(det, "node-j",
+                                          "xyzw1234", "abcd5678", 60000);
+
+    /* Two sig_failures: 1.0 - 0.20 - 0.20 = 0.60. The pre-fix code fired exactly
+       once per node ever, leaving the score at 0.80. */
+    double score = aethernet_reputation_get_score(&rep, "node-j");
+    assert(fabs(score - 0.60) < 1e-9);
+
+    aethernet_anomaly_destroy(det);
+}
+
 // ─── 10. spk_sig_failure_passthrough ─────────────────────────────────────────
 // observe_spk_sig_failure is a direct passthrough to record_sig_failure.
 
@@ -304,6 +337,7 @@ int main(void)
     RUN(geohash_match_no_fire);
     RUN(geohash_mismatch_fires);
     RUN(geohash_rate_limit);
+    RUN(geohash_ts_refires_after_window);
     RUN(spk_sig_failure_passthrough);
 
     printf("\n%d tests passed.\n", tests_run);
