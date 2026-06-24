@@ -220,6 +220,31 @@ static void gv_free_call(group_call_record_t *c) {
     c->active = false;
 }
 
+/* Serialise the packet and hand the wire bytes to the bound transport, routed
+   toward to_uhid via the routing cache. Returns 1 if transmitted, 0 when no
+   transport is bound or no route is known. This is the real serialise + dispatch
+   the C# reference does via IMeshSender.SendAsync (GroupVoiceCallService.cs). */
+static int route_and_send(aethernet_group_voice_service_t *svc,
+                          const aethernet_mesh_packet_t *pkt, const char *to_uhid) {
+    if (!svc || !pkt || !to_uhid) return 0;
+    if (!svc->transport || !svc->transport->vtable || !svc->transport->vtable->send) return 0;
+    aethernet_route_entry_t *route = NULL;
+    if (!aethernet_routing_find_cached(svc->routing, to_uhid, &route)) return 0;
+    int sent = 0;
+    size_t cap = aethernet_packet_estimate_size(pkt) + 64;
+    uint8_t *buf = (uint8_t *)malloc(cap);
+    if (buf) {
+        int n = aethernet_packet_serialize(pkt, buf, cap);
+        if (n > 0) {
+            svc->transport->vtable->send(svc->transport->handle, route->next_hop_uhid, buf, (size_t)n);
+            sent = 1;
+        }
+        free(buf);
+    }
+    aethernet_route_entry_free(route);
+    return sent;
+}
+
 static void gv_send_signal_to(aethernet_group_voice_service_t *svc, cJSON *obj, const char *to_uhid) {
     if (!obj || !to_uhid) { cJSON_Delete(obj); return; }
     char *body = cJSON_PrintUnformatted(obj);
@@ -236,11 +261,8 @@ static void gv_send_signal_to(aethernet_group_voice_service_t *svc, cJSON *obj, 
     aethernet_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
     free(body);
 
-    /* Routing lookup; actual serialise+send is host responsibility. */
-    aethernet_route_entry_t *route = NULL;
-    if (aethernet_routing_find_cached(svc->routing, to_uhid, &route)) {
-        aethernet_route_entry_free(route);
-    }
+    /* Serialise the signalling packet and transmit it to the routed next hop. */
+    route_and_send(svc, pkt, to_uhid);
     aethernet_packet_free(pkt);
 }
 
@@ -460,11 +482,8 @@ int aethernet_group_voice_send_frame(
         pkt->priority = 64;
         aethernet_packet_set_payload(pkt, frame, frame_len);
 
-        aethernet_route_entry_t *route = NULL;
-        if (aethernet_routing_find_cached(svc->routing, uhid, &route)) {
-            /* Host serialises and transmits */
-            aethernet_route_entry_free(route);
-        }
+        /* Serialise the group voice frame and transmit it to the routed next hop. */
+        route_and_send(svc, pkt, uhid);
         aethernet_packet_free(pkt);
     }
     free(frame);
