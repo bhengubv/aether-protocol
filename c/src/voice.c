@@ -224,6 +224,31 @@ static void gen_uuid_v4(uint8_t out[16]) {
 
 /* Send a JSON signalling packet unicast. `signal_json` is a cJSON object
    (ownership transferred — printed then freed here). */
+/* Serialise the packet and hand the wire bytes to the bound transport, routed toward
+   to_uhid via the routing cache. Returns 1 if the bytes were transmitted, 0 when
+   no transport is bound or no route is known. This performs the real serialise +
+   dispatch the C# reference does via IMeshSender.SendAsync (VoiceCallService.cs). */
+static int route_and_send(aethernet_voice_service_t *svc,
+                          const aethernet_mesh_packet_t *pkt, const char *to_uhid) {
+    if (!svc || !pkt || !to_uhid) return 0;
+    if (!svc->transport || !svc->transport->vtable || !svc->transport->vtable->send) return 0;
+    aethernet_route_entry_t *route = NULL;
+    if (!aethernet_routing_find_cached(svc->routing, to_uhid, &route)) return 0;
+    int sent = 0;
+    size_t cap = aethernet_packet_estimate_size(pkt) + 64;
+    uint8_t *buf = (uint8_t *)malloc(cap);
+    if (buf) {
+        int n = aethernet_packet_serialize(pkt, buf, cap);
+        if (n > 0) {
+            svc->transport->vtable->send(svc->transport->handle, route->next_hop_uhid, buf, (size_t)n);
+            sent = 1;
+        }
+        free(buf);
+    }
+    aethernet_route_entry_free(route);
+    return sent;
+}
+
 static void send_signal_json(aethernet_voice_service_t *svc, cJSON *obj, const char *to_uhid, uint8_t pkt_type) {
     if (!obj || !to_uhid) { cJSON_Delete(obj); return; }
     char *body = cJSON_PrintUnformatted(obj);
@@ -240,16 +265,8 @@ static void send_signal_json(aethernet_voice_service_t *svc, cJSON *obj, const c
     aethernet_packet_set_payload(pkt, (const uint8_t *)body, (uint32_t)strlen(body));
     free(body);
 
-    /* Unicast via routing cache; fall back to broadcast if no route is known. */
-    aethernet_route_entry_t *route = NULL;
-    if (aethernet_routing_find_cached(svc->routing, to_uhid, &route)) {
-        svc->transport->vtable->send(svc->transport->handle, route->next_hop_uhid,
-            NULL, 0); /* real hosts serialise + send pkt here */
-        aethernet_route_entry_free(route);
-    }
-    /* NOTE: actual byte-level send is wired by the host layer which serialises
-       the packet via aethernet_packet_serialize(). This reference impl shows the
-       signalling logic; transport binding is intentionally host-side. */
+    /* Serialise the signalling packet and transmit it to the routed next hop. */
+    route_and_send(svc, pkt, to_uhid);
     aethernet_packet_free(pkt);
 }
 
@@ -400,12 +417,8 @@ int aethernet_voice_send_frame(
     aethernet_packet_set_payload(pkt, frame, frame_len);
     free(frame);
 
-    /* Host wires unicast delivery; we just build the packet here. */
-    aethernet_route_entry_t *route = NULL;
-    if (aethernet_routing_find_cached(svc->routing, rec->remote_uhid, &route)) {
-        /* Real send: host serialises and transmits via transport->vtable->send */
-        aethernet_route_entry_free(route);
-    }
+    /* Serialise the voice frame and transmit it to the routed next hop. */
+    route_and_send(svc, pkt, rec->remote_uhid);
     aethernet_packet_free(pkt);
     return 0;
 }
