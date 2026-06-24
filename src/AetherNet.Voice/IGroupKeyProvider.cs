@@ -39,11 +39,27 @@ public interface IGroupKeyProvider
 /// </summary>
 public sealed class NullGroupKeyProvider : IGroupKeyProvider
 {
-    public byte[] GenerateSenderKey() => new byte[32];
+    private static int _warned;
+
+    private static void WarnOnce()
+    {
+        // Fire exactly once per process so a host that forgot to wire a real provider gets a
+        // visible signal that group voice is NOT encrypted — the interface doc promises this
+        // warning, and without it identity "encryption" ships silently as plaintext.
+        if (System.Threading.Interlocked.Exchange(ref _warned, 1) == 0)
+        {
+            System.Diagnostics.Trace.TraceWarning(
+                "AetherNet: NullGroupKeyProvider is active — group voice frames are NOT encrypted " +
+                "(identity 'encryption' over a constant zero key). This is for tests only; wire a " +
+                "real IGroupKeyProvider backed by your security service in production.");
+        }
+    }
+
+    public byte[] GenerateSenderKey() { WarnOnce(); return new byte[32]; }
     public Task<byte[]> WrapForAsync(string recipientUhid, byte[] senderKey, CancellationToken cancellationToken = default)
-        => Task.FromResult(senderKey);
+    { WarnOnce(); return Task.FromResult(senderKey); }
     public Task<byte[]?> UnwrapAsync(string senderUhid, byte[] wrappedKey, CancellationToken cancellationToken = default)
-        => Task.FromResult<byte[]?>(wrappedKey);
-    public byte[] EncryptFrame(byte[] senderKey, ReadOnlySpan<byte> plaintext) => plaintext.ToArray();
-    public byte[]? DecryptFrame(byte[] senderKey, ReadOnlySpan<byte> ciphertext) => ciphertext.ToArray();
+    { WarnOnce(); return Task.FromResult<byte[]?>(wrappedKey); }
+    public byte[] EncryptFrame(byte[] senderKey, ReadOnlySpan<byte> plaintext) { WarnOnce(); return plaintext.ToArray(); }
+    public byte[]? DecryptFrame(byte[] senderKey, ReadOnlySpan<byte> ciphertext) { WarnOnce(); return ciphertext.ToArray(); }
 }
