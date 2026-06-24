@@ -251,6 +251,17 @@ target_link_libraries(test-pov-token PRIVATE aethernet-protocol pthread)
 add_test(NAME PoVTokenFixtureTests COMMAND test-pov-token
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+# Cross-language P-256 ECDSA verify driver. Transcribes the 3 vectors from
+# tests/cross-language/p256-fixtures.json (no JSON parser on the test surface) and
+# drives aethernet_ed25519_verify_with_fallback, mirroring the other-language P-256
+# fixture tests. Exits non-zero if the legacy fallback regresses to Ed25519-only.
+add_executable(test-p256
+    test_p256.c
+)
+target_include_directories(test-p256 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-p256 PRIVATE aethernet-protocol pthread)
+add_test(NAME P256FixtureTests COMMAND test-p256)
+
 # Convenience target: build every test binary in one step.
 # Usage: cmake --build build --target aether-tests
 add_custom_target(aether-tests
@@ -286,4 +297,5 @@ add_custom_target(aether-tests
         test-directory-service
         test-bandwidth
         test-bandwidth-fixtures
+        test-p256
 )

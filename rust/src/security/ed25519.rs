@@ -64,6 +64,36 @@ impl Ed25519SigningService {
 
         verifying_key.verify_strict(data, &signature_obj).is_ok()
     }
+
+    /// Verifies a signature, trying Ed25519 first and falling back to legacy P-256
+    /// ECDSA for public keys longer than 32 bytes (Protocol Version 1 identity keys
+    /// during the migration window — see PROTOCOL_SPEC.md §7.5).
+    ///
+    /// A 32-byte key takes the Ed25519 path; a longer key is a DER SubjectPublicKeyInfo
+    /// P-256 key verified against an ASN.1 DER ECDSA signature over SHA-256.
+    pub fn verify_with_fallback(public_key: &[u8], data: &[u8], signature: &[u8]) -> bool {
+        if public_key.len() == 32 {
+            Self::verify(public_key, data, signature)
+        } else {
+            Self::verify_p256(public_key, data, signature)
+        }
+    }
+
+    /// Verifies a legacy P-256 (secp256r1) ECDSA signature over SHA-256.
+    /// Public key is X.509 SubjectPublicKeyInfo (DER); signature is ASN.1 DER.
+    fn verify_p256(spki_public_key: &[u8], data: &[u8], der_signature: &[u8]) -> bool {
+        use p256::ecdsa::signature::Verifier;
+        use p256::ecdsa::{Signature, VerifyingKey};
+        use p256::pkcs8::DecodePublicKey;
+
+        let Ok(verifying_key) = VerifyingKey::from_public_key_der(spki_public_key) else {
+            return false;
+        };
+        let Ok(sig) = Signature::from_der(der_signature) else {
+            return false;
+        };
+        verifying_key.verify(data, &sig).is_ok()
+    }
 }
 
 #[cfg(test)]

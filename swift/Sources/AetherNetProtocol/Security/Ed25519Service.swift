@@ -48,6 +48,31 @@ public struct Ed25519Service {
             return false
         }
     }
+
+    /// Verifies a signature, trying Ed25519 first and falling back to legacy P-256
+    /// ECDSA for public keys longer than 32 bytes (Protocol Version 1 identity keys
+    /// during the migration window — see PROTOCOL_SPEC.md §7.5).
+    ///
+    /// A 32-byte key takes the Ed25519 path; a longer key is a DER SubjectPublicKeyInfo
+    /// P-256 key verified against an ASN.1 DER ECDSA signature over SHA-256.
+    public static func verifyWithFallback(_ publicKey: Data, _ data: Data, _ signature: Data) -> Bool {
+        if publicKey.count == 32 {
+            return verify(publicKey, data, signature)
+        }
+        return verifyP256(publicKey, data, signature)
+    }
+
+    /// Verifies a legacy P-256 (secp256r1) ECDSA signature over SHA-256.
+    /// Public key is X.509 SubjectPublicKeyInfo (DER); signature is ASN.1 DER.
+    private static func verifyP256(_ spkiPublicKey: Data, _ data: Data, _ derSignature: Data) -> Bool {
+        do {
+            let key = try P256.Signing.PublicKey(derRepresentation: spkiPublicKey)
+            let sig = try P256.Signing.ECDSASignature(derRepresentation: derSignature)
+            return key.isValidSignature(sig, for: data)
+        } catch {
+            return false
+        }
+    }
 }
 
 public enum Ed25519Error: Error {

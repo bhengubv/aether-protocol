@@ -8,7 +8,11 @@ import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
-import java.security.SecureRandom
+import java.security.KeyFactory
+import java.security.SecureRandom
+import java.security.Signature
+import java.security.interfaces.ECPublicKey
+import java.security.spec.X509EncodedKeySpec
 
 /**
  * Ed25519 signing service using BouncyCastle.
@@ -78,4 +82,40 @@ object Ed25519Service {
             false
         }
     }
+
+    /**
+     * Verifies a signature, trying Ed25519 first and falling back to legacy P-256
+     * ECDSA for public keys longer than 32 bytes (Protocol Version 1 identity keys
+     * during the migration window — see PROTOCOL_SPEC.md §7.5).
+     *
+     * A 32-byte key takes the Ed25519 path; a longer key is a DER SubjectPublicKeyInfo
+     * P-256 key verified against an ASN.1 DER ECDSA signature over SHA-256.
+     */
+    fun verifyWithFallback(publicKey: ByteArray, data: ByteArray, signature: ByteArray): Boolean {
+        return if (publicKey.size == PUBLIC_KEY_SIZE) {
+            verify(publicKey, data, signature)
+        } else {
+            verifyP256(publicKey, data, signature)
+        }
+    }
+
+    /**
+     * Verifies a legacy P-256 (secp256r1) ECDSA signature over SHA-256 using the JDK's
+     * standard providers. Public key is X.509 SubjectPublicKeyInfo (DER); signature is
+     * ASN.1 DER.
+     */
+    private fun verifyP256(spkiPublicKey: ByteArray, data: ByteArray, derSignature: ByteArray): Boolean {
+        return try {
+            val pubKey = KeyFactory.getInstance("EC")
+                .generatePublic(X509EncodedKeySpec(spkiPublicKey)) as ECPublicKey
+            // Guard: must be the 256-bit P-256 curve.
+            if (pubKey.params.curve.field.fieldSize != 256) return false
+            val verifier = Signature.getInstance("SHA256withECDSA")
+            verifier.initVerify(pubKey)
+            verifier.update(data)
+            verifier.verify(derSignature)
+        } catch (e: Exception) {
+            false
+        }
+    }
 }

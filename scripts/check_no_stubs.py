@@ -63,12 +63,10 @@ MARKERS = [
 # must BOTH appear (path, and text on the matched line) plus the reason. Remove an
 # entry the moment its stub is resolved.
 Allow = namedtuple("Allow", "path_sub text_sub reason")
-ALLOWLIST = [
-    Allow("typescript/src/security/Ed25519Service.ts", "not implemented in TS version",
-          "TRACKED: legacy P-256 verify fallback — being finished (real P-256 verify "
-          "in TS + Python to match C#). Remove this entry once that lands; Ed25519, the "
-          "live path, is already fully implemented everywhere."),
-]
+# Empty: the legacy P-256 verify fallback is now a REAL implementation in all 8 SDKs
+# (C#/Go/Python/Rust/TS/Kotlin/Swift/C), each driven by tests/cross-language/
+# p256-fixtures.json. No tracked stub remains — a non-empty scan is a true regression.
+ALLOWLIST = []
 
 Violation = namedtuple("Violation", "path line_no marker text")
 

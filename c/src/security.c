@@ -9,6 +9,7 @@
 #include "aethernet/protocol.h"
 
 #include <sodium.h>
+#include "uECC.h"
 #include <blake3.h>
 
 /* ─── Cross-platform "wall-clock seconds since epoch" ─────────────────── */
@@ -111,6 +112,81 @@ bool aethernet_ed25519_verify(const uint8_t *public_key,
     return crypto_sign_ed25519_verify_detached(signature, data, data_len, public_key) == 0;
 }
 
+/* --- Legacy P-256 (secp256r1) ECDSA verify - Ed25519 migration fallback (spec 7.5) ---
+ * libsodium has no NIST P-256, so the raw curve verify is micro-ecc (uECC); SHA-256 is
+ * libsodium's. The public key arrives as an X.509 SubjectPublicKeyInfo DER blob and the
+ * signature as an ASN.1 DER ECDSA SEQUENCE - both fixed-shape for P-256, parsed below
+ * into the raw 64-byte point / 64-byte r||s that uECC expects. */
+
+/* Pull the uncompressed EC point (0x04 || X || Y) out of a P-256 SPKI DER blob into a
+ * raw 64-byte X||Y key. For prime256v1 the point is always the trailing 65 bytes. */
+static int p256_point_from_spki(const uint8_t *spki, size_t len, uint8_t out_pub[64]) {
+    if (spki == NULL || len < 65 || len > 256) return 0;
+    const uint8_t *point = spki + (len - 65);
+    if (point[0] != 0x04) return 0;            /* uncompressed point marker */
+    memcpy(out_pub, point + 1, 64);
+    return 1;
+}
+
+/* Read one DER INTEGER (tag 0x02) into a fixed 32-byte big-endian field, stripping the
+ * sign-padding 0x00 and left-padding short values. Advances *pp past the integer. */
+static int der_int_to_32(const uint8_t **pp, const uint8_t *end, uint8_t out[32]) {
+    if (*pp >= end || **pp != 0x02) return 0;
+    (*pp)++;
+    if (*pp >= end) return 0;
+    size_t l = *(*pp)++;
+    if (l == 0 || (size_t)(end - *pp) < l) return 0;
+    const uint8_t *v = *pp;
+    *pp += l;
+    while (l > 0 && v[0] == 0x00) { v++; l--; }   /* strip leading sign pad */
+    if (l > 32) return 0;
+    memset(out, 0, 32);
+    memcpy(out + (32 - l), v, l);
+    return 1;
+}
+
+/* Parse a DER ECDSA signature (SEQUENCE { INTEGER r, INTEGER s }) into raw 64-byte
+ * r||s for uECC. P-256 signatures use the short-form SEQUENCE length. */
+static int p256_rawsig_from_der(const uint8_t *der, size_t len, uint8_t out_sig[64]) {
+    if (der == NULL || len < 8) return 0;
+    const uint8_t *p = der;
+    const uint8_t *end = der + len;
+    if (*p++ != 0x30) return 0;                   /* SEQUENCE */
+    size_t seq_len = *p++;
+    if (seq_len & 0x80) return 0;                 /* expect short form for P-256 */
+    if ((size_t)(end - p) < seq_len) return 0;
+    end = p + seq_len;                            /* bound to the declared sequence */
+    if (!der_int_to_32(&p, end, out_sig)) return 0;
+    if (!der_int_to_32(&p, end, out_sig + 32)) return 0;
+    return 1;
+}
+
+bool aethernet_ed25519_verify_with_fallback(const uint8_t *public_key,
+                                            size_t public_key_len,
+                                            const uint8_t *data,
+                                            size_t data_len,
+                                            const uint8_t *signature,
+                                            size_t signature_len) {
+    if (!public_key || !signature) return false;
+
+    if (public_key_len == 32) {
+        if (signature_len != 64) return false;
+        return aethernet_ed25519_verify(public_key, data, data_len, signature);
+    }
+
+    /* Legacy P-256 path. */
+    ensure_libsodium_initialized();
+
+    uint8_t pub[64];
+    uint8_t sig[64];
+    if (!p256_point_from_spki(public_key, public_key_len, pub)) return false;
+    if (!p256_rawsig_from_der(signature, signature_len, sig)) return false;
+
+    uint8_t digest[crypto_hash_sha256_BYTES];     /* 32 */
+    crypto_hash_sha256(digest, data, data_len);
+
+    return uECC_verify(pub, digest, sizeof(digest), sig, uECC_secp256r1()) == 1;
+}
 /**
  * AES-256-GCM encrypt.
  */

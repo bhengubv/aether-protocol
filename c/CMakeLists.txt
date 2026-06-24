@@ -130,6 +130,24 @@ if(AETHERNET_WITH_WEBRTC)
 endif()
 
 # Add the library
+# ----- micro-ecc (NIST P-256 / secp256r1 ECDSA verify) ---------------------
+# libsodium provides no NIST P-256; the Ed25519->P-256 migration verify fallback
+# (PROTOCOL_SPEC.md 7.5) needs raw secp256r1 ECDSA. micro-ecc is a single
+# portable C source file (BSD-2) compiled directly into the library the same
+# FetchContent-populate way as BLAKE3 above, so the default build stays
+# self-contained and free of the heavier MbedTLS stack used only by the
+# optional WebRTC path.
+FetchContent_Declare(
+    micro_ecc
+    GIT_REPOSITORY https://github.com/kmackay/micro-ecc.git
+    GIT_TAG        v1.1
+    GIT_SHALLOW    TRUE
+)
+FetchContent_GetProperties(micro_ecc)
+if(NOT micro_ecc_POPULATED)
+    FetchContent_Populate(micro_ecc)
+endif()
+
 add_library(aethernet-protocol STATIC
     src/protocol.c
     src/security.c
@@ -162,6 +180,8 @@ add_library(aethernet-protocol STATIC
     ${blake3_src_SOURCE_DIR}/c/blake3.c
     ${blake3_src_SOURCE_DIR}/c/blake3_dispatch.c
     ${blake3_src_SOURCE_DIR}/c/blake3_portable.c
+    # micro-ecc P-256 (secp256r1) ECDSA - single portable source file.
+    ${micro_ecc_SOURCE_DIR}/uECC.c
 )
 
 # WebRTC transport sources compile only when the dependency is built — they
@@ -180,6 +200,7 @@ target_include_directories(aethernet-protocol
         ${LIBSODIUM_INCLUDE_DIRS}
         ${cjson_SOURCE_DIR}
         ${CJSON_SHIM_DIR}
+        ${micro_ecc_SOURCE_DIR}
         ${blake3_src_SOURCE_DIR}/c
 )
 

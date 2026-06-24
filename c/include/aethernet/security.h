@@ -48,7 +48,25 @@ bool aethernet_ed25519_sign(const uint8_t *private_key,
 bool aethernet_ed25519_verify(const uint8_t *public_key,
                           const uint8_t *data,
                           size_t data_len,
-                          const uint8_t *signature);
+                          const uint8_t *signature);
+
+/**
+ * Verify a signature, trying Ed25519 first and falling back to legacy P-256 ECDSA
+ * for public keys longer than 32 bytes (Protocol Version 1 identity keys during the
+ * migration window - see PROTOCOL_SPEC.md 7.5).
+ *
+ * A 32-byte public_key takes the Ed25519 path. A longer public_key is parsed as a DER
+ * SubjectPublicKeyInfo P-256 key and the signature as an ASN.1 DER ECDSA signature,
+ * verified over SHA-256.
+ *
+ * Returns: true if the signature is valid, false otherwise.
+ */
+bool aethernet_ed25519_verify_with_fallback(const uint8_t *public_key,
+                                            size_t public_key_len,
+                                            const uint8_t *data,
+                                            size_t data_len,
+                                            const uint8_t *signature,
+                                            size_t signature_len);
 
 /**
  * AES-256-GCM encryption.
