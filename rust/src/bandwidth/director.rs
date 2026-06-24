@@ -48,21 +48,11 @@ impl BandwidthDirector {
     /// Register an estimator. Call once per transport at startup.
     pub fn register(&self, estimator: Arc<Mutex<BandwidthEstimator>>) {
         let transport_name = estimator.lock().unwrap().transport_name.clone();
-        let matrix_ref = Arc::new(&self.matrix as *const _ as usize);
-        let _ = matrix_ref; // Not directly usable; handled via callback.
-
-        // Subscribe: when the estimator fires an improvement, update every known
-        // peer entry for this transport.
-        {
-            // We capture a raw pointer and use a separate Arc<Mutex<HashMap>> so
-            // the callback does not borrow `self`. Instead, we share the matrix
-            // via a separate Arc.
-            // We implement this simpler: the director does NOT auto-subscribe via
-            // a closure (Rust lifetime rules make this awkward without Arc<Self>).
-            // Instead, callers call `apply_gossip` or the matrix is populated on
-            // first probe. This matches the minimal Rust idiom.
-        }
-
+        // The estimator's live sample is consulted on every query/recommendation (see
+        // get_estimate / get_estimates), so a locally-probed transport contributes to
+        // selection even before any gossip arrives. This is a pull-based equivalent of
+        // the C# reference's estimator-improvement -> matrix propagation (a push closure
+        // that borrows `self` is awkward in Rust, so we pull on demand instead).
         self.estimators
             .lock()
             .unwrap()
@@ -74,33 +64,61 @@ impl BandwidthDirector {
     /// Get the bandwidth estimate for a specific peer on a specific transport.
     /// Returns `None` if no estimate exists yet.
     ///
-    /// Pure read of the (peer × transport) matrix — mirrors the C# reference
-    /// `GetEstimate`. The matrix is populated by [`apply_gossip`](Self::apply_gossip)
-    /// (and, in the full design, by estimator improvement callbacks); querying an
-    /// unseen peer/transport never fabricates an entry from a registered estimator.
+    /// Reads the gossiped (peer x transport) matrix first; if there is no gossiped
+    /// sample for this pair it falls back to the live local estimator for `transport`
+    /// (when registered and already probed to a confident sample). This mirrors the C#
+    /// reference, where estimator improvements propagate into the matrix.
     pub fn get_estimate(&self, peer_uhid: &str, transport: &str) -> Option<BandwidthSample> {
-        let m = self.matrix.lock().unwrap();
-        m.iter()
-            .find(|((peer, t), _)| {
-                peer.eq_ignore_ascii_case(peer_uhid) && t.eq_ignore_ascii_case(transport)
-            })
-            .map(|(_, s)| s.clone())
+        {
+            let m = self.matrix.lock().unwrap();
+            if let Some(s) = m
+                .iter()
+                .find(|((peer, t), _)| {
+                    peer.eq_ignore_ascii_case(peer_uhid) && t.eq_ignore_ascii_case(transport)
+                })
+                .map(|(_, s)| s.clone())
+            {
+                return Some(s);
+            }
+        }
+        let g = self.estimators.lock().unwrap();
+        g.iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(transport))
+            .map(|(_, est)| est.lock().unwrap().current_sample())
+            .filter(|s| s.confidence != BandwidthConfidence::None)
     }
 
     /// Get all current estimates for a peer across all transports,
     /// ranked by `available_bps` descending.
     ///
-    /// Pure read of the matrix — mirrors the C# reference `GetEstimates`. Returns
-    /// an empty vec for a peer with no recorded samples (which drives
-    /// [`recommend_transport`](Self::recommend_transport) into its lowest-power
-    /// fallback), rather than seeding entries from every registered estimator.
+    /// Merges the gossiped matrix for the peer with the live local-estimator samples for
+    /// any probed transport not already covered by a gossiped entry, so a locally-measured
+    /// transport is a selection candidate before first gossip (mirrors the C# reference's
+    /// estimator -> matrix propagation). An un-probed transport (confidence None) is left
+    /// out so a node with no measurements still falls through to the lowest-power default.
     pub fn get_estimates(&self, peer_uhid: &str) -> Vec<BandwidthSample> {
-        let m = self.matrix.lock().unwrap();
-        let mut results: Vec<BandwidthSample> = m
-            .iter()
-            .filter(|((peer, _), _)| peer.eq_ignore_ascii_case(peer_uhid))
-            .map(|(_, s)| s.clone())
-            .collect();
+        let mut results: Vec<BandwidthSample> = Vec::new();
+        let mut covered: std::collections::HashSet<String> = std::collections::HashSet::new();
+        {
+            let m = self.matrix.lock().unwrap();
+            for ((peer, t), s) in m.iter() {
+                if peer.eq_ignore_ascii_case(peer_uhid) {
+                    results.push(s.clone());
+                    covered.insert(t.to_ascii_lowercase());
+                }
+            }
+        }
+        {
+            let g = self.estimators.lock().unwrap();
+            for (name, est) in g.iter() {
+                if !covered.contains(&name.to_ascii_lowercase()) {
+                    let s = est.lock().unwrap().current_sample();
+                    if s.confidence != BandwidthConfidence::None {
+                        results.push(s);
+                    }
+                }
+            }
+        }
         results.sort_by(|a, b| b.available_bps.cmp(&a.available_bps));
         results
     }

@@ -211,6 +211,46 @@ mod tests {
     }
 
     #[test]
+    fn director_get_estimate_falls_back_to_local_estimator_before_gossip() {
+        // Regression: a locally-probed transport must be a selection candidate BEFORE any gossip
+        // arrives. The director previously consulted only the gossiped (peer × transport) matrix,
+        // so get_estimate returned None for a registered-but-not-yet-gossiped transport — a node's
+        // own measurements were invisible to transport selection until some peer happened to gossip
+        // the same pair. get_estimate now falls back to the live registered estimator's sample.
+        let dir = BandwidthDirector::new();
+        let est = Arc::new(Mutex::new(BandwidthEstimator::new("BLE", 2_000_000)));
+        dir.register(Arc::clone(&est));
+
+        // Drive the estimator to a confident sample via local probes only — crucially NO
+        // apply_gossip(), so the (peer × transport) matrix stays empty.
+        let base_us = now_us();
+        for i in 0..10 {
+            let s = base_us + i * 20_000;
+            est.lock().unwrap().record_delivery(1_000, s, s + 5_000);
+        }
+        assert_ne!(
+            est.lock().unwrap().current_sample().confidence,
+            BandwidthConfidence::None,
+            "estimator should be confident after local probes",
+        );
+
+        // The fix: the confident local sample surfaces even though nothing was ever gossiped.
+        let sample = dir.get_estimate("never-gossiped-peer", "BLE");
+        assert!(sample.is_some(), "locally-probed transport must surface before gossip");
+        assert_eq!(sample.unwrap().transport_name, "BLE");
+
+        // Guard the boundaries: a registered-but-un-probed transport (confidence None) must NOT
+        // surface, and a transport that was never registered remains None.
+        let cold = Arc::new(Mutex::new(BandwidthEstimator::new("Wi-Fi Direct", 30_000_000)));
+        dir.register(Arc::clone(&cold));
+        assert!(
+            dir.get_estimate("never-gossiped-peer", "Wi-Fi Direct").is_none(),
+            "un-probed registered transport must not surface a None-confidence sample",
+        );
+        assert!(dir.get_estimate("never-gossiped-peer", "QUIC Relay").is_none());
+    }
+
+    #[test]
     fn director_build_gossip_payload_returns_none_when_no_confidence() {
         let dir = BandwidthDirector::new();
         let est = Arc::new(Mutex::new(BandwidthEstimator::new("BLE", 2_000_000)));
