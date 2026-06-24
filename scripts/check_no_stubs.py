@@ -65,14 +65,9 @@ MARKERS = [
 Allow = namedtuple("Allow", "path_sub text_sub reason")
 ALLOWLIST = [
     Allow("typescript/src/security/Ed25519Service.ts", "not implemented in TS version",
-          "DECISION: legacy P-256 verify fallback. Keep-vs-kill the P-256->Ed25519 "
-          "migration window is a protocol-versioning call (VERSIONING.md notes P-256 "
-          "deadline removal). Ed25519 — the live path — is fully implemented."),
-    Allow("circleai/src/Circle.AI.Core/LocalModelLoader.cs", "sha256:TBD",
-          "RELEASE: real model-file SHA-256 hashes are set at packaging time; cannot "
-          "be fabricated in code. Loader correctly refuses to verify a TBD checksum."),
-    Allow("circleai/src/Circle.AI.Core/ModelRegistryService.cs", "sha256:TBD",
-          "RELEASE: registry checksums set at release (see LocalModelLoader)."),
+          "TRACKED: legacy P-256 verify fallback — being finished (real P-256 verify "
+          "in TS + Python to match C#). Remove this entry once that lands; Ed25519, the "
+          "live path, is already fully implemented everywhere."),
 ]
 
 Violation = namedtuple("Violation", "path line_no marker text")
@@ -80,7 +75,15 @@ Violation = namedtuple("Violation", "path line_no marker text")
 
 def _iter_source_files(root):
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+        # Prune build/dep dirs AND git submodule / nested-repo boundaries: a
+        # subdirectory that itself contains a .git entry is a SEPARATE repo (e.g.
+        # the `circleai` submodule -> github.com/bhengubv/CircleAI) and is not this
+        # repo's source to police. Stay inside aether-protocol only.
+        dirnames[:] = [
+            d for d in dirnames
+            if d not in EXCLUDE_DIRS
+            and not os.path.exists(os.path.join(dirpath, d, ".git"))
+        ]
         for name in filenames:
             ext = os.path.splitext(name)[1].lower()
             if ext in SOURCE_EXTS:
