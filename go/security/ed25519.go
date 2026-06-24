@@ -3,8 +3,12 @@
 package security
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
 	"fmt"
 )
 
@@ -71,6 +75,37 @@ func (es *Ed25519Service) Verify(publicKey []byte, data []byte, signature []byte
 	}
 
 	return ed25519.Verify(ed25519.PublicKey(publicKey), data, signature)
+}
+
+// VerifyWithFallback verifies a signature, trying Ed25519 first and falling back to
+// legacy P-256 ECDSA for public keys longer than 32 bytes (Protocol Version 1
+// identity keys during the migration window — see PROTOCOL_SPEC.md §7.5).
+//
+// A 32-byte key takes the Ed25519 path; a longer key is a DER SubjectPublicKeyInfo
+// P-256 key verified against an ASN.1 DER ECDSA signature over SHA-256.
+func (es *Ed25519Service) VerifyWithFallback(publicKey, data, signature []byte) bool {
+	if publicKey == nil || data == nil || signature == nil {
+		return false
+	}
+	if len(publicKey) == 32 {
+		return es.Verify(publicKey, data, signature)
+	}
+	return verifyP256(publicKey, data, signature)
+}
+
+// verifyP256 verifies a legacy P-256 (secp256r1) ECDSA signature over SHA-256.
+// Public key is X.509 SubjectPublicKeyInfo (DER); signature is ASN.1 DER.
+func verifyP256(spkiPublicKey, data, derSignature []byte) bool {
+	pub, err := x509.ParsePKIXPublicKey(spkiPublicKey)
+	if err != nil {
+		return false
+	}
+	ecPub, ok := pub.(*ecdsa.PublicKey)
+	if !ok || ecPub.Curve != elliptic.P256() {
+		return false
+	}
+	digest := sha256.Sum256(data)
+	return ecdsa.VerifyASN1(ecPub, digest[:], derSignature)
 }
 
 // ZeroMemory securely zeros out a byte slice.

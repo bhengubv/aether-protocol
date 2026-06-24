@@ -94,17 +94,50 @@ class Ed25519SigningService:
         public_key: bytes, data: bytes, signature: bytes
     ) -> bool:
         """
-        Verify a signature with fallback support for legacy keys.
-
-        For now, this only supports Ed25519. Future versions may add P-256 ECDSA
-        fallback during migration windows.
+        Verify a signature, trying Ed25519 first and falling back to legacy P-256
+        ECDSA for public keys longer than 32 bytes (Protocol Version 1 identity keys
+        during the migration window — see PROTOCOL_SPEC.md section 7.5).
 
         Args:
-            public_key: Public key bytes (32 = Ed25519).
+            public_key: 32-byte Ed25519 public key, or a DER-encoded
+                SubjectPublicKeyInfo P-256 public key (> 32 bytes).
             data: The signed data.
-            signature: The signature bytes.
+            signature: 64-byte Ed25519 signature, or an ASN.1 DER ECDSA signature.
 
         Returns:
-            True if the signature is valid.
+            True if the signature is valid under whichever scheme the key selects.
         """
-        return Ed25519SigningService.verify(public_key, data, signature)
+        if public_key is None or data is None or signature is None:
+            return False
+        if len(public_key) == 32:
+            return Ed25519SigningService.verify(public_key, data, signature)
+        return Ed25519SigningService._verify_p256(public_key, data, signature)
+
+    @staticmethod
+    def _verify_p256(
+        spki_public_key: bytes, data: bytes, signature: bytes
+    ) -> bool:
+        """
+        Verify a legacy P-256 (secp256r1) ECDSA signature over SHA-256.
+        Public key is X.509 SubjectPublicKeyInfo (DER); signature is ASN.1 DER.
+        """
+        try:
+            from cryptography.exceptions import InvalidSignature
+            from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.asymmetric import ec
+            from cryptography.hazmat.primitives.serialization import (
+                load_der_public_key,
+            )
+        except ImportError:
+            return False
+
+        try:
+            pub = load_der_public_key(spki_public_key)
+            if not isinstance(pub, ec.EllipticCurvePublicKey) or not isinstance(
+                pub.curve, ec.SECP256R1
+            ):
+                return False
+            pub.verify(signature, data, ec.ECDSA(hashes.SHA256()))
+            return True
+        except (InvalidSignature, ValueError, TypeError):
+            return False
