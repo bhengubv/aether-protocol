@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
+use tokio::sync::broadcast;
 
 use crate::constants::DEFAULT_TTL;
 use crate::protocol::{MeshPacket, PacketType};
@@ -51,21 +52,47 @@ pub struct CallEntry {
     pub state: CallState,
 }
 
+// ── Inbound frame event ────────────────────────────────────────────────────────
+
+/// Capacity of the inbound-frame broadcast channel; lagging subscribers drop oldest.
+const FRAME_RECEIVED_CHANNEL_CAPACITY: usize = 256;
+
+/// An inbound voice frame decoded from a received VOICE_CALL packet, delivered to
+/// subscribers of [`VoiceCallService::subscribe_frames`].
+#[derive(Debug, Clone)]
+pub struct VoiceFrameReceivedEvent {
+    pub call_id: Uuid,
+    pub sender_uhid: String,
+    pub seq: u32,
+    pub timestamp_ms: i64,
+    pub is_silence: bool,
+    pub audio: Vec<u8>,
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 pub struct VoiceCallService {
     sender: Arc<dyn MeshSender>,
     routing: Arc<RoutingService>,
     calls: Mutex<HashMap<Uuid, CallEntry>>,
+    frame_received_tx: broadcast::Sender<VoiceFrameReceivedEvent>,
 }
 
 impl VoiceCallService {
     pub fn new(sender: Arc<dyn MeshSender>, routing: Arc<RoutingService>) -> Self {
+        let (frame_received_tx, _) = broadcast::channel(FRAME_RECEIVED_CHANNEL_CAPACITY);
         Self {
             sender,
             routing,
             calls: Mutex::new(HashMap::new()),
+            frame_received_tx,
         }
+    }
+
+    /// Subscribe to inbound voice frames decoded from received VOICE_CALL packets.
+    /// Each received frame is broadcast to all current subscribers (best-effort).
+    pub fn subscribe_frames(&self) -> broadcast::Receiver<VoiceFrameReceivedEvent> {
+        self.frame_received_tx.subscribe()
     }
 
     /// Originate a call to `to_uhid`. Returns the new call-id.
@@ -258,8 +285,27 @@ impl VoiceCallService {
         Ok(())
     }
 
-    async fn handle_frame(&self, _packet: &MeshPacket) -> Result<(), String> {
-        // Frames are surfaced to the application layer; the service itself just validates.
+    async fn handle_frame(&self, packet: &MeshPacket) -> Result<(), String> {
+        // Decode the binary voice frame and surface it to application subscribers.
+        // Layout (build_voice_frame): [16] call_id | [4] seq LE | [8] ts LE | [1] silence | [N] audio.
+        let p = &packet.payload;
+        if p.len() < 29 {
+            return Err("voice frame too short".to_string());
+        }
+        let call_id = Uuid::from_slice(&p[0..16]).map_err(|e| e.to_string())?;
+        let seq = u32::from_le_bytes(p[16..20].try_into().unwrap());
+        let timestamp_ms = i64::from_le_bytes(p[20..28].try_into().unwrap());
+        let is_silence = p[28] != 0;
+        let audio = p[29..].to_vec();
+        // Best-effort: send() errors only when there are no subscribers — ignore that.
+        let _ = self.frame_received_tx.send(VoiceFrameReceivedEvent {
+            call_id,
+            sender_uhid: packet.source_uhid.clone(),
+            seq,
+            timestamp_ms,
+            is_silence,
+            audio,
+        });
         Ok(())
     }
 }

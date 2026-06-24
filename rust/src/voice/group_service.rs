@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
+use tokio::sync::broadcast;
 
 use crate::constants::DEFAULT_TTL;
 use crate::protocol::{MeshPacket, PacketType};
@@ -41,21 +42,47 @@ pub struct GroupCallEntry {
     pub active: bool,
 }
 
+// ── Inbound frame event ────────────────────────────────────────────────────────
+
+/// Capacity of the inbound-frame broadcast channel; lagging subscribers drop oldest.
+const FRAME_RECEIVED_CHANNEL_CAPACITY: usize = 256;
+
+/// An inbound group-voice frame decoded from a received VOICE_CALL packet, delivered
+/// to subscribers of [`GroupVoiceCallService::subscribe_frames`].
+#[derive(Debug, Clone)]
+pub struct GroupVoiceFrameReceivedEvent {
+    pub call_id: Uuid,
+    pub sender_uhid: String,
+    pub seq: u32,
+    pub timestamp_ms: i64,
+    pub is_silence: bool,
+    pub key_generation: u32,
+    pub audio: Vec<u8>,
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 pub struct GroupVoiceCallService {
     sender: Arc<dyn MeshSender>,
     routing: Arc<RoutingService>,
     calls: Mutex<HashMap<Uuid, GroupCallEntry>>,
+    frame_received_tx: broadcast::Sender<GroupVoiceFrameReceivedEvent>,
 }
 
 impl GroupVoiceCallService {
     pub fn new(sender: Arc<dyn MeshSender>, routing: Arc<RoutingService>) -> Self {
+        let (frame_received_tx, _) = broadcast::channel(FRAME_RECEIVED_CHANNEL_CAPACITY);
         Self {
             sender,
             routing,
             calls: Mutex::new(HashMap::new()),
+            frame_received_tx,
         }
+    }
+
+    /// Subscribe to inbound group-voice frames decoded from received VOICE_CALL packets.
+    pub fn subscribe_frames(&self) -> broadcast::Receiver<GroupVoiceFrameReceivedEvent> {
+        self.frame_received_tx.subscribe()
     }
 
     /// Invite a set of members to a (new or existing) group call.
@@ -229,9 +256,35 @@ impl GroupVoiceCallService {
     pub async fn handle_packet(&self, packet: &MeshPacket) -> Result<(), String> {
         match packet.packet_type {
             PacketType::VoiceSignaling => self.handle_signaling(packet).await,
-            PacketType::VoiceCall => Ok(()), // frames surfaced to app layer
+            PacketType::VoiceCall => self.handle_frame(packet).await,
             _ => Ok(()),
         }
+    }
+
+    /// Decode an inbound group-voice frame and surface it to application subscribers.
+    /// Layout (build_group_voice_frame): [16] call_id | [4] seq LE | [8] ts LE |
+    /// [1] silence | [4] key_generation LE | [N] audio.
+    async fn handle_frame(&self, packet: &MeshPacket) -> Result<(), String> {
+        let p = &packet.payload;
+        if p.len() < 33 {
+            return Err("group voice frame too short".to_string());
+        }
+        let call_id = Uuid::from_slice(&p[0..16]).map_err(|e| e.to_string())?;
+        let seq = u32::from_le_bytes(p[16..20].try_into().unwrap());
+        let timestamp_ms = i64::from_le_bytes(p[20..28].try_into().unwrap());
+        let is_silence = p[28] != 0;
+        let key_generation = u32::from_le_bytes(p[29..33].try_into().unwrap());
+        let audio = p[33..].to_vec();
+        let _ = self.frame_received_tx.send(GroupVoiceFrameReceivedEvent {
+            call_id,
+            sender_uhid: packet.source_uhid.clone(),
+            seq,
+            timestamp_ms,
+            is_silence,
+            key_generation,
+            audio,
+        });
+        Ok(())
     }
 
     // ── private ────────────────────────────────────────────────────────────────
