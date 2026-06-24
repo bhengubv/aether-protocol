@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using System.Security.Cryptography;
 using NSec.Cryptography;
 
 namespace AetherNet.Security.Services;
@@ -70,5 +71,51 @@ public sealed class Ed25519SigningService
 
         var pk = NSec.Cryptography.PublicKey.Import(Algorithm, publicKey, KeyBlobFormat.RawPublicKey);
         return Algorithm.Verify(pk, data, signature);
+    }
+
+    /// <summary>
+    /// Verifies a signature, trying Ed25519 first and falling back to legacy P-256
+    /// ECDSA for public keys longer than 32 bytes (Protocol Version 1 identity keys
+    /// during the migration window — see PROTOCOL_SPEC.md §7.5).
+    /// </summary>
+    /// <param name="publicKey">32-byte Ed25519 public key, or a DER-encoded
+    /// SubjectPublicKeyInfo P-256 public key (&gt; 32 bytes).</param>
+    /// <param name="data">The signed data.</param>
+    /// <param name="signature">64-byte Ed25519 signature, or an ASN.1 DER ECDSA signature.</param>
+    /// <returns>True if the signature is valid under whichever scheme the key selects.</returns>
+    public static bool VerifyWithFallback(byte[] publicKey, byte[] data, byte[] signature)
+    {
+        ArgumentNullException.ThrowIfNull(publicKey);
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(signature);
+
+        return publicKey.Length == 32
+            ? Verify(publicKey, data, signature)
+            : VerifyP256(publicKey, data, signature);
+    }
+
+    /// <summary>
+    /// Verifies a legacy P-256 (secp256r1) ECDSA signature over SHA-256.
+    /// Public key is X.509 SubjectPublicKeyInfo (DER); signature is ASN.1 DER.
+    /// </summary>
+    internal static bool VerifyP256(byte[] spkiPublicKey, byte[] data, byte[] derSignature)
+    {
+        try
+        {
+            using var ecdsa = ECDsa.Create();
+            ecdsa.ImportSubjectPublicKeyInfo(spkiPublicKey, out _);
+            if (ecdsa.KeySize != 256)
+                return false; // not a P-256 key
+            return ecdsa.VerifyData(data, derSignature, HashAlgorithmName.SHA256,
+                DSASignatureFormat.Rfc3279DerSequence);
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 }
