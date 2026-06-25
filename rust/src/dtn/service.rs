@@ -3,7 +3,6 @@
 //! Default DTN service. Three-tier delivery:
 //! direct mesh send → DTN epidemic replication → backend relay.
 
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
@@ -38,38 +37,8 @@ pub struct DtnBundleReceivedEvent {
     pub received_at_ms: i64,
 }
 
-/// JSON wire envelope for a DTN bundle. Cross-language stable.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct BundleWire {
-    id: Uuid,
-    sender_uhid: String,
-    recipient_uhid: String,
-    encrypted_payload: Vec<u8>,
-    priority: u8,
-    status: u8,
-    copy_count: i32,
-    max_copies: i32,
-    sender_geohash: Option<String>,
-    recipient_last_geohash: Option<String>,
-    hop_count: i32,
-    created_at_ms: i64,
-    expires_at_ms: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CustodyAckWire {
-    bundle_id: Uuid,
-    accepted: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DeliveryReceiptWire {
-    bundle_id: Uuid,
-    recipient_uhid: String,
-    total_hops: i32,
-    total_custody_transfers: i32,
-    delivered_at_ms: i64,
-}
+// Bundle / custody-ack / delivery-receipt wire encoding lives in the binary
+// `super::envelope` module (byte-identical across all eight SDKs).
 
 pub struct DtnService {
     sender: Arc<dyn MeshSender>,
@@ -236,12 +205,12 @@ impl DtnService {
         pkt.destination_uhid = bundle.recipient_uhid.clone();
         pkt.ttl = DTN_TTL;
         pkt.priority = bundle.priority.as_u8();
-        pkt.payload = encode_bundle(bundle);
+        pkt.payload = super::envelope::serialize_bundle(bundle);
         pkt
     }
 
     async fn handle_bundle(&self, packet: &MeshPacket) {
-        let bundle = match decode_bundle(&packet.payload) {
+        let bundle = match super::envelope::deserialize_bundle(&packet.payload) {
             Some(b) => b,
             None => return,
         };
@@ -294,28 +263,28 @@ impl DtnService {
     }
 
     async fn handle_custody_ack(&self, packet: &MeshPacket) {
-        let ack: CustodyAckWire = match serde_json::from_slice(&packet.payload) {
-            Ok(a) => a,
-            Err(_) => return,
+        let (bundle_id, accepted) = match super::envelope::deserialize_custody_ack(&packet.payload) {
+            Some(v) => v,
+            None => return,
         };
-        if !ack.accepted {
+        if !accepted {
             if let Some(rep) = &self.reputation {
                 rep.record_custody_refusal(&packet.source_uhid);
             }
             return;
         }
-        if let Some(mut bundle) = self.store.get(&ack.bundle_id).await {
+        if let Some(mut bundle) = self.store.get(&bundle_id).await {
             bundle.copy_count += 1;
             self.store.save(bundle).await;
         }
     }
 
     async fn handle_delivery_receipt(&self, packet: &MeshPacket) {
-        let receipt: DeliveryReceiptWire = match serde_json::from_slice(&packet.payload) {
-            Ok(r) => r,
-            Err(_) => return,
+        let bundle_id = match super::envelope::deserialize_delivery_receipt(&packet.payload) {
+            Some((id, ..)) => id,
+            None => return,
         };
-        if let Some(mut bundle) = self.store.get(&receipt.bundle_id).await {
+        if let Some(mut bundle) = self.store.get(&bundle_id).await {
             bundle.status = BundleStatus::Delivered;
             self.store.save(bundle).await;
         }
@@ -325,13 +294,7 @@ impl DtnService {
         if to_uhid.is_empty() {
             return;
         }
-        let body = match serde_json::to_vec(&CustodyAckWire {
-            bundle_id: *bundle_id,
-            accepted,
-        }) {
-            Ok(b) => b,
-            Err(_) => return,
-        };
+        let body = super::envelope::serialize_custody_ack(bundle_id, accepted);
         let mut pkt = MeshPacket::new(PacketType::DtnCustodyAck, self.sender.local_uhid());
         pkt.destination_uhid = to_uhid.to_string();
         pkt.ttl = DEFAULT_TTL;
@@ -344,60 +307,19 @@ impl DtnService {
             return;
         }
         let custody = self.store.get_custody_records(&bundle.id).await;
-        let body = match serde_json::to_vec(&DeliveryReceiptWire {
-            bundle_id: bundle.id,
-            recipient_uhid: bundle.recipient_uhid.clone(),
-            total_hops: bundle.hop_count,
-            total_custody_transfers: custody.len() as i32,
-            delivered_at_ms: unix_millis(),
-        }) {
-            Ok(b) => b,
-            Err(_) => return,
-        };
+        let body = super::envelope::serialize_delivery_receipt(
+            &bundle.id,
+            &bundle.recipient_uhid,
+            bundle.hop_count,
+            custody.len() as i32,
+            unix_millis(),
+        );
         let mut pkt = MeshPacket::new(PacketType::DtnDeliveryReceipt, self.sender.local_uhid());
         pkt.destination_uhid = bundle.sender_uhid.clone();
         pkt.ttl = DEFAULT_TTL;
         pkt.payload = body;
         self.sender.send(&pkt, &bundle.sender_uhid).await;
     }
-}
-
-fn encode_bundle(bundle: &DtnBundle) -> Vec<u8> {
-    let wire = BundleWire {
-        id: bundle.id,
-        sender_uhid: bundle.sender_uhid.clone(),
-        recipient_uhid: bundle.recipient_uhid.clone(),
-        encrypted_payload: bundle.encrypted_payload.clone(),
-        priority: bundle.priority.as_u8(),
-        status: bundle.status.as_u8(),
-        copy_count: bundle.copy_count,
-        max_copies: bundle.max_copies,
-        sender_geohash: bundle.sender_geohash.clone(),
-        recipient_last_geohash: bundle.recipient_last_geohash.clone(),
-        hop_count: bundle.hop_count,
-        created_at_ms: (bundle.created_at as i64) * 1000,
-        expires_at_ms: (bundle.expires_at as i64) * 1000,
-    };
-    serde_json::to_vec(&wire).unwrap_or_default()
-}
-
-fn decode_bundle(payload: &[u8]) -> Option<DtnBundle> {
-    let wire: BundleWire = serde_json::from_slice(payload).ok()?;
-    Some(DtnBundle {
-        id: wire.id,
-        sender_uhid: wire.sender_uhid,
-        recipient_uhid: wire.recipient_uhid,
-        encrypted_payload: wire.encrypted_payload,
-        priority: BundlePriority::from_u8(wire.priority),
-        status: BundleStatus::from_u8(wire.status),
-        copy_count: wire.copy_count,
-        max_copies: wire.max_copies,
-        sender_geohash: wire.sender_geohash,
-        recipient_last_geohash: wire.recipient_last_geohash,
-        hop_count: wire.hop_count,
-        created_at: (wire.created_at_ms / 1000) as u64,
-        expires_at: (wire.expires_at_ms / 1000) as u64,
-    })
 }
 
 fn unix_secs() -> u64 {
@@ -475,7 +397,7 @@ mod tests {
             created_at: unix_secs(),
             expires_at: unix_secs() + 3600,
         };
-        let payload = encode_bundle(&bundle);
+        let payload = crate::dtn::envelope::serialize_bundle(&bundle);
         let mut pkt = MeshPacket::new(PacketType::DtnBundle, source_uhid.to_string());
         pkt.destination_uhid = recipient_uhid.to_string();
         pkt.payload = payload;
@@ -484,7 +406,7 @@ mod tests {
 
     /// Build a DtnCustodyAck packet with `accepted = false` from `source_uhid`.
     fn make_custody_ack_packet(source_uhid: &str, bundle_id: uuid::Uuid, accepted: bool) -> MeshPacket {
-        let body = serde_json::to_vec(&CustodyAckWire { bundle_id, accepted }).unwrap();
+        let body = crate::dtn::envelope::serialize_custody_ack(&bundle_id, accepted);
         let mut pkt = MeshPacket::new(PacketType::DtnCustodyAck, source_uhid.to_string());
         pkt.payload = body;
         pkt
