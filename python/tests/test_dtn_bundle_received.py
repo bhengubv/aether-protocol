@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import unittest
 from datetime import datetime
 
 from aethernet.dtn import DtnService, DtnBundleReceivedEvent, InMemoryBundleStore
+from aethernet.dtn.envelope import serialize_bundle
 from aethernet.models import BundlePriority, BundleStatus, DtnBundle, NodeCapabilities, PeerInfo
 from aethernet.protocol.mesh_packet import MeshPacket, PacketType
 
@@ -21,26 +21,11 @@ def _run(coro):
 
 
 def _build_bundle_packet(source: str, bundle: DtnBundle) -> MeshPacket:
-    payload = {
-        "id": str(bundle.id),
-        "sender_uhid": bundle.sender_uhid,
-        "recipient_uhid": bundle.recipient_uhid,
-        "encrypted_payload": list(bundle.encrypted_payload),
-        "priority": int(bundle.priority),
-        "status": int(bundle.status),
-        "copy_count": bundle.copy_count,
-        "max_copies": bundle.max_copies,
-        "sender_geohash": bundle.sender_geohash,
-        "recipient_last_geohash": bundle.recipient_last_geohash,
-        "hop_count": bundle.hop_count,
-        "created_at_ms": int(bundle.created_at.timestamp() * 1000),
-        "expires_at_ms": int(bundle.expires_at.timestamp() * 1000),
-    }
     return MeshPacket(
         type=PacketType.DtnBundle,
         source_uhid=source,
         destination_uhid=bundle.recipient_uhid,
-        payload=json.dumps(payload).encode("utf-8"),
+        payload=serialize_bundle(bundle),
     )
 
 
