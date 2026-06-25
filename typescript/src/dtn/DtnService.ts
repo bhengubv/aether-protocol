@@ -34,6 +34,14 @@ import {
   GeohashEpidemicStrategy,
   IBundleReplicationStrategy,
 } from "./IBundleReplicationStrategy.js";
+import {
+  deserializeBundle,
+  deserializeCustodyAck,
+  deserializeDeliveryReceipt,
+  serializeBundle,
+  serializeCustodyAck,
+  serializeDeliveryReceipt,
+} from "./DtnEnvelope.js";
 
 const DTN_BUNDLE_TTL_FOR_PACKET = 30; // ProtocolConstants.DtnTtl
 
@@ -150,13 +158,17 @@ export class DtnService {
     packet.destinationUhid = bundle.recipientUhid;
     packet.ttl = DTN_BUNDLE_TTL_FOR_PACKET;
     packet.priority = Math.min(255, Math.max(0, bundle.priority));
-    packet.payload = encodeBundle(bundle);
+    packet.payload = serializeBundle(bundle);
     return packet;
   }
 
   private async handleBundle(packet: MeshPacket): Promise<void> {
-    const bundle = decodeBundle(packet.payload);
-    if (!bundle) return;
+    let bundle: DtnBundle;
+    try {
+      bundle = deserializeBundle(packet.payload);
+    } catch {
+      return;
+    }
 
     if (bundle.recipientUhid === this.sender.localUhid) {
       bundle.status = BundleStatus.Delivered;
@@ -197,46 +209,32 @@ export class DtnService {
   }
 
   private async handleCustodyAck(packet: MeshPacket): Promise<void> {
-    let data: { bundle_id?: string; accepted?: boolean };
+    let ack: { bundleId: string; accepted: boolean };
     try {
-      data = JSON.parse(new TextDecoder().decode(packet.payload));
+      ack = deserializeCustodyAck(packet.payload);
     } catch {
       return;
     }
-    if (!data.bundle_id) return;
-    if (data.accepted === false) {
+    if (!ack.bundleId) return;
+    if (!ack.accepted) {
       this.reputation?.recordCustodyRefusal(packet.sourceUhid);
       return;
     }
-    if (!data.accepted) return;
-    const bundle = await this.store.get(data.bundle_id);
+    const bundle = await this.store.get(ack.bundleId);
     if (!bundle) return;
     bundle.copyCount += 1;
     await this.store.save(bundle);
   }
 
   private async handleDeliveryReceipt(packet: MeshPacket): Promise<void> {
-    let data: {
-      bundle_id?: string;
-      recipient_uhid?: string;
-      total_hops?: number;
-      total_custody_transfers?: number;
-      delivered_at_ms?: number;
-    };
+    let receipt: DtnDeliveryReceipt;
     try {
-      data = JSON.parse(new TextDecoder().decode(packet.payload));
+      receipt = deserializeDeliveryReceipt(packet.payload);
     } catch {
       return;
     }
-    if (!data.bundle_id) return;
-    const receipt: DtnDeliveryReceipt = {
-      bundleId: data.bundle_id,
-      recipientUhid: data.recipient_uhid ?? "",
-      totalHops: data.total_hops ?? 0,
-      totalCustodyTransfers: data.total_custody_transfers ?? 0,
-      deliveredAt: new Date(data.delivered_at_ms ?? Date.now()),
-    };
-    const bundle = await this.store.get(data.bundle_id);
+    if (!receipt.bundleId) return;
+    const bundle = await this.store.get(receipt.bundleId);
     if (bundle) {
       bundle.status = BundleStatus.Delivered;
       await this.store.save(bundle);
@@ -246,9 +244,7 @@ export class DtnService {
 
   private async sendCustodyAck(bundleId: string, toUhid: string, accepted: boolean): Promise<void> {
     if (!toUhid) return;
-    const body = new TextEncoder().encode(
-      JSON.stringify({ bundle_id: bundleId, accepted }),
-    );
+    const body = serializeCustodyAck(bundleId, accepted);
     const packet = new MeshPacket();
     packet.type = PacketType.DtnCustodyAck;
     packet.sourceUhid = this.sender.localUhid;
@@ -261,15 +257,13 @@ export class DtnService {
   private async sendDeliveryReceipt(bundle: DtnBundle): Promise<void> {
     if (!bundle.senderUhid || bundle.senderUhid === this.sender.localUhid) return;
     const custody = await this.store.getCustodyRecords(bundle.id);
-    const body = new TextEncoder().encode(
-      JSON.stringify({
-        bundle_id: bundle.id,
-        recipient_uhid: bundle.recipientUhid,
-        total_hops: bundle.hopCount,
-        total_custody_transfers: custody.length,
-        delivered_at_ms: Date.now(),
-      }),
-    );
+    const body = serializeDeliveryReceipt({
+      bundleId: bundle.id,
+      recipientUhid: bundle.recipientUhid,
+      totalHops: bundle.hopCount,
+      totalCustodyTransfers: custody.length,
+      deliveredAt: new Date(),
+    });
     const packet = new MeshPacket();
     packet.type = PacketType.DtnDeliveryReceipt;
     packet.sourceUhid = this.sender.localUhid;
@@ -280,44 +274,3 @@ export class DtnService {
   }
 }
 
-function encodeBundle(bundle: DtnBundle): Uint8Array {
-  const obj = {
-    id: bundle.id,
-    sender_uhid: bundle.senderUhid,
-    recipient_uhid: bundle.recipientUhid,
-    encrypted_payload: Array.from(bundle.encryptedPayload),
-    priority: bundle.priority,
-    status: bundle.status,
-    copy_count: bundle.copyCount,
-    max_copies: bundle.maxCopies,
-    sender_geohash: bundle.senderGeohash ?? null,
-    recipient_last_geohash: bundle.recipientLastGeohash ?? null,
-    hop_count: bundle.hopCount,
-    created_at_ms: bundle.createdAt.getTime(),
-    expires_at_ms: bundle.expiresAt.getTime(),
-  };
-  return new TextEncoder().encode(JSON.stringify(obj));
-}
-
-function decodeBundle(payload: Uint8Array): DtnBundle | null {
-  try {
-    const data = JSON.parse(new TextDecoder().decode(payload));
-    return {
-      id: data.id,
-      senderUhid: data.sender_uhid,
-      recipientUhid: data.recipient_uhid,
-      encryptedPayload: new Uint8Array(data.encrypted_payload ?? []),
-      priority: data.priority as BundlePriority,
-      status: data.status as BundleStatus,
-      copyCount: data.copy_count,
-      maxCopies: data.max_copies,
-      senderGeohash: data.sender_geohash ?? undefined,
-      recipientLastGeohash: data.recipient_last_geohash ?? undefined,
-      hopCount: data.hop_count,
-      createdAt: new Date(data.created_at_ms),
-      expiresAt: new Date(data.expires_at_ms),
-    };
-  } catch {
-    return null;
-  }
-}

@@ -20,6 +20,12 @@ import {
 } from "../src/models/index.js";
 import { DtnService, InMemoryDtnBundleStore } from "../src/dtn/index.js";
 import { NodeReputationService } from "../src/reputation.js";
+import {
+  deserializeCustodyAck,
+  serializeBundle,
+  serializeCustodyAck,
+  serializeDeliveryReceipt,
+} from "../src/dtn/DtnEnvelope.js";
 import { FakeMeshSender } from "./fakes.js";
 
 const LOCAL = "local";
@@ -32,26 +38,11 @@ function newSvc() {
 }
 
 function buildBundlePacket(source: string, bundle: DtnBundle): MeshPacket {
-  const obj = {
-    id: bundle.id,
-    sender_uhid: bundle.senderUhid,
-    recipient_uhid: bundle.recipientUhid,
-    encrypted_payload: Array.from(bundle.encryptedPayload),
-    priority: bundle.priority,
-    status: bundle.status,
-    copy_count: bundle.copyCount,
-    max_copies: bundle.maxCopies,
-    sender_geohash: bundle.senderGeohash ?? null,
-    recipient_last_geohash: bundle.recipientLastGeohash ?? null,
-    hop_count: bundle.hopCount,
-    created_at_ms: bundle.createdAt.getTime(),
-    expires_at_ms: bundle.expiresAt.getTime(),
-  };
   const pkt = new MeshPacket();
   pkt.type = PacketType.DtnBundle;
   pkt.sourceUhid = source;
   pkt.destinationUhid = bundle.recipientUhid;
-  pkt.payload = new TextEncoder().encode(JSON.stringify(obj));
+  pkt.payload = serializeBundle(bundle);
   return pkt;
 }
 
@@ -123,8 +114,8 @@ describe("DtnService — HandleAsync DtnBundle", () => {
 
     const ack = sender.unicasts.find((u) => u.packet.type === PacketType.DtnCustodyAck);
     assert.ok(ack);
-    const body = JSON.parse(new TextDecoder().decode(ack!.packet.payload));
-    assert.equal(body.accepted, false);
+    const { accepted } = deserializeCustodyAck(ack!.packet.payload);
+    assert.equal(accepted, false);
   });
 });
 
@@ -134,9 +125,7 @@ describe("DtnService — HandleAsync DtnCustodyAck", () => {
     const bundle = await svc.createBundle("recipient", new Uint8Array([1]));
     const initial = bundle.copyCount;
 
-    const body = new TextEncoder().encode(
-      JSON.stringify({ bundle_id: bundle.id, accepted: true }),
-    );
+    const body = serializeCustodyAck(bundle.id, true);
     const pkt = new MeshPacket();
     pkt.type = PacketType.DtnCustodyAck;
     pkt.sourceUhid = "carrier";
@@ -153,9 +142,7 @@ describe("DtnService — HandleAsync DtnCustodyAck", () => {
     const bundle = await svc.createBundle("recipient", new Uint8Array([1]));
     const initial = bundle.copyCount;
 
-    const body = new TextEncoder().encode(
-      JSON.stringify({ bundle_id: bundle.id, accepted: false }),
-    );
+    const body = serializeCustodyAck(bundle.id, false);
     const pkt = new MeshPacket();
     pkt.type = PacketType.DtnCustodyAck;
     pkt.sourceUhid = "carrier";
@@ -176,13 +163,13 @@ describe("DtnService — HandleAsync DtnDeliveryReceipt", () => {
     let observed: any;
     svc.onBundleDelivered = (r) => { observed = r; };
 
-    const body = new TextEncoder().encode(JSON.stringify({
-      bundle_id: bundle.id,
-      recipient_uhid: "recipient",
-      total_hops: 3,
-      total_custody_transfers: 2,
-      delivered_at_ms: Date.now(),
-    }));
+    const body = serializeDeliveryReceipt({
+      bundleId: bundle.id,
+      recipientUhid: "recipient",
+      totalHops: 3,
+      totalCustodyTransfers: 2,
+      deliveredAt: new Date(),
+    });
     const pkt = new MeshPacket();
     pkt.type = PacketType.DtnDeliveryReceipt;
     pkt.sourceUhid = "recipient";
@@ -273,9 +260,7 @@ test("dtnCustodyRefusalFiresReputationCustodyRefusal", async () => {
 
   const bundle = await svc.createBundle("recipient", new Uint8Array([3]));
 
-  const body = new TextEncoder().encode(
-    JSON.stringify({ bundle_id: bundle.id, accepted: false }),
-  );
+  const body = serializeCustodyAck(bundle.id, false);
   const pkt = new MeshPacket();
   pkt.type = PacketType.DtnCustodyAck;
   pkt.sourceUhid = "carrier";
@@ -299,9 +284,7 @@ test("dtnReputationNullNoError", async () => {
 
   // Custody refusal — must not throw
   const bundle2 = await svc.createBundle("recipient", new Uint8Array([5]));
-  const body = new TextEncoder().encode(
-    JSON.stringify({ bundle_id: bundle2.id, accepted: false }),
-  );
+  const body = serializeCustodyAck(bundle2.id, false);
   const pkt = new MeshPacket();
   pkt.type = PacketType.DtnCustodyAck;
   pkt.sourceUhid = "carrier";
