@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Unit tests for dtn.c (DtnService).
 //
-// NOTE: aethernet_dtn_handle_packet decodes the cleartext bundle envelope (e.g.
-// hop_count) via the vendored cJSON; bundle_received_decodes_real_hop_count below
-// proves the decode is real. These tests also cover the synchronous bookkeeping.
+// The bundle / custody-ack / delivery-receipt wire is the canonical binary DTN
+// envelope (aethernet/dtn_envelope.h). These tests drive aethernet_dtn_handle_packet
+// with real binary envelopes and assert observable side effects: the custody-ack
+// and delivery-receipt packets the service emits, the hop-counted bundle it
+// forwards, and the GeohashEpidemicStrategy replication targets it picks.
 
 #define _POSIX_C_SOURCE 200809L  // strdup, etc.
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +18,9 @@
 
 #include "aethernet/constants.h"
 #include "aethernet/dtn.h"
+#include "aethernet/dtn_envelope.h"
 #include "aethernet/protocol.h"
+#include "aethernet/routing.h"
 #include "aethernet_reputation.h"
 
 #define LOCAL_UHID "local"
@@ -32,6 +37,8 @@ typedef struct {
     int unicasts_cap;
     bool fail_send_for_recipient;
     char *block_recipient;
+    const aethernet_peer_info_t *peers;  // borrowed; surfaced via connected_peers
+    int peers_len;
 } fake_state_t;
 
 static bool fake_send(aethernet_mesh_sender_t *self, const aethernet_mesh_packet_t *packet, const char *next_hop_uhid) {
@@ -61,6 +68,13 @@ static int fake_broadcast(aethernet_mesh_sender_t *self, const aethernet_mesh_pa
     return 0;
 }
 
+static int fake_connected_peers(aethernet_mesh_sender_t *self, aethernet_peer_info_t *out, int max) {
+    fake_state_t *s = (fake_state_t *)self->user_data;
+    int n = s->peers_len < max ? s->peers_len : max;
+    for (int i = 0; i < n; i++) out[i] = s->peers[i];
+    return n;
+}
+
 static void fake_clear(fake_state_t *s) {
     for (int i = 0; i < s->broadcasts_len; i++) aethernet_packet_free(s->broadcasts[i]);
     free(s->broadcasts);
@@ -81,13 +95,80 @@ static aethernet_mesh_sender_t make_sender(fake_state_t *state) {
     s.send = fake_send;
     s.broadcast = fake_broadcast;
     s.user_data = state;
-    return s;
+    return s;  // connected_peers stays NULL; peer-aware tests opt in explicitly
+}
+
+// Find the first recorded unicast of `type` whose next-hop equals `next_hop`.
+static aethernet_mesh_packet_t *find_unicast(fake_state_t *s, uint8_t type, const char *next_hop) {
+    for (int i = 0; i < s->unicasts_len; i++) {
+        if (s->unicasts[i]->type == type
+            && s->unicasts_next_hops[i] && next_hop
+            && strcmp(s->unicasts_next_hops[i], next_hop) == 0) {
+            return s->unicasts[i];
+        }
+    }
+    return NULL;
+}
+
+static int count_unicasts_of_type(fake_state_t *s, uint8_t type) {
+    int n = 0;
+    for (int i = 0; i < s->unicasts_len; i++)
+        if (s->unicasts[i]->type == type) n++;
+    return n;
+}
+
+// Build a binary DTN_BUNDLE packet. The inner bundle's id is derived from
+// `id_seed` (id[i] = id_seed + i) so a later custody-ack / receipt can target it.
+static aethernet_mesh_packet_t *make_bundle_packet(
+        const char *sender_uhid, const char *recipient_uhid,
+        const char *recipient_last_geohash,
+        int32_t hop_count, uint8_t priority, uint8_t id_seed,
+        const uint8_t *payload, uint32_t payload_len) {
+    aethernet_dtn_bundle_t *b = aethernet_dtn_bundle_new();
+    for (int i = 0; i < AETHERNET_PACKET_ID_SIZE; i++) b->id[i] = (uint8_t)(id_seed + i);
+    b->sender_uhid = sender_uhid ? strdup(sender_uhid) : NULL;
+    b->recipient_uhid = recipient_uhid ? strdup(recipient_uhid) : NULL;
+    b->recipient_last_geohash = recipient_last_geohash ? strdup(recipient_last_geohash) : NULL;
+    b->hop_count = hop_count;
+    b->priority = priority;
+    if (payload && payload_len) {
+        b->encrypted_payload = (uint8_t *)malloc(payload_len);
+        memcpy(b->encrypted_payload, payload, payload_len);
+        b->encrypted_payload_len = payload_len;
+    }
+    uint8_t *body = NULL;
+    uint32_t body_len = 0;
+    aethernet_dtn_bundle_encode(b, &body, &body_len);
+    aethernet_mesh_packet_t *pkt = aethernet_packet_new();
+    pkt->type = AETHERNET_PACKET_TYPE_DTN_BUNDLE;
+    aethernet_packet_set_source_uhid(pkt, sender_uhid);
+    aethernet_packet_set_destination_uhid(pkt, recipient_uhid);
+    aethernet_packet_set_payload(pkt, body, body_len);
+    free(body);
+    aethernet_dtn_bundle_free(b);
+    return pkt;
+}
+
+// Build a custody-ack packet (binary envelope) for the bundle with id seed `id_seed`.
+static aethernet_mesh_packet_t *make_custody_ack_packet(const char *source, uint8_t id_seed, bool accepted) {
+    uint8_t id[AETHERNET_PACKET_ID_SIZE];
+    for (int i = 0; i < AETHERNET_PACKET_ID_SIZE; i++) id[i] = (uint8_t)(id_seed + i);
+    uint8_t *body = NULL;
+    uint32_t body_len = 0;
+    aethernet_dtn_custody_ack_encode(id, accepted, &body, &body_len);
+    aethernet_mesh_packet_t *pkt = aethernet_packet_new();
+    pkt->type = AETHERNET_PACKET_TYPE_DTN_CUSTODY_ACK;
+    aethernet_packet_set_source_uhid(pkt, source);
+    aethernet_packet_set_destination_uhid(pkt, LOCAL_UHID);
+    aethernet_packet_set_payload(pkt, body, body_len);
+    free(body);
+    return pkt;
 }
 
 #define RUN(name) do { printf("TEST: " #name "..."); name(); printf(" OK\n"); tests_run++; } while (0)
 static int tests_run = 0;
 
-// ───── Tests ─────────────────────────────────────────────
+// ───── Create / scan / expire lifecycle ──────────────────
 
 static void create_bundle_attempts_direct_delivery(void) {
     fake_state_t s = {0};
@@ -145,10 +226,7 @@ static void run_delivery_scan_retries_pending(void) {
     s.fail_send_for_recipient = false;
     aethernet_dtn_run_delivery_scan(svc);
 
-    int dtn_unicasts = 0;
-    for (int i = 0; i < s.unicasts_len; i++) {
-        if (s.unicasts[i]->type == AETHERNET_PACKET_TYPE_DTN_BUNDLE) dtn_unicasts++;
-    }
+    int dtn_unicasts = count_unicasts_of_type(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE);
     assert(dtn_unicasts >= 1);
 
     aethernet_dtn_service_free(svc);
@@ -183,29 +261,12 @@ static void bundle_lifecycle_helpers(void) {
     aethernet_dtn_bundle_free(b);
 }
 
-// ───── Reputation hook tests ──────────────────────────────
-
-// Helper: build a packet of the given type, addressed from source_uhid to
-// destination_uhid. Caller must aethernet_packet_free() it.
-static aethernet_mesh_packet_t *make_dtn_packet(uint8_t type,
-                                             const char *source_uhid,
-                                             const char *destination_uhid,
-                                             const uint8_t *payload,
-                                             uint32_t payload_len) {
-    aethernet_mesh_packet_t *pkt = aethernet_packet_new();
-    if (!pkt) return NULL;
-    pkt->type = type;
-    aethernet_packet_set_source_uhid(pkt, source_uhid);
-    aethernet_packet_set_destination_uhid(pkt, destination_uhid);
-    if (payload && payload_len) {
-        aethernet_packet_set_payload(pkt, payload, payload_len);
-    }
-    return pkt;
-}
+// ───── Reputation hooks ──────────────────────────────────
 
 static void reputation_delivery_success_fires_for_local_bundle(void) {
-    // A DTN_BUNDLE packet whose destination_uhid == LOCAL_UHID must fire
-    // aethernet_reputation_record_delivery_success for the sender.
+    // A bundle whose recipient == LOCAL_UHID fires record_delivery_success for
+    // the packet source. delivery_success only nudges the score up, so we first
+    // penalise the source (below the 1.0 ceiling) to make the bump observable.
     fake_state_t s = {0};
     aethernet_mesh_sender_t sender = make_sender(&s);
     aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
@@ -214,33 +275,25 @@ static void reputation_delivery_success_fires_for_local_bundle(void) {
     aethernet_reputation_init(&rep);
     aethernet_dtn_set_reputation(svc, &rep);
 
-    // Score unknown before the packet arrives (defaults to 1.0).
-    double before = aethernet_reputation_get_score(&rep, "sender-node");
+    aethernet_reputation_record_custody_refusal(&rep, "remote-sender");  // 1.0 → below ceiling
+    double before = aethernet_reputation_get_score(&rep, "remote-sender");
+    assert(before < 1.0);
 
-    aethernet_mesh_packet_t *pkt = make_dtn_packet(
-        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
-        "sender-node",   // source
-        LOCAL_UHID,      // destination == local node
-        NULL, 0);
-    assert(pkt != NULL);
+    aethernet_mesh_packet_t *pkt = make_bundle_packet(
+        "remote-sender", LOCAL_UHID, NULL, 0, AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x01, NULL, 0);
     aethernet_dtn_handle_packet(svc, pkt);
     aethernet_packet_free(pkt);
 
-    // delivery_success adds +0.01 — score stays at 1.0 (clamped).
-    double after = aethernet_reputation_get_score(&rep, "sender-node");
-    (void)before;
-    (void)after;
-    // The important assertion: score was touched (no crash, entry exists).
-    // Even if clamped to 1.0, the function must have been called without error.
-    assert(after >= 0.0 && after <= 1.0);
+    double after = aethernet_reputation_get_score(&rep, "remote-sender");
+    assert(after > before);  // delivery_success raised the score
 
     aethernet_dtn_service_free(svc);
     fake_clear(&s);
 }
 
 static void reputation_delivery_success_does_not_fire_for_other_node(void) {
-    // A DTN_BUNDLE packet whose destination_uhid != LOCAL_UHID must NOT fire
-    // any reputation event (we verify score remains exactly 1.0 for unknown).
+    // A transit bundle (recipient != LOCAL_UHID) must NOT fire delivery_success;
+    // the source's score stays at the unknown-peer default (1.0).
     fake_state_t s = {0};
     aethernet_mesh_sender_t sender = make_sender(&s);
     aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
@@ -249,16 +302,11 @@ static void reputation_delivery_success_does_not_fire_for_other_node(void) {
     aethernet_reputation_init(&rep);
     aethernet_dtn_set_reputation(svc, &rep);
 
-    aethernet_mesh_packet_t *pkt = make_dtn_packet(
-        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
-        "sender-node",
-        "other-node",   // destination != local node
-        NULL, 0);
-    assert(pkt != NULL);
+    aethernet_mesh_packet_t *pkt = make_bundle_packet(
+        "sender-node", "other-node", NULL, 0, AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x02, NULL, 0);
     aethernet_dtn_handle_packet(svc, pkt);
     aethernet_packet_free(pkt);
 
-    // Score for sender-node must remain at the unknown-peer default (1.0).
     double score = aethernet_reputation_get_score(&rep, "sender-node");
     assert(score == 1.0);
 
@@ -267,8 +315,7 @@ static void reputation_delivery_success_does_not_fire_for_other_node(void) {
 }
 
 static void reputation_custody_refusal_fires_on_ack_refused(void) {
-    // A DTN_CUSTODY_ACK packet with payload[0] == 0 (refused) must fire
-    // aethernet_reputation_record_custody_refusal for the source peer.
+    // A custody-ack with accepted == false fires record_custody_refusal for the source.
     fake_state_t s = {0};
     aethernet_mesh_sender_t sender = make_sender(&s);
     aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
@@ -277,18 +324,10 @@ static void reputation_custody_refusal_fires_on_ack_refused(void) {
     aethernet_reputation_init(&rep);
     aethernet_dtn_set_reputation(svc, &rep);
 
-    // payload[0] = 0 means refused
-    uint8_t refused_payload[] = {0};
-    aethernet_mesh_packet_t *pkt = make_dtn_packet(
-        AETHERNET_PACKET_TYPE_DTN_CUSTODY_ACK,
-        "refusing-peer",  // source
-        LOCAL_UHID,
-        refused_payload, sizeof(refused_payload));
-    assert(pkt != NULL);
+    aethernet_mesh_packet_t *pkt = make_custody_ack_packet("refusing-peer", 0x03, false);
     aethernet_dtn_handle_packet(svc, pkt);
     aethernet_packet_free(pkt);
 
-    // custody_refusal applies -0.05 from 1.0 → 0.95.
     double score = aethernet_reputation_get_score(&rep, "refusing-peer");
     assert(score < 1.0);  // penalised
 
@@ -296,7 +335,7 @@ static void reputation_custody_refusal_fires_on_ack_refused(void) {
     fake_clear(&s);
 }
 
-// ───── OnBundleReceived (v1.2.0, Issue #59) ───────────────
+// ───── OnBundleReceived (Issue #59) ──────────────────────
 
 typedef struct {
     int count;
@@ -334,12 +373,9 @@ static void bundle_received_fires_for_local_recipient(void) {
     aethernet_dtn_set_bundle_received_callback(svc, on_received_capture, &cap);
 
     uint8_t payload[] = {0x01, 0x02, 0x03, 0x04};
-    aethernet_mesh_packet_t *pkt = make_dtn_packet(
-        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
-        "remote-sender",
-        LOCAL_UHID,
-        payload, sizeof(payload));
-    pkt->priority = (uint8_t)AETHERNET_BUNDLE_PRIORITY_HIGH;
+    aethernet_mesh_packet_t *pkt = make_bundle_packet(
+        "remote-sender", LOCAL_UHID, NULL, 0,
+        (uint8_t)AETHERNET_BUNDLE_PRIORITY_HIGH, 0x04, payload, sizeof(payload));
     aethernet_dtn_handle_packet(svc, pkt);
     aethernet_packet_free(pkt);
 
@@ -357,6 +393,8 @@ static void bundle_received_fires_for_local_recipient(void) {
 }
 
 static void bundle_received_decodes_real_hop_count(void) {
+    // The handler must DECODE hop_count from the binary envelope — a regression to
+    // a hardcoded 0 makes this assertion fail.
     fake_state_t s = {0};
     aethernet_mesh_sender_t sender = make_sender(&s);
     aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
@@ -364,27 +402,15 @@ static void bundle_received_decodes_real_hop_count(void) {
     on_received_state_t cap = {0};
     aethernet_dtn_set_bundle_received_callback(svc, on_received_capture, &cap);
 
-    // A real cleartext bundle-envelope JSON (the shape the encoder produces),
-    // carrying hop_count = 7. The handler must DECODE this via cJSON — a regression
-    // to the old "hardcode 0" stub makes the hop_count assertion fail.
-    const char *bundle_json =
-        "{\"id\":\"00112233445566778899aabbccddeeff\","
-        "\"sender_uhid\":\"remote-sender\",\"recipient_uhid\":\"" LOCAL_UHID "\","
-        "\"encrypted_payload\":[1,2,3,4],\"priority\":2,\"status\":0,"
-        "\"copy_count\":1,\"max_copies\":5,\"sender_geohash\":null,"
-        "\"recipient_last_geohash\":null,\"hop_count\":7,"
-        "\"created_at_ms\":1000,\"expires_at_ms\":9999999999999}";
-
-    aethernet_mesh_packet_t *pkt = make_dtn_packet(
-        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
-        "remote-sender",
-        LOCAL_UHID,
-        (const uint8_t *)bundle_json, (uint32_t)strlen(bundle_json));
+    uint8_t payload[] = {1, 2, 3, 4};
+    aethernet_mesh_packet_t *pkt = make_bundle_packet(
+        "remote-sender", LOCAL_UHID, NULL, /*hop_count=*/7,
+        (uint8_t)AETHERNET_BUNDLE_PRIORITY_HIGH, 0x05, payload, sizeof(payload));
     aethernet_dtn_handle_packet(svc, pkt);
     aethernet_packet_free(pkt);
 
     assert(cap.count == 1);
-    assert(cap.last_hop_count == 7);  // decoded from JSON; fails if hardcoded 0
+    assert(cap.last_hop_count == 7);  // decoded from the envelope; fails if hardcoded 0
 
     free(cap.last_sender_uhid);
     free(cap.last_recipient_uhid);
@@ -401,11 +427,9 @@ static void bundle_received_does_not_fire_for_other_recipient(void) {
     aethernet_dtn_set_bundle_received_callback(svc, on_received_capture, &cap);
 
     uint8_t payload[] = {0xff};
-    aethernet_mesh_packet_t *pkt = make_dtn_packet(
-        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
-        "remote-sender",
-        "someone-else",
-        payload, sizeof(payload));
+    aethernet_mesh_packet_t *pkt = make_bundle_packet(
+        "remote-sender", "someone-else", NULL, 0,
+        AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x06, payload, sizeof(payload));
     aethernet_dtn_handle_packet(svc, pkt);
     aethernet_packet_free(pkt);
 
@@ -418,23 +442,257 @@ static void bundle_received_does_not_fire_for_other_recipient(void) {
 }
 
 static void bundle_received_unset_callback_does_not_crash(void) {
-    // No callback registered → handler must complete cleanly.
+    // No callback registered → handler must complete cleanly (and still ack/receipt).
     fake_state_t s = {0};
     aethernet_mesh_sender_t sender = make_sender(&s);
     aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
 
-    // Intentionally do not call aethernet_dtn_set_bundle_received_callback.
-
     uint8_t payload[] = {0x09};
-    aethernet_mesh_packet_t *pkt = make_dtn_packet(
-        AETHERNET_PACKET_TYPE_DTN_BUNDLE,
-        "alice",
-        LOCAL_UHID,
-        payload, sizeof(payload));
+    aethernet_mesh_packet_t *pkt = make_bundle_packet(
+        "alice", LOCAL_UHID, NULL, 0, AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x07, payload, sizeof(payload));
     aethernet_dtn_handle_packet(svc, pkt);
     aethernet_packet_free(pkt);
 
-    // Reaching here without crash is the assertion.
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+// ───── Store-and-forward custody ─────────────────────────
+
+static void transit_bundle_accepts_custody_and_hop_counts(void) {
+    // A third-party bundle with capacity is accepted: an ACCEPTED custody-ack goes
+    // back to the source, and the stored bundle is hop-counted 0→1 — proven by
+    // forwarding it on the next scan and decoding the forwarded hop_count.
+    fake_state_t s = {0};
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    aethernet_mesh_packet_t *pkt = make_bundle_packet(
+        "origin", "dest", NULL, /*hop_count=*/0, AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x50, NULL, 0);
+    aethernet_dtn_handle_packet(svc, pkt);
+    aethernet_packet_free(pkt);
+
+    // Accepted custody-ack back to the source.
+    aethernet_mesh_packet_t *ack = find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_CUSTODY_ACK, "origin");
+    assert(ack != NULL);
+    uint8_t ack_id[AETHERNET_PACKET_ID_SIZE];
+    bool accepted = false;
+    assert(aethernet_dtn_custody_ack_decode(ack->payload, ack->payload_len, ack_id, &accepted));
+    assert(accepted == true);
+
+    // The stored InCustody bundle is forwarded on the scan with hop_count incremented.
+    aethernet_dtn_run_delivery_scan(svc);
+    aethernet_mesh_packet_t *fwd = find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE, "dest");
+    assert(fwd != NULL);
+    aethernet_dtn_bundle_t *decoded = aethernet_dtn_bundle_decode(fwd->payload, fwd->payload_len);
+    assert(decoded != NULL);
+    assert(decoded->hop_count == 1);
+    aethernet_dtn_bundle_free(decoded);
+
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+static void at_capacity_refuses_custody(void) {
+    // With the store at AETHERNET_DTN_MAX_BUNDLES_PER_NODE active bundles, a new
+    // transit bundle is refused (negative custody-ack) and NOT stored.
+    fake_state_t s = {0};
+    s.fail_send_for_recipient = true;
+    s.block_recipient = strdup("cap-dest");  // keep pre-filled bundles Pending (active)
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    for (int i = 0; i < AETHERNET_DTN_MAX_BUNDLES_PER_NODE; i++) {
+        aethernet_dtn_create_bundle(svc, "cap-dest", NULL, 0, AETHERNET_BUNDLE_PRIORITY_NORMAL, NULL);
+    }
+
+    aethernet_mesh_packet_t *pkt = make_bundle_packet(
+        "origin", "other-dest", NULL, 0, AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x60, NULL, 0);
+    aethernet_dtn_handle_packet(svc, pkt);
+    aethernet_packet_free(pkt);
+
+    // Refused custody-ack to the source.
+    aethernet_mesh_packet_t *ack = find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_CUSTODY_ACK, "origin");
+    assert(ack != NULL);
+    uint8_t ack_id[AETHERNET_PACKET_ID_SIZE];
+    bool accepted = true;
+    assert(aethernet_dtn_custody_ack_decode(ack->payload, ack->payload_len, ack_id, &accepted));
+    assert(accepted == false);
+
+    // Refused bundle was not stored: a scan never forwards anything to "other-dest".
+    aethernet_dtn_run_delivery_scan(svc);
+    assert(find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE, "other-dest") == NULL);
+
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+static void delivery_receipt_marks_bundle_delivered(void) {
+    // Hold a bundle in custody, then receive a delivery receipt for its id; the
+    // bundle is marked Delivered and is no longer re-forwarded by a scan.
+    fake_state_t s = {0};
+    s.fail_send_for_recipient = true;
+    s.block_recipient = strdup("dest");  // keep the bundle InCustody (direct delivery fails)
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    aethernet_mesh_packet_t *bpkt = make_bundle_packet(
+        "origin", "dest", NULL, 0, AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x70, NULL, 0);
+    aethernet_dtn_handle_packet(svc, bpkt);
+    aethernet_packet_free(bpkt);
+
+    // Build a delivery receipt for the same id.
+    uint8_t id[AETHERNET_PACKET_ID_SIZE];
+    for (int i = 0; i < AETHERNET_PACKET_ID_SIZE; i++) id[i] = (uint8_t)(0x70 + i);
+    uint8_t *body = NULL;
+    uint32_t body_len = 0;
+    assert(aethernet_dtn_delivery_receipt_encode(id, "dest", 2, 1, 1710528000000LL, &body, &body_len));
+    aethernet_mesh_packet_t *rpkt = aethernet_packet_new();
+    rpkt->type = AETHERNET_PACKET_TYPE_DTN_DELIVERY_RECEIPT;
+    aethernet_packet_set_source_uhid(rpkt, "dest");
+    aethernet_packet_set_destination_uhid(rpkt, LOCAL_UHID);
+    aethernet_packet_set_payload(rpkt, body, body_len);
+    free(body);
+    aethernet_dtn_handle_packet(svc, rpkt);
+    aethernet_packet_free(rpkt);
+
+    // Unblock and scan: a Delivered bundle is never re-forwarded.
+    s.fail_send_for_recipient = false;
+    aethernet_dtn_run_delivery_scan(svc);
+    assert(find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE, "dest") == NULL);
+
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+// ───── Custody-ack copy bookkeeping ──────────────────────
+
+static const aethernet_peer_info_t THREE_CARRIERS[3] = {
+    { .uhid = "c1", .geohash = NULL, .capabilities = AETHERNET_CAP_DTN_CARRIER, .reliability_score = 10, .is_blocked = false },
+    { .uhid = "c2", .geohash = NULL, .capabilities = AETHERNET_CAP_DTN_CARRIER, .reliability_score = 20, .is_blocked = false },
+    { .uhid = "c3", .geohash = NULL, .capabilities = AETHERNET_CAP_DTN_CARRIER, .reliability_score = 30, .is_blocked = false },
+};
+
+static void positive_custody_ack_increments_copy_count(void) {
+    // Two positive custody-acks raise copy_count 1→3 (== max_copies), so the scan
+    // declines to replicate. Without the increments it would send 2 copies.
+    fake_state_t s = {0};
+    s.fail_send_for_recipient = true;
+    s.block_recipient = strdup("far-dest");  // force replication, not direct delivery
+    s.peers = THREE_CARRIERS;
+    s.peers_len = 3;
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    sender.connected_peers = fake_connected_peers;
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    aethernet_mesh_packet_t *bpkt = make_bundle_packet(
+        "origin", "far-dest", NULL, 0, AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x20, NULL, 0);
+    aethernet_dtn_handle_packet(svc, bpkt);  // stored InCustody, copy_count=1, max_copies=3
+    aethernet_packet_free(bpkt);
+
+    for (int i = 0; i < 2; i++) {
+        aethernet_mesh_packet_t *ack = make_custody_ack_packet("c1", 0x20, true);
+        aethernet_dtn_handle_packet(svc, ack);  // copy_count 1→2→3
+        aethernet_packet_free(ack);
+    }
+
+    aethernet_dtn_run_delivery_scan(svc);
+    // copy_count(3) >= max_copies(3) → no replication bundles emitted.
+    assert(count_unicasts_of_type(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE) == 0);
+
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+static void negative_custody_ack_does_not_increment_copy_count(void) {
+    // A negative custody-ack leaves copy_count at 1, so the scan replicates the
+    // remaining 2 slots (proving no increment happened).
+    fake_state_t s = {0};
+    s.fail_send_for_recipient = true;
+    s.block_recipient = strdup("far-dest");
+    s.peers = THREE_CARRIERS;
+    s.peers_len = 3;
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    sender.connected_peers = fake_connected_peers;
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    aethernet_mesh_packet_t *bpkt = make_bundle_packet(
+        "origin", "far-dest", NULL, 0, AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x30, NULL, 0);
+    aethernet_dtn_handle_packet(svc, bpkt);  // copy_count=1, max_copies=3
+    aethernet_packet_free(bpkt);
+
+    aethernet_mesh_packet_t *ack = make_custody_ack_packet("c1", 0x30, false);
+    aethernet_dtn_handle_packet(svc, ack);  // copy_count stays 1
+    aethernet_packet_free(ack);
+
+    aethernet_dtn_run_delivery_scan(svc);
+    // slots = max_copies(3) - copy_count(1) = 2 → exactly 2 replication copies.
+    assert(count_unicasts_of_type(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE) == 2);
+
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+// ───── GeohashEpidemicStrategy replication ───────────────
+
+static void replication_prefers_closer_geohash(void) {
+    // local geohash "u4"; recipient last geohash "u4pruy" (local_prox=2). Peer
+    // "near" (prox 6) and "mid" (prox 4) pass the filter; "far" (prox 0) is below
+    // local_prox and is excluded. With 2 slots the copies go to near then mid.
+    static const aethernet_peer_info_t PEERS[3] = {
+        { .uhid = "mid",  .geohash = "u4pr",   .capabilities = AETHERNET_CAP_DTN_CARRIER, .reliability_score = 90, .is_blocked = false },
+        { .uhid = "near", .geohash = "u4pruy", .capabilities = AETHERNET_CAP_DTN_CARRIER, .reliability_score = 50, .is_blocked = false },
+        { .uhid = "far",  .geohash = "gbsuv",  .capabilities = AETHERNET_CAP_DTN_CARRIER, .reliability_score = 99, .is_blocked = false },
+    };
+    fake_state_t s = {0};
+    s.fail_send_for_recipient = true;
+    s.block_recipient = strdup("geo-dest");  // force replication
+    s.peers = PEERS;
+    s.peers_len = 3;
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    sender.local_geohash = "u4";
+    sender.connected_peers = fake_connected_peers;
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    aethernet_mesh_packet_t *bpkt = make_bundle_packet(
+        "origin", "geo-dest", "u4pruy", 0, AETHERNET_BUNDLE_PRIORITY_NORMAL, 0x40, NULL, 0);
+    aethernet_dtn_handle_packet(svc, bpkt);  // copy_count=1, max_copies=3 → 2 slots
+    aethernet_packet_free(bpkt);
+
+    aethernet_dtn_run_delivery_scan(svc);
+
+    assert(count_unicasts_of_type(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE) == 2);
+    assert(find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE, "near") != NULL);
+    assert(find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE, "mid") != NULL);
+    assert(find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE, "far") == NULL);  // too far
+
+    aethernet_dtn_service_free(svc);
+    fake_clear(&s);
+}
+
+static void replication_sos_fans_out_to_carriers(void) {
+    // An SOS bundle ignores geohash ranking and fans out to the first eligible
+    // carriers in order up to the copy cap (2 slots → c1, c2).
+    fake_state_t s = {0};
+    s.fail_send_for_recipient = true;
+    s.block_recipient = strdup("sos-dest");
+    s.peers = THREE_CARRIERS;
+    s.peers_len = 3;
+    aethernet_mesh_sender_t sender = make_sender(&s);
+    sender.connected_peers = fake_connected_peers;
+    aethernet_dtn_service_t *svc = aethernet_dtn_service_new(&sender);
+
+    aethernet_mesh_packet_t *bpkt = make_bundle_packet(
+        "origin", "sos-dest", NULL, 0, AETHERNET_BUNDLE_PRIORITY_SOS, 0x80, NULL, 0);
+    aethernet_dtn_handle_packet(svc, bpkt);
+    aethernet_packet_free(bpkt);
+
+    aethernet_dtn_run_delivery_scan(svc);
+
+    assert(count_unicasts_of_type(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE) == 2);
+    assert(find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE, "c1") != NULL);
+    assert(find_unicast(&s, AETHERNET_PACKET_TYPE_DTN_BUNDLE, "c2") != NULL);
+
     aethernet_dtn_service_free(svc);
     fake_clear(&s);
 }
@@ -455,6 +713,13 @@ int main(void) {
     RUN(bundle_received_decodes_real_hop_count);
     RUN(bundle_received_does_not_fire_for_other_recipient);
     RUN(bundle_received_unset_callback_does_not_crash);
+    RUN(transit_bundle_accepts_custody_and_hop_counts);
+    RUN(at_capacity_refuses_custody);
+    RUN(delivery_receipt_marks_bundle_delivered);
+    RUN(positive_custody_ack_increments_copy_count);
+    RUN(negative_custody_ack_does_not_increment_copy_count);
+    RUN(replication_prefers_closer_geohash);
+    RUN(replication_sos_fans_out_to_carriers);
 
     printf("\n%d tests passed.\n", tests_run);
     return 0;

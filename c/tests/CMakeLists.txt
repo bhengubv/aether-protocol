@@ -21,6 +21,15 @@ target_include_directories(test-dtn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../inclu
 target_link_libraries(test-dtn PRIVATE aethernet-protocol pthread)
 add_test(NAME DtnTests COMMAND test-dtn)
 
+add_executable(test-dtn-fixture
+    test_dtn_fixture.c
+)
+target_include_directories(test-dtn-fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-dtn-fixture PRIVATE aethernet-protocol pthread)
+# Run from the repo root so the relative fixtures/dtn/expected/*.bin paths resolve.
+add_test(NAME DtnFixtureTests COMMAND test-dtn-fixture
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 add_executable(test-sos
     test_sos.c
 )
@@ -272,6 +281,7 @@ add_custom_target(aether-tests
         test-protocol
         test-routing
         test-dtn
+        test-dtn-fixture
         test-sos
         test-fixtures
         test-signal-fixtures

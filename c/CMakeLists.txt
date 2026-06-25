@@ -159,6 +159,7 @@ add_library(aethernet-protocol STATIC
     src/rlnc.c
     src/routing.c
     src/dtn.c
+    src/dtn_envelope.c
     src/sos.c
     src/voice.c
     src/group_voice.c
