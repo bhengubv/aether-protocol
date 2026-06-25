@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-using System.Text.Json;
 using AetherNet.Constants;
 using AetherNet.Core.Tests.Fakes;
 using AetherNet.Dtn;
@@ -13,11 +12,6 @@ namespace AetherNet.Core.Tests;
 public class DtnServiceTests
 {
     private const string Local = "local-uhid";
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-    };
 
     private static (DtnService svc, FakeMeshSender sender, InMemoryDtnBundleStore store) NewService(
         string localUhid = Local,
@@ -36,7 +30,7 @@ public class DtnServiceTests
             Type = PacketType.DtnBundle,
             SourceUhid = sourceUhid,
             DestinationUhid = bundle.RecipientUhid,
-            Payload = JsonSerializer.SerializeToUtf8Bytes(bundle, JsonOptions),
+            Payload = DtnEnvelopeSerializer.SerializeBundle(bundle),
             Ttl = ProtocolConstants.DtnTtl,
         };
     }
@@ -144,8 +138,8 @@ public class DtnServiceTests
         // Should send a custody-ack with accepted=false.
         var ack = sender.Unicasts.FirstOrDefault(u => u.Packet.Type == PacketType.DtnCustodyAck);
         Assert.NotNull(ack.Packet);
-        var ackBody = JsonSerializer.Deserialize<JsonElement>(ack.Packet.Payload, JsonOptions);
-        Assert.False(ackBody.GetProperty("accepted").GetBoolean());
+        var (_, ackAccepted) = DtnEnvelopeSerializer.DeserializeCustodyAck(ack.Packet.Payload);
+        Assert.False(ackAccepted);
     }
 
     // ─── HandleAsync — DtnCustodyAck ──────────────────────────
@@ -158,8 +152,7 @@ public class DtnServiceTests
         var bundle = await svc.CreateBundleAsync("recipient", new byte[] { 1 });
         var initialCopies = bundle.CopyCount;
 
-        var ackPayload = JsonSerializer.SerializeToUtf8Bytes(
-            new { bundle_id = bundle.Id, accepted = true }, JsonOptions);
+        var ackPayload = DtnEnvelopeSerializer.SerializeCustodyAck(bundle.Id, true);
         await svc.HandleAsync(new MeshPacket
         {
             Type = PacketType.DtnCustodyAck,
@@ -179,8 +172,7 @@ public class DtnServiceTests
         var bundle = await svc.CreateBundleAsync("recipient", new byte[] { 1 });
         var initialCopies = bundle.CopyCount;
 
-        var ackPayload = JsonSerializer.SerializeToUtf8Bytes(
-            new { bundle_id = bundle.Id, accepted = false }, JsonOptions);
+        var ackPayload = DtnEnvelopeSerializer.SerializeCustodyAck(bundle.Id, false);
         await svc.HandleAsync(new MeshPacket
         {
             Type = PacketType.DtnCustodyAck,
@@ -216,7 +208,7 @@ public class DtnServiceTests
             Type = PacketType.DtnDeliveryReceipt,
             SourceUhid = "recipient",
             DestinationUhid = Local,
-            Payload = JsonSerializer.SerializeToUtf8Bytes(receipt, JsonOptions),
+            Payload = DtnEnvelopeSerializer.SerializeDeliveryReceipt(receipt),
         });
 
         var stored = await store.GetAsync(bundle.Id);

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-using System.Text.Json;
 using AetherNet.Constants;
 using AetherNet.Diagnostics;
 using AetherNet.Extensibility;
@@ -14,15 +13,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace AetherNet.Dtn;
 
 /// <summary>
-/// Default DTN service implementation. Bundles are JSON-serialized into <see cref="MeshPacket.Payload"/>
-/// using <see cref="JsonNamingPolicy.SnakeCaseLower"/> for cross-language interoperability.
+/// Default DTN service implementation. The bundle, custody-ack and delivery-receipt
+/// bodies are encoded into <see cref="MeshPacket.Payload"/> with the binary
+/// <see cref="DtnEnvelopeSerializer"/> for byte-identical cross-language interoperability.
 /// </summary>
 public sealed class DtnService : IDtnService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-    };
 
     private readonly IMeshSender _sender;
     private readonly IDtnBundleStore _store;
@@ -189,17 +185,16 @@ public sealed class DtnService : IDtnService
 
     private async Task HandleBundleAsync(MeshPacket packet, CancellationToken cancellationToken)
     {
-        DtnBundle? bundle;
+        DtnBundle bundle;
         try
         {
-            bundle = JsonSerializer.Deserialize<DtnBundle>(packet.Payload, JsonOptions);
+            bundle = DtnEnvelopeSerializer.DeserializeBundle(packet.Payload);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
         {
             _logger.LogWarning(ex, "DTN: failed to deserialize bundle from packet {Id}", packet.Id);
             return;
         }
-        if (bundle is null) return;
 
         if (string.Equals(bundle.RecipientUhid, _sender.LocalUhid, StringComparison.Ordinal))
         {
@@ -262,26 +257,27 @@ public sealed class DtnService : IDtnService
 
     private async Task HandleCustodyAckAsync(MeshPacket packet, CancellationToken cancellationToken)
     {
-        CustodyAckPayload? ack;
+        Guid ackBundleId;
+        bool ackAccepted;
         try
         {
-            ack = JsonSerializer.Deserialize<CustodyAckPayload>(packet.Payload, JsonOptions);
+            (ackBundleId, ackAccepted) = DtnEnvelopeSerializer.DeserializeCustodyAck(packet.Payload);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
         {
             _logger.LogWarning(ex, "DTN: failed to deserialize custody ack from packet {Id}", packet.Id);
             return;
         }
-        if (ack is null || ack.BundleId == Guid.Empty) return;
+        if (ackBundleId == Guid.Empty) return;
 
-        if (!ack.Accepted)
+        if (!ackAccepted)
         {
-            _logger.LogDebug("DTN custody ack: {Receiver} refused custody of {Bundle}", packet.SourceUhid, ack.BundleId);
+            _logger.LogDebug("DTN custody ack: {Receiver} refused custody of {Bundle}", packet.SourceUhid, ackBundleId);
             _ = _reputation?.RecordCustodyRefusalAsync(packet.SourceUhid);
             return;
         }
 
-        var bundle = await _store.GetAsync(ack.BundleId, cancellationToken).ConfigureAwait(false);
+        var bundle = await _store.GetAsync(ackBundleId, cancellationToken).ConfigureAwait(false);
         if (bundle is null) return;
         bundle.CopyCount++;
         await _store.SaveAsync(bundle, cancellationToken).ConfigureAwait(false);
@@ -290,17 +286,17 @@ public sealed class DtnService : IDtnService
 
     private async Task HandleDeliveryReceiptAsync(MeshPacket packet, CancellationToken cancellationToken)
     {
-        DtnDeliveryReceipt? receipt;
+        DtnDeliveryReceipt receipt;
         try
         {
-            receipt = JsonSerializer.Deserialize<DtnDeliveryReceipt>(packet.Payload, JsonOptions);
+            receipt = DtnEnvelopeSerializer.DeserializeDeliveryReceipt(packet.Payload);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
         {
             _logger.LogWarning(ex, "DTN: failed to deserialize delivery receipt from packet {Id}", packet.Id);
             return;
         }
-        if (receipt is null || receipt.BundleId == Guid.Empty) return;
+        if (receipt.BundleId == Guid.Empty) return;
 
         var bundle = await _store.GetAsync(receipt.BundleId, cancellationToken).ConfigureAwait(false);
         if (bundle is not null)
@@ -324,7 +320,7 @@ public sealed class DtnService : IDtnService
             DestinationUhid = bundle.RecipientUhid,
             Ttl = ProtocolConstants.DtnTtl,
             Priority = (byte)Math.Clamp((int)bundle.Priority, 0, byte.MaxValue),
-            Payload = JsonSerializer.SerializeToUtf8Bytes(bundle, JsonOptions),
+            Payload = DtnEnvelopeSerializer.SerializeBundle(bundle),
         };
     }
 
@@ -332,11 +328,7 @@ public sealed class DtnService : IDtnService
     {
         if (string.IsNullOrEmpty(toUhid)) return;
 
-        var payload = JsonSerializer.SerializeToUtf8Bytes(new CustodyAckPayload
-        {
-            BundleId = bundleId,
-            Accepted = accepted,
-        }, JsonOptions);
+        var payload = DtnEnvelopeSerializer.SerializeCustodyAck(bundleId, accepted);
 
         var packet = new MeshPacket
         {
@@ -370,16 +362,10 @@ public sealed class DtnService : IDtnService
             SourceUhid = _sender.LocalUhid,
             DestinationUhid = bundle.SenderUhid,
             Ttl = ProtocolConstants.DefaultTtl,
-            Payload = JsonSerializer.SerializeToUtf8Bytes(receipt, JsonOptions),
+            Payload = DtnEnvelopeSerializer.SerializeDeliveryReceipt(receipt),
         };
 
         await _sender.SendAsync(packet, bundle.SenderUhid, cancellationToken).ConfigureAwait(false);
-    }
-
-    private sealed class CustodyAckPayload
-    {
-        public Guid BundleId { get; set; }
-        public bool Accepted { get; set; }
     }
 
     private sealed class DefaultIncentiveProvider : IAetherNetIncentiveProvider
