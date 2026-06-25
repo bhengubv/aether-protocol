@@ -5,6 +5,7 @@ import aethernet.AetherNetConstants
 import aethernet.FakeMeshSender
 import aethernet.models.BundlePriority
 import aethernet.models.DtnBundle
+import aethernet.models.DtnDeliveryReceipt
 import aethernet.models.NodeCapabilities
 import aethernet.models.PeerInfo
 import aethernet.protocol.MeshPacket
@@ -33,32 +34,12 @@ private fun newSvc(): DtnSvc {
     return DtnSvc(DtnService(sender, store), sender, store)
 }
 
-private fun buildBundlePacket(source: String, b: DtnBundle): MeshPacket {
-    val payloadList = b.encryptedPayload.joinToString(",") { (it.toInt() and 0xff).toString() }
-    val senderGh = b.senderGeohash?.let { "\"$it\"" } ?: "null"
-    val recipGh = b.recipientLastGeohash?.let { "\"$it\"" } ?: "null"
-    val json = "{" +
-        "\"id\":\"${b.id}\"," +
-        "\"sender_uhid\":\"${b.senderUhid}\"," +
-        "\"recipient_uhid\":\"${b.recipientUhid}\"," +
-        "\"encrypted_payload\":[$payloadList]," +
-        "\"priority\":${b.priority}," +
-        "\"status_label\":\"${b.status}\"," +
-        "\"copy_count\":${b.copyCount}," +
-        "\"max_copies\":${b.maxCopies}," +
-        "\"sender_geohash\":$senderGh," +
-        "\"recipient_last_geohash\":$recipGh," +
-        "\"hop_count\":${b.hopCount}," +
-        "\"created_at_ms\":${b.createdAt.toEpochMilli()}," +
-        "\"expires_at_ms\":${b.expiresAt.toEpochMilli()}" +
-        "}"
-    return MeshPacket(
-        type = PacketType.DtnBundle,
-        sourceUhid = source,
-        destinationUhid = b.recipientUhid,
-        payload = json.toByteArray(Charsets.UTF_8),
-    )
-}
+private fun buildBundlePacket(source: String, b: DtnBundle): MeshPacket = MeshPacket(
+    type = PacketType.DtnBundle,
+    sourceUhid = source,
+    destinationUhid = b.recipientUhid,
+    payload = DtnEnvelope.serializeBundle(b),
+)
 
 private fun nowMs() = System.currentTimeMillis()
 
@@ -144,8 +125,8 @@ class DtnServiceTest {
         svc.handle(buildBundlePacket("alice", b))
 
         val ack = sender.unicasts.first { it.packet.type == PacketType.DtnCustodyAck }
-        val body = String(ack.packet.payload, Charsets.UTF_8)
-        assertTrue(body.contains("\"accepted\":false"))
+        val (_, accepted) = DtnEnvelope.deserializeCustodyAck(ack.packet.payload)
+        assertFalse(accepted, "at-capacity custody-ack must be refused")
     }
 
     // ─── DtnCustodyAck ───────────────────────────────────────
@@ -155,12 +136,11 @@ class DtnServiceTest {
         val bundle = svc.createBundle("recipient", byteArrayOf(1), BundlePriority.Normal, null)
         val initial = bundle.copyCount
 
-        val payload = "{\"bundle_id\":\"${bundle.id}\",\"accepted\":true}"
         val pkt = MeshPacket(
             type = PacketType.DtnCustodyAck,
             sourceUhid = "carrier",
             destinationUhid = LOCAL,
-            payload = payload.toByteArray(Charsets.UTF_8),
+            payload = DtnEnvelope.serializeCustodyAck(bundle.id, true),
         )
         svc.handle(pkt)
 
@@ -173,12 +153,11 @@ class DtnServiceTest {
         val bundle = svc.createBundle("recipient", byteArrayOf(1), BundlePriority.Normal, null)
         val initial = bundle.copyCount
 
-        val payload = "{\"bundle_id\":\"${bundle.id}\",\"accepted\":false}"
         val pkt = MeshPacket(
             type = PacketType.DtnCustodyAck,
             sourceUhid = "carrier",
             destinationUhid = LOCAL,
-            payload = payload.toByteArray(Charsets.UTF_8),
+            payload = DtnEnvelope.serializeCustodyAck(bundle.id, false),
         )
         svc.handle(pkt)
 
@@ -192,13 +171,19 @@ class DtnServiceTest {
         val (svc, _, store) = newSvc()
         val bundle = svc.createBundle("recipient", byteArrayOf(1), BundlePriority.Normal, null)
 
-        val payload = "{\"bundle_id\":\"${bundle.id}\",\"recipient_uhid\":\"recipient\"," +
-            "\"total_hops\":3,\"total_custody_transfers\":2,\"delivered_at_ms\":0}"
         val pkt = MeshPacket(
             type = PacketType.DtnDeliveryReceipt,
             sourceUhid = "recipient",
             destinationUhid = LOCAL,
-            payload = payload.toByteArray(Charsets.UTF_8),
+            payload = DtnEnvelope.serializeDeliveryReceipt(
+                DtnDeliveryReceipt(
+                    bundleId = bundle.id,
+                    recipientUhid = "recipient",
+                    totalHops = 3,
+                    totalCustodyTransfers = 2,
+                    deliveredAt = Instant.ofEpochMilli(0),
+                )
+            ),
         )
         svc.handle(pkt)
 
@@ -266,12 +251,11 @@ class DtnServiceTest {
         val rep = FakeReputation()
         svc.setReputation(rep)
 
-        val payload = "{\"bundle_id\":\"${UUID.randomUUID()}\",\"accepted\":false}"
         val pkt = MeshPacket(
             type = PacketType.DtnCustodyAck,
             sourceUhid = "carrier",
             destinationUhid = LOCAL,
-            payload = payload.toByteArray(Charsets.UTF_8),
+            payload = DtnEnvelope.serializeCustodyAck(UUID.randomUUID(), false),
         )
         svc.handle(pkt)
 
