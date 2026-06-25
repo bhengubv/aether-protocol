@@ -4,7 +4,6 @@ package dtn
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -206,18 +205,22 @@ func TestHandle_AtCapacity_RefusesCustody(t *testing.T) {
 		t.Fatalf("handle: %v", err)
 	}
 
-	var ack map[string]any
+	var found, accepted bool
 	for _, u := range sender.Unicasts {
 		if u.Packet.Type == protocol.DtnCustodyAck {
-			_ = json.Unmarshal(u.Packet.Payload, &ack)
+			_, acc, err := DeserializeCustodyAck(u.Packet.Payload)
+			if err != nil {
+				t.Fatalf("decode custody-ack: %v", err)
+			}
+			found, accepted = true, acc
 			break
 		}
 	}
-	if ack == nil {
+	if !found {
 		t.Fatalf("expected a custody-ack")
 	}
-	if ack["accepted"] != false {
-		t.Fatalf("expected accepted=false, got %v", ack["accepted"])
+	if accepted != false {
+		t.Fatalf("expected accepted=false, got %v", accepted)
 	}
 }
 
@@ -228,7 +231,7 @@ func TestHandle_PositiveCustodyAck_IncrementsCopyCount(t *testing.T) {
 	bundle, _ := svc.CreateBundle(context.Background(), "recipient", []byte{1}, models.DtnPriorityNormal, "")
 	initialCopies := bundle.CopyCount // capture before handler may mutate the shared pointer
 
-	body, _ := json.Marshal(map[string]any{"bundle_id": bundle.ID, "accepted": true})
+	body, _ := SerializeCustodyAck(bundle.ID, true)
 	pkt := protocol.NewMeshPacket()
 	pkt.Type = protocol.DtnCustodyAck
 	pkt.SourceUhid = "carrier"
@@ -249,7 +252,7 @@ func TestHandle_NegativeCustodyAck_DoesNotIncrement(t *testing.T) {
 	bundle, _ := svc.CreateBundle(context.Background(), "recipient", []byte{1}, models.DtnPriorityNormal, "")
 	initialCopies := bundle.CopyCount
 
-	body, _ := json.Marshal(map[string]any{"bundle_id": bundle.ID, "accepted": false})
+	body, _ := SerializeCustodyAck(bundle.ID, false)
 	pkt := protocol.NewMeshPacket()
 	pkt.Type = protocol.DtnCustodyAck
 	pkt.SourceUhid = "carrier"
@@ -274,14 +277,7 @@ func TestHandle_DeliveryReceipt_MarksBundleDeliveredAndFiresCallback(t *testing.
 	var observed *models.DtnDeliveryReceipt
 	svc.OnBundleDelivered = func(r *models.DtnDeliveryReceipt) { observed = r }
 
-	receipt := map[string]any{
-		"bundle_id":               bundle.ID,
-		"recipient_uhid":          "recipient",
-		"total_hops":              3,
-		"total_custody_transfers": 2,
-		"delivered_at_ms":         time.Now().UnixMilli(),
-	}
-	body, _ := json.Marshal(receipt)
+	body, _ := SerializeDeliveryReceipt(bundle.ID, "recipient", 3, 2, time.Now().UnixMilli())
 	pkt := protocol.NewMeshPacket()
 	pkt.Type = protocol.DtnDeliveryReceipt
 	pkt.SourceUhid = "recipient"
@@ -400,7 +396,7 @@ func TestHandleCustodyAck_Refused_FiresReputation(t *testing.T) {
 
 	bundle, _ := svc.CreateBundle(context.Background(), "recipient", []byte{1}, models.DtnPriorityNormal, "")
 
-	body, _ := json.Marshal(map[string]any{"bundle_id": bundle.ID, "accepted": false})
+	body, _ := SerializeCustodyAck(bundle.ID, false)
 	pkt := protocol.NewMeshPacket()
 	pkt.Type = protocol.DtnCustodyAck
 	pkt.SourceUhid = "carrier"
@@ -421,22 +417,10 @@ func TestHandleCustodyAck_Refused_FiresReputation(t *testing.T) {
 
 func buildBundlePacket(t *testing.T, source string, bundle *models.DtnBundle) *protocol.MeshPacket {
 	t.Helper()
-	wire := map[string]any{
-		"id":                       bundle.ID,
-		"sender_uhid":              bundle.SenderUhid,
-		"recipient_uhid":           bundle.RecipientUhid,
-		"encrypted_payload":        bundle.EncryptedPayload,
-		"priority":                 int(bundle.Priority),
-		"status":                   int(bundle.Status),
-		"copy_count":               bundle.CopyCount,
-		"max_copies":               bundle.MaxCopies,
-		"sender_geohash":           bundle.SenderGeohash,
-		"recipient_last_geohash":   bundle.RecipientLastGeohash,
-		"hop_count":                bundle.HopCount,
-		"created_at_ms":            bundle.CreatedAt.UnixMilli(),
-		"expires_at_ms":            bundle.ExpiresAt.UnixMilli(),
+	body, err := SerializeBundle(bundle)
+	if err != nil {
+		t.Fatalf("SerializeBundle: %v", err)
 	}
-	body, _ := json.Marshal(wire)
 	pkt := protocol.NewMeshPacket()
 	pkt.Type = protocol.DtnBundle
 	pkt.SourceUhid = source

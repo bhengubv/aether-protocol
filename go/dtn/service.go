@@ -211,7 +211,7 @@ func (s *Service) tryDirectDelivery(ctx context.Context, bundle *models.DtnBundl
 }
 
 func (s *Service) bundlePacket(bundle *models.DtnBundle, nextHopUhid string) (*protocol.MeshPacket, error) {
-	body, err := json.Marshal(snakeCaseBundle(bundle))
+	body, err := SerializeBundle(bundle)
 	if err != nil {
 		return nil, err
 	}
@@ -230,11 +230,10 @@ func (s *Service) bundlePacket(bundle *models.DtnBundle, nextHopUhid string) (*p
 }
 
 func (s *Service) handleBundle(ctx context.Context, packet *protocol.MeshPacket) error {
-	var wire bundleWire
-	if err := json.Unmarshal(packet.Payload, &wire); err != nil {
+	bundle, err := DeserializeBundle(packet.Payload)
+	if err != nil {
 		return fmt.Errorf("dtn: failed to deserialize bundle: %w", err)
 	}
-	bundle := wire.toBundle()
 
 	if bundle.RecipientUhid == s.sender.LocalUhid() {
 		bundle.Status = models.DtnStatusDelivered
@@ -277,20 +276,20 @@ func (s *Service) handleBundle(ctx context.Context, packet *protocol.MeshPacket)
 }
 
 func (s *Service) handleCustodyAck(ctx context.Context, packet *protocol.MeshPacket) error {
-	var ack custodyAckWire
-	if err := json.Unmarshal(packet.Payload, &ack); err != nil {
+	ackBundleID, accepted, err := DeserializeCustodyAck(packet.Payload)
+	if err != nil {
 		return fmt.Errorf("dtn: failed to deserialize custody ack: %w", err)
 	}
-	if ack.BundleID == "" {
+	if ackBundleID == "" {
 		return nil
 	}
-	if !ack.Accepted {
+	if !accepted {
 		if rep := s.reputation; rep != nil {
 			rep.RecordCustodyRefusal(packet.SourceUhid)
 		}
 		return nil
 	}
-	bundle, err := s.store.Get(ctx, ack.BundleID)
+	bundle, err := s.store.Get(ctx, ackBundleID)
 	if err != nil || bundle == nil {
 		return err
 	}
@@ -299,22 +298,22 @@ func (s *Service) handleCustodyAck(ctx context.Context, packet *protocol.MeshPac
 }
 
 func (s *Service) handleDeliveryReceipt(ctx context.Context, packet *protocol.MeshPacket) error {
-	var receipt deliveryReceiptWire
-	if err := json.Unmarshal(packet.Payload, &receipt); err != nil {
+	rcptBundleID, recipientUhid, totalHops, totalCustodyTransfers, deliveredAtMs, err := DeserializeDeliveryReceipt(packet.Payload)
+	if err != nil {
 		return fmt.Errorf("dtn: failed to deserialize delivery receipt: %w", err)
 	}
-	bundle, err := s.store.Get(ctx, receipt.BundleID)
+	bundle, err := s.store.Get(ctx, rcptBundleID)
 	if err == nil && bundle != nil {
 		bundle.Status = models.DtnStatusDelivered
 		_ = s.store.Save(ctx, bundle)
 	}
 	if cb := s.OnBundleDelivered; cb != nil {
 		cb(&models.DtnDeliveryReceipt{
-			BundleID:              receipt.BundleID,
-			RecipientUhid:         receipt.RecipientUhid,
-			TotalHops:             receipt.TotalHops,
-			TotalCustodyTransfers: receipt.TotalCustodyTransfers,
-			DeliveredAt:           time.UnixMilli(receipt.DeliveredAtMs),
+			BundleID:              rcptBundleID,
+			RecipientUhid:         recipientUhid,
+			TotalHops:             totalHops,
+			TotalCustodyTransfers: totalCustodyTransfers,
+			DeliveredAt:           time.UnixMilli(deliveredAtMs),
 		})
 	}
 	return nil
@@ -324,7 +323,7 @@ func (s *Service) sendCustodyAck(ctx context.Context, bundleID, toUhid string, a
 	if toUhid == "" {
 		return nil
 	}
-	body, err := json.Marshal(custodyAckWire{BundleID: bundleID, Accepted: accepted})
+	body, err := SerializeCustodyAck(bundleID, accepted)
 	if err != nil {
 		return err
 	}
@@ -343,13 +342,7 @@ func (s *Service) sendDeliveryReceipt(ctx context.Context, bundle *models.DtnBun
 		return nil
 	}
 	custody, _ := s.store.GetCustodyRecords(ctx, bundle.ID)
-	body, err := json.Marshal(deliveryReceiptWire{
-		BundleID:              bundle.ID,
-		RecipientUhid:         bundle.RecipientUhid,
-		TotalHops:             bundle.HopCount,
-		TotalCustodyTransfers: int32(len(custody)),
-		DeliveredAtMs:         time.Now().UnixMilli(),
-	})
+	body, err := SerializeDeliveryReceipt(bundle.ID, bundle.RecipientUhid, bundle.HopCount, int32(len(custody)), time.Now().UnixMilli())
 	if err != nil {
 		return err
 	}
@@ -399,33 +392,7 @@ func snakeCaseBundle(b *models.DtnBundle) bundleWire {
 	}
 }
 
-func (w bundleWire) toBundle() *models.DtnBundle {
-	return &models.DtnBundle{
-		ID:                   w.ID,
-		SenderUhid:           w.SenderUhid,
-		RecipientUhid:        w.RecipientUhid,
-		EncryptedPayload:     w.EncryptedPayload,
-		Priority:             w.Priority,
-		Status:               w.Status,
-		CopyCount:            w.CopyCount,
-		MaxCopies:            w.MaxCopies,
-		SenderGeohash:        w.SenderGeohash,
-		RecipientLastGeohash: w.RecipientLastGeohash,
-		HopCount:             w.HopCount,
-		CreatedAt:            time.UnixMilli(w.CreatedAtMs),
-		ExpiresAt:            time.UnixMilli(w.ExpiresAtMs),
-	}
-}
-
-type custodyAckWire struct {
-	BundleID string `json:"bundle_id"`
-	Accepted bool   `json:"accepted"`
-}
-
-type deliveryReceiptWire struct {
-	BundleID              string `json:"bundle_id"`
-	RecipientUhid         string `json:"recipient_uhid"`
-	TotalHops             int32  `json:"total_hops"`
-	TotalCustodyTransfers int32  `json:"total_custody_transfers"`
-	DeliveredAtMs         int64  `json:"delivered_at_ms"`
-}
+// custody-ack and delivery-receipt now use the binary DTN envelope
+// (see envelope.go); only the bundle still has a JSON wire shape, retained
+// solely for the optional backend relay channel (BackendClient.SyncDtnBundle),
+// which is an internal server API and not the cross-language mesh wire.
