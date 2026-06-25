@@ -124,12 +124,12 @@ public actor DtnService {
             destinationUhid: bundle.recipientUhid,
             ttl: 30,
             priority: UInt8(clamping: bundle.priority),
-            payload: encodeBundle(bundle)
+            payload: DtnEnvelope.serializeBundle(bundle)
         )
     }
 
     private func handleBundle(_ packet: MeshPacket) async {
-        guard let bundle = decodeBundle(packet.payload) else { return }
+        guard let bundle = DtnEnvelope.deserializeBundle(packet.payload) else { return }
         if bundle.recipientUhid == sender.localUhid {
             let delivered = withStatus(bundle, status: .delivered)
             await store.save(delivered)
@@ -166,7 +166,7 @@ public actor DtnService {
     }
 
     private func handleCustodyAck(_ packet: MeshPacket) async {
-        guard let (bundleId, accepted) = parseCustodyAck(packet.payload) else { return }
+        guard let (bundleId, accepted) = DtnEnvelope.deserializeCustodyAck(packet.payload) else { return }
         if !accepted {
             await reputation?.recordCustodyRefusal(uhid: packet.sourceUhid)
             return
@@ -176,7 +176,7 @@ public actor DtnService {
     }
 
     private func handleDeliveryReceipt(_ packet: MeshPacket) async {
-        guard let receipt = parseDeliveryReceipt(packet.payload) else { return }
+        guard let receipt = DtnEnvelope.deserializeDeliveryReceipt(packet.payload) else { return }
         if let b = await store.get(receipt.bundleId) {
             await store.save(withStatus(b, status: .delivered))
         }
@@ -185,7 +185,7 @@ public actor DtnService {
 
     private func sendCustodyAck(bundleId: UUID, toUhid: String, accepted: Bool) async {
         if toUhid.isEmpty { return }
-        let payload = encodeCustodyAck(bundleId: bundleId, accepted: accepted)
+        let payload = DtnEnvelope.serializeCustodyAck(bundleId: bundleId, accepted: accepted)
         let pkt = MeshPacket(
             type: .dtnCustodyAck,
             sourceUhid: sender.localUhid,
@@ -211,7 +211,7 @@ public actor DtnService {
             sourceUhid: sender.localUhid,
             destinationUhid: bundle.senderUhid,
             ttl: ProtocolConstants.defaultTtl,
-            payload: encodeDeliveryReceipt(receipt)
+            payload: DtnEnvelope.serializeDeliveryReceipt(receipt)
         )
         _ = await sender.send(pkt, nextHopUhid: bundle.senderUhid)
     }
@@ -248,103 +248,5 @@ public actor DtnService {
     }
 }
 
-// ─── snake_case JSON wire helpers ───
-
-private struct BundleWire: Codable {
-    let id: UUID
-    let sender_uhid: String
-    let recipient_uhid: String
-    let encrypted_payload: Data
-    let priority: Int32
-    let status: Int32
-    let copy_count: Int32
-    let max_copies: Int32
-    let sender_geohash: String?
-    let recipient_last_geohash: String?
-    let hop_count: Int32
-    let created_at_ms: Int64
-    let expires_at_ms: Int64
-}
-
-private struct CustodyAckWire: Codable {
-    let bundle_id: UUID
-    let accepted: Bool
-}
-
-private struct DeliveryReceiptWire: Codable {
-    let bundle_id: UUID
-    let recipient_uhid: String
-    let total_hops: Int32
-    let total_custody_transfers: Int32
-    let delivered_at_ms: Int64
-}
-
-private func encodeBundle(_ b: DtnBundle) -> Data {
-    let wire = BundleWire(
-        id: b.id,
-        sender_uhid: b.senderUhid,
-        recipient_uhid: b.recipientUhid,
-        encrypted_payload: b.encryptedPayload,
-        priority: b.priority,
-        status: b.status,
-        copy_count: b.copyCount,
-        max_copies: b.maxCopies,
-        sender_geohash: b.senderGeohash,
-        recipient_last_geohash: b.recipientLastGeohash,
-        hop_count: b.hopCount,
-        created_at_ms: Int64(b.createdAt.timeIntervalSince1970 * 1000),
-        expires_at_ms: Int64(b.expiresAt.timeIntervalSince1970 * 1000)
-    )
-    return (try? JSONEncoder().encode(wire)) ?? Data()
-}
-
-private func decodeBundle(_ data: Data) -> DtnBundle? {
-    guard let wire = try? JSONDecoder().decode(BundleWire.self, from: data) else { return nil }
-    return DtnBundle(
-        id: wire.id,
-        senderUhid: wire.sender_uhid,
-        recipientUhid: wire.recipient_uhid,
-        encryptedPayload: wire.encrypted_payload,
-        priority: wire.priority,
-        status: wire.status,
-        copyCount: wire.copy_count,
-        maxCopies: wire.max_copies,
-        senderGeohash: wire.sender_geohash,
-        recipientLastGeohash: wire.recipient_last_geohash,
-        hopCount: wire.hop_count,
-        createdAt: Date(timeIntervalSince1970: TimeInterval(wire.created_at_ms) / 1000),
-        expiresAt: Date(timeIntervalSince1970: TimeInterval(wire.expires_at_ms) / 1000)
-    )
-}
-
-private func encodeCustodyAck(bundleId: UUID, accepted: Bool) -> Data {
-    let w = CustodyAckWire(bundle_id: bundleId, accepted: accepted)
-    return (try? JSONEncoder().encode(w)) ?? Data()
-}
-
-private func parseCustodyAck(_ data: Data) -> (UUID, Bool)? {
-    guard let w = try? JSONDecoder().decode(CustodyAckWire.self, from: data) else { return nil }
-    return (w.bundle_id, w.accepted)
-}
-
-private func encodeDeliveryReceipt(_ r: DtnDeliveryReceipt) -> Data {
-    let w = DeliveryReceiptWire(
-        bundle_id: r.bundleId,
-        recipient_uhid: r.recipientUhid,
-        total_hops: r.totalHops,
-        total_custody_transfers: r.totalCustodyTransfers,
-        delivered_at_ms: Int64(r.deliveredAt.timeIntervalSince1970 * 1000)
-    )
-    return (try? JSONEncoder().encode(w)) ?? Data()
-}
-
-private func parseDeliveryReceipt(_ data: Data) -> DtnDeliveryReceipt? {
-    guard let w = try? JSONDecoder().decode(DeliveryReceiptWire.self, from: data) else { return nil }
-    return DtnDeliveryReceipt(
-        bundleId: w.bundle_id,
-        recipientUhid: w.recipient_uhid,
-        totalHops: w.total_hops,
-        totalCustodyTransfers: w.total_custody_transfers,
-        deliveredAt: Date(timeIntervalSince1970: TimeInterval(w.delivered_at_ms) / 1000)
-    )
-}
+// Bundle / custody-ack / delivery-receipt wire encoding lives in the binary
+// `DtnEnvelope` (byte-identical across all eight SDKs).

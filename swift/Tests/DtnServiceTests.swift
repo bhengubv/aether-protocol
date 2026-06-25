@@ -4,57 +4,12 @@ import XCTest
 
 private let LOCAL = "local"
 
-private struct BundleWireMirror: Codable {
-    let id: UUID
-    let sender_uhid: String
-    let recipient_uhid: String
-    let encrypted_payload: Data
-    let priority: Int32
-    let status: Int32
-    let copy_count: Int32
-    let max_copies: Int32
-    let sender_geohash: String?
-    let recipient_last_geohash: String?
-    let hop_count: Int32
-    let created_at_ms: Int64
-    let expires_at_ms: Int64
-}
-
-private struct CustodyAckWireMirror: Codable {
-    let bundle_id: UUID
-    let accepted: Bool
-}
-
-private struct DeliveryReceiptWireMirror: Codable {
-    let bundle_id: UUID
-    let recipient_uhid: String
-    let total_hops: Int32
-    let total_custody_transfers: Int32
-    let delivered_at_ms: Int64
-}
-
 private func buildBundlePacket(source: String, bundle: DtnBundle) -> MeshPacket {
-    let wire = BundleWireMirror(
-        id: bundle.id,
-        sender_uhid: bundle.senderUhid,
-        recipient_uhid: bundle.recipientUhid,
-        encrypted_payload: bundle.encryptedPayload,
-        priority: bundle.priority,
-        status: bundle.status,
-        copy_count: bundle.copyCount,
-        max_copies: bundle.maxCopies,
-        sender_geohash: bundle.senderGeohash,
-        recipient_last_geohash: bundle.recipientLastGeohash,
-        hop_count: bundle.hopCount,
-        created_at_ms: Int64(bundle.createdAt.timeIntervalSince1970 * 1000),
-        expires_at_ms: Int64(bundle.expiresAt.timeIntervalSince1970 * 1000)
-    )
-    let payload = (try? JSONEncoder().encode(wire)) ?? Data()
     return MeshPacket(
         type: .dtnBundle,
         sourceUhid: source,
         destinationUhid: bundle.recipientUhid,
-        payload: payload
+        payload: DtnEnvelope.serializeBundle(bundle)
     )
 }
 
@@ -152,8 +107,8 @@ final class DtnServiceTests: XCTestCase {
         let ack = sender.unicasts().first(where: { $0.packet.type == .dtnCustodyAck })
         XCTAssertNotNil(ack)
         if let ack {
-            let parsed = try? JSONDecoder().decode(CustodyAckWireMirror.self, from: ack.packet.payload)
-            XCTAssertEqual(parsed?.accepted, false)
+            let parsed = DtnEnvelope.deserializeCustodyAck(ack.packet.payload)
+            XCTAssertEqual(parsed?.1, false)
         }
     }
 
@@ -166,12 +121,11 @@ final class DtnServiceTests: XCTestCase {
         let b = await svc.createBundle(recipientUhid: "recipient", encryptedPayload: Data([1]))
         let initial = b.copyCount
 
-        let body = try? JSONEncoder().encode(CustodyAckWireMirror(bundle_id: b.id, accepted: true))
         let pkt = MeshPacket(
             type: .dtnCustodyAck,
             sourceUhid: "carrier",
             destinationUhid: LOCAL,
-            payload: body ?? Data()
+            payload: DtnEnvelope.serializeCustodyAck(bundleId: b.id, accepted: true)
         )
         await svc.handle(pkt)
 
@@ -186,12 +140,11 @@ final class DtnServiceTests: XCTestCase {
         let b = await svc.createBundle(recipientUhid: "recipient", encryptedPayload: Data([1]))
         let initial = b.copyCount
 
-        let body = try? JSONEncoder().encode(CustodyAckWireMirror(bundle_id: b.id, accepted: false))
         let pkt = MeshPacket(
             type: .dtnCustodyAck,
             sourceUhid: "carrier",
             destinationUhid: LOCAL,
-            payload: body ?? Data()
+            payload: DtnEnvelope.serializeCustodyAck(bundleId: b.id, accepted: false)
         )
         await svc.handle(pkt)
 
@@ -207,15 +160,15 @@ final class DtnServiceTests: XCTestCase {
         let svc = DtnService(sender: sender, store: store)
         let b = await svc.createBundle(recipientUhid: "recipient", encryptedPayload: Data([1]))
 
-        let body = try? JSONEncoder().encode(DeliveryReceiptWireMirror(
-            bundle_id: b.id, recipient_uhid: "recipient",
-            total_hops: 3, total_custody_transfers: 2, delivered_at_ms: 0
-        ))
         let pkt = MeshPacket(
             type: .dtnDeliveryReceipt,
             sourceUhid: "recipient",
             destinationUhid: LOCAL,
-            payload: body ?? Data()
+            payload: DtnEnvelope.serializeDeliveryReceipt(DtnDeliveryReceipt(
+                bundleId: b.id, recipientUhid: "recipient",
+                totalHops: 3, totalCustodyTransfers: 2,
+                deliveredAt: Date(timeIntervalSince1970: 0)
+            ))
         )
         await svc.handle(pkt)
 
@@ -302,12 +255,11 @@ final class DtnServiceTests: XCTestCase {
 
         let b = await svc.createBundle(recipientUhid: "recipient", encryptedPayload: Data([1]))
 
-        let body = try? JSONEncoder().encode(CustodyAckWireMirror(bundle_id: b.id, accepted: false))
         let pkt = MeshPacket(
             type: .dtnCustodyAck,
             sourceUhid: "carrier",
             destinationUhid: LOCAL,
-            payload: body ?? Data()
+            payload: DtnEnvelope.serializeCustodyAck(bundleId: b.id, accepted: false)
         )
         await svc.handle(pkt)
 
