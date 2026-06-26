@@ -17,8 +17,12 @@ from aethernet.streaming.service import StreamingService
 from tests.fakes import FakeMeshSender
 
 
+_LOOP = asyncio.new_event_loop()
+
+
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    asyncio.set_event_loop(_LOOP)
+    return _LOOP.run_until_complete(coro)
 
 
 def _make_svc(uhid: str = "alice"):

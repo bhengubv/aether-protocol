@@ -14,6 +14,11 @@ import asyncio
 
 import pytest
 
+# The WebRTC transport requires aiortc, an optional heavy native dependency. Skip
+# this whole module gracefully when it is absent rather than erroring out
+# collection for the entire suite.
+pytest.importorskip("aiortc", reason="aiortc not installed (optional WebRTC dependency)")
+
 from aethernet.transport.webrtc import InMemorySignalingBus, WebRtcTransport
 
 

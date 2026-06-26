@@ -46,8 +46,15 @@ class FakeReputation:
 LOCAL = "local"
 
 
+_LOOP = asyncio.new_event_loop()
+
+
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    # Reuse one loop per module, re-set as current each call, so this helper is
+    # immune to another test closing/clearing the default loop (asyncio.run sets
+    # it to None on exit). Restores shared-loop semantics + fixes bulk flakiness.
+    asyncio.set_event_loop(_LOOP)
+    return _LOOP.run_until_complete(coro)
 
 
 def _new_svc():

@@ -11,8 +11,12 @@ import unittest
 from aethernet.transport.in_process import InProcessTransport
 
 
+_LOOP = asyncio.new_event_loop()
+
+
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    asyncio.set_event_loop(_LOOP)
+    return _LOOP.run_until_complete(coro)
 
 
 class TestInProcessTransport(unittest.TestCase):
