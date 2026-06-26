@@ -14,9 +14,13 @@
 //! for the file-level helpers.
 
 pub mod reed_solomon;
+pub mod service;
 pub mod vault_codec;
 
 pub use reed_solomon::ReedSolomonCodec;
+pub use service::{
+    InMemoryVaultService, VaultHealth, VaultManifest, VaultService, VAULT_K, VAULT_M,
+};
 pub use vault_codec::split_into_data_shards;
 
 use thiserror::Error;
