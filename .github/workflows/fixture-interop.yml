@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
@@ -48,7 +48,7 @@ jobs:
       run:
         working-directory: go
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
@@ -64,7 +64,7 @@ jobs:
       run:
         working-directory: python
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -81,7 +81,7 @@ jobs:
       run:
         working-directory: typescript
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -106,7 +106,7 @@ jobs:
       run:
         working-directory: rust
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/cache@v4
         with:
@@ -128,7 +128,7 @@ jobs:
       run:
         working-directory: c
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install libsodium
         run: sudo apt-get update && sudo apt-get install -y libsodium-dev pkg-config cmake
       - name: Configure + build
@@ -147,7 +147,7 @@ jobs:
       run:
         working-directory: kotlin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -166,7 +166,7 @@ jobs:
       run:
         working-directory: swift
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run FixtureTests + SignalFixtureTests
         # This package has only XCTest tests; under --filter the empty swift-testing runner
         # aborts (signal 6) on the macOS runner toolchain. Disable it so only XCTest runs.
@@ -180,7 +180,7 @@ jobs:
       matrix:
         app: [blue, green, red, teal, white]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-java@v5
         with:
