@@ -18,12 +18,19 @@
 //! cross-language byte-identical signable layout and [`PoVTokenExchangeService`]
 //! for the issue/accept/countersign flow.
 
+pub mod market_service;
 pub mod pov_exchange_service;
+pub mod pov_service;
 pub mod pov_token;
 
+pub use market_service::{
+    InMemoryMarketService, MarketCategory, MarketListing, MarketService, TradeEscrow, TradeRole,
+    TradeState,
+};
 pub use pov_exchange_service::{
     IdentitySigner, MeshSender, PacketSigner, PoVTokenExchangeService,
 };
+pub use pov_service::{InMemoryPoVService, PoVService};
 pub use pov_token::{
     build_signable_token_data, ticks_to_unix_ms, unix_ms_to_ticks, PoVScore, PoVToken,
     PoVTransportType,
