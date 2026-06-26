@@ -110,17 +110,17 @@ jobs:
         working-directory: rust
 
   rust-msrv:
-    name: "Rust (MSRV 1.75)"
+    name: "Rust (MSRV 1.82)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.75"
+          toolchain: "1.82"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: msrv-1.75
+          key: msrv-1.82
       # Build only (no tests) — ensures the public API compiles on the declared MSRV.
       # Feature-gated APIs are checked separately by the stable job above.
       - run: cargo build --all-features

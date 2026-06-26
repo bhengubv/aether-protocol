@@ -144,7 +144,8 @@ public final actor NodeActivityMonitor {
         let id = UUID()
         subscribers[id] = callback
         return { [weak self] in
-            Task { await self?.unsubscribe(id: id) }
+            guard let self else { return }
+            Task { await self.unsubscribe(id: id) }
         }
     }
 
