@@ -70,6 +70,25 @@ longer exchange DTN bundles — hence the major bump, per the wire-break rule in
   event loop (kills cross-file pollution — 130 bulk failures → 0; suite now
   745 pass / 1 skip), and the Rust DTN integration tests were migrated to the
   binary envelope.
+- **WebRTC native transport bring-up.** The opt-in native loopbacks (Swift via
+  `libdatachannel`, Kotlin via `webrtc-java`) are now proven end-to-end, which
+  surfaced and fixed two real defects: a Swift use-after-free in `WebRtcPeerLink`
+  teardown (a callback could fire into a freed peer — user-pointers are now
+  retained and teardown is deferred and idempotent) and a Kotlin crash on
+  headless mesh nodes (`webrtc-java` aborted bringing up audio hardware; it now
+  uses a dummy `AudioDeviceModule`).
+- De-flaked two timing-sensitive tests (Rust pre-key-rotation persistence, C#
+  bandwidth confidence-advance), made the Swift test suite strict-concurrency
+  clean, and raised the Rust MSRV to 1.88.
+
+### Security
+
+- **C SDK HMAC-SHA256 key-length fix.** `aethernet_hmac_sha256` now uses the
+  streaming libsodium HMAC API (`crypto_auth_hmacsha256_init/update/final`). The
+  one-shot `crypto_auth_hmacsha256` it previously called reads a *fixed* 32-byte
+  key and ignores the supplied key length — an out-of-bounds read for keys
+  shorter than 32 bytes. No in-tree AetherNet call site passed a short key, but
+  the helper is public API.
 
 ### Tests
 
