@@ -15,8 +15,22 @@ from aethernet.vault.reed_solomon import (
     ReedSolomonCodec,
     split_into_data_shards,
 )
+from aethernet.vault.service import (
+    VAULT_K,
+    VAULT_M,
+    InMemoryVaultService,
+    IVaultService,
+    VaultHealth,
+    VaultManifest,
+)
 
 __all__ = [
     "ReedSolomonCodec",
     "split_into_data_shards",
+    "InMemoryVaultService",
+    "IVaultService",
+    "VaultManifest",
+    "VaultHealth",
+    "VAULT_K",
+    "VAULT_M",
 ]
