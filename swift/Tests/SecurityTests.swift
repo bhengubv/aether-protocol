@@ -185,11 +185,7 @@ final class SecurityTests: XCTestCase {
         packet.payload = "test".data(using: .utf8)!
 
         // Generate nonce
-        var nonce = Data(count: 8)
-        nonce.withUnsafeMutableBytes { buffer in
-            var rng = SystemRandomNumberGenerator()
-            for i in 0..<8 { buffer[i] = rng.next() }
-        }
+        let nonce = Data((0..<8).map { _ in UInt8.random(in: .min ... .max) })
         packet.packetNonce = nonce
 
         // Sign
@@ -210,11 +206,7 @@ final class SecurityTests: XCTestCase {
             sourceUhid: "alice"
         )
 
-        var nonce = Data(count: 8)
-        nonce.withUnsafeMutableBytes { buffer in
-            var rng = SystemRandomNumberGenerator()
-            for i in 0..<8 { buffer[i] = rng.next() }
-        }
+        let nonce = Data((0..<8).map { _ in UInt8.random(in: .min ... .max) })
         packet.packetNonce = nonce
 
         try await signer.signPacket(&packet)

@@ -16,11 +16,7 @@ final class PacketSerializationTests: XCTestCase {
         )
 
         // Add nonce
-        var nonce = Data(count: 8)
-        nonce.withUnsafeMutableBytes { buffer in
-            var rng = SystemRandomNumberGenerator()
-            for i in 0..<8 { buffer[i] = rng.next() }
-        }
+        let nonce = Data((0..<8).map { _ in UInt8.random(in: .min ... .max) })
         packet.packetNonce = nonce
 
         // Serialize

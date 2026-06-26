@@ -117,7 +117,6 @@ public actor SignalProtocolService {
     /// `SignalProtocolService.DefaultOpkPoolSize` in the C# port.
     public static let defaultOpkPoolSize: Int = 100
 
-    private let aesNonceSize: Int = 12
     private let aesTagSize: Int = 16
     private let aesKeySize: Int = 32
 
@@ -197,18 +196,18 @@ public actor SignalProtocolService {
         let (newChain, messageKey) = ratchetChainKey(currentSendChain)
         session.sendChainKey = newChain
 
-        var nonce = Data(count: aesNonceSize)
-        nonce.withUnsafeMutableBytes { buffer in
-            var rng = SystemRandomNumberGenerator()
-            for i in 0..<aesNonceSize {
-                buffer[i] = rng.next()
-            }
-        }
+        // Fresh 96-bit AES-GCM nonce from the system CSPRNG via CryptoKit. The
+        // previous hand-rolled fill used the deprecated withUnsafeMutableBytes
+        // overload, which inferred a UInt64 element type from `rng.next()` and so
+        // wrote 12 * 8 = 96 bytes into the 12-byte buffer — a stack overflow that
+        // tripped __stack_chk_fail on the very first send.
+        let gcmNonce = AES.GCM.Nonce()
+        let nonce = Data(gcmNonce)
 
         let sealedBox = try AES.GCM.seal(
             plaintext,
             using: SymmetricKey(data: messageKey),
-            nonce: try AES.GCM.Nonce(data: nonce)
+            nonce: gcmNonce
         )
         var combined = Data()
         combined.append(sealedBox.ciphertext)
