@@ -260,6 +260,15 @@ target_link_libraries(test-pov-token PRIVATE aethernet-protocol pthread)
 add_test(NAME PoVTokenFixtureTests COMMAND test-pov-token
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+# aether-market in-memory services (Phase-2): marketplace listings/escrow + single-node
+# PoV trust service. A self-contained behavioural test (no JSON fixture).
+add_executable(test-market
+    test_market.c
+)
+target_include_directories(test-market PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-market PRIVATE aethernet-protocol pthread m)
+add_test(NAME MarketServiceTests COMMAND test-market)
+
 # aether-vault in-memory service (Phase-2): store/recover/health/replicate over
 # the reed-solomon codec. A self-contained behavioural test (no JSON fixture).
 add_executable(test-vault
@@ -288,6 +297,7 @@ add_custom_target(aether-tests
         test-reed-solomon
         test-vault
         test-pov-token
+        test-market
         test-protocol
         test-routing
         test-dtn
