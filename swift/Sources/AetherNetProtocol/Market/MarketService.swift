@@ -69,7 +69,7 @@ public protocol MarketServiceProtocol {
     func search(query: String, category: MarketCategory?) async -> [MarketListing]
     func initiateTrade(listing: MarketListing, buyerUhid: String) async -> TradeEscrow
     func confirmTrade(escrow: TradeEscrow, role: TradeRole) async -> TradeEscrow
-    func dispute(escrow: TradeEscrow, reason: String) async
+    func dispute(escrow: TradeEscrow, reason: String) async -> TradeEscrow
 }
 
 /// In-memory `MarketServiceProtocol` for testing / single-node use; state lost on deinit.
@@ -145,9 +145,11 @@ public final class InMemoryMarketService: MarketServiceProtocol {
         return updated
     }
 
-    public func dispute(escrow: TradeEscrow, reason: String) async {
+    @discardableResult
+    public func dispute(escrow: TradeEscrow, reason: String) async -> TradeEscrow {
         var updated = escrow
         updated.state = .disputed
         escrows[updated.escrowId] = updated
+        return updated
     }
 }
