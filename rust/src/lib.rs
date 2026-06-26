@@ -17,6 +17,7 @@ pub mod reputation;
 pub mod routing;
 pub mod security;
 pub mod sos;
+pub mod space;
 pub mod storage;
 pub mod streaming;
 pub mod transport;
