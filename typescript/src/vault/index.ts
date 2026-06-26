@@ -10,3 +10,12 @@ export {
   encodeData,
   reconstructData,
 } from "./VaultCodec.js";
+export {
+  InMemoryVaultService,
+  vaultTotalShards,
+} from "./VaultService.js";
+export type {
+  IVaultService,
+  VaultManifest,
+  VaultHealth,
+} from "./VaultService.js";
