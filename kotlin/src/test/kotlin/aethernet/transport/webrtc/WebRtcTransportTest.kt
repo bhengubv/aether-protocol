@@ -4,6 +4,8 @@ package aethernet.transport.webrtc
 
 import dev.onvoid.webrtc.PeerConnectionFactory
 import dev.onvoid.webrtc.RTCIceServer
+import dev.onvoid.webrtc.media.audio.AudioDeviceModule
+import dev.onvoid.webrtc.media.audio.AudioLayer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -93,7 +95,12 @@ class WebRtcTransportTest {
         // on a runner without that native library the class init throws (ExceptionInInitializerError).
         // Probe once so requireWebRtcNative() can skip rather than crash the whole class.
         private val webRtcNativeAvailable: Boolean = runCatching {
-            PeerConnectionFactory().dispose()
+            // Build with a dummy AudioDeviceModule — the same headless-safe construction the
+            // transport uses. A real ADM hard-aborts the JVM ("Failed to initialize the ADM") on a
+            // host with no usable sound card, which runCatching cannot trap; kDummyAudio needs none.
+            val adm = AudioDeviceModule(AudioLayer.kDummyAudio)
+            PeerConnectionFactory(adm).dispose()
+            adm.dispose()
             true
         }.getOrDefault(false)
     }

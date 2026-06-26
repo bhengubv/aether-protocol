@@ -25,6 +25,8 @@ import dev.onvoid.webrtc.RTCSdpType
 import dev.onvoid.webrtc.RTCSessionDescription
 import dev.onvoid.webrtc.SetSessionDescriptionObserver
 import dev.onvoid.webrtc.media.MediaStream
+import dev.onvoid.webrtc.media.audio.AudioDeviceModule
+import dev.onvoid.webrtc.media.audio.AudioLayer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -73,7 +75,18 @@ class WebRtcTransport(
 
     // The platform's WebRTC entry point. Native + heavyweight, so one per transport, lazily built
     // and disposed on close.
-    private val factory: PeerConnectionFactory by lazy { PeerConnectionFactory() }
+    //
+    // Built with a DUMMY AudioDeviceModule. This is a data-channel-only transport that never
+    // carries audio, but the default `PeerConnectionFactory()` makes libwebrtc bring up real audio
+    // hardware and hard-abort ("Failed to initialize the ADM") on any host without a usable sound
+    // card — a headless Circle OS gateway/relay node, a server, or a CI runner. `kDummyAudio` needs
+    // no device, so the data path works everywhere. The ADM is held so it can be disposed on close.
+    private var audioModule: AudioDeviceModule? = null
+    private val factory: PeerConnectionFactory by lazy {
+        val adm = AudioDeviceModule(AudioLayer.kDummyAudio)
+        audioModule = adm
+        PeerConnectionFactory(adm)
+    }
 
     private val peers = ConcurrentHashMap<String, PeerLink>()
 
@@ -131,6 +144,11 @@ class WebRtcTransport(
             factory.dispose()
         } catch (e: Throwable) {
             log.warn("[WebRTC] factory dispose failed", e)
+        }
+        try {
+            audioModule?.dispose()
+        } catch (e: Throwable) {
+            log.warn("[WebRTC] audio module dispose failed", e)
         }
     }
 

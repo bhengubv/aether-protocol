@@ -23,6 +23,16 @@ final class WebRtcPeerLink: @unchecked Sendable {
     private var pc: Int32 = -1
     private var dc: Int32 = -1
     private var closed = false
+    private var tornDown = false
+
+    // libdatachannel keeps the registered user pointer and invokes callbacks on its own
+    // worker threads. We register a RETAINED reference (one per native handle) so `self`
+    // cannot be deallocated while any callback may still fire — even if the owning transport
+    // drops its reference first. The retains are balanced exactly once in `teardown()`, after
+    // `rtcDelete*` guarantees no further callbacks. (Without this, a worker-thread close
+    // callback dereferences freed Swift memory — EXC_BAD_ACCESS on the "RTC worker" thread.)
+    private var pcRetain: Unmanaged<WebRtcPeerLink>?
+    private var dcRetain: Unmanaged<WebRtcPeerLink>?
 
     /// Fulfilled once when the data channel opens (`true`) or the link fails/closes first (`false`).
     private let openSignal = OneShot<Bool>()
@@ -61,9 +71,12 @@ final class WebRtcPeerLink: @unchecked Sendable {
 
         self.pc = Self.createPeerConnection(iceServers: iceServers)
 
-        // Register the self-pointer, then wire the peer-connection callbacks.
-        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        rtcSetUserPointer(pc, selfPtr)
+        // Register a RETAINED self-pointer (+1, balanced in teardown()), then wire the
+        // peer-connection callbacks. The retain keeps `self` alive across libdatachannel's
+        // worker-thread callbacks, even if the owning transport drops its reference first.
+        let retain = Unmanaged.passRetained(self)
+        pcRetain = retain
+        rtcSetUserPointer(pc, retain.toOpaque())
         rtcSetLocalDescriptionCallback(pc, Self.onLocalDescription)
         rtcSetLocalCandidateCallback(pc, Self.onLocalCandidate)
         rtcSetStateChangeCallback(pc, Self.onStateChange)
@@ -121,14 +134,41 @@ final class WebRtcPeerLink: @unchecked Sendable {
         onClosed = handler
     }
 
+    /// Public teardown. Safe to call from any non-callback thread (e.g. the owning
+    /// transport's `close()`); idempotent.
     func close() {
         markClosed()
+        teardown()
+    }
+
+    /// Terminal-state path invoked from libdatachannel's worker-thread callbacks (state
+    /// change to failed/closed, or the channel's closed/error callback). Performs the logical
+    /// close immediately, then defers native teardown OFF the callback thread: `rtcDelete*`
+    /// blocks until the worker drains, so calling it from within a callback self-deadlocks.
+    /// `self` stays alive across the hop via the retained user pointers.
+    private func closeFromCallback() {
+        markClosed()
+        Task.detached { [self] in teardown() }
+    }
+
+    /// Frees the native peer connection / data channel and balances the retained user
+    /// pointers, exactly once. After `rtcDelete*` no further callbacks can fire, so releasing
+    /// the retains here is safe even when it drops the last reference to `self`.
+    private func teardown() {
         lock.lock()
+        if tornDown {
+            lock.unlock()
+            return
+        }
+        tornDown = true
         let channel = dc
         let peer = pc
         dc = -1
         pc = -1
+        let dcReleaser = dcRetain; dcRetain = nil
+        let pcReleaser = pcRetain; pcRetain = nil
         lock.unlock()
+
         if channel >= 0 {
             rtcSetUserPointer(channel, nil)
             rtcClose(channel)
@@ -139,6 +179,8 @@ final class WebRtcPeerLink: @unchecked Sendable {
             rtcClosePeerConnection(peer)
             rtcDeletePeerConnection(peer)
         }
+        dcReleaser?.release()
+        pcReleaser?.release()
     }
 
     // MARK: - Data channel wiring
@@ -147,8 +189,10 @@ final class WebRtcPeerLink: @unchecked Sendable {
         guard handle >= 0 else { return }
         lock.lock()
         dc = handle
+        let retain = Unmanaged.passRetained(self)   // +1, balanced in teardown()
+        dcRetain = retain
         lock.unlock()
-        rtcSetUserPointer(handle, Unmanaged.passUnretained(self).toOpaque())
+        rtcSetUserPointer(handle, retain.toOpaque())
         rtcSetOpenCallback(handle, Self.onChannelOpen)
         rtcSetClosedCallback(handle, Self.onChannelClosed)
         rtcSetErrorCallback(handle, Self.onChannelError)
@@ -180,7 +224,7 @@ final class WebRtcPeerLink: @unchecked Sendable {
     private func handleStateChange(_ state: rtcState) {
         switch state {
         case RTC_FAILED, RTC_DISCONNECTED, RTC_CLOSED:
-            markClosed()
+            closeFromCallback()
         default:
             break
         }
@@ -251,11 +295,11 @@ final class WebRtcPeerLink: @unchecked Sendable {
     }
 
     private static let onChannelClosed: rtcClosedCallbackFunc = { _, ptr in
-        link(from: ptr)?.markClosed()
+        link(from: ptr)?.closeFromCallback()
     }
 
     private static let onChannelError: rtcErrorCallbackFunc = { _, _, ptr in
-        link(from: ptr)?.markClosed()
+        link(from: ptr)?.closeFromCallback()
     }
 
     private static let onChannelMessage: rtcMessageCallbackFunc = { _, message, size, ptr in

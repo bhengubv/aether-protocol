@@ -155,3 +155,102 @@ impl PoVService for InMemoryPoVService {
             .insert(witness_uhid.to_string(), score.weighted_score * 0.8);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn issue_verify_accept_then_score() {
+        let svc = InMemoryPoVService::new();
+        let tok = svc.issue_token("w1", "A", PoVTransportType::Ble);
+        assert!(svc.verify_token(&tok), "a freshly issued token must verify");
+
+        svc.accept_token(&tok);
+        let score = svc.get_score("A");
+        assert_eq!(score.unique_witnesses, 1);
+        // 1 witness => w / (w + 1) = 0.5
+        assert!(
+            (score.weighted_score - 0.5).abs() < 1e-9,
+            "expected 0.5, got {}",
+            score.weighted_score
+        );
+    }
+
+    #[test]
+    fn tampered_body_fails_verification() {
+        let svc = InMemoryPoVService::new();
+        let mut tok = svc.issue_token("w1", "A", PoVTransportType::Ble);
+        // Signatures were made over subject "A"; changing the subject invalidates them.
+        tok.subject_uhid = "C".to_string();
+        assert!(!svc.verify_token(&tok), "a tampered token must not verify");
+    }
+
+    #[test]
+    fn self_vouch_is_rejected() {
+        let svc = InMemoryPoVService::new();
+        let tok = svc.issue_token("x", "x", PoVTransportType::Nfc); // witness == subject
+        assert!(!svc.verify_token(&tok), "a node cannot vouch for itself");
+    }
+
+    #[test]
+    fn missing_signature_or_party_is_rejected() {
+        let svc = InMemoryPoVService::new();
+
+        let mut no_sig = svc.issue_token("w1", "A", PoVTransportType::Ble);
+        no_sig.witness_signature = None;
+        assert!(!svc.verify_token(&no_sig), "missing witness signature must not verify");
+
+        let mut no_subject = svc.issue_token("w1", "A", PoVTransportType::Ble);
+        no_subject.subject_uhid = String::new();
+        assert!(!svc.verify_token(&no_subject), "empty subject must not verify");
+    }
+
+    #[test]
+    fn accept_ignores_invalid_tokens() {
+        let svc = InMemoryPoVService::new();
+        let mut bad = svc.issue_token("w1", "A", PoVTransportType::Ble);
+        bad.subject_uhid = "C".to_string(); // now cryptographically invalid
+        svc.accept_token(&bad);
+        // Nothing was recorded for "C".
+        assert_eq!(svc.get_score("C").unique_witnesses, 0);
+    }
+
+    #[test]
+    fn distinct_witnesses_raise_score_but_duplicates_do_not() {
+        let svc = InMemoryPoVService::new();
+
+        let a1 = svc.issue_token("w1", "A", PoVTransportType::Ble);
+        svc.accept_token(&a1);
+        let a1_again = svc.issue_token("w1", "A", PoVTransportType::Ble); // same witness again
+        svc.accept_token(&a1_again);
+        assert_eq!(svc.get_score("A").unique_witnesses, 1, "same witness counts once");
+
+        let a2 = svc.issue_token("w2", "A", PoVTransportType::Nfc); // a distinct witness
+        svc.accept_token(&a2);
+        let s = svc.get_score("A");
+        assert_eq!(s.unique_witnesses, 2);
+        // 2 witnesses => 2 / 3
+        assert!(
+            (s.weighted_score - (2.0 / 3.0)).abs() < 1e-9,
+            "expected 0.667, got {}",
+            s.weighted_score
+        );
+    }
+
+    #[test]
+    fn defection_penalty_scales_the_score() {
+        let svc = InMemoryPoVService::new();
+        let tok = svc.issue_token("w1", "A", PoVTransportType::Ble);
+        svc.accept_token(&tok);
+        assert!((svc.get_score("A").weighted_score - 0.5).abs() < 1e-9);
+
+        svc.report_defection("A", "victim");
+        // 0.5 * 0.8 = 0.4
+        assert!(
+            (svc.get_score("A").weighted_score - 0.4).abs() < 1e-9,
+            "expected 0.4 after defection, got {}",
+            svc.get_score("A").weighted_score
+        );
+    }
+}

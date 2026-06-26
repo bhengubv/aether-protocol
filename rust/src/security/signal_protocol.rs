@@ -2415,9 +2415,16 @@ mod tests {
         clock.set(t0 + ChronoDuration::days(8));
         let rotated = svc.rotate_signed_pre_key().await.unwrap();
         assert!(rotated);
-        // Allow fire-and-forget persistence to complete.
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let history = store.load_signed_pre_keys().await.unwrap();
+        // Persistence is fire-and-forget; poll until the second entry lands rather than racing a
+        // fixed sleep (which flakes under heavy parallel load, e.g. `cargo test --features webrtc`).
+        let mut history = store.load_signed_pre_keys().await.unwrap();
+        for _ in 0..200 {
+            if history.entries.len() >= 2 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            history = store.load_signed_pre_keys().await.unwrap();
+        }
         assert_eq!(history.entries.len(), 2);
     }
 }

@@ -71,6 +71,17 @@ longer exchange DTN bundles — hence the major bump, per the wire-break rule in
   745 pass / 1 skip), and the Rust DTN integration tests were migrated to the
   binary envelope.
 
+### Tests
+
+- Cross-language test coverage was re-verified by reading every SDK's tests directly
+  (an earlier automated audit had wrongly flagged many thorough suites as shallow).
+  The three real gaps it surfaced are now filled with behavioural tests: Go's
+  in-memory + filesystem key-value stores (round-trip, durability across instances,
+  namespacing, input validation), Rust's single-node `InMemoryPoVService`
+  (issue/verify/accept/score, tampered-token + self-vouch rejection, defection
+  penalty), and Kotlin's `MeshTipService` send/receive (broadcast vs routed unicast,
+  settlement, relay-onward, drop paths). All other reported gaps were already covered.
+
 ### Dependencies
 
 - Dependabot bumps across Rust, .NET, npm, Go and Kotlin.
