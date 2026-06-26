@@ -114,17 +114,17 @@ jobs:
         working-directory: rust
 
   rust-msrv:
-    name: "Rust (MSRV 1.85)"
+    name: "Rust (MSRV 1.88)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.85"
+          toolchain: "1.88"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: msrv-1.85
+          key: msrv-1.88
       # The LoRa `serialport` feature (enabled by --all-features) links libudev-sys on Linux.
       - run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
       # Build only (no tests) — ensures the public API compiles on the declared MSRV. 1.85 is

@@ -297,14 +297,22 @@ bool aethernet_hmac_sha256(const uint8_t *key,
 
     unsigned char hash[crypto_auth_hmacsha256_BYTES];
 
-    int result = crypto_auth_hmacsha256(hash, data ? data : (const unsigned char *)"", data_len, key);
-
-    if (result != 0) {
+    // The one-shot crypto_auth_hmacsha256(out, in, inlen, k) reads a FIXED 32-byte key
+    // (crypto_auth_hmacsha256_KEYBYTES) regardless of the real key length, so a key shorter
+    // than 32 bytes reads past the buffer — uninitialized/OOB memory, making the result
+    // non-deterministic (and the HMAC cryptographically wrong). The streaming init() takes an
+    // explicit key length and performs the standard RFC-2104 key processing.
+    crypto_auth_hmacsha256_state state;
+    if (crypto_auth_hmacsha256_init(&state, key, key_len) != 0 ||
+        crypto_auth_hmacsha256_update(&state, data ? data : (const unsigned char *)"", data_len) != 0 ||
+        crypto_auth_hmacsha256_final(&state, hash) != 0) {
+        sodium_memzero(&state, sizeof(state));
         return false;
     }
 
     memcpy(out_hash, hash, crypto_auth_hmacsha256_BYTES);
     sodium_memzero(hash, sizeof(hash));
+    sodium_memzero(&state, sizeof(state));
 
     return true;
 }

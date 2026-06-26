@@ -207,8 +207,8 @@ public sealed class RlncCodecTests
         byte[] src = new byte[512];
         for (int i = 0; i < src.Length; i++) src[i] = (byte)(i & 0xFF);
 
-        byte[] encoded = codec.Encode(src, targetSymbolCount: 20);
-        var    pkts    = SplitPackets(encoded, 20);
+        byte[] encoded = codec.Encode(src, targetSymbolCount: 24);
+        var    pkts    = SplitPackets(encoded, 24);
 
         // Remove 4 packets (indices 0, 3, 7, 11 in descending order to preserve indices).
         var pktList = new List<ReadOnlyMemory<byte>>(pkts);
