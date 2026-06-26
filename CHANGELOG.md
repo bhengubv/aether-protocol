@@ -10,35 +10,70 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
-### Added — real WebRTC internet transport (`AetherNet.Transport.WebRtc`)
+---
 
-A real peer-to-peer **internet** transport built on a WebRTC data channel
-(DTLS-SRTP), with SDP/ICE signalling carried over an injected signalling channel
-(no central media server). This is the first real (non-simulated) transport the
-cross-language library ports can carry. It is an internet transport, not a
-short-range radio, and does not change the wire format.
+## [2.0.0] — 2026-06-26
 
-Per-language status (honest, as of 2026-06-22):
+**Breaking wire-format release.** The delay-tolerant networking (DTN) bundle
+envelope moves from JSON to a canonical **binary** wire format, byte-identical
+across all eight language implementations. A 2.0.0 node and a 1.x node can no
+longer exchange DTN bundles — hence the major bump, per the wire-break rule in
+[VERSIONING.md](VERSIONING.md). The cross-language fixture corpus
+(`fixtures/dtn/`) pins the exact bytes and `fixture-interop.yml` gates them.
 
-- **Verified — built and tested green:** C# (`src/AetherNet.Transport.WebRtc`,
-  over SIPSorcery), Go (`go/transport/webrtc`, over pion), Kotlin
-  (`kotlin/.../transport/webrtc`).
-- **Written but NOT yet verified on the dev box:** Python
-  (`python/aethernet/transport/webrtc`), Rust (`rust/src/transport/webrtc.rs`),
-  TypeScript (`typescript/src/transport/webrtc`), C
-  (`c/src/transport_webrtc.c`). Treat as unproven until their tests run green.
-- **Written but BLOCKED on a native dependency:** Swift
-  (`swift/Sources/AetherNetWebRTC`) requires `libdatachannel` (via the
-  `CDataChannel` system library) to build; unverified.
+### Changed — BREAKING
 
-### Note — transport scope (no change, clarified)
+- **DTN bundle wire format: JSON → binary envelope.** One canonical little-endian
+  envelope for `DtnBundle` (PacketType 18), `CustodyAck` (19) and
+  `DeliveryReceipt` (20), with a `format_version` byte for future migration.
+  Replaces the JSON serialisation that had silently diverged across languages
+  (base64-vs-int-array payloads, ISO-vs-millisecond timestamps,
+  dashed-uuid-vs-hex ids). Pinned by `fixtures/dtn/expected/*.bin` generated from
+  the Go oracle. Clean break — there is no dual JSON/binary read path.
+- **C SDK: real DTN store-and-forward + epidemic replication.** The C node now
+  accepts custody of third-party bundles — holds, acks and relays them (it
+  previously dropped them) — reaching custody parity with the other SDKs.
 
-The radio transports remain unchanged: real **BLE** and **Wi-Fi Direct**
-adapters exist only in the C#/Windows and Android stacks; **NFC** is real only on
-Android (HCE); **NearLink** is real only on HarmonyOS (pending on-device
-verification); **LoRa** is a stub everywhere. The six cross-language library
-ports (Go, Python, Rust, TypeScript, Swift, C) still use an in-process simulator
-for their mesh transport — WebRTC above is the exception. See PROTOCOL_SPEC §5.4.
+### Added
+
+- **Phase-2 application modules at full eight-language parity**, each with
+  cross-language behavioural tests: **Vault** (Reed-Solomon erasure-coded
+  backup), **Forge** (mesh package cache), **Space** (geo-pinned breadcrumb
+  noticeboards), **Market** (P2P marketplace + Proof-of-Vicinity escrow) and
+  **FMHY** (markdown content catalogue + parser).
+- **Real P-256 ECDSA signature-verify fallback** across all eight SDKs,
+  fixture-verified (PROTOCOL_SPEC §7.5). C vendors micro-ecc; the others use
+  their platform crypto.
+- **WebRTC P2P internet transport** (`AetherNet.Transport.WebRtc`) across all
+  eight languages — a serverless data channel (DTLS-SRTP) with SDP/ICE carried
+  over an injected signalling channel, loopback-verified. This is the first real
+  (non-simulated) transport the cross-language ports can carry; it does not
+  change the mesh wire format. (Swift builds; its runtime test is gated in CI by
+  the `libdatachannel` system dependency.)
+- **Real LoRa serial transport** driver across all eight languages (previously a
+  stub everywhere).
+- **Real NFC and NearLink transports** on Windows (BLE-GATT central with an RSSI
+  proximity gate) and Android (HCE / SSAP-over-BLE-GATT service).
+
+### Fixed
+
+- Replaced a cluster of build-and-drop / fire-once stubs with real behaviour:
+  the C voice, group-voice and streaming paths now serialise and transmit on
+  send; Rust surfaces inbound voice, group-voice, media segments and video
+  frames; the C# `NullGroupKeyProvider` emits the documented warning instead of
+  silently sending plaintext; the C and Python anomaly detectors use a real
+  windowed geohash rate-limit (was fire-once-per-node-forever); the Wi-Fi Direct
+  Group-Owner reply path is now bidirectional; Rust bandwidth surfaces
+  locally-probed transports before the first gossip.
+- A systemic **stub-guard** test now fails the build on any new stub marker.
+- Test-suite hardening: the Python `_run` helpers use a persistent per-module
+  event loop (kills cross-file pollution — 130 bulk failures → 0; suite now
+  745 pass / 1 skip), and the Rust DTN integration tests were migrated to the
+  binary envelope.
+
+### Dependencies
+
+- Dependabot bumps across Rust, .NET, npm, Go and Kotlin.
 
 ---
 
