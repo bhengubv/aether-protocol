@@ -8,6 +8,7 @@ pub mod content;
 pub mod gossip;
 pub mod dtn;
 pub mod extensibility;
+pub mod fmhy;
 pub mod forge;
 pub mod handshake;
 pub mod incentive;
