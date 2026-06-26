@@ -178,6 +178,7 @@ add_library(aethernet-protocol STATIC
     src/directory_service.c
     src/tip_packet.c
     src/reed_solomon.c
+    src/vault.c
     src/pov_token.c
     # BLAKE3 portable subset (no SIMD — compile-time defines below disable all
     # optional SIMD backends; only blake3_portable.c is linked in practice)

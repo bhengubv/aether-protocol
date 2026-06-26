@@ -260,6 +260,15 @@ target_link_libraries(test-pov-token PRIVATE aethernet-protocol pthread)
 add_test(NAME PoVTokenFixtureTests COMMAND test-pov-token
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+# aether-vault in-memory service (Phase-2): store/recover/health/replicate over
+# the reed-solomon codec. A self-contained behavioural test (no JSON fixture).
+add_executable(test-vault
+    test_vault.c
+)
+target_include_directories(test-vault PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-vault PRIVATE aethernet-protocol pthread)
+add_test(NAME VaultServiceTests COMMAND test-vault)
+
 # Cross-language P-256 ECDSA verify driver. Transcribes the 3 vectors from
 # tests/cross-language/p256-fixtures.json (no JSON parser on the test surface) and
 # drives aethernet_ed25519_verify_with_fallback, mirroring the other-language P-256
@@ -277,6 +286,7 @@ add_custom_target(aether-tests
     DEPENDS
         test-tip-packet
         test-reed-solomon
+        test-vault
         test-pov-token
         test-protocol
         test-routing
