@@ -277,6 +277,14 @@ target_include_directories(test-forge PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../inc
 target_link_libraries(test-forge PRIVATE aethernet-protocol pthread)
 add_test(NAME ForgeServiceTests COMMAND test-forge)
 
+# aether-space in-memory breadcrumb noticeboard (Phase-2): drop/scan/delete/prune behaviour.
+add_executable(test-space
+    test_space.c
+)
+target_include_directories(test-space PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-space PRIVATE aethernet-protocol pthread)
+add_test(NAME SpaceServiceTests COMMAND test-space)
+
 # aether-vault in-memory service (Phase-2): store/recover/health/replicate over
 # the reed-solomon codec. A self-contained behavioural test (no JSON fixture).
 add_executable(test-vault
@@ -307,6 +315,7 @@ add_custom_target(aether-tests
         test-pov-token
         test-market
         test-forge
+        test-space
         test-protocol
         test-routing
         test-dtn
