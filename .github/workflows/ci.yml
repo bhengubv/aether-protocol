@@ -96,7 +96,7 @@ jobs:
         working-directory: swift
       # Only XCTest tests exist; disable the swift-testing runner (it can abort, signal 6,
       # on the macOS runner toolchain) so the XCTest suite is the source of truth.
-      - run: swift test --disable-swift-testing
+      - run: swift test
         working-directory: swift
 
   rust:

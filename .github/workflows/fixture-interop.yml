@@ -170,7 +170,7 @@ jobs:
       - name: Run FixtureTests + SignalFixtureTests
         # This package has only XCTest tests; under --filter the empty swift-testing runner
         # aborts (signal 6) on the macOS runner toolchain. Disable it so only XCTest runs.
-        run: swift test --disable-swift-testing --filter "FixtureTests|SignalFixtureTests"
+        run: swift test --filter "FixtureTests|SignalFixtureTests"
 
   android-unit-fixtures:
     name: Android unit tests (DEX/ART proxy)

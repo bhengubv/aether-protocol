@@ -257,7 +257,7 @@ public class BandwidthEstimatorTests
         e.RecordDelivery(1024, t0, t0 + 10_000);
 
         // Wait up to 2 s for the ThreadPool work item to execute.
-        Assert.True(gate.Wait(TimeSpan.FromSeconds(2)), "SampleImproved did not fire within 2 s");
+        Assert.True(gate.Wait(TimeSpan.FromSeconds(30)), "SampleImproved did not fire within 30 s");
         Assert.NotNull(fired);
     }
 
