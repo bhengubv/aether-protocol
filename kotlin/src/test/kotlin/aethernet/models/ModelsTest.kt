@@ -411,9 +411,13 @@ class PeerInfoTest {
     }
 
     @Test fun `equals uses content-equality for identityKey`() {
+        // Pin lastSeen: it defaults to Instant.now(), evaluated separately per construction,
+        // and (being part of equals) would otherwise make p1 != p2 whenever the clock ticks
+        // between them — masking the identityKey content-equality this test exists to verify.
         val key = ByteArray(32) { 0x42 }
-        val p1 = PeerInfo("peer", key.copyOf())
-        val p2 = PeerInfo("peer", key.copyOf())
+        val ts = Instant.now()
+        val p1 = PeerInfo("peer", key.copyOf(), lastSeen = ts)
+        val p2 = PeerInfo("peer", key.copyOf(), lastSeen = ts)
         assertEquals(p1, p2)
     }
 }

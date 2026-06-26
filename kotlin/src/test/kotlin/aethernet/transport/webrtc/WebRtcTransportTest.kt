@@ -2,12 +2,15 @@
 
 package aethernet.transport.webrtc
 
+import dev.onvoid.webrtc.PeerConnectionFactory
 import dev.onvoid.webrtc.RTCIceServer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
+import org.junit.jupiter.api.Assumptions.assumeTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -22,6 +25,14 @@ import kotlin.test.assertTrue
  * carries bytes. Mirrors the Go `TestTwoPeersExchangeBytesNoServer` and the C# loopback test.
  */
 class WebRtcTransportTest {
+
+    // Skip (don't fail) when the webrtc-java native library can't load — e.g. a headless CI
+    // runner with no native libwebrtc. Mirrors the Swift/C AETHERNET_WITH_WEBRTC gating and
+    // Python's importorskip("aiortc"): the loopback proof needs the real native stack.
+    @BeforeEach
+    fun requireWebRtcNative() {
+        assumeTrue(webRtcNativeAvailable, "webrtc-java native library not available in this environment")
+    }
 
     // Empty (not null) => host-candidate-only ICE: no STUN, no network dependency.
     private fun hostOnly(): List<RTCIceServer> = emptyList()
@@ -75,5 +86,15 @@ class WebRtcTransportTest {
             transport.close()
             bus.close()
         }
+    }
+
+    companion object {
+        // dev.onvoid.webrtc loads native libwebrtc on first PeerConnectionFactory construction;
+        // on a runner without that native library the class init throws (ExceptionInInitializerError).
+        // Probe once so requireWebRtcNative() can skip rather than crash the whole class.
+        private val webRtcNativeAvailable: Boolean = runCatching {
+            PeerConnectionFactory().dispose()
+            true
+        }.getOrDefault(false)
     }
 }

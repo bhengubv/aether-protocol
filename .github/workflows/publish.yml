@@ -180,6 +180,9 @@ jobs:
           sed -i "s/^version = .*/version = \"${{ steps.version.outputs.version }}\"/" Cargo.toml
         working-directory: rust
 
+      - name: Install libudev (LoRa serialport feature links libudev-sys under --all-features)
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+
       - name: Run tests
         run: cargo test --all-features
         working-directory: rust

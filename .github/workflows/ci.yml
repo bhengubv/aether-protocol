@@ -94,7 +94,9 @@ jobs:
       - uses: actions/checkout@v4
       - run: swift build
         working-directory: swift
-      - run: swift test
+      # Only XCTest tests exist; disable the swift-testing runner (it can abort, signal 6,
+      # on the macOS runner toolchain) so the XCTest suite is the source of truth.
+      - run: swift test --disable-swift-testing
         working-directory: swift
 
   rust:
@@ -106,23 +108,28 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+      # The LoRa `serialport` feature (enabled by --all-features) links libudev-sys on Linux.
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
       - run: cargo test --all-features
         working-directory: rust
 
   rust-msrv:
-    name: "Rust (MSRV 1.82)"
+    name: "Rust (MSRV 1.85)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.82"
+          toolchain: "1.85"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: msrv-1.82
-      # Build only (no tests) — ensures the public API compiles on the declared MSRV.
-      # Feature-gated APIs are checked separately by the stable job above.
+          key: msrv-1.85
+      # The LoRa `serialport` feature (enabled by --all-features) links libudev-sys on Linux.
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      # Build only (no tests) — ensures the public API compiles on the declared MSRV. 1.85 is
+      # the real floor: a transitive dep (hybrid-array) requires the edition2024 Cargo feature,
+      # stabilised in Rust 1.85.
       - run: cargo build --all-features
         working-directory: rust
 

@@ -6,6 +6,8 @@
 //   - RUN() macro records count and prints OK per test.
 //   - Final summary with total count.
 
+#define _POSIX_C_SOURCE 200809L  // clock_gettime/CLOCK_REALTIME under strict -std=c11
+
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
