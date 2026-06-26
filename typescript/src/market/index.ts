@@ -26,3 +26,19 @@ export type {
   PoVLogger,
   NowMsProvider,
 } from "./PoVTokenExchangeService.js";
+
+export {
+  InMemoryMarketService,
+  MarketCategory,
+  TradeRole,
+  TradeState,
+  isListingExpired,
+} from "./MarketService.js";
+export type {
+  IMarketService,
+  MarketListing,
+  TradeEscrow,
+} from "./MarketService.js";
+
+export { InMemoryPoVService } from "./PoVService.js";
+export type { IPoVService } from "./PoVService.js";
