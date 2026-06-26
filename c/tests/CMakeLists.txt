@@ -285,6 +285,14 @@ target_include_directories(test-space PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../inc
 target_link_libraries(test-space PRIVATE aethernet-protocol pthread)
 add_test(NAME SpaceServiceTests COMMAND test-space)
 
+# FMHY content catalogue (Phase-2): markdown parser + catalogue sync/browse/getStarred behaviour.
+add_executable(test-fmhy
+    test_fmhy.c
+)
+target_include_directories(test-fmhy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-fmhy PRIVATE aethernet-protocol pthread)
+add_test(NAME FmhyCatalogueTests COMMAND test-fmhy)
+
 # aether-vault in-memory service (Phase-2): store/recover/health/replicate over
 # the reed-solomon codec. A self-contained behavioural test (no JSON fixture).
 add_executable(test-vault
@@ -316,6 +324,7 @@ add_custom_target(aether-tests
         test-market
         test-forge
         test-space
+        test-fmhy
         test-protocol
         test-routing
         test-dtn
