@@ -4,13 +4,12 @@
 #[path = "common.rs"]
 mod common;
 
-use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use aethernet_protocol::{
     constants::{DTN_BUNDLE_TTL_HOURS, DTN_MAX_BUNDLES_PER_NODE},
-    dtn::{BundleStore, DtnService, InMemoryBundleStore},
+    dtn::{envelope, BundleStore, DtnService, InMemoryBundleStore},
     extensibility::{NoopBackendClient, NoopIncentiveProvider},
     models::{BundlePriority, BundleStatus, DtnBundle, PeerInfo},
     protocol::{MeshPacket, PacketType},
@@ -40,24 +39,10 @@ async fn new_svc() -> (DtnService, Arc<FakeMeshSender>, Arc<InMemoryBundleStore>
 }
 
 fn build_bundle_packet(source: &str, bundle: &DtnBundle) -> MeshPacket {
-    let body = json!({
-        "id": bundle.id,
-        "sender_uhid": bundle.sender_uhid,
-        "recipient_uhid": bundle.recipient_uhid,
-        "encrypted_payload": bundle.encrypted_payload,
-        "priority": bundle.priority.as_u8(),
-        "status": bundle.status.as_u8(),
-        "copy_count": bundle.copy_count,
-        "max_copies": bundle.max_copies,
-        "sender_geohash": bundle.sender_geohash,
-        "recipient_last_geohash": bundle.recipient_last_geohash,
-        "hop_count": bundle.hop_count,
-        "created_at_ms": (bundle.created_at as i64) * 1000,
-        "expires_at_ms": (bundle.expires_at as i64) * 1000,
-    });
     let mut p = MeshPacket::new(PacketType::DtnBundle, source.to_string());
     p.destination_uhid = bundle.recipient_uhid.clone();
-    p.payload = serde_json::to_vec(&body).unwrap();
+    // DTN is binary-only (W19 wire format) — serialize with the canonical envelope.
+    p.payload = envelope::serialize_bundle(bundle);
     p
 }
 
@@ -170,8 +155,8 @@ async fn handle_at_capacity_refuses_custody() {
         .into_iter()
         .find(|u| u.packet.packet_type == PacketType::DtnCustodyAck)
         .expect("ack");
-    let body: serde_json::Value = serde_json::from_slice(&ack.packet.payload).unwrap();
-    assert_eq!(body["accepted"], false);
+    let (_, accepted) = envelope::deserialize_custody_ack(&ack.packet.payload).expect("binary ack");
+    assert!(!accepted);
 }
 
 // ─── DtnCustodyAck ───────────────────────────────────────
@@ -184,14 +169,9 @@ async fn handle_positive_custody_ack_increments_copy_count() {
         .await;
     let initial = bundle.copy_count;
 
-    let body = serde_json::to_vec(&json!({
-        "bundle_id": bundle.id,
-        "accepted": true,
-    }))
-    .unwrap();
     let mut pkt = MeshPacket::new(PacketType::DtnCustodyAck, "carrier".to_string());
     pkt.destination_uhid = LOCAL.to_string();
-    pkt.payload = body;
+    pkt.payload = envelope::serialize_custody_ack(&bundle.id, true);
     svc.handle(&pkt).await;
 
     let stored = store.get(&bundle.id).await.expect("stored");
@@ -206,14 +186,9 @@ async fn handle_negative_custody_ack_does_not_increment() {
         .await;
     let initial = bundle.copy_count;
 
-    let body = serde_json::to_vec(&json!({
-        "bundle_id": bundle.id,
-        "accepted": false,
-    }))
-    .unwrap();
     let mut pkt = MeshPacket::new(PacketType::DtnCustodyAck, "carrier".to_string());
     pkt.destination_uhid = LOCAL.to_string();
-    pkt.payload = body;
+    pkt.payload = envelope::serialize_custody_ack(&bundle.id, false);
     svc.handle(&pkt).await;
 
     let stored = store.get(&bundle.id).await.expect("stored");
@@ -228,17 +203,9 @@ async fn handle_delivery_receipt_marks_bundle_delivered() {
     let bundle = svc
         .create_bundle("recipient", vec![1], BundlePriority::Normal, None)
         .await;
-    let body = serde_json::to_vec(&json!({
-        "bundle_id": bundle.id,
-        "recipient_uhid": "recipient",
-        "total_hops": 3,
-        "total_custody_transfers": 2,
-        "delivered_at_ms": 0,
-    }))
-    .unwrap();
     let mut pkt = MeshPacket::new(PacketType::DtnDeliveryReceipt, "recipient".to_string());
     pkt.destination_uhid = LOCAL.to_string();
-    pkt.payload = body;
+    pkt.payload = envelope::serialize_delivery_receipt(&bundle.id, "recipient", 3, 2, 0);
     svc.handle(&pkt).await;
 
     let stored = store.get(&bundle.id).await.expect("stored");
