@@ -89,18 +89,18 @@ final class VideoCallServiceTests: XCTestCase {
     func test_handlePacket_inboundOffer_firesOnIncomingCall() async throws {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = VideoCallService(sender: sender)
-        var firedFrom = ""
-        var firedVideoCodecs: [String] = []
+        let firedFrom = Locked("")
+        let firedVideoCodecs = Locked<[String]>([])
         await svc.setOnIncomingCall { _, from, vCodecs, _ in
-            firedFrom = from
-            firedVideoCodecs = vCodecs
+            firedFrom.value = from
+            firedVideoCodecs.value = vCodecs
         }
         let callId = UUID()
         let pkt = videoSignalingPkt(from: "bob", to: LOCAL,
                                     payload: offerPayload(callId: callId, fromUhid: "bob", videoCodecs: ["h264"]))
         try await svc.handlePacket(pkt)
-        XCTAssertEqual(firedFrom, "bob")
-        XCTAssertEqual(firedVideoCodecs, ["h264"])
+        XCTAssertEqual(firedFrom.value, "bob")
+        XCTAssertEqual(firedVideoCodecs.value, ["h264"])
     }
 
     // MARK: – inbound accept
@@ -110,13 +110,13 @@ final class VideoCallServiceTests: XCTestCase {
         let svc = VideoCallService(sender: sender)
         let callId = try await svc.sendOffer(toUhid: "bob", videoCodecs: ["h264"], audioCodecs: ["opus"])
 
-        var lastState: VoiceCallState?
-        await svc.setOnCallStateChanged { _, s in lastState = s }
+        let lastState = Locked<VoiceCallState?>(nil)
+        await svc.setOnCallStateChanged { _, s in lastState.value = s }
 
         let pkt = videoSignalingPkt(from: "bob", to: LOCAL,
                                     payload: controlPayload(callId: callId, fromUhid: "bob", signalType: "video_accept"))
         try await svc.handlePacket(pkt)
-        XCTAssertEqual(lastState, .connected)
+        XCTAssertEqual(lastState.value, .connected)
     }
 
     // MARK: – inbound hangup
@@ -131,13 +131,13 @@ final class VideoCallServiceTests: XCTestCase {
                                          payload: offerPayload(callId: callId, fromUhid: "bob"))
         try await svc.handlePacket(offerPkt)
 
-        var lastState: VoiceCallState?
-        await svc.setOnCallStateChanged { _, s in lastState = s }
+        let lastState = Locked<VoiceCallState?>(nil)
+        await svc.setOnCallStateChanged { _, s in lastState.value = s }
 
         let hangupPkt = videoSignalingPkt(from: "bob", to: LOCAL,
                                           payload: controlPayload(callId: callId, fromUhid: "bob", signalType: "video_hangup"))
         try await svc.handlePacket(hangupPkt)
-        XCTAssertEqual(lastState, .ended)
+        XCTAssertEqual(lastState.value, .ended)
     }
 
     // MARK: – acceptCall
@@ -167,10 +167,10 @@ final class VideoCallServiceTests: XCTestCase {
                                          payload: offerPayload(callId: callId, fromUhid: "bob"))
         try await svc.handlePacket(offerPkt)
 
-        var lastState: VoiceCallState?
-        await svc.setOnCallStateChanged { _, s in lastState = s }
+        let lastState = Locked<VoiceCallState?>(nil)
+        await svc.setOnCallStateChanged { _, s in lastState.value = s }
         try await svc.acceptCall(callId: callId)
-        XCTAssertEqual(lastState, .connected)
+        XCTAssertEqual(lastState.value, .connected)
     }
 
     // MARK: – hangUp
@@ -194,10 +194,10 @@ final class VideoCallServiceTests: XCTestCase {
         let svc = VideoCallService(sender: sender)
         let callId = try await svc.sendOffer(toUhid: "bob", videoCodecs: ["h264"], audioCodecs: ["opus"])
 
-        var lastState: VoiceCallState?
-        await svc.setOnCallStateChanged { _, s in lastState = s }
+        let lastState = Locked<VoiceCallState?>(nil)
+        await svc.setOnCallStateChanged { _, s in lastState.value = s }
         try await svc.hangUp(callId: callId)
-        XCTAssertEqual(lastState, .ended)
+        XCTAssertEqual(lastState.value, .ended)
     }
 
     // MARK: – sendFrame
@@ -255,13 +255,13 @@ final class VideoCallServiceTests: XCTestCase {
         let svc = VideoCallService(sender: sender)
         let callId = try await svc.sendOffer(toUhid: "bob", videoCodecs: ["h264"], audioCodecs: ["opus"])
 
-        var keyframeRequestedId: UUID?
-        await svc.setOnKeyframeRequested { id in keyframeRequestedId = id }
+        let keyframeRequestedId = Locked<UUID?>(nil)
+        await svc.setOnKeyframeRequested { id in keyframeRequestedId.value = id }
 
         let pkt = videoSignalingPkt(from: "bob", to: LOCAL,
                                     payload: controlPayload(callId: callId, fromUhid: "bob", signalType: "keyframe_request"))
         try await svc.handlePacket(pkt)
-        XCTAssertEqual(keyframeRequestedId, callId)
+        XCTAssertEqual(keyframeRequestedId.value, callId)
     }
 
     // MARK: – notifyQualityChange
@@ -285,13 +285,13 @@ final class VideoCallServiceTests: XCTestCase {
         let svc = VideoCallService(sender: sender)
         let callId = try await svc.sendOffer(toUhid: "bob", videoCodecs: ["h264"], audioCodecs: ["opus"])
 
-        var changedQuality = ""
-        await svc.setOnQualityChanged { _, q in changedQuality = q }
+        let changedQuality = Locked("")
+        await svc.setOnQualityChanged { _, q in changedQuality.value = q }
 
         let pkt = videoSignalingPkt(from: "bob", to: LOCAL,
                                     payload: qualityPayload(callId: callId, fromUhid: "bob", quality: "480p"))
         try await svc.handlePacket(pkt)
-        XCTAssertEqual(changedQuality, "480p")
+        XCTAssertEqual(changedQuality.value, "480p")
     }
 
     // MARK: – onFrameReceived
@@ -300,11 +300,11 @@ final class VideoCallServiceTests: XCTestCase {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = VideoCallService(sender: sender)
 
-        var frameReceived = false
-        var receivedIsKeyframe = false
+        let frameReceived = Locked(false)
+        let receivedIsKeyframe = Locked(false)
         await svc.setOnFrameReceived { _, _, isKf, _ in
-            frameReceived = true
-            receivedIsKeyframe = isKf
+            frameReceived.value = true
+            receivedIsKeyframe.value = isKf
         }
 
         let callId = UUID()
@@ -312,7 +312,7 @@ final class VideoCallServiceTests: XCTestCase {
         let framePkt = videoFramePkt(callId: callId, isKeyframe: true, video: video)
         try await svc.handlePacket(framePkt)
 
-        XCTAssertTrue(frameReceived, "onFrameReceived must fire for inbound VideoFrame packet")
-        XCTAssertTrue(receivedIsKeyframe, "isKeyframe flag must be decoded correctly")
+        XCTAssertTrue(frameReceived.value, "onFrameReceived must fire for inbound VideoFrame packet")
+        XCTAssertTrue(receivedIsKeyframe.value, "isKeyframe flag must be decoded correctly")
     }
 }

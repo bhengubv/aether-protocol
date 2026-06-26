@@ -89,13 +89,13 @@ final class GroupVoiceCallServiceTests: XCTestCase {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = GroupVoiceCallService(sender: sender)
 
-        var firedCallId: UUID?
-        var firedFrom = ""
-        var firedCodecs: [String] = []
+        let firedCallId = Locked<UUID?>(nil)
+        let firedFrom = Locked("")
+        let firedCodecs = Locked<[String]>([])
         await svc.setOnInviteReceived { cid, from, codecs in
-            firedCallId = cid
-            firedFrom = from
-            firedCodecs = codecs
+            firedCallId.value = cid
+            firedFrom.value = from
+            firedCodecs.value = codecs
         }
 
         let callId = UUID()
@@ -104,9 +104,9 @@ final class GroupVoiceCallServiceTests: XCTestCase {
                                                           codecs: ["opus"], members: ["bob", LOCAL]))
         try await svc.handlePacket(pkt)
 
-        XCTAssertEqual(firedCallId, callId)
-        XCTAssertEqual(firedFrom, "bob")
-        XCTAssertEqual(firedCodecs, ["opus"])
+        XCTAssertEqual(firedCallId.value, callId)
+        XCTAssertEqual(firedFrom.value, "bob")
+        XCTAssertEqual(firedCodecs.value, ["opus"])
     }
 
     // MARK: – join
@@ -138,14 +138,14 @@ final class GroupVoiceCallServiceTests: XCTestCase {
                                                                  codecs: ["opus"], members: ["bob", LOCAL]))
         try await svc.handlePacket(invitePkt)
 
-        var joinedMember = ""
-        await svc.setOnMemberJoined { _, uhid in joinedMember = uhid }
+        let joinedMember = Locked("")
+        await svc.setOnMemberJoined { _, uhid in joinedMember.value = uhid }
 
         let joinPkt = groupSigPkt(from: "carol", to: LOCAL,
                                   payload: groupMemberPayload(callId: callId, uhid: "carol", signalType: "group_join"))
         try await svc.handlePacket(joinPkt)
 
-        XCTAssertEqual(joinedMember, "carol", "onMemberJoined must fire with the joining uhid")
+        XCTAssertEqual(joinedMember.value, "carol", "onMemberJoined must fire with the joining uhid")
     }
 
     // MARK: – leave
@@ -175,14 +175,14 @@ final class GroupVoiceCallServiceTests: XCTestCase {
                                                                  codecs: ["opus"], members: ["bob", LOCAL]))
         try await svc.handlePacket(invitePkt)
 
-        var leftMember = ""
-        await svc.setOnMemberLeft { _, uhid in leftMember = uhid }
+        let leftMember = Locked("")
+        await svc.setOnMemberLeft { _, uhid in leftMember.value = uhid }
 
         let leavePkt = groupSigPkt(from: "bob", to: LOCAL,
                                    payload: groupMemberPayload(callId: callId, uhid: "bob", signalType: "group_leave"))
         try await svc.handlePacket(leavePkt)
 
-        XCTAssertEqual(leftMember, "bob", "onMemberLeft must fire with the leaving uhid")
+        XCTAssertEqual(leftMember.value, "bob", "onMemberLeft must fire with the leaving uhid")
     }
 
     // MARK: – kick
@@ -216,15 +216,15 @@ final class GroupVoiceCallServiceTests: XCTestCase {
                                                                  codecs: ["opus"], members: ["bob", LOCAL]))
         try await svc.handlePacket(invitePkt)
 
-        var leftMember = ""
-        await svc.setOnMemberLeft { _, uhid in leftMember = uhid }
+        let leftMember = Locked("")
+        await svc.setOnMemberLeft { _, uhid in leftMember.value = uhid }
 
         // Bob kicks alice (LOCAL).
         let kickPkt = groupSigPkt(from: "bob", to: LOCAL,
                                   payload: groupKickPayload(callId: callId, kickedUhid: LOCAL, byUhid: "bob"))
         try await svc.handlePacket(kickPkt)
 
-        XCTAssertEqual(leftMember, LOCAL, "onMemberLeft must fire with the local uhid when self is kicked")
+        XCTAssertEqual(leftMember.value, LOCAL, "onMemberLeft must fire with the local uhid when self is kicked")
     }
 
     // MARK: – sendFrame
@@ -257,13 +257,13 @@ final class GroupVoiceCallServiceTests: XCTestCase {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = GroupVoiceCallService(sender: sender)
 
-        var frameReceived = false
-        var receivedAudio = Data()
-        var receivedKeyGen: UInt32 = 0
+        let frameReceived = Locked(false)
+        let receivedAudio = Locked(Data())
+        let receivedKeyGen = Locked<UInt32>(0)
         await svc.setOnFrameReceived { _, _, audio, _, keyGen, _ in
-            frameReceived = true
-            receivedAudio = audio
-            receivedKeyGen = keyGen
+            frameReceived.value = true
+            receivedAudio.value = audio
+            receivedKeyGen.value = keyGen
         }
 
         let callId = UUID()
@@ -271,8 +271,8 @@ final class GroupVoiceCallServiceTests: XCTestCase {
         let framePkt = groupFramePkt(callId: callId, isSilence: false, keyGen: 7, audio: audio)
         try await svc.handlePacket(framePkt)
 
-        XCTAssertTrue(frameReceived, "onFrameReceived must fire for inbound group voice frame")
-        XCTAssertEqual(receivedAudio, audio)
-        XCTAssertEqual(receivedKeyGen, 7, "key generation must be decoded correctly from wire format")
+        XCTAssertTrue(frameReceived.value, "onFrameReceived must fire for inbound group voice frame")
+        XCTAssertEqual(receivedAudio.value, audio)
+        XCTAssertEqual(receivedKeyGen.value, 7, "key generation must be decoded correctly from wire format")
     }
 }

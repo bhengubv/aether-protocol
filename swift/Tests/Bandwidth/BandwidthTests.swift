@@ -530,8 +530,8 @@ final class NodeActivityMonitorTests: XCTestCase {
         let est = BandwidthEstimator(transportName: "BLE", maxBandwidthBps: 2_000_000)
         await monitor.register(name: "BLE", estimator: est)
 
-        var callCount = 0
-        let unsubscribe = await monitor.subscribe { _ in callCount += 1 }
+        let callCount = Locked(0)
+        let unsubscribe = await monitor.subscribe { _ in callCount.value += 1 }
         unsubscribe()
 
         await monitor.start()
@@ -540,7 +540,7 @@ final class NodeActivityMonitorTests: XCTestCase {
         await monitor.stop()
 
         // callCount may be 0 or 1 (race between unsub and first tick); must not be > 1.
-        XCTAssertLessThanOrEqual(callCount, 1)
+        XCTAssertLessThanOrEqual(callCount.value, 1)
     }
 
     func testSampleIntervalClampedToMinimum() async {

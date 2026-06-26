@@ -66,8 +66,8 @@ final class VoiceCallServiceTests: XCTestCase {
     func test_handlePacket_inboundOffer_firesOnIncomingCall() async throws {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = VoiceCallService(sender: sender)
-        var firedFrom = ""
-        await svc.setOnIncomingCall { _, from, _, _ in firedFrom = from }
+        let firedFrom = Locked("")
+        await svc.setOnIncomingCall { _, from, _, _ in firedFrom.value = from }
 
         let callId = UUID()
         let pkt = voiceSignalingPkt(
@@ -75,7 +75,7 @@ final class VoiceCallServiceTests: XCTestCase {
             payload: offerPayload(callId: callId, fromUhid: "bob")
         )
         try await svc.handlePacket(pkt)
-        XCTAssertEqual(firedFrom, "bob", "onIncomingCall must fire with sender's uhid")
+        XCTAssertEqual(firedFrom.value, "bob", "onIncomingCall must fire with sender's uhid")
     }
 
     // MARK: – inbound accept
@@ -85,15 +85,15 @@ final class VoiceCallServiceTests: XCTestCase {
         let svc = VoiceCallService(sender: sender)
         let callId = try await svc.sendOffer(toUhid: "bob", codecs: ["opus"], sampleRateHz: 48_000)
 
-        var lastState: VoiceCallState?
-        await svc.setOnCallStateChanged { _, s in lastState = s }
+        let lastState = Locked<VoiceCallState?>(nil)
+        await svc.setOnCallStateChanged { _, s in lastState.value = s }
 
         let pkt = voiceSignalingPkt(
             from: "bob", to: LOCAL,
             payload: controlPayload(callId: callId, fromUhid: "bob", signalType: "accept")
         )
         try await svc.handlePacket(pkt)
-        XCTAssertEqual(lastState, .connected)
+        XCTAssertEqual(lastState.value, .connected)
     }
 
     // MARK: – inbound hangup
@@ -110,15 +110,15 @@ final class VoiceCallServiceTests: XCTestCase {
         )
         try await svc.handlePacket(offerPkt)
 
-        var lastState: VoiceCallState?
-        await svc.setOnCallStateChanged { _, s in lastState = s }
+        let lastState = Locked<VoiceCallState?>(nil)
+        await svc.setOnCallStateChanged { _, s in lastState.value = s }
 
         let hangupPkt = voiceSignalingPkt(
             from: "bob", to: LOCAL,
             payload: controlPayload(callId: callId, fromUhid: "bob", signalType: "hangup")
         )
         try await svc.handlePacket(hangupPkt)
-        XCTAssertEqual(lastState, .ended)
+        XCTAssertEqual(lastState.value, .ended)
     }
 
     // MARK: – acceptCall
@@ -152,10 +152,10 @@ final class VoiceCallServiceTests: XCTestCase {
         )
         try await svc.handlePacket(offerPkt)
 
-        var lastState: VoiceCallState?
-        await svc.setOnCallStateChanged { _, s in lastState = s }
+        let lastState = Locked<VoiceCallState?>(nil)
+        await svc.setOnCallStateChanged { _, s in lastState.value = s }
         try await svc.acceptCall(callId: callId)
-        XCTAssertEqual(lastState, .connected)
+        XCTAssertEqual(lastState.value, .connected)
     }
 
     // MARK: – hangUp
@@ -179,10 +179,10 @@ final class VoiceCallServiceTests: XCTestCase {
         let svc = VoiceCallService(sender: sender)
         let callId = try await svc.sendOffer(toUhid: "bob", codecs: ["opus"], sampleRateHz: 48_000)
 
-        var lastState: VoiceCallState?
-        await svc.setOnCallStateChanged { _, s in lastState = s }
+        let lastState = Locked<VoiceCallState?>(nil)
+        await svc.setOnCallStateChanged { _, s in lastState.value = s }
         try await svc.hangUp(callId: callId)
-        XCTAssertEqual(lastState, .ended)
+        XCTAssertEqual(lastState.value, .ended)
     }
 
     // MARK: – sendFrame
@@ -233,8 +233,8 @@ final class VoiceCallServiceTests: XCTestCase {
         )
         try await svc.handlePacket(acceptPkt)
 
-        var frameReceived = false
-        await svc.setOnFrameReceived { _, _, _, _ in frameReceived = true }
+        let frameReceived = Locked(false)
+        await svc.setOnFrameReceived { _, _, _, _ in frameReceived.value = true }
 
         // Build a binary VoiceCall frame packet.
         var framePkt = MeshPacket(type: .voiceCall, sourceUhid: "bob", destinationUhid: LOCAL, priority: 64)
@@ -248,6 +248,6 @@ final class VoiceCallServiceTests: XCTestCase {
         framePkt.payload = buf
         try await svc.handlePacket(framePkt)
 
-        XCTAssertTrue(frameReceived, "onFrameReceived must fire for inbound VoiceCall packet")
+        XCTAssertTrue(frameReceived.value, "onFrameReceived must fire for inbound VoiceCall packet")
     }
 }

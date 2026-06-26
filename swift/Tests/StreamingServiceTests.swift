@@ -124,11 +124,11 @@ final class StreamingServiceTests: XCTestCase {
         let svc = StreamingService(sender: sender)
         let sid = try await svc.startStream(title: "T", mimeType: "audio/opus")
 
-        var endedId: UUID?
-        await svc.setOnStreamEnded { id in endedId = id }
+        let endedId = Locked<UUID?>(nil)
+        await svc.setOnStreamEnded { id in endedId.value = id }
 
         try await svc.endStream(streamId: sid)
-        XCTAssertEqual(endedId, sid)
+        XCTAssertEqual(endedId.value, sid)
     }
 
     // MARK: – subscribe / unsubscribe
@@ -251,18 +251,18 @@ final class StreamingServiceTests: XCTestCase {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = StreamingService(sender: sender)
 
-        var announcedId: UUID?
-        var announcedPublisher = ""
+        let announcedId = Locked<UUID?>(nil)
+        let announcedPublisher = Locked("")
         await svc.setOnStreamAnnounced { sid, publisher, _ in
-            announcedId = sid
-            announcedPublisher = publisher
+            announcedId.value = sid
+            announcedPublisher.value = publisher
         }
 
         let sid = UUID()
         try await svc.handlePacket(announcePacket(publisher: "bob", streamId: sid, title: "Bob's Stream"))
 
-        XCTAssertEqual(announcedId, sid)
-        XCTAssertEqual(announcedPublisher, "bob")
+        XCTAssertEqual(announcedId.value, sid)
+        XCTAssertEqual(announcedPublisher.value, "bob")
     }
 
     // MARK: – handlePacket — inbound end announce
@@ -275,12 +275,12 @@ final class StreamingServiceTests: XCTestCase {
         // First announce so the stream is tracked.
         try await svc.handlePacket(announcePacket(publisher: "bob", streamId: sid, title: "Bob's Stream"))
 
-        var endedId: UUID?
-        await svc.setOnStreamEnded { id in endedId = id }
+        let endedId = Locked<UUID?>(nil)
+        await svc.setOnStreamEnded { id in endedId.value = id }
 
         try await svc.handlePacket(endAnnouncePacket(publisher: "bob", streamId: sid))
 
-        XCTAssertEqual(endedId, sid)
+        XCTAssertEqual(endedId.value, sid)
     }
 
     // MARK: – handlePacket — inbound segment
@@ -293,31 +293,31 @@ final class StreamingServiceTests: XCTestCase {
         // Subscribe locally so the service accepts segments for this stream.
         try await svc.subscribe(streamId: sid, publisherUhid: "bob")
 
-        var frameReceived = false
-        var receivedData = Data()
+        let frameReceived = Locked(false)
+        let receivedData = Locked(Data())
         await svc.setOnSegmentReceived { _, data, _, _, _ in
-            frameReceived = true
-            receivedData = data
+            frameReceived.value = true
+            receivedData.value = data
         }
 
         let audio = Data([0xAA, 0xBB, 0xCC])
         try await svc.handlePacket(segmentPacket(streamId: sid, isKeyframe: false, audio: audio))
 
-        XCTAssertTrue(frameReceived, "onSegmentReceived must fire for subscribed stream")
-        XCTAssertEqual(receivedData, audio)
+        XCTAssertTrue(frameReceived.value, "onSegmentReceived must fire for subscribed stream")
+        XCTAssertEqual(receivedData.value, audio)
     }
 
     func test_handlePacket_inboundSegment_notSubscribed_doesNotFire() async throws {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = StreamingService(sender: sender)
 
-        var frameReceived = false
-        await svc.setOnSegmentReceived { _, _, _, _, _ in frameReceived = true }
+        let frameReceived = Locked(false)
+        await svc.setOnSegmentReceived { _, _, _, _, _ in frameReceived.value = true }
 
         // Do NOT subscribe — segment should be ignored.
         let pkt = segmentPacket(streamId: UUID(), isKeyframe: false, audio: Data([0x01]))
         try await svc.handlePacket(pkt)
 
-        XCTAssertFalse(frameReceived, "onSegmentReceived must not fire when not subscribed")
+        XCTAssertFalse(frameReceived.value, "onSegmentReceived must not fire when not subscribed")
     }
 }

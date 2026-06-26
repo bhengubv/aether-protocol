@@ -191,13 +191,13 @@ final class WatchTogetherServiceTests: XCTestCase {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = WatchTogetherService(sender: sender)
 
-        var invitedSessionId: UUID?
-        var invitedHost = ""
-        var invitedMediaUrl = ""
+        let invitedSessionId = Locked<UUID?>(nil)
+        let invitedHost = Locked("")
+        let invitedMediaUrl = Locked("")
         await svc.setOnInviteReceived { sid, host, url in
-            invitedSessionId = sid
-            invitedHost = host
-            invitedMediaUrl = url
+            invitedSessionId.value = sid
+            invitedHost.value = host
+            invitedMediaUrl.value = url
         }
 
         let sid = UUID()
@@ -207,9 +207,9 @@ final class WatchTogetherServiceTests: XCTestCase {
                                                        members: ["bob", LOCAL]))
         try await svc.handlePacket(pkt)
 
-        XCTAssertEqual(invitedSessionId, sid)
-        XCTAssertEqual(invitedHost, "bob")
-        XCTAssertEqual(invitedMediaUrl, "https://example.com/stream")
+        XCTAssertEqual(invitedSessionId.value, sid)
+        XCTAssertEqual(invitedHost.value, "bob")
+        XCTAssertEqual(invitedMediaUrl.value, "https://example.com/stream")
     }
 
     // MARK: – handlePacket — inbound play
@@ -218,11 +218,11 @@ final class WatchTogetherServiceTests: XCTestCase {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = WatchTogetherService(sender: sender)
 
-        var firedIsPlaying: Bool?
-        var firedPositionMs: Int64?
+        let firedIsPlaying = Locked<Bool?>(nil)
+        let firedPositionMs = Locked<Int64?>(nil)
         await svc.setOnPlaybackStateChanged { _, isPlaying, posMs in
-            firedIsPlaying = isPlaying
-            firedPositionMs = posMs
+            firedIsPlaying.value = isPlaying
+            firedPositionMs.value = posMs
         }
 
         let sid = UUID()
@@ -237,9 +237,9 @@ final class WatchTogetherServiceTests: XCTestCase {
                                payload: playPayload(sessionId: sid, fromUhid: "bob", positionMs: 5000))
         try await svc.handlePacket(pkt)
 
-        XCTAssertEqual(firedIsPlaying, true)
+        XCTAssertEqual(firedIsPlaying.value, true)
         // RTT compensation adds (nowMs - sentAtMs) * speed. With sent_at_ms ≈ nowMs, compensation ≈ 0.
-        XCTAssertGreaterThanOrEqual(firedPositionMs ?? 0, 5000, "compensated position must be >= requested position")
+        XCTAssertGreaterThanOrEqual(firedPositionMs.value ?? 0, 5000, "compensated position must be >= requested position")
     }
 
     // MARK: – handlePacket — inbound pause
@@ -248,11 +248,11 @@ final class WatchTogetherServiceTests: XCTestCase {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = WatchTogetherService(sender: sender)
 
-        var firedIsPlaying: Bool?
-        var firedPositionMs: Int64?
+        let firedIsPlaying = Locked<Bool?>(nil)
+        let firedPositionMs = Locked<Int64?>(nil)
         await svc.setOnPlaybackStateChanged { _, isPlaying, posMs in
-            firedIsPlaying = isPlaying
-            firedPositionMs = posMs
+            firedIsPlaying.value = isPlaying
+            firedPositionMs.value = posMs
         }
 
         let sid = UUID()
@@ -260,8 +260,8 @@ final class WatchTogetherServiceTests: XCTestCase {
                                payload: pausePayload(sessionId: sid, fromUhid: "bob", positionMs: 15000))
         try await svc.handlePacket(pkt)
 
-        XCTAssertEqual(firedIsPlaying, false)
-        XCTAssertEqual(firedPositionMs, 15000, "pause position must be forwarded exactly (no RTT compensation)")
+        XCTAssertEqual(firedIsPlaying.value, false)
+        XCTAssertEqual(firedPositionMs.value, 15000, "pause position must be forwarded exactly (no RTT compensation)")
     }
 
     // MARK: – handlePacket — inbound seek
@@ -270,15 +270,15 @@ final class WatchTogetherServiceTests: XCTestCase {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = WatchTogetherService(sender: sender)
 
-        var firedPositionMs: Int64?
-        await svc.setOnPlaybackStateChanged { _, _, posMs in firedPositionMs = posMs }
+        let firedPositionMs = Locked<Int64?>(nil)
+        await svc.setOnPlaybackStateChanged { _, _, posMs in firedPositionMs.value = posMs }
 
         let sid = UUID()
         let pkt = watchSyncPkt(from: "bob", to: LOCAL,
                                payload: seekPayload(sessionId: sid, fromUhid: "bob", positionMs: 30000))
         try await svc.handlePacket(pkt)
 
-        XCTAssertGreaterThanOrEqual(firedPositionMs ?? 0, 30000, "seek compensated position must be >= requested position")
+        XCTAssertGreaterThanOrEqual(firedPositionMs.value ?? 0, 30000, "seek compensated position must be >= requested position")
     }
 
     // MARK: – handlePacket — inbound reaction
@@ -287,11 +287,11 @@ final class WatchTogetherServiceTests: XCTestCase {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = WatchTogetherService(sender: sender)
 
-        var firedEmoji = ""
-        var firedFrom = ""
+        let firedEmoji = Locked("")
+        let firedFrom = Locked("")
         await svc.setOnReactionReceived { _, from, emoji in
-            firedFrom = from
-            firedEmoji = emoji
+            firedFrom.value = from
+            firedEmoji.value = emoji
         }
 
         let sid = UUID()
@@ -299,7 +299,7 @@ final class WatchTogetherServiceTests: XCTestCase {
                                    payload: reactionPayload(sessionId: sid, fromUhid: "bob", emoji: "❤️"))
         try await svc.handlePacket(pkt)
 
-        XCTAssertEqual(firedFrom, "bob")
-        XCTAssertEqual(firedEmoji, "❤️")
+        XCTAssertEqual(firedFrom.value, "bob")
+        XCTAssertEqual(firedEmoji.value, "❤️")
     }
 }
