@@ -47,6 +47,8 @@ final class SosBroadcastServiceTests: XCTestCase {
         XCTAssertEqual(bcasts[0].type, .sosBroadcast)
         XCTAssertEqual(bcasts[0].ttl, ProtocolConstants.sosTtl)
         XCTAssertEqual(bcasts[0].priority, ProtocolConstants.sosPriority)
+        let sosBody = String(data: bcasts[0].payload, encoding: .utf8) ?? ""
+        XCTAssertEqual(sosBody, sosBody.lowercased(), "SOS payload must be all-lowercase incl broadcast_id (cross-language wire parity)")
         let alerts = await svc.getActiveAlerts()
         XCTAssertEqual(alerts.count, 1)
     }

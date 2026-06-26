@@ -165,7 +165,7 @@ private struct VoiceCallRecord: Sendable {
 // ─── JSON wire types ──────────────────────────────────────
 
 private struct VoiceOfferWire: Codable {
-    let call_id: UUID
+    @LowercaseUUIDCoding var call_id: UUID
     let from_uhid: String
     let codecs: [String]
     let sample_rate_hz: Int
@@ -173,7 +173,7 @@ private struct VoiceOfferWire: Codable {
 
 /// Generic control message — accept, hangup, etc.
 private struct VoiceControlWire: Codable {
-    let call_id: UUID
+    @LowercaseUUIDCoding var call_id: UUID
     let from_uhid: String
     let signal_type: String
 }

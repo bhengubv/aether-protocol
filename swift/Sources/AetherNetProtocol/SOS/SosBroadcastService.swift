@@ -127,7 +127,7 @@ public actor SosBroadcastService {
 // ─── snake_case JSON wire ───
 
 private struct SosWire: Codable {
-    let broadcast_id: UUID
+    @LowercaseUUIDCoding var broadcast_id: UUID
     let broadcast_type: String
     let message: String?
     let latitude: Double

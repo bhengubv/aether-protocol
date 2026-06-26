@@ -54,10 +54,11 @@ final class VoiceCallServiceTests: XCTestCase {
     func test_sendOffer_payloadContainsCodecs() async throws {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = VoiceCallService(sender: sender)
-        _ = try await svc.sendOffer(toUhid: "bob", codecs: ["opus", "g722"], sampleRateHz: 16_000)
+        let callId = try await svc.sendOffer(toUhid: "bob", codecs: ["opus", "g722"], sampleRateHz: 16_000)
         let pkt = sender.unicasts()[0].packet
         let bodyStr = String(data: pkt.payload, encoding: .utf8) ?? ""
         XCTAssertTrue(bodyStr.contains("opus"), "payload must contain codec name")
+        XCTAssertTrue(bodyStr.contains(callId.uuidString.lowercased()), "offer payload must carry a lowercase call_id (cross-language wire parity)")
     }
 
     // MARK: – inbound offer

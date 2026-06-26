@@ -196,7 +196,7 @@ private struct GroupCallRecord: Sendable {
 // ─── JSON wire types ──────────────────────────────────────
 
 private struct GroupInviteWire: Codable {
-    let call_id: UUID
+    @LowercaseUUIDCoding var call_id: UUID
     let from_uhid: String
     let codecs: [String]
     let members: [String]
@@ -207,13 +207,13 @@ private struct GroupInviteWire: Codable {
 }
 
 private struct GroupMemberWire: Codable {
-    let call_id: UUID
+    @LowercaseUUIDCoding var call_id: UUID
     let uhid: String
     let signal_type: String   // "group_join" | "group_leave"
 }
 
 private struct GroupKickWire: Codable {
-    let call_id: UUID
+    @LowercaseUUIDCoding var call_id: UUID
     let kicked_uhid: String
     let by_uhid: String
     let signal_type: String = "group_kick"

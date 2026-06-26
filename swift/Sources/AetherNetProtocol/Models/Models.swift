@@ -280,7 +280,7 @@ public struct SosBroadcastPayload: Codable {
     public let geohash: String?
 
     public init(
-        broadcastId: String = UUID().uuidString,
+        broadcastId: String = UUID().uuidString.lowercased(),
         broadcastType: String = "sos",
         message: String? = nil,
         latitude: Double? = nil,

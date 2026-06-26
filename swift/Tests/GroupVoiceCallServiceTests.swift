@@ -69,7 +69,7 @@ final class GroupVoiceCallServiceTests: XCTestCase {
     func test_invite_sendsGroupInviteSignalingToEachInvitee() async throws {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let svc = GroupVoiceCallService(sender: sender)
-        _ = try await svc.invite(toUhids: ["bob", "carol"], codecs: ["opus"])
+        let callId = try await svc.invite(toUhids: ["bob", "carol"], codecs: ["opus"])
         let unicasts = sender.unicasts()
         XCTAssertEqual(unicasts.count, 2, "invite must send voiceSignaling to each invitee")
         let targets = Set(unicasts.map { $0.nextHopUhid })
@@ -79,6 +79,7 @@ final class GroupVoiceCallServiceTests: XCTestCase {
             XCTAssertEqual(u.packet.type, .voiceSignaling)
             let body = String(data: u.packet.payload, encoding: .utf8) ?? ""
             XCTAssertTrue(body.contains("group_invite"), "invite payload must contain signal_type=group_invite")
+            XCTAssertTrue(body.contains(callId.uuidString.lowercased()), "invite payload must carry a lowercase call_id (cross-language wire parity)")
         }
     }
 
