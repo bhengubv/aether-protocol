@@ -269,6 +269,14 @@ target_include_directories(test-market PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../in
 target_link_libraries(test-market PRIVATE aethernet-protocol pthread m)
 add_test(NAME MarketServiceTests COMMAND test-market)
 
+# aether-forge in-memory package cache (Phase-2): cache/query/fetch/stats behaviour.
+add_executable(test-forge
+    test_forge.c
+)
+target_include_directories(test-forge PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-forge PRIVATE aethernet-protocol pthread)
+add_test(NAME ForgeServiceTests COMMAND test-forge)
+
 # aether-vault in-memory service (Phase-2): store/recover/health/replicate over
 # the reed-solomon codec. A self-contained behavioural test (no JSON fixture).
 add_executable(test-vault
@@ -298,6 +306,7 @@ add_custom_target(aether-tests
         test-vault
         test-pov-token
         test-market
+        test-forge
         test-protocol
         test-routing
         test-dtn
