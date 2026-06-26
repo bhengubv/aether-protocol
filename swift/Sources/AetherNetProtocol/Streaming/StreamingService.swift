@@ -130,18 +130,22 @@ public actor StreamingService {
     // MARK: – Private
 
     private func handleStreamAnnounce(_ packet: MeshPacket) {
-        // End notice has a "signal_type":"end" discriminator
-        if let end = decodeJSON(StreamEndWire.self, from: packet.payload) {
-            streams.removeValue(forKey: end.stream_id)
-            subscriptions.remove(end.stream_id)
-            onStreamEnded?(end.stream_id)
-            return
-        }
+        // Disambiguate by required fields: an announce carries title + mime_type,
+        // an end notice does not (it carries signal_type:"end"). Decode the announce
+        // first — it fails fast on an end notice (missing title/mime_type), whereas
+        // StreamEndWire's defaulted signal_type would otherwise swallow an announce
+        // that has no signal_type field at all.
         if let ann = decodeJSON(StreamAnnounceWire.self, from: packet.payload) {
             if streams[ann.stream_id] == nil {
                 streams[ann.stream_id] = StreamRecord(streamId: ann.stream_id, publisherUhid: ann.publisher_uhid, title: ann.title, mimeType: ann.mime_type, subscribers: [])
             }
             onStreamAnnounced?(ann.stream_id, ann.publisher_uhid, ann.title)
+            return
+        }
+        if let end = decodeJSON(StreamEndWire.self, from: packet.payload) {
+            streams.removeValue(forKey: end.stream_id)
+            subscriptions.remove(end.stream_id)
+            onStreamEnded?(end.stream_id)
         }
     }
 
@@ -182,7 +186,7 @@ private struct StreamRecord: Sendable {
 // ─── JSON wire types ──────────────────────────────────────
 
 private struct StreamAnnounceWire: Codable {
-    let stream_id: UUID
+    @LowercaseUUIDCoding var stream_id: UUID
     let publisher_uhid: String
     let title: String
     let mime_type: String
@@ -190,7 +194,7 @@ private struct StreamAnnounceWire: Codable {
 }
 
 private struct StreamEndWire: Codable {
-    let stream_id: UUID
+    @LowercaseUUIDCoding var stream_id: UUID
     let publisher_uhid: String
     let signal_type: String = "end"
     private enum CodingKeys: String, CodingKey {
@@ -199,7 +203,7 @@ private struct StreamEndWire: Codable {
 }
 
 private struct StreamSubscribeWire: Codable {
-    let stream_id: UUID
+    @LowercaseUUIDCoding var stream_id: UUID
     let subscriber_uhid: String
 }
 

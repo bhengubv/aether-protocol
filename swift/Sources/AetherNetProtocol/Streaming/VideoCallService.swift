@@ -137,6 +137,14 @@ public actor VideoCallService {
             onIncomingCall?(offer.call_id, packet.sourceUhid, offer.video_codecs, offer.audio_codecs)
             return
         }
+        // Quality-change carries a required `quality` field; decode it before the
+        // generic control message. VideoControlWire ignores the extra `quality` key,
+        // so if it ran first it would swallow a quality-change and fall through to
+        // its `default` branch.
+        if let qc = decodeJSON(VideoQualityChangeWire.self, from: packet.payload) {
+            onQualityChanged?(qc.call_id, qc.quality)
+            return
+        }
         if let ctrl = decodeJSON(VideoControlWire.self, from: packet.payload) {
             switch ctrl.signal_type {
             case "video_accept":
@@ -153,10 +161,6 @@ public actor VideoCallService {
                 onKeyframeRequested?(ctrl.call_id)
             default: break
             }
-            return
-        }
-        if let qc = decodeJSON(VideoQualityChangeWire.self, from: packet.payload) {
-            onQualityChanged?(qc.call_id, qc.quality)
         }
     }
 
@@ -183,7 +187,7 @@ private struct VideoCallRecord: Sendable {
 // ─── JSON wire types ──────────────────────────────────────
 
 private struct VideoOfferWire: Codable {
-    let call_id: UUID
+    @LowercaseUUIDCoding var call_id: UUID
     let from_uhid: String
     let video_codecs: [String]
     let audio_codecs: [String]
@@ -191,13 +195,13 @@ private struct VideoOfferWire: Codable {
 }
 
 private struct VideoControlWire: Codable {
-    let call_id: UUID
+    @LowercaseUUIDCoding var call_id: UUID
     let from_uhid: String
     let signal_type: String   // "video_accept" | "video_hangup" | "keyframe_request"
 }
 
 private struct VideoQualityChangeWire: Codable {
-    let call_id: UUID
+    @LowercaseUUIDCoding var call_id: UUID
     let from_uhid: String
     let quality: String
     let signal_type: String = "quality_change"

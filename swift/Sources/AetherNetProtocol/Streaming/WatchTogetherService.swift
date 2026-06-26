@@ -206,7 +206,7 @@ private struct WatchSession: Sendable {
 // ─── JSON wire types ──────────────────────────────────────
 
 private struct WatchInviteWire: Codable {
-    let session_id: UUID
+    @LowercaseUUIDCoding var session_id: UUID
     let host_uhid: String
     let media_url: String
     let members: [String]
@@ -217,7 +217,7 @@ private struct WatchInviteWire: Codable {
 }
 
 private struct WatchPlayWire: Codable {
-    let session_id: UUID
+    @LowercaseUUIDCoding var session_id: UUID
     let from_uhid: String
     let position_ms: Int64
     let sent_at_ms: Int64
@@ -228,7 +228,7 @@ private struct WatchPlayWire: Codable {
 }
 
 private struct WatchPauseWire: Codable {
-    let session_id: UUID
+    @LowercaseUUIDCoding var session_id: UUID
     let from_uhid: String
     let position_ms: Int64
     let signal_type: String = "watch_pause"
@@ -238,7 +238,7 @@ private struct WatchPauseWire: Codable {
 }
 
 private struct WatchSeekWire: Codable {
-    let session_id: UUID
+    @LowercaseUUIDCoding var session_id: UUID
     let from_uhid: String
     let position_ms: Int64
     let sent_at_ms: Int64
@@ -249,7 +249,7 @@ private struct WatchSeekWire: Codable {
 }
 
 private struct WatchSpeedWire: Codable {
-    let session_id: UUID
+    @LowercaseUUIDCoding var session_id: UUID
     let from_uhid: String
     let speed: Double
     let signal_type: String = "watch_speed"
@@ -259,7 +259,7 @@ private struct WatchSpeedWire: Codable {
 }
 
 private struct WatchReactionWire: Codable {
-    let session_id: UUID
+    @LowercaseUUIDCoding var session_id: UUID
     let from_uhid: String
     let emoji: String
     let sent_at_ms: Int64
