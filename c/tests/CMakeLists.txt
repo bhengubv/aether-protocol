@@ -313,6 +313,18 @@ target_include_directories(test-p256 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../incl
 target_link_libraries(test-p256 PRIVATE aethernet-protocol pthread)
 add_test(NAME P256FixtureTests COMMAND test-p256)
 
+# Cross-language PeerID parity driver. Transcribes the 5 cases from
+# fixtures/peerid/inputs.json (no JSON parser on the test surface) and drives
+# aethernet_peer_id_from_ed25519, asserting each derived libp2p PeerID matches
+# the js-libp2p-verified expected string, mirroring the other-language PeerID
+# fixture tests.
+add_executable(test-peerid
+    test_peerid_fixture.c
+)
+target_include_directories(test-peerid PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-peerid PRIVATE aethernet-protocol pthread)
+add_test(NAME PeerIdFixtureTests COMMAND test-peerid)
+
 # Convenience target: build every test binary in one step.
 # Usage: cmake --build build --target aether-tests
 add_custom_target(aether-tests
@@ -355,4 +367,5 @@ add_custom_target(aether-tests
         test-bandwidth
         test-bandwidth-fixtures
         test-p256
+        test-peerid
 )

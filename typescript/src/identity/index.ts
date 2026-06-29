@@ -7,3 +7,4 @@ export { AetherNetTag } from "./AetherNetTag.js";
 export * as EphemeralRoutingId from "./EphemeralRoutingId.js";
 export { EridDirectory } from "./EridDirectory.js";
 export * as EridAnnouncementCodec from "./EridAnnouncementCodec.js";
+export * as PeerId from "./PeerId.js";

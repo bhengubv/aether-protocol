@@ -1,0 +1,7 @@
+[
+  { "name": "ed25519_1", "description": "Ed25519 public key from seed 0x00 * 32", "pubkey_hex": "3b6a27bcceb6a42d62a3a8d02a6f0d73653215771de243a63ac048a18b59da29" },
+  { "name": "ed25519_2", "description": "Ed25519 public key from seed 0x01 * 32", "pubkey_hex": "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c" },
+  { "name": "ed25519_3", "description": "Ed25519 public key from seed 0x07 * 32", "pubkey_hex": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c" },
+  { "name": "ed25519_4", "description": "Ed25519 public key from seed 0x2a * 32", "pubkey_hex": "197f6b23e16c8532c6abc838facd5ea789be0c76b2920334039bfa8b3d368d61" },
+  { "name": "ed25519_5", "description": "Ed25519 public key from seed 0xff * 32", "pubkey_hex": "76a1592044a6e4f511265bca73a604d90b0529d1df602be30a19a9257660d1f5" }
+]

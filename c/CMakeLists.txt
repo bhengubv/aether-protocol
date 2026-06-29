@@ -176,6 +176,7 @@ add_library(aethernet-protocol STATIC
     src/aethernet_bandwidth.c
     src/chunk_bitmap.c
     src/directory_service.c
+    src/peer_id.c
     src/tip_packet.c
     src/reed_solomon.c
     src/vault.c

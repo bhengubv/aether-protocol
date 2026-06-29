@@ -11,11 +11,14 @@
 //!   established relationships (off-wire, shared inside the Signal session).
 //! - [`erid_announcement_codec`] — frames the in-session message that shares a routing
 //!   key with a peer.
+//! - [`peer_id`] — derives a libp2p PeerID (`12D3Koo…`) from a node's Ed25519 public key,
+//!   the bridge to the global libp2p relay / DHT.
 
 pub mod aethernet_tag;
 pub mod ephemeral_routing_id;
 pub mod erid_announcement_codec;
 pub mod erid_directory;
+pub mod peer_id;
 
 pub use aethernet_tag::{AetherNetTag, AetherNetTagError};
 pub use ephemeral_routing_id::{
@@ -24,3 +27,4 @@ pub use ephemeral_routing_id::{
 };
 pub use erid_announcement_codec::{EridAnnouncement, EridAnnouncementError};
 pub use erid_directory::EridDirectory;
+pub use peer_id::{PeerIdError, ED25519_PUBLIC_KEY_LENGTH};
