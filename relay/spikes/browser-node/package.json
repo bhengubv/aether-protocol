@@ -1,0 +1,21 @@
+{
+  "name": "aether-relay-spike-browser-node",
+  "private": true,
+  "type": "module",
+  "description": "Increment 6: js-libp2p browser stack (WebRTC + WebSockets + circuit-relay) bundles + boots in a real browser = the txtMe BlazorWebView substrate (GREEN 2026-06-29).",
+  "scripts": {
+    "bundle": "esbuild browser-node.mjs --bundle --platform=browser --format=esm --outfile=aether-relay.bundle.js --define:global=globalThis",
+    "test": "node run-browser.mjs"
+  },
+  "dependencies": {
+    "libp2p": "3.3.4",
+    "@libp2p/websockets": "10.1.15",
+    "@libp2p/webrtc": "6.0.25",
+    "@libp2p/circuit-relay-v2": "4.2.7",
+    "@libp2p/identify": "4.1.8",
+    "@libp2p/dcutr": "3.0.22",
+    "@chainsafe/libp2p-noise": "17.0.0",
+    "@chainsafe/libp2p-yamux": "8.0.1"
+  },
+  "devDependencies": { "esbuild": "*", "puppeteer-core": "*" }
+}

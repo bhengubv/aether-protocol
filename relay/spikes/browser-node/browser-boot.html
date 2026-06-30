@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><body>
+<script type="module" src="./aether-relay.bundle.js"></script>
+<script>
+window.__aether = null
+;(async () => {
+  for (let i = 0; i < 80 && !window.aetherBoot; i++) await new Promise(r => setTimeout(r, 100))
+  if (!window.aetherBoot) { window.__aether = { error: "aetherBoot not defined (bundle failed to load)" }; return }
+  try { window.__aether = await window.aetherBoot() } catch (e) { window.__aether = { error: String(e) } }
+})()
+</script>

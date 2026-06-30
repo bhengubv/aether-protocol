@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8"><body><script>
+window.__result = null
+async function run() {
+  const diag = {}
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+    diag.tracks = stream.getVideoTracks().length
+    const track = stream.getVideoTracks()[0]
+    const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 128 }, true, ["encrypt","decrypt"])
+    const sent = new Map(); let ctr = 0, enc = 0, dec = 0, matches = 0, ctDiffers = 0
+    const pc1 = new RTCPeerConnection({ encodedInsertableStreams: true })
+    const pc2 = new RTCPeerConnection({ encodedInsertableStreams: true })
+    pc1.onicecandidate = e => e.candidate && pc2.addIceCandidate(e.candidate)
+    pc2.onicecandidate = e => e.candidate && pc1.addIceCandidate(e.candidate)
+    let trackFired = 0
+    pc2.ontrack = (e) => { trackFired++
+      const s = e.receiver.createEncodedStreams()
+      s.readable.pipeThrough(new TransformStream({ async transform(frame, c) {
+        try {
+          const buf = new Uint8Array(frame.data); const iv = buf.slice(0,12), ct = buf.slice(12)
+          const ptBuf = new Uint8Array(await crypto.subtle.decrypt({name:"AES-GCM", iv}, key, ct))
+          const cnt = new DataView(ptBuf.buffer, ptBuf.byteOffset).getUint32(0); const pt = ptBuf.slice(4)
+          const orig = sent.get(cnt)
+          if (orig && orig.length === pt.length && orig.every((b,i)=>b===pt[i])) matches++
+          dec++; frame.data = pt.buffer
+        } catch(_) {} c.enqueue(frame)
+      }})).pipeTo(s.writable)
+    }
+    const sender = pc1.addTrack(track, stream)
+    const ss = sender.createEncodedStreams()
+    ss.readable.pipeThrough(new TransformStream({ async transform(frame, c) {
+      try {
+        const data = new Uint8Array(frame.data); const cnt = ctr++; sent.set(cnt, data.slice())
+        const payload = new Uint8Array(4 + data.length); new DataView(payload.buffer).setUint32(0, cnt); payload.set(data, 4)
+        const iv = crypto.getRandomValues(new Uint8Array(12))
+        const ct = new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, payload))
+        const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12)
+        if (out.length !== data.length || !data.every((b,i)=>b===out[12+i])) ctDiffers++
+        frame.data = out.buffer; enc++
+      } catch(_) {} c.enqueue(frame)
+    }})).pipeTo(ss.writable)
+    const offer = await pc1.createOffer(); await pc1.setLocalDescription(offer); await pc2.setRemoteDescription(offer)
+    const ans = await pc2.createAnswer(); await pc2.setLocalDescription(ans); await pc1.setRemoteDescription(ans)
+    await new Promise(r=>setTimeout(r, 6000))
+    diag.pc1 = pc1.connectionState; diag.pc2 = pc2.connectionState; diag.ice1 = pc1.iceConnectionState; diag.trackFired = trackFired
+    window.__result = { enc, dec, matches, ctDiffers, diag, green: enc>0 && dec>0 && matches>0 && ctDiffers>0 }
+  } catch(e) { window.__result = { error: String(e), diag } }
+}
+run()
+</script>

@@ -1,0 +1,11 @@
+{
+  "name": "aether-relay-spike-aethertag-peerid",
+  "private": true,
+  "type": "module",
+  "description": "Increment 3: AetherTag <-> libp2p PeerID - deterministic derivation + pure-function bijection (verified GREEN 2026-06-29).",
+  "dependencies": {
+    "@libp2p/crypto": "5.1.20",
+    "@libp2p/peer-id": "6.0.11",
+    "multiformats": "14.0.2"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "aether-relay-dotnet-host-sidecar",
+  "private": true,
+  "type": "module",
+  "description": "Node sidecar driven by the .NET host (Program.cs): a js-libp2p circuit-relay-v2 server that prints its PeerID.",
+  "dependencies": {
+    "libp2p": "3.3.4",
+    "@libp2p/tcp": "11.0.22",
+    "@libp2p/identify": "4.1.8",
+    "@libp2p/circuit-relay-v2": "4.2.7",
+    "@chainsafe/libp2p-noise": "17.0.0",
+    "@chainsafe/libp2p-yamux": "8.0.1"
+  }
+}

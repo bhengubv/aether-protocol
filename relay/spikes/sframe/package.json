@@ -1,0 +1,8 @@
+{
+  "name": "aether-relay-spike-sframe",
+  "private": true,
+  "type": "module",
+  "description": "Increment 4: SFrame (AES-GCM) over WebRTC Insertable Streams - blind relay forward + byte-exact recovery (GREEN 2026-06-29, headless Chrome).",
+  "scripts": { "test": "node run-sframe.mjs" },
+  "dependencies": { "puppeteer-core": "25.2.1" }
+}

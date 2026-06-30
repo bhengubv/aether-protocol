@@ -1,0 +1,15 @@
+{
+  "name": "aether-relay-spike-relay-dcutr",
+  "private": true,
+  "type": "module",
+  "description": "Increment 2: circuit-relay-v2 reservation + relayed connect (proven 2026-06-29); DCUtR direct-upgrade needs two devices on different networks (the real gate).",
+  "dependencies": {
+    "libp2p": "3.3.4",
+    "@libp2p/tcp": "11.0.22",
+    "@libp2p/identify": "4.1.8",
+    "@libp2p/circuit-relay-v2": "4.2.7",
+    "@libp2p/dcutr": "3.0.22",
+    "@chainsafe/libp2p-noise": "17.0.0",
+    "@chainsafe/libp2p-yamux": "8.0.1"
+  }
+}

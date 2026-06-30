@@ -1,0 +1,14 @@
+{
+  "name": "aether-relay-spike-two-node",
+  "private": true,
+  "type": "module",
+  "description": "Increment 1: two independent libp2p nodes connect + identify + ping (verified 2026-06-29, Node 22).",
+  "dependencies": {
+    "libp2p": "3.3.4",
+    "@libp2p/tcp": "11.0.22",
+    "@libp2p/identify": "4.1.8",
+    "@libp2p/ping": "3.1.7",
+    "@chainsafe/libp2p-noise": "17.0.0",
+    "@chainsafe/libp2p-yamux": "8.0.1"
+  }
+}
