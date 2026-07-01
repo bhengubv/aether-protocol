@@ -97,6 +97,13 @@ pub enum PacketType {
     /// Broadcast during handshake to warm-start the peer's estimator.
     /// Payload is a serialised `BandwidthGossipPayload`.
     BandwidthGossip = 55,
+
+    /// CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
+    /// (reserve/connect/stop/data + responses) as a serialised `RelayFrame` in the
+    /// packet body. Wire byte 57 matches the C# `PacketType::CircuitRelayControl` so a
+    /// relayed hop is byte-identical across languages; an un-upgraded node drops the
+    /// unknown type. The relay `Transport` processes these via its `MeshRelayLink`.
+    CircuitRelayControl = 57,
 }
 
 impl PacketType {
@@ -145,6 +152,7 @@ impl PacketType {
             53 => Some(PacketType::BandwidthProbe),
             54 => Some(PacketType::BandwidthAck),
             55 => Some(PacketType::BandwidthGossip),
+            57 => Some(PacketType::CircuitRelayControl),
             _ => None,
         }
     }

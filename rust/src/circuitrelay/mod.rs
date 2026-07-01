@@ -27,6 +27,9 @@ use uuid::Uuid;
 mod transport;
 pub use transport::*;
 
+mod mesh_link;
+pub use mesh_link::*;
+
 /// Format-version byte at offset 0 of every relay frame.
 pub const VERSION: u8 = 0x01;
 
