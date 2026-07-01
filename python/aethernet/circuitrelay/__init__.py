@@ -15,6 +15,11 @@ from aethernet.circuitrelay.frame import (
     deserialize,
     serialize,
 )
+from aethernet.circuitrelay.transport import (
+    CircuitRelayOptions,
+    RelayLink,
+    Transport,
+)
 
 __all__ = [
     "RELAY_FRAME_VERSION",
@@ -23,4 +28,7 @@ __all__ = [
     "RelayFrame",
     "serialize",
     "deserialize",
+    "CircuitRelayOptions",
+    "RelayLink",
+    "Transport",
 ]

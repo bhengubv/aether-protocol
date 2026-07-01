@@ -11,3 +11,6 @@ export {
   deserializeRelayFrame,
 } from "./RelayFrame.js";
 export type { RelayFrame } from "./RelayFrame.js";
+
+export { Transport, defaultRelayOptions } from "./Transport.js";
+export type { RelayLink, RelayOptions } from "./Transport.js";
