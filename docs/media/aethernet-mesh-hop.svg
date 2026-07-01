@@ -1,0 +1,62 @@
+<svg viewBox="0 0 920 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ttl dsc">
+  <title id="ttl">How AetherNet carries Betty's message</title>
+  <desc id="dsc">Betty's phone has no tower signal. Her message hops phone-to-phone over Bluetooth and Wi-Fi until it reaches a phone that does have signal, then out through the tower to the internet.</desc>
+  <rect width="920" height="300" fill="#ffffff"/>
+  <style>
+    .h    { font: 700 19px system-ui, -apple-system, sans-serif; fill: #111827; }
+    .name { font: 600 14px system-ui, sans-serif; fill: #111827; }
+    .sub  { font: 400 12px system-ui, sans-serif; fill: #6b7280; }
+    .hop  { font: 600 12px system-ui, sans-serif; fill: #2196F3; }
+    .cap  { font: 500 14px system-ui, sans-serif; fill: #6b7280; }
+    .dev  { fill: none; stroke: #2196F3; stroke-width: 2.5; }
+    .mut  { fill: none; stroke: #9ca3af; stroke-width: 2.5; }
+    .on   { fill: #2196F3; fill-opacity: .12; stroke: #2196F3; stroke-width: 2.5; }
+    .flow { stroke: #2196F3; stroke-width: 2.5; fill: none; stroke-dasharray: 6 5; }
+    .sol  { stroke: #2196F3; stroke-width: 2.5; fill: none; }
+  </style>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2196F3"/>
+    </marker>
+  </defs>
+
+  <text x="60" y="38" class="h">When the tower's too far, the phones carry it.</text>
+
+  <rect x="58" y="92" width="44" height="78" rx="9" class="mut"/>
+  <line x1="72" y1="101" x2="88" y2="101" class="mut"/>
+  <text x="80" y="192" class="name" text-anchor="middle">Betty</text>
+  <text x="80" y="210" class="sub" text-anchor="middle">no signal</text>
+
+  <line x1="106" y1="131" x2="244" y2="131" class="flow" marker-end="url(#arr)"/>
+  <text x="175" y="121" class="hop" text-anchor="middle">Bluetooth</text>
+
+  <rect x="248" y="92" width="44" height="78" rx="9" class="dev"/>
+  <line x1="262" y1="101" x2="278" y2="101" class="dev"/>
+  <text x="270" y="192" class="name" text-anchor="middle">a neighbour</text>
+
+  <line x1="296" y1="131" x2="434" y2="131" class="flow" marker-end="url(#arr)"/>
+  <text x="365" y="121" class="hop" text-anchor="middle">Wi-Fi</text>
+
+  <rect x="438" y="92" width="44" height="78" rx="9" class="on"/>
+  <line x1="452" y1="101" x2="468" y2="101" class="dev"/>
+  <text x="460" y="192" class="name" text-anchor="middle">has signal</text>
+
+  <line x1="486" y1="131" x2="612" y2="131" class="sol" marker-end="url(#arr)"/>
+
+  <line x1="650" y1="108" x2="650" y2="166" class="sol"/>
+  <line x1="650" y1="166" x2="636" y2="170" class="sol"/>
+  <line x1="650" y1="166" x2="664" y2="170" class="sol"/>
+  <circle cx="650" cy="104" r="4" fill="#2196F3"/>
+  <path d="M636 116 Q626 104 636 92" class="sol"/>
+  <path d="M664 116 Q674 104 664 92" class="sol"/>
+  <text x="650" y="192" class="name" text-anchor="middle">tower</text>
+
+  <line x1="690" y1="131" x2="804" y2="131" class="sol" marker-end="url(#arr)"/>
+
+  <circle cx="852" cy="131" r="30" class="dev"/>
+  <ellipse cx="852" cy="131" rx="12" ry="30" class="dev"/>
+  <line x1="822" y1="131" x2="882" y2="131" class="dev"/>
+  <text x="852" y="192" class="name" text-anchor="middle">the world</text>
+
+  <text x="60" y="262" class="cap">Every phone becomes a piece of the network — and every hop stays end-to-end encrypted.</text>
+</svg>
