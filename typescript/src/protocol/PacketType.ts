@@ -102,6 +102,16 @@ export enum PacketType {
    * Unique to AetherNet; QUIC/TCP always cold-start.
    */
   BandwidthGossip = 55,
+
+  /**
+   * CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
+   * (reserve/connect/stop/data + responses) as a serialized RelayFrame in the packet
+   * body. Wire byte 57 matches the C# PacketType.CircuitRelayControl so a relayed hop
+   * is byte-identical across languages; an un-upgraded node drops the unknown type.
+   * The relay Transport processes these via its MeshRelayLink; only a DATA frame
+   * delivered to the final destination surfaces as tunnelled app data.
+   */
+  CircuitRelayControl = 57,
 }
 
 export function packetTypeToString(type: PacketType): string {
@@ -190,6 +200,8 @@ export function packetTypeToString(type: PacketType): string {
       return "BandwidthAck";
     case PacketType.BandwidthGossip:
       return "BandwidthGossip";
+    case PacketType.CircuitRelayControl:
+      return "CircuitRelayControl";
     default:
       return `Unknown(${type})`;
   }
