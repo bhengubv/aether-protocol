@@ -116,7 +116,17 @@ enum class PacketType(val value: Byte) {
      * instead of cold-starting at ~14.6 kB/s (RFC 6928 SS2). Unique to AetherNet.
      * Wire value 55 -- matches all other language implementations.
      */
-    BandwidthGossip(55);
+    BandwidthGossip(55),
+
+    /**
+     * CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
+     * (reserve/connect/stop/data + responses) as a serialized RelayFrame in the packet
+     * body. Wire value 57 matches the C# PacketType.CircuitRelayControl so a relayed hop is
+     * byte-identical across languages; an un-upgraded node drops the unknown type. The relay
+     * [aethernet.circuitrelay.Transport] processes these via its MeshRelayLink; only a DATA
+     * frame delivered to the final destination surfaces as tunnelled app data.
+     */
+    CircuitRelayControl(57);
 
     companion object {
         fun fromValue(value: Byte): PacketType? = values().find { it.value == value }
