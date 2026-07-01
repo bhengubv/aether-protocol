@@ -8,6 +8,14 @@
 | Goal reachable | ✅ YES |
 | Safety violations | ✅ none |
 
+### CTL Query Verification (`.q` file)
+
+| # | Query | Result |
+|---|---|---|
+| 1 | `AG (P_A_Established + P_A_Rejected = 0 ⟹ EF (P_A_Establis...` | ✅ SAT |
+| 2 | `EF (P_A_Established = 1 AND P_B_Established = 1) EF (P_A_...` | ✅ SAT |
+| 3 | `AG ¬ (P_A_Established = 1 AND P_B_Rejected = 1) AG ¬ (P_A...` | ✅ SAT |
+
 ### Boundedness (max token count per place)
 
 | Place | Max tokens |

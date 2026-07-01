@@ -8,6 +8,12 @@
 | Goal reachable | ✅ YES |
 | Safety violations | ✅ none |
 
+### CTL Query Verification (`.q` file)
+
+| # | Query | Result |
+|---|---|---|
+| 1 | `EF (P_N1_Alerted = 1 AND P_N2_Alerted = 1 AND P_N3_Alerte...` | ✅ SAT |
+
 ### Conservation Invariants (auto-discovered)
 
 - `P_N1_Alerted + P_SosToN1 = 1` holds in **all** reachable states

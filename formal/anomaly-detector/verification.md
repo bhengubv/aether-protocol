@@ -8,6 +8,12 @@
 | Goal reachable | ✅ YES |
 | Safety violations | ✅ none |
 
+### CTL Query Verification (`.q` file)
+
+| # | Query | Result |
+|---|---|---|
+| 1 | `EF (P_Flagged = 1) AG (P_TrafficAttack = 0 AND P_Signatur...` | ✅ SAT |
+
 ### Boundedness (max token count per place)
 
 | Place | Max tokens |

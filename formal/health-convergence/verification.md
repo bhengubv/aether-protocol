@@ -8,6 +8,12 @@
 | Goal reachable | ✅ YES |
 | Safety violations | ✅ none |
 
+### CTL Query Verification (`.q` file)
+
+| # | Query | Result |
+|---|---|---|
+| 1 | `EF (P_Overall_Healthy = 1) AG (P_Overall_Healthy = 1 ⟹ AG...` | ✅ SAT |
+
 ### Conservation Invariants (auto-discovered)
 
 - `sum(all) = 3` holds in **all** reachable states

@@ -8,6 +8,12 @@
 | Goal reachable | ✅ YES |
 | Safety violations | ✅ none |
 
+### CTL Query Verification (`.q` file)
+
+| # | Query | Result |
+|---|---|---|
+| 1 | `AG (P_Pkg1_Cached + P_Pkg2_Cached + P_Pkg3_Cached + P_Cac...` | ✅ SAT |
+
 ### Conservation Invariants (auto-discovered)
 
 - `sum(all) = 2` holds in **all** reachable states
