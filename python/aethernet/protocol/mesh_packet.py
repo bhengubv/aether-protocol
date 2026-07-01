@@ -93,6 +93,14 @@ class PacketType(IntEnum):
     BandwidthAck    = 54
     BandwidthGossip = 55
 
+    # CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
+    # (reserve/connect/stop/data + responses) as a serialized RelayFrame in the packet
+    # body. Wire byte 57 matches the C# PacketType.CircuitRelayControl so a relayed hop
+    # is byte-identical across languages; an un-upgraded node drops the unknown type.
+    # The relay Transport processes these via its MeshRelayLink; only a DATA frame
+    # delivered to the final destination surfaces as tunnelled app data.
+    CircuitRelayControl = 57
+
 
 @dataclass
 class MeshPacket:
