@@ -68,6 +68,9 @@ export * from "./routing/index.js";
 // DTN
 export * from "./dtn/index.js";
 
+// Circuit relay (native circuit-relay-v2 wire frame)
+export * from "./circuitrelay/index.js";
+
 // SOS
 export * from "./sos/index.js";
 
