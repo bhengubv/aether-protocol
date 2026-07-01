@@ -32,13 +32,21 @@ export declare class Ed25519Service {
      */
     static verify(publicKey: Uint8Array, data: Uint8Array, signature: Uint8Array): boolean;
     /**
-     * Verify a signature with fallback support for legacy P-256 keys
-     * Currently only supports Ed25519 (P-256 fallback not implemented in TS version)
-     * @param publicKey - Public key bytes (32 = Ed25519)
+     * Verify a signature, trying Ed25519 first and falling back to legacy P-256 ECDSA
+     * for public keys longer than 32 bytes (Protocol Version 1 identity keys during the
+     * migration window — see PROTOCOL_SPEC.md §7.5). The longer key is a DER
+     * SubjectPublicKeyInfo P-256 key verified against an ASN.1 DER ECDSA signature
+     * over SHA-256.
+     * @param publicKey - 32-byte Ed25519 key, or a DER SPKI P-256 key (> 32 bytes)
      * @param data - The signed data
-     * @param signature - The signature bytes
-     * @returns true if the signature is valid
+     * @param signature - 64-byte Ed25519 signature, or an ASN.1 DER ECDSA signature
+     * @returns true if the signature is valid under whichever scheme the key selects
      */
     static verifyWithFallback(publicKey: Uint8Array, data: Uint8Array, signature: Uint8Array): boolean;
+    /**
+     * Verify a legacy P-256 (secp256r1) ECDSA signature over SHA-256.
+     * Public key is X.509 SubjectPublicKeyInfo (DER); signature is ASN.1 DER.
+     */
+    private static verifyP256;
 }
 //# sourceMappingURL=Ed25519Service.d.ts.map

@@ -16,6 +16,7 @@ export { signPacket, verifyPacket, PacketDeduplicator, } from "./security/Packet
 export * from "./storage/index.js";
 // Transport
 export { InProcessTransport } from "./transport/InProcessTransport.js";
+export * from "./transport/webrtc/index.js";
 // Models (extended)
 export * from "./models/index.js";
 // Extensibility seams

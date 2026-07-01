@@ -15,6 +15,7 @@ export type { PreKeyStore, StoredIdentityKeys, StoredSignedPreKey, StoredSignedP
 export { signPacket, verifyPacket, PacketDeduplicator, } from "./security/PacketSigning.js";
 export * from "./storage/index.js";
 export { InProcessTransport } from "./transport/InProcessTransport.js";
+export * from "./transport/webrtc/index.js";
 export * from "./models/index.js";
 export * from "./extensibility.js";
 export * from "./routing/index.js";
