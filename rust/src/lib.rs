@@ -3,6 +3,7 @@
 pub mod bandwidth;
 pub mod identity;
 pub mod anomaly_detector;
+pub mod circuitrelay;
 pub mod constants;
 pub mod content;
 pub mod gossip;
