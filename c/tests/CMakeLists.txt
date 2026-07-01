@@ -30,6 +30,15 @@ target_link_libraries(test-dtn-fixture PRIVATE aethernet-protocol pthread)
 add_test(NAME DtnFixtureTests COMMAND test-dtn-fixture
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+add_executable(test-circuit-relay-fixture
+    test_circuit_relay_fixture.c
+)
+target_include_directories(test-circuit-relay-fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-circuit-relay-fixture PRIVATE aethernet-protocol pthread)
+# Run from the repo root so the relative fixtures/circuit-relay/expected/*.bin paths resolve.
+add_test(NAME CircuitRelayFixtureTests COMMAND test-circuit-relay-fixture
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 add_executable(test-sos
     test_sos.c
 )
