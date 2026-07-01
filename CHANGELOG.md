@@ -12,6 +12,29 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ---
 
+## [2.1.0] — 2026-07-01
+
+**libp2p PeerID identity bridge + decentralised relay layer (spikes).** Non-breaking; no
+wire-format change. Adds the identity handoff that lets an AetherNet node compute its own and
+any peer's libp2p PeerID from the Ed25519 public key alone — the bridge to the global libp2p
+relay / DHT — at full eight-language parity.
+
+### Added
+
+- **`Ed25519 public key → libp2p PeerID` derivation at full eight-language parity** (C#, Go,
+  Python, TypeScript, Kotlin, C, Rust, Swift). Pure and deterministic —
+  `identity-multihash(protobuf(Ed25519, pubkey))` → base58btc, no multibase prefix — byte-identical
+  across languages and verified against real `js-libp2p` output. New `fixtures/peerid/` cross-language
+  corpus + Go oracle (`go/cmd/peeridfixturegen`). The C# surface is `AetherNet.Identity.PeerId`
+  (in `AetherNet.Core`).
+- **Decentralised relay layer** under `relay/` — feasibility-verified libp2p spikes with green
+  tests: circuit-relay-v2 reservation + relayed connect, DCUtR hole-punch, SFrame-over-WebRTC
+  blind forward (byte-exact), a .NET↔js-libp2p host, and an in-browser (WebView) libp2p boot.
+  In-repo substrate research for riding existing global libp2p networks before AetherNet has its
+  own node fabric; additive, and not shipped in the SDK packages.
+
+---
+
 ## [2.0.0] — 2026-06-26
 
 **Breaking wire-format release.** The delay-tolerant networking (DTN) bundle
