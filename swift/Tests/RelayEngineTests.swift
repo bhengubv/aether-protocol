@@ -6,6 +6,12 @@ import XCTest
 /// Behavioural proof of the native circuit-relay-v2 engine: a three-node topology
 /// where A and B can each reach relay R but NOT each other directly. A message from A
 /// must traverse the relay bridge to reach B. Mirrors the C#/Go engine tests.
+///
+/// Note: every node (including the relay R) must be *retained* for the test's duration —
+/// a RelayTransport holds its RelayLink, but the link holds the transport weakly (no
+/// retain cycle), so a dropped transport is ARC-deallocated and stops handling frames.
+/// In production the DI container / TransportManager owns the transport; here each test
+/// keeps all three alive with `withExtendedLifetime`.
 final class RelayEngineTests: XCTestCase {
 
     // ── in-process one-hop mesh ──────────────────────────────────────────────
@@ -29,7 +35,7 @@ final class RelayEngineTests: XCTestCase {
         func deliver(from: String, to: String, frame: Data) {
             guard adjacent(from, to) else { return }
             let l = link(to)
-            DispatchQueue.global().async { l.fire(from: from, frame: frame) } // async hop
+            Thread.detachNewThread { l.fire(from: from, frame: frame) } // fresh thread per hop (Go `go func`)
         }
     }
 
@@ -89,10 +95,11 @@ final class RelayEngineTests: XCTestCase {
         XCTAssertEqual(got?.0, "A")
         XCTAssertEqual(got?.1, "deadbeef")
         XCTAssertEqual(r.activeBridgeCount, 1)
+        withExtendedLifetime((a, r, b)) {}
     }
 
     func test_bridge_is_bidirectional() {
-        let (a, _, b) = buildLine()
+        let (a, r, b) = buildLine()
         let bExp = expectation(description: "B receives")
         b.setOnData { _, _ in bExp.fulfill() }
         var aGot: (String, String)?
@@ -108,6 +115,7 @@ final class RelayEngineTests: XCTestCase {
         wait(for: [aExp], timeout: 3)
         XCTAssertEqual(aGot?.0, "B")
         XCTAssertEqual(aGot?.1, "reply")
+        withExtendedLifetime((a, r, b)) {}
     }
 
     func test_connect_refused_without_reservation() {
@@ -118,12 +126,14 @@ final class RelayEngineTests: XCTestCase {
         XCTAssertFalse(a.send("B", Data("x".utf8)))
         wait(for: [noRecv], timeout: 0.4)
         XCTAssertEqual(r.activeBridgeCount, 0)
+        withExtendedLifetime((a, r, b)) {}
     }
 
     func test_send_fails_without_route() {
-        let (a, _, b) = buildLine()
+        let (a, r, b) = buildLine()
         XCTAssertTrue(b.reserve("R"))
         XCTAssertFalse(a.send("B", Data("x".utf8))) // no setRoute
+        withExtendedLifetime((a, r, b)) {}
     }
 
     func test_relay_enforces_data_budget() {
@@ -143,12 +153,13 @@ final class RelayEngineTests: XCTestCase {
         a.send("B", Data([6, 7, 8, 9, 10, 11, 12, 13])) // cum 13 > 10 -> dropped + torn down
         wait(for: [second], timeout: 0.5)
         XCTAssertEqual(r.activeBridgeCount, 0)
+        withExtendedLifetime((a, r, b)) {}
     }
 
     func test_reservation_expiry_refuses_connect() {
         let clk = TestClock()
         var opts = RelayTransportOptions(); opts.reservationTTL = 30 * 60
-        let (a, _, b) = buildLine(relayOpts: opts, relayClock: clk.now)
+        let (a, r, b) = buildLine(relayOpts: opts, relayClock: clk.now)
 
         let noRecv = expectation(description: "B should not receive after expiry"); noRecv.isInverted = true
         b.setOnData { _, _ in noRecv.fulfill() }
@@ -158,5 +169,6 @@ final class RelayEngineTests: XCTestCase {
         clk.advance(31 * 60) // past TTL on R's clock
         XCTAssertFalse(a.send("B", Data("x".utf8)))
         wait(for: [noRecv], timeout: 0.4)
+        withExtendedLifetime((a, r, b)) {}
     }
 }

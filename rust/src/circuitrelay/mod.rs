@@ -24,6 +24,9 @@ use std::fmt;
 
 use uuid::Uuid;
 
+mod transport;
+pub use transport::*;
+
 /// Format-version byte at offset 0 of every relay frame.
 pub const VERSION: u8 = 0x01;
 
