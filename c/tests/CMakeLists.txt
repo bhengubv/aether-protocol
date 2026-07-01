@@ -39,6 +39,17 @@ target_link_libraries(test-circuit-relay-fixture PRIVATE aethernet-protocol pthr
 add_test(NAME CircuitRelayFixtureTests COMMAND test-circuit-relay-fixture
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+# Behavioural engine test: in-process 3-node mesh (A ── R ── B, no A-B edge) exercising
+# the circuit-relay-v2 Transport's target/client/relay roles. Mirrors go/circuitrelay/
+# transport_test.go. Run from the repo root for symmetry with the fixture tests.
+add_executable(test-relay-engine
+    test_relay_engine.c
+)
+target_include_directories(test-relay-engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-relay-engine PRIVATE aethernet-protocol pthread)
+add_test(NAME RelayEngineTests COMMAND test-relay-engine
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 add_executable(test-sos
     test_sos.c
 )
@@ -350,6 +361,7 @@ add_custom_target(aether-tests
         test-routing
         test-dtn
         test-dtn-fixture
+        test-relay-engine
         test-sos
         test-fixtures
         test-signal-fixtures
