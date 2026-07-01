@@ -1,0 +1,123 @@
+[
+  {
+    "name": "relay_reserve",
+    "type": 1,
+    "source_uhid": "alice-uhid",
+    "relay_uhid": "relay-1-uhid"
+  },
+  {
+    "name": "relay_reserve_response_ok",
+    "type": 2,
+    "status": 0,
+    "source_uhid": "alice-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "reservation_expires_at_ms": 1735689600000
+  },
+  {
+    "name": "relay_reserve_response_refused",
+    "type": 2,
+    "status": 1,
+    "source_uhid": "alice-uhid",
+    "relay_uhid": "relay-1-uhid"
+  },
+  {
+    "name": "relay_connect",
+    "type": 3,
+    "source_uhid": "alice-uhid",
+    "destination_uhid": "bob-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "connection_id": "01020304-0506-0708-090a-0b0c0d0e0f10"
+  },
+  {
+    "name": "relay_stop",
+    "type": 4,
+    "source_uhid": "alice-uhid",
+    "destination_uhid": "bob-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "connection_id": "01020304-0506-0708-090a-0b0c0d0e0f10",
+    "limit_duration_seconds": 120,
+    "limit_data_bytes": 1048576
+  },
+  {
+    "name": "relay_stop_response_ok",
+    "type": 5,
+    "status": 0,
+    "source_uhid": "alice-uhid",
+    "destination_uhid": "bob-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "connection_id": "01020304-0506-0708-090a-0b0c0d0e0f10"
+  },
+  {
+    "name": "relay_connect_response_ok",
+    "type": 6,
+    "status": 0,
+    "source_uhid": "alice-uhid",
+    "destination_uhid": "bob-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "connection_id": "01020304-0506-0708-090a-0b0c0d0e0f10",
+    "limit_data_bytes": 1048576
+  },
+  {
+    "name": "relay_connect_response_failed",
+    "type": 6,
+    "status": 5,
+    "source_uhid": "alice-uhid",
+    "destination_uhid": "bob-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "connection_id": "01020304-0506-0708-090a-0b0c0d0e0f10"
+  },
+  {
+    "name": "relay_data_small",
+    "type": 7,
+    "source_uhid": "alice-uhid",
+    "destination_uhid": "bob-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "connection_id": "01020304-0506-0708-090a-0b0c0d0e0f10",
+    "payload_hex": "deadbeef"
+  },
+  {
+    "name": "relay_data_empty_payload",
+    "type": 7,
+    "source_uhid": "alice-uhid",
+    "destination_uhid": "bob-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "connection_id": "01020304-0506-0708-090a-0b0c0d0e0f10"
+  },
+  {
+    "name": "relay_data_large_payload",
+    "type": 7,
+    "source_uhid": "alice-uhid",
+    "destination_uhid": "bob-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "connection_id": "01020304-0506-0708-090a-0b0c0d0e0f10",
+    "payload_len": 65537
+  },
+  {
+    "name": "relay_unicode_uhids",
+    "type": 3,
+    "source_uhid": "нода-α",
+    "destination_uhid": "節點-β",
+    "relay_uhid": "relay-δ",
+    "connection_id": "01020304-0506-0708-090a-0b0c0d0e0f10"
+  },
+  {
+    "name": "relay_full_all_fields",
+    "type": 6,
+    "status": 3,
+    "source_uhid": "alice-uhid",
+    "destination_uhid": "bob-uhid",
+    "relay_uhid": "relay-1-uhid",
+    "connection_id": "ffeeddcc-bbaa-9988-7766-554433221100",
+    "reservation_expires_at_ms": 1735689600000,
+    "limit_duration_seconds": 120,
+    "limit_data_bytes": 5000000000,
+    "payload_hex": "0102030405"
+  },
+  {
+    "name": "relay_max_status",
+    "type": 2,
+    "status": 6,
+    "source_uhid": "alice-uhid",
+    "relay_uhid": "relay-1-uhid"
+  }
+]
