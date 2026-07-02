@@ -10,7 +10,9 @@ Share files, messages, and streams with people nearby. No WiFi. No mobile data. 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md)
+[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+
+> **One protocol, eight languages, identical on the wire.** Aether is implemented in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, and C** — and every packet is byte-for-byte identical across all of them, enforced by a shared cross-language fixture corpus in CI. Build your node in any of the eight; it interoperates with all the others. This README is also available in 11 human languages (links above).
 
 ## What can you do with it?
 
@@ -100,6 +102,31 @@ No accounts, no phone numbers, no emails. You generate a keypair and you're on t
 **Voice, video, and streaming** — Video calls with codec negotiation (H.264/H.265/VP8), transport-aware quality selection, group video with auto SFU relay, synchronized watch-together with RTT compensation, and adaptive bitrate streaming.
 
 **Replay protection** — Nonce deduplication with a 5-minute timestamp freshness window.
+
+## What you get — every service, in every language
+
+Aether is not just a transport. Every packet type reserved by the protocol is now a **real, working service in all 8 languages**, and every one serializes to **byte-identical wire packets** — a packet built by the Go node is decoded, unchanged, by the Swift, Rust, C, Python, TypeScript, Kotlin, or C# node. Each service is pinned to a shared cross-language fixture under `fixtures/<service>/` and exercised by per-language unit tests, with Swift and C additionally verified on the macOS build server.
+
+| Capability | What it does | Packet type(s) | Fixture | 8/8 |
+|---|---|:-:|---|:-:|
+| **Presence beacon & query** | Announce "I'm here" and ask "who's around?" — over a **rotating, key-derived ephemeral ID** (not your real identity) plus a coarse geohash | 21, 22 | `fixtures/presence/` | ✅ |
+| **Heartbeat** | Lightweight liveness keep-alive between linked peers | 10 | `fixtures/heartbeat/` | ✅ |
+| **Profile sync** | Exchange a signed profile card with a peer over the mesh | 23 | `fixtures/profiles/` | ✅ |
+| **Ephemeral-ID announce** | Privately tell a friend your current rotating routing ID so they can still reach you after it rotates | 56 | `fixtures/erid/` | ✅ |
+| **Pre-key exchange** | Request and deliver a Signal pre-key bundle over the mesh, to bootstrap an end-to-end session with someone you've never met | 25, 26 | `fixtures/prekey/` | ✅ |
+| **Channels** | Signed messages to a private, members-only group channel | 7 | `fixtures/channels/` | ✅ |
+| **Push-to-talk** | Walkie-talkie voice frames (opaque encoded audio payload) | 15 | `fixtures/media/` | ✅ |
+| **Screen share** | Screen-share video frames (opaque encoded video payload) | 32 | `fixtures/media/` | ✅ |
+| **Call control** | Ring / accept / decline / hang-up signalling for voice and video calls | 27 | `fixtures/videocall/` | ✅ |
+| **SOS acknowledgement** | Confirm to the sender that their emergency broadcast was received | 6 | `fixtures/sos/` | ✅ |
+| **Space breadcrumbs** | Location-tagged discovery crumbs for the "what's around me" layer | 40 | `fixtures/space/` | ✅ |
+| **Forge announce** | Advertise a derived/forged content artefact to the mesh | 41 | `fixtures/forge/` | ✅ |
+| **Vault shard request** | Fetch an erasure-coded storage shard (any K of N shards rebuild the file) | 42 | `fixtures/vaultshard/` | ✅ |
+| **Bandwidth measurement** | Probe / ack / gossip link throughput so the mesh routes over the fattest pipe (ABMF) | 53, 54, 55 | `fixtures/bandwidth/` | ✅ |
+
+These sit on top of the already-complete **messaging, 1-to-1 and group voice, video calls, live streaming, watch-together, AODV routing, DTN store-and-forward, and SOS flood** services — also implemented in all 8 languages.
+
+> **What "built" means here, precisely.** Each service produces and handles its wire packet, raises the right events, and is pinned to a byte-level fixture that the whole language family must match. Your application wires the service to its Signal session, routing table, and local state. This is the protocol layer — proven in code, tests, and cross-language byte-fixtures — on the same honest RF footing as everything else: any path that ultimately rides a radio is field-unverified until the hardware bring-up tracked in `OPEN_ISSUES.md`.
 
 ## Transports
 
@@ -217,6 +244,8 @@ All 8 languages produce byte-identical wire packets, verified by 14 canonical wi
 | **Total** | **~3,000** | |
 
 Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. All 8 languages now ship a full Signal session (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+
+Beyond wire format and Signal, the **entire wire-service suite** — presence, heartbeat, profile sync, ephemeral-ID announce, pre-key exchange, channels, push-to-talk, screen share, call control, SOS acknowledgement, space breadcrumbs, forge announce, vault shard request, and bandwidth measurement (see [What you get](#what-you-get--every-service-in-every-language)) — is likewise implemented in all 8 languages and pinned to its own fixtures (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, and siblings). No feature is C#-only at the protocol layer.
 
 ## Quickstart
 
@@ -492,6 +521,9 @@ What's built and what's next.
 - ✅ **One-time pre-key (OPK) pool** — default 100, FIFO issue, lazy top-up, lock-protected consumption across all 8 languages. Closes the single-OPK concurrency hazard.
 - ✅ **C: full Signal session** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` in `c/src/signal_protocol.c`; 6 two-node E2E tests in `c/tests/test_signal_session.c`. All 8 languages now have full session-capable Signal Protocol.
 
+**Done (all 8 languages — the full wire-service suite):**
+- ✅ **Every reserved packet type is now a real, byte-identical service in all 8 languages.** Presence beacon/query (21/22), heartbeat (10), profile sync (23), ephemeral-routing-ID announce (56), pre-key exchange (25/26), channels (7), push-to-talk (15), screen share (32), call control (27), SOS acknowledgement (6), space breadcrumbs (40), forge announce (41), vault shard request (42), and bandwidth measurement / ABMF (53/54/55). Each is a thin service (produce + handle + event) that the host wires to its Signal session and routing table; each is pinned to a shared cross-language fixture (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) and exercised by per-language unit tests, with Swift and C verified on the macOS build server. See [What you get](#what-you-get--every-service-in-every-language).
+
 **Done (C# reference only):**
 - ✅ **Demo Step 9 — MessagingService + DTN fallback end-to-end** — `samples/AetherNet.Demo.Console` walks through real-Signal-encrypted messaging with DTN store-and-forward when the recipient is offline.
 - ✅ **`AetherNet.Messaging` ↔ `AetherNet.Security` bridge** — `SignalMessageEnvelopeCipher` makes the messaging layer end-to-end encrypted by default; messages without a Signal session are queued, never sent insecurely.
@@ -601,3 +633,7 @@ See [SECURITY.md](SECURITY.md) for responsible disclosure policy.
 ## License
 
 MIT License. See [LICENSE](LICENSE).
+
+## Translations
+
+This README is also maintained in the other languages listed in the language bar at the top of this file, under [`docs/i18n/`](docs/i18n/) — spanning European, East Asian, Middle Eastern, South Asian, Southeast Asian, and African languages, because a network built for people with no data should not have a front door only the well-connected can read. The **English version is the source of truth**: where a translation and the English text disagree, the English text is authoritative, and translations may lag it by a release or two. The protocol, code, fixtures, and behaviour described are identical no matter which language you read.

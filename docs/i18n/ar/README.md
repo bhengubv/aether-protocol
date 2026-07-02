@@ -12,6 +12,10 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
+[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+
+> **بروتوكول واحد، ثماني لغات، متطابق على الأسلاك.** Aether مُطبَّق بـ**C# وRust وTypeScript وPython وGo وKotlin وSwift وC** — وكل حزمة متطابقة بالبايت عبرها جميعاً، مفروضٌ ذلك بمستودع مشترك للاختبارات متعددة اللغات في CI. ابنِ عقدتك بأيٍّ من الثماني؛ فإنها تتشغّل بينياً مع جميع الأخريات. هذا الملف التعريفي متوفر أيضاً بـ11 لغة بشرية (الروابط أعلاه).
+
 ## ماذا يمكنك أن تفعل به؟
 
 **شارك ملاحظات المحاضرات دون استهلاك بيانات.**
@@ -101,20 +105,50 @@
 
 **حماية إعادة التشغيل** — إزالة تكرار الـnonce مع نافذة حداثة زمنية مدتها 5 دقائق.
 
+## ما الذي تحصل عليه — كل خدمة، بكل لغة
+
+Aether ليس مجرد وسيلة نقل. كل نوع حزمة يحجزه البروتوكول أصبح الآن **خدمة حقيقية وعاملة في جميع اللغات الثماني**، وكل واحدة تُسلسل إلى **حزم أسلاك متطابقة بالبايت** — حزمة تبنيها عقدة Go تفكها، دون تغيير، عقدة Swift أو Rust أو C أو Python أو TypeScript أو Kotlin أو C#. كل خدمة مثبتة في مستودع مشترك متعدد اللغات تحت `fixtures/<service>/` وتُختبر باختبارات وحدة لكل لغة، مع تحقق إضافي من Swift وC على خادم بناء macOS.
+
+| القدرة | ما تفعله | نوع (أنواع) الحزمة | المستودع | 8/8 |
+|---|---|:-:|---|:-:|
+| **منارة الحضور والاستعلام** | إعلان "أنا هنا" والسؤال "من حولي؟" — عبر **معرف مؤقت متبدّل مشتق من مفتاح** (وليس هويتك الحقيقية) بالإضافة إلى geohash خشن | 21, 22 | `fixtures/presence/` | ✅ |
+| **نبضة القلب** | إبقاء الحياة خفيف الوزن بين الأقران المرتبطين | 10 | `fixtures/heartbeat/` | ✅ |
+| **مزامنة الملف الشخصي** | تبادل بطاقة ملف شخصي موقَّعة مع قرين عبر الشبكة | 23 | `fixtures/profiles/` | ✅ |
+| **إعلان المعرف المؤقت** | إخبار صديق سراً بمعرف التوجيه المتبدّل الحالي كي يظل قادراً على الوصول إليك بعد تبدّله | 56 | `fixtures/erid/` | ✅ |
+| **تبادل المفاتيح الأولية** | طلب وتسليم حزمة مفاتيح Signal الأولية عبر الشبكة، لبدء جلسة من طرف إلى طرف مع شخص لم تلتقِه قط | 25, 26 | `fixtures/prekey/` | ✅ |
+| **القنوات** | رسائل موقَّعة إلى قناة مجموعة خاصة، للأعضاء فقط | 7 | `fixtures/channels/` | ✅ |
+| **الضغط للتحدث** | إطارات صوت لاسلكي (حمولة صوت مُرمَّزة معتمة) | 15 | `fixtures/media/` | ✅ |
+| **مشاركة الشاشة** | إطارات فيديو لمشاركة الشاشة (حمولة فيديو مُرمَّزة معتمة) | 32 | `fixtures/media/` | ✅ |
+| **التحكم بالمكالمة** | إشارات رنين / قبول / رفض / إنهاء للمكالمات الصوتية والمرئية | 27 | `fixtures/videocall/` | ✅ |
+| **إقرار نداء الاستغاثة** | تأكيد للمرسِل أن بث الطوارئ الخاص به قد استُلم | 6 | `fixtures/sos/` | ✅ |
+| **فُتات المساحة** | فُتات اكتشاف موسومة بالموقع لطبقة "ما حولي" | 40 | `fixtures/space/` | ✅ |
+| **إعلان المصهر** | الإعلان عن قطعة محتوى مشتقة/مصهورة للشبكة | 41 | `fixtures/forge/` | ✅ |
+| **طلب شظية الخزنة** | جلب شظية تخزين مُرمَّزة بالمحو (أي K من N شظية تعيد بناء الملف) | 42 | `fixtures/vaultshard/` | ✅ |
+| **قياس النطاق الترددي** | فحص / إقرار / إشاعة إنتاجية الرابط كي تُوجِّه الشبكة عبر أعرض أنبوب (ABMF) | 53, 54, 55 | `fixtures/bandwidth/` | ✅ |
+
+تجلس هذه فوق خدمات **المراسلة، والصوت الفردي والجماعي، ومكالمات الفيديو، والبث المباشر، والمشاهدة المشتركة، وتوجيه AODV، وتخزين وإعادة DTN، وفيضان SOS** المكتملة سلفاً — والمطبَّقة أيضاً في جميع اللغات الثماني.
+
+> **ما الذي يعنيه "مبنيّ" هنا، بدقة.** كل خدمة تُنتج حزمة أسلاكها وتعالجها، وتُطلق الأحداث الصحيحة، وتُثبَّت في مستودع على مستوى البايت يجب أن تطابقه عائلة اللغات بأكملها. تطبيقك يربط الخدمة بجلسة Signal الخاصة به، وجدول التوجيه، والحالة المحلية. هذه هي طبقة البروتوكول — مُثبتة في الكود والاختبارات ومستودعات البايت متعددة اللغات — على نفس الأساس الصادق للـRF مثل كل شيء آخر: أي مسار يركب راديو في نهاية المطاف يبقى غير متحقق منه ميدانياً حتى تشغيل العتاد المتتبع في `OPEN_ISSUES.md`.
+
 ## وسائل النقل
 
 لكل وسيلة نقل اسم لوني يُستخدم في كافة أرجاء قاعدة الكود. `IsAvailable` يحجب المسارات التي يمنعها العتاد — يتجاوزها `TransportManager` تلقائياً ويرجع إلى وسيلة النقل التالية المتاحة.
 
+**مفتاح الحالة:** ✅ حقيقي، مبنيّ ومتحقق منه · ⏳ حقيقي، التحقق قيد التقدم · ⚠️ حقيقي على بعض المنصات، بديل على غيرها · ❌ بديل (لا كود نقل بعد).
+
 | اللون | الاسم | النطاق | النطاق الترددي | الحالة |
 |--------|------|------:|----------:|--------|
-| 🔵 Aether Blue | BLE GATT | ~100 م | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
-| 🟢 Aether Green | Wi-Fi Direct | ~200 م | 250 Mbps | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | ترحيل HTTP خلوي | غير محدود | ~10 Mbps | ✅ Windows — خادم الترحيل في `samples/AetherNet.RelayServer/` |
-| ⚪ Aether White | NFC HCE | ~5 سم | 848 kbps | ⚠️ Android HCE (`android/white/`)؛ Windows: NDEF-over-BLE-GATT + ACR122U PC/SC تقريباً (`Windows.Networking.Proximity` أُزيل في Win 11) |
-| 🩵 Aether Teal | NearLink | ~600 م | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`؛ Windows + Android: تقريب SSAP-over-BLE (مماثل للواجهة البرمجية، غير متوافق مع الأسلاك) |
-| 🔴 Aether Red | LoRa / CircleLink | ~15 كم | 37.5 kbps | ⚠️ تنسيق أسلاك Meshtastic عبر BLE LR (~1.3 كم)؛ التبديل إلى SX1276/SX1278 عند وجود وحدة LoRa |
+| 🔵 Aether Blue | BLE GATT | ~100 م | 1 Mbps | ✅ حقيقي — Windows (WinRT) + Android (`android/blue/`) |
+| 🟢 Aether Green | Wi-Fi Direct | ~200 م | 250 Mbps | ✅ حقيقي — Windows (WinRT) + Android (`android/green/`) |
+| 🟣 Aether Purple | ترحيل HTTP / QUIC | غير محدود | ~10 Mbps | ✅ حقيقي — Windows؛ خادم الترحيل في `samples/AetherNet.RelayServer/` |
+| 🟪 WebRTC P2P | قناة بيانات عبر الإنترنت | غير محدود | ~100 Mbps | ✅ حقيقي في جميع اللغات الثماني — **متحقق منه بالحلقة الراجعة في الثماني جميعاً** (C#/Go/Kotlin/TypeScript/Python/C/Swift/Rust كلٌّ منها لديه قرينان يتبادلان البايتات عبر قناة بيانات ICE حقيقية) |
+| ⚪ Aether White | NFC HCE | ~5 سم | 848 kbps | ⚠️ حقيقي على Android (`android/white/`)؛ Windows = BLE-GATT حقيقي + تقريب قرب RSSI −40 dBm (`WinNfcBleTransportService`، يُترجم على net9/10، غير متحقق منه في وقت التشغيل) — `Windows.Networking.Proximity` أُزيل في Win 11 |
+| 🩵 Aether Teal | NearLink | ~600 م | 12 Mbps | ⚠️ حقيقي على HarmonyOS (`harmonyos/teal/`، `@kit.NearLinkKit` — بانتظار التحقق على الجهاز)؛ Android + Windows = تقريب SSAP-over-BLE حقيقي (`android/teal/AetherNetSleService`، `WinNearLinkBleTransportService`؛ متحقق منه بالترجمة واختبار الوحدة، غير متحقق منه في وقت التشغيل) |
+| 🔴 Aether Red | LoRa / CircleLink | ~15 كم | 37.5 kbps | ⚠️ محرك تسلسلي RYLR SX127x/SX126x حقيقي (`LoRaSerialTransport` في C#/Go/Rust/C؛ يُترجم، غير متحقق منه في وقت التشغيل — يحتاج وحدة مادية)؛ جسر BLE Coded-PHY لا يزال تصميماً موثقاً |
 
-ترتيب الأولوية في `TransportManager`: NearLink → BLE (≤ 1 KB) → Wi-Fi Direct → NFC → LoRa → HTTP Relay (الملاذ الأخير، `PowerCostRelative = 100`).
+وسائل النقل الراديوية حقيقية فقط حيث يوجد كود المنصة (C#/Windows، Kotlin/Android، HarmonyOS). أما مكتبات اللغات الثماني فتشحن بخلاف ذلك بوسيلة نقل **محاكاة داخل العملية** للاختبار — **WebRTC هي أول وسيلة نقل حقيقية مشتركة بينها جميعاً** (مكتملة؛ متحقق منها بالحلقة الراجعة عبر اللغات).
+
+الأولوية بحسب تكلفة الطاقة: الشبكة الراديوية مُفضَّلة، ثم WebRTC كمسار إنترنت مباشر، مع ترحيل HTTP / QUIC كملاذ أخير.
 
 ## مستويات النشر
 
@@ -126,15 +160,15 @@
 
 Android · Windows · Linux · macOS · iOS
 
-يعمل Aether بالكامل على أي جهاز يحتوي على عتاد بلوتوث أو Wi-Fi. عندما تكون إحدى الراديوات غائبة مادياً، يُحاكى كل مسار نقل محجوب باستخدام ما هو متاح:
+يعمل Aether على أي جهاز يحتوي على عتاد بلوتوث أو Wi-Fi. عندما تكون إحدى الراديوات غائبة مادياً، يُقرَّب كل مسار نقل محجوب باستخدام ما هو متاح. هذه التقريبات أصبحت الآن **كوداً حقيقياً** (متحقق منه بالترجمة؛ **غير متحقق منه في وقت التشغيل** بانتظار اختبار RF على جهازين / عتاد):
 
-- **NearLink (Aether Teal)** — محاكاة عبر BLE GATT باستخدام معرف خدمة Aether SLE القانونية (`61657468-6572-0003-0000-000000000000`). طبقة بروتوكول تطبيق SSAP مطابقة للواجهة البرمجية مع GATT. الطبقة الراديوية (BPSK/QPSK/8PSK، رموز Polar، قنوات 1–4 MHz) ليست كذلك — العقد التي تعمل على المستوى القياسي لا تستطيع تبادل البايتات الخام مع عتاد NearLink الحقيقي؛ بل تتفاعل مع عقد Aether القياسية الأخرى.
-- **LoRa (Aether Red)** — محاكاة باستخدام تنسيق أسلاك Meshtastic الكامل عبر BLE 5.0 Coded PHY (S=8، ~1.3 كم خارجياً). اتحاد عقد الجسر مع عتاد LoRa الحقيقي يعمل تلقائياً — نفس تنسيق حزمة Meshtastic يسير عبر جميع القفزات دون ترجمة.
-- **NFC (Aether White)** — محاكاة عبر NDEF-over-BLE-GATT مع بوابة قرب RSSI (≥ −40 dBm ≈ 5–10 سم) تُعيد إنتاج دلالات النقر للاتصال. مسار PC/SC عبر قارئ NFC USB مدعوم أيضاً على Windows.
+- **NearLink (Aether Teal)** — تقريب SSAP-over-BLE-GATT حقيقي (معرف Aether SLE `61657468-6572-0003-…`) على Android (`android/teal/AetherNetSleService`) وWindows (`WinNearLinkBleTransportService`)؛ متحقق منه بالترجمة واختبار الوحدة، غير متحقق منه في وقت التشغيل. راديو NearLink الحقيقي موجود فقط على HarmonyOS (`harmonyos/teal/`، بانتظار التحقق على الجهاز).
+- **LoRa (Aether Red)** — محرك تسلسلي RYLR SX127x/SX126x حقيقي (`LoRaSerialTransport` في **جميع اللغات الثماني** — C#/Go/Rust/C/Python/TypeScript/Swift/Kotlin؛ كل منفذ متحقق منه بالترجمة، بما في ذلك Swift + C على خادم بناء Mac؛ غير متحقق منه في وقت التشغيل — يحتاج وحدة مادية). جسر Meshtastic-over-BLE-Coded-PHY (~1.3 كم) يبقى تصميماً موثقاً؛ LoRa الحقيقي بعيد المدى يحتاج عقدة قادرة على LoRa (بوابة، أو SBC، أو هاتف مُحصَّن بوحدة LoRa).
+- **NFC (Aether White)** — حقيقي على Android (HCE). Windows لديه الآن تقريب قرب BLE-GATT + RSSI −40 dBm حقيقي (`WinNfcBleTransportService`، يُترجم على net9/10؛ غير متحقق منه في وقت التشغيل)؛ ACR122U PC/SC عند وجود قارئ.
 
-جميع القدرات الأخرى — BLE، Wi-Fi Direct، ترحيل HTTP، أمان بروتوكول Signal (X3DH + Double Ratchet)، توجيه AODV، DTN للتخزين والإعادة، بث SOS، الصوت، البث المباشر — أصلية ومطابقة للمستوى الأصلي.
+ما هو حقيقي ومتطابق في كل مكان: **BLE، وWi-Fi Direct، وترحيل HTTP / QUIC، ووسيلة نقل WebRTC P2P (متحقق منها بالحلقة الراجعة في اللغات الثماني جميعاً)**، بالإضافة إلى أمان بروتوكول Signal (X3DH + Double Ratchet)، وتوجيه AODV، وتخزين وإعادة DTN، وبث SOS، والصوت، والبث المباشر.
 
-**هذا نشر كامل الإمكانات وبجودة إنتاجية.** معظم التطبيقات تبدأ هنا.
+**الحالة الصادقة:** BLE + Wi-Fi Direct + الترحيل حقيقية بجودة إنتاجية؛ **WebRTC P2P حقيقية ومتحقق منها بالحلقة الراجعة في اللغات الثماني جميعاً** (قرينان يتبادلان البايتات عبر قناة بيانات ICE حقيقية — تأكد Rust على صندوق Linux `.201` بـUDP ICE عامل)؛ تقريبات NearLink / LoRa / NFC-على-Windows أصبحت الآن كوداً حقيقياً يُترجم (LoRa متحقق منه بالترجمة في الثماني، بما فيها Swift + C على خادم بناء Mac؛ NearLink-Android مختبَر بالوحدة أيضاً) لكنه **غير متحقق منه في وقت التشغيل** — لا اختبار RF على عتاد / جهازين بعد. تشارك في الشبكة في الكود؛ لا تنشر تلك الثلاثة متوقعاً RF مُثبتاً ميدانياً.
 
 ---
 
@@ -142,7 +176,7 @@ Android · Windows · Linux · macOS · iOS
 
 CircleOS · HarmonyOS · أي نظام تشغيل مبني على OpenHarmony
 
-CircleOS مبني على OpenHarmony، الذي يشحن بشريحة NearLink (SLE) وحزمة SDK `@kit.NearLinkKit` كقدرة نظام تشغيل من الدرجة الأولى. على أجهزة CircleOS وHarmonyOS المزودة بعتاد NearLink، لا حاجة للمحاكاة — يستخدم `harmonyos/teal/` راديو SLE الحقيقي مباشرة:
+CircleOS مبني على OpenHarmony، الذي يشحن بشريحة NearLink (SLE) وحزمة SDK `@kit.NearLinkKit` كقدرة نظام تشغيل من الدرجة الأولى. على أجهزة CircleOS وHarmonyOS المزودة بعتاد NearLink، لا حاجة للتقريب — يستخدم `harmonyos/teal/` راديو SLE الحقيقي مباشرة:
 
 ```
 ssap.createClient(deviceAddress)  →  client.connect()  →  client.writeProperty(WRITE_NO_RESPONSE)
@@ -212,6 +246,8 @@ Aether مبني بـ8 لغات ليعمل على الهواتف وأجهزة ا�
 | **الإجمالي** | **~3,000** | |
 
 التشغيل البيني لـSignal متعدد اللغات مرتبط بـ`fixtures/signal/` مع متجهات اختبار مشتركة لـX3DH (`x3dh_basic`)، والتشعبات المتماثلة (`ratchet_step_basic`، `ratchet_step_three_iterations`)، وKDF_RK (`kdf_rk_basic`). يجب على كل تطبيق إنتاج مخرجات متطابقة بالبايت مقابل تلك المخرجات المحددة. تشحن جميع اللغات الثماني الآن بجلسة Signal كاملة (`generate_pre_key_bundle`، `process_pre_key_bundle`، `encrypt`، `decrypt`).
+
+فيما يتجاوز تنسيق الأسلاك وSignal، فإن **مجموعة خدمات الأسلاك بأكملها** — الحضور، ونبضة القلب، ومزامنة الملف الشخصي، وإعلان المعرف المؤقت، وتبادل المفاتيح الأولية، والقنوات، والضغط للتحدث، ومشاركة الشاشة، والتحكم بالمكالمة، وإقرار نداء الاستغاثة، وفُتات المساحة، وإعلان المصهر، وطلب شظية الخزنة، وقياس النطاق الترددي (انظر **ما الذي تحصل عليه — كل خدمة، بكل لغة**) — مطبَّقة كذلك في جميع اللغات الثماني ومثبتة في مستودعاتها الخاصة (`fixtures/presence/`، `fixtures/media/`، `fixtures/bandwidth/`، `fixtures/prekey/`، `fixtures/videocall/`، `fixtures/vaultshard/`، وأخواتها). لا ميزة حكرٌ على C# في طبقة البروتوكول.
 
 ## البدء السريع
 
@@ -474,45 +510,50 @@ aethernet_packet_free(packet);
 - خدمة بث SOS مع الفيضان، وإزالة التكرار، وحارس المصدر الذاتي، وتحديد المعدل (3/ساعة)
 - نقاط التوسعة: `IncentiveProvider`، `BackendClient`، `FeatureFlagProvider` (افتراضيات Noop)
 - **~3,000 اختبار** عبر جميع اللغات الثماني (C# 530، TypeScript 459، Kotlin 457، Go 423، Python 387، Swift 295، C 253، Rust ~195) — جميعها ناجحة في CI
-- ✅ **مفتاح X3DH المؤقت الحقيقي (8 لغات)** — 4 عمليات DH بـX25519 مع اشتقاق جذر HKDF-SHA256. مثبت بـ`fixtures/signal/expected/x3dh_basic.json`.
+- ✅ **مفتاح X3DH المؤقت الحقيقي (8 لغات)** — 4 عمليات DH بـX25519 (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) مع اشتقاق جذر HKDF-SHA256. مثبت بـ`fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **محاذاة Double Ratchet على مستوى العائلة** — Signal §5 الكامل مع HMAC-SHA256 + فصل نطاق 0x01/0x02 في التشعبات المتماثلة، وHKDF-SHA256 KDF_RK في خطوة تشعب DH، وتدوير DH عند الاستلام. متحقق منه بمخرجات `ratchet_step_basic` و`ratchet_step_three_iterations` و`kdf_rk_basic`.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 متوافق مع HEAD** — انظر `docs/PROTOCOL_SPEC.md`.
 
 **مكتمل (جميع اللغات الثماني):**
-- ✅ **مكالمات صوتية (1-to-1)** — آلة حالة الإشارة (Offer/Answer/Hangup/Cancel/Timeout) + نقل إطارات ثنائية.
-- ✅ **صوت جماعي** — عضوية يديرها المضيف (دعوة/طرد/مغادرة)، توليد مفتاح لكل إطار، توزيع أحادي الاتجاه لجميع الأعضاء الحاليين، تدوير مفاتيح يتحكم فيه المضيف عند تغيير العضوية.
-- ✅ **البث المباشر** — يبث الناشر `StreamAnnounce`؛ يرسل المشتركون `StreamSubscribe`؛ إطارات ثنائية `StreamSegment` أحادية الاتجاه لكل مشترك.
-- ✅ **مكالمات فيديو (1-to-1)** — التفاوض على الترميز/الدقة/معدل الإطارات/معدل البت في الإشارة، وإشارات طلب الإطار الرئيسي وتغيير الجودة.
-- ✅ **المشاهدة الجماعية** — يصدر المضيف أوامر `WatchSync` موثوقة (تشغيل/إيقاف مؤقت/بحث/سرعة)؛ يطبقها المتابعون مع تعويض RTT؛ `WatchReaction` بدون تأكيد.
-- ✅ **مجموعة مفاتيح أحادية الاستخدام (OPK)** — 100 افتراضياً، إصدار FIFO، تعبئة كسولة، استهلاك محمي بالقفل عبر جميع اللغات الثماني.
-- ✅ **C: جلسة Signal كاملة** — `aethernet_signal_service_init` و`generate_pre_key_bundle` و`process_pre_key_bundle` و`encrypt` و`decrypt` في `c/src/signal_protocol.c`.
+- ✅ **مكالمات صوتية (1-to-1)** — آلة حالة الإشارة (Offer/Answer/Hangup/Cancel/Timeout) + نقل إطارات ثنائية (16B callId · 4B seq · 8B timestamp · 1B isSilence · N bytes). تسليم مدرك للمسار عبر `IRoutingService`.
+- ✅ **صوت جماعي** — عضوية يديرها المضيف (دعوة/طرد/مغادرة)، حقل توليد مفتاح لكل إطار، توزيع أحادي الاتجاه لجميع الأعضاء الحاليين، تدوير مفاتيح يتحكم فيه المضيف عند تغيير العضوية.
+- ✅ **البث المباشر** — يبث الناشر `StreamAnnounce`؛ يرسل المشتركون `StreamSubscribe`؛ إطارات ثنائية `StreamSegment` (16B streamId · 4B seq · 8B ts · 1B isKeyframe · N bytes) أحادية الاتجاه لكل مشترك.
+- ✅ **مكالمات فيديو (1-to-1)** — التفاوض على الترميز/الدقة/معدل الإطارات/معدل البت في الإشارة، وإشارات طلب الإطار الرئيسي وتغيير الجودة، وتنسيق ثنائي `VideoFrame` مطابق لتخطيط الصوت.
+- ✅ **المشاهدة الجماعية** — يصدر المضيف أوامر `WatchSync` موثوقة (تشغيل/إيقاف مؤقت/بحث/سرعة)؛ يطبقها المتابعون مع تعويض RTT (`position = positionMs + elapsed × playbackSpeed`)؛ `WatchReaction` بدون تأكيد.
+- ✅ **مجموعة مفاتيح أحادية الاستخدام (OPK)** — 100 افتراضياً، إصدار FIFO، تعبئة كسولة، استهلاك محمي بالقفل عبر جميع اللغات الثماني. يُغلق خطر التزامن لمفتاح OPK الواحد.
+- ✅ **C: جلسة Signal كاملة** — `aethernet_signal_service_init` و`generate_pre_key_bundle` و`process_pre_key_bundle` و`encrypt` و`decrypt` في `c/src/signal_protocol.c`؛ 6 اختبارات E2E بين عقدتين في `c/tests/test_signal_session.c`. جميع اللغات الثماني الآن لديها بروتوكول Signal كامل قادر على الجلسات.
+
+**مكتمل (جميع اللغات الثماني — مجموعة خدمات الأسلاك الكاملة):**
+- ✅ **كل نوع حزمة محجوز أصبح الآن خدمة حقيقية متطابقة بالبايت في جميع اللغات الثماني.** منارة/استعلام الحضور (21/22)، ونبضة القلب (10)، ومزامنة الملف الشخصي (23)، وإعلان معرف التوجيه المؤقت (56)، وتبادل المفاتيح الأولية (25/26)، والقنوات (7)، والضغط للتحدث (15)، ومشاركة الشاشة (32)، والتحكم بالمكالمة (27)، وإقرار نداء الاستغاثة (6)، وفُتات المساحة (40)، وإعلان المصهر (41)، وطلب شظية الخزنة (42)، وقياس النطاق الترددي / ABMF (53/54/55). كل واحدة خدمة رفيعة (إنتاج + معالجة + حدث) يربطها المضيف بجلسة Signal الخاصة به وجدول التوجيه؛ وكل واحدة مثبتة في مستودع مشترك متعدد اللغات (`fixtures/presence/`، `fixtures/media/`، `fixtures/bandwidth/`، `fixtures/prekey/`، `fixtures/videocall/`، `fixtures/vaultshard/`، `fixtures/channels/`، `fixtures/profiles/`، `fixtures/heartbeat/`، `fixtures/erid/`، `fixtures/space/`، `fixtures/forge/`، `fixtures/sos/`) وتُختبر باختبارات وحدة لكل لغة، مع تحقق من Swift وC على خادم بناء macOS. انظر **ما الذي تحصل عليه — كل خدمة، بكل لغة**.
 
 **مكتمل (مرجع C# فقط):**
-- ✅ **العرض التوضيحي الخطوة 9 — MessagingService + DTN fallback من طرف إلى طرف**
-- ✅ **جسر `AetherNet.Messaging` ↔ `AetherNet.Security`** — `SignalMessageEnvelopeCipher` يجعل طبقة المراسلة مشفرة من طرف إلى طرف افتراضياً.
-- ✅ **البث التكيفي متغير معدل البت** — `AdaptiveBitrateController` مع سلالم معدل البت المحددة في المواصفات للملفات الشخصية A وB وC.
-- ✅ **المشاهدة الجماعية: استيعاب BitTorrent + تمويل ChipIn الجماعي**
-- ✅ **مكالمات فيديو جماعية مع ترحيل SFU تلقائي** — `GroupVideoService` / `IGroupVideoService`. طبولوجيا FullMesh لـ≤ 3 مشاركين؛ تبديل تلقائي إلى SFU عند `SfuThresholdParticipants` (4).
-- ✅ **محاكاة نقل BLE GATT**
-- ✅ **محاكاة نقل Wi-Fi Direct**
-- ✅ **محاكاة نقل NearLink**
-- ✅ **اختبارات محاكاة تشغيل RF**
+- ✅ **العرض التوضيحي الخطوة 9 — MessagingService + DTN fallback من طرف إلى طرف** — `samples/AetherNet.Demo.Console` يمر عبر مراسلة مشفرة بـSignal الحقيقي مع تخزين وإعادة DTN عندما يكون المستلم غير متصل.
+- ✅ **جسر `AetherNet.Messaging` ↔ `AetherNet.Security`** — `SignalMessageEnvelopeCipher` يجعل طبقة المراسلة مشفرة من طرف إلى طرف افتراضياً؛ الرسائل بلا جلسة Signal تُصفّ في طابور، ولا تُرسل قط بشكل غير آمن.
+- ✅ **البث التكيفي متغير معدل البت** — `AdaptiveBitrateController` مع سلالم معدل البت المحددة في المواصفات للملف الشخصي A (الوقت الفعلي)، وB (البث المباشر)، وC (VOD). يختار الناشر أعلى درجة مستدامة (هامش 20%) ويصدر `StreamAbandon` (`PacketType.StreamAbandon`) بدلاً من شظية عندما يكون تحت الحد الأدنى. `IStreamingService` يعرض `UpdateBandwidthEstimate` و`GetCurrentBitrateRung`.
+- ✅ **المشاهدة الجماعية: استيعاب BitTorrent + تمويل ChipIn الجماعي** — نماذج `TorrentInfo` / `TorrentFile`؛ يعالج `WatchTogetherService` النوع `PacketType.TorrentMetadata` ويُطلق `TorrentReceived`. آلة حالة `ChipInPool` / `ChipInContribution` (Collecting → Funded → Purchasing → Acquired / Failed / Refunded)؛ `StartChipInAsync` / `ContributeAsync` / `GetChipIn` على `IWatchTogetherService`.
+- ✅ **مكالمات فيديو جماعية مع ترحيل SFU تلقائي** — `GroupVideoService` / `IGroupVideoService`. طبولوجيا FullMesh لـ≤ 3 مشاركين؛ تبديل تلقائي إلى SFU عند `SfuThresholdParticipants` (4) مع إعادة تعيين الترحيل عبر `GroupVideoSignaling(SfuAssigned)`. توزيع في FullMesh، وإرسال عبر الترحيل فقط في وضع SFU. نوع حزمة الإشارة `GroupVideoSignaling = 35`.
+- ✅ **محاكاة نقل BLE GATT** — `SimulatedBleGattTransportService` (`IBleTransportService`). تأطير GATT MTU عبر `BleGattFramer` (1024 B/إطار، `[2B count][2B index][payload]`)، سجل أقران ثابت داخل العملية، بث الإعلان. جميع قيود `BleMaxPayloadBytes` مفروضة.
+- ✅ **محاكاة نقل Wi-Fi Direct** — `SimulatedWifiDirectTransportService` (`IWifiDirectService`). دورة حياة `ConnectAsync`/`DisconnectAsync` صريحة، تسليم حمولة كبيرة مباشر (بلا تأطير)، أحداث `PeerConnected`/`PeerDisconnected` ثنائية الاتجاه.
+- ✅ **محاكاة نقل NearLink** — `SimulatedNearLinkTransportService` (`INearLinkTransportService`). MTU إطار 4096 B، سجل 500 قرين، `ConnectedPeerCount`، `IsAvailable` قابل للضبط في وقت التشغيل.
+- ✅ **اختبارات محاكاة تشغيل RF** — اختبارات تشغيل بيني بين عقدتين (`SimulatedTransportTests`): جولة `MeshPacket` عبر BLE + NearLink، ونقل حمولة 64 KB عبر WiFi Direct. الطبقة البرمجية متحقق منها بالكامل؛ جلسة مختبر أجهزة مادية مطلوبة للتحقق على العتاد.
 
 **مكتمل (طبقة النقل C# — جميعها fail-fast):**
-- ✅ **نقل BLE GATT الحقيقي** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (Android GATT server).
-- ✅ **نقل Wi-Fi Direct الحقيقي** — `WinWifiDirectTransportService` (WinRT) + `android/green/` (`WifiP2pManager`).
-- ✅ **نقل ترحيل HTTP (Aether Purple)**
-- ✅ **NFC (Aether White)**
-- ✅ **NearLink (Aether Teal)**
-- ✅ **LoRa / CircleLink (Aether Red)**
+- ✅ **نقل BLE GATT الحقيقي** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (Android GATT server). اختبار تشغيل RF كامل في `samples/AetherNet.BleRfTest/`.
+- ✅ **نقل Wi-Fi Direct الحقيقي** — `WinWifiDirectTransportService` (WinRT، `WiFiDirectAdvertisementPublisher` + TCP StreamSocket المنفذ 8888) + `android/green/` (`WifiP2pManager`). اختبار RF في `samples/AetherNet.WifiDirectRfTest/`.
+- ✅ **نقل ترحيل HTTP (Aether Purple)** — `HttpRelayTransportService` مع استطلاع طويل مدته 10 ثوانٍ، `PowerCostRelative = 100`، دائماً الملاذ الأخير. خادم الترحيل في `samples/AetherNet.RelayServer/` (ASP.NET Core minimal API، المنفذ 5200). اختبار RF في `samples/AetherNet.RelayRfTest/`.
+- ✅ **NFC (Aether White)** — `android/white/` يطبق `HostApduService` بـAID `F061657468657200`. `WinNfcStubTransportService` يوثق مسارَي تقريب على Windows: (1) NDEF-over-BLE-GATT ببوابة RSSI ≥ −40 dBm (يحاكي النقر للاتصال دون شريحة NFC، `IsAvailable = Bluetooth present`)؛ (2) قارئ ACR122U USB عبر `Windows.Devices.SmartCards` PC/SC (`IsAvailable = contactless reader enumerated`). مسار الترقية: نفّذ `ITransportService` عندما تشحن Microsoft واجهة برمجية P2P NFC أصلية.
+- ✅ **NearLink (Aether Teal)** — **`harmonyos/teal/`** — تطبيق ArkTS كامل لـHarmonyOS 5.0.1 (API 13) باستخدام `@kit.NearLinkKit` (`scan.startScan` + `ssap.createClient` + `advertising.startAdvertising`)؛ `isAvailable` يُستشار في وقت التشغيل. `WinNearLinkStubTransportService` + `android/teal/` يوثقان تقريب SSAP-over-BLE: GATT BLE بمعرف خدمة Aether SLE `61657468-6572-0003-0000-000000000000` — مماثل للواجهة البرمجية لـSSAP، غير متوافق مع الأسلاك مع عتاد NearLink الحقيقي. مسار الترقية: استبدل استدعاءات BLE GATT باستدعاءات SDK `ssapc_*`/`ssaps_*`؛ المعرفات وفتحة `TransportManager` دون تغيير.
+- ✅ **LoRa / CircleLink (Aether Red)** — `LoRaCircleLinkStub` + `android/red/` يوثقان تقريب Meshtastic-over-BLE-LR: تنسيق أسلاك Meshtastic الكامل (رأس 16 بايت + protobuf بـAES-256-CTR) عبر BLE 5.0 Coded PHY S=8 (~1.3 كم خارجياً)، مع توجيه فيضان مُدار ونافذة تنازع مرجّحة بـRSSI. اتحاد عقد الجسر مع عتاد LoRa الحقيقي يعمل تلقائياً (نفس تنسيق حزمة Meshtastic، بلا ترجمة). مسار الترقية: استبدل راديو BLE LR بمحرك SX1276/SX1278 بأوامر AT أو SPI؛ تنسيق الحزمة والتوجيه دون تغيير.
 
 **مفتوح — متتبع في `OPEN_ISSUES.md`:**
 - تشغيل RF على العتاد الحقيقي: اختبار تشغيل بيني بين عقدتين على أجهزة BLE / Wi-Fi Direct فعلية (اختبارات المحاكاة ناجحة؛ جلسة مختبر العتاد مطلوبة)
 - NearLink: `harmonyos/teal/` مكتمل؛ يتطلب عتاد Huawei Mate 60/70 / Pura 70 Pro+ / Mate X6 (شريحة NearLink غير موجودة على الأجهزة غير المصنوعة من Huawei). Windows + Android يرجعان تلقائياً إلى تقريب SSAP-over-BLE.
-- LoRa / CircleLink: وحدة راديو مطلوبة لنطاق LoRa الحقيقي.
+- LoRa / CircleLink: وحدة راديو مطلوبة لنطاق LoRa الحقيقي. بدونها، يُحمل تنسيق أسلاك Meshtastic عبر BLE LR (~1.3 كم) ويتوفر اتحاد عقد الجسر مع عتاد LoRa الحقيقي.
+- ✅ **(حُلّ في v1.2.0)** سطح البروتوكول الاستهلاكي (الموجة 16/17) — حدث `IDtnService.BundleReceived` للحزم الواردة ([#59](https://github.com/bhengubv/aether-protocol/issues/59))، دليل تسمية/اكتشاف على مستوى التطبيق ([#60](https://github.com/bhengubv/aether-protocol/issues/60))، واجهة إكرامية المؤلف ([#61](https://github.com/bhengubv/aether-protocol/issues/61)). شُحنت الثلاثة إضافياً عبر 8 لغات بمستودعات متعددة اللغات متطابقة بالبايت. انظر CHANGELOG.
 
 **لم يُفتح بعد للمساهمات الخارجية:**
 - البروتوكول لا يزال قيد التطوير النشط. المساهمات الخارجية غير مقبولة في الوقت الحالي.
+- تطبيق نقل NearLink، وأمثلة تكامل Android/iOS، ووسائل نقل إضافية، ومقاييس الأداء، وتشويش البروتوكول متتبعة داخلياً وستُفتح عندما يصل المشروع إلى نقطة مساهمة عامة مستقرة.
 
 ## هيكل المشروع
 
@@ -594,5 +635,9 @@ public class LoRaTransportService : ITransportService
 ## الرخصة
 
 رخصة MIT. انظر [LICENSE](LICENSE).
+
+## الترجمات
+
+هذا الملف التعريفي مُصان بالإنجليزية ومُترجَم إلى 10 لغات إضافية تحت [`docs/i18n/`](docs/i18n/): Français, Español, العربية, 中文简体, 日本語, Deutsch, Português (BR), Русский, فارسی, و한국어. **النسخة الإنجليزية هي مصدر الحقيقة** — حين تختلف ترجمة عن النص الإنجليزي، يكون النص الإنجليزي هو المرجع، وقد تتأخر الترجمات عنه بإصدار أو اثنين. البروتوكول والكود والمستودعات والسلوك الموصوف متطابقة مهما كانت اللغة التي تقرأ بها.
 
 </div>

@@ -1,0 +1,639 @@
+```
+     ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
+     ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
+     ╩ ╩ ╚═╝  ╩  ╩ ╩ ╚═╝ ╩╚═
+     mesh networking protocol
+```
+
+आस-पास के लोगों के साथ फ़ाइलें, संदेश और स्ट्रीम साझा करें। न WiFi। न मोबाइल डेटा। न साइन-अप। AirDrop की तरह, बस यह हर किसी के साथ, हर प्लेटफ़ॉर्म पर काम करता है।
+
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
+
+[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+
+> **एक प्रोटोकॉल, आठ भाषाएँ, वायर पर एक जैसा।** Aether को **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, और C** में लागू किया गया है — और हर पैकेट इन सभी में बाइट-दर-बाइट एक जैसा है, जिसे CI में एक साझा क्रॉस-लैंग्वेज फ़िक्स्चर कॉर्पस द्वारा लागू किया जाता है। इन आठ में से किसी में भी अपना नोड बनाएँ; यह बाकी सभी के साथ इंटरऑपरेट करता है। यह README 11 मानव भाषाओं में भी उपलब्ध है (ऊपर लिंक)।
+
+## आप इससे क्या कर सकते हैं?
+
+**डेटा खर्च किए बिना लेक्चर नोट्स साझा करें।**
+
+आप एक स्टडी ग्रुप में हैं। किसी के फ़ोन पर पुराने पेपर हैं। Aether उन्हें Bluetooth के ज़रिए सीधे आपके डिवाइस पर भेजता है — न हॉटस्पॉट, न WhatsApp ग्रुप, न फ़ाइल आकार की सीमा। अगर ग्रुप में कोई रेंज से बाहर है, तो फ़ाइल दूसरे डिवाइसों से होकर हॉप करती है जब तक वह उन तक न पहुँच जाए। ज़रूरत पड़ने पर संदेश किसी रूट के लिए 72 घंटे तक प्रतीक्षा करते हैं।
+
+```
+  [You] ──BLE──▶ [Friend] ──WiFi──▶ [Friend's Friend]
+    notes.pdf           relayed, encrypted
+```
+
+**अपने आस-पास क्या हो रहा है, यह जानें।**
+
+आप किसी कैंपस इवेंट या किसी फ़ेस्टिवल में हैं। Aether आस-पास के दूसरे डिवाइसों को Bluetooth और WiFi Direct के ज़रिए खोजता है — न कोई ऐप फ़ीड, न कोई एल्गोरिदम। आप वही देखते हैं जो वास्तव में आपके आस-पास है, न कि जो प्रचारित किया जाता है।
+
+**जब सिग्नल न हो तब SOS भेजें।**
+
+आपके फ़ोन में कोई रिसेप्शन नहीं है। Aether रेंज के हर डिवाइस को एक आपातकालीन संदेश प्रसारित करता है, और वे डिवाइस उसे आगे बढ़ाते हैं। किसी सेल टावर की ज़रूरत नहीं।
+
+```
+          ╭── [Phone B]
+         ╱
+  [SOS!] ───── [Phone C] ──── [Phone E]
+         ╲
+          ╰── [Phone D]
+
+  Flood: reaches every device in range
+```
+
+**निजी समूह चैनल बनाएँ।**
+
+आपकी रेजिडेंस फ़्लोर, आपकी सोसाइटी, आपकी प्रोजेक्ट टीम के लिए एक चैनल। केवल सत्यापित सदस्य ही संदेश पढ़ या भेज सकते हैं। कोई सर्वर बातचीत को संग्रहीत नहीं करता।
+
+**आस-पास के लोगों को चीज़ें बेचें।**
+
+बिक्री के लिए एक पाठ्यपुस्तक सूचीबद्ध करें। मेश की रेंज में चलने वाले लोग इसे देखते हैं। न कोई मार्केटप्लेस अकाउंट, न कोई लिस्टिंग शुल्क — बस निकटता।
+
+**मेश के ज़रिए, साथ मिलकर एक फ़िल्म देखें।**
+
+आपके ग्रुप की एक मूवी नाइट है। किसी के पास फ़ाइल है। Aether हर डिवाइस पर प्लेबैक को सिंक करता है — प्ले, पॉज़, सीक — सब एकसाथ ताल में। अगर केवल कुछ लोगों के पास फ़ाइल है, तो मेश उसे रीयल-टाइम में एक P2P स्ट्रीम के रूप में वितरित करता है। अगर किसी के पास नहीं है तो हर कोई SDPKT के ज़रिए इसे खरीदने में योगदान देता है।
+
+## यह कैसे काम करता है
+
+डिवाइस Bluetooth, WiFi Direct, या NearLink का उपयोग करके एक-दूसरे से सीधे बात करते हैं। न कोई इंटरनेट कनेक्शन, न कोई सर्वर, न कोई केंद्रीय अवसंरचना।
+
+```
+    [Alice]              [Bob]               [Charlie]            [Diana]
+       |                   |                     |                   |
+       |---BLE (< 1KB)--->|                     |                   |
+       |                   |---WiFi Direct------>|                   |
+       |                   |                     |---NearLink------->|
+       |                   |                     |                   |
+       |<============ End-to-End Encrypted (Signal Protocol) ======>|
+       |                                                             |
+       |  No internet. No servers. No ISP. Just devices talking.     |
+```
+
+जब कोई संदेश अपने गंतव्य तक सीधे नहीं पहुँच पाता, तो वह दूसरे डिवाइसों से होकर हॉप करता है। वे रिले डिवाइस यह नहीं पढ़ सकते कि वे क्या ले जा रहे हैं — हर संदेश AES-256-GCM से एन्क्रिप्ट किया जाता है। हर पैकेट Ed25519 पहचान कुंजियों से हस्ताक्षरित होता है, और जाली पैकेट नेटवर्क द्वारा गिरा दिए जाते हैं।
+
+> **सुरक्षा परिपक्वता नोट (शिपिंग से पहले पढ़ें):** असली X3DH (4 X25519 DHs), पूर्ण Signal Double Ratchet (रिसीव पर DH-रोटेशन चरण, KDF_RK, 0x01/0x02 चेन रैचेट), और वन-टाइम प्री-की पूल (डिफ़ॉल्ट 100 OPKs, FIFO, लॉक-सुरक्षित) **सभी 8 भाषाओं** में लागू किए गए हैं और `fixtures/signal/` के अंतर्गत एक साझा क्रॉस-लैंग्वेज फ़िक्स्चर कॉर्पस से पिन किए गए हैं। एकमात्र शेष खुला आइटम असली BLE हार्डवेयर पर भौतिक RF ब्रिंग-अप है (`OPEN_ISSUES.md` में ट्रैक किया गया)।
+
+न कोई अकाउंट, न कोई फ़ोन नंबर, न कोई ईमेल। आप एक कीपेयर जनरेट करते हैं और आप नेटवर्क पर हैं।
+
+```
+  ┌─────────────────────────────────┐
+  │         Your Application        │
+  ├─────────────────────────────────┤
+  │ Messaging · Streaming · Voice   │
+  │ Video · Watch Together          │
+  ├─────────────────────────────────┤
+  │  Security: AES-256-GCM · Ed25519│
+  │  X3DH + Double Ratchet (X25519) │
+  ├─────────────────────────────────┤
+  │  Routing: AODV + DTN            │
+  ├─────────────────────────────────┤
+  │  Transport: BLE · WiFi · NearLink│
+  └─────────────────────────────────┘
+```
+
+**रूटिंग** — हस्ताक्षरित रूट रिप्लाई के साथ AODV। हर रूट रिप्लाई गंतव्य की Ed25519 कुंजी से हस्ताक्षरित होती है, इसलिए कोई भी डिवाइस उस गंतव्य होने का ढोंग नहीं कर सकता जो वह नहीं है।
+
+**स्टोर-एंड-फ़ॉरवर्ड** — जब कोई लाइव रूट नहीं होता, तो पैकेट 72 घंटे तक तब तक रखे जाते हैं जब तक कोई रास्ता न खुल जाए।
+
+**ट्रांसपोर्ट चयन** — प्रोटोकॉल प्रति पैकेट सही ट्रांसपोर्ट चुनता है। छोटे कंट्रोल संदेश BLE पर जाते हैं। बड़े ट्रांसफ़र WiFi Direct का उपयोग करते हैं। उपलब्ध होने पर NearLink।
+
+**वॉइस, वीडियो, और स्ट्रीमिंग** — कोडेक नेगोशिएशन (H.264/H.265/VP8) के साथ वीडियो कॉल, ट्रांसपोर्ट-अवेयर गुणवत्ता चयन, ऑटो SFU रिले के साथ ग्रुप वीडियो, RTT क्षतिपूर्ति के साथ सिंक्रनाइज़्ड वॉच-टुगेदर, और अनुकूली बिटरेट स्ट्रीमिंग।
+
+**रीप्ले सुरक्षा** — 5-मिनट की टाइमस्टैम्प ताज़गी विंडो के साथ नॉन्स डिडुप्लीकेशन।
+
+## आपको क्या मिलता है — हर सेवा, हर भाषा में
+
+Aether केवल एक ट्रांसपोर्ट नहीं है। प्रोटोकॉल द्वारा आरक्षित हर पैकेट प्रकार अब **सभी 8 भाषाओं में एक असली, कार्यशील सेवा** है, और हर एक **बाइट-समान वायर पैकेट** में क्रमबद्ध होती है — Go नोड द्वारा बनाया गया एक पैकेट Swift, Rust, C, Python, TypeScript, Kotlin, या C# नोड द्वारा अपरिवर्तित रूप से डिकोड किया जाता है। प्रत्येक सेवा `fixtures/<service>/` के अंतर्गत एक साझा क्रॉस-लैंग्वेज फ़िक्स्चर से पिन की जाती है और प्रति-भाषा यूनिट टेस्ट द्वारा परखी जाती है, जिसमें Swift और C को macOS बिल्ड सर्वर पर अतिरिक्त रूप से सत्यापित किया जाता है।
+
+| क्षमता | यह क्या करती है | पैकेट प्रकार | फ़िक्स्चर | 8/8 |
+|---|---|:-:|---|:-:|
+| **प्रेज़ेंस बीकन और क्वेरी** | "मैं यहाँ हूँ" घोषित करें और "आस-पास कौन है?" पूछें — एक **घूमने वाली, कुंजी-व्युत्पन्न अल्पकालिक ID** (आपकी असली पहचान नहीं) और एक मोटे जियोहैश के ज़रिए | 21, 22 | `fixtures/presence/` | ✅ |
+| **हार्टबीट** | लिंक किए गए पीयर के बीच हल्का लाइवनेस कीप-अलाइव | 10 | `fixtures/heartbeat/` | ✅ |
+| **प्रोफ़ाइल सिंक** | मेश के ज़रिए किसी पीयर के साथ एक हस्ताक्षरित प्रोफ़ाइल कार्ड का आदान-प्रदान | 23 | `fixtures/profiles/` | ✅ |
+| **अल्पकालिक-ID घोषणा** | किसी मित्र को निजी तौर पर अपनी वर्तमान घूमने वाली रूटिंग ID बताएँ ताकि ID के घूमने के बाद भी वे आप तक पहुँच सकें | 56 | `fixtures/erid/` | ✅ |
+| **प्री-की एक्सचेंज** | मेश के ज़रिए एक Signal प्री-की बंडल का अनुरोध और वितरण करें, ताकि किसी ऐसे व्यक्ति के साथ एंड-टू-एंड सेशन बूटस्ट्रैप हो सके जिससे आप कभी नहीं मिले | 25, 26 | `fixtures/prekey/` | ✅ |
+| **चैनल** | एक निजी, केवल-सदस्य समूह चैनल के लिए हस्ताक्षरित संदेश | 7 | `fixtures/channels/` | ✅ |
+| **पुश-टू-टॉक** | वॉकी-टॉकी वॉइस फ़्रेम (अपारदर्शी एन्कोडेड ऑडियो पेलोड) | 15 | `fixtures/media/` | ✅ |
+| **स्क्रीन शेयर** | स्क्रीन-शेयर वीडियो फ़्रेम (अपारदर्शी एन्कोडेड वीडियो पेलोड) | 32 | `fixtures/media/` | ✅ |
+| **कॉल कंट्रोल** | वॉइस और वीडियो कॉल के लिए रिंग / स्वीकार / अस्वीकार / हैंग-अप सिग्नलिंग | 27 | `fixtures/videocall/` | ✅ |
+| **SOS पावती** | प्रेषक को पुष्टि करें कि उनका आपातकालीन प्रसारण प्राप्त हुआ | 6 | `fixtures/sos/` | ✅ |
+| **स्पेस ब्रेडक्रम्ब्स** | "मेरे आस-पास क्या है" परत के लिए स्थान-टैग किए गए खोज क्रम्ब्स | 40 | `fixtures/space/` | ✅ |
+| **फ़ोर्ज घोषणा** | मेश को एक व्युत्पन्न/फ़ोर्ज्ड कंटेंट आर्टिफ़ैक्ट का विज्ञापन करें | 41 | `fixtures/forge/` | ✅ |
+| **वॉल्ट शार्ड अनुरोध** | एक इरेज़र-कोडेड स्टोरेज शार्ड प्राप्त करें (N में से कोई भी K शार्ड फ़ाइल को फिर से बनाते हैं) | 42 | `fixtures/vaultshard/` | ✅ |
+| **बैंडविड्थ मापन** | लिंक थ्रूपुट को प्रोब / ack / गॉसिप करें ताकि मेश सबसे मोटे पाइप पर रूट करे (ABMF) | 53, 54, 55 | `fixtures/bandwidth/` | ✅ |
+
+ये पहले से ही पूर्ण **मैसेजिंग, 1-से-1 और समूह वॉइस, वीडियो कॉल, लाइव स्ट्रीमिंग, वॉच-टुगेदर, AODV रूटिंग, DTN स्टोर-एंड-फ़ॉरवर्ड, और SOS फ़्लड** सेवाओं के ऊपर बैठती हैं — जिन्हें सभी 8 भाषाओं में भी लागू किया गया है।
+
+> **यहाँ "निर्मित" का ठीक-ठीक क्या अर्थ है।** प्रत्येक सेवा अपने वायर पैकेट का उत्पादन और प्रबंधन करती है, सही इवेंट उठाती है, और एक बाइट-स्तरीय फ़िक्स्चर से पिन की जाती है जिससे पूरे भाषा परिवार को मेल खाना चाहिए। आपका एप्लिकेशन सेवा को उसके Signal सेशन, रूटिंग टेबल, और स्थानीय स्थिति से जोड़ता है। यह प्रोटोकॉल परत है — कोड, टेस्ट, और क्रॉस-लैंग्वेज बाइट-फ़िक्स्चर में सिद्ध — बाकी सब चीज़ों के समान ईमानदार RF आधार पर: कोई भी रास्ता जो अंततः एक रेडियो पर सवार होता है, वह `OPEN_ISSUES.md` में ट्रैक किए गए हार्डवेयर ब्रिंग-अप तक फ़ील्ड-असत्यापित रहता है।
+
+## ट्रांसपोर्ट
+
+प्रत्येक ट्रांसपोर्ट का एक रंग नाम है जिसका उपयोग पूरे कोडबेस में किया जाता है। `IsAvailable` हार्डवेयर-अवरुद्ध रास्तों को गेट करता है — `TransportManager` उन्हें छोड़ देता है और अगले उपलब्ध ट्रांसपोर्ट पर वापस गिर जाता है।
+
+**स्थिति कुंजी:** ✅ असली, निर्मित और सत्यापित · ⏳ असली, सत्यापन प्रगति पर · ⚠️ कुछ प्लेटफ़ॉर्म पर असली, अन्य पर स्टब · ❌ स्टब (अभी तक कोई ट्रांसपोर्ट कोड नहीं)।
+
+| रंग | नाम | रेंज | बैंडविड्थ | स्थिति |
+|--------|------|------:|----------:|--------|
+| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ असली — Windows (WinRT) + Android (`android/blue/`) |
+| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ असली — Windows (WinRT) + Android (`android/green/`) |
+| 🟣 Aether Purple | HTTP / QUIC रिले | असीमित | ~10 Mbps | ✅ असली — Windows; रिले सर्वर `samples/AetherNet.RelayServer/` में |
+| 🟪 WebRTC P2P | इंटरनेट डेटा चैनल | असीमित | ~100 Mbps | ✅ सभी 8 भाषाओं में असली — **सभी 8 में लूपबैक-सत्यापित** (C#/Go/Kotlin/TypeScript/Python/C/Swift/Rust प्रत्येक में दो पीयर एक असली ICE डेटा चैनल पर बाइट्स का आदान-प्रदान करते हैं) |
+| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android पर असली (`android/white/`); Windows = असली BLE-GATT + RSSI −40 dBm निकटता अनुमान (`WinNfcBleTransportService`, net9/10 कंपाइल करता है, रनटाइम-असत्यापित) — `Windows.Networking.Proximity` Win 11 में हटा दिया गया |
+| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ⚠️ HarmonyOS पर असली (`harmonyos/teal/`, `@kit.NearLinkKit` — ऑन-डिवाइस सत्यापन लंबित); Android + Windows = असली SSAP-over-BLE अनुमान (`android/teal/AetherNetSleService`, `WinNearLinkBleTransportService`; कंपाइल + यूनिट-टेस्ट सत्यापित, रनटाइम-असत्यापित) |
+| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ असली RYLR SX127x/SX126x सीरियल ड्राइवर (`LoRaSerialTransport` C#/Go/Rust/C में; कंपाइल करता है, रनटाइम-असत्यापित — एक भौतिक मॉड्यूल चाहिए); BLE Coded-PHY ब्रिज अभी भी एक प्रलेखित डिज़ाइन |
+
+रेडियो ट्रांसपोर्ट केवल वहीं असली हैं जहाँ प्लेटफ़ॉर्म कोड मौजूद है (C#/Windows, Kotlin/Android, HarmonyOS)। आठ भाषा लाइब्रेरियाँ अन्यथा परीक्षण के लिए एक **इन-प्रोसेस सिमुलेशन** ट्रांसपोर्ट शिप करती हैं — **WebRTC उन सभी के लिए समान पहला असली ट्रांसपोर्ट है** (पूर्ण; भाषाओं में लूपबैक-सत्यापित)।
+
+प्राथमिकता पावर लागत के अनुसार है: रेडियो मेश को प्राथमिकता दी जाती है, फिर एक सीधे इंटरनेट रास्ते के रूप में WebRTC, और अंतिम उपाय के रूप में HTTP/QUIC रिले।
+
+## परिनियोजन स्तर
+
+Aether किसी भी प्लेटफ़ॉर्म पर काम करता है जो Bluetooth या Wi-Fi का समर्थन करता है। आप जिस स्तर पर हैं वह उस OS पर निर्भर करता है जिसे आप लक्षित कर रहे हैं।
+
+---
+
+### मानक स्तर — कोई भी प्लेटफ़ॉर्म
+
+Android · Windows · Linux · macOS · iOS
+
+Aether Bluetooth या Wi-Fi हार्डवेयर वाले किसी भी डिवाइस पर चलता है। जहाँ रेडियो भौतिक रूप से अनुपस्थित है, वहाँ प्रत्येक अवरुद्ध ट्रांसपोर्ट को उपलब्ध चीज़ों पर अनुमानित किया जाता है। ये अनुमान अब **असली कोड** हैं (कंपाइल-सत्यापित; एक 2-डिवाइस / हार्डवेयर RF टेस्ट लंबित होने तक **रनटाइम-असत्यापित**):
+
+- **NearLink (Aether Teal)** — Android (`android/teal/AetherNetSleService`) और Windows (`WinNearLinkBleTransportService`) पर असली SSAP-over-BLE-GATT अनुमान (Aether SLE UUID `61657468-6572-0003-…`); कंपाइल + यूनिट-टेस्ट सत्यापित, रनटाइम-असत्यापित। असली NearLink रेडियो केवल HarmonyOS पर मौजूद है (`harmonyos/teal/`, ऑन-डिवाइस सत्यापन लंबित)।
+- **LoRa (Aether Red)** — असली RYLR SX127x/SX126x सीरियल ड्राइवर (`LoRaSerialTransport` **सभी 8 भाषाओं** में — C#/Go/Rust/C/Python/TypeScript/Swift/Kotlin; हर पोर्ट कंपाइल-सत्यापित, जिसमें Mac बिल्ड सर्वर पर Swift + C शामिल हैं; रनटाइम-असत्यापित — एक भौतिक मॉड्यूल चाहिए)। Meshtastic-over-BLE-Coded-PHY ब्रिज (~1.3 km) एक प्रलेखित डिज़ाइन बना हुआ है; असली लॉन्ग-रेंज LoRa के लिए एक LoRa-सक्षम नोड (गेटवे, SBC, या LoRa मॉड्यूल वाला रग्ड हैंडसेट) चाहिए।
+- **NFC (Aether White)** — Android पर असली (HCE)। Windows में अब एक असली BLE-GATT + RSSI −40 dBm निकटता अनुमान है (`WinNfcBleTransportService`, net9/10 कंपाइल करता है; रनटाइम-असत्यापित); रीडर मौजूद होने पर ACR122U PC/SC।
+
+जो हर जगह असली और एक जैसा है: **BLE, Wi-Fi Direct, HTTP/QUIC रिले, और WebRTC P2P ट्रांसपोर्ट (सभी 8 भाषाओं में लूपबैक-सत्यापित)**, साथ ही Signal Protocol सुरक्षा (X3DH + Double Ratchet), AODV रूटिंग, DTN स्टोर-एंड-फ़ॉरवर्ड, SOS प्रसारण, वॉइस, और स्ट्रीमिंग।
+
+**ईमानदार स्थिति:** BLE + Wi-Fi Direct + रिले प्रोडक्शन-असली हैं; **WebRTC P2P असली है और सभी 8 भाषाओं में लूपबैक-सत्यापित है** (दो पीयर एक असली ICE डेटा चैनल पर बाइट्स का आदान-प्रदान करते हैं — Rust को काम करने वाले UDP ICE के साथ `.201` Linux बॉक्स पर पुष्टि की गई); NearLink / LoRa / NFC-on-Windows अनुमान अब असली कोड हैं जो कंपाइल करते हैं (LoRa सभी 8 में कंपाइल-सत्यापित, जिसमें Mac बिल्ड सर्वर पर Swift + C शामिल हैं; NearLink-Android को यूनिट-टेस्ट भी किया गया) लेकिन **रनटाइम-असत्यापित** हैं — अभी तक कोई हार्डवेयर / 2-डिवाइस RF टेस्ट नहीं। वे कोड में मेश में भाग लेते हैं; उन तीनों को फ़ील्ड-सिद्ध RF की उम्मीद करते हुए परिनियोजित न करें।
+
+---
+
+### नेटिव स्तर — CircleOS / OpenHarmony
+
+CircleOS · HarmonyOS · कोई भी OpenHarmony-आधारित OS
+
+CircleOS को OpenHarmony पर बनाया गया है, जो NearLink (SLE) सिलिकॉन और `@kit.NearLinkKit` SDK को एक प्रथम-श्रेणी OS क्षमता के रूप में शिप करता है। NearLink हार्डवेयर वाले CircleOS और HarmonyOS डिवाइसों पर, किसी अनुमान की ज़रूरत नहीं — `harmonyos/teal/` सीधे असली SLE रेडियो का उपयोग करता है:
+
+```
+ssap.createClient(deviceAddress)  →  client.connect()  →  client.writeProperty(WRITE_NO_RESPONSE)
+advertising.startAdvertising()    →  scan.startScan()   →  client.on('propertyChange')
+```
+
+यह केवल मानक स्तर का बेहतर संस्करण नहीं है। NearLink परत पर यह श्रेणीगत रूप से एक भिन्न नेटवर्क है:
+
+| क्षमता | मानक स्तर (BLE अनुमान) | नेटिव स्तर (CircleOS / OpenHarmony) |
+|---|---|---|
+| **NearLink रेंज** | ~100 m (BLE) | **600 m** |
+| **NearLink बैंडविड्थ** | ~1 Mbps (BLE) | **12 Mbps** |
+| **NearLink विलंबता** | ~10 ms (BLE) | **20 µs** |
+| **NearLink पावर** | BLE बेसलाइन | **BLE 5.0 से 60% कम** |
+| **समवर्ती NearLink पीयर** | ~7 (BLE कनेक्शन सीमा) | **500+** |
+| **NearLink स्रोत** | SSAP-over-BLE (`android/teal/`, `WinNearLinkStubTransportService`) | असली SLE रेडियो (`harmonyos/teal/`, `@kit.NearLinkKit`) |
+| **BLE / Wi-Fi Direct / HTTP रिले** | नेटिव | नेटिव (एक जैसा) |
+| **Signal Protocol सुरक्षा** | पूर्ण | पूर्ण (एक जैसा) |
+| **रूटिंग / DTN / SOS** | पूर्ण | पूर्ण (एक जैसा) |
+| **Aether Tag पहचान** | समर्थित | समर्थित (एक जैसा) |
+
+---
+
+### स्तरों के बीच आवाजाही
+
+किसी कोड परिवर्तन की आवश्यकता नहीं। स्तर रनटाइम पर प्रत्येक ट्रांसपोर्ट सेवा पर `IsAvailable` द्वारा निर्धारित किया जाता है:
+
+1. NearLink सिलिकॉन वाले CircleOS या HarmonyOS डिवाइस पर, NearLink ट्रांसपोर्ट पर `IsAvailable` `true` लौटाता है (परमिशन जाँच + पैसिव स्कैन प्रयास के ज़रिए हार्डवेयर-प्रोब्ड)।
+2. `TransportManager` स्वचालित रूप से NearLink को प्राथमिकता स्थिति में बढ़ावा देता है — सबसे कम पावर लागत, सबसे अधिक बैंडविड्थ।
+3. ऐप कोड, पैकेट फ़ॉर्मेट, रूटिंग एल्गोरिदम, सुरक्षा परत, और Aether Tags दोनों स्तरों में एक जैसे हैं।
+
+मानक स्तर पर एक नोड और नेटिव स्तर पर एक नोड स्वतंत्र रूप से संचार कर सकते हैं — वे समान वायर फ़ॉर्मेट, समान Signal Protocol सेशन, और समान Aether Tags साझा करते हैं। स्तर का अंतर केवल NearLink पैकेटों के लिए उपयोग किए गए रेडियो को प्रभावित करता है, उसके ऊपर के प्रोटोकॉल को नहीं।
+
+---
+
+> **आंतरिक रूप से इन स्तरों को Asterix वैरिएंट (मानक) और Obelix वैरिएंट (नेटिव) कहा जाता है।** Asterix जो उपलब्ध है उसके साथ अच्छी तरह काम करता है। Obelix — नेटिव NearLink के साथ CircleOS पर चलते हुए — स्थायी रूप से उन्नत क्षमता पर संचालित होता है, ठीक उसी तरह जैसे Obelix जादुई औषधि की ताकत को दोबारा पिए बिना अपने साथ रखता है।
+
+---
+
+## कार्यान्वयन
+
+Aether को 8 भाषाओं में बनाया गया है ताकि यह फ़ोन, लैपटॉप, टैबलेट, और माइक्रोकंट्रोलर पर चले। सभी कार्यान्वयन वायर-संगत पैकेट का उत्पादन करते हैं — Rust नोड द्वारा एन्क्रिप्ट किया गया एक संदेश Python नोड द्वारा रिले किया जा सकता है और Swift नोड द्वारा डिक्रिप्ट किया जा सकता है।
+
+| भाषा | डायरेक्टरी | वायर फ़ॉर्मेट | Routing/DTN/SOS | X3DH | Double Ratchet | OPK पूल | Voice/Group | Streaming/Video/Watch |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+
+सभी 8 भाषाएँ बाइट-समान वायर पैकेट का उत्पादन करती हैं, जिन्हें 14 कैनोनिकल वायर-फ़ॉर्मेट फ़िक्स्चर और CI में चलने वाले 4 Signal टेस्ट वेक्टर (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) द्वारा सत्यापित किया जाता है। रूटिंग (AODV-शैली RREQ/RREP), DTN स्टोर-एंड-फ़ॉरवर्ड, SOS प्रसारण, वॉइस, स्ट्रीमिंग, और सुरक्षा-सुदृढ़ीकरण सेवाएँ हर भाषा में सभी 8 कार्यान्वयनों में **~3,000 टेस्ट** के साथ लागू की जाती हैं:
+
+| भाषा | टेस्ट | CI प्लेटफ़ॉर्म |
+|----------|------:|-------------|
+| C# (.NET 10) | 530 | ubuntu-latest |
+| TypeScript / Node 20 | 459 | ubuntu-latest |
+| Kotlin / JVM 21 | 457 | ubuntu-latest |
+| Go 1.22 | 423 | ubuntu-latest |
+| Python 3.12 | 387 | ubuntu-latest |
+| Swift 6 | 295 | macos-14 |
+| C (GCC) | 253 | ubuntu-latest |
+| Rust (stable) | ~195 | ubuntu-latest |
+| **कुल** | **~3,000** | |
+
+क्रॉस-लैंग्वेज Signal इंटरऑप X3DH (`x3dh_basic`), सिमेट्रिक रैचेट (`ratchet_step_basic`, `ratchet_step_three_iterations`), और KDF_RK (`kdf_rk_basic`) के लिए साझा टेस्ट वेक्टर के साथ `fixtures/signal/` से एंकर किया गया है। हर कार्यान्वयन को उन फ़िक्स्चर के विरुद्ध बाइट-समान आउटपुट का उत्पादन करना होगा। सभी 8 भाषाएँ अब एक पूर्ण Signal सेशन (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`) शिप करती हैं।
+
+वायर फ़ॉर्मेट और Signal से परे, **संपूर्ण वायर-सेवा सूट** — प्रेज़ेंस, हार्टबीट, प्रोफ़ाइल सिंक, अल्पकालिक-ID घोषणा, प्री-की एक्सचेंज, चैनल, पुश-टू-टॉक, स्क्रीन शेयर, कॉल कंट्रोल, SOS पावती, स्पेस ब्रेडक्रम्ब्स, फ़ोर्ज घोषणा, वॉल्ट शार्ड अनुरोध, और बैंडविड्थ मापन (**आपको क्या मिलता है** देखें) — इसी तरह सभी 8 भाषाओं में लागू किया गया है और अपने स्वयं के फ़िक्स्चर (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, और सहोदर) से पिन किया गया है। प्रोटोकॉल परत पर कोई भी फ़ीचर केवल-C# नहीं है।
+
+## क्विकस्टार्ट
+
+```bash
+git clone https://github.com/bhengubv/aether-protocol.git
+cd aether-protocol
+```
+
+### C# (.NET 10 SDK)
+
+```bash
+dotnet run --project samples/AetherNet.Demo.Console
+```
+
+डेमो आपको 8 चरणों से ले जाता है: तीन नोड्स (Alice, Bob, Charlie) के लिए Ed25519 पहचान कुंजियाँ जनरेट करना, Signal Protocol सेशन स्थापित करना, एन्क्रिप्टेड संदेश भेजना, Charlie के ज़रिए एक संदेश रिले करना (जो इसे नहीं पढ़ सकता), बाइनरी वायर फ़ॉर्मेट दिखाना, और 5 लगातार संदेशों में फ़ॉरवर्ड सीक्रेसी का प्रदर्शन करना। आउटपुट रंग-कोडित है और चरणों के बीच रुकता है।
+
+**C# में एक संदेश भेजें:**
+
+```csharp
+// Establish a Signal Protocol session
+var aliceSignal = new SignalProtocolService();
+var bobSignal = new SignalProtocolService();
+
+var bobBundle = await bobSignal.GeneratePreKeyBundleAsync("bob");
+await aliceSignal.ProcessPreKeyBundleAsync(bobBundle);
+
+// Encrypt and send
+var encrypted = await aliceSignal.EncryptAsync("bob",
+    Encoding.UTF8.GetBytes("Hello Bob"));
+
+// Create a signed packet
+var packet = new MeshPacket
+{
+    Type = PacketType.Data,
+    SourceUhid = "alice",
+    DestinationUhid = "bob",
+    Payload = SerializeEncryptedPayload(encrypted),
+    Ttl = 7
+};
+var wireBytes = PacketSerializer.Serialize(packet);
+await transport.SendAsync("bob", wireBytes);
+```
+
+### Rust (1.70+)
+
+```bash
+cd rust && cargo run
+```
+
+डेमो दो नोड्स के लिए पहचान कुंजियाँ जनरेट करता है, प्री-की बंडल का आदान-प्रदान करता है, एन्क्रिप्टेड सेशन स्थापित करता है, दोनों दिशाओं में एन्क्रिप्टेड संदेश भेजता है, मेश पैकेट बनाता और हस्ताक्षरित करता है, हस्ताक्षर सत्यापित करता है, और पैकेट को बाइनरी वायर फ़ॉर्मेट में क्रमबद्ध करता है। यह इन-प्रोसेस ट्रांसपोर्ट परत का भी प्रदर्शन करता है।
+
+**Rust में एक संदेश भेजें:**
+
+```rust
+let mut alice = SignalProtocolService::new();
+let mut bob = SignalProtocolService::new();
+
+let alice_bundle = alice.generate_pre_key_bundle("alice")?;
+bob.process_pre_key_bundle(&alice_bundle)?;
+
+let bob_bundle = bob.generate_pre_key_bundle("bob")?;
+alice.process_pre_key_bundle(&bob_bundle)?;
+
+let encrypted = alice.encrypt("bob", b"Hello Bob!")?;
+let decrypted = bob.decrypt("alice", &encrypted)?;
+```
+
+### TypeScript (Node 18+, tsx)
+
+```bash
+cd typescript && npm install && npm run dev
+```
+
+डेमो एक सिम्युलेटेड नेटवर्क में दो नोड्स बनाता है, Ed25519 कुंजियाँ जनरेट करता है, Signal Protocol सेशन स्थापित करता है, एक पैकेट बनाता और हस्ताक्षरित करता है, इसे C#-संगत बाइनरी फ़ॉर्मेट में क्रमबद्ध करता है, एक गुप्त संदेश एन्क्रिप्ट करता है, इसे दूसरे नोड पर डिक्रिप्ट करता है, इसे ट्रांसपोर्ट के ज़रिए भेजता है, और राउंड-ट्रिप सत्यापित करता है।
+
+**TypeScript में एक संदेश भेजें:**
+
+```typescript
+const signal = new SignalProtocol();
+const bundle = await signal.generatePreKeyBundle("my-node");
+// Exchange bundle with peer
+await signal.processPreKeyBundle(peerBundle);
+
+const plaintext = new TextEncoder().encode("Hello!");
+const encrypted = await signal.encrypt("peer-node", plaintext);
+
+const packet = MeshPacket.create(PacketType.Data, "my-node");
+packet.destinationUhid = "peer-node";
+packet.payload = encrypted;
+
+const keyPair = Ed25519Service.generateKeyPair();
+signPacket(packet, keyPair.privateKey);
+
+const serialized = PacketSerializer.serialize(packet);
+await transport.sendAsync("peer-node", serialized);
+```
+
+### Python (3.10+)
+
+```bash
+cd python && pip install -e . && python3 demo.py
+```
+
+डेमो 8 प्रदर्शन चलाता है: Ed25519 कुंजी जनरेशन और छेड़छाड़ पहचान, क्षमताओं के साथ नोड निर्माण, Signal Protocol X3DH कुंजी आदान-प्रदान, AES-256-GCM एन्क्रिप्शन और डिक्रिप्शन, पैकेट सीरियलाइज़ेशन, रीप्ले पहचान के साथ पैकेट हस्ताक्षर, इन-प्रोसेस ट्रांसपोर्ट, और सभी परतों को संयोजित करने वाला एक पूर्ण एंड-टू-एंड प्रवाह।
+
+**Python में एक संदेश भेजें:**
+
+```python
+alice_signal = SignalProtocolService()
+bob_signal = SignalProtocolService()
+
+bob_bundle = await bob_signal.generate_pre_key_bundle("bob")
+await alice_signal.process_pre_key_bundle(bob_bundle)
+
+encrypted = await alice_signal.encrypt("bob", b"Hello Bob!")
+
+packet = MeshPacket(
+    type=PacketType.Data,
+    source_uhid="alice",
+    destination_uhid="bob",
+    payload=encrypted.ciphertext,
+    ttl=7
+)
+signing_service.sign_packet(packet, alice_private_key)
+
+serialized = PacketSerializer.serialize(packet)
+await transport.send_async("bob", serialized)
+```
+
+### Go (1.22+)
+
+```bash
+cd go && go run ./cmd/demo/main.go
+```
+
+डेमो 5 प्रदर्शन चलाता है: पैकेट सीरियलाइज़ेशन राउंड-ट्रिप, छेड़छाड़ पहचान के साथ Ed25519 हस्ताक्षर, दोनों दिशाओं में एन्क्रिप्टेड मैसेजिंग के साथ Signal Protocol सेशन स्थापना, दो पीयर के बीच इन-प्रोसेस ट्रांसपोर्ट, और रीप्ले सुरक्षा के लिए नॉन्स डिडुप्लीकेशन।
+
+**Go में एक संदेश भेजें:**
+
+```go
+alice, _ := security.NewSignalProtocolService()
+bob, _ := security.NewSignalProtocolService()
+
+aliceBundle, _ := alice.GeneratePreKeyBundle("alice")
+bob.ProcessPreKeyBundle(aliceBundle)
+
+bobBundle, _ := bob.GeneratePreKeyBundle("bob")
+alice.ProcessPreKeyBundle(bobBundle)
+
+encrypted, _ := alice.Encrypt("bob", []byte("Hello Bob!"))
+decrypted, _ := bob.Decrypt("alice", encrypted)
+```
+
+### Kotlin (JDK 17+, Gradle 8+)
+
+```bash
+cd kotlin && ./gradlew run
+```
+
+डेमो 11 चरणों से गुज़रता है: कुंजी जनरेशन, क्षमताओं के साथ नोड निर्माण, Signal Protocol आरंभीकरण, प्री-की बंडल आदान-प्रदान, सेशन स्थापना, पैकेट निर्माण और हस्ताक्षर, सीरियलाइज़ेशन, हस्ताक्षर सत्यापन के साथ डीसीरियलाइज़ेशन, कुंजी रैचेटिंग के साथ एंड-टू-एंड एन्क्रिप्शन, रीप्ले अटैक पहचान, और इन-प्रोसेस ट्रांसपोर्ट।
+
+**Kotlin में एक संदेश भेजें:**
+
+```kotlin
+val aliceSignal = SignalProtocol()
+val bobSignal = SignalProtocol()
+
+val bobBundle = bobSignal.generatePreKeyBundle("bob")
+aliceSignal.processPreKeyBundle(bobBundle)
+
+val aliceBundle = aliceSignal.generatePreKeyBundle("alice")
+bobSignal.processPreKeyBundle(aliceBundle)
+
+val encrypted = aliceSignal.encrypt("bob", "Hello Bob!".toByteArray())
+val decrypted = bobSignal.decrypt("alice", encrypted)
+```
+
+### Swift (5.9+, macOS 13+ / iOS 16+)
+
+```bash
+cd swift && swift run aether-demo
+```
+
+डेमो 5 टेस्ट चलाता है: पैकेट सीरियलाइज़ेशन राउंड-ट्रिप, छेड़छाड़ अस्वीकृति के साथ Ed25519 हस्ताक्षर, AES-256-GCM एन्क्रिप्शन के साथ Signal Protocol सेशन स्थापना, इन-प्रोसेस ट्रांसपोर्ट संदेश वितरण, और एक पूर्ण एंड-टू-एंड प्रवाह जहाँ Alice एक पैकेट पर हस्ताक्षर करती है और Bob ट्रांसपोर्ट के बाद इसे सत्यापित करता है।
+
+**Swift में एक संदेश भेजें:**
+
+```swift
+let aliceSignal = SignalProtocolService()
+let bobSignal = SignalProtocolService()
+
+let bobBundle = try await bobSignal.generatePreKeyBundle(localUhid: "bob")
+try await aliceSignal.processPreKeyBundle(bobBundle)
+
+var packet = MeshPacket(
+    type: .data,
+    sourceUhid: "alice",
+    destinationUhid: "bob",
+    ttl: 7,
+    payload: "Hello Bob!".data(using: .utf8)!
+)
+
+let signer = await PacketSigningService(
+    privateKey: alicePrivateKey, publicKey: alicePublicKey)
+try await signer.signPacket(&packet)
+
+let serialized = PacketSerializer.serialize(packet)
+await transport.sendAsync(peerUhid: "bob", data: serialized)
+```
+
+### C (CMake 3.16+, C11, libsodium)
+
+```bash
+cd c && mkdir -p build && cd build && cmake .. && make && ./aether-demo
+```
+
+डेमो 7 प्रदर्शन चलाता है: Ed25519 कुंजी जनरेशन, पैकेट निर्माण और हस्ताक्षर, बाइनरी वायर फ़ॉर्मेट में सीरियलाइज़ेशन, अखंडता जाँच के साथ डीसीरियलाइज़ेशन, AES-256-GCM एन्क्रिप्शन और डिक्रिप्शन, HMAC-SHA256 संदेश प्रमाणीकरण, और HKDF-SHA256 कुंजी व्युत्पत्ति।
+
+**C में एक संदेश भेजें:**
+
+```c
+aethernet_mesh_packet_t *packet = aethernet_packet_new();
+packet->type = AETHERNET_PACKET_TYPE_DATA;
+packet->ttl = 7;
+
+aethernet_packet_set_source_uhid(packet, "alice");
+aethernet_packet_set_destination_uhid(packet, "bob");
+aethernet_packet_set_payload(packet, (const uint8_t *)"Hello Bob!", 10);
+
+// Sign
+size_t signable_len = 0;
+uint8_t *signable = aethernet_packet_get_signable_data(packet, &signable_len);
+uint8_t signature[64];
+aethernet_ed25519_sign(private_key, signable, signable_len, signature);
+aethernet_packet_set_signature(packet, signature, 64);
+free(signable);
+
+// Serialize and send
+uint8_t buffer[2048];
+int size = aethernet_packet_serialize(packet, buffer, sizeof(buffer));
+// send buffer[0..size-1] over transport
+
+aethernet_packet_free(packet);
+```
+
+## रोडमैप
+
+क्या निर्मित है और आगे क्या है।
+
+**पूर्ण (क्रॉस-लैंग्वेज सत्यापित, सभी 8 कार्यान्वयन):**
+- वायर फ़ॉर्मेट: 8 भाषाओं में बाइट-समान, 14 कैनोनिकल फ़िक्स्चर और CI में क्रॉस-लैंग्वेज अभिकथनों (`fixtures/expected/*.bin`) से एंकर किया गया
+- ✅ **GitHub Actions CI** — `.github/workflows/ci.yml` में 9-जॉब मैट्रिक्स (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, साथ ही फ़िक्स्चर अखंडता जॉब)।
+- Ed25519 पैकेट हस्ताक्षर और सत्यापन
+- AES-256-GCM एन्क्रिप्शन
+- HKDF / HMAC कुंजी व्युत्पत्ति प्रिमिटिव
+- पैकेट सीरियलाइज़ेशन + हस्ताक्षर लेआउट (LE + 4-बाइट int32 फ़ील्ड)
+- इन-प्रोसेस ट्रांसपोर्ट सिम्युलेटर (विकास और टेस्ट के लिए)
+- RREQ/RREP, हस्ताक्षरित रूट रिप्लाई, डिडप, TTL फ़ॉरवर्डिंग के साथ AODV-प्रेरित रूटिंग सेवा
+- कस्टडी ट्रांसफ़र, जियोहैश-अवेयर प्रतिकृति, 72h TTL के साथ DTN स्टोर-एंड-फ़ॉरवर्ड सेवा
+- फ़्लड, डिडप, सेल्फ़-ऑरिजिन गार्ड, रेट-लिमिट (3/hr) के साथ SOS प्रसारण सेवा
+- विस्तारशीलता सीम्स: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop डिफ़ॉल्ट)
+- सभी 8 भाषाओं में **~3,000 टेस्ट** (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — सभी CI में हरे
+- ✅ **असली X3DH अल्पकालिक कुंजी (8 भाषाएँ)** — HKDF-SHA256 रूट व्युत्पत्ति के साथ 4 X25519 DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`)। `fixtures/signal/expected/x3dh_basic.json` से पिन किया गया।
+- ✅ **परिवार-व्यापी Double Ratchet संरेखण** — सिमेट्रिक रैचेट में HMAC-SHA256 + 0x01/0x02 डोमेन सेपरेशन के साथ पूर्ण Signal §5, DH-रैचेट चरण में HKDF-SHA256 KDF_RK, रिसीव पर DH-रोटेशन। `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` फ़िक्स्चर द्वारा सत्यापित।
+- ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 HEAD के साथ समाधानित** — `docs/PROTOCOL_SPEC.md` देखें।
+
+**पूर्ण (सभी 8 भाषाएँ):**
+- ✅ **वॉइस कॉल (1-से-1)** — सिग्नलिंग स्टेट मशीन (Offer/Answer/Hangup/Cancel/Timeout) + बाइनरी फ़्रेम ट्रांसपोर्ट (16B callId · 4B seq · 8B timestamp · 1B isSilence · N bytes)। `IRoutingService` के ज़रिए रूट-अवेयर वितरण।
+- ✅ **ग्रुप वॉइस** — होस्ट-संचालित सदस्यता (invite/kick/leave), प्रति-फ़्रेम कुंजी जनरेशन फ़ील्ड, सभी वर्तमान सदस्यों को यूनिकास्ट फ़ैन-आउट, सदस्यता परिवर्तन पर होस्ट-नियंत्रित कुंजी रोटेशन।
+- ✅ **लाइव स्ट्रीमिंग** — प्रकाशक `StreamAnnounce` प्रसारित करता है; सब्सक्राइबर `StreamSubscribe` भेजते हैं; बाइनरी `StreamSegment` फ़्रेम (16B streamId · 4B seq · 8B ts · 1B isKeyframe · N bytes) प्रत्येक सब्सक्राइबर को यूनिकास्ट।
+- ✅ **वीडियो कॉल (1-से-1)** — सिग्नलिंग में codec/resolution/fps/bitrate नेगोशिएशन, कीफ़्रेम-अनुरोध और गुणवत्ता-परिवर्तन सिग्नल, वॉइस लेआउट से मेल खाता बाइनरी `VideoFrame` फ़ॉर्मेट।
+- ✅ **वॉच टुगेदर** — होस्ट आधिकारिक `WatchSync` (play/pause/seek/speed) कमांड जारी करता है; अनुयायी RTT क्षतिपूर्ति के साथ लागू करते हैं (`position = positionMs + elapsed × playbackSpeed`); फ़ायर-एंड-फ़ॉरगेट `WatchReaction`।
+- ✅ **वन-टाइम प्री-की (OPK) पूल** — सभी 8 भाषाओं में डिफ़ॉल्ट 100, FIFO इश्यू, लेज़ी टॉप-अप, लॉक-सुरक्षित उपभोग। सिंगल-OPK समवर्ती जोखिम को बंद करता है।
+- ✅ **C: पूर्ण Signal सेशन** — `c/src/signal_protocol.c` में `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`; `c/tests/test_signal_session.c` में 6 दो-नोड E2E टेस्ट। सभी 8 भाषाओं में अब पूर्ण सेशन-सक्षम Signal Protocol है।
+
+**पूर्ण (सभी 8 भाषाएँ — संपूर्ण वायर-सेवा सूट):**
+- ✅ **हर आरक्षित पैकेट प्रकार अब सभी 8 भाषाओं में एक असली, बाइट-समान सेवा है।** प्रेज़ेंस बीकन/क्वेरी (21/22), हार्टबीट (10), प्रोफ़ाइल सिंक (23), अल्पकालिक-रूटिंग-ID घोषणा (56), प्री-की एक्सचेंज (25/26), चैनल (7), पुश-टू-टॉक (15), स्क्रीन शेयर (32), कॉल कंट्रोल (27), SOS पावती (6), स्पेस ब्रेडक्रम्ब्स (40), फ़ोर्ज घोषणा (41), वॉल्ट शार्ड अनुरोध (42), और बैंडविड्थ मापन / ABMF (53/54/55)। प्रत्येक एक पतली सेवा है (उत्पादन + प्रबंधन + इवेंट) जिसे होस्ट अपने Signal सेशन और रूटिंग टेबल से जोड़ता है; प्रत्येक एक साझा क्रॉस-लैंग्वेज फ़िक्स्चर (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) से पिन किया जाता है और प्रति-भाषा यूनिट टेस्ट द्वारा परखा जाता है, जिसमें Swift और C को macOS बिल्ड सर्वर पर सत्यापित किया जाता है। **आपको क्या मिलता है** देखें।
+
+**पूर्ण (केवल C# संदर्भ):**
+- ✅ **डेमो चरण 9 — MessagingService + DTN फ़ॉलबैक एंड-टू-एंड** — `samples/AetherNet.Demo.Console` प्राप्तकर्ता के ऑफ़लाइन होने पर DTN स्टोर-एंड-फ़ॉरवर्ड के साथ असली-Signal-एन्क्रिप्टेड मैसेजिंग से गुज़रता है।
+- ✅ **`AetherNet.Messaging` ↔ `AetherNet.Security` ब्रिज** — `SignalMessageEnvelopeCipher` मैसेजिंग परत को डिफ़ॉल्ट रूप से एंड-टू-एंड एन्क्रिप्टेड बनाता है; Signal सेशन के बिना संदेश कतारबद्ध किए जाते हैं, कभी असुरक्षित रूप से नहीं भेजे जाते।
+- ✅ **अनुकूली बिटरेट स्ट्रीमिंग** — प्रोफ़ाइल A (रीयल-टाइम), B (लाइव प्रसारण), और C (VOD) के लिए स्पेक-अनिवार्य बिटरेट सीढ़ियों के साथ `AdaptiveBitrateController`। प्रकाशक सबसे ऊँची टिकाऊ पायदान (20% हेडरूम) चुनता है और फ़्लोर से नीचे होने पर एक सेगमेंट के बजाय `StreamAbandon` (`PacketType.StreamAbandon`) जारी करता है। `IStreamingService` `UpdateBandwidthEstimate` और `GetCurrentBitrateRung` को उजागर करता है।
+- ✅ **वॉच टुगेदर: BitTorrent इनजेस्ट + ChipIn ग्रुप फ़ंडिंग** — `TorrentInfo` / `TorrentFile` मॉडल; `WatchTogetherService` `PacketType.TorrentMetadata` को संभालता है और `TorrentReceived` फ़ायर करता है। `ChipInPool` / `ChipInContribution` स्टेट मशीन (Collecting → Funded → Purchasing → Acquired / Failed / Refunded); `IWatchTogetherService` पर `StartChipInAsync` / `ContributeAsync` / `GetChipIn`।
+- ✅ **ऑटो SFU रिले के साथ ग्रुप वीडियो कॉल** — `GroupVideoService` / `IGroupVideoService`। ≤ 3 प्रतिभागियों के लिए FullMesh टोपोलॉजी; `GroupVideoSignaling(SfuAssigned)` के ज़रिए रिले पुन:असाइनमेंट के साथ `SfuThresholdParticipants` (4) पर SFU में स्वचालित स्विच। FullMesh में फ़ैन-आउट, SFU मोड में केवल-रिले भेजना। सिग्नलिंग पैकेट प्रकार `GroupVideoSignaling = 35`।
+- ✅ **BLE GATT ट्रांसपोर्ट सिमुलेशन** — `SimulatedBleGattTransportService` (`IBleTransportService`)। `BleGattFramer` (1024 B/frame, `[2B count][2B index][payload]`) के ज़रिए GATT MTU फ़्रेमिंग, इन-प्रोसेस स्टैटिक पीयर रजिस्ट्री, विज्ञापन प्रसारण। सभी `BleMaxPayloadBytes` बाधाएँ लागू।
+- ✅ **Wi-Fi Direct ट्रांसपोर्ट सिमुलेशन** — `SimulatedWifiDirectTransportService` (`IWifiDirectService`)। स्पष्ट `ConnectAsync`/`DisconnectAsync` जीवनचक्र, सीधा बड़ा-पेलोड वितरण (कोई फ़्रेमिंग नहीं), द्विदिश `PeerConnected`/`PeerDisconnected` इवेंट।
+- ✅ **NearLink ट्रांसपोर्ट सिमुलेशन** — `SimulatedNearLinkTransportService` (`INearLinkTransportService`)। 4096 B फ़्रेम MTU, 500-पीयर रजिस्ट्री, `ConnectedPeerCount`, रनटाइम पर सेट-योग्य `IsAvailable`।
+- ✅ **RF ब्रिंग-अप सिमुलेशन टेस्ट** — दो-नोड इंटरऑप टेस्ट (`SimulatedTransportTests`): BLE + NearLink `MeshPacket` राउंड-ट्रिप, WiFi Direct 64 KB पेलोड ट्रांसफ़र। सॉफ़्टवेयर परत पूरी तरह सत्यापित; ऑन-हार्डवेयर सत्यापन के लिए भौतिक डिवाइस लैब सेशन चाहिए।
+
+**पूर्ण (C# ट्रांसपोर्ट परत — सभी फ़ेल-फ़ास्ट):**
+- ✅ **BLE GATT असली ट्रांसपोर्ट** — `WinBleGattTransportService` (Windows WinRT) + `android/blue/` (Android GATT सर्वर)। `samples/AetherNet.BleRfTest/` में पूर्ण RF ब्रिंग-अप टेस्ट।
+- ✅ **Wi-Fi Direct असली ट्रांसपोर्ट** — `WinWifiDirectTransportService` (WinRT, `WiFiDirectAdvertisementPublisher` + TCP StreamSocket port 8888) + `android/green/` (`WifiP2pManager`)। `samples/AetherNet.WifiDirectRfTest/` में RF टेस्ट।
+- ✅ **HTTP रिले ट्रांसपोर्ट (Aether Purple)** — 10-सेकंड लॉन्ग-पोल, `PowerCostRelative = 100`, हमेशा अंतिम उपाय के साथ `HttpRelayTransportService`। `samples/AetherNet.RelayServer/` में रिले सर्वर (ASP.NET Core minimal API, port 5200)। `samples/AetherNet.RelayRfTest/` में RF टेस्ट।
+- ✅ **NFC (Aether White)** — `android/white/` AID `F061657468657200` के साथ `HostApduService` लागू करता है। `WinNfcStubTransportService` दो Windows अनुमान रास्तों को प्रलेखित करता है: (1) RSSI गेट ≥ −40 dBm के साथ NDEF-over-BLE-GATT (NFC सिलिकॉन के बिना टैप-टू-कनेक्ट का अनुकरण करता है, `IsAvailable = Bluetooth present`); (2) `Windows.Devices.SmartCards` PC/SC के ज़रिए ACR122U USB रीडर (`IsAvailable = contactless reader enumerated`)। अपग्रेड पथ: जब Microsoft एक प्रथम-पक्ष P2P NFC API शिप करे तो `ITransportService` लागू करें।
+- ✅ **NearLink (Aether Teal)** — **`harmonyos/teal/`** — `@kit.NearLinkKit` (`scan.startScan` + `ssap.createClient` + `advertising.startAdvertising`) का उपयोग करते हुए पूर्ण HarmonyOS 5.0.1 (API 13) ArkTS कार्यान्वयन; `isAvailable` रनटाइम पर प्रोब्ड। `WinNearLinkStubTransportService` + `android/teal/` SSAP-over-BLE अनुमान को प्रलेखित करते हैं: Aether SLE सेवा UUID `61657468-6572-0003-0000-000000000000` के साथ BLE GATT — SSAP के अनुरूप API, असली NearLink हार्डवेयर के साथ वायर-संगत नहीं। अपग्रेड पथ: BLE GATT कॉल को `ssapc_*`/`ssaps_*` SDK कॉल से बदलें; UUIDs और `TransportManager` स्लॉट अपरिवर्तित।
+- ✅ **LoRa / CircleLink (Aether Red)** — `LoRaCircleLinkStub` + `android/red/` Meshtastic-over-BLE-LR अनुमान को प्रलेखित करते हैं: BLE 5.0 Coded PHY S=8 (~1.3 km आउटडोर) पर पूर्ण Meshtastic वायर फ़ॉर्मेट (16-बाइट हेडर + AES-256-CTR protobuf), मैनेज्ड-फ़्लड रूटिंग और RSSI-भारित कंटेंशन विंडो के साथ। असली LoRa हार्डवेयर के साथ ब्रिज-नोड फ़ेडरेशन स्वचालित रूप से काम करता है (समान Meshtastic पैकेट फ़ॉर्मेट, कोई अनुवाद नहीं)। अपग्रेड पथ: BLE LR रेडियो को SX1276/SX1278 AT-command या SPI ड्राइवर से बदलें; पैकेट फ़ॉर्मेट और रूटिंग अपरिवर्तित।
+
+**खुला — `OPEN_ISSUES.md` में ट्रैक किया गया:**
+- असली हार्डवेयर पर RF ब्रिंग-अप: भौतिक BLE / Wi-Fi Direct डिवाइसों पर एंड-टू-एंड दो-नोड इंटरऑप टेस्ट (सिमुलेशन टेस्ट पास होते हैं; हार्डवेयर लैब सेशन चाहिए)
+- NearLink: `harmonyos/teal/` पूर्ण; Huawei Mate 60/70 / Pura 70 Pro+ / Mate X6 हार्डवेयर चाहिए (गैर-Huawei डिवाइसों पर NearLink सिलिकॉन मौजूद नहीं)। Windows + Android स्वचालित रूप से SSAP-over-BLE अनुमान पर वापस गिर जाते हैं।
+- LoRa / CircleLink: सच्ची LoRa रेंज के लिए रेडियो मॉड्यूल आवश्यक। एक के बिना, Meshtastic वायर फ़ॉर्मेट को BLE LR (~1.3 km) पर ले जाया जाता है और असली LoRa हार्डवेयर के साथ ब्रिज-नोड फ़ेडरेशन उपलब्ध है।
+- ✅ **(हल किया गया v1.2.0)** उपभोक्ता प्रोटोकॉल सतह (Wave 16/17) — इनबाउंड बंडलों के लिए `IDtnService.BundleReceived` इवेंट ([#59](https://github.com/bhengubv/aether-protocol/issues/59)), एप्लिकेशन-परत नामकरण/खोज डायरेक्टरी ([#60](https://github.com/bhengubv/aether-protocol/issues/60)), लेखक-टिपिंग इंटरफ़ेस ([#61](https://github.com/bhengubv/aether-protocol/issues/61))। सभी 3 को बाइट-समान क्रॉस-लैंग्वेज फ़िक्स्चर के साथ 8 भाषाओं में अतिरिक्त रूप से शिप किया गया। CHANGELOG देखें।
+
+**अभी बाहरी योगदान के लिए खुला नहीं:**
+- प्रोटोकॉल अभी भी सक्रिय विकास के अधीन है। इस समय बाहरी योगदान स्वीकार नहीं किए जा रहे हैं।
+- NearLink ट्रांसपोर्ट कार्यान्वयन, Android/iOS एकीकरण उदाहरण, अतिरिक्त ट्रांसपोर्ट बैकएंड, प्रदर्शन बेंचमार्क, और प्रोटोकॉल फ़ज़िंग आंतरिक रूप से ट्रैक किए जाते हैं और जब प्रोजेक्ट एक स्थिर सार्वजनिक योगदान बिंदु पर पहुँचेगा तब खोले जाएँगे।
+
+## प्रोजेक्ट संरचना
+
+```
+aether-protocol/
+  src/
+    AetherNet.Core/          Protocol models, constants, packet serialization
+    AetherNet.Security/      Signal Protocol, Ed25519, packet signing
+    AetherNet.Transport/     Transport abstractions, NearLink, in-process simulator
+    AetherNet.Messaging/     Message handling and relay
+    AetherNet.Storage/       DTN store-and-forward persistence
+    AetherNet.Streaming/     Adaptive bitrate streaming, video models and interfaces
+    AetherNet.Voice/         Voice calls and group voice
+    AetherNet.Content/       Content verification and chunked transfer
+  samples/
+    AetherNet.Demo.Console/  Interactive demo
+  tests/
+    AetherNet.Security.Tests/
+    AetherNet.Protocol.Tests/
+  rust/                   Rust implementation
+  typescript/             TypeScript implementation
+  python/                 Python implementation
+  go/                     Go implementation
+  kotlin/                 Kotlin/JVM implementation
+  swift/                  Swift implementation
+  c/                      C implementation
+  docs/
+    PROTOCOL_SPEC.md      RFC-style protocol specification
+```
+
+## एक नया ट्रांसपोर्ट जोड़ना
+
+`ITransportService` लागू करें:
+
+```csharp
+public class LoRaTransportService : ITransportService
+{
+    public string Name => "LoRa";
+    public bool IsAvailable => true;
+    public long MaxBandwidthBps => 37500; // 300 kbps
+    public int MaxRangeMeters => 15000;   // 15 km
+    public int PowerCostRelative => 3;
+    public int MaxConcurrentPeers => 50;
+    // ... implement SendAsync, IsConnected, DataReceived
+}
+```
+
+इसे DI में पंजीकृत करें और `TransportManager` इसे स्वचालित रूप से ट्रांसपोर्ट चयन में शामिल करेगा, पावर लागत के अनुसार क्रमबद्ध।
+
+## यह कैसे तुलना करता है
+
+| प्रोटोकॉल | सीमा | Aether लाभ |
+|----------|-----------|-----------------|
+| **Briar** | केवल-Android, Tor-निर्भर | क्रॉस-प्लेटफ़ॉर्म, शुद्ध मेश |
+| **Meshtastic** | केवल LoRa (अधिकतम 30 kbps) | मल्टी-ट्रांसपोर्ट (BLE + WiFi + NearLink), वॉइस और स्ट्रीमिंग सक्षम |
+| **Reticulum** | Python, छोटा समुदाय | 8 भाषाएँ, उन सभी में वायर-संगत |
+| **libp2p** | इंटरनेट बैकबोन मानता है | ऑफ़लाइन-प्रथम, शून्य अवसंरचना के साथ काम करता है |
+| **Yggdrasil** | ओवरले नेटवर्क, इंटरनेट चाहिए | भौतिक-परत मेश, इंटरनेट के बिना काम करता है |
+| **Signal** | कोई मेश नहीं, इंटरनेट आवश्यक | ऑफ़लाइन काम करता है, P2P, मेश रिले, समान E2E एन्क्रिप्शन |
+
+## विस्तार बिंदु
+
+प्रोटोकॉल स्टैंडअलोन काम करता है। ये इंटरफ़ेस आपको अपना बैकएंड प्लग इन करने देते हैं यदि आप एक चाहते हैं:
+
+- `IAetherNetIncentiveProvider` — ट्रैफ़िक रिले करने वाले नोड्स को पुरस्कृत करें (no-op डिफ़ॉल्ट: परोपकारी रिलेइंग)
+- `IAetherNetBackendClient` — इंटरनेट उपलब्ध होने पर किसी सर्वर के साथ सिंक करें (no-op डिफ़ॉल्ट: पूरी तरह ऑफ़लाइन)
+- `IAetherNetFeatureFlagProvider` — रनटाइम पर प्रोटोकॉल फ़ीचर टॉगल करें (no-op डिफ़ॉल्ट: सब कुछ सक्षम)
+
+तीनों no-op कार्यान्वयन के साथ शिप होते हैं। उन्हें हटा दें और कुछ भी नहीं टूटता।
+
+## योगदान
+
+बाहरी योगदान अभी खुले नहीं हैं। प्रोजेक्ट अभी भी सक्रिय विकास के अधीन है। जब हम एक सार्वजनिक योगदान विंडो की घोषणा करें तब वापस जाँचें।
+
+## सुरक्षा
+
+ज़िम्मेदार प्रकटीकरण नीति के लिए [SECURITY.md](SECURITY.md) देखें।
+
+## लाइसेंस
+
+MIT License. [LICENSE](LICENSE) देखें।
+
+## अनुवाद
+
+यह README इस फ़ाइल के शीर्ष पर भाषा बार में सूचीबद्ध अन्य भाषाओं में भी [`docs/i18n/`](docs/i18n/) के अंतर्गत बनाए रखा जाता है — यूरोपीय, पूर्व एशियाई, मध्य पूर्वी, दक्षिण एशियाई, दक्षिण-पूर्व एशियाई, और अफ़्रीकी भाषाओं में फैला हुआ, क्योंकि बिना डेटा वाले लोगों के लिए बनाए गए नेटवर्क का एक ऐसा मुख्य द्वार नहीं होना चाहिए जिसे केवल अच्छी तरह जुड़े हुए लोग ही पढ़ सकें। **अंग्रेज़ी संस्करण सत्य का स्रोत है**: जहाँ कोई अनुवाद और अंग्रेज़ी पाठ असहमत हों, वहाँ अंग्रेज़ी पाठ आधिकारिक है, और अनुवाद इससे एक या दो रिलीज़ पीछे रह सकते हैं। वर्णित प्रोटोकॉल, कोड, फ़िक्स्चर, और व्यवहार एक जैसे हैं चाहे आप किसी भी भाषा में पढ़ें।

@@ -10,6 +10,10 @@ Dateien, Nachrichten und Streams mit Personen in der Nähe teilen. Kein WLAN. Ke
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
+[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+
+> **Ein Protokoll, acht Sprachen, identisch auf der Leitung.** Aether ist in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift und C** implementiert — und jedes Paket ist über alle hinweg byte-für-byte identisch, erzwungen durch ein gemeinsames sprachübergreifendes Fixture-Korpus in CI. Bauen Sie Ihren Knoten in einer der acht Sprachen; er ist mit allen anderen interoperabel. Diese README ist außerdem in 11 menschlichen Sprachen verfügbar (Links oben).
+
 ## Was kann man damit tun?
 
 **Vorlesungsnotizen teilen, ohne Daten zu verbrauchen.**
@@ -99,20 +103,50 @@ Keine Konten, keine Telefonnummern, keine E-Mail-Adressen. Sie erzeugen ein Schl
 
 **Replay-Schutz** — Nonce-Deduplizierung mit einem 5-Minuten-Zeitstempel-Frischheitsfenster.
 
+## Was Sie bekommen — jeder Dienst, in jeder Sprache
+
+Aether ist nicht nur ein Transport. Jeder vom Protokoll reservierte Pakettyp ist jetzt ein **echter, funktionierender Dienst in allen 8 Sprachen**, und jeder serialisiert zu **byteidentischen Leitungspaketen** — ein vom Go-Knoten gebautes Paket wird unverändert vom Swift-, Rust-, C-, Python-, TypeScript-, Kotlin- oder C#-Knoten dekodiert. Jeder Dienst ist an ein gemeinsames sprachübergreifendes Fixture unter `fixtures/<service>/` gebunden und wird durch sprachspezifische Unit-Tests geprüft, wobei Swift und C zusätzlich auf dem macOS-Build-Server verifiziert werden.
+
+| Fähigkeit | Was sie tut | Pakettyp(en) | Fixture | 8/8 |
+|---|---|:-:|---|:-:|
+| **Präsenz-Beacon & -Abfrage** | „Ich bin hier“ ankündigen und „Wer ist in der Nähe?“ fragen — über eine **rotierende, schlüsselabgeleitete ephemere ID** (nicht Ihre echte Identität) plus einen groben Geohash | 21, 22 | `fixtures/presence/` | ✅ |
+| **Heartbeat** | Leichtgewichtiges Liveness-Keep-Alive zwischen verbundenen Peers | 10 | `fixtures/heartbeat/` | ✅ |
+| **Profil-Sync** | Eine signierte Profilkarte mit einem Peer über das Mesh austauschen | 23 | `fixtures/profiles/` | ✅ |
+| **Ephemere-ID-Ankündigung** | Einem Freund privat Ihre aktuelle rotierende Routing-ID mitteilen, damit er Sie auch nach deren Rotation noch erreichen kann | 56 | `fixtures/erid/` | ✅ |
+| **Pre-Key-Austausch** | Ein Signal-Pre-Key-Bundle über das Mesh anfordern und zustellen, um eine Ende-zu-Ende-Sitzung mit jemandem aufzubauen, den Sie nie getroffen haben | 25, 26 | `fixtures/prekey/` | ✅ |
+| **Kanäle** | Signierte Nachrichten an einen privaten, nur für Mitglieder zugänglichen Gruppenkanal | 7 | `fixtures/channels/` | ✅ |
+| **Push-to-Talk** | Walkie-Talkie-Sprach-Frames (opake kodierte Audio-Nutzlast) | 15 | `fixtures/media/` | ✅ |
+| **Bildschirmfreigabe** | Bildschirmfreigabe-Video-Frames (opake kodierte Video-Nutzlast) | 32 | `fixtures/media/` | ✅ |
+| **Anrufsteuerung** | Klingel-/Annehmen-/Ablehnen-/Auflegen-Signalisierung für Sprach- und Videoanrufe | 27 | `fixtures/videocall/` | ✅ |
+| **SOS-Bestätigung** | Dem Absender bestätigen, dass sein Notruf-Broadcast empfangen wurde | 6 | `fixtures/sos/` | ✅ |
+| **Space-Breadcrumbs** | Standortmarkierte Entdeckungskrümel für die „Was ist um mich herum“-Schicht | 40 | `fixtures/space/` | ✅ |
+| **Forge-Ankündigung** | Ein abgeleitetes/geschmiedetes Inhaltsartefakt dem Mesh ankündigen | 41 | `fixtures/forge/` | ✅ |
+| **Vault-Shard-Anfrage** | Einen Erasure-codierten Speicher-Shard abrufen (beliebige K von N Shards bauen die Datei wieder auf) | 42 | `fixtures/vaultshard/` | ✅ |
+| **Bandbreitenmessung** | Verbindungsdurchsatz per Probe/Ack/Gossip messen, damit das Mesh über die dickste Leitung routet (ABMF) | 53, 54, 55 | `fixtures/bandwidth/` | ✅ |
+
+Diese sitzen oben auf den bereits vollständigen Diensten **Messaging, 1-zu-1- und Gruppensprache, Videoanrufe, Live-Streaming, Watch-Together, AODV-Routing, DTN-Store-and-Forward und SOS-Flood** — ebenfalls in allen 8 Sprachen implementiert.
+
+> **Was „gebaut“ hier genau bedeutet.** Jeder Dienst erzeugt und verarbeitet sein Leitungspaket, löst die richtigen Ereignisse aus und ist an ein Byte-Level-Fixture gebunden, das die gesamte Sprachfamilie erfüllen muss. Ihre Anwendung verdrahtet den Dienst mit seiner Signal-Sitzung, Routing-Tabelle und dem lokalen Zustand. Dies ist die Protokollschicht — bewiesen in Code, Tests und sprachübergreifenden Byte-Fixtures — auf demselben ehrlichen RF-Fundament wie alles andere: Jeder Pfad, der letztlich über ein Funkgerät läuft, ist feldunverifiziert, bis das in `OPEN_ISSUES.md` verfolgte Hardware-Bring-up abgeschlossen ist.
+
 ## Transporte
 
-Jeder Transport hat einen Farbnamen, der im gesamten Quellcode verwendet wird. `IsAvailable` sperrt hardwareblockierte Pfade — der `TransportManager` überspringt sie automatisch und fällt auf den nächsten verfügbaren Transport zurück.
+Jeder Transport hat einen Farbnamen, der im gesamten Quellcode verwendet wird. `IsAvailable` sperrt hardwareblockierte Pfade — der `TransportManager` überspringt sie und fällt auf den nächsten verfügbaren Transport zurück.
+
+**Statuslegende:** ✅ echt, gebaut & verifiziert · ⏳ echt, Verifizierung in Arbeit · ⚠️ echt auf einigen Plattformen, Stub auf anderen · ❌ Stub (noch kein Transportcode).
 
 | Farbe | Name | Reichweite | Bandbreite | Status |
-|-------|------|------:|----------:|--------|
-| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
-| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | Cellular HTTP relay | Unbegrenzt | ~10 Mbps | ✅ Windows — Relay-Server in `samples/AetherNet.RelayServer/` |
-| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE (`android/white/`); Windows: NDEF-over-BLE-GATT + ACR122U PC/SC-Annäherung (`Windows.Networking.Proximity` in Win 11 entfernt) |
-| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`; Windows + Android: SSAP-over-BLE-Annäherung (API-analog, nicht leitungskompatibel) |
-| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37,5 kbps | ⚠️ Meshtastic-Leitungsformat über BLE LR (~1,3 km); Radio-Austausch zu SX1276/SX1278 bei vorhandenem LoRa-Modul |
+|--------|------|------:|----------:|--------|
+| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Echt — Windows (WinRT) + Android (`android/blue/`) |
+| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Echt — Windows (WinRT) + Android (`android/green/`) |
+| 🟣 Aether Purple | HTTP / QUIC-Relay | Unbegrenzt | ~10 Mbps | ✅ Echt — Windows; Relay-Server in `samples/AetherNet.RelayServer/` |
+| 🟪 WebRTC P2P | Internet-Datenkanal | Unbegrenzt | ~100 Mbps | ✅ Echt in allen 8 Sprachen — **Loopback-verifiziert in allen 8** (C#/Go/Kotlin/TypeScript/Python/C/Swift/Rust lassen jeweils zwei Peers Bytes über einen echten ICE-Datenkanal austauschen) |
+| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Echt auf Android (`android/white/`); Windows = echtes BLE-GATT + RSSI −40 dBm Näherungsannäherung (`WinNfcBleTransportService`, kompiliert net9/10, laufzeit-unverifiziert) — `Windows.Networking.Proximity` in Win 11 entfernt |
+| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ⚠️ Echt auf HarmonyOS (`harmonyos/teal/`, `@kit.NearLinkKit` — On-Device-Verifizierung ausstehend); Android + Windows = echte SSAP-over-BLE-Annäherung (`android/teal/AetherNetSleService`, `WinNearLinkBleTransportService`; kompiliert + unit-getestet, laufzeit-unverifiziert) |
+| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37,5 kbps | ⚠️ Echter RYLR SX127x/SX126x-Seriell-Treiber (`LoRaSerialTransport` in C#/Go/Rust/C; kompiliert, laufzeit-unverifiziert — benötigt ein physisches Modul); BLE-Coded-PHY-Bridge weiterhin ein dokumentiertes Design |
 
-Prioritätsreihenfolge im `TransportManager`: NearLink → BLE (≤ 1 KB) → Wi-Fi Direct → NFC → LoRa → HTTP Relay (letztes Mittel, `PowerCostRelative = 100`).
+Die Funktransporte sind nur dort echt, wo Plattformcode existiert (C#/Windows, Kotlin/Android, HarmonyOS). Die acht Sprachbibliotheken liefern ansonsten einen **In-Process-Simulations**-Transport zum Testen — **WebRTC ist der erste echte Transport, der allen gemeinsam ist** (vollständig; sprachübergreifend Loopback-verifiziert).
+
+Die Priorität richtet sich nach den Stromkosten: Das Funk-Mesh wird bevorzugt, dann WebRTC als direkter Internetpfad, mit dem HTTP/QUIC-Relay als letztem Mittel.
 
 ## Einsatzstufen
 
@@ -124,15 +158,15 @@ Aether funktioniert auf jeder Plattform, die Bluetooth oder WLAN unterstützt. D
 
 Android · Windows · Linux · macOS · iOS
 
-Aether läuft vollständig auf jedem Gerät mit Bluetooth- oder WLAN-Hardware. Wo ein Funk physisch fehlt, wird jeder blockierte Transport durch das Verfügbare angenähert:
+Aether läuft auf jedem Gerät mit Bluetooth- oder WLAN-Hardware. Wo ein Funk physisch fehlt, wird jeder blockierte Transport durch das Verfügbare angenähert. Diese Annäherungen sind jetzt **echter Code** (kompiliergeprüft; **laufzeit-unverifiziert**, ausstehend eines 2-Geräte-/Hardware-RF-Tests):
 
-- **NearLink (Aether Teal)** — Annäherung über BLE GATT mit der kanonischen Aether-SLE-Service-UUID (`61657468-6572-0003-0000-000000000000`). Die SSAP-Anwendungsprotokollschicht ist API-identisch zu GATT. Die Funkschicht (BPSK/QPSK/8PSK, Polar-Codes, 1–4 MHz-Kanäle) ist es nicht — Knoten, die die Standardstufe verwenden, können keine rohen Bytes mit echter NearLink-Hardware austauschen; sie arbeiten mit anderen Aether-Knoten der Standardstufe zusammen.
-- **LoRa (Aether Red)** — Annäherung mit dem vollständigen Meshtastic-Leitungsformat über BLE 5.0 Coded PHY (S=8, ~1,3 km outdoor). Bridge-Node-Verbund mit echter LoRa-Hardware funktioniert automatisch — dasselbe Meshtastic-Paketformat reitet auf allen Hops ohne Übersetzung.
-- **NFC (Aether White)** — Annäherung über NDEF-over-BLE-GATT mit einem RSSI-Näherungs-Gate (≥ −40 dBm ≈ 5–10 cm), das Tap-to-Connect-Semantik reproduziert. Der PC/SC-Pfad über USB-NFC-Lesegerät wird unter Windows ebenfalls unterstützt.
+- **NearLink (Aether Teal)** — echte SSAP-over-BLE-GATT-Annäherung (Aether-SLE-UUID `61657468-6572-0003-…`) auf Android (`android/teal/AetherNetSleService`) und Windows (`WinNearLinkBleTransportService`); kompiliert + unit-getestet, laufzeit-unverifiziert. Das echte NearLink-Radio existiert nur auf HarmonyOS (`harmonyos/teal/`, On-Device-Verifizierung ausstehend).
+- **LoRa (Aether Red)** — echter RYLR SX127x/SX126x-Seriell-Treiber (`LoRaSerialTransport` in **allen 8 Sprachen** — C#/Go/Rust/C/Python/TypeScript/Swift/Kotlin; jeder Port kompiliergeprüft, einschließlich Swift + C auf dem Mac-Build-Server; laufzeit-unverifiziert — benötigt ein physisches Modul). Die Meshtastic-over-BLE-Coded-PHY-Bridge (~1,3 km) bleibt ein dokumentiertes Design; echtes Langstrecken-LoRa benötigt einen LoRa-fähigen Knoten (Gateway, SBC oder robustes Handgerät mit einem LoRa-Modul).
+- **NFC (Aether White)** — echt auf Android (HCE). Windows hat jetzt eine echte BLE-GATT + RSSI −40 dBm Näherungsannäherung (`WinNfcBleTransportService`, kompiliert net9/10; laufzeit-unverifiziert); ACR122U PC/SC, wenn ein Lesegerät vorhanden ist.
 
-Alle anderen Fähigkeiten — BLE, Wi-Fi Direct, HTTP-Relay, Signal-Protokoll-Sicherheit (X3DH + Double Ratchet), AODV-Routing, DTN-Store-and-Forward, SOS-Broadcast, Sprache, Streaming — sind nativ und identisch zur nativen Stufe.
+Was überall echt und identisch ist: **BLE, Wi-Fi Direct, das HTTP/QUIC-Relay und der WebRTC-P2P-Transport (Loopback-verifiziert in allen 8 Sprachen)**, plus Signal-Protokoll-Sicherheit (X3DH + Double Ratchet), AODV-Routing, DTN-Store-and-Forward, SOS-Broadcast, Sprache und Streaming.
 
-**Dies ist ein vollständig fähiger, produktionsreifer Einsatz.** Die meisten Apps beginnen hier.
+**Ehrlicher Status:** BLE + Wi-Fi Direct + Relay sind produktionsecht; **WebRTC P2P ist echt und Loopback-verifiziert in allen 8 Sprachen** (zwei Peers tauschen Bytes über einen echten ICE-Datenkanal aus — Rust auf der `.201`-Linux-Box mit funktionierendem UDP-ICE bestätigt); die NearLink-/LoRa-/NFC-auf-Windows-Annäherungen sind jetzt echter Code, der kompiliert (LoRa kompiliergeprüft in allen 8, inkl. Swift + C auf dem Mac-Build-Server; NearLink-Android auch unit-getestet), aber **laufzeit-unverifiziert** — noch kein Hardware-/2-Geräte-RF-Test. Sie nehmen im Code am Mesh teil; setzen Sie diese drei nicht in der Erwartung feldbewährter RF ein.
 
 ---
 
@@ -210,6 +244,8 @@ Alle 8 Sprachen erzeugen byteidentische Leitungspakete, verifiziert durch 14 kan
 | **Gesamt** | **~3.000** | |
 
 Die sprachübergreifende Signal-Interoperabilität ist in `fixtures/signal/` mit gemeinsamen Testvektoren für X3DH (`x3dh_basic`), den symmetrischen Ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`) und KDF_RK (`kdf_rk_basic`) verankert. Jede Implementierung muss byteidentische Ausgaben gegenüber diesen Fixtures erzeugen. Alle 8 Sprachen liefern nun eine vollständige Signal-Sitzung (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+
+Über Leitungsformat und Signal hinaus ist auch die **gesamte Wire-Service-Suite** — Präsenz, Heartbeat, Profil-Sync, Ephemere-ID-Ankündigung, Pre-Key-Austausch, Kanäle, Push-to-Talk, Bildschirmfreigabe, Anrufsteuerung, SOS-Bestätigung, Space-Breadcrumbs, Forge-Ankündigung, Vault-Shard-Anfrage und Bandbreitenmessung (siehe **Was Sie bekommen — jeder Dienst, in jeder Sprache**) — ebenso in allen 8 Sprachen implementiert und an eigene Fixtures gebunden (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/` und Geschwister). Kein Feature ist auf der Protokollschicht C#-exklusiv.
 
 ## Schnellstart
 
@@ -485,6 +521,9 @@ Was bereits implementiert ist und was als Nächstes kommt.
 - ✅ **Einmal-Pre-Key (OPK)-Pool** — Standard 100, FIFO-Ausgabe, lazy Top-Up, lock-geschützter Verbrauch über alle 8 Sprachen. Schließt die Einzel-OPK-Nebenläufigkeitsgefahr.
 - ✅ **C: vollständige Signal-Sitzung** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` in `c/src/signal_protocol.c`; 6 Zwei-Knoten-E2E-Tests in `c/tests/test_signal_session.c`. Alle 8 Sprachen haben nun ein vollständiges sitzungsfähiges Signal-Protokoll.
 
+**Erledigt (alle 8 Sprachen — die vollständige Wire-Service-Suite):**
+- ✅ **Jeder reservierte Pakettyp ist jetzt ein echter, byteidentischer Dienst in allen 8 Sprachen.** Präsenz-Beacon/-Abfrage (21/22), Heartbeat (10), Profil-Sync (23), Ephemere-Routing-ID-Ankündigung (56), Pre-Key-Austausch (25/26), Kanäle (7), Push-to-Talk (15), Bildschirmfreigabe (32), Anrufsteuerung (27), SOS-Bestätigung (6), Space-Breadcrumbs (40), Forge-Ankündigung (41), Vault-Shard-Anfrage (42) und Bandbreitenmessung / ABMF (53/54/55). Jeder ist ein schlanker Dienst (erzeugen + verarbeiten + Ereignis), den der Host mit seiner Signal-Sitzung und Routing-Tabelle verdrahtet; jeder ist an ein gemeinsames sprachübergreifendes Fixture gebunden (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) und wird durch sprachspezifische Unit-Tests geprüft, wobei Swift und C auf dem macOS-Build-Server verifiziert werden. Siehe **Was Sie bekommen — jeder Dienst, in jeder Sprache**.
+
 **Erledigt (nur C#-Referenz):**
 - ✅ **Demo-Schritt 9 — MessagingService + DTN-Fallback Ende-zu-Ende** — `samples/AetherNet.Demo.Console` führt durch echtes Signal-verschlüsseltes Messaging mit DTN-Store-and-Forward, wenn der Empfänger offline ist.
 - ✅ **`AetherNet.Messaging` ↔ `AetherNet.Security`-Bridge** — `SignalMessageEnvelopeCipher` macht die Messaging-Schicht standardmäßig Ende-zu-Ende-verschlüsselt; Nachrichten ohne Signal-Sitzung werden in die Warteschlange gestellt, nie unsicher gesendet.
@@ -508,6 +547,7 @@ Was bereits implementiert ist und was als Nächstes kommt.
 - RF-Bring-up auf echter Hardware: Ende-zu-Ende-Zwei-Knoten-Interop-Test auf physischen BLE-/Wi-Fi-Direct-Geräten (Simulationstests bestehen; Hardware-Lab-Sitzung erforderlich)
 - NearLink: `harmonyos/teal/` vollständig; erfordert Huawei Mate 60/70 / Pura 70 Pro+ / Mate X6 Hardware (NearLink-Silizium nicht auf Nicht-Huawei-Geräten vorhanden). Windows + Android fallen automatisch auf SSAP-over-BLE-Annäherung zurück.
 - LoRa / CircleLink: Funkmodul für echte LoRa-Reichweite erforderlich. Ohne eines wird das Meshtastic-Leitungsformat über BLE LR (~1,3 km) übertragen und Bridge-Node-Verbund mit echter LoRa-Hardware ist verfügbar.
+- ✅ **(GELÖST v1.2.0)** Consumer-Protokolloberfläche (Wave 16/17) — `IDtnService.BundleReceived`-Ereignis für eingehende Bundles ([#59](https://github.com/bhengubv/aether-protocol/issues/59)), Anwendungsschicht-Namens-/Discovery-Verzeichnis ([#60](https://github.com/bhengubv/aether-protocol/issues/60)), Autoren-Tipping-Schnittstelle ([#61](https://github.com/bhengubv/aether-protocol/issues/61)). Alle 3 additiv über 8 Sprachen mit byte-gleichen sprachübergreifenden Fixtures ausgeliefert. Siehe CHANGELOG.
 
 **Noch nicht für externe Beiträge offen:**
 - Das Protokoll befindet sich noch in aktiver Entwicklung. Externe Beiträge werden derzeit nicht akzeptiert.
@@ -593,3 +633,7 @@ Siehe [SECURITY.md](SECURITY.md) für die Richtlinie zur verantwortungsvollen Of
 ## Lizenz
 
 MIT-Lizenz. Siehe [LICENSE](LICENSE).
+
+## Übersetzungen
+
+Diese README wird auf Englisch gepflegt und in 10 weitere Sprachen unter [`docs/i18n/`](docs/i18n/) übersetzt: Français, Español, العربية, 中文简体, 日本語, Deutsch, Português (BR), Русский, فارسی und 한국어. Die **englische Version ist die maßgebliche Quelle** — wo eine Übersetzung und der englische Text nicht übereinstimmen, ist der englische Text maßgeblich, und Übersetzungen können ihm um ein oder zwei Releases hinterherhinken. Das Protokoll, der Code, die Fixtures und das beschriebene Verhalten sind identisch, egal in welcher Sprache Sie lesen.

@@ -10,6 +10,47 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+**The full wire-service suite — every reserved packet type is now a real, byte-identical
+service in all eight languages.** Additive; no wire-format change to existing packets. Closes the
+"reserved-but-unserviced PacketType" gap surfaced by a two-pass protocol audit: 18 packet types
+that the wire format had reserved but no SDK actually produced or handled now have thin,
+fixture-locked services (produce + handle + event) across C#, Go, Python, TypeScript, Kotlin,
+Rust, Swift, and C. Swift and C additionally verified on the macOS build server.
+
+### Added
+
+- **Presence** — beacon (PacketType 21) + query (22) over a rotating, key-derived ephemeral
+  routing ID plus a coarse geohash (never the stable identity). `fixtures/presence/`.
+- **Heartbeat** — lightweight peer-liveness keep-alive (10). `fixtures/heartbeat/`.
+- **Profile sync** — signed profile-card exchange over the mesh (23). `fixtures/profiles/`.
+- **Ephemeral-routing-ID announce** — directed transport of an encrypted ERID announcement so a
+  friend can still reach you after your routing ID rotates (56). `fixtures/erid/`.
+- **Pre-key exchange** — request (25) + response (26) transport of a Signal pre-key bundle over
+  the mesh, to bootstrap an end-to-end session with an unmet peer. `fixtures/prekey/`.
+- **Channels** — signed messages to a private, members-only group channel (7). `fixtures/channels/`.
+- **Push-to-talk** (15) + **screen share** (32) — binary media frames sharing the 29-byte
+  VoiceCall/VideoFrame header (call_id big-endian, sequence/timestamp little-endian, flag byte).
+  `fixtures/media/`.
+- **Call control** — ring / accept / decline / hang-up signalling for voice and video (27).
+  `fixtures/videocall/`.
+- **SOS acknowledgement** — delivery confirmation back to the sender of an emergency broadcast
+  (6). `fixtures/sos/`.
+- **Space breadcrumbs** (40), **Forge announce** (41), **Vault shard request** (42) — the wire
+  bindings that let the existing Space / Forge / Vault modules produce and handle their mesh
+  packets. `fixtures/space/`, `fixtures/forge/`, `fixtures/vaultshard/`.
+- **Bandwidth measurement (ABMF)** — probe (53) / ack (54) / gossip (55) binary link-throughput
+  wire binding, little-endian, `expected_hex`-pinned. `fixtures/bandwidth/`.
+- **README** rewritten with a "What you get — every service, in every language" capability
+  surface and a byte-identity headline, and re-synced across all 10 human-language translations
+  under `docs/i18n/`.
+
+### Notes
+
+- Each service is a thin binding — it produces and handles its wire packet and raises events; the
+  host application wires it to its Signal session, routing table, and local state. This is the
+  protocol layer, on the same honest RF footing as the rest of the SDK (radio paths remain
+  field-unverified until the hardware bring-up tracked in `OPEN_ISSUES.md`).
+
 ---
 
 ## [2.1.0] — 2026-07-01

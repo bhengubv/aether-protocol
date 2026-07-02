@@ -10,6 +10,10 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
+[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+
+> **하나의 프로토콜, 8개 언어, 와이어에서 동일합니다.** Aether는 **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C**로 구현되어 있으며 — 모든 패킷이 이들 전체에 걸쳐 바이트 단위로 동일하고, CI의 공유 언어 간 픽스처 코퍼스로 강제됩니다. 8개 중 어느 언어로든 노드를 구축하세요; 나머지 모두와 상호 운용됩니다. 이 README는 11개의 인간 언어로도 제공됩니다 (위 링크).
+
 ## 무엇을 할 수 있나요?
 
 **데이터 소비 없이 강의 노트를 공유하세요.**
@@ -99,20 +103,50 @@
 
 **재생 보호** — 5분 타임스탬프 신선도 창을 사용하는 난스(Nonce) 중복 제거.
 
+## 제공되는 것 — 모든 서비스, 모든 언어로
+
+Aether는 단순한 전송 수단이 아닙니다. 프로토콜이 예약한 모든 패킷 타입은 이제 **8개 언어 모두에서 실제로 작동하는 서비스**이며, 모든 것이 **바이트 단위로 동일한 와이어 패킷**으로 직렬화됩니다 — Go 노드가 구축한 패킷은 Swift, Rust, C, Python, TypeScript, Kotlin, C# 노드가 변경 없이 디코딩합니다. 각 서비스는 `fixtures/<service>/` 아래의 공유 언어 간 픽스처에 고정되어 있으며 언어별 단위 테스트로 검증되고, Swift와 C는 macOS 빌드 서버에서 추가로 검증됩니다.
+
+| 기능 | 하는 일 | 패킷 타입 | 픽스처 | 8/8 |
+|---|---|:-:|---|:-:|
+| **프레즌스 비콘 & 쿼리** | "나 여기 있어" 알림과 "누가 주변에 있지?" 문의를 — 실제 신원이 아닌 **회전하는 키 유도 임시 ID**와 대략적인 지오해시로 수행 | 21, 22 | `fixtures/presence/` | ✅ |
+| **하트비트** | 연결된 피어 간 경량 생존 유지 신호 | 10 | `fixtures/heartbeat/` | ✅ |
+| **프로필 동기화** | 서명된 프로필 카드를 메시를 통해 피어와 교환 | 23 | `fixtures/profiles/` | ✅ |
+| **임시 ID 알림** | 라우팅 ID가 회전한 후에도 친구가 여러분에게 도달할 수 있도록 현재 회전 중인 라우팅 ID를 비공개로 알림 | 56 | `fixtures/erid/` | ✅ |
+| **사전 키 교환** | 한 번도 만난 적 없는 상대와 종단 간 세션을 부트스트랩하기 위해 Signal 사전 키 번들을 메시를 통해 요청하고 전달 | 25, 26 | `fixtures/prekey/` | ✅ |
+| **채널** | 비공개, 구성원 전용 그룹 채널에 대한 서명된 메시지 | 7 | `fixtures/channels/` | ✅ |
+| **푸시-투-토크** | 워키토키 음성 프레임 (불투명 인코딩 오디오 페이로드) | 15 | `fixtures/media/` | ✅ |
+| **화면 공유** | 화면 공유 영상 프레임 (불투명 인코딩 영상 페이로드) | 32 | `fixtures/media/` | ✅ |
+| **통화 제어** | 음성 및 영상 통화를 위한 벨울림 / 수락 / 거절 / 종료 시그널링 | 27 | `fixtures/videocall/` | ✅ |
+| **SOS 확인** | 긴급 방송이 수신되었음을 발신자에게 확인 | 6 | `fixtures/sos/` | ✅ |
+| **스페이스 브레드크럼** | "내 주변에 무엇이 있나" 계층을 위한 위치 태그가 지정된 검색 부스러기 | 40 | `fixtures/space/` | ✅ |
+| **포지 알림** | 유도/포지된 콘텐츠 아티팩트를 메시에 광고 | 41 | `fixtures/forge/` | ✅ |
+| **볼트 샤드 요청** | 소거 코드화된 저장 샤드를 가져오기 (N개 샤드 중 임의의 K개로 파일 재구성) | 42 | `fixtures/vaultshard/` | ✅ |
+| **대역폭 측정** | 메시가 가장 굵은 파이프로 라우팅하도록 링크 처리량을 프로브 / 확인 / 가십 (ABMF) | 53, 54, 55 | `fixtures/bandwidth/` | ✅ |
+
+이들은 이미 완성된 **메시징, 1:1 및 그룹 음성, 영상 통화, 라이브 스트리밍, 함께 보기, AODV 라우팅, DTN 저장-전달, SOS 플러드** 서비스 위에 놓입니다 — 이 또한 8개 언어 모두에 구현되어 있습니다.
+
+> **여기서 "구축됨"이 정확히 무엇을 의미하는지.** 각 서비스는 자신의 와이어 패킷을 생성하고 처리하며, 올바른 이벤트를 발생시키고, 전체 언어 제품군이 일치해야 하는 바이트 수준 픽스처에 고정됩니다. 여러분의 애플리케이션은 서비스를 자신의 Signal 세션, 라우팅 테이블, 로컬 상태에 연결합니다. 이것은 프로토콜 계층입니다 — 코드, 테스트, 언어 간 바이트 픽스처로 입증된 — 그리고 다른 모든 것과 동일하게 정직한 RF 기반 위에 있습니다: 궁극적으로 라디오를 타는 모든 경로는 `OPEN_ISSUES.md`에서 추적되는 하드웨어 가동이 이루어지기 전까지 현장 미검증 상태입니다.
+
 ## 전송 수단
 
 각 전송 수단은 코드베이스 전체에서 사용되는 색상 이름이 있습니다. `IsAvailable`은 하드웨어가 차단된 경로를 게이팅합니다 — `TransportManager`는 이를 자동으로 건너뛰고 다음 사용 가능한 전송 수단으로 대체합니다.
 
+**상태 키:** ✅ 실제, 구축 및 검증됨 · ⏳ 실제, 검증 진행 중 · ⚠️ 일부 플랫폼에서 실제, 다른 플랫폼에서는 스텁 · ❌ 스텁 (아직 전송 코드 없음).
+
 | 색상 | 이름 | 범위 | 대역폭 | 상태 |
 |--------|------|------:|----------:|--------|
-| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android (`android/blue/`) |
-| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android (`android/green/`) |
-| 🟣 Aether Purple | Cellular HTTP relay | 무제한 | ~10 Mbps | ✅ Windows — 중계 서버는 `samples/AetherNet.RelayServer/` |
-| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE (`android/white/`); Windows: NDEF-over-BLE-GATT + ACR122U PC/SC 근사 (`Windows.Networking.Proximity`는 Win 11에서 제거됨) |
-| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`; Windows + Android: SSAP-over-BLE 근사 (API 유사, 와이어 비호환) |
-| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ BLE LR을 통한 Meshtastic 와이어 형식 (~1.3 km); LoRa 모듈 존재 시 SX1276/SX1278로 라디오 교체 |
+| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ 실제 — Windows (WinRT) + Android (`android/blue/`) |
+| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ 실제 — Windows (WinRT) + Android (`android/green/`) |
+| 🟣 Aether Purple | HTTP / QUIC 중계 | 무제한 | ~10 Mbps | ✅ 실제 — Windows; 중계 서버는 `samples/AetherNet.RelayServer/` |
+| 🟪 WebRTC P2P | 인터넷 데이터 채널 | 무제한 | ~100 Mbps | ✅ 8개 언어 모두에서 실제 — **8개 모두에서 루프백 검증됨** (C#/Go/Kotlin/TypeScript/Python/C/Swift/Rust 각각 두 피어가 실제 ICE 데이터 채널을 통해 바이트를 교환) |
+| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android에서 실제 (`android/white/`); Windows = 실제 BLE-GATT + RSSI −40 dBm 근접 근사 (`WinNfcBleTransportService`, net9/10 컴파일, 런타임 미검증) — `Windows.Networking.Proximity`는 Win 11에서 제거됨 |
+| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ⚠️ HarmonyOS에서 실제 (`harmonyos/teal/`, `@kit.NearLinkKit` — 온디바이스 검증 대기 중); Android + Windows = 실제 SSAP-over-BLE 근사 (`android/teal/AetherNetSleService`, `WinNearLinkBleTransportService`; 컴파일 + 단위 테스트 검증, 런타임 미검증) |
+| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ 실제 RYLR SX127x/SX126x 시리얼 드라이버 (C#/Go/Rust/C의 `LoRaSerialTransport`; 컴파일됨, 런타임 미검증 — 물리적 모듈 필요); BLE Coded-PHY 브리지는 여전히 문서화된 설계 |
 
-`TransportManager`의 우선순위: NearLink → BLE (≤ 1 KB) → Wi-Fi Direct → NFC → LoRa → HTTP Relay (최후 수단, `PowerCostRelative = 100`).
+라디오 전송 수단은 플랫폼 코드가 존재하는 곳에서만 실제입니다 (C#/Windows, Kotlin/Android, HarmonyOS). 그 외에는 8개 언어 라이브러리 모두 테스트용 **프로세스 내 시뮬레이션** 전송 수단을 제공합니다 — **WebRTC는 이들 모두에 공통되는 최초의 실제 전송 수단입니다** (완성; 언어 전반에 걸쳐 루프백 검증됨).
+
+우선순위는 전력 비용에 따릅니다: 라디오 메시가 선호되고, 그다음 직접 인터넷 경로로서 WebRTC, 최후 수단으로 HTTP/QUIC 중계입니다.
 
 ## 배포 티어
 
@@ -124,15 +158,15 @@ Aether는 블루투스 또는 Wi-Fi를 지원하는 모든 플랫폼에서 작�
 
 Android · Windows · Linux · macOS · iOS
 
-Aether는 블루투스 또는 Wi-Fi 하드웨어가 있는 모든 기기에서 완전하게 실행됩니다. 라디오가 물리적으로 없는 경우, 각 차단된 전송 수단은 사용 가능한 것을 활용하여 근사됩니다:
+Aether는 블루투스 또는 Wi-Fi 하드웨어가 있는 모든 기기에서 실행됩니다. 라디오가 물리적으로 없는 경우, 각 차단된 전송 수단은 사용 가능한 것을 활용하여 근사됩니다. 이 근사들은 이제 **실제 코드**입니다 (컴파일 검증됨; 2-기기 / 하드웨어 RF 테스트 대기 중 **런타임 미검증**):
 
-- **NearLink (Aether Teal)** — 정식 Aether SLE 서비스 UUID (`61657468-6572-0003-0000-000000000000`)를 사용하는 BLE GATT를 통해 근사됩니다. SSAP 애플리케이션 프로토콜 계층은 API 측면에서 GATT와 동일합니다. 라디오 계층 (BPSK/QPSK/8PSK, Polar 코드, 1–4 MHz 채널)은 그렇지 않습니다 — 표준 티어를 실행하는 노드는 실제 NearLink 하드웨어와 원시 바이트를 교환할 수 없지만, 다른 표준 티어 Aether 노드와는 상호 운용됩니다.
-- **LoRa (Aether Red)** — BLE 5.0 Coded PHY (S=8, 야외 ~1.3 km)를 통한 완전한 Meshtastic 와이어 형식을 사용하여 근사됩니다. 실제 LoRa 하드웨어와의 브리지 노드 연합은 자동으로 작동합니다 — 동일한 Meshtastic 패킷 형식이 모든 홉에서 변환 없이 사용됩니다.
-- **NFC (Aether White)** — 탭-투-커넥트 의미론을 재현하는 RSSI 근접 게이트 (≥ −40 dBm ≈ 5–10 cm)가 포함된 NDEF-over-BLE-GATT를 통해 근사됩니다. Windows에서는 USB NFC 리더를 통한 PC/SC 경로도 지원됩니다.
+- **NearLink (Aether Teal)** — Android (`android/teal/AetherNetSleService`)와 Windows (`WinNearLinkBleTransportService`)에서 실제 SSAP-over-BLE-GATT 근사 (Aether SLE UUID `61657468-6572-0003-…`); 컴파일 + 단위 테스트 검증, 런타임 미검증. 실제 NearLink 라디오는 HarmonyOS에만 존재합니다 (`harmonyos/teal/`, 온디바이스 검증 대기 중).
+- **LoRa (Aether Red)** — 실제 RYLR SX127x/SX126x 시리얼 드라이버 (**8개 언어 모두**의 `LoRaSerialTransport` — C#/Go/Rust/C/Python/TypeScript/Swift/Kotlin; 모든 포트 컴파일 검증됨, Mac 빌드 서버의 Swift + C 포함; 런타임 미검증 — 물리적 모듈 필요). Meshtastic-over-BLE-Coded-PHY 브리지 (~1.3 km)는 여전히 문서화된 설계로 남아 있습니다; 실제 장거리 LoRa에는 LoRa 지원 노드 (게이트웨이, SBC, 또는 LoRa 모듈이 있는 견고한 핸드셋)가 필요합니다.
+- **NFC (Aether White)** — Android에서 실제 (HCE). Windows는 이제 실제 BLE-GATT + RSSI −40 dBm 근접 근사를 갖습니다 (`WinNfcBleTransportService`, net9/10 컴파일; 런타임 미검증); 리더가 있을 때 ACR122U PC/SC.
 
-그 외 모든 기능 — BLE, Wi-Fi Direct, HTTP 중계, Signal Protocol 보안 (X3DH + Double Ratchet), AODV 라우팅, DTN 저장-전달, SOS 방송, 음성, 스트리밍 — 은 네이티브이며 네이티브 티어와 동일합니다.
+어디서나 실제이고 동일한 것: **BLE, Wi-Fi Direct, HTTP/QUIC 중계, WebRTC P2P 전송 (8개 언어 모두에서 루프백 검증됨)**, 그리고 Signal Protocol 보안 (X3DH + Double Ratchet), AODV 라우팅, DTN 저장-전달, SOS 방송, 음성, 스트리밍.
 
-**이것은 완전히 사용 가능한 프로덕션급 배포입니다.** 대부분의 앱은 여기서 시작합니다.
+**정직한 상태:** BLE + Wi-Fi Direct + 중계는 프로덕션-실제입니다; **WebRTC P2P는 8개 언어 모두에서 실제이고 루프백 검증됨** (두 피어가 실제 ICE 데이터 채널을 통해 바이트를 교환 — Rust는 작동하는 UDP ICE를 갖춘 `.201` Linux 박스에서 확인됨); NearLink / LoRa / Windows-NFC 근사는 이제 컴파일되는 실제 코드이지만 (LoRa는 Mac 빌드 서버의 Swift + C 포함 8개 모두에서 컴파일 검증됨; NearLink-Android는 단위 테스트도 완료) **런타임 미검증**입니다 — 아직 하드웨어 / 2-기기 RF 테스트 없음. 이들은 코드상 메시에 참여합니다; 현장 입증된 RF를 기대하며 이 세 가지를 배포하지 마십시오.
 
 ---
 
@@ -210,6 +244,8 @@ Aether는 스마트폰, 노트북, 태블릿, 마이크로컨트롤러에서 실
 | **합계** | **~3,000** | |
 
 언어 간 Signal 상호 운용성은 `fixtures/signal/`에 X3DH (`x3dh_basic`), 대칭 래칫 (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`)에 대한 공유 테스트 벡터로 고정되어 있습니다. 모든 구현체는 해당 픽스처에 대해 바이트 단위로 동일한 출력을 생성해야 합니다. 8개 언어 모두 완전한 Signal 세션 (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`)을 지원합니다.
+
+와이어 형식과 Signal을 넘어, **전체 와이어 서비스 제품군** — 프레즌스, 하트비트, 프로필 동기화, 임시 ID 알림, 사전 키 교환, 채널, 푸시-투-토크, 화면 공유, 통화 제어, SOS 확인, 스페이스 브레드크럼, 포지 알림, 볼트 샤드 요청, 대역폭 측정 (**제공되는 것 — 모든 서비스, 모든 언어로** 참조) — 도 마찬가지로 8개 언어 모두에 구현되어 있으며 자체 픽스처 (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, 그리고 형제 픽스처)에 고정되어 있습니다. 프로토콜 계층에서 C# 전용인 기능은 없습니다.
 
 ## 빠른 시작
 
@@ -485,6 +521,9 @@ aethernet_packet_free(packet);
 - ✅ **1회용 사전 키 (OPK) 풀** — 기본 100개, FIFO 발급, 지연 보충, 8개 언어 모두에서 잠금 보호 소비. 단일 OPK 동시성 위험 해결.
 - ✅ **C: 완전한 Signal 세션** — `c/src/signal_protocol.c`의 `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`; `c/tests/test_signal_session.c`의 6개 양방향 E2E 테스트. 8개 언어 모두 이제 완전한 세션 기능 Signal Protocol 지원.
 
+**완료 (8개 언어 모두 — 전체 와이어 서비스 제품군):**
+- ✅ **예약된 모든 패킷 타입이 이제 8개 언어 모두에서 실제로 작동하는 바이트 단위 동일 서비스입니다.** 프레즌스 비콘/쿼리 (21/22), 하트비트 (10), 프로필 동기화 (23), 임시 라우팅 ID 알림 (56), 사전 키 교환 (25/26), 채널 (7), 푸시-투-토크 (15), 화면 공유 (32), 통화 제어 (27), SOS 확인 (6), 스페이스 브레드크럼 (40), 포지 알림 (41), 볼트 샤드 요청 (42), 대역폭 측정 / ABMF (53/54/55). 각각은 호스트가 자신의 Signal 세션과 라우팅 테이블에 연결하는 얇은 서비스 (생성 + 처리 + 이벤트)이며; 각각은 공유 언어 간 픽스처 (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`)에 고정되어 있고 언어별 단위 테스트로 검증되며, Swift와 C는 macOS 빌드 서버에서 검증됩니다. **제공되는 것 — 모든 서비스, 모든 언어로** 참조.
+
 **완료 (C# 참조 구현체만):**
 - ✅ **데모 9단계 — MessagingService + DTN 폴백 종단 간** — `samples/AetherNet.Demo.Console`은 수신자가 오프라인일 때 DTN 저장-전달과 함께 실제 Signal 암호화 메시지를 진행합니다.
 - ✅ **`AetherNet.Messaging` ↔ `AetherNet.Security` 브리지** — `SignalMessageEnvelopeCipher`가 메시지 계층을 기본적으로 종단 간 암호화합니다; Signal 세션이 없는 메시지는 큐에 저장되며 안전하지 않게 전송되지 않습니다.
@@ -508,6 +547,7 @@ aethernet_packet_free(packet);
 - 실제 하드웨어에서 RF 가동: 물리적 BLE / Wi-Fi Direct 기기에서 종단 간 양방향 상호 운용성 테스트 (시뮬레이션 테스트 통과; 하드웨어 테스트 세션 필요)
 - NearLink: `harmonyos/teal/` 완료; Huawei Mate 60/70 / Pura 70 Pro+ / Mate X6 하드웨어 필요 (NearLink 실리콘은 非Huawei 기기에 없음). Windows + Android는 SSAP-over-BLE 근사로 자동 폴백.
 - LoRa / CircleLink: 진정한 LoRa 범위를 위해 라디오 모듈 필요. 없는 경우 Meshtastic 와이어 형식은 BLE LR (~1.3 km)로 전달되며 실제 LoRa 하드웨어와의 브리지 노드 연합이 가능합니다.
+- ✅ **(v1.2.0에서 해결됨)** 소비자 프로토콜 표면 (Wave 16/17) — 인바운드 번들을 위한 `IDtnService.BundleReceived` 이벤트 ([#59](https://github.com/bhengubv/aether-protocol/issues/59)), 애플리케이션 계층 이름 지정/검색 디렉터리 ([#60](https://github.com/bhengubv/aether-protocol/issues/60)), 작성자 팁 인터페이스 ([#61](https://github.com/bhengubv/aether-protocol/issues/61)). 3가지 모두 바이트 동일 언어 간 픽스처와 함께 8개 언어에 걸쳐 부가적으로 제공됨. CHANGELOG 참조.
 
 **아직 외부 기여 미오픈:**
 - 프로토콜이 아직 활발히 개발 중입니다. 현재 외부 기여를 수락하지 않습니다.
@@ -593,3 +633,7 @@ DI에 등록하면 `TransportManager`가 자동으로 전송 선택에 포함하
 ## 라이선스
 
 MIT 라이선스. [LICENSE](LICENSE) 참조.
+
+## 번역
+
+이 README는 영어로 유지 관리되며 [`docs/i18n/`](docs/i18n/) 아래에 10개의 추가 언어로 번역됩니다: Français, Español, العربية, 中文简体, 日本語, Deutsch, Português (BR), Русский, فارسی, 한국어. **영어 버전이 진실의 원천입니다** — 번역과 영어 텍스트가 일치하지 않는 경우 영어 텍스트가 권위를 가지며, 번역은 한두 릴리스 정도 뒤처질 수 있습니다. 설명된 프로토콜, 코드, 픽스처, 동작은 어느 언어로 읽든 동일합니다.

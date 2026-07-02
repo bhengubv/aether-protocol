@@ -10,6 +10,10 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
+[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+
+> **一个协议，八种语言，线路上完全一致。** Aether 以 **C#、Rust、TypeScript、Python、Go、Kotlin、Swift 和 C** 实现——每个数据包在所有这些语言中都是字节完全相同的，并由 CI 中的共享跨语言测试用例库强制保证。用这八种语言中的任意一种构建你的节点；它都能与其他所有语言互通。本 README 也提供 11 种人类语言版本（上方链接）。
+
 ## 你能用它做什么？
 
 **无需消耗流量共享课堂笔记。**
@@ -99,20 +103,50 @@
 
 **重放保护** — 使用 5 分钟时间戳新鲜度窗口的随机数去重。
 
+## 你能获得什么 — 每种服务，在每种语言中
+
+Aether 不仅仅是一种传输方式。协议保留的每个数据包类型现在都是**全部 8 种语言中真实可用的服务**，且每一种都序列化为**字节完全相同的线路数据包**——由 Go 节点构建的数据包可被 Swift、Rust、C、Python、TypeScript、Kotlin 或 C# 节点原样解码。每种服务都固定至 `fixtures/<service>/` 下的共享跨语言测试用例，并由各语言的单元测试执行，其中 Swift 和 C 还额外在 macOS 构建服务器上验证。
+
+| 能力 | 功能说明 | 数据包类型 | 测试用例 | 8/8 |
+|---|---|:-:|---|:-:|
+| **在场信标与查询** | 宣告“我在这里”并询问“周围有谁？”——通过**轮换的、密钥派生的临时 ID**（而非你的真实身份）加上粗粒度 geohash 进行 | 21, 22 | `fixtures/presence/` | ✅ |
+| **心跳** | 已连接对等节点之间的轻量存活保活 | 10 | `fixtures/heartbeat/` | ✅ |
+| **资料同步** | 通过网格与对等节点交换已签名的资料卡 | 23 | `fixtures/profiles/` | ✅ |
+| **临时 ID 通告** | 私密地告知好友你当前轮换的路由 ID，以便在其轮换后仍能联系到你 | 56 | `fixtures/erid/` | ✅ |
+| **预密钥交换** | 通过网格请求并递送 Signal 预密钥包，以便与从未谋面的人引导建立端到端会话 | 25, 26 | `fixtures/prekey/` | ✅ |
+| **频道** | 发往私密的、仅限成员的群组频道的已签名消息 | 7 | `fixtures/channels/` | ✅ |
+| **一键通话** | 对讲机语音帧（不透明的编码音频负载） | 15 | `fixtures/media/` | ✅ |
+| **屏幕共享** | 屏幕共享视频帧（不透明的编码视频负载） | 32 | `fixtures/media/` | ✅ |
+| **通话控制** | 语音和视频通话的振铃/接听/拒绝/挂断信令 | 27 | `fixtures/videocall/` | ✅ |
+| **SOS 确认** | 向发送方确认其紧急广播已被接收 | 6 | `fixtures/sos/` | ✅ |
+| **空间路标** | 用于“我周围有什么”层的位置标记发现碎片 | 40 | `fixtures/space/` | ✅ |
+| **锻造通告** | 向网格广告一个派生/锻造的内容工件 | 41 | `fixtures/forge/` | ✅ |
+| **保险库分片请求** | 获取一个纠删码存储分片（任意 N 个分片中的 K 个即可重建文件） | 42 | `fixtures/vaultshard/` | ✅ |
+| **带宽测量** | 探测/确认/传播链路吞吐量，使网格路由经由最粗的管道（ABMF） | 53, 54, 55 | `fixtures/bandwidth/` | ✅ |
+
+这些服务位于已经完成的**消息传递、一对一和群组语音、视频通话、直播、共同观影、AODV 路由、DTN 存储转发以及 SOS 洪泛**服务之上——它们同样在全部 8 种语言中实现。
+
+> **此处“已构建”的确切含义。** 每种服务都会产生并处理其线路数据包、触发正确的事件，并固定至整个语言家族都必须匹配的字节级测试用例。你的应用负责将服务连接到它的 Signal 会话、路由表和本地状态。这是协议层——已在代码、测试和跨语言字节测试用例中得到证明——与其他所有部分建立在同样诚实的 RF 基础之上：任何最终经由无线电传输的路径，在 `OPEN_ISSUES.md` 中追踪的硬件启动完成之前，都属于现场未经验证。
+
 ## 传输方式
 
 每种传输方式在代码库中都有一个颜色名称。`IsAvailable` 会屏蔽硬件不支持的路径——`TransportManager` 会自动跳过这些路径并回退到下一个可用传输方式。
 
+**状态图例：** ✅ 真实、已构建并验证 · ⏳ 真实，验证进行中 · ⚠️ 在部分平台上真实，在其他平台上为桩实现 · ❌ 桩实现（尚无传输代码）。
+
 | 颜色 | 名称 | 范围 | 带宽 | 状态 |
 |--------|------|------:|----------:|--------|
-| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ Windows + Android（`android/blue/`） |
-| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ Windows + Android（`android/green/`） |
-| 🟣 Aether Purple | 蜂窝 HTTP 中继 | 无限 | ~10 Mbps | ✅ Windows——中继服务器位于 `samples/AetherNet.RelayServer/` |
-| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ Android HCE（`android/white/`）；Windows：NDEF-over-BLE-GATT + ACR122U PC/SC 近似（`Windows.Networking.Proximity` 在 Win 11 中已移除） |
-| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ✅ `harmonyos/teal/` — HarmonyOS ArkTS `@kit.NearLinkKit`；Windows + Android：SSAP-over-BLE 近似（API 兼容，非线路兼容） |
-| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ BLE LR 上的 Meshtastic 线路格式（~1.3 km）；存在 LoRa 模块时切换至 SX1276/SX1278 |
+| 🔵 Aether Blue | BLE GATT | ~100 m | 1 Mbps | ✅ 真实 — Windows（WinRT）+ Android（`android/blue/`） |
+| 🟢 Aether Green | Wi-Fi Direct | ~200 m | 250 Mbps | ✅ 真实 — Windows（WinRT）+ Android（`android/green/`） |
+| 🟣 Aether Purple | HTTP / QUIC 中继 | 无限 | ~10 Mbps | ✅ 真实 — Windows；中继服务器位于 `samples/AetherNet.RelayServer/` |
+| 🟪 WebRTC P2P | 互联网数据通道 | 无限 | ~100 Mbps | ✅ 全部 8 种语言中真实 — **在全部 8 种语言中经环回验证**（C#/Go/Kotlin/TypeScript/Python/C/Swift/Rust 各自让两个对等节点通过真实的 ICE 数据通道交换字节） |
+| ⚪ Aether White | NFC HCE | ~5 cm | 848 kbps | ⚠️ 在 Android 上真实（`android/white/`）；Windows = 真实的 BLE-GATT + RSSI −40 dBm 接近近似（`WinNfcBleTransportService`，可编译 net9/10，运行时未验证）——`Windows.Networking.Proximity` 在 Win 11 中已移除 |
+| 🩵 Aether Teal | NearLink | ~600 m | 12 Mbps | ⚠️ 在 HarmonyOS 上真实（`harmonyos/teal/`，`@kit.NearLinkKit` — 待设备端验证）；Android + Windows = 真实的 SSAP-over-BLE 近似（`android/teal/AetherNetSleService`、`WinNearLinkBleTransportService`；已通过编译 + 单元测试验证，运行时未验证） |
+| 🔴 Aether Red | LoRa / CircleLink | ~15 km | 37.5 kbps | ⚠️ 真实的 RYLR SX127x/SX126x 串口驱动（`LoRaSerialTransport`，C#/Go/Rust/C；可编译，运行时未验证——需要物理模块）；BLE Coded-PHY 桥接仍为文档化的设计 |
 
-`TransportManager` 中的优先级顺序：NearLink → BLE（≤ 1 KB） → Wi-Fi Direct → NFC → LoRa → HTTP 中继（最后手段，`PowerCostRelative = 100`）。
+只有在存在平台代码的地方，无线电传输才是真实的（C#/Windows、Kotlin/Android、HarmonyOS）。其余情况下，这八个语言库为测试提供一个**进程内模拟**传输——**WebRTC 是它们共有的第一个真实传输**（已完成；跨各语言经环回验证）。
+
+优先级依功耗排序：优先使用无线电网格，然后是作为直接互联网路径的 WebRTC，最后才是 HTTP/QUIC 中继。
 
 ## 部署层级
 
@@ -124,15 +158,15 @@ Aether 可在任何支持蓝牙或 Wi-Fi 的平台上运行。你所处的层级
 
 Android · Windows · Linux · macOS · iOS
 
-Aether 可在任何具备蓝牙或 Wi-Fi 硬件的设备上完整运行。当某个无线电物理上不存在时，每个被屏蔽的传输方式都会通过现有的硬件进行近似：
+Aether 可在任何具备蓝牙或 Wi-Fi 硬件的设备上运行。当某个无线电物理上不存在时，每个被屏蔽的传输方式都会通过现有的硬件进行近似。这些近似现在是**真实代码**（已通过编译验证；在完成 2 设备/硬件 RF 测试之前**运行时未验证**）：
 
-- **NearLink（Aether Teal）** — 使用规范 Aether SLE 服务 UUID（`61657468-6572-0003-0000-000000000000`）通过 BLE GATT 进行近似。SSAP 应用协议层与 GATT 在 API 上完全相同。无线电层（BPSK/QPSK/8PSK、Polar 码、1–4 MHz 信道）则不同——运行标准层的节点无法与真实 NearLink 硬件交换原始字节；它们可与其他标准层 Aether 节点互通。
-- **LoRa（Aether Red）** — 使用 BLE 5.0 编码物理层（S=8，室外约 1.3 km）上的完整 Meshtastic 线路格式进行近似。与真实 LoRa 硬件的桥接节点联合自动工作——相同的 Meshtastic 数据包格式无需转换即可覆盖所有跳数。
-- **NFC（Aether White）** — 通过带 RSSI 接近门限（≥ −40 dBm ≈ 5–10 cm）的 NDEF-over-BLE-GATT 进行近似，重现轻触连接语义。Windows 上也支持通过 USB NFC 读卡器的 PC/SC 路径。
+- **NearLink（Aether Teal）** — 在 Android（`android/teal/AetherNetSleService`）和 Windows（`WinNearLinkBleTransportService`）上的真实 SSAP-over-BLE-GATT 近似（Aether SLE UUID `61657468-6572-0003-…`）；已通过编译 + 单元测试验证，运行时未验证。真实的 NearLink 无线电仅存在于 HarmonyOS 上（`harmonyos/teal/`，待设备端验证）。
+- **LoRa（Aether Red）** — 真实的 RYLR SX127x/SX126x 串口驱动（`LoRaSerialTransport`，见于**全部 8 种语言**——C#/Go/Rust/C/Python/TypeScript/Swift/Kotlin；每个移植版本均通过编译验证，包括 Mac 构建服务器上的 Swift + C；运行时未验证——需要物理模块）。Meshtastic-over-BLE-Coded-PHY 桥接（~1.3 km）仍为文档化的设计；真正的远距离 LoRa 需要具备 LoRa 能力的节点（网关、SBC 或带 LoRa 模块的三防手持设备）。
+- **NFC（Aether White）** — 在 Android 上真实（HCE）。Windows 现已具备真实的 BLE-GATT + RSSI −40 dBm 接近近似（`WinNfcBleTransportService`，可编译 net9/10；运行时未验证）；存在读卡器时使用 ACR122U PC/SC。
 
-所有其他功能——BLE、Wi-Fi Direct、HTTP 中继、Signal Protocol 安全性（X3DH + 双棘轮）、AODV 路由、DTN 存储转发、SOS 广播、语音、流媒体——均为原生实现，与原生层完全相同。
+哪些部分在各处均为真实且完全相同：**BLE、Wi-Fi Direct、HTTP/QUIC 中继以及 WebRTC P2P 传输（在全部 8 种语言中经环回验证）**，外加 Signal Protocol 安全性（X3DH + 双棘轮）、AODV 路由、DTN 存储转发、SOS 广播、语音和流媒体。
 
-**这是一个功能完整的生产级部署。** 大多数应用从这里开始。
+**诚实的状态：** BLE + Wi-Fi Direct + 中继为生产级真实实现；**WebRTC P2P 真实且在全部 8 种语言中经环回验证**（两个对等节点通过真实的 ICE 数据通道交换字节——Rust 已在具备可用 UDP ICE 的 `.201` Linux 机器上确认）；NearLink / LoRa / Windows 上的 NFC 近似现在是可编译的真实代码（LoRa 在全部 8 种语言中通过编译验证，包括 Mac 构建服务器上的 Swift + C；NearLink-Android 还通过了单元测试），但**运行时未验证**——尚无硬件/2 设备 RF 测试。它们在代码层面参与网格；不要指望这三者具备现场验证过的 RF 而部署它们。
 
 ---
 
@@ -210,6 +244,8 @@ Aether 以 8 种语言构建，可运行于手机、笔记本电脑、平板电�
 | **总计** | **~3,000** | |
 
 跨语言 Signal 互操作性以 `fixtures/signal/` 为基准，包含 X3DH（`x3dh_basic`）、对称棘轮（`ratchet_step_basic`、`ratchet_step_three_iterations`）和 KDF_RK（`kdf_rk_basic`）的共享测试向量。每种实现都必须针对这些测试用例产生字节完全相同的输出。所有 8 种语言现已完整实现 Signal 会话（`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`）。
+
+除线路格式和 Signal 之外，**整套线路服务套件**——在场、心跳、资料同步、临时 ID 通告、预密钥交换、频道、一键通话、屏幕共享、通话控制、SOS 确认、空间路标、锻造通告、保险库分片请求以及带宽测量（参见**你能获得什么**）——同样在全部 8 种语言中实现，并固定至各自的测试用例（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/` 及同类）。在协议层，没有任何功能是仅限 C# 的。
 
 ## 快速入门
 
@@ -485,6 +521,9 @@ aethernet_packet_free(packet);
 - ✅ **一次性预密钥（OPK）池** — 默认 100 个，FIFO 发放，懒惰补充，全部 8 种语言的锁保护消费。解决单 OPK 并发风险。
 - ✅ **C：完整 Signal 会话** — `c/src/signal_protocol.c` 中的 `aethernet_signal_service_init`、`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`；`c/tests/test_signal_session.c` 中的 6 个双节点端到端测试。所有 8 种语言现已具备完整会话能力的 Signal Protocol。
 
+**已完成（全部 8 种语言——完整的线路服务套件）：**
+- ✅ **每个保留的数据包类型现在都是全部 8 种语言中真实、字节完全相同的服务。** 在场信标/查询（21/22）、心跳（10）、资料同步（23）、临时路由 ID 通告（56）、预密钥交换（25/26）、频道（7）、一键通话（15）、屏幕共享（32）、通话控制（27）、SOS 确认（6）、空间路标（40）、锻造通告（41）、保险库分片请求（42）以及带宽测量 / ABMF（53/54/55）。每一种都是一个精简服务（产生 + 处理 + 事件），由宿主将其连接到自己的 Signal 会话和路由表；每一种都固定至共享的跨语言测试用例（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/`、`fixtures/channels/`、`fixtures/profiles/`、`fixtures/heartbeat/`、`fixtures/erid/`、`fixtures/space/`、`fixtures/forge/`、`fixtures/sos/`），并由各语言的单元测试执行，其中 Swift 和 C 在 macOS 构建服务器上验证。参见**你能获得什么**。
+
 **已完成（仅 C# 参考实现）：**
 - ✅ **演示步骤 9 — MessagingService + DTN 回退端到端** — `samples/AetherNet.Demo.Console` 演示在接收方离线时使用 DTN 存储转发的真实 Signal 加密消息传递。
 - ✅ **`AetherNet.Messaging` ↔ `AetherNet.Security` 桥接** — `SignalMessageEnvelopeCipher` 使消息层默认端到端加密；没有 Signal 会话的消息会进入队列，永不以明文发送。
@@ -508,6 +547,7 @@ aethernet_packet_free(packet);
 - 在真实硬件上进行 RF 启动：在物理 BLE / Wi-Fi Direct 设备上进行端到端双节点互操作测试（模拟测试通过；需要硬件实验室会话）
 - NearLink：`harmonyos/teal/` 已完成；需要华为 Mate 60/70 / Pura 70 Pro+ / Mate X6 硬件（非华为设备不具备 NearLink 芯片）。Windows + Android 自动回退至 SSAP-over-BLE 近似。
 - LoRa / CircleLink：真正的 LoRa 范围需要无线电模块。没有无线电模块时，Meshtastic 线路格式通过 BLE LR（~1.3 km）传输，并支持与真实 LoRa 硬件的桥接节点联合。
+- ✅ **（已解决 v1.2.0）** 消费者协议表面（Wave 16/17）——用于入站捆绑包的 `IDtnService.BundleReceived` 事件（[#59](https://github.com/bhengubv/aether-protocol/issues/59)）、应用层命名/发现目录（[#60](https://github.com/bhengubv/aether-protocol/issues/60)）、作者打赏接口（[#61](https://github.com/bhengubv/aether-protocol/issues/61)）。全部 3 项以增量方式跨 8 种语言交付，并具备字节相等的跨语言测试用例。参见 CHANGELOG。
 
 **尚未开放外部贡献：**
 - 协议仍处于积极开发阶段。目前不接受外部贡献。
@@ -593,3 +633,7 @@ public class LoRaTransportService : ITransportService
 ## 许可证
 
 MIT 许可证。参见 [LICENSE](LICENSE)。
+
+## 翻译
+
+本 README 以英文维护，并翻译为 [`docs/i18n/`](docs/i18n/) 下的另外 10 种语言：Français、Español、العربية、中文简体、日本語、Deutsch、Português (BR)、Русский、فارسی 和 한국어。**英文版本为权威来源**——当翻译与英文文本不一致时，以英文文本为准，翻译可能滞后一到两个版本。无论你阅读哪种语言，所描述的协议、代码、测试用例和行为都是完全相同的。
