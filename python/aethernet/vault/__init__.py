@@ -23,6 +23,7 @@ from aethernet.vault.service import (
     VaultHealth,
     VaultManifest,
 )
+from aethernet.vault.wire import VaultShardRequest, VaultShardRequestService
 
 __all__ = [
     "ReedSolomonCodec",
@@ -33,4 +34,6 @@ __all__ = [
     "VaultHealth",
     "VAULT_K",
     "VAULT_M",
+    "VaultShardRequest",
+    "VaultShardRequestService",
 ]

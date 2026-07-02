@@ -164,6 +164,7 @@ add_library(aethernet-protocol STATIC
     src/relay_transport.c
     src/relay_mesh_link.c
     src/forge.c
+    src/forge_announce.c
     src/fmhy.c
     src/sos.c
     src/channels.c
@@ -172,6 +173,7 @@ add_library(aethernet-protocol STATIC
     src/profiles.c
     src/heartbeat.c
     src/space.c
+    src/space_breadcrumb.c
     src/voice.c
     src/group_voice.c
     src/streaming.c
@@ -188,6 +190,7 @@ add_library(aethernet-protocol STATIC
     src/tip_packet.c
     src/reed_solomon.c
     src/vault.c
+    src/vaultshard.c
     src/pov_token.c
     src/market.c
     # BLAKE3 portable subset (no SIMD — compile-time defines below disable all

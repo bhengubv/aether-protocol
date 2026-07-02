@@ -1,0 +1,13 @@
+{
+  "description": "Canonical ForgeAnnounce wire vectors (PacketType 41). Payload = {package_id, content_hash, size_bytes, announced_at_ms}. UTF-8 JSON, declared field order, no whitespace, size_bytes + announced_at_ms as bare integers. Every language SDK MUST serialize to exactly these bytes.",
+  "vectors": [
+    {
+      "name": "basic",
+      "package_id": "npm:react@18.2.0",
+      "content_hash": "QmForgeHash456",
+      "size_bytes": 294912,
+      "announced_at_ms": 1700000000000,
+      "expected_json": "{\"package_id\":\"npm:react@18.2.0\",\"content_hash\":\"QmForgeHash456\",\"size_bytes\":294912,\"announced_at_ms\":1700000000000}"
+    }
+  ]
+}

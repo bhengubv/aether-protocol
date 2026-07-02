@@ -53,6 +53,15 @@ typedef enum {
     AETHERNET_PACKET_TYPE_TORRENT_METADATA      = 34,
     AETHERNET_PACKET_TYPE_NAME_PUBLISH          = 38,
     AETHERNET_PACKET_TYPE_NAME_QUERY            = 39,
+    // aether-space geo-pinned breadcrumb -- a node drops a SpaceBreadcrumb at a geohash and
+    // passing devices auto-pull/cache/re-host it (AetherNet.Space). JSON payload.
+    AETHERNET_PACKET_TYPE_SPACE_BREADCRUMB      = 40,
+    // aether-forge cache-entry announcement -- broadcast when a node caches a new package
+    // artifact so mesh peers learn where it lives (AetherNet.Forge). JSON payload.
+    AETHERNET_PACKET_TYPE_FORGE_ANNOUNCE        = 41,
+    // aether-vault shard request -- broadcast to locate peers holding a specific erasure-coded
+    // shard by hash (AetherNet.Vault). JSON payload.
+    AETHERNET_PACKET_TYPE_VAULT_SHARD_REQUEST   = 42,
     // Proof-of-Vicinity directed witness->subject token exchange (AetherNet.Market).
     AETHERNET_PACKET_TYPE_POV_TOKEN_EXCHANGE    = 43,
     // CircuitRelayControl -- one native circuit-relay-v2 hop's RelayFrame carried in the

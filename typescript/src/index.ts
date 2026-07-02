@@ -119,6 +119,15 @@ export * from "./incentive/index.js";
 // Vault — systematic Cauchy-Reed-Solomon erasure coding (GF(2⁸), 0x11D, α=2)
 export * from "./vault/index.js";
 
+// Vault shard-request WIRE binding (PacketType.VaultShardRequest = 42)
+export * from "./vaultshard/index.js";
+
+// Space — geo-pinned noticeboard + WIRE binding (PacketType.SpaceBreadcrumb = 40)
+export * from "./space/index.js";
+
+// Forge — mesh-native package cache + WIRE binding (PacketType.ForgeAnnounce = 41)
+export * from "./forge/index.js";
+
 // Market — Proof-of-Vicinity tokens + on-mesh exchange (PacketType.PoVTokenExchange = 43)
 export * from "./market/index.js";
 

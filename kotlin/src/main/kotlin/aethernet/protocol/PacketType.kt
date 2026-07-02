@@ -43,6 +43,32 @@ enum class PacketType(val value: Byte) {
     TorrentMetadata(34),
 
     /**
+     * SpaceBreadcrumb - geo-pinned content breadcrumb (aether-space Phase-2 extension).
+     * A node drops a breadcrumb at a geohash coordinate; passing devices auto-pull, cache,
+     * and re-host it for nearby peers. Payload is a UTF-8 JSON-encoded SpaceBreadcrumb body
+     * (content_hash, geo_hash, anchor_uhid, created_at_ms, ttl_hours, type, signature). Only
+     * nodes with the aethernet.space/v1 capability process this type; all others forward it
+     * unchanged if TTL allows. Wire value 40 - matches the C# reference.
+     */
+    SpaceBreadcrumb(40),
+
+    /**
+     * ForgeAnnounce - forge cache-entry announcement (aether-forge Phase-2 extension). A node
+     * broadcasts this when it caches a new package artifact so mesh peers with the
+     * aethernet.forge/v1 capability learn where the artifact lives. Payload is a UTF-8 JSON-
+     * encoded body (package_id, content_hash, size_bytes, announced_at_ms). Wire value 41 -
+     * matches the C# reference.
+     */
+    ForgeAnnounce(41),
+
+    /**
+     * VaultShardRequest - vault shard request (aether-vault Phase-2 extension). A node broadcasts
+     * this to locate peers holding a specific erasure-coded shard by hash. Payload is a UTF-8
+     * JSON-encoded body (shard_hash, requester_uhid). Wire value 42 - matches the C# reference.
+     */
+    VaultShardRequest(42),
+
+    /**
      * PoVTokenExchange - directed, two-key Proof-of-Vicinity co-presence proof.
      * A witness node issues a token vouching for a co-present subject and sends it
      * point-to-point (TTL 1 - the subject is one short-range hop away); the subject

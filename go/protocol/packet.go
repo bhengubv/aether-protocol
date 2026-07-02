@@ -47,6 +47,25 @@ const (
 	WatchChunkRequest  PacketType = 33
 	TorrentMetadata    PacketType = 34
 
+	// SpaceBreadcrumb — geo-pinned content breadcrumb, part of the aether-space
+	// Phase-2 extension. A node drops a SpaceBreadcrumb at a geohash coordinate;
+	// passing devices auto-pull, cache, and re-host it for nearby peers. Payload is
+	// a JSON-encoded breadcrumb. Only nodes that have registered the
+	// aethernet.space/v1 capability process this type; all other nodes MUST forward
+	// it unchanged if TTL allows. Mirrors the C# PacketType.SpaceBreadcrumb.
+	SpaceBreadcrumb PacketType = 40
+
+	// ForgeAnnounce — forge cache-entry announcement, part of the aether-forge
+	// Phase-2 extension. A node broadcasts this when it caches a new package
+	// artifact to announce it to mesh peers with the aethernet.forge/v1 capability.
+	// Mirrors the C# PacketType.ForgeAnnounce.
+	ForgeAnnounce PacketType = 41
+
+	// VaultShardRequest — vault shard request, part of the aether-vault Phase-2
+	// extension. A node broadcasts this to locate peers holding a specific shard by
+	// hash. Mirrors the C# PacketType.VaultShardRequest.
+	VaultShardRequest PacketType = 42
+
 	// PoVTokenExchange — on-mesh Proof-of-Vicinity token exchange. A witness node
 	// sends a directed, witness-signed PoVToken to the subject one short-range hop
 	// away (TTL 1); the subject verifies the witness's Ed25519 signature over the
@@ -254,6 +273,12 @@ func (pt PacketType) String() string {
 		return "WatchChunkRequest"
 	case TorrentMetadata:
 		return "TorrentMetadata"
+	case SpaceBreadcrumb:
+		return "SpaceBreadcrumb"
+	case ForgeAnnounce:
+		return "ForgeAnnounce"
+	case VaultShardRequest:
+		return "VaultShardRequest"
 	case PoVTokenExchange:
 		return "PoVTokenExchange"
 	case NamePublish:

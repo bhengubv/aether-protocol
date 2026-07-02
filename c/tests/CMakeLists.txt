@@ -368,6 +368,36 @@ target_include_directories(test-vault PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../inc
 target_link_libraries(test-vault PRIVATE aethernet-protocol pthread)
 add_test(NAME VaultServiceTests COMMAND test-vault)
 
+# ── Phase-2 WIRE bindings (SpaceBreadcrumb 40 / ForgeAnnounce 41 / VaultShardRequest 42) ─────
+# Thin broadcast+handle mesh transport for each extension. Byte-identity gates transcribe the
+# canonical vectors from fixtures/{space,forge,vaultshard}/vectors.json (no JSON parser on the test
+# surface — the expected bytes are inlined), mirroring the C# WirePacketsTests. Self-contained
+# (FakeMeshSender capture); no working-directory override needed.
+
+# SpaceBreadcrumb (40) wire binding: serialize/broadcast/handle behaviour.
+add_executable(test-space-breadcrumb
+    test_space_breadcrumb.c
+)
+target_include_directories(test-space-breadcrumb PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-space-breadcrumb PRIVATE aethernet-protocol pthread)
+add_test(NAME SpaceBreadcrumbWireTests COMMAND test-space-breadcrumb)
+
+# ForgeAnnounce (41) wire binding: serialize/broadcast/handle behaviour.
+add_executable(test-forge-announce
+    test_forge_announce.c
+)
+target_include_directories(test-forge-announce PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-forge-announce PRIVATE aethernet-protocol pthread)
+add_test(NAME ForgeAnnounceWireTests COMMAND test-forge-announce)
+
+# VaultShardRequest (42) wire binding: serialize/request/handle behaviour.
+add_executable(test-vaultshard
+    test_vaultshard.c
+)
+target_include_directories(test-vaultshard PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-vaultshard PRIVATE aethernet-protocol pthread)
+add_test(NAME VaultShardRequestWireTests COMMAND test-vaultshard)
+
 # Cross-language P-256 ECDSA verify driver. Transcribes the 3 vectors from
 # tests/cross-language/p256-fixtures.json (no JSON parser on the test surface) and
 # drives aethernet_ed25519_verify_with_fallback, mirroring the other-language P-256
@@ -401,7 +431,10 @@ add_custom_target(aether-tests
         test-pov-token
         test-market
         test-forge
+        test-forge-announce
         test-space
+        test-space-breadcrumb
+        test-vaultshard
         test-fmhy
         test-protocol
         test-routing

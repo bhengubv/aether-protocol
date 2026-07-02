@@ -47,6 +47,26 @@ class PacketType(IntEnum):
     WatchChunkRequest = 33
     TorrentMetadata = 34
 
+    # ── Phase-2 WIRE extension bindings ──────────────────────────────────────
+    # Thin mesh transports for the aether-space / aether-forge / aether-vault
+    # extensions. Payloads are UTF-8 JSON, byte-identical across every language
+    # SDK (fixtures/space, fixtures/forge, fixtures/vaultshard). An un-upgraded
+    # node drops the unknown type.
+
+    # SpaceBreadcrumb — a node floods a geo-pinned breadcrumb it dropped/re-hosts.
+    # Payload = SpaceBreadcrumbPayload. Mirrors AetherNet.Space.SpaceBreadcrumbService.
+    SpaceBreadcrumb = 40
+
+    # ForgeAnnounce — a node announces a freshly-cached package artifact so mesh
+    # peers learn where it lives. Payload = ForgeAnnouncePayload. Mirrors
+    # AetherNet.Forge.ForgeAnnounceService.
+    ForgeAnnounce = 41
+
+    # VaultShardRequest — a node asks the mesh for an erasure-coded shard it needs
+    # to recover a file. Payload = VaultShardRequestPayload. Mirrors
+    # AetherNet.Vault.VaultShardRequestService.
+    VaultShardRequest = 42
+
     # PoVTokenExchange — on-mesh Proof-of-Vicinity token exchange. A witness node
     # sends a directed, witness-signed PoVToken to the subject one short-range hop
     # away (TTL 1); the subject verifies the witness's Ed25519 signature over the

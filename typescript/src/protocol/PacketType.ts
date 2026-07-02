@@ -40,6 +40,30 @@ export enum PacketType {
   TorrentMetadata = 34,
 
   /**
+   * SpaceBreadcrumb — aether-space geo-pinned community noticeboard. A node
+   * broadcasts this when it drops (or re-hosts) a breadcrumb at a geohash cell so
+   * passing peers with the aether-space extension can pin and re-host it — fully
+   * offline. Payload is a UTF-8 JSON-encoded SpaceBreadcrumbPayload. Matches the
+   * C# reference value 40.
+   */
+  SpaceBreadcrumb = 40,
+
+  /**
+   * ForgeAnnounce — aether-forge package-cache announcement. A node broadcasts this
+   * when it caches a new package artifact so mesh peers with the aethernet.forge/v1
+   * capability learn where the artifact lives. Payload is a UTF-8 JSON-encoded
+   * ForgeAnnouncePayload. Matches the C# reference value 41.
+   */
+  ForgeAnnounce = 41,
+
+  /**
+   * VaultShardRequest — aether-vault erasure-coded-storage shard request. A node
+   * broadcasts this to ask the mesh for a shard it needs to recover a file. Payload
+   * is a UTF-8 JSON-encoded VaultShardRequestPayload. Matches the C# reference value 42.
+   */
+  VaultShardRequest = 42,
+
+  /**
    * PoVTokenExchange — on-mesh Proof-of-Vicinity token exchange. A witness node
    * issues a directed (TTL 1), Ed25519-signed PoVToken to a co-present subject;
    * the subject verifies the witness signature, counter-signs the same canonical
@@ -184,6 +208,12 @@ export function packetTypeToString(type: PacketType): string {
       return "WatchChunkRequest";
     case PacketType.TorrentMetadata:
       return "TorrentMetadata";
+    case PacketType.SpaceBreadcrumb:
+      return "SpaceBreadcrumb";
+    case PacketType.ForgeAnnounce:
+      return "ForgeAnnounce";
+    case PacketType.VaultShardRequest:
+      return "VaultShardRequest";
     case PacketType.PoVTokenExchange:
       return "PoVTokenExchange";
     case PacketType.NamePublish:

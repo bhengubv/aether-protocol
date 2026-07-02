@@ -10,6 +10,10 @@ from .service import (
     MIN_TTL_HOURS,
     MAX_TTL_HOURS,
 )
+from .wire import (
+    SpaceBreadcrumbService,
+    encode_space_breadcrumb_payload,
+)
 
 __all__ = [
     "BreadcrumbType",
@@ -19,4 +23,6 @@ __all__ = [
     "EMERGENCY_TTL_HOURS",
     "MIN_TTL_HOURS",
     "MAX_TTL_HOURS",
+    "SpaceBreadcrumbService",
+    "encode_space_breadcrumb_payload",
 ]

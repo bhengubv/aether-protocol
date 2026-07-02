@@ -1,0 +1,11 @@
+{
+  "description": "Canonical VaultShardRequest wire vectors (PacketType 42). Payload = {shard_hash, requester_uhid}. UTF-8 JSON, declared field order, no whitespace. Every language SDK MUST serialize to exactly these bytes.",
+  "vectors": [
+    {
+      "name": "basic",
+      "shard_hash": "QmShardHash789",
+      "requester_uhid": "aether:bob:02",
+      "expected_json": "{\"shard_hash\":\"QmShardHash789\",\"requester_uhid\":\"aether:bob:02\"}"
+    }
+  ]
+}

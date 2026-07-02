@@ -1,0 +1,27 @@
+{
+  "description": "Canonical SpaceBreadcrumb wire vectors (PacketType 40). Payload = {content_hash, geo_hash, anchor_uhid, created_at_ms, ttl_hours, type, signature}. UTF-8 JSON, declared field order, no whitespace, created_at_ms + ttl_hours + type as bare integers (type is the BreadcrumbType enum value: Notice=0, Emergency=1, Event=3), signature as STANDARD base64 (empty string when unsigned). Every language SDK MUST serialize to exactly these bytes.",
+  "vectors": [
+    {
+      "name": "emergency_signed",
+      "content_hash": "QmContentHashExample123",
+      "geo_hash": "u4pruy",
+      "anchor_uhid": "aether:alice:01",
+      "created_at_ms": 1700000000000,
+      "ttl_hours": 720,
+      "type": 1,
+      "signature": "mZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmQ==",
+      "expected_json": "{\"content_hash\":\"QmContentHashExample123\",\"geo_hash\":\"u4pruy\",\"anchor_uhid\":\"aether:alice:01\",\"created_at_ms\":1700000000000,\"ttl_hours\":720,\"type\":1,\"signature\":\"mZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmQ==\"}"
+    },
+    {
+      "name": "notice_unsigned",
+      "content_hash": "QmNotice777",
+      "geo_hash": "gcpvj0",
+      "anchor_uhid": "aether:bob:02",
+      "created_at_ms": 0,
+      "ttl_hours": 72,
+      "type": 0,
+      "signature": "",
+      "expected_json": "{\"content_hash\":\"QmNotice777\",\"geo_hash\":\"gcpvj0\",\"anchor_uhid\":\"aether:bob:02\",\"created_at_ms\":0,\"ttl_hours\":72,\"type\":0,\"signature\":\"\"}"
+    }
+  ]
+}

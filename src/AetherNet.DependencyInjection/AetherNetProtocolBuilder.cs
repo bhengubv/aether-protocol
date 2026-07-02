@@ -774,6 +774,15 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
 
         Services.TryAddSingleton<ISpaceService, InMemorySpaceService>();
 
+        // Wire binding for PacketType.SpaceBreadcrumb (40).
+        Services.TryAddSingleton<ISpaceBreadcrumbService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<SpaceBreadcrumbService>>()
+                ?? NullLogger<SpaceBreadcrumbService>.Instance;
+            return new SpaceBreadcrumbService(sender, logger);
+        });
+
         return this;
     }
 
@@ -788,6 +797,15 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
 
         Services.TryAddSingleton<IForgeService, InMemoryForgeService>();
 
+        // Wire binding for PacketType.ForgeAnnounce (41).
+        Services.TryAddSingleton<IForgeAnnounceService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<ForgeAnnounceService>>()
+                ?? NullLogger<ForgeAnnounceService>.Instance;
+            return new ForgeAnnounceService(sender, logger);
+        });
+
         return this;
     }
 
@@ -801,6 +819,15 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
         _vaultAdded = true;
 
         Services.TryAddSingleton<IVaultService, InMemoryVaultService>();
+
+        // Wire binding for PacketType.VaultShardRequest (42).
+        Services.TryAddSingleton<IVaultShardRequestService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<VaultShardRequestService>>()
+                ?? NullLogger<VaultShardRequestService>.Instance;
+            return new VaultShardRequestService(sender, logger);
+        });
 
         return this;
     }

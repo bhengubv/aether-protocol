@@ -45,6 +45,26 @@ pub enum PacketType {
     WatchChunkRequest = 33,
     TorrentMetadata = 34,
 
+    /// SpaceBreadcrumb — aether-space geo-pinned noticeboard. A node broadcasts a
+    /// locally-dropped breadcrumb; passing peers surface + re-host it. Payload is a
+    /// UTF-8 JSON-encoded breadcrumb wire body (see `crate::space_wire`). Wire byte
+    /// 40 MUST match the C# `PacketType.SpaceBreadcrumb` so a breadcrumb is
+    /// byte-identical across every language implementation on one mesh.
+    SpaceBreadcrumb = 40,
+
+    /// ForgeAnnounce — aether-forge package-cache announcement. A node broadcasts
+    /// this when it caches a new artifact, so peers with the forge capability learn
+    /// where the artifact lives. Payload is a UTF-8 JSON-encoded announce wire body
+    /// (see `crate::forge_wire`). Wire byte 41 MUST match the C#
+    /// `PacketType.ForgeAnnounce`.
+    ForgeAnnounce = 41,
+
+    /// VaultShardRequest — aether-vault erasure-coded-storage shard request. A node
+    /// asks the mesh for a shard it needs to recover a file. Payload is a UTF-8
+    /// JSON-encoded request wire body (see `crate::vault_wire`). Wire byte 42 MUST
+    /// match the C# `PacketType.VaultShardRequest`.
+    VaultShardRequest = 42,
+
     /// PoVTokenExchange — directed, two-key Proof-of-Vicinity co-presence
     /// proof. A witness mints a token vouching that a subject was physically
     /// near it over a short-range transport, signs the canonical token body
@@ -143,6 +163,9 @@ impl PacketType {
             32 => Some(PacketType::ScreenShare),
             33 => Some(PacketType::WatchChunkRequest),
             34 => Some(PacketType::TorrentMetadata),
+            40 => Some(PacketType::SpaceBreadcrumb),
+            41 => Some(PacketType::ForgeAnnounce),
+            42 => Some(PacketType::VaultShardRequest),
             43 => Some(PacketType::PoVTokenExchange),
             38 => Some(PacketType::NamePublish),
             39 => Some(PacketType::NameQuery),

@@ -124,6 +124,26 @@ public enum PacketType: UInt8, Codable {
     /// NameQueryPayload. Added in v1.2.0 - closes Issue #60.
     case nameQuery = 39
 
+    /// Geo-pinned content breadcrumb — part of the `aether-space` Phase-2
+    /// extension. A node drops a `SpaceBreadcrumb` at a geohash coordinate;
+    /// passing devices auto-pull, cache, and re-host it for nearby peers.
+    /// Payload is a JSON-encoded `SpaceBreadcrumb`. Only nodes that have
+    /// registered the `aethernet.space/v1` capability process this type;
+    /// all other nodes MUST forward it unchanged if TTL allows.
+    /// Matches `AetherNet.Protocol.PacketType.SpaceBreadcrumb (40)`.
+    case spaceBreadcrumb = 40
+
+    /// Forge cache-entry announcement — part of the `aether-forge` Phase-2
+    /// extension. A node broadcasts this when it caches a new package artifact
+    /// to announce it to mesh peers with the `aethernet.forge/v1` capability.
+    /// Matches `AetherNet.Protocol.PacketType.ForgeAnnounce (41)`.
+    case forgeAnnounce = 41
+
+    /// Vault shard request — part of the `aether-vault` Phase-2 extension.
+    /// A node broadcasts this to locate peers holding a specific shard by hash.
+    /// Matches `AetherNet.Protocol.PacketType.VaultShardRequest (42)`.
+    case vaultShardRequest = 42
+
     /// On-mesh Proof-of-Vicinity token exchange — the directed, two-key
     /// witness-to-subject co-presence proof. Carries a snake_case JSON-encoded
     /// `PoVToken`, sent point-to-point (TTL 1) from the witness to the subject,

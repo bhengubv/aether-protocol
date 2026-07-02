@@ -12,6 +12,7 @@ pub mod dtn;
 pub mod extensibility;
 pub mod fmhy;
 pub mod forge;
+pub mod forge_wire;
 pub mod handshake;
 pub mod heartbeat;
 pub mod incentive;
@@ -25,11 +26,13 @@ pub mod routing;
 pub mod security;
 pub mod sos;
 pub mod space;
+pub mod space_wire;
 pub mod storage;
 pub mod streaming;
 pub mod transport;
 pub mod uri;
 pub mod vault;
+pub mod vault_wire;
 pub mod videocall;
 pub mod voice;
 
@@ -91,3 +94,6 @@ pub use market::{
     build_signable_token_data, PoVScore, PoVToken, PoVTokenExchangeService, PoVTransportType,
 };
 pub use vault::{split_into_data_shards, ReedSolomonCodec, VaultError};
+pub use space_wire::{SpaceBreadcrumbReceivedEvent, SpaceBreadcrumbService};
+pub use forge_wire::{ForgeAnnounceReceivedEvent, ForgeAnnounceService};
+pub use vault_wire::{VaultShardRequestReceivedEvent, VaultShardRequestService};
