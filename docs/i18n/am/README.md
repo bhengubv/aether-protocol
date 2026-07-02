@@ -1,3 +1,5 @@
+# AetherNet — offline-first mesh networking ፕሮቶኮል
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNet ክፍት-ምንጭ፣ በ MIT-license የተፈቀደ mesh networking ፕሮቶኮል ነው** መልእክቶችን፣ ፋይሎችን፣ ድምጽንና ቪዲዮን ለአቅራቢያ ላሉ ሰዎች ለመላክ — **ኢንተርኔት የለም፣ ሰርቨሮች የሉም፣ ምዝገባ የለም**። መሣሪያዎች በ Bluetooth፣ Wi-Fi Direct፣ NearLink፣ እና LoRa በኩል በቀጥታ ይገናኛሉ፤ ተቀባዩ ከክልል ውጭ ሲሆን፣ መልእክቶች በሌሎች መሣሪያዎች በኩል ይዘላሉ እና መንገድ ለማግኘት እስከ 72 ሰዓት ይጠብቃሉ። በ **byte-for-byte ተመሳሳይ implementations በስምንት programming languages** ይላካል — C#፣ Rust፣ TypeScript፣ Python፣ Go፣ Kotlin፣ Swift፣ እና C።
+
 ፋይሎችን፣ መልእክቶችንና ስትሪሞችን ከአቅራቢያዎ ካሉ ሰዎች ጋር ያጋሩ። WiFi የለም። የሞባይል ዳታ የለም። ምዝገባ የለም። እንደ AirDrop ነው፣ ብቻ ከሁሉም ሰው ጋር፣ በሁሉም መድረክ ላይ ይሠራል።
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **አንድ ፕሮቶኮል፣ ስምንት ቋንቋዎች፣ በ wire ላይ ተመሳሳይ።** Aether በ **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, እና C** ተተግብሯል — እያንዳንዱ packet በሁሉም ውስጥ byte-for-byte ተመሳሳይ ነው፣ በ CI ውስጥ በጋራ በሚጋራ cross-language fixture corpus አማካኝነት ተጠብቋል። ኖድዎን ከስምንቱ በማንኛውም ይገንቡ፤ ከሌሎቹ ሁሉ ጋር ይተባበራል። ይህ README በ 11 የሰው ቋንቋዎችም ይገኛል (ማገናኛዎቹ ከላይ)።
 
@@ -611,6 +615,32 @@ public class LoRaTransportService : ITransportService
 | **libp2p** | internet backbone ያስባል | Offline-first፣ ያለ ምንም infrastructure ይሠራል |
 | **Yggdrasil** | Overlay network፣ internet ያስፈልገዋል | Physical-layer mesh፣ ያለ internet ይሠራል |
 | **Signal** | mesh የለም፣ internet ያስፈልገዋል | Offline ይሠራል፣ P2P፣ mesh relay፣ ተመሳሳይ E2E encryption |
+
+## በተደጋጋሚ የሚጠየቁ ጥያቄዎች
+
+**AetherNet ያለ ኢንተርኔት ይሠራል?**
+አዎ — offline-first ነው። መሣሪያዎች በ Bluetooth፣ Wi-Fi Direct፣ NearLink፣ ወይም LoRa በኩል በቀጥታ ይነጋገራሉ እና መልእክቶችን በሌሎች መሣሪያዎች በኩል hop-by-hop ያስተላልፋሉ፣ ምንም የኢንተርኔት ግንኙነት፣ የሞባይል ማማ፣ ወይም ሰርቨር ሳያስፈልግ። ቀጥታ route በሌለበት ጊዜ፣ መልእክቶች እስኪከፈት ድረስ እስከ 72 ሰዓት ይያዛሉ (delay-tolerant store-and-forward)።
+
+**End-to-end encrypted ነው?**
+አዎ። AetherNet ለ end-to-end encryption የ Signal Protocol (X3DH key agreement ከ Double Ratchet በ X25519 ላይ ጋር)፣ ለመልእክት payloads AES-256-GCM፣ እና በእያንዳንዱ packet ላይ Ed25519 signatures ይጠቀማል። መልእክት የሚያስተላልፉ መሣሪያዎች ማንበብ አይችሉም።
+
+**ምን transports ይጠቀማል?**
+Bluetooth LE፣ Wi-Fi Direct፣ NearLink (SLE)፣ LoRa/CircleLink serial radio፣ HTTP/QUIC relay፣ እና ለቀጥታ የኢንተርኔት peer-to-peer WebRTC። ፕሮቶኮሉ ለእያንዳንዱ packet ዝቅተኛ-power ያለውን የሚገኝ transport በራስ-ሰር ይመርጣል እና ወደ ቀጣዩ ይመለሳል።
+
+**በምን programming languages ይገኛል?**
+ስምንት — C#፣ Rust፣ TypeScript፣ Python፣ Go፣ Kotlin፣ Swift፣ እና C። እያንዳንዱ implementation byte-identical wire packets ያመነጫል፣ በ CI ውስጥ በጋራ በሚጋራ cross-language fixture corpus ተጠብቆ፣ ስለዚህ በአንድ ቋንቋ የተገነባ packet በማንኛውም ሌላ ሳይለወጥ ይፈታል።
+
+**ከ Meshtastic፣ Briar፣ ወይም Bridgefy እንዴት ይለያል?**
+Meshtastic LoRa-only ነው; AetherNet multi-transport ነው (Bluetooth + Wi-Fi + NearLink + LoRa) እና ከመልእክቶች በተጨማሪ ድምጽ፣ ቪዲዮ፣ እና streaming ይሸከማል። Briar Android-only ነው እና በ Tor ላይ ይመራል; AetherNet cross-platform እና pure mesh ነው። ከተዘጉ SDKs በተለየ፣ AetherNet በ MIT-license የተፈቀደ ነው እና በስምንት ቋንቋዎች በግልጽ ተተግብሯል። ከላይ ያለው የንጽጽር ሰንጠረዥ ዝርዝሮቹ አሉት።
+
+**production-ready ነው?**
+የፕሮቶኮል ንብርብር — wire format፣ Signal security፣ routing፣ DTN store-and-forward፣ እና ሙሉ የ service suite — በሁሉም ስምንት ቋንቋዎች ተተግብሮ ተፈትኗል። Radio transports platform code ባለበት እውነተኛ ናቸው (Bluetooth እና Wi-Fi በ Windows እና Android ላይ፣ WebRTC በሁሉም ቦታ) እና በሌላ ቦታ hardware bring-up እየተጠባበቁ field-unverified ናቸው፣ ይህም በ `OPEN_ISSUES.md` ውስጥ በታማኝነት ይከታተላል። ከማሰማራትዎ በፊት በእያንዳንዱ ክፍል ውስጥ ያሉትን የ status ማስታወሻዎች ያንብቡ።
+
+**በምን license ስር ነው?**
+MIT — ለ commercial እና ለ open-source ጥቅም ነጻ። [LICENSE](LICENSE) ን ይመልከቱ።
+
+**AetherNet ን ማን ይገነባል?**
+ከሞባይል ዳታ ጋር ወይም ያለ ሞባይል ዳታ ለሚሠራ ግንኙነት በደቡብ አፍሪካ ተገንብቶ፣ ከ The Geek Network mesh ecosystem ጀርባ እንደ ክፍት ፕሮቶኮል ተሠርቷል።
 
 ## Extension Points
 

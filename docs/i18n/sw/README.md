@@ -1,3 +1,5 @@
+# AetherNet — protokoli ya mtandao-mesh inayoanza-nje-ya-mtandao
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNet ni protokoli ya mtandao-mesh ya chanzo-huria, yenye leseni ya MIT** kwa ajili ya kutuma ujumbe, faili, sauti, na video kwa watu walio karibu — bila **intaneti, bila seva, na bila kujisajili**. Vifaa vinaunganishwa moja kwa moja kupitia Bluetooth, Wi-Fi Direct, NearLink, na LoRa; wakati mpokeaji yuko nje ya masafa, ujumbe unaruka kupitia vifaa vingine na kusubiri hadi saa 72 kupata njia. Inasafirisha **utekelezaji unaofanana baiti kwa baiti katika lugha nane za programu** — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, na C.
+
 Shiriki faili, ujumbe, na mitiririko na watu walio karibu nawe. Hakuna WiFi. Hakuna data ya simu. Hakuna kujisajili. Kama AirDrop, isipokuwa inafanya kazi na kila mtu, kwenye kila jukwaa.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **Protokoli moja, lugha nane, zinazofanana kwenye waya.** Aether imetekelezwa katika **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, na C** — na kila pakiti inafanana baiti kwa baiti katika zote, ikisimamiwa na mkusanyiko wa fixtures unaoshirikiwa kati ya lugha katika CI. Jenga nodi yako katika lugha yoyote kati ya nane; itafanya kazi pamoja na zingine zote. README hii pia inapatikana katika lugha 11 za binadamu (viungo hapo juu).
 
@@ -611,6 +615,32 @@ Isajili katika DI na `TransportManager` itaijumuisha kiotomatiki katika uchaguzi
 | **libp2p** | Inadhania uti wa mgongo wa intaneti | Isiyohitaji-mtandao-kwanza, inafanya kazi na miundombinu sifuri |
 | **Yggdrasil** | Mtandao wa overlay, inahitaji intaneti | Mesh ya safu ya kimwili, inafanya kazi bila intaneti |
 | **Signal** | Hakuna mesh, inahitaji intaneti | Inafanya kazi bila mtandao, P2P, mesh relay, uficho ule ule wa E2E |
+
+## Maswali yanayoulizwa mara kwa mara
+
+**Je, AetherNet inafanya kazi bila intaneti?**
+Ndiyo — inaanza-nje-ya-mtandao. Vifaa vinazungumza moja kwa moja kupitia Bluetooth, Wi-Fi Direct, NearLink, au LoRa na vinarusha ujumbe hatua-kwa-hatua kupitia vifaa vingine, bila kuhitaji muunganisho wa intaneti, mnara wa simu, au seva. Wakati hakuna njia hai, ujumbe unashikiliwa (store-and-forward inayostahimili ucheleweshaji) hadi saa 72 hadi njia inafunguka.
+
+**Je, ni iliyofichwa mwisho-hadi-mwisho?**
+Ndiyo. AetherNet inatumia Signal Protocol (makubaliano ya funguo ya X3DH pamoja na Double Ratchet juu ya X25519) kwa uficho wa mwisho-hadi-mwisho, AES-256-GCM kwa mizigo ya ujumbe, na saini za Ed25519 kwenye kila pakiti. Vifaa vinavyorusha ujumbe haviwezi kuusoma.
+
+**Inatumia usafirishaji gani?**
+Bluetooth LE, Wi-Fi Direct, NearLink (SLE), redio ya serial ya LoRa/CircleLink, HTTP/QUIC relay, na WebRTC kwa peer-to-peer ya moja kwa moja ya intaneti. Protokoli inachagua kiotomatiki usafirishaji wenye nishati ya chini kabisa unaopatikana kwa kila pakiti na inarudi kwa unaofuata.
+
+**Inapatikana katika lugha zipi za programu?**
+Nane — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, na C. Kila utekelezaji unazalisha pakiti za waya zinazofanana baiti kwa baiti, ukisimamiwa na mkusanyiko wa fixtures unaoshirikiwa kati ya lugha katika CI, hivyo pakiti iliyojengwa na lugha moja inasomeka bila kubadilika na lugha yoyote nyingine.
+
+**Inatofautianaje na Meshtastic, Briar, au Bridgefy?**
+Meshtastic ni LoRa-tu; AetherNet ni ya usafirishaji-nyingi (Bluetooth + Wi-Fi + NearLink + LoRa) na inabeba sauti, video, na mitiririko pamoja na ujumbe. Briar ni Android-tu na inaelekeza juu ya Tor; AetherNet ni mtambuka wa majukwaa na mesh safi. Tofauti na SDK zilizofungwa, AetherNet ina leseni ya MIT na imetekelezwa kwa uwazi katika lugha nane. Jedwali la ulinganisho hapo juu lina maelezo.
+
+**Je, iko tayari kwa uzalishaji?**
+Safu ya protokoli — muundo wa waya, usalama wa Signal, routing, DTN store-and-forward, na mkusanyiko kamili wa huduma — imetekelezwa na kujaribiwa katika lugha zote nane. Usafirishaji wa redio ni halisi pale ambapo msimbo wa jukwaa upo (Bluetooth na Wi-Fi kwenye Windows na Android, WebRTC kila mahali) na haujathibitishwa uwandani pengine ukisubiri uanzishaji wa vifaa, ambao unafuatiliwa kwa uaminifu katika `OPEN_ISSUES.md`. Soma dokezo za hali katika kila sehemu kabla ya kusambaza.
+
+**Iko chini ya leseni gani?**
+MIT — bila malipo kwa matumizi ya kibiashara na ya chanzo-huria. Ona [LICENSE](LICENSE).
+
+**Nani anajenga AetherNet?**
+Inaendelezwa kama protokoli huria nyuma ya mfumo wa mesh wa The Geek Network, iliyojengwa nchini Afrika Kusini kwa mawasiliano yanayofanya kazi na au bila data ya simu.
 
 ## Extension Points
 

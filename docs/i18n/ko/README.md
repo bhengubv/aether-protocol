@@ -1,3 +1,5 @@
+# AetherNet — 오프라인 우선 메시 네트워킹 프로토콜
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNet은 오픈소스 MIT 라이선스 메시 네트워킹 프로토콜**로, **인터넷, 서버, 회원가입 없이** 근처 사람들에게 메시지, 파일, 음성, 영상을 전송합니다. 기기들은 블루투스, Wi-Fi Direct, NearLink, LoRa를 통해 직접 연결됩니다; 수신자가 범위 밖에 있을 때 메시지는 다른 기기를 통해 홉하며 경로를 최대 72시간까지 기다립니다. **8개 프로그래밍 언어로 바이트 단위로 동일한 구현체**를 제공합니다 — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C.
+
 가까운 사람들과 파일, 메시지, 스트림을 공유하세요. Wi-Fi 불필요. 모바일 데이터 불필요. 회원가입 불필요. AirDrop과 비슷하지만, 모든 플랫폼의 모든 사람과 함께 작동합니다.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **하나의 프로토콜, 8개 언어, 와이어에서 동일합니다.** Aether는 **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C**로 구현되어 있으며 — 모든 패킷이 이들 전체에 걸쳐 바이트 단위로 동일하고, CI의 공유 언어 간 픽스처 코퍼스로 강제됩니다. 8개 중 어느 언어로든 노드를 구축하세요; 나머지 모두와 상호 운용됩니다. 이 README는 11개의 인간 언어로도 제공됩니다 (위 링크).
 
@@ -611,6 +615,32 @@ DI에 등록하면 `TransportManager`가 자동으로 전송 선택에 포함하
 | **libp2p** | 인터넷 백본 가정 | 오프라인 우선, 인프라 없이 작동 |
 | **Yggdrasil** | 오버레이 네트워크, 인터넷 필요 | 물리 계층 메시, 인터넷 없이 작동 |
 | **Signal** | 메시 없음, 인터넷 필요 | 오프라인 작동, P2P, 메시 중계, 동일한 E2E 암호화 |
+
+## 자주 묻는 질문
+
+**AetherNet은 인터넷 없이 작동하나요?**
+네 — 오프라인 우선입니다. 기기들은 블루투스, Wi-Fi Direct, NearLink, 또는 LoRa를 통해 직접 통신하고 다른 기기를 거쳐 홉 단위로 메시지를 중계하며, 인터넷 연결, 기지국, 서버가 필요하지 않습니다. 활성 경로가 없을 때 메시지는 하나가 열릴 때까지 최대 72시간 동안 보관됩니다 (지연 허용 저장-전달).
+
+**종단 간 암호화되나요?**
+네. AetherNet은 종단 간 암호화를 위해 Signal Protocol (X3DH 키 합의와 X25519 기반 Double Ratchet)을 사용하고, 메시지 페이로드에는 AES-256-GCM을, 모든 패킷에는 Ed25519 서명을 사용합니다. 메시지를 중계하는 기기는 그것을 읽을 수 없습니다.
+
+**어떤 전송 수단을 사용하나요?**
+블루투스 LE, Wi-Fi Direct, NearLink (SLE), LoRa/CircleLink 시리얼 라디오, HTTP/QUIC 중계, 그리고 직접 인터넷 피어 투 피어를 위한 WebRTC. 프로토콜은 패킷별로 사용 가능한 최소 전력 전송 수단을 자동으로 선택하고 다음 것으로 대체합니다.
+
+**어떤 프로그래밍 언어로 제공되나요?**
+8개 — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C. 모든 구현체는 바이트 단위로 동일한 와이어 패킷을 생성하며, CI의 공유 언어 간 픽스처 코퍼스로 강제되므로, 한 언어로 구축한 패킷은 다른 어느 언어로든 변경 없이 디코딩됩니다.
+
+**Meshtastic, Briar, Bridgefy와 어떻게 다른가요?**
+Meshtastic은 LoRa 전용입니다; AetherNet은 다중 전송 (블루투스 + Wi-Fi + NearLink + LoRa)이며 메시지뿐만 아니라 음성, 영상, 스트리밍도 전달합니다. Briar는 Android 전용이며 Tor로 라우팅합니다; AetherNet은 크로스 플랫폼이며 순수 메시입니다. 폐쇄형 SDK와 달리 AetherNet은 MIT 라이선스이며 8개 언어로 공개적으로 구현되어 있습니다. 위의 비교 표에 세부 사항이 있습니다.
+
+**프로덕션 준비가 되었나요?**
+프로토콜 계층 — 와이어 형식, Signal 보안, 라우팅, DTN 저장-전달, 전체 서비스 제품군 — 은 8개 언어 모두에 걸쳐 구현되고 테스트되었습니다. 라디오 전송 수단은 플랫폼 코드가 존재하는 곳 (Windows와 Android의 블루투스와 Wi-Fi, 그리고 어디서나 WebRTC)에서 실제이며, 그 외에는 하드웨어 가동 전까지 현장 미검증 상태로 `OPEN_ISSUES.md`에서 정직하게 추적됩니다. 배포하기 전에 각 섹션의 상태 참고 사항을 읽으십시오.
+
+**어떤 라이선스인가요?**
+MIT — 상업적 및 오픈소스 사용에 무료. [LICENSE](LICENSE) 참조.
+
+**AetherNet은 누가 만드나요?**
+The Geek Network의 메시 생태계 뒤에 있는 오픈 프로토콜로 개발되며, 모바일 데이터가 있든 없든 작동하는 통신을 위해 남아프리카에서 구축되었습니다.
 
 ## 확장 지점
 

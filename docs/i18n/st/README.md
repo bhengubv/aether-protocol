@@ -1,3 +1,5 @@
+# AetherNet — protocol ya marang-rang a mesh a offline-pele
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNet ke protocol ya marang-rang a mesh ya open-source, e nang le laesense ya MIT** ya ho romela melaetsa, difaele, lentswe, le video ho batho ba haufi — ka **ho se be le inthanete, ho se be le disebedisi, le ho se be le ho ingodisa**. Disebediswa di hokahana ka kotloloho ka Bluetooth, Wi-Fi Direct, NearLink, le LoRa; ha moamohedi a le ka ntle ho sebaka, melaetsa e tlola ka disebediswa tse ding mme e emela ho fihlela dihora tse 72 bakeng sa tsela. E romela **diimplementeshene tse tshwanang byte-ka-byte ka dipuo tse robedi tsa dinhlaloso** — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, le C.
+
 Arolelana difaele, melaetsa, le dikhwele le batho ba haufi le wena. Ha ho WiFi. Ha ho mobile data. Ha ho ho ingodisa. Jwaloka AirDrop, empa e sebetsa le bohle, hoo platform e nngwe le e nngwe.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **Protocol e le nngwe, dipuo tse robedi, e tshwana feela mohaleng.** Aether e kentswe tshebetsong ka **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, le C** — mme packet e nngwe le e nngwe e tshwana byte-ka-byte hoo tsohle, e tiisitswe ke corpus ya di-fixture tse arolelanwang pakeng tsa dipuo ho CI. Haha node ya hao ka e nngwe ya tse robedi; e sebetsana le tse ding tsohle. README ena e boetse e fumaneha ka dipuo tse 11 tsa batho (dikgokahano ka hodimo).
 
@@ -611,6 +615,32 @@ E ngodise ho DI mme `TransportManager` e tla e kenyeletsa ka boiketlo ho kgetho 
 | **libp2p** | E nka mokokotlo wa inthanete | Offline-first, e sebetsa ntle le meaho |
 | **Yggdrasil** | Overlay network, e hloka inthanete | Physical-layer mesh, e sebetsa ntle le inthanete |
 | **Signal** | Ha ho mesh, e hloka inthanete | E sebetsa offline, P2P, mesh relay, encryption e tshwanang ya E2E |
+
+## Dipotso tse botswang khafetsa
+
+**Na AetherNet e sebetsa ntle le inthanete?**
+E — ke offline-pele. Disebediswa di buisana ka kotloloho ka Bluetooth, Wi-Fi Direct, NearLink, kapa LoRa mme di fetisa melaetsa ntlha-ka-ntlha ka disebediswa tse ding, ntle le kgokahano ya inthanete, tora ya selefouno, kapa sebedisi. Ha ho se na tsela e phelang, melaetsa e bolokwa (delay-tolerant store-and-forward) ho fihlela dihora tse 72 ho fihlela e nngwe e buleha.
+
+**Na e kentswe ka encryption ya end-to-end?**
+E. AetherNet e sebedisa Signal Protocol (X3DH key agreement hammoho le Double Ratchet hodima X25519) bakeng sa encryption ya end-to-end, AES-256-GCM bakeng sa di-payload tsa melaetsa, le di-signature tsa Ed25519 ho packet e nngwe le e nngwe. Disebediswa tse fetisang molaetsa ha di kgone ho o bala.
+
+**E sebedisa di-transport dife?**
+Bluetooth LE, Wi-Fi Direct, NearLink (SLE), LoRa/CircleLink serial radio, HTTP/QUIC relay, le WebRTC bakeng sa direct internet peer-to-peer. Protocol e kgetha ka boiketlo transport e nang le matla a tlase ka ho fetisisa e fumanehang packet e nngwe le e nngwe mme e wela ho e latelang.
+
+**E fumaneha ka dipuo dife tsa dinhlaloso?**
+Tse robedi — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, le C. Implementeshene e nngwe le e nngwe e hlahisa di-packet tsa mohala tse tshwanang byte, tse tiisitsweng ke corpus ya di-fixture tse arolelanwang pakeng tsa dipuo ho CI, kahoo packet e hahilweng ke puo e nngwe e decode-uwa e sa fetohe ke e nngwe le e nngwe.
+
+**E fapane jwang le Meshtastic, Briar, kapa Bridgefy?**
+Meshtastic ke LoRa-feela; AetherNet ke multi-transport (Bluetooth + Wi-Fi + NearLink + LoRa) mme e jara lentswe, video, le streaming hammoho le melaetsa. Briar ke Android-feela mme e fetisa hodima Tor; AetherNet ke cross-platform mme ke mesh e hlwekileng. Ho fapana le di-SDK tse kwetsweng, AetherNet e na le laesense ya MIT mme e kentswe tshebetsong phatlalatsa ka dipuo tse robedi. Tafole ya papiso ka hodimo e na le dintlha.
+
+**Na e itokiseditse tlhahiso?**
+Lera la protocol — sebopeho sa mohala, tshireletso ya Signal, routing, DTN store-and-forward, le sete e felletseng ya ditshebeletso — le kentswe tshebetsong mme le testilwe ho pholletsa le dipuo tsohle tse robedi. Di-transport tsa seyalemoya di ya sebele moo khoutu ya platform e leng teng (Bluetooth le Wi-Fi ho Windows le Android, WebRTC hohle) mme ha di netefatswe tshimong kae kae ho emetse ho phahamisa hardware, ho latellwang ka botshepehi ho `OPEN_ISSUES.md`. Bala di-note tsa boemo karolong e nngwe le e nngwe pele o tsamaisa.
+
+**E na le laesense efe?**
+MIT — ya mahala bakeng sa tshebediso ya khwebo le ya open-source. Bona [LICENSE](LICENSE).
+
+**Ke mang ya hahang AetherNet?**
+E ntlafatswa e le protocol e bulehileng ka mora mesh ecosystem ya The Geek Network, e hahilwe Afrika Borwa bakeng sa dikgokahano tse sebetsang ka kapa ntle le mobile data.
 
 ## Dintlha tsa Katoloso
 

@@ -1,0 +1,22 @@
+# AetherNet
+
+> AetherNet is an open-source, MIT-licensed mesh networking protocol for offline messaging, file transfer, voice, and video over Bluetooth, Wi-Fi Direct, NearLink, LoRa, and WebRTC. It is implemented byte-for-byte identically in eight programming languages (C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C) with end-to-end encryption via the Signal Protocol.
+
+AetherNet lets devices communicate with no internet, no servers, and no sign-up. Messages relay hop-by-hop through nearby devices and are held (delay-tolerant store-and-forward) for up to 72 hours when no live route is available. Every relay device carries messages it cannot read.
+
+## Documentation
+- [README](README.md): overview, capability surface, and quickstart for all eight languages
+- [Protocol specification](docs/PROTOCOL_SPEC.md): RFC-style wire-format and behaviour specification
+- [Changelog](CHANGELOG.md): release history and wire-format changes
+- [Open issues](OPEN_ISSUES.md): known limitations and hardware bring-up status
+- [Security policy](SECURITY.md): responsible-disclosure process
+
+## Capabilities
+- Transports: Bluetooth LE, Wi-Fi Direct, NearLink (SLE), LoRa/CircleLink, HTTP/QUIC relay, WebRTC peer-to-peer
+- Security: Signal Protocol (X3DH + Double Ratchet over X25519), AES-256-GCM, Ed25519 packet signatures
+- Routing: AODV with signed route replies; DTN store-and-forward (72-hour custody)
+- Services: messaging, private channels, presence, profile sync, pre-key exchange, voice calls, push-to-talk, video calls, screen share, live streaming, watch-together, SOS broadcast, bandwidth measurement
+- Languages: C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C — byte-identical wire format, verified by a shared cross-language fixture corpus in CI
+
+## Translations
+This documentation is maintained in 21 languages under docs/i18n/ (English is the source of truth).

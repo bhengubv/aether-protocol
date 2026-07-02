@@ -1,3 +1,5 @@
+# AetherNet — بروتوكول الشبكات المتشابكة الذي يعمل دون اتصال أولاً
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -7,12 +9,14 @@
 
 <div dir="rtl">
 
+**AetherNet هو بروتوكول شبكات متشابكة مفتوح المصدر ومرخّص برخصة MIT** لإرسال الرسائل والملفات والصوت والفيديو إلى الأشخاص القريبين منك — **دون إنترنت، ودون خوادم، ودون تسجيل**. تتصل الأجهزة مباشرة عبر البلوتوث، وWi-Fi Direct، وNearLink، وLoRa؛ وعندما يكون المستلم خارج النطاق، تقفز الرسائل عبر أجهزة أخرى وتنتظر ما يصل إلى 72 ساعة للعثور على مسار. يُشحن بـ**تطبيقات متطابقة بايتاً ببايت في ثماني لغات برمجة** — C# وRust وTypeScript وPython وGo وKotlin وSwift وC.
+
 شارك الملفات والرسائل والبثوث مع الأشخاص القريبين منك. دون WiFi. دون بيانات موبايل. دون تسجيل. مثل AirDrop، إلا أنه يعمل مع الجميع، على جميع المنصات.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **بروتوكول واحد، ثماني لغات، متطابق على الأسلاك.** Aether مُطبَّق بـ**C# وRust وTypeScript وPython وGo وKotlin وSwift وC** — وكل حزمة متطابقة بالبايت عبرها جميعاً، مفروضٌ ذلك بمستودع مشترك للاختبارات متعددة اللغات في CI. ابنِ عقدتك بأيٍّ من الثماني؛ فإنها تتشغّل بينياً مع جميع الأخريات. هذا الملف التعريفي متوفر أيضاً بـ11 لغة بشرية (الروابط أعلاه).
 
@@ -613,6 +617,32 @@ public class LoRaTransportService : ITransportService
 | **libp2p** | يفترض وجود عمود فقري للإنترنت | يُقدّم الوضع غير المتصل أولاً، يعمل دون بنية تحتية |
 | **Yggdrasil** | شبكة تراكب، تحتاج إنترنت | شبكة طبقة مادية، تعمل دون إنترنت |
 | **Signal** | لا شبكة، يتطلب إنترنت | يعمل غير متصل، P2P، ترحيل شبكي، نفس تشفير E2E |
+
+## الأسئلة الشائعة
+
+**هل يعمل AetherNet دون إنترنت؟**
+نعم — إنه يعمل دون اتصال أولاً. تتحدث الأجهزة مباشرة عبر البلوتوث، وWi-Fi Direct، وNearLink، أو LoRa، وتُرحّل الرسائل قفزة بقفزة عبر أجهزة أخرى، دون الحاجة إلى اتصال بالإنترنت، أو برج خلوي، أو خادم. وعندما لا يوجد مسار مباشر، تُحتفظ بالرسائل (تخزين وإعادة يتحمل التأخير) لمدة تصل إلى 72 ساعة حتى يُفتح مسار.
+
+**هل هو مشفَّر من طرف إلى طرف؟**
+نعم. يستخدم AetherNet بروتوكول Signal (اتفاق مفاتيح X3DH بالإضافة إلى Double Ratchet عبر X25519) للتشفير من طرف إلى طرف، وAES-256-GCM لحمولات الرسائل، وتوقيعات Ed25519 على كل حزمة. والأجهزة التي تُرحّل رسالة لا تستطيع قراءتها.
+
+**ما وسائل النقل التي يستخدمها؟**
+البلوتوث LE، وWi-Fi Direct، وNearLink (SLE)، وراديو تسلسلي LoRa/CircleLink، وترحيل HTTP/QUIC، وWebRTC للاتصال المباشر بين الأقران عبر الإنترنت. يختار البروتوكول تلقائياً أدنى وسيلة نقل متاحة استهلاكاً للطاقة لكل حزمة ويرجع إلى التالية.
+
+**بأي لغات البرمجة يتوفر؟**
+ثماني لغات — C# وRust وTypeScript وPython وGo وKotlin وSwift وC. كل تطبيق يُنتج حزمًا متطابقة بالبايت على مستوى الأسلاك، مفروضٌ ذلك بمستودع مشترك للاختبارات متعددة اللغات في CI، لذا فإن الحزمة التي تبنيها لغة واحدة تفكها أي لغة أخرى دون تغيير.
+
+**كيف يختلف عن Meshtastic أو Briar أو Bridgefy؟**
+Meshtastic يقتصر على LoRa؛ أما AetherNet فهو متعدد وسائل النقل (بلوتوث + Wi-Fi + NearLink + LoRa) ويحمل الصوت والفيديو والبث بالإضافة إلى الرسائل. وBriar يقتصر على Android ويوجّه عبر Tor؛ أما AetherNet فمتعدد المنصات وشبكة متشابكة خالصة. وبخلاف حزم SDK المغلقة، فإن AetherNet مرخّص برخصة MIT ومُطبَّق بشكل مفتوح في ثماني لغات. جدول المقارنة أعلاه فيه التفاصيل.
+
+**هل هو جاهز للإنتاج؟**
+طبقة البروتوكول — تنسيق الأسلاك، وأمان Signal، والتوجيه، وتخزين وإعادة DTN، ومجموعة الخدمات الكاملة — مُطبَّقة ومُختبَرة عبر اللغات الثماني جميعاً. وسائل النقل الراديوية حقيقية حيث يوجد كود المنصة (البلوتوث وWi-Fi على Windows وAndroid، وWebRTC في كل مكان) وغير متحقق منها ميدانياً في غير ذلك بانتظار تشغيل العتاد، وهو ما يُتتبع بصدق في `OPEN_ISSUES.md`. اقرأ ملاحظات الحالة في كل قسم قبل النشر.
+
+**بأي رخصة هو؟**
+MIT — مجاني للاستخدام التجاري ومفتوح المصدر. انظر [LICENSE](LICENSE).
+
+**من يبني AetherNet؟**
+يُطوَّر بوصفه البروتوكول المفتوح خلف منظومة الشبكات المتشابكة لـThe Geek Network، مبنيّاً في جنوب أفريقيا لأجل تواصل يعمل مع بيانات الموبايل أو دونها.
 
 ## نقاط التوسعة
 

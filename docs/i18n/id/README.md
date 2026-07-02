@@ -1,3 +1,5 @@
+# AetherNet — protokol jaringan mesh yang mengutamakan luring
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNet adalah protokol jaringan mesh sumber-terbuka berlisensi MIT** untuk mengirim pesan, file, suara, dan video ke orang-orang di sekitar — dengan **tanpa internet, tanpa server, dan tanpa pendaftaran**. Perangkat terhubung langsung melalui Bluetooth, Wi-Fi Direct, NearLink, dan LoRa; ketika penerima di luar jangkauan, pesan melompat melalui perangkat lain dan menunggu hingga 72 jam untuk sebuah rute. Ia dikirimkan dalam **implementasi yang identik byte-per-byte dalam delapan bahasa pemrograman** — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, dan C.
+
 Berbagi file, pesan, dan streaming dengan orang-orang di sekitar. Tanpa WiFi. Tanpa data seluler. Tanpa pendaftaran. Seperti AirDrop, tetapi bekerja dengan semua orang, di setiap platform.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **Satu protokol, delapan bahasa, identik di kabel.** Aether diimplementasikan dalam **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, dan C** — dan setiap paket identik byte-per-byte di seluruhnya, ditegakkan oleh korpus fixture lintas-bahasa bersama di CI. Bangun node Anda dalam salah satu dari kedelapan bahasa itu; ia beroperasi bersama dengan semua yang lain. README ini juga tersedia dalam 11 bahasa manusia (tautan di atas).
 
@@ -611,6 +615,32 @@ Daftarkan di DI dan `TransportManager` akan secara otomatis menyertakannya dalam
 | **libp2p** | Mengasumsikan tulang punggung internet | Luring-dulu, bekerja tanpa infrastruktur apa pun |
 | **Yggdrasil** | Jaringan overlay, perlu internet | Mesh lapisan-fisik, bekerja tanpa internet |
 | **Signal** | Tanpa mesh, memerlukan internet | Bekerja luring, P2P, relay mesh, enkripsi E2E yang sama |
+
+## Pertanyaan yang sering diajukan
+
+**Apakah AetherNet bekerja tanpa internet?**
+Ya — ia mengutamakan luring. Perangkat berbicara langsung melalui Bluetooth, Wi-Fi Direct, NearLink, atau LoRa dan merelai pesan lompatan-demi-lompatan melalui perangkat lain, tanpa memerlukan koneksi internet, menara seluler, atau server. Ketika tidak ada rute langsung, pesan ditahan (store-and-forward yang toleran-tunda) hingga 72 jam sampai satu rute terbuka.
+
+**Apakah ia terenkripsi ujung-ke-ujung?**
+Ya. AetherNet menggunakan Signal Protocol (kesepakatan kunci X3DH plus Double Ratchet di atas X25519) untuk enkripsi ujung-ke-ujung, AES-256-GCM untuk payload pesan, dan tanda tangan Ed25519 pada setiap paket. Perangkat yang merelai sebuah pesan tidak dapat membacanya.
+
+**Transport apa yang digunakannya?**
+Bluetooth LE, Wi-Fi Direct, NearLink (SLE), radio serial LoRa/CircleLink, relay HTTP/QUIC, dan WebRTC untuk peer-to-peer internet langsung. Protokol secara otomatis memilih transport tersedia berdaya-terendah per paket dan mundur ke berikutnya.
+
+**Dalam bahasa pemrograman apa saja ia tersedia?**
+Delapan — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, dan C. Setiap implementasi menghasilkan paket kabel yang identik byte, ditegakkan oleh korpus fixture lintas-bahasa bersama di CI, sehingga sebuah paket yang dibangun oleh satu bahasa didekode tanpa perubahan oleh bahasa lain mana pun.
+
+**Apa bedanya dengan Meshtastic, Briar, atau Bridgefy?**
+Meshtastic hanya-LoRa; AetherNet adalah multi-transport (Bluetooth + Wi-Fi + NearLink + LoRa) dan membawa suara, video, dan streaming selain pesan. Briar hanya-Android dan merutekan lewat Tor; AetherNet lintas-platform dan mesh murni. Tidak seperti SDK tertutup, AetherNet berlisensi MIT dan diimplementasikan secara terbuka dalam delapan bahasa. Tabel perbandingan di atas memuat detailnya.
+
+**Apakah ia siap-produksi?**
+Lapisan protokol — format kabel, keamanan Signal, perutean, DTN store-and-forward, dan rangkaian layanan penuh — diimplementasikan dan diuji di seluruh kedelapan bahasa. Transport radio nyata di tempat kode platform ada (Bluetooth dan Wi-Fi di Windows dan Android, WebRTC di mana-mana) dan belum-terverifikasi-lapangan di tempat lain menunggu bring-up perangkat keras, yang dilacak secara jujur di `OPEN_ISSUES.md`. Baca catatan status di setiap bagian sebelum menyebarkan.
+
+**Di bawah lisensi apa ia berada?**
+MIT — gratis untuk penggunaan komersial dan sumber-terbuka. Lihat [LICENSE](LICENSE).
+
+**Siapa yang membangun AetherNet?**
+Ia dikembangkan sebagai protokol terbuka di balik ekosistem mesh The Geek Network, dibangun di Afrika Selatan untuk komunikasi yang bekerja dengan atau tanpa data seluler.
 
 ## Titik Ekstensi
 

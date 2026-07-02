@@ -1,9 +1,13 @@
+# AetherNet — offline-first mesh networking protocol
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
      ╩ ╩ ╚═╝  ╩  ╩ ╩ ╚═╝ ╩╚═
      mesh networking protocol
 ```
+
+**AetherNet is an open-source, MIT-licensed mesh networking protocol** for sending messages, files, voice, and video to people nearby — with **no internet, no servers, and no sign-up**. Devices connect directly over Bluetooth, Wi-Fi Direct, NearLink, and LoRa; when the recipient is out of range, messages hop through other devices and wait up to 72 hours for a route. It ships **byte-for-byte identical implementations in eight programming languages** — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, and C.
 
 Share files, messages, and streams with people nearby. No WiFi. No mobile data. No sign-up. Like AirDrop, except it works with everyone, on every platform.
 
@@ -611,6 +615,32 @@ Register it in DI and `TransportManager` will automatically include it in transp
 | **libp2p** | Assumes internet backbone | Offline-first, works with zero infrastructure |
 | **Yggdrasil** | Overlay network, needs internet | Physical-layer mesh, works without internet |
 | **Signal** | No mesh, requires internet | Works offline, P2P, mesh relay, same E2E encryption |
+
+## Frequently asked questions
+
+**Does AetherNet work without the internet?**
+Yes — it is offline-first. Devices talk directly over Bluetooth, Wi-Fi Direct, NearLink, or LoRa and relay messages hop-by-hop through other devices, with no internet connection, cell tower, or server required. When no live route exists, messages are held (delay-tolerant store-and-forward) for up to 72 hours until one opens.
+
+**Is it end-to-end encrypted?**
+Yes. AetherNet uses the Signal Protocol (X3DH key agreement plus the Double Ratchet over X25519) for end-to-end encryption, AES-256-GCM for message payloads, and Ed25519 signatures on every packet. Devices that relay a message cannot read it.
+
+**What transports does it use?**
+Bluetooth LE, Wi-Fi Direct, NearLink (SLE), a LoRa/CircleLink serial radio, an HTTP/QUIC relay, and WebRTC for direct internet peer-to-peer. The protocol automatically selects the lowest-power available transport per packet and falls back to the next.
+
+**Which programming languages is it available in?**
+Eight — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, and C. Every implementation produces byte-identical wire packets, enforced by a shared cross-language fixture corpus in CI, so a packet built by one language is decoded unchanged by any other.
+
+**How is it different from Meshtastic, Briar, or Bridgefy?**
+Meshtastic is LoRa-only; AetherNet is multi-transport (Bluetooth + Wi-Fi + NearLink + LoRa) and carries voice, video, and streaming as well as messages. Briar is Android-only and routes over Tor; AetherNet is cross-platform and pure mesh. Unlike closed SDKs, AetherNet is MIT-licensed and implemented openly in eight languages. The comparison table above has the details.
+
+**Is it production-ready?**
+The protocol layer — wire format, Signal security, routing, DTN store-and-forward, and the full service suite — is implemented and tested across all eight languages. Radio transports are real where platform code exists (Bluetooth and Wi-Fi on Windows and Android, WebRTC everywhere) and field-unverified elsewhere pending hardware bring-up, which is tracked honestly in `OPEN_ISSUES.md`. Read the status notes in each section before deploying.
+
+**What license is it under?**
+MIT — free for commercial and open-source use. See [LICENSE](LICENSE).
+
+**Who builds AetherNet?**
+It is developed as the open protocol behind The Geek Network's mesh ecosystem, built in South Africa for communication that works with or without mobile data.
 
 ## Extension Points
 

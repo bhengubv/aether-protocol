@@ -1,3 +1,5 @@
+# AetherNet — پروتکل شبکه‌سازی mesh با اولویت آفلاین
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -7,12 +9,14 @@
 
 <div dir="rtl">
 
+**AetherNet یک پروتکل شبکه‌سازی mesh متن‌باز و با مجوز MIT است** برای ارسال پیام، فایل، صدا و تصویر به افراد نزدیک — **بدون اینترنت، بدون سرور و بدون ثبت‌نام**. دستگاه‌ها مستقیماً از طریق Bluetooth، Wi-Fi Direct، NearLink و LoRa به یکدیگر متصل می‌شوند؛ وقتی گیرنده خارج از محدوده است، پیام‌ها از طریق دستگاه‌های دیگر هاپ می‌کنند و تا ۷۲ ساعت منتظر یک مسیر می‌مانند. این پروتکل **پیاده‌سازی‌های بایت‌به‌بایت یکسان در هشت زبان برنامه‌نویسی** ارائه می‌دهد — C#، Rust، TypeScript، Python، Go، Kotlin، Swift و C.
+
 فایل‌ها، پیام‌ها و جریان‌ها را با افراد نزدیک به اشتراک بگذارید. بدون WiFi. بدون داده موبایل. بدون ثبت‌نام. شبیه AirDrop، با این تفاوت که با همه، روی هر پلتفرمی کار می‌کند.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **یک پروتکل، هشت زبان، یکسان روی سیم.** Aether در **C#، Rust، TypeScript، Python، Go، Kotlin، Swift و C** پیاده‌سازی شده است — و هر بسته در تمام آن‌ها بایت‌به‌بایت یکسان است، که توسط یک مجموعه fixture مشترک بین‌زبانی در CI اعمال می‌شود. گره خود را در هر یک از این هشت زبان بسازید؛ با تمام بقیه تعامل‌پذیر است. این README در ۱۱ زبان انسانی نیز موجود است (پیوندهای بالا).
 
@@ -613,6 +617,32 @@ public class LoRaTransportService : ITransportService
 | **libp2p** | فرض می‌کند ستون فقرات اینترنت دارد | offline-first، با صفر زیرساخت کار می‌کند |
 | **Yggdrasil** | شبکه overlay، نیاز به اینترنت دارد | mesh لایه فیزیکی، بدون اینترنت کار می‌کند |
 | **Signal** | بدون mesh، نیاز به اینترنت دارد | آفلاین کار می‌کند، P2P، رله mesh، همان رمزگذاری E2E |
+
+## پرسش‌های متداول
+
+**آیا AetherNet بدون اینترنت کار می‌کند؟**
+بله — با اولویت آفلاین است. دستگاه‌ها مستقیماً از طریق Bluetooth، Wi-Fi Direct، NearLink یا LoRa صحبت می‌کنند و پیام‌ها را هاپ‌به‌هاپ از طریق دستگاه‌های دیگر رله می‌کنند، بدون نیاز به اتصال اینترنت، دکل مخابراتی یا سرور. وقتی مسیر زنده‌ای وجود ندارد، پیام‌ها (ذخیره‌و‌ارسال تحمل‌کننده تأخیر) تا ۷۲ ساعت نگه داشته می‌شوند تا مسیری باز شود.
+
+**آیا رمزگذاری انتها-به-انتها دارد؟**
+بله. AetherNet از Signal Protocol (توافق کلید X3DH به‌علاوه Double Ratchet روی X25519) برای رمزگذاری انتها-به-انتها، AES-256-GCM برای بارهای پیام و امضاهای Ed25519 روی هر بسته استفاده می‌کند. دستگاه‌هایی که یک پیام را رله می‌کنند نمی‌توانند آن را بخوانند.
+
+**از چه انتقال‌هایی استفاده می‌کند؟**
+Bluetooth LE، Wi-Fi Direct، NearLink (SLE)، یک رادیو سریال LoRa/CircleLink، یک رله HTTP/QUIC و WebRTC برای اتصال مستقیم اینترنتی نقطه‌به‌نقطه. پروتکل به‌طور خودکار کم‌مصرف‌ترین انتقال موجود را برای هر بسته انتخاب می‌کند و به انتقال بعدی برمی‌گردد.
+
+**در چه زبان‌های برنامه‌نویسی موجود است؟**
+هشت — C#، Rust، TypeScript، Python، Go، Kotlin، Swift و C. هر پیاده‌سازی بسته‌های سیم بایت‌به‌بایت یکسانی تولید می‌کند که توسط یک مجموعه fixture مشترک بین‌زبانی در CI اعمال می‌شود، بنابراین بسته‌ای که توسط یک زبان ساخته شده بدون تغییر توسط هر زبان دیگری رمزگشایی می‌شود.
+
+**چه تفاوتی با Meshtastic، Briar یا Bridgefy دارد؟**
+Meshtastic فقط-LoRa است؛ AetherNet چندانتقاله (Bluetooth + Wi-Fi + NearLink + LoRa) است و علاوه بر پیام، صدا، تصویر و استریمینگ را نیز حمل می‌کند. Briar فقط-Android است و روی Tor مسیریابی می‌کند؛ AetherNet چندپلتفرمی و mesh خالص است. برخلاف SDKهای بسته، AetherNet با مجوز MIT و به‌صورت باز در هشت زبان پیاده‌سازی شده است. جدول مقایسه بالا جزئیات را دارد.
+
+**آیا آماده تولید است؟**
+لایه پروتکل — فرمت سیم، امنیت Signal، مسیریابی، DTN store-and-forward و کل مجموعه سرویس‌ها — در تمام هشت زبان پیاده‌سازی و آزمون شده است. انتقال‌های رادیویی جایی که کد پلتفرم وجود دارد واقعی هستند (Bluetooth و Wi-Fi روی Windows و Android، WebRTC همه‌جا) و در جاهای دیگر در انتظار راه‌اندازی سخت‌افزار، در میدان تأییدنشده‌اند، که صادقانه در `OPEN_ISSUES.md` ردیابی می‌شود. قبل از استقرار، یادداشت‌های وضعیت در هر بخش را بخوانید.
+
+**تحت چه مجوزی است؟**
+MIT — رایگان برای استفاده تجاری و متن‌باز. به [LICENSE](LICENSE) مراجعه کنید.
+
+**چه کسی AetherNet را می‌سازد؟**
+به‌عنوان پروتکل باز پشت اکوسیستم mesh شرکت The Geek Network توسعه یافته است، ساخته‌شده در آفریقای جنوبی برای ارتباطی که با یا بدون داده موبایل کار می‌کند.
 
 ## نقاط توسعه
 

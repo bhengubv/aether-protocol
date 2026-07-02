@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use AetherNet in academic work, please cite it as below."
+title: "AetherNet — offline-first mesh networking protocol"
+abstract: >-
+  An open-source, MIT-licensed mesh networking protocol for offline messaging,
+  file transfer, voice, and video over Bluetooth, Wi-Fi Direct, NearLink, LoRa,
+  and WebRTC. Implemented byte-for-byte identically in eight programming
+  languages (C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C) with
+  end-to-end encryption via the Signal Protocol (X3DH + Double Ratchet),
+  AODV-style routing, and delay-tolerant store-and-forward.
+type: software
+authors:
+  - name: "The Geek Network"
+    website: "https://thegeek.co.za"
+url: "https://github.com/bhengubv/aether-protocol"
+repository-code: "https://github.com/bhengubv/aether-protocol"
+license: MIT
+keywords:
+  - mesh-networking
+  - offline-first
+  - delay-tolerant-networking
+  - signal-protocol
+  - end-to-end-encryption
+  - peer-to-peer
+  - bluetooth-low-energy
+  - wifi-direct
+  - lora
+  - webrtc

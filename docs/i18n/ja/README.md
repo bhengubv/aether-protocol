@@ -1,3 +1,5 @@
+# AetherNet — オフラインファーストのメッシュネットワーキングプロトコル
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNetは、オープンソースのMITライセンスのメッシュネットワーキングプロトコル**で、近くにいる人へメッセージ、ファイル、音声、ビデオを送信できます — **インターネットなし、サーバーなし、アカウント登録なし**で。デバイスはBluetooth、Wi-Fi Direct、NearLink、LoRaを介して直接接続し、受信者が範囲外にいる場合、メッセージは他のデバイスを経由してホップし、ルートが見つかるまで最大72時間待機します。**8つのプログラミング言語でバイト単位で完全に同一の実装**を同梱しています — C#、Rust、TypeScript、Python、Go、Kotlin、Swift、C。
+
 近くにいる人とファイル、メッセージ、ストリームを共有できます。Wi-Fi不要。モバイルデータ不要。アカウント登録不要。AirDropに似ていますが、あらゆるプラットフォームのすべての人と使えます。
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **1つのプロトコル、8つの言語、ワイヤー上では同一。** Aetherは**C#、Rust、TypeScript、Python、Go、Kotlin、Swift、C**で実装されており、すべてにおいてどのパケットもバイト単位で完全に同一で、CIの共有クロス言語フィクスチャコーパスによって保証されています。8言語のどれでノードを構築しても、他のすべてと相互運用できます。このREADMEは11の人間の言語でも利用できます（上のリンク）。
 
@@ -611,6 +615,32 @@ DIに登録すると、`TransportManager`は自動的にトランスポート選
 | **libp2p** | インターネットバックボーンを前提 | オフラインファースト、ゼロインフラで動作 |
 | **Yggdrasil** | オーバーレイネットワーク、インターネット必要 | 物理層メッシュ、インターネットなしで動作 |
 | **Signal** | メッシュなし、インターネット必要 | オフライン動作、P2P、メッシュリレー、同じE2E暗号化 |
+
+## よくある質問
+
+**AetherNetはインターネットなしで動作しますか?**
+はい — オフラインファーストです。デバイスはBluetooth、Wi-Fi Direct、NearLink、LoRaを介して直接通信し、メッセージを他のデバイスを経由してホップバイホップで中継します。インターネット接続、携帯電話の基地局、サーバーは一切不要です。ライブルートが存在しない場合、メッセージはルートが開くまで最大72時間保持されます（遅延耐性のあるストアアンドフォワード）。
+
+**エンドツーエンドで暗号化されていますか?**
+はい。AetherNetはエンドツーエンド暗号化にSignal Protocol（X3DHキー合意とX25519上のDouble Ratchet）を使用し、メッセージペイロードにはAES-256-GCM、すべてのパケットにはEd25519署名を使用します。メッセージを中継するデバイスは、その内容を読み取れません。
+
+**どのトランスポートを使用しますか?**
+Bluetooth LE、Wi-Fi Direct、NearLink（SLE）、LoRa/CircleLinkシリアルラジオ、HTTP/QUICリレー、そして直接インターネットピアツーピア用のWebRTC。プロトコルはパケットごとに最も電力の低い利用可能なトランスポートを自動的に選択し、次のものにフォールバックします。
+
+**どのプログラミング言語で利用できますか?**
+8つ — C#、Rust、TypeScript、Python、Go、Kotlin、Swift、C。すべての実装はバイト単位で同一のワイヤーパケットを生成し、CIの共有クロス言語フィクスチャコーパスによって保証されているため、ある言語で構築されたパケットは、他のどの言語でも変更なしに復号されます。
+
+**Meshtastic、Briar、Bridgefyとはどう違いますか?**
+MeshtasticはLoRa専用です; AetherNetはマルチトランスポート（Bluetooth + Wi-Fi + NearLink + LoRa）で、メッセージに加えて音声、ビデオ、ストリーミングも運びます。BriarはAndroid専用でTor経由でルーティングします; AetherNetはクロスプラットフォームで純粋なメッシュです。クローズドなSDKとは異なり、AetherNetはMITライセンスで、8言語でオープンに実装されています。詳細は上の比較表にあります。
+
+**本番環境で使える状態ですか?**
+プロトコル層 — ワイヤーフォーマット、Signalセキュリティ、ルーティング、DTNストアアンドフォワード、そして完全なサービススイート — は全8言語で実装・テストされています。ラジオトランスポートはプラットフォームコードが存在する場所（WindowsとAndroid上のBluetoothとWi-Fi、どこでも動作するWebRTC）では本物で、それ以外の場所ではハードウェア立ち上げまで実地未検証であり、これは `OPEN_ISSUES.md` で正直に追跡されています。デプロイ前に各セクションのステータス注記をお読みください。
+
+**どのライセンスですか?**
+MIT — 商用およびオープンソース利用に無料。[LICENSE](LICENSE) を参照してください。
+
+**AetherNetは誰が構築していますか?**
+The Geek Networkのメッシュエコシステムを支えるオープンプロトコルとして開発されており、モバイルデータの有無にかかわらず機能する通信を目指して南アフリカで構築されています。
 
 ## 拡張ポイント
 

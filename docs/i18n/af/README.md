@@ -1,3 +1,5 @@
+# AetherNet — vanlyn-eerste mesh-netwerkprotokol
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNet is 'n oopbron, MIT-gelisensieerde mesh-netwerkprotokol** vir die stuur van boodskappe, lêers, stem en video na mense naby jou — met **geen internet, geen bedieners, en geen registrasie nie**. Toestelle verbind direk oor Bluetooth, Wi-Fi Direct, NearLink en LoRa; wanneer die ontvanger buite bereik is, hop boodskappe deur ander toestelle en wag tot 72 uur vir 'n roete. Dit stuur **greep-vir-greep identiese implementasies in agt programmeertale** — C#, Rust, TypeScript, Python, Go, Kotlin, Swift en C.
+
 Deel lêers, boodskappe en strome met mense naby jou. Geen WiFi nie. Geen mobiele data nie. Geen registrasie nie. Soos AirDrop, behalwe dat dit met almal werk, op elke platform.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **Een protokol, agt tale, identies op die draad.** Aether is geïmplementeer in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift en C** — en elke pakkie is greep-vir-greep identies oor almal daarvan, afgedwing deur 'n gedeelde kruistaal-fixture-korpus in CI. Bou jou node in enige van die agt; dit werk saam met al die ander. Hierdie README is ook beskikbaar in 11 menslike tale (skakels hierbo).
 
@@ -611,6 +615,32 @@ Registreer dit in DI en `TransportManager` sal dit outomaties in transportkeuse 
 | **libp2p** | Neem internet-ruggraat aan | Vanlyn-eerste, werk met nul infrastruktuur |
 | **Yggdrasil** | Oorlegnetwerk, benodig internet | Fisiese-laag-mesh, werk sonder internet |
 | **Signal** | Geen mesh, benodig internet | Werk vanlyn, P2P, mesh-aanstuur, dieselfde E2E-enkripsie |
+
+## Gereelde vrae
+
+**Werk AetherNet sonder die internet?**
+Ja — dit is vanlyn-eerste. Toestelle praat direk oor Bluetooth, Wi-Fi Direct, NearLink of LoRa en stuur boodskappe hop-vir-hop deur ander toestelle aan, sonder dat 'n internetverbinding, seltoring of bediener nodig is. Wanneer daar geen lewende roete bestaan nie, word boodskappe gehou (vertraging-verdraagsame stoor-en-stuur) vir tot 72 uur totdat een oopgaan.
+
+**Is dit end-tot-end-geënkripteer?**
+Ja. AetherNet gebruik die Signal Protocol (X3DH-sleutelooreenkoms plus die Double Ratchet oor X25519) vir end-tot-end-enkripsie, AES-256-GCM vir boodskapladings, en Ed25519-handtekeninge op elke pakkie. Toestelle wat 'n boodskap aanstuur, kan dit nie lees nie.
+
+**Watter transporte gebruik dit?**
+Bluetooth LE, Wi-Fi Direct, NearLink (SLE), 'n LoRa/CircleLink-reeksradio, 'n HTTP/QUIC-aanstuur, en WebRTC vir direkte internet-eweknie-tot-eweknie. Die protokol kies outomaties die laagste-krag beskikbare transport per pakkie en val terug na die volgende.
+
+**In watter programmeertale is dit beskikbaar?**
+Agt — C#, Rust, TypeScript, Python, Go, Kotlin, Swift en C. Elke implementasie produseer greep-identiese draadpakkies, afgedwing deur 'n gedeelde kruistaal-fixture-korpus in CI, sodat 'n pakkie wat deur een taal gebou is, ongewysig deur enige ander gedekodeer word.
+
+**Hoe verskil dit van Meshtastic, Briar of Bridgefy?**
+Meshtastic is slegs-LoRa; AetherNet is multi-transport (Bluetooth + Wi-Fi + NearLink + LoRa) en dra stem, video en stroom sowel as boodskappe. Briar is slegs-Android en roeteer oor Tor; AetherNet is kruisplatform en suiwer mesh. Anders as geslote SDK's, is AetherNet MIT-gelisensieer en openlik in agt tale geïmplementeer. Die vergelykingstabel hierbo het die besonderhede.
+
+**Is dit produksie-gereed?**
+Die protokollaag — draadformaat, Signal-sekuriteit, roetering, DTN-stoor-en-stuur, en die volledige diens-suite — is oor al agt tale geïmplementeer en getoets. Radiotransporte is werklik waar platformkode bestaan (Bluetooth en Wi-Fi op Windows en Android, WebRTC oral) en veldonbevestig elders hangend hardeware-inbedryfstelling, wat eerlik in `OPEN_ISSUES.md` nagespoor word. Lees die statusnotas in elke afdeling voordat jy ontplooi.
+
+**Onder watter lisensie is dit?**
+MIT — gratis vir kommersiële en oopbron-gebruik. Sien [LICENSE](LICENSE).
+
+**Wie bou AetherNet?**
+Dit word ontwikkel as die oop protokol agter The Geek Network se mesh-ekosisteem, gebou in Suid-Afrika vir kommunikasie wat met of sonder mobiele data werk.
 
 ## Uitbreidingspunte
 

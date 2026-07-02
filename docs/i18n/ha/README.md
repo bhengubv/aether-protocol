@@ -1,3 +1,5 @@
+# AetherNet — yarjejeniyar sadarwar mesh mai ba da fifiko ga aiki ba tare da layi ba
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNet yarjejeniyar sadarwar mesh ce ta buɗaɗɗen tushe, mai lasisin MIT** don aika saƙonni, fayiloli, murya, da bidiyo zuwa mutanen da ke kusa — tare da **babu intanet, babu sabar, kuma babu rajista**. Na'urori suna haɗuwa kai tsaye ta Bluetooth, Wi-Fi Direct, NearLink, da LoRa; lokacin da mai karɓa ya fita daga zango, saƙonni suna tsallake ta wasu na'urori kuma suna jira har sa'o'i 72 don samun hanya. Yana zuwa da **aiwatarwa iri ɗaya baiti-da-baiti a cikin harsunan shirye-shirye takwas** — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, da C.
+
 Ka raba fayiloli, saƙonni, da kuma yaɗuwar bidiyo (streams) da mutanen da ke kusa da kai. Babu WiFi. Babu bayanan wayar salula (mobile data). Babu rajista. Kamar AirDrop, sai dai yana aiki da kowa, a kan kowace dandamali (platform).
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **Yarjejeniya ɗaya, harsuna takwas, iri ɗaya a kan waya (wire).** An gina Aether da **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, da C** — kuma kowace fakiti (packet) iri ɗaya ce baiti-da-baiti a duk cikinsu, wanda aka tabbatar da shi ta hanyar rukunin gwaji (fixture corpus) da ake rabawa tsakanin harsuna a CI. Ka gina node ɗinka a kowanne cikin takwas ɗin; zai iya aiki tare da sauran duka. Wannan README kuma ana samun sa a cikin harsunan mutane 11 (hanyoyin haɗi a sama).
 
@@ -611,6 +615,32 @@ Ka yi rajistar sa a cikin DI kuma `TransportManager` zai haɗa shi ta atomatik c
 | **libp2p** | Yana ɗauka akwai kashin bayan intanet | Rashin-layi-na-farko, yana aiki da babu kayan more rayuwa |
 | **Yggdrasil** | Cibiyar sadarwa ta rufi, yana buƙatar intanet | Mesh na matakin-zahiri, yana aiki ba tare da intanet ba |
 | **Signal** | Babu mesh, yana buƙatar intanet | Yana aiki ba tare da layi ba, P2P, mesh relay, ɓoyewa iri ɗaya na E2E |
+
+## Tambayoyin da ake yawan yi (Frequently asked questions)
+
+**Shin AetherNet yana aiki ba tare da intanet ba?**
+Eh — yana ba da fifiko ga aiki ba tare da layi ba. Na'urori suna magana kai tsaye ta Bluetooth, Wi-Fi Direct, NearLink, ko LoRa kuma suna tsallake saƙonni mataki-da-mataki ta wasu na'urori, ba tare da buƙatar haɗin intanet, hasumiyar sadarwa, ko sabar ba. Lokacin da babu hanya mai aiki, ana riƙe saƙonni (ajiye-da-tura mai jurewa jinkiri) har sa'o'i 72 har sai ɗaya ya buɗe.
+
+**Shin an ɓoye shi ƙarshe-zuwa-ƙarshe?**
+Eh. AetherNet yana amfani da Signal Protocol (yarjejeniyar makulli na X3DH tare da Double Ratchet a kan X25519) don ɓoyewa ƙarshe-zuwa-ƙarshe, AES-256-GCM don nauyin saƙonni, da sa hannu na Ed25519 a kan kowace fakiti. Na'urorin da ke tura saƙo ba za su iya karanta shi ba.
+
+**Wadanne jigilar sadarwa yake amfani da su?**
+Bluetooth LE, Wi-Fi Direct, NearLink (SLE), rediyon serial na LoRa/CircleLink, HTTP/QUIC relay, da WebRTC don intanet kai tsaye na peer-to-peer. Yarjejeniyar tana zaɓar jigilar sadarwa mafi ƙarancin wuta da ke akwai ta atomatik ga kowace fakiti kuma tana komawa ga na gaba.
+
+**A wadanne harsunan shirye-shirye ake samun sa?**
+Takwas — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, da C. Kowace aiwatarwa tana samar da fakitin waya iri ɗaya baiti-da-baiti, wanda aka tabbatar ta hanyar rukunin gwaji (fixture corpus) da ake rabawa tsakanin harsuna a CI, don haka fakitin da harshe ɗaya ya gina ana warware shi ba tare da canji ba ta kowanne.
+
+**Ta yaya ya bambanta da Meshtastic, Briar, ko Bridgefy?**
+Meshtastic LoRa-kaɗai ne; AetherNet jigilar sadarwa da yawa ne (Bluetooth + Wi-Fi + NearLink + LoRa) kuma yana ɗauke da murya, bidiyo, da yaɗuwa gami da saƙonni. Briar Android-kaɗai ne kuma yana zaɓen hanya ta Tor; AetherNet fadin dandamali ne kuma mesh mai tsafta. Ba kamar SDKs da aka rufe ba, AetherNet mai lasisin MIT ne kuma an aiwatar da shi a fili a cikin harsuna takwas. Teburin kwatanci na sama yana da cikakkun bayanai.
+
+**Shin a shirye yake don samarwa (production)?**
+Matakin yarjejeniya — tsarin waya, tsaron Signal, zaɓen hanya, ajiye-da-tura na DTN, da dukkan tarin hidimomi — an aiwatar da su kuma an gwada su a fadin dukkan harsuna takwas. Jigilar sadarwa na rediyo na gaskiya ne inda lambar dandamali ta wanzu (Bluetooth da Wi-Fi a Windows da Android, WebRTC ko'ina) kuma ba a tabbatar da su a fagen aiki ba a wani wuri ana jiran kunna kayan aiki, wanda ake bibiyar sa cikin gaskiya a `OPEN_ISSUES.md`. Ka karanta bayanan matsayi a cikin kowane sashe kafin turawa.
+
+**Wane lasisi ne yake ƙarƙashinsa?**
+MIT — kyauta don amfanin kasuwanci da na buɗaɗɗen tushe. Duba [LICENSE](LICENSE).
+
+**Wa ke gina AetherNet?**
+An haɓaka shi a matsayin buɗaɗɗiyar yarjejeniyar da ke bayan tsarin mesh na The Geek Network, an gina shi a Afirka ta Kudu don sadarwar da ke aiki tare da ko ba tare da bayanan wayar salula ba.
 
 ## Wuraren Faɗaɗawa (Extension Points)
 

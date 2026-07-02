@@ -1,3 +1,5 @@
+# AetherNet — 离线优先的网格网络协议
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNet 是一个开源的、采用 MIT 许可证的网格网络协议**，用于向附近的人发送消息、文件、语音和视频——**无需互联网、无需服务器、无需注册**。设备通过蓝牙、Wi-Fi Direct、NearLink 和 LoRa 直接连接；当接收方不在范围内时，消息会通过其他设备跳转，并等待最长 72 小时以寻找路由。它以**八种编程语言提供字节完全相同的实现**——C#、Rust、TypeScript、Python、Go、Kotlin、Swift 和 C。
+
 与附近的人共享文件、消息和数据流。无需 WiFi，无需移动数据，无需注册。就像 AirDrop，但它可以与所有人、在所有平台上使用。
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **一个协议，八种语言，线路上完全一致。** Aether 以 **C#、Rust、TypeScript、Python、Go、Kotlin、Swift 和 C** 实现——每个数据包在所有这些语言中都是字节完全相同的，并由 CI 中的共享跨语言测试用例库强制保证。用这八种语言中的任意一种构建你的节点；它都能与其他所有语言互通。本 README 也提供 11 种人类语言版本（上方链接）。
 
@@ -611,6 +615,32 @@ public class LoRaTransportService : ITransportService
 | **libp2p** | 假设存在互联网骨干 | 离线优先，零基础设施可用 |
 | **Yggdrasil** | 覆盖网络，需要互联网 | 物理层网格，无需互联网 |
 | **Signal** | 无网格，需要互联网 | 可离线工作，P2P，网格中继，相同的端到端加密 |
+
+## 常见问题
+
+**AetherNet 没有互联网也能工作吗？**
+可以——它是离线优先的。设备通过蓝牙、Wi-Fi Direct、NearLink 或 LoRa 直接通信，并通过其他设备逐跳中继消息，无需互联网连接、基站或服务器。当没有活跃路由时，消息会被保留（延迟容忍的存储转发）最长 72 小时，直到有路由开通。
+
+**它是端到端加密的吗？**
+是的。AetherNet 使用 Signal Protocol（X3DH 密钥协商加上基于 X25519 的双棘轮）进行端到端加密，使用 AES-256-GCM 加密消息负载，并在每个数据包上使用 Ed25519 签名。中继消息的设备无法读取消息内容。
+
+**它使用哪些传输方式？**
+蓝牙 LE、Wi-Fi Direct、NearLink（SLE）、LoRa/CircleLink 串口无线电、HTTP/QUIC 中继，以及用于直接互联网点对点的 WebRTC。协议会为每个数据包自动选择功耗最低的可用传输方式，并回退到下一个。
+
+**它有哪些编程语言的实现？**
+八种——C#、Rust、TypeScript、Python、Go、Kotlin、Swift 和 C。每种实现都产生字节完全相同的线路数据包，并由 CI 中的共享跨语言测试用例库强制保证，因此由一种语言构建的数据包可被任何其他语言原样解码。
+
+**它与 Meshtastic、Briar 或 Bridgefy 有何不同？**
+Meshtastic 仅支持 LoRa；AetherNet 是多传输的（蓝牙 + Wi-Fi + NearLink + LoRa），除消息外还承载语音、视频和流媒体。Briar 仅限 Android 且经由 Tor 路由；AetherNet 是跨平台的纯网格。与封闭的 SDK 不同，AetherNet 采用 MIT 许可证，并以八种语言开放实现。上方的对比表有详细信息。
+
+**它可以用于生产环境吗？**
+协议层——线路格式、Signal 安全性、路由、DTN 存储转发以及完整的服务套件——已在全部八种语言中实现并测试。无线电传输在存在平台代码的地方是真实的（Windows 和 Android 上的蓝牙和 Wi-Fi，以及各处的 WebRTC），在其他地方尚待硬件启动而现场未经验证，这些都在 `OPEN_ISSUES.md` 中如实追踪。部署前请阅读每个部分中的状态说明。
+
+**它采用什么许可证？**
+MIT——可免费用于商业和开源用途。参见 [LICENSE](LICENSE)。
+
+**AetherNet 由谁构建？**
+它是作为 The Geek Network 网格生态系统背后的开放协议而开发的，在南非构建，旨在实现有或没有移动数据都能工作的通信。
 
 ## 扩展点
 

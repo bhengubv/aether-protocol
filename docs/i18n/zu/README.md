@@ -1,3 +1,5 @@
+# AetherNet — iphrothokholi ye-mesh networking eqale nge-offline
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**I-AetherNet iyiphrothokholi ye-mesh networking evulekile (open-source), enelayisensi ye-MIT** yokuthumela imilayezo, amafayela, izwi, kanye nevidiyo kubantu abaseduze — **ngaphandle kwe-inthanethi, ngaphandle kwamaseva, futhi ngaphandle kokubhalisa**. Amadivayisi axhumana ngokuqondile nge-Bluetooth, Wi-Fi Direct, NearLink, kanye ne-LoRa; uma umamukeli engaphandle kwebanga, imilayezo iyaqhasha idlule kwamanye amadivayisi bese ilinda kuze kube amahora angama-72 ukuthola indlela. Ithumela **izenzo ezifana ibhayithi ngebhayithi ngezilimi zokuhlela eziyisishiyagalombili** — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, kanye no-C.
+
 Yabelana ngamafayela, imilayezo, kanye nezikwele (streams) nabantu abaseduze. Akukho WiFi. Akukho idatha yeselula. Akukho ukubhalisa. Njenge-AirDrop, kuphela ukuthi kusebenza nawo wonke umuntu, kuwo wonke uhlelo (platform).
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **Iphrothokholi eyodwa, izilimi eziyisishiyagalombili, efanayo ncamashi ku-wire.** I-Aether yakhiwe ngo-**C#, Rust, TypeScript, Python, Go, Kotlin, Swift, kanye no-C** — futhi lonke iphakethe (packet) liyafana ibhayithi nebhayithi kuzo zonke lezi zilimi, kuqinisekiswa yi-corpus yezifixture ezisatshalaliswa phakathi kwezilimi ku-CI. Yakha inodi yakho nganoma iyiphi kwezisishiyagalombili; iyasebenzisana nazo zonke ezinye. Le README iyatholakala nasezilimini zabantu eziyi-11 (izixhumanisi zingenhla).
 
@@ -611,6 +615,32 @@ Yibhalise ku-DI bese i-`TransportManager` iyoyifaka ngokuzenzakalelayo ekukhethw
 | **libp2p** | Icabanga umgogodla we-inthanethi | I-offline-first, isebenza ngengqalasizinda engekho |
 | **Yggdrasil** | I-overlay network, idinga i-inthanethi | I-physical-layer mesh, isebenza ngaphandle kwe-inthanethi |
 | **Signal** | Ayina-mesh, idinga i-inthanethi | Isebenza offline, i-P2P, i-mesh relay, i-E2E encryption efanayo |
+
+## Imibuzo evame ukubuzwa
+
+**Ingabe i-AetherNet iyasebenza ngaphandle kwe-inthanethi?**
+Yebo — iyi-offline-first. Amadivayisi akhulumisana ngokuqondile nge-Bluetooth, i-Wi-Fi Direct, i-NearLink, noma i-LoRa futhi adlulisela imilayezo ngokuqhasha isinyathelo nesinyathelo edlula kwamanye amadivayisi, ngaphandle koxhumano lwe-inthanethi, umbhoshongo weselula, noma iseva edingekayo. Uma kungekho ndlela ephilayo, imilayezo iyabanjelwa (i-delay-tolerant store-and-forward) kuze kube amahora angama-72 kuze kuvuleke enye.
+
+**Ingabe ibethelwe i-end-to-end?**
+Yebo. I-AetherNet isebenzisa i-Signal Protocol (i-X3DH key agreement kanye ne-Double Ratchet nge-X25519) yokubethela kwe-end-to-end, i-AES-256-GCM yama-payload emilayezo, kanye nezisayino ze-Ed25519 kulo lonke iphakethe. Amadivayisi adlulisela umyalezo awakwazi ukuwufunda.
+
+**Isebenzisa ama-transport anjani?**
+I-Bluetooth LE, i-Wi-Fi Direct, i-NearLink (SLE), i-LoRa/CircleLink serial radio, i-HTTP/QUIC relay, kanye ne-WebRTC yokuxhumana kwe-inthanethi okuqondile kwe-peer-to-peer. Iphrothokholi ikhetha ngokuzenzakalelayo i-transport etholakalayo enamandla aphansi kunazo zonke ngephakethe ngalinye bese ibuyela kwelandelayo.
+
+**Itholakala ngeziphi izilimi zokuhlela?**
+Eziyisishiyagalombili — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, kanye no-C. Sonke isenzo sikhiqiza amaphakethe e-wire afana ibhayithi ngebhayithi, kuqinisekiswa yi-corpus yezifixture ezisatshalaliswa phakathi kwezilimi ku-CI, ngakho iphakethe elakhiwe ngolunye ulimi lihlutshwa lingashintshiwe nganoma yiluphi olunye.
+
+**Ihluke kanjani ku-Meshtastic, Briar, noma Bridgefy?**
+I-Meshtastic yi-LoRa-kuphela; i-AetherNet iyi-multi-transport (i-Bluetooth + Wi-Fi + NearLink + LoRa) futhi ithwala izwi, ividiyo, kanye ne-streaming kanye nemilayezo. I-Briar iyi-Android-kuphela futhi idlulisa nge-Tor; i-AetherNet iyi-cross-platform futhi iyi-mesh emsulwa. Ngokungafani nama-SDK avaliwe, i-AetherNet inelayisensi ye-MIT futhi yenziwe ngokuvulekile ngezilimi eziyisishiyagalombili. Ithebula lokuqhathanisa elingenhla linemininingwane.
+
+**Ingabe isilungele ukukhiqizwa (production-ready)?**
+Ingqimba yephrothokholi — ifomethi ye-wire, ezokuphepha ze-Signal, i-routing, i-DTN store-and-forward, kanye nesethi yonke yensiza — yenziwe futhi yavivinywa kuzo zonke izilimi eziyisishiyagalombili. Ama-radio transport angempela lapho ikhodi yohlelo ikhona (i-Bluetooth ne-Wi-Fi ku-Windows nase-Android, i-WebRTC yonke indawo) futhi ayikaqinisekiswa ensimini kwenye indawo ilinde i-hardware bring-up, elandelelwa ngokwethembeka ku-`OPEN_ISSUES.md`. Funda amanothi esimo esigabeni ngasinye ngaphambi kokuthumela.
+
+**Inelayisensi enjani?**
+I-MIT — yamahhala yokusetshenziswa kwezohwebo nokuvulekile. Bheka i-[LICENSE](LICENSE).
+
+**Ubani owakha i-AetherNet?**
+Yenziwa njengephrothokholi evulekile engemuva kwe-mesh ecosystem ye-The Geek Network, yakhelwe eNingizimu Afrika ukuze kube khona ukuxhumana okusebenza noma ngabe kukhona noma akukho idatha yeselula.
 
 ## Amaphuzu Okwelula (Extension Points)
 

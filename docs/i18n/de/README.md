@@ -1,3 +1,5 @@
+# AetherNet — Offline-First-Mesh-Netzwerkprotokoll
+
 ```
      ╔═╗ ╔═╗ ╔╦╗ ╦ ╦ ╔═╗ ╦═╗
      ╠═╣ ║╣   ║  ╠═╣ ║╣  ╠╦╝
@@ -5,12 +7,14 @@
      mesh networking protocol
 ```
 
+**AetherNet ist ein quelloffenes, MIT-lizenziertes Mesh-Netzwerkprotokoll** zum Senden von Nachrichten, Dateien, Sprache und Video an Personen in der Nähe — mit **keinem Internet, keinen Servern und keiner Registrierung**. Geräte verbinden sich direkt über Bluetooth, Wi-Fi Direct, NearLink und LoRa; wenn der Empfänger außer Reichweite ist, springen Nachrichten über andere Geräte und warten bis zu 72 Stunden auf eine Route. Es liefert **byte-für-byte identische Implementierungen in acht Programmiersprachen** — C#, Rust, TypeScript, Python, Go, Kotlin, Swift und C.
+
 Dateien, Nachrichten und Streams mit Personen in der Nähe teilen. Kein WLAN. Keine mobilen Daten. Keine Registrierung. Wie AirDrop, aber funktioniert mit jedem, auf jeder Plattform.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 
-[English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
+[English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
 > **Ein Protokoll, acht Sprachen, identisch auf der Leitung.** Aether ist in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift und C** implementiert — und jedes Paket ist über alle hinweg byte-für-byte identisch, erzwungen durch ein gemeinsames sprachübergreifendes Fixture-Korpus in CI. Bauen Sie Ihren Knoten in einer der acht Sprachen; er ist mit allen anderen interoperabel. Diese README ist außerdem in 11 menschlichen Sprachen verfügbar (Links oben).
 
@@ -611,6 +615,32 @@ Im DI registrieren; `TransportManager` schließt ihn automatisch in die Transpor
 | **libp2p** | Setzt Internet-Backbone voraus | Offline-first, funktioniert ohne Infrastruktur |
 | **Yggdrasil** | Overlay-Netzwerk, benötigt Internet | Physical-Layer-Mesh, funktioniert ohne Internet |
 | **Signal** | Kein Mesh, benötigt Internet | Funktioniert offline, P2P, Mesh-Relay, gleiche E2E-Verschlüsselung |
+
+## Häufig gestellte Fragen
+
+**Funktioniert AetherNet ohne Internet?**
+Ja — es ist Offline-First. Geräte kommunizieren direkt über Bluetooth, Wi-Fi Direct, NearLink oder LoRa, und Relay-Nachrichten springen Hop für Hop über andere Geräte, ohne dass eine Internetverbindung, ein Mobilfunkmast oder ein Server erforderlich ist. Wenn keine Live-Route besteht, werden Nachrichten (verzögerungstolerantes Store-and-Forward) bis zu 72 Stunden aufbewahrt, bis sich eine öffnet.
+
+**Ist es Ende-zu-Ende-verschlüsselt?**
+Ja. AetherNet verwendet das Signal-Protokoll (X3DH-Schlüsselvereinbarung plus den Double Ratchet über X25519) für die Ende-zu-Ende-Verschlüsselung, AES-256-GCM für Nachrichten-Nutzlasten und Ed25519-Signaturen auf jedem Paket. Geräte, die eine Nachricht weiterleiten, können sie nicht lesen.
+
+**Welche Transporte verwendet es?**
+Bluetooth LE, Wi-Fi Direct, NearLink (SLE), ein LoRa/CircleLink-Seriell-Funkgerät, ein HTTP/QUIC-Relay und WebRTC für direktes Internet-Peer-to-Peer. Das Protokoll wählt automatisch den verfügbaren Transport mit dem geringsten Stromverbrauch je Paket und fällt auf den nächsten zurück.
+
+**In welchen Programmiersprachen ist es verfügbar?**
+Acht — C#, Rust, TypeScript, Python, Go, Kotlin, Swift und C. Jede Implementierung erzeugt byteidentische Leitungspakete, erzwungen durch ein gemeinsames sprachübergreifendes Fixture-Korpus in CI, sodass ein von einer Sprache gebautes Paket von jeder anderen unverändert dekodiert wird.
+
+**Wie unterscheidet es sich von Meshtastic, Briar oder Bridgefy?**
+Meshtastic ist nur LoRa; AetherNet ist Multi-Transport (Bluetooth + Wi-Fi + NearLink + LoRa) und transportiert neben Nachrichten auch Sprache, Video und Streaming. Briar ist nur für Android und routet über Tor; AetherNet ist plattformübergreifend und reines Mesh. Anders als geschlossene SDKs ist AetherNet MIT-lizenziert und offen in acht Sprachen implementiert. Die Vergleichstabelle oben enthält die Details.
+
+**Ist es produktionsreif?**
+Die Protokollschicht — Leitungsformat, Signal-Sicherheit, Routing, DTN-Store-and-Forward und die vollständige Dienst-Suite — ist über alle acht Sprachen hinweg implementiert und getestet. Funktransporte sind dort echt, wo Plattformcode existiert (Bluetooth und Wi-Fi auf Windows und Android, WebRTC überall) und andernorts feldunverifiziert, ausstehend eines Hardware-Bring-ups, das ehrlich in `OPEN_ISSUES.md` verfolgt wird. Lesen Sie die Statushinweise in jedem Abschnitt, bevor Sie einsetzen.
+
+**Unter welcher Lizenz steht es?**
+MIT — kostenlos für kommerzielle und Open-Source-Nutzung. Siehe [LICENSE](LICENSE).
+
+**Wer entwickelt AetherNet?**
+Es wird als das offene Protokoll hinter dem Mesh-Ökosystem von The Geek Network entwickelt, gebaut in Südafrika für Kommunikation, die mit oder ohne mobile Daten funktioniert.
 
 ## Erweiterungspunkte
 
