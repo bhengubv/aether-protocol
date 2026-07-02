@@ -86,6 +86,13 @@ public interface IAetherNetProtocolBuilder
     IAetherNetProtocolBuilder AddProfiles();
 
     /// <summary>
+    /// Register <c>VideoCallControlService</c> as a singleton <c>IVideoCallControlService</c>
+    /// (<c>PacketType.VideoCall</c> directed call-control signalling — ring/accept/decline/hangup).
+    /// Distinct from the media-plane <see cref="AddVideoCall"/> (SDP/ICE + frames). Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddVideoCallControl();
+
+    /// <summary>
     /// Register <c>MessagingService</c> + <c>SignalMessageEnvelopeCipher</c>
     /// as singletons. Requires both <see cref="AddSignalProtocol"/> and
     /// <see cref="AddRouting"/> to have been called first; throws

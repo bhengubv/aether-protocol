@@ -25,6 +25,7 @@ using AetherNet.Tipping;
 using AetherNet.Tipping.ApiClients;
 using AetherNet.Tipping.Incentives;
 using AetherNet.Transport.Services;
+using AetherNet.VideoCallControl;
 using AetherNet.Voice;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -50,6 +51,7 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _heartbeatAdded;
     private bool _channelsAdded;
     private bool _profilesAdded;
+    private bool _videoCallControlAdded;
     private bool _messagingAdded;
     private bool _transportAdded;
     private bool _handshakeAdded;
@@ -206,6 +208,22 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
             var logger = sp.GetService<ILogger<ProfileService>>()
                 ?? NullLogger<ProfileService>.Instance;
             return new ProfileService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddVideoCallControl()
+    {
+        if (_videoCallControlAdded) return this;
+        _videoCallControlAdded = true;
+
+        Services.TryAddSingleton<IVideoCallControlService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<VideoCallControlService>>()
+                ?? NullLogger<VideoCallControlService>.Instance;
+            return new VideoCallControlService(sender, logger);
         });
 
         return this;

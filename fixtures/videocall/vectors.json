@@ -1,0 +1,19 @@
+{
+  "description": "Canonical VideoCall call-control payload wire vectors (PacketType 27). Every language SDK MUST serialize its VideoCallControlPayload to exactly these UTF-8 bytes: snake_case keys, field order call_id, action, sent_at_ms, no whitespace, lowercase-dashed UUID, sent_at_ms a bare integer, action an ASCII verb.",
+  "vectors": [
+    {
+      "name": "ring",
+      "call_id": "0f7e5d3c-1a2b-4c5d-8e9f-0a1b2c3d4e5f",
+      "action": "ring",
+      "sent_at_ms": 1700000000000,
+      "expected_json": "{\"call_id\":\"0f7e5d3c-1a2b-4c5d-8e9f-0a1b2c3d4e5f\",\"action\":\"ring\",\"sent_at_ms\":1700000000000}"
+    },
+    {
+      "name": "hangup",
+      "call_id": "00000000-0000-0000-0000-000000000000",
+      "action": "hangup",
+      "sent_at_ms": 0,
+      "expected_json": "{\"call_id\":\"00000000-0000-0000-0000-000000000000\",\"action\":\"hangup\",\"sent_at_ms\":0}"
+    }
+  ]
+}

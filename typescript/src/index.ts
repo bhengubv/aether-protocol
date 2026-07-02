@@ -80,6 +80,9 @@ export * from "./heartbeat/index.js";
 // Channels — named-channel pub/sub (PacketType.ChannelMessage = 7)
 export * from "./channels/index.js";
 
+// Video call-control — directed ring/accept/decline/hangup (PacketType.VideoCall = 27)
+export * from "./videocall/index.js";
+
 // Profiles — directed peer-profile exchange (PacketType.ProfileSync = 23)
 export * from "./profiles/index.js";
 
