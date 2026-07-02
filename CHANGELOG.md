@@ -10,6 +10,10 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+---
+
+## [2.2.0] — 2026-07-02
+
 **The full wire-service suite — every reserved packet type is now a real, byte-identical
 service in all eight languages.** Additive; no wire-format change to existing packets. Closes the
 "reserved-but-unserviced PacketType" gap surfaced by a two-pass protocol audit: 18 packet types
@@ -40,9 +44,13 @@ Rust, Swift, and C. Swift and C additionally verified on the macOS build server.
   packets. `fixtures/space/`, `fixtures/forge/`, `fixtures/vaultshard/`.
 - **Bandwidth measurement (ABMF)** — probe (53) / ack (54) / gossip (55) binary link-throughput
   wire binding, little-endian, `expected_hex`-pinned. `fixtures/bandwidth/`.
-- **README** rewritten with a "What you get — every service, in every language" capability
-  surface and a byte-identity headline, and re-synced across all 10 human-language translations
-  under `docs/i18n/`.
+- **Documentation & discoverability.** README rewritten around a "What you get — every service,
+  in every language" capability table (all 18 services with packet numbers, fixture paths, and
+  8/8 language coverage), a byte-identity headline, a definitional lede, and an 8-question FAQ.
+  Human-language translations expanded from 11 to **21** — added isiZulu, Afrikaans, Sesotho,
+  Kiswahili, Hausa, Amharic, Hindi, Indonesian, Bengali, and Urdu under `docs/i18n/`, and fixed
+  the per-file language-selector bar so cross-language navigation resolves from every page. Added
+  `llms.txt`, a `robots.txt` AI-crawler allowlist, and `CITATION.cff` for search/LLM discoverability.
 
 ### Notes
 
