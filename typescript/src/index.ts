@@ -74,6 +74,15 @@ export * from "./circuitrelay/index.js";
 // SOS
 export * from "./sos/index.js";
 
+// Heartbeat — liveness beacons (PacketType.Heartbeat = 10)
+export * from "./heartbeat/index.js";
+
+// Channels — named-channel pub/sub (PacketType.ChannelMessage = 7)
+export * from "./channels/index.js";
+
+// Profiles — directed peer-profile exchange (PacketType.ProfileSync = 23)
+export * from "./profiles/index.js";
+
 // Handshake
 export * from "./handshake/index.js";
 

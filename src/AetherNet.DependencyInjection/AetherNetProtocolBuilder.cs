@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 using AetherNet.ApiClients;
+using AetherNet.Channels;
+using AetherNet.Heartbeat;
+using AetherNet.Profiles;
 using AetherNet.Content;
 using AetherNet.Dtn;
 using AetherNet.Forge;
@@ -44,6 +47,9 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _routingAdded;
     private bool _dtnAdded;
     private bool _sosAdded;
+    private bool _heartbeatAdded;
+    private bool _channelsAdded;
+    private bool _profilesAdded;
     private bool _messagingAdded;
     private bool _transportAdded;
     private bool _handshakeAdded;
@@ -152,6 +158,54 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
             var logger = sp.GetService<ILogger<SosBroadcastService>>()
                 ?? NullLogger<SosBroadcastService>.Instance;
             return new SosBroadcastService(sender, backend: null, incentives: null, logger: logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddHeartbeat()
+    {
+        if (_heartbeatAdded) return this;
+        _heartbeatAdded = true;
+
+        Services.TryAddSingleton<IHeartbeatService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<HeartbeatService>>()
+                ?? NullLogger<HeartbeatService>.Instance;
+            return new HeartbeatService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddChannels()
+    {
+        if (_channelsAdded) return this;
+        _channelsAdded = true;
+
+        Services.TryAddSingleton<IChannelMessageService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<ChannelMessageService>>()
+                ?? NullLogger<ChannelMessageService>.Instance;
+            return new ChannelMessageService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddProfiles()
+    {
+        if (_profilesAdded) return this;
+        _profilesAdded = true;
+
+        Services.TryAddSingleton<IProfileService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<ProfileService>>()
+                ?? NullLogger<ProfileService>.Instance;
+            return new ProfileService(sender, logger);
         });
 
         return this;

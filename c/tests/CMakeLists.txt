@@ -68,6 +68,27 @@ target_include_directories(test-sos PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../inclu
 target_link_libraries(test-sos PRIVATE aethernet-protocol pthread)
 add_test(NAME SosTests COMMAND test-sos)
 
+add_executable(test-channels
+    test_channels.c
+)
+target_include_directories(test-channels PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-channels PRIVATE aethernet-protocol pthread)
+add_test(NAME ChannelTests COMMAND test-channels)
+
+add_executable(test-profiles
+    test_profiles.c
+)
+target_include_directories(test-profiles PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-profiles PRIVATE aethernet-protocol pthread)
+add_test(NAME ProfileTests COMMAND test-profiles)
+
+add_executable(test-heartbeat
+    test_heartbeat.c
+)
+target_include_directories(test-heartbeat PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-heartbeat PRIVATE aethernet-protocol pthread)
+add_test(NAME HeartbeatTests COMMAND test-heartbeat)
+
 add_executable(test-fixtures
     test_fixtures.c
 )
@@ -375,6 +396,9 @@ add_custom_target(aether-tests
         test-relay-engine
         test-relay-mesh
         test-sos
+        test-channels
+        test-profiles
+        test-heartbeat
         test-fixtures
         test-signal-fixtures
         test-signal-session

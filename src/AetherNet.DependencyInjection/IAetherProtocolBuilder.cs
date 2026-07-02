@@ -66,6 +66,26 @@ public interface IAetherNetProtocolBuilder
     IAetherNetProtocolBuilder AddSosBroadcast();
 
     /// <summary>
+    /// Register <c>HeartbeatService</c> as a singleton <c>IHeartbeatService</c>
+    /// (<c>PacketType.Heartbeat</c> liveness beacons — periodic single-hop broadcast + per-peer
+    /// liveness tracking). Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddHeartbeat();
+
+    /// <summary>
+    /// Register <c>ChannelMessageService</c> as a singleton <c>IChannelMessageService</c>
+    /// (<c>PacketType.ChannelMessage</c> named-channel pub/sub — subscribe, publish-flood, de-dup,
+    /// re-flood). Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddChannels();
+
+    /// <summary>
+    /// Register <c>ProfileService</c> as a singleton <c>IProfileService</c>
+    /// (<c>PacketType.ProfileSync</c> directed peer-profile exchange + cache). Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddProfiles();
+
+    /// <summary>
     /// Register <c>MessagingService</c> + <c>SignalMessageEnvelopeCipher</c>
     /// as singletons. Requires both <see cref="AddSignalProtocol"/> and
     /// <see cref="AddRouting"/> to have been called first; throws

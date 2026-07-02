@@ -166,6 +166,9 @@ add_library(aethernet-protocol STATIC
     src/forge.c
     src/fmhy.c
     src/sos.c
+    src/channels.c
+    src/profiles.c
+    src/heartbeat.c
     src/space.c
     src/voice.c
     src/group_voice.c

@@ -1,0 +1,23 @@
+{
+  "description": "Canonical ChannelMessage payload wire vectors (PacketType 7). Every language SDK MUST serialize its ChannelMessagePayload to exactly these UTF-8 bytes: snake_case keys, field order channel_id, message_id, sender_uhid, content, sent_at_ms, no whitespace, lowercase-dashed UUID, sent_at_ms a bare integer. Content is ASCII in these vectors; escaping of non-ASCII follows standard JSON.",
+  "vectors": [
+    {
+      "name": "basic",
+      "channel_id": "res-floor-3",
+      "message_id": "0f7e5d3c-1a2b-4c5d-8e9f-0a1b2c3d4e5f",
+      "sender_uhid": "aether:alice:01",
+      "content": "meeting at 6",
+      "sent_at_ms": 1700000000000,
+      "expected_json": "{\"channel_id\":\"res-floor-3\",\"message_id\":\"0f7e5d3c-1a2b-4c5d-8e9f-0a1b2c3d4e5f\",\"sender_uhid\":\"aether:alice:01\",\"content\":\"meeting at 6\",\"sent_at_ms\":1700000000000}"
+    },
+    {
+      "name": "minimal",
+      "channel_id": "g",
+      "message_id": "00000000-0000-0000-0000-000000000000",
+      "sender_uhid": "n",
+      "content": "",
+      "sent_at_ms": 0,
+      "expected_json": "{\"channel_id\":\"g\",\"message_id\":\"00000000-0000-0000-0000-000000000000\",\"sender_uhid\":\"n\",\"content\":\"\",\"sent_at_ms\":0}"
+    }
+  ]
+}

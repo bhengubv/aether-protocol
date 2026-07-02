@@ -1,0 +1,17 @@
+{
+  "description": "Canonical Heartbeat payload wire vectors (PacketType 10). Every language SDK MUST serialize its HeartbeatPayload to exactly these UTF-8 bytes: snake_case keys, field order sequence then sent_at_ms, no whitespace, both values bare integers. Byte-identity gate for the liveness beacon.",
+  "vectors": [
+    {
+      "name": "basic",
+      "sequence": 1,
+      "sent_at_ms": 1700000000000,
+      "expected_json": "{\"sequence\":1,\"sent_at_ms\":1700000000000}"
+    },
+    {
+      "name": "zero",
+      "sequence": 0,
+      "sent_at_ms": 0,
+      "expected_json": "{\"sequence\":0,\"sent_at_ms\":0}"
+    }
+  ]
+}

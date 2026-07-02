@@ -1,0 +1,23 @@
+{
+  "description": "Canonical ProfileSync payload wire vectors (PacketType 23). Every language SDK MUST serialize its ProfileSyncPayload to exactly these UTF-8 bytes: snake_case keys, field order uhid, display_name, avatar_ref, status_message, updated_at_ms, no whitespace, updated_at_ms a bare integer, all string fields always present (empty when unset).",
+  "vectors": [
+    {
+      "name": "basic",
+      "uhid": "aether:alice:01",
+      "display_name": "Alice",
+      "avatar_ref": "blake3:abc",
+      "status_message": "available",
+      "updated_at_ms": 1700000000000,
+      "expected_json": "{\"uhid\":\"aether:alice:01\",\"display_name\":\"Alice\",\"avatar_ref\":\"blake3:abc\",\"status_message\":\"available\",\"updated_at_ms\":1700000000000}"
+    },
+    {
+      "name": "minimal",
+      "uhid": "n",
+      "display_name": "",
+      "avatar_ref": "",
+      "status_message": "",
+      "updated_at_ms": 0,
+      "expected_json": "{\"uhid\":\"n\",\"display_name\":\"\",\"avatar_ref\":\"\",\"status_message\":\"\",\"updated_at_ms\":0}"
+    }
+  ]
+}

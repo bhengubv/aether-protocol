@@ -3,6 +3,7 @@
 pub mod bandwidth;
 pub mod identity;
 pub mod anomaly_detector;
+pub mod channels;
 pub mod circuitrelay;
 pub mod constants;
 pub mod content;
@@ -12,9 +13,11 @@ pub mod extensibility;
 pub mod fmhy;
 pub mod forge;
 pub mod handshake;
+pub mod heartbeat;
 pub mod incentive;
 pub mod market;
 pub mod models;
+pub mod profiles;
 pub mod protocol;
 pub mod reputation;
 pub mod routing;
@@ -73,6 +76,9 @@ pub use content::{
     NamePublishPayload, NameQueryPayload, DEFAULT_QUERY_TIMEOUT,
 };
 pub use dtn::DtnBundleReceivedEvent;
+pub use heartbeat::{HeartbeatService, PeerLiveness, PeerSeenEvent};
+pub use channels::{ChannelMessageReceivedEvent, ChannelMessageService};
+pub use profiles::{ProfileService, ProfileSyncPayload};
 pub use sos::{SosAcknowledgedEvent, SosBroadcastService};
 pub use incentive::{
     MeshTipService, MeshTipSettlementProvider, NoopMeshTipSettlementProvider, TipPacketPayload,
