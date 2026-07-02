@@ -64,6 +64,16 @@ typedef enum {
     AETHERNET_PACKET_TYPE_VAULT_SHARD_REQUEST   = 42,
     // Proof-of-Vicinity directed witness->subject token exchange (AetherNet.Market).
     AETHERNET_PACKET_TYPE_POV_TOKEN_EXCHANGE    = 43,
+    // AetherNet Bandwidth Measurement Framework (ABMF) WIRE bindings. Wire bytes 53/54/55
+    // match the C# PacketType.BandwidthProbe/BandwidthAck/BandwidthGossip so a measurement
+    // hop is byte-identical across languages; an un-upgraded node drops the unknown type.
+    // Bodies are LITTLE-ENDIAN with no version byte -- see aethernet/bandwidth_wire.h.
+    //   53 -- BandwidthProbe : sequence u32 | sender_send_us i64                          (12 B)
+    //   54 -- BandwidthAck   : + receiver_receive_us i64 | receiver_send_us i64 | probe_bytes i32 (32 B)
+    //   55 -- BandwidthGossip: btlbw_bps i64 | rtprop_us i32 | confidence u8              (13 B)
+    AETHERNET_PACKET_TYPE_BANDWIDTH_PROBE       = 53,
+    AETHERNET_PACKET_TYPE_BANDWIDTH_ACK         = 54,
+    AETHERNET_PACKET_TYPE_BANDWIDTH_GOSSIP      = 55,
     // CircuitRelayControl -- one native circuit-relay-v2 hop's RelayFrame carried in the
     // packet body (reserve/connect/stop/data + responses). Wire byte 57 matches the C#
     // PacketType.CircuitRelayControl so a relayed hop is byte-identical across languages;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using AetherNet.ApiClients;
+using AetherNet.Bandwidth;
 using AetherNet.Channels;
 using AetherNet.Heartbeat;
 using AetherNet.Profiles;
@@ -54,6 +55,7 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _profilesAdded;
     private bool _videoCallControlAdded;
     private bool _preKeyExchangeAdded;
+    private bool _bandwidthAdded;
     private bool _messagingAdded;
     private bool _transportAdded;
     private bool _handshakeAdded;
@@ -242,6 +244,22 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
             var logger = sp.GetService<ILogger<PreKeyExchangeService>>()
                 ?? NullLogger<PreKeyExchangeService>.Instance;
             return new PreKeyExchangeService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddBandwidth()
+    {
+        if (_bandwidthAdded) return this;
+        _bandwidthAdded = true;
+
+        Services.TryAddSingleton<IBandwidthWireService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<BandwidthWireService>>()
+                ?? NullLogger<BandwidthWireService>.Instance;
+            return new BandwidthWireService(sender, logger);
         });
 
         return this;

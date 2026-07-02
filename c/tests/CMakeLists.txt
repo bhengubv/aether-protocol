@@ -89,6 +89,13 @@ target_include_directories(test-prekey PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../in
 target_link_libraries(test-prekey PRIVATE aethernet-protocol pthread)
 add_test(NAME PreKeyExchangeTests COMMAND test-prekey)
 
+add_executable(test-bandwidth-wire
+    test_bandwidth_wire.c
+)
+target_include_directories(test-bandwidth-wire PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-bandwidth-wire PRIVATE aethernet-protocol pthread)
+add_test(NAME BandwidthWireTests COMMAND test-bandwidth-wire)
+
 add_executable(test-profiles
     test_profiles.c
 )
@@ -472,6 +479,7 @@ add_custom_target(aether-tests
         test-directory-service
         test-bandwidth
         test-bandwidth-fixtures
+        test-bandwidth-wire
         test-p256
         test-peerid
 )

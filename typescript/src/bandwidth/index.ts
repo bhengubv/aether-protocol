@@ -29,3 +29,11 @@ export {
 
 export { BandwidthDirector } from "./BandwidthDirector.js";
 export { NodeActivityMonitor } from "./NodeActivityMonitor.js";
+
+// WIRE bindings — BandwidthProbe(53) / BandwidthAck(54) / BandwidthGossip(55)
+export {
+  BandwidthWireService,
+  BandwidthWireCodec,
+  type BandwidthProbe,
+  type BandwidthProbeReceived,
+} from "./BandwidthWireService.js";

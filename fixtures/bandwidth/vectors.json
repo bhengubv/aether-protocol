@@ -1,0 +1,30 @@
+{
+  "description": "Canonical Bandwidth (ABMF) BINARY wire vectors. All multi-byte integers are LITTLE-ENDIAN; no version byte. Probe(53) = sequence u32 | sender_send_us i64 (12 B). Ack(54) = sequence u32 | sender_send_us i64 | receiver_receive_us i64 | receiver_send_us i64 | probe_bytes i32 (32 B); SenderReceiveUs is filled locally by the prober and is NOT on the wire. Gossip(55) = btlbw_bps i64 | rtprop_us i32 | confidence u8 (13 B); PeerUhid/TransportName/MeasuredAt are not carried in the body. Every language SDK MUST serialize to exactly these bytes (expected_hex is lowercase hex).",
+  "vectors": [
+    {
+      "name": "probe",
+      "kind": "probe",
+      "sequence": 42,
+      "sender_send_us": 1700000000000000,
+      "expected_hex": "2a00000000401e18240a0600"
+    },
+    {
+      "name": "ack",
+      "kind": "ack",
+      "sequence": 42,
+      "sender_send_us": 1700000000000000,
+      "receiver_receive_us": 1700000000012345,
+      "receiver_send_us": 1700000000013000,
+      "probe_bytes": 1200,
+      "expected_hex": "2a00000000401e18240a060039701e18240a0600c8721e18240a0600b0040000"
+    },
+    {
+      "name": "gossip",
+      "kind": "gossip",
+      "btlbw_bps": 5000000,
+      "rtprop_us": 25000,
+      "confidence": 2,
+      "expected_hex": "404b4c0000000000a861000002"
+    }
+  ]
+}

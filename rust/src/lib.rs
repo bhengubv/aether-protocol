@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod bandwidth;
+pub mod bandwidth_wire;
 pub mod identity;
 pub mod anomaly_detector;
 pub mod channels;
@@ -97,3 +98,6 @@ pub use vault::{split_into_data_shards, ReedSolomonCodec, VaultError};
 pub use space_wire::{SpaceBreadcrumbReceivedEvent, SpaceBreadcrumbService};
 pub use forge_wire::{ForgeAnnounceReceivedEvent, ForgeAnnounceService};
 pub use vault_wire::{VaultShardRequestReceivedEvent, VaultShardRequestService};
+pub use bandwidth_wire::{
+    BandwidthProbe, BandwidthProbeReceivedEvent, BandwidthWireCodec, BandwidthWireService,
+};

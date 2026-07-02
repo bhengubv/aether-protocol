@@ -58,6 +58,17 @@ from aethernet.bandwidth.models import (
 from aethernet.bandwidth.estimator import BandwidthEstimator
 from aethernet.bandwidth.director import BandwidthDirector
 from aethernet.bandwidth.monitor import NodeActivityMonitor
+from aethernet.bandwidth.wire import (
+    BandwidthProbe,
+    BandwidthProbeReceived,
+    BandwidthWireService,
+    deserialize_ack,
+    deserialize_gossip,
+    deserialize_probe,
+    serialize_ack,
+    serialize_gossip,
+    serialize_probe,
+)
 
 __all__ = [
     # Models
@@ -72,4 +83,14 @@ __all__ = [
     "BandwidthEstimator",
     "BandwidthDirector",
     "NodeActivityMonitor",
+    # WIRE bindings (Probe 53 / Ack 54 / Gossip 55)
+    "BandwidthProbe",
+    "BandwidthProbeReceived",
+    "BandwidthWireService",
+    "serialize_probe",
+    "deserialize_probe",
+    "serialize_ack",
+    "deserialize_ack",
+    "serialize_gossip",
+    "deserialize_gossip",
 ]

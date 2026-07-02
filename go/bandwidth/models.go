@@ -128,6 +128,15 @@ func (s BandwidthSample) EffectiveBps() int64 {
 
 // ── Probe wire models ────────────────────────────────────────────────────────
 
+// BandwidthProbe is a latency/throughput probe request (PacketType.BandwidthProbe
+// = 53 body). SenderSendUs is microseconds since Unix epoch on the sender's local
+// clock; the responder echoes it back in a BandwidthProbeAck so RTT can be derived
+// without clock synchronisation. Mirrors the C# AetherNet.Bandwidth.BandwidthProbe.
+type BandwidthProbe struct {
+	Sequence     uint32
+	SenderSendUs int64
+}
+
 // BandwidthProbeAck carries four timestamps from a two-way probe (RFC 5136 §3).
 // All timestamps are microseconds since Unix epoch on each peer's local clock.
 // Clock synchronisation is NOT required — RTT uses sender-side timestamps only.

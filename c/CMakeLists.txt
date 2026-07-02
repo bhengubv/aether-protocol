@@ -184,6 +184,7 @@ add_library(aethernet-protocol STATIC
     src/erid.c
     src/aethernet_uri.c
     src/aethernet_bandwidth.c
+    src/bandwidth_wire.c
     src/chunk_bitmap.c
     src/directory_service.c
     src/peer_id.c

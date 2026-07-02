@@ -100,6 +100,14 @@ public interface IAetherNetProtocolBuilder
     IAetherNetProtocolBuilder AddPreKeyExchange();
 
     /// <summary>
+    /// Register <c>BandwidthWireService</c> as a singleton <c>IBandwidthWireService</c> — the ABMF mesh
+    /// binding for <c>PacketType.BandwidthProbe</c>/<c>BandwidthAck</c>/<c>BandwidthGossip</c> (53/54/55):
+    /// directed probe + ack, broadcast gossip warm-start. The host feeds inbound packets into
+    /// <c>IBandwidthEstimator</c>. Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddBandwidth();
+
+    /// <summary>
     /// Register <c>MessagingService</c> + <c>SignalMessageEnvelopeCipher</c>
     /// as singletons. Requires both <see cref="AddSignalProtocol"/> and
     /// <see cref="AddRouting"/> to have been called first; throws
