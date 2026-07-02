@@ -21,6 +21,12 @@ public interface ISosBroadcastService
     event EventHandler<Guid>? SosResolved;
 
     /// <summary>
+    /// Raised on the ORIGINATING node when a peer acknowledges receiving one of our active SOS alerts —
+    /// proof the emergency reached at least one device. Carries the responder and the running distinct count.
+    /// </summary>
+    event EventHandler<SosAcknowledgement>? SosAcknowledged;
+
+    /// <summary>
     /// Originate an SOS. Floods the mesh and (if a backend client is wired up) mirrors the alert via cloud.
     /// Returns false if the rolling rate limit (<see cref="Constants.ProtocolConstants.MaxSosBroadcastsPerHour"/>) is exhausted.
     /// </summary>
@@ -34,4 +40,12 @@ public interface ISosBroadcastService
 
     /// <summary>Pump an incoming SOS packet into the service. Dedups, raises <see cref="SosReceived"/>, re-broadcasts.</summary>
     Task HandleAsync(MeshPacket sosPacket, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Pump an incoming <see cref="PacketType.SosAck"/> packet into the service. On the originating
+    /// node it records the responder against the matching active alert (deduping by responder UHID)
+    /// and raises <see cref="SosAcknowledged"/>. No-op if the ack references an SOS this node did not
+    /// originate, or one it has already resolved.
+    /// </summary>
+    Task HandleAckAsync(MeshPacket ackPacket, CancellationToken cancellationToken = default);
 }

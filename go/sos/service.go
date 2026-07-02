@@ -36,6 +36,12 @@ type Service struct {
 
 	OnSosReceived func(alert *models.SosAlert)
 	OnSosResolved func(broadcastID string)
+
+	// OnSosAcknowledged fires on the ORIGINATING node when a peer acknowledges
+	// receiving one of our active SOS alerts — proof the emergency reached at
+	// least one device. Carries the responder and the running distinct count.
+	// Mirrors the C# SosAcknowledged event.
+	OnSosAcknowledged func(ack models.SosAcknowledgement)
 }
 
 // NewService constructs a Service. Pass nil for backend / incentives to receive defaults.
@@ -76,15 +82,16 @@ func (s *Service) Broadcast(ctx context.Context, broadcastType, message string, 
 
 	alertID := uuid.NewString()
 	alert := &models.SosAlert{
-		ID:            alertID,
-		SenderUhid:    s.sender.LocalUhid(),
-		BroadcastType: broadcastType,
-		Message:       message,
-		Latitude:      latitude,
-		Longitude:     longitude,
-		Geohash:       geohash,
-		Timestamp:     time.Now(),
-		ReceivedAt:    time.Now(),
+		ID:             alertID,
+		SenderUhid:     s.sender.LocalUhid(),
+		BroadcastType:  broadcastType,
+		Message:        message,
+		Latitude:       latitude,
+		Longitude:      longitude,
+		Geohash:        geohash,
+		Timestamp:      time.Now(),
+		ReceivedAt:     time.Now(),
+		AcknowledgedBy: make(map[string]struct{}),
 	}
 	s.mu.Lock()
 	s.activeAlerts[alertID] = alert
@@ -172,15 +179,16 @@ func (s *Service) Handle(ctx context.Context, packet *protocol.MeshPacket) error
 	}
 
 	alert := &models.SosAlert{
-		ID:            body.BroadcastID,
-		SenderUhid:    packet.SourceUhid,
-		BroadcastType: body.BroadcastType,
-		Message:       body.Message,
-		Latitude:      body.Latitude,
-		Longitude:     body.Longitude,
-		Geohash:       body.Geohash,
-		Timestamp:     time.Now(),
-		ReceivedAt:    time.Now(),
+		ID:             body.BroadcastID,
+		SenderUhid:     packet.SourceUhid,
+		BroadcastType:  body.BroadcastType,
+		Message:        body.Message,
+		Latitude:       body.Latitude,
+		Longitude:      body.Longitude,
+		Geohash:        body.Geohash,
+		Timestamp:      time.Now(),
+		ReceivedAt:     time.Now(),
+		AcknowledgedBy: make(map[string]struct{}),
 	}
 	s.mu.Lock()
 	s.activeAlerts[alert.ID] = alert
@@ -189,12 +197,108 @@ func (s *Service) Handle(ctx context.Context, packet *protocol.MeshPacket) error
 		cb(alert)
 	}
 
+	// Acknowledge back to the originator so the sender learns their SOS reached a device.
+	s.sendSosAck(ctx, body.BroadcastID, packet.SourceUhid)
+
 	if packet.Ttl > 1 {
 		packet.Ttl--
 		_, _ = s.sender.Broadcast(ctx, packet)
 		_ = s.incentives.RecordRelay(ctx, s.sender.LocalUhid(), packet)
 	}
 	return nil
+}
+
+// HandleAck processes an inbound SosAck packet. On the originating node it records
+// the responder against the matching active alert (deduping by responder UHID) and
+// fires OnSosAcknowledged. No-op if the ack references an SOS this node did not
+// originate (or one it has already resolved), or if the responder is this node
+// itself. Returns an error only if the packet is nil or not a SosAck.
+func (s *Service) HandleAck(ctx context.Context, packet *protocol.MeshPacket) error {
+	if packet == nil {
+		return errors.New("sos: packet must not be nil")
+	}
+	if packet.Type != protocol.SosAck {
+		return errors.New("sos: HandleAck expected PacketType.SosAck")
+	}
+
+	var body sosAckWire
+	if err := json.Unmarshal(packet.Payload, &body); err != nil {
+		// Malformed ack payload: log-and-drop, not a caller error (mirrors C#).
+		return nil
+	}
+
+	// The ack payload carries a uuid.UUID; alerts are keyed by their string form.
+	broadcastID := body.BroadcastID.String()
+
+	responder := packet.SourceUhid
+	if responder == "" {
+		return nil
+	}
+	if responder == s.sender.LocalUhid() {
+		return nil // our own ack echoed back — ignore
+	}
+
+	s.mu.Lock()
+	// Only the ORIGINATOR holds this alert in activeAlerts; every other node ignores the ack.
+	alert, ok := s.activeAlerts[broadcastID]
+	if !ok {
+		s.mu.Unlock()
+		return nil
+	}
+	if alert.AcknowledgedBy == nil {
+		alert.AcknowledgedBy = make(map[string]struct{})
+	}
+	if _, dup := alert.AcknowledgedBy[responder]; dup {
+		s.mu.Unlock()
+		return nil // already counted this responder — dedup
+	}
+	alert.AcknowledgedBy[responder] = struct{}{}
+	total := len(alert.AcknowledgedBy)
+	s.mu.Unlock()
+
+	if cb := s.OnSosAcknowledged; cb != nil {
+		cb(models.SosAcknowledgement{
+			BroadcastID:           broadcastID,
+			ResponderUhid:         responder,
+			TotalAcknowledgements: total,
+		})
+	}
+	return nil
+}
+
+// sendSosAck sends a directed SosAck back to the alert originator so the sender
+// learns their emergency reached this device. Best-effort: delivers when the
+// originator is reachable as a next hop.
+func (s *Service) sendSosAck(ctx context.Context, broadcastID, originatorUhid string) {
+	if originatorUhid == "" {
+		return
+	}
+	if originatorUhid == s.sender.LocalUhid() {
+		return
+	}
+
+	id, err := uuid.Parse(broadcastID)
+	if err != nil {
+		return
+	}
+
+	body, err := json.Marshal(sosAckWire{
+		BroadcastID:  id,
+		ReceivedAtMs: time.Now().UnixMilli(),
+	})
+	if err != nil {
+		return
+	}
+
+	ack := protocol.NewMeshPacket()
+	ack.Type = protocol.SosAck
+	ack.SourceUhid = s.sender.LocalUhid()
+	ack.DestinationUhid = originatorUhid
+	ack.Ttl = constants.SosTtl
+	ack.Priority = constants.SosPriority
+	ack.Payload = body
+
+	_, _ = s.sender.Send(ctx, ack, originatorUhid)
 }
 
 func (s *Service) pruneOldOrigins() {
@@ -216,4 +320,17 @@ type sosWire struct {
 	Latitude      float64 `json:"latitude"`
 	Longitude     float64 `json:"longitude"`
 	Geohash       string  `json:"geohash"`
+}
+
+// sosAckWire is the JSON payload for PacketType.SosAck packets. Wire format:
+// UTF-8 JSON, snake_case keys, field order broadcast_id then received_at_ms, no
+// whitespace, UUID lowercase-dashed 36 chars, received_at_ms a bare integer.
+// This is the byte-identity gate for the SOS acknowledgement path
+// (fixtures/sos/vectors.json). BroadcastID is a uuid.UUID so it marshals to the
+// canonical lowercase-dashed form across every language port. The acknowledging
+// node's identity is carried by the enclosing packet's SourceUhid — it is NOT
+// duplicated here. Mirrors the C# SosAckPayload.
+type sosAckWire struct {
+	BroadcastID  uuid.UUID `json:"broadcast_id"`
+	ReceivedAtMs int64     `json:"received_at_ms"`
 }

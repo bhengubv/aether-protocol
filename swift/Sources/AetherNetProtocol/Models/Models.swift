@@ -360,6 +360,12 @@ public struct SosAlert: Equatable, Codable, Sendable {
     public let geohash: String?
     public let receivedAt: Date
 
+    /// Distinct UHIDs of peers that have acknowledged receiving this alert. Populated on the
+    /// ORIGINATING node only, as `SosAck` packets arrive back, so the sender can see how many
+    /// devices their emergency reached. Mutated by the SOS service via actor-isolated
+    /// read-modify-write on the stored alert.
+    public var acknowledgedBy: Set<String>
+
     public init(
         id: UUID = UUID(),
         senderUhid: String,
@@ -368,7 +374,8 @@ public struct SosAlert: Equatable, Codable, Sendable {
         latitude: Double = 0,
         longitude: Double = 0,
         geohash: String? = nil,
-        receivedAt: Date = Date()
+        receivedAt: Date = Date(),
+        acknowledgedBy: Set<String> = []
     ) {
         self.id = id
         self.senderUhid = senderUhid
@@ -378,6 +385,23 @@ public struct SosAlert: Equatable, Codable, Sendable {
         self.longitude = longitude
         self.geohash = geohash
         self.receivedAt = receivedAt
+        self.acknowledgedBy = acknowledgedBy
+    }
+}
+
+/// Raised on the originating node when a peer acknowledges receipt of one of its active SOS alerts.
+public struct SosAcknowledgement: Equatable, Sendable {
+    /// Id of the SOS broadcast that was acknowledged.
+    public let broadcastId: UUID
+    /// UHID of the peer that acknowledged receiving the SOS.
+    public let responderUhid: String
+    /// Total distinct peers that have acknowledged this SOS so far (this responder included).
+    public let totalAcknowledgements: Int
+
+    public init(broadcastId: UUID, responderUhid: String, totalAcknowledgements: Int) {
+        self.broadcastId = broadcastId
+        self.responderUhid = responderUhid
+        self.totalAcknowledgements = totalAcknowledgements
     }
 }
 

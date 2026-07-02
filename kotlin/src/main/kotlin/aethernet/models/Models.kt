@@ -298,4 +298,22 @@ data class SosAlert(
     val geohash: String? = null,
     val id: java.util.UUID = java.util.UUID.randomUUID(),
     val receivedAt: Instant = Instant.now()
+) {
+    /**
+     * Distinct UHIDs of peers that have acknowledged receiving this alert. Populated on the
+     * ORIGINATING node only, as SosAck packets arrive back so the sender can see how many
+     * devices their emergency reached. Access is synchronised by the SOS service via a lock
+     * on this set. Mirrors C# SosAlert.AcknowledgedBy.
+     */
+    val acknowledgedBy: MutableSet<String> = mutableSetOf()
+}
+
+/**
+ * Raised on the originating node when a peer acknowledges receipt of one of its active SOS
+ * alerts. Mirrors C# SosAcknowledgement.
+ */
+data class SosAcknowledgement(
+    val broadcastId: java.util.UUID,
+    val responderUhid: String,
+    val totalAcknowledgements: Int
 )

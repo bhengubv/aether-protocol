@@ -15,6 +15,10 @@ public actor SosBroadcastService {
 
     public var onSosReceived: (@Sendable (SosAlert) -> Void)?
     public var onSosResolved: (@Sendable (UUID) -> Void)?
+    /// Raised on the ORIGINATING node when a peer acknowledges receiving one of our active SOS
+    /// alerts — proof the emergency reached at least one device. Carries the responder and the
+    /// running distinct count.
+    public var onSosAcknowledged: (@Sendable (SosAcknowledgement) -> Void)?
 
     public init(
         sender: any MeshSender,
@@ -32,6 +36,10 @@ public actor SosBroadcastService {
 
     public func setOnSosResolved(_ callback: (@Sendable (UUID) -> Void)?) {
         onSosResolved = callback
+    }
+
+    public func setOnSosAcknowledged(_ callback: (@Sendable (SosAcknowledgement) -> Void)?) {
+        onSosAcknowledged = callback
     }
 
     public func broadcast(
@@ -110,12 +118,69 @@ public actor SosBroadcastService {
         activeAlerts[alert.id] = alert
         onSosReceived?(alert)
 
+        // Acknowledge back to the originator so the sender learns their SOS reached a device.
+        await sendSosAck(broadcastId: alert.id, to: packet.sourceUhid)
+
         if packet.ttl > 1 {
             var fwd = packet
             fwd.ttl = packet.ttl - 1
             _ = await sender.broadcast(fwd)
             await incentives.recordRelay(localUhid: sender.localUhid, packet: fwd)
         }
+    }
+
+    /// Pump an incoming ``PacketType/sosAck`` packet into the service. On the originating node it
+    /// records the responder against the matching active alert (deduping by responder UHID) and
+    /// fires ``onSosAcknowledged``. No-op if the ack references an SOS this node did not originate
+    /// (only the originator holds it in `activeAlerts`), or one it has already resolved.
+    public func handleAck(_ packet: MeshPacket) async throws {
+        guard packet.type == .sosAck else {
+            throw SosError.unexpectedPacketType(expected: .sosAck, actual: packet.type)
+        }
+
+        guard let body = parseSosAckWire(packet.payload) else { return }
+
+        // Only the ORIGINATOR holds this alert in activeAlerts; every other node ignores the ack.
+        guard var alert = activeAlerts[body.broadcastId] else { return }
+
+        let responder = packet.sourceUhid
+        if responder.isEmpty { return }
+        if responder == sender.localUhid { return } // our own ack echoed back — ignore
+
+        // Dedup by responder UHID (the packet source, NOT the payload).
+        guard alert.acknowledgedBy.insert(responder).inserted else { return }
+        activeAlerts[body.broadcastId] = alert
+        let total = alert.acknowledgedBy.count
+
+        onSosAcknowledged?(SosAcknowledgement(
+            broadcastId: body.broadcastId,
+            responderUhid: responder,
+            totalAcknowledgements: total
+        ))
+    }
+
+    /// Send a directed ``PacketType/sosAck`` back to the alert originator so the sender learns their
+    /// emergency reached this device. Best-effort: delivers when the originator is reachable as a
+    /// next hop. Skips empty or self originators.
+    private func sendSosAck(broadcastId: UUID, to originatorUhid: String) async {
+        if originatorUhid.isEmpty { return }
+        if originatorUhid == sender.localUhid { return }
+
+        let body = encodeSosAckWire(
+            broadcastId: broadcastId,
+            receivedAtMs: Int64(Date().timeIntervalSince1970 * 1000)
+        )
+
+        let ack = MeshPacket(
+            type: .sosAck,
+            sourceUhid: sender.localUhid,
+            destinationUhid: originatorUhid,
+            ttl: ProtocolConstants.sosTtl,
+            priority: ProtocolConstants.sosPriority,
+            payload: body
+        )
+
+        _ = await sender.send(ack, nextHopUhid: originatorUhid)
     }
 
     private func pruneOldOrigins() {
@@ -159,4 +224,36 @@ private func parseSosWire(
 ) -> (broadcastId: UUID, broadcastType: String, message: String?, latitude: Double, longitude: Double, geohash: String?)? {
     guard let w = try? JSONDecoder().decode(SosWire.self, from: data) else { return nil }
     return (w.broadcast_id, w.broadcast_type, w.message, w.latitude, w.longitude, w.geohash)
+}
+
+// ─── SosAck wire (PacketType 6) ───
+//
+// Serialises to snake_case keys, field order broadcast_id then received_at_ms, no whitespace,
+// GUID lowercase-dashed. This is the byte-identity gate (fixtures/sos/vectors.json).
+
+private struct SosAckWire: Codable {
+    @LowercaseUUIDCoding var broadcast_id: UUID
+    let received_at_ms: Int64
+}
+
+private func encodeSosAckWire(broadcastId: UUID, receivedAtMs: Int64) -> Data {
+    let w = SosAckWire(broadcast_id: broadcastId, received_at_ms: receivedAtMs)
+    return (try? JSONEncoder().encode(w)) ?? Data()
+}
+
+/// Test-only shim exposing the real ``SosAckWire`` serialization path (the struct itself stays
+/// `private`) so byte-identity vectors in `fixtures/sos/vectors.json` can be verified.
+internal func _sosAckWireBytesForTests(broadcastId: UUID, receivedAtMs: Int64) -> Data {
+    encodeSosAckWire(broadcastId: broadcastId, receivedAtMs: receivedAtMs)
+}
+
+private func parseSosAckWire(_ data: Data) -> (broadcastId: UUID, receivedAtMs: Int64)? {
+    guard let w = try? JSONDecoder().decode(SosAckWire.self, from: data) else { return nil }
+    return (w.broadcast_id, w.received_at_ms)
+}
+
+/// Errors thrown by ``SosBroadcastService``.
+public enum SosError: Error, Equatable {
+    /// A packet handed to a typed handler had the wrong ``PacketType``.
+    case unexpectedPacketType(expected: PacketType, actual: PacketType)
 }

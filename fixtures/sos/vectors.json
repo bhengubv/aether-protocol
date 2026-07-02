@@ -1,0 +1,17 @@
+{
+  "description": "Canonical SosAck payload wire vectors (PacketType 6). Every language SDK MUST serialize its SosAckPayload to exactly these UTF-8 bytes: snake_case keys, field order broadcast_id then received_at_ms, no whitespace, GUID lowercase-dashed 36 chars, received_at_ms a bare integer. This is the byte-identity gate for the SOS acknowledgement path.",
+  "vectors": [
+    {
+      "name": "basic",
+      "broadcast_id": "0f7e5d3c-1a2b-4c5d-8e9f-0a1b2c3d4e5f",
+      "received_at_ms": 1700000000000,
+      "expected_json": "{\"broadcast_id\":\"0f7e5d3c-1a2b-4c5d-8e9f-0a1b2c3d4e5f\",\"received_at_ms\":1700000000000}"
+    },
+    {
+      "name": "zero",
+      "broadcast_id": "00000000-0000-0000-0000-000000000000",
+      "received_at_ms": 0,
+      "expected_json": "{\"broadcast_id\":\"00000000-0000-0000-0000-000000000000\",\"received_at_ms\":0}"
+    }
+  ]
+}

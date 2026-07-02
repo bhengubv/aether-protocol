@@ -164,4 +164,20 @@ export interface SosAlert {
   longitude: number;
   geohash?: string;
   receivedAt: Date;
+  /**
+   * Distinct UHIDs of peers that have acknowledged receiving this alert. Populated on the
+   * ORIGINATING node only, as SosAck packets arrive back — it lets the sender see how many
+   * devices their emergency reached. Mirrors the C# SosAlert.AcknowledgedBy.
+   */
+  acknowledgedBy: Set<string>;
+}
+
+/**
+ * Raised on the originating node when a peer acknowledges receipt of one of its active SOS
+ * alerts. Mirrors the C# SosAcknowledgement.
+ */
+export interface SosAcknowledgement {
+  broadcastId: string;
+  responderUhid: string;
+  totalAcknowledgements: number;
 }

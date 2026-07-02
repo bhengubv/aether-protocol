@@ -4,4 +4,4 @@
 
 pub mod service;
 
-pub use service::SosBroadcastService;
+pub use service::{SosAcknowledgedEvent, SosBroadcastService};

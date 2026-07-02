@@ -7,6 +7,7 @@ import aethernet.extensibility.BackendClient
 import aethernet.extensibility.IncentiveProvider
 import aethernet.extensibility.NoopBackendClient
 import aethernet.extensibility.NoopIncentiveProvider
+import aethernet.models.SosAcknowledgement
 import aethernet.models.SosAlert
 import aethernet.protocol.MeshPacket
 import aethernet.protocol.PacketType
@@ -32,6 +33,13 @@ class SosBroadcastService(
 
     var onSosReceived: ((SosAlert) -> Unit)? = null
     var onSosResolved: ((UUID) -> Unit)? = null
+
+    /**
+     * Raised on the ORIGINATING node when a peer acknowledges receipt of one of its active SOS
+     * alerts. Mirrors the other Kotlin SOS events (nullable-lambda mechanism) and C#
+     * SosBroadcastService.SosAcknowledged.
+     */
+    var onSosAcknowledged: ((SosAcknowledgement) -> Unit)? = null
 
     suspend fun broadcast(
         broadcastType: String,
@@ -93,7 +101,13 @@ class SosBroadcastService(
         // latitude / longitude / geohash) via the shared JsonReader — matches the C#
         // reference. An SOS must carry its message and GPS fix, not just packet headers.
         val json = packet.payload.toString(Charsets.UTF_8)
+        // Preserve the originator's broadcast id from the envelope so the directed ack references
+        // the same alert the originator holds in its activeAlerts — matches the C# reference.
+        val broadcastId = JsonReader.readString(json, "broadcast_id")?.let {
+            runCatching { UUID.fromString(it) }.getOrNull()
+        } ?: UUID.randomUUID()
         val alert = SosAlert(
+            id = broadcastId,
             senderUhid = packet.sourceUhid,
             broadcastType = JsonReader.readString(json, "broadcast_type") ?: "sos",
             message = JsonReader.readString(json, "message"),
@@ -104,11 +118,77 @@ class SosBroadcastService(
         activeAlerts[alert.id] = alert
         onSosReceived?.invoke(alert)
 
+        // Acknowledge back to the originator so the sender learns their SOS reached a device.
+        sendSosAck(alert.id, packet.sourceUhid)
+
         if (packet.ttl > 1) {
             packet.ttl -= 1
             sender.broadcast(packet)
             incentives.recordRelay(sender.localUhid, packet)
         }
+    }
+
+    /**
+     * Handle an inbound [PacketType.SosAck] on the ORIGINATING node. Parses the payload, finds the
+     * active alert this node originated (no-op if not found — every non-originator ignores the ack),
+     * ignores our own echoed ack, dedups by responder uhid, and on a new distinct responder records
+     * it and emits [onSosAcknowledged] with the running distinct total. The responder's identity is
+     * the ack packet's SOURCE uhid, not carried in the payload. Mirrors C# HandleAckAsync.
+     */
+    fun handleAck(ackPacket: MeshPacket) {
+        require(ackPacket.type == PacketType.SosAck) { "expected PacketType.SosAck" }
+
+        val json = ackPacket.payload.toString(Charsets.UTF_8)
+        val broadcastId = JsonReader.readString(json, "broadcast_id")?.let {
+            runCatching { UUID.fromString(it) }.getOrNull()
+        } ?: return
+
+        // Only the ORIGINATOR holds this alert in activeAlerts; every other node ignores the ack.
+        val alert = activeAlerts[broadcastId] ?: return
+
+        val responder = ackPacket.sourceUhid
+        if (responder.isEmpty()) return
+        if (responder == sender.localUhid) return // our own ack echoed back — ignore
+
+        val total: Int
+        synchronized(alert.acknowledgedBy) {
+            if (!alert.acknowledgedBy.add(responder)) return // already counted — dedup
+            total = alert.acknowledgedBy.size
+        }
+
+        onSosAcknowledged?.invoke(
+            SosAcknowledgement(
+                broadcastId = broadcastId,
+                responderUhid = responder,
+                totalAcknowledgements = total
+            )
+        )
+    }
+
+    /**
+     * Send a directed [PacketType.SosAck] back to the alert originator so the sender learns their
+     * emergency reached this device. Best-effort: delivers when the originator is reachable as a
+     * next hop via the sender's directed send. Mirrors C# SendSosAckAsync.
+     */
+    private suspend fun sendSosAck(broadcastId: UUID, originatorUhid: String) {
+        if (originatorUhid.isEmpty()) return
+        if (originatorUhid == sender.localUhid) return
+
+        val payload = SosAckPayload(
+            broadcastId = broadcastId,
+            receivedAtMs = Instant.now().toEpochMilli()
+        ).toJsonBytes()
+
+        val ack = MeshPacket(
+            type = PacketType.SosAck,
+            sourceUhid = sender.localUhid,
+            destinationUhid = originatorUhid,
+            ttl = AetherNetConstants.SOS_TTL,
+            priority = AetherNetConstants.SOS_PRIORITY.toByte(),
+            payload = payload
+        )
+
+        sender.send(ack, originatorUhid)
     }
 
     private fun pruneOldOrigins() {

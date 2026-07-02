@@ -229,6 +229,26 @@ type SosAlert struct {
 
 	// Local time the alert was received (or originated locally)
 	ReceivedAt time.Time
+
+	// AcknowledgedBy holds the distinct UHIDs of peers that have acknowledged
+	// receiving this alert. Populated on the ORIGINATING node only, as SosAck
+	// packets arrive back — it lets the sender see how many devices their
+	// emergency reached. Access is synchronised by the SOS service. Mirrors the
+	// C# SosAlert.AcknowledgedBy set.
+	AcknowledgedBy map[string]struct{}
+}
+
+// SosAcknowledgement is raised on the originating node when a peer acknowledges
+// receipt of one of its active SOS alerts. Mirrors the C# SosAcknowledgement.
+type SosAcknowledgement struct {
+	// Id of the SOS broadcast that was acknowledged.
+	BroadcastID string
+
+	// UHID of the peer that acknowledged receiving the SOS.
+	ResponderUhid string
+
+	// Total distinct peers that have acknowledged this SOS so far (this responder included).
+	TotalAcknowledgements int
 }
 
 // CustodyRecord captures a DTN custody transfer between two nodes.

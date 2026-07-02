@@ -37,6 +37,7 @@ public sealed class SosBroadcastService : ISosBroadcastService
 
     public event EventHandler<SosAlert>? SosReceived;
     public event EventHandler<Guid>? SosResolved;
+    public event EventHandler<SosAcknowledgement>? SosAcknowledged;
 
     public SosBroadcastService(
         IMeshSender sender,
@@ -170,6 +171,9 @@ public sealed class SosBroadcastService : ISosBroadcastService
         _logger.LogWarning("SOS received from {Source} id={Id} type={Type}",
             sosPacket.SourceUhid, alert.Id, alert.BroadcastType);
 
+        // Acknowledge back to the originator so the sender learns their SOS reached a device.
+        await SendSosAckAsync(alert.Id, sosPacket.SourceUhid, cancellationToken).ConfigureAwait(false);
+
         if (sosPacket.Ttl > 1)
         {
             sosPacket.Ttl--;
@@ -178,6 +182,79 @@ public sealed class SosBroadcastService : ISosBroadcastService
             _logger.LogDebug("SOS re-flooded id={Id} ttl={Ttl} fanout={Fanout}",
                 alert.Id, sosPacket.Ttl, fanout);
         }
+    }
+
+    public Task HandleAckAsync(MeshPacket ackPacket, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ackPacket);
+        if (ackPacket.Type != PacketType.SosAck)
+            throw new ArgumentException($"Expected SosAck, got {ackPacket.Type}", nameof(ackPacket));
+
+        SosAckPayload? body;
+        try
+        {
+            body = JsonSerializer.Deserialize<SosAckPayload>(ackPacket.Payload, JsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "SOS ack: failed to deserialize payload from packet {Id}", ackPacket.Id);
+            return Task.CompletedTask;
+        }
+        if (body is null) return Task.CompletedTask;
+
+        // Only the ORIGINATOR holds this alert in _activeAlerts; every other node ignores the ack.
+        if (!_activeAlerts.TryGetValue(body.BroadcastId, out var alert))
+            return Task.CompletedTask;
+
+        var responder = ackPacket.SourceUhid;
+        if (string.IsNullOrEmpty(responder)) return Task.CompletedTask;
+        if (string.Equals(responder, _sender.LocalUhid, StringComparison.Ordinal))
+            return Task.CompletedTask; // our own ack echoed back — ignore
+
+        int total;
+        lock (alert.AcknowledgedBy)
+        {
+            if (!alert.AcknowledgedBy.Add(responder))
+                return Task.CompletedTask; // already counted this responder — dedup
+            total = alert.AcknowledgedBy.Count;
+        }
+
+        SosAcknowledged?.Invoke(this, new SosAcknowledgement
+        {
+            BroadcastId = body.BroadcastId,
+            ResponderUhid = responder,
+            TotalAcknowledgements = total,
+        });
+        _logger.LogInformation("SOS {Id} acknowledged by {Responder} (distinct reach: {Total})",
+            body.BroadcastId, responder, total);
+        return Task.CompletedTask;
+    }
+
+    // Send a directed SosAck back to the alert originator so the sender learns their emergency
+    // reached this device. Best-effort: delivers when the originator is reachable as a next hop.
+    private async Task SendSosAckAsync(Guid broadcastId, string originatorUhid, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(originatorUhid)) return;
+        if (string.Equals(originatorUhid, _sender.LocalUhid, StringComparison.Ordinal)) return;
+
+        var payload = JsonSerializer.SerializeToUtf8Bytes(new SosAckPayload
+        {
+            BroadcastId = broadcastId,
+            ReceivedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+        }, JsonOptions);
+
+        var ack = new MeshPacket
+        {
+            Type = PacketType.SosAck,
+            SourceUhid = _sender.LocalUhid,
+            DestinationUhid = originatorUhid,
+            Ttl = ProtocolConstants.SosTtl,
+            Priority = ProtocolConstants.SosPriority,
+            Payload = payload,
+        };
+
+        var delivered = await _sender.SendAsync(ack, originatorUhid, cancellationToken).ConfigureAwait(false);
+        _logger.LogDebug("SOS ack for {Id} → {Origin} delivered={Delivered}", broadcastId, originatorUhid, delivered);
     }
 
     private void PruneOldOriginations()

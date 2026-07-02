@@ -73,6 +73,7 @@ pub use content::{
     NamePublishPayload, NameQueryPayload, DEFAULT_QUERY_TIMEOUT,
 };
 pub use dtn::DtnBundleReceivedEvent;
+pub use sos::{SosAcknowledgedEvent, SosBroadcastService};
 pub use incentive::{
     MeshTipService, MeshTipSettlementProvider, NoopMeshTipSettlementProvider, TipPacketPayload,
 };

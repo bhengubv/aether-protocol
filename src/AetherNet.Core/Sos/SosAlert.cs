@@ -34,4 +34,27 @@ public sealed class SosAlert
 
     /// <summary>UTC timestamp when this alert was received locally (or originated).</summary>
     public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Distinct UHIDs of peers that have acknowledged receiving this alert. Populated on the
+    /// ORIGINATING node only, as <c>SosAck</c> packets arrive back — it lets the sender see how many
+    /// devices their emergency reached. Access is synchronised by the SOS service via a <c>lock</c>
+    /// on this set.
+    /// </summary>
+    public HashSet<string> AcknowledgedBy { get; } = new(StringComparer.Ordinal);
+}
+
+/// <summary>
+/// Raised on the originating node when a peer acknowledges receipt of one of its active SOS alerts.
+/// </summary>
+public sealed class SosAcknowledgement
+{
+    /// <summary>Id of the SOS broadcast that was acknowledged.</summary>
+    public Guid BroadcastId { get; set; }
+
+    /// <summary>UHID of the peer that acknowledged receiving the SOS.</summary>
+    public string ResponderUhid { get; set; } = string.Empty;
+
+    /// <summary>Total distinct peers that have acknowledged this SOS so far (this responder included).</summary>
+    public int TotalAcknowledgements { get; set; }
 }
