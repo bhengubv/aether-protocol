@@ -162,6 +162,7 @@ add_library(aethernet-protocol STATIC
     src/dtn_envelope.c
     src/circuit_relay.c
     src/relay_transport.c
+    src/relay_mesh_link.c
     src/forge.c
     src/fmhy.c
     src/sos.c

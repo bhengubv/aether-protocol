@@ -54,7 +54,13 @@ typedef enum {
     AETHERNET_PACKET_TYPE_NAME_PUBLISH          = 38,
     AETHERNET_PACKET_TYPE_NAME_QUERY            = 39,
     // Proof-of-Vicinity directed witness->subject token exchange (AetherNet.Market).
-    AETHERNET_PACKET_TYPE_POV_TOKEN_EXCHANGE    = 43
+    AETHERNET_PACKET_TYPE_POV_TOKEN_EXCHANGE    = 43,
+    // CircuitRelayControl -- one native circuit-relay-v2 hop's RelayFrame carried in the
+    // packet body (reserve/connect/stop/data + responses). Wire byte 57 matches the C#
+    // PacketType.CircuitRelayControl so a relayed hop is byte-identical across languages;
+    // an un-upgraded node drops the unknown type. Processed by the relay transport via
+    // its aethernet_relay_mesh_link.
+    AETHERNET_PACKET_TYPE_CIRCUIT_RELAY_CONTROL = 57
 } aethernet_packet_type_t;
 
 /**

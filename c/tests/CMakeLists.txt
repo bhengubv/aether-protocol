@@ -50,6 +50,17 @@ target_link_libraries(test-relay-engine PRIVATE aethernet-protocol pthread)
 add_test(NAME RelayEngineTests COMMAND test-relay-engine
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+# Mesh-integration test: the circuit-relay-v2 engine relayed over real CircuitRelayControl
+# MeshPackets via the production mesh RelayLink (c/src/relay_mesh_link.c). 3-node A ── R ── B
+# topology with no direct A-B edge. Mirrors go/circuitrelay/meshlink_test.go.
+add_executable(test-relay-mesh
+    test_relay_mesh.c
+)
+target_include_directories(test-relay-mesh PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-relay-mesh PRIVATE aethernet-protocol pthread)
+add_test(NAME RelayMeshTests COMMAND test-relay-mesh
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 add_executable(test-sos
     test_sos.c
 )
@@ -362,6 +373,7 @@ add_custom_target(aether-tests
         test-dtn
         test-dtn-fixture
         test-relay-engine
+        test-relay-mesh
         test-sos
         test-fixtures
         test-signal-fixtures
