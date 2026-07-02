@@ -149,6 +149,28 @@ private struct ChannelMessageWire: Codable {
     }
 }
 
+// Foundation's JSONEncoder does NOT emit keys in a deterministic declaration order — with 3+
+// fields it hash-reorders them, breaking cross-language byte-identity. So the wire JSON is built
+// by hand in the exact field order, mirroring the other language ports. (Decode still uses
+// JSONDecoder above, which is order-independent.)
+private func jsonEscaped(_ s: String) -> String {
+    var out = "\""
+    for scalar in s.unicodeScalars {
+        switch scalar {
+        case "\"": out += "\\\""
+        case "\\": out += "\\\\"
+        case "\n": out += "\\n"
+        case "\r": out += "\\r"
+        case "\t": out += "\\t"
+        default:
+            if scalar.value < 0x20 { out += String(format: "\\u%04x", scalar.value) }
+            else { out.unicodeScalars.append(scalar) }
+        }
+    }
+    out += "\""
+    return out
+}
+
 private func encodeChannelMessageWire(
     channelId: String,
     messageId: UUID,
@@ -156,14 +178,12 @@ private func encodeChannelMessageWire(
     content: String,
     sentAtMs: Int64
 ) -> Data {
-    let w = ChannelMessageWire(
-        channel_id: channelId,
-        message_id: messageId,
-        sender_uhid: senderUhid,
-        content: content,
-        sent_at_ms: sentAtMs
-    )
-    return (try? JSONEncoder().encode(w)) ?? Data()
+    let json = "{\"channel_id\":\(jsonEscaped(channelId)),"
+        + "\"message_id\":\"\(messageId.uuidString.lowercased())\","
+        + "\"sender_uhid\":\(jsonEscaped(senderUhid)),"
+        + "\"content\":\(jsonEscaped(content)),"
+        + "\"sent_at_ms\":\(sentAtMs)}"
+    return Data(json.utf8)
 }
 
 private func parseChannelMessageWire(

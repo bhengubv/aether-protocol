@@ -133,9 +133,11 @@ private struct HeartbeatWire: Codable {
     let sent_at_ms: Int64
 }
 
+// JSONEncoder key order is non-deterministic (hash-seed-dependent per process) — even this 2-field
+// struct can flip order and break byte-identity. Build the wire JSON by hand in field order.
+// (parseHeartbeatWire above still uses JSONDecoder, which is order-independent.)
 private func encodeHeartbeatWire(sequence: Int32, sentAtMs: Int64) -> Data {
-    let w = HeartbeatWire(sequence: sequence, sent_at_ms: sentAtMs)
-    return (try? JSONEncoder().encode(w)) ?? Data()
+    Data("{\"sequence\":\(sequence),\"sent_at_ms\":\(sentAtMs)}".utf8)
 }
 
 private func parseHeartbeatWire(_ data: Data) -> (sequence: Int32, sentAtMs: Int64)? {

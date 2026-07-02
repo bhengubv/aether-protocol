@@ -145,6 +145,28 @@ private struct ProfileSyncWire: Codable {
     let updated_at_ms: Int64
 }
 
+// Foundation's JSONEncoder does NOT emit keys in a deterministic declaration order — with 3+
+// fields it hash-reorders them, breaking cross-language byte-identity. So the wire JSON is built
+// by hand in the exact field order, mirroring the other language ports. (Decode still uses
+// JSONDecoder above, which is order-independent.)
+private func jsonEscaped(_ s: String) -> String {
+    var out = "\""
+    for scalar in s.unicodeScalars {
+        switch scalar {
+        case "\"": out += "\\\""
+        case "\\": out += "\\\\"
+        case "\n": out += "\\n"
+        case "\r": out += "\\r"
+        case "\t": out += "\\t"
+        default:
+            if scalar.value < 0x20 { out += String(format: "\\u%04x", scalar.value) }
+            else { out.unicodeScalars.append(scalar) }
+        }
+    }
+    out += "\""
+    return out
+}
+
 private func encodeProfileSyncWire(
     uhid: String,
     displayName: String,
@@ -152,14 +174,12 @@ private func encodeProfileSyncWire(
     statusMessage: String,
     updatedAtMs: Int64
 ) -> Data {
-    let w = ProfileSyncWire(
-        uhid: uhid,
-        display_name: displayName,
-        avatar_ref: avatarRef,
-        status_message: statusMessage,
-        updated_at_ms: updatedAtMs
-    )
-    return (try? JSONEncoder().encode(w)) ?? Data()
+    let json = "{\"uhid\":\(jsonEscaped(uhid)),"
+        + "\"display_name\":\(jsonEscaped(displayName)),"
+        + "\"avatar_ref\":\(jsonEscaped(avatarRef)),"
+        + "\"status_message\":\(jsonEscaped(statusMessage)),"
+        + "\"updated_at_ms\":\(updatedAtMs)}"
+    return Data(json.utf8)
 }
 
 private func parseProfileSyncWire(

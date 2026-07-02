@@ -236,9 +236,10 @@ private struct SosAckWire: Codable {
     let received_at_ms: Int64
 }
 
+// JSONEncoder key order is non-deterministic (hash-seed-dependent per process); build by hand in
+// field order so byte-identity holds. (parseSosAckWire uses JSONDecoder, which is order-independent.)
 private func encodeSosAckWire(broadcastId: UUID, receivedAtMs: Int64) -> Data {
-    let w = SosAckWire(broadcast_id: broadcastId, received_at_ms: receivedAtMs)
-    return (try? JSONEncoder().encode(w)) ?? Data()
+    Data("{\"broadcast_id\":\"\(broadcastId.uuidString.lowercased())\",\"received_at_ms\":\(receivedAtMs)}".utf8)
 }
 
 /// Test-only shim exposing the real ``SosAckWire`` serialization path (the struct itself stays

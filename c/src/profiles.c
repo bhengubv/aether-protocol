@@ -267,7 +267,9 @@ bool aethernet_profile_handle_packet(aethernet_profile_service_t *service,
     }
     cJSON_Delete(body);
 
-    profile_node_t *node = peer_find_prof(service, uhid);
+    // Match on next.uhid (our owned copy) — `uhid` points into the cJSON body just freed above,
+    // so using it here is a use-after-free (it matched by luck on some allocators, duplicated on others).
+    profile_node_t *node = peer_find_prof(service, next.uhid);
     if (node == NULL) {
         node = (profile_node_t *)calloc(1, sizeof(profile_node_t));
         if (!node) { profile_fields_free(&next); return false; }
