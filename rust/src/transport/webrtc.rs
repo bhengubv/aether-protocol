@@ -55,12 +55,12 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 type DataHandler = Arc<dyn Fn(&str, &[u8]) + Send + Sync>;
 type SharedHandler = Arc<Mutex<Option<DataHandler>>>;
 
-/// Public STUN baseline used when a caller passes `None` ICE servers.
+/// Serverless default: NO ICE servers, so a node never contacts a STUN/TURN server. Direct
+/// links form on the same LAN or when a peer has a public address; for NAT traversal without a
+/// server, route through the circuit-relay-v2 transport (peers relay for peers). Callers opt
+/// into STUN/TURN by passing an explicit list.
 pub fn default_ice_servers() -> Vec<RTCIceServer> {
-    vec![RTCIceServer {
-        urls: vec!["stun:stun.l.google.com:19302".to_owned()],
-        ..Default::default()
-    }]
+    Vec::new()
 }
 
 // ── Signalling messages ────────────────────────────────────────────────────────
@@ -237,10 +237,14 @@ pub struct WebRtcTransport {
 }
 
 impl WebRtcTransport {
-    /// Builds a transport for `local_uhid`. Pass `None` `ice_servers` for the
-    /// STUN default, or an explicit (possibly empty) list to control ICE — an
-    /// **empty** list forces host-candidate-only ICE (no network dependency,
-    /// used by the loopback test).
+    /// Builds a transport for `local_uhid`. With `None` `ice_servers` the
+    /// transport uses the serverless default of NO ICE servers
+    /// (host-candidate-only ICE) — it never contacts a STUN/TURN server, and
+    /// links form on the same LAN or when a peer has a public address. For NAT
+    /// traversal without a server, route through the circuit-relay-v2 transport
+    /// (peers relay for peers). Pass an explicit list to opt into STUN/TURN; an
+    /// explicit **empty** list keeps host-candidate-only ICE (as the loopback
+    /// test does).
     pub async fn new(
         local_uhid: impl Into<String>,
         signaling: Arc<dyn Signaling>,
@@ -251,8 +255,9 @@ impl WebRtcTransport {
             return Err("webrtc: local_uhid required".into());
         }
 
-        // null => the STUN default; an explicit (even empty) list is respected
-        // verbatim, so a caller can force host-candidate-only ICE.
+        // None => the serverless default (NO ICE servers); an explicit (even
+        // empty) list is respected verbatim, so a caller can keep
+        // host-candidate-only ICE or opt into STUN/TURN.
         let ice_servers = ice_servers.unwrap_or_else(default_ice_servers);
 
         let mut media = MediaEngine::default();

@@ -29,16 +29,24 @@ const DATA_CHANNEL_LABEL = "aether";
 /** How long {@link WebRtcTransport.sendAsync} waits for the data channel to open. */
 const CONNECT_TIMEOUT_MS = 20_000;
 
-/** The public STUN baseline used when a caller passes `undefined` ICE servers. */
+/**
+ * Serverless default: NO ICE servers — a peer using the default never contacts a STUN/TURN
+ * server. Direct links form on the same LAN or when a peer has a public address; for NAT
+ * traversal without a server, route through the circuit-relay-v2 transport (peers relay for
+ * peers). Opt into STUN/TURN by passing an explicit list, e.g.
+ * `[{ urls: "stun:stun.l.google.com:19302" }]`.
+ */
 export function defaultIceServers(): RTCIceServer[] {
-  return [{ urls: "stun:stun.l.google.com:19302" }];
+  return [];
 }
 
 /**
  * Direct P2P transport over a WebRTC `RTCDataChannel` (werift).
  *
- * Pass `undefined` `iceServers` for the STUN default, or an explicit (possibly empty) list to
- * control ICE — an **empty** list forces host-candidate-only ICE, with no network dependency.
+ * With `undefined` `iceServers` the transport uses the serverless default of NO ICE servers
+ * (host-candidate-only ICE) — it never contacts a STUN/TURN server, and links form on the same
+ * LAN or when a peer has a public address. For NAT traversal without a server, route through the
+ * circuit-relay-v2 transport (peers relay for peers). Pass an explicit list to opt into STUN/TURN.
  */
 export class WebRtcTransport implements ITransportService {
   private readonly localUhid: string;
@@ -58,8 +66,9 @@ export class WebRtcTransport implements ITransportService {
   /**
    * @param localUhid  This node's UHID.
    * @param signaling  The channel carrying SDP/ICE between peers.
-   * @param iceServers `undefined` => STUN default; an explicit (even empty) list is respected
-   *                   verbatim — pass `[]` to force host-candidate-only ICE.
+   * @param iceServers `undefined` => the serverless default (NO ICE servers; host-candidate-only,
+   *                   no STUN/TURN). An explicit list is respected verbatim — pass one to opt into
+   *                   STUN/TURN, or `[]` to keep host-candidate-only ICE.
    */
   constructor(localUhid: string, signaling: Signaling, iceServers?: RTCIceServer[]) {
     if (!localUhid || localUhid.trim().length === 0) {

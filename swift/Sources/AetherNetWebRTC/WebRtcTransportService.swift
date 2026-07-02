@@ -14,8 +14,11 @@ import AetherNetProtocol
 public final class WebRtcTransportService: TransportService, @unchecked Sendable {
     private static let connectTimeout: TimeInterval = 20
 
-    /// The public STUN baseline used when `iceServers` is `nil`.
-    public static let defaultIceServers: [String] = ["stun:stun.l.google.com:19302"]
+    /// Serverless default: NO ICE servers, so a node never contacts a STUN/TURN server. Direct
+    /// links form on the same LAN or when a peer has a public address; for NAT traversal without a
+    /// server, route through the circuit-relay-v2 transport (peers relay for peers). Opt into
+    /// STUN/TURN by passing an explicit list.
+    public static let defaultIceServers: [String] = []
 
     private let localUhid: String
     private let signaling: any WebRtcSignaling
@@ -29,9 +32,12 @@ public final class WebRtcTransportService: TransportService, @unchecked Sendable
 
     /// Creates the transport for `localUhid`, routing signalling through `signaling`.
     ///
-    /// - Parameter iceServers: `nil` uses the public STUN default; an explicit (even empty) list is
-    ///   respected verbatim, so passing an empty list forces host-candidate-only ICE (same-LAN /
-    ///   tests, no STUN/TURN). URLs are in libdatachannel form, e.g. `stun:host:port`,
+    /// - Parameter iceServers: `nil` uses the serverless default of NO ICE servers
+    ///   (host-candidate-only ICE; never contacts a STUN/TURN server, links form on the same LAN or
+    ///   when a peer has a public address). For NAT traversal without a server, route through the
+    ///   circuit-relay-v2 transport (peers relay for peers). An explicit list is respected verbatim,
+    ///   so pass one to opt into STUN/TURN, or an empty list to keep host-candidate-only ICE
+    ///   (same-LAN / tests). URLs are in libdatachannel form, e.g. `stun:host:port`,
     ///   `turn:user:pass@host:port`.
     public init(
         localUhid: String,

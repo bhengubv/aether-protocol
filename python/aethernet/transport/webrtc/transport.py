@@ -38,8 +38,13 @@ _CONNECT_TIMEOUT_SECONDS = 20.0
 
 
 def default_ice_servers() -> List[RTCIceServer]:
-    """The public STUN baseline used when a caller passes ``None`` ICE servers."""
-    return [RTCIceServer(urls="stun:stun.l.google.com:19302")]
+    """Serverless default: NO ICE servers, so a node never contacts a STUN/TURN server.
+
+    Direct links form on the same LAN or when a peer has a public address; for NAT traversal
+    without a server, route through the circuit-relay-v2 transport (peers relay for peers).
+    Callers opt into STUN/TURN by passing an explicit list.
+    """
+    return []
 
 
 class WebRtcTransport(TransportService):
@@ -56,9 +61,13 @@ class WebRtcTransport(TransportService):
         Args:
             local_uhid: This node's UHID.
             signaling: The channel that carries SDP/ICE signalling to peers by UHID.
-            ice_servers: ``None`` selects the public STUN default; an explicit (even
-                empty) list is respected verbatim, so a caller can pass an empty list to
-                force host-candidate-only ICE (e.g. same-LAN / tests).
+            ice_servers: ``None`` selects the serverless default of NO ICE servers
+                (host-candidate-only ICE; never contacts a STUN/TURN server, links form
+                on the same LAN or when a peer has a public address). For NAT traversal
+                without a server, route through the circuit-relay-v2 transport (peers
+                relay for peers). An explicit list is respected verbatim, so a caller can
+                opt into STUN/TURN, or pass an empty list to keep host-candidate-only ICE
+                (e.g. same-LAN / tests).
         """
         if not local_uhid:
             raise ValueError("webrtc: local_uhid required")
@@ -67,7 +76,7 @@ class WebRtcTransport(TransportService):
 
         self._local_uhid = local_uhid
         self._signaling = signaling
-        # None => the STUN default; an explicit (even empty) list is respected verbatim.
+        # None => the serverless default (NO ICE servers); an explicit (even empty) list is respected verbatim.
         self._ice_servers = default_ice_servers() if ice_servers is None else list(ice_servers)
         self._metrics = PerTransportMetrics()
         self._on_data: Optional[Callable[[str, bytes], None]] = None

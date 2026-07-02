@@ -22,9 +22,12 @@ const (
 	connectTimeout   = 20 * time.Second
 )
 
-// DefaultICEServers is the public STUN baseline used when a caller passes nil ICE servers.
+// DefaultICEServers is the serverless default: NO ICE servers, so a node never contacts a
+// STUN/TURN server. Direct links form on the same LAN or when a peer has a public address; for
+// NAT traversal without a server, route through the circuit-relay-v2 transport (peers relay for
+// peers). Callers opt into STUN/TURN by passing an explicit list.
 func DefaultICEServers() []pion.ICEServer {
-	return []pion.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}}
+	return []pion.ICEServer{}
 }
 
 // WebRtcTransport implements transport.TransportService over a WebRTC data channel.
@@ -43,8 +46,11 @@ type WebRtcTransport struct {
 // compile-time proof the transport satisfies the contract.
 var _ transport.TransportService = (*WebRtcTransport)(nil)
 
-// NewWebRtcTransport builds a transport for localUhid. Pass nil iceServers for the STUN default, or
-// an explicit (possibly empty) list to control ICE — an empty list forces host-candidate-only ICE.
+// NewWebRtcTransport builds a transport for localUhid. With nil iceServers it uses the serverless
+// default of NO ICE servers (host-candidate-only ICE) — it never contacts a STUN/TURN server, and
+// links form on the same LAN or when a peer has a public address. For NAT traversal without a
+// server, route through the circuit-relay-v2 transport (peers relay for peers). Pass an explicit
+// list to opt into STUN/TURN; an explicit empty list keeps host-candidate-only ICE.
 func NewWebRtcTransport(localUhid string, signaling Signaling, iceServers []pion.ICEServer) (*WebRtcTransport, error) {
 	if localUhid == "" {
 		return nil, fmt.Errorf("webrtc: localUhid required")

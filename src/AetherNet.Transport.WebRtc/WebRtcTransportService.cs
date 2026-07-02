@@ -23,10 +23,11 @@ public sealed class WebRtcTransportService : ITransportService, IAsyncDisposable
 {
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(20);
 
-    private static readonly RTCIceServer[] DefaultIceServers =
-    {
-        new() { urls = "stun:stun.l.google.com:19302" },
-    };
+    // Serverless default: NO ICE servers, so a node never contacts a STUN/TURN server. Direct
+    // links form on the same LAN or when a peer has a public address; for NAT traversal without a
+    // server, route through the circuit-relay-v2 transport (peers relay for peers). Callers opt
+    // into STUN/TURN by passing an explicit list.
+    private static readonly RTCIceServer[] DefaultIceServers = System.Array.Empty<RTCIceServer>();
 
     private readonly string _localUhid;
     private readonly IWebRtcSignaling _signaling;
@@ -45,8 +46,9 @@ public sealed class WebRtcTransportService : ITransportService, IAsyncDisposable
         _localUhid = localUhid ?? throw new ArgumentNullException(nameof(localUhid));
         _signaling = signaling ?? throw new ArgumentNullException(nameof(signaling));
         _logger = logger;
-        // null => the STUN default; an explicit (even empty) list is respected verbatim, so a
-        // caller can pass an empty list to force host-candidate-only ICE (e.g. same-LAN / tests).
+        // null => the serverless default (NO ICE servers); an explicit (even empty) list is
+        // respected verbatim, so a caller can opt into STUN/TURN or keep host-candidate-only ICE
+        // (e.g. same-LAN / tests).
         _iceServers = (iceServers ?? DefaultIceServers).ToList();
         _signaling.SignalReceived += OnSignalReceived;
     }

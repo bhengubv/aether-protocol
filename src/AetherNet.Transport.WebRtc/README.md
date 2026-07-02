@@ -39,8 +39,10 @@ services
     .AddWebRtcTransport(localUhid: "aether:alice:01");
 ```
 
-ICE servers default to a public STUN server. Pass an explicit list to override; an explicit **empty**
-list forces host-candidate-only ICE (same-LAN / loopback, no STUN/TURN):
+ICE defaults to serverless (NO ICE servers), so a node never contacts a STUN/TURN server; direct
+links form on the same LAN or when a peer has a public address, and for NAT traversal without a
+server you route through the circuit-relay-v2 transport (peers relay for peers). Opt into public
+STUN/TURN by passing an explicit list (an explicit **empty** list keeps host-candidate-only ICE):
 
 ```csharp
 services.AddWebRtcTransport(

@@ -55,9 +55,11 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * @param localUhid  This node's UHID.
  * @param signaling  The signalling channel carrying SDP/ICE to and from peers.
- * @param iceServers ICE servers for NAT traversal. Pass `null` for the public STUN default, or an
- *                   explicit (possibly empty) list to control ICE — an empty list forces
- *                   host-candidate-only ICE (no network dependency; same-LAN / tests).
+ * @param iceServers `null` uses the serverless default of NO ICE servers (host-candidate-only ICE)
+ *                   — it never contacts a STUN/TURN server, and links form on the same LAN or when
+ *                   a peer has a public address. For NAT traversal without a server, route through
+ *                   the circuit-relay-v2 transport (peers relay for peers). Pass an explicit list to
+ *                   opt into STUN/TURN; an explicit empty list keeps host-candidate-only ICE.
  */
 class WebRtcTransport(
     private val localUhid: String,
@@ -420,9 +422,12 @@ class WebRtcTransport(
         private const val DATA_CHANNEL_LABEL = "aether"
         private const val CONNECT_TIMEOUT_MS = 20_000L
 
-        /** Public STUN baseline used when a caller passes `null` ICE servers. */
-        fun defaultIceServers(): List<RTCIceServer> = listOf(
-            RTCIceServer().apply { urls.add("stun:stun.l.google.com:19302") },
-        )
+        /**
+         * Serverless default: NO ICE servers, so a node never contacts a STUN/TURN server. Direct
+         * links form on the same LAN or when a peer has a public address; for NAT traversal without
+         * a server, route through the circuit-relay-v2 transport (peers relay for peers). Callers
+         * opt into STUN/TURN by passing an explicit list.
+         */
+        fun defaultIceServers(): List<RTCIceServer> = emptyList()
     }
 }

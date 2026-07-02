@@ -46,13 +46,15 @@ or place a `datachannel.pc` on `PKG_CONFIG_PATH` (the target declares `pkgConfig
 let bus = InMemoryWebRtcSignalingBus()                       // or a relay-backed WebRtcSignaling
 let alice = WebRtcTransportService(
     localUhid: "aether:alice:01",
-    signaling: await bus.endpoint("aether:alice:01"))         // STUN default; pass [] for host-only ICE
+    signaling: await bus.endpoint("aether:alice:01"))         // serverless default: NO ICE servers (host-only)
 alice.onDataReceived { peer, data in /* inbound bytes */ }
 _ = await alice.sendAsync(peerUhid: "aether:bob:01", data: payload, cancellationToken: nil)
 ```
 
-Pass an explicit ICE list to override; an explicit **empty** list forces host-candidate-only ICE
-(same-LAN / loopback, no STUN/TURN):
+The default is serverless (NO ICE servers), so a node never contacts a STUN/TURN server; direct
+links form on the same LAN or when a peer has a public address, and for NAT traversal without a
+server you route through the circuit-relay-v2 transport (peers relay for peers). Opt into public
+STUN/TURN by passing an explicit list (an explicit **empty** list keeps host-candidate-only ICE):
 
 ```swift
 WebRtcTransportService(

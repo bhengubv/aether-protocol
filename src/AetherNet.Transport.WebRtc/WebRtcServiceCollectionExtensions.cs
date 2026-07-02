@@ -55,7 +55,9 @@ public static class WebRtcServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="localUhid">This node's UHID. When null, taken from <see cref="AetherNetOptions.LocalUhid"/>.</param>
     /// <param name="iceServers">
-    /// ICE servers. Null uses a public STUN default; an explicit empty list forces host-candidate-only ICE.
+    /// ICE servers. Null uses the serverless default (NO ICE servers; host-candidate-only ICE, no
+    /// STUN/TURN). Pass an explicit list to opt into STUN/TURN; an explicit empty list keeps
+    /// host-candidate-only ICE.
     /// </param>
     public static IServiceCollection AddWebRtcTransport(
         this IServiceCollection services,
