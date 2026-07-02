@@ -17,6 +17,7 @@ pub mod heartbeat;
 pub mod incentive;
 pub mod market;
 pub mod models;
+pub mod prekey;
 pub mod profiles;
 pub mod protocol;
 pub mod reputation;
@@ -80,6 +81,7 @@ pub use dtn::DtnBundleReceivedEvent;
 pub use heartbeat::{HeartbeatService, PeerLiveness, PeerSeenEvent};
 pub use channels::{ChannelMessageReceivedEvent, ChannelMessageService};
 pub use videocall::{VideoCallControlService, VideoCallStateChangedEvent};
+pub use prekey::{PreKeyBundleReceivedEvent, PreKeyExchangeService};
 pub use profiles::{ProfileService, ProfileSyncPayload};
 pub use sos::{SosAcknowledgedEvent, SosBroadcastService};
 pub use incentive::{

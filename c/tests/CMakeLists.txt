@@ -82,6 +82,13 @@ target_include_directories(test-videocall PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
 target_link_libraries(test-videocall PRIVATE aethernet-protocol pthread)
 add_test(NAME VideoCallControlTests COMMAND test-videocall)
 
+add_executable(test-prekey
+    test_prekey.c
+)
+target_include_directories(test-prekey PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-prekey PRIVATE aethernet-protocol pthread)
+add_test(NAME PreKeyExchangeTests COMMAND test-prekey)
+
 add_executable(test-profiles
     test_profiles.c
 )
@@ -405,6 +412,7 @@ add_custom_target(aether-tests
         test-sos
         test-channels
         test-videocall
+        test-prekey
         test-profiles
         test-heartbeat
         test-fixtures

@@ -15,6 +15,7 @@ using AetherNet.Handshake;
 using AetherNet.Incentive;
 using AetherNet.Messaging;
 using AetherNet.Models;
+using AetherNet.PreKeys;
 using AetherNet.Protocol;
 using AetherNet.Reputation;
 using AetherNet.Routing;
@@ -52,6 +53,7 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _channelsAdded;
     private bool _profilesAdded;
     private bool _videoCallControlAdded;
+    private bool _preKeyExchangeAdded;
     private bool _messagingAdded;
     private bool _transportAdded;
     private bool _handshakeAdded;
@@ -224,6 +226,22 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
             var logger = sp.GetService<ILogger<VideoCallControlService>>()
                 ?? NullLogger<VideoCallControlService>.Instance;
             return new VideoCallControlService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddPreKeyExchange()
+    {
+        if (_preKeyExchangeAdded) return this;
+        _preKeyExchangeAdded = true;
+
+        Services.TryAddSingleton<IPreKeyExchangeService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<PreKeyExchangeService>>()
+                ?? NullLogger<PreKeyExchangeService>.Instance;
+            return new PreKeyExchangeService(sender, logger);
         });
 
         return this;

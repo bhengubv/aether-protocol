@@ -93,6 +93,13 @@ public interface IAetherNetProtocolBuilder
     IAetherNetProtocolBuilder AddVideoCallControl();
 
     /// <summary>
+    /// Register <c>PreKeyExchangeService</c> as a singleton <c>IPreKeyExchangeService</c>
+    /// (<c>PacketType.PreKeyRequest</c>/<c>PreKeyResponse</c> directed pre-key bundle exchange over the
+    /// mesh — the host feeds bundles in/out via ISignalProtocolService). Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddPreKeyExchange();
+
+    /// <summary>
     /// Register <c>MessagingService</c> + <c>SignalMessageEnvelopeCipher</c>
     /// as singletons. Requires both <see cref="AddSignalProtocol"/> and
     /// <see cref="AddRouting"/> to have been called first; throws

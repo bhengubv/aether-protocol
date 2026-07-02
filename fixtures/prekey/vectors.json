@@ -1,0 +1,26 @@
+{
+  "description": "Canonical PreKey exchange wire vectors. PreKeyRequest(25) payload = {request_id, requester_uhid}; PreKeyResponse(26) payload = {request_id, uhid, identity_key, identity_key_x25519, pre_key_id, pre_key, signed_pre_key_id, signed_pre_key, signed_pre_key_signature}. UTF-8 JSON, keys in the declared order, no whitespace, lowercase-dashed UUID, integer ids bare, and every byte[] public-key field as STANDARD base64 (RFC 4648, '+/' alphabet, '=' padding). Every language SDK MUST serialize to exactly these bytes. Test key material is fixed constant-byte fill (0x11 identity, 0x22 identity_x25519, 0x33 pre_key, 0x44 signed_pre_key, 0x55 signature) so a field swap is caught.",
+  "vectors": [
+    {
+      "name": "request",
+      "kind": "request",
+      "request_id": "11112222-3333-4444-5555-666677778888",
+      "requester_uhid": "aether:alice:01",
+      "expected_json": "{\"request_id\":\"11112222-3333-4444-5555-666677778888\",\"requester_uhid\":\"aether:alice:01\"}"
+    },
+    {
+      "name": "response",
+      "kind": "response",
+      "request_id": "7a1e9c4d-2b3f-4a5e-8c6d-0f1e2d3c4b5a",
+      "uhid": "aether:bob:02",
+      "identity_key": "ERERERERERERERERERERERERERERERERERERERERERE=",
+      "identity_key_x25519": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI=",
+      "pre_key_id": 4242,
+      "pre_key": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM=",
+      "signed_pre_key_id": 77,
+      "signed_pre_key": "REREREREREREREREREREREREREREREREREREREREREQ=",
+      "signed_pre_key_signature": "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==",
+      "expected_json": "{\"request_id\":\"7a1e9c4d-2b3f-4a5e-8c6d-0f1e2d3c4b5a\",\"uhid\":\"aether:bob:02\",\"identity_key\":\"ERERERERERERERERERERERERERERERERERERERERERE=\",\"identity_key_x25519\":\"IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI=\",\"pre_key_id\":4242,\"pre_key\":\"MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM=\",\"signed_pre_key_id\":77,\"signed_pre_key\":\"REREREREREREREREREREREREREREREREREREREREREQ=\",\"signed_pre_key_signature\":\"VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==\"}"
+    }
+  ]
+}

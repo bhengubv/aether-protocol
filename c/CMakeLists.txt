@@ -168,6 +168,7 @@ add_library(aethernet-protocol STATIC
     src/sos.c
     src/channels.c
     src/videocall.c
+    src/prekey.c
     src/profiles.c
     src/heartbeat.c
     src/space.c

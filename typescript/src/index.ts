@@ -83,6 +83,9 @@ export * from "./channels/index.js";
 // Video call-control — directed ring/accept/decline/hangup (PacketType.VideoCall = 27)
 export * from "./videocall/index.js";
 
+// PreKey exchange — directed transport of a PreKeyBundle (PacketType.PreKeyRequest = 25 / PreKeyResponse = 26)
+export * from "./prekey/index.js";
+
 // Profiles — directed peer-profile exchange (PacketType.ProfileSync = 23)
 export * from "./profiles/index.js";
 
