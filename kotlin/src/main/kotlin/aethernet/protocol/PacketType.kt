@@ -145,6 +145,17 @@ enum class PacketType(val value: Byte) {
     BandwidthGossip(55),
 
     /**
+     * EridAnnounce — directed transport for an in-session ERID (Ephemeral Routing Id)
+     * announcement. A node shares its rotating-address routing key with an established peer
+     * by sending the ALREADY Signal-encrypted announcement point-to-point. The packet body is
+     * an opaque encrypted blob (its plaintext is an [aethernet.identity.EridAnnouncementCodec]
+     * frame); this transport never inspects or decrypts it. Wire value 56 matches the C#
+     * PacketType.EridAnnounce so a directed announce is byte-identical across languages; an
+     * un-upgraded node drops the unknown type.
+     */
+    EridAnnounce(56),
+
+    /**
      * CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
      * (reserve/connect/stop/data + responses) as a serialized RelayFrame in the packet
      * body. Wire value 57 matches the C# PacketType.CircuitRelayControl so a relayed hop is

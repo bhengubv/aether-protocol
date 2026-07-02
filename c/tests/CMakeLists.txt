@@ -89,6 +89,26 @@ target_include_directories(test-prekey PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../in
 target_link_libraries(test-prekey PRIVATE aethernet-protocol pthread)
 add_test(NAME PreKeyExchangeTests COMMAND test-prekey)
 
+# Presence (PresenceBeacon 21 / PresenceQuery 22) wire binding: serialize/broadcast/query/handle.
+# Byte-identity gates transcribe fixtures/presence/vectors.json (no JSON parser on the test surface —
+# the expected bytes are inlined). Self-contained (FakeMeshSender broadcast capture).
+add_executable(test-presence
+    test_presence.c
+)
+target_include_directories(test-presence PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-presence PRIVATE aethernet-protocol pthread)
+add_test(NAME PresenceTests COMMAND test-presence)
+
+# EridAnnounce (56) directed wire binding: send/handle behaviour + a re-pin of the shared
+# EridAnnouncementCodec frame against fixtures/erid announcement_encode_hex (inlined). Self-contained
+# (FakeMeshSender directed-send capture); no working-directory override needed.
+add_executable(test-erid-announce
+    test_erid_announce.c
+)
+target_include_directories(test-erid-announce PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-erid-announce PRIVATE aethernet-protocol pthread)
+add_test(NAME EridAnnounceTests COMMAND test-erid-announce)
+
 add_executable(test-bandwidth-wire
     test_bandwidth_wire.c
 )
@@ -453,6 +473,8 @@ add_custom_target(aether-tests
         test-channels
         test-videocall
         test-prekey
+        test-presence
+        test-erid-announce
         test-profiles
         test-heartbeat
         test-fixtures

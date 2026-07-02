@@ -108,6 +108,20 @@ public interface IAetherNetProtocolBuilder
     IAetherNetProtocolBuilder AddBandwidth();
 
     /// <summary>
+    /// Register <c>PresenceService</c> as a singleton <c>IPresenceService</c>
+    /// (<c>PacketType.PresenceBeacon</c>/<c>PresenceQuery</c> — privacy-preserving broadcast carrying the
+    /// rotating erid + coarse geohash, never the stable UHID). Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddPresence();
+
+    /// <summary>
+    /// Register <c>EridAnnounceService</c> as a singleton <c>IEridAnnounceService</c>
+    /// (<c>PacketType.EridAnnounce</c> — directed transport of an already-encrypted ERID routing-key
+    /// announcement to an established peer). Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddEridAnnounce();
+
+    /// <summary>
     /// Register <c>MessagingService</c> + <c>SignalMessageEnvelopeCipher</c>
     /// as singletons. Requires both <see cref="AddSignalProtocol"/> and
     /// <see cref="AddRouting"/> to have been called first; throws

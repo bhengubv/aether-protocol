@@ -10,6 +10,7 @@ pub mod constants;
 pub mod content;
 pub mod gossip;
 pub mod dtn;
+pub mod erid_announce;
 pub mod extensibility;
 pub mod fmhy;
 pub mod forge;
@@ -20,6 +21,7 @@ pub mod incentive;
 pub mod market;
 pub mod models;
 pub mod prekey;
+pub mod presence;
 pub mod profiles;
 pub mod protocol;
 pub mod reputation;
@@ -86,6 +88,11 @@ pub use heartbeat::{HeartbeatService, PeerLiveness, PeerSeenEvent};
 pub use channels::{ChannelMessageReceivedEvent, ChannelMessageService};
 pub use videocall::{VideoCallControlService, VideoCallStateChangedEvent};
 pub use prekey::{PreKeyBundleReceivedEvent, PreKeyExchangeService};
+pub use presence::{
+    PresenceBeaconPayload, PresenceBeaconReceivedEvent, PresenceQueryPayload,
+    PresenceQueryReceivedEvent, PresenceService,
+};
+pub use erid_announce::{EridAnnounceReceivedEvent, EridAnnounceService};
 pub use profiles::{ProfileService, ProfileSyncPayload};
 pub use sos::{SosAcknowledgedEvent, SosBroadcastService};
 pub use incentive::{

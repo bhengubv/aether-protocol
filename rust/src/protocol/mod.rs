@@ -118,6 +118,15 @@ pub enum PacketType {
     /// Payload is a serialised `BandwidthGossipPayload`.
     BandwidthGossip = 55,
 
+    /// EridAnnounce — directed carriage of an already-Signal-encrypted ERID
+    /// announcement. A node shares its rotating-address routing key with an
+    /// established peer by directed-sending the opaque encrypted blob (framed by
+    /// [`crate::identity::erid_announcement_codec`], encrypted by the host's Signal
+    /// service) as a directed packet. Transport only — this type carries the opaque
+    /// body and never touches the plaintext. Wire byte 56 MUST match the C#
+    /// `PacketType.EridAnnounce`; an un-upgraded node drops the unknown type.
+    EridAnnounce = 56,
+
     /// CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
     /// (reserve/connect/stop/data + responses) as a serialised `RelayFrame` in the
     /// packet body. Wire byte 57 matches the C# `PacketType::CircuitRelayControl` so a
@@ -175,6 +184,7 @@ impl PacketType {
             53 => Some(PacketType::BandwidthProbe),
             54 => Some(PacketType::BandwidthAck),
             55 => Some(PacketType::BandwidthGossip),
+            56 => Some(PacketType::EridAnnounce),
             57 => Some(PacketType::CircuitRelayControl),
             _ => None,
         }

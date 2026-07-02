@@ -182,6 +182,13 @@ public enum PacketType: UInt8, Codable {
     /// the cold-start penalty that QUIC and TCP always incur (RFC 6928 §2).
     case bandwidthGossip = 55
 
+    /// EridAnnounce — directed transport of an already-Signal-encrypted ERID announcement. A node
+    /// shares its rotating-address routing key with an established peer by sending the opaque
+    /// encrypted blob point-to-point; the receiver decrypts + parses it (an ``EridAnnouncementCodec``
+    /// frame) out of band. Wire byte 56 matches the C# `PacketType.EridAnnounce` so the directed
+    /// packet is byte-identical across languages; an un-upgraded node drops the unknown type.
+    case eridAnnounce = 56
+
     /// CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
     /// (reserve/connect/stop/data + responses) as a serialized RelayFrame in the packet
     /// body. Wire byte 57 matches the C# PacketType.CircuitRelayControl so a relayed hop is

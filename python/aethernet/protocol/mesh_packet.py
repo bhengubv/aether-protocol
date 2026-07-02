@@ -113,6 +113,17 @@ class PacketType(IntEnum):
     BandwidthAck    = 54
     BandwidthGossip = 55
 
+    # EridAnnounce — encrypted ERID announcement, the rotating-address handshake control
+    # packet. Carried inside the established Signal session: the payload is an
+    # EncryptedPayload whose plaintext is an EridAnnouncementCodec frame sharing the
+    # sender's routingKey. A receiver decrypts it and records the peer in its
+    # EridDirectory; an un-upgraded node drops the unknown type. Sent only between peers
+    # that negotiated the erid-routing capability, so the migration is backward
+    # compatible. Wire byte 56 matches the C# PacketType.EridAnnounce so a directed
+    # announcement is byte-identical across languages. Mirrors
+    # AetherNet.Identity.EridAnnounceService.
+    EridAnnounce = 56
+
     # CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
     # (reserve/connect/stop/data + responses) as a serialized RelayFrame in the packet
     # body. Wire byte 57 matches the C# PacketType.CircuitRelayControl so a relayed hop

@@ -1,0 +1,31 @@
+{
+  "description": "Canonical PresenceBeacon(21) + PresenceQuery(22) wire vectors. Beacon payload = {erid, geohash, capabilities, status, sent_at_ms}; query payload = {query_id, geohash}. UTF-8 JSON, declared field order, no whitespace, lowercase-dashed UUID for query_id, capabilities/status/sent_at_ms as bare integers (capabilities = NodeCapabilities bitmask, status = PresenceStatus value). The beacon carries the ROTATING erid (never the stable UHID) and a COARSE geohash (empty = hidden). Every language SDK MUST serialize to exactly these bytes.",
+  "beacon_vectors": [
+    {
+      "name": "available",
+      "erid": "3B38HPPFG9JXE37Q",
+      "geohash": "u4pru",
+      "capabilities": 73,
+      "status": 1,
+      "sent_at_ms": 1700000000000,
+      "expected_json": "{\"erid\":\"3B38HPPFG9JXE37Q\",\"geohash\":\"u4pru\",\"capabilities\":73,\"status\":1,\"sent_at_ms\":1700000000000}"
+    },
+    {
+      "name": "hidden_offline",
+      "erid": "0Z5BD0HB1Q7W76MY",
+      "geohash": "",
+      "capabilities": 0,
+      "status": 5,
+      "sent_at_ms": 0,
+      "expected_json": "{\"erid\":\"0Z5BD0HB1Q7W76MY\",\"geohash\":\"\",\"capabilities\":0,\"status\":5,\"sent_at_ms\":0}"
+    }
+  ],
+  "query_vectors": [
+    {
+      "name": "scoped",
+      "query_id": "11112222-3333-4444-5555-666677778888",
+      "geohash": "u4pru",
+      "expected_json": "{\"query_id\":\"11112222-3333-4444-5555-666677778888\",\"geohash\":\"u4pru\"}"
+    }
+  ]
+}

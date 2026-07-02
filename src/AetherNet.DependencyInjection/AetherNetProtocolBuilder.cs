@@ -13,6 +13,8 @@ using AetherNet.Space;
 using AetherNet.Vault;
 using AetherNet.Extensibility;
 using AetherNet.Handshake;
+using AetherNet.Identity;
+using AetherNet.Presence;
 using AetherNet.Incentive;
 using AetherNet.Messaging;
 using AetherNet.Models;
@@ -56,6 +58,8 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _videoCallControlAdded;
     private bool _preKeyExchangeAdded;
     private bool _bandwidthAdded;
+    private bool _presenceAdded;
+    private bool _eridAnnounceAdded;
     private bool _messagingAdded;
     private bool _transportAdded;
     private bool _handshakeAdded;
@@ -260,6 +264,38 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
             var logger = sp.GetService<ILogger<BandwidthWireService>>()
                 ?? NullLogger<BandwidthWireService>.Instance;
             return new BandwidthWireService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddPresence()
+    {
+        if (_presenceAdded) return this;
+        _presenceAdded = true;
+
+        Services.TryAddSingleton<IPresenceService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<PresenceService>>()
+                ?? NullLogger<PresenceService>.Instance;
+            return new PresenceService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddEridAnnounce()
+    {
+        if (_eridAnnounceAdded) return this;
+        _eridAnnounceAdded = true;
+
+        Services.TryAddSingleton<IEridAnnounceService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<EridAnnounceService>>()
+                ?? NullLogger<EridAnnounceService>.Instance;
+            return new EridAnnounceService(sender, logger);
         });
 
         return this;

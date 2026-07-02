@@ -6,6 +6,7 @@ from aethernet.identity.aethernet_tag import AetherNetTag
 from aethernet.identity import ephemeral_routing_id
 from aethernet.identity import erid_announcement_codec
 from aethernet.identity import peer_id
+from aethernet.identity.erid_announce_service import EridAnnounceService
 from aethernet.identity.ephemeral_routing_id import (
     DEFAULT_EPOCH_SECONDS,
     DEFAULT_LENGTH,
@@ -25,6 +26,7 @@ __all__ = [
     "ephemeral_routing_id",
     "erid_announcement_codec",
     "peer_id",
+    "EridAnnounceService",
     "EridDirectory",
     "DEFAULT_EPOCH_SECONDS",
     "DEFAULT_LENGTH",

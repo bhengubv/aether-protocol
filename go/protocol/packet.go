@@ -121,6 +121,15 @@ const (
 	// cold-start at ~14.6 kB/s (RFC 6928 §2).
 	PacketTypeBandwidthGossip PacketType = 55
 
+	// EridAnnounce carries an already-Signal-encrypted ERID (Ephemeral Routing
+	// Id) directory announcement directly to one established peer. Wire byte 56 —
+	// matches the C# PacketType.EridAnnounce so the directed announcement is
+	// byte-identical across languages. The body is an opaque encrypted blob (a
+	// Signal EncryptedPayload whose plaintext is an EridAnnouncement frame — see
+	// the identity package); this transport never inspects it. Mirrors the C#
+	// AetherNet.Identity.EridAnnounceService.
+	EridAnnounce PacketType = 56
+
 	// CircuitRelayControl carries one native circuit-relay-v2 hop's frame
 	// (reserve/connect/stop/data + responses) as a serialized RelayFrame in the
 	// packet body. Wire byte 57 — matches the C# PacketType.CircuitRelayControl so a
@@ -297,6 +306,8 @@ func (pt PacketType) String() string {
 		return "BandwidthAck"
 	case PacketTypeBandwidthGossip:
 		return "BandwidthGossip"
+	case EridAnnounce:
+		return "EridAnnounce"
 	case CircuitRelayControl:
 		return "CircuitRelayControl"
 	default:

@@ -89,6 +89,12 @@ export * from "./prekey/index.js";
 // Profiles — directed peer-profile exchange (PacketType.ProfileSync = 23)
 export * from "./profiles/index.js";
 
+// Presence — "I'm here" beacon + "who's around?" query (PacketType.PresenceBeacon = 21 / PresenceQuery = 22)
+export * from "./presence/index.js";
+
+// ERID-announce — directed transport of an already-encrypted ERID announcement (PacketType.EridAnnounce = 56)
+export * from "./eridannounce/index.js";
+
 // Handshake
 export * from "./handshake/index.js";
 
