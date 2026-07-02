@@ -122,6 +122,18 @@ public interface IAetherNetProtocolBuilder
     IAetherNetProtocolBuilder AddEridAnnounce();
 
     /// <summary>
+    /// Register <c>VoicePttService</c> as a singleton <c>IVoicePttService</c> (<c>PacketType.VoicePtt</c>
+    /// directed push-to-talk audio frames — binary, sharing the VoiceCall/VideoFrame header). Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddVoicePtt();
+
+    /// <summary>
+    /// Register <c>ScreenShareService</c> as a singleton <c>IScreenShareService</c>
+    /// (<c>PacketType.ScreenShare</c> directed screen-share video frames — binary, VideoFrame header). Requires <c>IMeshSender</c>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddScreenShare();
+
+    /// <summary>
     /// Register <c>MessagingService</c> + <c>SignalMessageEnvelopeCipher</c>
     /// as singletons. Requires both <see cref="AddSignalProtocol"/> and
     /// <see cref="AddRouting"/> to have been called first; throws

@@ -19,6 +19,7 @@ pub mod handshake;
 pub mod heartbeat;
 pub mod incentive;
 pub mod market;
+pub mod media;
 pub mod models;
 pub mod prekey;
 pub mod presence;
@@ -100,6 +101,11 @@ pub use incentive::{
 };
 pub use market::{
     build_signable_token_data, PoVScore, PoVToken, PoVTokenExchangeService, PoVTransportType,
+};
+pub use media::{
+    deserialize_screen_share, deserialize_voice_ptt, serialize_screen_share, serialize_voice_ptt,
+    ScreenShareFrame, ScreenShareFrameReceivedEvent, ScreenShareService, VoicePttFrame,
+    VoicePttFrameReceivedEvent, VoicePttService,
 };
 pub use vault::{split_into_data_shards, ReedSolomonCodec, VaultError};
 pub use space_wire::{SpaceBreadcrumbReceivedEvent, SpaceBreadcrumbService};

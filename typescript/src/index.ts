@@ -101,6 +101,9 @@ export * from "./handshake/index.js";
 // Voice
 export * from "./voice/index.js";
 
+// Media — VoicePtt(15) + ScreenShare(32) directed binary media frames
+export * from "./media/index.js";
+
 // Streaming, video, watch-together
 export * from "./streaming/index.js";
 

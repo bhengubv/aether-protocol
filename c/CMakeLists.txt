@@ -170,6 +170,7 @@ add_library(aethernet-protocol STATIC
     src/channels.c
     src/videocall.c
     src/prekey.c
+    src/media_frame.c
     src/presence.c
     src/erid_announce.c
     src/profiles.c

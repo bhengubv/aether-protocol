@@ -9,6 +9,7 @@ using AetherNet.Content;
 using AetherNet.Dtn;
 using AetherNet.Forge;
 using AetherNet.Market;
+using AetherNet.Media;
 using AetherNet.Space;
 using AetherNet.Vault;
 using AetherNet.Extensibility;
@@ -60,6 +61,8 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _bandwidthAdded;
     private bool _presenceAdded;
     private bool _eridAnnounceAdded;
+    private bool _voicePttAdded;
+    private bool _screenShareAdded;
     private bool _messagingAdded;
     private bool _transportAdded;
     private bool _handshakeAdded;
@@ -296,6 +299,38 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
             var logger = sp.GetService<ILogger<EridAnnounceService>>()
                 ?? NullLogger<EridAnnounceService>.Instance;
             return new EridAnnounceService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddVoicePtt()
+    {
+        if (_voicePttAdded) return this;
+        _voicePttAdded = true;
+
+        Services.TryAddSingleton<IVoicePttService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<VoicePttService>>()
+                ?? NullLogger<VoicePttService>.Instance;
+            return new VoicePttService(sender, logger);
+        });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddScreenShare()
+    {
+        if (_screenShareAdded) return this;
+        _screenShareAdded = true;
+
+        Services.TryAddSingleton<IScreenShareService>(sp =>
+        {
+            var sender = sp.GetRequiredService<IMeshSender>();
+            var logger = sp.GetService<ILogger<ScreenShareService>>()
+                ?? NullLogger<ScreenShareService>.Instance;
+            return new ScreenShareService(sender, logger);
         });
 
         return this;
