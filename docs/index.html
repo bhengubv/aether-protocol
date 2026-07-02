@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AetherNet — offline-first mesh networking protocol</title>
+<meta name="description" content="AetherNet is an open-source, MIT-licensed mesh networking protocol for offline messaging, file transfer, voice, and video over Bluetooth, Wi-Fi Direct, NearLink, LoRa, and WebRTC — implemented byte-identically in 8 languages with Signal Protocol end-to-end encryption.">
+<link rel="canonical" href="https://bhengubv.github.io/aether-protocol/">
+<meta name="theme-color" content="#2196F3">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AetherNet">
+<meta property="og:title" content="AetherNet — offline-first mesh networking protocol">
+<meta property="og:description" content="Share messages, files, voice, and video with people nearby — no internet, no servers, no sign-up. 8 languages, byte-identical wire format, Signal-grade encryption.">
+<meta property="og:url" content="https://bhengubv.github.io/aether-protocol/">
+<meta property="og:image" content="https://bhengubv.github.io/aether-protocol/aether-social.svg">
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AetherNet — offline-first mesh networking protocol">
+<meta name="twitter:description" content="Offline mesh messaging, files, voice & video over BLE / Wi-Fi Direct / LoRa. MIT, 8 languages, byte-identical, E2E encrypted.">
+<meta name="twitter:image" content="https://bhengubv.github.io/aether-protocol/aether-social.svg">
+
+<!-- Language alternates (README available in 21 languages) -->
+<link rel="alternate" hreflang="en" href="https://github.com/bhengubv/aether-protocol/blob/main/README.md">
+<link rel="alternate" hreflang="fr" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/fr/README.md">
+<link rel="alternate" hreflang="es" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/es/README.md">
+<link rel="alternate" hreflang="ar" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/ar/README.md">
+<link rel="alternate" hreflang="zh-Hans" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/zh-CN/README.md">
+<link rel="alternate" hreflang="ja" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/ja/README.md">
+<link rel="alternate" hreflang="de" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/de/README.md">
+<link rel="alternate" hreflang="pt-BR" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/pt-BR/README.md">
+<link rel="alternate" hreflang="ru" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/ru/README.md">
+<link rel="alternate" hreflang="fa" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/fa/README.md">
+<link rel="alternate" hreflang="ko" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/ko/README.md">
+<link rel="alternate" hreflang="zu" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/zu/README.md">
+<link rel="alternate" hreflang="af" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/af/README.md">
+<link rel="alternate" hreflang="st" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/st/README.md">
+<link rel="alternate" hreflang="sw" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/sw/README.md">
+<link rel="alternate" hreflang="ha" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/ha/README.md">
+<link rel="alternate" hreflang="am" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/am/README.md">
+<link rel="alternate" hreflang="hi" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/hi/README.md">
+<link rel="alternate" hreflang="id" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/id/README.md">
+<link rel="alternate" hreflang="bn" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/bn/README.md">
+<link rel="alternate" hreflang="ur" href="https://github.com/bhengubv/aether-protocol/blob/main/docs/i18n/ur/README.md">
+<link rel="alternate" hreflang="x-default" href="https://github.com/bhengubv/aether-protocol">
+
+<!-- schema.org: consumed directly by search engines and AI answer engines -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "AetherNet",
+      "description": "Open-source, MIT-licensed mesh networking protocol for offline messaging, file transfer, voice, and video over Bluetooth, Wi-Fi Direct, NearLink, LoRa, and WebRTC. Implemented byte-identically in eight programming languages with Signal Protocol end-to-end encryption.",
+      "codeRepository": "https://github.com/bhengubv/aether-protocol",
+      "license": "https://opensource.org/licenses/MIT",
+      "programmingLanguage": ["C#", "Rust", "TypeScript", "Python", "Go", "Kotlin", "Swift", "C"],
+      "keywords": "mesh networking, offline-first, delay-tolerant networking, Signal Protocol, end-to-end encryption, peer-to-peer, Bluetooth, LoRa, WebRTC",
+      "author": { "@type": "Organization", "name": "The Geek Network", "url": "https://thegeek.co.za" }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "AetherNet",
+      "applicationCategory": "CommunicationApplication",
+      "operatingSystem": "Android, Windows, Linux, macOS, iOS, HarmonyOS",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "Does AetherNet work without the internet?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. AetherNet is offline-first: devices talk directly over Bluetooth, Wi-Fi Direct, NearLink, or LoRa and relay messages hop-by-hop through other devices, with no internet, cell tower, or server. When no route exists, messages are held via delay-tolerant store-and-forward for up to 72 hours." } },
+        { "@type": "Question", "name": "Is AetherNet end-to-end encrypted?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. AetherNet uses the Signal Protocol (X3DH plus the Double Ratchet over X25519) for end-to-end encryption, AES-256-GCM for payloads, and Ed25519 signatures on every packet. Relay devices cannot read the messages they carry." } },
+        { "@type": "Question", "name": "Which programming languages is AetherNet available in?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Eight: C#, Rust, TypeScript, Python, Go, Kotlin, Swift, and C. Every implementation produces byte-identical wire packets, enforced by a shared cross-language fixture corpus in CI." } },
+        { "@type": "Question", "name": "What license is AetherNet under?",
+          "acceptedAnswer": { "@type": "Answer", "text": "MIT — free for commercial and open-source use." } }
+      ]
+    }
+  ]
+}
+</script>
+
+<style>
+  :root { --blue:#2196F3; --ink:#2c3e50; --bg:#ffffff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:var(--bg); line-height:1.6; }
+  .wrap { max-width:860px; margin:0 auto; padding:0 20px; }
+  header { background:linear-gradient(160deg,var(--blue),#1976D2); color:#fff; padding:64px 0 56px; }
+  header h1 { font-size:2.4rem; margin:0 0 8px; letter-spacing:-0.5px; }
+  header p.lede { font-size:1.15rem; margin:0 0 24px; opacity:0.95; max-width:640px; }
+  .btn { display:inline-block; background:#fff; color:var(--blue); font-weight:600; text-decoration:none; padding:12px 22px; border-radius:8px; }
+  .btn.ghost { background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.7); margin-left:8px; }
+  section { padding:40px 0; border-bottom:1px solid #eef1f4; }
+  h2 { font-size:1.5rem; }
+  .langs span { display:inline-block; background:#eef6fe; color:var(--blue); border-radius:6px; padding:4px 10px; margin:3px; font-size:0.9rem; font-weight:600; }
+  ul.feat { padding-left:1.1rem; }
+  footer { padding:32px 0 56px; color:#7a8794; font-size:0.9rem; }
+  a { color:var(--blue); }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>AetherNet</h1>
+    <p class="lede">An open-source, MIT-licensed <strong>mesh networking protocol</strong> for sharing messages, files, voice, and video with people nearby — with <strong>no internet, no servers, and no sign-up</strong>. Implemented byte-for-byte identically in eight programming languages.</p>
+    <a class="btn" href="https://github.com/bhengubv/aether-protocol">View on GitHub</a>
+    <a class="btn ghost" href="https://github.com/bhengubv/aether-protocol/blob/main/README.md">Read the docs</a>
+  </div>
+</header>
+
+<section><div class="wrap">
+  <h2>What it does</h2>
+  <p>Devices connect directly over <strong>Bluetooth, Wi-Fi Direct, NearLink,</strong> and <strong>LoRa</strong>. When the recipient is out of range, messages hop through other devices and wait up to 72 hours for a route (delay-tolerant store-and-forward). Every packet is end-to-end encrypted with the <strong>Signal Protocol</strong> and signed with Ed25519 — relay devices carry what they cannot read. No accounts, no phone numbers, no infrastructure.</p>
+  <ul class="feat">
+    <li>Messaging, private channels, presence, and profile sync</li>
+    <li>Voice calls, push-to-talk, video calls, screen share, and live streaming</li>
+    <li>SOS broadcast that floods to every device in range — no cell tower needed</li>
+    <li>AODV routing with signed route replies, and erasure-coded storage (Vault)</li>
+  </ul>
+</div></section>
+
+<section><div class="wrap">
+  <h2>One protocol, eight languages, identical on the wire</h2>
+  <p class="langs">
+    <span>C#</span><span>Rust</span><span>TypeScript</span><span>Python</span><span>Go</span><span>Kotlin</span><span>Swift</span><span>C</span>
+  </p>
+  <p>Every implementation produces byte-identical wire packets, enforced by a shared cross-language fixture corpus in continuous integration — a packet built by one language is decoded, unchanged, by any other. Build your node in any of the eight; it interoperates with all the rest.</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="https://github.com/bhengubv/aether-protocol/blob/main/README.md">README</a> — overview, capability surface, quickstart for all eight languages (available in <strong>21 languages</strong>)</li>
+    <li><a href="https://github.com/bhengubv/aether-protocol/blob/main/docs/PROTOCOL_SPEC.md">Protocol specification</a> — RFC-style wire-format spec</li>
+    <li><a href="https://github.com/bhengubv/aether-protocol/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/bhengubv/aether-protocol/blob/main/OPEN_ISSUES.md">Open issues</a> · <a href="https://github.com/bhengubv/aether-protocol/blob/main/SECURITY.md">Security policy</a></li>
+  </ul>
+</div></section>
+
+<footer><div class="wrap">
+  <p>AetherNet is the open protocol behind <a href="https://thegeek.co.za">The Geek Network</a>'s mesh ecosystem, built in South Africa for communication that works with or without mobile data. MIT-licensed.</p>
+</div></footer>
+</body>
+</html>
