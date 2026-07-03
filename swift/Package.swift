@@ -42,6 +42,15 @@ var products: [Product] = [
         name: "AetherNetProtocol",
         targets: ["AetherNetProtocol"]
     ),
+    // The transport-agnostic WebRTC signalling carrier (SDP/ICE offer/answer framing over any
+    // byte channel) has NO libdatachannel dependency — it imports only Foundation. Like the C
+    // SDK's carrier, it lives in an UNCONDITIONAL library so it (and its acceptance test) build
+    // and run on the DEFAULT `swift build` / `swift test`. Only the real libdatachannel P2P
+    // transport (AetherNetWebRTC, below) stays gated behind AETHERNET_WITH_WEBRTC.
+    .library(
+        name: "AetherNetWebRTCSignaling",
+        targets: ["AetherNetWebRTCSignaling"]
+    ),
     .executable(
         name: "aethernet-demo",
         targets: ["AetherNetDemo"]
@@ -56,6 +65,14 @@ var targets: [Target] = [
         ],
         path: "Sources/AetherNetProtocol"
     ),
+    // Foundation-only WebRTC signalling carrier: WebRtcSignal / WebRtcSignaling /
+    // RelayWebRtcSignaling. Always built (no CDataChannel), so the SDP/ICE handshake plumbing is
+    // available to every consumer and testable without the native lib.
+    .target(
+        name: "AetherNetWebRTCSignaling",
+        dependencies: ["AetherNetProtocol"],
+        path: "Sources/AetherNetWebRTCSignaling"
+    ),
     .executableTarget(
         name: "AetherNetDemo",
         dependencies: ["AetherNetProtocol"],
@@ -65,11 +82,20 @@ var targets: [Target] = [
         name: "AetherNetProtocolTests",
         dependencies: ["AetherNetProtocol"],
         path: "Tests",
-        // The WebRTC tests live in their own target (they need the AetherNetWebRTC +
-        // libdatachannel dependency); keep them out of the core protocol test target.
-        // The exclude also keeps Tests/WebRTC from becoming "unhandled" files when the
-        // WebRTC test target is gated out below.
-        exclude: ["WebRTC"]
+        // The WebRTC-signalling and WebRTC-P2P tests live in their own targets; keep them out of
+        // the core protocol test target. WebRTCSignaling has its own always-built test target
+        // (below); WebRTC needs the AetherNetWebRTC + libdatachannel dependency and is gated. The
+        // exclude also keeps both dirs from becoming "unhandled" files when the WebRTC test target
+        // is gated out.
+        exclude: ["WebRTC", "WebRTCSignaling"]
+    ),
+    // Always-built acceptance test for the Foundation-only carrier: round-trip + byte-identity +
+    // non-signalling-ignored. Runs on the DEFAULT `swift test` (no libdatachannel), mirroring the
+    // C SDK's carrier test that runs on every build.
+    .testTarget(
+        name: "AetherNetWebRTCSignalingTests",
+        dependencies: ["AetherNetWebRTCSignaling"],
+        path: "Tests/WebRTCSignaling"
     )
 ]
 
@@ -93,11 +119,14 @@ if webRTCEnabled {
         ),
         // Real WebRTC peer-to-peer transport mirroring the C# (SIPSorcery) and Go (pion)
         // implementations: a TransportService over an RTCDataChannel, with SDP/ICE signalling
-        // carried by an injected WebRtcSignaling channel (no central server).
+        // carried by an injected WebRtcSignaling channel (no central server). The signalling model
+        // and carrier live in the always-built AetherNetWebRTCSignaling target; this gated target
+        // holds ONLY the libdatachannel-backed transport (WebRtcTransportService + WebRtcPeerLink).
         .target(
             name: "AetherNetWebRTC",
             dependencies: [
                 "AetherNetProtocol",
+                "AetherNetWebRTCSignaling",
                 "CDataChannel"
             ],
             path: "Sources/AetherNetWebRTC",
@@ -105,7 +134,7 @@ if webRTCEnabled {
         ),
         .testTarget(
             name: "AetherNetWebRTCTests",
-            dependencies: ["AetherNetWebRTC", "AetherNetProtocol"],
+            dependencies: ["AetherNetWebRTC", "AetherNetWebRTCSignaling", "AetherNetProtocol"],
             path: "Tests/WebRTC"
         )
     ])

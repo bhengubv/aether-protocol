@@ -4,6 +4,7 @@
 import XCTest
 import Foundation
 @testable import AetherNetWebRTC
+@testable import AetherNetWebRTCSignaling
 @testable import AetherNetProtocol
 
 final class WebRtcTransportTests: XCTestCase {

@@ -3,6 +3,7 @@
 import Foundation
 import CDataChannel
 import AetherNetProtocol
+import AetherNetWebRTCSignaling
 
 /// Direct peer-to-peer transport over a WebRTC data channel (libdatachannel, portable C/C++).
 ///

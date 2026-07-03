@@ -2,6 +2,7 @@
 
 import Foundation
 import CDataChannel
+import AetherNetWebRTCSignaling
 
 /// One WebRTC connection to a single peer: a libdatachannel `RTCPeerConnection` (`pc` handle) plus
 /// its `RTCDataChannel` (`dc` handle), driving the offer/answer/ICE handshake over a
