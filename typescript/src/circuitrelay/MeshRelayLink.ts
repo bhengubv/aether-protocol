@@ -15,7 +15,8 @@
 
 import { MeshPacket } from "../protocol/MeshPacket.js";
 import { PacketType } from "../protocol/PacketType.js";
-import { RelayLink } from "./Transport.js";
+import { RelayLink, RelayOptions } from "./Transport.js";
+import { CircuitRelayTransportService } from "./CircuitRelayTransportService.js";
 
 /** Host callable that sends a MeshPacket one hop to a directly-connected peer. */
 export type SendOneHop = (packet: MeshPacket) => boolean;
@@ -62,3 +63,28 @@ export class MeshRelayLink implements RelayLink {
     this.handler?.(packet.sourceUhid, packet.payload);
   }
 }
+
+/**
+ * Wires a {@link CircuitRelayTransportService} onto a {@link MeshRelayLink}. The host:
+ * (1) registers the returned transport with the mesh — {@link TransportManager} includes it
+ * automatically via its `additionalTransports` parameter, at
+ * {@link CircuitRelayTransportService.powerCostRelative} 90 (just below the HTTP relay), so the
+ * relay is auto-selected only as the last-resort serverless fallback; and (2) routes every received
+ * {@link PacketType.CircuitRelayControl} packet to the returned link's
+ * {@link MeshRelayLink.handleIncomingPacket}.
+ *
+ * Mirrors the C# static factory `MeshCircuitRelay.Create`.
+ */
+export const MeshCircuitRelay = {
+  /** Creates the relay transport + its mesh link, sharing one UHID. */
+  create(
+    localUhid: string,
+    sendOneHop: SendOneHop,
+    canReach: CanReachFn,
+    options?: RelayOptions,
+  ): { transport: CircuitRelayTransportService; link: MeshRelayLink } {
+    const link = new MeshRelayLink(localUhid, sendOneHop, canReach);
+    const transport = new CircuitRelayTransportService(localUhid, link, options);
+    return { transport, link };
+  },
+} as const;

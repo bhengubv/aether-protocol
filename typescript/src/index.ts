@@ -54,6 +54,8 @@ export * from "./storage/index.js";
 
 // Transport
 export { InProcessTransport } from "./transport/InProcessTransport.js";
+export { TransportManager } from "./transport/TransportManager.js";
+export type { TransportManagerMetrics } from "./transport/TransportManager.js";
 export * from "./transport/webrtc/index.js";
 
 // Models (extended)

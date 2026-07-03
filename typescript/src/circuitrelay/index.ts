@@ -14,3 +14,7 @@ export type { RelayFrame } from "./RelayFrame.js";
 
 export { Transport, defaultRelayOptions } from "./Transport.js";
 export type { RelayLink, RelayOptions } from "./Transport.js";
+
+export { MeshRelayLink, MeshCircuitRelay } from "./MeshRelayLink.js";
+export type { SendOneHop, CanReachFn } from "./MeshRelayLink.js";
+export { CircuitRelayTransportService } from "./CircuitRelayTransportService.js";

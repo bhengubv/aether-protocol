@@ -9,8 +9,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { MeshPacket } from "../src/protocol/MeshPacket.js";
-import { MeshRelayLink } from "../src/circuitrelay/MeshRelayLink.js";
+import { MeshRelayLink, MeshCircuitRelay } from "../src/circuitrelay/MeshRelayLink.js";
 import { Transport, defaultRelayOptions } from "../src/circuitrelay/Transport.js";
+import { TransportManager } from "../src/transport/TransportManager.js";
 
 // In-process mesh whose adjacency is A-R-B with NO direct A-B edge; routes each
 // MeshPacket one hop to the destination node's link. Stands in for the real radios
@@ -77,4 +78,50 @@ test("relay works as a mesh transport over real MeshPacket frames", async () => 
   assert.equal(got!.sender, "A");
   assert.deepEqual(got!.data, payload);
   assert.equal(r.activeBridgeCount(), 1); // R is genuinely bridging over real packets
+});
+
+// The gap-2 acceptance test (mirrors the C# CircuitRelayMeshIntegrationTests
+// Relay_Is_Auto_Selected_By_TransportManager_As_Fallback): the relay must be picked
+// automatically by TransportManager as the last-resort fallback — NOT called directly. A and B
+// each run a manager whose ONLY transport is the relay; A.sendAsync routes B's payload through the
+// manager's selection (additional transports, ascending power cost, relay at 90) and B receives it,
+// tagged with the relay transport's name — proving selection, not hand-wiring.
+test("relay is auto-selected by TransportManager as the last-resort fallback", async () => {
+  const hub = new MeshHub();
+  hub.connect("A", "R");
+  hub.connect("R", "B"); // no A-B edge
+
+  const a = MeshCircuitRelay.create("A", hub.sendFrom("A"), hub.canReachFrom("A"));
+  const r = MeshCircuitRelay.create("R", hub.sendFrom("R"), hub.canReachFrom("R"));
+  const b = MeshCircuitRelay.create("B", hub.sendFrom("B"), hub.canReachFrom("B"));
+  hub.register("A", a.link);
+  hub.register("R", r.link);
+  hub.register("B", b.link);
+
+  // A and B each run a TransportManager whose ONLY transport is the relay (no BLE/Wi-Fi/NearLink).
+  const aMgr = new TransportManager([a.transport]);
+  const bMgr = new TransportManager([b.transport]);
+
+  const received = new Promise<{ sender: string; data: Uint8Array; via: string }>((resolve) => {
+    bMgr.onDataReceived = (sender, data, via) => resolve({ sender, data, via });
+  });
+
+  assert.equal(await b.transport.reserveAsync("R"), true); // B reserves on the relay
+  a.transport.setRoute("B", "R"); // A learns B is reachable via R
+
+  const payload = new Uint8Array([0x11, 0x22, 0x33, 0x44]);
+  assert.equal(await aMgr.sendAsync("B", payload), true); // via the MANAGER, which must select the relay
+
+  const got = await Promise.race([
+    received,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+  ]);
+  assert.notEqual(got, null, "B never received the relayed message via TransportManager selection");
+  assert.equal(got!.sender, "A");
+  assert.deepEqual(got!.data, payload);
+  assert.equal(got!.via, "Circuit Relay (v2)"); // the manager chose the relay transport, by name
+  assert.equal(r.transport.activeBridgeCount, 1);
+
+  aMgr.dispose();
+  bMgr.dispose();
 });
