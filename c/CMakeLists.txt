@@ -192,6 +192,12 @@ add_library(aethernet-protocol STATIC
     src/bandwidth_wire.c
     src/chunk_bitmap.c
     src/directory_service.c
+    # Transport-backed WebRTC signalling carrier (AWS1 + JSON framing). Built
+    # UNCONDITIONALLY — it is transport-agnostic (rides the relay / in-process
+    # transport) and needs no libdatachannel; only the real WebRTC transport
+    # (src/transport_webrtc.c, gated below) pulls <rtc/rtc.h>. Uses cJSON, which
+    # is already on this library's PRIVATE include + link surface.
+    src/webrtc_signaling.c
     src/peer_id.c
     src/tip_packet.c
     src/reed_solomon.c

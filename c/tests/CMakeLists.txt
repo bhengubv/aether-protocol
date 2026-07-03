@@ -339,6 +339,24 @@ if(AETHERNET_WITH_WEBRTC)
     set_tests_properties(TransportWebRtcTests PROPERTIES TIMEOUT 120)
 endif()
 
+# Transport-backed WebRTC signalling carrier (AWS1 + JSON framing) acceptance test.
+# Two SEPARATE carrier instances over an in-process loopback transport pair round-trip
+# an OFFER and an ANSWER, mirroring C# RelaySignalingTests. When -DAETHERNET_WITH_WEBRTC=ON,
+# it additionally drives a FULL offer/answer over two real libdatachannel WebRTC transports
+# (the AETHERNET_WITH_WEBRTC=1 define propagates from the aethernet-protocol PUBLIC compile
+# definition, and libdatachannel links PUBLIC through the library — so one target serves both
+# levels). The lowercase "signaling" + "webrtc" tokens let `ctest -R "webrtc|signaling"`
+# (a case-sensitive regex) select it. Self-contained (no JSON fixture).
+add_executable(test-webrtc-signaling
+    test_webrtc_signaling.c
+)
+target_include_directories(test-webrtc-signaling PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-webrtc-signaling PRIVATE aethernet-protocol pthread)
+# Test NAME carries the lowercase "webrtc" + "signaling" tokens so the
+# case-sensitive regex `ctest -R "webrtc|signaling"` selects it (the same
+# lowercase-token convention used by bip39Tests / bleprivacyTests / syncTests).
+add_test(NAME webrtcsignalingCarrierTests COMMAND test-webrtc-signaling)
+
 add_executable(test-reputation
     test_reputation.c
 )
@@ -583,6 +601,7 @@ add_custom_target(aether-tests
         test-security
         test-transport-metrics
         test-transport-inprocess
+        test-webrtc-signaling
         test-reputation
         test-anomaly
         test-gossip
