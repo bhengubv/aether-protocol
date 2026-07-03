@@ -31,6 +31,24 @@ public sealed class Ed25519SigningService
     }
 
     /// <summary>
+    /// Derives the 32-byte Ed25519 public key from a 32-byte private seed.
+    /// Used to reconstruct an identity from a BIP-39 recovery phrase without
+    /// having stored the public key separately.
+    /// </summary>
+    /// <param name="privateKey">32-byte Ed25519 seed.</param>
+    /// <returns>The 32-byte Ed25519 public key.</returns>
+    public static byte[] DerivePublicKey(byte[] privateKey)
+    {
+        ArgumentNullException.ThrowIfNull(privateKey);
+        if (privateKey.Length != 32)
+            throw new ArgumentException("Ed25519 private key must be 32 bytes.", nameof(privateKey));
+
+        using var key = Key.Import(Algorithm, privateKey, KeyBlobFormat.RawPrivateKey,
+            new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport });
+        return key.PublicKey.Export(KeyBlobFormat.RawPublicKey);
+    }
+
+    /// <summary>
     /// Signs data using an Ed25519 private key.
     /// </summary>
     /// <param name="privateKey">32-byte Ed25519 seed.</param>
