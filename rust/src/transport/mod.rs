@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod in_process;
+pub mod manager;
 pub mod predictive_selector;
 pub mod rlnc;
 #[cfg(feature = "webrtc")]
@@ -12,6 +13,7 @@ use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 
 pub use in_process::InProcessTransport;
+pub use manager::TransportManager;
 pub use predictive_selector::{PredictedRankedTransport, PredictiveTransportSelector};
 #[cfg(feature = "webrtc")]
 pub use webrtc::{
@@ -152,6 +154,19 @@ pub trait TransportService: Send + Sync {
         &mut self,
         handler: Box<dyn Fn(&str, &[u8]) + Send + Sync>,
     );
+
+    /// Registers a received-data callback on the *shared* (`&self`) handle, for transports held
+    /// behind an `Arc<dyn TransportService>` (as [`TransportManager`] holds them). Transports with
+    /// an interior-mutable receive surface (the circuit relay, WebRTC) override this to store the
+    /// handler; the default returns `false`, signalling the transport can only have a handler set
+    /// via the `&mut self` [`Self::set_data_received_handler`] before it is shared.
+    ///
+    /// This is a pure in-process API seam — it carries no wire bytes and is unrelated to any
+    /// fixture. It is how [`TransportManager`] subscribes to inbound data generically, without
+    /// downcasting to a concrete transport type.
+    fn set_shared_data_handler(&self, _handler: Arc<dyn Fn(&str, &[u8]) + Send + Sync>) -> bool {
+        false
+    }
 
     /// Per-transport EWMA metrics.
     ///
