@@ -12,9 +12,12 @@ tests.
 
 from aethernet.transport.webrtc.signaling import (
     InMemorySignalingBus,
+    RelaySignaling,
     Signal,
     Signaling,
     SignalType,
+    decode_signal_frame,
+    encode_signal_frame,
 )
 from aethernet.transport.webrtc.transport import (
     WebRtcTransport,
@@ -23,9 +26,12 @@ from aethernet.transport.webrtc.transport import (
 
 __all__ = [
     "InMemorySignalingBus",
+    "RelaySignaling",
     "Signal",
     "Signaling",
     "SignalType",
     "WebRtcTransport",
+    "decode_signal_frame",
+    "encode_signal_frame",
     "default_ice_servers",
 ]
