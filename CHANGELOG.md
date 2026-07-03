@@ -10,7 +10,11 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
-**Security & privacy layer (targeting 2.3.0).** A recovery-phrase backup, Bluetooth
+---
+
+## [2.3.0] — 2026-07-03
+
+**Security & privacy layer.** A recovery-phrase backup, Bluetooth
 tracking-protection, panic-wipe, and decentralised multi-device sync — each implemented in all
 eight languages and pinned to a shared cross-language fixture. Additive; **no wire-format change to
 existing packets**. These sit *alongside* the 18-service wire suite, not inside it: three are
