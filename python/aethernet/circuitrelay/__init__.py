@@ -20,6 +20,13 @@ from aethernet.circuitrelay.transport import (
     RelayLink,
     Transport,
 )
+from aethernet.circuitrelay.mesh_link import MeshRelayLink
+from aethernet.circuitrelay.service import (
+    CIRCUIT_RELAY_NAME,
+    CIRCUIT_RELAY_POWER_COST,
+    CircuitRelayTransportService,
+    MeshCircuitRelay,
+)
 
 __all__ = [
     "RELAY_FRAME_VERSION",
@@ -31,4 +38,9 @@ __all__ = [
     "CircuitRelayOptions",
     "RelayLink",
     "Transport",
+    "MeshRelayLink",
+    "CircuitRelayTransportService",
+    "MeshCircuitRelay",
+    "CIRCUIT_RELAY_NAME",
+    "CIRCUIT_RELAY_POWER_COST",
 ]
