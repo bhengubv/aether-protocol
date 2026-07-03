@@ -1,0 +1,126 @@
+{
+  "note": "Multi-device sync parity vectors. SyncRecord binary envelope (LE ints, big-endian record_id, u16+utf8 strings, i32+payload). Reconcile = deterministic last-write-wins by (created_at_ms, logical_clock, device_id ordinal, record_id bytes). DeviceLink signed by the Ed25519 identity key over signed_body; signatures are deterministic so serialized_hex is byte-identical across SDKs. Every AetherNet SDK reproduces these.",
+  "identity_private": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "identity_public": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+  "wrong_identity_public": "0bbc346a57667c380120bd9c7fd7e51d2c5fdfea37cd2f5bf405b2c6bf6f2d78",
+  "sync_records": [
+    {
+      "record_id": "00112233-4455-6677-8899-aabbccddeeff",
+      "device_id": "phone",
+      "op": 0,
+      "item_id": "msg-0001",
+      "logical_clock": 5,
+      "created_at_ms": 1700000000000,
+      "payload_hex": "deadbeefcafe",
+      "serialized_hex": "0100112233445566778899aabbccddeeff0005000000000000000068e5cf8b010000050070686f6e6508006d73672d3030303106000000deadbeefcafe"
+    },
+    {
+      "record_id": "01234567-0123-4abc-8def-0123456789ab",
+      "device_id": "tablet",
+      "op": 1,
+      "item_id": "msg-0001",
+      "logical_clock": 6,
+      "created_at_ms": 1700000005000,
+      "payload_hex": "",
+      "serialized_hex": "010123456701234abc8def0123456789ab010600000000000000887be5cf8b01000006007461626c657408006d73672d3030303100000000"
+    },
+    {
+      "record_id": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      "device_id": "laptop-α",
+      "op": 2,
+      "item_id": "channel:general",
+      "logical_clock": 100,
+      "created_at_ms": 1700000009999,
+      "payload_hex": "000102",
+      "serialized_hex": "01ffffffffffff4fff8fffffffffffffff0264000000000000000f8fe5cf8b01000009006c6170746f702dceb10f006368616e6e656c3a67656e6572616c03000000000102"
+    },
+    {
+      "record_id": "00000000-0000-0000-0000-000000000000",
+      "device_id": "",
+      "op": 0,
+      "item_id": "",
+      "logical_clock": 0,
+      "created_at_ms": 0,
+      "payload_hex": "",
+      "serialized_hex": "010000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "reconcile": [
+    {
+      "name": "highest_timestamp_wins",
+      "records": [
+        {
+          "record_id": "aaaaaaaa-0000-4000-8000-000000000001",
+          "device_id": "a",
+          "item_id": "x",
+          "op": 0,
+          "logical_clock": 1,
+          "created_at_ms": 100,
+          "payload_hex": ""
+        },
+        {
+          "record_id": "bbbbbbbb-0000-4000-8000-000000000002",
+          "device_id": "a",
+          "item_id": "x",
+          "op": 0,
+          "logical_clock": 1,
+          "created_at_ms": 200,
+          "payload_hex": ""
+        },
+        {
+          "record_id": "cccccccc-0000-4000-8000-000000000003",
+          "device_id": "z",
+          "item_id": "x",
+          "op": 0,
+          "logical_clock": 9,
+          "created_at_ms": 100,
+          "payload_hex": ""
+        }
+      ],
+      "winner_record_id": "bbbbbbbb-0000-4000-8000-000000000002"
+    },
+    {
+      "name": "tiebreak_device_then_id",
+      "records": [
+        {
+          "record_id": "dddddddd-0000-4000-8000-000000000001",
+          "device_id": "a",
+          "item_id": "x",
+          "op": 0,
+          "logical_clock": 3,
+          "created_at_ms": 500,
+          "payload_hex": ""
+        },
+        {
+          "record_id": "eeeeeeee-0000-4000-8000-000000000002",
+          "device_id": "b",
+          "item_id": "x",
+          "op": 0,
+          "logical_clock": 3,
+          "created_at_ms": 500,
+          "payload_hex": ""
+        },
+        {
+          "record_id": "ffffffff-0000-4000-8000-000000000003",
+          "device_id": "z",
+          "item_id": "x",
+          "op": 0,
+          "logical_clock": 2,
+          "created_at_ms": 500,
+          "payload_hex": ""
+        }
+      ],
+      "winner_record_id": "eeeeeeee-0000-4000-8000-000000000002"
+    }
+  ],
+  "device_links": [
+    {
+      "device_id": "tablet",
+      "device_public_key": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "issued_at_ms": 1700000000000,
+      "signed_body_hex": "0106007461626c6574202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0068e5cf8b010000",
+      "signature_hex": "c97bf9c8a67fa0a864530b57026a6d1343c35b1543b83ae69bda96ecbc6b975b31bbb7d275a68f404804ef4e56306f3a16e40b753be76483d518d7b0663ba20a",
+      "serialized_hex": "0106007461626c6574202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0068e5cf8b010000c97bf9c8a67fa0a864530b57026a6d1343c35b1543b83ae69bda96ecbc6b975b31bbb7d275a68f404804ef4e56306f3a16e40b753be76483d518d7b0663ba20a"
+    }
+  ]
+}

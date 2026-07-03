@@ -1,0 +1,43 @@
+{
+  "note": "Panic-wipe parity vectors. duress_pin_hashes: SHA-256(UTF8(pin)) hex; VerifyDuressPin is a constant-time compare of this. identity_key_names + prekey name patterns are the canonical set a wipe destroys; every AetherNet SDK must agree on them byte-for-byte. SecureErase (overwrite random + zero) is behavioural, tested per language.",
+  "max_prekeys": 200,
+  "identity_key_names": [
+    "aether_identity_pub",
+    "aether_identity_priv",
+    "aether_identity_generated",
+    "aether_device_salt",
+    "aether_drk",
+    "aether_ble_rotation_key",
+    "aether_ble_irk"
+  ],
+  "prekey_name": {
+    "index": 7,
+    "expected": "prekey_7"
+  },
+  "signed_prekey_name": {
+    "index": 3,
+    "expected": "signed_prekey_3"
+  },
+  "duress_pin_hashes": [
+    {
+      "pin": "0000",
+      "sha256": "9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0"
+    },
+    {
+      "pin": "1234",
+      "sha256": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
+    },
+    {
+      "pin": "8675309",
+      "sha256": "37ba3881108bf3e48180350246c5959b9481633d0cb1d8694fb141dc74e5fe79"
+    },
+    {
+      "pin": "correct horse battery staple",
+      "sha256": "c4bbcb1fbec99d65bf59d85c8cb62ee2db963f0fe106f483d9afa73bd4e39a8a"
+    },
+    {
+      "pin": "",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

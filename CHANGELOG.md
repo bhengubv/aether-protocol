@@ -10,6 +10,39 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+**Security & privacy layer (targeting 2.3.0).** A recovery-phrase backup, Bluetooth
+tracking-protection, panic-wipe, and decentralised multi-device sync — each implemented in all
+eight languages and pinned to a shared cross-language fixture. Additive; **no wire-format change to
+existing packets**. These sit *alongside* the 18-service wire suite, not inside it: three are
+**local** (no new packet type), and multi-device sync carries its own envelopes inside the existing
+DTN/mesh path. Swift and C additionally verified on the macOS build server.
+
+### Added
+
+- **Recovery-phrase backup** (`AetherNet.Security.Backup`) — standard **BIP-39** encoding of the
+  32-byte Ed25519 identity seed as a **24-word** phrase, SHA-256-checksummed (a mistyped word is
+  rejected, never silently wrong), verified against the official Trezor test vectors. Restore a node
+  from the words alone — no server, no custodian. `fixtures/bip39/`.
+- **Bluetooth tracking-protection** (`AetherNet.Security.Privacy.BlePrivacy`) — rotating, key-derived
+  BLE Service UUID (HMAC-SHA256, 15-minute window) + IRK-based resolvable private addresses (the RFC
+  `ah` function, AES-128) to defeat passive BLE device-tracking. `fixtures/bleprivacy/`.
+- **Panic-wipe** (`AetherNet.Security.Privacy.PanicWipe`) — duress-PIN (SHA-256, constant-time
+  compared) triggered secure-erase of all identity key material (overwrite-with-random, then zero),
+  over a fixed manifest of identity key names. `fixtures/panicwipe/`.
+- **Multi-device sync** (`AetherNet.Security.Sync`) — decentralised, server-less device-linking: an
+  Ed25519-signed `DeviceLink` pairs a user's own devices, and last-write-wins `SyncRecord` binary
+  envelopes reconcile state, carried E2E-encrypted over DTN/mesh — no cloud account, no sync server.
+  `fixtures/sync/`.
+
+### Notes
+
+- The `DeviceLink` Ed25519 signature is **byte-identical across 7 of the 8 languages**. Apple's
+  CryptoKit deliberately randomises Ed25519 signatures, so Swift reaches **verification** parity (a
+  valid, byte-differing signature) — the signed body stays byte-identical and every link cross-verifies
+  on all 8 SDKs. It is the only place in this layer where "byte-identical" carries an asterisk.
+- New wire formats (`SyncRecord`, `DeviceLink`, the BLE rotating-UUID + RPA scheme) are specified in
+  `docs/PROTOCOL_SPEC.md` §12; threat model in `docs/THREAT_MODEL.md`.
+
 ---
 
 ## [2.2.0] — 2026-07-02

@@ -132,6 +132,19 @@ Ini semua berada di atas layanan **messaging, suara 1-ke-1 dan grup, panggilan v
 
 > **Apa yang "dibangun" berarti di sini, secara tepat.** Setiap layanan memproduksi dan menangani paket kabelnya, memicu event yang tepat, dan disematkan ke fixture tingkat-byte yang harus dicocokkan oleh seluruh keluarga bahasa. Aplikasi Anda menghubungkan layanan itu ke sesi Signal-nya, tabel perutean, dan state lokal. Ini adalah lapisan protokol — terbukti dalam kode, tes, dan fixture-byte lintas-bahasa — dengan pijakan RF yang sama jujurnya seperti segala hal lain: jalur mana pun yang pada akhirnya menaiki radio belum terverifikasi di lapangan sampai bring-up perangkat keras yang dilacak di `OPEN_ISSUES.md`.
 
+## Keamanan & privasi
+
+Di luar rangkaian layanan-kabel, Aether menyertakan **lapisan keamanan & privasi** kecil — manajemen kunci-identitas dan anti-pelacakan di tingkat link-layer. Seperti segala hal lain, masing-masing diimplementasikan dalam **kedelapan bahasa** dan disematkan ke fixture lintas-bahasa bersama di bawah `fixtures/<feature>/` (Swift dan C juga diverifikasi di macOS build server). Ini *bukan* empat tambahan dari 18 layanan kabel: tiga di antaranya sama sekali **tidak mendefinisikan tipe paket kabel baru**, dan yang keempat membawa envelope-nya sendiri **di dalam jalur DTN/mesh yang sudah ada** alih-alih sebagai paket baru yang dicadangkan.
+
+| Kemampuan | Apa yang dilakukannya | Lapisan | Fixture | 8/8 |
+|---|---|---|---|:-:|
+| **Cadangan recovery-phrase** | Cadangkan sebuah identitas sebagai frasa **24-kata BIP-39** dan pulihkan di perangkat mana pun. BIP-39 standar (diverifikasi terhadap vektor Trezor resmi), ber-checksum SHA-256 sehingga kata yang salah ketik *ditolak*, tidak pernah salah secara diam-diam. Tanpa server, tanpa kustodian — frasa itu **adalah** identitasnya. | lokal | `fixtures/bip39/` | ✅ |
+| **Perlindungan pelacakan Bluetooth** | Menurunkan BLE **Service UUID** yang berputar dan diturunkan-dari-kunci (HMAC-SHA256, jendela 15-menit) serta **alamat privat yang dapat diselesaikan** (IRK + fungsi RFC `ah`, AES-128) — materi anti-pelacakan yang dibutuhkan sebuah BLE advertiser agar pemindai pasif tidak dapat menghubungkannya lintas waktu atau tempat. | link-layer | `fixtures/bleprivacy/` | ✅ |
+| **Panic-wipe** | Sebuah **duress PIN** (SHA-256, dibandingkan secara constant-time) yang, di bawah paksaan, menghapus dengan aman setiap kunci identitas — timpa-dengan-acak lalu nol — sehingga tidak ada yang tersisa untuk dipulihkan. | lokal | `fixtures/panicwipe/` | ✅ |
+| **Sinkronisasi multi-perangkat** | Sinkronisasi **terdesentralisasi, tanpa server** di antara perangkat *milik Anda sendiri*: sebuah **DeviceLink** bertanda-tangan Ed25519 memasangkannya, dan envelope **SyncRecord** last-write-wins merekonsiliasi state — dibawa terenkripsi E2E melalui DTN/mesh yang sudah ada, tanpa akun cloud dan tanpa server sinkronisasi. | menumpang DTN | `fixtures/sync/` | ✅ |
+
+**Satu asimetri yang jujur.** **DeviceLink** multi-perangkat bertanda-tangan Ed25519, dan tanda tangan itu **identik-byte di 7 dari 8 bahasa**. CryptoKit milik Apple sengaja *mengacak* tanda tangan Ed25519, sehingga di Swift ke-64 byte tanda tangan berbeda setiap kali — tetapi **badan yang ditandatangani identik-byte** dan setiap tautan tetap terverifikasi di semua 8 SDK, jadi Swift mencapai paritas **verifikasi** alih-alih paritas byte-tanda-tangan. Itu adalah properti platform-crypto, bukan cacat, dan itulah satu-satunya tempat di keempat fitur ini di mana "identik-byte" membawa tanda bintang (asterisk). Format kabel lengkap ada di [`PROTOCOL_SPEC.md`](../../PROTOCOL_SPEC.md) §12; model ancaman ada di [`THREAT_MODEL.md`](../../THREAT_MODEL.md).
+
 ## Transport
 
 Setiap transport punya nama warna yang dipakai di seluruh basis kode. `IsAvailable` menjaga jalur yang terblokir perangkat keras — `TransportManager` melewatinya dan mundur ke transport tersedia berikutnya.

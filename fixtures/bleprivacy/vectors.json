@@ -1,0 +1,43 @@
+{
+  "note": "BLE privacy parity vectors. window=little-endian int64. ServiceUuid=HMAC-SHA256(rotationKey,window)[0..16] as uuid. RPA=hash(3)||prand(3); prand=HMAC-SHA256(irk,window)[0..3], prand[0]=(b&0x3F)|0x40; hash=AES128-ECB(irk, 0^13||prand)[0..3]. Every AetherNet SDK reproduces these byte-for-byte.",
+  "rotation_seconds": 900,
+  "rotation_key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "irk": "000102030405060708090a0b0c0d0e0f",
+  "wrong_irk": "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+  "uuid_vectors": [
+    {
+      "window": 0,
+      "uuid": "9f0cd9b9-4097-fe49-2991-8d2b8942b344"
+    },
+    {
+      "window": 1,
+      "uuid": "3b345d4e-3f7a-9922-d894-2f7c4f9c46a3"
+    },
+    {
+      "window": 12345,
+      "uuid": "7314b1b3-27b3-cc32-06ba-493eb54fcbca"
+    },
+    {
+      "window": 2895000,
+      "uuid": "a350ac4a-8d8b-cc63-fdef-71ec7875879a"
+    }
+  ],
+  "rpa_vectors": [
+    {
+      "window": 0,
+      "rpa": "be0b5b46b0c5"
+    },
+    {
+      "window": 1,
+      "rpa": "05bd4145e4aa"
+    },
+    {
+      "window": 12345,
+      "rpa": "24368a7ad457"
+    },
+    {
+      "window": 2895000,
+      "rpa": "71b1f256854d"
+    }
+  ]
+}

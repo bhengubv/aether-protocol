@@ -197,6 +197,10 @@ add_library(aethernet-protocol STATIC
     src/vaultshard.c
     src/pov_token.c
     src/market.c
+    src/bip39.c
+    src/ble_privacy.c
+    src/panic_wipe.c
+    src/sync.c
     # BLAKE3 portable subset (no SIMD — compile-time defines below disable all
     # optional SIMD backends; only blake3_portable.c is linked in practice)
     ${blake3_src_SOURCE_DIR}/c/blake3.c
@@ -204,6 +208,11 @@ add_library(aethernet-protocol STATIC
     ${blake3_src_SOURCE_DIR}/c/blake3_portable.c
     # micro-ecc P-256 (secp256r1) ECDSA - single portable source file.
     ${micro_ecc_SOURCE_DIR}/uECC.c
+    # tiny-AES-c (public domain, kokke/tiny-AES-c) — single-block AES-128-ECB for
+    # the BLE "ah" function in src/ble_privacy.c. libsodium exposes no raw AES
+    # block (only AES-256-GCM). Vendored verbatim under vendor/tiny-aes; built
+    # AES128/ECB-only via the compile definitions below.
+    ${CMAKE_CURRENT_SOURCE_DIR}/vendor/tiny-aes/aes.c
 )
 
 # WebRTC transport sources compile only when the dependency is built — they
@@ -224,6 +233,7 @@ target_include_directories(aethernet-protocol
         ${CJSON_SHIM_DIR}
         ${micro_ecc_SOURCE_DIR}
         ${blake3_src_SOURCE_DIR}/c
+        ${CMAKE_CURRENT_SOURCE_DIR}/vendor/tiny-aes
 )
 
 # Disable all SIMD backends — only the portable C path is compiled.
@@ -240,6 +250,14 @@ target_compile_definitions(aethernet-protocol PRIVATE
     # and the dispatch tries to link blake3_hash_many_neon - which we
     # never compile here. Force the portable path.
     BLAKE3_USE_NEON=0
+    # tiny-AES-c (vendor/tiny-aes) build configuration: AES-128, ECB-only.
+    # The BLE "ah" function needs a single AES-128-ECB block and nothing else,
+    # so disable CBC/CTR to trim the compiled surface. The vendored aes.h honours
+    # these #ifndef-guarded macros, leaving the upstream source unmodified.
+    AES128=1
+    ECB=1
+    CBC=0
+    CTR=0
 )
 
 target_link_directories(aethernet-protocol

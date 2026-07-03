@@ -159,6 +159,68 @@ target_link_libraries(test-signal-fixtures PRIVATE aethernet-protocol pthread)
 add_test(NAME SignalFixtureTests COMMAND test-signal-fixtures
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+add_executable(test-bip39
+    test_bip39.c
+)
+target_include_directories(test-bip39 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-bip39 PRIVATE aethernet-protocol pthread)
+# Run from the repo root so the relative fixtures/bip39/vectors.json path resolves.
+# Test name carries the lowercase "bip39" token so `ctest -R bip39` (a
+# case-sensitive regex) selects it.
+add_test(NAME bip39Tests COMMAND test-bip39
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
+# BLE tracking-protection parity gate. Loads fixtures/bleprivacy/vectors.json and
+# checks rotating Service UUID + IRK-based RPA (generate/resolve) against the C#
+# reference (src/AetherNet.Security/Privacy/BlePrivacy.cs). Run from the repo
+# root so the relative fixture path resolves. Test name carries the lowercase
+# "bleprivacy" token so `ctest -R bleprivacy` (a case-sensitive regex) selects it.
+add_executable(test-ble-privacy
+    test_ble_privacy.c
+)
+target_include_directories(test-ble-privacy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-ble-privacy PRIVATE aethernet-protocol pthread)
+add_test(NAME bleprivacyTests COMMAND test-ble-privacy
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
+# Panic-wipe duress-defence parity gate. Loads fixtures/panicwipe/vectors.json and
+# checks the deterministic core (duress-PIN SHA-256 hash + constant-time verify,
+# identity key-name manifest, prekey/signed-prekey name patterns, max_prekeys) plus
+# behavioural secure_erase, against the C# reference
+# (src/AetherNet.Security/Privacy/PanicWipe.cs). Run from the repo root so the
+# relative fixture path resolves. Test name carries the lowercase "panicwipe" token
+# so `ctest -R panicwipe` (a case-sensitive regex) selects it.
+add_executable(test-panic-wipe
+    test_panic_wipe.c
+)
+target_include_directories(test-panic-wipe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-panic-wipe PRIVATE aethernet-protocol pthread)
+add_test(NAME panicwipeTests COMMAND test-panic-wipe
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
+# Decentralised multi-device sync parity gate. Loads fixtures/sync/vectors.json
+# and checks the SyncRecord binary envelope (serialize == hex + deserialize
+# round-trip), deterministic last-write-wins reconcile, and the Ed25519-signed
+# DeviceLink (signed_body / signature / serialize / verify true-vs-wrong /
+# round-trip), against the C# reference (src/AetherNet.Security/Sync/*.cs).
+# Unlike the flat-object fixtures, this corpus is nested (reconcile[].records[]),
+# so the test parses it with cJSON. cJSON is a PRIVATE dependency of
+# aethernet-protocol (not on the public include/link surface), so this target
+# adds the cJSON include dirs and links the cjson target explicitly. Run from the
+# repo root so the relative fixture path resolves; the lowercase "sync" token in
+# the test name lets `ctest -R sync` (a case-sensitive regex) select it.
+add_executable(test-sync
+    test_sync.c
+)
+target_include_directories(test-sync PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${cjson_SOURCE_DIR}
+    ${CJSON_SHIM_DIR}
+)
+target_link_libraries(test-sync PRIVATE aethernet-protocol pthread cjson)
+add_test(NAME syncTests COMMAND test-sync
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 # Portable, dependency-free fuzz harness covering:
 #   - aethernet_packet_deserialize (random bytes, oversize length prefix, mutated valid wire)
 #   - Crypto primitives: aethernet_x25519_*, aethernet_hkdf_sha256, aethernet_hmac_sha256
@@ -516,4 +578,8 @@ add_custom_target(aether-tests
         test-bandwidth-wire
         test-p256
         test-peerid
+        test-bip39
+        test-ble-privacy
+        test-panic-wipe
+        test-sync
 )

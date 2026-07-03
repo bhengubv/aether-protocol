@@ -37,6 +37,7 @@
 9. [Stockage et retransmission DTN](#9-stockage-et-retransmission-dtn)
 10. [Diffusion vidéo](#10-diffusion-vidéo)
 11. [Regarder ensemble](#11-regarder-ensemble)
+12. [Couche de sécurité et de confidentialité](#12-security--privacy-layer)
 
 ---
 
@@ -1193,6 +1194,65 @@ Toutes les fonctionnalités vidéo et de visionnage en groupe sont contrôlées 
 | AETHERNET_TORRENT_INGEST | AETHERNET_CONTENT_P2P | Acceptation de fichiers BitTorrent pour la distribution maillée |
 
 Les indicateurs de fonctionnalité ont des dépendances parentales : un indicateur enfant ne peut être activé que si son parent est également activé. Cela permet un déploiement progressif.
+
+---
+
+## 12. Couche de sécurité et de confidentialité
+
+> Ajoutée dans la 2.3.0. Implémentation de référence : `src/AetherNet.Security/Backup/` (phrase de récupération), `src/AetherNet.Security/Privacy/` (protection contre le pistage BLE, effacement de panique) et `src/AetherNet.Security/Sync/` (synchronisation multi-appareils). Vecteurs d'octets multi-langages : `fixtures/bip39/`, `fixtures/bleprivacy/`, `fixtures/panicwipe/`, `fixtures/sync/`.
+
+Cette couche est additive et indépendante de la suite de paquets du §2. Seules la **synchronisation multi-appareils** (§12.1–12.2) et le **schéma d'adresse de protection contre le pistage BLE** (§12.3) possèdent des formats d'octets / sur les ondes ; la **sauvegarde par phrase de récupération** (§12.4) et l'**effacement de panique** (§12.5) sont purement locaux et sont spécifiés ici par souci d'exhaustivité. Tous sont implémentés de manière identique octet par octet dans les huit langages, avec l'unique exception de la signature Ed25519 notée au §12.1.
+
+### 12.1. DeviceLink (appairage d'appareils)
+
+Un `DeviceLink` est une assertion signée Ed25519 attestant que la clé publique d'un appareil appartient à une identité, utilisée pour appairer les propres appareils d'un utilisateur pour la synchronisation multi-appareils. Le **corps signé** est :
+
+| Déc | Champ | Type | Taille | Remarques |
+|-----|-------|------|--------|-----------|
+| 0 | format_version | uint8 | 1 | `0x01` ; rejeter toute autre valeur à la lecture |
+| 1 | device_id_len | uint16, little-endian | 2 | Longueur en octets UTF-8 de `device_id` |
+| 3 | device_id | octets UTF-8 | N | l'identifiant de l'appareil lié |
+| 3+N | device_public_key | octets | 32 | la clé publique Ed25519 de l'appareil lié |
+| 35+N | issued_at_ms | int64, little-endian | 8 | Millisecondes depuis l'époque Unix |
+
+Le `DeviceLink` sérialisé est le corps signé suivi d'une **signature Ed25519 de 64 octets** sur ce corps, calculée avec la clé privée d'*identité*. La vérification recalcule le corps et contrôle la signature par rapport à la clé publique d'identité.
+
+> **Exception de parité d'octets de la signature.** Le corps signé et le résultat de la vérification sont identiques dans les huit langages, et les 64 **octets** de signature sont identiques octet par octet dans sept d'entre eux. CryptoKit d'Apple randomise les signatures Ed25519 (signature « hedged » de la RFC 8032 §8), de sorte que la signature Swift diffère à chaque appel tout en restant valide et vérifiable de manière croisée. L'interopérabilité DOIT reposer sur la *vérification*, jamais sur la comparaison des octets de signature.
+
+### 12.2. SyncRecord (enveloppe de synchronisation « dernier écrit gagnant »)
+
+Un `SyncRecord` est une modification répliquée de l'état multi-appareils propre à un utilisateur, réconciliée selon le principe « dernier écrit gagnant ». Les enregistrements circulent chiffrés de bout en bout à l'intérieur du chemin DTN/maillé existant (`encrypted_payload` est un texte chiffré opaque) — ils ne constituent **pas** un nouveau type de `MeshPacket`.
+
+| Déc | Champ | Type | Taille | Remarques |
+|-----|-------|------|--------|-----------|
+| 0 | format_version | uint8 | 1 | `0x01` |
+| 1 | record_id | UUID, RFC 4122 big-endian | 16 | même convention big-endian qu'au §2.1 |
+| 17 | op | uint8 | 1 | `0`=Upsert, `1`=Delete, `2`=Read ; rejeter > 2 |
+| 18 | logical_clock | int64, little-endian | 8 | compteur monotone par appareil |
+| 26 | created_at_ms | int64, little-endian | 8 | Millisecondes depuis l'époque Unix |
+| 34 | device_id_len | uint16, little-endian | 2 | Longueur en octets UTF-8 |
+| 36 | device_id | octets UTF-8 | N | appareil d'origine |
+| 36+N | item_id_len | uint16, little-endian | 2 | Longueur en octets UTF-8 |
+| 38+N | item_id | octets UTF-8 | M | clé logique en cours de synchronisation |
+| 38+N+M | payload_len | int32, little-endian | 4 | longueur du texte chiffré ; rejeter les valeurs négatives |
+| 42+N+M | encrypted_payload | octets | payload_len | texte chiffré opaque de bout en bout |
+
+**Réconciliation (dernier écrit gagnant).** Entre deux enregistrements pour le même `item_id`, le gagnant est choisi en comparant, dans l'ordre jusqu'à ce que l'un diffère : `created_at_ms`, puis `logical_clock`, puis `device_id` (comparaison ordinale d'octets), puis `record_id` (comparaison d'octets big-endian). L'ordre est total et déterministe, de sorte que chaque appareil converge vers le même gagnant quel que soit l'ordre d'arrivée.
+
+### 12.3. Protection contre le pistage BLE
+
+Deux dérivations permettent à un appareil d'émettre des annonces sans être traçable par un scanner passif. Les deux sont des fonctions pures épinglées à `fixtures/bleprivacy/` ; leur émission sur les ondes relève de la pile BLE hôte.
+
+- **UUID de service rotatif.** `window = floor(unix_time_seconds / 900)` (une époque de 15 minutes). L'UUID de service 128 bits annoncé correspond aux 16 premiers octets de `HMAC-SHA256(ble_rotation_key, LE_int64(window))`. Un scanner qui journalise l'UUID ne peut pas relier deux fenêtres sans la clé de rotation.
+- **Adresse privée résoluble (RPA).** Selon la fonction Bluetooth `ah` : `hash = ah(IRK, prand)`, où `ah` est un AES-128 sur le `prand` de 24 bits (complété à 128 bits) et où les 24 bits de poids faible sont retenus. L'adresse de 48 bits est `hash(24) || prand(24)`, avec les deux bits de poids fort de `prand` fixés à `0b01` pour la marquer comme résoluble. Un pair détenant l'IRK résout l'adresse en recalculant `ah` et en comparant le hachage.
+
+### 12.4. Sauvegarde par phrase de récupération (locale)
+
+Une identité est une paire de clés Ed25519 dont la graine privée de 32 octets (256 bits) est encodée en une mnémonique **BIP-39 de 24 mots** sur la liste de mots anglaise officielle, avec la somme de contrôle SHA-256 standard (un mot mal saisi échoue à la somme de contrôle et est rejeté plutôt que de produire silencieusement une identité différente). Il s'agit de BIP-39 standard — vérifié par rapport aux vecteurs de test officiels de Trezor et reproduit octet par octet dans les huit langages — de sorte que la phrase restaure l'identité sur n'importe quel appareil sans serveur ni dépositaire. Il n'y a pas de format de fil ; la phrase ne touche jamais le réseau.
+
+### 12.5. Effacement de panique (local)
+
+Sous la contrainte, un **PIN de contrainte** — comparé à un `SHA-256(pin)` stocké en temps constant — déclenche un effacement sécurisé de tout le matériel de clé d'identité : chaque tampon est écrasé avec des octets aléatoires puis mis à zéro, sur un manifeste fixe de noms de clés d'identité (paire de clés d'identité, sel d'appareil, DRK, ainsi que la clé de rotation BLE / l'IRK du §12.3). Il n'y a pas de format de fil ; l'opération est entièrement locale à l'appareil.
 
 ---
 

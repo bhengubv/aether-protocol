@@ -169,6 +169,78 @@ bundles ne peut pas dépasser la taille du pool configuré ; le X3DH du réponde
 continue de fonctionner pour les bundles déjà émis et se rétablit lors du prochain
 rechargement à la génération de bundle suivante.
 
+### 2.11. Traçage passif d'appareil par BLE
+
+Un scanner passif qui journalise une adresse MAC BLE stable ou un Service UUID
+stable peut suivre un appareil à travers le temps et l'espace. `BlePrivacy`
+(`src/AetherNet.Security/Privacy/BlePrivacy.cs`) ferme le vecteur de liaison
+d'identifiant : le Service UUID annoncé est redérivé toutes les 15 minutes comme
+`HMAC-SHA256(rotation_key, window)` (PROTOCOL_SPEC §12.3), et les pairs sont
+adressés par des adresses privées résolvables (IRK + `ah`) plutôt que par une MAC
+fixe. Sans la clé de rotation ni l'IRK, deux annonces ne peuvent être liées.
+Épinglé à `fixtures/bleprivacy/`.
+
+**Risque résiduel.** Ceci ne ferme que le vecteur d'identifiant BLE — cela ne fait
+**pas** d'Aether un réseau de confidentialité (§1). Une fois qu'un paquet est sur le
+maillage, l'en-tête `MeshPacket` en clair expose toujours le UHID source/destination,
+le type, la longueur et le timing (l'analyse de trafic reste hors périmètre, §3.3),
+et l'empreinte de couche RF n'est pas adressée. L'émission des identifiants tournants
+sur l'air est le rôle de la pile BLE de l'hôte — la bibliothèque ne fait que les
+dériver.
+
+### 2.12. Divulgation de clé sous contrainte (duress)
+
+Un adversaire en possession physique qui contraint l'utilisateur à déverrouiller.
+`PanicWipe` (`src/AetherNet.Security/Privacy/PanicWipe.cs`) accepte un **PIN de
+contrainte** — comparé à un `SHA-256(pin)` stocké en temps constant (pas de fuite de
+timing par sortie anticipée) — qui efface de façon sécurisée chaque clé d'identité
+(écrasement par de l'aléatoire, puis mise à zéro) sur l'ensemble du manifeste de noms
+de clés, de sorte que l'appareil livré ne détient aucune identité utilisable. Épinglé
+à `fixtures/panicwipe/`.
+
+**Risque résiduel.** Au mieux-effort et explicitement borné : cela ne défend **pas**
+contre une image forensique capturée *avant* l'effacement, un nivellement d'usure de
+la flash qui préserve une copie antérieure des octets de clé, un adversaire qui
+contraint à révéler le PIN *authentique*, ou une coercition après que des messages ont
+déjà été lus. La comparaison en temps constant atténue le timing de devinette du PIN,
+pas un adversaire à canal auxiliaire complet (§3.2).
+
+### 2.13. Perte de l'unique appareil (récupération)
+
+Pas un attaquant, mais la défaillance de disponibilité que constitue la perte de
+l'unique copie d'une identité. La sauvegarde par phrase de récupération
+(`src/AetherNet.Security/Backup/`) encode la graine d'identité Ed25519 de 32 octets
+comme une phrase BIP-39 de 24 mots avec somme de contrôle (PROTOCOL_SPEC §12.4) qui
+restaure l'identité sur n'importe quel appareil — aucun serveur ni dépositaire ne la
+détient.
+
+**Risque résiduel — une nouvelle surface de vol.** La phrase **est** l'identité :
+quiconque lit les 24 mots peut usurper pleinement l'identité de l'utilisateur, sans
+révocation possible. Elle échange un risque de perte d'appareil contre un risque de
+secret sur papier. La bibliothèque encode/décode et vérifie la somme de contrôle de la
+phrase ; l'affichage sécurisé, le stockage et la phrase de passe BIP-39 optionnelle
+sont de la responsabilité de l'hôte.
+
+### 2.14. Injection d'un appareil malveillant dans la synchro multi-appareils
+
+Un attaquant qui tente d'insérer un appareil qu'il contrôle dans l'ensemble de synchro
+d'une victime, ou de forger des enregistrements de synchro. Un `DeviceLink`
+(`src/AetherNet.Security/Sync/`) est **signé en Ed25519 par la clé d'identité**
+(PROTOCOL_SPEC §12.1), de sorte que seul le détenteur de l'identité peut autoriser un
+nouvel appareil — une liaison non signée ou avec une mauvaise clé échoue à la
+vérification. Les charges utiles `SyncRecord` circulent chiffrées de bout en bout dans
+le chemin DTN/maillage, si bien que les relais les transportent sans pouvoir les lire.
+Épinglé à `fixtures/sync/`.
+
+**Risque résiduel.** Ceci authentifie la *liaison*, pas le comportement ultérieur de
+l'appareil lié : un appareil légitimement lié *puis* compromis voit tout l'état
+synchronisé — la synchro n'a pas de secret de transmission par enregistrement. La
+réconciliation est du dernier-écrit-gagne sur
+`(created_at_ms, logical_clock, device_id, record_id)`, de sorte qu'un appareil lié
+avec une horloge décalée peut biaiser quel enregistrement l'emporte ; l'intégrité de
+l'horloge est l'affaire de l'hôte. La parité octet-à-octet des signatures comporte
+l'exception Swift/CryptoKit notée dans PROTOCOL_SPEC §12.1.
+
 ---
 
 ## 3. Hors périmètre

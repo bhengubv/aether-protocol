@@ -39,6 +39,7 @@ Aether reference implementation in C# / .NET 10, with cross-language interoperab
 | Video streaming pipeline       | Wire-defined  | Codec/BitTorrent/ChipIn binding pending         |
 | Watch Together (synced playback)| Wire-defined | Pending playback adapter binding                |
 | Voice / opus codec             | Scaffolded    | API surface only                                |
+| Security & privacy layer       | Implemented   | BIP-39 backup · BLE anti-tracking · panic-wipe · multi-device sync — 8-language, fixtured |
 
 The C# reference is authoritative wherever this site and an individual language port diverge.
 See [OPEN_ISSUES.md](https://github.com/bhengubv/aether-protocol/blob/main/OPEN_ISSUES.md)

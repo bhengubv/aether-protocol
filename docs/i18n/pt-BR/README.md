@@ -132,6 +132,19 @@ Estes ficam sobre os serviços já completos de **mensageria, voz 1-para-1 e em 
 
 > **O que "construído" significa aqui, com precisão.** Cada serviço produz e trata seu pacote de fio, dispara os eventos corretos e está vinculado a uma fixture em nível de byte que toda a família de linguagens deve corresponder. Sua aplicação conecta o serviço à sua sessão Signal, tabela de roteamento e estado local. Esta é a camada de protocolo — comprovada em código, testes e fixtures de byte multilinguagem — no mesmo terreno honesto de RF que todo o resto: qualquer caminho que em última instância trafega por um rádio permanece não verificado em campo até a inicialização de hardware rastreada em `OPEN_ISSUES.md`.
 
+## Segurança e privacidade
+
+Além do conjunto de serviços de fio, o Aether inclui uma pequena **camada de segurança e privacidade** — gerenciamento de chaves de identidade e proteção anti-rastreamento na camada de enlace. Como todo o resto, cada uma é implementada em **todas as 8 linguagens** e vinculada a uma fixture multilinguagem compartilhada em `fixtures/<feature>/` (Swift e C verificados adicionalmente no servidor de build macOS). Estes *não* são mais quatro dos 18 serviços de fio: três não definem **nenhum novo tipo de pacote de fio**, e o quarto carrega seus próprios envelopes **dentro do caminho DTN/mesh existente** em vez de como um novo pacote reservado.
+
+| Capacidade | O que faz | Camada | Fixture | 8/8 |
+|---|---|---|---|:-:|
+| **Backup por frase de recuperação** | Faz backup de uma identidade como uma frase **BIP-39 de 24 palavras** e a restaura em qualquer dispositivo. BIP-39 padrão (verificado contra os vetores oficiais da Trezor), com checksum SHA-256 de modo que uma palavra digitada errada é *rejeitada*, nunca silenciosamente incorreta. Sem servidor, sem custodiante — a frase **é** a identidade. | local | `fixtures/bip39/` | ✅ |
+| **Proteção anti-rastreamento Bluetooth** | Deriva um **Service UUID** BLE rotativo, derivado de chave (HMAC-SHA256, janela de 15 minutos) e **endereços privados resolvíveis** (IRK + a função RFC `ah`, AES-128) — o material anti-rastreamento que um anunciante BLE precisa para que um scanner passivo não consiga vinculá-lo ao longo do tempo ou do lugar. | camada de enlace | `fixtures/bleprivacy/` | ✅ |
+| **Apagamento de pânico** | Um **PIN de coação** (SHA-256, comparado em tempo constante) que, sob coação, apaga com segurança cada chave de identidade — sobrescrever com aleatório e depois zerar — sem deixar nada a recuperar. | local | `fixtures/panicwipe/` | ✅ |
+| **Sincronização multidispositivo** | Sincronização **descentralizada, sem servidor** entre seus *próprios* dispositivos: um **DeviceLink** assinado com Ed25519 os emparelha, e envelopes **SyncRecord** de último-a-escrever-vence reconciliam o estado — transportados com criptografia de ponta a ponta sobre o DTN/mesh existente, sem conta na nuvem e sem servidor de sincronização. | sobre DTN | `fixtures/sync/` | ✅ |
+
+**Uma assimetria honesta.** O `DeviceLink` multidispositivo é assinado com Ed25519, e essa assinatura é **byte-idêntica em 7 das 8 linguagens**. O CryptoKit da Apple *randomiza* deliberadamente as assinaturas Ed25519, então no Swift os 64 bytes de assinatura diferem a cada vez — mas o **corpo assinado é byte-idêntico** e cada link ainda se verifica em todos os 8 SDKs, de modo que o Swift atinge paridade de **verificação** em vez de paridade de bytes de assinatura. Isso é uma propriedade da criptografia da plataforma, não um defeito, e é o único lugar entre estas quatro funcionalidades onde "byte-idêntico" leva um asterisco. Os formatos de fio completos estão em [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §12; o modelo de ameaças está em [`THREAT_MODEL.md`](THREAT_MODEL.md).
+
 ## Transportes
 
 Cada transporte tem um nome de cor usado em todo o código-fonte. `IsAvailable` protege caminhos bloqueados por hardware — o `TransportManager` os ignora e usa o próximo transporte disponível.

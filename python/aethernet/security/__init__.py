@@ -27,6 +27,14 @@ from aethernet.security.pre_key_store import (
     KeyValuePreKeyStore,
     PreKeyStore,
 )
+from aethernet.security.bip39 import (
+    entropy_to_mnemonic,
+    mnemonic_to_entropy,
+    mnemonic_to_seed,
+    is_valid,
+    to_recovery_phrase,
+    from_recovery_phrase,
+)
 
 __all__ = [
     "Ed25519SigningService",
@@ -46,4 +54,10 @@ __all__ = [
     "PreKeyStore",
     "InMemoryPreKeyStore",
     "KeyValuePreKeyStore",
+    "entropy_to_mnemonic",
+    "mnemonic_to_entropy",
+    "mnemonic_to_seed",
+    "is_valid",
+    "to_recovery_phrase",
+    "from_recovery_phrase",
 ]

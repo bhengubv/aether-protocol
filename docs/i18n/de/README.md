@@ -132,6 +132,19 @@ Diese sitzen oben auf den bereits vollständigen Diensten **Messaging, 1-zu-1- u
 
 > **Was „gebaut“ hier genau bedeutet.** Jeder Dienst erzeugt und verarbeitet sein Leitungspaket, löst die richtigen Ereignisse aus und ist an ein Byte-Level-Fixture gebunden, das die gesamte Sprachfamilie erfüllen muss. Ihre Anwendung verdrahtet den Dienst mit seiner Signal-Sitzung, Routing-Tabelle und dem lokalen Zustand. Dies ist die Protokollschicht — bewiesen in Code, Tests und sprachübergreifenden Byte-Fixtures — auf demselben ehrlichen RF-Fundament wie alles andere: Jeder Pfad, der letztlich über ein Funkgerät läuft, ist feldunverifiziert, bis das in `OPEN_ISSUES.md` verfolgte Hardware-Bring-up abgeschlossen ist.
 
+## Sicherheit & Datenschutz
+
+Über die Leitungsdienst-Suite hinaus liefert Aether eine kleine **Sicherheits- & Datenschutzschicht** — Identitätsschlüsselverwaltung und Anti-Tracking auf der Verbindungsschicht. Wie alles andere ist jede in **allen 8 Sprachen** implementiert und an ein gemeinsames sprachübergreifendes Fixture unter `fixtures/<feature>/` gebunden (Swift und C zusätzlich auf dem macOS-Build-Server verifiziert). Dies sind *nicht* vier weitere der 18 Leitungsdienste: drei definieren überhaupt **keinen neuen Leitungspakettyp**, und der vierte trägt seine eigenen Umschläge **innerhalb des bestehenden DTN/Mesh-Pfads** statt als neues reserviertes Paket.
+
+| Fähigkeit | Was sie tut | Schicht | Fixture | 8/8 |
+|---|---|---|---|:-:|
+| **Wiederherstellungsphrasen-Backup** | Eine Identität als **24-Wort-BIP-39**-Phrase sichern und auf jedem Gerät wiederherstellen. Standard-BIP-39 (gegen die offiziellen Trezor-Vektoren verifiziert), SHA-256-prüfsummiert, sodass ein falsch getipptes Wort *zurückgewiesen* wird, nie stillschweigend falsch. Kein Server, kein Verwahrer — die Phrase **ist** die Identität. | lokal | `fixtures/bip39/` | ✅ |
+| **Bluetooth-Tracking-Schutz** | Leitet eine rotierende, schlüsselabgeleitete BLE-**Service-UUID** (HMAC-SHA256, 15-Minuten-Fenster) und **auflösbare private Adressen** (IRK + die RFC-Funktion `ah`, AES-128) ab — das Anti-Tracking-Material, das ein BLE-Werbetreibender braucht, damit ein passiver Scanner ihn nicht über Zeit oder Ort hinweg verknüpfen kann. | Verbindungsschicht | `fixtures/bleprivacy/` | ✅ |
+| **Panik-Löschung** | Eine **Nötigungs-PIN** (SHA-256, zeitkonstant verglichen), die unter Zwang jeden Identitätsschlüssel sicher löscht — mit Zufall überschreiben, dann nullen — sodass nichts wiederherstellbar bleibt. | lokal | `fixtures/panicwipe/` | ✅ |
+| **Mehrgeräte-Sync** | **Dezentraler, serverloser** Sync über Ihre *eigenen* Geräte: ein Ed25519-signierter **DeviceLink** koppelt sie, und Last-Write-Wins-**SyncRecord**-Umschläge gleichen den Zustand ab — Ende-zu-Ende-verschlüsselt über das bestehende DTN/Mesh übertragen, ohne Cloud-Konto und ohne Sync-Server. | über DTN | `fixtures/sync/` | ✅ |
+
+**Eine ehrliche Asymmetrie.** Der Mehrgeräte-`DeviceLink` ist Ed25519-signiert, und diese Signatur ist **byteidentisch über 7 der 8 Sprachen**. Apples CryptoKit *randomisiert* Ed25519-Signaturen absichtlich, sodass auf Swift die 64 Signatur-Bytes jedes Mal abweichen — aber der **signierte Körper ist byteidentisch** und jeder Link verifiziert sich weiterhin auf allen 8 SDKs, sodass Swift **Verifikations**-Parität statt Signatur-Byte-Parität erreicht. Das ist eine Eigenschaft der Plattform-Kryptographie, kein Defekt, und es ist die einzige Stelle über diese vier Funktionen hinweg, an der „byteidentisch“ ein Sternchen trägt. Die vollständigen Leitungsformate stehen in [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) §12; das Bedrohungsmodell steht in [`THREAT_MODEL.md`](THREAT_MODEL.md).
+
 ## Transporte
 
 Jeder Transport hat einen Farbnamen, der im gesamten Quellcode verwendet wird. `IsAvailable` sperrt hardwareblockierte Pfade — der `TransportManager` überspringt sie und fällt auf den nächsten verfügbaren Transport zurück.

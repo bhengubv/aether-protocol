@@ -132,6 +132,19 @@ Hierdie sit bo-op die reeds-voltooide **boodskappe, 1-tot-1- en groepstem, video
 
 > **Wat "gebou" hier presies beteken.** Elke diens produseer en hanteer sy draadpakkie, wek die regte gebeurtenisse op, en is vasgepen aan 'n greepvlak-fixture wat die hele taalfamilie moet ewenaar. Jou toepassing bedraad die diens aan sy Signal-sessie, roeteringstabel en plaaslike toestand. Dit is die protokollaag — bewys in kode, toetse en kruistaal-greep-fixtures — op dieselfde eerlike RF-grondslag as alles anders: enige pad wat uiteindelik op 'n radio ry, is veldonbevestig totdat die hardeware-inbedryfstelling wat in `OPEN_ISSUES.md` nagespoor word, plaasvind.
 
+## Sekuriteit & privaatheid
+
+Buiten die draaddiens-suite lewer Aether 'n klein **sekuriteit- & privaatheidslaag** — identiteitsleutel-bestuur en skakellaag-teenopsporing. Soos alles anders is elkeen in **al 8 tale** geïmplementeer en vasgepen aan 'n gedeelde kruistaal-fixture onder `fixtures/<feature>/` (Swift en C is bykomend op die macOS-boubediener geverifieer). Hierdie is *nie* nog vier van die 18 draaddienste nie: drie definieer glad **geen nuwe draadpakkie-tipe** nie, en die vierde dra sy eie koeverte **binne die bestaande DTN/mesh-pad** eerder as 'n nuwe gereserveerde pakkie.
+
+| Vermoë | Wat dit doen | Laag | Fixture | 8/8 |
+|---|---|---|---|:-:|
+| **Herstelfrase-rugsteun** | Rugsteun 'n identiteit as 'n **24-woord BIP-39**-frase en herstel dit op enige toestel. Standaard BIP-39 (geverifieer teen die amptelike Trezor-vektore), SHA-256-kontrolesom sodat 'n verkeerd-getikte woord *verwerp* word, nooit stilweg verkeerd nie. Geen bediener, geen bewaarder — die frase **is** die identiteit. | plaaslik | `fixtures/bip39/` | ✅ |
+| **Bluetooth-opsporingbeskerming** | Lei 'n roterende, sleutel-afgeleide BLE **Service UUID** (HMAC-SHA256, 15-minuut-venster) en **oplosbare private adresse** (IRK + die RFC `ah`-funksie, AES-128) af — die teenopsporing-materiaal wat 'n BLE-adverteerder benodig sodat 'n passiewe skandeerder dit nie oor tyd of plek kan koppel nie. | skakellaag | `fixtures/bleprivacy/` | ✅ |
+| **Paniek-uitvee** | 'n **Dwang-PIN** (SHA-256, konstante-tyd vergelyk) wat, onder dwang, elke identiteitsleutel veilig uitwis — oorskryf-met-lukraak en dan nul — sodat niks oorbly om te herstel nie. | plaaslik | `fixtures/panicwipe/` | ✅ |
+| **Multi-toestel-sinkronisasie** | **Gedesentraliseerde, bediener-lose** sinkronisasie oor jou *eie* toestelle: 'n Ed25519-geondertekende **DeviceLink** paar hulle, en laaste-skryf-wen **SyncRecord**-koeverte versoen toestand — E2E-geënkripteer gedra oor die bestaande DTN/mesh, met geen wolkrekening en geen sinkronisasiebediener nie. | ry op DTN | `fixtures/sync/` | ✅ |
+
+**Een eerlike asimmetrie.** Die multi-toestel **DeviceLink** is Ed25519-geondertekend, en daardie handtekening is **greep-identies oor 7 van die 8 tale**. Apple se CryptoKit *randomiseer* Ed25519-handtekeninge doelbewus, dus verskil die 64 handtekening-grepe elke keer op Swift — maar die **geondertekende liggaam is greep-identies** en elke skakel verifieer steeds op al 8 SDK's, so Swift bereik **verifikasie**-pariteit eerder as handtekening-greep-pariteit. Dit is 'n platform-kripto-eienskap, nie 'n defek nie, en dit is die enigste plek oor hierdie vier kenmerke waar "greep-identies" 'n asterisk dra. Volledige draadformate is in [`PROTOCOL_SPEC.md`](../../PROTOCOL_SPEC.md) §12; die dreigingsmodel is in [`THREAT_MODEL.md`](../../THREAT_MODEL.md).
+
 ## Transporte
 
 Elke transport het 'n kleurnaam wat regdeur die kodebasis gebruik word. `IsAvailable` beheer hardeware-geblokkeerde paaie — die `TransportManager` slaan hulle oor en val terug na die volgende beskikbare transport.

@@ -132,6 +132,19 @@ These sit on top of the already-complete **messaging, 1-to-1 and group voice, vi
 
 > **What "built" means here, precisely.** Each service produces and handles its wire packet, raises the right events, and is pinned to a byte-level fixture that the whole language family must match. Your application wires the service to its Signal session, routing table, and local state. This is the protocol layer — proven in code, tests, and cross-language byte-fixtures — on the same honest RF footing as everything else: any path that ultimately rides a radio is field-unverified until the hardware bring-up tracked in `OPEN_ISSUES.md`.
 
+## Security & privacy
+
+Beyond the wire-service suite, Aether ships a small **security & privacy layer** — identity-key management and link-layer anti-tracking. Like everything else, each is implemented in **all 8 languages** and pinned to a shared cross-language fixture under `fixtures/<feature>/` (Swift and C additionally verified on the macOS build server). These are *not* four more of the 18 wire services: three define **no new wire packet type** at all, and the fourth carries its own envelopes **inside the existing DTN/mesh path** rather than as a new reserved packet.
+
+| Capability | What it does | Layer | Fixture | 8/8 |
+|---|---|---|---|:-:|
+| **Recovery-phrase backup** | Back up an identity as a **24-word BIP-39** phrase and restore it on any device. Standard BIP-39 (verified against the official Trezor vectors), SHA-256-checksummed so a mistyped word is *rejected*, never silently wrong. No server, no custodian — the phrase **is** the identity. | local | `fixtures/bip39/` | ✅ |
+| **Bluetooth tracking-protection** | Derives a rotating, key-derived BLE **Service UUID** (HMAC-SHA256, 15-minute window) and **resolvable private addresses** (IRK + the RFC `ah` function, AES-128) — the anti-tracking material a BLE advertiser needs so a passive scanner can't link it across time or place. | link-layer | `fixtures/bleprivacy/` | ✅ |
+| **Panic-wipe** | A **duress PIN** (SHA-256, constant-time compared) that, under coercion, securely erases every identity key — overwrite-with-random then zero — leaving nothing to recover. | local | `fixtures/panicwipe/` | ✅ |
+| **Multi-device sync** | **Decentralised, server-less** sync across your *own* devices: an Ed25519-signed **DeviceLink** pairs them, and last-write-wins **SyncRecord** envelopes reconcile state — carried E2E-encrypted over the existing DTN/mesh, with no cloud account and no sync server. | rides DTN | `fixtures/sync/` | ✅ |
+
+**One honest asymmetry.** The multi-device `DeviceLink` is Ed25519-signed, and that signature is **byte-identical across 7 of the 8 languages**. Apple's CryptoKit deliberately *randomises* Ed25519 signatures, so on Swift the 64 signature bytes differ each time — but the **signed body is byte-identical** and every link still verifies on all 8 SDKs, so Swift reaches **verification** parity rather than signature-byte parity. That is a platform-crypto property, not a defect, and it is the only place across these four features where "byte-identical" carries an asterisk. Full wire formats are in [`PROTOCOL_SPEC.md`](docs/PROTOCOL_SPEC.md) §12; the threat model is in [`THREAT_MODEL.md`](docs/THREAT_MODEL.md).
+
 ## Transports
 
 Each transport has a colour name used throughout the codebase. `IsAvailable` gates hardware-blocked paths — the `TransportManager` skips them and falls back to the next available transport.

@@ -33,6 +33,7 @@ pub mod space;
 pub mod space_wire;
 pub mod storage;
 pub mod streaming;
+pub mod sync;
 pub mod transport;
 pub mod uri;
 pub mod vault;
@@ -114,3 +115,4 @@ pub use vault_wire::{VaultShardRequestReceivedEvent, VaultShardRequestService};
 pub use bandwidth_wire::{
     BandwidthProbe, BandwidthProbeReceivedEvent, BandwidthWireCodec, BandwidthWireService,
 };
+pub use sync::{DeviceLink, DeviceLinkError, SyncOp, SyncRecord, SyncRecordError};

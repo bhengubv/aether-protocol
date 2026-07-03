@@ -132,6 +132,19 @@ Hizi zinakaa juu ya huduma zilizokamilika tayari za **messaging, sauti ya mtu-mm
 
 > **Maana kamili ya "iliyojengwa" hapa.** Kila huduma inazalisha na kushughulikia pakiti yake ya waya, inainua matukio sahihi, na imefungwa kwa fixture ya kiwango cha baiti ambayo familia nzima ya lugha lazima ilingane nayo. Programu yako inaunganisha huduma na kikao chake cha Signal, jedwali la routing, na hali ya ndani. Hii ni safu ya protokoli — iliyothibitishwa katika msimbo, majaribio, na fixtures za baiti kati ya lugha — kwenye msingi ule ule wa RF wa uaminifu kama kila kitu kingine: njia yoyote ambayo hatimaye inapanda redio haijathibitishwa uwandani hadi uanzishaji wa vifaa unaofuatiliwa katika `OPEN_ISSUES.md`.
 
+## Usalama na faragha
+
+Zaidi ya seti ya huduma za waya, Aether inatoa **safu ndogo ya usalama na faragha** — usimamizi wa funguo za utambulisho na ulinzi dhidi ya ufuatiliaji katika kiwango cha link-layer. Kama kila kitu kingine, kila moja imetekelezwa katika **lugha zote 8** na imefungwa kwa fixture inayoshirikiwa kati ya lugha chini ya `fixtures/<feature>/` (Swift na C zimethibitishwa zaidi kwenye macOS build server). Hizi *si* huduma nne zaidi kati ya huduma 18 za waya: tatu *hazifafanui* **aina yoyote mpya ya pakiti ya waya** kabisa, na ya nne inabeba envelopes zake **ndani ya njia iliyopo ya DTN/mesh** badala ya kuwa pakiti mpya iliyohifadhiwa.
+
+| Uwezo | Inachofanya | Safu | Fixture | 8/8 |
+|---|---|---|---|:-:|
+| **Nakala rudufu ya recovery-phrase** | Hifadhi utambulisho kama kifungu cha maneno cha **24-word BIP-39** na urejeshe kwenye kifaa chochote. BIP-39 ya kawaida (imethibitishwa dhidi ya vekta rasmi za Trezor), yenye SHA-256 checksum ili neno lililoandikwa vibaya *likataliwe*, kamwe lisiwe kimya kimya. Hakuna server, hakuna mlinzi — kifungu cha maneno **ndicho** utambulisho. | ndani | `fixtures/bip39/` | ✅ |
+| **Ulinzi wa ufuatiliaji wa Bluetooth** | Inatoa BLE **Service UUID** inayozunguka, iliyotokana na funguo (HMAC-SHA256, dirisha la dakika 15) na **anwani binafsi zinazoweza kutatuliwa** (IRK + kazi ya RFC `ah`, AES-128) — nyenzo za kupinga ufuatiliaji ambazo BLE advertiser inahitaji ili skana isiyofanya kazi isiweze kuiunganisha kwa muda au mahali. | link-layer | `fixtures/bleprivacy/` | ✅ |
+| **Panic-wipe** | **Duress PIN** (SHA-256, inayolinganishwa kwa muda usiobadilika) ambayo, chini ya shinikizo, inafuta kwa usalama kila funguo ya utambulisho — andika-juu-kwa-nasibu kisha sifuri — bila kubakiza chochote cha kurejesha. | ndani | `fixtures/panicwipe/` | ✅ |
+| **Usawazishaji wa vifaa vingi** | Usawazishaji **usio na kituo cha kati, usio na server** kati ya vifaa vyako *mwenyewe*: **DeviceLink** iliyotiwa saini kwa Ed25519 inaviunganisha, na envelopes za **SyncRecord** za last-write-wins zinapatanisha hali — zikibebwa zikiwa zimesimbwa kwa E2E juu ya DTN/mesh iliyopo, bila akaunti ya wingu na bila server ya usawazishaji. | inapanda DTN | `fixtures/sync/` | ✅ |
+
+**Ukosefu mmoja wa usawa wa uaminifu.** **DeviceLink** ya vifaa vingi imetiwa saini kwa Ed25519, na saini hiyo ni **inayofanana kwa baiti katika lugha 7 kati ya 8**. CryptoKit ya Apple *inabadilisha kwa nasibu* saini za Ed25519 kwa makusudi, hivyo kwenye Swift baiti 64 za saini hutofautiana kila mara — lakini **mwili uliotiwa saini unafanana kwa baiti** na kila kiungo bado kinathibitishwa kwenye SDK zote 8, hivyo Swift inafikia usawa wa **uthibitishaji** badala ya usawa wa baiti ya saini. Hiyo ni sifa ya platform-crypto, si kasoro, na ni mahali pekee kati ya vipengele hivi vinne ambapo "inayofanana kwa baiti" inabeba asterisk. Miundo kamili ya waya iko katika [`PROTOCOL_SPEC.md`](../../PROTOCOL_SPEC.md) §12; modeli ya tishio iko katika [`THREAT_MODEL.md`](../../THREAT_MODEL.md).
+
 ## Transports
 
 Kila usafirishaji una jina la rangi linalotumika katika msingi wote wa msimbo. `IsAvailable` inadhibiti njia zilizozuiliwa na vifaa — `TransportManager` inaziruka na kurudi kwenye usafirishaji unaofuata unaopatikana.

@@ -39,6 +39,7 @@
 9. [DTN Store-and-Forward](#9-dtn-store-and-forward)
 10. [Video-Streaming](#10-video-streaming)
 11. [Watch Together](#11-watch-together)
+12. [Sicherheits- und Datenschutzschicht](#12-security--privacy-layer)
 
 ---
 
@@ -1416,6 +1417,65 @@ Alle Video- und Watch-Together-Funktionen werden durch Feature-Flags abgesichert
 Feature-Flags haben übergeordnete Abhängigkeiten: Ein untergeordnetes Flag kann
 nur aktiviert werden, wenn sein übergeordnetes Flag ebenfalls aktiviert ist.
 Dies ermöglicht einen schrittweisen Rollout.
+
+---
+
+## 12. Sicherheits- und Datenschutzschicht
+
+> Hinzugefügt in 2.3.0. Referenzimplementierung: `src/AetherNet.Security/Backup/` (Wiederherstellungsphrase), `src/AetherNet.Security/Privacy/` (BLE-Tracking-Schutz, Panik-Löschung) und `src/AetherNet.Security/Sync/` (Multi-Geräte-Synchronisation). Sprachübergreifende Byte-Vektoren: `fixtures/bip39/`, `fixtures/bleprivacy/`, `fixtures/panicwipe/`, `fixtures/sync/`.
+
+Diese Schicht ist additiv und unabhängig von der Paket-Suite in §2. Nur die **Multi-Geräte-Synchronisation** (§12.1–12.2) und das **Adressschema des BLE-Tracking-Schutzes** (§12.3) besitzen Byte- bzw. On-Air-Formate; die **Wiederherstellungsphrasen-Sicherung** (§12.4) und die **Panik-Löschung** (§12.5) sind rein lokal und werden hier der Vollständigkeit halber spezifiziert. Alle sind in allen acht Sprachen Byte-für-Byte identisch implementiert, mit der einzigen in §12.1 genannten Ausnahme der Ed25519-Signatur.
+
+### 12.1. DeviceLink (Gerätekopplung)
+
+Ein `DeviceLink` ist eine Ed25519-signierte Zusicherung, dass der öffentliche Schlüssel eines Geräts zu einer Identität gehört, und wird verwendet, um die eigenen Geräte eines Benutzers für die Multi-Geräte-Synchronisation zu koppeln. Der **signierte Rumpf** ist:
+
+| Off | Field | Type | Size | Notes |
+|-----|-------|------|------|-------|
+| 0 | format_version | uint8 | 1 | `0x01`; jeden anderen Wert beim Lesen ablehnen |
+| 1 | device_id_len | uint16, little-endian | 2 | UTF-8-Byte-Länge von `device_id` |
+| 3 | device_id | UTF-8 bytes | N | Kennung des gekoppelten Geräts |
+| 3+N | device_public_key | bytes | 32 | der öffentliche Ed25519-Schlüssel des gekoppelten Geräts |
+| 35+N | issued_at_ms | int64, little-endian | 8 | Unix-Epoch-Millisekunden |
+
+Der serialisierte `DeviceLink` ist der signierte Rumpf gefolgt von einer **64-Byte-Ed25519-Signatur** über diesen Rumpf, berechnet mit dem privaten *Identitäts*-Schlüssel. Die Verifikation berechnet den Rumpf neu und prüft die Signatur gegen den öffentlichen Identitätsschlüssel.
+
+> **Ausnahme zur Byte-Parität der Signatur.** Der signierte Rumpf und das Verifikationsergebnis sind in allen acht Sprachen identisch, und die 64 Signatur-**Bytes** sind in sieben davon Byte-für-Byte identisch. Apples CryptoKit randomisiert Ed25519-Signaturen (RFC 8032 §8, „hedged signing"), sodass die Swift-Signatur bei jedem Aufruf abweicht, dabei aber gültig und sprachübergreifend verifizierbar bleibt. Interoperabilität MUSS sich auf die *Verifikation* stützen, niemals auf den Vergleich von Signatur-Bytes.
+
+### 12.2. SyncRecord (Last-Write-Wins-Sync-Umschlag)
+
+Ein `SyncRecord` ist eine replizierte Änderung am geräteeigenen Multi-Geräte-Zustand eines Benutzers, abgeglichen nach Last-Write-Wins. Records reisen Ende-zu-Ende-verschlüsselt innerhalb des bestehenden DTN-/Mesh-Pfads (`encrypted_payload` ist opaker Chiffretext) — sie sind **kein** neuer `MeshPacket`-Typ.
+
+| Off | Field | Type | Size | Notes |
+|-----|-------|------|------|-------|
+| 0 | format_version | uint8 | 1 | `0x01` |
+| 1 | record_id | UUID, RFC 4122 big-endian | 16 | dieselbe Big-Endian-Konvention wie §2.1 |
+| 17 | op | uint8 | 1 | `0`=Upsert, `1`=Delete, `2`=Read; > 2 ablehnen |
+| 18 | logical_clock | int64, little-endian | 8 | pro Gerät monoton steigender Zähler |
+| 26 | created_at_ms | int64, little-endian | 8 | Unix-Epoch-Millisekunden |
+| 34 | device_id_len | uint16, little-endian | 2 | UTF-8-Byte-Länge |
+| 36 | device_id | UTF-8 bytes | N | Ursprungsgerät |
+| 36+N | item_id_len | uint16, little-endian | 2 | UTF-8-Byte-Länge |
+| 38+N | item_id | UTF-8 bytes | M | zu synchronisierender logischer Schlüssel |
+| 38+N+M | payload_len | int32, little-endian | 4 | Chiffretext-Länge; negative Werte ablehnen |
+| 42+N+M | encrypted_payload | bytes | payload_len | opaker Ende-zu-Ende-Chiffretext |
+
+**Abgleich (Last-Write-Wins).** Zwischen zwei Records für dieselbe `item_id` wird der Gewinner bestimmt, indem der Reihe nach verglichen wird, bis sich einer unterscheidet: `created_at_ms`, dann `logical_clock`, dann `device_id` (ordinaler Byte-Vergleich), dann `record_id` (Big-Endian-Byte-Vergleich). Die Ordnung ist total und deterministisch, sodass jedes Gerät unabhängig von der Ankunftsreihenfolge auf denselben Gewinner konvergiert.
+
+### 12.3. BLE-Tracking-Schutz
+
+Zwei Ableitungen erlauben es einem Gerät, Advertising zu senden, ohne von einem passiven Scanner verfolgbar zu sein. Beide sind reine Funktionen, fixiert an `fixtures/bleprivacy/`; ihr On-Air-Senden ist Aufgabe des Host-BLE-Stacks.
+
+- **Rotierende Service-UUID.** `window = floor(unix_time_seconds / 900)` (eine 15-Minuten-Epoche). Die annoncierte 128-Bit-Service-UUID sind die ersten 16 Bytes von `HMAC-SHA256(ble_rotation_key, LE_int64(window))`. Ein Scanner, der die UUID protokolliert, kann zwei Fenster ohne den Rotationsschlüssel nicht verknüpfen.
+- **Auflösbare private Adresse (RPA).** Gemäß der Bluetooth-Funktion `ah`: `hash = ah(IRK, prand)`, wobei `ah` AES-128 über den 24-Bit-`prand` (auf 128 Bit aufgefüllt) ist und die unteren 24 Bit genommen werden. Die 48-Bit-Adresse ist `hash(24) || prand(24)`, wobei die obersten zwei Bits von `prand` auf `0b01` gesetzt werden, um sie als auflösbar zu kennzeichnen. Ein Peer, der die IRK besitzt, löst die Adresse auf, indem er `ah` neu berechnet und den Hash vergleicht.
+
+### 12.4. Wiederherstellungsphrasen-Sicherung (lokal)
+
+Eine Identität ist ein Ed25519-Schlüsselpaar, dessen 32-Byte-Privatsaat (256 Bit) als **24-Wort-BIP-39**-Mnemonik über die offizielle englische Wortliste codiert wird, mit der standardmäßigen SHA-256-Prüfsumme (ein falsch getipptes Wort besteht die Prüfsumme nicht und wird abgelehnt, statt stillschweigend eine andere Identität zu ergeben). Dies ist Standard-BIP-39 — gegen die offiziellen Trezor-Testvektoren verifiziert und in allen acht Sprachen Byte-für-Byte reproduziert — sodass die Phrase die Identität auf jedem Gerät ohne Server oder Verwahrer wiederherstellt. Es gibt kein Wire-Format; die Phrase berührt niemals das Netzwerk.
+
+### 12.5. Panik-Löschung (lokal)
+
+Unter Zwang löst eine **Zwangs-PIN** — in konstanter Zeit gegen einen gespeicherten `SHA-256(pin)` verglichen — eine sichere Löschung des gesamten Identitätsschlüsselmaterials aus: jeder Puffer wird mit Zufalls-Bytes überschrieben und dann genullt, über ein festes Manifest von Identitätsschlüsselnamen (Identitäts-Schlüsselpaar, Geräte-Salt, DRK sowie den BLE-Rotationsschlüssel / die IRK aus §12.3). Es gibt kein Wire-Format; die Operation ist vollständig lokal auf dem Gerät.
 
 ---
 

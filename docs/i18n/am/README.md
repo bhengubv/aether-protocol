@@ -132,6 +132,19 @@ Aether transport ብቻ አይደለም። በፕሮቶኮሉ የተያዘ እ�
 
 > **"የተገነባ" እዚህ ምን ማለት እንደሆነ፣ በትክክል።** እያንዳንዱ አገልግሎት wire packet-ውን ያመነጫል እና ያስተናግዳል፣ ትክክለኛዎቹን events ያስነሳል፣ እና ሙሉ የቋንቋ ቤተሰብ ማዛመድ ወዳለበት byte-level fixture ተጠብቋል። መተግበሪያዎ አገልግሎቱን ወደ Signal session-ው፣ routing table-ው እና local state-ው ያገናኛል። ይህ የፕሮቶኮል ንብርብር ነው — በ code፣ በ tests እና በ cross-language byte-fixtures የተረጋገጠ — እንደ ሁሉም ነገር በተመሳሳይ ታማኝ የ RF መሠረት ላይ: በመጨረሻ radio የሚጋልብ ማንኛውም መንገድ በ `OPEN_ISSUES.md` ውስጥ እስከሚከታተለው hardware bring-up ድረስ field-unverified ነው።
 
+## ደህንነት እና ግላዊነት
+
+ከ wire-service ስብስቡ ባሻገር፣ Aether ትንሽ **የደህንነት እና ግላዊነት ንብርብር** ትሰጣለች — የማንነት ቁልፍ አስተዳደር እና በ link-layer ደረጃ ከመከታተል መከላከል። ልክ እንደ ሁሉም ነገር፣ እያንዳንዱ በ**ሁሉም 8 ቋንቋዎች** ተተግብሮ በ`fixtures/<feature>/` ስር ካለ በቋንቋዎች መካከል ከሚጋራ fixture ጋር ተጣብቋል (Swift እና C በተጨማሪ በ macOS build server ላይ ተረጋግጠዋል)። እነዚህ ከ 18ቱ wire services *ተጨማሪ አራት አይደሉም*: ሦስቱ ምንም **አዲስ የ wire packet ዓይነት አይገልጹም**፣ አራተኛውም እንደ አዲስ የተያዘ packet ሳይሆን የራሱን ፖስታዎች **በነባሩ የ DTN/mesh መንገድ ውስጥ** ይሸከማል።
+
+| ችሎታ | ምን እንደሚያደርግ | ንብርብር | Fixture | 8/8 |
+|---|---|---|---|:-:|
+| **የ recovery-phrase ምትኬ** | ማንነትን እንደ **24-word BIP-39** ሐረግ ምትኬ አድርገው በማንኛውም መሣሪያ ላይ ወደ ነበረበት ይመልሱ። መደበኛ BIP-39 (ከኦፊሴላዊ Trezor vectors ጋር የተረጋገጠ)፣ በ SHA-256 checksum የተደረገ ስለሆነ በስህተት የተተየበ ቃል *ውድቅ ይደረጋል*፣ በጭራሽ በዝምታ ስህተት አይሆንም። ምንም server የለም፣ ምንም ጠባቂ የለም — ሐረጉ **ራሱ** ማንነቱ ነው። | local | `fixtures/bip39/` | ✅ |
+| **የ Bluetooth መከታተል-መከላከል** | የሚሽከረከር፣ ከቁልፍ የተገኘ BLE **Service UUID** (HMAC-SHA256፣ የ15-ደቂቃ መስኮት) እና **ሊፈቱ የሚችሉ የግል አድራሻዎች** (IRK + የ RFC `ah` ተግባር፣ AES-128) ያመነጫል — passive scanner በጊዜ ወይም በቦታ ማገናኘት እንዳይችል BLE advertiser የሚፈልገው የመከታተል-መከላከያ ቁሳቁስ። | link-layer | `fixtures/bleprivacy/` | ✅ |
+| **Panic-wipe** | በማስገደድ ስር፣ እያንዳንዱን የማንነት ቁልፍ በአስተማማኝ ሁኔታ የሚያጠፋ **duress PIN** (SHA-256፣ በቋሚ-ጊዜ የሚነጻጸር) — በ random ላይ-መጻፍ ከዚያም zero — ወደ ነበረበት የሚመለስ ምንም ሳይቀር። | local | `fixtures/panicwipe/` | ✅ |
+| **የበርካታ-መሣሪያ sync** | በ*የራስዎ* መሣሪያዎች መካከል **ያልተማከለ፣ server-የሌለው** sync: በ Ed25519 የተፈረመ **DeviceLink** ያጣምራቸዋል፣ እና የ last-write-wins **SyncRecord** ፖስታዎች ሁኔታን ያስታርቃሉ — ምንም የ cloud መለያ እና ምንም የ sync server ሳይኖር በነባሩ DTN/mesh ላይ በ E2E ተመስጥሮ ይሸከማሉ። | DTN ላይ ይጋልባል | `fixtures/sync/` | ✅ |
+
+**አንድ ታማኝ አለመመጣጠን።** የበርካታ-መሣሪያ **DeviceLink** በ Ed25519 የተፈረመ ነው፣ እና ያ ፊርማ **በ 8ቱ ቋንቋዎች ውስጥ በ 7ቱ byte-identical ነው**። የ Apple CryptoKit ሆን ብሎ የ Ed25519 ፊርማዎችን *በ random ያደርጋል*፣ ስለዚህ በ Swift ላይ 64ቱ የፊርማ bytes በእያንዳንዱ ጊዜ ይለያያሉ — ነገር ግን **የተፈረመው አካል byte-identical ነው** እና እያንዳንዱ link አሁንም በሁሉም 8 SDKs ላይ ይረጋገጣል፣ ስለዚህ Swift ከ ፊርማ-byte parity ይልቅ የ**ማረጋገጫ** parity ይደርሳል። ይህ የ platform-crypto ባህሪ ነው፣ ጉድለት አይደለም፣ እና በእነዚህ አራት ባህሪያት ውስጥ "byte-identical" asterisk የሚይዝበት ብቸኛው ቦታ ነው። ሙሉ የ wire formats በ [`PROTOCOL_SPEC.md`](../../PROTOCOL_SPEC.md) §12 ውስጥ ናቸው፤ የ threat model በ [`THREAT_MODEL.md`](../../THREAT_MODEL.md) ውስጥ ነው።
+
 ## Transports
 
 እያንዳንዱ transport በኮድ ቤዝ ውስጥ ሁሉ የሚጠቀም የቀለም ስም አለው። `IsAvailable` በ hardware የተዘጉ መንገዶችን ይቆጣጠራል — `TransportManager` ይዘላቸዋል እና ወደ ቀጣዩ የሚገኝ transport ይመለሳል።

@@ -174,6 +174,74 @@ erschöpft, kann die konfigurierte Poolgröße nicht überschreiten; das X3DH de
 Responders funktioniert für bereits ausgegebene Bundles weiter und erholt sich,
 sobald der Top-Up bei der nächsten Bundle-Generierung ausgeführt wird.
 
+### 2.11. Passives BLE-Geräte-Tracking
+
+Ein passiver Scanner, der eine stabile BLE-MAC oder eine stabile Service-UUID
+protokolliert, kann ein Gerät über Zeit und Ort hinweg verfolgen. `BlePrivacy`
+(`src/AetherNet.Security/Privacy/BlePrivacy.cs`) schließt den Identifier-Verkettungs-
+Vektor: Die beworbene Service-UUID wird alle 15 Minuten als
+`HMAC-SHA256(rotation_key, window)` neu abgeleitet (PROTOCOL_SPEC §12.3), und Peers
+werden über auflösbare private Adressen (IRK + `ah`) statt über eine feste MAC
+adressiert. Ohne den Rotationsschlüssel oder den IRK lassen sich zwei Werbebotschaften
+nicht verketten. Angeheftet an `fixtures/bleprivacy/`.
+
+**Restrisiko.** Dies schließt nur den BLE-Identifier-Vektor — es macht Aether **nicht**
+zu einem Datenschutznetzwerk (§1). Sobald ein Paket im Mesh ist, offenbart der
+Klartext-`MeshPacket`-Header weiterhin Quell-/Ziel-UHID, Typ, Länge und Timing
+(Traffic-Analyse bleibt außerhalb des Geltungsbereichs, §3.3), und RF-Layer-
+Fingerprinting wird nicht adressiert. Das Aussenden der rotierenden Identifikatoren
+über die Luft ist Aufgabe des Host-BLE-Stacks — die Bibliothek leitet sie lediglich ab.
+
+### 2.12. Erzwungene Schlüsseloffenlegung (Nötigung)
+
+Ein Angreifer im physischen Besitz, der den Benutzer zum Entsperren nötigt.
+`PanicWipe` (`src/AetherNet.Security/Privacy/PanicWipe.cs`) akzeptiert eine
+**Nötigungs-PIN** — in konstanter Zeit gegen einen gespeicherten `SHA-256(pin)`
+abgeglichen (kein Timing-Leck durch vorzeitigen Abbruch) —, die jeden Identitätsschlüssel
+sicher löscht (Überschreiben mit Zufallsdaten, dann Nullen) über das gesamte
+Schlüsselnamen-Manifest, sodass das ausgehändigte Gerät keine nutzbare Identität mehr
+enthält. Angeheftet an `fixtures/panicwipe/`.
+
+**Restrisiko.** Best-Effort und ausdrücklich begrenzt: Es verteidigt **nicht** gegen
+ein forensisches Abbild, das *vor* der Löschung erstellt wurde, gegen Flash-Wear-
+Leveling, das eine frühere Kopie der Schlüssel-Bytes bewahrt, gegen einen Angreifer,
+der die *echte* PIN erzwingt, oder gegen Nötigung, nachdem Nachrichten bereits gelesen
+wurden. Der Vergleich in konstanter Zeit mildert das Timing beim PIN-Raten, nicht einen
+vollständigen Seitenkanal-Angreifer (§3.2).
+
+### 2.13. Verlust des einzigen Geräts (Wiederherstellung)
+
+Kein Angreifer, sondern der Verfügbarkeitsausfall durch den Verlust der einzigen Kopie
+einer Identität. Das Wiederherstellungsphrasen-Backup (`src/AetherNet.Security/Backup/`)
+kodiert den 32-Byte-Ed25519-Identitäts-Seed als prüfsummengesicherte 24-Wort-BIP-39-
+Phrase (PROTOCOL_SPEC §12.4), die die Identität auf jedem Gerät wiederherstellt — kein
+Server und kein Verwahrer hält sie.
+
+**Restrisiko — eine neue Diebstahlsfläche.** Die Phrase **ist** die Identität: Wer die
+24 Wörter liest, kann den Benutzer vollständig imitieren, ohne jede Widerrufsmöglichkeit.
+Sie tauscht ein Geräteverlust-Risiko gegen ein Papiergeheimnis-Risiko. Die Bibliothek
+kodiert/dekodiert und prüfsummt die Phrase; sichere Anzeige, Speicherung und die
+optionale BIP-39-Passphrase liegen in der Verantwortung des Hosts.
+
+### 2.14. Einschleusung eines betrügerischen Geräts in die Multi-Geräte-Synchronisation
+
+Ein Angreifer, der versucht, ein von ihm kontrolliertes Gerät in das Sync-Set eines
+Opfers einzuschleusen oder Sync-Datensätze zu fälschen. Ein `DeviceLink`
+(`src/AetherNet.Security/Sync/`) ist **Ed25519-signiert durch den Identitätsschlüssel**
+(PROTOCOL_SPEC §12.1), sodass nur der Identitätsinhaber ein neues Gerät autorisieren
+kann — ein unsigniertes oder falsch signiertes Link schlägt bei der Verifizierung fehl.
+`SyncRecord`-Nutzlasten reisen E2E-verschlüsselt innerhalb des DTN-/Mesh-Pfads, sodass
+Relays sie zwar tragen, aber nicht lesen können. Angeheftet an `fixtures/sync/`.
+
+**Restrisiko.** Dies authentifiziert die *Verknüpfung*, nicht das spätere Verhalten des
+verknüpften Geräts: Ein Gerät, das legitim verknüpft und *dann* kompromittiert wird,
+sieht den gesamten synchronisierten Zustand — die Synchronisation hat keine
+Forward-Secrecy pro Datensatz. Die Abstimmung erfolgt nach Last-Write-Wins über
+`(created_at_ms, logical_clock, device_id, record_id)`, sodass ein verknüpftes Gerät
+mit einer verschobenen Uhr beeinflussen kann, welcher Datensatz gewinnt; die
+Uhr-Integrität ist Sache des Hosts. Die Signatur-Byte-Parität trägt die in
+PROTOCOL_SPEC §12.1 vermerkte Swift/CryptoKit-Ausnahme.
+
 ---
 
 ## 3. Außerhalb des Geltungsbereichs

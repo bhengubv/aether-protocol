@@ -76,11 +76,13 @@ dependencies = [
 name = "aethernet-protocol"
 version = "1.0.0"
 dependencies = [
+ "aes 0.9.1",
  "aes-gcm 0.11.0-rc.4",
  "async-trait",
  "base64",
  "bytes",
  "chrono",
+ "cipher 0.5.2",
  "divan",
  "ed25519-dalek",
  "hkdf 0.13.0",
@@ -93,6 +95,7 @@ dependencies = [
  "serde_json",
  "serialport",
  "sha2 0.11.0",
+ "subtle",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",

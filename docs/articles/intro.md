@@ -29,7 +29,7 @@ Python, Kotlin, Swift, C) and pinned to a shared fixture corpus under `fixtures/
 | Assembly                            | What it provides                                                |
 |-------------------------------------|-----------------------------------------------------------------|
 | `AetherNet.Core`                       | Wire format, routing, DTN, the protocol primitives              |
-| `AetherNet.Security`                   | X3DH, Double Ratchet, identity, packet signing                  |
+| `AetherNet.Security`                   | X3DH, Double Ratchet, identity, packet signing, recovery-phrase backup (BIP-39), BLE tracking-protection, panic-wipe, multi-device sync |
 | `AetherNet.Messaging`                  | High-level send/receive of application messages                 |
 | `AetherNet.Storage`                    | Encrypted at-rest storage of keys, sessions, queued packets     |
 | `AetherNet.Transport`                  | Transport contract + in-process simulator; BLE / Wi-Fi Direct adapters are real on C#/Windows + Android (see `AetherNet.Transport.WebRtc` for the real internet transport) |

@@ -38,6 +38,7 @@
 9. [DTN Store-and-Forward](#9-dtn-store-and-forward)
 10. [Video Streaming](#10-video-streaming)
 11. [Watch Together](#11-watch-together)
+12. [Security & Privacy Layer](#12-security--privacy-layer)
 
 ---
 
@@ -1261,6 +1262,101 @@ All video and watch-together features are gated behind feature flags (all disabl
 | AETHERNET_TORRENT_INGEST | AETHERNET_CONTENT_P2P | BitTorrent file acceptance for mesh distribution |
 
 Feature flags have parent dependencies: a child flag can only be enabled if its parent is also enabled. This allows progressive rollout.
+
+---
+
+## 12. Security & Privacy Layer
+
+> Added in 2.3.0. Reference implementation: `src/AetherNet.Security/Backup/` (recovery
+> phrase), `src/AetherNet.Security/Privacy/` (BLE tracking-protection, panic-wipe), and
+> `src/AetherNet.Security/Sync/` (multi-device sync). Cross-language byte vectors:
+> `fixtures/bip39/`, `fixtures/bleprivacy/`, `fixtures/panicwipe/`, `fixtures/sync/`.
+
+This layer is additive and independent of the packet suite in §2. Only **multi-device sync**
+(§12.1–12.2) and the **BLE tracking-protection address scheme** (§12.3) have byte / on-air
+formats; **recovery-phrase backup** (§12.4) and **panic-wipe** (§12.5) are local-only and are
+specified here for completeness. All are implemented byte-identically in all eight languages,
+with the single Ed25519-signature exception noted in §12.1.
+
+### 12.1. DeviceLink (device pairing)
+
+A `DeviceLink` is an Ed25519-signed assertion that a device's public key belongs to an identity,
+used to pair a user's own devices for multi-device sync. The **signed body** is:
+
+| Off | Field | Type | Size | Notes |
+|-----|-------|------|------|-------|
+| 0 | format_version | uint8 | 1 | `0x01`; reject any other value on read |
+| 1 | device_id_len | uint16, little-endian | 2 | UTF-8 byte length of `device_id` |
+| 3 | device_id | UTF-8 bytes | N | the linked device's identifier |
+| 3+N | device_public_key | bytes | 32 | the linked device's Ed25519 public key |
+| 35+N | issued_at_ms | int64, little-endian | 8 | Unix epoch milliseconds |
+
+The serialized `DeviceLink` is the signed body followed by a **64-byte Ed25519 signature** over
+that body, computed with the *identity* private key. Verification recomputes the body and checks
+the signature against the identity public key.
+
+> **Signature byte-parity exception.** The signed body and the verification result are identical
+> across all eight languages, and the 64 signature **bytes** are byte-identical across seven of
+> them. Apple's CryptoKit randomises Ed25519 signatures (RFC 8032 §8 hedged signing), so the
+> Swift signature differs on each call while remaining valid and cross-verifiable. Interop MUST
+> rely on *verification*, never on comparing signature bytes.
+
+### 12.2. SyncRecord (last-write-wins sync envelope)
+
+A `SyncRecord` is one replicated change to a user's own multi-device state, reconciled
+last-write-wins. Records ride E2E-encrypted inside the existing DTN/mesh path (`encrypted_payload`
+is opaque ciphertext) — they are **not** a new `MeshPacket` type.
+
+| Off | Field | Type | Size | Notes |
+|-----|-------|------|------|-------|
+| 0 | format_version | uint8 | 1 | `0x01` |
+| 1 | record_id | UUID, RFC 4122 big-endian | 16 | same big-endian convention as §2.1 |
+| 17 | op | uint8 | 1 | `0`=Upsert, `1`=Delete, `2`=Read; reject > 2 |
+| 18 | logical_clock | int64, little-endian | 8 | per-device monotonic counter |
+| 26 | created_at_ms | int64, little-endian | 8 | Unix epoch milliseconds |
+| 34 | device_id_len | uint16, little-endian | 2 | UTF-8 byte length |
+| 36 | device_id | UTF-8 bytes | N | originating device |
+| 36+N | item_id_len | uint16, little-endian | 2 | UTF-8 byte length |
+| 38+N | item_id | UTF-8 bytes | M | logical key being synced |
+| 38+N+M | payload_len | int32, little-endian | 4 | ciphertext length; reject negative |
+| 42+N+M | encrypted_payload | bytes | payload_len | opaque E2E ciphertext |
+
+**Reconciliation (last-write-wins).** Between two records for the same `item_id`, the winner is
+chosen by comparing, in order until one differs: `created_at_ms`, then `logical_clock`, then
+`device_id` (ordinal byte compare), then `record_id` (big-endian byte compare). The order is
+total and deterministic, so every device converges on the same winner regardless of arrival order.
+
+### 12.3. BLE tracking-protection
+
+Two derivations let a device advertise without being trackable by a passive scanner. Both are pure
+functions pinned to `fixtures/bleprivacy/`; emitting them on-air is the host BLE stack's job.
+
+- **Rotating Service UUID.** `window = floor(unix_time_seconds / 900)` (a 15-minute epoch). The
+  advertised 128-bit Service UUID is the first 16 bytes of
+  `HMAC-SHA256(ble_rotation_key, LE_int64(window))`. A scanner that logs the UUID cannot link two
+  windows without the rotation key.
+- **Resolvable private address (RPA).** Per the Bluetooth `ah` function:
+  `hash = ah(IRK, prand)`, where `ah` is AES-128 over the 24-bit `prand` (padded to 128 bits) and
+  the low 24 bits are taken. The 48-bit address is `hash(24) || prand(24)`, with the top two bits
+  of `prand` set to `0b01` to mark it resolvable. A peer holding the IRK resolves the address by
+  recomputing `ah` and comparing the hash.
+
+### 12.4. Recovery-phrase backup (local)
+
+An identity is an Ed25519 key pair whose 32-byte private seed (256 bits) is encoded as a **24-word
+BIP-39** mnemonic over the official English wordlist, with the standard SHA-256 checksum (a
+mistyped word fails the checksum and is rejected rather than silently yielding a different
+identity). This is standard BIP-39 — verified against the official Trezor test vectors and
+reproduced byte-for-byte in all eight languages — so the phrase restores the identity on any
+device with no server or custodian. There is no wire format; the phrase never touches the network.
+
+### 12.5. Panic-wipe (local)
+
+Under coercion, a **duress PIN** — compared against a stored `SHA-256(pin)` in constant time —
+triggers a secure erase of all identity key material: each buffer is overwritten with random bytes
+then zeroed, across a fixed manifest of identity key names (identity keypair, device salt, DRK,
+and the BLE rotation-key / IRK from §12.3). There is no wire format; the operation is entirely
+local to the device.
 
 ---
 
