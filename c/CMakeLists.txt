@@ -163,6 +163,8 @@ add_library(aethernet-protocol STATIC
     src/circuit_relay.c
     src/relay_transport.c
     src/relay_mesh_link.c
+    src/mesh_circuit_relay.c
+    src/transport_manager.c
     src/forge.c
     src/forge_announce.c
     src/fmhy.c

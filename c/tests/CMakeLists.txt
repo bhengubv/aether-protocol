@@ -61,6 +61,23 @@ target_link_libraries(test-relay-mesh PRIVATE aethernet-protocol pthread)
 add_test(NAME RelayMeshTests COMMAND test-relay-mesh
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+# Gap-2 acceptance test: the circuit-relay engine wrapped as a generic transport
+# (c/src/mesh_circuit_relay.c) is AUTO-SELECTED by the minimal transport manager
+# (c/src/transport_manager.c) as the last-resort serverless fallback. 3-node A ── R ── B
+# in-process hub (no A-B edge); each node's relay is built via the factory and wrapped in a
+# manager as its ONLY transport; A sends via the MANAGER and B receives, tagged with the relay
+# transport's name. Mirrors go/circuitrelay/manager_integration_test.go and the C#
+# Relay_Is_Auto_Selected_By_TransportManager_As_Fallback. Run from the repo root for symmetry
+# with the other relay tests. The test name carries the lowercase "relaytransportmanager" token
+# so `ctest -R relaytransportmanager` (a case-sensitive regex) selects it.
+add_executable(test-relay-transport-manager
+    test_relay_transport_manager.c
+)
+target_include_directories(test-relay-transport-manager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-relay-transport-manager PRIVATE aethernet-protocol pthread)
+add_test(NAME relaytransportmanagerTests COMMAND test-relay-transport-manager
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 add_executable(test-sos
     test_sos.c
 )
@@ -542,6 +559,7 @@ add_custom_target(aether-tests
         test-dtn-fixture
         test-relay-engine
         test-relay-mesh
+        test-relay-transport-manager
         test-sos
         test-channels
         test-videocall
