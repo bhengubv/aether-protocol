@@ -14,3 +14,10 @@ export {
   SignalType,
   InMemorySignalingBus,
 } from "./signaling.js";
+
+export {
+  RelayWebRtcSignaling,
+  type SignalingChannel,
+  encodeSignalFrame,
+  decodeSignalFrame,
+} from "./RelayWebRtcSignaling.js";
