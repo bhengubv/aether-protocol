@@ -10,9 +10,10 @@ without a central signalling server.
 
 Three levels are covered:
 
-* **Wire parity** — :func:`encode_signal_frame` is asserted byte-for-byte against vectors
-  captured from the C# ``RelayWebRtcSignaling`` / ``WebRtcSignalJsonContext``. This is the
-  interop contract and needs no aiortc.
+* **Wire parity** — :func:`encode_signal_frame` is asserted byte-for-byte against the shared
+  cross-language fixture ``fixtures/webrtc`` (``inputs.json`` + ``expected/<name>.bin``), the
+  exact ``AWS1`` frames the C# ``RelayWebRtcSignaling`` / ``WebRtcSignalJsonContext`` emits and
+  every other language leg is pinned against. This is the interop contract and needs no aiortc.
 * **Carrier round-trip** — two ``RelaySignaling`` instances (two nodes) over an in-process
   transport pair round-trip an OFFER *and* an ANSWER across the transport.
 * **Full handshake** — two ``WebRtcTransport`` instances wired only through two separate
@@ -23,6 +24,8 @@ Three levels are covered:
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 
 import pytest
 
@@ -35,83 +38,67 @@ from aethernet.transport.webrtc.signaling import (
     encode_signal_frame,
 )
 
-# ── Ground-truth vectors captured from the C# carrier ────────────────────────────
-# Produced by serializing WebRtcSignal through the real WebRtcSignalJsonContext
-# (System.Text.Json, WhenWritingNull, default JavaScriptEncoder) and prefixing "AWS1".
-# The full frame is the 4-byte magic (41 57 53 31) followed by the JSON body.
-_AWS1_HEX = "41575331"
-
-_CS_OFFER_BODY_HEX = (
-    "7B2246726F6D55686964223A22616C696365222C22546F55686964223A22626F62222C2254797065223A302C22"
-    "536470223A22763D305C725C6E6F3D2D2031203120494E2049503420302E302E302E305C725C6E222C22536470"
-    "4D4C696E65496E646578223A307D"
-)
-_CS_ANSWER_BODY_HEX = (
-    "7B2246726F6D55686964223A22626F62222C22546F55686964223A22616C696365222C2254797065223A312C22"
-    "536470223A22763D305C725C6E613D616E737765725C725C6E222C225364704D4C696E65496E646578223A307D"
-)
-_CS_CANDIDATE_BODY_HEX = (
-    "7B2246726F6D55686964223A22616C696365222C22546F55686964223A22626F62222C2254797065223A322C22"
-    "43616E646964617465223A2263616E6469646174653A312031207564702032313330373036343331203139322E"
-    "3136382E312E352035343332312074797020686F7374222C225364704D4C696E65496E646578223A302C225364"
-    "704D6964223A2230227D"
-)
-# Escaping stress vector: '+', '<', '>', '&', non-ASCII -> \uXXXX (uppercase); '/' NOT escaped.
-_CS_RISKY_BODY_HEX = (
-    "7B2246726F6D55686964223A2275222C22546F55686964223A2276222C2254797065223A322C2243616E646964"
-    "617465223A22615C7530303242622F633D645C7530303343655C7530303345665C7530303236673A68205C7530"
-    "304537205C7530304539205C7534453136222C225364704D4C696E65496E646578223A332C225364704D696422"
-    "3A226D2F695C753030324264227D"
-)
+# ── Shared cross-language fixture (fixtures/webrtc) ───────────────────────────────
+# The ground truth is committed, not hardcoded here: fixtures/webrtc/inputs.json holds the
+# input cases and fixtures/webrtc/expected/<name>.bin the exact AWS1 frame the C# carrier
+# emits for each. Every language leg is pinned against the same bytes, so the wire format
+# can never drift between implementations.
 
 
-def _frame_hex(signal: Signal) -> str:
-    return encode_signal_frame(signal).hex().upper()
+def _fixtures_dir() -> Path:
+    d = Path(__file__).resolve()
+    for _ in range(10):
+        if (d / "fixtures" / "webrtc" / "inputs.json").exists():
+            return d / "fixtures" / "webrtc"
+        if d.parent == d:
+            break
+        d = d.parent
+    raise FileNotFoundError("fixtures/webrtc/inputs.json not found")
 
 
-def test_offer_frame_is_byte_identical_to_csharp() -> None:
-    sig = Signal(
-        from_uhid="alice",
-        to_uhid="bob",
-        type=SignalType.OFFER,
-        sdp="v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\n",
+def _load_inputs() -> list[dict]:
+    return json.loads((_fixtures_dir() / "inputs.json").read_text(encoding="utf-8"))
+
+
+def _opt(inp: dict, key: str) -> "str | None":
+    """Fixture semantics: an empty (or absent) sdp/candidate/sdp_mid means the field is omitted."""
+    value = inp.get(key, "")
+    return value if value else None
+
+
+def _signal_for(inp: dict) -> Signal:
+    return Signal(
+        from_uhid=inp["from_uhid"],
+        to_uhid=inp["to_uhid"],
+        type=SignalType(inp["type"]),
+        sdp=_opt(inp, "sdp"),
+        candidate=_opt(inp, "candidate"),
+        sdp_mid=_opt(inp, "sdp_mid"),
+        sdp_mline_index=inp.get("sdp_mline_index", 0),
     )
-    assert _frame_hex(sig) == _AWS1_HEX + _CS_OFFER_BODY_HEX
 
 
-def test_answer_frame_is_byte_identical_to_csharp() -> None:
-    sig = Signal(
-        from_uhid="bob",
-        to_uhid="alice",
-        type=SignalType.ANSWER,
-        sdp="v=0\r\na=answer\r\n",
-    )
-    assert _frame_hex(sig) == _AWS1_HEX + _CS_ANSWER_BODY_HEX
+@pytest.mark.parametrize("inp", _load_inputs(), ids=lambda x: x["name"])
+def test_frame_matches_expected(inp: dict) -> None:
+    """encode_signal_frame is byte-identical to the committed expected/<name>.bin."""
+    got = encode_signal_frame(_signal_for(inp))
+    expected = (_fixtures_dir() / "expected" / f"{inp['name']}.bin").read_bytes()
+    assert got == expected
 
 
-def test_candidate_frame_is_byte_identical_to_csharp() -> None:
-    sig = Signal(
-        from_uhid="alice",
-        to_uhid="bob",
-        type=SignalType.CANDIDATE,
-        candidate="candidate:1 1 udp 2130706431 192.168.1.5 54321 typ host",
-        sdp_mid="0",
-        sdp_mline_index=0,
-    )
-    assert _frame_hex(sig) == _AWS1_HEX + _CS_CANDIDATE_BODY_HEX
-
-
-def test_stj_escaping_matches_csharp_exactly() -> None:
-    """The tricky characters: + < > & and non-ASCII escape to \\uXXXX; / stays literal."""
-    sig = Signal(
-        from_uhid="u",
-        to_uhid="v",
-        type=SignalType.CANDIDATE,
-        candidate="a+b/c=d<e>f&g:h ç é 世",
-        sdp_mid="m/i+d",
-        sdp_mline_index=3,
-    )
-    assert _frame_hex(sig) == _AWS1_HEX + _CS_RISKY_BODY_HEX
+@pytest.mark.parametrize("inp", _load_inputs(), ids=lambda x: x["name"])
+def test_decode_roundtrip(inp: dict) -> None:
+    """Decoding the committed frame recovers the input fields exactly."""
+    data = (_fixtures_dir() / "expected" / f"{inp['name']}.bin").read_bytes()
+    sig = decode_signal_frame(data)
+    assert sig is not None
+    assert sig.from_uhid == inp["from_uhid"]
+    assert sig.to_uhid == inp["to_uhid"]
+    assert int(sig.type) == inp["type"]
+    assert (sig.sdp or "") == inp.get("sdp", "")
+    assert (sig.candidate or "") == inp.get("candidate", "")
+    assert (sig.sdp_mid or "") == inp.get("sdp_mid", "")
+    assert sig.sdp_mline_index == inp.get("sdp_mline_index", 0)
 
 
 def test_roundtrip_encode_decode() -> None:
