@@ -11,6 +11,13 @@ pkg_check_modules(LIBSODIUM REQUIRED libsodium)
 
 # ─── cJSON (required for voice/streaming JSON signalling) ──────────────────
 # Fetched at configure time so the build is self-contained on Linux CI hosts.
+# cJSON is a single portable source file (cJSON.c, MIT); we compile it directly
+# into aethernet-protocol via FetchContent_Populate — the same source-only
+# pattern used for BLAKE3 and micro-ecc below — instead of FetchContent_MakeAvailable.
+# Running cJSON's bundled CMakeLists is deliberately avoided: it declares an
+# ancient cmake_minimum_required that CMake 4.0+ rejects ("Compatibility with
+# CMake < 3.5 has been removed"), and we need none of its library/install/test
+# machinery — only the one .c file (compiled into the STATIC lib sources below).
 include(FetchContent)
 FetchContent_Declare(
     cjson
@@ -18,9 +25,10 @@ FetchContent_Declare(
     GIT_TAG        v1.7.18
     GIT_SHALLOW    TRUE
 )
-set(CJSON_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(ENABLE_CJSON_TEST OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(cjson)
+FetchContent_GetProperties(cjson)
+if(NOT cjson_POPULATED)
+    FetchContent_Populate(cjson)
+endif()
 
 # ─── BLAKE3 (portable C reference, no SIMD) ────────────────────────────────
 # We fetch the upstream BLAKE3 repo and compile only the portable three-file
@@ -209,6 +217,11 @@ add_library(aethernet-protocol STATIC
     src/ble_privacy.c
     src/panic_wipe.c
     src/sync.c
+    # cJSON (MIT, DaveGamble/cJSON) — single portable source compiled directly
+    # (FetchContent_Populate above; its bundled CMakeLists is never run). Provides
+    # the JSON parse path for the WebRTC signalling carrier decode and the
+    # voice/streaming signalling.
+    ${cjson_SOURCE_DIR}/cJSON.c
     # BLAKE3 portable subset (no SIMD — compile-time defines below disable all
     # optional SIMD backends; only blake3_portable.c is linked in practice)
     ${blake3_src_SOURCE_DIR}/c/blake3.c
@@ -278,7 +291,6 @@ target_link_libraries(aethernet-protocol
         pthread
     PRIVATE
         ${LIBSODIUM_LIBRARIES}
-        cjson
 )
 
 # Link libdatachannel (static) for the WebRTC transport. PUBLIC so that test

@@ -221,11 +221,12 @@ add_test(NAME panicwipeTests COMMAND test-panic-wipe
 # DeviceLink (signed_body / signature / serialize / verify true-vs-wrong /
 # round-trip), against the C# reference (src/AetherNet.Security/Sync/*.cs).
 # Unlike the flat-object fixtures, this corpus is nested (reconcile[].records[]),
-# so the test parses it with cJSON. cJSON is a PRIVATE dependency of
-# aethernet-protocol (not on the public include/link surface), so this target
-# adds the cJSON include dirs and links the cjson target explicitly. Run from the
-# repo root so the relative fixture path resolves; the lowercase "sync" token in
-# the test name lets `ctest -R sync` (a case-sensitive regex) select it.
+# so the test parses it with cJSON. cJSON is compiled directly into
+# aethernet-protocol (single source, no separate CMake target), so this target
+# only needs the cJSON include dirs — the symbols come transitively from the
+# aethernet-protocol static library it links. Run from the repo root so the
+# relative fixture path resolves; the lowercase "sync" token in the test name
+# lets `ctest -R sync` (a case-sensitive regex) select it.
 add_executable(test-sync
     test_sync.c
 )
@@ -234,7 +235,7 @@ target_include_directories(test-sync PRIVATE
     ${cjson_SOURCE_DIR}
     ${CJSON_SHIM_DIR}
 )
-target_link_libraries(test-sync PRIVATE aethernet-protocol pthread cjson)
+target_link_libraries(test-sync PRIVATE aethernet-protocol pthread)
 add_test(NAME syncTests COMMAND test-sync
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
