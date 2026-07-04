@@ -187,7 +187,10 @@ public class RoutingServiceTests
     [Fact]
     public async Task HandleRouteReply_InstallsForwardRoute()
     {
-        var (svc, _, store) = NewService();
+        // Exercises routing MECHANICS (forward-route install), not RREP verification.
+        // The default verifier is now fail-closed (rejects all), so opt in to the explicit
+        // insecure AcceptAll verifier to isolate the mechanics under test.
+        var (svc, _, store) = NewService(verifier: new AcceptAllRouteReplyVerifier());
         var rrep = NewRrep("carol", Local);
 
         await svc.HandleRouteReplyAsync(rrep);
@@ -213,7 +216,9 @@ public class RoutingServiceTests
     [Fact]
     public async Task HandleRouteReply_ForwardsTowardOriginalRequester()
     {
-        var (svc, sender, store) = NewService();
+        // Exercises RREP FORWARDING mechanics, not verification — opt in to the explicit
+        // insecure AcceptAll verifier so the now-fail-closed default doesn't drop the RREP.
+        var (svc, sender, store) = NewService(verifier: new AcceptAllRouteReplyVerifier());
 
         // Reverse route to alice exists (via direct neighbour bob).
         await store.SaveAsync(new RouteEntry

@@ -124,6 +124,24 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
         // Default in-memory store unless host has registered something else first.
         Services.TryAddSingleton<IRouteStore, InMemoryRouteStore>();
 
+        // RREP verifier. Fail-closed by design: a real host that has both a peer-key resolver
+        // and the signing service gets Ed25519 signature verification out of the box; anything
+        // less falls back to RejectAll so an unverified route reply is never trusted. TryAdd so
+        // a host that registered its own IRouteReplyVerifier first still wins.
+        Services.TryAddSingleton<IRouteReplyVerifier>(sp =>
+        {
+            var keyResolver = sp.GetService<IRouteReplyKeyResolver>();
+            var signal      = sp.GetService<ISignalProtocolService>();
+            if (keyResolver is not null && signal is not null)
+            {
+                var vlogger = sp.GetService<ILogger<Ed25519RouteReplyVerifier>>()
+                              ?? NullLogger<Ed25519RouteReplyVerifier>.Instance;
+                return new Ed25519RouteReplyVerifier(keyResolver, signal, vlogger);
+            }
+            // No resolver and/or no signing service — stay fail-closed.
+            return new RejectAllRouteReplyVerifier();
+        });
+
         Services.TryAddSingleton<IRoutingService>(sp =>
         {
             var sender     = sp.GetRequiredService<IMeshSender>();
