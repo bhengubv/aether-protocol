@@ -135,25 +135,52 @@ extension WebRtcSignal {
         try? JSONDecoder().decode(RelayWire.self, from: body).toSignal()
     }
 
-    /// Escapes a Swift string to a JSON string literal the way System.Text.Json does for the ASCII
-    /// range used by SDP/ICE text (quote, backslash, control chars → `\uXXXX`).
+    /// Encodes a JSON string literal (including the surrounding quotes) **byte-identical** to
+    /// `System.Text.Json`'s default `JavaScriptEncoder.Default`.
+    ///
+    /// STJ escapes, beyond the JSON-mandated set:
+    ///  - `"` as `"` (NOT `\"`),
+    ///  - `& ' + < > \`` as `\uXXXX`,
+    ///  - every non-ASCII code point (> 0x7E) as `\uXXXX` (surrogate pairs emitted as two `\uXXXX`),
+    /// all with UPPERCASE hex. C0 control characters use the short escapes `\b \t \n \f \r` where
+    /// defined, else `\uXXXX`. Backslash is `\\`. `/` stays literal.
+    ///
+    /// Iterates the **UTF-16 view** so it matches STJ's per-`char` behaviour exactly: astral scalars
+    /// arrive as their two surrogate code units and each emits its own `\uXXXX`.
     private static func jsonString(_ s: String) -> String {
         var out = "\""
-        for scalar in s.unicodeScalars {
-            switch scalar {
-            case "\"": out += "\\\""
-            case "\\": out += "\\\\"
-            case "\n": out += "\\n"
-            case "\r": out += "\\r"
-            case "\t": out += "\\t"
+        for u in s.utf16 {
+            switch u {
+            case 0x08: out += "\\b"
+            case 0x09: out += "\\t"
+            case 0x0A: out += "\\n"
+            case 0x0C: out += "\\f"
+            case 0x0D: out += "\\r"
+            case 0x5C: out += "\\\\" // backslash
             default:
-                if scalar.value < 0x20 { out += String(format: "\\u%04x", scalar.value) }
-                else { out.unicodeScalars.append(scalar) }
+                // Printable ASCII that STJ leaves literal: 0x20..0x7E minus the escaped punctuation.
+                if u >= 0x20, u <= 0x7E, !stjEscapeAscii.contains(u) {
+                    out.unicodeScalars.append(Unicode.Scalar(u)!)
+                } else {
+                    out += "\\u" + String(u, radix: 16, uppercase: true).leftPadded(to: 4)
+                }
             }
         }
         out += "\""
         return out
     }
+
+    /// ASCII code units (0x20–0x7E) that `System.Text.Json`'s default encoder escapes as `\uXXXX`
+    /// even though plain JSON would not: `" & ' + < > \``.
+    private static let stjEscapeAscii: Set<UInt16> = [
+        0x22, // "
+        0x26, // &
+        0x27, // '
+        0x2B, // +
+        0x3C, // <
+        0x3E, // >
+        0x60, // `
+    ]
 
     /// PascalCase-keyed `Codable` shadow used only for tolerant *decoding* of the relay body.
     /// `CodingKeys` carry the PascalCase JSON names so the Swift member names can stay idiomatic
@@ -188,5 +215,13 @@ extension WebRtcSignal {
                 sdpMLineIndex: sdpMLineIndex ?? 0,
                 sdpMid: sdpMid)
         }
+    }
+}
+
+private extension String {
+    /// Left-pads with `'0'` to `width` characters (used for the fixed 4-digit `\uXXXX` hex). Returns
+    /// self unchanged when already at/over `width`.
+    func leftPadded(to width: Int) -> String {
+        count >= width ? self : String(repeating: "0", count: width - count) + self
     }
 }
