@@ -13,9 +13,11 @@ import kotlin.test.assertTrue
 private fun makePacket(type: PacketType = PacketType.RouteReply) =
     MeshPacket(type = type, sourceUhid = "node-2", destinationUhid = "node-1")
 
-// ── AcceptAllRouteReplyVerifier ───────────────────────────────────────────────
+// ── RouteReplyVerifier default + built-in verifiers ───────────────────────────
 
 class RouteReplyVerifierTest {
+
+    // ── AcceptAllRouteReplyVerifier (explicit INSECURE opt-in) ────────────────
 
     @Test
     fun `AcceptAll verify returns true for RouteReply`() = runBlocking {
@@ -38,18 +40,27 @@ class RouteReplyVerifierTest {
         assertTrue(verifier.verify(pkt))
     }
 
+    // ── Fail-closed default + RejectAllRouteReplyVerifier ─────────────────────
+
     @Test
-    fun `default interface verify returns true`() = runBlocking {
-        // Use an anonymous implementation that relies on the interface default.
+    fun `default interface verify returns false (fail-closed)`() = runBlocking {
+        // An anonymous implementation that relies on the interface default must REJECT — an
+        // unconfigured / half-built verifier can never be exploited to trust an unverified RREP.
         val verifier = object : RouteReplyVerifier {}
-        assertTrue(verifier.verify(makePacket()))
+        assertFalse(verifier.verify(makePacket()))
     }
 
     @Test
-    fun `custom reject-all verifier can override the default`() = runBlocking {
+    fun `RejectAll verify returns false for RouteReply`() = runBlocking {
+        val verifier = RejectAllRouteReplyVerifier()
+        assertFalse(verifier.verify(makePacket(PacketType.RouteReply)))
+    }
+
+    @Test
+    fun `custom accept-all verifier can override the fail-closed default`() = runBlocking {
         val verifier = object : RouteReplyVerifier {
-            override suspend fun verify(routeReply: MeshPacket): Boolean = false
+            override suspend fun verify(routeReply: MeshPacket): Boolean = true
         }
-        assertFalse(verifier.verify(makePacket()))
+        assertTrue(verifier.verify(makePacket()))
     }
 }
