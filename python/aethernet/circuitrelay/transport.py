@@ -27,6 +27,7 @@ deadline of ``None`` means "no limit" (mirrors Go's zero ``time.Time`` and C#'s
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 import queue
 import threading
 import time
@@ -72,7 +73,7 @@ class CircuitRelayOptions:
 # ── RelayLink abstraction (mirror C# IRelayLink / Go RelayLink) ───────────────
 
 
-class RelayLink:
+class RelayLink(ABC):
     """The one-hop link a :class:`Transport` uses to exchange raw relay frames with
     *directly reachable* nodes — the seam between circuit-relay-v2 (transport-
     agnostic) and whatever real transport carries a frame one hop (BLE, Wi-Fi
@@ -80,19 +81,22 @@ class RelayLink:
     ``IRelayLink`` and Go ``RelayLink``.
     """
 
+    @abstractmethod
     def send_frame(self, node: str, frame: bytes) -> bool:
         """Send a raw relay frame to a node reachable in one hop. Returns ``True``
         if the frame was handed to that node's link."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def can_reach(self, node: str) -> bool:
         """Whether this node currently has a direct one-hop link to ``node``."""
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def on_frame(self, handler: FrameHandler) -> None:
         """Register the handler invoked when a raw frame arrives from a directly-
         reachable node (sender node UHID, frame bytes)."""
-        raise NotImplementedError
+        ...
 
 
 # ── Internal bridge/route state ───────────────────────────────────────────────
