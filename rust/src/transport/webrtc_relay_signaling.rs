@@ -35,7 +35,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use super::webrtc::{Signal, SignalType, Signaling};
 use super::TransportService;
@@ -59,7 +59,12 @@ const MAGIC: [u8; 4] = [b'A', b'W', b'S', b'1'];
 //
 // This DTO is a control-plane envelope only. It is deliberately *not* any mesh
 // packet DTO and shares no bytes with `crate::protocol` — no fixture is affected.
-#[derive(Serialize, Deserialize)]
+//
+// Used for the DESERIALIZE (parse) path only. Serialization is hand-built in
+// [`serialize_signal_body`] so string escaping matches STJ's default encoder
+// (`serde_json` leaves `+ < > &` literal and would diverge from C#); the
+// `#[serde(rename ...)]` names here still document the exact wire keys.
+#[derive(Deserialize)]
 struct SignalDto {
     #[serde(rename = "FromUhid")]
     from_uhid: String,
@@ -78,18 +83,6 @@ struct SignalDto {
 }
 
 impl SignalDto {
-    fn from_signal(s: &Signal) -> Self {
-        SignalDto {
-            from_uhid: s.from_uhid.clone(),
-            to_uhid: s.to_uhid.clone(),
-            type_: signal_type_to_u8(s.signal_type),
-            sdp: s.sdp.clone(),
-            candidate: s.candidate.clone(),
-            sdp_mline_index: s.sdp_mline_index,
-            sdp_mid: s.sdp_mid.clone(),
-        }
-    }
-
     fn into_signal(self) -> Option<Signal> {
         Some(Signal {
             from_uhid: self.from_uhid,
@@ -123,13 +116,116 @@ fn signal_type_from_u8(v: u8) -> Option<SignalType> {
 /// Frames a [`Signal`] as `AWS1` + JSON. Public within the crate so the
 /// interop/acceptance tests can assert the exact bytes against the C# fixture
 /// shape without duplicating the framing.
+///
+/// The JSON body is built **by hand** (not `serde_json::to_vec`) so its string
+/// escaping matches `System.Text.Json`'s default `JavaScriptEncoder.Default`
+/// byte-for-byte — including STJ's escaping of `+ < > & ' \`` and every
+/// non-ASCII code unit as uppercase `\uXXXX`. `serde_json` leaves `+ < > &`
+/// literal and would diverge from the C# reference on real SDP fingerprints
+/// (base64 `+`) and any non-ASCII ICE candidate. Field order, always-present
+/// `Type`/`SdpMLineIndex`, and null-omission are unchanged. `SignalDto` is
+/// retained solely for the deserialize path ([`parse_frame`]).
 pub(crate) fn frame_signal(signal: &Signal) -> Vec<u8> {
-    let body = serde_json::to_vec(&SignalDto::from_signal(signal))
-        .expect("SignalDto is always serializable");
+    let body = serialize_signal_body(signal);
     let mut frame = Vec::with_capacity(MAGIC.len() + body.len());
     frame.extend_from_slice(&MAGIC);
-    frame.extend_from_slice(&body);
+    frame.extend_from_slice(body.as_bytes());
     frame
+}
+
+/// Serialises the signal body byte-identically to C# `System.Text.Json`.
+///
+/// Mirrors the TypeScript `serializeSignalBody` in
+/// `typescript/src/transport/webrtc/RelayWebRtcSignaling.ts`: PascalCase keys in
+/// C# record declaration order (`FromUhid`, `ToUhid`, `Type`, `Sdp`,
+/// `Candidate`, `SdpMLineIndex`, `SdpMid`); `FromUhid`/`ToUhid` always written;
+/// numeric `Type`/`SdpMLineIndex` always written (even when 0); nullable
+/// `Sdp`/`Candidate`/`SdpMid` omitted when `None`; strings escaped via
+/// [`stj_string`].
+fn serialize_signal_body(signal: &Signal) -> String {
+    let mut out = String::from("{");
+
+    out.push_str("\"FromUhid\":");
+    stj_string(&signal.from_uhid, &mut out);
+
+    out.push_str(",\"ToUhid\":");
+    stj_string(&signal.to_uhid, &mut out);
+
+    out.push_str(",\"Type\":");
+    out.push_str(&signal_type_to_u8(signal.signal_type).to_string());
+
+    if let Some(sdp) = &signal.sdp {
+        out.push_str(",\"Sdp\":");
+        stj_string(sdp, &mut out);
+    }
+
+    if let Some(candidate) = &signal.candidate {
+        out.push_str(",\"Candidate\":");
+        stj_string(candidate, &mut out);
+    }
+
+    // Non-nullable C# ushort: always written, even when 0.
+    out.push_str(",\"SdpMLineIndex\":");
+    out.push_str(&signal.sdp_mline_index.to_string());
+
+    if let Some(sdp_mid) = &signal.sdp_mid {
+        out.push_str(",\"SdpMid\":");
+        stj_string(sdp_mid, &mut out);
+    }
+
+    out.push('}');
+    out
+}
+
+/// True when the ASCII code unit `c` (0x20–0x7E) is one that
+/// `System.Text.Json`'s default encoder escapes as `\uXXXX` even though plain
+/// JSON would leave it literal. Empirically captured from STJ: `" & ' + < > \``
+/// (0x22, 0x26, 0x27, 0x2B, 0x3C, 0x3E, 0x60).
+fn is_stj_escaped_ascii(c: u16) -> bool {
+    matches!(c, 0x22 | 0x26 | 0x27 | 0x2B | 0x3C | 0x3E | 0x60)
+}
+
+/// Appends `s` as a JSON string literal (including the surrounding quotes),
+/// escaped exactly as `System.Text.Json`'s default `JavaScriptEncoder.Default`.
+///
+/// Per **UTF-16 code unit** (a Rust `char` is a Unicode scalar, so BMP scalars
+/// emit one unit and astral scalars emit a surrogate pair via
+/// [`char::encode_utf16`]):
+///  - `0x08→\b`, `0x09→\t`, `0x0A→\n`, `0x0C→\f`, `0x0D→\r`, `0x5C→\\`;
+///  - else if `0x20 ≤ c ≤ 0x7E` and `c` is not STJ-escaped ASCII → literal
+///    (this leaves `/` literal, matching STJ and `JSON.stringify`);
+///  - else → `\u` + UPPERCASE 4-hex of the code unit (so `"`, `&`, `'`, `+`,
+///    `<`, `>`, `` ` ``, all C0 controls without a short escape, and every
+///    non-ASCII code unit become `\uXXXX`).
+fn stj_string(s: &str, out: &mut String) {
+    out.push('"');
+    let mut buf = [0u16; 2];
+    for ch in s.chars() {
+        for &code in ch.encode_utf16(&mut buf).iter() {
+            match code {
+                0x08 => out.push_str("\\b"),
+                0x09 => out.push_str("\\t"),
+                0x0A => out.push_str("\\n"),
+                0x0C => out.push_str("\\f"),
+                0x0D => out.push_str("\\r"),
+                0x5C => out.push_str("\\\\"),
+                c if (0x20..=0x7E).contains(&c) && !is_stj_escaped_ascii(c) => {
+                    // Safe printable ASCII → literal. `c` is in 0x20..=0x7E so
+                    // it is a single-byte ASCII scalar.
+                    out.push(c as u8 as char);
+                }
+                c => {
+                    out.push_str("\\u");
+                    // UPPERCASE, zero-padded to 4 hex digits.
+                    for shift in [12, 8, 4, 0] {
+                        let nibble = ((c >> shift) & 0xF) as u8;
+                        out.push(char::from_digit(nibble as u32, 16).unwrap().to_ascii_uppercase());
+                    }
+                }
+            }
+        }
+    }
+    out.push('"');
 }
 
 /// Parses an `AWS1`-framed signalling frame. Returns `None` for bytes that do
@@ -262,6 +358,90 @@ mod tests {
             json,
             r#"{"FromUhid":"alice","ToUhid":"bob","Type":2,"Candidate":"candidate:1 1 udp 2 10.0.0.1 5000 typ host","SdpMLineIndex":0,"SdpMid":"0"}"#
         );
+    }
+
+    // ── STJ exotic-char escaping locks (byte-identity with C# / TS / Python) ──
+    //
+    // These golden frames are asserted verbatim by the TypeScript and Python
+    // references too, so passing here proves the Rust carrier is byte-identical
+    // to the C# `System.Text.Json` reference INCLUDING its escaping of
+    // `+ < > & ' \`` and non-ASCII as uppercase `\uXXXX` — the exact behaviour
+    // `serde_json` did NOT reproduce (it left `+ < > &` literal).
+
+    #[test]
+    fn offer_frame_escapes_exotic_ascii_like_stj() {
+        // sdp carries base64 `+`, `<`, `>`, `&`, `=` and literal `/` — STJ
+        // escapes `+ < > &` as \uXXXX (uppercase hex) but leaves `/`, `=`, and
+        // spaces literal. serde_json would emit `+ < > &` literal and diverge.
+        let signal = Signal {
+            from_uhid: "a".into(),
+            to_uhid: "b".into(),
+            signal_type: SignalType::Offer,
+            sdp: Some("a=fingerprint:sha-256 AB+/CD=xy <t> &z ual/set+ice".into()),
+            candidate: None,
+            sdp_mid: None,
+            sdp_mline_index: 0,
+        };
+        let frame = frame_signal(&signal);
+        assert_eq!(&frame[..4], b"AWS1", "magic prefix");
+        let json = std::str::from_utf8(&frame[4..]).unwrap();
+        // Byte-identical to the TypeScript (CS_ESCAPING_JSON) and Python
+        // (_CS_RISKY-style) STJ references. Full frame == "AWS1" + this body.
+        assert_eq!(
+            json,
+            "{\"FromUhid\":\"a\",\"ToUhid\":\"b\",\"Type\":0,\"Sdp\":\"a=fingerprint:sha-256 AB\\u002B/CD=xy \\u003Ct\\u003E \\u0026z ual/set\\u002Bice\",\"SdpMLineIndex\":0}",
+            "STJ escapes + < > & as uppercase \\uXXXX; / = and space stay literal"
+        );
+    }
+
+    #[test]
+    fn candidate_frame_escapes_non_ascii_like_stj() {
+        // candidate carries `+ / = < > & :` plus non-ASCII `ç é 世` — every
+        // non-ASCII code unit becomes an uppercase \uXXXX (世 is BMP → one unit);
+        // sdp_mid carries `/ +`. Proves the encode_utf16 non-ASCII path.
+        let signal = Signal {
+            from_uhid: "u".into(),
+            to_uhid: "v".into(),
+            signal_type: SignalType::IceCandidate,
+            sdp: None,
+            candidate: Some("a+b/c=d<e>f&g:h ç é 世".into()),
+            sdp_mid: Some("m/i+d".into()),
+            sdp_mline_index: 3,
+        };
+        let frame = frame_signal(&signal);
+        assert_eq!(&frame[..4], b"AWS1", "magic prefix");
+        let json = std::str::from_utf8(&frame[4..]).unwrap();
+        // Byte-identical to the Python _CS_RISKY_BODY reference (decoded) and the
+        // Kotlin/TypeScript STJ references. Full frame == "AWS1" + this body.
+        assert_eq!(
+            json,
+            "{\"FromUhid\":\"u\",\"ToUhid\":\"v\",\"Type\":2,\"Candidate\":\"a\\u002Bb/c=d\\u003Ce\\u003Ef\\u0026g:h \\u00E7 \\u00E9 \\u4E16\",\"SdpMLineIndex\":3,\"SdpMid\":\"m/i\\u002Bd\"}",
+            "STJ escapes + < > & and every non-ASCII scalar (ç é 世) as uppercase \\uXXXX"
+        );
+    }
+
+    #[test]
+    fn stj_string_escapes_control_and_short_escapes() {
+        // C0 controls: those with a short escape use it; others → \uXXXX (upper).
+        let mut out = String::new();
+        stj_string("\u{08}\t\n\u{0C}\r\\\u{01}\u{1F}", &mut out);
+        assert_eq!(out, "\"\\b\\t\\n\\f\\r\\\\\\u0001\\u001F\"");
+    }
+
+    #[test]
+    fn stj_string_emits_surrogate_pair_for_astral_scalar() {
+        // U+1F600 (astral) → two \uXXXX units (surrogate pair), uppercase hex.
+        let mut out = String::new();
+        stj_string("\u{1F600}", &mut out);
+        assert_eq!(out, "\"\\uD83D\\uDE00\"");
+    }
+
+    #[test]
+    fn stj_string_leaves_safe_ascii_and_slash_literal() {
+        // Printable ASCII except the STJ set stays literal — including `/`.
+        let mut out = String::new();
+        stj_string("Az0 /:=~!", &mut out);
+        assert_eq!(out, "\"Az0 /:=~!\"");
     }
 
     #[test]
