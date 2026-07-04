@@ -88,6 +88,22 @@ public actor PacketSigningService {
     // MARK: - Private Methods
 
     private func constructSignableData(_ packet: MeshPacket) throws -> Data {
+        Self.buildSignableData(packet)
+    }
+
+    /// Builds the canonical signable byte layout for a packet — the EXACT same
+    /// bytes the source signed and every other language implementation shares:
+    ///
+    ///   PacketNonce || TimestampMs(LE 8) || Type(LE 4) || SourceUhidLength(LE 4) ||
+    ///   SourceUhid(UTF-8) || DestinationUhidLength(LE 4) || DestinationUhid(UTF-8) ||
+    ///   SHA256(Payload)(32) || Ttl(LE 4) || Priority(LE 4)
+    ///
+    /// Exposed as a static so the routing layer's Ed25519 RREP verifier can
+    /// recompute the same signable bytes without owning a signing keypair —
+    /// mirrors C# PacketSigningService.BuildSignableData(MeshPacket). This is a
+    /// pure reformat of the EXISTING on-the-wire layout; it introduces NO new
+    /// field, ordering, or width, so the wire format and all fixtures are unchanged.
+    public static func buildSignableData(_ packet: MeshPacket) -> Data {
         var data = Data()
 
         // PacketNonce (8 bytes)

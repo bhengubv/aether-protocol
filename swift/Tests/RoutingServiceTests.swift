@@ -107,7 +107,9 @@ final class RoutingServiceTests: XCTestCase {
     func test_handleRrep_installsForwardRoute() async {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let store = InMemoryRouteStore()
-        let svc = RoutingService(sender: sender, store: store)
+        // RREP mechanics test: inject the explicit insecure accept-all verifier because
+        // the RoutingService default is now fail-closed (RejectAll) and would drop the RREP.
+        let svc = RoutingService(sender: sender, store: store, verifier: AcceptAllRouteReplyVerifier())
         await svc.handleRouteReply(newRrep(source: "carol", dest: LOCAL))
         let r = await store.get("carol")
         XCTAssertNotNil(r)
@@ -129,7 +131,9 @@ final class RoutingServiceTests: XCTestCase {
     func test_handleRrep_forwardsTowardOriginalRequester() async {
         let sender = FakeMeshSender(localUhid: LOCAL)
         let store = InMemoryRouteStore()
-        let svc = RoutingService(sender: sender, store: store)
+        // RREP mechanics test: inject the explicit insecure accept-all verifier because
+        // the RoutingService default is now fail-closed (RejectAll) and would drop the RREP.
+        let svc = RoutingService(sender: sender, store: store, verifier: AcceptAllRouteReplyVerifier())
         await store.save(RouteEntry(
             destination: "alice",
             nextHop: "bob",

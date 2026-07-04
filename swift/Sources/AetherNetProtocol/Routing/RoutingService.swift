@@ -26,7 +26,7 @@ public actor RoutingService {
     public init(
         sender: any MeshSender,
         store: any RouteStore = InMemoryRouteStore(),
-        verifier: any RouteReplyVerifier = AcceptAllRouteReplyVerifier(),
+        verifier: any RouteReplyVerifier = RejectAllRouteReplyVerifier(),
         incentives: any IncentiveProvider = NoopIncentiveProvider()
     ) {
         self.sender = sender
