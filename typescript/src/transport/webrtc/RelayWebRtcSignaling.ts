@@ -34,8 +34,9 @@
  *   {@link encodeSignalFrame}.
  *
  * (Mirrors the Go `RelayWebRtcSignaling` / `SignalingChannel` and the C# `RelayWebRtcSignaling` /
- * `ITransportService` seam. The Go carrier uses `encoding/json`, which leaves `+` literal and lowers
- * the hex of `< > &`; this TypeScript carrier instead matches the C# reference exactly.)
+ * `ITransportService` seam. Like this TypeScript carrier, the Go carrier hand-rolls the same STJ-exact
+ * escaping — `+ < > &` become uppercase `\uXXXX`, not `encoding/json`'s literal `+` / lowercase hex —
+ * so all three (and the other five SDKs) match the C# reference byte-for-byte.)
  *
  * SPDX-License-Identifier: MIT
  */

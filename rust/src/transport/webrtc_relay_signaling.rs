@@ -120,9 +120,11 @@ fn signal_type_from_u8(v: u8) -> Option<SignalType> {
 /// The JSON body is built **by hand** (not `serde_json::to_vec`) so its string
 /// escaping matches `System.Text.Json`'s default `JavaScriptEncoder.Default`
 /// byte-for-byte — including STJ's escaping of `+ < > & ' \`` and every
-/// non-ASCII code unit as uppercase `\uXXXX`. `serde_json` leaves `+ < > &`
-/// literal and would diverge from the C# reference on real SDP fingerprints
-/// (base64 `+`) and any non-ASCII ICE candidate. Field order, always-present
+/// non-ASCII code unit as uppercase `\uXXXX`. A naive JSON encoder — `serde_json`
+/// here, Go's `encoding/json`, or JS `JSON.stringify` — leaves `+ < > &` literal
+/// and would diverge on real SDP fingerprints (base64 `+`) and non-ASCII ICE
+/// candidates, so every SDK hand-rolls this identically; all 8 match the C#
+/// reference byte-for-byte. Field order, always-present
 /// `Type`/`SdpMLineIndex`, and null-omission are unchanged. `SignalDto` is
 /// retained solely for the deserialize path ([`parse_frame`]).
 pub fn frame_signal(signal: &Signal) -> Vec<u8> {
