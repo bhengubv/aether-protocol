@@ -578,6 +578,7 @@ add_custom_target(aether-tests
         test-relay-engine
         test-relay-mesh
         test-relay-transport-manager
+        test-circuit-relay-fixture
         test-sos
         test-channels
         test-videocall

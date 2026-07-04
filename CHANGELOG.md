@@ -10,6 +10,62 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+**Serverless-integration gap closure.** Five cross-language gaps closed at full function
+with byte-identical wire parity preserved (no mesh wire-serialization or fixture changed).
+Verified per language; Swift and C on the macOS build server.
+
+### Added
+
+- **Transport-backed WebRTC signalling carrier** (`RelayWebRtcSignaling`) — carries the WebRTC
+  SDP/ICE offer/answer handshake **out-of-band over any transport** (the circuit relay, the mesh,
+  or an in-process channel), so two nodes negotiate a direct data channel with **no central
+  signalling server**. Framed with a 4-byte `AWS1` magic + JSON body — out-of-band, so it changes
+  no mesh wire-serialization and no fixture. Shipped in all 8 WebRTC-capable SDKs; full headless
+  offer→answer→direct-data handshake verified in Go, TypeScript, and Rust; carrier round-trip +
+  byte-parity elsewhere.
+- **Circuit-relay-v2 auto-selected as a serverless fallback transport** — the native
+  `CircuitRelayControl` (PacketType **57**) relay engine is now wrapped as a transport and
+  registered with the `TransportManager` at last-resort power cost, so a node with no direct path
+  to a peer transparently routes through a third node that can reach both — decentralised, no
+  libp2p, no server. Shipped in all 8 SDKs; wire messages are the byte-identical `RelayFrame`
+  corpus under `fixtures/circuit-relay/`.
+
+### Security
+
+- **Fail-closed route-reply (RREP) verification** (all 8 SDKs) — AODV-style routing no longer
+  installs a forward route from an unverified RREP. The default verifier now **REJECTS** every
+  route reply (an absent or partial verifier is fail-closed), and a real `Ed25519RouteReplyVerifier`
+  accepts only an RREP carrying a valid Ed25519 signature from the node it claims to originate from
+  (checked over the shared canonical signable bytes). Closes the RREP-hijack / blackhole hole. **C**
+  previously performed *no* RREP verification at all and now ships a fail-closed verify hook. No
+  wire-format change — the packet signature field already existed and the signable-data layout is
+  reused unchanged.
+
+### Fixed
+
+- **TypeScript packet-signing determinism** — the canonical signable-bytes builder used
+  `Buffer.allocUnsafe` + a `DataView` over Node's shared buffer pool, writing to the pool offset
+  instead of the buffer and producing non-deterministic signable bytes (Ed25519 verification failed
+  intermittently under load). Fixed to `Buffer.alloc` + offset-correct writes. **Byte layout
+  unchanged** (same fields, widths, little-endian order); the cross-language fixture corpus is
+  unaffected.
+- **C `aether-tests` aggregate** — `test-circuit-relay-fixture` (the circuit-relay byte-parity test)
+  was registered but omitted from the aggregate build target, so a fresh/CI build never compiled its
+  binary. Added to the aggregate `DEPENDS`; verified on the macOS build server.
+
+### Documentation
+
+- Documented the circuit-relay-v2 engine (PacketType 57) and its `fixtures/circuit-relay/` corpus.
+- Corrected the WebRTC-transport comments across all 8 SDKs (and both WebRTC READMEs) to the
+  **serverless-by-default** design — host-candidate-only ICE, STUN/TURN optional for NAT traversal.
+- Marked the one-time-prekey-pool and C Signal-Protocol notes **resolved** in `docs/THREAT_MODEL.md`,
+  `docs/index.md`, and `docs/PROTOCOL_SPEC.md` after verifying a default-100 OPK pool and a full
+  X3DH + Double Ratchet C implementation in all 8 languages.
+- Corrected the README cross-language fixture counts (**17** wire-format fixtures, **6** Signal test
+  vectors); fixed the `CONTRIBUTING.md` repo URL and aligned its contribution posture with the README.
+  (Translated docs under `docs/i18n/**` carry the same stale ICE/OPK/C-Signal wording and are a
+  tracked follow-up.)
+
 ---
 
 ## [2.3.0] — 2026-07-03

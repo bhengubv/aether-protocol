@@ -246,7 +246,7 @@ Aether is built in 8 languages so it runs on phones, laptops, tablets, and micro
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-All 8 languages produce byte-identical wire packets, verified by 14 canonical wire-format fixtures and 4 Signal test vectors run in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, SOS broadcast, voice, streaming, and security-hardening services are implemented in every language with **~3,000 tests** across all 8 implementations:
+All 8 languages produce byte-identical wire packets, verified by 17 canonical wire-format fixtures and 6 Signal test vectors run in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, SOS broadcast, voice, streaming, and security-hardening services are implemented in every language with **~3,000 tests** across all 8 implementations:
 
 | Language | Tests | CI platform |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ All 8 languages produce byte-identical wire packets, verified by 14 canonical wi
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Total** | **~3,000** | |
 
-Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), and KDF_RK (`kdf_rk_basic`). Every implementation must produce byte-identical outputs against those fixtures. All 8 languages now ship a full Signal session (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), and the full X3DH session round-trip (`x3dh_session_msg1`, `x3dh_session_reply`). Every implementation must produce byte-identical outputs against those fixtures. All 8 languages now ship a full Signal session (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Beyond wire format and Signal, the **entire wire-service suite** — presence, heartbeat, profile sync, ephemeral-ID announce, pre-key exchange, channels, push-to-talk, screen share, call control, SOS acknowledgement, space breadcrumbs, forge announce, vault shard request, and bandwidth measurement (see [What you get](#what-you-get--every-service-in-every-language)) — is likewise implemented in all 8 languages and pinned to its own fixtures (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, and siblings). No feature is C#-only at the protocol layer.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 What's built and what's next.
 
 **Done (verified cross-language, all 8 implementations):**
-- Wire format: byte-identical across 8 languages, anchored by 14 canonical fixtures and cross-language assertions in CI (`fixtures/expected/*.bin`)
+- Wire format: byte-identical across 8 languages, anchored by 17 canonical fixtures and cross-language assertions in CI (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — 9-job matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus fixture integrity job) in `.github/workflows/ci.yml`.
 - Ed25519 packet signing and verification
 - AES-256-GCM encryption
