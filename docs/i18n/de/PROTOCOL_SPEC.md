@@ -16,7 +16,7 @@
 > Die C#-Referenzimplementierung ist überall dort maßgeblich, wo dieses
 > Dokument und die Implementierung voneinander abweichen.
 >
-> - Kanonische Wire-Bytes: `fixtures/expected/*.bin` (10 benannte Testfälle)
+> - Kanonische Wire-Bytes: `fixtures/expected/*.bin` (17 benannte Testfälle)
 > - Referenz-Serializer: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - Referenz-Signal-Stack: `src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - Referenz-Routing: `src/AetherNet.Core/Routing/RoutingService.cs`
@@ -52,7 +52,7 @@ Aether ist ein dezentralisiertes Mesh-Netzwerkprotokoll, das für Umgebungen mit
 ## 2. Paketformat
 
 > Abgeglichen am 2026-05-05 mit `src/AetherNet.Core/Protocol/PacketSerializer.cs`
-> und den 10 Fixture-Testfällen unter `fixtures/expected/`.
+> und den 17 Fixture-Testfällen unter `fixtures/expected/`.
 
 ### 2.1. MeshPacket Wire-Layout
 

@@ -146,8 +146,8 @@ consommé, OPK mise à zéro + marquée `consumed` lors du X3DH du répondeur).
 Chaque implémentation doit produire des sorties byte-identiques par rapport au corpus
 de fixtures sous `fixtures/` :
 
-- `fixtures/expected/*.bin` — 10 fixtures de sérialisation de paquets, 122
-  assertions d'égalité d'octets cross-langage en CI.
+- `fixtures/expected/*.bin` — 17 fixtures de sérialisation de paquets, dont l'égalité d'octets
+  est vérifiée dans les 8 langages en CI.
 - `fixtures/signal/expected/x3dh_basic.json` — calculs X3DH (4 DH X25519,
   HKDF-SHA256 racine avec `info = "aether-x3dh-root-v1"`).
 - `fixtures/signal/expected/ratchet_step_basic.json`,

@@ -70,7 +70,7 @@ Double Ratchet در هر مرحله DH-rotation یک کلید زنجیره ار�
 
 هر پیاده‌سازی باید خروجی‌های بایت-یکسان در برابر مجموعه fixture در `fixtures/` تولید کند:
 
-- `fixtures/expected/*.bin` — ۱۰ fixture سریال‌سازی بسته، ۱۲۲ assertion برابری بایت چندزبانه در CI.
+- `fixtures/expected/*.bin` — ۱۷ fixture سریال‌سازی بسته، با بررسی برابری بایت در هر ۸ زبان در CI.
 - `fixtures/signal/expected/x3dh_basic.json` — ریاضیات X3DH (۴ DH مربوط به X25519، HKDF-SHA256 root با `info = "aether-x3dh-root-v1"`).
 - `fixtures/signal/expected/ratchet_step_basic.json`، `ratchet_step_three_iterations.json` — KDFهای ratchet متقارن.
 - `fixtures/signal/expected/kdf_rk_basic.json` — مرحله DH-ratchet.

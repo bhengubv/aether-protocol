@@ -88,7 +88,7 @@ OPK-الواحد-لكل-جلسة: Rust
 
 يجب على كل تنفيذ إنتاج مخرجات متطابقة بالبايت مقابل مجموعة التثبيت في `fixtures/`:
 
-- `fixtures/expected/*.bin` — 10 تثبيتات لتسلسل الحزم، 122 تأكيد مساواة بالبايت متعدد اللغات في CI.
+- `fixtures/expected/*.bin` — 17 تثبيتًا لتسلسل الحزم، يُتحقَّق من تطابق البايتات عبر جميع اللغات الثماني في CI.
 - `fixtures/signal/expected/x3dh_basic.json` — رياضيات X3DH (4 عمليات X25519 DH، HKDF-SHA256 جذر مع `info = "aether-x3dh-root-v1"`).
 - `fixtures/signal/expected/ratchet_step_basic.json`، `ratchet_step_three_iterations.json` — KDFs التحريك التماثلي.
 - `fixtures/signal/expected/kdf_rk_basic.json` — خطوة DH-ratchet.

@@ -146,8 +146,8 @@ OPK zeroed + marked `consumed` on responder X3DH).
 Every implementation must produce byte-identical outputs against the
 fixture corpus under `fixtures/`:
 
-- `fixtures/expected/*.bin` — 10 packet-serialization fixtures, 122
-  cross-language byte-equality assertions in CI.
+- `fixtures/expected/*.bin` — 17 packet-serialization fixtures, byte-equality-checked
+  across all 8 languages in CI.
 - `fixtures/signal/expected/x3dh_basic.json` — X3DH math (4 X25519 DHs,
   HKDF-SHA256 root with `info = "aether-x3dh-root-v1"`).
 - `fixtures/signal/expected/ratchet_step_basic.json`,

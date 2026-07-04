@@ -9,7 +9,7 @@
 
 > **یادداشت برای خواننده.** پیش‌نویس‌های قدیمی‌تر این سند پیش از هم‌ترازی فرمت سیم ۸ زبانه و انتقال سراسری به X25519 + Signal Double Ratchet نوشته شده‌اند. از تاریخ 2026-05-05، بخش‌های §2 (فرمت بسته)، §3 (مسیریابی)، §4 (تبادل کلید)، §9 (DTN) پروتکل پیاده‌سازی‌شده را توصیف می‌کنند؛ §10 (پخش ویدیو) و §11 (تماشای مشترک) پروتکل هدف را توصیف می‌کنند — این بخش‌ها در سطح سیم تعریف شده و آزمون‌های fixture دارند، اما خط‌لوله‌های کدک / BitTorrent / ChipIn هنوز به داربست متصل نشده‌اند. پیاده‌سازی مرجع C# در هر جایی که این سند با پیاده‌سازی تفاوت دارد، معتبر است.
 >
-> - بایت‌های سیم متعارف: `fixtures/expected/*.bin` (۱۰ حالت نام‌گذاری‌شده)
+> - بایت‌های سیم متعارف: `fixtures/expected/*.bin` (۱۷ حالت نام‌گذاری‌شده)
 > - سریالایزر مرجع: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - پشته‌ی Signal مرجع: `src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - مسیریابی مرجع: `src/AetherNet.Core/Routing/RoutingService.cs`
@@ -45,7 +45,7 @@ Aether یک پروتکل شبکه‌ی مِش غیرمتمرکز است که ب�
 ## 2. فرمت بسته
 
 > تطبیق‌یافته در 2026-05-05 با `src/AetherNet.Core/Protocol/PacketSerializer.cs`
-> و ۱۰ حالت fixture زیر `fixtures/expected/`.
+> و ۱۷ حالت fixture زیر `fixtures/expected/`.
 
 ### 2.1. چیدمان سیم MeshPacket
 

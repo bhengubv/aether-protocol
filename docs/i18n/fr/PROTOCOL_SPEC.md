@@ -14,7 +14,7 @@
 > BitTorrent / ChipIn ne sont pas encore liés à l'échafaudage. La référence C#
 > fait autorité partout où ce document et l'implémentation divergent.
 >
-> - Octets canoniques sur le fil : `fixtures/expected/*.bin` (10 cas nommés)
+> - Octets canoniques sur le fil : `fixtures/expected/*.bin` (17 cas nommés)
 > - Sérialiseur de référence : `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - Pile Signal de référence : `src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - Routage de référence : `src/AetherNet.Core/Routing/RoutingService.cs`
@@ -50,7 +50,7 @@ Aether est un protocole de réseau maillé décentralisé conçu pour les enviro
 ## 2. Format des paquets
 
 > Réconcilié le 2026-05-05 avec `src/AetherNet.Core/Protocol/PacketSerializer.cs`
-> et les 10 cas de fixture sous `fixtures/expected/`.
+> et les 17 cas de fixture sous `fixtures/expected/`.
 
 ### 2.1. Disposition sur le fil du MeshPacket
 

@@ -7,7 +7,7 @@
 
 > **读者提示。** 本文档的早期草稿早于 8 语言线路格式对齐以及全系列移植至 X25519 + Signal Double Ratchet 之前。截至 2026-05-05，§2（数据包格式）、§3（路由）、§4（密钥交换）、§9（DTN）描述已实现的协议；§10（视频流）和 §11（一起观看）描述目标协议——它们已完成线路定义和夹具测试，但编解码器 / BitTorrent / ChipIn 流水线尚未绑定到脚手架。在本文档与实现存在分歧的地方，C# 参考实现具有权威性。
 >
-> - 规范线路字节：`fixtures/expected/*.bin`（10 个命名用例）
+> - 规范线路字节：`fixtures/expected/*.bin`（17 个命名用例）
 > - 参考序列化器：`src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - 参考 Signal 栈：`src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - 参考路由：`src/AetherNet.Core/Routing/RoutingService.cs`
@@ -42,7 +42,7 @@ Aether 是一种去中心化网状网络协议，专为网络连接间歇或完�
 
 ## 2. 数据包格式
 
-> 已于 2026-05-05 对照 `src/AetherNet.Core/Protocol/PacketSerializer.cs` 及 `fixtures/expected/` 下的 10 个夹具用例进行对齐。
+> 已于 2026-05-05 对照 `src/AetherNet.Core/Protocol/PacketSerializer.cs` 及 `fixtures/expected/` 下的 17 个夹具用例进行对齐。
 
 ### 2.1 MeshPacket 线路布局
 

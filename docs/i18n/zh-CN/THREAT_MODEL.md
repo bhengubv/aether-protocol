@@ -67,7 +67,7 @@
 
 每个实现必须针对 `fixtures/` 下的固件语料库产生按字节相同的输出：
 
-- `fixtures/expected/*.bin` — 10 个数据包序列化固件，CI 中包含 122 个跨语言字节相等性断言。
+- `fixtures/expected/*.bin` — 17 个数据包序列化固件，在 CI 中对全部 8 种语言进行字节相等性校验。
 - `fixtures/signal/expected/x3dh_basic.json` — X3DH 数学运算（4 个 X25519 DH，在 `info = "aether-x3dh-root-v1"` 上使用 HKDF-SHA256 根密钥）。
 - `fixtures/signal/expected/ratchet_step_basic.json`、`ratchet_step_three_iterations.json` — 对称棘轮 KDF。
 - `fixtures/signal/expected/kdf_rk_basic.json` — DH 棘轮步骤。

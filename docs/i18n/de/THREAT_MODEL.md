@@ -151,8 +151,8 @@ unverbrauchten OPK, OPK bei Responder-X3DH genullt und als `consumed` markiert).
 Jede Implementierung muss byte-identische Ausgaben gegen das Fixture-Korpus unter
 `fixtures/` erzeugen:
 
-- `fixtures/expected/*.bin` — 10 Paketserialisierungs-Fixtures, 122
-  sprachübergreifende Byte-Gleichheits-Assertions in CI.
+- `fixtures/expected/*.bin` — 17 Paketserialisierungs-Fixtures, in CI über alle
+  8 Sprachen auf Byte-Gleichheit geprüft.
 - `fixtures/signal/expected/x3dh_basic.json` — X3DH-Mathematik (4 X25519-DHs,
   HKDF-SHA256 Root mit `info = "aether-x3dh-root-v1"`).
 - `fixtures/signal/expected/ratchet_step_basic.json`,

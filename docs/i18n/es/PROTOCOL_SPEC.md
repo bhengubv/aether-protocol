@@ -16,7 +16,7 @@
 > referencia en C# es autoritativa en cualquier punto donde este documento
 > y la implementación difieran.
 >
-> - Bytes canónicos en cable: `fixtures/expected/*.bin` (10 casos con nombre)
+> - Bytes canónicos en cable: `fixtures/expected/*.bin` (17 casos con nombre)
 > - Serializador de referencia: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - Pila Signal de referencia: `src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - Enrutamiento de referencia: `src/AetherNet.Core/Routing/RoutingService.cs`
@@ -52,7 +52,7 @@ Aether es un protocolo de red en malla descentralizado diseñado para entornos c
 ## 2. Formato de Paquete
 
 > Reconciliado el 2026-05-05 con `src/AetherNet.Core/Protocol/PacketSerializer.cs`
-> y los 10 casos de fixture bajo `fixtures/expected/`.
+> y los 17 casos de fixture bajo `fixtures/expected/`.
 
 ### 2.1. Disposición en Cable de MeshPacket
 

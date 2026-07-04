@@ -127,8 +127,8 @@ Swift (`swift/Sources/AetherNetProtocol/Security/SignalProtocol.swift` —
 
 모든 구현체는 `fixtures/` 아래의 픽스처 코퍼스에 대해 바이트 단위로 동일한 출력을 생성해야 합니다:
 
-- `fixtures/expected/*.bin` — 10개의 패킷 직렬화 픽스처, CI에서 122개의 크로스-언어 바이트
-  동등성 어설션.
+- `fixtures/expected/*.bin` — 17개의 패킷 직렬화 픽스처, CI에서 8개 언어 전체에 대해
+  바이트 동등성 검증.
 - `fixtures/signal/expected/x3dh_basic.json` — X3DH 수학 (4개의 X25519 DH,
   HKDF-SHA256 루트, `info = "aether-x3dh-root-v1"`).
 - `fixtures/signal/expected/ratchet_step_basic.json`, `ratchet_step_three_iterations.json`

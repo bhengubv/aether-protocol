@@ -141,8 +141,8 @@ OPK обнуляется и помечается `consumed` при X3DH на с�
 Каждая реализация должна давать побайтово идентичные выходные данные на корпусе
 fixture под `fixtures/`:
 
-- `fixtures/expected/*.bin` — 10 fixture-файлов сериализации пакетов, 122
-  кросс-языковых утверждения о байтовом равенстве в CI.
+- `fixtures/expected/*.bin` — 17 fixture-файлов сериализации пакетов, проверяемых
+  на побайтовое равенство во всех 8 языках в CI.
 - `fixtures/signal/expected/x3dh_basic.json` — математика X3DH (4 X25519 DH,
   HKDF-SHA256 с `info = "aether-x3dh-root-v1"`).
 - `fixtures/signal/expected/ratchet_step_basic.json`,

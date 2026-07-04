@@ -15,7 +15,7 @@
 > scaffolding. The C# reference is authoritative everywhere this
 > document and the implementation diverge.
 >
-> - Canonical wire bytes: `fixtures/expected/*.bin` (10 named cases)
+> - Canonical wire bytes: `fixtures/expected/*.bin` (17 named cases)
 > - Reference serializer: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - Reference Signal stack: `src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - Reference routing: `src/AetherNet.Core/Routing/RoutingService.cs`
@@ -51,7 +51,7 @@ Aether is a decentralised mesh networking protocol designed for environments wit
 ## 2. Packet Format
 
 > Reconciled 2026-05-05 against `src/AetherNet.Core/Protocol/PacketSerializer.cs`
-> and the 10 fixture cases under `fixtures/expected/`.
+> and the 17 fixture cases under `fixtures/expected/`.
 
 ### 2.1. MeshPacket Wire Layout
 

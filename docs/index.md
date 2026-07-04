@@ -25,7 +25,7 @@ Aether reference implementation in C# / .NET 10, with cross-language interoperab
 
 | Component                      | Status        | Notes                                           |
 |--------------------------------|---------------|-------------------------------------------------|
-| Wire format (8-language parity)| Implemented   | 10 named fixture cases under `fixtures/expected/`|
+| Wire format (8-language parity)| Implemented   | 17 named fixture cases under `fixtures/expected/`|
 | X25519 key exchange            | Implemented   | All 8 reference languages                       |
 | X3DH (Signal handshake)        | Implemented   | All 8 languages; pinned to fixtures             |
 | Double Ratchet                 | Implemented   | DH ratchet + 0x01/0x02 chain ratchet            |

@@ -14,7 +14,7 @@
 > スキャフォールディングに結合されていません。本ドキュメントと実装が乖離している箇所では、
 > C# リファレンスが正式なものとして扱われます。
 >
-> - 正規ワイヤーバイト列: `fixtures/expected/*.bin`（10の名前付きケース）
+> - 正規ワイヤーバイト列: `fixtures/expected/*.bin`（17の名前付きケース）
 > - リファレンスシリアライザ: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - リファレンスシグナルスタック: `src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - リファレンスルーティング: `src/AetherNet.Core/Routing/RoutingService.cs`
@@ -50,7 +50,7 @@ Aether は、インターネット接続が断続的または存在しない環�
 ## 2. パケットフォーマット
 
 > 2026-05-05 に `src/AetherNet.Core/Protocol/PacketSerializer.cs` および
-> `fixtures/expected/` 配下の 10 フィクスチャケースと照合済み。
+> `fixtures/expected/` 配下の 17 フィクスチャケースと照合済み。
 
 ### 2.1. MeshPacket ワイヤーレイアウト
 

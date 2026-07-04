@@ -15,7 +15,7 @@
 > каркасу. Реализация на C# является авторитетным источником везде, где
 > настоящий документ и реализация расходятся.
 >
-> - Канонические байты wire: `fixtures/expected/*.bin` (10 именованных случаев)
+> - Канонические байты wire: `fixtures/expected/*.bin` (17 именованных случаев)
 > - Эталонный сериализатор: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - Эталонный стек Signal: `src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - Эталонная маршрутизация: `src/AetherNet.Core/Routing/RoutingService.cs`
@@ -52,7 +52,7 @@ Aether — это децентрализованный протокол ячеи
 
 > Сверено 2026-05-05 с эталонной реализацией на C# в
 > `src/AetherNet.Core/Protocol/PacketSerializer.cs`
-> и 10 fixture-случаями в `fixtures/expected/`.
+> и 17 fixture-случаями в `fixtures/expected/`.
 
 ### 2.1. Структура MeshPacket на уровне wire
 

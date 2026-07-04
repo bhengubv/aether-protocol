@@ -13,7 +13,7 @@
 > 코덱 / BitTorrent / ChipIn 파이프라인은 아직 스캐폴딩에 연결되지 않았습니다.
 > 이 문서와 구현이 일치하지 않는 경우 C# 레퍼런스가 최종 권위를 갖습니다.
 >
-> - 표준 와이어 바이트: `fixtures/expected/*.bin` (10개 지정 케이스)
+> - 표준 와이어 바이트: `fixtures/expected/*.bin` (17개 지정 케이스)
 > - 레퍼런스 직렬화기: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - 레퍼런스 Signal 스택: `src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - 레퍼런스 라우팅: `src/AetherNet.Core/Routing/RoutingService.cs`
@@ -49,7 +49,7 @@ Aether는 인터넷 연결이 불안정하거나 전혀 없는 환경을 위해 
 ## 2. 패킷 포맷
 
 > 2026-05-05에 `src/AetherNet.Core/Protocol/PacketSerializer.cs` 및
-> `fixtures/expected/` 하위의 10개 픽스처 케이스와 대조하여 일치 확인 완료.
+> `fixtures/expected/` 하위의 17개 픽스처 케이스와 대조하여 일치 확인 완료.
 
 ### 2.1. MeshPacket 와이어 레이아웃
 

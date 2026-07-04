@@ -85,7 +85,7 @@ X3DH で OPK をゼロ化し `consumed` にマーク）。
 
 すべての実装は `fixtures/` 以下のフィクスチャコーパスに対してバイト同一の出力を生成しなければなりません:
 
-- `fixtures/expected/*.bin` — 10 のパケットシリアライゼーションフィクスチャ、CI での 122 のクロス言語バイト等価アサーション。
+- `fixtures/expected/*.bin` — 17 のパケットシリアライゼーションフィクスチャ、CI で全 8 言語にわたりバイト等価性を検証。
 - `fixtures/signal/expected/x3dh_basic.json` — X3DH 計算（4 つの X25519 DH、`info = "aether-x3dh-root-v1"` での HKDF-SHA256 ルート）。
 - `fixtures/signal/expected/ratchet_step_basic.json`、`ratchet_step_three_iterations.json` — 対称ラチェット KDF。
 - `fixtures/signal/expected/kdf_rk_basic.json` — DH ラチェットステップ。

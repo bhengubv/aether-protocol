@@ -15,7 +15,7 @@
 > ChipIn ainda não estão vinculados ao scaffolding. A referência em C#
 > é autoritativa em todo lugar onde este documento e a implementação divergem.
 >
-> - Bytes de wire canônicos: `fixtures/expected/*.bin` (10 casos nomeados)
+> - Bytes de wire canônicos: `fixtures/expected/*.bin` (17 casos nomeados)
 > - Serializador de referência: `src/AetherNet.Core/Protocol/PacketSerializer.cs`
 > - Pilha Signal de referência: `src/AetherNet.Security/Services/SignalProtocolService.cs`
 > - Roteamento de referência: `src/AetherNet.Core/Routing/RoutingService.cs`
@@ -62,7 +62,7 @@ de pares gateway que fazem a ponte entre o tráfego de malha e a internet.
 ## 2. Formato de Pacote
 
 > Reconciliado em 2026-05-05 com `src/AetherNet.Core/Protocol/PacketSerializer.cs`
-> e os 10 casos de fixture em `fixtures/expected/`.
+> e os 17 casos de fixture em `fixtures/expected/`.
 
 ### 2.1. Layout de Wire do MeshPacket
 
