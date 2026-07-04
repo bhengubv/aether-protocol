@@ -20,7 +20,7 @@ import { MeshPacket } from "../protocol/MeshPacket.js";
 import { PacketType } from "../protocol/PacketType.js";
 import { IMeshSender } from "./IMeshSender.js";
 import { InMemoryRouteStore, IRouteStore } from "./IRouteStore.js";
-import { AcceptAllRouteReplyVerifier, IRouteReplyVerifier } from "./IRouteReplyVerifier.js";
+import { RejectAllRouteReplyVerifier, IRouteReplyVerifier } from "./IRouteReplyVerifier.js";
 
 interface PendingDiscovery {
   resolve: (route: RouteEntry | null) => void;
@@ -39,7 +39,11 @@ export class RoutingService {
   constructor(
     private readonly sender: IMeshSender,
     private readonly store: IRouteStore = new InMemoryRouteStore(),
-    private readonly verifier: IRouteReplyVerifier = new AcceptAllRouteReplyVerifier(),
+    // Fail-closed: with no verifier supplied, REJECT every RREP rather than
+    // trusting unverified route replies (which would let any forwarder hijack
+    // routes). A host wires a real signature verifier (e.g. the Ed25519
+    // route-reply verifier in security/) to permit legitimate, signed RREPs.
+    private readonly verifier: IRouteReplyVerifier = new RejectAllRouteReplyVerifier(),
     private readonly incentives: IncentiveProvider = new NoopIncentiveProvider(),
   ) {}
 

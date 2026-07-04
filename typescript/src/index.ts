@@ -46,6 +46,7 @@ export type {
 export {
   signPacket,
   verifyPacket,
+  buildSignableData,
   PacketDeduplicator,
 } from "./security/PacketSigning.js";
 

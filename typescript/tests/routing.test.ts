@@ -251,7 +251,9 @@ function makeRreq(sourceUhid: string, destinationUhid: string): MeshPacket {
 
 test("rreqFloodFiresReputation", async () => {
   const sender = new FakeMeshSender("local");
-  const svc = new RoutingService(sender);
+  // RREQ-mechanics test — inject explicit accept-all so it doesn't depend on
+  // the (now fail-closed) default RREP verifier. It never handles an RREP.
+  const svc = new RoutingService(sender, undefined, new AcceptAllRouteReplyVerifier());
   const rep = new FakeReputation();
   svc.setReputation(rep as unknown as NodeReputationService);
 
@@ -266,7 +268,8 @@ test("rreqFloodFiresReputation", async () => {
 
 test("rreqNormalTrafficNotPenalised", async () => {
   const sender = new FakeMeshSender("local");
-  const svc = new RoutingService(sender);
+  // RREQ-mechanics test — inject explicit accept-all (see note above).
+  const svc = new RoutingService(sender, undefined, new AcceptAllRouteReplyVerifier());
   const rep = new FakeReputation();
   svc.setReputation(rep as unknown as NodeReputationService);
 
@@ -278,7 +281,8 @@ test("rreqNormalTrafficNotPenalised", async () => {
 
 test("rreqFloodWithoutReputationNoError", async () => {
   const sender = new FakeMeshSender("local");
-  const svc = new RoutingService(sender);
+  // RREQ-mechanics test — inject explicit accept-all (see note above).
+  const svc = new RoutingService(sender, undefined, new AcceptAllRouteReplyVerifier());
 
   for (let i = 0; i <= RREQ_RATE_LIMIT_MAX; i++) {
     await svc.handleRouteRequest(makeRreq("attacker", "dest"));
