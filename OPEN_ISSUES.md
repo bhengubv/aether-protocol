@@ -4,8 +4,8 @@
 Tracked items remaining before `aether-protocol` can be presented as a
 production-grade Signal-Protocol-style end-to-end-encrypted mesh primitive.
 The wire format and routing/DTN/SOS service layers are at production grade
-(verified by ~3,000 tests across 8 languages + 14 wire-format fixtures +
-4 Signal test vectors with cross-language byte-equality assertions in CI).
+(verified by ~3,000 tests across 8 languages + 17 wire-format fixtures +
+6 Signal test vectors with cross-language byte-equality assertions in CI).
 Everything below is the cryptographic-protocol layer plus documentation honesty.
 
 Last reviewed: 2026-05-11 (Items 15–18: NodeReputationService, BehavioralAnomalyDetector,
@@ -13,6 +13,28 @@ ReputationGossipService across all 8 languages; PacketType.ReputationUpdate = 52
 threat model §2.11/§2.12 resolved; DI wiring AddReputation/AddAnomalyDetector/AddGossip;
 RF bring-up still open. Items 19–21: RREQ-flood hooks, DTN hooks, PacketSigning
 hooks ported to all non-C# languages — all three items fully resolved 2026-05-11).
+
+---
+
+## 2.4.1 audit follow-ups — RESOLVED 2026-07-04
+
+A skeptical audit after the 2.4.0 serverless-integration closure found four loose ends; all four are
+resolved across all 8 SDKs (`a477dc2`..`6ef6f98`), **no mesh wire byte or fixture changed**:
+
+1. **Signalling frame not structurally pinned.** Each language hardcoded its own golden copy of the
+   `AWS1`+JSON WebRTC frame — they agreed, but nothing enforced it. RESOLVED: one shared
+   `fixtures/webrtc/` corpus (Go oracle `go/cmd/webrtcfixturegen`); every SDK's signalling test now
+   reads it and byte-compares, and the per-language golden literals are removed — editing the
+   fixture fails all 8.
+2. **Stale "10 fixtures" design-doc count.** RESOLVED: corrected to 17 wire-format fixtures / 6
+   Signal vectors across `docs/` and all 10 translated PROTOCOL_SPEC/THREAT_MODEL; the stale
+   "122 assertions" figure dropped.
+3. **Stale "Go diverges" comments** (TypeScript + Rust signalling source). RESOLVED: corrected — no
+   comment implies any SDK's frame diverges; all 8 hand-roll the STJ-exact escaping and match C#
+   byte-for-byte.
+4. **No committed test-run evidence.** RESOLVED: `TEST_RUN_2.4.1.md` records real per-language
+   passing runs (Swift + C on the macOS build server); the out-of-scope aiortc real-P2P
+   byte-exchange tests are named honestly as network-dependent, not a regression.
 
 ---
 
