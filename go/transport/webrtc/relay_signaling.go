@@ -5,6 +5,8 @@ package webrtc
 import (
 	"context"
 	"encoding/json"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -60,14 +62,11 @@ func NewRelayWebRtcSignaling(channel SignalingChannel) *RelayWebRtcSignaling {
 
 // SendSignal frames s as AWS1 + JSON and sends it over the transport channel to its addressee.
 func (r *RelayWebRtcSignaling) SendSignal(peerUhid string, s Signal) error {
-	body, err := json.Marshal(toWire(s))
-	if err != nil {
-		return err
-	}
+	body := serializeSignalBody(toWire(s))
 	frame := make([]byte, 0, len(signalMagic)+len(body))
 	frame = append(frame, signalMagic...)
 	frame = append(frame, body...)
-	_, err = r.channel.SendAsync(context.Background(), peerUhid, frame)
+	_, err := r.channel.SendAsync(context.Background(), peerUhid, frame)
 	return err
 }
 
@@ -146,4 +145,102 @@ func fromWire(w wireSignal) Signal {
 		SDPMid:        w.SdpMid,
 		SDPMLineIndex: w.SdpMLineIndex,
 	}
+}
+
+// serializeSignalBody renders the JSON body byte-identically to C# System.Text.Json's source-generated
+// output for the WebRtcSignal record (WhenWritingNull). It is built by hand — not via encoding/json — so
+// that key order, always-present numeric fields, null-omission AND string escaping all match STJ's default
+// encoder. encoding/json diverges on escaping: it leaves '+' literal and lowercases the \uXXXX hex of
+// '<', '>', '&'. The empty-string omission here mirrors the C# nullable strings under WhenWritingNull
+// (empty == unset in the Go domain type), matching the omitempty behaviour the struct tags used to give.
+//
+// Mirrors the TypeScript serializeSignalBody in RelayWebRtcSignaling.ts and the C# reference.
+func serializeSignalBody(w wireSignal) string {
+	var b strings.Builder
+	b.WriteByte('{')
+	// Declaration order, matching the C# record / STJ source-gen emission order.
+	b.WriteString(`"FromUhid":`)
+	stjString(&b, w.FromUhid)
+	b.WriteString(`,"ToUhid":`)
+	stjString(&b, w.ToUhid)
+	b.WriteString(`,"Type":`)
+	b.WriteString(strconv.Itoa(w.Type))
+	if w.Sdp != "" {
+		b.WriteString(`,"Sdp":`)
+		stjString(&b, w.Sdp)
+	}
+	if w.Candidate != "" {
+		b.WriteString(`,"Candidate":`)
+		stjString(&b, w.Candidate)
+	}
+	// Non-nullable ushort in C#: always written, even when 0.
+	b.WriteString(`,"SdpMLineIndex":`)
+	b.WriteString(strconv.FormatUint(uint64(w.SdpMLineIndex), 10))
+	if w.SdpMid != "" {
+		b.WriteString(`,"SdpMid":`)
+		stjString(&b, w.SdpMid)
+	}
+	b.WriteByte('}')
+	return b.String()
+}
+
+// stjString writes a JSON string literal (including the surrounding quotes) to b, escaped exactly as
+// System.Text.Json's default JavaScriptEncoder.Default does. Beyond the JSON-mandated escapes, STJ escapes
+// '"', '&', '\'', '+', '<', '>', backtick AND every non-ASCII code point as UPPERCASE \uXXXX — unlike
+// encoding/json, whose HTML escaping only covers '<', '>', '&' (lowercased) and which leaves '+' literal.
+//
+// Go strings are UTF-8; STJ operates per UTF-16 code unit, so we decode to runes and emit each as its
+// UTF-16 encoding: a BMP rune is one \uXXXX (== the code point), an astral rune (> U+FFFF) is its surrogate
+// pair (two \uXXXX). '/' stays literal. Mirrors stjString + STJ_ESCAPE_ASCII in RelayWebRtcSignaling.ts.
+func stjString(b *strings.Builder, s string) {
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case 0x08:
+			b.WriteString(`\b`)
+		case 0x09:
+			b.WriteString(`\t`)
+		case 0x0A:
+			b.WriteString(`\n`)
+		case 0x0C:
+			b.WriteString(`\f`)
+		case 0x0D:
+			b.WriteString(`\r`)
+		case 0x5C:
+			b.WriteString(`\\`)
+		default:
+			if r >= 0x20 && r <= 0x7E && !stjEscapeASCII(r) {
+				b.WriteRune(r)
+			} else if r <= 0xFFFF {
+				// BMP code unit — one \uXXXX equal to the code point.
+				writeUnicodeEscape(b, uint16(r))
+			} else {
+				// Astral plane — emit the UTF-16 surrogate pair as two \uXXXX.
+				c := uint32(r) - 0x10000
+				writeUnicodeEscape(b, uint16(0xD800+(c>>10)))
+				writeUnicodeEscape(b, uint16(0xDC00+(c&0x3FF)))
+			}
+		}
+	}
+	b.WriteByte('"')
+}
+
+// stjEscapeASCII reports whether an ASCII code point in 0x20–0x7E is one STJ's default encoder escapes as
+// \uXXXX even though plain JSON would not: '"' '&' '\'' '+' '<' '>' backtick. Mirrors STJ_ESCAPE_ASCII.
+func stjEscapeASCII(r rune) bool {
+	switch r {
+	case 0x22, 0x26, 0x27, 0x2B, 0x3C, 0x3E, 0x60: // " & ' + < > `
+		return true
+	}
+	return false
+}
+
+// writeUnicodeEscape appends \u followed by the UPPERCASE 4-hex of a single UTF-16 code unit.
+func writeUnicodeEscape(b *strings.Builder, u uint16) {
+	const hex = "0123456789ABCDEF"
+	b.WriteString(`\u`)
+	b.WriteByte(hex[(u>>12)&0xF])
+	b.WriteByte(hex[(u>>8)&0xF])
+	b.WriteByte(hex[(u>>4)&0xF])
+	b.WriteByte(hex[u&0xF])
 }

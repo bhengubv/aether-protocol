@@ -4,6 +4,8 @@ package webrtc
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -243,6 +245,66 @@ func TestRelaySignaling_WireFormatMatchesCSharp(t *testing.T) {
 	wantCand := `AWS1{"FromUhid":"alice","ToUhid":"bob","Type":2,"Candidate":"cand","SdpMLineIndex":1,"SdpMid":"0"}`
 	if string(captured) != wantCand {
 		t.Fatalf("candidate wire frame mismatch:\n got %s\nwant %s", string(captured), wantCand)
+	}
+}
+
+// TestRelaySignaling_WireFormatEscapesExoticCharsLikeCSharp pins the STJ-exact string escaping. An SDP or
+// candidate carrying '+ < > &' (real base64 fingerprints have '+') or non-ASCII must frame byte-for-byte
+// as C#'s System.Text.Json emits: '+ < > &' each become an UPPERCASE \uXXXX and every non-ASCII code point
+// becomes an UPPERCASE \uXXXX per UTF-16 code unit, while '/', '=', ':' and space stay literal. This is
+// exactly where encoding/json diverges — it leaves '+' literal and would lowercase the hex of '<>&'. These
+// golden frames are byte-for-byte the same vectors the TypeScript (CS_ESCAPING_JSON) and Python
+// (_CS_RISKY_BODY_HEX) references assert against the C# reference, so matching them proves cross-language
+// byte-identity. The INPUT strings hold the raw chars (base64 '+', literal '< > &', UTF-8 'ç é 世'); the
+// expected wire form escapes them.
+func TestRelaySignaling_WireFormatEscapesExoticCharsLikeCSharp(t *testing.T) {
+	var captured []byte
+	capture := &captureChannel{onSend: func(data []byte) { captured = data }}
+	sig := NewRelayWebRtcSignaling(capture)
+
+	// u builds a literal \uXXXX escape (uppercase hex) from a code unit, so the expected wire strings
+	// below are assembled unambiguously from a single backslash byte — no reliance on backslash escapes
+	// surviving verbatim in a source string literal.
+	bs := string([]byte{0x5C}) // a single backslash
+	u := func(cu int) string {
+		h := strings.ToUpper(strconv.FormatInt(int64(cu), 16))
+		for len(h) < 4 {
+			h = "0" + h // zero-pad to 4 hex digits: + not \u2B
+		}
+		return bs + "u" + h
+	}
+	plus, lt, gt, amp := u(0x2B), u(0x3C), u(0x3E), u(0x26) // + < > & -> + < > &
+
+	// An offer whose SDP carries '+', '/', '=', '<', '>', '&'. STJ escapes '+ < > &' to uppercase \uXXXX
+	// and leaves '/' and '=' literal. (encoding/json would leave '+' literal and lowercase the '<>&' hex.)
+	if err := sig.SendSignal("b", Signal{
+		FromUhid: "a", ToUhid: "b", Type: SignalOffer,
+		SDP: "a=fingerprint:sha-256 AB+/CD=xy <t> &z ual/set+ice",
+	}); err != nil {
+		t.Fatalf("send offer: %v", err)
+	}
+	wantOffer := `AWS1{"FromUhid":"a","ToUhid":"b","Type":0,"Sdp":"a=fingerprint:sha-256 AB` +
+		plus + `/CD=xy ` + lt + `t` + gt + ` ` + amp + `z ual/set` + plus + `ice` +
+		`","SdpMLineIndex":0}`
+	if string(captured) != wantOffer {
+		t.Fatalf("exotic-char offer frame mismatch:\n got %s\nwant %s", string(captured), wantOffer)
+	}
+
+	// A candidate carrying '+ / < > & : =' plus non-ASCII (ç é 世). Every non-ASCII code point becomes an
+	// uppercase \uXXXX (ç -> ç, é -> é, 世 -> 世); ':' '=' '/' and space stay literal; sdpMid
+	// keeps its '/' literal and escapes its '+'.
+	cc, ee, shi := u(0xE7), u(0xE9), u(0x4E16) // ç é 世
+	if err := sig.SendSignal("v", Signal{
+		FromUhid: "u", ToUhid: "v", Type: SignalCandidate,
+		Candidate: "a+b/c=d<e>f&g:h ç é 世", SDPMid: "m/i+d", SDPMLineIndex: 3,
+	}); err != nil {
+		t.Fatalf("send candidate: %v", err)
+	}
+	wantCand := `AWS1{"FromUhid":"u","ToUhid":"v","Type":2,"Candidate":"a` +
+		plus + `b/c=d` + lt + `e` + gt + `f` + amp + `g:h ` + cc + ` ` + ee + ` ` + shi +
+		`","SdpMLineIndex":3,"SdpMid":"m/i` + plus + `d"}`
+	if string(captured) != wantCand {
+		t.Fatalf("exotic-char candidate frame mismatch:\n got %s\nwant %s", string(captured), wantCand)
 	}
 }
 
