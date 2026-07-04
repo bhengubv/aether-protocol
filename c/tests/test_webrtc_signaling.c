@@ -173,95 +173,15 @@ static void offer_json_body_matches_csharp_shape(void) {
     free(frame);
 }
 
-/* ───────────────────────── tests: STJ-exact byte-identity ─────────────────
+/* ───────────────────────── tests: JSON-body shape ─────────────────────────
  *
- * The frame (AWS1 magic + JSON body) must be BYTE-IDENTICAL to the C#
- * System.Text.Json reference, INCLUDING STJ's exotic-char escaping: `+ < > & '`
- * and non-ASCII emitted as UPPERCASE \uXXXX (per UTF-16 code unit), where plain
- * JSON / cJSON would leave them literal. These EXACT expected frames are the
- * ones the TypeScript/Python reference asserts (transport/webrtc/
- * RelayWebRtcSignaling.ts — serializeSignalBody + stjString), so passing them
- * proves cross-language byte-identity.
+ * The EXACT byte-identity of the AWS1 + System.Text.Json frame (including STJ's
+ * exotic-char escaping `+ < > &` and non-ASCII as UPPERCASE \uXXXX) is now proven
+ * by test_webrtc_fixture.c against the SINGLE shared cross-language fixture
+ * (fixtures/webrtc/expected/<name>.bin) — no golden bodies are hardcoded here.
+ * These remaining tests assert the JSON body SHAPE (present/omitted keys, numeric
+ * Type enum), which the fixture cases do not spell out field-by-field.
  */
-
-/* Assert the encoded frame equals AWS1 + `expected_body`, byte for byte. */
-static void assert_frame_equals(const aethernet_webrtc_signal_t *sig,
-                                const char *expected_body) {
-    size_t len = 0;
-    uint8_t *frame = aethernet_webrtc_signal_frame_encode(sig, &len);
-    assert(frame);
-
-    size_t body_len = strlen(expected_body);
-    size_t want_len = 4 + body_len;
-    if (len != want_len) {
-        fprintf(stderr,
-                "\n  frame length mismatch: got %zu, want %zu\n  body: %.*s\n",
-                len, want_len, (int)(len > 4 ? len - 4 : 0),
-                (const char *)(frame + 4));
-        assert(len == want_len);
-    }
-    assert(frame[0] == 'A' && frame[1] == 'W' && frame[2] == 'S' && frame[3] == '1');
-    if (memcmp(frame + 4, expected_body, body_len) != 0) {
-        fprintf(stderr,
-                "\n  body mismatch:\n    got:  %.*s\n    want: %s\n",
-                (int)body_len, (const char *)(frame + 4), expected_body);
-        assert(memcmp(frame + 4, expected_body, body_len) == 0);
-    }
-    free(frame);
-}
-
-/* OFFER with an SDP full of the STJ-escaped exotic chars: base64 `+`, `< > &`,
- * plus literal `/` and `=`. The reference emits `+`→+, `<`→<,
- * `>`→>, `&`→& (UPPERCASE), and leaves `/ =` and spaces literal. */
-static void offer_frame_is_byte_exact_with_stj_escaping(void) {
-    aethernet_webrtc_signal_t sig;
-    memset(&sig, 0, sizeof(sig));
-    strcpy(sig.from_uhid, "a");
-    strcpy(sig.to_uhid, "b");
-    sig.type = AETHERNET_WEBRTC_SIGNAL_OFFER;
-    strcpy(sig.sdp, "a=fingerprint:sha-256 AB+/CD=xy <t> &z ual/set+ice");
-
-    assert_frame_equals(
-        &sig,
-        "{\"FromUhid\":\"a\",\"ToUhid\":\"b\",\"Type\":0,"
-        "\"Sdp\":\"a=fingerprint:sha-256 AB\\u002B/CD=xy \\u003Ct\\u003E "
-        "\\u0026z ual/set\\u002Bice\","
-        "\"SdpMLineIndex\":0}");
-}
-
-/* CANDIDATE carrying base64 `+`, `< > &`, literal `/`, AND non-ASCII UTF-8
- * (ç U+00E7, é U+00E9, 世 U+4E16) — every non-ASCII code point becomes an
- * UPPERCASE \uXXXX per UTF-16 code unit. Also exercises a REAL SdpMLineIndex of
- * 3, which the wire now emits verbatim (byte-identical to the other languages'
- * golden), and an SdpMid with a `+`. */
-static void candidate_frame_is_byte_exact_with_unicode(void) {
-    aethernet_webrtc_signal_t sig;
-    memset(&sig, 0, sizeof(sig));
-    strcpy(sig.from_uhid, "u");
-    strcpy(sig.to_uhid, "v");
-    sig.type = AETHERNET_WEBRTC_SIGNAL_CANDIDATE;
-    /* UTF-8 bytes for "a+b/c=d<e>f&g:h ç é 世" (the ç/é/世 as literal UTF-8). */
-    strcpy(sig.candidate, "a+b/c=d<e>f&g:h \xC3\xA7 \xC3\xA9 \xE4\xB8\x96");
-    sig.sdp_mline_index = 3;
-    strcpy(sig.sdp_mid, "m/i+d");
-
-    assert_frame_equals(
-        &sig,
-        "{\"FromUhid\":\"u\",\"ToUhid\":\"v\",\"Type\":2,"
-        "\"Candidate\":\"a\\u002Bb/c=d\\u003Ce\\u003Ef\\u0026g:h "
-        "\\u00E7 \\u00E9 \\u4E16\","
-        "\"SdpMLineIndex\":3,\"SdpMid\":\"m/i\\u002Bd\"}");
-
-    /* And the parsed frame recovers the real m-line index (relay fidelity). */
-    size_t len = 0;
-    uint8_t *frame = aethernet_webrtc_signal_frame_encode(&sig, &len);
-    assert(frame);
-    aethernet_webrtc_signal_t out;
-    assert(aethernet_webrtc_signal_frame_decode(frame, len, &out));
-    assert(out.sdp_mline_index == 3);
-    assert(strcmp(out.sdp_mid, "m/i+d") == 0);
-    free(frame);
-}
 
 /* A CANDIDATE carries Candidate + SdpMid and OMITS Sdp — matching C#. */
 static void candidate_json_body_matches_csharp_shape(void) {
@@ -520,8 +440,6 @@ int main(void) {
 
     RUN(frame_magic_is_AWS1);
     RUN(offer_json_body_matches_csharp_shape);
-    RUN(offer_frame_is_byte_exact_with_stj_escaping);
-    RUN(candidate_frame_is_byte_exact_with_unicode);
     RUN(candidate_json_body_matches_csharp_shape);
     RUN(frame_encode_decode_round_trips);
     RUN(non_magic_bytes_are_not_a_signal);

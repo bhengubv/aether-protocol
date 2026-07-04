@@ -358,6 +358,22 @@ target_link_libraries(test-webrtc-signaling PRIVATE aethernet-protocol pthread)
 # lowercase-token convention used by bip39Tests / bleprivacyTests / syncTests).
 add_test(NAME webrtcsignalingCarrierTests COMMAND test-webrtc-signaling)
 
+# Cross-language WebRTC-signalling FRAME parity gate. Transcribes the 5 cases from
+# fixtures/webrtc/inputs.json (no JSON parser on the test surface, mirroring
+# test_circuit_relay_fixture.c) and drives aethernet_webrtc_signal_frame_encode,
+# asserting each AWS1 + System.Text.Json frame is BYTE-IDENTICAL to the SINGLE
+# shared oracle vector fixtures/webrtc/expected/<name>.bin, then decodes each back
+# and field-compares. The frame bytes are read from the .bin (never hardcoded). Run
+# from the repo root so the relative fixture paths resolve. The lowercase "webrtc" +
+# "fixture" tokens let the case-sensitive regex `ctest -R "webrtc|fixture"` select it.
+add_executable(test-webrtc-fixture
+    test_webrtc_fixture.c
+)
+target_include_directories(test-webrtc-fixture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_link_libraries(test-webrtc-fixture PRIVATE aethernet-protocol pthread)
+add_test(NAME webrtcfixtureTests COMMAND test-webrtc-fixture
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 add_executable(test-reputation
     test_reputation.c
 )
@@ -604,6 +620,7 @@ add_custom_target(aether-tests
         test-transport-metrics
         test-transport-inprocess
         test-webrtc-signaling
+        test-webrtc-fixture
         test-reputation
         test-anomaly
         test-gossip
