@@ -10,6 +10,8 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-07-04
+
 **Serverless-integration gap closure.** Five cross-language gaps closed at full function
 with byte-identical wire parity preserved (no mesh wire-serialization or fixture changed).
 Verified per language; Swift and C on the macOS build server.
@@ -62,6 +64,11 @@ Verified per language; Swift and C on the macOS build server.
   already exact. The **C** carrier additionally gained an `sdp_mline_index` field so a candidate
   frame carries the real m-line index rather than a hardcoded `0`. These are out-of-band control
   frames — no mesh wire-serialization and no fixture changed.
+- **C build on CMake 4.x** — the vendored cJSON dependency was pulled with `FetchContent_MakeAvailable`,
+  which runs cJSON's bundled CMakeLists; that file's ancient `cmake_minimum_required` is rejected by
+  CMake 4.0+, breaking `cmake` configure on current toolchains. cJSON (a single source file) is now
+  compiled directly via `FetchContent_Populate` — the same source-only pattern already used for BLAKE3
+  and micro-ecc — so a plain `cmake ..` configures and builds clean (full `ctest` 60/60).
 
 ### Documentation
 
