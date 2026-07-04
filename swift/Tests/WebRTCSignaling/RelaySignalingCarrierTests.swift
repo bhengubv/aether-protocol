@@ -106,80 +106,9 @@ final class RelaySignalingCarrierTests: XCTestCase {
         XCTAssertEqual(raised, 0, "non-prefixed app bytes must not be decoded as signalling")
     }
 
-    // MARK: - Cross-language byte-identity of the framed body
-
-    /// The framed bytes for an offer must equal the exact frame C# `RelayWebRtcSignaling` emits:
-    /// `AWS1` ++ System.Text.Json of `WebRtcSignal` (PascalCase keys in declaration order, integer
-    /// `Type`, nulls omitted, `SdpMLineIndex` always present). This is the cross-language contract.
-    func testFramedOfferIsByteIdenticalToCSharp() {
-        let offer = WebRtcSignal(fromUhid: "alice", toUhid: "bob", type: .offer, sdp: "v=0 fake-offer")
-        let expectedJson = #"{"FromUhid":"alice","ToUhid":"bob","Type":0,"Sdp":"v=0 fake-offer","SdpMLineIndex":0}"#
-        let expected = Data("AWS1".utf8) + Data(expectedJson.utf8)
-
-        let frame = RelayWebRtcSignaling.frame(offer)
-        XCTAssertEqual(frame, expected, "offer frame must be byte-identical to the C# carrier")
-
-        // And it must decode back to the same signal (round-trip through the wire form).
-        let body = frame.subdata(in: 4 ..< frame.count)
-        XCTAssertEqual(WebRtcSignal.fromRelayJson(body), offer)
-    }
-
-    /// An ICE-candidate frame: `Sdp` is omitted, `Candidate` present before `SdpMLineIndex`, `SdpMid`
-    /// last — the exact C# member order for that shape.
-    func testFramedIceCandidateIsByteIdenticalToCSharp() {
-        let cand = WebRtcSignal(
-            fromUhid: "n1", toUhid: "n2", type: .iceCandidate,
-            candidate: "candidate:1 1 UDP 2130706431 192.0.2.1 5000 typ host",
-            sdpMLineIndex: 0, sdpMid: "0")
-        let expectedJson = #"{"FromUhid":"n1","ToUhid":"n2","Type":2,"Candidate":"candidate:1 1 UDP 2130706431 192.0.2.1 5000 typ host","SdpMLineIndex":0,"SdpMid":"0"}"#
-        let expected = Data("AWS1".utf8) + Data(expectedJson.utf8)
-
-        XCTAssertEqual(RelayWebRtcSignaling.frame(cand), expected,
-                       "ICE-candidate frame must be byte-identical to the C# carrier")
-    }
-
-    // MARK: - STJ-exact exotic-char escaping (proves byte-identity with System.Text.Json)
-    //
-    // The expected JSON below is the EXACT output of the C# `System.Text.Json` default
-    // `JavaScriptEncoder.Default` (verified byte-for-byte, and matched by the TypeScript
-    // `serializeSignalBody`/`stjString` reference). STJ escapes `+ < > & ' \`` and every non-ASCII
-    // code point as UPPERCASE `\uXXXX`, while leaving `/` and `=` literal — so a real base64 SDP
-    // fingerprint carrying `+` survives cross-language. The input Swift string literals hold the RAW
-    // exotic/non-ASCII characters; the carrier's escaper must turn them into these `\uXXXX` escapes.
-
-    /// An offer whose SDP carries the exotic ASCII STJ escapes but `JSON.stringify`/naive encoders do
-    /// not: `+`→`+`, `<`→`<`, `>`→`>`, `&`→`&`. Base64 `/` and `=` stay literal.
-    func testFramedOfferEscapesExoticAsciiLikeSTJ() {
-        let offer = WebRtcSignal(
-            fromUhid: "a", toUhid: "b", type: .offer,
-            sdp: "a=fingerprint:sha-256 AB+/CD=xy <t> &z ual/set+ice")
-        // Each `\\uXXXX` below is TWO wire chars: a literal backslash then `uXXXX` — the STJ escape as
-        // it appears in the JSON bytes. `\\\\` never occurs here; `/` and `=` stay literal (STJ leaves
-        // them). Written as a normal (non-raw) Swift string so `\\u` = backslash + `u`, not a Swift
-        // scalar escape.
-        let expectedJson = "{\"FromUhid\":\"a\",\"ToUhid\":\"b\",\"Type\":0,\"Sdp\":\"a=fingerprint:sha-256 AB\\u002B/CD=xy \\u003Ct\\u003E \\u0026z ual/set\\u002Bice\",\"SdpMLineIndex\":0}"
-        let expected = Data("AWS1".utf8) + Data(expectedJson.utf8)
-
-        XCTAssertEqual(RelayWebRtcSignaling.frame(offer), expected,
-                       "offer frame must escape + < > & as uppercase \\uXXXX, byte-identical to C# STJ")
-    }
-
-    /// A candidate mixing exotic ASCII (`+ < > &`) with non-ASCII (`ç é 世`) in both `Candidate` and
-    /// `SdpMid`. Non-ASCII becomes uppercase `\uXXXX` — `ç`→`ç`, `é`→`é`, `世`→`世` —
-    /// exercising the UTF-16 escape path, while `/` stays literal. Byte-identical to the C#/TS reference.
-    func testFramedIceCandidateEscapesNonAsciiLikeSTJ() {
-        let cand = WebRtcSignal(
-            fromUhid: "u", toUhid: "v", type: .iceCandidate,
-            candidate: "a+b/c=d<e>f&g:h ç é 世",
-            sdpMLineIndex: 3, sdpMid: "m/i+d")
-        // Exotic ASCII → `\\u002B`/`\\u003C`/`\\u003E`/`\\u0026`; non-ASCII → `\\u00E7` (ç), `\\u00E9`
-        // (é), `\\u4E16` (世). `/` stays literal. Normal Swift string: `\\u` = backslash + `u`.
-        let expectedJson = "{\"FromUhid\":\"u\",\"ToUhid\":\"v\",\"Type\":2,\"Candidate\":\"a\\u002Bb/c=d\\u003Ce\\u003Ef\\u0026g:h \\u00E7 \\u00E9 \\u4E16\",\"SdpMLineIndex\":3,\"SdpMid\":\"m/i\\u002Bd\"}"
-        let expected = Data("AWS1".utf8) + Data(expectedJson.utf8)
-
-        XCTAssertEqual(RelayWebRtcSignaling.frame(cand), expected,
-                       "candidate frame must escape non-ASCII as uppercase \\uXXXX, byte-identical to C# STJ")
-    }
+    // NOTE: Cross-language byte-identity of the framed body (offer / candidate, and the STJ-exact
+    // exotic-ASCII + non-ASCII `\uXXXX` escaping) is now pinned by the SHARED cross-language fixture
+    // in `RelaySignalingFixtureTests` (fixtures/webrtc/*), replacing the previously hardcoded goldens.
 }
 
 // MARK: - Test doubles
