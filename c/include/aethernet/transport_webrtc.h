@@ -61,6 +61,11 @@ typedef struct {
     aethernet_webrtc_signal_type_t type;
     char                           sdp[AETHERNET_WEBRTC_SDP_MAX];   /* OFFER / ANSWER */
     char                           candidate[AETHERNET_WEBRTC_CAND_MAX]; /* CANDIDATE */
+    /* The WebRTC m-line index of the candidate's media section (SdpMLineIndex on
+     * the wire) — non-negative; the single data m-section is 0. Non-nullable
+     * ushort in C#, so it is ALWAYS serialized. A memset(0,...) default of 0
+     * keeps callers that don't set it byte-identical to the canonical case. */
+    int32_t                        sdp_mline_index;                      /* CANDIDATE */
     char                           sdp_mid[AETHERNET_WEBRTC_MID_MAX];    /* CANDIDATE */
 } aethernet_webrtc_signal_t;
 
