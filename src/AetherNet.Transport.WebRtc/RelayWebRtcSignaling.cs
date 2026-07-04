@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AetherNet.Transport.Abstractions;
 using Microsoft.Extensions.Logging;
+
+[assembly: InternalsVisibleTo("AetherNet.Transport.WebRtc.Tests")]
 
 namespace AetherNet.Transport.WebRtc;
 
@@ -38,13 +41,35 @@ public sealed class RelayWebRtcSignaling : IWebRtcSignaling, IDisposable
 
     public event Action<WebRtcSignal>? SignalReceived;
 
-    public Task<bool> SendAsync(string peerUhid, WebRtcSignal signal, CancellationToken cancellationToken = default)
+    public Task<bool> SendAsync(string peerUhid, WebRtcSignal signal, CancellationToken cancellationToken = default) =>
+        _channel.SendAsync(peerUhid, Frame(signal), cancellationToken);
+
+    /// <summary>
+    /// Serialises <paramref name="signal"/> to the exact on-wire signalling frame — the 4-byte
+    /// <c>AWS1</c> magic prefix followed by the source-generated JSON body. This is the single
+    /// source of truth for the wire format; <see cref="SendAsync"/> transmits precisely these bytes,
+    /// and the cross-language fixture (fixtures/webrtc) is the parity gate against it.
+    /// </summary>
+    internal static byte[] Frame(WebRtcSignal signal)
     {
         var body = JsonSerializer.SerializeToUtf8Bytes(signal, WebRtcSignalJsonContext.Default.WebRtcSignal);
         var frame = new byte[Magic.Length + body.Length];
         Buffer.BlockCopy(Magic, 0, frame, 0, Magic.Length);
         Buffer.BlockCopy(body, 0, frame, Magic.Length, body.Length);
-        return _channel.SendAsync(peerUhid, frame, cancellationToken);
+        return frame;
+    }
+
+    /// <summary>
+    /// Inverse of <see cref="Frame"/>: parses a complete on-wire frame back into a
+    /// <see cref="WebRtcSignal"/>. Returns <c>null</c> when the bytes lack the magic prefix
+    /// (ordinary application traffic, not signalling).
+    /// </summary>
+    internal static WebRtcSignal? Deframe(ReadOnlySpan<byte> frame)
+    {
+        if (!HasMagic(frame)) return null; // ordinary app traffic, not a signalling frame
+        return JsonSerializer.Deserialize(
+            frame[Magic.Length..],
+            WebRtcSignalJsonContext.Default.WebRtcSignal);
     }
 
     private void OnChannelData(string fromUhid, byte[] data)
@@ -52,9 +77,7 @@ public sealed class RelayWebRtcSignaling : IWebRtcSignaling, IDisposable
         if (!HasMagic(data)) return; // ordinary app traffic, not a signalling frame
         try
         {
-            var signal = JsonSerializer.Deserialize(
-                new ReadOnlySpan<byte>(data, Magic.Length, data.Length - Magic.Length),
-                WebRtcSignalJsonContext.Default.WebRtcSignal);
+            var signal = Deframe(data);
             if (signal is not null) SignalReceived?.Invoke(signal);
         }
         catch (Exception ex)
@@ -63,7 +86,7 @@ public sealed class RelayWebRtcSignaling : IWebRtcSignaling, IDisposable
         }
     }
 
-    private static bool HasMagic(byte[] data) =>
+    private static bool HasMagic(ReadOnlySpan<byte> data) =>
         data.Length >= Magic.Length &&
         data[0] == Magic[0] && data[1] == Magic[1] && data[2] == Magic[2] && data[3] == Magic[3];
 
