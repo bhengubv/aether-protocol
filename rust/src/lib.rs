@@ -51,7 +51,8 @@ pub use models::{
 };
 pub use protocol::{MeshPacket, PacketType};
 pub use routing::{
-    AcceptAllRouteReplyVerifier, InMemoryRouteStore, MeshSender, RouteReplyVerifier, RouteStore,
+    AcceptAllRouteReplyVerifier, Ed25519RouteReplyVerifier, InMemoryRouteStore, MeshSender,
+    RejectAllRouteReplyVerifier, RouteReplyKeyResolver, RouteReplyVerifier, RouteStore,
     RoutingService,
 };
 pub use security::{

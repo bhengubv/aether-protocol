@@ -26,7 +26,7 @@ use crate::reputation::NodeReputationService;
 
 use super::sender::MeshSender;
 use super::store::{InMemoryRouteStore, RouteStore};
-use super::verifier::{AcceptAllRouteReplyVerifier, RouteReplyVerifier};
+use super::verifier::{RejectAllRouteReplyVerifier, RouteReplyVerifier};
 
 /// AODV-inspired reactive routing service.
 pub struct RoutingService {
@@ -49,11 +49,17 @@ struct State {
 
 impl RoutingService {
     /// Construct a service with the given sender. All other dependencies use defaults.
+    ///
+    /// Fail-closed: with no verifier supplied the service uses [`RejectAllRouteReplyVerifier`],
+    /// so every RREP is REJECTED rather than trusting unverified route replies (which would let
+    /// any forwarder hijack routes). A host wires a real signature verifier (e.g.
+    /// [`Ed25519RouteReplyVerifier`](super::verifier::Ed25519RouteReplyVerifier)) via
+    /// [`with_dependencies`](Self::with_dependencies) to permit legitimate, signed RREPs.
     pub fn new(sender: Arc<dyn MeshSender>) -> Self {
         Self::with_dependencies(
             sender,
             Arc::new(InMemoryRouteStore::new()),
-            Arc::new(AcceptAllRouteReplyVerifier),
+            Arc::new(RejectAllRouteReplyVerifier),
             Arc::new(NoopIncentiveProvider),
         )
     }

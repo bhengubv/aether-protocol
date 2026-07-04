@@ -9,5 +9,8 @@ pub mod service;
 
 pub use sender::MeshSender;
 pub use store::{InMemoryRouteStore, RouteStore};
-pub use verifier::{AcceptAllRouteReplyVerifier, RouteReplyVerifier};
+pub use verifier::{
+    AcceptAllRouteReplyVerifier, Ed25519RouteReplyVerifier, RejectAllRouteReplyVerifier,
+    RouteReplyKeyResolver, RouteReplyVerifier,
+};
 pub use service::RoutingService;
