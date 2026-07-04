@@ -113,9 +113,9 @@ fn signal_type_from_u8(v: u8) -> Option<SignalType> {
     }
 }
 
-/// Frames a [`Signal`] as `AWS1` + JSON. Public within the crate so the
-/// interop/acceptance tests can assert the exact bytes against the C# fixture
-/// shape without duplicating the framing.
+/// Frames a [`Signal`] as `AWS1` + JSON. Public so the interop/acceptance and
+/// cross-language fixture tests can assert the exact bytes against the C#
+/// fixture shape without duplicating the framing.
 ///
 /// The JSON body is built **by hand** (not `serde_json::to_vec`) so its string
 /// escaping matches `System.Text.Json`'s default `JavaScriptEncoder.Default`
@@ -125,7 +125,7 @@ fn signal_type_from_u8(v: u8) -> Option<SignalType> {
 /// (base64 `+`) and any non-ASCII ICE candidate. Field order, always-present
 /// `Type`/`SdpMLineIndex`, and null-omission are unchanged. `SignalDto` is
 /// retained solely for the deserialize path ([`parse_frame`]).
-pub(crate) fn frame_signal(signal: &Signal) -> Vec<u8> {
+pub fn frame_signal(signal: &Signal) -> Vec<u8> {
     let body = serialize_signal_body(signal);
     let mut frame = Vec::with_capacity(MAGIC.len() + body.len());
     frame.extend_from_slice(&MAGIC);
@@ -228,10 +228,12 @@ fn stj_string(s: &str, out: &mut String) {
     out.push('"');
 }
 
-/// Parses an `AWS1`-framed signalling frame. Returns `None` for bytes that do
-/// not carry the magic prefix (ordinary app traffic) or whose body is not a
-/// well-formed signal — the carrier silently ignores both, exactly like C#.
-pub(crate) fn parse_frame(data: &[u8]) -> Option<Signal> {
+/// Parses an `AWS1`-framed signalling frame — the inverse of [`frame_signal`].
+/// Returns `None` for bytes that do not carry the magic prefix (ordinary app
+/// traffic) or whose body is not a well-formed signal — the carrier silently
+/// ignores both, exactly like C#. Public so the cross-language fixture test can
+/// assert the frame round-trips back to the source fields.
+pub fn parse_frame(data: &[u8]) -> Option<Signal> {
     if data.len() < MAGIC.len() || data[..MAGIC.len()] != MAGIC {
         return None; // not a signalling frame — ordinary app bytes
     }
@@ -313,112 +315,13 @@ impl Signaling for RelayWebRtcSignaling {
 mod tests {
     use super::*;
 
-    // ── Byte-layout locks (interop with C# RelayWebRtcSignaling) ─────────────
-    //
-    // These assert the exact JSON the carrier puts on the wire, so a drift away
-    // from the C# source-generated shape fails here rather than silently on a
-    // cross-language link. They exercise pure framing — no transport, no ICE —
-    // so they run on every platform including headless Windows.
-
-    #[test]
-    fn offer_frame_is_byte_identical_to_csharp() {
-        let signal = Signal {
-            from_uhid: "alice".into(),
-            to_uhid: "bob".into(),
-            signal_type: SignalType::Offer,
-            sdp: Some("v=0\r\no=- 1 1 IN IP4 0.0.0.0".into()),
-            candidate: None,
-            sdp_mid: None,
-            sdp_mline_index: 0,
-        };
-        let frame = frame_signal(&signal);
-        assert_eq!(&frame[..4], b"AWS1", "magic prefix");
-        let json = std::str::from_utf8(&frame[4..]).unwrap();
-        assert_eq!(
-            json,
-            r#"{"FromUhid":"alice","ToUhid":"bob","Type":0,"Sdp":"v=0\r\no=- 1 1 IN IP4 0.0.0.0","SdpMLineIndex":0}"#
-        );
-    }
-
-    #[test]
-    fn ice_candidate_frame_is_byte_identical_to_csharp() {
-        let signal = Signal {
-            from_uhid: "alice".into(),
-            to_uhid: "bob".into(),
-            signal_type: SignalType::IceCandidate,
-            sdp: None,
-            candidate: Some("candidate:1 1 udp 2 10.0.0.1 5000 typ host".into()),
-            sdp_mid: Some("0".into()),
-            sdp_mline_index: 0,
-        };
-        let frame = frame_signal(&signal);
-        let json = std::str::from_utf8(&frame[4..]).unwrap();
-        // Order matches the C# record declaration: …Candidate, SdpMLineIndex, SdpMid.
-        assert_eq!(
-            json,
-            r#"{"FromUhid":"alice","ToUhid":"bob","Type":2,"Candidate":"candidate:1 1 udp 2 10.0.0.1 5000 typ host","SdpMLineIndex":0,"SdpMid":"0"}"#
-        );
-    }
-
-    // ── STJ exotic-char escaping locks (byte-identity with C# / TS / Python) ──
-    //
-    // These golden frames are asserted verbatim by the TypeScript and Python
-    // references too, so passing here proves the Rust carrier is byte-identical
-    // to the C# `System.Text.Json` reference INCLUDING its escaping of
-    // `+ < > & ' \`` and non-ASCII as uppercase `\uXXXX` — the exact behaviour
-    // `serde_json` did NOT reproduce (it left `+ < > &` literal).
-
-    #[test]
-    fn offer_frame_escapes_exotic_ascii_like_stj() {
-        // sdp carries base64 `+`, `<`, `>`, `&`, `=` and literal `/` — STJ
-        // escapes `+ < > &` as \uXXXX (uppercase hex) but leaves `/`, `=`, and
-        // spaces literal. serde_json would emit `+ < > &` literal and diverge.
-        let signal = Signal {
-            from_uhid: "a".into(),
-            to_uhid: "b".into(),
-            signal_type: SignalType::Offer,
-            sdp: Some("a=fingerprint:sha-256 AB+/CD=xy <t> &z ual/set+ice".into()),
-            candidate: None,
-            sdp_mid: None,
-            sdp_mline_index: 0,
-        };
-        let frame = frame_signal(&signal);
-        assert_eq!(&frame[..4], b"AWS1", "magic prefix");
-        let json = std::str::from_utf8(&frame[4..]).unwrap();
-        // Byte-identical to the TypeScript (CS_ESCAPING_JSON) and Python
-        // (_CS_RISKY-style) STJ references. Full frame == "AWS1" + this body.
-        assert_eq!(
-            json,
-            "{\"FromUhid\":\"a\",\"ToUhid\":\"b\",\"Type\":0,\"Sdp\":\"a=fingerprint:sha-256 AB\\u002B/CD=xy \\u003Ct\\u003E \\u0026z ual/set\\u002Bice\",\"SdpMLineIndex\":0}",
-            "STJ escapes + < > & as uppercase \\uXXXX; / = and space stay literal"
-        );
-    }
-
-    #[test]
-    fn candidate_frame_escapes_non_ascii_like_stj() {
-        // candidate carries `+ / = < > & :` plus non-ASCII `ç é 世` — every
-        // non-ASCII code unit becomes an uppercase \uXXXX (世 is BMP → one unit);
-        // sdp_mid carries `/ +`. Proves the encode_utf16 non-ASCII path.
-        let signal = Signal {
-            from_uhid: "u".into(),
-            to_uhid: "v".into(),
-            signal_type: SignalType::IceCandidate,
-            sdp: None,
-            candidate: Some("a+b/c=d<e>f&g:h ç é 世".into()),
-            sdp_mid: Some("m/i+d".into()),
-            sdp_mline_index: 3,
-        };
-        let frame = frame_signal(&signal);
-        assert_eq!(&frame[..4], b"AWS1", "magic prefix");
-        let json = std::str::from_utf8(&frame[4..]).unwrap();
-        // Byte-identical to the Python _CS_RISKY_BODY reference (decoded) and the
-        // Kotlin/TypeScript STJ references. Full frame == "AWS1" + this body.
-        assert_eq!(
-            json,
-            "{\"FromUhid\":\"u\",\"ToUhid\":\"v\",\"Type\":2,\"Candidate\":\"a\\u002Bb/c=d\\u003Ce\\u003Ef\\u0026g:h \\u00E7 \\u00E9 \\u4E16\",\"SdpMLineIndex\":3,\"SdpMid\":\"m/i\\u002Bd\"}",
-            "STJ escapes + < > & and every non-ASCII scalar (ç é 世) as uppercase \\uXXXX"
-        );
-    }
+    // Byte-layout / STJ-escaping golden locks that previously lived here as
+    // hardcoded `AWS1`+JSON literals now live in the cross-language fixture at
+    // `rust/tests/webrtc_fixture.rs`, which asserts `frame_signal` against the
+    // ONE shared committed fixture (`fixtures/webrtc/expected/*.bin`) alongside
+    // the other language ports. The tests below stay here because they exercise
+    // the `stj_string` helper and the frame/parse round-trip directly — not any
+    // golden frame bytes.
 
     #[test]
     fn stj_string_escapes_control_and_short_escapes() {
