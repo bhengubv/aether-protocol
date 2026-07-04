@@ -12,9 +12,12 @@ namespace AetherNet.Transport.WebRtc;
 /// <summary>
 /// Direct peer-to-peer transport over a WebRTC <c>RTCDataChannel</c> (SIPSorcery, pure C#).
 ///
-/// <para>NAT traversal is handled by ICE/STUN, with WebRTC's own TURN as last resort. The initial
-/// SDP/ICE handshake is carried by an injected <see cref="IWebRtcSignaling"/> channel (e.g. the
-/// AetherNet relay), so no central signalling server is required. Implements
+/// <para>Serverless by default: with the default (no ICE servers) a node never contacts a
+/// STUN/TURN server — host-candidate-only ICE forms a direct link on the same LAN or when a peer
+/// has a public address. STUN/TURN are OPTIONAL (opted into by passing an explicit ICE-server list)
+/// and help traverse NATs that host candidates alone can't. The initial SDP/ICE handshake is
+/// carried by an injected <see cref="IWebRtcSignaling"/> channel (e.g. the AetherNet relay), so no
+/// central signalling server is required either. Implements
 /// <see cref="ITransportService"/> so <c>TransportManager</c> ranks it between the radio mesh
 /// (cheap, proximity) and the QUIC/HTTP relay (last resort) — a direct internet path is used when
 /// one can be negotiated, otherwise the relay carries the traffic.</para>

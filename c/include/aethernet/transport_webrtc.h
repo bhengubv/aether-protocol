@@ -2,9 +2,13 @@
 // Aether WebRTC P2P Transport — real RTCDataChannel transport via libdatachannel.
 //
 // Direct peer-to-peer transport over a WebRTC data channel (libdatachannel, C API).
-// NAT traversal is handled by ICE/STUN; the SDP/ICE handshake rides an injected
-// signalling abstraction, so no central signalling server is required. This is C's
-// first real, internet-capable transport (the others are in-process simulations).
+// Serverless by default: with no ICE servers (ice_server_count == 0) a node never
+// contacts a STUN/TURN server — host-candidate-only ICE forms a direct link on the
+// same LAN or when a peer has a public address. STUN/TURN are OPTIONAL (opted into via
+// the ice_servers array) and help traverse NATs that host candidates alone can't. The
+// SDP/ICE handshake rides an injected signalling abstraction, so no central signalling
+// server is required either. This is C's first real, internet-capable transport (the
+// others are in-process simulations).
 //
 // Mirrors src/AetherNet.Transport.WebRtc/ (SIPSorcery, C#) and go/transport/webrtc/
 // (pion, Go): a transport satisfying the aethernet_transport_vtable_t, a Signal type
@@ -116,9 +120,11 @@ void aethernet_webrtc_signaling_bus_destroy(aethernet_webrtc_signaling_bus_t *bu
  * over the given signalling channel.
  *
  * ice_servers: an array of STUN/TURN URL strings (e.g. "stun:stun.l.google.com:19302"),
- * or NULL. Pass ice_server_count == 0 to force host-candidate-only ICE (same-LAN
- * / tests, no network dependency) — matching the empty-list contract of the C#
- * and Go references.
+ * or NULL. ice_server_count == 0 (or NULL) selects the serverless default of
+ * host-candidate-only ICE — no STUN/TURN contact, links form on the same LAN or when a
+ * peer has a public address (matching the empty-list contract of the C# and Go
+ * references). Pass an explicit ice_servers array to opt into STUN/TURN for NAT
+ * traversal that host candidates alone can't achieve.
  *
  * The returned aethernet_transport_t satisfies the standard vtable (send /
  * is_connected / set_on_data_received / destroy / metrics), so TransportManager

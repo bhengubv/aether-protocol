@@ -120,9 +120,26 @@ generation, and lock-protected single-shot consumption
 zeroed the moment the responder consumes it during X3DH, so a replayed
 PreKey message that re-uses the same OPK id cannot establish a session.
 
-The other 7 languages still issue a single OPK per session — functionally
-correct for sequential workloads but exposes a concurrency hazard under
-simultaneous bundle fetches. Tracked as `OPEN_ISSUES.md` §9.
+**Resolved (all 8 languages).** The other seven session-capable languages
+now ship the same 100-OPK pool with FIFO issue-once, lazy top-up, and
+lock-protected single-shot consumption, closing the earlier
+single-OPK-per-session concurrency hazard: Rust
+(`rust/src/security/signal_protocol.rs` — `DEFAULT_OPK_POOL_SIZE = 100`,
+`available_opk_ids: VecDeque<i32>`, `top_up_opk_pool`), Go
+(`go/security/signal_protocol.go` — `DefaultOpkPoolSize = 100`,
+`topUpOpkPoolLocked`), Python
+(`python/aethernet/security/signal_protocol.py` —
+`DEFAULT_OPK_POOL_SIZE = 100`, `available_opk_ids: Deque`,
+`_top_up_opk_pool_locked`), TypeScript
+(`typescript/src/security/PreKeyStore.ts` — consumed-once FIFO pool,
+`typescript/tests/opk_pool.test.ts`), Kotlin
+(`kotlin/src/main/kotlin/aethernet/security/SignalProtocol.kt` —
+`DEFAULT_OPK_POOL_SIZE = 100`, `ArrayDeque<Int>`, `topUpOpkPoolNoLock`),
+Swift (`swift/Sources/AetherNetProtocol/Security/SignalProtocol.swift` —
+`defaultOpkPoolSize = 100`, `removeFirst()` FIFO, `topUpOpkPool`), and C
+(`c/src/signal_protocol.c` — `AETHERNET_SIGNAL_OPK_POOL_SIZE = 100`, pool
+seeded 1..100 in `aethernet_signal_service_init`, first-unconsumed issue,
+OPK zeroed + marked `consumed` on responder X3DH).
 
 ### 2.7. Cross-language wire drift
 
@@ -429,26 +446,35 @@ false` until every peer has the new bits. The flag byte will be
 gated by a future capability negotiation handshake. See the migration
 note on `CompressionOptions`.
 
-### 5.5. C-language gap
+### 5.5. C-language gap — RESOLVED
 
-**Weakness:** the C implementation ships only the X25519 + KDF_RK
-primitives plus the fixture verifier. It does **not** implement the
-full `SignalProtocolService` API (X3DH session establishment, OPK /
-SPK lifecycle, DH-ratchet integration). Hosts deploying Aether on
-C-based microcontrollers cannot use the current C surface for
-end-to-end encrypted traffic. Tracked as `OPEN_ISSUES.md` §11.
+**Former weakness:** the C implementation shipped only the X25519 +
+KDF_RK primitives plus the fixture verifier, with no full
+`SignalProtocolService` API.
+**Resolved.** `c/src/signal_protocol.c` now implements the complete
+session service — X3DH establishment (SPK Ed25519-signature verification
+then the canonical 4 DHs `DH(IK_A,SPK_B) || DH(EK_A,IK_B) ||
+DH(EK_A,SPK_B) || DH(EK_A,OPK_B)` with HKDF-SHA256 root at
+`aethernet_signal_process_pre_key_bundle`), the OPK / SPK lifecycle (pool
+seeded 1..100 in `aethernet_signal_service_init`, `has_pre_key` bundle
+projection, OPK consumed on the responder side), and full Double-Ratchet
+integration (`dh_ratchet_receive`, `dh_ratchet_send_only`,
+`aethernet_signal_encrypt` / `aethernet_signal_decrypt` over AES-256-GCM).
+Two-node E2E round-trips live in `c/tests/test_signal_session.c`. Hosts on
+C-based targets can now run end-to-end encrypted traffic on the C surface.
 
-### 5.6. OPK pool is C#-only
+### 5.6. OPK pool is C#-only — RESOLVED
 
-**Weakness:** the 100-OPK pool with FIFO issue and atomic
-consumption (defense 2.6) is a C# reference feature. The Go,
-Python, TypeScript, Rust, Swift, Kotlin implementations still issue
-a single OPK per session. Under simultaneous-initiator load, two
-responders racing for the same bundle source can both observe the
-same OPK and X3DH can produce a session-state mismatch.
-**Mitigation:** for the affected languages, serialise bundle
-consumption host-side (one initiator at a time per peer). Tracked
-as `OPEN_ISSUES.md` §9.
+**Former weakness:** the 100-OPK pool with FIFO issue and atomic
+consumption (defense 2.6) was a C#-only feature; the other languages
+issued a single OPK per session, so under simultaneous-initiator load two
+responders racing for the same bundle source could observe the same OPK
+and X3DH could produce a session-state mismatch.
+**Resolved (all 8 languages).** Every session-capable language now ships
+the same 100-OPK pool with FIFO issue-once, lazy top-up, and
+lock-protected single-shot consumption — see the per-language file:symbol
+evidence enumerated under defense 2.6. The simultaneous-initiator hazard
+is closed; no host-side serialisation of bundle consumption is required.
 
 ### 5.7. Demo signing in non-C# languages
 

@@ -3,10 +3,13 @@
 //! Direct peer-to-peer transport for AetherNet over a WebRTC data channel
 //! (pure-Rust [`webrtc`](https://crates.io/crates/webrtc), a.k.a. webrtc-rs).
 //!
-//! NAT traversal is handled by ICE/STUN, with WebRTC's own TURN as last resort.
+//! Serverless by default: with the default (no ICE servers) a node never contacts
+//! a STUN/TURN server — host-candidate-only ICE forms a direct link on the same LAN
+//! or when a peer has a public address. STUN/TURN are OPTIONAL (opted into by passing
+//! an explicit ICE-server list) and help traverse NATs that host candidates alone can't.
 //! The initial SDP/ICE handshake is carried by an injected [`Signaling`] channel
 //! (e.g. the AetherNet QUIC/HTTP relay, the radio mesh, or an SMS ignition link),
-//! so **no central signalling server is required**. This is Rust's first real,
+//! so **no central signalling server is required** either. This is Rust's first real,
 //! internet-capable transport — the others are in-process simulations.
 //!
 //! Mirrors the C# (`AetherNet.Transport.WebRtc`, SIPSorcery) and Go

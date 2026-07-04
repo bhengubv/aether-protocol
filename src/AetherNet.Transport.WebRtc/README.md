@@ -12,10 +12,17 @@ it. `PowerCostRelative = 45`.
 
 ## How it stays serverless
 
-A WebRTC connection still needs a one-time **signalling** exchange (the SDP offer/answer plus ICE
-candidates). AetherNet carries that handshake over a channel you already have — the QUIC/HTTP relay,
-or even the radio mesh — instead of a dedicated signalling server. Once the channel is open, the
-conversation flows directly between the two devices.
+Two things a WebRTC connection would normally reach a server for — and how AetherNet avoids both by
+default:
+
+1. **ICE (NAT traversal).** The default uses **no ICE servers**: host-candidate-only ICE forms a
+   direct link on the same LAN or when a peer has a public address, so a node never contacts a
+   STUN/TURN server. STUN/TURN remain **optional** — pass an explicit ICE-server list to opt in
+   (see [Usage](#usage)) when you need to traverse NATs that host candidates alone can't.
+2. **Signalling.** A WebRTC connection still needs a one-time **signalling** exchange (the SDP
+   offer/answer plus ICE candidates). AetherNet carries that handshake over a channel you already
+   have — the QUIC/HTTP relay, or even the radio mesh — instead of a dedicated signalling server.
+   Once the channel is open, the conversation flows directly between the two devices.
 
 - **`IWebRtcSignaling`** — the signalling seam.
 - **`RelayWebRtcSignaling`** — carries the handshake over any `ITransportService` (the cross-device

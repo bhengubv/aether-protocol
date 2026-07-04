@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 // Package webrtc is a direct peer-to-peer transport for AetherNet over a WebRTC data channel
-// (pion, pure Go). NAT traversal is handled by ICE/STUN; the SDP/ICE handshake rides an injected
-// Signaling channel, so no central signalling server is required. It gives Go its first real,
-// internet-capable transport (the others are in-process simulations).
+// (pion, pure Go). Serverless by default: with the default (no ICE servers) a node never contacts
+// a STUN/TURN server — host-candidate-only ICE forms a direct link on the same LAN or when a peer
+// has a public address. STUN/TURN are OPTIONAL (opted into via an explicit ICE-server list) and
+// help traverse NATs that host candidates alone can't. The SDP/ICE handshake rides an injected
+// Signaling channel, so no central signalling server is required either. It gives Go its first
+// real, internet-capable transport (the others are in-process simulations).
 package webrtc
 
 import (

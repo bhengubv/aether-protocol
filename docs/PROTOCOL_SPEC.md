@@ -302,10 +302,11 @@ Reliability scores are persisted to SQLite and loaded into memory at startup. Th
 > `src/AetherNet.Security/Services/SignalProtocolService.cs` and the
 > cross-language fixture corpus under `fixtures/signal/`. The C# reference
 > ships full X3DH + Double Ratchet (Signal §3 + §5) over X25519. Go,
-> Python, TypeScript, Rust, Swift, and Kotlin have been ported to the same
-> envelope and are byte-equivalent at the X3DH and KDF_RK fixture level.
-> C ships only the X25519 + KDF_RK + symmetric-ratchet primitives —
-> sufficient for the fixture verifier, no full session machinery yet.
+> Python, TypeScript, Rust, Swift, Kotlin, and C have all been ported to
+> the same envelope and are byte-equivalent at the X3DH and KDF_RK fixture
+> level. C now ships the full session machinery too (X3DH + OPK/SPK
+> lifecycle + Double Ratchet in `c/src/signal_protocol.c`, with two-node
+> E2E tests in `c/tests/test_signal_session.c`), not just the primitives.
 > Where this section disagrees with code, the code is authoritative;
 > file an issue in `OPEN_ISSUES.md`.
 
@@ -586,9 +587,9 @@ encrypt/decrypt.
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 
-All 7 session-capable languages (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) ship the 100-key FIFO OPK pool with lazy top-up and lock-protected consumption, matching the C# reference contract. C ships primitives only; full session machinery is tracked in `OPEN_ISSUES.md` item 11.
+All 8 languages (C# + Go + TypeScript + Python + Kotlin + Swift + Rust + C) ship the full X3DH + Double Ratchet session service and the 100-key FIFO OPK pool with lazy top-up and lock-protected consumption, matching the C# reference contract. The C session service lives in `c/src/signal_protocol.c` with two-node E2E tests in `c/tests/test_signal_session.c`.
 
 ---
 

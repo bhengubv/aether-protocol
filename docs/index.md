@@ -29,7 +29,7 @@ Aether reference implementation in C# / .NET 10, with cross-language interoperab
 | X25519 key exchange            | Implemented   | All 8 reference languages                       |
 | X3DH (Signal handshake)        | Implemented   | All 8 languages; pinned to fixtures             |
 | Double Ratchet                 | Implemented   | DH ratchet + 0x01/0x02 chain ratchet            |
-| One-time pre-key pool (OPKs)   | C# only       | Default 100 OPKs; other languages use single OPK|
+| One-time pre-key pool (OPKs)   | Implemented   | All 8 languages; default 100 OPKs, FIFO issue-once, lazy top-up, lock-protected consumption|
 | Routing (mesh + DTN)           | Implemented   | 72-hour delay-tolerant store-and-forward        |
 | AES-256-GCM payload encryption | Implemented   | All 8 languages                                 |
 | Ed25519 packet signing         | Implemented   | Forged packets dropped by network               |

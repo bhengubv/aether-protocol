@@ -7,9 +7,12 @@ import AetherNetWebRTCSignaling
 
 /// Direct peer-to-peer transport over a WebRTC data channel (libdatachannel, portable C/C++).
 ///
-/// NAT traversal is handled by ICE/STUN, with WebRTC's own TURN as last resort. The initial SDP/ICE
-/// handshake is carried by an injected ``WebRtcSignaling`` channel (e.g. the AetherNet relay), so no
-/// central signalling server is required. Conforms to `TransportService` so `rankTransports` slots
+/// Serverless by default: with the default (no ICE servers) a node never contacts a STUN/TURN
+/// server — host-candidate-only ICE forms a direct link on the same LAN or when a peer has a public
+/// address. STUN/TURN are OPTIONAL (opted into by passing an explicit ICE-server list) and help
+/// traverse NATs that host candidates alone can't. The initial SDP/ICE handshake is carried by an
+/// injected ``WebRtcSignaling`` channel (e.g. the AetherNet relay), so no central signalling server
+/// is required either. Conforms to `TransportService` so `rankTransports` slots
 /// it between the radio mesh (cheap, proximity) and the QUIC/HTTP relay (last resort): a direct
 /// internet path is used when one can be negotiated, otherwise the relay carries the traffic.
 public final class WebRtcTransportService: TransportService, @unchecked Sendable {

@@ -2,8 +2,11 @@
  * Direct peer-to-peer transport for AetherNet over a WebRTC data channel (werift — pure TypeScript,
  * no native dependency).
  *
- * NAT traversal is handled by ICE/STUN; the SDP/ICE handshake (trickled) rides an injected
- * {@link Signaling} channel, so no central signalling server is required. Implements
+ * Serverless by default: with the default (no ICE servers) a node never contacts a STUN/TURN
+ * server — host-candidate-only ICE forms a direct link on the same LAN or when a peer has a public
+ * address. STUN/TURN are OPTIONAL (opted into by passing an explicit ICE-server list) and help
+ * traverse NATs that host candidates alone can't. The SDP/ICE handshake (trickled) rides an
+ * injected {@link Signaling} channel, so no central signalling server is required either. Implements
  * {@link ITransportService} so the transport ladder can rank it between the radio mesh (cheap,
  * proximity) and the relay (last resort): a direct internet path is used when one can be negotiated.
  *
