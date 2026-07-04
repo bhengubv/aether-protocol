@@ -6,6 +6,8 @@ pub mod predictive_selector;
 pub mod rlnc;
 #[cfg(feature = "webrtc")]
 pub mod webrtc;
+#[cfg(feature = "webrtc")]
+pub mod webrtc_relay_signaling;
 #[cfg(feature = "lora")]
 pub mod lora;
 
@@ -19,6 +21,8 @@ pub use predictive_selector::{PredictedRankedTransport, PredictiveTransportSelec
 pub use webrtc::{
     InMemorySignalingBus, Signal, SignalType, Signaling, WebRtcTransport,
 };
+#[cfg(feature = "webrtc")]
+pub use webrtc_relay_signaling::RelayWebRtcSignaling;
 #[cfg(feature = "lora")]
 pub use lora::{LoRaOptions, LoRaSerialTransport};
 
