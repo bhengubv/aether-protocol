@@ -518,7 +518,10 @@ async def test_rreq_flood_fires_reputation():
 
     sender = FakeSender("local")
 
-    svc = RoutingService(sender)
+    # Routing-mechanics test: only exercises handle_route_request (RREQ flood),
+    # so the RREP verifier is never invoked. Inject the explicit accept-all so
+    # intent is visible and the test is independent of the fail-closed default.
+    svc = RoutingService(sender, verifier=AcceptAllRouteReplyVerifier())
 
     rep = FakeReputation()
 
@@ -558,7 +561,10 @@ async def test_rreq_normal_traffic_not_penalised():
 
     sender = FakeSender("local")
 
-    svc = RoutingService(sender)
+    # Routing-mechanics test: only exercises handle_route_request (RREQ flood),
+    # so the RREP verifier is never invoked. Inject the explicit accept-all so
+    # intent is visible and the test is independent of the fail-closed default.
+    svc = RoutingService(sender, verifier=AcceptAllRouteReplyVerifier())
 
     rep = FakeReputation()
 
@@ -586,7 +592,8 @@ async def test_rreq_no_reputation_no_error():
 
     sender = FakeSender("local")
 
-    svc = RoutingService(sender)
+    # Routing-mechanics test (RREQ flood only) — explicit accept-all verifier.
+    svc = RoutingService(sender, verifier=AcceptAllRouteReplyVerifier())
 
 
 
