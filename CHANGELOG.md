@@ -52,6 +52,16 @@ Verified per language; Swift and C on the macOS build server.
 - **C `aether-tests` aggregate** — `test-circuit-relay-fixture` (the circuit-relay byte-parity test)
   was registered but omitted from the aggregate build target, so a fresh/CI build never compiled its
   binary. Added to the aggregate `DEPENDS`; verified on the macOS build server.
+- **Signalling frames are now byte-identical across all 8 languages.** The transport-backed WebRTC
+  carrier's `AWS1`+JSON control body is now escaped exactly like C#'s `System.Text.Json`
+  `JavaScriptEncoder.Default` in every SDK — the seven bytes `+`, `<`, `>`, `&`, `'`, `"` and
+  backtick, plus every non-ASCII scalar as an uppercase `\uXXXX` per UTF-16 code unit (astral
+  scalars as a surrogate pair). Go, Rust, C, Kotlin, and Swift previously used their stdlib JSON
+  encoder and produced a divergent frame whenever an SDP/ICE value carried one of those bytes
+  (e.g. a base64 `+` in an ice-pwd, or a non-ASCII `a=ice-ufrag`); C#, Python, and TypeScript were
+  already exact. The **C** carrier additionally gained an `sdp_mline_index` field so a candidate
+  frame carries the real m-line index rather than a hardcoded `0`. These are out-of-band control
+  frames — no mesh wire-serialization and no fixture changed.
 
 ### Documentation
 
