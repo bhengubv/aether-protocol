@@ -3,6 +3,8 @@
 
 #include "aethernet/routing.h"
 #include "aethernet/constants.h"
+#include "aethernet/protocol.h"   /* aethernet_packet_get_signable_data */
+#include "aethernet/security.h"   /* aethernet_ed25519_verify + AETHERNET_ED25519_PUBLIC_KEY_SIZE */
 #include "aethernet_reputation.h"
 
 #include <stdlib.h>
@@ -41,6 +43,11 @@ struct aethernet_routing_service {
     int                           seen_count;
     rreq_source_ts_t             *rreq_sources;   /* per-source timestamps */
     AetherNetNodeReputationService  *reputation;     /* optional, may be NULL */
+
+    /* RREP verifier — fail-closed RREP-hijack defence. NULL (the default on a
+     * freshly-created service) means every RREP is rejected in handle_rrep. */
+    aethernet_route_reply_verifier_fn verify_route_reply; /* NULL => reject all */
+    void                             *verify_user;         /* opaque, passed to cb */
 };
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -219,6 +226,57 @@ void aethernet_routing_set_reputation(aethernet_routing_service_t *service,
     service->reputation = reputation;
 }
 
+void aethernet_routing_set_reply_verifier(aethernet_routing_service_t *service,
+                                          aethernet_route_reply_verifier_fn cb,
+                                          void *user) {
+    if (!service) return;
+    service->verify_route_reply = cb;   /* NULL restores fail-closed default */
+    service->verify_user = user;
+}
+
+/* ── Helper verifiers ─────────────────────────────────────────────────────── */
+
+bool aethernet_routing_verifier_accept_all(void *user,
+                                           const aethernet_mesh_packet_t *rrep) {
+    (void)user;
+    (void)rrep;
+    return true;   /* INSECURE — tests / trusted-fabric only */
+}
+
+bool aethernet_routing_verifier_reject_all(void *user,
+                                           const aethernet_mesh_packet_t *rrep) {
+    (void)user;
+    (void)rrep;
+    return false;  /* fail-closed */
+}
+
+bool aethernet_routing_verifier_ed25519(void *user,
+                                        const aethernet_mesh_packet_t *rrep) {
+    /* Fail-closed at every branch — mirrors C# Ed25519RouteReplyVerifier. */
+    const aethernet_ed25519_route_reply_verifier_ctx_t *ctx =
+        (const aethernet_ed25519_route_reply_verifier_ctx_t *)user;
+    if (!ctx || !ctx->resolve || !rrep) return false;
+
+    /* No signature -> cannot be trusted. */
+    if (!rrep->signature || rrep->signature_len == 0) return false;
+
+    /* Resolve the claimed source's public key. Unknown signer -> reject. */
+    if (!rrep->source_uhid) return false;
+    uint8_t pubkey[AETHERNET_ED25519_PUBLIC_KEY_SIZE];
+    if (!ctx->resolve(ctx->resolver_user, rrep->source_uhid, pubkey)) return false;
+
+    /* Verify the Ed25519 signature over the SAME canonical signable bytes the
+     * source signed and every other language binding shares. */
+    size_t sig_data_len = 0;
+    uint8_t *sig_data = aethernet_packet_get_signable_data(rrep, &sig_data_len);
+    if (!sig_data) return false;
+
+    bool valid = aethernet_ed25519_verify(pubkey, sig_data, sig_data_len,
+                                          rrep->signature);
+    free(sig_data);
+    return valid;
+}
+
 bool aethernet_routing_find_cached(aethernet_routing_service_t *service,
                                 const char *destination_uhid,
                                 aethernet_route_entry_t **out_route) {
@@ -306,6 +364,17 @@ void aethernet_routing_handle_rreq(aethernet_routing_service_t *service, aethern
 
 void aethernet_routing_handle_rrep(aethernet_routing_service_t *service, aethernet_mesh_packet_t *rrep) {
     if (!service || !rrep || rrep->type != AETHERNET_PACKET_TYPE_ROUTE_REPLY) return;
+
+    /* FAIL-CLOSED RREP-hijack defence. An AODV forward route is installed
+     * straight from the RREP's source_uhid; an unverified RREP could be forged
+     * by any forwarder to blackhole / MITM the victim. Reject unless a verifier
+     * is installed AND it proves the RREP authentic. No verifier set => drop.
+     * Runs BEFORE install_route so a rejected RREP mutates no routing state. */
+    if (!service->verify_route_reply ||
+        !service->verify_route_reply(service->verify_user, rrep)) {
+        return;
+    }
+
     const char *local = service->sender->local_uhid;
     if (!rrep->source_uhid || (local && strcmp(rrep->source_uhid, local) == 0)) return;
 

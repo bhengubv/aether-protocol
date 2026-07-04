@@ -139,6 +139,118 @@ void aethernet_route_entry_free(aethernet_route_entry_t *route);
 void aethernet_routing_set_reputation(aethernet_routing_service_t *service,
                                    AetherNetNodeReputationService *reputation);
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Route-reply (RREP) verification — fail-closed RREP-hijack defence.
+ *
+ * THREAT — RREP hijack. AODV-style reactive routing installs a forward route
+ * straight from an RREP's source_uhid. Any intermediate forwarder that sees a
+ * route-request flood can fabricate an RREP claiming to be the destination,
+ * poison every hop's route table, and pull the victim's traffic onto itself
+ * (blackhole / man-in-the-middle). The only defence is to require a valid
+ * source signature on the RREP before trusting it.
+ *
+ * FAIL-CLOSED DEFAULT. A freshly-created routing service has NO verifier set,
+ * and aethernet_routing_handle_rrep() therefore REJECTS every RREP (drops it,
+ * installs no route). A host opts in to accepting route replies by installing a
+ * verifier via aethernet_routing_set_reply_verifier(); until it does, no RREP
+ * is trusted. This mirrors the C# IRouteReplyVerifier default (RejectAll) and
+ * the other language bindings.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Route-reply verifier callback. Return true ONLY if `rrep` is proven authentic
+ * (validly signed by the node it claims to originate from). Returning false —
+ * or leaving the verifier unset — causes the RREP to be dropped with no route
+ * installed. `user` is the opaque pointer supplied to
+ * aethernet_routing_set_reply_verifier().
+ */
+typedef bool (*aethernet_route_reply_verifier_fn)(void *user,
+                                                  const aethernet_mesh_packet_t *rrep);
+
+/**
+ * Install (or clear) the RREP verifier. Pass `cb == NULL` to clear it, which
+ * restores the fail-closed default (every RREP rejected). `user` is passed back
+ * to the callback unchanged; the service borrows it and does not free it.
+ */
+void aethernet_routing_set_reply_verifier(aethernet_routing_service_t *service,
+                                          aethernet_route_reply_verifier_fn cb,
+                                          void *user);
+
+/**
+ * INSECURE explicit accept-all verifier: accepts EVERY RREP without any
+ * signature check. This is an opt-in escape hatch for unit tests that exercise
+ * routing mechanics (forwarding, TTL) and for trust-the-fabric demos on a
+ * closed, fully-trusted network. It provides NO protection against RREP hijack
+ * and MUST NOT be used in production or on any open mesh. `user` is ignored.
+ * Mirrors the C# AcceptAllRouteReplyVerifier — deliberately not the default.
+ *
+ * Usage: aethernet_routing_set_reply_verifier(svc, aethernet_routing_verifier_accept_all, NULL);
+ */
+bool aethernet_routing_verifier_accept_all(void *user,
+                                           const aethernet_mesh_packet_t *rrep);
+
+/**
+ * Fail-closed reject-all verifier: rejects EVERY RREP. Identical in effect to
+ * leaving the verifier unset; provided so a host can make the "reject all route
+ * replies" posture explicit in code. `user` is ignored. Mirrors the C#
+ * RejectAllRouteReplyVerifier.
+ */
+bool aethernet_routing_verifier_reject_all(void *user,
+                                           const aethernet_mesh_packet_t *rrep);
+
+/**
+ * Resolve the Ed25519 public key of a node given its source UHID, so an RREP's
+ * signature can be checked against the identity it claims. Writes the 32-byte
+ * key into `out_pubkey` (caller-supplied buffer of at least
+ * AETHERNET_ED25519_PUBLIC_KEY_SIZE bytes) and returns true when the UHID is
+ * known; returns false for an unknown UHID. A false result causes the RREP to
+ * be rejected (fail-closed: an unresolvable signer can never produce a
+ * signature we would accept).
+ *
+ * No shared peer-key directory exists in the protocol today — this minimal
+ * resolver abstracts "UHID -> public key" for the routing layer so a host can
+ * plug in whatever key source it already maintains (handshake-established keys,
+ * a published identity directory, a prekey/identity store, etc.).
+ */
+typedef bool (*aethernet_route_reply_key_resolver_fn)(void *user,
+                                                     const char *source_uhid,
+                                                     uint8_t *out_pubkey);
+
+/**
+ * Context for the real Ed25519 RREP verifier. Populate `resolve` (and
+ * optionally `resolver_user`), then install the verifier with:
+ *
+ *   aethernet_ed25519_route_reply_verifier_ctx_t ctx = { my_resolver, my_state };
+ *   aethernet_routing_set_reply_verifier(svc,
+ *       aethernet_routing_verifier_ed25519, &ctx);
+ *
+ * The context must outlive the routing service's use of it (the service borrows
+ * the pointer passed to aethernet_routing_set_reply_verifier).
+ */
+typedef struct {
+    aethernet_route_reply_key_resolver_fn resolve;       /* UHID -> pubkey; required */
+    void                                 *resolver_user; /* opaque, passed to resolve */
+} aethernet_ed25519_route_reply_verifier_ctx_t;
+
+/**
+ * Real signature-verifying RREP verifier. `user` MUST point to an
+ * aethernet_ed25519_route_reply_verifier_ctx_t. Fail-closed at every branch,
+ * mirroring the C# Ed25519RouteReplyVerifier:
+ *
+ *   • NULL user / NULL ctx->resolve                       -> reject
+ *   • missing signature (signature == NULL || len == 0)   -> reject
+ *   • source UHID absent, or resolver returns false       -> reject (unknown key)
+ *   • Ed25519 signature does not verify over the canonical
+ *     signable bytes (aethernet_packet_get_signable_data) -> reject
+ *   • signature validates against the resolved key        -> ACCEPT
+ *
+ * The signature is checked over the SAME canonical bytes the C packet signer
+ * signs (aethernet_packet_get_signable_data), so the layout matches every other
+ * language binding — no new signable layout is introduced here.
+ */
+bool aethernet_routing_verifier_ed25519(void *user,
+                                        const aethernet_mesh_packet_t *rrep);
+
 #ifdef __cplusplus
 }
 #endif
