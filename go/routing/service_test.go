@@ -94,11 +94,19 @@ func newRrep(source, dest string, ttl int32) *protocol.MeshPacket {
 	return pkt
 }
 
+// newSvc builds a routing Service for the routing-MECHANICS tests (forwarding,
+// caching, TTL, dedup, pruning). It injects AcceptAllRouteReplyVerifier{}
+// EXPLICITLY: RREP verification is now fail-closed by default (a nil verifier
+// rejects every RREP), so a mechanics test that pumps an unsigned RREP through
+// HandleRouteReply would otherwise see it dropped and fail. Security-focused
+// tests (RejectsWhenVerifierFails, and the fail-closed acceptance suite in
+// verifier_acceptance_test.go) construct their own verifier and do NOT use this
+// helper.
 func newSvc(t *testing.T, uhid string) (*Service, *FakeMeshSender, RouteStore) {
 	t.Helper()
 	sender := NewFakeSender(uhid)
 	store := NewInMemoryRouteStore()
-	svc := NewService(sender, store, nil, nil)
+	svc := NewService(sender, store, AcceptAllRouteReplyVerifier{}, nil)
 	return svc, sender, store
 }
 

@@ -42,7 +42,14 @@ type Service struct {
 }
 
 // NewService constructs a Service with the given dependencies. Pass nil for
-// store / verifier / incentives to get the in-memory / accept-all / no-op defaults.
+// store / incentives to get the in-memory / no-op defaults.
+//
+// A nil verifier is fail-closed: it defaults to RejectAllRouteReplyVerifier, so
+// an unconfigured node REJECTS every RREP rather than trusting unverified route
+// replies (which would let any forwarder hijack routes). A host wires a real
+// signature verifier (Ed25519RouteReplyVerifier) to permit legitimate, signed
+// RREPs; tests that exercise routing mechanics pass AcceptAllRouteReplyVerifier
+// explicitly to opt out of verification.
 func NewService(sender MeshSender, store RouteStore, verifier RouteReplyVerifier, incentives extensibility.IncentiveProvider) *Service {
 	if sender == nil {
 		panic("routing: sender must not be nil")
@@ -51,7 +58,7 @@ func NewService(sender MeshSender, store RouteStore, verifier RouteReplyVerifier
 		store = NewInMemoryRouteStore()
 	}
 	if verifier == nil {
-		verifier = AcceptAllRouteReplyVerifier{}
+		verifier = RejectAllRouteReplyVerifier{}
 	}
 	if incentives == nil {
 		incentives = extensibility.NoopIncentiveProvider{}
