@@ -275,9 +275,10 @@ PacketNonce (8 bytes)
 > `src/AetherNet.Security/Services/SignalProtocolService.cs` ومجموعة البيانات الثابتة
 > عبر اللغات تحت `fixtures/signal/`. يشحن المرجع C# X3DH كاملًا + Double Ratchet
 > (Signal §3 + §5) عبر X25519. تم نقل Go وPython وTypeScript وRust وSwift وKotlin
-> إلى نفس المغلف وهي مكافئة على مستوى البايتات عند مستوى X3DH وKDF_RK. يشحن C
-> فقط بدائيات X25519 + KDF_RK + هرّاشة متماثلة — كافية للتحقق من الصحة بالبيانات الثابتة،
-> لا آلية جلسة كاملة بعد. حيثما يختلف هذا القسم عن الكود، يكون الكود هو المرجع؛
+> وC جميعاً إلى نفس المغلف وهي مكافئة على مستوى البايتات عند مستوى X3DH وKDF_RK.
+> يشحن C الآن آلية الجلسة الكاملة أيضاً (X3DH + دورة حياة OPK / SPK + Double
+> Ratchet في `c/src/signal_protocol.c`، مع اختبارات E2E بين عقدتين في
+> `c/tests/test_signal_session.c`)، وليس البدائيات فقط. حيثما يختلف هذا القسم عن الكود، يكون الكود هو المرجع؛
 > قدّم مشكلة في `OPEN_ISSUES.md`.
 
 ينفّذ Aether **X3DH** (Extended Triple Diffie-Hellman، Signal §3) لتأسيس جلسة غير متزامن، يعقبه مباشرةً **Signal Double Ratchet** (Signal §5) للسرية الأمامية المستمرة وأمان ما بعد الاختراق. يعمل كل تشفير الجلسة عبر Curve25519: **X25519** (RFC 7748) لـ ECDH و**Ed25519** (RFC 8032) للتوقيع.
@@ -469,9 +470,9 @@ EncryptedPayload {
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 
-جميع اللغات الـ 7 القادرة على الجلسات (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) تشحن مجموعة OPK FIFO ذات 100 مفتاح مع تعبئة كسولة واستهلاك محمي بقفل، مطابِقةً لعقد المرجع C#. يشحن C البدائيات فقط؛ آلية الجلسة الكاملة متتبَّعة في `OPEN_ISSUES.md` البند 11.
+جميع اللغات الثماني (C# + Go + TypeScript + Python + Kotlin + Swift + Rust + C) تشحن خدمة جلسة X3DH + Double Ratchet الكاملة ومجموعة OPK FIFO ذات 100 مفتاح مع تعبئة كسولة واستهلاك محمي بقفل، مطابِقةً لعقد المرجع C#. تقع خدمة جلسة C في `c/src/signal_protocol.c` مع اختبارات E2E بين عقدتين في `c/tests/test_signal_session.c`.
 
 ---
 

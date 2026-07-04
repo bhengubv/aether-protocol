@@ -246,7 +246,7 @@ Aether está construido en 8 lenguajes para que funcione en teléfonos, portáti
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-Los 8 lenguajes producen paquetes de cable byte-idénticos, verificados por 14 fixtures canónicos de formato de cable y 4 vectores de prueba Signal ejecutados en CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). El enrutamiento (RREQ/RREP estilo AODV), DTN store-and-forward, difusión SOS, voz, streaming y servicios de refuerzo de seguridad están implementados en todos los lenguajes con **~3,000 pruebas** en las 8 implementaciones:
+Los 8 lenguajes producen paquetes de cable byte-idénticos, verificados por 17 fixtures canónicos de formato de cable y 6 vectores de prueba Signal ejecutados en CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). El enrutamiento (RREQ/RREP estilo AODV), DTN store-and-forward, difusión SOS, voz, streaming y servicios de refuerzo de seguridad están implementados en todos los lenguajes con **~3,000 pruebas** en las 8 implementaciones:
 
 | Lenguaje | Pruebas | Plataforma CI |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Los 8 lenguajes producen paquetes de cable byte-idénticos, verificados por 14 f
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Total** | **~3,000** | |
 
-La interoperabilidad Signal multilenguaje está anclada a `fixtures/signal/` con vectores de prueba compartidos para X3DH (`x3dh_basic`), el ratchet simétrico (`ratchet_step_basic`, `ratchet_step_three_iterations`) y KDF_RK (`kdf_rk_basic`). Cada implementación debe producir salidas byte-idénticas contra esos fixtures. Los 8 lenguajes incluyen ahora una sesión Signal completa (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+La interoperabilidad Signal multilenguaje está anclada a `fixtures/signal/` con vectores de prueba compartidos para X3DH (`x3dh_basic`), el ratchet simétrico (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`) y el ciclo completo de ida y vuelta de sesión X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Cada implementación debe producir salidas byte-idénticas contra esos fixtures. Los 8 lenguajes incluyen ahora una sesión Signal completa (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Más allá del formato de cable y Signal, la **suite completa de servicios de cable** — presencia, heartbeat, sincronización de perfil, anuncio de ID efímero, intercambio de pre-key, canales, push-to-talk, compartir pantalla, control de llamada, confirmación de SOS, migas de espacio, anuncio de forja, solicitud de shard de bóveda y medición de ancho de banda (ver **Lo que obtienes**) — también está implementada en los 8 lenguajes y anclada a sus propios fixtures (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, y afines). Ninguna característica es exclusiva de C# en la capa de protocolo.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 Lo que está construido y lo que viene a continuación.
 
 **Completado (verificado multilenguaje, las 8 implementaciones):**
-- Formato de cable: byte-idéntico en 8 lenguajes, anclado por 14 fixtures canónicos y aserciones multilenguaje en CI (`fixtures/expected/*.bin`)
+- Formato de cable: byte-idéntico en 8 lenguajes, anclado por 17 fixtures canónicos y aserciones multilenguaje en CI (`fixtures/expected/*.bin`)
 - ✅ **CI de GitHub Actions** — matriz de 9 trabajos (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, más trabajo de integridad de fixtures) en `.github/workflows/ci.yml`.
 - Firma y verificación de paquetes Ed25519
 - Cifrado AES-256-GCM

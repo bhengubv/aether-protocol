@@ -103,9 +103,25 @@ DH-래칫 단계를 실행합니다 (Signal §5.2). 공격자의 캐시된 세�
 OPK는 응답자가 X3DH 중에 소비하는 즉시 제거되고 제로화되므로, 동일한 OPK id를 재사용하는
 재전송된 사전 키 메시지는 세션을 확립할 수 없습니다.
 
-나머지 7개 언어는 세션당 단일 OPK를 발급합니다 — 순차적인 워크로드에서는 기능적으로
-올바르지만 동시 번들 가져오기 시 동시성 위험을 노출합니다. `OPEN_ISSUES.md` §9에서
-추적됩니다.
+**해결됨 (8개 언어 전체).** 세션 기능을 갖춘 나머지 7개 언어도 이제 동일한 100-OPK 풀을
+FIFO 일회 발급, 지연 보충, 잠금 보호된 단일 소비와 함께 제공하여, 이전의 세션당 단일 OPK
+동시성 위험을 해소했습니다: Rust
+(`rust/src/security/signal_protocol.rs` — `DEFAULT_OPK_POOL_SIZE = 100`,
+`available_opk_ids: VecDeque<i32>`, `top_up_opk_pool`), Go
+(`go/security/signal_protocol.go` — `DefaultOpkPoolSize = 100`,
+`topUpOpkPoolLocked`), Python
+(`python/aethernet/security/signal_protocol.py` —
+`DEFAULT_OPK_POOL_SIZE = 100`, `available_opk_ids: Deque`,
+`_top_up_opk_pool_locked`), TypeScript
+(`typescript/src/security/PreKeyStore.ts` — 일회 소비 FIFO 풀,
+`typescript/tests/opk_pool.test.ts`), Kotlin
+(`kotlin/src/main/kotlin/aethernet/security/SignalProtocol.kt` —
+`DEFAULT_OPK_POOL_SIZE = 100`, `ArrayDeque<Int>`, `topUpOpkPoolNoLock`),
+Swift (`swift/Sources/AetherNetProtocol/Security/SignalProtocol.swift` —
+`defaultOpkPoolSize = 100`, `removeFirst()` FIFO, `topUpOpkPool`), 그리고 C
+(`c/src/signal_protocol.c` — `AETHERNET_SIGNAL_OPK_POOL_SIZE = 100`, 풀은
+`aethernet_signal_service_init`에서 1..100으로 시드되고, 첫 번째 미소비 항목을 발급하며,
+응답자 X3DH에서 OPK를 영점화하고 `consumed`로 표시).
 
 ### 2.7. 크로스-언어 와이어 드리프트
 
@@ -360,21 +376,29 @@ Aether는 "신원 키-X를 보유한 피어가 이것을 서명했다"는 것을
 false`를 설정합니다. 플래그 바이트는 향후 기능 협상 핸드셰이크에 의해 게이팅될 것입니다.
 `CompressionOptions`의 마이그레이션 참고사항을 참조하십시오.
 
-### 5.5. C 언어 gap
+### 5.5. C 언어 gap — 해결됨
 
-**취약점:** C 구현은 X25519 + KDF_RK 프리미티브와 픽스처 검증기만 제공합니다. 완전한
-`SignalProtocolService` API(X3DH 세션 확립, OPK / SPK 수명 주기, DH-래칫 통합)를 구현하지
-**않습니다**. C 기반 마이크로컨트롤러에 Aether를 배포하는 호스트는 종단 간 암호화 트래픽에
-현재 C 표면을 사용할 수 없습니다. `OPEN_ISSUES.md` §11에서 추적됩니다.
+**이전 취약점:** C 구현은 X25519 + KDF_RK 프리미티브와 픽스처 검증기만 제공했으며, 완전한
+`SignalProtocolService` API가 없었습니다.
+**해결됨.** `c/src/signal_protocol.c`는 이제 완전한 세션 서비스를 구현합니다 — X3DH 확립
+(`aethernet_signal_process_pre_key_bundle`에서 SPK Ed25519 서명 검증 후, 표준적인 4개의 DH
+`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`와 HKDF-SHA256 루트),
+OPK / SPK 수명 주기(풀은 `aethernet_signal_service_init`에서 1..100으로 시드, `has_pre_key`
+번들 투영, 응답자 측에서 OPK 소비), 그리고 완전한 Double-Ratchet 통합
+(`dh_ratchet_receive`, `dh_ratchet_send_only`, AES-256-GCM 상의
+`aethernet_signal_encrypt` / `aethernet_signal_decrypt`). 2-노드 E2E 왕복은
+`c/tests/test_signal_session.c`에 있습니다. C 기반 대상의 호스트는 이제 C 표면에서 종단 간
+암호화 트래픽을 실행할 수 있습니다.
 
-### 5.6. OPK 풀은 C# 전용
+### 5.6. OPK 풀은 C# 전용 — 해결됨
 
-**취약점:** FIFO 발급 및 원자적 소비(방어 2.6)를 갖춘 100-OPK 풀은 C# 레퍼런스 기능입니다.
-Go, Python, TypeScript, Rust, Swift, Kotlin 구현은 여전히 세션당 단일 OPK를 발급합니다.
-동시 개시자 부하 아래에서, 동일한 번들 소스에 대해 경쟁하는 두 응답자는 동일한 OPK를 모두
-관찰할 수 있으며 X3DH는 세션 상태 불일치를 생성할 수 있습니다.
-**완화 방법:** 영향받는 언어에서는 호스트 측에서 번들 소비를 직렬화하십시오(피어당 한 번에
-한 개시자). `OPEN_ISSUES.md` §9에서 추적됩니다.
+**이전 취약점:** FIFO 발급 및 원자적 소비(방어 2.6)를 갖춘 100-OPK 풀은 C# 전용 기능이었습니다.
+다른 언어는 세션당 단일 OPK를 발급했으므로, 동시 개시자 부하 아래에서 동일한 번들 소스에 대해
+경쟁하는 두 응답자가 동일한 OPK를 모두 관찰하여 X3DH가 세션 상태 불일치를 생성할 수 있었습니다.
+**해결됨 (8개 언어 전체).** 세션 기능을 갖춘 모든 언어가 이제 동일한 100-OPK 풀을 FIFO 일회
+발급, 지연 보충, 잠금 보호된 단일 소비와 함께 제공합니다 — 언어별 file:symbol 증거는 방어 2.6에
+열거되어 있습니다. 동시 개시자 위험은 해소되었으며, 번들 소비의 호스트 측 직렬화는 필요하지
+않습니다.
 
 ### 5.7. 비-C# 언어의 데모 서명
 

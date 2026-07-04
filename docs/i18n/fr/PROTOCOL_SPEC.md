@@ -301,10 +301,11 @@ Les scores de fiabilité sont persistés dans SQLite et chargés en mémoire au 
 > `src/AetherNet.Security/Services/SignalProtocolService.cs` et le corpus de
 > fixtures multi-langage sous `fixtures/signal/`. La référence C# embarque X3DH
 > complet + Double Ratchet (Signal §3 + §5) sur X25519. Go,
-> Python, TypeScript, Rust, Swift et Kotlin ont été portés vers la même
+> Python, TypeScript, Rust, Swift, Kotlin et C ont tous été portés vers la même
 > enveloppe et sont équivalents octet par octet au niveau des fixtures X3DH et KDF_RK.
-> C n'embarque que les primitives X25519 + KDF_RK + ratchet symétrique —
-> suffisant pour le vérificateur de fixture, pas encore de machinerie de session complète.
+> C embarque désormais aussi la machinerie de session complète (X3DH + cycle de vie
+> OPK/SPK + Double Ratchet dans `c/src/signal_protocol.c`, avec des tests E2E à deux
+> nœuds dans `c/tests/test_signal_session.c`), pas seulement les primitives.
 > Lorsque cette section est en désaccord avec le code, le code fait autorité ;
 > ouvrir un ticket dans `OPEN_ISSUES.md`.
 
@@ -585,9 +586,9 @@ chiffrement/déchiffrement AES-GCM.
 | Rust        | complet     | complet (§5)   | réserve, défaut 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | complet     | complet (§5)   | réserve, défaut 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | complet     | complet (§5)   | réserve, défaut 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives uniquement — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | non implémenté | — | kdf_rk_basic uniquement |
+| C           | complet     | complet (§5)   | réserve, défaut 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 
-Les 7 langages capables de session (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) embarquent la réserve OPK FIFO de 100 clés avec réapprovisionnement paresseux et consommation protégée par verrou, correspondant au contrat de référence C#. C n'embarque que des primitives ; la machinerie de session complète est suivie dans `OPEN_ISSUES.md` élément 11.
+Les 8 langages (C# + Go + TypeScript + Python + Kotlin + Swift + Rust + C) embarquent le service de session complet X3DH + Double Ratchet et la réserve OPK FIFO de 100 clés avec réapprovisionnement paresseux et consommation protégée par verrou, correspondant au contrat de référence C#. Le service de session C vit dans `c/src/signal_protocol.c` avec des tests E2E à deux nœuds dans `c/tests/test_signal_session.c`.
 
 ---
 

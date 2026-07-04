@@ -246,7 +246,7 @@ An gina Aether da harsuna 8 don ya gudana a kan wayoyi, kwamfyutoci masu ɗauke,
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-Duk harsuna 8 suna samar da fakitin waya iri ɗaya baiti-da-baiti, an tabbatar ta 14 fixtures na tsarin waya na canonical da 4 vectors na gwajin Signal da ake gudanarwa a CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). An aiwatar da zaɓen hanya (nau'in AODV RREQ/RREP), ajiye-da-tura na DTN, watsa SOS, murya, yaɗuwa, da hidimomin ƙarfafa tsaro a cikin kowane harshe tare da **~3,000 gwaje-gwaje** a fadin dukkan aiwatarwa 8:
+Duk harsuna 8 suna samar da fakitin waya iri ɗaya baiti-da-baiti, an tabbatar ta 17 fixtures na tsarin waya na canonical da 6 vectors na gwajin Signal da ake gudanarwa a CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). An aiwatar da zaɓen hanya (nau'in AODV RREQ/RREP), ajiye-da-tura na DTN, watsa SOS, murya, yaɗuwa, da hidimomin ƙarfafa tsaro a cikin kowane harshe tare da **~3,000 gwaje-gwaje** a fadin dukkan aiwatarwa 8:
 
 | Harshe | Gwaje-gwaje | Dandamalin CI |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Duk harsuna 8 suna samar da fakitin waya iri ɗaya baiti-da-baiti, an tabbatar t
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Jimla** | **~3,000** | |
 
-An ɗaure Signal interop tsakanin harsuna ga `fixtures/signal/` tare da vectors na gwaji da ake rabawa don X3DH (`x3dh_basic`), ratchet mai daidaituwa (`ratchet_step_basic`, `ratchet_step_three_iterations`), da KDF_RK (`kdf_rk_basic`). Kowace aiwatarwa dole ta samar da fitattu iri ɗaya baiti-da-baiti a kan waɗannan fixtures. Duk harsuna 8 yanzu suna aikawa da cikakken zaman Signal (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+An ɗaure Signal interop tsakanin harsuna ga `fixtures/signal/` tare da vectors na gwaji da ake rabawa don X3DH (`x3dh_basic`), ratchet mai daidaituwa (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), da cikakken X3DH session round-trip (`x3dh_session_msg1`, `x3dh_session_reply`). Kowace aiwatarwa dole ta samar da fitattu iri ɗaya baiti-da-baiti a kan waɗannan fixtures. Duk harsuna 8 yanzu suna aikawa da cikakken zaman Signal (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Bayan tsarin waya da Signal, **dukkan tarin hidimomin waya** — presence, heartbeat, daidaita bayanin martaba, sanarwar ephemeral-ID, musanya pre-key, channels, push-to-talk, raba allo, sarrafa kira, amincewa da SOS, alamomin sarari, sanarwar forge, buƙatar shard na vault, da aunawar bandwidth (duba **Abin da kake samu**) — haka nan an aiwatar da su a cikin dukkan harsuna 8 kuma an ɗaure su ga fixtures ɗinsu na kansu (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, da 'yan uwansu). Babu wani fasali da ke na C#-kaɗai a matakin yarjejeniya.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 Abin da aka gina da abin da ke gaba.
 
 **An gama (an tabbatar tsakanin harsuna, dukkan aiwatarwa 8):**
-- Tsarin waya: iri ɗaya baiti-da-baiti a fadin harsuna 8, an ɗaure ta 14 fixtures na canonical da tabbatarwar tsakanin harsuna a CI (`fixtures/expected/*.bin`)
+- Tsarin waya: iri ɗaya baiti-da-baiti a fadin harsuna 8, an ɗaure ta 17 fixtures na canonical da tabbatarwar tsakanin harsuna a CI (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — matrix na ayyuka 9 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, tare da aikin mutuncin fixture) a cikin `.github/workflows/ci.yml`.
 - Sa hannu da tabbatar da fakiti na Ed25519
 - Ɓoyewa na AES-256-GCM

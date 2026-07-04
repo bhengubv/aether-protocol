@@ -246,7 +246,7 @@ Aether est construit en 8 langages pour fonctionner sur les téléphones, ordina
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-Les 8 langages produisent des paquets fil identiques octet par octet, vérifiés par 14 fixtures canoniques de format fil et 4 vecteurs de test Signal exécutés dans la CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Le routage (RREQ/RREP de style AODV), le stockage-et-transmission différée DTN, la diffusion SOS, la voix, le streaming, et les services de renforcement de la sécurité sont implémentés dans chaque langage avec **~3 000 tests** sur les 8 implémentations :
+Les 8 langages produisent des paquets fil identiques octet par octet, vérifiés par 17 fixtures canoniques de format fil et 6 vecteurs de test Signal exécutés dans la CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Le routage (RREQ/RREP de style AODV), le stockage-et-transmission différée DTN, la diffusion SOS, la voix, le streaming, et les services de renforcement de la sécurité sont implémentés dans chaque langage avec **~3 000 tests** sur les 8 implémentations :
 
 | Langage | Tests | Plateforme CI |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Les 8 langages produisent des paquets fil identiques octet par octet, vérifiés
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Total** | **~3 000** | |
 
-L'interopérabilité Signal cross-langages est ancrée à `fixtures/signal/` avec des vecteurs de test partagés pour X3DH (`x3dh_basic`), le ratchet symétrique (`ratchet_step_basic`, `ratchet_step_three_iterations`), et KDF_RK (`kdf_rk_basic`). Chaque implémentation doit produire des sorties identiques octet par octet par rapport à ces fixtures. Les 8 langages embarquent désormais une session Signal complète (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+L'interopérabilité Signal cross-langages est ancrée à `fixtures/signal/` avec des vecteurs de test partagés pour X3DH (`x3dh_basic`), le ratchet symétrique (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), et l'aller-retour complet de session X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Chaque implémentation doit produire des sorties identiques octet par octet par rapport à ces fixtures. Les 8 langages embarquent désormais une session Signal complète (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Au-delà du format fil et de Signal, la **suite complète des services fil** — présence, battement de cœur, synchronisation de profil, annonce d'ID éphémère, échange de pré-clés, canaux, push-to-talk, partage d'écran, contrôle d'appel, accusé de réception SOS, miettes de proximité, annonce de forge, requête de fragment de coffre, et mesure de bande passante (voir **Ce que vous obtenez**) — est de même implémentée dans les 8 langages et ancrée à ses propres fixtures (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, et consorts). Aucune fonctionnalité n'est réservée à C# au niveau protocole.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 Ce qui est construit et ce qui vient ensuite.
 
 **Terminé (vérifié cross-langages, les 8 implémentations) :**
-- Format fil : identique octet par octet sur 8 langages, ancré par 14 fixtures canoniques et assertions cross-langages dans la CI (`fixtures/expected/*.bin`)
+- Format fil : identique octet par octet sur 8 langages, ancré par 17 fixtures canoniques et assertions cross-langages dans la CI (`fixtures/expected/*.bin`)
 - ✅ **CI GitHub Actions** — matrice à 9 tâches (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus tâche d'intégrité des fixtures) dans `.github/workflows/ci.yml`.
 - Signature et vérification de paquets Ed25519
 - Chiffrement AES-256-GCM

@@ -268,7 +268,7 @@ Aether 使用基于按需距离向量路由（AODV）的反应式路由协议，
 
 ## 4. 密钥交换
 
-> 已于 2026-05-05 对照 `src/AetherNet.Security/Services/SignalProtocolService.cs` 的 C# 参考实现及 `fixtures/signal/` 下的跨语言夹具语料库进行对齐。C# 参考实现通过 X25519 提供完整的 X3DH + Double Ratchet（Signal §3 + §5）。Go、Python、TypeScript、Rust、Swift 和 Kotlin 已移植到相同的信封，在 X3DH 和 KDF_RK 夹具级别字节等效。C 语言仅提供 X25519 + KDF_RK + 对称棘轮原语——足以通过夹具验证器，但尚无完整的会话机制。在本节与代码存在分歧的地方，代码具有权威性；请在 `OPEN_ISSUES.md` 中提交问题。
+> 已于 2026-05-05 对照 `src/AetherNet.Security/Services/SignalProtocolService.cs` 的 C# 参考实现及 `fixtures/signal/` 下的跨语言夹具语料库进行对齐。C# 参考实现通过 X25519 提供完整的 X3DH + Double Ratchet（Signal §3 + §5）。Go、Python、TypeScript、Rust、Swift 和 Kotlin 均已移植到相同的信封，在 X3DH 和 KDF_RK 夹具级别字节等效。C 语言现在也提供了完整的会话机制（`c/src/signal_protocol.c` 中的 X3DH + OPK/SPK 生命周期 + 双棘轮，并在 `c/tests/test_signal_session.c` 中有双节点端到端测试），而不仅仅是原语。在本节与代码存在分歧的地方，代码具有权威性；请在 `OPEN_ISSUES.md` 中提交问题。
 
 Aether 实现 **X3DH**（扩展三次 Diffie-Hellman，Signal §3）用于异步会话建立，随后使用 **Signal Double Ratchet**（Signal §5）实现持续的前向保密和后妥协安全。所有会话密码学均基于 Curve25519：**X25519**（RFC 7748）用于 ECDH，**Ed25519**（RFC 8032）用于签名。
 
@@ -458,9 +458,9 @@ AES-GCM 参数：256 位密钥，96 位随机数（`AesNonceSize = 12`），128 
 | Rust | 完整 | 完整（§5） | 池，默认 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift | 完整 | 完整（§5） | 池，默认 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin | 完整 | 完整（§5） | 池，默认 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C | 仅原语——`aethernet_x25519_*`、`aethernet_signal_kdf_rk` | 未实现 | — | 仅 kdf_rk_basic |
+| C | 完整 | 完整（§5） | 池，默认 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 
-所有 7 种具备会话能力的语言（C# + Go + TypeScript + Python + Kotlin + Swift + Rust）均包含带懒惰补充和锁保护消耗的 100 密钥 FIFO OPK 池，与 C# 参考契约匹配。C 语言仅提供原语；完整会话机制在 `OPEN_ISSUES.md` 条目 11 中追踪。
+所有 8 种语言（C# + Go + TypeScript + Python + Kotlin + Swift + Rust + C）均包含完整的 X3DH + 双棘轮会话服务，以及带懒惰补充和锁保护消耗的 100 密钥 FIFO OPK 池，与 C# 参考契约匹配。C 语言的会话服务位于 `c/src/signal_protocol.c`，双节点端到端测试位于 `c/tests/test_signal_session.c`。
 
 ---
 

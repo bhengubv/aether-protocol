@@ -246,7 +246,7 @@ Aether 以 8 种语言构建，可运行于手机、笔记本电脑、平板电�
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-全部 8 种语言产生字节完全相同的线路数据包，通过 CI 中运行的 14 个规范线路格式测试用例和 4 个 Signal 测试向量验证（`fixtures/expected/*.bin`，`fixtures/signal/expected/*.json`）。路由（AODV 风格 RREQ/RREP）、DTN 存储转发、SOS 广播、语音、流媒体以及安全加固服务在每种语言中均已实现，所有 8 种实现共有约 **3,000 个测试**：
+全部 8 种语言产生字节完全相同的线路数据包，通过 CI 中运行的 17 个规范线路格式测试用例和 6 个 Signal 测试向量验证（`fixtures/expected/*.bin`，`fixtures/signal/expected/*.json`）。路由（AODV 风格 RREQ/RREP）、DTN 存储转发、SOS 广播、语音、流媒体以及安全加固服务在每种语言中均已实现，所有 8 种实现共有约 **3,000 个测试**：
 
 | 语言 | 测试数 | CI 平台 |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Aether 以 8 种语言构建，可运行于手机、笔记本电脑、平板电�
 | Rust (stable) | ~195 | ubuntu-latest |
 | **总计** | **~3,000** | |
 
-跨语言 Signal 互操作性以 `fixtures/signal/` 为基准，包含 X3DH（`x3dh_basic`）、对称棘轮（`ratchet_step_basic`、`ratchet_step_three_iterations`）和 KDF_RK（`kdf_rk_basic`）的共享测试向量。每种实现都必须针对这些测试用例产生字节完全相同的输出。所有 8 种语言现已完整实现 Signal 会话（`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`）。
+跨语言 Signal 互操作性以 `fixtures/signal/` 为基准，包含 X3DH（`x3dh_basic`）、对称棘轮（`ratchet_step_basic`、`ratchet_step_three_iterations`）、KDF_RK（`kdf_rk_basic`）以及完整的 X3DH 会话往返（`x3dh_session_msg1`、`x3dh_session_reply`）的共享测试向量。每种实现都必须针对这些测试用例产生字节完全相同的输出。所有 8 种语言现已完整实现 Signal 会话（`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`）。
 
 除线路格式和 Signal 之外，**整套线路服务套件**——在场、心跳、资料同步、临时 ID 通告、预密钥交换、频道、一键通话、屏幕共享、通话控制、SOS 确认、空间路标、锻造通告、保险库分片请求以及带宽测量（参见**你能获得什么**）——同样在全部 8 种语言中实现，并固定至各自的测试用例（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/` 及同类）。在协议层，没有任何功能是仅限 C# 的。
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 已完成的内容与下一步计划。
 
 **已完成（经跨语言验证，全部 8 种实现）：**
-- 线路格式：跨 8 种语言字节完全相同，由 14 个规范测试用例和 CI 中的跨语言断言锚定（`fixtures/expected/*.bin`）
+- 线路格式：跨 8 种语言字节完全相同，由 17 个规范测试用例和 CI 中的跨语言断言锚定（`fixtures/expected/*.bin`）
 - ✅ **GitHub Actions CI** — 9 个任务矩阵（C#/.NET 10、Go 1.22、TypeScript/Node 20、Python 3.12、Kotlin/JVM 21、Swift/macOS-14、Rust stable、C/GCC，以及测试用例完整性任务）位于 `.github/workflows/ci.yml`
 - Ed25519 数据包签名和验证
 - AES-256-GCM 加密

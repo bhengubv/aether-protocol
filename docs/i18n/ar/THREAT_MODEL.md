@@ -63,7 +63,26 @@
 
 يُستهلك كل مفتاح ما قبل مرة واحدة (OPK) مرة واحدة بالضبط. يشحن مرجع C# مجموعة مكونة من 100 OPK مع إصدار FIFO، وتجديد بطيء عند كل توليد حزمة، واستهلاك محمي بقفل من لقطة واحدة (`SignalProtocolService.TopUpOpkPoolNoLock`، مُتحقَّق منه بواسطة `tests/AetherNet.Core.Tests/PreKeyPoolTests.cs`). يُزال OPK ويُمسح في اللحظة التي يستهلكه فيها المستجيب أثناء X3DH، لذا رسالة PreKey المُعادة التي تُعيد استخدام نفس معرف OPK لا يمكنها إنشاء جلسة.
 
-لا تزال اللغات الـ 7 الأخرى تُصدر OPK واحداً لكل جلسة — صحيح وظيفياً لأحمال العمل المتسلسلة لكنه يكشف خطراً متزامناً في ظل عمليات جلب الحزم المتزامنة. متتبَّع كـ `OPEN_ISSUES.md` §9.
+**تم الحل (جميع اللغات الثماني).** اللغات السبع الأخرى القادرة على الجلسات
+تشحن الآن نفس مجموعة الـ 100-OPK مع إصدار FIFO لمرة واحدة، وتعبئة كسولة،
+واستهلاك محمي بقفل من لقطة واحدة، مما يُغلق خطر التزامن السابق لمفتاح
+OPK-الواحد-لكل-جلسة: Rust
+(`rust/src/security/signal_protocol.rs` — `DEFAULT_OPK_POOL_SIZE = 100`،
+`available_opk_ids: VecDeque<i32>`، `top_up_opk_pool`)، وGo
+(`go/security/signal_protocol.go` — `DefaultOpkPoolSize = 100`،
+`topUpOpkPoolLocked`)، وPython
+(`python/aethernet/security/signal_protocol.py` —
+`DEFAULT_OPK_POOL_SIZE = 100`، `available_opk_ids: Deque`،
+`_top_up_opk_pool_locked`)، وTypeScript
+(`typescript/src/security/PreKeyStore.ts` — مجموعة FIFO تُستهلك مرة واحدة،
+`typescript/tests/opk_pool.test.ts`)، وKotlin
+(`kotlin/src/main/kotlin/aethernet/security/SignalProtocol.kt` —
+`DEFAULT_OPK_POOL_SIZE = 100`، `ArrayDeque<Int>`، `topUpOpkPoolNoLock`)،
+وSwift (`swift/Sources/AetherNetProtocol/Security/SignalProtocol.swift` —
+`defaultOpkPoolSize = 100`، `removeFirst()` FIFO، `topUpOpkPool`)، وC
+(`c/src/signal_protocol.c` — `AETHERNET_SIGNAL_OPK_POOL_SIZE = 100`،
+المجموعة مبذورة 1..100 في `aethernet_signal_service_init`، إصدار أول مفتاح
+غير مُستهلَك، وOPK يُصفَّر ويُعلَّم `consumed` عند X3DH لدى المستجيب).
 
 ### 2.7. الانجراف عبر الأسلاك بين اللغات
 
@@ -207,14 +226,32 @@ X25519 (RFC 7748) وEd25519 (RFC 8032) كلاهما ينكسر تحت كمبيو
 **نقطة الضعف:** `MessagingService` لديه منفذ ضغط Brotli اختياري يُرفق بايت علم غير مشروط ببداية المغلف النصي. النظير الذي يشغِّل كوداً قبل الضغط سيقرأ بايت العلم بشكل خاطئ كأول بايت من حمولة التطبيق.
 **التخفيف:** يعيِّن المتبنون `MessagingOptions.Compression.Enabled = false` حتى يمتلك كل نظير البتات الجديدة. سيُبوَّب بايت العلم بواسطة مصافحة تفاوض القدرة المستقبلية. راجع ملاحظة الهجرة على `CompressionOptions`.
 
-### 5.5. فجوة لغة C
+### 5.5. فجوة لغة C — تم الحل
 
-**نقطة الضعف:** تنفيذ C يشحن فقط بدائيات X25519 + KDF_RK بالإضافة إلى مدقق التثبيت. **لا** يُنفِّذ واجهة برمجة تطبيقات `SignalProtocolService` الكاملة (إنشاء جلسة X3DH، دورة حياة OPK / SPK، دمج DH-ratchet). المضيفون الذين ينشرون Aether على متحكمات دقيقة مبنية بـ C لا يمكنهم استخدام سطح C الحالي للحركة المشفرة من طرف إلى طرف. متتبَّع كـ `OPEN_ISSUES.md` §11.
+**نقطة الضعف السابقة:** كان تنفيذ C يشحن فقط بدائيات X25519 +
+KDF_RK بالإضافة إلى مدقق التثبيت، بلا واجهة برمجة تطبيقات
+`SignalProtocolService` كاملة.
+**تم الحل.** يُنفِّذ `c/src/signal_protocol.c` الآن خدمة الجلسة الكاملة —
+تأسيس X3DH (التحقق من توقيع SPK بـ Ed25519 ثم العمليات الأربع القانونية
+`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)` مع
+جذر HKDF-SHA256 عند `aethernet_signal_process_pre_key_bundle`)، ودورة حياة
+OPK / SPK (المجموعة مبذورة 1..100 في `aethernet_signal_service_init`، وإسقاط
+حزمة `has_pre_key`، وOPK يُستهلَك على جانب المستجيب)، ودمج Double-Ratchet
+كامل (`dh_ratchet_receive`، `dh_ratchet_send_only`،
+`aethernet_signal_encrypt` / `aethernet_signal_decrypt` عبر AES-256-GCM).
+جولات E2E بين عقدتين موجودة في `c/tests/test_signal_session.c`. يمكن للمضيفين
+على الأهداف المبنية بـ C الآن تشغيل حركة مرور مشفرة من طرف إلى طرف على سطح C.
 
-### 5.6. مجموعة OPK خاصة بـ C# فقط
+### 5.6. مجموعة OPK خاصة بـ C# فقط — تم الحل
 
-**نقطة الضعف:** مجموعة 100-OPK مع إصدار FIFO والاستهلاك الذري (الدفاع 2.6) هي ميزة المرجع C#. لا تزال تنفيذات Go وPython وTypeScript وRust وSwift وKotlin تُصدر OPK واحداً لكل جلسة. في ظل حمل المبادرين المتزامنين، يمكن لمستجيبَين يتنافسان على نفس مصدر الحزمة أن يلاحظا نفس OPK وX3DH يمكن أن ينتج عنه عدم تطابق حالة الجلسة.
-**التخفيف:** للغات المتأثرة، سلسِل استهلاك الحزمة جانب المضيف (مبادر واحد في كل مرة لكل نظير). متتبَّع كـ `OPEN_ISSUES.md` §9.
+**نقطة الضعف السابقة:** كانت مجموعة 100-OPK مع إصدار FIFO والاستهلاك الذري
+(الدفاع 2.6) ميزة خاصة بـ C# فقط؛ كانت اللغات الأخرى تُصدر OPK واحداً لكل
+جلسة، لذا في ظل حمل المبادرين المتزامنين كان يمكن لمستجيبَين يتنافسان على نفس
+مصدر الحزمة أن يلاحظا نفس OPK وأن يُنتج X3DH عدم تطابق في حالة الجلسة.
+**تم الحل (جميع اللغات الثماني).** كل لغة قادرة على الجلسات تشحن الآن نفس
+مجموعة الـ 100-OPK مع إصدار FIFO لمرة واحدة، وتعبئة كسولة، واستهلاك محمي بقفل
+من لقطة واحدة — راجع أدلة الملف:الرمز لكل لغة المُعدَّدة تحت الدفاع 2.6. خطر
+المبادرين المتزامنين مُغلق؛ ولا يلزم أي تسلسل جانب المضيف لاستهلاك الحزم.
 
 ### 5.7. التوقيع التجريبي في لغات غير C#
 

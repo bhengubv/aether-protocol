@@ -246,7 +246,7 @@ I-Aether yakhiwe ngezilimi eziyi-8 ukuze isebenze kumafoni, kuma-laptop, kumathe
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-Zonke izilimi eziyi-8 zikhiqiza amaphakethe e-wire afana ibhayithi, kuqinisekiswa yizifixture zefomethi ye-wire eziyi-14 ezisemthethweni kanye nama-Signal test vectors ama-4 asetshenziswa ku-CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). I-Routing (i-AODV-style RREQ/RREP), i-DTN store-and-forward, i-SOS broadcast, izwi, i-streaming, kanye nezinsiza ze-security-hardening kwenziwe kulo lonke ulimi nge-**~3,000 izivivinyo** kuzo zonke izenzo eziyi-8:
+Zonke izilimi eziyi-8 zikhiqiza amaphakethe e-wire afana ibhayithi, kuqinisekiswa yizifixture zefomethi ye-wire eziyi-17 ezisemthethweni kanye nama-Signal test vectors ama-6 asetshenziswa ku-CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). I-Routing (i-AODV-style RREQ/RREP), i-DTN store-and-forward, i-SOS broadcast, izwi, i-streaming, kanye nezinsiza ze-security-hardening kwenziwe kulo lonke ulimi nge-**~3,000 izivivinyo** kuzo zonke izenzo eziyi-8:
 
 | Ulimi | Izivivinyo | I-CI platform |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Zonke izilimi eziyi-8 zikhiqiza amaphakethe e-wire afana ibhayithi, kuqinisekisw
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Isamba** | **~3,000** | |
 
-I-Cross-language Signal interop iboshwe ku-`fixtures/signal/` ngama-test vectors abiwe e-X3DH (`x3dh_basic`), i-symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), kanye ne-KDF_RK (`kdf_rk_basic`). Sonke isenzo kumele sikhiqize okuphumayo okufana ibhayithi ngebhayithi maqondana nalezo fixtures. Zonke izilimi eziyi-8 manje zithumela i-Signal session egcwele (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+I-Cross-language Signal interop iboshwe ku-`fixtures/signal/` ngama-test vectors abiwe e-X3DH (`x3dh_basic`), i-symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), i-KDF_RK (`kdf_rk_basic`), kanye nomjikelezo ophelele weseshini ye-X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Sonke isenzo kumele sikhiqize okuphumayo okufana ibhayithi ngebhayithi maqondana nalezo fixtures. Zonke izilimi eziyi-8 manje zithumela i-Signal session egcwele (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Ngaphesheya kwefomethi ye-wire kanye ne-Signal, **isethi yonke yensiza ye-wire-service** — i-presence, i-heartbeat, i-profile sync, i-ephemeral-ID announce, i-pre-key exchange, amashaneli, i-push-to-talk, ukwabelana ngesikrini, ukulawula amakholi, ukuqinisekiswa kwe-SOS, i-space breadcrumbs, i-forge announce, isicelo se-vault shard, kanye nokukala i-bandwidth (bheka **Okutholayo**) — nayo yenziwe kuzo zonke izilimi eziyi-8 futhi iboshelwe ku-fixtures yayo (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, nezinye ezifanayo). Ayikho isici esiku-C# kuphela kungqimba yephrothokholi.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 Okwakhiwe kanye nokulandelayo.
 
 **Kwenziwe (kuqinisekiswe phakathi kwezilimi, zonke izenzo eziyi-8):**
-- Ifomethi ye-wire: iyafana ibhayithi ngebhayithi kuzo zonke izilimi eziyi-8, iboshwe yizifixture eziyi-14 ezisemthethweni kanye nokuqinisekiswa phakathi kwezilimi ku-CI (`fixtures/expected/*.bin`)
+- Ifomethi ye-wire: iyafana ibhayithi ngebhayithi kuzo zonke izilimi eziyi-8, iboshwe yizifixture eziyi-17 ezisemthethweni kanye nokuqinisekiswa phakathi kwezilimi ku-CI (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — i-9-job matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, kanye ne-fixture integrity job) ku-`.github/workflows/ci.yml`.
 - Ukusayina kanye nokuqinisekiswa kwephakethe le-Ed25519
 - Ukubethela kwe-AES-256-GCM

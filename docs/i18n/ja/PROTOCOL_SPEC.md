@@ -295,8 +295,9 @@ Aether は、暗号学的なルート認証と QoS 重み付きルート選択�
 > および `fixtures/signal/` 配下のクロス言語フィクスチャコーパスと照合済み。C# リファレンスは
 > X25519 上で完全な X3DH + Double Ratchet（Signal §3 + §5）を実装しています。Go、Python、
 > TypeScript、Rust、Swift、Kotlin は同じエンベロープに移植済みで、X3DH および KDF_RK
-> フィクスチャレベルでバイト等価です。C は X25519 + KDF_RK + 対称ラチェットのプリミティブのみ
-> 実装しており、フィクスチャ検証には十分ですが、完全なセッション機能はまだありません。
+> フィクスチャレベルでバイト等価です。C もいまや完全なセッション機構を提供しており
+>（`c/src/signal_protocol.c` 内の X3DH + OPK/SPK ライフサイクル + Double Ratchet、
+> `c/tests/test_signal_session.c` の 2 ノード E2E テスト付き）、プリミティブのみではありません。
 > このセクションとコードが一致しない場合はコードが正式です。`OPEN_ISSUES.md` に
 > イシューを起票してください。
 
@@ -564,11 +565,12 @@ AES-GCM パラメータ: 256ビットキー、96ビットノンス（`AesNonceSi
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 
-セッション対応の 7 言語すべて（C# + Go + TypeScript + Python + Kotlin + Swift + Rust）は、
-C# リファレンスコントラクトに合わせた遅延補充とロック保護消費を備えた 100 キー FIFO OPK プールを実装しています。
-C はプリミティブのみ実装しており、完全なセッション機能は `OPEN_ISSUES.md` のアイテム 11 で追跡されています。
+全 8 言語（C# + Go + TypeScript + Python + Kotlin + Swift + Rust + C）が、C# リファレンス
+コントラクトに合致する完全な X3DH + Double Ratchet セッションサービスと、遅延補充および
+ロック保護消費を備えた 100 キー FIFO OPK プールを提供しています。C のセッションサービスは
+`c/src/signal_protocol.c` にあり、2 ノードの E2E テストは `c/tests/test_signal_session.c` にあります。
 
 ---
 

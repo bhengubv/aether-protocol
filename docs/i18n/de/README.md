@@ -246,7 +246,7 @@ Aether ist in 8 Sprachen entwickelt, damit es auf Telefonen, Laptops, Tablets un
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-Alle 8 Sprachen erzeugen byteidentische Leitungspakete, verifiziert durch 14 kanonische Leitungsformat-Fixtures und 4 Signal-Testvektoren in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-artiges RREQ/RREP), DTN-Store-and-Forward, SOS-Broadcast, Sprache, Streaming und Sicherheits-Hardening-Dienste sind in jeder Sprache mit **~3.000 Tests** über alle 8 Implementierungen hinweg implementiert:
+Alle 8 Sprachen erzeugen byteidentische Leitungspakete, verifiziert durch 17 kanonische Leitungsformat-Fixtures und 6 Signal-Testvektoren in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-artiges RREQ/RREP), DTN-Store-and-Forward, SOS-Broadcast, Sprache, Streaming und Sicherheits-Hardening-Dienste sind in jeder Sprache mit **~3.000 Tests** über alle 8 Implementierungen hinweg implementiert:
 
 | Sprache | Tests | CI-Plattform |
 |---------|------:|-------------|
@@ -260,7 +260,7 @@ Alle 8 Sprachen erzeugen byteidentische Leitungspakete, verifiziert durch 14 kan
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Gesamt** | **~3.000** | |
 
-Die sprachübergreifende Signal-Interoperabilität ist in `fixtures/signal/` mit gemeinsamen Testvektoren für X3DH (`x3dh_basic`), den symmetrischen Ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`) und KDF_RK (`kdf_rk_basic`) verankert. Jede Implementierung muss byteidentische Ausgaben gegenüber diesen Fixtures erzeugen. Alle 8 Sprachen liefern nun eine vollständige Signal-Sitzung (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+Die sprachübergreifende Signal-Interoperabilität ist in `fixtures/signal/` mit gemeinsamen Testvektoren für X3DH (`x3dh_basic`), den symmetrischen Ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`) und den vollständigen X3DH-Sitzungs-Roundtrip (`x3dh_session_msg1`, `x3dh_session_reply`) verankert. Jede Implementierung muss byteidentische Ausgaben gegenüber diesen Fixtures erzeugen. Alle 8 Sprachen liefern nun eine vollständige Signal-Sitzung (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Über Leitungsformat und Signal hinaus ist auch die **gesamte Wire-Service-Suite** — Präsenz, Heartbeat, Profil-Sync, Ephemere-ID-Ankündigung, Pre-Key-Austausch, Kanäle, Push-to-Talk, Bildschirmfreigabe, Anrufsteuerung, SOS-Bestätigung, Space-Breadcrumbs, Forge-Ankündigung, Vault-Shard-Anfrage und Bandbreitenmessung (siehe **Was Sie bekommen — jeder Dienst, in jeder Sprache**) — ebenso in allen 8 Sprachen implementiert und an eigene Fixtures gebunden (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/` und Geschwister). Kein Feature ist auf der Protokollschicht C#-exklusiv.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 Was bereits implementiert ist und was als Nächstes kommt.
 
 **Erledigt (sprachübergreifend verifiziert, alle 8 Implementierungen):**
-- Leitungsformat: byteidentisch über 8 Sprachen, verankert durch 14 kanonische Fixtures und sprachübergreifende Assertions in CI (`fixtures/expected/*.bin`)
+- Leitungsformat: byteidentisch über 8 Sprachen, verankert durch 17 kanonische Fixtures und sprachübergreifende Assertions in CI (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — 9-Job-Matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus Fixture-Integritätsjob) in `.github/workflows/ci.yml`.
 - Ed25519-Paketsignierung und -verifizierung
 - AES-256-GCM-Verschlüsselung

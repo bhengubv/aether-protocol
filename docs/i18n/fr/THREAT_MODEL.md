@@ -120,9 +120,26 @@ référence C# embarque un pool de 100 OPK avec émission FIFO, rechargement par
 dès que le répondeur la consomme lors du X3DH, de sorte qu'un message PreKey rejoué
 qui réutilise le même identifiant d'OPK ne peut établir une session.
 
-Les 7 autres langages n'émettent encore qu'une seule OPK par session — fonctionnellement
-correct pour des charges de travail séquentielles, mais expose un risque de concurrence
-lors de récupérations de bundle simultanées. Suivi sous `OPEN_ISSUES.md` §9.
+**Résolu (les 8 langages).** Les sept autres langages capables de session embarquent
+désormais le même pool de 100 OPK avec émission FIFO à usage unique, rechargement
+paresseux et consommation à instance unique protégée par verrou, fermant l'ancien
+risque de concurrence d'une seule OPK par session : Rust
+(`rust/src/security/signal_protocol.rs` — `DEFAULT_OPK_POOL_SIZE = 100`,
+`available_opk_ids: VecDeque<i32>`, `top_up_opk_pool`), Go
+(`go/security/signal_protocol.go` — `DefaultOpkPoolSize = 100`,
+`topUpOpkPoolLocked`), Python
+(`python/aethernet/security/signal_protocol.py` —
+`DEFAULT_OPK_POOL_SIZE = 100`, `available_opk_ids: Deque`,
+`_top_up_opk_pool_locked`), TypeScript
+(`typescript/src/security/PreKeyStore.ts` — pool FIFO consommé-une-fois,
+`typescript/tests/opk_pool.test.ts`), Kotlin
+(`kotlin/src/main/kotlin/aethernet/security/SignalProtocol.kt` —
+`DEFAULT_OPK_POOL_SIZE = 100`, `ArrayDeque<Int>`, `topUpOpkPoolNoLock`),
+Swift (`swift/Sources/AetherNetProtocol/Security/SignalProtocol.swift` —
+`defaultOpkPoolSize = 100`, FIFO `removeFirst()`, `topUpOpkPool`) et C
+(`c/src/signal_protocol.c` — `AETHERNET_SIGNAL_OPK_POOL_SIZE = 100`, pool
+amorcé 1..100 dans `aethernet_signal_service_init`, émission du premier non
+consommé, OPK mise à zéro + marquée `consumed` lors du X3DH du répondeur).
 
 ### 2.7. Dérive de format fil entre langages
 
@@ -430,25 +447,36 @@ false` jusqu'à ce que chaque pair ait les nouveaux bits. L'octet flag sera cond
 par une future négociation de capacité par handshake. Voir la note de migration sur
 `CompressionOptions`.
 
-### 5.5. Lacune du langage C
+### 5.5. Lacune du langage C — RÉSOLUE
 
-**Faiblesse :** l'implémentation C n'embarque que les primitives X25519 + KDF_RK plus
-le vérificateur de fixtures. Elle **n'implémente pas** l'API complète
-`SignalProtocolService` (établissement de session X3DH, cycle de vie OPK/SPK,
-intégration du ratchet DH). Les hôtes déployant Aether sur des microcontrôleurs en C
-ne peuvent pas utiliser la surface C actuelle pour le trafic chiffré bout en bout.
-Suivi sous `OPEN_ISSUES.md` §11.
+**Ancienne faiblesse :** l'implémentation C n'embarquait que les primitives X25519 +
+KDF_RK plus le vérificateur de fixtures, sans API complète
+`SignalProtocolService`.
+**Résolu.** `c/src/signal_protocol.c` implémente désormais le service de session
+complet — établissement X3DH (vérification de la signature Ed25519 de la SPK puis les
+4 DH canoniques `DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) ||
+DH(EK_A,OPK_B)` avec racine HKDF-SHA256 à
+`aethernet_signal_process_pre_key_bundle`), le cycle de vie OPK / SPK (pool
+amorcé 1..100 dans `aethernet_signal_service_init`, projection de bundle
+`has_pre_key`, OPK consommée côté répondeur) et l'intégration complète du
+Double Ratchet (`dh_ratchet_receive`, `dh_ratchet_send_only`,
+`aethernet_signal_encrypt` / `aethernet_signal_decrypt` sur AES-256-GCM).
+Les allers-retours E2E à deux nœuds vivent dans `c/tests/test_signal_session.c`.
+Les hôtes sur des cibles en C peuvent désormais faire transiter du trafic chiffré de
+bout en bout sur la surface C.
 
-### 5.6. Le pool OPK est C# uniquement
+### 5.6. Le pool OPK est C# uniquement — RÉSOLU
 
-**Faiblesse :** le pool de 100 OPK avec émission FIFO et consommation atomique (défense
-2.6) est une fonctionnalité de référence C#. Les implémentations Go, Python, TypeScript,
-Rust, Swift, Kotlin n'émettent encore qu'une seule OPK par session. Sous charge
-d'initiateurs simultanés, deux répondeurs qui se disputent la même source de bundle
-peuvent tous deux observer la même OPK et X3DH peut produire une divergence d'état de
-session.
-**Atténuation :** pour les langages affectés, sérialiser la consommation du bundle côté
-hôte (un initiateur à la fois par pair). Suivi sous `OPEN_ISSUES.md` §9.
+**Ancienne faiblesse :** le pool de 100 OPK avec émission FIFO et consommation atomique
+(défense 2.6) était une fonctionnalité exclusive de C# ; les autres langages n'émettaient
+qu'une seule OPK par session, de sorte que sous charge d'initiateurs simultanés deux
+répondeurs se disputant la même source de bundle pouvaient observer la même OPK et X3DH
+pouvait produire une divergence d'état de session.
+**Résolu (les 8 langages).** Chaque langage capable de session embarque désormais le même
+pool de 100 OPK avec émission FIFO à usage unique, rechargement paresseux et consommation
+à instance unique protégée par verrou — voir la preuve par langage fichier:symbole
+énumérée sous la défense 2.6. Le risque d'initiateurs simultanés est fermé ; aucune
+sérialisation de la consommation des bundles côté hôte n'est requise.
 
 ### 5.7. Signature de démo dans les langages non-C#
 

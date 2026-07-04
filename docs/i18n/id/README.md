@@ -246,7 +246,7 @@ Aether dibangun dalam 8 bahasa agar ia berjalan di ponsel, laptop, tablet, dan m
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-Kedelapan bahasa menghasilkan paket kabel yang identik byte, diverifikasi oleh 14 fixture format-kabel kanonis dan 4 vektor uji Signal yang dijalankan di CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Perutean (RREQ/RREP gaya-AODV), DTN store-and-forward, siaran SOS, suara, streaming, dan layanan pengerasan-keamanan diimplementasikan dalam setiap bahasa dengan **~3.000 tes** di seluruh 8 implementasi:
+Kedelapan bahasa menghasilkan paket kabel yang identik byte, diverifikasi oleh 17 fixture format-kabel kanonis dan 6 vektor uji Signal yang dijalankan di CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Perutean (RREQ/RREP gaya-AODV), DTN store-and-forward, siaran SOS, suara, streaming, dan layanan pengerasan-keamanan diimplementasikan dalam setiap bahasa dengan **~3.000 tes** di seluruh 8 implementasi:
 
 | Bahasa | Tes | Platform CI |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Kedelapan bahasa menghasilkan paket kabel yang identik byte, diverifikasi oleh 1
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Total** | **~3.000** | |
 
-Interop Signal lintas-bahasa berlabuh ke `fixtures/signal/` dengan vektor uji bersama untuk X3DH (`x3dh_basic`), ratchet simetris (`ratchet_step_basic`, `ratchet_step_three_iterations`), dan KDF_RK (`kdf_rk_basic`). Setiap implementasi harus menghasilkan output yang identik byte terhadap fixture itu. Kedelapan bahasa kini mengirimkan sesi Signal lengkap (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+Interop Signal lintas-bahasa berlabuh ke `fixtures/signal/` dengan vektor uji bersama untuk X3DH (`x3dh_basic`), ratchet simetris (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), dan putaran-penuh sesi X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Setiap implementasi harus menghasilkan output yang identik byte terhadap fixture itu. Kedelapan bahasa kini mengirimkan sesi Signal lengkap (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Di luar format kabel dan Signal, **seluruh rangkaian layanan-kabel** — kehadiran, heartbeat, sinkronisasi profil, pengumuman ID-efemeral, pertukaran pre-key, kanal, push-to-talk, berbagi layar, kontrol panggilan, konfirmasi SOS, remah roti ruang, pengumuman forge, permintaan shard vault, dan pengukuran bandwidth (lihat **Apa yang Anda dapatkan**) — juga diimplementasikan dalam kedelapan bahasa dan disematkan ke fixture-nya sendiri (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, dan saudaranya). Tidak ada fitur yang khusus-C# pada lapisan protokol.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 Apa yang dibangun dan apa yang berikutnya.
 
 **Selesai (terverifikasi lintas-bahasa, seluruh 8 implementasi):**
-- Format kabel: identik byte di 8 bahasa, berlabuh oleh 14 fixture kanonis dan asersi lintas-bahasa di CI (`fixtures/expected/*.bin`)
+- Format kabel: identik byte di 8 bahasa, berlabuh oleh 17 fixture kanonis dan asersi lintas-bahasa di CI (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — matriks 9-job (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus job integritas fixture) di `.github/workflows/ci.yml`.
 - Penandatanganan dan verifikasi paket Ed25519
 - Enkripsi AES-256-GCM

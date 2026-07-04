@@ -246,7 +246,7 @@ Aether e hahilwe ka dipuo tse 8 hore e sebetse ho mehala, dilaptop, ditablete, l
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-Dipuo tsohle tse 8 di hlahisa di-packet tsa mohala tse tshwanang byte, tse netefaditsweng ke di-fixture tse 14 tsa sebopeho sa mohala tse tlwaelehileng le di-Signal test vector tse 4 tse sebetsang ho CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, phatlalatso ya SOS, lentswe, streaming, le ditshebeletso tsa ho tiisa tshireletso di kentswe tshebetsong ka puo e nngwe le e nngwe ka **diteko tse ka bang 3,000** ho pholletsa le diimplementeshene tsohle tse 8:
+Dipuo tsohle tse 8 di hlahisa di-packet tsa mohala tse tshwanang byte, tse netefaditsweng ke di-fixture tse 17 tsa sebopeho sa mohala tse tlwaelehileng le di-Signal test vector tse 6 tse sebetsang ho CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, phatlalatso ya SOS, lentswe, streaming, le ditshebeletso tsa ho tiisa tshireletso di kentswe tshebetsong ka puo e nngwe le e nngwe ka **diteko tse ka bang 3,000** ho pholletsa le diimplementeshene tsohle tse 8:
 
 | Puo | Diteko | Platform ya CI |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Dipuo tsohle tse 8 di hlahisa di-packet tsa mohala tse tshwanang byte, tse netef
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Kakaretso** | **~3,000** | |
 
-Signal interop ya dipuo e tiiselitswe ho `fixtures/signal/` ka di-test vector tse arolelanwang bakeng sa X3DH (`x3dh_basic`), symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), le KDF_RK (`kdf_rk_basic`). Implementeshene e nngwe le e nngwe e tshwanetse ho hlahisa di-output tse tshwanang byte kgahlano le di-fixture tseo. Dipuo tsohle tse 8 jwale di romela Signal session e felletseng (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+Signal interop ya dipuo e tiiselitswe ho `fixtures/signal/` ka di-test vector tse arolelanwang bakeng sa X3DH (`x3dh_basic`), symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), le potoloho e felletseng ya session ya X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Implementeshene e nngwe le e nngwe e tshwanetse ho hlahisa di-output tse tshwanang byte kgahlano le di-fixture tseo. Dipuo tsohle tse 8 jwale di romela Signal session e felletseng (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Ho feta sebopeho sa mohala le Signal, **sete e felletseng ya ditshebeletso tsa mohala** — presence, heartbeat, profile sync, ephemeral-ID announce, pre-key exchange, channels, push-to-talk, screen share, call control, SOS acknowledgement, space breadcrumbs, forge announce, vault shard request, le bandwidth measurement (bona **Seo o se fumanang**) — le yona e kentswe tshebetsong ka dipuo tsohle tse 8 mme e tiiselitswe ho di-fixture tsa yona (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, le bo-ausi). Ha ho karolo e leng ya C#-feela ho lera la protocol.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 Se hahilweng le se latelang.
 
 **E entswe (e netefaditswe ho pholletsa le dipuo, diimplementeshene tsohle tse 8):**
-- Sebopeho sa mohala: se tshwanang byte ho pholletsa le dipuo tse 8, se tiiselitswe ke di-fixture tse 14 tse tlwaelehileng le diassertion tsa dipuo ho CI (`fixtures/expected/*.bin`)
+- Sebopeho sa mohala: se tshwanang byte ho pholletsa le dipuo tse 8, se tiiselitswe ke di-fixture tse 17 tse tlwaelehileng le diassertion tsa dipuo ho CI (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — matrix ya mesebetsi e 9 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, hammoho le mosebetsi wa botshepehi ba fixture) ho `.github/workflows/ci.yml`.
 - Ed25519 packet signing le netefatso
 - AES-256-GCM encryption

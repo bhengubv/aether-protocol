@@ -294,8 +294,9 @@ Aether는 암호학적 라우트 인증 및 QoS 가중 라우트 선택으로 �
 > C# 레퍼런스는 X25519를 기반으로 하는 완전한 X3DH + Double Ratchet (Signal §3 + §5)를 제공합니다.
 > Go, Python, TypeScript, Rust, Swift, Kotlin은 동일한 엔벨로프로 이식되었으며
 > X3DH 및 KDF_RK 픽스처 수준에서 바이트 동등성이 확인되었습니다.
-> C는 X25519 + KDF_RK + 대칭 래칫 프리미티브만 제공하며 —
-> 픽스처 검증기에는 충분하지만 완전한 세션 기계 장치는 없습니다.
+> C도 이제 프리미티브만이 아니라 완전한 세션 기계 장치를 제공합니다
+>(`c/src/signal_protocol.c`의 X3DH + OPK/SPK 수명 주기 + Double Ratchet,
+> `c/tests/test_signal_session.c`의 2-노드 E2E 테스트 포함).
 > 이 섹션이 코드와 일치하지 않는 경우 코드가 최종 권위를 갖습니다;
 > `OPEN_ISSUES.md`에 이슈를 등록하시기 바랍니다.
 
@@ -544,9 +545,9 @@ AES-GCM 파라미터: 256비트 키, 96비트 논스 (`AesNonceSize = 12`),
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 
-세션 기능을 갖춘 7개 언어 (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) 모두 C# 레퍼런스 계약과 일치하는 100-키 FIFO OPK 풀(지연 보충 및 잠금 보호 소비 방식)을 제공합니다. C는 프리미티브만 제공하며, 완전한 세션 기계 장치는 `OPEN_ISSUES.md` 항목 11에서 추적 중입니다.
+8개 언어 (C# + Go + TypeScript + Python + Kotlin + Swift + Rust + C) 모두 C# 레퍼런스 계약과 일치하는 완전한 X3DH + Double Ratchet 세션 서비스와, 지연 보충 및 잠금 보호 소비 방식의 100-키 FIFO OPK 풀을 제공합니다. C 세션 서비스는 `c/src/signal_protocol.c`에 있으며 2-노드 E2E 테스트는 `c/tests/test_signal_session.c`에 있습니다.
 
 ---
 

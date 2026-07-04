@@ -246,7 +246,7 @@ Aether is gebou in 8 tale sodat dit op fone, skootrekenaars, tablette en mikrobe
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-Al 8 tale produseer greep-identiese draadpakkies, geverifieer deur 14 kanonieke draadformaat-fixtures en 4 Signal-toetsvektore wat in CI loop (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Roetering (AODV-styl RREQ/RREP), DTN-stoor-en-stuur, SOS-uitsaai, stem, stroom, en sekuriteitsverhardingsdienste is in elke taal geïmplementeer met **~3,000 toetse** oor al 8 implementasies:
+Al 8 tale produseer greep-identiese draadpakkies, geverifieer deur 17 kanonieke draadformaat-fixtures en 6 Signal-toetsvektore wat in CI loop (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Roetering (AODV-styl RREQ/RREP), DTN-stoor-en-stuur, SOS-uitsaai, stem, stroom, en sekuriteitsverhardingsdienste is in elke taal geïmplementeer met **~3,000 toetse** oor al 8 implementasies:
 
 | Taal | Toetse | CI-platform |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Al 8 tale produseer greep-identiese draadpakkies, geverifieer deur 14 kanonieke 
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Totaal** | **~3,000** | |
 
-Kruistaal-Signal-interop is veranker aan `fixtures/signal/` met gedeelde toetsvektore vir X3DH (`x3dh_basic`), die simmetriese ratel (`ratchet_step_basic`, `ratchet_step_three_iterations`), en KDF_RK (`kdf_rk_basic`). Elke implementasie moet greep-identiese uitsette teen daardie fixtures produseer. Al 8 tale stuur nou 'n volledige Signal-sessie (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+Kruistaal-Signal-interop is veranker aan `fixtures/signal/` met gedeelde toetsvektore vir X3DH (`x3dh_basic`), die simmetriese ratel (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), en die volledige X3DH-sessie-heen-en-weer (`x3dh_session_msg1`, `x3dh_session_reply`). Elke implementasie moet greep-identiese uitsette teen daardie fixtures produseer. Al 8 tale stuur nou 'n volledige Signal-sessie (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Verby draadformaat en Signal is die **hele draaddiens-suite** — teenwoordigheid, hartklop, profielsinkronisasie, efemere-ID-aankondiging, voorsleutel-uitruil, kanale, druk-om-te-praat, skermdeling, oproepbeheer, SOS-erkenning, ruimte-broodkrummels, smee-aankondiging, kluis-skerf-versoek, en bandwydte-meting (sien **Wat jy kry**) — eweneens geïmplementeer in al 8 tale en vasgepen aan sy eie fixtures (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, en broers en susters). Geen kenmerk is C#-alleen by die protokollaag nie.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 Wat gebou is en wat volgende is.
 
 **Klaar (kruistaal-geverifieer, al 8 implementasies):**
-- Draadformaat: greep-identies oor 8 tale, veranker deur 14 kanonieke fixtures en kruistaal-bewerings in CI (`fixtures/expected/*.bin`)
+- Draadformaat: greep-identies oor 8 tale, veranker deur 17 kanonieke fixtures en kruistaal-bewerings in CI (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — 9-taak-matriks (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus fixture-integriteitstaak) in `.github/workflows/ci.yml`.
 - Ed25519-pakkie-ondertekening en -verifikasie
 - AES-256-GCM-enkripsie

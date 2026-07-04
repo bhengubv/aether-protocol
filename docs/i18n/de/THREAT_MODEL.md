@@ -125,9 +125,26 @@ entfernt und genullt, sobald der Responder ihn während X3DH verbraucht, sodass
 eine wiederholte PreKey-Nachricht, die dieselbe OPK-ID wiederverwendet, keine
 Sitzung aufbauen kann.
 
-Die anderen 7 Sprachen geben noch einen einzelnen OPK pro Sitzung aus — funktional
-korrekt für sequenzielle Arbeitslasten, setzt aber bei gleichzeitigen Bundle-Fetches
-einem Nebenläufigkeitsrisiko aus. Verfolgt als `OPEN_ISSUES.md` §9.
+**Gelöst (alle 8 Sprachen).** Die anderen sieben sitzungsfähigen Sprachen liefern
+nun denselben 100-OPK-Pool mit FIFO-Einmalausgabe, lazy Top-Up und lock-geschütztem
+Single-Shot-Verbrauch und schließen damit das frühere Nebenläufigkeitsrisiko eines
+einzelnen OPK pro Sitzung: Rust
+(`rust/src/security/signal_protocol.rs` — `DEFAULT_OPK_POOL_SIZE = 100`,
+`available_opk_ids: VecDeque<i32>`, `top_up_opk_pool`), Go
+(`go/security/signal_protocol.go` — `DefaultOpkPoolSize = 100`,
+`topUpOpkPoolLocked`), Python
+(`python/aethernet/security/signal_protocol.py` —
+`DEFAULT_OPK_POOL_SIZE = 100`, `available_opk_ids: Deque`,
+`_top_up_opk_pool_locked`), TypeScript
+(`typescript/src/security/PreKeyStore.ts` — einmalig verbrauchter FIFO-Pool,
+`typescript/tests/opk_pool.test.ts`), Kotlin
+(`kotlin/src/main/kotlin/aethernet/security/SignalProtocol.kt` —
+`DEFAULT_OPK_POOL_SIZE = 100`, `ArrayDeque<Int>`, `topUpOpkPoolNoLock`),
+Swift (`swift/Sources/AetherNetProtocol/Security/SignalProtocol.swift` —
+`defaultOpkPoolSize = 100`, `removeFirst()` FIFO, `topUpOpkPool`) und C
+(`c/src/signal_protocol.c` — `AETHERNET_SIGNAL_OPK_POOL_SIZE = 100`, Pool
+mit 1..100 in `aethernet_signal_service_init` befüllt, Ausgabe des ersten
+unverbrauchten OPK, OPK bei Responder-X3DH genullt und als `consumed` markiert).
 
 ### 2.7. Sprachübergreifende Wire-Drift
 
@@ -433,25 +450,35 @@ bis jeder Peer die neuen Bits hat. Das Flag-Byte wird durch eine zukünftige
 Capability-Negotiation-Handshake gesteuert. Siehe den Migrationsvermerk zu
 `CompressionOptions`.
 
-### 5.5. C-Sprach-Lücke
+### 5.5. C-Sprach-Lücke — GELÖST
 
-**Schwachstelle:** Die C-Implementierung liefert nur die X25519- + KDF_RK-Primitive
-sowie den Fixture-Verifikator. Sie implementiert **nicht** die vollständige
-`SignalProtocolService`-API (X3DH-Sitzungsaufbau, OPK-/SPK-Lebenszyklus,
-DH-Ratchet-Integration). Hosts, die Aether auf C-basierten Mikrocontrollern
-einsetzen, können die aktuelle C-Oberfläche nicht für Ende-zu-Ende-verschlüsselten
-Traffic verwenden. Verfolgt als `OPEN_ISSUES.md` §11.
+**Frühere Schwachstelle:** Die C-Implementierung lieferte nur die X25519- +
+KDF_RK-Primitive sowie den Fixture-Verifikator, ohne eine vollständige
+`SignalProtocolService`-API.
+**Gelöst.** `c/src/signal_protocol.c` implementiert nun den vollständigen
+Sitzungsdienst — X3DH-Aufbau (SPK-Ed25519-Signaturprüfung, dann die kanonischen
+4 DHs `DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)` mit
+HKDF-SHA256-Root bei `aethernet_signal_process_pre_key_bundle`), den OPK-/SPK-
+Lebenszyklus (Pool mit 1..100 in `aethernet_signal_service_init` befüllt,
+`has_pre_key`-Bundle-Projektion, OPK auf der Responder-Seite verbraucht) und
+vollständige Double-Ratchet-Integration (`dh_ratchet_receive`,
+`dh_ratchet_send_only`, `aethernet_signal_encrypt` / `aethernet_signal_decrypt`
+über AES-256-GCM). Zwei-Knoten-E2E-Roundtrips leben in
+`c/tests/test_signal_session.c`. Hosts auf C-basierten Zielen können nun
+Ende-zu-Ende-verschlüsselten Traffic auf der C-Oberfläche ausführen.
 
-### 5.6. OPK-Pool ist nur C#
+### 5.6. OPK-Pool ist nur C# — GELÖST
 
-**Schwachstelle:** Der 100-OPK-Pool mit FIFO-Ausgabe und atomarem Verbrauch
-(Abwehr 2.6) ist ein C#-Referenzmerkmal. Die Go-, Python-, TypeScript-, Rust-,
-Swift- und Kotlin-Implementierungen geben noch einen einzelnen OPK pro Sitzung aus.
-Unter simultaner Initiator-Last können zwei Responder, die um dieselbe Bundle-Quelle
-konkurrieren, beide denselben OPK beobachten, und X3DH kann einen Sitzungszustand-
-Mismatch produzieren.
-**Gegenmaßnahme:** Für die betroffenen Sprachen den Bundle-Verbrauch host-seitig
-serialisieren (ein Initiator auf einmal pro Peer). Verfolgt als `OPEN_ISSUES.md` §9.
+**Frühere Schwachstelle:** Der 100-OPK-Pool mit FIFO-Ausgabe und atomarem Verbrauch
+(Abwehr 2.6) war ein reines C#-Merkmal; die anderen Sprachen gaben einen einzelnen
+OPK pro Sitzung aus, sodass unter simultaner Initiator-Last zwei Responder, die um
+dieselbe Bundle-Quelle konkurrieren, denselben OPK beobachten konnten und X3DH einen
+Sitzungszustand-Mismatch produzieren konnte.
+**Gelöst (alle 8 Sprachen).** Jede sitzungsfähige Sprache liefert nun denselben
+100-OPK-Pool mit FIFO-Einmalausgabe, lazy Top-Up und lock-geschütztem Single-Shot-
+Verbrauch — siehe die pro-Sprache-Datei:Symbol-Belege, die unter Abwehr 2.6
+aufgeführt sind. Die Simultan-Initiator-Gefahr ist geschlossen; eine host-seitige
+Serialisierung des Bundle-Verbrauchs ist nicht erforderlich.
 
 ### 5.7. Demo-Signing in Nicht-C#-Sprachen
 

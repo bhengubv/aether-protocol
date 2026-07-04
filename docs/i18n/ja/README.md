@@ -246,7 +246,7 @@ Aetherはスマートフォン、ラップトップ、タブレット、マイ�
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-全8言語はバイト同一のワイヤーパケットを生成し、CIで実行される14の標準ワイヤーフォーマットフィクスチャと4つのSignalテストベクターによって検証されています（`fixtures/expected/*.bin`、`fixtures/signal/expected/*.json`）。ルーティング（AODVスタイルのRREQ/RREP）、DTNストアアンドフォワード、SOSブロードキャスト、音声、ストリーミング、セキュリティ強化サービスはすべての言語で実装されており、全8実装で**約3,000テスト**あります:
+全8言語はバイト同一のワイヤーパケットを生成し、CIで実行される17の標準ワイヤーフォーマットフィクスチャと6つのSignalテストベクターによって検証されています（`fixtures/expected/*.bin`、`fixtures/signal/expected/*.json`）。ルーティング（AODVスタイルのRREQ/RREP）、DTNストアアンドフォワード、SOSブロードキャスト、音声、ストリーミング、セキュリティ強化サービスはすべての言語で実装されており、全8実装で**約3,000テスト**あります:
 
 | 言語 | テスト数 | CIプラットフォーム |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Aetherはスマートフォン、ラップトップ、タブレット、マイ�
 | Rust (stable) | ~195 | ubuntu-latest |
 | **合計** | **~3,000** | |
 
-クロス言語Signalの相互運用は `fixtures/signal/` に固定されており、X3DH（`x3dh_basic`）、対称ラチェット（`ratchet_step_basic`、`ratchet_step_three_iterations`）、KDF_RK（`kdf_rk_basic`）の共有テストベクターがあります。すべての実装はこれらのフィクスチャに対してバイト同一の出力を生成しなければなりません。全8言語は完全なSignalセッション（`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`）を搭載しています。
+クロス言語Signalの相互運用は `fixtures/signal/` に固定されており、X3DH（`x3dh_basic`）、対称ラチェット（`ratchet_step_basic`、`ratchet_step_three_iterations`）、KDF_RK（`kdf_rk_basic`）、および完全なX3DHセッションのラウンドトリップ（`x3dh_session_msg1`、`x3dh_session_reply`）の共有テストベクターがあります。すべての実装はこれらのフィクスチャに対してバイト同一の出力を生成しなければなりません。全8言語は完全なSignalセッション（`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`）を搭載しています。
 
 ワイヤーフォーマットとSignalを超えて、**ワイヤーサービススイート全体** — プレゼンス、ハートビート、プロフィール同期、一時ID告知、プレキー交換、チャンネル、プッシュトゥトーク、画面共有、通話制御、SOS確認応答、スペースブレッドクラム、フォージ告知、ボールトシャード要求、帯域幅測定（**手に入るもの — すべてのサービスを、すべての言語で** を参照）— も同様に全8言語で実装され、それぞれ独自のフィクスチャ（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/` およびその同類）に固定されています。プロトコル層でC#専用の機能は1つもありません。
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 構築済みのものと次に来るもの。
 
 **完了（クロス言語検証済み、全8実装）:**
-- ワイヤーフォーマット: 8言語で完全なバイト同一性、14の標準フィクスチャとCIのクロス言語アサーションで確認済み（`fixtures/expected/*.bin`）
+- ワイヤーフォーマット: 8言語で完全なバイト同一性、17の標準フィクスチャとCIのクロス言語アサーションで確認済み（`fixtures/expected/*.bin`）
 - ✅ **GitHub Actions CI** — 9ジョブのマトリックス（C#/.NET 10、Go 1.22、TypeScript/Node 20、Python 3.12、Kotlin/JVM 21、Swift/macOS-14、Rust stable、C/GCC、フィクスチャ整合性ジョブ）`.github/workflows/ci.yml`。
 - Ed25519パケット署名と検証
 - AES-256-GCM暗号化

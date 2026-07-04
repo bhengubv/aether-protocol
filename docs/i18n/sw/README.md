@@ -246,7 +246,7 @@ Aether imejengwa katika lugha 8 ili iendeshe kwenye simu, laptop, tableti, na mi
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-Lugha zote 8 zinazalisha pakiti za waya zinazofanana baiti kwa baiti, zilizothibitishwa na fixtures 14 za kawaida za muundo wa waya na vekta 4 za majaribio za Signal zinazoendeshwa katika CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (RREQ/RREP ya mtindo wa AODV), DTN store-and-forward, tangazo la SOS, sauti, mitiririko, na huduma za kuimarisha usalama zimetekelezwa katika kila lugha zenye **majaribio ~3,000** katika utekelezaji wote 8:
+Lugha zote 8 zinazalisha pakiti za waya zinazofanana baiti kwa baiti, zilizothibitishwa na fixtures 17 za kawaida za muundo wa waya na vekta 6 za majaribio za Signal zinazoendeshwa katika CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (RREQ/RREP ya mtindo wa AODV), DTN store-and-forward, tangazo la SOS, sauti, mitiririko, na huduma za kuimarisha usalama zimetekelezwa katika kila lugha zenye **majaribio ~3,000** katika utekelezaji wote 8:
 
 | Lugha | Majaribio | Jukwaa la CI |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Lugha zote 8 zinazalisha pakiti za waya zinazofanana baiti kwa baiti, zilizothib
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Jumla** | **~3,000** | |
 
-Ushirikiano wa Signal kati ya lugha umetiwa nanga kwa `fixtures/signal/` na vekta za majaribio zinazoshirikiwa kwa X3DH (`x3dh_basic`), ratchet ya ulinganifu (`ratchet_step_basic`, `ratchet_step_three_iterations`), na KDF_RK (`kdf_rk_basic`). Kila utekelezaji lazima uzalishe matokeo yanayofanana baiti kwa baiti dhidi ya fixtures hizo. Lugha zote 8 sasa zinasafirisha kikao kamili cha Signal (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
+Ushirikiano wa Signal kati ya lugha umetiwa nanga kwa `fixtures/signal/` na vekta za majaribio zinazoshirikiwa kwa X3DH (`x3dh_basic`), ratchet ya ulinganifu (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), na mzunguko kamili wa kikao cha X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Kila utekelezaji lazima uzalishe matokeo yanayofanana baiti kwa baiti dhidi ya fixtures hizo. Lugha zote 8 sasa zinasafirisha kikao kamili cha Signal (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
 Zaidi ya muundo wa waya na Signal, **mkusanyiko mzima wa huduma za waya** — presence, heartbeat, profile sync, ephemeral-ID announce, pre-key exchange, channels, push-to-talk, screen share, call control, SOS acknowledgement, space breadcrumbs, forge announce, vault shard request, na bandwidth measurement (ona **Unachopata**) — vivyo hivyo zimetekelezwa katika lugha zote 8 na zimefungwa kwa fixtures zao wenyewe (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, na ndugu zao). Hakuna kipengele kilicho cha C#-pekee katika safu ya protokoli.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 Kilichojengwa na kinachofuata.
 
 **Kimefanyika (kimethibitishwa kati ya lugha, utekelezaji wote 8):**
-- Muundo wa waya: unaofanana baiti kwa baiti katika lugha 8, uliotiwa nanga na fixtures 14 za kawaida na uhakiki kati ya lugha katika CI (`fixtures/expected/*.bin`)
+- Muundo wa waya: unaofanana baiti kwa baiti katika lugha 8, uliotiwa nanga na fixtures 17 za kawaida na uhakiki kati ya lugha katika CI (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — matriki ya kazi 9 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, pamoja na kazi ya uadilifu wa fixtures) katika `.github/workflows/ci.yml`.
 - Kutia saini na kuthibitisha pakiti za Ed25519
 - Uficho wa AES-256-GCM

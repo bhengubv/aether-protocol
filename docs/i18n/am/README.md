@@ -246,7 +246,7 @@ Aether በ 8 ቋንቋዎች የተገነባ ነው፣ ስለዚህ በስልኮ
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-ሁሉም 8 ቋንቋዎች byte-identical wire packets ያመነጫሉ፣ በ CI ውስጥ በሚሮጡ 14 canonical wire-format fixtures እና 4 Signal test vectors ተረጋግጠዋል (`fixtures/expected/*.bin`፣ `fixtures/signal/expected/*.json`)። Routing (AODV-style RREQ/RREP)፣ DTN store-and-forward፣ SOS broadcast፣ ድምጽ፣ streaming፣ እና security-hardening services በእያንዳንዱ ቋንቋ ተተግብረዋል፣ በሁሉም 8 implementations ላይ **~3,000 tests** አሉ:
+ሁሉም 8 ቋንቋዎች byte-identical wire packets ያመነጫሉ፣ በ CI ውስጥ በሚሮጡ 17 canonical wire-format fixtures እና 6 Signal test vectors ተረጋግጠዋል (`fixtures/expected/*.bin`፣ `fixtures/signal/expected/*.json`)። Routing (AODV-style RREQ/RREP)፣ DTN store-and-forward፣ SOS broadcast፣ ድምጽ፣ streaming፣ እና security-hardening services በእያንዳንዱ ቋንቋ ተተግብረዋል፣ በሁሉም 8 implementations ላይ **~3,000 tests** አሉ:
 
 | ቋንቋ | Tests | CI platform |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Aether በ 8 ቋንቋዎች የተገነባ ነው፣ ስለዚህ በስልኮ
 | Rust (stable) | ~195 | ubuntu-latest |
 | **Total** | **~3,000** | |
 
-Cross-language Signal interop በ `fixtures/signal/` ላይ ተስተካክሏል፣ ለ X3DH (`x3dh_basic`)፣ ለ symmetric ratchet (`ratchet_step_basic`፣ `ratchet_step_three_iterations`)፣ እና ለ KDF_RK (`kdf_rk_basic`) በሚጋሩ test vectors። እያንዳንዱ implementation በእነዚያ fixtures ላይ byte-identical outputs ማምረት አለበት። ሁሉም 8 ቋንቋዎች አሁን ሙሉ Signal session ያቀርባሉ (`generate_pre_key_bundle`፣ `process_pre_key_bundle`፣ `encrypt`፣ `decrypt`)።
+Cross-language Signal interop በ `fixtures/signal/` ላይ ተስተካክሏል፣ ለ X3DH (`x3dh_basic`)፣ ለ symmetric ratchet (`ratchet_step_basic`፣ `ratchet_step_three_iterations`)፣ ለ KDF_RK (`kdf_rk_basic`)፣ እና ለ ሙሉ የ X3DH session round-trip (`x3dh_session_msg1`፣ `x3dh_session_reply`) በሚጋሩ test vectors። እያንዳንዱ implementation በእነዚያ fixtures ላይ byte-identical outputs ማምረት አለበት። ሁሉም 8 ቋንቋዎች አሁን ሙሉ Signal session ያቀርባሉ (`generate_pre_key_bundle`፣ `process_pre_key_bundle`፣ `encrypt`፣ `decrypt`)።
 
 ከ wire format እና ከ Signal በላይ፣ **ሙሉ የ wire-service suite** — presence፣ heartbeat፣ profile sync፣ ephemeral-ID announce፣ pre-key exchange፣ channels፣ push-to-talk፣ screen share፣ call control፣ SOS acknowledgement፣ space breadcrumbs፣ forge announce፣ vault shard request፣ እና bandwidth measurement (**የምታገኘው** ን ይመልከቱ) — በተመሳሳይ በሁሉም 8 ቋንቋዎች ተተግብሮ ወደ ራሱ fixtures ተጠብቋል (`fixtures/presence/`፣ `fixtures/media/`፣ `fixtures/bandwidth/`፣ `fixtures/prekey/`፣ `fixtures/videocall/`፣ `fixtures/vaultshard/`፣ እና ተመሳሳዮች)። በፕሮቶኮል ንብርብር ላይ ምንም ባህሪ C#-only አይደለም።
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 የተገነባው እና ቀጥሎ ያለው።
 
 **የተጠናቀቀ (cross-language የተረጋገጠ፣ ሁሉም 8 implementations):**
-- Wire format: በ 8 ቋንቋዎች byte-identical፣ በ 14 canonical fixtures እና በ CI ውስጥ cross-language assertions የተስተካከለ (`fixtures/expected/*.bin`)
+- Wire format: በ 8 ቋንቋዎች byte-identical፣ በ 17 canonical fixtures እና በ CI ውስጥ cross-language assertions የተስተካከለ (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — 9-job matrix (C#/.NET 10፣ Go 1.22፣ TypeScript/Node 20፣ Python 3.12፣ Kotlin/JVM 21፣ Swift/macOS-14፣ Rust stable፣ C/GCC፣ ከ fixture integrity job ጋር) በ `.github/workflows/ci.yml`።
 - Ed25519 packet signing እና verification
 - AES-256-GCM encryption

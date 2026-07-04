@@ -61,7 +61,7 @@
 
 每个一次性预密钥（OPK）仅被使用一次。C# 参考实现附带一个 100 个 OPK 的池，采用 FIFO 发放、每次生成捆绑时懒补充，以及锁保护的单次消费（`SignalProtocolService.TopUpOpkPoolNoLock`，由 `tests/AetherNet.Core.Tests/PreKeyPoolTests.cs` 验证）。OPK 在响应方 X3DH 消费时立即被移除并清零，因此重放相同 OPK id 的 PreKey 消息无法建立会话。
 
-其余 7 种语言仍每个会话发放一个 OPK——在顺序工作负载下功能正确，但在同时捆绑获取下存在并发风险。详见 `OPEN_ISSUES.md` §9。
+**已解决（全部 8 种语言）。** 其余七种具备会话能力的语言现已配备相同的 100 个 OPK 的池，采用 FIFO 单次发放、懒补充和锁保护的单次消费，封堵了先前的单 OPK-每会话并发风险：Rust（`rust/src/security/signal_protocol.rs` — `DEFAULT_OPK_POOL_SIZE = 100`、`available_opk_ids: VecDeque<i32>`、`top_up_opk_pool`）、Go（`go/security/signal_protocol.go` — `DefaultOpkPoolSize = 100`、`topUpOpkPoolLocked`）、Python（`python/aethernet/security/signal_protocol.py` — `DEFAULT_OPK_POOL_SIZE = 100`、`available_opk_ids: Deque`、`_top_up_opk_pool_locked`）、TypeScript（`typescript/src/security/PreKeyStore.ts` — 单次消费的 FIFO 池、`typescript/tests/opk_pool.test.ts`）、Kotlin（`kotlin/src/main/kotlin/aethernet/security/SignalProtocol.kt` — `DEFAULT_OPK_POOL_SIZE = 100`、`ArrayDeque<Int>`、`topUpOpkPoolNoLock`）、Swift（`swift/Sources/AetherNetProtocol/Security/SignalProtocol.swift` — `defaultOpkPoolSize = 100`、FIFO `removeFirst()`、`topUpOpkPool`）以及 C（`c/src/signal_protocol.c` — `AETHERNET_SIGNAL_OPK_POOL_SIZE = 100`，池在 `aethernet_signal_service_init` 中以 1..100 播种，发放首个未消费者，OPK 在响应方 X3DH 时清零并标记为 `consumed`）。
 
 ### 2.7. 跨语言线路漂移
 
@@ -205,14 +205,15 @@ Aether 认证的是"持有身份密钥 X 的对等方签署了此消息"。它**
 **弱点：** `MessagingService` 有一个可选的 Brotli 压缩接缝，它会在明文信封前面无条件地添加一个标志字节。运行压缩前代码的对等方会将该标志字节误读为应用载荷的第一个字节。
 **缓解措施：** 采用者将 `MessagingOptions.Compression.Enabled = false`，直到每个对等方都具有新的版本。该标志字节将由未来的能力协商握手来管控。参见 `CompressionOptions` 上的迁移说明。
 
-### 5.5. C 语言差距
+### 5.5. C 语言差距 — 已解决
 
-**弱点：** C 实现仅提供 X25519 + KDF_RK 原语以及固件验证器。它**未**实现完整的 `SignalProtocolService` API（X3DH 会话建立、OPK/SPK 生命周期、DH 棘轮集成）。在基于 C 的微控制器上部署 Aether 的宿主无法使用当前的 C 接口进行端到端加密流量。详见 `OPEN_ISSUES.md` §11。
+**先前弱点：** C 实现仅提供 X25519 + KDF_RK 原语以及固件验证器，没有完整的 `SignalProtocolService` API。
+**已解决。** `c/src/signal_protocol.c` 现已实现完整的会话服务——X3DH 建立（先验证 SPK 的 Ed25519 签名，再执行规范的 4 次 DH `DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`，并在 `aethernet_signal_process_pre_key_bundle` 中使用 HKDF-SHA256 根密钥）、OPK / SPK 生命周期（池在 `aethernet_signal_service_init` 中以 1..100 播种、`has_pre_key` 捆绑投影、OPK 在响应方消费）以及完整的双棘轮集成（`dh_ratchet_receive`、`dh_ratchet_send_only`、基于 AES-256-GCM 的 `aethernet_signal_encrypt` / `aethernet_signal_decrypt`）。双节点端到端往返位于 `c/tests/test_signal_session.c`。基于 C 的目标上的宿主现在可以在 C 接口上运行端到端加密流量。
 
-### 5.6. OPK 池仅限 C#
+### 5.6. OPK 池仅限 C# — 已解决
 
-**弱点：** 100 个 OPK 的池（含 FIFO 发放和原子消费，防御 2.6）是 C# 参考特性。Go、Python、TypeScript、Rust、Swift、Kotlin 实现每个会话仍仅发放一个 OPK。在同时发起者负载下，争用同一捆绑源的两个响应方都可能观察到同一个 OPK，导致 X3DH 产生会话状态不匹配。
-**缓解措施：** 对于受影响的语言，在宿主侧串行化捆绑消费（每个对等方每次只有一个发起者）。详见 `OPEN_ISSUES.md` §9。
+**先前弱点：** 100 个 OPK 的池（含 FIFO 发放和原子消费，防御 2.6）曾是 C# 专有特性；其余语言每个会话仅发放一个 OPK，因此在同时发起者负载下，争用同一捆绑源的两个响应方都可能观察到同一个 OPK，导致 X3DH 产生会话状态不匹配。
+**已解决（全部 8 种语言）。** 现在每种具备会话能力的语言都配备了相同的 100 个 OPK 的池，采用 FIFO 单次发放、懒补充和锁保护的单次消费——参见防御 2.6 中按语言列举的 文件:符号 证据。同时发起者风险已封堵；无需在宿主侧串行化捆绑消费。
 
 ### 5.7. 非 C# 语言中的演示签名
 

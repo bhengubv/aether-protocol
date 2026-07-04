@@ -343,12 +343,13 @@ confiáveis são preferidas.
 > `src/AetherNet.Security/Services/SignalProtocolService.cs` e o corpus de
 > fixtures entre linguagens em `fixtures/signal/`. A referência em C#
 > inclui X3DH completo + Double Ratchet (Signal §3 + §5) sobre X25519.
-> Go, Python, TypeScript, Rust, Swift e Kotlin foram portados para o mesmo
-> envelope e são byte-equivalentes no nível de fixture X3DH e KDF_RK.
-> C inclui apenas as primitivas X25519 + KDF_RK + ratchet simétrico —
-> suficiente para o verificador de fixture, sem maquinaria completa de
-> sessão ainda. Onde esta seção discordar do código, o código é autoritativo;
-> registre um problema em `OPEN_ISSUES.md`.
+> Go, Python, TypeScript, Rust, Swift e Kotlin foram todos portados para o mesmo
+> envelope e são byte-equivalentes no nível de fixture X3DH e KDF_RK. C agora
+> inclui também toda a maquinaria de sessão (X3DH + ciclo de vida OPK/SPK +
+> Double Ratchet em `c/src/signal_protocol.c`, com testes E2E de dois nós em
+> `c/tests/test_signal_session.c`), não apenas as primitivas. Onde esta seção
+> discordar do código, o código é autoritativo; registre um problema em
+> `OPEN_ISSUES.md`.
 
 O Aether implementa **X3DH** (Extended Triple Diffie-Hellman, Signal §3) para
 estabelecimento de sessão assíncrono, seguido imediatamente pelo **Signal Double
@@ -627,12 +628,14 @@ encrypt/decrypt AES-GCM.
 | Rust        | completo     | completo (§5)  | pool, padrão 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | completo     | completo (§5)  | pool, padrão 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | completo     | completo (§5)  | pool, padrão 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | apenas primitivas — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | não implementado | — | apenas kdf_rk_basic |
+| C           | completo     | completo (§5)  | pool, padrão 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 
-Todas as 7 linguagens capazes de sessão (C# + Go + TypeScript + Python + Kotlin + Swift + Rust)
-incluem o pool OPK FIFO de 100 chaves com reabastecimento lazy e consumo protegido por lock,
-correspondendo ao contrato de referência em C#. C inclui apenas primitivas; a maquinaria
-completa de sessão é monitorada em `OPEN_ISSUES.md` item 11.
+Todas as 8 linguagens (C# + Go + TypeScript + Python + Kotlin + Swift + Rust + C)
+incluem o serviço de sessão completo X3DH + Double Ratchet e o pool OPK FIFO de 100
+chaves com reabastecimento lazy e consumo protegido por lock, correspondendo ao
+contrato de referência em C#. O serviço de sessão em C vive em
+`c/src/signal_protocol.c` com testes E2E de dois nós em
+`c/tests/test_signal_session.c`.
 
 ---
 

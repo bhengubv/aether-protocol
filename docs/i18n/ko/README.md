@@ -246,7 +246,7 @@ Aether는 스마트폰, 노트북, 태블릿, 마이크로컨트롤러에서 실
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-8개 언어 모두 바이트 단위로 동일한 와이어 패킷을 생성하며, CI에서 14개의 정식 와이어 형식 픽스처와 4개의 Signal 테스트 벡터로 검증됩니다 (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). 라우팅 (AODV 방식 RREQ/RREP), DTN 저장-전달, SOS 방송, 음성, 스트리밍, 보안 강화 서비스가 모든 언어에서 구현되어 있으며, 8개 구현체 전체에 걸쳐 **약 3,000개의 테스트**가 있습니다:
+8개 언어 모두 바이트 단위로 동일한 와이어 패킷을 생성하며, CI에서 17개의 정식 와이어 형식 픽스처와 6개의 Signal 테스트 벡터로 검증됩니다 (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). 라우팅 (AODV 방식 RREQ/RREP), DTN 저장-전달, SOS 방송, 음성, 스트리밍, 보안 강화 서비스가 모든 언어에서 구현되어 있으며, 8개 구현체 전체에 걸쳐 **약 3,000개의 테스트**가 있습니다:
 
 | 언어 | 테스트 수 | CI 플랫폼 |
 |----------|------:|-------------|
@@ -260,7 +260,7 @@ Aether는 스마트폰, 노트북, 태블릿, 마이크로컨트롤러에서 실
 | Rust (stable) | ~195 | ubuntu-latest |
 | **합계** | **~3,000** | |
 
-언어 간 Signal 상호 운용성은 `fixtures/signal/`에 X3DH (`x3dh_basic`), 대칭 래칫 (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`)에 대한 공유 테스트 벡터로 고정되어 있습니다. 모든 구현체는 해당 픽스처에 대해 바이트 단위로 동일한 출력을 생성해야 합니다. 8개 언어 모두 완전한 Signal 세션 (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`)을 지원합니다.
+언어 간 Signal 상호 운용성은 `fixtures/signal/`에 X3DH (`x3dh_basic`), 대칭 래칫 (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), 그리고 완전한 X3DH 세션 왕복 (`x3dh_session_msg1`, `x3dh_session_reply`)에 대한 공유 테스트 벡터로 고정되어 있습니다. 모든 구현체는 해당 픽스처에 대해 바이트 단위로 동일한 출력을 생성해야 합니다. 8개 언어 모두 완전한 Signal 세션 (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`)을 지원합니다.
 
 와이어 형식과 Signal을 넘어, **전체 와이어 서비스 제품군** — 프레즌스, 하트비트, 프로필 동기화, 임시 ID 알림, 사전 키 교환, 채널, 푸시-투-토크, 화면 공유, 통화 제어, SOS 확인, 스페이스 브레드크럼, 포지 알림, 볼트 샤드 요청, 대역폭 측정 (**제공되는 것 — 모든 서비스, 모든 언어로** 참조) — 도 마찬가지로 8개 언어 모두에 구현되어 있으며 자체 픽스처 (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, 그리고 형제 픽스처)에 고정되어 있습니다. 프로토콜 계층에서 C# 전용인 기능은 없습니다.
 
@@ -513,7 +513,7 @@ aethernet_packet_free(packet);
 완성된 것과 다음 단계.
 
 **완료 (언어 간 검증, 8개 구현체 모두):**
-- 와이어 형식: 8개 언어에서 바이트 단위로 동일, CI의 14개 정식 픽스처 및 언어 간 어서션으로 고정 (`fixtures/expected/*.bin`)
+- 와이어 형식: 8개 언어에서 바이트 단위로 동일, CI의 17개 정식 픽스처 및 언어 간 어서션으로 고정 (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — 9개 작업 매트릭스 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, 픽스처 무결성 작업 포함) `.github/workflows/ci.yml`.
 - Ed25519 패킷 서명 및 검증
 - AES-256-GCM 암호화

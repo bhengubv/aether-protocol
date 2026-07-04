@@ -61,7 +61,25 @@ Signal プロトコルスタイルのエンドツーエンド暗号化メッセ�
 
 各ワンタイムプリキー（OPK）はちょうど 1 回だけ消費されます。C# リファレンスは、FIFO 発行、すべてのバンドル生成時の遅延補充、ロック保護されたシングルショット消費（`SignalProtocolService.TopUpOpkPoolNoLock`、`tests/AetherNet.Core.Tests/PreKeyPoolTests.cs` によって検証済み）を持つ 100-OPK プールを提供します。OPK は X3DH 中にレスポンダーが消費した瞬間に削除されゼロ化されます。そのため、同じ OPK ID を再使用するリプレイされたプリキーメッセージはセッションを確立できません。
 
-他の 7 言語はまだセッションごとに 1 つの OPK を発行します — 連続ワークロードでは機能的に正しいですが、同時バンドルフェッチ下でコンカレンシーハザードを露出します。`OPEN_ISSUES.md` §9 として追跡されています。
+**解決済み（全 8 言語）。** セッション対応の他の 7 言語も、いまや同じ 100-OPK プールを、FIFO の
+一度きり発行、遅延補充、ロック保護されたシングルショット消費とともに提供しており、これにより以前の
+セッションごと単一 OPK のコンカレンシーハザードを解消しました: Rust
+（`rust/src/security/signal_protocol.rs` — `DEFAULT_OPK_POOL_SIZE = 100`、
+`available_opk_ids: VecDeque<i32>`、`top_up_opk_pool`）、Go
+（`go/security/signal_protocol.go` — `DefaultOpkPoolSize = 100`、
+`topUpOpkPoolLocked`）、Python
+（`python/aethernet/security/signal_protocol.py` —
+`DEFAULT_OPK_POOL_SIZE = 100`、`available_opk_ids: Deque`、
+`_top_up_opk_pool_locked`）、TypeScript
+（`typescript/src/security/PreKeyStore.ts` — 一度きり消費の FIFO プール、
+`typescript/tests/opk_pool.test.ts`）、Kotlin
+（`kotlin/src/main/kotlin/aethernet/security/SignalProtocol.kt` —
+`DEFAULT_OPK_POOL_SIZE = 100`、`ArrayDeque<Int>`、`topUpOpkPoolNoLock`）、
+Swift（`swift/Sources/AetherNetProtocol/Security/SignalProtocol.swift` —
+`defaultOpkPoolSize = 100`、`removeFirst()` FIFO、`topUpOpkPool`）、および C
+（`c/src/signal_protocol.c` — `AETHERNET_SIGNAL_OPK_POOL_SIZE = 100`、プールは
+`aethernet_signal_service_init` で 1..100 にシードされ、最初の未消費分を発行、レスポンダの
+X3DH で OPK をゼロ化し `consumed` にマーク）。
 
 ### 2.7. クロス言語のワイヤードリフト
 
@@ -205,14 +223,29 @@ Aether は「アイデンティティキー X を保持しているピアがこ�
 **脆弱性:** `MessagingService` には、プレーンテキストエンベロープの前に無条件のフラグバイトを追加するオプションの Brotli 圧縮シームがあります。圧縮前のコードを実行しているピアは、フラグバイトをアプリケーションペイロードの最初のバイトとして誤読します。
 **軽減策:** すべてのピアが新しいビットを持つまで、アダプターは `MessagingOptions.Compression.Enabled = false` を設定してください。フラグバイトは将来のケイパビリティネゴシエーションハンドシェイクによってゲートされます。`CompressionOptions` の移行ノートを参照してください。
 
-### 5.5. C 言語のギャップ
+### 5.5. C 言語のギャップ — 解決済み
 
-**脆弱性:** C 実装は X25519 + KDF_RK プリミティブとフィクスチャベリファイアのみを提供します。完全な `SignalProtocolService` API（X3DH セッション確立、OPK / SPK ライフサイクル、DH ラチェット統合）は実装 **されていません**。C ベースのマイクロコントローラーに Aether をデプロイするホストは、現在の C サーフェスをエンドツーエンド暗号化トラフィックに使用できません。`OPEN_ISSUES.md` §11 として追跡されています。
+**かつての脆弱性:** C 実装は X25519 + KDF_RK プリミティブとフィクスチャベリファイアのみを提供し、
+完全な `SignalProtocolService` API がありませんでした。
+**解決済み。** `c/src/signal_protocol.c` はいまや完全なセッションサービスを実装しています — X3DH
+確立（`aethernet_signal_process_pre_key_bundle` での SPK Ed25519 署名検証に続く、標準的な 4 つの DH
+`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)` と HKDF-SHA256 ルート）、
+OPK / SPK ライフサイクル（プールは `aethernet_signal_service_init` で 1..100 にシード、`has_pre_key`
+バンドル投影、レスポンダ側で OPK 消費）、および完全な Double-Ratchet 統合
+（`dh_ratchet_receive`、`dh_ratchet_send_only`、AES-256-GCM 上の
+`aethernet_signal_encrypt` / `aethernet_signal_decrypt`）。2 ノードの E2E ラウンドトリップは
+`c/tests/test_signal_session.c` にあります。C ベースのターゲット上のホストは、いまや C サーフェスで
+エンドツーエンド暗号化トラフィックを実行できます。
 
-### 5.6. OPK プールは C# のみ
+### 5.6. OPK プールは C# のみ — 解決済み
 
-**脆弱性:** FIFO 発行と原子的消費を持つ 100-OPK プール（防御 2.6）は C# リファレンスの機能です。Go、Python、TypeScript、Rust、Swift、Kotlin の実装はまだセッションごとに 1 つの OPK を発行しています。同時イニシエーター負荷下では、同じバンドルソースを競合する 2 つのレスポンダーが同じ OPK を観察し、X3DH がセッション状態の不一致を生成する可能性があります。
-**軽減策:** 影響を受ける言語では、ホスト側でバンドル消費をシリアライズしてください（ピアごとに一度に 1 つのイニシエーター）。`OPEN_ISSUES.md` §9 として追跡されています。
+**かつての脆弱性:** FIFO 発行と原子的消費を持つ 100-OPK プール（防御 2.6）は C# のみの機能でした。
+他の言語はセッションごとに 1 つの OPK を発行していたため、同時イニシエーター負荷下では、同じバンドル
+ソースを競合する 2 つのレスポンダーが同じ OPK を観察し、X3DH がセッション状態の不一致を生成し得ました。
+**解決済み（全 8 言語）。** セッション対応のすべての言語が、いまや同じ 100-OPK プールを、FIFO の
+一度きり発行、遅延補充、ロック保護されたシングルショット消費とともに提供しています — 言語ごとの
+file:symbol の証跡は防御 2.6 に列挙されています。同時イニシエーターのハザードは解消され、バンドル消費の
+ホスト側シリアライズは不要です。
 
 ### 5.7. C# 以外の言語でのデモ署名
 

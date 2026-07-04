@@ -64,7 +64,7 @@ Double Ratchet در هر مرحله DH-rotation یک کلید زنجیره ار�
 
 هر OPK دقیقاً یک بار مصرف می‌شود. مرجع C# یک pool صد OPK با صدور FIFO، پر کردن تنبل در هر تولید bundle، و مصرف تک‌باره با قفل ارائه می‌دهد (`SignalProtocolService.TopUpOpkPoolNoLock`، تأیید شده توسط `tests/AetherNet.Core.Tests/PreKeyPoolTests.cs`). یک OPK لحظه‌ای که پاسخ‌دهنده آن را در طول X3DH مصرف می‌کند حذف و صفر می‌شود، بنابراین یک پیام PreKey بازپخش‌شده که از همان id OPK استفاده می‌کند نمی‌تواند جلسه برقرار کند.
 
-۷ زبان دیگر هنوز یک OPK منفرد در هر جلسه صادر می‌کنند — از نظر عملکردی برای بارهای کاری متوالی درست است اما در زیر fetch‌های bundle همزمان یک خطر همزمانی را نمایان می‌کند. در `OPEN_ISSUES.md` §9 ردیابی می‌شود.
+**حل‌شده (تمام ۸ زبان).** هفت زبان دیگرِ دارای قابلیت جلسه اکنون همان استخر ۱۰۰-OPK را با صدور FIFO یک‌باره، شارژ تنبل، و مصرف تک‌شات محافظت‌شده با قفل ارسال می‌کنند، که خطر همزمانی پیشین «یک-OPK-به-ازای-هر-جلسه» را می‌بندد: Rust (`rust/src/security/signal_protocol.rs` — `DEFAULT_OPK_POOL_SIZE = 100`، `available_opk_ids: VecDeque<i32>`، `top_up_opk_pool`)، Go (`go/security/signal_protocol.go` — `DefaultOpkPoolSize = 100`، `topUpOpkPoolLocked`)، Python (`python/aethernet/security/signal_protocol.py` — `DEFAULT_OPK_POOL_SIZE = 100`، `available_opk_ids: Deque`، `_top_up_opk_pool_locked`)، TypeScript (`typescript/src/security/PreKeyStore.ts` — استخر FIFO مصرف‌یک‌باره، `typescript/tests/opk_pool.test.ts`)، Kotlin (`kotlin/src/main/kotlin/aethernet/security/SignalProtocol.kt` — `DEFAULT_OPK_POOL_SIZE = 100`، `ArrayDeque<Int>`، `topUpOpkPoolNoLock`)، Swift (`swift/Sources/AetherNetProtocol/Security/SignalProtocol.swift` — `defaultOpkPoolSize = 100`، FIFO با `removeFirst()`، `topUpOpkPool`)، و C (`c/src/signal_protocol.c` — `AETHERNET_SIGNAL_OPK_POOL_SIZE = 100`، استخر با مقادیر 1..100 در `aethernet_signal_service_init` پر می‌شود، صدور نخستین-مصرف‌نشده، OPK در X3DH پاسخ‌دهنده صفر و به‌عنوان `consumed` علامت‌گذاری می‌شود).
 
 ### ۲.۷. انحراف سیم چندزبانه
 
@@ -208,14 +208,15 @@ Aether احراز هویت می‌کند که "همتایی که identity-key-X 
 **ضعف:** `MessagingService` یک درز Brotli-compression اختیاری دارد که یک بایت فلگ غیرمشروط را به ابتدای envelope متن واضح اضافه می‌کند. یک همتا که کد پیش از فشرده‌سازی را اجرا می‌کند بایت فلگ را به اشتباه به عنوان اولین بایت payload برنامه می‌خواند.
 **کاهش:** پذیرندگان `MessagingOptions.Compression.Enabled = false` را تنظیم می‌کنند تا هر همتا بیت‌های جدید را داشته باشد. بایت فلگ توسط یک handshake مذاکره capability آینده دروازه‌بانی خواهد شد. به یادداشت مهاجرت روی `CompressionOptions` مراجعه کنید.
 
-### ۵.۵. شکاف زبان C
+### ۵.۵. شکاف زبان C — حل‌شده
 
-**ضعف:** پیاده‌سازی C تنها primitiveهای X25519 + KDF_RK به علاوه verifier fixture را ارائه می‌دهد. **API کامل `SignalProtocolService`** (برقراری جلسه X3DH، چرخه حیات OPK / SPK، یکپارچه‌سازی DH-ratchet) **پیاده‌سازی نشده است**. میزبان‌هایی که Aether را روی میکروکنترلرهای مبتنی بر C استقرار می‌دهند نمی‌توانند از سطح C فعلی برای ترافیک رمزگذاری‌شده سرتاسر استفاده کنند. در `OPEN_ISSUES.md` §11 ردیابی می‌شود.
+**ضعف پیشین:** پیاده‌سازی C تنها primitiveهای X25519 + KDF_RK به علاوه verifier fixture را ارائه می‌داد، بدون API کامل `SignalProtocolService`.
+**حل‌شده.** `c/src/signal_protocol.c` اکنون سرویس کامل جلسه را پیاده‌سازی می‌کند — برقراری X3DH (تأیید امضای Ed25519 روی SPK و سپس ۴ DH متعارف `DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)` با ریشه‌ی HKDF-SHA256 در `aethernet_signal_process_pre_key_bundle`)، چرخه‌ی حیات OPK / SPK (استخر با مقادیر 1..100 در `aethernet_signal_service_init` پر می‌شود، پروجکشن bundle با `has_pre_key`، مصرف OPK در سمت پاسخ‌دهنده)، و یکپارچه‌سازی کامل Double-Ratchet (`dh_ratchet_receive`، `dh_ratchet_send_only`، `aethernet_signal_encrypt` / `aethernet_signal_decrypt` روی AES-256-GCM). رفت‌وبرگشت‌های E2E دو-گره در `c/tests/test_signal_session.c` قرار دارند. میزبان‌های روی targetهای مبتنی بر C اکنون می‌توانند ترافیک رمزگذاری‌شده‌ی سرتاسر را روی سطح C اجرا کنند.
 
-### ۵.۶. Pool OPK فقط C# است
+### ۵.۶. Pool OPK فقط C# است — حل‌شده
 
-**ضعف:** pool ۱۰۰-OPK با صدور FIFO و مصرف اتمی (دفاع ۲.۶) یک ویژگی مرجع C# است. پیاده‌سازی‌های Go، Python، TypeScript، Rust، Swift، Kotlin هنوز یک OPK منفرد در هر جلسه صادر می‌کنند. زیر بار initiator همزمان، دو پاسخ‌دهنده که برای همان منبع bundle رقابت می‌کنند هر دو می‌توانند OPK یکسان را مشاهده کنند و X3DH می‌تواند یک عدم تطابق وضعیت جلسه تولید کند.
-**کاهش:** برای زبان‌های آسیب‌دیده، مصرف bundle را از سمت میزبان سریال کنید (یک initiator در یک زمان در هر همتا). در `OPEN_ISSUES.md` §9 ردیابی می‌شود.
+**ضعف پیشین:** pool ۱۰۰-OPK با صدور FIFO و مصرف اتمی (دفاع ۲.۶) یک ویژگی فقط-C# بود؛ زبان‌های دیگر یک OPK منفرد در هر جلسه صادر می‌کردند، بنابراین زیر بار initiator-همزمان دو پاسخ‌دهنده که برای همان منبع bundle رقابت می‌کردند می‌توانستند OPK یکسان را مشاهده کنند و X3DH می‌توانست یک عدم تطابق وضعیت جلسه تولید کند.
+**حل‌شده (تمام ۸ زبان).** هر زبانِ دارای قابلیت جلسه اکنون همان استخر ۱۰۰-OPK را با صدور FIFO یک‌باره، شارژ تنبل، و مصرف تک‌شات محافظت‌شده با قفل ارسال می‌کند — به شواهد file:symbol هر زبان که زیر دفاع ۲.۶ برشمرده شده مراجعه کنید. خطر initiator-همزمان بسته شده است؛ هیچ سریال‌سازی سمت-میزبانِ مصرف bundle لازم نیست.
 
 ### ۵.۷. امضا در نمونه‌های demo زبان‌های غیر C#
 

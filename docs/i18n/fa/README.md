@@ -248,7 +248,7 @@ Aether در ۸ زبان ساخته شده تا روی تلفن‌ها، لپ‌�
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
 
-تمام ۸ زبان بسته‌های سیم بایت‌به‌بایت یکسانی تولید می‌کنند که توسط ۱۴ fixture استاندارد فرمت سیم و ۴ بردار آزمون Signal در CI تأیید می‌شوند (`fixtures/expected/*.bin`، `fixtures/signal/expected/*.json`). مسیریابی (RREQ/RREP به‌سبک AODV)، DTN store-and-forward، پخش SOS، صدا، استریمینگ و سرویس‌های سخت‌گیری امنیتی در هر زبان با **~۳,۰۰۰ آزمون** در تمام ۸ پیاده‌سازی اجرا می‌شوند:
+تمام ۸ زبان بسته‌های سیم بایت‌به‌بایت یکسانی تولید می‌کنند که توسط ۱۷ fixture استاندارد فرمت سیم و ۶ بردار آزمون Signal در CI تأیید می‌شوند (`fixtures/expected/*.bin`، `fixtures/signal/expected/*.json`). مسیریابی (RREQ/RREP به‌سبک AODV)، DTN store-and-forward، پخش SOS، صدا، استریمینگ و سرویس‌های سخت‌گیری امنیتی در هر زبان با **~۳,۰۰۰ آزمون** در تمام ۸ پیاده‌سازی اجرا می‌شوند:
 
 | زبان | آزمون‌ها | پلتفرم CI |
 |----------|------:|-------------|
@@ -262,7 +262,7 @@ Aether در ۸ زبان ساخته شده تا روی تلفن‌ها، لپ‌�
 | Rust (stable) | ~۱۹۵ | ubuntu-latest |
 | **مجموع** | **~۳,۰۰۰** | |
 
-تعامل‌پذیری Signal بین‌زبانی به `fixtures/signal/` با بردارهای آزمون مشترک برای X3DH (`x3dh_basic`)، رچت متقارن (`ratchet_step_basic`، `ratchet_step_three_iterations`) و KDF_RK (`kdf_rk_basic`) لنگر انداخته است. هر پیاده‌سازی باید خروجی‌های بایت‌به‌بایت یکسانی در برابر آن fixture‌ها تولید کند. هر ۸ زبان اکنون یک جلسه Signal کامل (`generate_pre_key_bundle`، `process_pre_key_bundle`، `encrypt`، `decrypt`) دارند.
+تعامل‌پذیری Signal بین‌زبانی به `fixtures/signal/` با بردارهای آزمون مشترک برای X3DH (`x3dh_basic`)، رچت متقارن (`ratchet_step_basic`، `ratchet_step_three_iterations`)، KDF_RK (`kdf_rk_basic`) و رفت‌وبرگشت کامل جلسه X3DH (`x3dh_session_msg1`، `x3dh_session_reply`) لنگر انداخته است. هر پیاده‌سازی باید خروجی‌های بایت‌به‌بایت یکسانی در برابر آن fixture‌ها تولید کند. هر ۸ زبان اکنون یک جلسه Signal کامل (`generate_pre_key_bundle`، `process_pre_key_bundle`، `encrypt`، `decrypt`) دارند.
 
 فراتر از فرمت سیم و Signal، **کل مجموعه سرویس‌های سیم** — حضور، ضربان قلب، همگام‌سازی پروفایل، اعلام شناسه موقت، تبادل پیش‌کلید، کانال‌ها، فشار برای صحبت، اشتراک صفحه، کنترل تماس، تأیید SOS، رد پای فضا، اعلام forge، درخواست شارد vault، و اندازه‌گیری پهنای باند (به **آنچه دریافت می‌کنید** مراجعه کنید) — به همین ترتیب در تمام ۸ زبان پیاده‌سازی شده و به fixture‌های خودش پین شده است (`fixtures/presence/`، `fixtures/media/`، `fixtures/bandwidth/`، `fixtures/prekey/`، `fixtures/videocall/`، `fixtures/vaultshard/` و خواهرها). هیچ ویژگی‌ای در لایه پروتکل فقط-C# نیست.
 
@@ -515,7 +515,7 @@ aethernet_packet_free(packet);
 آنچه ساخته شده و آنچه در پیش است.
 
 **انجام‌شده (تأییدشده بین‌زبانی، تمام ۸ پیاده‌سازی):**
-- فرمت سیم: بایت‌به‌بایت یکسان در ۸ زبان، لنگرانداخته‌شده با ۱۴ fixture استاندارد و ادعاهای بین‌زبانی در CI (`fixtures/expected/*.bin`)
+- فرمت سیم: بایت‌به‌بایت یکسان در ۸ زبان، لنگرانداخته‌شده با ۱۷ fixture استاندارد و ادعاهای بین‌زبانی در CI (`fixtures/expected/*.bin`)
 - ✅ **GitHub Actions CI** — ماتریس ۹-شغلی (C#/.NET 10، Go 1.22، TypeScript/Node 20، Python 3.12، Kotlin/JVM 21، Swift/macOS-14، Rust stable، C/GCC، به‌علاوه شغل یکپارچگی fixture) در `.github/workflows/ci.yml`.
 - امضا و تأیید بسته Ed25519
 - رمزگذاری AES-256-GCM

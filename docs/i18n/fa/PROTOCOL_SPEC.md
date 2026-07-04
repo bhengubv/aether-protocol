@@ -277,8 +277,9 @@ Aether از یک پروتکل مسیریابی واکنشی بر اساس مسی
 > X3DH کامل + Double Ratchet (Signal §3 + §5) روی X25519 ارسال می‌کند. Go،
 > Python، TypeScript، Rust، Swift، و Kotlin به همان پوشه پورت شده‌اند و در
 > سطح fixture X3DH و KDF_RK بایت‌معادل هستند.
-> C فقط اولیه‌های X25519 + KDF_RK + چرخ‌زنه‌ی متقارن را ارسال می‌کند —
-> کافی برای تأیید fixture، هنوز ماشینری کامل session ندارد.
+> C اکنون ماشینری کامل session را نیز ارسال می‌کند (X3DH + چرخه‌ی حیات
+> OPK/SPK + Double Ratchet در `c/src/signal_protocol.c`، با آزمون‌های
+> E2E دو-گره در `c/tests/test_signal_session.c`)، نه فقط اولیه‌ها.
 > در هر جایی که این بخش با کد اختلاف دارد، کد معتبر است؛
 > یک issue در `OPEN_ISSUES.md` ثبت کنید.
 
@@ -472,9 +473,9 @@ EncryptedPayload {
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 
-همه‌ی ۷ زبان قادر به session (C# + Go + TypeScript + Python + Kotlin + Swift + Rust) استخر FIFO صد کلیدی OPK با پرکردن تنبل و مصرف محافظت‌شده با قفل ارسال می‌کنند، که با قرارداد مرجع C# مطابقت دارد. C فقط اولیه‌ها را ارسال می‌کند؛ ماشینری کامل session در `OPEN_ISSUES.md` آیتم ۱۱ ردیابی می‌شود.
+همه‌ی ۸ زبان (C# + Go + TypeScript + Python + Kotlin + Swift + Rust + C) سرویس کامل جلسه‌ی X3DH + Double Ratchet و استخر FIFO صد کلیدی OPK با پرکردن تنبل و مصرف محافظت‌شده با قفل را ارسال می‌کنند، که با قرارداد مرجع C# مطابقت دارد. سرویس جلسه‌ی C در `c/src/signal_protocol.c` با آزمون‌های E2E دو-گره در `c/tests/test_signal_session.c` قرار دارد.
 
 ---
 

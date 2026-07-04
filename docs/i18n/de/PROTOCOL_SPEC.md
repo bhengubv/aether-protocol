@@ -341,13 +341,14 @@ werden bevorzugt.
 > `src/AetherNet.Security/Services/SignalProtocolService.cs` und dem
 > sprachübergreifenden Fixture-Korpus unter `fixtures/signal/`. Die
 > C#-Referenz implementiert vollständiges X3DH + Double Ratchet (Signal §3 +
-> §5) über X25519. Go, Python, TypeScript, Rust, Swift und Kotlin wurden auf
-> denselben Umschlag portiert und sind auf Fixture-Ebene (X3DH und KDF_RK)
-> byte-äquivalent. C implementiert nur die primitiven X25519- + KDF_RK- +
-> Symmetric-Ratchet-Bausteine – ausreichend für den Fixture-Verifier, noch
-> keine vollständige Session-Maschinerie. Bei Abweichungen zwischen diesem
-> Abschnitt und dem Code ist der Code maßgeblich; bitte einen Issue in
-> `OPEN_ISSUES.md` anlegen.
+> §5) über X25519. Go, Python, TypeScript, Rust, Swift, Kotlin und C wurden
+> alle auf denselben Umschlag portiert und sind auf Fixture-Ebene (X3DH und
+> KDF_RK) byte-äquivalent. C liefert nun ebenfalls die vollständige
+> Session-Maschinerie (X3DH + OPK-/SPK-Lebenszyklus + Double Ratchet in
+> `c/src/signal_protocol.c`, mit Zwei-Knoten-E2E-Tests in
+> `c/tests/test_signal_session.c`), nicht nur die Primitive. Bei Abweichungen
+> zwischen diesem Abschnitt und dem Code ist der Code maßgeblich; bitte einen
+> Issue in `OPEN_ISSUES.md` anlegen.
 
 Aether implementiert **X3DH** (Extended Triple Diffie-Hellman, Signal §3) für
 den asynchronen Sitzungsaufbau, dem unmittelbar der **Signal Double Ratchet**
@@ -628,12 +629,13 @@ Entschlüsselung genullt.
 | Rust        | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Swift       | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 | Kotlin      | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
-| C           | primitives only — `aethernet_x25519_*`, `aethernet_signal_kdf_rk` | not implemented | — | kdf_rk_basic only |
+| C           | full         | full (§5)      | pool, default 100 | x3dh_basic, ratchet_*, kdf_rk_basic |
 
-Alle 7 session-fähigen Sprachen (C# + Go + TypeScript + Python + Kotlin + Swift + Rust)
-implementieren den 100-Key-FIFO-OPK-Pool mit Lazy-Top-Up und lock-geschütztem Verbrauch,
-entsprechend dem C#-Referenzvertrag. C implementiert nur Primitive; vollständige
-Session-Maschinerie wird in `OPEN_ISSUES.md` Punkt 11 verfolgt.
+Alle 8 Sprachen (C# + Go + TypeScript + Python + Kotlin + Swift + Rust + C) liefern
+den vollständigen X3DH- + Double-Ratchet-Sitzungsdienst und den 100-Key-FIFO-OPK-Pool
+mit Lazy-Top-Up und lock-geschütztem Verbrauch, entsprechend dem C#-Referenzvertrag.
+Der C-Sitzungsdienst lebt in `c/src/signal_protocol.c` mit Zwei-Knoten-E2E-Tests in
+`c/tests/test_signal_session.c`.
 
 ---
 
