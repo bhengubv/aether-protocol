@@ -8,8 +8,10 @@
  * touches NO mesh wire-serialization and NO fixtures.
  *
  * Levels covered:
- *   1. Interop byte-identity — a framed signal equals the captured C# `System.Text.Json` reference
- *      bytes (magic `AWS1` + JSON), including STJ's escaping of base64 `+`.
+ *   1. Interop byte-identity — a framed signal equals the SHARED cross-language fixture bytes
+ *      (magic `AWS1` + JSON) at fixtures/webrtc/expected/<name>.bin, built from the one committed
+ *      fixtures/webrtc/inputs.json, and decode round-trips losslessly. This is the same oracle the
+ *      C#, Go, and other language legs assert against.
  *   2. Transport round-trip — the two carriers round-trip an offer AND an answer over the loopback
  *      transport, decoding back to the original signal.
  *   3. Full werift handshake — two real `WebRtcTransport` instances whose signalling rides the
@@ -18,8 +20,11 @@
  * Run with: node --import tsx --test tests/transport_webrtc_relay_signaling.test.ts
  */
 
-import { describe, it } from "node:test";
+import { describe, it, test } from "node:test";
 import { strict as assert } from "node:assert";
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 import { ITransportService, PerTransportMetrics } from "../src/transport/ITransportService.js";
 import {
@@ -80,102 +85,100 @@ function loopbackPair(a: string, b: string): [LoopbackTransport, LoopbackTranspo
   return [left, right];
 }
 
-// ── Captured C# System.Text.Json reference frames (byte-identity fixtures) ──────
-// Produced by serializing the C# `WebRtcSignal` record via the same source-generated context
-// (WhenWritingNull) and prefixing the `AWS1` magic. These are the exact bytes a C# node emits.
+// ── Level 1: interop byte-identity against the shared cross-language fixture ─────
+// The one committed oracle lives at fixtures/webrtc/{inputs.json,expected/<name>.bin} and is shared
+// byte-for-byte with the C#, Go, and other language legs. Each expected/<name>.bin is the exact
+// `AWS1` + JSON frame. No golden bytes are hardcoded here; they are read from that fixture.
 
-/** offer: from "alice" to "bob", sdp "v=0\r\no=- 1 1 IN IP4 0.0.0.0". */
-const CS_OFFER_HEX =
-  "415753317B2246726F6D55686964223A22616C696365222C22546F55686964223A22626F62222C2254797065223A302C22536470223A22763D305C725C6E6F3D2D2031203120494E2049503420302E302E302E30222C225364704D4C696E65496E646578223A307D";
-
-/** answer: from "bob" to "alice", sdp "v=0\r\na=answer". */
-const CS_ANSWER_HEX =
-  "415753317B2246726F6D55686964223A22626F62222C22546F55686964223A22616C696365222C2254797065223A312C22536470223A22763D305C725C6E613D616E73776572222C225364704D4C696E65496E646578223A307D";
-
-/** candidate: from "alice" to "bob", candidate + sdpMid "0" + sdpMLineIndex 0. */
-const CS_CANDIDATE_HEX =
-  "415753317B2246726F6D55686964223A22616C696365222C22546F55686964223A22626F62222C2254797065223A322C2243616E646964617465223A2263616E6469646174653A3120312075647020312031302E302E302E3120353030302074797020686F7374222C225364704D4C696E65496E646578223A302C225364704D6964223A2230227D";
-
-/** escaping edge case: sdp with base64 `+`, and `< > &` — proves STJ-exact escaping. */
-const CS_ESCAPING_JSON =
-  '{"FromUhid":"a","ToUhid":"b","Type":0,"Sdp":"a=fingerprint:sha-256 AB\\u002B/CD=xy \\u003Ct\\u003E \\u0026z ual/set\\u002Bice","SdpMLineIndex":0}';
-
-function toHex(bytes: Uint8Array): string {
-  let s = "";
-  for (const b of bytes) s += b.toString(16).toUpperCase().padStart(2, "0");
-  return s;
+/** One shared-fixture input case (fields per fixtures/webrtc/inputs.json). */
+interface WebRtcInput {
+  name: string;
+  from_uhid: string;
+  to_uhid: string;
+  type: number;
+  sdp?: string;
+  candidate?: string;
+  sdp_mid?: string;
+  sdp_mline_index?: number;
 }
 
-// ── Level 1: interop byte-identity ──────────────────────────────────────────────
+const here = path.dirname(fileURLToPath(import.meta.url));
 
-describe("RelayWebRtcSignaling — wire byte-identity with C#", () => {
-  it("frames an offer identically to the C# System.Text.Json reference", () => {
-    const offer: Signal = {
-      fromUhid: "alice",
-      toUhid: "bob",
-      type: SignalType.Offer,
-      sdp: "v=0\r\no=- 1 1 IN IP4 0.0.0.0",
-    };
-    assert.equal(toHex(encodeSignalFrame(offer)), CS_OFFER_HEX);
-  });
+/** Walk up from this test file until the shared fixtures/webrtc directory is found. */
+function fixturesDir(): string {
+  let dir = here;
+  for (let i = 0; i < 10; i++) {
+    if (existsSync(path.join(dir, "fixtures", "webrtc", "inputs.json"))) {
+      return path.join(dir, "fixtures", "webrtc");
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error("fixtures/webrtc/inputs.json not found from " + here);
+}
 
-  it("frames an answer identically to the C# reference", () => {
-    const answer: Signal = {
-      fromUhid: "bob",
-      toUhid: "alice",
-      type: SignalType.Answer,
-      sdp: "v=0\r\na=answer",
-    };
-    assert.equal(toHex(encodeSignalFrame(answer)), CS_ANSWER_HEX);
-  });
+function loadInputs(): WebRtcInput[] {
+  return JSON.parse(readFileSync(path.join(fixturesDir(), "inputs.json"), "utf8"));
+}
 
-  it("frames an ICE candidate identically to the C# reference (mid + mline order)", () => {
-    const cand: Signal = {
-      fromUhid: "alice",
-      toUhid: "bob",
-      type: SignalType.Candidate,
-      candidate: "candidate:1 1 udp 1 10.0.0.1 5000 typ host",
-      sdpMid: "0",
-      sdpMLineIndex: 0,
-    };
-    assert.equal(toHex(encodeSignalFrame(cand)), CS_CANDIDATE_HEX);
-  });
+/**
+ * Builds the {@link Signal} for a fixture case. An empty (or omitted) sdp / candidate / sdp_mid is
+ * treated as omitted — the field stays `undefined` so the frame drops it, exactly as the fixture
+ * generator intends.
+ */
+function signalFor(input: WebRtcInput): Signal {
+  const nonEmpty = (s: string | undefined): string | undefined =>
+    s !== undefined && s.length > 0 ? s : undefined;
+  return {
+    fromUhid: input.from_uhid,
+    toUhid: input.to_uhid,
+    type: input.type as SignalType,
+    sdp: nonEmpty(input.sdp),
+    candidate: nonEmpty(input.candidate),
+    sdpMid: nonEmpty(input.sdp_mid),
+    sdpMLineIndex: input.sdp_mline_index,
+  };
+}
 
-  it("escapes base64 '+' and '<>&' exactly as STJ does (not as JSON.stringify)", () => {
-    const sig: Signal = {
-      fromUhid: "a",
-      toUhid: "b",
-      type: SignalType.Offer,
-      sdp: "a=fingerprint:sha-256 AB+/CD=xy <t> &z ual/set+ice",
-    };
-    const frame = encodeSignalFrame(sig);
-    // Body is the frame minus the 4-byte AWS1 magic.
-    const body = new TextDecoder().decode(frame.subarray(4));
-    assert.equal(body, CS_ESCAPING_JSON);
-  });
+describe("RelayWebRtcSignaling — wire byte-identity with the shared cross-language fixture", () => {
+  for (const input of loadInputs()) {
+    test(`webrtc fixture encode ${input.name}`, () => {
+      const got = encodeSignalFrame(signalFor(input));
+      const expected = new Uint8Array(
+        readFileSync(path.join(fixturesDir(), "expected", input.name + ".bin")),
+      );
+      // Byte-for-byte identity with the committed oracle frame.
+      assert.deepEqual([...got], [...expected]);
+    });
 
-  it("round-trips a signal through encode → decode → encode unchanged (wire is stable)", () => {
-    const original: Signal = {
-      fromUhid: "n1",
-      toUhid: "n2",
-      type: SignalType.Candidate,
-      candidate: "candidate:2 1 tcp 9 192.168.1.9 0 typ host tcptype active",
-      sdpMid: "0",
-      sdpMLineIndex: 0,
-    };
-    const frame = encodeSignalFrame(original);
-    const decoded = decodeSignalFrame(frame);
-    assert.notEqual(decoded, undefined);
-    // Decoding is lossless: re-encoding the decoded signal reproduces the exact same wire bytes.
-    assert.equal(toHex(encodeSignalFrame(decoded!)), toHex(frame));
-    // And the meaningful fields survived.
-    assert.equal(decoded!.fromUhid, "n1");
-    assert.equal(decoded!.toUhid, "n2");
-    assert.equal(decoded!.type, SignalType.Candidate);
-    assert.equal(decoded!.candidate, original.candidate);
-    assert.equal(decoded!.sdpMid, "0");
-    assert.equal(decoded!.sdpMLineIndex, 0);
-  });
+    test(`webrtc fixture decode round-trips ${input.name}`, () => {
+      const expected = new Uint8Array(
+        readFileSync(path.join(fixturesDir(), "expected", input.name + ".bin")),
+      );
+      const decoded = decodeSignalFrame(expected);
+      assert.notEqual(decoded, undefined);
+      // Decoding is lossless: re-encoding the decoded signal reproduces the exact oracle bytes.
+      assert.deepEqual([...encodeSignalFrame(decoded!)], [...expected]);
+      // And the meaningful fields survived the trip.
+      assert.equal(decoded!.fromUhid, input.from_uhid);
+      assert.equal(decoded!.toUhid, input.to_uhid);
+      assert.equal(decoded!.type, input.type);
+      // sdp / candidate / sdpMid are present iff the fixture supplied a non-empty value.
+      assert.equal(decoded!.sdp, input.sdp && input.sdp.length > 0 ? input.sdp : undefined);
+      assert.equal(
+        decoded!.candidate,
+        input.candidate && input.candidate.length > 0 ? input.candidate : undefined,
+      );
+      assert.equal(
+        decoded!.sdpMid,
+        input.sdp_mid && input.sdp_mid.length > 0 ? input.sdp_mid : undefined,
+      );
+      // The wire always carries SdpMLineIndex (a non-nullable ushort), so a decode surfaces it,
+      // defaulting to 0 when the fixture omitted it.
+      assert.equal(decoded!.sdpMLineIndex, input.sdp_mline_index ?? 0);
+    });
+  }
 });
 
 // ── Level 2: transport round-trip between two separate carriers ─────────────────
