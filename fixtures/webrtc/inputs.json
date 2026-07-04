@@ -1,0 +1,44 @@
+[
+  {
+    "name": "offer_basic",
+    "from_uhid": "alice",
+    "to_uhid": "bob",
+    "type": 0,
+    "sdp": "v=0\r\no=- 1 1 IN IP4 0.0.0.0",
+    "sdp_mline_index": 0
+  },
+  {
+    "name": "answer_basic",
+    "from_uhid": "bob",
+    "to_uhid": "alice",
+    "type": 1,
+    "sdp": "v=0\r\na=answer",
+    "sdp_mline_index": 0
+  },
+  {
+    "name": "candidate_basic",
+    "from_uhid": "alice",
+    "to_uhid": "bob",
+    "type": 2,
+    "candidate": "candidate:1 1 udp 2130706431 192.168.1.5 54321 typ host",
+    "sdp_mid": "0",
+    "sdp_mline_index": 0
+  },
+  {
+    "name": "offer_exotic_ascii",
+    "from_uhid": "a",
+    "to_uhid": "b",
+    "type": 0,
+    "sdp": "a=fingerprint:sha-256 AB+/CD=xy <t> &z ual/set+ice",
+    "sdp_mline_index": 0
+  },
+  {
+    "name": "candidate_exotic_unicode",
+    "from_uhid": "u",
+    "to_uhid": "v",
+    "type": 2,
+    "candidate": "a+b/c=d<e>f&g:h ç é 世",
+    "sdp_mid": "m/i+d",
+    "sdp_mline_index": 3
+  }
+]

@@ -60,13 +60,35 @@ func NewRelayWebRtcSignaling(channel SignalingChannel) *RelayWebRtcSignaling {
 	return r
 }
 
-// SendSignal frames s as AWS1 + JSON and sends it over the transport channel to its addressee.
-func (r *RelayWebRtcSignaling) SendSignal(peerUhid string, s Signal) error {
+// FrameSignal renders s as the on-wire signalling frame: the 4-byte AWS1 magic followed by the
+// STJ-exact JSON body. It is the exact byte sequence SendSignal transmits, exposed so the
+// cross-language byte oracle (cmd/webrtcfixturegen) and the fixtures/webrtc parity test can pin it
+// — the same shared-fixture pattern the circuit-relay RelayFrame uses. Byte-identical to the C#
+// RelayWebRtcSignaling frame (System.Text.Json).
+func FrameSignal(s Signal) []byte {
 	body := serializeSignalBody(toWire(s))
 	frame := make([]byte, 0, len(signalMagic)+len(body))
 	frame = append(frame, signalMagic...)
 	frame = append(frame, body...)
-	_, err := r.channel.SendAsync(context.Background(), peerUhid, frame)
+	return frame
+}
+
+// DeframeSignal decodes an AWS1 frame back into a Signal. ok is false if the magic prefix is absent
+// or the JSON body is malformed. Inverse of FrameSignal.
+func DeframeSignal(data []byte) (s Signal, ok bool) {
+	if !hasMagic(data) {
+		return Signal{}, false
+	}
+	var w wireSignal
+	if err := json.Unmarshal(data[len(signalMagic):], &w); err != nil {
+		return Signal{}, false
+	}
+	return fromWire(w), true
+}
+
+// SendSignal frames s as AWS1 + JSON and sends it over the transport channel to its addressee.
+func (r *RelayWebRtcSignaling) SendSignal(peerUhid string, s Signal) error {
+	_, err := r.channel.SendAsync(context.Background(), peerUhid, FrameSignal(s))
 	return err
 }
 
@@ -186,7 +208,7 @@ func serializeSignalBody(w wireSignal) string {
 
 // stjString writes a JSON string literal (including the surrounding quotes) to b, escaped exactly as
 // System.Text.Json's default JavaScriptEncoder.Default does. Beyond the JSON-mandated escapes, STJ escapes
-// '"', '&', '\'', '+', '<', '>', backtick AND every non-ASCII code point as UPPERCASE \uXXXX — unlike
+// '"', '&', '\”, '+', '<', '>', backtick AND every non-ASCII code point as UPPERCASE \uXXXX — unlike
 // encoding/json, whose HTML escaping only covers '<', '>', '&' (lowercased) and which leaves '+' literal.
 //
 // Go strings are UTF-8; STJ operates per UTF-16 code unit, so we decode to runes and emit each as its
@@ -226,7 +248,7 @@ func stjString(b *strings.Builder, s string) {
 }
 
 // stjEscapeASCII reports whether an ASCII code point in 0x20–0x7E is one STJ's default encoder escapes as
-// \uXXXX even though plain JSON would not: '"' '&' '\'' '+' '<' '>' backtick. Mirrors STJ_ESCAPE_ASCII.
+// \uXXXX even though plain JSON would not: '"' '&' '\” '+' '<' '>' backtick. Mirrors STJ_ESCAPE_ASCII.
 func stjEscapeASCII(r rune) bool {
 	switch r {
 	case 0x22, 0x26, 0x27, 0x2B, 0x3C, 0x3E, 0x60: // " & ' + < > `
