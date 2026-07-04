@@ -2,7 +2,6 @@
 
 package aethernet.transport.webrtc
 
-import aethernet.content.appendJsonString
 import aethernet.transport.TransportService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,8 +35,11 @@ import java.io.Closeable
  * The frame is **byte-identical** to the C# [`RelayWebRtcSignaling`] reference: the same `AWS1` magic
  * prefix followed by JSON whose field names, casing, ordering and null-omission match what C#'s
  * `System.Text.Json` emits for `WebRtcSignal` (`FromUhid`, `ToUhid`, `Type` as an integer, then the
- * optional `Sdp` / `Candidate`, always-present `SdpMLineIndex`, and optional `SdpMid`). A Kotlin node
- * and a C# node can therefore complete a handshake across the relay.
+ * optional `Sdp` / `Candidate`, always-present `SdpMLineIndex`, and optional `SdpMid`). Strings are
+ * escaped exactly as STJ's default `JavaScriptEncoder.Default` does — `+ < > & ' \`` and every
+ * non-ASCII code point become uppercase `\uXXXX` (see [Companion.stjEscape]) — which matters because
+ * real SDP fingerprints carry base64 `+`. A Kotlin node and a C# node can therefore complete a
+ * handshake across the relay.
  *
  * @param channel     The transport whose data path carries the framed signalling to and from the peer.
  * @param localUhid   This node's UHID. Signals framed for the peer carry it; inbound signals not
@@ -138,16 +140,76 @@ class RelayWebRtcSignaling(
          * `WebRtcSignal` record: PascalCase keys in declaration order (`FromUhid`, `ToUhid`, `Type`,
          * then optional `Sdp` / `Candidate`, always-present `SdpMLineIndex`, then optional `SdpMid`),
          * `Type` as its integer ordinal, and null string fields omitted (C# `WhenWritingNull`).
+         *
+         * String values are escaped by [stjEscape] — the STJ `JavaScriptEncoder.Default` rules
+         * (escapes `+ < > & ' \`` and all non-ASCII as uppercase `\uXXXX`) — NOT the mesh-content
+         * `appendJsonString`, which leaves those literal and lowers the hex. Using a dedicated escaper
+         * here keeps the mesh JSON path untouched while making this carrier's frame byte-identical to
+         * the C# reference even for base64-`+` SDP fingerprints and non-ASCII candidates.
          */
         internal fun encodeJson(s: WebRtcSignal): String = buildString {
-            append("{\"FromUhid\":"); appendJsonString(s.fromUhid)
-            append(",\"ToUhid\":"); appendJsonString(s.toUhid)
+            append("{\"FromUhid\":"); stjEscape(s.fromUhid)
+            append(",\"ToUhid\":"); stjEscape(s.toUhid)
             append(",\"Type\":").append(s.type.wireValue)
-            if (s.sdp != null) { append(",\"Sdp\":"); appendJsonString(s.sdp) }
-            if (s.candidate != null) { append(",\"Candidate\":"); appendJsonString(s.candidate) }
+            if (s.sdp != null) { append(",\"Sdp\":"); stjEscape(s.sdp) }
+            if (s.candidate != null) { append(",\"Candidate\":"); stjEscape(s.candidate) }
             append(",\"SdpMLineIndex\":").append(s.sdpMLineIndex)
-            if (s.sdpMid != null) { append(",\"SdpMid\":"); appendJsonString(s.sdpMid) }
+            if (s.sdpMid != null) { append(",\"SdpMid\":"); stjEscape(s.sdpMid) }
             append('}')
+        }
+
+        /**
+         * ASCII code points (0x20–0x7E) that `System.Text.Json`'s default `JavaScriptEncoder.Default`
+         * escapes as `\uXXXX` even though plain JSON would not: `" & ' + < > \``. (Quote is emitted as
+         * `"`, not `\"`.) Mirrors the TypeScript reference's `STJ_ESCAPE_ASCII`.
+         */
+        private val STJ_ESCAPE_ASCII: Set<Int> = setOf(
+            0x22, // "
+            0x26, // &
+            0x27, // '
+            0x2b, // +
+            0x3c, // <
+            0x3e, // >
+            0x60, // `
+        )
+
+        private const val HEX = "0123456789ABCDEF"
+
+        /**
+         * Appends a JSON string literal (with surrounding quotes) escaped exactly as
+         * `System.Text.Json`'s default `JavaScriptEncoder.Default` does. Byte-identical port of the
+         * TypeScript carrier's `stjString`:
+         *  - C0 short escapes where defined: `\b \t \n \f \r`; backslash as `\\`.
+         *  - else literal only when `0x20 <= c <= 0x7E` AND c is not in [STJ_ESCAPE_ASCII];
+         *  - else `\u` + UPPERCASE 4-hex of the UTF-16 code unit.
+         *
+         * A Kotlin `Char` is already a UTF-16 code unit, so iterating `for (c in s)` emits surrogate
+         * pairs as two `\uXXXX` naturally (matching STJ). `/` stays literal. Deliberately separate from
+         * the mesh-content `appendJsonString` so the mesh JSON path is untouched.
+         */
+        internal fun StringBuilder.stjEscape(s: String) {
+            append('"')
+            for (c in s) {
+                when (val code = c.code) {
+                    0x08 -> append("\\b")
+                    0x09 -> append("\\t")
+                    0x0A -> append("\\n")
+                    0x0C -> append("\\f")
+                    0x0D -> append("\\r")
+                    0x5C -> append("\\\\")
+                    else ->
+                        if (code in 0x20..0x7E && code !in STJ_ESCAPE_ASCII) {
+                            append(c)
+                        } else {
+                            append("\\u")
+                            append(HEX[(code shr 12) and 0xF])
+                            append(HEX[(code shr 8) and 0xF])
+                            append(HEX[(code shr 4) and 0xF])
+                            append(HEX[code and 0xF])
+                        }
+                }
+            }
+            append('"')
         }
 
         /** Parses the canonical (or any equivalently-keyed) signal JSON. Tolerant of missing optionals. */

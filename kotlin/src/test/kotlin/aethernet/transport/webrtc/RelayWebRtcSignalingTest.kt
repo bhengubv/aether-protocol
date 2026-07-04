@@ -188,6 +188,41 @@ class RelayWebRtcSignalingTest {
     }
 
     @Test
+    fun `framing escapes exotic characters exactly like System_Text_Json`() {
+        // OFFER whose SDP carries the STJ-escaped ASCII set STJ diverges from plain JSON on:
+        // '+' '<' '>' '&' all become \uXXXX (uppercase); '/' and '=' stay literal. Real SDP
+        // fingerprints carry base64 '+', which is why this must match the C# reference byte-for-byte.
+        val offer = WebRtcSignal(
+            "a", "b", WebRtcSignalType.OFFER,
+            sdp = "a=fingerprint:sha-256 AB+/CD=xy <t> &z ual/set+ice",
+        )
+        val offerBody = String(RelayWebRtcSignaling.frame(offer).let { it.copyOfRange(4, it.size) }, Charsets.UTF_8)
+        assertEquals(
+            "AWS1{\"FromUhid\":\"a\",\"ToUhid\":\"b\",\"Type\":0," +
+                "\"Sdp\":\"a=fingerprint:sha-256 AB\\u002B/CD=xy \\u003Ct\\u003E \\u0026z ual/set\\u002Bice\"," +
+                "\"SdpMLineIndex\":0}",
+            "AWS1" + offerBody,
+            "OFFER exotic-char body must match System.Text.Json (JavaScriptEncoder.Default) output",
+        )
+
+        // ICE candidate mixing the escaped ASCII set with non-ASCII (Latin-1 ç é + CJK 世) — every
+        // code point > 0x7E must emit as uppercase \uXXXX; SdpMLineIndex 3 stays numeric; SdpMid
+        // carries '/' (literal) and '+' (escaped).
+        val ice = WebRtcSignal(
+            "u", "v", WebRtcSignalType.ICE_CANDIDATE,
+            candidate = "a+b/c=d<e>f&g:h ç é 世", sdpMid = "m/i+d", sdpMLineIndex = 3,
+        )
+        val iceBody = String(RelayWebRtcSignaling.frame(ice).let { it.copyOfRange(4, it.size) }, Charsets.UTF_8)
+        assertEquals(
+            "AWS1{\"FromUhid\":\"u\",\"ToUhid\":\"v\",\"Type\":2," +
+                "\"Candidate\":\"a\\u002Bb/c=d\\u003Ce\\u003Ef\\u0026g:h \\u00E7 \\u00E9 \\u4E16\"," +
+                "\"SdpMLineIndex\":3,\"SdpMid\":\"m/i\\u002Bd\"}",
+            "AWS1" + iceBody,
+            "ICE exotic-char body must match System.Text.Json (JavaScriptEncoder.Default) output",
+        )
+    }
+
+    @Test
     fun `frame then deframe is a round-trip`() {
         val answer = WebRtcSignal(
             "bob", "alice", WebRtcSignalType.ANSWER,
