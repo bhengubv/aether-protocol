@@ -11,11 +11,12 @@ export { Ed25519Service } from "./security/Ed25519Service.js";
 export { SignalProtocol, DEFAULT_OPK_POOL_SIZE, DEFAULT_SPK_ROTATION_OPTIONS, } from "./security/SignalProtocol.js";
 export { InMemorySignalSessionStore, KeyValueSignalSessionStore, serializeSignalSession, deserializeSignalSession, } from "./security/SignalSessionStore.js";
 export { InMemoryPreKeyStore, KeyValuePreKeyStore, } from "./security/PreKeyStore.js";
-export { signPacket, verifyPacket, PacketDeduplicator, } from "./security/PacketSigning.js";
+export { signPacket, verifyPacket, buildSignableData, PacketDeduplicator, } from "./security/PacketSigning.js";
 // Storage
 export * from "./storage/index.js";
 // Transport
 export { InProcessTransport } from "./transport/InProcessTransport.js";
+export { TransportManager } from "./transport/TransportManager.js";
 export * from "./transport/webrtc/index.js";
 // Models (extended)
 export * from "./models/index.js";
@@ -25,12 +26,30 @@ export * from "./extensibility.js";
 export * from "./routing/index.js";
 // DTN
 export * from "./dtn/index.js";
+// Circuit relay (native circuit-relay-v2 wire frame)
+export * from "./circuitrelay/index.js";
 // SOS
 export * from "./sos/index.js";
+// Heartbeat — liveness beacons (PacketType.Heartbeat = 10)
+export * from "./heartbeat/index.js";
+// Channels — named-channel pub/sub (PacketType.ChannelMessage = 7)
+export * from "./channels/index.js";
+// Video call-control — directed ring/accept/decline/hangup (PacketType.VideoCall = 27)
+export * from "./videocall/index.js";
+// PreKey exchange — directed transport of a PreKeyBundle (PacketType.PreKeyRequest = 25 / PreKeyResponse = 26)
+export * from "./prekey/index.js";
+// Profiles — directed peer-profile exchange (PacketType.ProfileSync = 23)
+export * from "./profiles/index.js";
+// Presence — "I'm here" beacon + "who's around?" query (PacketType.PresenceBeacon = 21 / PresenceQuery = 22)
+export * from "./presence/index.js";
+// ERID-announce — directed transport of an already-encrypted ERID announcement (PacketType.EridAnnounce = 56)
+export * from "./eridannounce/index.js";
 // Handshake
 export * from "./handshake/index.js";
 // Voice
 export * from "./voice/index.js";
+// Media — VoicePtt(15) + ScreenShare(32) directed binary media frames
+export * from "./media/index.js";
 // Streaming, video, watch-together
 export * from "./streaming/index.js";
 // Identity
@@ -47,6 +66,12 @@ export * from "./bandwidth/index.js";
 export * from "./incentive/index.js";
 // Vault — systematic Cauchy-Reed-Solomon erasure coding (GF(2⁸), 0x11D, α=2)
 export * from "./vault/index.js";
+// Vault shard-request WIRE binding (PacketType.VaultShardRequest = 42)
+export * from "./vaultshard/index.js";
+// Space — geo-pinned noticeboard + WIRE binding (PacketType.SpaceBreadcrumb = 40)
+export * from "./space/index.js";
+// Forge — mesh-native package cache + WIRE binding (PacketType.ForgeAnnounce = 41)
+export * from "./forge/index.js";
 // Market — Proof-of-Vicinity tokens + on-mesh exchange (PacketType.PoVTokenExchange = 43)
 export * from "./market/index.js";
 // Reputation gossip

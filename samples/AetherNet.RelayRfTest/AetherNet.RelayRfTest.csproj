@@ -2,23 +2,24 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>AetherNet.RelayRfTest</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <Description>
       RF end-to-end test for the Aether Purple HTTP relay transport.
-      Starts an in-process relay server on port 5200, creates two HttpRelayTransportService
+      Starts an in-process relay server on port 5201, creates two HttpRelayTransportService
       nodes (A and B), sends a packet A→B, echoes B→A, and prints round-trip latency.
+      Portable (net10.0) — the relay transport now lives in the portable AetherNet.Transport
+      package, so this test builds and runs on Windows, macOS and Linux.
     </Description>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/AetherNet.Transport.Windows/AetherNet.Transport.Windows.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Transport/AetherNet.Transport.csproj" />
     <ProjectReference Include="../../src/AetherNet.Core/AetherNet.Core.csproj" />
   </ItemGroup>
-
 
 </Project>

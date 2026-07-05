@@ -3,6 +3,7 @@
 using AetherNet.DependencyInjection;
 using AetherNet.Transport.Abstractions;
 using AetherNet.Transport.NearLink;
+using AetherNet.Transport.Relay;
 using AetherNet.Transport.Services;
 using AetherNet.Transport.Windows.Services;
 using Microsoft.Extensions.DependencyInjection;

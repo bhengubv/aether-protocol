@@ -1,6 +1,6 @@
 [package]
 name = "aethernet-protocol"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 rust-version = "1.75"
 authors = ["The Other Bhengu (Pty) Ltd t/a The Geek Network <engineering@thegeeknetwork.dev>"]
@@ -15,12 +15,15 @@ categories = ["network-programming", "cryptography"]
 exclude = ["benches/", "tests/", "target/"]
 
 [features]
-# The real WebRTC P2P transport (webrtc-rs). Off by default: it is a heavy
-# native dependency, and the in-process transport covers the default build.
-# `--all-features` (or `--features webrtc`) pulls it in and compiles the
-# `transport::webrtc` module.
+# Every transport ships ON by default — availability is a runtime decision the
+# consuming app owns, never a compile-time exclusion. (Off-by-default is how
+# platform-coverage gaps hid for whole releases; on-by-default removes the hiding place.)
+default = ["webrtc", "lora"]
+
+# The real WebRTC P2P transport (webrtc-rs). On by default; a heavy native
+# dependency. `--no-default-features` drops back to the in-process transport.
 webrtc = ["dep:webrtc", "dep:bytes"]
-# Real LoRa transport (serialport crate). Off by default — pulls a platform serial dependency.
+# Real LoRa transport (serialport crate). On by default; pulls a platform serial dependency.
 lora = ["dep:serialport"]
 
 [dependencies]

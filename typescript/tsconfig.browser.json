@@ -1,0 +1,11 @@
+{
+  "//": "Type-checks the browser build (DOM backend + demo) with the DOM lib. esbuild produces the",
+  "//2": "actual bundle but does not type-check; this does. Node build uses the base tsconfig.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "noEmit": true
+  },
+  "include": ["src/browser-demo.ts", "src/browser.ts"],
+  "exclude": ["node_modules", "dist"]
+}

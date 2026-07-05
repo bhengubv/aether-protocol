@@ -38,6 +38,27 @@ export declare enum PacketType {
     WatchChunkRequest = 33,
     TorrentMetadata = 34,
     /**
+     * SpaceBreadcrumb — aether-space geo-pinned community noticeboard. A node
+     * broadcasts this when it drops (or re-hosts) a breadcrumb at a geohash cell so
+     * passing peers with the aether-space extension can pin and re-host it — fully
+     * offline. Payload is a UTF-8 JSON-encoded SpaceBreadcrumbPayload. Matches the
+     * C# reference value 40.
+     */
+    SpaceBreadcrumb = 40,
+    /**
+     * ForgeAnnounce — aether-forge package-cache announcement. A node broadcasts this
+     * when it caches a new package artifact so mesh peers with the aethernet.forge/v1
+     * capability learn where the artifact lives. Payload is a UTF-8 JSON-encoded
+     * ForgeAnnouncePayload. Matches the C# reference value 41.
+     */
+    ForgeAnnounce = 41,
+    /**
+     * VaultShardRequest — aether-vault erasure-coded-storage shard request. A node
+     * broadcasts this to ask the mesh for a shard it needs to recover a file. Payload
+     * is a UTF-8 JSON-encoded VaultShardRequestPayload. Matches the C# reference value 42.
+     */
+    VaultShardRequest = 42,
+    /**
      * PoVTokenExchange — on-mesh Proof-of-Vicinity token exchange. A witness node
      * issues a directed (TTL 1), Ed25519-signed PoVToken to a co-present subject;
      * the subject verifies the witness signature, counter-signs the same canonical
@@ -92,7 +113,23 @@ export declare enum PacketType {
      * a new session's BtlBw estimate from a previously measured value.
      * Unique to AetherNet; QUIC/TCP always cold-start.
      */
-    BandwidthGossip = 55
+    BandwidthGossip = 55,
+    /**
+     * EridAnnounce — directed transport of an already-Signal-encrypted ERID announcement. A node
+     * shares its rotating-address routing key with an ESTABLISHED peer by sending the opaque encrypted
+     * announcement directly (never broadcast). The plaintext frame is an EridAnnouncementCodec frame;
+     * this type only carries the encrypted blob. Wire byte 56 matches the C# PacketType.EridAnnounce.
+     */
+    EridAnnounce = 56,
+    /**
+     * CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
+     * (reserve/connect/stop/data + responses) as a serialized RelayFrame in the packet
+     * body. Wire byte 57 matches the C# PacketType.CircuitRelayControl so a relayed hop
+     * is byte-identical across languages; an un-upgraded node drops the unknown type.
+     * The relay Transport processes these via its MeshRelayLink; only a DATA frame
+     * delivered to the final destination surfaces as tunnelled app data.
+     */
+    CircuitRelayControl = 57
 }
 export declare function packetTypeToString(type: PacketType): string;
 //# sourceMappingURL=PacketType.d.ts.map

@@ -39,6 +39,27 @@ export var PacketType;
     PacketType[PacketType["WatchChunkRequest"] = 33] = "WatchChunkRequest";
     PacketType[PacketType["TorrentMetadata"] = 34] = "TorrentMetadata";
     /**
+     * SpaceBreadcrumb — aether-space geo-pinned community noticeboard. A node
+     * broadcasts this when it drops (or re-hosts) a breadcrumb at a geohash cell so
+     * passing peers with the aether-space extension can pin and re-host it — fully
+     * offline. Payload is a UTF-8 JSON-encoded SpaceBreadcrumbPayload. Matches the
+     * C# reference value 40.
+     */
+    PacketType[PacketType["SpaceBreadcrumb"] = 40] = "SpaceBreadcrumb";
+    /**
+     * ForgeAnnounce — aether-forge package-cache announcement. A node broadcasts this
+     * when it caches a new package artifact so mesh peers with the aethernet.forge/v1
+     * capability learn where the artifact lives. Payload is a UTF-8 JSON-encoded
+     * ForgeAnnouncePayload. Matches the C# reference value 41.
+     */
+    PacketType[PacketType["ForgeAnnounce"] = 41] = "ForgeAnnounce";
+    /**
+     * VaultShardRequest — aether-vault erasure-coded-storage shard request. A node
+     * broadcasts this to ask the mesh for a shard it needs to recover a file. Payload
+     * is a UTF-8 JSON-encoded VaultShardRequestPayload. Matches the C# reference value 42.
+     */
+    PacketType[PacketType["VaultShardRequest"] = 42] = "VaultShardRequest";
+    /**
      * PoVTokenExchange — on-mesh Proof-of-Vicinity token exchange. A witness node
      * issues a directed (TTL 1), Ed25519-signed PoVToken to a co-present subject;
      * the subject verifies the witness signature, counter-signs the same canonical
@@ -94,6 +115,22 @@ export var PacketType;
      * Unique to AetherNet; QUIC/TCP always cold-start.
      */
     PacketType[PacketType["BandwidthGossip"] = 55] = "BandwidthGossip";
+    /**
+     * EridAnnounce — directed transport of an already-Signal-encrypted ERID announcement. A node
+     * shares its rotating-address routing key with an ESTABLISHED peer by sending the opaque encrypted
+     * announcement directly (never broadcast). The plaintext frame is an EridAnnouncementCodec frame;
+     * this type only carries the encrypted blob. Wire byte 56 matches the C# PacketType.EridAnnounce.
+     */
+    PacketType[PacketType["EridAnnounce"] = 56] = "EridAnnounce";
+    /**
+     * CircuitRelayControl — carries one native circuit-relay-v2 hop's frame
+     * (reserve/connect/stop/data + responses) as a serialized RelayFrame in the packet
+     * body. Wire byte 57 matches the C# PacketType.CircuitRelayControl so a relayed hop
+     * is byte-identical across languages; an un-upgraded node drops the unknown type.
+     * The relay Transport processes these via its MeshRelayLink; only a DATA frame
+     * delivered to the final destination surfaces as tunnelled app data.
+     */
+    PacketType[PacketType["CircuitRelayControl"] = 57] = "CircuitRelayControl";
 })(PacketType || (PacketType = {}));
 export function packetTypeToString(type) {
     switch (type) {
@@ -165,6 +202,12 @@ export function packetTypeToString(type) {
             return "WatchChunkRequest";
         case PacketType.TorrentMetadata:
             return "TorrentMetadata";
+        case PacketType.SpaceBreadcrumb:
+            return "SpaceBreadcrumb";
+        case PacketType.ForgeAnnounce:
+            return "ForgeAnnounce";
+        case PacketType.VaultShardRequest:
+            return "VaultShardRequest";
         case PacketType.PoVTokenExchange:
             return "PoVTokenExchange";
         case PacketType.NamePublish:
@@ -181,6 +224,10 @@ export function packetTypeToString(type) {
             return "BandwidthAck";
         case PacketType.BandwidthGossip:
             return "BandwidthGossip";
+        case PacketType.EridAnnounce:
+            return "EridAnnounce";
+        case PacketType.CircuitRelayControl:
+            return "CircuitRelayControl";
         default:
             return `Unknown(${type})`;
     }

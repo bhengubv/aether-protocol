@@ -28,7 +28,7 @@ using AetherNet.Transport.Abstractions;
 using AetherNet.Transport.Models;
 using Microsoft.Extensions.Logging;
 
-namespace AetherNet.Transport.Windows.Services;
+namespace AetherNet.Transport.Relay;
 
 /// <summary>
 /// Cellular relay transport using HTTP/3 (QUIC) for reduced head-of-line blocking and

@@ -1,12 +1,13 @@
 {
   "name": "@bhengubv/aethernet-protocol",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "TypeScript implementation of the Aether mesh networking protocol — offline-first P2P mesh via BLE, Wi-Fi Direct, LoRa, NFC, NearLink, and cellular relay",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "browser": "./dist/browser/index.js",
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
@@ -18,7 +19,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:browser",
+    "build:browser": "esbuild src/browser.ts --bundle --format=esm --platform=browser --outfile=dist/browser/index.js",
+    "typecheck:browser": "tsc --noEmit -p tsconfig.browser.json",
     "dev": "tsx src/demo.ts",
     "test": "tsx --test",
     "bench": "tsx benchmarks/bench.ts",
@@ -58,6 +61,7 @@
   "devDependencies": {
     "@types/node": "^25.9.2",
     "@types/uuid": "^10.0.0",
+    "esbuild": "^0.28.1",
     "fast-check": "^4.8.0",
     "tinybench": "^6.0.2",
     "tsx": "^4.22.4",

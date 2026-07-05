@@ -10,6 +10,62 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-07-05
+
+**Browser WebRTC (Go + TypeScript) + portable relay + Rust transports on-by-default.** The WebRTC
+data-channel transport now runs in the **browser** (TypeScript over the native `RTCPeerConnection`,
+Go via `js/wasm`), the HTTP/QUIC relay moves into the portable core so macOS/Linux desktop nodes can
+use it, and the Rust `webrtc`/`lora` transports ship on by default. **No mesh wire-serialization or
+fixture byte changed** (`git diff fixtures/` empty).
+
+### Added
+
+- **TypeScript browser build** — the WebRTC transport runs in the browser over the browser's **native
+  `RTCPeerConnection`**. A new `PeerLink` backend seam splits the WebRTC backend into
+  `peer-link.werift.ts` (Node) and `peer-link.dom.ts` (browser, native DOM API); `WebRtcTransport` is
+  now backend-agnostic. New `"browser"` export condition → `dist/browser/index.js` (esbuild), with
+  `build:browser` / `typecheck:browser` scripts and a `src/browser.ts` entry. Verified: two in-page
+  nodes negotiate a real `RTCDataChannel` and exchange bytes in a browser; the Node/werift path is
+  unchanged (loopback 2/2, tsc green).
+- **Go `js/wasm` browser transport** — `go/cmd/wasmdemo` builds the WebRTC transport to WebAssembly
+  and runs it in the browser via pion's `js/wasm` binding to the native `RTCPeerConnection`
+  (a `!js||!wasm` stub keeps `go build ./...` green). Verified: real-browser `RTCDataChannel`
+  loopback PASS.
+- **Portable HTTP/QUIC relay** — `HttpRelayTransportService` / `QuicRelayTransportService` moved out
+  of the Windows-only `AetherNet.Transport.Windows` package into the **portable** `AetherNet.Transport`
+  package, so macOS/Linux desktop nodes get the Aether Purple relay fallback. New
+  `AddHttpRelay(baseUrl, localNodeId)` / `AddQuicRelay(baseUrl, localNodeId)` DI extensions; the
+  RF-test sample is now portable (`net10.0`). Verified: relay round-trip PASS as a net10.0 program.
+- **Rust transports on by default** — the `webrtc` (webrtc-rs) and `lora` (serialport) Cargo features
+  are now in `default`, so `cargo build` / `cargo test` compile and run them without `--features`.
+  Availability stays a runtime decision the app owns. Verified: `cargo test` green (51 binaries, 0
+  failed).
+
+### Changed
+
+- **(Breaking for direct relay-type consumers)** the C# relay transports moved package + namespace:
+  `AetherNet.Transport.Windows.Services.{Http,Quic}RelayTransportService` →
+  `AetherNet.Transport.Relay.*` (in the portable `AetherNet.Transport` package). **Migration:** if you
+  referenced these types directly, change the `using` / package reference to `AetherNet.Transport`.
+  The common `AddWindowsTransports(httpRelayBaseUrl: …)` DI path is unchanged and still wires the relay
+  (verified).
+
+### In progress (not in this release)
+
+- Full platform coverage is being built out and is **not** claimed here: the C and Swift
+  `AETHERNET_WITH_WEBRTC` build-gate flips, Android (`org.webrtc` + native radios), iOS (on-device
+  WebRTC + CoreBluetooth/CoreNFC), the Rust `wasm32` browser path, the TypeScript fetch-relay + Web
+  Bluetooth/NFC, and a transport×platform build-and-run coverage gate. This release ships only the
+  browser (Go + TS) and desktop pieces that are built and verified.
+
+### Tests
+
+- Verified per changed language on Windows: Rust `cargo test` (51 binaries, 0 failed); Go
+  `go test ./...` (all `ok`); C# `dotnet test` on the solution (~1363 tests, 0 failed — Core 1203,
+  Transport.WebRtc 17, +Market/Vault/Forge/Space/Fmhy/Soak/InteropTest); TypeScript node `tsc` +
+  werift loopback (2/2) + browser `tsc` + a real-browser data-channel loopback (PASS). Wire fixtures
+  unchanged; Python / Kotlin / Swift / C source unchanged by this release.
+
 ## [2.4.1] — 2026-07-04
 
 **Signalling-fixture pin + doc-honesty follow-ups.** A skeptical audit after the 2.4.0

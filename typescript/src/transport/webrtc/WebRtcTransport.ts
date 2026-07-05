@@ -1,6 +1,8 @@
 /**
- * Direct peer-to-peer transport for AetherNet over a WebRTC data channel (werift — pure TypeScript,
- * no native dependency).
+ * Direct peer-to-peer transport for AetherNet over a WebRTC data channel. The WebRTC backend is
+ * pluggable behind the {@link PeerLink} seam: Node uses werift (`peer-link.werift.ts`), the browser
+ * uses the native `RTCPeerConnection` (`peer-link.dom.ts`). This class holds only the transport
+ * logic — peer bookkeeping and signalling routing — so the identical code runs on both platforms.
  *
  * Serverless by default: with the default (no ICE servers) a node never contacts a STUN/TURN
  * server — host-candidate-only ICE forms a direct link on the same LAN or when a peer has a public
@@ -10,24 +12,19 @@
  * {@link ITransportService} so the transport ladder can rank it between the radio mesh (cheap,
  * proximity) and the relay (last resort): a direct internet path is used when one can be negotiated.
  *
- * Mirrors the C# `WebRtcTransportService` / `WebRtcPeerLink` (SIPSorcery) and the Go `WebRtcTransport`
- * / `peerLink` (pion). Received bytes are surfaced via {@link onDataReceived}, exactly as
- * {@link InProcessTransport} does.
+ * Mirrors the C# `WebRtcTransportService` (SIPSorcery) and the Go `WebRtcTransport` (pion).
  *
  * SPDX-License-Identifier: MIT
  */
 
-import {
-  RTCPeerConnection,
-  type RTCDataChannel,
-  type RTCIceServer,
-} from "werift";
-
 import { ITransportService, PerTransportMetrics } from "../ITransportService.js";
+import {
+  getDefaultPeerLinkFactory,
+  type IceServer,
+  type PeerLink,
+  type PeerLinkFactory,
+} from "./peer-link.js";
 import { Signal, Signaling, SignalType } from "./signaling.js";
-
-/** Data-channel label used by every AetherNet WebRTC link. */
-const DATA_CHANNEL_LABEL = "aether";
 
 /** How long {@link WebRtcTransport.sendAsync} waits for the data channel to open. */
 const CONNECT_TIMEOUT_MS = 20_000;
@@ -39,22 +36,25 @@ const CONNECT_TIMEOUT_MS = 20_000;
  * peers). Opt into STUN/TURN by passing an explicit list, e.g.
  * `[{ urls: "stun:stun.l.google.com:19302" }]`.
  */
-export function defaultIceServers(): RTCIceServer[] {
+export function defaultIceServers(): IceServer[] {
   return [];
 }
 
 /**
- * Direct P2P transport over a WebRTC `RTCDataChannel` (werift).
+ * Direct P2P transport over a WebRTC `RTCDataChannel`, backend-agnostic. The backend is werift on
+ * Node and the native `RTCPeerConnection` in the browser — selected by the registered default (the
+ * entry point you import) or an explicit `peerLinkFactory` constructor argument.
  *
  * With `undefined` `iceServers` the transport uses the serverless default of NO ICE servers
- * (host-candidate-only ICE) — it never contacts a STUN/TURN server, and links form on the same
- * LAN or when a peer has a public address. For NAT traversal without a server, route through the
- * circuit-relay-v2 transport (peers relay for peers). Pass an explicit list to opt into STUN/TURN.
+ * (host-candidate-only ICE) — it never contacts a STUN/TURN server, and links form on the same LAN
+ * or when a peer has a public address. For NAT traversal without a server, route through the
+ * circuit-relay-v2 transport. Pass an explicit list to opt into STUN/TURN.
  */
 export class WebRtcTransport implements ITransportService {
   private readonly localUhid: string;
   private readonly signaling: Signaling;
-  private readonly iceServers: RTCIceServer[];
+  private readonly iceServers: IceServer[];
+  private readonly peerLinkFactory?: PeerLinkFactory;
   private readonly peers = new Map<string, PeerLink>();
   private disposed = false;
 
@@ -70,10 +70,16 @@ export class WebRtcTransport implements ITransportService {
    * @param localUhid  This node's UHID.
    * @param signaling  The channel carrying SDP/ICE between peers.
    * @param iceServers `undefined` => the serverless default (NO ICE servers; host-candidate-only,
-   *                   no STUN/TURN). An explicit list is respected verbatim — pass one to opt into
-   *                   STUN/TURN, or `[]` to keep host-candidate-only ICE.
+   *                   no STUN/TURN). An explicit list is respected verbatim.
+   * @param peerLinkFactory Optional WebRTC backend override. Defaults to the registered backend
+   *                   (werift on Node, native DOM in the browser).
    */
-  constructor(localUhid: string, signaling: Signaling, iceServers?: RTCIceServer[]) {
+  constructor(
+    localUhid: string,
+    signaling: Signaling,
+    iceServers?: IceServer[],
+    peerLinkFactory?: PeerLinkFactory,
+  ) {
     if (!localUhid || localUhid.trim().length === 0) {
       throw new Error("WebRtcTransport: localUhid must not be empty");
     }
@@ -83,6 +89,7 @@ export class WebRtcTransport implements ITransportService {
     this.localUhid = localUhid;
     this.signaling = signaling;
     this.iceServers = iceServers ?? defaultIceServers();
+    this.peerLinkFactory = peerLinkFactory;
     this.signaling.onSignal((signal) => {
       void this.handleSignal(signal);
     });
@@ -204,13 +211,14 @@ export class WebRtcTransport implements ITransportService {
       return existing;
     }
 
-    const link = new PeerLink(
-      this.localUhid,
+    const factory = this.peerLinkFactory ?? getDefaultPeerLinkFactory();
+    const link = factory({
+      localUhid: this.localUhid,
       peerUhid,
-      this.iceServers,
-      this.signaling,
-      (from, data) => this.onPeerData(from, data),
-    );
+      iceServers: this.iceServers,
+      signaling: this.signaling,
+      onData: (from, bytes) => this.onPeerData(from, bytes),
+    });
     this.peers.set(peerUhid, link);
     link.onClosed = () => {
       if (this.peers.get(peerUhid) === link) this.peers.delete(peerUhid);
@@ -223,198 +231,5 @@ export class WebRtcTransport implements ITransportService {
 
   private onPeerData(peerUhid: string, data: Uint8Array): void {
     this.onDataReceived?.(peerUhid, data);
-  }
-}
-
-/**
- * One WebRTC connection to a single peer: an `RTCPeerConnection` plus its `RTCDataChannel`, driving
- * the offer/answer/ICE handshake over a {@link Signaling} channel and surfacing received bytes.
- */
-class PeerLink {
-  private readonly localUhid: string;
-  private readonly peerUhid: string;
-  private readonly signaling: Signaling;
-  private readonly onData: (peerUhid: string, data: Uint8Array) => void;
-  private readonly pc: RTCPeerConnection;
-
-  private channel?: RTCDataChannel;
-  private closed = false;
-  private opened = false;
-  private readonly openWaiters: Array<(open: boolean) => void> = [];
-
-  /** Invoked once when this link transitions to a terminal (closed/failed) state. */
-  onClosed?: () => void;
-
-  constructor(
-    localUhid: string,
-    peerUhid: string,
-    iceServers: RTCIceServer[],
-    signaling: Signaling,
-    onData: (peerUhid: string, data: Uint8Array) => void,
-  ) {
-    this.localUhid = localUhid;
-    this.peerUhid = peerUhid;
-    this.signaling = signaling;
-    this.onData = onData;
-
-    this.pc = new RTCPeerConnection({ iceServers });
-
-    // Trickle local ICE candidates out over the signalling channel.
-    this.pc.onIceCandidate.subscribe((candidate) => {
-      // werift emits the RTCIceCandidate directly (undefined marks end-of-gathering) — NOT a
-      // browser-style {candidate} event wrapper. Reading event.candidate dropped every candidate.
-      if (!candidate) return;
-      const json = candidate.toJSON();
-      void this.signaling.sendSignal(this.peerUhid, {
-        fromUhid: this.localUhid,
-        toUhid: this.peerUhid,
-        type: SignalType.Candidate,
-        candidate: json.candidate,
-        sdpMid: json.sdpMid ?? undefined,
-        sdpMLineIndex: json.sdpMLineIndex ?? undefined,
-      });
-    });
-
-    // The responder receives the channel the initiator created.
-    this.pc.onDataChannel.subscribe((channel) => this.attach(channel));
-
-    this.pc.connectionStateChange.subscribe((state) => {
-      if (state === "failed" || state === "closed" || state === "disconnected") {
-        this.markClosed();
-      }
-    });
-  }
-
-  get isOpen(): boolean {
-    return this.channel !== undefined && this.channel.readyState === "open";
-  }
-
-  get isClosed(): boolean {
-    return this.closed;
-  }
-
-  /** Begins the handshake. The initiator creates the data channel and sends the offer. */
-  async start(asInitiator: boolean): Promise<void> {
-    if (!asInitiator) return; // responder waits for the inbound offer (acceptOffer)
-
-    const channel = this.pc.createDataChannel(DATA_CHANNEL_LABEL);
-    this.attach(channel);
-
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
-    await this.signaling.sendSignal(this.peerUhid, {
-      fromUhid: this.localUhid,
-      toUhid: this.peerUhid,
-      type: SignalType.Offer,
-      sdp: offer.sdp,
-    });
-  }
-
-  async acceptOffer(sdp: string): Promise<void> {
-    await this.pc.setRemoteDescription({ type: "offer", sdp });
-    const answer = await this.pc.createAnswer();
-    await this.pc.setLocalDescription(answer);
-    await this.signaling.sendSignal(this.peerUhid, {
-      fromUhid: this.localUhid,
-      toUhid: this.peerUhid,
-      type: SignalType.Answer,
-      sdp: answer.sdp,
-    });
-  }
-
-  async acceptAnswer(sdp: string): Promise<void> {
-    await this.pc.setRemoteDescription({ type: "answer", sdp });
-  }
-
-  async addRemoteCandidate(signal: Signal): Promise<void> {
-    if (!signal.candidate) return;
-    await this.pc.addIceCandidate({
-      candidate: signal.candidate,
-      sdpMid: signal.sdpMid,
-      sdpMLineIndex: signal.sdpMLineIndex,
-    });
-  }
-
-  private attach(channel: RTCDataChannel): void {
-    this.channel = channel;
-    channel.stateChanged.subscribe((state) => {
-      if (state === "open") {
-        this.opened = true;
-        this.resolveWaiters(true);
-      } else if (state === "closed") {
-        this.markClosed();
-      }
-    });
-    channel.onMessage.subscribe((data) => {
-      const bytes =
-        typeof data === "string"
-          ? new TextEncoder().encode(data)
-          : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-      this.onData(this.peerUhid, bytes);
-    });
-    // The channel may already be open by the time we subscribe.
-    if (channel.readyState === "open") {
-      this.opened = true;
-      this.resolveWaiters(true);
-    }
-  }
-
-  private markClosed(): void {
-    if (this.closed) return;
-    this.closed = true;
-    this.resolveWaiters(false);
-    this.onClosed?.();
-  }
-
-  private resolveWaiters(open: boolean): void {
-    while (this.openWaiters.length > 0) {
-      this.openWaiters.shift()!(open);
-    }
-  }
-
-  /** Resolves `true` once the data channel is open, or `false` on timeout / terminal close. */
-  waitOpen(timeoutMs: number): Promise<boolean> {
-    if (this.isOpen || this.opened) return Promise.resolve(true);
-    if (this.closed) return Promise.resolve(false);
-    return new Promise<boolean>((resolve) => {
-      let settled = false;
-      const settle = (open: boolean): void => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(open);
-      };
-      const timer = setTimeout(() => settle(false), timeoutMs);
-      if (typeof timer === "object" && "unref" in timer) {
-        (timer as { unref: () => void }).unref();
-      }
-      this.openWaiters.push(settle);
-    });
-  }
-
-  async send(data: Uint8Array, openTimeoutMs: number): Promise<boolean> {
-    if (!(await this.waitOpen(openTimeoutMs))) return false;
-    const channel = this.channel;
-    if (channel === undefined) return false;
-    try {
-      channel.send(Buffer.from(data.buffer, data.byteOffset, data.byteLength));
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async close(): Promise<void> {
-    this.markClosed();
-    try {
-      this.channel?.close();
-    } catch {
-      // best effort
-    }
-    try {
-      await this.pc.close();
-    } catch {
-      // best effort
-    }
   }
 }
