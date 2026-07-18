@@ -21,7 +21,7 @@
 
     <!-- Version — bump in a single place before each release.
          Pre-release: set VersionSuffix in CI (e.g. -alpha.1, -rc.1). -->
-    <VersionPrefix>2.5.0</VersionPrefix>
+    <VersionPrefix>3.0.0</VersionPrefix>
 
     <!-- AetherNet identity — package, assembly AND namespace, fully consistent.
          The `Aether.*` prefix on nuget.org is RESERVED by another owner

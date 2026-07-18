@@ -10,6 +10,44 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-07-18
+
+**BitTorrent + mesh content distribution — a category expansion for AetherNet.** An AetherNet node can
+now join any public BitTorrent swarm and pull files from the world's largest peer-to-peer network, and
+a **gateway** re-seeds that content into the offline mesh as encrypted chunks — so peers with **no
+internet at all** still receive it, carried by a new **segmented, resumable downloader** engineered for
+unreliable, high-churn multi-peer links. Together these move AetherNet from an offline messenger to an
+offline-capable **content-distribution network**. **This is a milestone MAJOR, not a wire break:**
+BitTorrent runs on its own framing (TCP/µTP), deliberately **off** the AetherNet mesh wire; the
+downloader additions are additive; **no existing packet type, serialization, or fixture changed** — a
+node on 2.5.0 and a node on 3.0.0 speak the identical mesh protocol. **Fully backward-compatible.** See
+[VERSIONING.md](VERSIONING.md) for the milestone-major rule.
+
+### Added
+
+- **Real, interoperable BitTorrent (C# reference).** A from-scratch BitTorrent implementation in two
+  new projects (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`): bencode,
+  `.torrent`/magnet + SHA-1 info-hash, BEP-3 peer-wire with rarest-first selection over real TCP,
+  HTTP (BEP-3/23) + UDP (BEP-15) trackers, Mainline DHT (BEP-5) + PEX (BEP-11) + ut_metadata
+  (BEP-9/10), µTP (BEP-29), and BitTorrent v2 SHA-256 merkle (BEP-52). A **gateway**
+  (`TorrentMeshGateway`) bridges torrent pieces ↔ AetherNet content chunks so an offline mesh peer can
+  receive a file pulled from a public swarm. **Interop proof:** the independent MonoTorrent library
+  computes the identical info-hash for a torrent we build. Kept deliberately **off** the AetherNet
+  mesh wire (real BT framing over TCP/µTP) — no existing packet type, serialization, or fixture
+  changed. 125 tests.
+- **Segmented, resumable content downloader.** `SegmentedContentDownloader` in
+  `src/AetherNet.Content/Download/` adds concurrent segmented fetch, dynamic re-split of the slow
+  segment, an adaptive-parallelism controller, direct-to-offset writes into a preallocated stream (no
+  whole-file buffer or merge step), active resume from `IContentStore`, transient-vs-permanent retry,
+  and a single error boundary — over an `IChunkSource` seam (`MeshChunkSource` wires it to the live
+  `IContentService`). Adds `ContentService.AssembleToAsync(rootHash, Stream)` (streaming; additive,
+  non-breaking). 11 tests.
+- **BitTorrent ported to all 8 language SDKs, byte-identical.** The BitTorrent codec + logic core now
+  ships in C#, Go, Python, TypeScript, Kotlin, Swift, and C, each pinned to a shared fixture corpus
+  (`fixtures/bittorrent/vectors.json`, 27 vectors across 7 categories: bencode, info-hash, peer-wire,
+  µTP, merkle, compact-info, KRPC). Every SDK's fixture test asserts byte-identity against the
+  Go-oracle + MonoTorrent-validated C# reference.
+
 ### Documentation
 
 - **README reconciled to reality; BitTorrent surfaced; all 20 translations re-synced.** Added a

@@ -1,6 +1,6 @@
 # Versioning policy — aether-protocol
 
-## Current version: `0.1.0`
+## Current version: `3.0.0`
 
 The project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
@@ -15,6 +15,8 @@ The project follows [Semantic Versioning 2.0.0](https://semver.org/).
 | Bug fix, security patch, doc update | Nonce-dedup fix, P-256 deadline removal, typo | **PATCH** |
 
 > **Wire-break rule**: Any change that causes two versions to produce different bytes for the same inputs (serialization, X3DH, ratchet, KDF_RK) is a **MAJOR** bump. This applies across *all 8 language implementations*. If only one language diverges from the others, that language is the bug — fix it as a PATCH.
+
+> **Milestone rule**: a landmark, category-expanding feature MAY be released as a **MAJOR** even when it introduces **no** wire-break — provided the release notes state **explicitly** that it is backward-compatible. The major digit then signals *significance*, not breakage. Example: `3.0.0` — real, interoperable BitTorrent + a gateway that bridges swarm content into the offline mesh + a resilient segmented downloader; all additive, no existing packet type / serialization / fixture changed. When in doubt, prefer a MINOR — reserve milestone-majors for genuine category shifts, and always label them non-breaking.
 
 ---
 
@@ -36,7 +38,7 @@ dotnet pack -c Release -p:VersionSuffix=alpha.1
 ### Single-place version bump
 All 9 packable C# libraries share the version via `Directory.Build.props`:
 ```xml
-<VersionPrefix>0.1.0</VersionPrefix>
+<VersionPrefix>3.0.0</VersionPrefix>
 ```
 Bump it once; all packages move together.
 
