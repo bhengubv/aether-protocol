@@ -10,6 +10,22 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+### Documentation
+
+- **README reconciled to reality; BitTorrent surfaced; all 20 translations re-synced.** Added a
+  plain-language **"In plain words"** summary at the top of the README; corrected the "…in CI" wording
+  throughout to the actual enforcement mechanism — a shared cross-language fixture corpus that every
+  implementation must match (the GitHub Actions workflow files exist, but every commit ships
+  `[skip ci]`, so the corpus is run locally per language); added a **BitTorrent** column to the
+  Implementations table (C# = full client ✅, the other seven = wire-formats-only ◐) with a legend;
+  and fixed the human-language count (11 → 20). All 20 `docs/i18n/*/README.md` translations were
+  re-synced to match. **No code, wire format, or fixture changed.**
+- **Working in-page anchors in translated READMEs.** Added explicit `<a name>` anchors to the
+  "What you get" and BitTorrent section headings across English + all 20 translations and repointed
+  every internal cross-reference at them, so the links resolve regardless of the (translated) heading
+  text. The two "What you get" cross-references — previously bold plain text in the translations — are
+  now clickable in every language.
+
 ## [2.5.0] — 2026-07-05
 
 **Browser WebRTC (Go + TypeScript) + portable relay + Rust transports on-by-default.** The WebRTC
