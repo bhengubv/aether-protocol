@@ -119,6 +119,8 @@ BitTorrent은 세계 합법적 파일 공유의 거대한 부분을 뒷받침하
 
 **재생 보호** — 5분 타임스탬프 신선도 창을 사용하는 난스(Nonce) 중복 제거.
 
+<a name="what-you-get"></a>
+
 ## 제공되는 것 — 모든 서비스, 모든 언어로
 
 Aether는 단순한 전송 수단이 아닙니다. 프로토콜이 예약한 모든 패킷 타입은 이제 **8개 언어 모두에서 실제로 작동하는 서비스**이며, 모든 것이 **바이트 단위로 동일한 와이어 패킷**으로 직렬화됩니다 — Go 노드가 구축한 패킷은 Swift, Rust, C, Python, TypeScript, Kotlin, C# 노드가 변경 없이 디코딩합니다. 각 서비스는 `fixtures/<service>/` 아래의 공유 언어 간 픽스처에 고정되어 있으며 언어별 단위 테스트로 검증되고, Swift와 C는 macOS 빌드 서버에서 추가로 검증됩니다.
@@ -143,6 +145,8 @@ Aether는 단순한 전송 수단이 아닙니다. 프로토콜이 예약한 모
 이들은 이미 완성된 **메시징, 1:1 및 그룹 음성, 영상 통화, 라이브 스트리밍, 함께 보기, AODV 라우팅, DTN 저장-전달, SOS 플러드** 서비스 위에 놓입니다 — 이 또한 8개 언어 모두에 구현되어 있습니다.
 
 > **여기서 "구축됨"이 정확히 무엇을 의미하는지.** 각 서비스는 자신의 와이어 패킷을 생성하고 처리하며, 올바른 이벤트를 발생시키고, 전체 언어 제품군이 일치해야 하는 바이트 수준 픽스처에 고정됩니다. 여러분의 애플리케이션은 서비스를 자신의 Signal 세션, 라우팅 테이블, 로컬 상태에 연결합니다. 이것은 프로토콜 계층입니다 — 코드, 테스트, 언어 간 바이트 픽스처로 입증된 — 그리고 다른 모든 것과 동일하게 정직한 RF 기반 위에 있습니다: 궁극적으로 라디오를 타는 모든 경로는 `OPEN_ISSUES.md`에서 추적되는 하드웨어 가동이 이루어지기 전까지 현장 미검증 상태입니다.
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — 실제이며, 메시에 연결됨
 
@@ -270,7 +274,7 @@ Aether는 스마트폰, 노트북, 태블릿, 마이크로컨트롤러에서 실
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**BitTorrent 열:** ✅ = 완전히 작동하는 클라이언트 + 메시 게이트웨이 (C# 참조 구현체). ◐ = 여기서는 BitTorrent **와이어 형식**이 바이트 단위로 동일하며 (`fixtures/bittorrent/`에 고정됨), 라이브 네트워크 계층이 다음 단계입니다 — [BitTorrent — 실제이며, 메시에 연결됨](#bittorrent--real-and-bridged-into-the-mesh) 참조. 다른 모든 열은 8개 언어 모두에서 실제로 작동합니다.
+**BitTorrent 열:** ✅ = 완전히 작동하는 클라이언트 + 메시 게이트웨이 (C# 참조 구현체). ◐ = 여기서는 BitTorrent **와이어 형식**이 바이트 단위로 동일하며 (`fixtures/bittorrent/`에 고정됨), 라이브 네트워크 계층이 다음 단계입니다 — [BitTorrent — 실제이며, 메시에 연결됨](#bittorrent-bridge) 참조. 다른 모든 열은 8개 언어 모두에서 실제로 작동합니다.
 
 8개 언어 모두 바이트 단위로 동일한 와이어 패킷을 생성하며, 17개의 정식 와이어 형식 픽스처와 6개의 Signal 테스트 벡터로 검증됩니다 (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — 모든 언어가 동일한 바이트에 대해 검사됩니다. 라우팅 (AODV 방식 RREQ/RREP), DTN 저장-전달, SOS 방송, 음성, 스트리밍, 보안 강화 서비스가 모든 언어에서 구현되어 있으며, 8개 구현체 전체에 걸쳐 **약 3,000개의 테스트**가 있습니다:
 
@@ -288,7 +292,7 @@ Aether는 스마트폰, 노트북, 태블릿, 마이크로컨트롤러에서 실
 
 언어 간 Signal 상호 운용성은 `fixtures/signal/`에 X3DH (`x3dh_basic`), 대칭 래칫 (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), 그리고 완전한 X3DH 세션 왕복 (`x3dh_session_msg1`, `x3dh_session_reply`)에 대한 공유 테스트 벡터로 고정되어 있습니다. 모든 구현체는 해당 픽스처에 대해 바이트 단위로 동일한 출력을 생성해야 합니다. 8개 언어 모두 완전한 Signal 세션 (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`)을 지원합니다.
 
-와이어 형식과 Signal을 넘어, **전체 와이어 서비스 제품군** — 프레즌스, 하트비트, 프로필 동기화, 임시 ID 알림, 사전 키 교환, 채널, 푸시-투-토크, 화면 공유, 통화 제어, SOS 확인, 스페이스 브레드크럼, 포지 알림, 볼트 샤드 요청, 대역폭 측정 (**제공되는 것 — 모든 서비스, 모든 언어로** 참조) — 도 마찬가지로 8개 언어 모두에 구현되어 있으며 자체 픽스처 (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, 그리고 형제 픽스처)에 고정되어 있습니다. 프로토콜 계층에서 C# 전용인 기능은 없습니다.
+와이어 형식과 Signal을 넘어, **전체 와이어 서비스 제품군** — 프레즌스, 하트비트, 프로필 동기화, 임시 ID 알림, 사전 키 교환, 채널, 푸시-투-토크, 화면 공유, 통화 제어, SOS 확인, 스페이스 브레드크럼, 포지 알림, 볼트 샤드 요청, 대역폭 측정 ([**제공되는 것 — 모든 서비스, 모든 언어로**](#what-you-get) 참조) — 도 마찬가지로 8개 언어 모두에 구현되어 있으며 자체 픽스처 (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, 그리고 형제 픽스처)에 고정되어 있습니다. 프로토콜 계층에서 C# 전용인 기능은 없습니다.
 
 ## 빠른 시작
 
@@ -565,7 +569,7 @@ aethernet_packet_free(packet);
 - ✅ **C: 완전한 Signal 세션** — `c/src/signal_protocol.c`의 `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`; `c/tests/test_signal_session.c`의 6개 양방향 E2E 테스트. 8개 언어 모두 이제 완전한 세션 기능 Signal Protocol 지원.
 
 **완료 (8개 언어 모두 — 전체 와이어 서비스 제품군):**
-- ✅ **예약된 모든 패킷 타입이 이제 8개 언어 모두에서 실제로 작동하는 바이트 단위 동일 서비스입니다.** 프레즌스 비콘/쿼리 (21/22), 하트비트 (10), 프로필 동기화 (23), 임시 라우팅 ID 알림 (56), 사전 키 교환 (25/26), 채널 (7), 푸시-투-토크 (15), 화면 공유 (32), 통화 제어 (27), SOS 확인 (6), 스페이스 브레드크럼 (40), 포지 알림 (41), 볼트 샤드 요청 (42), 대역폭 측정 / ABMF (53/54/55). 각각은 호스트가 자신의 Signal 세션과 라우팅 테이블에 연결하는 얇은 서비스 (생성 + 처리 + 이벤트)이며; 각각은 공유 언어 간 픽스처 (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`)에 고정되어 있고 언어별 단위 테스트로 검증되며, Swift와 C는 macOS 빌드 서버에서 검증됩니다. **제공되는 것 — 모든 서비스, 모든 언어로** 참조.
+- ✅ **예약된 모든 패킷 타입이 이제 8개 언어 모두에서 실제로 작동하는 바이트 단위 동일 서비스입니다.** 프레즌스 비콘/쿼리 (21/22), 하트비트 (10), 프로필 동기화 (23), 임시 라우팅 ID 알림 (56), 사전 키 교환 (25/26), 채널 (7), 푸시-투-토크 (15), 화면 공유 (32), 통화 제어 (27), SOS 확인 (6), 스페이스 브레드크럼 (40), 포지 알림 (41), 볼트 샤드 요청 (42), 대역폭 측정 / ABMF (53/54/55). 각각은 호스트가 자신의 Signal 세션과 라우팅 테이블에 연결하는 얇은 서비스 (생성 + 처리 + 이벤트)이며; 각각은 공유 언어 간 픽스처 (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`)에 고정되어 있고 언어별 단위 테스트로 검증되며, Swift와 C는 macOS 빌드 서버에서 검증됩니다. [**제공되는 것 — 모든 서비스, 모든 언어로**](#what-you-get) 참조.
 
 **완료 (C# 참조 구현체만):**
 - ✅ **데모 9단계 — MessagingService + DTN 폴백 종단 간** — `samples/AetherNet.Demo.Console`은 수신자가 오프라인일 때 DTN 저장-전달과 함께 실제 Signal 암호화 메시지를 진행합니다.

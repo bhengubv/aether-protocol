@@ -119,6 +119,8 @@ Sem contas, sem números de telefone, sem e-mails. Você gera um par de chaves e
 
 **Proteção contra replay** — Deduplicação de nonce com janela de validade de timestamp de 5 minutos.
 
+<a name="what-you-get"></a>
+
 ## O que você recebe — todo serviço, em todas as linguagens
 
 O Aether não é apenas um transporte. Todo tipo de pacote reservado pelo protocolo é agora um **serviço real e funcional em todas as 8 linguagens**, e cada um deles serializa para **pacotes de fio byte-idênticos** — um pacote construído pelo nó Go é decodificado, sem alteração, pelo nó Swift, Rust, C, Python, TypeScript, Kotlin ou C#. Cada serviço está vinculado a uma fixture multilinguagem compartilhada em `fixtures/<service>/` e exercitado por testes unitários por linguagem, com Swift e C adicionalmente verificados no servidor de build macOS.
@@ -143,6 +145,8 @@ O Aether não é apenas um transporte. Todo tipo de pacote reservado pelo protoc
 Estes ficam sobre os serviços já completos de **mensageria, voz 1-para-1 e em grupo, chamadas de vídeo, transmissão ao vivo, watch-together, roteamento AODV, DTN store-and-forward e flood de SOS** — também implementados em todas as 8 linguagens.
 
 > **O que "construído" significa aqui, com precisão.** Cada serviço produz e trata seu pacote de fio, dispara os eventos corretos e está vinculado a uma fixture em nível de byte que toda a família de linguagens deve corresponder. Sua aplicação conecta o serviço à sua sessão Signal, tabela de roteamento e estado local. Esta é a camada de protocolo — comprovada em código, testes e fixtures de byte multilinguagem — no mesmo terreno honesto de RF que todo o resto: qualquer caminho que em última instância trafega por um rádio permanece não verificado em campo até a inicialização de hardware rastreada em `OPEN_ISSUES.md`.
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — real e com ponte para a mesh
 
@@ -270,7 +274,7 @@ O Aether é construído em 8 linguagens para rodar em smartphones, laptops, tabl
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**Coluna BitTorrent:** ✅ = cliente completo e funcional + gateway de mesh (a referência C#). ◐ = os **formatos de fio** do BitTorrent são byte a byte idênticos aqui (vinculados a `fixtures/bittorrent/`), com a camada de rede ativa como o próximo passo — veja [BitTorrent — real e com ponte para a mesh](#bittorrent--real-and-bridged-into-the-mesh). Toda outra coluna é real e funcional em todas as 8 linguagens.
+**Coluna BitTorrent:** ✅ = cliente completo e funcional + gateway de mesh (a referência C#). ◐ = os **formatos de fio** do BitTorrent são byte a byte idênticos aqui (vinculados a `fixtures/bittorrent/`), com a camada de rede ativa como o próximo passo — veja [BitTorrent — real e com ponte para a mesh](#bittorrent-bridge). Toda outra coluna é real e funcional em todas as 8 linguagens.
 
 Todas as 8 linguagens produzem pacotes wire byte-idênticos, verificados por 17 fixtures canônicas de formato wire e 6 vetores de teste Signal (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — cada linguagem é verificada contra os mesmos bytes. Roteamento (RREQ/RREP no estilo AODV), DTN store-and-forward, broadcast SOS, voz, streaming e serviços de hardening de segurança estão implementados em todas as linguagens com **~3.000 testes** em todas as 8 implementações:
 
@@ -288,7 +292,7 @@ Todas as 8 linguagens produzem pacotes wire byte-idênticos, verificados por 17 
 
 A interoperabilidade Signal entre linguagens é ancorada em `fixtures/signal/` com vetores de teste compartilhados para X3DH (`x3dh_basic`), o ratchet simétrico (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`) e o round-trip completo de sessão X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Cada implementação deve produzir saídas byte-idênticas em relação a essas fixtures. Todas as 8 linguagens agora incluem uma sessão Signal completa (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
-Além do formato wire e do Signal, toda a **suíte de serviços de fio** — presença, heartbeat, sincronização de perfil, anúncio de ID efêmero, troca de pré-chave, canais, push-to-talk, compartilhamento de tela, controle de chamada, confirmação de SOS, migalhas de espaço, anúncio de forge, requisição de shard do vault e medição de largura de banda (veja **O que você recebe**) — também é implementada em todas as 8 linguagens e vinculada às suas próprias fixtures (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/` e irmãs). Nenhum recurso é exclusivo do C# na camada de protocolo.
+Além do formato wire e do Signal, toda a **suíte de serviços de fio** — presença, heartbeat, sincronização de perfil, anúncio de ID efêmero, troca de pré-chave, canais, push-to-talk, compartilhamento de tela, controle de chamada, confirmação de SOS, migalhas de espaço, anúncio de forge, requisição de shard do vault e medição de largura de banda (veja [**O que você recebe**](#what-you-get)) — também é implementada em todas as 8 linguagens e vinculada às suas próprias fixtures (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/` e irmãs). Nenhum recurso é exclusivo do C# na camada de protocolo.
 
 ## Início Rápido
 
@@ -565,7 +569,7 @@ O que foi construído e o que vem a seguir.
 - ✅ **C: sessão Signal completa** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` em `c/src/signal_protocol.c`; 6 testes E2E de dois nós em `c/tests/test_signal_session.c`. Todas as 8 linguagens agora têm Signal Protocol com sessão completa.
 
 **Concluído (todas as 8 linguagens — a suíte completa de serviços de fio):**
-- ✅ **Todo tipo de pacote reservado é agora um serviço real e byte-idêntico em todas as 8 linguagens.** Beacon/consulta de presença (21/22), heartbeat (10), sincronização de perfil (23), anúncio de ID de roteamento efêmero (56), troca de pré-chave (25/26), canais (7), push-to-talk (15), compartilhamento de tela (32), controle de chamada (27), confirmação de SOS (6), migalhas de espaço (40), anúncio de forge (41), requisição de shard do vault (42) e medição de largura de banda / ABMF (53/54/55). Cada um é um serviço enxuto (produz + trata + evento) que o host conecta à sua sessão Signal e tabela de roteamento; cada um está vinculado a uma fixture multilinguagem compartilhada (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) e exercitado por testes unitários por linguagem, com Swift e C verificados no servidor de build macOS. Veja **O que você recebe**.
+- ✅ **Todo tipo de pacote reservado é agora um serviço real e byte-idêntico em todas as 8 linguagens.** Beacon/consulta de presença (21/22), heartbeat (10), sincronização de perfil (23), anúncio de ID de roteamento efêmero (56), troca de pré-chave (25/26), canais (7), push-to-talk (15), compartilhamento de tela (32), controle de chamada (27), confirmação de SOS (6), migalhas de espaço (40), anúncio de forge (41), requisição de shard do vault (42) e medição de largura de banda / ABMF (53/54/55). Cada um é um serviço enxuto (produz + trata + evento) que o host conecta à sua sessão Signal e tabela de roteamento; cada um está vinculado a uma fixture multilinguagem compartilhada (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) e exercitado por testes unitários por linguagem, com Swift e C verificados no servidor de build macOS. Veja [**O que você recebe**](#what-you-get).
 
 **Concluído (apenas referência C#):**
 - ✅ **Demo Etapa 9 — MessagingService + DTN fallback de ponta a ponta** — `samples/AetherNet.Demo.Console` percorre mensagens criptografadas Signal reais com DTN store-and-forward quando o destinatário está offline.

@@ -119,6 +119,8 @@ Geen rekeninge, geen telefoonnommers, geen e-posse nie. Jy genereer 'n sleutelpa
 
 **Herspeel-beskerming** — Nonce-ontdubbeling met 'n 5-minuut-tydstempel-varsheidsvenster.
 
+<a name="what-you-get"></a>
+
 ## Wat jy kry — elke diens, in elke taal
 
 Aether is nie net 'n transport nie. Elke pakkietipe wat deur die protokol gereserveer is, is nou 'n **werklike, werkende diens in al 8 tale**, en elkeen serialiseer na **greep-identiese draadpakkies** — 'n pakkie wat deur die Go-node gebou is, word ongewysig gedekodeer deur die Swift-, Rust-, C-, Python-, TypeScript-, Kotlin- of C#-node. Elke diens is vasgepen aan 'n gedeelde kruistaal-fixture onder `fixtures/<service>/` en getoets deur per-taal-eenheidstoetse, met Swift en C wat addisioneel op die macOS-bouserver geverifieer word.
@@ -143,6 +145,8 @@ Aether is nie net 'n transport nie. Elke pakkietipe wat deur die protokol gerese
 Hierdie sit bo-op die reeds-voltooide **boodskappe, 1-tot-1- en groepstem, video-oproepe, lewendige stroom, saam-kyk, AODV-roetering, DTN-stoor-en-stuur, en SOS-vloed** dienste — ook geïmplementeer in al 8 tale.
 
 > **Wat "gebou" hier presies beteken.** Elke diens produseer en hanteer sy draadpakkie, wek die regte gebeurtenisse op, en is vasgepen aan 'n greepvlak-fixture wat die hele taalfamilie moet ewenaar. Jou toepassing bedraad die diens aan sy Signal-sessie, roeteringstabel en plaaslike toestand. Dit is die protokollaag — bewys in kode, toetse en kruistaal-greep-fixtures — op dieselfde eerlike RF-grondslag as alles anders: enige pad wat uiteindelik op 'n radio ry, is veldonbevestig totdat die hardeware-inbedryfstelling wat in `OPEN_ISSUES.md` nagespoor word, plaasvind.
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — werklik, en oorbrug na die mesh
 
@@ -270,7 +274,7 @@ Aether is gebou in 8 tale sodat dit op fone, skootrekenaars, tablette en mikrobe
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**BitTorrent-kolom:** ✅ = volledige, werkende kliënt + mesh-hek (die C#-verwysing). ◐ = die BitTorrent-**draadformate** is hier greep-vir-greep identies (vasgepen aan `fixtures/bittorrent/`), met die lewende netwerklaag as die volgende stap — sien [BitTorrent — werklik, en oorbrug na die mesh](#bittorrent--real-and-bridged-into-the-mesh). Elke ander kolom is werklik en werkend in al 8 tale.
+**BitTorrent-kolom:** ✅ = volledige, werkende kliënt + mesh-hek (die C#-verwysing). ◐ = die BitTorrent-**draadformate** is hier greep-vir-greep identies (vasgepen aan `fixtures/bittorrent/`), met die lewende netwerklaag as die volgende stap — sien [BitTorrent — werklik, en oorbrug na die mesh](#bittorrent-bridge). Elke ander kolom is werklik en werkend in al 8 tale.
 
 Al 8 tale produseer greep-identiese draadpakkies, geverifieer teen 17 kanonieke draadformaat-fixtures en 6 Signal-toetsvektore (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — elke taal word teen dieselfde grepe nagegaan. Roetering (AODV-styl RREQ/RREP), DTN-stoor-en-stuur, SOS-uitsaai, stem, stroom, en sekuriteitsverhardingsdienste is in elke taal geïmplementeer met **~3,000 toetse** oor al 8 implementasies:
 
@@ -288,7 +292,7 @@ Al 8 tale produseer greep-identiese draadpakkies, geverifieer teen 17 kanonieke 
 
 Kruistaal-Signal-interop is veranker aan `fixtures/signal/` met gedeelde toetsvektore vir X3DH (`x3dh_basic`), die simmetriese ratel (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), en die volledige X3DH-sessie-heen-en-weer (`x3dh_session_msg1`, `x3dh_session_reply`). Elke implementasie moet greep-identiese uitsette teen daardie fixtures produseer. Al 8 tale stuur nou 'n volledige Signal-sessie (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
-Verby draadformaat en Signal is die **hele draaddiens-suite** — teenwoordigheid, hartklop, profielsinkronisasie, efemere-ID-aankondiging, voorsleutel-uitruil, kanale, druk-om-te-praat, skermdeling, oproepbeheer, SOS-erkenning, ruimte-broodkrummels, smee-aankondiging, kluis-skerf-versoek, en bandwydte-meting (sien **Wat jy kry**) — eweneens geïmplementeer in al 8 tale en vasgepen aan sy eie fixtures (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, en broers en susters). Geen kenmerk is C#-alleen by die protokollaag nie.
+Verby draadformaat en Signal is die **hele draaddiens-suite** — teenwoordigheid, hartklop, profielsinkronisasie, efemere-ID-aankondiging, voorsleutel-uitruil, kanale, druk-om-te-praat, skermdeling, oproepbeheer, SOS-erkenning, ruimte-broodkrummels, smee-aankondiging, kluis-skerf-versoek, en bandwydte-meting (sien [**Wat jy kry**](#what-you-get)) — eweneens geïmplementeer in al 8 tale en vasgepen aan sy eie fixtures (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, en broers en susters). Geen kenmerk is C#-alleen by die protokollaag nie.
 
 ## Vinnige begin
 
@@ -565,7 +569,7 @@ Wat gebou is en wat volgende is.
 - ✅ **C: volledige Signal-sessie** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` in `c/src/signal_protocol.c`; 6 twee-node-E2E-toetse in `c/tests/test_signal_session.c`. Al 8 tale het nou volledige sessie-vermoënde Signal Protocol.
 
 **Klaar (al 8 tale — die volledige draaddiens-suite):**
-- ✅ **Elke gereserveerde pakkietipe is nou 'n werklike, greep-identiese diens in al 8 tale.** Teenwoordigheidsbaken/-navraag (21/22), hartklop (10), profielsinkronisasie (23), efemere-roeterings-ID-aankondiging (56), voorsleutel-uitruil (25/26), kanale (7), druk-om-te-praat (15), skermdeling (32), oproepbeheer (27), SOS-erkenning (6), ruimte-broodkrummels (40), smee-aankondiging (41), kluis-skerf-versoek (42), en bandwydte-meting / ABMF (53/54/55). Elkeen is 'n dun diens (produseer + hanteer + gebeurtenis) wat die gasheer bedraad aan sy Signal-sessie en roeteringstabel; elkeen is vasgepen aan 'n gedeelde kruistaal-fixture (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) en getoets deur per-taal-eenheidstoetse, met Swift en C wat op die macOS-bouserver geverifieer word. Sien **Wat jy kry**.
+- ✅ **Elke gereserveerde pakkietipe is nou 'n werklike, greep-identiese diens in al 8 tale.** Teenwoordigheidsbaken/-navraag (21/22), hartklop (10), profielsinkronisasie (23), efemere-roeterings-ID-aankondiging (56), voorsleutel-uitruil (25/26), kanale (7), druk-om-te-praat (15), skermdeling (32), oproepbeheer (27), SOS-erkenning (6), ruimte-broodkrummels (40), smee-aankondiging (41), kluis-skerf-versoek (42), en bandwydte-meting / ABMF (53/54/55). Elkeen is 'n dun diens (produseer + hanteer + gebeurtenis) wat die gasheer bedraad aan sy Signal-sessie en roeteringstabel; elkeen is vasgepen aan 'n gedeelde kruistaal-fixture (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) en getoets deur per-taal-eenheidstoetse, met Swift en C wat op die macOS-bouserver geverifieer word. Sien [**Wat jy kry**](#what-you-get).
 
 **Klaar (slegs C#-verwysing):**
 - ✅ **Demo Stap 9 — MessagingService + DTN-terugval end-tot-end** — `samples/AetherNet.Demo.Console` lei deur werklike-Signal-geënkripteerde boodskappe met DTN-stoor-en-stuur wanneer die ontvanger vanlyn is.

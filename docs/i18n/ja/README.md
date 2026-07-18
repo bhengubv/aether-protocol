@@ -119,6 +119,8 @@ BitTorrentは、世界の合法的なファイル共有の大きな部分を支�
 
 **リプレイ保護** — 5分タイムスタンプ鮮度ウィンドウを持つノンス重複排除。
 
+<a name="what-you-get"></a>
+
 ## 手に入るもの — すべてのサービスを、すべての言語で
 
 Aetherは単なるトランスポートではありません。プロトコルが予約するすべてのパケットタイプは、いまや**全8言語で実際に動作するサービス**であり、そのどれもが**バイト同一のワイヤーパケット**にシリアライズされます — Goノードが構築したパケットは、Swift、Rust、C、Python、TypeScript、Kotlin、C#のノードが変更なしに復号します。各サービスは `fixtures/<service>/` 配下の共有クロス言語フィクスチャに固定され、言語ごとのユニットテストで検証されており、SwiftとCはさらにmacOSビルドサーバー上で確認されています。
@@ -143,6 +145,8 @@ Aetherは単なるトランスポートではありません。プロトコル�
 これらは、すでに完成している**メッセージング、1対1およびグループ音声、ビデオ通話、ライブストリーミング、ウォッチトゥゲザー、AODVルーティング、DTNストアアンドフォワード、SOSフラッド**サービスの上に載っています — こちらも全8言語で実装されています。
 
 > **ここでの「構築済み」の正確な意味。** 各サービスはワイヤーパケットを生成・処理し、適切なイベントを発火し、言語ファミリー全体が一致しなければならないバイトレベルのフィクスチャに固定されています。アプリケーションは、このサービスをそのSignalセッション、ルーティングテーブル、ローカル状態に接続します。これはプロトコル層です — コード、テスト、クロス言語バイトフィクスチャで証明されており、他のすべてと同じ正直なRF基盤の上にあります: 最終的に無線に乗るあらゆるパスは、`OPEN_ISSUES.md` で追跡されているハードウェア立ち上げまでは実地未検証です。
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — 本物、そしてメッシュへの橋渡し
 
@@ -270,7 +274,7 @@ Aetherはスマートフォン、ラップトップ、タブレット、マイ�
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**BitTorrent列:** ✅ = 完全に動作するクライアント + メッシュゲートウェイ（C#リファレンス）。◐ = ここではBitTorrentの**ワイヤーフォーマット**がバイト単位で完全に同一であり（`fixtures/bittorrent/` に固定）、ライブネットワーク層が次のステップです — [BitTorrent — 本物、そしてメッシュへの橋渡し](#bittorrent--real-and-bridged-into-the-mesh) を参照。他のすべての列は全8言語で本物かつ動作します。
+**BitTorrent列:** ✅ = 完全に動作するクライアント + メッシュゲートウェイ（C#リファレンス）。◐ = ここではBitTorrentの**ワイヤーフォーマット**がバイト単位で完全に同一であり（`fixtures/bittorrent/` に固定）、ライブネットワーク層が次のステップです — [BitTorrent — 本物、そしてメッシュへの橋渡し](#bittorrent-bridge) を参照。他のすべての列は全8言語で本物かつ動作します。
 
 全8言語はバイト同一のワイヤーパケットを生成し、17の標準ワイヤーフォーマットフィクスチャと6つのSignalテストベクターに対して検証されています（`fixtures/expected/*.bin`、`fixtures/signal/expected/*.json`）— **どの言語も同じバイト列に対して照合されます**。ルーティング（AODVスタイルのRREQ/RREP）、DTNストアアンドフォワード、SOSブロードキャスト、音声、ストリーミング、セキュリティ強化サービスはすべての言語で実装されており、全8実装で**約3,000テスト**あります:
 
@@ -288,7 +292,7 @@ Aetherはスマートフォン、ラップトップ、タブレット、マイ�
 
 クロス言語Signalの相互運用は `fixtures/signal/` に固定されており、X3DH（`x3dh_basic`）、対称ラチェット（`ratchet_step_basic`、`ratchet_step_three_iterations`）、KDF_RK（`kdf_rk_basic`）、および完全なX3DHセッションのラウンドトリップ（`x3dh_session_msg1`、`x3dh_session_reply`）の共有テストベクターがあります。すべての実装はこれらのフィクスチャに対してバイト同一の出力を生成しなければなりません。全8言語は完全なSignalセッション（`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`）を搭載しています。
 
-ワイヤーフォーマットとSignalを超えて、**ワイヤーサービススイート全体** — プレゼンス、ハートビート、プロフィール同期、一時ID告知、プレキー交換、チャンネル、プッシュトゥトーク、画面共有、通話制御、SOS確認応答、スペースブレッドクラム、フォージ告知、ボールトシャード要求、帯域幅測定（**手に入るもの — すべてのサービスを、すべての言語で** を参照）— も同様に全8言語で実装され、それぞれ独自のフィクスチャ（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/` およびその同類）に固定されています。プロトコル層でC#専用の機能は1つもありません。
+ワイヤーフォーマットとSignalを超えて、**ワイヤーサービススイート全体** — プレゼンス、ハートビート、プロフィール同期、一時ID告知、プレキー交換、チャンネル、プッシュトゥトーク、画面共有、通話制御、SOS確認応答、スペースブレッドクラム、フォージ告知、ボールトシャード要求、帯域幅測定（[**手に入るもの — すべてのサービスを、すべての言語で**](#what-you-get) を参照）— も同様に全8言語で実装され、それぞれ独自のフィクスチャ（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/` およびその同類）に固定されています。プロトコル層でC#専用の機能は1つもありません。
 
 ## クイックスタート
 
@@ -565,7 +569,7 @@ aethernet_packet_free(packet);
 - ✅ **C: 完全なSignalセッション** — `c/src/signal_protocol.c`の`aethernet_signal_service_init`、`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`; `c/tests/test_signal_session.c`の6つの2ノードE2Eテスト。全8言語で完全なセッション対応Signal Protocolが揃いました。
 
 **完了（全8言語 — ワイヤーサービススイート全体）:**
-- ✅ **すべての予約済みパケットタイプが、いまや全8言語でバイト同一の実際に動作するサービスです。** プレゼンスビーコン/クエリ (21/22)、ハートビート (10)、プロフィール同期 (23)、一時ルーティングID告知 (56)、プレキー交換 (25/26)、チャンネル (7)、プッシュトゥトーク (15)、画面共有 (32)、通話制御 (27)、SOS確認応答 (6)、スペースブレッドクラム (40)、フォージ告知 (41)、ボールトシャード要求 (42)、帯域幅測定 / ABMF (53/54/55)。それぞれはホストがそのSignalセッションとルーティングテーブルに接続する薄いサービス（生成 + 処理 + イベント）であり、それぞれが共有クロス言語フィクスチャ（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/`、`fixtures/channels/`、`fixtures/profiles/`、`fixtures/heartbeat/`、`fixtures/erid/`、`fixtures/space/`、`fixtures/forge/`、`fixtures/sos/`）に固定され、言語ごとのユニットテストで検証されており、SwiftとCはmacOSビルドサーバー上で確認されています。**手に入るもの — すべてのサービスを、すべての言語で** を参照。
+- ✅ **すべての予約済みパケットタイプが、いまや全8言語でバイト同一の実際に動作するサービスです。** プレゼンスビーコン/クエリ (21/22)、ハートビート (10)、プロフィール同期 (23)、一時ルーティングID告知 (56)、プレキー交換 (25/26)、チャンネル (7)、プッシュトゥトーク (15)、画面共有 (32)、通話制御 (27)、SOS確認応答 (6)、スペースブレッドクラム (40)、フォージ告知 (41)、ボールトシャード要求 (42)、帯域幅測定 / ABMF (53/54/55)。それぞれはホストがそのSignalセッションとルーティングテーブルに接続する薄いサービス（生成 + 処理 + イベント）であり、それぞれが共有クロス言語フィクスチャ（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/`、`fixtures/channels/`、`fixtures/profiles/`、`fixtures/heartbeat/`、`fixtures/erid/`、`fixtures/space/`、`fixtures/forge/`、`fixtures/sos/`）に固定され、言語ごとのユニットテストで検証されており、SwiftとCはmacOSビルドサーバー上で確認されています。[**手に入るもの — すべてのサービスを、すべての言語で**](#what-you-get) を参照。
 
 **完了（C#リファレンスのみ）:**
 - ✅ **デモステップ9 — MessagingService + DTNフォールバックのエンドツーエンド** — `samples/AetherNet.Demo.Console`では、受信者がオフラインの場合のDTNストアアンドフォワードを使った実際のSignal暗号化メッセージングのウォークスルー。

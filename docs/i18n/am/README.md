@@ -119,6 +119,8 @@ BitTorrent ከዓለም ሕጋዊ ፋይል-ማጋራት ትልቅ ክፍል ጀ
 
 **Replay protection** — በ 5 ደቂቃ timestamp freshness window ያለው Nonce deduplication።
 
+<a name="what-you-get"></a>
+
 ## የምታገኘው — እያንዳንዱ አገልግሎት፣ በእያንዳንዱ ቋንቋ
 
 Aether transport ብቻ አይደለም። በፕሮቶኮሉ የተያዘ እያንዳንዱ packet type አሁን በ **ሁሉም 8 ቋንቋዎች እውነተኛ፣ የሚሠራ አገልግሎት** ነው፣ እያንዳንዱም ወደ **byte-identical wire packets** ይሰራሠራል — በ Go ኖድ የተገነባ packet፣ ሳይለወጥ፣ በ Swift፣ Rust፣ C፣ Python፣ TypeScript፣ Kotlin ወይም C# ኖድ ይፈታል። እያንዳንዱ አገልግሎት በ `fixtures/<service>/` ስር ወዳለ በጋራ በሚጋራ cross-language fixture ተጠብቆ በእያንዳንዱ ቋንቋ unit tests ይፈተናል፣ Swift እና C ደግሞ በ macOS build server ላይ በተጨማሪ ተረጋግጠዋል።
@@ -143,6 +145,8 @@ Aether transport ብቻ አይደለም። በፕሮቶኮሉ የተያዘ እ�
 እነዚህ ቀድሞ በተጠናቀቁት **messaging፣ 1-to-1 እና group voice፣ video calls፣ live streaming፣ watch-together፣ AODV routing፣ DTN store-and-forward እና SOS flood** አገልግሎቶች ላይ ይቀመጣሉ — እነዚህም በሁሉም 8 ቋንቋዎች ተተግብረዋል።
 
 > **"የተገነባ" እዚህ ምን ማለት እንደሆነ፣ በትክክል።** እያንዳንዱ አገልግሎት wire packet-ውን ያመነጫል እና ያስተናግዳል፣ ትክክለኛዎቹን events ያስነሳል፣ እና ሙሉ የቋንቋ ቤተሰብ ማዛመድ ወዳለበት byte-level fixture ተጠብቋል። መተግበሪያዎ አገልግሎቱን ወደ Signal session-ው፣ routing table-ው እና local state-ው ያገናኛል። ይህ የፕሮቶኮል ንብርብር ነው — በ code፣ በ tests እና በ cross-language byte-fixtures የተረጋገጠ — እንደ ሁሉም ነገር በተመሳሳይ ታማኝ የ RF መሠረት ላይ: በመጨረሻ radio የሚጋልብ ማንኛውም መንገድ በ `OPEN_ISSUES.md` ውስጥ እስከሚከታተለው hardware bring-up ድረስ field-unverified ነው።
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — እውነተኛ፣ እና ወደ mesh የተያያዘ
 
@@ -270,7 +274,7 @@ Aether በ 8 ቋንቋዎች የተገነባ ነው፣ ስለዚህ በስልኮ
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**የ BitTorrent አምድ:** ✅ = ሙሉ፣ የሚሠራ client + mesh gateway (የ C# reference)። ◐ = የ BitTorrent **wire formats** እዚህ byte-for-byte ተመሳሳይ ናቸው (በ `fixtures/bittorrent/` ተጠብቀዋል)፣ የቀጥታ network layer እንደ ቀጣዩ ደረጃ — [BitTorrent — እውነተኛ፣ እና ወደ mesh የተያያዘ](#bittorrent--real-and-bridged-into-the-mesh) ን ይመልከቱ። ሌላው እያንዳንዱ አምድ በሁሉም 8 ቋንቋዎች እውነተኛ እና የሚሠራ ነው።
+**የ BitTorrent አምድ:** ✅ = ሙሉ፣ የሚሠራ client + mesh gateway (የ C# reference)። ◐ = የ BitTorrent **wire formats** እዚህ byte-for-byte ተመሳሳይ ናቸው (በ `fixtures/bittorrent/` ተጠብቀዋል)፣ የቀጥታ network layer እንደ ቀጣዩ ደረጃ — [BitTorrent — እውነተኛ፣ እና ወደ mesh የተያያዘ](#bittorrent-bridge) ን ይመልከቱ። ሌላው እያንዳንዱ አምድ በሁሉም 8 ቋንቋዎች እውነተኛ እና የሚሠራ ነው።
 
 ሁሉም 8 ቋንቋዎች byte-identical wire packets ያመነጫሉ፣ በ 17 canonical wire-format fixtures እና በ 6 Signal test vectors ተረጋግጠዋል (`fixtures/expected/*.bin`፣ `fixtures/signal/expected/*.json`) — እያንዳንዱ ቋንቋ በተመሳሳዮቹ bytes ላይ ይፈተናል። Routing (AODV-style RREQ/RREP)፣ DTN store-and-forward፣ SOS broadcast፣ ድምጽ፣ streaming፣ እና security-hardening services በእያንዳንዱ ቋንቋ ተተግብረዋል፣ በሁሉም 8 implementations ላይ **~3,000 tests** አሉ:
 
@@ -288,7 +292,7 @@ Aether በ 8 ቋንቋዎች የተገነባ ነው፣ ስለዚህ በስልኮ
 
 Cross-language Signal interop በ `fixtures/signal/` ላይ ተስተካክሏል፣ ለ X3DH (`x3dh_basic`)፣ ለ symmetric ratchet (`ratchet_step_basic`፣ `ratchet_step_three_iterations`)፣ ለ KDF_RK (`kdf_rk_basic`)፣ እና ለ ሙሉ የ X3DH session round-trip (`x3dh_session_msg1`፣ `x3dh_session_reply`) በሚጋሩ test vectors። እያንዳንዱ implementation በእነዚያ fixtures ላይ byte-identical outputs ማምረት አለበት። ሁሉም 8 ቋንቋዎች አሁን ሙሉ Signal session ያቀርባሉ (`generate_pre_key_bundle`፣ `process_pre_key_bundle`፣ `encrypt`፣ `decrypt`)።
 
-ከ wire format እና ከ Signal በላይ፣ **ሙሉ የ wire-service suite** — presence፣ heartbeat፣ profile sync፣ ephemeral-ID announce፣ pre-key exchange፣ channels፣ push-to-talk፣ screen share፣ call control፣ SOS acknowledgement፣ space breadcrumbs፣ forge announce፣ vault shard request፣ እና bandwidth measurement (**የምታገኘው** ን ይመልከቱ) — በተመሳሳይ በሁሉም 8 ቋንቋዎች ተተግብሮ ወደ ራሱ fixtures ተጠብቋል (`fixtures/presence/`፣ `fixtures/media/`፣ `fixtures/bandwidth/`፣ `fixtures/prekey/`፣ `fixtures/videocall/`፣ `fixtures/vaultshard/`፣ እና ተመሳሳዮች)። በፕሮቶኮል ንብርብር ላይ ምንም ባህሪ C#-only አይደለም።
+ከ wire format እና ከ Signal በላይ፣ **ሙሉ የ wire-service suite** — presence፣ heartbeat፣ profile sync፣ ephemeral-ID announce፣ pre-key exchange፣ channels፣ push-to-talk፣ screen share፣ call control፣ SOS acknowledgement፣ space breadcrumbs፣ forge announce፣ vault shard request፣ እና bandwidth measurement ([**የምታገኘው**](#what-you-get) ን ይመልከቱ) — በተመሳሳይ በሁሉም 8 ቋንቋዎች ተተግብሮ ወደ ራሱ fixtures ተጠብቋል (`fixtures/presence/`፣ `fixtures/media/`፣ `fixtures/bandwidth/`፣ `fixtures/prekey/`፣ `fixtures/videocall/`፣ `fixtures/vaultshard/`፣ እና ተመሳሳዮች)። በፕሮቶኮል ንብርብር ላይ ምንም ባህሪ C#-only አይደለም።
 
 ## Quickstart
 
@@ -565,7 +569,7 @@ aethernet_packet_free(packet);
 - ✅ **C: ሙሉ Signal session** — `aethernet_signal_service_init`፣ `generate_pre_key_bundle`፣ `process_pre_key_bundle`፣ `encrypt`፣ `decrypt` በ `c/src/signal_protocol.c`; 6 two-node E2E tests በ `c/tests/test_signal_session.c`። ሁሉም 8 ቋንቋዎች አሁን ሙሉ session-capable Signal Protocol አላቸው።
 
 **የተጠናቀቀ (ሁሉም 8 ቋንቋዎች — ሙሉ የ wire-service suite):**
-- ✅ **እያንዳንዱ የተያዘ packet type አሁን በሁሉም 8 ቋንቋዎች እውነተኛ፣ byte-identical service ነው።** Presence beacon/query (21/22)፣ heartbeat (10)፣ profile sync (23)፣ ephemeral-routing-ID announce (56)፣ pre-key exchange (25/26)፣ channels (7)፣ push-to-talk (15)፣ screen share (32)፣ call control (27)፣ SOS acknowledgement (6)፣ space breadcrumbs (40)፣ forge announce (41)፣ vault shard request (42)፣ እና bandwidth measurement / ABMF (53/54/55)። እያንዳንዱ host ወደ Signal session-ው እና routing table-ው የሚያገናኘው ቀጭን service ነው (produce + handle + event); እያንዳንዱ ወደ በጋራ በሚጋራ cross-language fixture ተጠብቋል (`fixtures/presence/`፣ `fixtures/media/`፣ `fixtures/bandwidth/`፣ `fixtures/prekey/`፣ `fixtures/videocall/`፣ `fixtures/vaultshard/`፣ `fixtures/channels/`፣ `fixtures/profiles/`፣ `fixtures/heartbeat/`፣ `fixtures/erid/`፣ `fixtures/space/`፣ `fixtures/forge/`፣ `fixtures/sos/`) እና በእያንዳንዱ ቋንቋ unit tests ይፈተናል፣ Swift እና C በ macOS build server ላይ ተረጋግጠዋል። **የምታገኘው** ን ይመልከቱ።
+- ✅ **እያንዳንዱ የተያዘ packet type አሁን በሁሉም 8 ቋንቋዎች እውነተኛ፣ byte-identical service ነው።** Presence beacon/query (21/22)፣ heartbeat (10)፣ profile sync (23)፣ ephemeral-routing-ID announce (56)፣ pre-key exchange (25/26)፣ channels (7)፣ push-to-talk (15)፣ screen share (32)፣ call control (27)፣ SOS acknowledgement (6)፣ space breadcrumbs (40)፣ forge announce (41)፣ vault shard request (42)፣ እና bandwidth measurement / ABMF (53/54/55)። እያንዳንዱ host ወደ Signal session-ው እና routing table-ው የሚያገናኘው ቀጭን service ነው (produce + handle + event); እያንዳንዱ ወደ በጋራ በሚጋራ cross-language fixture ተጠብቋል (`fixtures/presence/`፣ `fixtures/media/`፣ `fixtures/bandwidth/`፣ `fixtures/prekey/`፣ `fixtures/videocall/`፣ `fixtures/vaultshard/`፣ `fixtures/channels/`፣ `fixtures/profiles/`፣ `fixtures/heartbeat/`፣ `fixtures/erid/`፣ `fixtures/space/`፣ `fixtures/forge/`፣ `fixtures/sos/`) እና በእያንዳንዱ ቋንቋ unit tests ይፈተናል፣ Swift እና C በ macOS build server ላይ ተረጋግጠዋል። [**የምታገኘው**](#what-you-get) ን ይመልከቱ።
 
 **የተጠናቀቀ (C# reference ብቻ):**
 - ✅ **Demo Step 9 — MessagingService + DTN fallback end-to-end** — `samples/AetherNet.Demo.Console` ተቀባዩ offline ሲሆን ከ DTN store-and-forward ጋር real-Signal-encrypted messaging ውስጥ ይመራል።

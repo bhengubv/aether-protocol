@@ -119,6 +119,8 @@ Hakuna akaunti, hakuna nambari za simu, hakuna barua pepe. Unatengeneza jozi ya 
 
 **Ulinzi dhidi ya replay** — Kuondoa nakala za nonce na dirisha la uhalali la muhuri wa muda wa dakika 5.
 
+<a name="what-you-get"></a>
+
 ## Unachopata — kila huduma, katika kila lugha
 
 Aether si usafirishaji tu. Kila aina ya pakiti iliyohifadhiwa na protokoli sasa ni **huduma halisi, inayofanya kazi katika lugha zote 8**, na kila moja inasomeshwa kuwa **pakiti za waya zinazofanana baiti kwa baiti** — pakiti iliyojengwa na nodi ya Go inasomeka, bila kubadilika, na nodi ya Swift, Rust, C, Python, TypeScript, Kotlin, au C#. Kila huduma imefungwa kwa fixture inayoshirikiwa kati ya lugha chini ya `fixtures/<service>/` na inajaribiwa na majaribio ya kitengo ya kila lugha, huku Swift na C zikithibitishwa zaidi kwenye seva ya kujenga ya macOS.
@@ -143,6 +145,8 @@ Aether si usafirishaji tu. Kila aina ya pakiti iliyohifadhiwa na protokoli sasa 
 Hizi zinakaa juu ya huduma zilizokamilika tayari za **messaging, sauti ya mtu-mmoja-hadi-mmoja na ya kikundi, simu za video, mitiririko ya moja kwa moja, watch-together, AODV routing, DTN store-and-forward, na SOS flood** — pia zimetekelezwa katika lugha zote 8.
 
 > **Maana kamili ya "iliyojengwa" hapa.** Kila huduma inazalisha na kushughulikia pakiti yake ya waya, inainua matukio sahihi, na imefungwa kwa fixture ya kiwango cha baiti ambayo familia nzima ya lugha lazima ilingane nayo. Programu yako inaunganisha huduma na kikao chake cha Signal, jedwali la routing, na hali ya ndani. Hii ni safu ya protokoli — iliyothibitishwa katika msimbo, majaribio, na fixtures za baiti kati ya lugha — kwenye msingi ule ule wa RF wa uaminifu kama kila kitu kingine: njia yoyote ambayo hatimaye inapanda redio haijathibitishwa uwandani hadi uanzishaji wa vifaa unaofuatiliwa katika `OPEN_ISSUES.md`.
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — halisi, na imeunganishwa kwenye mesh
 
@@ -270,7 +274,7 @@ Aether imejengwa katika lugha 8 ili iendeshe kwenye simu, laptop, tableti, na mi
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**Safu ya BitTorrent:** ✅ = mteja kamili, unaofanya kazi + gateway ya mesh (rejeleo la C#). ◐ = **miundo ya waya** ya BitTorrent inafanana baiti kwa baiti hapa (imefungwa kwa `fixtures/bittorrent/`), huku safu ya mtandao hai ikiwa hatua inayofuata — ona [BitTorrent — halisi, na imeunganishwa kwenye mesh](#bittorrent--real-and-bridged-into-the-mesh). Kila safu nyingine ni halisi na inafanya kazi katika lugha zote 8.
+**Safu ya BitTorrent:** ✅ = mteja kamili, unaofanya kazi + gateway ya mesh (rejeleo la C#). ◐ = **miundo ya waya** ya BitTorrent inafanana baiti kwa baiti hapa (imefungwa kwa `fixtures/bittorrent/`), huku safu ya mtandao hai ikiwa hatua inayofuata — ona [BitTorrent — halisi, na imeunganishwa kwenye mesh](#bittorrent-bridge). Kila safu nyingine ni halisi na inafanya kazi katika lugha zote 8.
 
 Lugha zote 8 zinazalisha pakiti za waya zinazofanana baiti kwa baiti, zilizothibitishwa na fixtures 17 za kawaida za muundo wa waya na vekta 6 za majaribio za Signal (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — kila lugha inakaguliwa dhidi ya baiti zile zile. Routing (RREQ/RREP ya mtindo wa AODV), DTN store-and-forward, tangazo la SOS, sauti, mitiririko, na huduma za kuimarisha usalama zimetekelezwa katika kila lugha zenye **majaribio ~3,000** katika utekelezaji wote 8:
 
@@ -288,7 +292,7 @@ Lugha zote 8 zinazalisha pakiti za waya zinazofanana baiti kwa baiti, zilizothib
 
 Ushirikiano wa Signal kati ya lugha umetiwa nanga kwa `fixtures/signal/` na vekta za majaribio zinazoshirikiwa kwa X3DH (`x3dh_basic`), ratchet ya ulinganifu (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), na mzunguko kamili wa kikao cha X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Kila utekelezaji lazima uzalishe matokeo yanayofanana baiti kwa baiti dhidi ya fixtures hizo. Lugha zote 8 sasa zinasafirisha kikao kamili cha Signal (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
-Zaidi ya muundo wa waya na Signal, **mkusanyiko mzima wa huduma za waya** — presence, heartbeat, profile sync, ephemeral-ID announce, pre-key exchange, channels, push-to-talk, screen share, call control, SOS acknowledgement, space breadcrumbs, forge announce, vault shard request, na bandwidth measurement (ona **Unachopata**) — vivyo hivyo zimetekelezwa katika lugha zote 8 na zimefungwa kwa fixtures zao wenyewe (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, na ndugu zao). Hakuna kipengele kilicho cha C#-pekee katika safu ya protokoli.
+Zaidi ya muundo wa waya na Signal, **mkusanyiko mzima wa huduma za waya** — presence, heartbeat, profile sync, ephemeral-ID announce, pre-key exchange, channels, push-to-talk, screen share, call control, SOS acknowledgement, space breadcrumbs, forge announce, vault shard request, na bandwidth measurement (ona [**Unachopata**](#what-you-get)) — vivyo hivyo zimetekelezwa katika lugha zote 8 na zimefungwa kwa fixtures zao wenyewe (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, na ndugu zao). Hakuna kipengele kilicho cha C#-pekee katika safu ya protokoli.
 
 ## Quickstart
 
@@ -565,7 +569,7 @@ Kilichojengwa na kinachofuata.
 - ✅ **C: kikao kamili cha Signal** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` katika `c/src/signal_protocol.c`; majaribio 6 ya E2E ya nodi-mbili katika `c/tests/test_signal_session.c`. Lugha zote 8 sasa zina Signal Protocol yenye uwezo kamili wa kikao.
 
 **Kimefanyika (lugha zote 8 — mkusanyiko kamili wa huduma za waya):**
-- ✅ **Kila aina ya pakiti iliyohifadhiwa sasa ni huduma halisi, inayofanana baiti kwa baiti katika lugha zote 8.** Presence beacon/query (21/22), heartbeat (10), profile sync (23), ephemeral-routing-ID announce (56), pre-key exchange (25/26), channels (7), push-to-talk (15), screen share (32), call control (27), SOS acknowledgement (6), space breadcrumbs (40), forge announce (41), vault shard request (42), na bandwidth measurement / ABMF (53/54/55). Kila moja ni huduma nyembamba (produce + handle + event) ambayo mwenyeji anaiunganisha na kikao chake cha Signal na jedwali la routing; kila moja imefungwa kwa fixture inayoshirikiwa kati ya lugha (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) na inajaribiwa na majaribio ya kitengo ya kila lugha, huku Swift na C zikithibitishwa kwenye seva ya kujenga ya macOS. Ona **Unachopata**.
+- ✅ **Kila aina ya pakiti iliyohifadhiwa sasa ni huduma halisi, inayofanana baiti kwa baiti katika lugha zote 8.** Presence beacon/query (21/22), heartbeat (10), profile sync (23), ephemeral-routing-ID announce (56), pre-key exchange (25/26), channels (7), push-to-talk (15), screen share (32), call control (27), SOS acknowledgement (6), space breadcrumbs (40), forge announce (41), vault shard request (42), na bandwidth measurement / ABMF (53/54/55). Kila moja ni huduma nyembamba (produce + handle + event) ambayo mwenyeji anaiunganisha na kikao chake cha Signal na jedwali la routing; kila moja imefungwa kwa fixture inayoshirikiwa kati ya lugha (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) na inajaribiwa na majaribio ya kitengo ya kila lugha, huku Swift na C zikithibitishwa kwenye seva ya kujenga ya macOS. Ona [**Unachopata**](#what-you-get).
 
 **Kimefanyika (rejeleo la C# tu):**
 - ✅ **Onyesho Hatua ya 9 — MessagingService + DTN fallback mwisho-hadi-mwisho** — `samples/AetherNet.Demo.Console` inakuongoza kupitia messaging iliyofichwa kwa Signal halisi na DTN store-and-forward wakati mpokeaji hayupo mtandaoni.

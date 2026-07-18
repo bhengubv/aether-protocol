@@ -119,6 +119,8 @@ BitTorrent 是全球很大一部分合法文件共享背后的技术——Linux 
 
 **重放保护** — 使用 5 分钟时间戳新鲜度窗口的随机数去重。
 
+<a name="what-you-get"></a>
+
 ## 你能获得什么 — 每种服务，在每种语言中
 
 Aether 不仅仅是一种传输方式。协议保留的每个数据包类型现在都是**全部 8 种语言中真实可用的服务**，且每一种都序列化为**字节完全相同的线路数据包**——由 Go 节点构建的数据包可被 Swift、Rust、C、Python、TypeScript、Kotlin 或 C# 节点原样解码。每种服务都固定至 `fixtures/<service>/` 下的共享跨语言测试用例，并由各语言的单元测试执行，其中 Swift 和 C 还额外在 macOS 构建服务器上验证。
@@ -143,6 +145,8 @@ Aether 不仅仅是一种传输方式。协议保留的每个数据包类型现�
 这些服务位于已经完成的**消息传递、一对一和群组语音、视频通话、直播、共同观影、AODV 路由、DTN 存储转发以及 SOS 洪泛**服务之上——它们同样在全部 8 种语言中实现。
 
 > **此处“已构建”的确切含义。** 每种服务都会产生并处理其线路数据包、触发正确的事件，并固定至整个语言家族都必须匹配的字节级测试用例。你的应用负责将服务连接到它的 Signal 会话、路由表和本地状态。这是协议层——已在代码、测试和跨语言字节测试用例中得到证明——与其他所有部分建立在同样诚实的 RF 基础之上：任何最终经由无线电传输的路径，在 `OPEN_ISSUES.md` 中追踪的硬件启动完成之前，都属于现场未经验证。
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent——真实，并已桥接进网格
 
@@ -270,7 +274,7 @@ Aether 以 8 种语言构建，可运行于手机、笔记本电脑、平板电�
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**BitTorrent 列：** ✅ = 完整、可用的客户端 + 网格网关（C# 参考实现）。◐ = 此处的 BitTorrent**线路格式**字节完全相同（固定至 `fixtures/bittorrent/`），其实时网络层则是下一步——参见 [BitTorrent——真实，并已桥接进网格](#bittorrent--real-and-bridged-into-the-mesh)。其他每一列在全部 8 种语言中都真实且可用。
+**BitTorrent 列：** ✅ = 完整、可用的客户端 + 网格网关（C# 参考实现）。◐ = 此处的 BitTorrent**线路格式**字节完全相同（固定至 `fixtures/bittorrent/`），其实时网络层则是下一步——参见 [BitTorrent——真实，并已桥接进网格](#bittorrent-bridge)。其他每一列在全部 8 种语言中都真实且可用。
 
 全部 8 种语言产生字节完全相同的线路数据包，通过 17 个规范线路格式测试用例和 6 个 Signal 测试向量验证（`fixtures/expected/*.bin`，`fixtures/signal/expected/*.json`）——每种语言都针对相同的字节进行检验。路由（AODV 风格 RREQ/RREP）、DTN 存储转发、SOS 广播、语音、流媒体以及安全加固服务在每种语言中均已实现，所有 8 种实现共有约 **3,000 个测试**：
 
@@ -288,7 +292,7 @@ Aether 以 8 种语言构建，可运行于手机、笔记本电脑、平板电�
 
 跨语言 Signal 互操作性以 `fixtures/signal/` 为基准，包含 X3DH（`x3dh_basic`）、对称棘轮（`ratchet_step_basic`、`ratchet_step_three_iterations`）、KDF_RK（`kdf_rk_basic`）以及完整的 X3DH 会话往返（`x3dh_session_msg1`、`x3dh_session_reply`）的共享测试向量。每种实现都必须针对这些测试用例产生字节完全相同的输出。所有 8 种语言现已完整实现 Signal 会话（`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`）。
 
-除线路格式和 Signal 之外，**整套线路服务套件**——在场、心跳、资料同步、临时 ID 通告、预密钥交换、频道、一键通话、屏幕共享、通话控制、SOS 确认、空间路标、锻造通告、保险库分片请求以及带宽测量（参见**你能获得什么**）——同样在全部 8 种语言中实现，并固定至各自的测试用例（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/` 及同类）。在协议层，没有任何功能是仅限 C# 的。
+除线路格式和 Signal 之外，**整套线路服务套件**——在场、心跳、资料同步、临时 ID 通告、预密钥交换、频道、一键通话、屏幕共享、通话控制、SOS 确认、空间路标、锻造通告、保险库分片请求以及带宽测量（参见[**你能获得什么**](#what-you-get)）——同样在全部 8 种语言中实现，并固定至各自的测试用例（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/` 及同类）。在协议层，没有任何功能是仅限 C# 的。
 
 ## 快速入门
 
@@ -565,7 +569,7 @@ aethernet_packet_free(packet);
 - ✅ **C：完整 Signal 会话** — `c/src/signal_protocol.c` 中的 `aethernet_signal_service_init`、`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`；`c/tests/test_signal_session.c` 中的 6 个双节点端到端测试。所有 8 种语言现已具备完整会话能力的 Signal Protocol。
 
 **已完成（全部 8 种语言——完整的线路服务套件）：**
-- ✅ **每个保留的数据包类型现在都是全部 8 种语言中真实、字节完全相同的服务。** 在场信标/查询（21/22）、心跳（10）、资料同步（23）、临时路由 ID 通告（56）、预密钥交换（25/26）、频道（7）、一键通话（15）、屏幕共享（32）、通话控制（27）、SOS 确认（6）、空间路标（40）、锻造通告（41）、保险库分片请求（42）以及带宽测量 / ABMF（53/54/55）。每一种都是一个精简服务（产生 + 处理 + 事件），由宿主将其连接到自己的 Signal 会话和路由表；每一种都固定至共享的跨语言测试用例（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/`、`fixtures/channels/`、`fixtures/profiles/`、`fixtures/heartbeat/`、`fixtures/erid/`、`fixtures/space/`、`fixtures/forge/`、`fixtures/sos/`），并由各语言的单元测试执行，其中 Swift 和 C 在 macOS 构建服务器上验证。参见**你能获得什么**。
+- ✅ **每个保留的数据包类型现在都是全部 8 种语言中真实、字节完全相同的服务。** 在场信标/查询（21/22）、心跳（10）、资料同步（23）、临时路由 ID 通告（56）、预密钥交换（25/26）、频道（7）、一键通话（15）、屏幕共享（32）、通话控制（27）、SOS 确认（6）、空间路标（40）、锻造通告（41）、保险库分片请求（42）以及带宽测量 / ABMF（53/54/55）。每一种都是一个精简服务（产生 + 处理 + 事件），由宿主将其连接到自己的 Signal 会话和路由表；每一种都固定至共享的跨语言测试用例（`fixtures/presence/`、`fixtures/media/`、`fixtures/bandwidth/`、`fixtures/prekey/`、`fixtures/videocall/`、`fixtures/vaultshard/`、`fixtures/channels/`、`fixtures/profiles/`、`fixtures/heartbeat/`、`fixtures/erid/`、`fixtures/space/`、`fixtures/forge/`、`fixtures/sos/`），并由各语言的单元测试执行，其中 Swift 和 C 在 macOS 构建服务器上验证。参见[**你能获得什么**](#what-you-get)。
 
 **已完成（仅 C# 参考实现）：**
 - ✅ **演示步骤 9 — MessagingService + DTN 回退端到端** — `samples/AetherNet.Demo.Console` 演示在接收方离线时使用 DTN 存储转发的真实 Signal 加密消息传递。

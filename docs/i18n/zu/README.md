@@ -119,6 +119,8 @@ Akukho ma-akhawunti, akukho izinombolo zocingo, akukho ama-imeyili. Ukhiqiza i-k
 
 **Ukuvikela ku-replay** — I-Nonce deduplication nge-window yobusha be-timestamp yemizuzu emi-5.
 
+<a name="what-you-get"></a>
+
 ## Okutholayo — yonke insiza, kuzo zonke izilimi
 
 I-Aether ayiyona nje i-transport. Zonke izinhlobo zephakethe ezigodliwe iphrothokholi manje sekuyinsiza **eyangempela, esebenzayo kuzo zonke izilimi eziyi-8**, futhi zonke ziserialize zibe **amaphakethe e-wire afana ibhayithi ngebhayithi** — iphakethe elakhiwe yinodi ye-Go liyahluzwa, lingashintshiwe, yinodi ye-Swift, Rust, C, Python, TypeScript, Kotlin, noma C#. Insiza ngayinye iboshelwe ku-fixture esatshalaliswa phakathi kwezilimi ngaphansi kwe-`fixtures/<service>/` futhi ivivinywa ngezivivinyo zeyunithi ngazinye zezilimi, kanti i-Swift ne-C ngaphezu kwalokho ziqinisekiswa ku-macOS build server.
@@ -143,6 +145,8 @@ I-Aether ayiyona nje i-transport. Zonke izinhlobo zephakethe ezigodliwe iphrotho
 Lezi zihlala phezu kwezinsiza esezivele ziphelele **ze-messaging, izwi le-1-to-1 nele-qembu, amakholi evidiyo, i-live streaming, ukubukela-ndawonye, i-AODV routing, i-DTN store-and-forward, kanye ne-SOS flood** — nazo ezenziwe kuzo zonke izilimi eziyi-8.
 
 > **Ukuthi "kwakhiwe" kusho ukuthini lapha, ngokunembile.** Insiza ngayinye ikhiqiza futhi iphathe iphakethe layo le-wire, iphakamise imicimbi efanele, futhi iboshelwe ku-fixture yezinga lebhayithi okumele umndeni wonke wezilimi uyifice. I-application yakho ixhuma insiza ku-Signal session yayo, ku-routing table, kanye nesimo sasendaweni. Lena yingqimba yephrothokholi — efakazelwe kukhodi, ezivivinyweni, kanye nakuma-byte-fixtures phakathi kwezilimi — kusisekelo se-RF esifanayo esiqotho nakho konke okunye: noma iyiphi indlela ekugcineni ehamba ku-radio ayikaqinisekiswa ensimini kuze kube i-hardware bring-up elandelelwa ku-`OPEN_ISSUES.md`.
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — eyangempela, futhi exhunywe ku-mesh
 
@@ -270,7 +274,7 @@ I-Aether yakhiwe ngezilimi eziyi-8 ukuze isebenze kumafoni, kuma-laptop, kumathe
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**Ikholomu ye-BitTorrent:** ✅ = i-client egcwele, esebenzayo + i-mesh gateway (i-C# reference). ◐ = ama-**wire format** e-BitTorrent ayafana ibhayithi ngebhayithi lapha (aboshelwe ku-`fixtures/bittorrent/`), nengqimba yenethiwekhi ephilayo njengesinyathelo esilandelayo — bheka [BitTorrent — eyangempela, futhi exhunywe ku-mesh](#bittorrent--real-and-bridged-into-the-mesh). Wonke amanye amakholomu angempela futhi asebenza kuzo zonke izilimi eziyi-8.
+**Ikholomu ye-BitTorrent:** ✅ = i-client egcwele, esebenzayo + i-mesh gateway (i-C# reference). ◐ = ama-**wire format** e-BitTorrent ayafana ibhayithi ngebhayithi lapha (aboshelwe ku-`fixtures/bittorrent/`), nengqimba yenethiwekhi ephilayo njengesinyathelo esilandelayo — bheka [BitTorrent — eyangempela, futhi exhunywe ku-mesh](#bittorrent-bridge). Wonke amanye amakholomu angempela futhi asebenza kuzo zonke izilimi eziyi-8.
 
 Zonke izilimi eziyi-8 zikhiqiza amaphakethe e-wire afana ibhayithi, kuqinisekiswa yizifixture zefomethi ye-wire eziyi-17 ezisemthethweni kanye nama-Signal test vectors ama-6 (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — **lonke ulimi luhlolwa ngamabhayithi afanayo**. I-Routing (i-AODV-style RREQ/RREP), i-DTN store-and-forward, i-SOS broadcast, izwi, i-streaming, kanye nezinsiza ze-security-hardening kwenziwe kulo lonke ulimi nge-**~3,000 izivivinyo** kuzo zonke izenzo eziyi-8:
 
@@ -288,7 +292,7 @@ Zonke izilimi eziyi-8 zikhiqiza amaphakethe e-wire afana ibhayithi, kuqinisekisw
 
 I-Cross-language Signal interop iboshwe ku-`fixtures/signal/` ngama-test vectors abiwe e-X3DH (`x3dh_basic`), i-symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), i-KDF_RK (`kdf_rk_basic`), kanye nomjikelezo ophelele weseshini ye-X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Sonke isenzo kumele sikhiqize okuphumayo okufana ibhayithi ngebhayithi maqondana nalezo fixtures. Zonke izilimi eziyi-8 manje zithumela i-Signal session egcwele (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
-Ngaphesheya kwefomethi ye-wire kanye ne-Signal, **isethi yonke yensiza ye-wire-service** — i-presence, i-heartbeat, i-profile sync, i-ephemeral-ID announce, i-pre-key exchange, amashaneli, i-push-to-talk, ukwabelana ngesikrini, ukulawula amakholi, ukuqinisekiswa kwe-SOS, i-space breadcrumbs, i-forge announce, isicelo se-vault shard, kanye nokukala i-bandwidth (bheka **Okutholayo**) — nayo yenziwe kuzo zonke izilimi eziyi-8 futhi iboshelwe ku-fixtures yayo (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, nezinye ezifanayo). Ayikho isici esiku-C# kuphela kungqimba yephrothokholi.
+Ngaphesheya kwefomethi ye-wire kanye ne-Signal, **isethi yonke yensiza ye-wire-service** — i-presence, i-heartbeat, i-profile sync, i-ephemeral-ID announce, i-pre-key exchange, amashaneli, i-push-to-talk, ukwabelana ngesikrini, ukulawula amakholi, ukuqinisekiswa kwe-SOS, i-space breadcrumbs, i-forge announce, isicelo se-vault shard, kanye nokukala i-bandwidth (bheka [**Okutholayo**](#what-you-get)) — nayo yenziwe kuzo zonke izilimi eziyi-8 futhi iboshelwe ku-fixtures yayo (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, nezinye ezifanayo). Ayikho isici esiku-C# kuphela kungqimba yephrothokholi.
 
 ## Iqalisa ngokushesha (Quickstart)
 
@@ -565,7 +569,7 @@ Okwakhiwe kanye nokulandelayo.
 - ✅ **C: i-Signal session egcwele** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` ku-`c/src/signal_protocol.c`; izivivinyo ezi-6 ze-two-node E2E ku-`c/tests/test_signal_session.c`. Zonke izilimi eziyi-8 manje zine-Signal Protocol ekwazi iseshini egcwele.
 
 **Kwenziwe (zonke izilimi eziyi-8 — isethi yonke yensiza ye-wire-service):**
-- ✅ **Lonke uhlobo lwephakethe olugodliwe manje seluyinsiza yangempela, efana ibhayithi kuzo zonke izilimi eziyi-8.** I-Presence beacon/query (21/22), i-heartbeat (10), i-profile sync (23), i-ephemeral-routing-ID announce (56), i-pre-key exchange (25/26), amashaneli (7), i-push-to-talk (15), ukwabelana ngesikrini (32), ukulawula amakholi (27), ukuqinisekiswa kwe-SOS (6), i-space breadcrumbs (40), i-forge announce (41), isicelo se-vault shard (42), kanye nokukala i-bandwidth / ABMF (53/54/55). Ngayinye iyinsiza encane (produce + handle + event) umphathi ayixhuma ku-Signal session yayo nakuthebula lokwedlulisa; ngayinye iboshelwe ku-fixture esatshalaliswa phakathi kwezilimi (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) futhi ivivinywa ngezivivinyo zeyunithi ngazinye zezilimi, kanti i-Swift ne-C ziqinisekiswa ku-macOS build server. Bheka **Okutholayo**.
+- ✅ **Lonke uhlobo lwephakethe olugodliwe manje seluyinsiza yangempela, efana ibhayithi kuzo zonke izilimi eziyi-8.** I-Presence beacon/query (21/22), i-heartbeat (10), i-profile sync (23), i-ephemeral-routing-ID announce (56), i-pre-key exchange (25/26), amashaneli (7), i-push-to-talk (15), ukwabelana ngesikrini (32), ukulawula amakholi (27), ukuqinisekiswa kwe-SOS (6), i-space breadcrumbs (40), i-forge announce (41), isicelo se-vault shard (42), kanye nokukala i-bandwidth / ABMF (53/54/55). Ngayinye iyinsiza encane (produce + handle + event) umphathi ayixhuma ku-Signal session yayo nakuthebula lokwedlulisa; ngayinye iboshelwe ku-fixture esatshalaliswa phakathi kwezilimi (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) futhi ivivinywa ngezivivinyo zeyunithi ngazinye zezilimi, kanti i-Swift ne-C ziqinisekiswa ku-macOS build server. Bheka [**Okutholayo**](#what-you-get).
 
 **Kwenziwe (i-C# reference kuphela):**
 - ✅ **Demo Step 9 — MessagingService + DTN fallback end-to-end** — i-`samples/AetherNet.Demo.Console` ihamba ku-messaging ebethelwe nge-real-Signal ne-DTN store-and-forward uma umamukeli engaxhunyiwe ku-inthanethi.

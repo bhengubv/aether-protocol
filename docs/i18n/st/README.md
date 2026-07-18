@@ -119,6 +119,8 @@ Ha ho di-akhaonto, ha ho dinomoro tsa mehala, ha ho di-imeile. O hlahisa keypair
 
 **Tshireletso ya replay** — Nonce deduplication ka window ya bocha ba timestamp ya metsotso e 5.
 
+<a name="what-you-get"></a>
+
 ## Seo o se fumanang — tshebeletso e nngwe le e nngwe, ka puo e nngwe le e nngwe
 
 Aether ha se transport feela. Mofuta o mong le o mong wa packet o boloketsweng ke protocol jwale ke **tshebeletso ya sebele, e sebetsang ka dipuo tsohle tse 8**, mme e nngwe le e nngwe e serialize ho **di-packet tsa mohala tse tshwanang byte** — packet e hahilweng ke node ya Go e decode-uwa, e sa fetohe, ke node ya Swift, Rust, C, Python, TypeScript, Kotlin, kapa C#. Tshebeletso e nngwe le e nngwe e tiiselitswe ho fixture e arolelanwang pakeng tsa dipuo ka tlasa `fixtures/<service>/` mme e etswa ka diteko tsa yuniti tsa puo ka nngwe, ka Swift le C tse eketsehileng tse netefaditsweng ho sesebediswa sa kaho sa macOS.
@@ -143,6 +145,8 @@ Aether ha se transport feela. Mofuta o mong le o mong wa packet o boloketsweng k
 Tsena di dula hodima ditshebeletso tse seng di phethehile tsa **messaging, lentswe la 1-to-1 le sehlopha, diletsetso tsa video, streaming e phelang, watch-together, routing ya AODV, DTN store-and-forward, le SOS flood** — tse boetseng di kentswe tshebetsong ka dipuo tsohle tse 8.
 
 > **Se boleletsweng ke "e hahilwe" mona, ka ho nepahala.** Tshebeletso e nngwe le e nngwe e hlahisa mme e sebetsana le packet ya yona ya mohala, e phahamisa diketsahalo tse nepahetseng, mme e tiiselitswe ho fixture ya byte-level eo lelapa lohle la puo le tshwanetseng ho e lekana. Application ya hao e hokahanya tshebeletso le Signal session ya yona, tafole ya routing, le boemo ba lehae. Lena ke lera la protocol — le paketsweng ka khoutu, diteko, le di-byte-fixture tsa dipuo — ka boemo bo tshwanang ba RF bo tshepahalang jwaloka tsohle: tsela e nngwe le e nngwe e qetellang e palame seyalemoya ha e netefatswe tshimong ho fihlela ho phahamisa hardware ho latellwa ho `OPEN_ISSUES.md`.
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — ya sebele, e kopantswe le mesh
 
@@ -270,7 +274,7 @@ Aether e hahilwe ka dipuo tse 8 hore e sebetse ho mehala, dilaptop, ditablete, l
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**Kholomo ya BitTorrent:** ✅ = client e felletseng, e sebetsang + mesh gateway (C# reference). ◐ = **diformat tsa mohala** tsa BitTorrent di tshwana byte-ka-byte mona (di tiiselitswe ho `fixtures/bittorrent/`), tse nang le lera la marang-rang a phelang e le mohato o latelang — bona [BitTorrent — ya sebele, e kopantswe le mesh](#bittorrent--real-and-bridged-into-the-mesh). Kholomo e nngwe le e nngwe e sebetsa ka sebele ka dipuo tsohle tse 8.
+**Kholomo ya BitTorrent:** ✅ = client e felletseng, e sebetsang + mesh gateway (C# reference). ◐ = **diformat tsa mohala** tsa BitTorrent di tshwana byte-ka-byte mona (di tiiselitswe ho `fixtures/bittorrent/`), tse nang le lera la marang-rang a phelang e le mohato o latelang — bona [BitTorrent — ya sebele, e kopantswe le mesh](#bittorrent-bridge). Kholomo e nngwe le e nngwe e sebetsa ka sebele ka dipuo tsohle tse 8.
 
 Dipuo tsohle tse 8 di hlahisa di-packet tsa mohala tse tshwanang byte, tse netefaditsweng kgahlano le di-fixture tse 17 tsa sebopeho sa mohala tse tlwaelehileng le di-Signal test vector tse 6 (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — puo e nngwe le e nngwe e hlahlobwa kgahlano le di-byte tse tshwanang. Routing (AODV-style RREQ/RREP), DTN store-and-forward, phatlalatso ya SOS, lentswe, streaming, le ditshebeletso tsa ho tiisa tshireletso di kentswe tshebetsong ka puo e nngwe le e nngwe ka **diteko tse ka bang 3,000** ho pholletsa le diimplementeshene tsohle tse 8:
 
@@ -288,7 +292,7 @@ Dipuo tsohle tse 8 di hlahisa di-packet tsa mohala tse tshwanang byte, tse netef
 
 Signal interop ya dipuo e tiiselitswe ho `fixtures/signal/` ka di-test vector tse arolelanwang bakeng sa X3DH (`x3dh_basic`), symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), le potoloho e felletseng ya session ya X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Implementeshene e nngwe le e nngwe e tshwanetse ho hlahisa di-output tse tshwanang byte kgahlano le di-fixture tseo. Dipuo tsohle tse 8 jwale di romela Signal session e felletseng (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
-Ho feta sebopeho sa mohala le Signal, **sete e felletseng ya ditshebeletso tsa mohala** — presence, heartbeat, profile sync, ephemeral-ID announce, pre-key exchange, channels, push-to-talk, screen share, call control, SOS acknowledgement, space breadcrumbs, forge announce, vault shard request, le bandwidth measurement (bona **Seo o se fumanang**) — le yona e kentswe tshebetsong ka dipuo tsohle tse 8 mme e tiiselitswe ho di-fixture tsa yona (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, le bo-ausi). Ha ho karolo e leng ya C#-feela ho lera la protocol.
+Ho feta sebopeho sa mohala le Signal, **sete e felletseng ya ditshebeletso tsa mohala** — presence, heartbeat, profile sync, ephemeral-ID announce, pre-key exchange, channels, push-to-talk, screen share, call control, SOS acknowledgement, space breadcrumbs, forge announce, vault shard request, le bandwidth measurement (bona [**Seo o se fumanang**](#what-you-get)) — le yona e kentswe tshebetsong ka dipuo tsohle tse 8 mme e tiiselitswe ho di-fixture tsa yona (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, le bo-ausi). Ha ho karolo e leng ya C#-feela ho lera la protocol.
 
 ## Quickstart
 
@@ -565,7 +569,7 @@ Se hahilweng le se latelang.
 - ✅ **C: Signal session e felletseng** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` ho `c/src/signal_protocol.c`; diteko tse 6 tsa two-node E2E ho `c/tests/test_signal_session.c`. Dipuo tsohle tse 8 jwale di na le Signal Protocol e kgonang session e felletseng.
 
 **E entswe (dipuo tsohle tse 8 — sete e felletseng ya ditshebeletso tsa mohala):**
-- ✅ **Mofuta o mong le o mong wa packet o boloketsweng jwale ke tshebeletso ya sebele, e tshwanang byte ho dipuo tsohle tse 8.** Presence beacon/query (21/22), heartbeat (10), profile sync (23), ephemeral-routing-ID announce (56), pre-key exchange (25/26), channels (7), push-to-talk (15), screen share (32), call control (27), SOS acknowledgement (6), space breadcrumbs (40), forge announce (41), vault shard request (42), le bandwidth measurement / ABMF (53/54/55). E nngwe le e nngwe ke tshebeletso e tshesane (produce + handle + event) eo host e e hokahanyang le Signal session ya yona le tafole ya routing; e nngwe le e nngwe e tiiselitswe ho fixture e arolelanwang pakeng tsa dipuo (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) mme e etswa ka diteko tsa yuniti tsa puo ka nngwe, ka Swift le C tse netefaditsweng ho sesebediswa sa kaho sa macOS. Bona **Seo o se fumanang**.
+- ✅ **Mofuta o mong le o mong wa packet o boloketsweng jwale ke tshebeletso ya sebele, e tshwanang byte ho dipuo tsohle tse 8.** Presence beacon/query (21/22), heartbeat (10), profile sync (23), ephemeral-routing-ID announce (56), pre-key exchange (25/26), channels (7), push-to-talk (15), screen share (32), call control (27), SOS acknowledgement (6), space breadcrumbs (40), forge announce (41), vault shard request (42), le bandwidth measurement / ABMF (53/54/55). E nngwe le e nngwe ke tshebeletso e tshesane (produce + handle + event) eo host e e hokahanyang le Signal session ya yona le tafole ya routing; e nngwe le e nngwe e tiiselitswe ho fixture e arolelanwang pakeng tsa dipuo (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) mme e etswa ka diteko tsa yuniti tsa puo ka nngwe, ka Swift le C tse netefaditsweng ho sesebediswa sa kaho sa macOS. Bona [**Seo o se fumanang**](#what-you-get).
 
 **E entswe (C# reference feela):**
 - ✅ **Demo Step 9 — MessagingService + DTN fallback end-to-end** — `samples/AetherNet.Demo.Console` e tsamaya ka real-Signal-encrypted messaging ka DTN store-and-forward ha moamohedi a se ithontse.

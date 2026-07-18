@@ -119,6 +119,8 @@ Tanpa akun, tanpa nomor telepon, tanpa email. Anda membuat sepasang kunci dan An
 
 **Perlindungan replay** — Deduplikasi nonce dengan jendela kesegaran timestamp 5 menit.
 
+<a name="what-you-get"></a>
+
 ## Apa yang Anda dapatkan — setiap layanan, dalam setiap bahasa
 
 Aether bukan sekadar transport. Setiap tipe paket yang direservasi oleh protokol kini menjadi **layanan nyata yang berfungsi dalam kedelapan bahasa**, dan setiap satunya diserialisasi menjadi **paket kabel yang identik byte** — sebuah paket yang dibangun oleh node Go didekode, tanpa perubahan, oleh node Swift, Rust, C, Python, TypeScript, Kotlin, atau C#. Setiap layanan disematkan ke fixture lintas-bahasa bersama di bawah `fixtures/<service>/` dan diuji oleh unit test per-bahasa, dengan Swift dan C selain itu diverifikasi pada server build macOS.
@@ -143,6 +145,8 @@ Aether bukan sekadar transport. Setiap tipe paket yang direservasi oleh protokol
 Ini semua berada di atas layanan **messaging, suara 1-ke-1 dan grup, panggilan video, live streaming, nonton-bersama, perutean AODV, DTN store-and-forward, dan flood SOS** yang sudah lengkap — juga diimplementasikan dalam kedelapan bahasa.
 
 > **Apa yang "dibangun" berarti di sini, secara tepat.** Setiap layanan memproduksi dan menangani paket kabelnya, memicu event yang tepat, dan disematkan ke fixture tingkat-byte yang harus dicocokkan oleh seluruh keluarga bahasa. Aplikasi Anda menghubungkan layanan itu ke sesi Signal-nya, tabel perutean, dan state lokal. Ini adalah lapisan protokol — terbukti dalam kode, tes, dan fixture-byte lintas-bahasa — dengan pijakan RF yang sama jujurnya seperti segala hal lain: jalur mana pun yang pada akhirnya menaiki radio belum terverifikasi di lapangan sampai bring-up perangkat keras yang dilacak di `OPEN_ISSUES.md`.
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — nyata, dan dijembatani ke dalam mesh
 
@@ -270,7 +274,7 @@ Aether dibangun dalam 8 bahasa agar ia berjalan di ponsel, laptop, tablet, dan m
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-> **Kolom BitTorrent:** ✅ = klien lengkap yang berfungsi + gateway mesh (referensi C#). ◐ = **format kabel** BitTorrent identik byte-per-byte di sini (disematkan ke `fixtures/bittorrent/`), dengan lapisan jaringan langsung sebagai langkah berikutnya — lihat [BitTorrent — nyata, dan dijembatani ke dalam mesh](#bittorrent--real-and-bridged-into-the-mesh). Setiap kolom lain nyata dan berfungsi dalam kedelapan bahasa.
+> **Kolom BitTorrent:** ✅ = klien lengkap yang berfungsi + gateway mesh (referensi C#). ◐ = **format kabel** BitTorrent identik byte-per-byte di sini (disematkan ke `fixtures/bittorrent/`), dengan lapisan jaringan langsung sebagai langkah berikutnya — lihat [BitTorrent — nyata, dan dijembatani ke dalam mesh](#bittorrent-bridge). Setiap kolom lain nyata dan berfungsi dalam kedelapan bahasa.
 
 Kedelapan bahasa menghasilkan paket kabel yang identik byte, diverifikasi terhadap 17 fixture format-kabel kanonis dan 6 vektor uji Signal (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — setiap bahasa diperiksa terhadap byte yang sama. Perutean (RREQ/RREP gaya-AODV), DTN store-and-forward, siaran SOS, suara, streaming, dan layanan pengerasan-keamanan diimplementasikan dalam setiap bahasa dengan **~3.000 tes** di seluruh 8 implementasi:
 
@@ -288,7 +292,7 @@ Kedelapan bahasa menghasilkan paket kabel yang identik byte, diverifikasi terhad
 
 Interop Signal lintas-bahasa berlabuh ke `fixtures/signal/` dengan vektor uji bersama untuk X3DH (`x3dh_basic`), ratchet simetris (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), dan putaran-penuh sesi X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Setiap implementasi harus menghasilkan output yang identik byte terhadap fixture itu. Kedelapan bahasa kini mengirimkan sesi Signal lengkap (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
-Di luar format kabel dan Signal, **seluruh rangkaian layanan-kabel** — kehadiran, heartbeat, sinkronisasi profil, pengumuman ID-efemeral, pertukaran pre-key, kanal, push-to-talk, berbagi layar, kontrol panggilan, konfirmasi SOS, remah roti ruang, pengumuman forge, permintaan shard vault, dan pengukuran bandwidth (lihat **Apa yang Anda dapatkan**) — juga diimplementasikan dalam kedelapan bahasa dan disematkan ke fixture-nya sendiri (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, dan saudaranya). Tidak ada fitur yang khusus-C# pada lapisan protokol.
+Di luar format kabel dan Signal, **seluruh rangkaian layanan-kabel** — kehadiran, heartbeat, sinkronisasi profil, pengumuman ID-efemeral, pertukaran pre-key, kanal, push-to-talk, berbagi layar, kontrol panggilan, konfirmasi SOS, remah roti ruang, pengumuman forge, permintaan shard vault, dan pengukuran bandwidth (lihat [**Apa yang Anda dapatkan**](#what-you-get)) — juga diimplementasikan dalam kedelapan bahasa dan disematkan ke fixture-nya sendiri (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, dan saudaranya). Tidak ada fitur yang khusus-C# pada lapisan protokol.
 
 ## Mulai cepat
 
@@ -565,7 +569,7 @@ Apa yang dibangun dan apa yang berikutnya.
 - ✅ **C: sesi Signal penuh** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` di `c/src/signal_protocol.c`; 6 tes E2E dua-node di `c/tests/test_signal_session.c`. Kedelapan bahasa kini punya Signal Protocol yang mampu-sesi penuh.
 
 **Selesai (seluruh 8 bahasa — rangkaian layanan-kabel penuh):**
-- ✅ **Setiap tipe paket yang direservasi kini menjadi layanan nyata yang identik byte di seluruh 8 bahasa.** Beacon/kueri kehadiran (21/22), heartbeat (10), sinkronisasi profil (23), pengumuman ID-perutean-efemeral (56), pertukaran pre-key (25/26), kanal (7), push-to-talk (15), berbagi layar (32), kontrol panggilan (27), konfirmasi SOS (6), remah roti ruang (40), pengumuman forge (41), permintaan shard vault (42), dan pengukuran bandwidth / ABMF (53/54/55). Masing-masing adalah layanan tipis (produksi + tangani + event) yang dihubungkan host ke sesi Signal dan tabel peruteannya; masing-masing disematkan ke fixture lintas-bahasa bersama (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) dan diuji oleh unit test per-bahasa, dengan Swift dan C diverifikasi pada server build macOS. Lihat **Apa yang Anda dapatkan**.
+- ✅ **Setiap tipe paket yang direservasi kini menjadi layanan nyata yang identik byte di seluruh 8 bahasa.** Beacon/kueri kehadiran (21/22), heartbeat (10), sinkronisasi profil (23), pengumuman ID-perutean-efemeral (56), pertukaran pre-key (25/26), kanal (7), push-to-talk (15), berbagi layar (32), kontrol panggilan (27), konfirmasi SOS (6), remah roti ruang (40), pengumuman forge (41), permintaan shard vault (42), dan pengukuran bandwidth / ABMF (53/54/55). Masing-masing adalah layanan tipis (produksi + tangani + event) yang dihubungkan host ke sesi Signal dan tabel peruteannya; masing-masing disematkan ke fixture lintas-bahasa bersama (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) dan diuji oleh unit test per-bahasa, dengan Swift dan C diverifikasi pada server build macOS. Lihat [**Apa yang Anda dapatkan**](#what-you-get).
 
 **Selesai (referensi C# saja):**
 - ✅ **Demo Langkah 9 — MessagingService + fallback DTN ujung-ke-ujung** — `samples/AetherNet.Demo.Console` memandu melalui messaging terenkripsi-Signal-nyata dengan DTN store-and-forward ketika penerima luring.

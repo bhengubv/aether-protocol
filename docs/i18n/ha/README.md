@@ -119,6 +119,8 @@ Babu asusai, babu lambobin waya, babu imel. Kana samar da makullin biyu (keypair
 
 **Kariyar sake kunnawa (Replay protection)** — Kawar da maimaituwar nonce tare da tagar sabuntawar lokaci na mintuna 5.
 
+<a name="what-you-get"></a>
+
 ## Abin da kake samu — kowace hidima, a cikin kowane harshe
 
 Aether ba wai kawai jigilar sadarwa ba ce. Kowace irin fakiti da yarjejeniyar ta ajiye yanzu ta zama **ainihin hidima mai aiki a cikin dukkan harsuna 8**, kuma kowanne yana zama **fakitin waya iri ɗaya baiti-da-baiti** — fakitin da node ɗin Go ya gina ana warware shi, ba tare da canji ba, ta node ɗin Swift, Rust, C, Python, TypeScript, Kotlin, ko C#. An ɗaure kowace hidima ga rukunin gwaji (fixture) da ake rabawa tsakanin harsuna a ƙarƙashin `fixtures/<service>/` kuma ana gwada shi ta gwaje-gwajen naúra na kowane harshe, tare da tabbatar da Swift da C ƙari a kan sabar gina ta macOS.
@@ -143,6 +145,8 @@ Aether ba wai kawai jigilar sadarwa ba ce. Kowace irin fakiti da yarjejeniyar ta
 Waɗannan suna zaune a saman hidimomin da suka riga suka kammala na **saƙonni, murya na 1-zuwa-1 da na ƙungiya, kiran bidiyo, yaɗuwa kai tsaye, kallo-tare, zaɓen hanya na AODV, ajiye-da-tura na DTN, da ambaliyar SOS** — waɗanda kuma aka aiwatar da su a cikin dukkan harsuna 8.
 
 > **Ma'anar "an gina" a nan, daidai.** Kowace hidima tana samarwa da sarrafa fakitin waya ta, tana tayar da abubuwan da suka dace, kuma an ɗaure ta ga fixture na matakin baiti wanda dukkan iyalin harshe dole su daidaita da shi. Manhajarka tana haɗa hidimar zuwa zamanta na Signal, teburin zaɓen hanya, da yanayin gida. Wannan shi ne matakin yarjejeniya — an tabbatar da shi a cikin lamba, gwaje-gwaje, da fixtures na baiti tsakanin harsuna — a kan tushen RF mai gaskiya iri ɗaya kamar kowane abu: duk wata hanya da a ƙarshe ke hawa a kan rediyo ba a tabbatar da ita a fagen aiki ba har sai kunna kayan aiki da ake bibiyar sa a cikin `OPEN_ISSUES.md`.
+
+<a name="bittorrent-bridge"></a>
 
 ## BitTorrent — na gaske, kuma an haɗa cikin mesh ta gada
 
@@ -270,7 +274,7 @@ An gina Aether da harsuna 8 don ya gudana a kan wayoyi, kwamfyutoci masu ɗauke,
 | Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 | C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-**Ginshiƙin BitTorrent:** ✅ = cikakken abokin ciniki mai aiki + ƙofar mesh (tunanin C#). ◐ = **tsarin waya** na BitTorrent iri ɗaya ne baiti-da-baiti a nan (an ɗaure ga `fixtures/bittorrent/`), tare da matakin cibiyar sadarwa mai rai a matsayin mataki na gaba — duba [BitTorrent — na gaske, kuma an haɗa cikin mesh ta gada](#bittorrent--real-and-bridged-into-the-mesh). Kowane sauran ginshiƙi na gaske ne kuma yana aiki a cikin dukkan harsuna 8.
+**Ginshiƙin BitTorrent:** ✅ = cikakken abokin ciniki mai aiki + ƙofar mesh (tunanin C#). ◐ = **tsarin waya** na BitTorrent iri ɗaya ne baiti-da-baiti a nan (an ɗaure ga `fixtures/bittorrent/`), tare da matakin cibiyar sadarwa mai rai a matsayin mataki na gaba — duba [BitTorrent — na gaske, kuma an haɗa cikin mesh ta gada](#bittorrent-bridge). Kowane sauran ginshiƙi na gaske ne kuma yana aiki a cikin dukkan harsuna 8.
 
 Duk harsuna 8 suna samar da fakitin waya iri ɗaya baiti-da-baiti, an tabbatar ta 17 fixtures na tsarin waya na canonical da 6 vectors na gwajin Signal (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — ana duba kowane harshe da baiti iri ɗaya. An aiwatar da zaɓen hanya (nau'in AODV RREQ/RREP), ajiye-da-tura na DTN, watsa SOS, murya, yaɗuwa, da hidimomin ƙarfafa tsaro a cikin kowane harshe tare da **~3,000 gwaje-gwaje** a fadin dukkan aiwatarwa 8:
 
@@ -288,7 +292,7 @@ Duk harsuna 8 suna samar da fakitin waya iri ɗaya baiti-da-baiti, an tabbatar t
 
 An ɗaure Signal interop tsakanin harsuna ga `fixtures/signal/` tare da vectors na gwaji da ake rabawa don X3DH (`x3dh_basic`), ratchet mai daidaituwa (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), da cikakken X3DH session round-trip (`x3dh_session_msg1`, `x3dh_session_reply`). Kowace aiwatarwa dole ta samar da fitattu iri ɗaya baiti-da-baiti a kan waɗannan fixtures. Duk harsuna 8 yanzu suna aikawa da cikakken zaman Signal (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
 
-Bayan tsarin waya da Signal, **dukkan tarin hidimomin waya** — presence, heartbeat, daidaita bayanin martaba, sanarwar ephemeral-ID, musanya pre-key, channels, push-to-talk, raba allo, sarrafa kira, amincewa da SOS, alamomin sarari, sanarwar forge, buƙatar shard na vault, da aunawar bandwidth (duba **Abin da kake samu**) — haka nan an aiwatar da su a cikin dukkan harsuna 8 kuma an ɗaure su ga fixtures ɗinsu na kansu (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, da 'yan uwansu). Babu wani fasali da ke na C#-kaɗai a matakin yarjejeniya.
+Bayan tsarin waya da Signal, **dukkan tarin hidimomin waya** — presence, heartbeat, daidaita bayanin martaba, sanarwar ephemeral-ID, musanya pre-key, channels, push-to-talk, raba allo, sarrafa kira, amincewa da SOS, alamomin sarari, sanarwar forge, buƙatar shard na vault, da aunawar bandwidth (duba [**Abin da kake samu**](#what-you-get)) — haka nan an aiwatar da su a cikin dukkan harsuna 8 kuma an ɗaure su ga fixtures ɗinsu na kansu (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, da 'yan uwansu). Babu wani fasali da ke na C#-kaɗai a matakin yarjejeniya.
 
 ## Fara da sauri (Quickstart)
 
@@ -565,7 +569,7 @@ Abin da aka gina da abin da ke gaba.
 - ✅ **C: cikakken zaman Signal** — `aethernet_signal_service_init`, `generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt` a cikin `c/src/signal_protocol.c`; 6 gwaje-gwajen E2E na node-biyu a cikin `c/tests/test_signal_session.c`. Duk harsuna 8 yanzu suna da Signal Protocol mai iya zama cikakke.
 
 **An gama (dukkan harsuna 8 — dukkan tarin hidimomin waya):**
-- ✅ **Kowace irin fakiti da aka ajiye yanzu ta zama ainihin hidima iri ɗaya baiti-da-baiti a cikin dukkan harsuna 8.** Fitilar kasancewa/tambaya (21/22), heartbeat (10), daidaita bayanin martaba (23), sanarwar ephemeral-routing-ID (56), musanya pre-key (25/26), channels (7), push-to-talk (15), raba allo (32), sarrafa kira (27), amincewa da SOS (6), alamomin sarari (40), sanarwar forge (41), buƙatar shard na vault (42), da aunawar bandwidth / ABMF (53/54/55). Kowanne hidima ce siriri (samar + sarrafa + abin faruwa) da runduna ke haɗawa zuwa zamanta na Signal da teburin zaɓen hanya; an ɗaure kowanne ga fixture da ake rabawa tsakanin harsuna (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) kuma ana gwada shi ta gwaje-gwajen naúra na kowane harshe, tare da tabbatar da Swift da C a kan sabar gina ta macOS. Duba **Abin da kake samu**.
+- ✅ **Kowace irin fakiti da aka ajiye yanzu ta zama ainihin hidima iri ɗaya baiti-da-baiti a cikin dukkan harsuna 8.** Fitilar kasancewa/tambaya (21/22), heartbeat (10), daidaita bayanin martaba (23), sanarwar ephemeral-routing-ID (56), musanya pre-key (25/26), channels (7), push-to-talk (15), raba allo (32), sarrafa kira (27), amincewa da SOS (6), alamomin sarari (40), sanarwar forge (41), buƙatar shard na vault (42), da aunawar bandwidth / ABMF (53/54/55). Kowanne hidima ce siriri (samar + sarrafa + abin faruwa) da runduna ke haɗawa zuwa zamanta na Signal da teburin zaɓen hanya; an ɗaure kowanne ga fixture da ake rabawa tsakanin harsuna (`fixtures/presence/`, `fixtures/media/`, `fixtures/bandwidth/`, `fixtures/prekey/`, `fixtures/videocall/`, `fixtures/vaultshard/`, `fixtures/channels/`, `fixtures/profiles/`, `fixtures/heartbeat/`, `fixtures/erid/`, `fixtures/space/`, `fixtures/forge/`, `fixtures/sos/`) kuma ana gwada shi ta gwaje-gwajen naúra na kowane harshe, tare da tabbatar da Swift da C a kan sabar gina ta macOS. Duba [**Abin da kake samu**](#what-you-get).
 
 **An gama (na tunani na C# kaɗai):**
 - ✅ **Demo Mataki 9 — MessagingService + DTN fallback ƙarshe-zuwa-ƙarshe** — `samples/AetherNet.Demo.Console` yana bi ta saƙonnin da aka ɓoye da ainihin Signal tare da ajiye-da-tura na DTN lokacin da mai karɓa ba ya kan layi.
