@@ -236,6 +236,36 @@ public sealed class ContentService : IContentService
         return assembled;
     }
 
+    /// <summary>
+    /// Stream the assembled content directly into <paramref name="destination"/>, writing each chunk
+    /// to its offset as it is read — no whole-file buffer and no final merge (unlike
+    /// <see cref="AssembleAsync"/>, which materialises the entire file in memory). Preallocates the
+    /// destination when it is seekable. Returns false if the descriptor or any chunk is missing.
+    /// </summary>
+    public async Task<bool> AssembleToAsync(string rootHash, Stream destination, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(rootHash);
+        ArgumentNullException.ThrowIfNull(destination);
+
+        var descriptor = await _store.GetDescriptorAsync(rootHash, cancellationToken).ConfigureAwait(false);
+        if (descriptor is null) return false;
+
+        var chunks = await _store.ListChunksAsync(rootHash, cancellationToken).ConfigureAwait(false);
+        if (chunks.Count != descriptor.ChunkCount) return false;
+
+        if (destination.CanSeek) destination.SetLength(descriptor.TotalBytes);
+
+        for (var i = 0; i < descriptor.ChunkCount; i++)
+        {
+            var bytes = await _store.GetChunkAsync(rootHash, i, cancellationToken).ConfigureAwait(false);
+            if (bytes is null) return false;
+            if (destination.CanSeek) destination.Seek((long)i * descriptor.ChunkSizeBytes, SeekOrigin.Begin);
+            await destination.WriteAsync(bytes.AsMemory(0, bytes.Length), cancellationToken).ConfigureAwait(false);
+        }
+        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     private async Task HandleAnnouncementAsync(MeshPacket packet, CancellationToken cancellationToken)
     {
         TorrentMetadataPayload? body;

@@ -10,6 +10,8 @@
     <Project Path="samples/AetherNet.WifiDirectRfTest/AetherNet.WifiDirectRfTest.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/AetherNet.BitTorrent/AetherNet.BitTorrent.csproj" />
+    <Project Path="src/AetherNet.BitTorrent.Gateway/AetherNet.BitTorrent.Gateway.csproj" />
     <Project Path="src/AetherNet.Content/AetherNet.Content.csproj" />
     <Project Path="src/AetherNet.Core/AetherNet.Core.csproj" />
     <Project Path="src/AetherNet.Space/AetherNet.Space.csproj" />
@@ -30,6 +32,10 @@
     <Project Path="src/AetherNet.Voice/AetherNet.Voice.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AetherNet.BitTorrent.Tests/AetherNet.BitTorrent.Tests.csproj" />
+    <Project Path="tests/AetherNet.BitTorrent.Gateway.Tests/AetherNet.BitTorrent.Gateway.Tests.csproj" />
+    <Project Path="tests/AetherNet.BitTorrent.Interop.Tests/AetherNet.BitTorrent.Interop.Tests.csproj" />
+    <Project Path="tests/AetherNet.Content.Download.Tests/AetherNet.Content.Download.Tests.csproj" />
     <Project Path="tests/AetherNet.Core.Tests/AetherNet.Core.Tests.csproj" />
     <Project Path="tests/AetherNet.Space.Tests/AetherNet.Space.Tests.csproj" />
     <Project Path="tests/AetherNet.Forge.Tests/AetherNet.Forge.Tests.csproj" />

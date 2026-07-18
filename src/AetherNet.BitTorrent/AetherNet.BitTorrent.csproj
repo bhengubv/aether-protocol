@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.BitTorrent</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Real, interoperable BitTorrent for the Aether mesh: BEP-3 bencode, metainfo/info-hash, magnet links, the peer wire protocol, trackers, DHT, and a gateway that bridges external BitTorrent swarms into the Aether content store. Speaks the actual BitTorrent protocol — interoperable with real BitTorrent clients and swarms.</Description>
+    <PackageTags>bittorrent;bencode;bep3;dht;magnet;torrent;peer-to-peer;aether;mesh;file-sharing</PackageTags>
+  </PropertyGroup>
+
+</Project>
