@@ -59,6 +59,10 @@ List a textbook for sale. People walking within range of the mesh see it. No mar
 
 Your group has a movie night. Someone has the file. Aether syncs playback across every device — play, pause, seek — all in lockstep. If only some people have the file, the mesh distributes it in real-time as a P2P stream. Everyone chips in via SDPKT to buy it if nobody has it.
 
+**Get a big file the way the whole internet already shares them.**
+
+BitTorrent is the technology behind a huge slice of the world's legal file-sharing — Linux releases, game updates, the Internet Archive. Aether now speaks it *for real*: an Aether node can join an ordinary BitTorrent swarm and pull a file straight from the crowd, with no central server. And here's the twist for people with no data — one Aether node that *does* have internet can fetch a torrent and **re-share it across the offline mesh**, so a friend who is completely offline still receives the file, hop by hop, over Bluetooth and Wi-Fi. The world's biggest file-sharing network, reaching the people the internet doesn't.
+
 ## How it works
 
 Devices talk directly to each other using Bluetooth, WiFi Direct, or NearLink. No internet connection, no server, no central infrastructure.
@@ -131,6 +135,18 @@ Aether is not just a transport. Every packet type reserved by the protocol is no
 These sit on top of the already-complete **messaging, 1-to-1 and group voice, video calls, live streaming, watch-together, AODV routing, DTN store-and-forward, and SOS flood** services — also implemented in all 8 languages.
 
 > **What "built" means here, precisely.** Each service produces and handles its wire packet, raises the right events, and is pinned to a byte-level fixture that the whole language family must match. Your application wires the service to its Signal session, routing table, and local state. This is the protocol layer — proven in code, tests, and cross-language byte-fixtures — on the same honest RF footing as everything else: any path that ultimately rides a radio is field-unverified until the hardware bring-up tracked in `OPEN_ISSUES.md`.
+
+## BitTorrent — real, and bridged into the mesh
+
+Aether now includes a **genuine, interoperable BitTorrent implementation** — the actual protocol that real torrent clients use, not a look-alike. So an Aether node can join a normal swarm and trade pieces of a file with strangers on the internet, no server in the middle.
+
+We didn't just claim it's real — we proved it. Aether was checked against **MonoTorrent**, a mature, independent BitTorrent library built by other people: given the same file, both produce the *identical* fingerprint, so any real torrent client treats Aether as one of its own. Anyone can point a real BitTorrent client at it and see for themselves.
+
+On top of that, Aether adds a **bridge**: a node with internet can pull a torrent from the wider web, re-package its pieces as Aether's own encrypted mesh chunks, and share it onward — so someone with **no internet at all** can still receive that file across the offline mesh. That's the point: hook the world's biggest file-sharing network up to the people it normally can't reach.
+
+**Where it stands, honestly.** The BitTorrent *formats* — how a torrent is described, fingerprinted, and framed on the wire — are built and **byte-for-byte identical in all 8 languages**, pinned to a shared fixture corpus in `fixtures/bittorrent/`. The full working client and the mesh bridge are complete and verified in the **C# reference**; the other seven languages carry the identical protocol formats, with their live network layer as the next step.
+
+> **For developers.** Coverage: bencode + `.torrent`/magnet + SHA-1 info-hash and BEP-3 peer-wire (rarest-first), HTTP + UDP trackers (BEP-3/15/23), Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), µTP (BEP-29), and BitTorrent v2 SHA-256 merkle (BEP-52), plus a piece↔chunk **gateway** into the content service and a concurrent, resumable segmented downloader. The C# reference (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`) ships the live TCP/µTP client, DHT node, trackers, gateway, and downloader, with the MonoTorrent interop test in `tests/AetherNet.BitTorrent.Interop.Tests`. The 8-language byte-identity corpus (`fixtures/bittorrent/vectors.json`, 7 categories) covers bencode, info-hash, peer-wire, µTP, merkle, compact-info, and KRPC; each SDK ships a matching fixture test.
 
 ## Security & privacy
 
