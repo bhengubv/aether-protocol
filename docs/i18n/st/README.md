@@ -16,7 +16,15 @@ Arolelana difaele, melaetsa, le dikhwele le batho ba haufi le wena. Ha ho WiFi. 
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **Protocol e le nngwe, dipuo tse robedi, e tshwana feela mohaleng.** Aether e kentswe tshebetsong ka **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, le C** — mme packet e nngwe le e nngwe e tshwana byte-ka-byte hoo tsohle, e tiisitswe ke corpus ya di-fixture tse arolelanwang pakeng tsa dipuo ho CI. Haha node ya hao ka e nngwe ya tse robedi; e sebetsana le tse ding tsohle. README ena e boetse e fumaneha ka dipuo tse 11 tsa batho (dikgokahano ka hodimo).
+> **Protocol e le nngwe, dipuo tse robedi, e tshwana feela mohaleng.** Aether e kentswe tshebetsong ka **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, le C** — mme packet e nngwe le e nngwe e tshwana byte-ka-byte hoo tsohle, e tiisitswe ke corpus ya di-fixture tse arolelanwang pakeng tsa dipuo eo implementeshene e nngwe le e nngwe e tshwanetseng ho e lekana, byte ka byte. Haha node ya hao ka e nngwe ya tse robedi; e sebetsana le tse ding tsohle. README ena e boetse e fumaneha ka dipuo tse 20 tsa batho (dikgokahano ka hodimo).
+
+## Ka mantswe a bonolo
+
+**AetherNet e dumella mehala le dilaptop ho buisana ka kotloloho — ntle le inthanete, ntle le khamphani ya mehala, le ntle le akhaonto.** Haeba batho ba o potolohileng ba na le app, o ka ba romela melaetsa, wa romela dinepe le difaele tse kgolo, wa etsa diletsetso tsa lentswe le video, mme wa arolelana phallo e phelang, o sebedisa feela diseyalemoya tsa sebaka se sekgutshwane tse seng di le ka hare ho mohala o mong le o mong (Bluetooth le Wi-Fi). Haeba motho a le hole haholo hoo o ke keng wa mo fihlela ka kotloloho, molaetsa wa hao o tlola ka setu ho tloha mohaleng o mong ho ya ho o latelang ho fihlela o fihla — mme o emela ho fihlela matsatsi a mararo bakeng sa tsela haeba ho hlokahala. E ka bile ya fihlella marang-rang a maholo a phatlalatsa a ho arolelana difaele a lefatshe (theknoloji e tshwanang e ka mora di-download tse molaong tse jwaloka Linux le di-update tsa dipapadi), ya nka faele, mme ya e isa ka hare ho motswalle ya se nang inthanete ho hang.
+
+Ntho e nngwe le e nngwe e kentswe ka encryption ya end-to-end, kahoo ke motho eo o buang le yena feela ya ka e balang — mehala e e fetisang ha e kgone. Ke ya **mahala mme e bulehile** hore mang kapa mang a e sebedise kapa a e hlahlobe, mme e ngotswe ka makgetlo a robedi, ka dipuo tse robedi tsa dinhlaloso, hore e kgone ho sebetsa hodima sesebediswa se ka bang sefe kapa sefe.
+
+**E phethehile hakae?** "Boko" ba marang-rang — diformat tsa melaetsa, encryption, routing, le ho arolelana difaele — di hahilwe mme di hlahlobilwe ke mochini ho pholletsa le dipuo tsohle tse robedi. Se sa ntseng se hloka teko ya lefatshe la sebele ke diseyalemoya tsa sebele tse buisanang moyeng pakeng tsa mehala e mmedi ya mmele; mohato oo wa hardware ke ona o setseng, mme re o latella phatlalatsa ho `OPEN_ISSUES.md`. Tsohle tse ka tlase ke pale e tshwanang ka dintlha tse eketsehileng.
 
 ## O ka etsang ka yona?
 
@@ -58,6 +66,10 @@ Ngodisa buka ya thuto ho rekiswa. Batho ba tsamayang ka hara sebaka sa mesh ba e
 **Shebella filimi mmoho, ho pholletsa le mesh.**
 
 Sehlopha sa hao se na le bosiu ba filimi. Motho e mong o na le faele. Aether e ngwahanya ho bapala ho pholletsa le sesebediswa se seng le se seng — bapala, emisa, batla — kaofela ka nako e le nngwe. Haeba ke batho ba bang feela ba nang le faele, mesh e e ajella ka nako ya sebele jwaloka phallo ya P2P. Bohle ba kenya letsoho ka SDPKT ho e reka haeba ho se na ya nang le yona.
+
+**Fumana faele e kgolo ka tsela eo inthanete yohle e seng e di arolelana ka yona.**
+
+BitTorrent ke theknoloji e ka mora karolo e kgolo ya ho arolelana difaele ka molao lefatsheng — ditokollo tsa Linux, di-update tsa dipapadi, Internet Archive. Aether jwale e e bua *ka nnete*: node ya Aether e ka kena swarm e tlwaelehileng ya BitTorrent mme ya nka faele ka kotloloho ho letshwele, ntle le sebedisi se bohareng. Mme mona ke phetoho bakeng sa batho ba se nang data — node e le nngwe ya Aether e *nang* le inthanete e ka lata torrent mme ya **e arolelana hape ho pholletsa le mesh ya offline**, kahoo motswalle ya se nang inthanete ho hang o ntse a amohela faele, ntlha-ka-ntlha, ka Bluetooth le Wi-Fi. Marang-rang a maholo ka ho fetisisa a ho arolelana difaele lefatsheng, a fihlella batho bao inthanete e sa ba fihlelleng.
 
 ## E sebetsa jwang
 
@@ -131,6 +143,18 @@ Aether ha se transport feela. Mofuta o mong le o mong wa packet o boloketsweng k
 Tsena di dula hodima ditshebeletso tse seng di phethehile tsa **messaging, lentswe la 1-to-1 le sehlopha, diletsetso tsa video, streaming e phelang, watch-together, routing ya AODV, DTN store-and-forward, le SOS flood** — tse boetseng di kentswe tshebetsong ka dipuo tsohle tse 8.
 
 > **Se boleletsweng ke "e hahilwe" mona, ka ho nepahala.** Tshebeletso e nngwe le e nngwe e hlahisa mme e sebetsana le packet ya yona ya mohala, e phahamisa diketsahalo tse nepahetseng, mme e tiiselitswe ho fixture ya byte-level eo lelapa lohle la puo le tshwanetseng ho e lekana. Application ya hao e hokahanya tshebeletso le Signal session ya yona, tafole ya routing, le boemo ba lehae. Lena ke lera la protocol — le paketsweng ka khoutu, diteko, le di-byte-fixture tsa dipuo — ka boemo bo tshwanang ba RF bo tshepahalang jwaloka tsohle: tsela e nngwe le e nngwe e qetellang e palame seyalemoya ha e netefatswe tshimong ho fihlela ho phahamisa hardware ho latellwa ho `OPEN_ISSUES.md`.
+
+## BitTorrent — ya sebele, e kopantswe le mesh
+
+Aether jwale e kenyeletsa **implementeshene ya sebele, e sebedisanang ya BitTorrent** — protocol ya sebele eo di-torrent client tsa nnete di e sebedisang, eseng se tshwanang le yona feela. Kahoo node ya Aether e ka kena swarm e tlwaelehileng mme ya fapanyetsana dikotwana tsa faele le basele inthaneteng, ntle le sebedisi bohareng.
+
+Ha re a ka ra bolela feela hore ke ya sebele — re e paketse. Aether e ile ya hlahlojwa kgahlano le **MonoTorrent**, laebrari e hodileng, e ikemetseng ya BitTorrent e hahilweng ke batho ba bang: ha di fuwa faele e tshwanang, ka bobedi di hlahisa fingerprint e *tshwanang hantle*, kahoo torrent client efe kapa efe ya sebele e nka Aether jwaloka e nngwe ya yona. Mang kapa mang a ka supa torrent client ya sebele ho yona mme a iponele.
+
+Ho feta moo, Aether e eketsa **bridge**: node e nang le inthanete e ka nka torrent webong e pharaletseng, ya paka dikotwana tsa yona bocha e le di-chunk tsa mesh tsa Aether tse kentsweng ka encryption, mme ya e arolelana pele — kahoo motho ya se nang inthanete ho hang o ntse a ka amohela faele eo ho pholletsa le mesh ya offline. Ke wona morero: hokela marang-rang a maholo ka ho fetisisa a ho arolelana difaele lefatsheng ho batho bao ka tlwaelo a ke keng a ba fihlela.
+
+**Moo e emeng teng, ka botshepehi.** Di*format* tsa BitTorrent — kamoo torrent e hlaloswang, e nkuwang fingerprint, mme e behwang mohaleng — di hahilwe mme di **tshwana byte-ka-byte ka dipuo tsohle tse 8**, di tiiselitswe ho corpus ya di-fixture tse arolelanwang ho `fixtures/bittorrent/`. Client e felletseng e sebetsang le mesh bridge di felletse mme di netefaditswe ho **C# reference**; dipuo tse ding tse supileng di jere diformat tse tshwanang tsa protocol, tse nang le lera la tsona la marang-rang a phelang e le mohato o latelang.
+
+> **Bakeng sa bahlahisi.** Se akaretswang: bencode + `.torrent`/magnet + SHA-1 info-hash le BEP-3 peer-wire (rarest-first), HTTP + UDP trackers (BEP-3/15/23), Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), µTP (BEP-29), le BitTorrent v2 SHA-256 merkle (BEP-52), hammoho le **gateway** ya piece↔chunk ho tshebeletso ya diteng le downloader e arotsweng ka dikarolo, e tsamaisanang, e ka tsosolosuwang. C# reference (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`) e romela client ya TCP/µTP e phelang, DHT node, di-tracker, gateway, le downloader, ka teko ya MonoTorrent interop ho `tests/AetherNet.BitTorrent.Interop.Tests`. Corpus ya byte-identity ya dipuo tse 8 (`fixtures/bittorrent/vectors.json`, dikarolo tse 7) e akaretsa bencode, info-hash, peer-wire, µTP, merkle, compact-info, le KRPC; SDK e nngwe le e nngwe e romela teko ya fixture e tshwanang.
 
 ## Tshireletso le lekunutu
 
@@ -235,29 +259,31 @@ Node e ho emo e tlwaelehileng le node e ho emo ya native di ka buisana ka boloko
 
 Aether e hahilwe ka dipuo tse 8 hore e sebetse ho mehala, dilaptop, ditablete, le di-microcontroller. Diimplementeshene tsohle di hlahisa di-packet tse sebedisanang mohaleng — molaetsa o kentsweng ke node ya Rust o ka fetiswa ke node ya Python mme wa decrypt-uwa ke node ya Swift.
 
-| Puo | Directory | Sebopeho sa mohala | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Puo | Directory | Sebopeho sa mohala | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-Dipuo tsohle tse 8 di hlahisa di-packet tsa mohala tse tshwanang byte, tse netefaditsweng ke di-fixture tse 17 tsa sebopeho sa mohala tse tlwaelehileng le di-Signal test vector tse 6 tse sebetsang ho CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, phatlalatso ya SOS, lentswe, streaming, le ditshebeletso tsa ho tiisa tshireletso di kentswe tshebetsong ka puo e nngwe le e nngwe ka **diteko tse ka bang 3,000** ho pholletsa le diimplementeshene tsohle tse 8:
+**Kholomo ya BitTorrent:** ✅ = client e felletseng, e sebetsang + mesh gateway (C# reference). ◐ = **diformat tsa mohala** tsa BitTorrent di tshwana byte-ka-byte mona (di tiiselitswe ho `fixtures/bittorrent/`), tse nang le lera la marang-rang a phelang e le mohato o latelang — bona [BitTorrent — ya sebele, e kopantswe le mesh](#bittorrent--real-and-bridged-into-the-mesh). Kholomo e nngwe le e nngwe e sebetsa ka sebele ka dipuo tsohle tse 8.
 
-| Puo | Diteko | Platform ya CI |
+Dipuo tsohle tse 8 di hlahisa di-packet tsa mohala tse tshwanang byte, tse netefaditsweng kgahlano le di-fixture tse 17 tsa sebopeho sa mohala tse tlwaelehileng le di-Signal test vector tse 6 (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — puo e nngwe le e nngwe e hlahlobwa kgahlano le di-byte tse tshwanang. Routing (AODV-style RREQ/RREP), DTN store-and-forward, phatlalatso ya SOS, lentswe, streaming, le ditshebeletso tsa ho tiisa tshireletso di kentswe tshebetsong ka puo e nngwe le e nngwe ka **diteko tse ka bang 3,000** ho pholletsa le diimplementeshene tsohle tse 8:
+
+| Puo | Diteko | Platform ya Teko |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Kakaretso** | **~3,000** | |
 
 Signal interop ya dipuo e tiiselitswe ho `fixtures/signal/` ka di-test vector tse arolelanwang bakeng sa X3DH (`x3dh_basic`), symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), le potoloho e felletseng ya session ya X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Implementeshene e nngwe le e nngwe e tshwanetse ho hlahisa di-output tse tshwanang byte kgahlano le di-fixture tseo. Dipuo tsohle tse 8 jwale di romela Signal session e felletseng (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 Se hahilweng le se latelang.
 
 **E entswe (e netefaditswe ho pholletsa le dipuo, diimplementeshene tsohle tse 8):**
-- Sebopeho sa mohala: se tshwanang byte ho pholletsa le dipuo tse 8, se tiiselitswe ke di-fixture tse 17 tse tlwaelehileng le diassertion tsa dipuo ho CI (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — matrix ya mesebetsi e 9 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, hammoho le mosebetsi wa botshepehi ba fixture) ho `.github/workflows/ci.yml`.
+- Sebopeho sa mohala: se tshwanang byte ho pholletsa le dipuo tse 8, se tiiselitswe ke di-fixture tse 17 tse tlwaelehileng le diassertion tsa dipuo (`fixtures/expected/*.bin`)
+- **GitHub Actions workflow (e hlalositswe, eseng heke ya hajwale)** — matrix ya mesebetsi e 9 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, hammoho le mosebetsi wa botshepehi ba fixture) e hlalositswe ho `.github/workflows/ci.yml`. Di-commit hajwale di sunngwa ka `[skip ci]`, kahoo tiiso ya sebele ke corpus ya di-fixture e sebetsang **ka lehae, ka puo ka nngwe** (Swift le C ho sesebediswa sa kaho sa macOS); CI e ka bulwa hape ntle le diphetoho tsa khoutu.
 - Ed25519 packet signing le netefatso
 - AES-256-GCM encryption
 - HKDF / HMAC key derivation primitives
@@ -524,7 +550,7 @@ Se hahilweng le se latelang.
 - Tshebeletso ya DTN store-and-forward ka custody transfer, geohash-aware replication, 72h TTL
 - Tshebeletso ya phatlalatso ya SOS ka flood, dedup, self-origin guard, rate-limit (3/hr)
 - Diseam tsa ho eketseha: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop defaults)
-- **Diteko tse ka bang 3,000** ho pholletsa le dipuo tsohle tse 8 (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — tsohle di tala ho CI
+- **Diteko tse ka bang 3,000** ho pholletsa le dipuo tsohle tse 8 (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — tsohle di tala, di sebetsa ka puo ka nngwe (Swift le C ho sesebediswa sa kaho sa macOS)
 - ✅ **X3DH ephemeral key ya sebele (dipuo tse 8)** — di-X25519 DH tse 4 (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) ka HKDF-SHA256 root derivation. E tiiselitswe ke `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Double Ratchet alignment lelapa lohle** — Signal §5 e felletseng ka HMAC-SHA256 + 0x01/0x02 domain separation ho symmetric ratchet, HKDF-SHA256 KDF_RK ho mohato wa DH-ratchet, DH-rotation ha o amohela. E netefaditswe ke di-fixture tsa `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic`.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 e boelanngwe le HEAD** — bona `docs/PROTOCOL_SPEC.md`.
@@ -641,7 +667,7 @@ E. AetherNet e sebedisa Signal Protocol (X3DH key agreement hammoho le Double Ra
 Bluetooth LE, Wi-Fi Direct, NearLink (SLE), LoRa/CircleLink serial radio, HTTP/QUIC relay, le WebRTC bakeng sa direct internet peer-to-peer. Protocol e kgetha ka boiketlo transport e nang le matla a tlase ka ho fetisisa e fumanehang packet e nngwe le e nngwe mme e wela ho e latelang.
 
 **E fumaneha ka dipuo dife tsa dinhlaloso?**
-Tse robedi — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, le C. Implementeshene e nngwe le e nngwe e hlahisa di-packet tsa mohala tse tshwanang byte, tse tiisitsweng ke corpus ya di-fixture tse arolelanwang pakeng tsa dipuo ho CI, kahoo packet e hahilweng ke puo e nngwe e decode-uwa e sa fetohe ke e nngwe le e nngwe.
+Tse robedi — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, le C. Implementeshene e nngwe le e nngwe e hlahisa di-packet tsa mohala tse tshwanang byte, tse tiisitsweng ke corpus ya di-fixture tse arolelanwang pakeng tsa dipuo eo implementeshene e nngwe le e nngwe e hlahlobwang kgahlano le yona, kahoo packet e hahilweng ke puo e nngwe e decode-uwa e sa fetohe ke e nngwe le e nngwe.
 
 **E fapane jwang le Meshtastic, Briar, kapa Bridgefy?**
 Meshtastic ke LoRa-feela; AetherNet ke multi-transport (Bluetooth + Wi-Fi + NearLink + LoRa) mme e jara lentswe, video, le streaming hammoho le melaetsa. Briar ke Android-feela mme e fetisa hodima Tor; AetherNet ke cross-platform mme ke mesh e hlwekileng. Ho fapana le di-SDK tse kwetsweng, AetherNet e na le laesense ya MIT mme e kentswe tshebetsong phatlalatsa ka dipuo tse robedi. Tafole ya papiso ka hodimo e na le dintlha.

@@ -16,7 +16,15 @@ Share files, messages, and streams with people nearby. No WiFi. No mobile data. 
 
 [English](README.md) · [Français](docs/i18n/fr/README.md) · [Español](docs/i18n/es/README.md) · [العربية](docs/i18n/ar/README.md) · [中文简体](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Português (BR)](docs/i18n/pt-BR/README.md) · [Русский](docs/i18n/ru/README.md) · [فارسی](docs/i18n/fa/README.md) · [한국어](docs/i18n/ko/README.md) · [isiZulu](docs/i18n/zu/README.md) · [Afrikaans](docs/i18n/af/README.md) · [Sesotho](docs/i18n/st/README.md) · [Kiswahili](docs/i18n/sw/README.md) · [Hausa](docs/i18n/ha/README.md) · [አማርኛ](docs/i18n/am/README.md) · [हिन्दी](docs/i18n/hi/README.md) · [Bahasa Indonesia](docs/i18n/id/README.md) · [বাংলা](docs/i18n/bn/README.md) · [اردو](docs/i18n/ur/README.md)
 
-> **One protocol, eight languages, identical on the wire.** Aether is implemented in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, and C** — and every packet is byte-for-byte identical across all of them, enforced by a shared cross-language fixture corpus in CI. Build your node in any of the eight; it interoperates with all the others. This README is also available in 11 human languages (links above).
+> **One protocol, eight languages, identical on the wire.** Aether is implemented in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, and C** — and every packet is byte-for-byte identical across all of them, enforced by a shared cross-language fixture corpus that every implementation must match, byte for byte. Build your node in any of the eight; it interoperates with all the others. This README is also available in 20 human languages (links above).
+
+## In plain words
+
+**AetherNet lets phones and laptops talk to each other directly — with no internet, no phone company, and no account.** If the people around you have the app, you can message them, send photos and large files, make voice and video calls, and share a live stream, using only the short-range radios already inside every phone (Bluetooth and Wi-Fi). If someone is too far to reach directly, your message quietly hops from one phone to the next until it arrives — and waits up to three days for a path if it has to. It can even reach into the world's big public file-sharing networks (the same technology behind legal downloads like Linux and game updates), pull a file, and carry it inward to a friend who has no internet at all.
+
+Everything is scrambled end-to-end, so only the person you're talking to can read it — the phones passing it along cannot. It is **free and open** for anyone to use or inspect, and it is written eight times over, in eight programming languages, so it can run on almost any device.
+
+**How finished is it?** The "brains" of the network — the message formats, the encryption, the routing, and the file-sharing — are built and machine-checked across all eight languages. What still needs real-world testing is the actual radios speaking to each other over the air between two physical phones; that hardware step is what remains, and we track it openly in `OPEN_ISSUES.md`. Everything below is the same story in more detail.
 
 ## What can you do with it?
 
@@ -251,29 +259,31 @@ A node on the standard tier and a node on the native tier can communicate freely
 
 Aether is built in 8 languages so it runs on phones, laptops, tablets, and microcontrollers. All implementations produce wire-compatible packets — a message encrypted by the Rust node can be relayed by the Python node and decrypted by the Swift node.
 
-| Language | Directory | Wire format | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Language | Directory | Wire format | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-All 8 languages produce byte-identical wire packets, verified by 17 canonical wire-format fixtures and 6 Signal test vectors run in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-style RREQ/RREP), DTN store-and-forward, SOS broadcast, voice, streaming, and security-hardening services are implemented in every language with **~3,000 tests** across all 8 implementations:
+**BitTorrent column:** ✅ = full, working client + mesh gateway (the C# reference). ◐ = the BitTorrent **wire formats** are byte-for-byte identical here (pinned to `fixtures/bittorrent/`), with the live network layer as the next step — see [BitTorrent — real, and bridged into the mesh](#bittorrent--real-and-bridged-into-the-mesh). Every other column is real and working in all 8 languages.
 
-| Language | Tests | CI platform |
+All 8 languages produce byte-identical wire packets, verified against 17 canonical wire-format fixtures and 6 Signal test vectors (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — every language is checked against the same bytes. Routing (AODV-style RREQ/RREP), DTN store-and-forward, SOS broadcast, voice, streaming, and security-hardening services are implemented in every language with **~3,000 tests** across all 8 implementations:
+
+| Language | Tests | Test platform |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Total** | **~3,000** | |
 
 Cross-language Signal interop is anchored to `fixtures/signal/` with shared test vectors for X3DH (`x3dh_basic`), the symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), and the full X3DH session round-trip (`x3dh_session_msg1`, `x3dh_session_reply`). Every implementation must produce byte-identical outputs against those fixtures. All 8 languages now ship a full Signal session (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
@@ -529,8 +539,8 @@ aethernet_packet_free(packet);
 What's built and what's next.
 
 **Done (verified cross-language, all 8 implementations):**
-- Wire format: byte-identical across 8 languages, anchored by 17 canonical fixtures and cross-language assertions in CI (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — 9-job matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus fixture integrity job) in `.github/workflows/ci.yml`.
+- Wire format: byte-identical across 8 languages, anchored by 17 canonical fixtures and cross-language assertions (`fixtures/expected/*.bin`)
+- **GitHub Actions workflow (defined, not the current gate)** — a 9-job matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, plus a fixture-integrity job) is defined in `.github/workflows/ci.yml`. Commits are currently pushed with `[skip ci]`, so the real enforcement is the fixture corpus run **locally, per language** (Swift and C on the macOS build server); CI can be switched back on without code changes.
 - Ed25519 packet signing and verification
 - AES-256-GCM encryption
 - HKDF / HMAC key derivation primitives
@@ -540,7 +550,7 @@ What's built and what's next.
 - DTN store-and-forward service with custody transfer, geohash-aware replication, 72h TTL
 - SOS broadcast service with flood, dedup, self-origin guard, rate-limit (3/hr)
 - Extensibility seams: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop defaults)
-- **~3,000 tests** across all 8 languages (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — all green in CI
+- **~3,000 tests** across all 8 languages (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — all green, run per language (Swift and C on the macOS build server)
 - ✅ **Real X3DH ephemeral key (8 languages)** — 4 X25519 DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) with HKDF-SHA256 root derivation. Pinned by `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Double Ratchet alignment family-wide** — full Signal §5 with HMAC-SHA256 + 0x01/0x02 domain separation in the symmetric ratchet, HKDF-SHA256 KDF_RK in the DH-ratchet step, DH-rotation on receive. Verified by `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` fixtures.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 reconciled with HEAD** — see `docs/PROTOCOL_SPEC.md`.
@@ -657,7 +667,7 @@ Yes. AetherNet uses the Signal Protocol (X3DH key agreement plus the Double Ratc
 Bluetooth LE, Wi-Fi Direct, NearLink (SLE), a LoRa/CircleLink serial radio, an HTTP/QUIC relay, and WebRTC for direct internet peer-to-peer. The protocol automatically selects the lowest-power available transport per packet and falls back to the next.
 
 **Which programming languages is it available in?**
-Eight — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, and C. Every implementation produces byte-identical wire packets, enforced by a shared cross-language fixture corpus in CI, so a packet built by one language is decoded unchanged by any other.
+Eight — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, and C. Every implementation produces byte-identical wire packets, enforced by a shared cross-language fixture corpus that every implementation is checked against, so a packet built by one language is decoded unchanged by any other.
 
 **How is it different from Meshtastic, Briar, or Bridgefy?**
 Meshtastic is LoRa-only; AetherNet is multi-transport (Bluetooth + Wi-Fi + NearLink + LoRa) and carries voice, video, and streaming as well as messages. Briar is Android-only and routes over Tor; AetherNet is cross-platform and pure mesh. Unlike closed SDKs, AetherNet is MIT-licensed and implemented openly in eight languages. The comparison table above has the details.

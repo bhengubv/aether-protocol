@@ -16,7 +16,15 @@
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **一个协议，八种语言，线路上完全一致。** Aether 以 **C#、Rust、TypeScript、Python、Go、Kotlin、Swift 和 C** 实现——每个数据包在所有这些语言中都是字节完全相同的，并由 CI 中的共享跨语言测试用例库强制保证。用这八种语言中的任意一种构建你的节点；它都能与其他所有语言互通。本 README 也提供 11 种人类语言版本（上方链接）。
+> **一个协议，八种语言，线路上完全一致。** Aether 以 **C#、Rust、TypeScript、Python、Go、Kotlin、Swift 和 C** 实现——每个数据包在所有这些语言中都是字节完全相同的，并由每个实现都必须逐字节匹配的共享跨语言测试用例库强制保证。用这八种语言中的任意一种构建你的节点；它都能与其他所有语言互通。本 README 也提供 20 种人类语言版本（上方链接）。
+
+## 简单来说
+
+**AetherNet 让手机和笔记本电脑直接相互通信——无需互联网、无需电信运营商、无需账号。** 只要你身边的人装了这个 app，你就能给他们发消息、发送照片和大文件、进行语音和视频通话、分享直播，全程只用每部手机内置的短距离无线电（蓝牙和 Wi-Fi）。如果某人太远、无法直接联系，你的消息会悄悄地从一部手机跳到下一部，直到送达——必要时最多等待三天以寻找路径。它甚至能接入全球的大型公共文件共享网络（正是 Linux 和游戏更新等合法下载背后的同一种技术），拉取一个文件，再一路向内传递给一位完全没有互联网的朋友。
+
+一切都经过端到端加扰，因此只有与你对话的人才能读到内容——沿途传递它的那些手机无法读取。它**免费且开放**，任何人都可以使用或审查，并且以八种编程语言编写了八遍，因此几乎可以在任何设备上运行。
+
+**它完成到什么程度了？** 网络的“大脑”——消息格式、加密、路由和文件共享——已在全部八种语言中构建并经过机器校验。仍需真实世界测试的，是两部实体手机之间无线电真正通过空中相互通信的部分；剩下的正是这一硬件环节，我们在 `OPEN_ISSUES.md` 中公开追踪它。下文的一切都是同一个故事的更详细版本。
 
 ## 你能用它做什么？
 
@@ -58,6 +66,10 @@
 **跨网格一起看电影。**
 
 你的小组要一起看电影之夜。某人有文件。Aether 在每台设备之间同步播放——播放、暂停、跳转——全部步调一致。如果只有部分人有文件，网格会以 P2P 流的方式实时分发。如果没人有文件，大家可以通过 SDPKT 共同出资购买。
+
+**像整个互联网早已共享大文件的方式那样获取大文件。**
+
+BitTorrent 是全球很大一部分合法文件共享背后的技术——Linux 发行版、游戏更新、互联网档案馆（Internet Archive）。Aether 现在*真正地*会用它：一个 Aether 节点可以加入一个普通的 BitTorrent 集群（swarm），直接从人群中拉取文件，中间没有任何中央服务器。而对于没有流量的人，精妙之处在于——一个*确实*有互联网的 Aether 节点可以抓取一个 torrent，并**将其在离线网格中重新共享**，这样一位完全离线的朋友仍能逐跳地通过蓝牙和 Wi-Fi 收到该文件。全球最大的文件共享网络，触达互联网所触达不到的人。
 
 ## 工作原理
 
@@ -131,6 +143,18 @@ Aether 不仅仅是一种传输方式。协议保留的每个数据包类型现�
 这些服务位于已经完成的**消息传递、一对一和群组语音、视频通话、直播、共同观影、AODV 路由、DTN 存储转发以及 SOS 洪泛**服务之上——它们同样在全部 8 种语言中实现。
 
 > **此处“已构建”的确切含义。** 每种服务都会产生并处理其线路数据包、触发正确的事件，并固定至整个语言家族都必须匹配的字节级测试用例。你的应用负责将服务连接到它的 Signal 会话、路由表和本地状态。这是协议层——已在代码、测试和跨语言字节测试用例中得到证明——与其他所有部分建立在同样诚实的 RF 基础之上：任何最终经由无线电传输的路径，在 `OPEN_ISSUES.md` 中追踪的硬件启动完成之前，都属于现场未经验证。
+
+## BitTorrent——真实，并已桥接进网格
+
+Aether 现在包含一个**真正的、可互操作的 BitTorrent 实现**——真实 torrent 客户端所使用的实际协议，而非仿制品。因此一个 Aether 节点可以加入一个普通的集群（swarm），与互联网上的陌生人交换文件的分片，中间没有服务器。
+
+我们不只是声称它是真实的——我们证明了这一点。Aether 已对照 **MonoTorrent** 进行校验，那是一个由他人构建的成熟、独立的 BitTorrent 库：给定相同的文件，两者产生*完全相同*的指纹，因此任何真实的 torrent 客户端都会将 Aether 视为自己的一员。任何人都可以让一个真实的 BitTorrent 客户端连上它，亲眼验证。
+
+在此之上，Aether 还增加了一座**桥**：有互联网的节点可以从更广阔的网络拉取一个 torrent，把它的分片重新打包为 Aether 自己的加密网格块，再继续共享出去——这样一个**完全没有互联网**的人仍能通过离线网格收到那个文件。这正是重点所在：把全球最大的文件共享网络接上它通常无法触达的人。
+
+**诚实地说，它目前的状态。** BitTorrent 的各种*格式*——一个 torrent 如何被描述、指纹化以及在线路上分帧——已经构建完成，并在**全部 8 种语言中字节完全相同**，固定至 `fixtures/bittorrent/` 中的共享测试用例库。完整可用的客户端和网格桥接已在 **C# 参考实现**中完成并验证；其余七种语言承载着完全相同的协议格式，其实时网络层则是下一步。
+
+> **面向开发者。** 覆盖范围：bencode + `.torrent`/magnet + SHA-1 info-hash 和 BEP-3 peer-wire（最稀有优先）、HTTP + UDP trackers（BEP-3/15/23）、Mainline DHT + PEX + ut_metadata（BEP-5/11/9/10）、µTP（BEP-29），以及 BitTorrent v2 SHA-256 merkle（BEP-52），外加一个进入内容服务的分片↔块**网关**和一个并发、可续传的分段下载器。C# 参考实现（`src/AetherNet.BitTorrent`、`src/AetherNet.BitTorrent.Gateway`）提供实时 TCP/µTP 客户端、DHT 节点、trackers、网关和下载器，MonoTorrent 互操作测试位于 `tests/AetherNet.BitTorrent.Interop.Tests`。8 语言字节一致性用例库（`fixtures/bittorrent/vectors.json`，7 个类别）涵盖 bencode、info-hash、peer-wire、µTP、merkle、compact-info 和 KRPC；每个 SDK 都提供一个匹配的测试用例测试。
 
 ## 安全与隐私
 
@@ -235,29 +259,31 @@ advertising.startAdvertising()    →  scan.startScan()   →  client.on('proper
 
 Aether 以 8 种语言构建，可运行于手机、笔记本电脑、平板电脑和微控制器。所有实现产生线路兼容的数据包——由 Rust 节点加密的消息可由 Python 节点中继，并由 Swift 节点解密。
 
-| 语言 | 目录 | 线路格式 | 路由/DTN/SOS | X3DH | 双棘轮 | OPK 池 | 语音/群组 | 流媒体/视频/观影 |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| 语言 | 目录 | 线路格式 | 路由/DTN/SOS | X3DH | 双棘轮 | OPK 池 | 语音/群组 | 流媒体/视频/观影 | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-全部 8 种语言产生字节完全相同的线路数据包，通过 CI 中运行的 17 个规范线路格式测试用例和 6 个 Signal 测试向量验证（`fixtures/expected/*.bin`，`fixtures/signal/expected/*.json`）。路由（AODV 风格 RREQ/RREP）、DTN 存储转发、SOS 广播、语音、流媒体以及安全加固服务在每种语言中均已实现，所有 8 种实现共有约 **3,000 个测试**：
+**BitTorrent 列：** ✅ = 完整、可用的客户端 + 网格网关（C# 参考实现）。◐ = 此处的 BitTorrent**线路格式**字节完全相同（固定至 `fixtures/bittorrent/`），其实时网络层则是下一步——参见 [BitTorrent——真实，并已桥接进网格](#bittorrent--real-and-bridged-into-the-mesh)。其他每一列在全部 8 种语言中都真实且可用。
 
-| 语言 | 测试数 | CI 平台 |
+全部 8 种语言产生字节完全相同的线路数据包，通过 17 个规范线路格式测试用例和 6 个 Signal 测试向量验证（`fixtures/expected/*.bin`，`fixtures/signal/expected/*.json`）——每种语言都针对相同的字节进行检验。路由（AODV 风格 RREQ/RREP）、DTN 存储转发、SOS 广播、语音、流媒体以及安全加固服务在每种语言中均已实现，所有 8 种实现共有约 **3,000 个测试**：
+
+| 语言 | 测试数 | 测试平台 |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **总计** | **~3,000** | |
 
 跨语言 Signal 互操作性以 `fixtures/signal/` 为基准，包含 X3DH（`x3dh_basic`）、对称棘轮（`ratchet_step_basic`、`ratchet_step_three_iterations`）、KDF_RK（`kdf_rk_basic`）以及完整的 X3DH 会话往返（`x3dh_session_msg1`、`x3dh_session_reply`）的共享测试向量。每种实现都必须针对这些测试用例产生字节完全相同的输出。所有 8 种语言现已完整实现 Signal 会话（`generate_pre_key_bundle`、`process_pre_key_bundle`、`encrypt`、`decrypt`）。
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 已完成的内容与下一步计划。
 
 **已完成（经跨语言验证，全部 8 种实现）：**
-- 线路格式：跨 8 种语言字节完全相同，由 17 个规范测试用例和 CI 中的跨语言断言锚定（`fixtures/expected/*.bin`）
-- ✅ **GitHub Actions CI** — 9 个任务矩阵（C#/.NET 10、Go 1.22、TypeScript/Node 20、Python 3.12、Kotlin/JVM 21、Swift/macOS-14、Rust stable、C/GCC，以及测试用例完整性任务）位于 `.github/workflows/ci.yml`
+- 线路格式：跨 8 种语言字节完全相同，由 17 个规范测试用例和跨语言断言锚定（`fixtures/expected/*.bin`）
+- **GitHub Actions 工作流（已定义，但并非当前的门禁）** — 一个 9 任务矩阵（C#/.NET 10、Go 1.22、TypeScript/Node 20、Python 3.12、Kotlin/JVM 21、Swift/macOS、Rust stable、C/GCC，以及一个测试用例完整性任务）定义于 `.github/workflows/ci.yml`。提交目前都带着 `[skip ci]` 推送，因此真正的强制保证是**在本地、按语言**运行的测试用例库（Swift 和 C 在 macOS 构建服务器上）；无需修改代码即可重新开启 CI。
 - Ed25519 数据包签名和验证
 - AES-256-GCM 加密
 - HKDF / HMAC 密钥派生原语
@@ -524,7 +550,7 @@ aethernet_packet_free(packet);
 - 带保管权转移、地理哈希感知复制、72 小时 TTL 的 DTN 存储转发服务
 - 带洪泛、去重、自源防护、速率限制（3 次/小时）的 SOS 广播服务
 - 可扩展性接缝：`IncentiveProvider`、`BackendClient`、`FeatureFlagProvider`（Noop 默认值）
-- **约 3,000 个测试**，覆盖全部 8 种语言（C# 530、TypeScript 459、Kotlin 457、Go 423、Python 387、Swift 295、C 253、Rust ~195）——在 CI 中全部通过
+- **约 3,000 个测试**，覆盖全部 8 种语言（C# 530、TypeScript 459、Kotlin 457、Go 423、Python 387、Swift 295、C 253、Rust ~195）——全部通过，按语言运行（Swift 和 C 在 macOS 构建服务器上）
 - ✅ **真正的 X3DH 临时密钥（8 种语言）** — 4 个 X25519 DH（`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`）以及 HKDF-SHA256 根派生。由 `fixtures/signal/expected/x3dh_basic.json` 固定。
 - ✅ **全系列双棘轮对齐** — 完整的 Signal §5，对称棘轮中带 HMAC-SHA256 + 0x01/0x02 域分隔，DH 棘轮步骤中的 HKDF-SHA256 KDF_RK，接收时的 DH 轮换。通过 `ratchet_step_basic`、`ratchet_step_three_iterations`、`kdf_rk_basic` 测试用例验证。
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 与 HEAD 对齐** — 参见 `docs/PROTOCOL_SPEC.md`。
@@ -641,7 +667,7 @@ public class LoRaTransportService : ITransportService
 蓝牙 LE、Wi-Fi Direct、NearLink（SLE）、LoRa/CircleLink 串口无线电、HTTP/QUIC 中继，以及用于直接互联网点对点的 WebRTC。协议会为每个数据包自动选择功耗最低的可用传输方式，并回退到下一个。
 
 **它有哪些编程语言的实现？**
-八种——C#、Rust、TypeScript、Python、Go、Kotlin、Swift 和 C。每种实现都产生字节完全相同的线路数据包，并由 CI 中的共享跨语言测试用例库强制保证，因此由一种语言构建的数据包可被任何其他语言原样解码。
+八种——C#、Rust、TypeScript、Python、Go、Kotlin、Swift 和 C。每种实现都产生字节完全相同的线路数据包，并由每个实现都要对照检验的共享跨语言测试用例库强制保证，因此由一种语言构建的数据包可被任何其他语言原样解码。
 
 **它与 Meshtastic、Briar 或 Bridgefy 有何不同？**
 Meshtastic 仅支持 LoRa；AetherNet 是多传输的（蓝牙 + Wi-Fi + NearLink + LoRa），除消息外还承载语音、视频和流媒体。Briar 仅限 Android 且经由 Tor 路由；AetherNet 是跨平台的纯网格。与封闭的 SDK 不同，AetherNet 采用 MIT 许可证，并以八种语言开放实现。上方的对比表有详细信息。
@@ -679,4 +705,4 @@ MIT 许可证。参见 [LICENSE](LICENSE)。
 
 ## 翻译
 
-本 README 以英文维护，并翻译为 [`docs/i18n/`](docs/i18n/) 下的另外 10 种语言：Français、Español、العربية、中文简体、日本語、Deutsch、Português (BR)、Русский、فارسی 和 한국어。**英文版本为权威来源**——当翻译与英文文本不一致时，以英文文本为准，翻译可能滞后一到两个版本。无论你阅读哪种语言，所描述的协议、代码、测试用例和行为都是完全相同的。
+本 README 也以本文件顶部语言栏中列出的其他语言维护，位于 [`docs/i18n/`](docs/i18n/) 下——涵盖欧洲、东亚、中东、南亚、东南亚和非洲语言，因为一个为没有流量的人而构建的网络，其大门不应只有网络条件优越的人才能读懂。**英文版本为权威来源**：当翻译与英文文本不一致时，以英文文本为准，翻译可能滞后一到两个版本。无论你阅读哪种语言，所描述的协议、代码、测试用例和行为都是完全相同的。

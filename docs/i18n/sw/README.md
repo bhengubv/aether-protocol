@@ -16,7 +16,15 @@ Shiriki faili, ujumbe, na mitiririko na watu walio karibu nawe. Hakuna WiFi. Hak
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **Protokoli moja, lugha nane, zinazofanana kwenye waya.** Aether imetekelezwa katika **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, na C** — na kila pakiti inafanana baiti kwa baiti katika zote, ikisimamiwa na mkusanyiko wa fixtures unaoshirikiwa kati ya lugha katika CI. Jenga nodi yako katika lugha yoyote kati ya nane; itafanya kazi pamoja na zingine zote. README hii pia inapatikana katika lugha 11 za binadamu (viungo hapo juu).
+> **Protokoli moja, lugha nane, zinazofanana kwenye waya.** Aether imetekelezwa katika **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, na C** — na kila pakiti inafanana baiti kwa baiti katika zote, ikisimamiwa na mkusanyiko wa fixtures unaoshirikiwa kati ya lugha ambao kila utekelezaji lazima uulingane nao, baiti kwa baiti. Jenga nodi yako katika lugha yoyote kati ya nane; itafanya kazi pamoja na zingine zote. README hii pia inapatikana katika lugha 20 za binadamu (viungo hapo juu).
+
+## Kwa maneno rahisi
+
+**AetherNet inaruhusu simu na laptop kuzungumza moja kwa moja kati yao — bila intaneti, bila kampuni ya simu, na bila akaunti.** Iwapo watu walio karibu nawe wana programu hiyo, unaweza kuwatumia ujumbe, kutuma picha na faili kubwa, kupiga simu za sauti na video, na kushiriki mtiririko wa moja kwa moja, ukitumia tu redio za masafa-mafupi zilizomo tayari ndani ya kila simu (Bluetooth na Wi-Fi). Iwapo mtu yuko mbali sana kufikiwa moja kwa moja, ujumbe wako unaruka kimya kimya kutoka simu moja hadi nyingine hadi unafika — na unasubiri hadi siku tatu kupata njia iwapo inabidi. Unaweza hata kufikia mitandao mikubwa ya umma ya kushiriki faili duniani (teknolojia ile ile iliyo nyuma ya vipakuliwa halali kama Linux na masasisho ya michezo), kuvuta faili, na kuibeba ndani kwa rafiki asiye na intaneti kabisa.
+
+Kila kitu kimefichwa mwisho-hadi-mwisho, hivyo ni mtu unayezungumza naye tu anayeweza kukisoma — simu zinazokipitisha haziwezi. Ni **huria na wazi** kwa yeyote kukitumia au kukikagua, na kimeandikwa mara nane, katika lugha nane za programu, ili kiweze kuendesha kwenye karibu kila kifaa.
+
+**Imekamilika kiasi gani?** "Ubongo" wa mtandao — miundo ya ujumbe, uficho, routing, na kushiriki faili — umejengwa na kukaguliwa kwa mashine katika lugha zote nane. Kinachohitaji bado majaribio ya ulimwengu halisi ni redio halisi zenyewe zikizungumza kati yao angani kati ya simu mbili halisi; hatua hiyo ya vifaa ndiyo iliyobaki, na tunaifuatilia kwa uwazi katika `OPEN_ISSUES.md`. Kila kitu kilicho hapa chini ni hadithi ile ile kwa undani zaidi.
 
 ## Unaweza kufanya nini nayo?
 
@@ -58,6 +66,10 @@ Orodhesha kitabu cha kiada kwa kuuza. Watu wanaotembea ndani ya masafa ya mesh w
 **Angalia filamu pamoja, kupitia mesh.**
 
 Kikundi chako kina usiku wa filamu. Mtu ana faili. Aether inasawazisha uchezaji katika kila kifaa — cheza, simamisha, ruka — vyote kwa pamoja. Iwapo baadhi ya watu tu wana faili, mesh inaigawanya kwa wakati halisi kama mtiririko wa P2P. Kila mtu anachangia kupitia SDPKT kuinunua iwapo hakuna aliye nayo.
+
+**Pata faili kubwa kwa njia ambayo intaneti nzima tayari inazishiriki.**
+
+BitTorrent ni teknolojia iliyo nyuma ya sehemu kubwa ya kushiriki faili halali duniani — matoleo ya Linux, masasisho ya michezo, Internet Archive. Aether sasa inaizungumza *kikweli*: nodi ya Aether inaweza kujiunga na swarm ya kawaida ya BitTorrent na kuvuta faili moja kwa moja kutoka kwa umati, bila seva ya kati. Na hapa ndipo penye mshangao kwa watu wasio na data — nodi moja ya Aether ambayo *ina* intaneti inaweza kuchukua torrent na **kuishiriki upya kupitia mesh isiyo na mtandao**, ili rafiki asiye na mtandao kabisa bado apokee faili, hatua kwa hatua, kupitia Bluetooth na Wi-Fi. Mtandao mkubwa zaidi wa kushiriki faili duniani, ukiwafikia watu ambao intaneti haiwafikii.
 
 ## Jinsi inavyofanya kazi
 
@@ -131,6 +143,18 @@ Aether si usafirishaji tu. Kila aina ya pakiti iliyohifadhiwa na protokoli sasa 
 Hizi zinakaa juu ya huduma zilizokamilika tayari za **messaging, sauti ya mtu-mmoja-hadi-mmoja na ya kikundi, simu za video, mitiririko ya moja kwa moja, watch-together, AODV routing, DTN store-and-forward, na SOS flood** — pia zimetekelezwa katika lugha zote 8.
 
 > **Maana kamili ya "iliyojengwa" hapa.** Kila huduma inazalisha na kushughulikia pakiti yake ya waya, inainua matukio sahihi, na imefungwa kwa fixture ya kiwango cha baiti ambayo familia nzima ya lugha lazima ilingane nayo. Programu yako inaunganisha huduma na kikao chake cha Signal, jedwali la routing, na hali ya ndani. Hii ni safu ya protokoli — iliyothibitishwa katika msimbo, majaribio, na fixtures za baiti kati ya lugha — kwenye msingi ule ule wa RF wa uaminifu kama kila kitu kingine: njia yoyote ambayo hatimaye inapanda redio haijathibitishwa uwandani hadi uanzishaji wa vifaa unaofuatiliwa katika `OPEN_ISSUES.md`.
+
+## BitTorrent — halisi, na imeunganishwa kwenye mesh
+
+Aether sasa inajumuisha **utekelezaji halisi wa BitTorrent unaoshirikiana** — protokoli halisi ambayo wateja halisi wa torrent hutumia, si kitu kinachofanana nayo tu. Hivyo nodi ya Aether inaweza kujiunga na swarm ya kawaida na kubadilishana vipande vya faili na wageni kwenye intaneti, bila seva katikati.
+
+Hatukudai tu kwamba ni halisi — tulithibitisha. Aether ilikaguliwa dhidi ya **MonoTorrent**, maktaba iliyokomaa, huru ya BitTorrent iliyojengwa na watu wengine: ikipewa faili ile ile, zote mbili zinazalisha alama ya vidole *inayofanana kabisa*, hivyo mteja yeyote halisi wa torrent anaichukulia Aether kama mmoja wao. Yeyote anaweza kuelekeza mteja halisi wa BitTorrent kwake na kujionea mwenyewe.
+
+Zaidi ya hayo, Aether inaongeza **daraja**: nodi yenye intaneti inaweza kuvuta torrent kutoka wavuti pana, kufungasha upya vipande vyake kama chunks za mesh za Aether zilizofichwa, na kuishiriki mbele — ili mtu asiye na **intaneti kabisa** bado apokee faili hiyo kupitia mesh isiyo na mtandao. Hicho ndicho kiini: unganisha mtandao mkubwa zaidi wa kushiriki faili duniani na watu ambao kwa kawaida hauwezi kuwafikia.
+
+**Ilipo, kwa uaminifu.** *Miundo* ya BitTorrent — jinsi torrent inavyoelezwa, kupewa alama ya vidole, na kuwekwa fremu kwenye waya — imejengwa na **inayofanana baiti kwa baiti katika lugha zote 8**, imefungwa kwa mkusanyiko wa fixtures unaoshirikiwa katika `fixtures/bittorrent/`. Mteja kamili unaofanya kazi na daraja la mesh vimekamilika na kuthibitishwa katika **rejeleo la C#**; lugha nyingine saba zinabeba miundo ile ile ya protokoli, huku safu yao ya mtandao hai ikiwa hatua inayofuata.
+
+> **Kwa wasanidi programu.** Wigo: bencode + `.torrent`/magnet + SHA-1 info-hash na BEP-3 peer-wire (rarest-first), HTTP + UDP trackers (BEP-3/15/23), Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), µTP (BEP-29), na BitTorrent v2 SHA-256 merkle (BEP-52), pamoja na **gateway** ya piece↔chunk kuingia kwenye huduma ya maudhui na kipakuaji cha sehemu sambamba, kinachoweza kuendelezwa. Rejeleo la C# (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`) linasafirisha mteja hai wa TCP/µTP, nodi ya DHT, trackers, gateway, na kipakuaji, na jaribio la ushirikiano wa MonoTorrent katika `tests/AetherNet.BitTorrent.Interop.Tests`. Mkusanyiko wa utambulisho-baiti wa lugha 8 (`fixtures/bittorrent/vectors.json`, kategoria 7) unashughulikia bencode, info-hash, peer-wire, µTP, merkle, compact-info, na KRPC; kila SDK inasafirisha jaribio la fixture linalolingana.
 
 ## Usalama na faragha
 
@@ -235,29 +259,31 @@ Nodi katika ngazi ya kawaida na nodi katika ngazi ya asili zinaweza kuwasiliana 
 
 Aether imejengwa katika lugha 8 ili iendeshe kwenye simu, laptop, tableti, na microcontrollers. Utekelezaji wote unazalisha pakiti zinazolingana na waya — ujumbe uliofichwa na nodi ya Rust unaweza kurushwa na nodi ya Python na kufunguliwa na nodi ya Swift.
 
-| Lugha | Directory | Muundo wa waya | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Sauti/Kikundi | Mitiririko/Video/Watch |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Lugha | Directory | Muundo wa waya | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Sauti/Kikundi | Mitiririko/Video/Watch | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-Lugha zote 8 zinazalisha pakiti za waya zinazofanana baiti kwa baiti, zilizothibitishwa na fixtures 17 za kawaida za muundo wa waya na vekta 6 za majaribio za Signal zinazoendeshwa katika CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (RREQ/RREP ya mtindo wa AODV), DTN store-and-forward, tangazo la SOS, sauti, mitiririko, na huduma za kuimarisha usalama zimetekelezwa katika kila lugha zenye **majaribio ~3,000** katika utekelezaji wote 8:
+**Safu ya BitTorrent:** ✅ = mteja kamili, unaofanya kazi + gateway ya mesh (rejeleo la C#). ◐ = **miundo ya waya** ya BitTorrent inafanana baiti kwa baiti hapa (imefungwa kwa `fixtures/bittorrent/`), huku safu ya mtandao hai ikiwa hatua inayofuata — ona [BitTorrent — halisi, na imeunganishwa kwenye mesh](#bittorrent--real-and-bridged-into-the-mesh). Kila safu nyingine ni halisi na inafanya kazi katika lugha zote 8.
 
-| Lugha | Majaribio | Jukwaa la CI |
+Lugha zote 8 zinazalisha pakiti za waya zinazofanana baiti kwa baiti, zilizothibitishwa na fixtures 17 za kawaida za muundo wa waya na vekta 6 za majaribio za Signal (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — kila lugha inakaguliwa dhidi ya baiti zile zile. Routing (RREQ/RREP ya mtindo wa AODV), DTN store-and-forward, tangazo la SOS, sauti, mitiririko, na huduma za kuimarisha usalama zimetekelezwa katika kila lugha zenye **majaribio ~3,000** katika utekelezaji wote 8:
+
+| Lugha | Majaribio | Jukwaa la Majaribio |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Jumla** | **~3,000** | |
 
 Ushirikiano wa Signal kati ya lugha umetiwa nanga kwa `fixtures/signal/` na vekta za majaribio zinazoshirikiwa kwa X3DH (`x3dh_basic`), ratchet ya ulinganifu (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), na mzunguko kamili wa kikao cha X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Kila utekelezaji lazima uzalishe matokeo yanayofanana baiti kwa baiti dhidi ya fixtures hizo. Lugha zote 8 sasa zinasafirisha kikao kamili cha Signal (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 Kilichojengwa na kinachofuata.
 
 **Kimefanyika (kimethibitishwa kati ya lugha, utekelezaji wote 8):**
-- Muundo wa waya: unaofanana baiti kwa baiti katika lugha 8, uliotiwa nanga na fixtures 17 za kawaida na uhakiki kati ya lugha katika CI (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — matriki ya kazi 9 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, pamoja na kazi ya uadilifu wa fixtures) katika `.github/workflows/ci.yml`.
+- Muundo wa waya: unaofanana baiti kwa baiti katika lugha 8, uliotiwa nanga na fixtures 17 za kawaida na uhakiki kati ya lugha (`fixtures/expected/*.bin`)
+- **GitHub Actions workflow (imefafanuliwa, si lango la sasa)** — matriki ya kazi 9 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, pamoja na kazi ya uadilifu wa fixtures) imefafanuliwa katika `.github/workflows/ci.yml`. Kwa sasa commits zinasukumwa na `[skip ci]`, hivyo utekelezaji halisi ni mkusanyiko wa fixtures unaoendeshwa **kwa ndani, kwa kila lugha** (Swift na C kwenye seva ya kujenga ya macOS); CI inaweza kuwashwa tena bila mabadiliko ya msimbo.
 - Kutia saini na kuthibitisha pakiti za Ed25519
 - Uficho wa AES-256-GCM
 - Primitives za kutokeza funguo za HKDF / HMAC
@@ -524,7 +550,7 @@ Kilichojengwa na kinachofuata.
 - Huduma ya DTN store-and-forward yenye uhamishaji wa uangalizi, urudufishaji unaozingatia geohash, TTL ya saa 72
 - Huduma ya tangazo la SOS yenye flood, kuondoa nakala, ulinzi wa asili-binafsi, kikomo cha kasi (3/saa)
 - Sehemu za upanuzi: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (default za Noop)
-- **majaribio ~3,000** katika lugha zote 8 (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — zote za kijani katika CI
+- **majaribio ~3,000** katika lugha zote 8 (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — zote za kijani, zinazoendeshwa kwa kila lugha (Swift na C kwenye seva ya kujenga ya macOS)
 - ✅ **Funguo halisi ya ephemeral ya X3DH (lugha 8)** — X25519 DHs 4 (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) na utokezaji wa mzizi wa HKDF-SHA256. Imefungwa na `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Ulinganifu wa Double Ratchet katika familia nzima** — Signal §5 kamili na HMAC-SHA256 + utenganishaji wa kikoa wa 0x01/0x02 katika ratchet ya ulinganifu, HKDF-SHA256 KDF_RK katika hatua ya DH-ratchet, kuzungusha DH wakati wa kupokea. Imethibitishwa na fixtures za `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic`.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 zimepatanishwa na HEAD** — ona `docs/PROTOCOL_SPEC.md`.
@@ -641,7 +667,7 @@ Ndiyo. AetherNet inatumia Signal Protocol (makubaliano ya funguo ya X3DH pamoja 
 Bluetooth LE, Wi-Fi Direct, NearLink (SLE), redio ya serial ya LoRa/CircleLink, HTTP/QUIC relay, na WebRTC kwa peer-to-peer ya moja kwa moja ya intaneti. Protokoli inachagua kiotomatiki usafirishaji wenye nishati ya chini kabisa unaopatikana kwa kila pakiti na inarudi kwa unaofuata.
 
 **Inapatikana katika lugha zipi za programu?**
-Nane — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, na C. Kila utekelezaji unazalisha pakiti za waya zinazofanana baiti kwa baiti, ukisimamiwa na mkusanyiko wa fixtures unaoshirikiwa kati ya lugha katika CI, hivyo pakiti iliyojengwa na lugha moja inasomeka bila kubadilika na lugha yoyote nyingine.
+Nane — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, na C. Kila utekelezaji unazalisha pakiti za waya zinazofanana baiti kwa baiti, ukisimamiwa na mkusanyiko wa fixtures unaoshirikiwa kati ya lugha ambao kila utekelezaji unakaguliwa dhidi yake, hivyo pakiti iliyojengwa na lugha moja inasomeka bila kubadilika na lugha yoyote nyingine.
 
 **Inatofautianaje na Meshtastic, Briar, au Bridgefy?**
 Meshtastic ni LoRa-tu; AetherNet ni ya usafirishaji-nyingi (Bluetooth + Wi-Fi + NearLink + LoRa) na inabeba sauti, video, na mitiririko pamoja na ujumbe. Briar ni Android-tu na inaelekeza juu ya Tor; AetherNet ni mtambuka wa majukwaa na mesh safi. Tofauti na SDK zilizofungwa, AetherNet ina leseni ya MIT na imetekelezwa kwa uwazi katika lugha nane. Jedwali la ulinganisho hapo juu lina maelezo.

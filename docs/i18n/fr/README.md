@@ -16,7 +16,15 @@ Partagez des fichiers, des messages et des flux avec des personnes à proximité
 
 [English](../../../README.md) · [Français](README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **Un protocole, huit langages, identiques sur le fil.** Aether est implémenté en **C#, Rust, TypeScript, Python, Go, Kotlin, Swift et C** — et chaque paquet est identique octet par octet entre tous, garanti par un corpus de fixtures cross-langages partagé dans la CI. Construisez votre nœud dans n'importe lequel des huit ; il interopère avec tous les autres. Ce README est également disponible en 11 langues humaines (liens ci-dessus).
+> **Un protocole, huit langages, identiques sur le fil.** Aether est implémenté en **C#, Rust, TypeScript, Python, Go, Kotlin, Swift et C** — et chaque paquet est identique octet par octet entre tous, garanti par un corpus de fixtures cross-langages partagé auquel chaque implémentation doit correspondre, octet par octet. Construisez votre nœud dans n'importe lequel des huit ; il interopère avec tous les autres. Ce README est également disponible en 20 langues humaines (liens ci-dessus).
+
+## En termes simples
+
+**AetherNet permet aux téléphones et aux ordinateurs portables de communiquer directement entre eux — sans internet, sans opérateur téléphonique et sans compte.** Si les personnes autour de vous ont l'application, vous pouvez leur envoyer des messages, des photos et des fichiers volumineux, passer des appels voix et vidéo, et partager un flux en direct, en utilisant uniquement les radios à courte portée déjà présentes dans chaque téléphone (Bluetooth et Wi-Fi). Si quelqu'un est trop loin pour être joint directement, votre message passe discrètement d'un téléphone au suivant jusqu'à ce qu'il arrive — et attend jusqu'à trois jours qu'un chemin se libère s'il le faut. Il peut même atteindre les grands réseaux publics de partage de fichiers du monde (la même technologie derrière les téléchargements légaux comme Linux et les mises à jour de jeux), récupérer un fichier, et l'acheminer vers un ami qui n'a aucun accès internet.
+
+Tout est chiffré de bout en bout, de sorte que seule la personne à qui vous parlez peut le lire — les téléphones qui le transmettent ne le peuvent pas. C'est **libre et ouvert**, pour que quiconque puisse l'utiliser ou l'inspecter, et c'est écrit huit fois, dans huit langages de programmation, pour pouvoir fonctionner sur presque n'importe quel appareil.
+
+**Quel est le degré d'avancement ?** Les « cerveaux » du réseau — les formats de message, le chiffrement, le routage et le partage de fichiers — sont construits et vérifiés par machine dans les huit langages. Ce qui nécessite encore des tests en conditions réelles, ce sont les radios elles-mêmes qui communiquent entre elles par les ondes entre deux téléphones physiques ; cette étape matérielle est ce qui reste, et nous la suivons ouvertement dans `OPEN_ISSUES.md`. Tout ce qui suit raconte la même histoire plus en détail.
 
 ## Qu'est-ce que vous pouvez faire avec ?
 
@@ -58,6 +66,10 @@ Mettez un manuel en vente. Les personnes passant à portée du maillage le voien
 **Regardez un film ensemble, à travers le maillage.**
 
 Votre groupe organise une soirée cinéma. Quelqu'un a le fichier. Aether synchronise la lecture sur chaque appareil — play, pause, avance — tous en parfaite synchronisation. Si seules certaines personnes ont le fichier, le maillage le distribue en temps réel sous forme de flux P2P. Tout le monde participe via SDPKT pour l'acheter si personne ne l'a.
+
+**Obtenez un gros fichier de la même manière que tout l'internet les partage déjà.**
+
+BitTorrent est la technologie derrière une énorme partie du partage de fichiers légal dans le monde — les versions de Linux, les mises à jour de jeux, l'Internet Archive. Aether le parle désormais *pour de vrai* : un nœud Aether peut rejoindre un essaim BitTorrent ordinaire et récupérer un fichier directement auprès de la foule, sans serveur central. Et voici l'astuce pour les personnes sans données — un nœud Aether qui, lui, *a* internet peut récupérer un torrent et **le repartager à travers le maillage hors-ligne**, de sorte qu'un ami complètement hors-ligne reçoit tout de même le fichier, de proche en proche, via Bluetooth et Wi-Fi. Le plus grand réseau de partage de fichiers au monde, atteignant les personnes que l'internet n'atteint pas.
 
 ## Comment ça fonctionne
 
@@ -131,6 +143,18 @@ Aether n'est pas seulement un transport. Chaque type de paquet réservé par le 
 Ceux-ci reposent sur les services déjà complets de **messagerie, voix 1-à-1 et de groupe, appels vidéo, streaming en direct, regarder ensemble, routage AODV, stockage-et-transmission différée DTN et diffusion SOS** — également implémentés dans les 8 langages.
 
 > **Ce que « construit » signifie ici, précisément.** Chaque service produit et gère son paquet fil, lève les bons événements, et est ancré à une fixture au niveau octet à laquelle toute la famille de langages doit correspondre. Votre application relie le service à sa session Signal, sa table de routage et son état local. C'est la couche protocole — prouvée en code, en tests et en fixtures octet cross-langages — sur la même base RF honnête que tout le reste : tout chemin qui finit par emprunter une radio reste non vérifié sur le terrain jusqu'à la mise en service matérielle suivie dans `OPEN_ISSUES.md`.
+
+## BitTorrent — réel, et relié au maillage
+
+Aether inclut désormais une **véritable implémentation BitTorrent interopérable** — le vrai protocole qu'utilisent les vrais clients torrent, pas un sosie. Ainsi, un nœud Aether peut rejoindre un essaim normal et échanger des morceaux d'un fichier avec des inconnus sur internet, sans serveur au milieu.
+
+Nous n'avons pas seulement affirmé que c'est réel — nous l'avons prouvé. Aether a été vérifié par rapport à **MonoTorrent**, une bibliothèque BitTorrent mature et indépendante construite par d'autres personnes : pour un même fichier, les deux produisent l'empreinte *identique*, de sorte que n'importe quel vrai client torrent traite Aether comme l'un des siens. Quiconque peut pointer un vrai client BitTorrent dessus et le constater par lui-même.
+
+En plus de cela, Aether ajoute un **pont** : un nœud disposant d'internet peut récupérer un torrent sur le web au sens large, ré-empaqueter ses morceaux sous forme de fragments de maillage chiffrés propres à Aether, et le partager plus loin — de sorte que quelqu'un **sans aucun accès internet** peut tout de même recevoir ce fichier à travers le maillage hors-ligne. C'est tout l'intérêt : brancher le plus grand réseau de partage de fichiers au monde sur les personnes qu'il ne peut normalement pas atteindre.
+
+**Où en est-on, honnêtement.** Les *formats* BitTorrent — comment un torrent est décrit, doté d'une empreinte et mis en trame sur le fil — sont construits et **identiques octet par octet dans les 8 langages**, ancrés à un corpus de fixtures partagé dans `fixtures/bittorrent/`. Le client complet fonctionnel et le pont vers le maillage sont achevés et vérifiés dans la **référence C#** ; les sept autres langages portent les mêmes formats de protocole, leur couche réseau active constituant l'étape suivante.
+
+> **Pour les développeurs.** Couverture : bencode + `.torrent`/magnet + info-hash SHA-1 et peer-wire BEP-3 (le plus rare d'abord), trackers HTTP + UDP (BEP-3/15/23), Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), µTP (BEP-29), et merkle SHA-256 BitTorrent v2 (BEP-52), plus une **passerelle** morceau↔fragment vers le service de contenu et un téléchargeur segmenté concurrent et reprenable. La référence C# (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`) livre le client TCP/µTP actif, le nœud DHT, les trackers, la passerelle et le téléchargeur, avec le test d'interopérabilité MonoTorrent dans `tests/AetherNet.BitTorrent.Interop.Tests`. Le corpus d'identité-octet à 8 langages (`fixtures/bittorrent/vectors.json`, 7 catégories) couvre bencode, info-hash, peer-wire, µTP, merkle, compact-info, et KRPC ; chaque SDK livre un test de fixture correspondant.
 
 ## Sécurité & confidentialité
 
@@ -235,29 +259,31 @@ Un nœud du niveau standard et un nœud du niveau natif peuvent communiquer libr
 
 Aether est construit en 8 langages pour fonctionner sur les téléphones, ordinateurs portables, tablettes et microcontrôleurs. Toutes les implémentations produisent des paquets compatibles fil — un message chiffré par le nœud Rust peut être relayé par le nœud Python et déchiffré par le nœud Swift.
 
-| Langage | Répertoire | Format fil | Routage/DTN/SOS | X3DH | Double Ratchet | Pool OPK | Voix/Groupe | Streaming/Vidéo/Regarder |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Langage | Répertoire | Format fil | Routage/DTN/SOS | X3DH | Double Ratchet | Pool OPK | Voix/Groupe | Streaming/Vidéo/Regarder | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-Les 8 langages produisent des paquets fil identiques octet par octet, vérifiés par 17 fixtures canoniques de format fil et 6 vecteurs de test Signal exécutés dans la CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Le routage (RREQ/RREP de style AODV), le stockage-et-transmission différée DTN, la diffusion SOS, la voix, le streaming, et les services de renforcement de la sécurité sont implémentés dans chaque langage avec **~3 000 tests** sur les 8 implémentations :
+**Colonne BitTorrent :** ✅ = client complet et fonctionnel + passerelle vers le maillage (la référence C#). ◐ = les **formats fil** BitTorrent sont ici identiques octet par octet (ancrés à `fixtures/bittorrent/`), leur couche réseau active constituant l'étape suivante — voir [BitTorrent — réel, et relié au maillage](#bittorrent--real-and-bridged-into-the-mesh). Toutes les autres colonnes sont réelles et fonctionnelles dans les 8 langages.
 
-| Langage | Tests | Plateforme CI |
+Les 8 langages produisent des paquets fil identiques octet par octet, vérifiés par rapport à 17 fixtures canoniques de format fil et 6 vecteurs de test Signal (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — chaque langage est vérifié par rapport aux mêmes octets. Le routage (RREQ/RREP de style AODV), le stockage-et-transmission différée DTN, la diffusion SOS, la voix, le streaming, et les services de renforcement de la sécurité sont implémentés dans chaque langage avec **~3 000 tests** sur les 8 implémentations :
+
+| Langage | Tests | Plateforme de test |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Total** | **~3 000** | |
 
 L'interopérabilité Signal cross-langages est ancrée à `fixtures/signal/` avec des vecteurs de test partagés pour X3DH (`x3dh_basic`), le ratchet symétrique (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), et l'aller-retour complet de session X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Chaque implémentation doit produire des sorties identiques octet par octet par rapport à ces fixtures. Les 8 langages embarquent désormais une session Signal complète (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 Ce qui est construit et ce qui vient ensuite.
 
 **Terminé (vérifié cross-langages, les 8 implémentations) :**
-- Format fil : identique octet par octet sur 8 langages, ancré par 17 fixtures canoniques et assertions cross-langages dans la CI (`fixtures/expected/*.bin`)
-- ✅ **CI GitHub Actions** — matrice à 9 tâches (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus tâche d'intégrité des fixtures) dans `.github/workflows/ci.yml`.
+- Format fil : identique octet par octet sur 8 langages, ancré par 17 fixtures canoniques et assertions cross-langages (`fixtures/expected/*.bin`)
+- **Workflow GitHub Actions (défini, mais pas la barrière actuelle)** — une matrice à 9 tâches (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, plus une tâche d'intégrité des fixtures) est définie dans `.github/workflows/ci.yml`. Les commits sont actuellement poussés avec `[skip ci]`, de sorte que la véritable garantie est le corpus de fixtures exécuté **localement, par langage** (Swift et C sur le serveur de build macOS) ; la CI peut être réactivée sans changement de code.
 - Signature et vérification de paquets Ed25519
 - Chiffrement AES-256-GCM
 - Primitives de dérivation de clés HKDF / HMAC
@@ -524,7 +550,7 @@ Ce qui est construit et ce qui vient ensuite.
 - Service de stockage-et-transmission différée DTN avec transfert de garde, réplication géohash, TTL 72h
 - Service de diffusion SOS avec inondation, déduplication, garde d'auto-origine, limite de débit (3/h)
 - Points d'extensibilité : `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (implémentations Noop par défaut)
-- **~3 000 tests** sur les 8 langages (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — tous verts dans la CI
+- **~3 000 tests** sur les 8 langages (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — tous verts, exécutés par langage (Swift et C sur le serveur de build macOS)
 - ✅ **Vraie clé éphémère X3DH (8 langages)** — 4 DH X25519 (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) avec dérivation de racine HKDF-SHA256. Ancré par `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Alignement Double Ratchet à l'échelle de la famille** — Signal §5 complet avec HMAC-SHA256 + séparation de domaine 0x01/0x02 dans le ratchet symétrique, HKDF-SHA256 KDF_RK dans l'étape DH-ratchet, rotation DH à la réception. Vérifié par les fixtures `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic`.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 réconcilié avec HEAD** — voir `docs/PROTOCOL_SPEC.md`.
@@ -641,7 +667,7 @@ Oui. AetherNet utilise le Signal Protocol (accord de clés X3DH plus le Double R
 Bluetooth LE, Wi-Fi Direct, NearLink (SLE), une radio série LoRa/CircleLink, un relais HTTP/QUIC, et WebRTC pour le pair-à-pair internet direct. Le protocole sélectionne automatiquement le transport disponible le moins énergivore par paquet et bascule sur le suivant.
 
 **Dans quels langages de programmation est-il disponible ?**
-Huit — C#, Rust, TypeScript, Python, Go, Kotlin, Swift et C. Chaque implémentation produit des paquets fil identiques octet par octet, garantis par un corpus de fixtures cross-langages partagé dans la CI, de sorte qu'un paquet construit par un langage est décodé sans modification par n'importe quel autre.
+Huit — C#, Rust, TypeScript, Python, Go, Kotlin, Swift et C. Chaque implémentation produit des paquets fil identiques octet par octet, garantis par un corpus de fixtures cross-langages partagé par rapport auquel chaque implémentation est vérifiée, de sorte qu'un paquet construit par un langage est décodé sans modification par n'importe quel autre.
 
 **En quoi diffère-t-il de Meshtastic, Briar ou Bridgefy ?**
 Meshtastic est uniquement LoRa ; AetherNet est multi-transport (Bluetooth + Wi-Fi + NearLink + LoRa) et transporte la voix, la vidéo et le streaming en plus des messages. Briar est uniquement Android et route via Tor ; AetherNet est multi-plateforme et maillage pur. Contrairement aux SDK fermés, AetherNet est sous licence MIT et implémenté ouvertement dans huit langages. Le tableau de comparaison ci-dessus donne les détails.
@@ -679,4 +705,4 @@ Licence MIT. Voir [LICENSE](LICENSE).
 
 ## Traductions
 
-Ce README est maintenu en anglais et traduit dans 10 langues supplémentaires sous [`docs/i18n/`](docs/i18n/) : Français, Español, العربية, 中文简体, 日本語, Deutsch, Português (BR), Русский, فارسی, et 한국어. La **version anglaise est la source de vérité** — lorsqu'une traduction et le texte anglais divergent, le texte anglais fait autorité, et les traductions peuvent accuser un retard d'une version ou deux. Le protocole, le code, les fixtures et le comportement décrits sont identiques quelle que soit la langue que vous lisez.
+Ce README est également maintenu dans les autres langues listées dans la barre de langues en haut de ce fichier, sous [`docs/i18n/`](docs/i18n/) — couvrant des langues européennes, est-asiatiques, moyen-orientales, sud-asiatiques, d'Asie du Sud-Est et africaines, parce qu'un réseau conçu pour les personnes sans données ne devrait pas avoir une porte d'entrée que seuls les bien connectés peuvent lire. La **version anglaise est la source de vérité** : lorsqu'une traduction et le texte anglais divergent, le texte anglais fait autorité, et les traductions peuvent accuser un retard d'une version ou deux. Le protocole, le code, les fixtures et le comportement décrits sont identiques quelle que soit la langue que vous lisez.

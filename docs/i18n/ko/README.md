@@ -16,7 +16,15 @@
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **하나의 프로토콜, 8개 언어, 와이어에서 동일합니다.** Aether는 **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C**로 구현되어 있으며 — 모든 패킷이 이들 전체에 걸쳐 바이트 단위로 동일하고, CI의 공유 언어 간 픽스처 코퍼스로 강제됩니다. 8개 중 어느 언어로든 노드를 구축하세요; 나머지 모두와 상호 운용됩니다. 이 README는 11개의 인간 언어로도 제공됩니다 (위 링크).
+> **하나의 프로토콜, 8개 언어, 와이어에서 동일합니다.** Aether는 **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C**로 구현되어 있으며 — 모든 패킷이 이들 전체에 걸쳐 바이트 단위로 동일하고, 모든 구현체가 바이트 단위로 일치해야 하는 공유 언어 간 픽스처 코퍼스로 강제됩니다. 8개 중 어느 언어로든 노드를 구축하세요; 나머지 모두와 상호 운용됩니다. 이 README는 20개의 인간 언어로도 제공됩니다 (위 링크).
+
+## 쉽게 말하면
+
+**AetherNet은 스마트폰과 노트북이 서로 직접 통신하게 해줍니다 — 인터넷도, 통신사도, 계정도 없이.** 주변 사람들이 앱을 갖고 있다면, 모든 스마트폰에 이미 들어 있는 근거리 라디오(블루투스와 Wi-Fi)만으로 그들에게 메시지를 보내고, 사진과 대용량 파일을 전송하고, 음성 및 영상 통화를 하고, 라이브 스트림을 공유할 수 있습니다. 누군가 너무 멀어서 직접 도달할 수 없다면, 여러분의 메시지는 도착할 때까지 한 스마트폰에서 다음 스마트폰으로 조용히 홉하며 — 필요하다면 최대 사흘 동안 경로를 기다립니다. 심지어 세계의 대규모 공개 파일 공유 네트워크(Linux나 게임 업데이트 같은 합법적 다운로드를 뒷받침하는 바로 그 기술)에 접속해 파일을 가져오고, 인터넷이 전혀 없는 친구에게 안쪽으로 전달할 수도 있습니다.
+
+모든 내용은 처음부터 끝까지 암호로 뒤섞여 있어, 여러분이 대화하는 상대만 읽을 수 있습니다 — 중간에서 전달하는 스마트폰들은 읽지 못합니다. 누구나 자유롭게 사용하고 살펴볼 수 있도록 **무료이며 공개**되어 있으며, 여덟 개 프로그래밍 언어로 여덟 번 작성되어 거의 모든 기기에서 실행됩니다.
+
+**얼마나 완성되었나요?** 네트워크의 "두뇌" — 메시지 형식, 암호화, 라우팅, 파일 공유 — 는 여덟 개 언어 모두에서 구축되어 기계적으로 검증되었습니다. 아직 실제 환경 테스트가 필요한 부분은 두 대의 실제 스마트폰 사이에서 라디오가 무선으로 서로 통신하는 것입니다; 그 하드웨어 단계가 남아 있으며, 우리는 이를 `OPEN_ISSUES.md`에서 공개적으로 추적합니다. 아래의 모든 내용은 같은 이야기를 더 자세히 풀어낸 것입니다.
 
 ## 무엇을 할 수 있나요?
 
@@ -58,6 +66,10 @@
 **메시를 통해 함께 영화를 보세요.**
 
 그룹 영화의 밤. 누군가 파일을 갖고 있습니다. Aether는 모든 기기에서 재생을 동기화합니다 — 재생, 일시정지, 탐색 — 모두 완벽하게 맞춰집니다. 파일을 갖고 있지 않은 사람이 있다면 메시가 P2P 스트림으로 실시간 배포합니다. 아무도 파일을 갖고 있지 않다면 모두 SDPKT로 함께 구매합니다.
+
+**온 인터넷이 이미 대용량 파일을 공유하는 방식 그대로 대용량 파일을 받으세요.**
+
+BitTorrent은 세계 합법적 파일 공유의 거대한 부분을 뒷받침하는 기술입니다 — Linux 릴리스, 게임 업데이트, Internet Archive. 이제 Aether는 이를 *실제로* 구사합니다: Aether 노드는 평범한 BitTorrent 스웜에 참여해 중앙 서버 없이 군중으로부터 곧바로 파일을 가져올 수 있습니다. 그리고 데이터가 없는 사람들을 위한 반전이 여기 있습니다 — 인터넷이 *있는* 하나의 Aether 노드가 토렌트를 가져와 **오프라인 메시 전반에 다시 공유**할 수 있어, 완전히 오프라인인 친구도 블루투스와 Wi-Fi를 통해 홉 단위로 그 파일을 여전히 받게 됩니다. 세계 최대의 파일 공유 네트워크가 인터넷이 닿지 못하는 사람들에게 도달합니다.
 
 ## 작동 원리
 
@@ -131,6 +143,18 @@ Aether는 단순한 전송 수단이 아닙니다. 프로토콜이 예약한 모
 이들은 이미 완성된 **메시징, 1:1 및 그룹 음성, 영상 통화, 라이브 스트리밍, 함께 보기, AODV 라우팅, DTN 저장-전달, SOS 플러드** 서비스 위에 놓입니다 — 이 또한 8개 언어 모두에 구현되어 있습니다.
 
 > **여기서 "구축됨"이 정확히 무엇을 의미하는지.** 각 서비스는 자신의 와이어 패킷을 생성하고 처리하며, 올바른 이벤트를 발생시키고, 전체 언어 제품군이 일치해야 하는 바이트 수준 픽스처에 고정됩니다. 여러분의 애플리케이션은 서비스를 자신의 Signal 세션, 라우팅 테이블, 로컬 상태에 연결합니다. 이것은 프로토콜 계층입니다 — 코드, 테스트, 언어 간 바이트 픽스처로 입증된 — 그리고 다른 모든 것과 동일하게 정직한 RF 기반 위에 있습니다: 궁극적으로 라디오를 타는 모든 경로는 `OPEN_ISSUES.md`에서 추적되는 하드웨어 가동이 이루어지기 전까지 현장 미검증 상태입니다.
+
+## BitTorrent — 실제이며, 메시에 연결됨
+
+이제 Aether는 **진짜이고 상호 운용 가능한 BitTorrent 구현체**를 포함합니다 — 실제 토렌트 클라이언트가 사용하는 바로 그 프로토콜이며, 겉모습만 흉내 낸 것이 아닙니다. 그래서 Aether 노드는 평범한 스웜에 참여해 중간에 서버 없이 인터넷상의 낯선 사람들과 파일 조각을 주고받을 수 있습니다.
+
+우리는 그것이 진짜라고 주장하기만 한 것이 아니라 — 증명했습니다. Aether는 다른 사람들이 만든 성숙하고 독립적인 BitTorrent 라이브러리인 **MonoTorrent**과 대조 검증되었습니다: 같은 파일이 주어지면 둘 다 *동일한* 지문을 생성하므로, 어떤 실제 토렌트 클라이언트든 Aether를 자기와 같은 부류로 취급합니다. 누구나 실제 BitTorrent 클라이언트를 여기에 연결해 직접 확인해 볼 수 있습니다.
+
+그에 더해 Aether는 **브리지**를 추가합니다: 인터넷이 있는 노드가 더 넓은 웹에서 토렌트를 가져와, 그 조각들을 Aether 자체의 암호화된 메시 청크로 다시 포장하여 이어서 공유할 수 있습니다 — 그래서 **인터넷이 전혀 없는** 사람도 오프라인 메시를 통해 그 파일을 여전히 받을 수 있습니다. 바로 그것이 핵심입니다: 세계 최대의 파일 공유 네트워크를 평소 닿을 수 없는 사람들에게 연결하는 것.
+
+**솔직한 현재 상태.** BitTorrent *형식* — 토렌트를 어떻게 기술하고, 지문을 만들고, 와이어에 프레이밍하는지 — 은 구축되어 **8개 언어 모두에서 바이트 단위로 동일**하며, `fixtures/bittorrent/`의 공유 픽스처 코퍼스에 고정되어 있습니다. 완전히 작동하는 클라이언트와 메시 브리지는 **C# 참조 구현체**에서 완성되고 검증되었습니다; 나머지 일곱 개 언어는 동일한 프로토콜 형식을 갖추고 있으며, 라이브 네트워크 계층이 다음 단계입니다.
+
+> **개발자를 위한 안내.** 지원 범위: bencode + `.torrent`/magnet + SHA-1 info-hash 및 BEP-3 peer-wire (rarest-first), HTTP + UDP 트래커 (BEP-3/15/23), Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), µTP (BEP-29), BitTorrent v2 SHA-256 merkle (BEP-52), 그리고 콘텐츠 서비스로 이어지는 piece↔chunk **게이트웨이**와 동시적이고 재개 가능한 세그먼트 다운로더. C# 참조 구현체 (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`)는 라이브 TCP/µTP 클라이언트, DHT 노드, 트래커, 게이트웨이, 다운로더를 제공하며, MonoTorrent 상호 운용성 테스트는 `tests/AetherNet.BitTorrent.Interop.Tests`에 있습니다. 8개 언어 바이트 동일성 코퍼스 (`fixtures/bittorrent/vectors.json`, 7개 카테고리)는 bencode, info-hash, peer-wire, µTP, merkle, compact-info, KRPC를 다루며; 각 SDK는 대응하는 픽스처 테스트를 제공합니다.
 
 ## 보안 및 프라이버시
 
@@ -235,29 +259,31 @@ advertising.startAdvertising()    →  scan.startScan()   →  client.on('proper
 
 Aether는 스마트폰, 노트북, 태블릿, 마이크로컨트롤러에서 실행될 수 있도록 8개 언어로 구축되어 있습니다. 모든 구현체는 와이어 호환 패킷을 생성합니다 — Rust 노드가 암호화한 메시지는 Python 노드가 중계하고 Swift 노드가 복호화할 수 있습니다.
 
-| 언어 | 디렉터리 | 와이어 형식 | 라우팅/DTN/SOS | X3DH | Double Ratchet | OPK 풀 | 음성/그룹 | 스트리밍/영상/함께 보기 |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| 언어 | 디렉터리 | 와이어 형식 | 라우팅/DTN/SOS | X3DH | Double Ratchet | OPK 풀 | 음성/그룹 | 스트리밍/영상/함께 보기 | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-8개 언어 모두 바이트 단위로 동일한 와이어 패킷을 생성하며, CI에서 17개의 정식 와이어 형식 픽스처와 6개의 Signal 테스트 벡터로 검증됩니다 (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). 라우팅 (AODV 방식 RREQ/RREP), DTN 저장-전달, SOS 방송, 음성, 스트리밍, 보안 강화 서비스가 모든 언어에서 구현되어 있으며, 8개 구현체 전체에 걸쳐 **약 3,000개의 테스트**가 있습니다:
+**BitTorrent 열:** ✅ = 완전히 작동하는 클라이언트 + 메시 게이트웨이 (C# 참조 구현체). ◐ = 여기서는 BitTorrent **와이어 형식**이 바이트 단위로 동일하며 (`fixtures/bittorrent/`에 고정됨), 라이브 네트워크 계층이 다음 단계입니다 — [BitTorrent — 실제이며, 메시에 연결됨](#bittorrent--real-and-bridged-into-the-mesh) 참조. 다른 모든 열은 8개 언어 모두에서 실제로 작동합니다.
 
-| 언어 | 테스트 수 | CI 플랫폼 |
+8개 언어 모두 바이트 단위로 동일한 와이어 패킷을 생성하며, 17개의 정식 와이어 형식 픽스처와 6개의 Signal 테스트 벡터로 검증됩니다 (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — 모든 언어가 동일한 바이트에 대해 검사됩니다. 라우팅 (AODV 방식 RREQ/RREP), DTN 저장-전달, SOS 방송, 음성, 스트리밍, 보안 강화 서비스가 모든 언어에서 구현되어 있으며, 8개 구현체 전체에 걸쳐 **약 3,000개의 테스트**가 있습니다:
+
+| 언어 | 테스트 수 | 테스트 플랫폼 |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **합계** | **~3,000** | |
 
 언어 간 Signal 상호 운용성은 `fixtures/signal/`에 X3DH (`x3dh_basic`), 대칭 래칫 (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), 그리고 완전한 X3DH 세션 왕복 (`x3dh_session_msg1`, `x3dh_session_reply`)에 대한 공유 테스트 벡터로 고정되어 있습니다. 모든 구현체는 해당 픽스처에 대해 바이트 단위로 동일한 출력을 생성해야 합니다. 8개 언어 모두 완전한 Signal 세션 (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`)을 지원합니다.
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 완성된 것과 다음 단계.
 
 **완료 (언어 간 검증, 8개 구현체 모두):**
-- 와이어 형식: 8개 언어에서 바이트 단위로 동일, CI의 17개 정식 픽스처 및 언어 간 어서션으로 고정 (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — 9개 작업 매트릭스 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, 픽스처 무결성 작업 포함) `.github/workflows/ci.yml`.
+- 와이어 형식: 8개 언어에서 바이트 단위로 동일, 17개 정식 픽스처 및 언어 간 어서션으로 고정 (`fixtures/expected/*.bin`)
+- **GitHub Actions 워크플로 (정의되어 있으나 현재 게이트는 아님)** — 9개 작업 매트릭스 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, 픽스처 무결성 작업 포함)가 `.github/workflows/ci.yml`에 정의되어 있습니다. 커밋은 현재 `[skip ci]`로 푸시되므로, 실제 강제는 **언어별로 로컬에서** 실행되는 픽스처 코퍼스입니다 (Swift와 C는 macOS 빌드 서버에서); CI는 코드 변경 없이 다시 켤 수 있습니다.
 - Ed25519 패킷 서명 및 검증
 - AES-256-GCM 암호화
 - HKDF / HMAC 키 유도 프리미티브
@@ -524,7 +550,7 @@ aethernet_packet_free(packet);
 - 보관 이전, 지오해시 인식 복제, 72시간 TTL을 포함한 DTN 저장-전달 서비스
 - 플러드, 중복 제거, 자기 발원 방지, 속도 제한 (시간당 3회)을 포함한 SOS 방송 서비스
 - 확장성 이음매: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (기본값 Noop)
-- **약 3,000개의 테스트** (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — CI에서 모두 통과
+- **약 3,000개의 테스트** (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — 모두 통과, 언어별로 실행 (Swift와 C는 macOS 빌드 서버에서)
 - ✅ **실제 X3DH 임시 키 (8개 언어)** — 4개의 X25519 DH (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) 및 HKDF-SHA256 루트 유도. `fixtures/signal/expected/x3dh_basic.json`으로 고정.
 - ✅ **전체 제품군 Double Ratchet 정렬** — 대칭 래칫의 HMAC-SHA256 + 0x01/0x02 도메인 분리, DH-래칫 단계의 HKDF-SHA256 KDF_RK, 수신 시 DH-회전을 포함한 완전한 Signal §5. `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` 픽스처로 검증.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 HEAD와 조화** — `docs/PROTOCOL_SPEC.md` 참조.
@@ -641,7 +667,7 @@ DI에 등록하면 `TransportManager`가 자동으로 전송 선택에 포함하
 블루투스 LE, Wi-Fi Direct, NearLink (SLE), LoRa/CircleLink 시리얼 라디오, HTTP/QUIC 중계, 그리고 직접 인터넷 피어 투 피어를 위한 WebRTC. 프로토콜은 패킷별로 사용 가능한 최소 전력 전송 수단을 자동으로 선택하고 다음 것으로 대체합니다.
 
 **어떤 프로그래밍 언어로 제공되나요?**
-8개 — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C. 모든 구현체는 바이트 단위로 동일한 와이어 패킷을 생성하며, CI의 공유 언어 간 픽스처 코퍼스로 강제되므로, 한 언어로 구축한 패킷은 다른 어느 언어로든 변경 없이 디코딩됩니다.
+8개 — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, C. 모든 구현체는 바이트 단위로 동일한 와이어 패킷을 생성하며, 모든 구현체가 검사받는 공유 언어 간 픽스처 코퍼스로 강제되므로, 한 언어로 구축한 패킷은 다른 어느 언어로든 변경 없이 디코딩됩니다.
 
 **Meshtastic, Briar, Bridgefy와 어떻게 다른가요?**
 Meshtastic은 LoRa 전용입니다; AetherNet은 다중 전송 (블루투스 + Wi-Fi + NearLink + LoRa)이며 메시지뿐만 아니라 음성, 영상, 스트리밍도 전달합니다. Briar는 Android 전용이며 Tor로 라우팅합니다; AetherNet은 크로스 플랫폼이며 순수 메시입니다. 폐쇄형 SDK와 달리 AetherNet은 MIT 라이선스이며 8개 언어로 공개적으로 구현되어 있습니다. 위의 비교 표에 세부 사항이 있습니다.
@@ -679,4 +705,4 @@ MIT 라이선스. [LICENSE](LICENSE) 참조.
 
 ## 번역
 
-이 README는 영어로 유지 관리되며 [`docs/i18n/`](docs/i18n/) 아래에 10개의 추가 언어로 번역됩니다: Français, Español, العربية, 中文简体, 日本語, Deutsch, Português (BR), Русский, فارسی, 한국어. **영어 버전이 진실의 원천입니다** — 번역과 영어 텍스트가 일치하지 않는 경우 영어 텍스트가 권위를 가지며, 번역은 한두 릴리스 정도 뒤처질 수 있습니다. 설명된 프로토콜, 코드, 픽스처, 동작은 어느 언어로 읽든 동일합니다.
+이 README는 이 파일 상단의 언어 바에 나열된 다른 언어들로도 [`docs/i18n/`](docs/i18n/) 아래에서 유지 관리됩니다 — 유럽, 동아시아, 중동, 남아시아, 동남아시아, 아프리카 언어를 아우르며, 데이터가 없는 사람들을 위해 만들어진 네트워크가 잘 연결된 사람만 읽을 수 있는 정문을 가져서는 안 되기 때문입니다. **영어 버전이 진실의 원천입니다**: 번역과 영어 텍스트가 일치하지 않는 경우 영어 텍스트가 권위를 가지며, 번역은 한두 릴리스 정도 뒤처질 수 있습니다. 설명된 프로토콜, 코드, 픽스처, 동작은 어느 언어로 읽든 동일합니다.

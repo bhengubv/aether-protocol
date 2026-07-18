@@ -16,7 +16,15 @@ Dateien, Nachrichten und Streams mit Personen in der Nähe teilen. Kein WLAN. Ke
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **Ein Protokoll, acht Sprachen, identisch auf der Leitung.** Aether ist in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift und C** implementiert — und jedes Paket ist über alle hinweg byte-für-byte identisch, erzwungen durch ein gemeinsames sprachübergreifendes Fixture-Korpus in CI. Bauen Sie Ihren Knoten in einer der acht Sprachen; er ist mit allen anderen interoperabel. Diese README ist außerdem in 11 menschlichen Sprachen verfügbar (Links oben).
+> **Ein Protokoll, acht Sprachen, identisch auf der Leitung.** Aether ist in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift und C** implementiert — und jedes Paket ist über alle hinweg byte-für-byte identisch, erzwungen durch ein gemeinsames sprachübergreifendes Fixture-Korpus, das jede Implementierung byte-für-byte erfüllen muss. Bauen Sie Ihren Knoten in einer der acht Sprachen; er ist mit allen anderen interoperabel. Diese README ist außerdem in 20 menschlichen Sprachen verfügbar (Links oben).
+
+## In klaren Worten
+
+**AetherNet lässt Telefone und Laptops direkt miteinander kommunizieren — ohne Internet, ohne Telefongesellschaft und ohne Konto.** Wenn die Menschen um Sie herum die App haben, können Sie ihnen Nachrichten schicken, Fotos und große Dateien senden, Sprach- und Videoanrufe führen und einen Live-Stream teilen — und zwar nur mit den Kurzstreckenfunkgeräten, die bereits in jedem Telefon stecken (Bluetooth und Wi-Fi). Wenn jemand zu weit entfernt ist, um ihn direkt zu erreichen, springt Ihre Nachricht leise von einem Telefon zum nächsten, bis sie ankommt — und wartet notfalls bis zu drei Tage auf einen Pfad. Es kann sogar in die großen öffentlichen Filesharing-Netzwerke der Welt hineinreichen (dieselbe Technik, die hinter legalen Downloads wie Linux und Spiele-Updates steckt), eine Datei abrufen und sie nach innen zu einem Freund tragen, der überhaupt kein Internet hat.
+
+Alles ist Ende-zu-Ende verschlüsselt, sodass nur die Person, mit der Sie sprechen, es lesen kann — die Telefone, die es weiterreichen, können es nicht. Es ist **kostenlos und quelloffen** für jeden zur Nutzung oder Einsicht, und es ist achtmal geschrieben, in acht Programmiersprachen, sodass es auf fast jedem Gerät laufen kann.
+
+**Wie fertig ist es?** Das „Gehirn“ des Netzwerks — die Nachrichtenformate, die Verschlüsselung, das Routing und das Filesharing — ist über alle acht Sprachen hinweg gebaut und maschinell geprüft. Was noch echte Praxistests braucht, sind die eigentlichen Funkgeräte, die zwischen zwei physischen Telefonen über die Luft miteinander sprechen; dieser Hardware-Schritt ist das, was noch bleibt, und wir verfolgen ihn offen in `OPEN_ISSUES.md`. Alles Folgende erzählt dieselbe Geschichte, nur ausführlicher.
 
 ## Was kann man damit tun?
 
@@ -58,6 +66,10 @@ Ein Lehrbuch zum Verkauf anbieten. Personen, die sich im Bereich des Mesh befind
 **Gemeinsam einen Film über das Mesh ansehen.**
 
 Ihre Gruppe veranstaltet einen Filmabend. Jemand hat die Datei. Aether synchronisiert die Wiedergabe auf jedem Gerät — Play, Pause, Suche — alles im Gleichschritt. Wenn nur einige Personen die Datei haben, verteilt das Mesh sie in Echtzeit als P2P-Stream. Jeder zahlt über SDPKT, um sie zu kaufen, wenn niemand sie hat.
+
+**Eine große Datei so bekommen, wie das ganze Internet sie ohnehin schon teilt.**
+
+BitTorrent ist die Technik hinter einem riesigen Teil des legalen Filesharings der Welt — Linux-Releases, Spiele-Updates, das Internet Archive. Aether spricht es jetzt *wirklich*: Ein Aether-Knoten kann einem gewöhnlichen BitTorrent-Schwarm beitreten und eine Datei direkt aus der Menge ziehen, ohne zentralen Server. Und hier kommt die Wendung für Menschen ohne Daten — ein Aether-Knoten, der *doch* Internet hat, kann einen Torrent abrufen und **ihn über das Offline-Mesh weiterteilen**, sodass ein Freund, der vollständig offline ist, die Datei trotzdem erhält, Hop für Hop, über Bluetooth und Wi-Fi. Das größte Filesharing-Netzwerk der Welt, das die Menschen erreicht, die das Internet nicht erreicht.
 
 ## Wie es funktioniert
 
@@ -131,6 +143,18 @@ Aether ist nicht nur ein Transport. Jeder vom Protokoll reservierte Pakettyp ist
 Diese sitzen oben auf den bereits vollständigen Diensten **Messaging, 1-zu-1- und Gruppensprache, Videoanrufe, Live-Streaming, Watch-Together, AODV-Routing, DTN-Store-and-Forward und SOS-Flood** — ebenfalls in allen 8 Sprachen implementiert.
 
 > **Was „gebaut“ hier genau bedeutet.** Jeder Dienst erzeugt und verarbeitet sein Leitungspaket, löst die richtigen Ereignisse aus und ist an ein Byte-Level-Fixture gebunden, das die gesamte Sprachfamilie erfüllen muss. Ihre Anwendung verdrahtet den Dienst mit seiner Signal-Sitzung, Routing-Tabelle und dem lokalen Zustand. Dies ist die Protokollschicht — bewiesen in Code, Tests und sprachübergreifenden Byte-Fixtures — auf demselben ehrlichen RF-Fundament wie alles andere: Jeder Pfad, der letztlich über ein Funkgerät läuft, ist feldunverifiziert, bis das in `OPEN_ISSUES.md` verfolgte Hardware-Bring-up abgeschlossen ist.
+
+## BitTorrent — echt und als Brücke ins Mesh
+
+Aether enthält jetzt eine **echte, interoperable BitTorrent-Implementierung** — das tatsächliche Protokoll, das echte Torrent-Clients verwenden, keine Nachahmung. So kann ein Aether-Knoten einem normalen Schwarm beitreten und Teile einer Datei mit Fremden im Internet tauschen, ohne Server in der Mitte.
+
+Wir haben nicht nur behauptet, dass es echt ist — wir haben es bewiesen. Aether wurde gegen **MonoTorrent** geprüft, eine ausgereifte, unabhängige BitTorrent-Bibliothek, die von anderen Menschen gebaut wurde: Bei derselben Datei erzeugen beide den *identischen* Fingerabdruck, sodass jeder echte Torrent-Client Aether als einen der Seinen behandelt. Jeder kann einen echten BitTorrent-Client darauf richten und sich selbst überzeugen.
+
+Darüber hinaus fügt Aether eine **Brücke** hinzu: Ein Knoten mit Internet kann einen Torrent aus dem weiteren Web ziehen, seine Teile als Aethers eigene verschlüsselte Mesh-Chunks neu verpacken und ihn weiterteilen — sodass jemand mit **gar keinem Internet** diese Datei trotzdem über das Offline-Mesh empfangen kann. Das ist der Sinn: das größte Filesharing-Netzwerk der Welt mit den Menschen verbinden, die es normalerweise nicht erreichen kann.
+
+**Wo es steht, ehrlich gesagt.** Die BitTorrent-*Formate* — wie ein Torrent beschrieben, per Fingerabdruck erfasst und für die Leitung gerahmt wird — sind gebaut und **byte-für-byte identisch in allen 8 Sprachen**, an ein gemeinsames Fixture-Korpus in `fixtures/bittorrent/` gebunden. Der vollständige funktionierende Client und die Mesh-Brücke sind in der **C#-Referenz** vollständig und verifiziert; die anderen sieben Sprachen tragen die identischen Protokollformate, mit ihrer Live-Netzwerkschicht als nächstem Schritt.
+
+> **Für Entwickler.** Abdeckung: bencode + `.torrent`/magnet + SHA-1-Info-Hash und BEP-3-Peer-Wire (rarest-first), HTTP- + UDP-Tracker (BEP-3/15/23), Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), µTP (BEP-29) und BitTorrent v2 SHA-256-Merkle (BEP-52), plus ein Piece↔Chunk-**Gateway** in den Content-Dienst und ein nebenläufiger, fortsetzbarer segmentierter Downloader. Die C#-Referenz (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`) liefert den Live-TCP/µTP-Client, DHT-Knoten, Tracker, Gateway und Downloader, mit dem MonoTorrent-Interop-Test in `tests/AetherNet.BitTorrent.Interop.Tests`. Das 8-Sprachen-Byte-Identitäts-Korpus (`fixtures/bittorrent/vectors.json`, 7 Kategorien) deckt bencode, info-hash, peer-wire, µTP, merkle, compact-info und KRPC ab; jedes SDK liefert einen passenden Fixture-Test.
 
 ## Sicherheit & Datenschutz
 
@@ -235,29 +259,31 @@ Ein Knoten auf der Standardstufe und ein Knoten auf der nativen Stufe können fr
 
 Aether ist in 8 Sprachen entwickelt, damit es auf Telefonen, Laptops, Tablets und Mikrocontrollern läuft. Alle Implementierungen erzeugen leitungskompatible Pakete — eine vom Rust-Knoten verschlüsselte Nachricht kann vom Python-Knoten weitergeleitet und vom Swift-Knoten entschlüsselt werden.
 
-| Sprache | Verzeichnis | Leitungsformat | Routing/DTN/SOS | X3DH | Double Ratchet | OPK-Pool | Sprache/Gruppe | Streaming/Video/Watch |
-|---------|-------------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Sprache | Verzeichnis | Leitungsformat | Routing/DTN/SOS | X3DH | Double Ratchet | OPK-Pool | Sprache/Gruppe | Streaming/Video/Watch | BitTorrent |
+|---------|-------------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-Alle 8 Sprachen erzeugen byteidentische Leitungspakete, verifiziert durch 17 kanonische Leitungsformat-Fixtures und 6 Signal-Testvektoren in CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Routing (AODV-artiges RREQ/RREP), DTN-Store-and-Forward, SOS-Broadcast, Sprache, Streaming und Sicherheits-Hardening-Dienste sind in jeder Sprache mit **~3.000 Tests** über alle 8 Implementierungen hinweg implementiert:
+**BitTorrent-Spalte:** ✅ = vollständiger, funktionierender Client + Mesh-Gateway (die C#-Referenz). ◐ = die BitTorrent-**Leitungsformate** sind hier byte-für-byte identisch (an `fixtures/bittorrent/` gebunden), mit der Live-Netzwerkschicht als nächstem Schritt — siehe [BitTorrent — echt und als Brücke ins Mesh](#bittorrent--real-and-bridged-into-the-mesh). Jede andere Spalte ist in allen 8 Sprachen echt und funktionierend.
 
-| Sprache | Tests | CI-Plattform |
+Alle 8 Sprachen erzeugen byteidentische Leitungspakete, verifiziert gegen 17 kanonische Leitungsformat-Fixtures und 6 Signal-Testvektoren (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — jede Sprache wird gegen dieselben Bytes geprüft. Routing (AODV-artiges RREQ/RREP), DTN-Store-and-Forward, SOS-Broadcast, Sprache, Streaming und Sicherheits-Hardening-Dienste sind in jeder Sprache mit **~3.000 Tests** über alle 8 Implementierungen hinweg implementiert:
+
+| Sprache | Tests | Test-Plattform |
 |---------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Gesamt** | **~3.000** | |
 
 Die sprachübergreifende Signal-Interoperabilität ist in `fixtures/signal/` mit gemeinsamen Testvektoren für X3DH (`x3dh_basic`), den symmetrischen Ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`) und den vollständigen X3DH-Sitzungs-Roundtrip (`x3dh_session_msg1`, `x3dh_session_reply`) verankert. Jede Implementierung muss byteidentische Ausgaben gegenüber diesen Fixtures erzeugen. Alle 8 Sprachen liefern nun eine vollständige Signal-Sitzung (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 Was bereits implementiert ist und was als Nächstes kommt.
 
 **Erledigt (sprachübergreifend verifiziert, alle 8 Implementierungen):**
-- Leitungsformat: byteidentisch über 8 Sprachen, verankert durch 17 kanonische Fixtures und sprachübergreifende Assertions in CI (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — 9-Job-Matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus Fixture-Integritätsjob) in `.github/workflows/ci.yml`.
+- Leitungsformat: byteidentisch über 8 Sprachen, verankert durch 17 kanonische Fixtures und sprachübergreifende Assertions (`fixtures/expected/*.bin`)
+- **GitHub-Actions-Workflow (definiert, nicht das aktuelle Gate)** — eine 9-Job-Matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, plus ein Fixture-Integritätsjob) ist in `.github/workflows/ci.yml` definiert. Commits werden derzeit mit `[skip ci]` gepusht, sodass die eigentliche Durchsetzung das **lokal, pro Sprache** ausgeführte Fixture-Korpus ist (Swift und C auf dem macOS-Build-Server); CI kann ohne Code-Änderungen wieder eingeschaltet werden.
 - Ed25519-Paketsignierung und -verifizierung
 - AES-256-GCM-Verschlüsselung
 - HKDF / HMAC-Schlüsselableitungsprimitive
@@ -524,7 +550,7 @@ Was bereits implementiert ist und was als Nächstes kommt.
 - DTN-Store-and-Forward-Dienst mit Custody-Transfer, Geohash-bewusster Replikation, 72h-TTL
 - SOS-Broadcast-Dienst mit Flood, Dedup, Self-Origin-Guard, Rate-Limit (3/Std.)
 - Erweiterungspunkte: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop-Standardwerte)
-- **~3.000 Tests** über alle 8 Sprachen (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — alle grün in CI
+- **~3.000 Tests** über alle 8 Sprachen (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — alle grün, pro Sprache ausgeführt (Swift und C auf dem macOS-Build-Server)
 - ✅ **Echtes X3DH-Ephemeral-Key (8 Sprachen)** — 4 X25519-DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) mit HKDF-SHA256-Root-Ableitung. Verankert durch `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Double-Ratchet-Ausrichtung familienweit** — vollständiges Signal §5 mit HMAC-SHA256 + 0x01/0x02-Domain-Trennung im symmetrischen Ratchet, HKDF-SHA256 KDF_RK im DH-Ratchet-Schritt, DH-Rotation beim Empfang. Verifiziert durch `ratchet_step_basic`-, `ratchet_step_three_iterations`-, `kdf_rk_basic`-Fixtures.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 mit HEAD abgeglichen** — siehe `docs/PROTOCOL_SPEC.md`.
@@ -641,7 +667,7 @@ Ja. AetherNet verwendet das Signal-Protokoll (X3DH-Schlüsselvereinbarung plus d
 Bluetooth LE, Wi-Fi Direct, NearLink (SLE), ein LoRa/CircleLink-Seriell-Funkgerät, ein HTTP/QUIC-Relay und WebRTC für direktes Internet-Peer-to-Peer. Das Protokoll wählt automatisch den verfügbaren Transport mit dem geringsten Stromverbrauch je Paket und fällt auf den nächsten zurück.
 
 **In welchen Programmiersprachen ist es verfügbar?**
-Acht — C#, Rust, TypeScript, Python, Go, Kotlin, Swift und C. Jede Implementierung erzeugt byteidentische Leitungspakete, erzwungen durch ein gemeinsames sprachübergreifendes Fixture-Korpus in CI, sodass ein von einer Sprache gebautes Paket von jeder anderen unverändert dekodiert wird.
+Acht — C#, Rust, TypeScript, Python, Go, Kotlin, Swift und C. Jede Implementierung erzeugt byteidentische Leitungspakete, erzwungen durch ein gemeinsames sprachübergreifendes Fixture-Korpus, gegen das jede Implementierung geprüft wird, sodass ein von einer Sprache gebautes Paket von jeder anderen unverändert dekodiert wird.
 
 **Wie unterscheidet es sich von Meshtastic, Briar oder Bridgefy?**
 Meshtastic ist nur LoRa; AetherNet ist Multi-Transport (Bluetooth + Wi-Fi + NearLink + LoRa) und transportiert neben Nachrichten auch Sprache, Video und Streaming. Briar ist nur für Android und routet über Tor; AetherNet ist plattformübergreifend und reines Mesh. Anders als geschlossene SDKs ist AetherNet MIT-lizenziert und offen in acht Sprachen implementiert. Die Vergleichstabelle oben enthält die Details.
@@ -679,4 +705,4 @@ MIT-Lizenz. Siehe [LICENSE](LICENSE).
 
 ## Übersetzungen
 
-Diese README wird auf Englisch gepflegt und in 10 weitere Sprachen unter [`docs/i18n/`](docs/i18n/) übersetzt: Français, Español, العربية, 中文简体, 日本語, Deutsch, Português (BR), Русский, فارسی und 한국어. Die **englische Version ist die maßgebliche Quelle** — wo eine Übersetzung und der englische Text nicht übereinstimmen, ist der englische Text maßgeblich, und Übersetzungen können ihm um ein oder zwei Releases hinterherhinken. Das Protokoll, der Code, die Fixtures und das beschriebene Verhalten sind identisch, egal in welcher Sprache Sie lesen.
+Diese README wird außerdem in den anderen Sprachen gepflegt, die in der Sprachleiste oben in dieser Datei aufgeführt sind, unter [`docs/i18n/`](docs/i18n/) — sie umfassen europäische, ostasiatische, nahöstliche, südasiatische, südostasiatische und afrikanische Sprachen, denn ein Netzwerk, das für Menschen ohne Daten gebaut ist, sollte keine Eingangstür haben, die nur die gut Vernetzten lesen können. Die **englische Version ist die maßgebliche Quelle**: Wo eine Übersetzung und der englische Text nicht übereinstimmen, ist der englische Text maßgeblich, und Übersetzungen können ihm um ein oder zwei Releases hinterherhinken. Das Protokoll, der Code, die Fixtures und das beschriebene Verhalten sind identisch, egal in welcher Sprache Sie lesen.

@@ -16,7 +16,15 @@ Deel lêers, boodskappe en strome met mense naby jou. Geen WiFi nie. Geen mobiel
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **Een protokol, agt tale, identies op die draad.** Aether is geïmplementeer in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift en C** — en elke pakkie is greep-vir-greep identies oor almal daarvan, afgedwing deur 'n gedeelde kruistaal-fixture-korpus in CI. Bou jou node in enige van die agt; dit werk saam met al die ander. Hierdie README is ook beskikbaar in 11 menslike tale (skakels hierbo).
+> **Een protokol, agt tale, identies op die draad.** Aether is geïmplementeer in **C#, Rust, TypeScript, Python, Go, Kotlin, Swift en C** — en elke pakkie is greep-vir-greep identies oor almal daarvan, afgedwing deur 'n gedeelde kruistaal-fixture-korpus wat elke implementasie greep-vir-greep moet ewenaar. Bou jou node in enige van die agt; dit werk saam met al die ander. Hierdie README is ook beskikbaar in 20 menslike tale (skakels hierbo).
+
+## In eenvoudige woorde
+
+**AetherNet laat fone en skootrekenaars direk met mekaar praat — met geen internet, geen telefoonmaatskappy, en geen rekening nie.** As die mense rondom jou die app het, kan jy vir hulle boodskappe stuur, foto's en groot lêers stuur, stem- en video-oproepe maak, en 'n lewendige stroom deel, deur slegs die kortafstand-radio's te gebruik wat reeds binne elke foon is (Bluetooth en Wi-Fi). As iemand te ver is om direk te bereik, hop jou boodskap stilweg van een foon na die volgende totdat dit aankom — en wag tot drie dae vir 'n pad as dit moet. Dit kan selfs inreik in die wêreld se groot publieke lêerdeling-netwerke (dieselfde tegnologie agter wettige aflaaie soos Linux en speletjie-opdaterings), 'n lêer trek, en dit inwaarts dra na 'n vriend wat glad geen internet het nie.
+
+Alles word end-tot-end deurmekaar gemaak, so net die persoon met wie jy praat kan dit lees — die fone wat dit aangee, kan nie. Dit is **gratis en oop** vir enigiemand om te gebruik of te inspekteer, en dit is agt keer oor geskryf, in agt programmeertale, sodat dit op byna enige toestel kan loop.
+
+**Hoe klaar is dit?** Die "brein" van die netwerk — die boodskapformate, die enkripsie, die roetering, en die lêerdeling — is gebou en masjien-nagegaan oor al agt tale. Wat nog werklike-wêreld-toetsing benodig, is die werklike radio's wat oor die lug met mekaar praat tussen twee fisiese fone; daardie hardeware-stap is wat oorbly, en ons spoor dit openlik na in `OPEN_ISSUES.md`. Alles hieronder is dieselfde storie in meer besonderhede.
 
 ## Wat kan jy daarmee doen?
 
@@ -58,6 +66,10 @@ Lys 'n handboek te koop. Mense wat binne bereik van die mesh stap, sien dit. Gee
 **Kyk saam 'n fliek, oor die mesh.**
 
 Jou groep het 'n flieksaand. Iemand het die lêer. Aether sinkroniseer terugspeel oor elke toestel — speel, pouseer, soek — alles in pas. As net sommige mense die lêer het, versprei die mesh dit intyds as 'n P2P-stroom. Almal dra by via SDPKT om dit te koop as niemand dit het nie.
+
+**Kry 'n groot lêer op die manier waarop die hele internet hulle reeds deel.**
+
+BitTorrent is die tegnologie agter 'n reusagtige deel van die wêreld se wettige lêerdeling — Linux-vrystellings, speletjie-opdaterings, die Internet Archive. Aether praat dit nou *regtig*: 'n Aether-node kan by 'n gewone BitTorrent-swerm aansluit en 'n lêer reguit uit die skare trek, met geen sentrale bediener nie. En hier is die kinkel vir mense sonder data — een Aether-node wat *wel* internet het, kan 'n torrent gaan haal en **dit oor die vanlyn-mesh herdeel**, sodat 'n vriend wat heeltemal vanlyn is steeds die lêer ontvang, hop vir hop, oor Bluetooth en Wi-Fi. Die wêreld se grootste lêerdeling-netwerk, wat die mense bereik wat die internet nie bereik nie.
 
 ## Hoe dit werk
 
@@ -131,6 +143,18 @@ Aether is nie net 'n transport nie. Elke pakkietipe wat deur die protokol gerese
 Hierdie sit bo-op die reeds-voltooide **boodskappe, 1-tot-1- en groepstem, video-oproepe, lewendige stroom, saam-kyk, AODV-roetering, DTN-stoor-en-stuur, en SOS-vloed** dienste — ook geïmplementeer in al 8 tale.
 
 > **Wat "gebou" hier presies beteken.** Elke diens produseer en hanteer sy draadpakkie, wek die regte gebeurtenisse op, en is vasgepen aan 'n greepvlak-fixture wat die hele taalfamilie moet ewenaar. Jou toepassing bedraad die diens aan sy Signal-sessie, roeteringstabel en plaaslike toestand. Dit is die protokollaag — bewys in kode, toetse en kruistaal-greep-fixtures — op dieselfde eerlike RF-grondslag as alles anders: enige pad wat uiteindelik op 'n radio ry, is veldonbevestig totdat die hardeware-inbedryfstelling wat in `OPEN_ISSUES.md` nagespoor word, plaasvind.
+
+## BitTorrent — werklik, en oorbrug na die mesh
+
+Aether sluit nou 'n **egte, interoperabele BitTorrent-implementasie** in — die werklike protokol wat regte torrent-kliënte gebruik, nie 'n namaaksel nie. So kan 'n Aether-node by 'n normale swerm aansluit en stukke van 'n lêer met vreemdelinge op die internet ruil, geen bediener in die middel nie.
+
+Ons het nie net beweer dit is werklik nie — ons het dit bewys. Aether is teen **MonoTorrent** getoets, 'n volwasse, onafhanklike BitTorrent-biblioteek wat deur ander mense gebou is: gegewe dieselfde lêer, produseer albei die *identiese* vingerafdruk, so enige regte torrent-kliënt behandel Aether as een van sy eie. Enigiemand kan 'n regte BitTorrent-kliënt daarna wys en self sien.
+
+Boonop voeg Aether 'n **brug** by: 'n node met internet kan 'n torrent van die wyer web trek, sy stukke herverpak as Aether se eie geënkripteerde mesh-brokke, en dit aanstuur — sodat iemand met **glad geen internet nie** steeds daardie lêer oor die vanlyn-mesh kan ontvang. Dit is die punt: koppel die wêreld se grootste lêerdeling-netwerk aan die mense wat dit normaalweg nie kan bereik nie.
+
+**Waar dit staan, eerlik.** Die BitTorrent-*formate* — hoe 'n torrent beskryf, met 'n vingerafdruk gemerk, en op die draad omraam word — is gebou en **greep-vir-greep identies in al 8 tale**, vasgepen aan 'n gedeelde fixture-korpus in `fixtures/bittorrent/`. Die volledige werkende kliënt en die mesh-brug is voltooi en geverifieer in die **C#-verwysing**; die ander sewe tale dra die identiese protokolformate, met hul lewende netwerklaag as die volgende stap.
+
+> **Vir ontwikkelaars.** Dekking: bencode + `.torrent`/magnet + SHA-1 info-hash en BEP-3 peer-wire (skaarste-eerste), HTTP + UDP-spoorders (BEP-3/15/23), Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), µTP (BEP-29), en BitTorrent v2 SHA-256 merkle (BEP-52), plus 'n stuk↔brok-**hek** na die inhoud-diens en 'n gelyktydige, hervatbare gesegmenteerde aflaaier. Die C#-verwysing (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`) stuur die lewende TCP/µTP-kliënt, DHT-node, spoorders, hek, en aflaaier, met die MonoTorrent-interop-toets in `tests/AetherNet.BitTorrent.Interop.Tests`. Die 8-taal-greep-identiteit-korpus (`fixtures/bittorrent/vectors.json`, 7 kategorieë) dek bencode, info-hash, peer-wire, µTP, merkle, compact-info, en KRPC; elke SDK stuur 'n passende fixture-toets.
 
 ## Sekuriteit & privaatheid
 
@@ -235,29 +259,31 @@ Geen kodeveranderinge word vereis nie. Die vlak word tydens looptyd bepaal deur 
 
 Aether is gebou in 8 tale sodat dit op fone, skootrekenaars, tablette en mikrobeheerders loop. Alle implementasies produseer draad-versoenbare pakkies — 'n boodskap wat deur die Rust-node geënkripteer is, kan deur die Python-node aangestuur word en deur die Swift-node gedekripteer word.
 
-| Taal | Gids | Draadformaat | Roetering/DTN/SOS | X3DH | Double Ratchet | OPK-poel | Stem/Groep | Stroom/Video/Kyk |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Taal | Gids | Draadformaat | Roetering/DTN/SOS | X3DH | Double Ratchet | OPK-poel | Stem/Groep | Stroom/Video/Kyk | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-Al 8 tale produseer greep-identiese draadpakkies, geverifieer deur 17 kanonieke draadformaat-fixtures en 6 Signal-toetsvektore wat in CI loop (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Roetering (AODV-styl RREQ/RREP), DTN-stoor-en-stuur, SOS-uitsaai, stem, stroom, en sekuriteitsverhardingsdienste is in elke taal geïmplementeer met **~3,000 toetse** oor al 8 implementasies:
+**BitTorrent-kolom:** ✅ = volledige, werkende kliënt + mesh-hek (die C#-verwysing). ◐ = die BitTorrent-**draadformate** is hier greep-vir-greep identies (vasgepen aan `fixtures/bittorrent/`), met die lewende netwerklaag as die volgende stap — sien [BitTorrent — werklik, en oorbrug na die mesh](#bittorrent--real-and-bridged-into-the-mesh). Elke ander kolom is werklik en werkend in al 8 tale.
 
-| Taal | Toetse | CI-platform |
+Al 8 tale produseer greep-identiese draadpakkies, geverifieer teen 17 kanonieke draadformaat-fixtures en 6 Signal-toetsvektore (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — elke taal word teen dieselfde grepe nagegaan. Roetering (AODV-styl RREQ/RREP), DTN-stoor-en-stuur, SOS-uitsaai, stem, stroom, en sekuriteitsverhardingsdienste is in elke taal geïmplementeer met **~3,000 toetse** oor al 8 implementasies:
+
+| Taal | Toetse | Toetsplatform |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Totaal** | **~3,000** | |
 
 Kruistaal-Signal-interop is veranker aan `fixtures/signal/` met gedeelde toetsvektore vir X3DH (`x3dh_basic`), die simmetriese ratel (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), en die volledige X3DH-sessie-heen-en-weer (`x3dh_session_msg1`, `x3dh_session_reply`). Elke implementasie moet greep-identiese uitsette teen daardie fixtures produseer. Al 8 tale stuur nou 'n volledige Signal-sessie (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 Wat gebou is en wat volgende is.
 
 **Klaar (kruistaal-geverifieer, al 8 implementasies):**
-- Draadformaat: greep-identies oor 8 tale, veranker deur 17 kanonieke fixtures en kruistaal-bewerings in CI (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — 9-taak-matriks (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus fixture-integriteitstaak) in `.github/workflows/ci.yml`.
+- Draadformaat: greep-identies oor 8 tale, veranker deur 17 kanonieke fixtures en kruistaal-bewerings (`fixtures/expected/*.bin`)
+- **GitHub Actions-werkvloei (gedefinieer, nie die huidige hek nie)** — 'n 9-taak-matriks (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, plus 'n fixture-integriteitstaak) is gedefinieer in `.github/workflows/ci.yml`. Commits word tans met `[skip ci]` gestoot, so die werklike afdwinging is die fixture-korpus wat **plaaslik, per taal** geloop word (Swift en C op die macOS-bouserver); CI kan weer aangeskakel word sonder kodeveranderinge.
 - Ed25519-pakkie-ondertekening en -verifikasie
 - AES-256-GCM-enkripsie
 - HKDF / HMAC-sleutelafleiding-primitiewe
@@ -524,7 +550,7 @@ Wat gebou is en wat volgende is.
 - DTN-stoor-en-stuur-diens met bewaringsoordrag, geohash-bewuste replikasie, 72u TTL
 - SOS-uitsaai-diens met vloed, ontdubbeling, self-oorsprong-wag, tempo-limiet (3/uur)
 - Uitbreidbaarheidsnate: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (Noop-verstek)
-- **~3,000 toetse** oor al 8 tale (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — almal groen in CI
+- **~3,000 toetse** oor al 8 tale (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — almal groen, per taal geloop (Swift en C op die macOS-bouserver)
 - ✅ **Werklike X3DH-efemere sleutel (8 tale)** — 4 X25519 DH's (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) met HKDF-SHA256-wortelafleiding. Vasgepen deur `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Double Ratchet-belyning familie-wyd** — volledige Signal §5 met HMAC-SHA256 + 0x01/0x02-domeinskeiding in die simmetriese ratel, HKDF-SHA256 KDF_RK in die DH-ratel-stap, DH-rotasie by ontvangs. Geverifieer deur `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic`-fixtures.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 versoen met HEAD** — sien `docs/PROTOCOL_SPEC.md`.
@@ -641,7 +667,7 @@ Ja. AetherNet gebruik die Signal Protocol (X3DH-sleutelooreenkoms plus die Doubl
 Bluetooth LE, Wi-Fi Direct, NearLink (SLE), 'n LoRa/CircleLink-reeksradio, 'n HTTP/QUIC-aanstuur, en WebRTC vir direkte internet-eweknie-tot-eweknie. Die protokol kies outomaties die laagste-krag beskikbare transport per pakkie en val terug na die volgende.
 
 **In watter programmeertale is dit beskikbaar?**
-Agt — C#, Rust, TypeScript, Python, Go, Kotlin, Swift en C. Elke implementasie produseer greep-identiese draadpakkies, afgedwing deur 'n gedeelde kruistaal-fixture-korpus in CI, sodat 'n pakkie wat deur een taal gebou is, ongewysig deur enige ander gedekodeer word.
+Agt — C#, Rust, TypeScript, Python, Go, Kotlin, Swift en C. Elke implementasie produseer greep-identiese draadpakkies, afgedwing deur 'n gedeelde kruistaal-fixture-korpus waarteen elke implementasie nagegaan word, sodat 'n pakkie wat deur een taal gebou is, ongewysig deur enige ander gedekodeer word.
 
 **Hoe verskil dit van Meshtastic, Briar of Bridgefy?**
 Meshtastic is slegs-LoRa; AetherNet is multi-transport (Bluetooth + Wi-Fi + NearLink + LoRa) en dra stem, video en stroom sowel as boodskappe. Briar is slegs-Android en roeteer oor Tor; AetherNet is kruisplatform en suiwer mesh. Anders as geslote SDK's, is AetherNet MIT-gelisensieer en openlik in agt tale geïmplementeer. Die vergelykingstabel hierbo het die besonderhede.

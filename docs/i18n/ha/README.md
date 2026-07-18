@@ -16,7 +16,15 @@ Ka raba fayiloli, saƙonni, da kuma yaɗuwar bidiyo (streams) da mutanen da ke k
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **Yarjejeniya ɗaya, harsuna takwas, iri ɗaya a kan waya (wire).** An gina Aether da **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, da C** — kuma kowace fakiti (packet) iri ɗaya ce baiti-da-baiti a duk cikinsu, wanda aka tabbatar da shi ta hanyar rukunin gwaji (fixture corpus) da ake rabawa tsakanin harsuna a CI. Ka gina node ɗinka a kowanne cikin takwas ɗin; zai iya aiki tare da sauran duka. Wannan README kuma ana samun sa a cikin harsunan mutane 11 (hanyoyin haɗi a sama).
+> **Yarjejeniya ɗaya, harsuna takwas, iri ɗaya a kan waya (wire).** An gina Aether da **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, da C** — kuma kowace fakiti (packet) iri ɗaya ce baiti-da-baiti a duk cikinsu, wanda aka tabbatar da shi ta hanyar rukunin gwaji (fixture corpus) da ake rabawa tsakanin harsuna wanda kowace aiwatarwa dole ta daidaita da shi, baiti-da-baiti. Ka gina node ɗinka a kowanne cikin takwas ɗin; zai iya aiki tare da sauran duka. Wannan README kuma ana samun sa a cikin harsunan mutane 20 (hanyoyin haɗi a sama).
+
+## A cikin sauƙaƙan kalmomi
+
+**AetherNet yana ba wa wayoyi da kwamfyutoci masu ɗauke damar yin magana da juna kai tsaye — babu intanet, babu kamfanin waya, kuma babu asusu.** Idan mutanen da ke kewayenka suna da manhajar, za ka iya aika musu saƙonni, aika hotuna da manyan fayiloli, yin kiran murya da bidiyo, da raba yaɗuwa kai tsaye, ta amfani da rediyon gajeren-zango kawai da suka riga suke a cikin kowace waya (Bluetooth da Wi-Fi). Idan wani ya yi nisa da ba za a iya kai wa gare shi kai tsaye ba, saƙonka yana tsallakewa a hankali daga waya ɗaya zuwa ta gaba har sai ya isa — kuma yana jira har kwana uku don samun hanya idan ya zama dole. Har ma yana iya shiga cikin manyan cibiyoyin sadarwa na jama'a na raba fayiloli na duniya (fasaha iri ɗaya da ke bayan zazzagewar da suka halatta kamar Linux da sabuntawar wasanni), ya ɗauko fayil, ya kai shi ciki ga aboki wanda ba shi da intanet ko kaɗan.
+
+An ɓoye komai ƙarshe-zuwa-ƙarshe, don haka mutumin da kake magana da shi kaɗai ne zai iya karanta shi — wayoyin da ke tura shi ba za su iya ba. Yana da **kyauta kuma a buɗe** ga kowa ya yi amfani da shi ko ya bincika shi, kuma an rubuta shi sau takwas, a cikin harsunan shirye-shirye takwas, don ya iya gudana a kan kusan kowace na'ura.
+
+**Yaya ya kammala?** "Ƙwaƙwalwar" cibiyar sadarwa — tsarin saƙonni, ɓoyewa, zaɓen hanya, da raba fayiloli — an gina su kuma an duba su ta na'ura a fadin dukkan harsuna takwas. Abin da har yanzu ke buƙatar gwaji na duniyar-gaske shi ne ainihin rediyon da ke magana da juna a cikin iska tsakanin wayoyi biyu na zahiri; wannan matakin kayan aiki shi ne abin da ya rage, kuma muna bibiyar sa a fili a cikin `OPEN_ISSUES.md`. Duk abin da ke ƙasa labari ɗaya ne cikin ƙarin bayani.
 
 ## Me za ka iya yi da shi?
 
@@ -58,6 +66,10 @@ Ka lissafa littafin karatu don sayarwa. Mutanen da ke tafiya cikin zangon mesh s
 **Kalli fim tare, a fadin mesh.**
 
 Ƙungiyarka na da daren kallon fim. Wani na da fayil ɗin. Aether yana daidaita kunnawa a kan kowace na'ura — kunnawa (play), tsayarwa (pause), tsallakewa (seek) — duka a tare cikin daidaituwa. Idan wasu mutane kaɗai ke da fayil ɗin, mesh yana rarraba shi a nan take a matsayin yaɗuwar P2P. Kowa yana ba da gudummawa ta SDPKT don siyan sa idan babu wanda yake da shi.
+
+**Sami babban fayil ta hanyar da duk intanet ke rabawa tuni.**
+
+BitTorrent ita ce fasahar da ke bayan babban kaso na raba fayiloli na halal a duniya — sakin Linux, sabuntawar wasanni, Internet Archive. Aether yanzu tana magana da ita *da gaske*: node ɗin Aether na iya shiga garke na BitTorrent na yau da kullum ya ɗauko fayil kai tsaye daga taron jama'a, ba tare da sabar tsakiya ba. Kuma ga abin mamaki ga mutanen da ba su da data — node ɗin Aether guda ɗaya wanda *yake* da intanet na iya ɗauko torrent ya **sake raba shi a fadin mesh mara layi**, don haka aboki wanda ba shi da layi ko kaɗan har yanzu yana karɓar fayil ɗin, tsalle-tsalle, ta Bluetooth da Wi-Fi. Mafi girman cibiyar sadarwa ta raba fayiloli a duniya, tana kai wa mutanen da intanet ba ya kai wa.
 
 ## Yadda yake aiki
 
@@ -131,6 +143,18 @@ Aether ba wai kawai jigilar sadarwa ba ce. Kowace irin fakiti da yarjejeniyar ta
 Waɗannan suna zaune a saman hidimomin da suka riga suka kammala na **saƙonni, murya na 1-zuwa-1 da na ƙungiya, kiran bidiyo, yaɗuwa kai tsaye, kallo-tare, zaɓen hanya na AODV, ajiye-da-tura na DTN, da ambaliyar SOS** — waɗanda kuma aka aiwatar da su a cikin dukkan harsuna 8.
 
 > **Ma'anar "an gina" a nan, daidai.** Kowace hidima tana samarwa da sarrafa fakitin waya ta, tana tayar da abubuwan da suka dace, kuma an ɗaure ta ga fixture na matakin baiti wanda dukkan iyalin harshe dole su daidaita da shi. Manhajarka tana haɗa hidimar zuwa zamanta na Signal, teburin zaɓen hanya, da yanayin gida. Wannan shi ne matakin yarjejeniya — an tabbatar da shi a cikin lamba, gwaje-gwaje, da fixtures na baiti tsakanin harsuna — a kan tushen RF mai gaskiya iri ɗaya kamar kowane abu: duk wata hanya da a ƙarshe ke hawa a kan rediyo ba a tabbatar da ita a fagen aiki ba har sai kunna kayan aiki da ake bibiyar sa a cikin `OPEN_ISSUES.md`.
+
+## BitTorrent — na gaske, kuma an haɗa cikin mesh ta gada
+
+Aether yanzu ta haɗa da **ainihin aiwatarwar BitTorrent mai iya haɗin gwiwa** — ainihin yarjejeniyar da ainihin abokan cinikin torrent ke amfani da ita, ba wani abu mai kamanceceniya kawai ba. Don haka node ɗin Aether na iya shiga garke na yau da kullum ya yi musanyar sassan fayil da baƙi a kan intanet, babu sabar a tsakiya.
+
+Ba wai kawai mun yi ikirarin cewa na gaske ne ba — mun tabbatar da shi. An gwada Aether da **MonoTorrent**, ɗakin karatun BitTorrent mai balaga, mai zaman kansa da wasu mutane suka gina: idan aka ba su fayil iri ɗaya, dukansu suna samar da *fingerprint* iri ɗaya, don haka kowane ainihin abokin cinikin torrent yana ɗaukar Aether a matsayin ɗaya daga cikinsu. Kowa na iya haɗa ainihin abokin cinikin BitTorrent da ita ya gani da kansa.
+
+Bugu da ƙari, Aether tana ƙara **gada**: node mai intanet na iya ɗauko torrent daga faɗin yanar gizo, ya sake shirya sassansa a matsayin ƙulle-ƙullen mesh na kan Aether da aka ɓoye, sannan ya raba shi gaba — don haka wani wanda **ba shi da intanet ko kaɗan** har yanzu zai iya karɓar wannan fayil a fadin mesh mara layi. Wannan shi ne manufar: haɗa mafi girman cibiyar sadarwa ta raba fayiloli a duniya da mutanen da yawanci ba ta iya kai wa gare su.
+
+**Inda yake tsaye, cikin gaskiya.** *Tsarin* BitTorrent — yadda ake bayyana torrent, ɗaukar *fingerprint* ɗinsa, da tsara shi a kan waya — an gina su kuma suna **iri ɗaya baiti-da-baiti a cikin dukkan harsuna 8**, an ɗaure su ga rukunin gwaji da ake rabawa a cikin `fixtures/bittorrent/`. Cikakken abokin ciniki mai aiki da gadar mesh sun kammala kuma an tabbatar da su a cikin **tunanin C#**; sauran harsuna bakwai suna ɗauke da tsarin yarjejeniya iri ɗaya, tare da matakin cibiyar sadarwa mai rai a matsayin mataki na gaba.
+
+> **Ga masu haɓakawa.** Abin da aka rufe: bencode + `.torrent`/magnet + SHA-1 info-hash da BEP-3 peer-wire (mafi-ƙaranci-da-farko), HTTP + UDP trackers (BEP-3/15/23), Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), µTP (BEP-29), da BitTorrent v2 SHA-256 merkle (BEP-52), gami da **ƙofar** piece↔chunk zuwa cikin hidimar abun ciki da kuma mai zazzagewa na sashe-sashe, mai gudana tare kuma mai iya ci gaba. Tunanin C# (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`) yana aikawa da ainihin abokin ciniki mai rai na TCP/µTP, node na DHT, trackers, ƙofa, da mai zazzagewa, tare da gwajin haɗin gwiwa na MonoTorrent a cikin `tests/AetherNet.BitTorrent.Interop.Tests`. Rukunin daidaiton-baiti na harsuna 8 (`fixtures/bittorrent/vectors.json`, rukunoni 7) yana rufe bencode, info-hash, peer-wire, µTP, merkle, compact-info, da KRPC; kowace SDK tana aikawa da gwajin fixture mai dacewa.
 
 ## Tsaro & sirri (Security & privacy)
 
@@ -235,29 +259,31 @@ Node a matakin daidaitacce da node a matakin na asali za su iya sadarwa cikin 'y
 
 An gina Aether da harsuna 8 don ya gudana a kan wayoyi, kwamfyutoci masu ɗauke, allunan hannu, da microcontrollers. Duk aiwatarwa suna samar da fakiti masu jituwa a kan waya — saƙon da node ɗin Rust ya ɓoye ana iya tura shi ta node ɗin Python kuma a warware shi ta node ɗin Swift.
 
-| Harshe | Directory | Tsarin waya | Routing/DTN/SOS | X3DH | Double Ratchet | Tafkin OPK | Murya/Ƙungiya | Yaɗuwa/Bidiyo/Kallo |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Harshe | Directory | Tsarin waya | Routing/DTN/SOS | X3DH | Double Ratchet | Tafkin OPK | Murya/Ƙungiya | Yaɗuwa/Bidiyo/Kallo | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-Duk harsuna 8 suna samar da fakitin waya iri ɗaya baiti-da-baiti, an tabbatar ta 17 fixtures na tsarin waya na canonical da 6 vectors na gwajin Signal da ake gudanarwa a CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). An aiwatar da zaɓen hanya (nau'in AODV RREQ/RREP), ajiye-da-tura na DTN, watsa SOS, murya, yaɗuwa, da hidimomin ƙarfafa tsaro a cikin kowane harshe tare da **~3,000 gwaje-gwaje** a fadin dukkan aiwatarwa 8:
+**Ginshiƙin BitTorrent:** ✅ = cikakken abokin ciniki mai aiki + ƙofar mesh (tunanin C#). ◐ = **tsarin waya** na BitTorrent iri ɗaya ne baiti-da-baiti a nan (an ɗaure ga `fixtures/bittorrent/`), tare da matakin cibiyar sadarwa mai rai a matsayin mataki na gaba — duba [BitTorrent — na gaske, kuma an haɗa cikin mesh ta gada](#bittorrent--real-and-bridged-into-the-mesh). Kowane sauran ginshiƙi na gaske ne kuma yana aiki a cikin dukkan harsuna 8.
 
-| Harshe | Gwaje-gwaje | Dandamalin CI |
+Duk harsuna 8 suna samar da fakitin waya iri ɗaya baiti-da-baiti, an tabbatar ta 17 fixtures na tsarin waya na canonical da 6 vectors na gwajin Signal (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — ana duba kowane harshe da baiti iri ɗaya. An aiwatar da zaɓen hanya (nau'in AODV RREQ/RREP), ajiye-da-tura na DTN, watsa SOS, murya, yaɗuwa, da hidimomin ƙarfafa tsaro a cikin kowane harshe tare da **~3,000 gwaje-gwaje** a fadin dukkan aiwatarwa 8:
+
+| Harshe | Gwaje-gwaje | Dandamalin Gwaji |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Jimla** | **~3,000** | |
 
 An ɗaure Signal interop tsakanin harsuna ga `fixtures/signal/` tare da vectors na gwaji da ake rabawa don X3DH (`x3dh_basic`), ratchet mai daidaituwa (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), da cikakken X3DH session round-trip (`x3dh_session_msg1`, `x3dh_session_reply`). Kowace aiwatarwa dole ta samar da fitattu iri ɗaya baiti-da-baiti a kan waɗannan fixtures. Duk harsuna 8 yanzu suna aikawa da cikakken zaman Signal (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 Abin da aka gina da abin da ke gaba.
 
 **An gama (an tabbatar tsakanin harsuna, dukkan aiwatarwa 8):**
-- Tsarin waya: iri ɗaya baiti-da-baiti a fadin harsuna 8, an ɗaure ta 17 fixtures na canonical da tabbatarwar tsakanin harsuna a CI (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — matrix na ayyuka 9 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, tare da aikin mutuncin fixture) a cikin `.github/workflows/ci.yml`.
+- Tsarin waya: iri ɗaya baiti-da-baiti a fadin harsuna 8, an ɗaure ta 17 fixtures na canonical da tabbatarwar tsakanin harsuna (`fixtures/expected/*.bin`)
+- **Aikin GitHub Actions (an ayyana, ba ita ce ƙofar tabbatarwa ta yanzu ba)** — matrix na ayyuka 9 (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, gami da aikin mutuncin fixture) an ayyana shi a cikin `.github/workflows/ci.yml`. A halin yanzu ana tura commits da `[skip ci]`, don haka ainihin tabbatarwar ita ce rukunin gwaji da ake gudanarwa **a cikin gida, ga kowane harshe** (Swift da C a kan sabar gina ta macOS); ana iya sake kunna CI ba tare da canja lamba ba.
 - Sa hannu da tabbatar da fakiti na Ed25519
 - Ɓoyewa na AES-256-GCM
 - Muhimman abubuwan samun makulli na HKDF / HMAC
@@ -524,7 +550,7 @@ Abin da aka gina da abin da ke gaba.
 - Hidimar ajiye-da-tura na DTN tare da canja wurin kula, kwafi mai sanin geohash, TTL na sa'o'i 72
 - Hidimar watsa SOS tare da ambaliya, kawar da maimaituwa, kariyar asalin-kai, iyaka-yawan (3/awa)
 - Wuraren haɗa faɗaɗawa: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (tsoffin Noop)
-- **~3,000 gwaje-gwaje** a fadin dukkan harsuna 8 (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — duk kore a CI
+- **~3,000 gwaje-gwaje** a fadin dukkan harsuna 8 (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — duk kore, ana gudanarwa ga kowane harshe (Swift da C a kan sabar gina ta macOS)
 - ✅ **Ainihin makullin wucin gadi na X3DH (harsuna 8)** — 4 X25519 DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) tare da samun tushen HKDF-SHA256. An ɗaure ta `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Daidaituwar Double Ratchet a duk iyali** — cikakken Signal §5 tare da HMAC-SHA256 + 0x01/0x02 rarraba yanki a cikin ratchet mai daidaituwa, HKDF-SHA256 KDF_RK a matakin DH-ratchet, juyawar DH a lokacin karɓa. An tabbatar ta `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` fixtures.
 - ✅ **An daidaita PROTOCOL_SPEC §2 / §3 / §4 / §9 da HEAD** — duba `docs/PROTOCOL_SPEC.md`.
@@ -641,7 +667,7 @@ Eh. AetherNet yana amfani da Signal Protocol (yarjejeniyar makulli na X3DH tare 
 Bluetooth LE, Wi-Fi Direct, NearLink (SLE), rediyon serial na LoRa/CircleLink, HTTP/QUIC relay, da WebRTC don intanet kai tsaye na peer-to-peer. Yarjejeniyar tana zaɓar jigilar sadarwa mafi ƙarancin wuta da ke akwai ta atomatik ga kowace fakiti kuma tana komawa ga na gaba.
 
 **A wadanne harsunan shirye-shirye ake samun sa?**
-Takwas — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, da C. Kowace aiwatarwa tana samar da fakitin waya iri ɗaya baiti-da-baiti, wanda aka tabbatar ta hanyar rukunin gwaji (fixture corpus) da ake rabawa tsakanin harsuna a CI, don haka fakitin da harshe ɗaya ya gina ana warware shi ba tare da canji ba ta kowanne.
+Takwas — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, da C. Kowace aiwatarwa tana samar da fakitin waya iri ɗaya baiti-da-baiti, wanda aka tabbatar ta hanyar rukunin gwaji (fixture corpus) da ake rabawa tsakanin harsuna wanda ake duba kowace aiwatarwa da shi, don haka fakitin da harshe ɗaya ya gina ana warware shi ba tare da canji ba ta kowanne.
 
 **Ta yaya ya bambanta da Meshtastic, Briar, ko Bridgefy?**
 Meshtastic LoRa-kaɗai ne; AetherNet jigilar sadarwa da yawa ne (Bluetooth + Wi-Fi + NearLink + LoRa) kuma yana ɗauke da murya, bidiyo, da yaɗuwa gami da saƙonni. Briar Android-kaɗai ne kuma yana zaɓen hanya ta Tor; AetherNet fadin dandamali ne kuma mesh mai tsafta. Ba kamar SDKs da aka rufe ba, AetherNet mai lasisin MIT ne kuma an aiwatar da shi a fili a cikin harsuna takwas. Teburin kwatanci na sama yana da cikakkun bayanai.

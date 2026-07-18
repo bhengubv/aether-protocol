@@ -16,7 +16,15 @@
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **አንድ ፕሮቶኮል፣ ስምንት ቋንቋዎች፣ በ wire ላይ ተመሳሳይ።** Aether በ **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, እና C** ተተግብሯል — እያንዳንዱ packet በሁሉም ውስጥ byte-for-byte ተመሳሳይ ነው፣ በ CI ውስጥ በጋራ በሚጋራ cross-language fixture corpus አማካኝነት ተጠብቋል። ኖድዎን ከስምንቱ በማንኛውም ይገንቡ፤ ከሌሎቹ ሁሉ ጋር ይተባበራል። ይህ README በ 11 የሰው ቋንቋዎችም ይገኛል (ማገናኛዎቹ ከላይ)።
+> **አንድ ፕሮቶኮል፣ ስምንት ቋንቋዎች፣ በ wire ላይ ተመሳሳይ።** Aether በ **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, እና C** ተተግብሯል — እያንዳንዱ packet በሁሉም ውስጥ byte-for-byte ተመሳሳይ ነው፣ እያንዳንዱ implementation byte for byte ማዛመድ ባለበት በጋራ በሚጋራ cross-language fixture corpus አማካኝነት ተጠብቋል። ኖድዎን ከስምንቱ በማንኛውም ይገንቡ፤ ከሌሎቹ ሁሉ ጋር ይተባበራል። ይህ README በ 20 የሰው ቋንቋዎችም ይገኛል (ማገናኛዎቹ ከላይ)።
+
+## በቀላል አነጋገር
+
+**AetherNet ስልኮች እና ላፕቶፖች እርስ በርስ በቀጥታ እንዲነጋገሩ ያስችላል — ኢንተርኔት፣ የስልክ ኩባንያ፣ እና መለያ ሳያስፈልግ።** በዙሪያዎ ያሉ ሰዎች መተግበሪያውን ካላቸው፣ በእያንዳንዱ ስልክ ውስጥ አስቀድሞ ያሉትን የአጭር-ርቀት ራዲዮዎች (Bluetooth እና Wi-Fi) ብቻ በመጠቀም መልእክት መላክ፣ ፎቶዎችንና ትላልቅ ፋይሎችን መላክ፣ የድምጽና የቪዲዮ ጥሪ ማድረግ፣ እና ቀጥታ ስርጭት ማጋራት ይችላሉ። አንድ ሰው በቀጥታ ለመድረስ በጣም ሩቅ ከሆነ፣ መልእክትዎ እስኪደርስ ድረስ ከአንዱ ስልክ ወደ ቀጣዩ በጸጥታ ይዘላል — አስፈላጊ ከሆነም መንገድ ለማግኘት እስከ ሦስት ቀን ይጠብቃል። እንዲያውም ወደ ዓለም ትላልቅ የሕዝብ ፋይል-ማጋሪያ ኔትወርኮች (እንደ Linux እና የጨዋታ ዝማኔዎች ካሉ ሕጋዊ ማውረጃዎች ጀርባ ያለው ተመሳሳይ ቴክኖሎጂ) ውስጥ ዘልቆ በመግባት ፋይል አውጥቶ፣ ምንም ኢንተርኔት ወደሌለው ጓደኛ ወደ ውስጥ ሊሸከመው ይችላል።
+
+ሁሉም ነገር end-to-end ተመስጥሯል፣ ስለዚህ የሚያናግሩት ሰው ብቻ ሊያነበው ይችላል — የሚያስተላልፉት ስልኮች አይችሉም። ማንም ሰው እንዲጠቀምበት ወይም እንዲመረምረው **ነጻ እና ክፍት** ነው፣ እና በስምንት programming languages ስምንት ጊዜ ተጽፏል፣ ስለዚህ ከሞላ ጎደል በማንኛውም መሣሪያ ላይ ሊሠራ ይችላል።
+
+**ምን ያህል ተጠናቅቋል?** የኔትወርኩ "አእምሮ" — የመልእክት formats፣ encryption፣ routing፣ እና ፋይል-ማጋራት — በሁሉም ስምንት ቋንቋዎች ተገንብቶ በማሽን ተረጋግጧል። አሁንም እውነተኛ-ዓለም ፍተሻ የሚያስፈልገው በሁለት ፊዚካል ስልኮች መካከል በአየር ላይ እርስ በርስ የሚነጋገሩት እውነተኛዎቹ ራዲዮዎች ናቸው፤ ያ የ hardware ደረጃ የቀረው ነው፣ እናም በ `OPEN_ISSUES.md` ውስጥ በግልጽ እንከታተለዋለን። ከዚህ በታች ያለው ሁሉ ተመሳሳዩ ታሪክ በበለጠ ዝርዝር ነው።
 
 ## በእሱ ምን ማድረግ ይችላሉ?
 
@@ -58,6 +66,10 @@
 **በ mesh በኩል፣ አብራችሁ ፊልም ተመልከቱ።**
 
 ቡድንዎ የፊልም ምሽት አለው። አንድ ሰው ፋይሉ አለው። Aether ማጫወቱን በእያንዳንዱ መሣሪያ ላይ ያመሳስላል — play፣ pause፣ seek — ሁሉም በአንድነት። አንዳንድ ሰዎች ብቻ ፋይሉ ካላቸው፣ mesh በእውነተኛ ጊዜ እንደ P2P stream ያሰራጫል። ማንም ከሌለው ሁሉም ለመግዛት በ SDPKT በኩል ያዋጣሉ።
+
+**ትልቅ ፋይል መላው ኢንተርኔት አስቀድሞ በሚጋራበት መንገድ ያግኙ።**
+
+BitTorrent ከዓለም ሕጋዊ ፋይል-ማጋራት ትልቅ ክፍል ጀርባ ያለው ቴክኖሎጂ ነው — የ Linux releases፣ የጨዋታ ዝማኔዎች፣ the Internet Archive። Aether አሁን *በእውነት* ይናገረዋል: አንድ Aether ኖድ ተራ BitTorrent swarm ተቀላቅሎ ያለ ማዕከላዊ ሰርቨር ፋይል ከሕዝቡ በቀጥታ ማውጣት ይችላል። ለዳታ ለሌላቸው ሰዎች ደግሞ አስገራሚው ነገር ይኸውና — ኢንተርኔት *ያለው* አንድ Aether ኖድ torrent አምጥቶ **በ offline mesh ላይ እንደገና ሊያጋራው** ይችላል፣ ስለዚህ ሙሉ በሙሉ offline የሆነ ጓደኛ አሁንም ፋይሉን hop በ hop በ Bluetooth እና Wi-Fi ላይ ይቀበላል። የዓለም ትልቁ ፋይል-ማጋሪያ ኔትወርክ፣ ኢንተርኔት የማይደርስባቸውን ሰዎች እየደረሰ።
 
 ## እንዴት እንደሚሠራ
 
@@ -131,6 +143,18 @@ Aether transport ብቻ አይደለም። በፕሮቶኮሉ የተያዘ እ�
 እነዚህ ቀድሞ በተጠናቀቁት **messaging፣ 1-to-1 እና group voice፣ video calls፣ live streaming፣ watch-together፣ AODV routing፣ DTN store-and-forward እና SOS flood** አገልግሎቶች ላይ ይቀመጣሉ — እነዚህም በሁሉም 8 ቋንቋዎች ተተግብረዋል።
 
 > **"የተገነባ" እዚህ ምን ማለት እንደሆነ፣ በትክክል።** እያንዳንዱ አገልግሎት wire packet-ውን ያመነጫል እና ያስተናግዳል፣ ትክክለኛዎቹን events ያስነሳል፣ እና ሙሉ የቋንቋ ቤተሰብ ማዛመድ ወዳለበት byte-level fixture ተጠብቋል። መተግበሪያዎ አገልግሎቱን ወደ Signal session-ው፣ routing table-ው እና local state-ው ያገናኛል። ይህ የፕሮቶኮል ንብርብር ነው — በ code፣ በ tests እና በ cross-language byte-fixtures የተረጋገጠ — እንደ ሁሉም ነገር በተመሳሳይ ታማኝ የ RF መሠረት ላይ: በመጨረሻ radio የሚጋልብ ማንኛውም መንገድ በ `OPEN_ISSUES.md` ውስጥ እስከሚከታተለው hardware bring-up ድረስ field-unverified ነው።
+
+## BitTorrent — እውነተኛ፣ እና ወደ mesh የተያያዘ
+
+Aether አሁን **እውነተኛ፣ interoperable የሆነ BitTorrent implementation** ያካትታል — እውነተኛ torrent clients የሚጠቀሙት ትክክለኛው ፕሮቶኮል ነው፣ አምሳያ አይደለም። ስለዚህ አንድ Aether ኖድ ተራ swarm ተቀላቅሎ ከ internet ላይ ካሉ እንግዶች ጋር የፋይል ቁርጥራጮችን መለዋወጥ ይችላል፣ በመሃል ምንም ሰርቨር የለም።
+
+እውነተኛ ነው ብለን ብቻ አልተናገርንም — አረጋግጠናል። Aether በሌሎች ሰዎች የተገነባ ብስል፣ ራሱን የቻለ BitTorrent library ከሆነው ከ **MonoTorrent** ጋር ተፈትኗል: ተመሳሳይ ፋይል ሲሰጣቸው፣ ሁለቱም *ተመሳሳይ* fingerprint ያመነጫሉ፣ ስለዚህ ማንኛውም እውነተኛ torrent client Aether ን እንደ ራሱ አድርጎ ይይዘዋል። ማንም ሰው እውነተኛ BitTorrent client ወደ እሱ አቅንቶ በራሱ ማየት ይችላል።
+
+ከዚያ በላይ፣ Aether **ድልድይ** ይጨምራል: ኢንተርኔት ያለው ኖድ ከሰፊው web ላይ torrent አውጥቶ፣ ቁርጥራጮቹን እንደ Aether ራሱ የተመሰጠሩ mesh chunks እንደገና አሽጎ፣ ወደፊት ሊያጋራው ይችላል — ስለዚህ **ምንም ኢንተርኔት የሌለው** ሰው አሁንም ያንን ፋይል በ offline mesh ላይ ሊቀበል ይችላል። ነጥቡ ይኸው ነው: የዓለምን ትልቁን ፋይል-ማጋሪያ ኔትወርክ በተለምዶ ሊደርስባቸው ከማይችላቸው ሰዎች ጋር ማገናኘት።
+
+**የት እንዳለ፣ በታማኝነት።** የ BitTorrent *formats* — torrent እንዴት እንደሚገለጽ፣ fingerprint እንደሚደረግ፣ እና on the wire እንዴት እንደሚቀረጽ — ተገንብተው **በሁሉም 8 ቋንቋዎች byte-for-byte ተመሳሳይ ናቸው**፣ በ `fixtures/bittorrent/` ውስጥ ወዳለ በጋራ በሚጋራ fixture corpus ተጠብቀዋል። ሙሉ የሚሠራው client እና the mesh bridge በ **C# reference** ውስጥ ተጠናቀው ተረጋግጠዋል፤ ሌሎቹ ሰባት ቋንቋዎች ተመሳሳዩን የፕሮቶኮል formats ይዘዋል፣ የቀጥታ network layer-ያቸው እንደ ቀጣዩ ደረጃ።
+
+> **ለ developers።** ሽፋን: bencode + `.torrent`/magnet + SHA-1 info-hash እና BEP-3 peer-wire (rarest-first)፣ HTTP + UDP trackers (BEP-3/15/23)፣ Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10)፣ µTP (BEP-29)፣ እና BitTorrent v2 SHA-256 merkle (BEP-52)፣ በተጨማሪም ወደ content service የሚገባ piece↔chunk **gateway** እና concurrent የሆነ፣ resumable segmented downloader። የ C# reference (`src/AetherNet.BitTorrent`፣ `src/AetherNet.BitTorrent.Gateway`) የቀጥታ TCP/µTP client፣ DHT node፣ trackers፣ gateway፣ እና downloader ይልካል፣ ከ MonoTorrent interop test ጋር በ `tests/AetherNet.BitTorrent.Interop.Tests` ውስጥ። የ 8-ቋንቋ byte-identity corpus (`fixtures/bittorrent/vectors.json`፣ 7 categories) bencode፣ info-hash፣ peer-wire፣ µTP፣ merkle፣ compact-info፣ እና KRPC ይሸፍናል፤ እያንዳንዱ SDK የሚዛመድ fixture test ይልካል።
 
 ## ደህንነት እና ግላዊነት
 
@@ -235,29 +259,31 @@ advertising.startAdvertising()    →  scan.startScan()   →  client.on('proper
 
 Aether በ 8 ቋንቋዎች የተገነባ ነው፣ ስለዚህ በስልኮች፣ በላፕቶፖች፣ በታብሌቶች እና በ microcontrollers ላይ ይሠራል። ሁሉም implementations wire-compatible packets ያመነጫሉ — በ Rust ኖድ የተመሰጠረ መልእክት በ Python ኖድ ተስተላልፎ በ Swift ኖድ ሊፈታ ይችላል።
 
-| ቋንቋ | Directory | Wire format | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| ቋንቋ | Directory | Wire format | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-ሁሉም 8 ቋንቋዎች byte-identical wire packets ያመነጫሉ፣ በ CI ውስጥ በሚሮጡ 17 canonical wire-format fixtures እና 6 Signal test vectors ተረጋግጠዋል (`fixtures/expected/*.bin`፣ `fixtures/signal/expected/*.json`)። Routing (AODV-style RREQ/RREP)፣ DTN store-and-forward፣ SOS broadcast፣ ድምጽ፣ streaming፣ እና security-hardening services በእያንዳንዱ ቋንቋ ተተግብረዋል፣ በሁሉም 8 implementations ላይ **~3,000 tests** አሉ:
+**የ BitTorrent አምድ:** ✅ = ሙሉ፣ የሚሠራ client + mesh gateway (የ C# reference)። ◐ = የ BitTorrent **wire formats** እዚህ byte-for-byte ተመሳሳይ ናቸው (በ `fixtures/bittorrent/` ተጠብቀዋል)፣ የቀጥታ network layer እንደ ቀጣዩ ደረጃ — [BitTorrent — እውነተኛ፣ እና ወደ mesh የተያያዘ](#bittorrent--real-and-bridged-into-the-mesh) ን ይመልከቱ። ሌላው እያንዳንዱ አምድ በሁሉም 8 ቋንቋዎች እውነተኛ እና የሚሠራ ነው።
 
-| ቋንቋ | Tests | CI platform |
+ሁሉም 8 ቋንቋዎች byte-identical wire packets ያመነጫሉ፣ በ 17 canonical wire-format fixtures እና በ 6 Signal test vectors ተረጋግጠዋል (`fixtures/expected/*.bin`፣ `fixtures/signal/expected/*.json`) — እያንዳንዱ ቋንቋ በተመሳሳዮቹ bytes ላይ ይፈተናል። Routing (AODV-style RREQ/RREP)፣ DTN store-and-forward፣ SOS broadcast፣ ድምጽ፣ streaming፣ እና security-hardening services በእያንዳንዱ ቋንቋ ተተግብረዋል፣ በሁሉም 8 implementations ላይ **~3,000 tests** አሉ:
+
+| ቋንቋ | Tests | Test platform |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Total** | **~3,000** | |
 
 Cross-language Signal interop በ `fixtures/signal/` ላይ ተስተካክሏል፣ ለ X3DH (`x3dh_basic`)፣ ለ symmetric ratchet (`ratchet_step_basic`፣ `ratchet_step_three_iterations`)፣ ለ KDF_RK (`kdf_rk_basic`)፣ እና ለ ሙሉ የ X3DH session round-trip (`x3dh_session_msg1`፣ `x3dh_session_reply`) በሚጋሩ test vectors። እያንዳንዱ implementation በእነዚያ fixtures ላይ byte-identical outputs ማምረት አለበት። ሁሉም 8 ቋንቋዎች አሁን ሙሉ Signal session ያቀርባሉ (`generate_pre_key_bundle`፣ `process_pre_key_bundle`፣ `encrypt`፣ `decrypt`)።
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 የተገነባው እና ቀጥሎ ያለው።
 
 **የተጠናቀቀ (cross-language የተረጋገጠ፣ ሁሉም 8 implementations):**
-- Wire format: በ 8 ቋንቋዎች byte-identical፣ በ 17 canonical fixtures እና በ CI ውስጥ cross-language assertions የተስተካከለ (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — 9-job matrix (C#/.NET 10፣ Go 1.22፣ TypeScript/Node 20፣ Python 3.12፣ Kotlin/JVM 21፣ Swift/macOS-14፣ Rust stable፣ C/GCC፣ ከ fixture integrity job ጋር) በ `.github/workflows/ci.yml`።
+- Wire format: በ 8 ቋንቋዎች byte-identical፣ በ 17 canonical fixtures እና cross-language assertions የተስተካከለ (`fixtures/expected/*.bin`)
+- **GitHub Actions workflow (የተገለጸ፣ የአሁኑ gate አይደለም)** — 9-job matrix (C#/.NET 10፣ Go 1.22፣ TypeScript/Node 20፣ Python 3.12፣ Kotlin/JVM 21፣ Swift/macOS፣ Rust stable፣ C/GCC፣ ከ fixture-integrity job ጋር) በ `.github/workflows/ci.yml` ውስጥ ተገልጿል። Commits አሁን በ `[skip ci]` ይገፋሉ፣ ስለዚህ እውነተኛው ማስፈጸሚያ **በአካባቢው፣ በእያንዳንዱ ቋንቋ** የሚሮጠው fixture corpus ነው (Swift እና C በ macOS build server ላይ)፤ CI ያለ code ለውጦች ተመልሶ ሊበራ ይችላል።
 - Ed25519 packet signing እና verification
 - AES-256-GCM encryption
 - HKDF / HMAC key derivation primitives
@@ -524,7 +550,7 @@ aethernet_packet_free(packet);
 - ከ custody transfer ጋር DTN store-and-forward service፣ geohash-aware replication፣ 72h TTL
 - ከ flood ጋር SOS broadcast service፣ dedup፣ self-origin guard፣ rate-limit (3/hr)
 - Extensibility seams: `IncentiveProvider`፣ `BackendClient`፣ `FeatureFlagProvider` (Noop defaults)
-- በሁሉም 8 ቋንቋዎች **~3,000 tests** (C# 530፣ TypeScript 459፣ Kotlin 457፣ Go 423፣ Python 387፣ Swift 295፣ C 253፣ Rust ~195) — ሁሉም በ CI ውስጥ green
+- በሁሉም 8 ቋንቋዎች **~3,000 tests** (C# 530፣ TypeScript 459፣ Kotlin 457፣ Go 423፣ Python 387፣ Swift 295፣ C 253፣ Rust ~195) — ሁሉም green፣ በእያንዳንዱ ቋንቋ ይሮጣል (Swift እና C በ macOS build server ላይ)
 - ✅ **እውነተኛ X3DH ephemeral key (8 ቋንቋዎች)** — ከ HKDF-SHA256 root derivation ጋር 4 X25519 DHs (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`)። በ `fixtures/signal/expected/x3dh_basic.json` ተጠብቋል።
 - ✅ **Double Ratchet alignment ለቤተሰቡ ሁሉ** — ሙሉ Signal §5 ከ HMAC-SHA256 + 0x01/0x02 domain separation ጋር በ symmetric ratchet ውስጥ፣ HKDF-SHA256 KDF_RK በ DH-ratchet step ውስጥ፣ በተቀበሉ ጊዜ DH-rotation። በ `ratchet_step_basic`፣ `ratchet_step_three_iterations`፣ `kdf_rk_basic` fixtures ተረጋግጧል።
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 ከ HEAD ጋር ተስማምቷል** — `docs/PROTOCOL_SPEC.md` ን ይመልከቱ።
@@ -641,7 +667,7 @@ public class LoRaTransportService : ITransportService
 Bluetooth LE፣ Wi-Fi Direct፣ NearLink (SLE)፣ LoRa/CircleLink serial radio፣ HTTP/QUIC relay፣ እና ለቀጥታ የኢንተርኔት peer-to-peer WebRTC። ፕሮቶኮሉ ለእያንዳንዱ packet ዝቅተኛ-power ያለውን የሚገኝ transport በራስ-ሰር ይመርጣል እና ወደ ቀጣዩ ይመለሳል።
 
 **በምን programming languages ይገኛል?**
-ስምንት — C#፣ Rust፣ TypeScript፣ Python፣ Go፣ Kotlin፣ Swift፣ እና C። እያንዳንዱ implementation byte-identical wire packets ያመነጫል፣ በ CI ውስጥ በጋራ በሚጋራ cross-language fixture corpus ተጠብቆ፣ ስለዚህ በአንድ ቋንቋ የተገነባ packet በማንኛውም ሌላ ሳይለወጥ ይፈታል።
+ስምንት — C#፣ Rust፣ TypeScript፣ Python፣ Go፣ Kotlin፣ Swift፣ እና C። እያንዳንዱ implementation byte-identical wire packets ያመነጫል፣ እያንዳንዱ implementation በሚፈተንበት በጋራ በሚጋራ cross-language fixture corpus ተጠብቆ፣ ስለዚህ በአንድ ቋንቋ የተገነባ packet በማንኛውም ሌላ ሳይለወጥ ይፈታል።
 
 **ከ Meshtastic፣ Briar፣ ወይም Bridgefy እንዴት ይለያል?**
 Meshtastic LoRa-only ነው; AetherNet multi-transport ነው (Bluetooth + Wi-Fi + NearLink + LoRa) እና ከመልእክቶች በተጨማሪ ድምጽ፣ ቪዲዮ፣ እና streaming ይሸከማል። Briar Android-only ነው እና በ Tor ላይ ይመራል; AetherNet cross-platform እና pure mesh ነው። ከተዘጉ SDKs በተለየ፣ AetherNet በ MIT-license የተፈቀደ ነው እና በስምንት ቋንቋዎች በግልጽ ተተግብሯል። ከላይ ያለው የንጽጽር ሰንጠረዥ ዝርዝሮቹ አሉት።

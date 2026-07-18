@@ -16,7 +16,15 @@ Berbagi file, pesan, dan streaming dengan orang-orang di sekitar. Tanpa WiFi. Ta
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](../zu/README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **Satu protokol, delapan bahasa, identik di kabel.** Aether diimplementasikan dalam **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, dan C** — dan setiap paket identik byte-per-byte di seluruhnya, ditegakkan oleh korpus fixture lintas-bahasa bersama di CI. Bangun node Anda dalam salah satu dari kedelapan bahasa itu; ia beroperasi bersama dengan semua yang lain. README ini juga tersedia dalam 11 bahasa manusia (tautan di atas).
+> **Satu protokol, delapan bahasa, identik di kabel.** Aether diimplementasikan dalam **C#, Rust, TypeScript, Python, Go, Kotlin, Swift, dan C** — dan setiap paket identik byte-per-byte di seluruhnya, ditegakkan oleh korpus fixture lintas-bahasa bersama yang harus dicocokkan oleh setiap implementasi, byte demi byte. Bangun node Anda dalam salah satu dari kedelapan bahasa itu; ia beroperasi bersama dengan semua yang lain. README ini juga tersedia dalam 20 bahasa manusia (tautan di atas).
+
+## Dengan bahasa sederhana
+
+**AetherNet memungkinkan ponsel dan laptop berbicara satu sama lain secara langsung — tanpa internet, tanpa perusahaan telepon, dan tanpa akun.** Jika orang-orang di sekitar Anda punya aplikasinya, Anda bisa mengirim pesan ke mereka, mengirim foto dan file besar, melakukan panggilan suara dan video, dan berbagi siaran langsung, hanya menggunakan radio jarak-pendek yang sudah ada di dalam setiap ponsel (Bluetooth dan Wi-Fi). Jika seseorang terlalu jauh untuk dijangkau secara langsung, pesan Anda diam-diam melompat dari satu ponsel ke ponsel berikutnya sampai tiba — dan menunggu hingga tiga hari untuk sebuah jalur jika terpaksa. Ia bahkan bisa menjangkau ke dalam jaringan berbagi-file publik besar dunia (teknologi yang sama di balik unduhan legal seperti Linux dan pembaruan game), mengambil sebuah file, dan membawanya masuk ke seorang teman yang sama sekali tidak punya internet.
+
+Semuanya diacak ujung-ke-ujung, sehingga hanya orang yang Anda ajak bicara yang bisa membacanya — ponsel-ponsel yang meneruskannya tidak bisa. Ia **gratis dan terbuka** bagi siapa pun untuk digunakan atau diperiksa, dan ia ditulis delapan kali, dalam delapan bahasa pemrograman, sehingga bisa berjalan di hampir semua perangkat.
+
+**Seberapa jadi ia?** "Otak" jaringan ini — format pesan, enkripsi, perutean, dan berbagi-file — telah dibangun dan diperiksa-mesin di seluruh kedelapan bahasa. Yang masih memerlukan pengujian dunia-nyata adalah radio sesungguhnya yang saling berbicara melalui udara antara dua ponsel fisik; langkah perangkat keras itulah yang tersisa, dan kami melacaknya secara terbuka di `OPEN_ISSUES.md`. Segala hal di bawah ini adalah kisah yang sama dengan lebih terperinci.
 
 ## Apa yang bisa Anda lakukan dengannya?
 
@@ -58,6 +66,10 @@ Pasang sebuah buku teks untuk dijual. Orang yang berjalan dalam jangkauan mesh m
 **Nonton film bersama, melintasi mesh.**
 
 Grup Anda mengadakan malam nonton film. Seseorang punya filenya. Aether menyinkronkan pemutaran di setiap perangkat — putar, jeda, cari — semuanya seiring langkah. Jika hanya sebagian orang yang punya filenya, mesh mendistribusikannya secara real-time sebagai streaming P2P. Semua orang urunan lewat SDPKT untuk membelinya jika tidak ada yang punya.
+
+**Dapatkan file besar dengan cara yang sudah dipakai seluruh internet untuk membagikannya.**
+
+BitTorrent adalah teknologi di balik sebagian besar berbagi-file legal dunia — rilis Linux, pembaruan game, Internet Archive. Aether kini menggunakannya *secara sungguhan*: sebuah node Aether bisa bergabung dengan swarm BitTorrent biasa dan menarik sebuah file langsung dari kerumunan, tanpa server pusat. Dan inilah kejutannya bagi orang-orang tanpa data — satu node Aether yang *memang* punya internet bisa mengambil sebuah torrent dan **membagikannya ulang di seluruh mesh luring**, sehingga seorang teman yang sepenuhnya luring tetap menerima file itu, lompatan demi lompatan, melalui Bluetooth dan Wi-Fi. Jaringan berbagi-file terbesar dunia, menjangkau orang-orang yang tidak dijangkau internet.
 
 ## Cara kerjanya
 
@@ -131,6 +143,18 @@ Aether bukan sekadar transport. Setiap tipe paket yang direservasi oleh protokol
 Ini semua berada di atas layanan **messaging, suara 1-ke-1 dan grup, panggilan video, live streaming, nonton-bersama, perutean AODV, DTN store-and-forward, dan flood SOS** yang sudah lengkap — juga diimplementasikan dalam kedelapan bahasa.
 
 > **Apa yang "dibangun" berarti di sini, secara tepat.** Setiap layanan memproduksi dan menangani paket kabelnya, memicu event yang tepat, dan disematkan ke fixture tingkat-byte yang harus dicocokkan oleh seluruh keluarga bahasa. Aplikasi Anda menghubungkan layanan itu ke sesi Signal-nya, tabel perutean, dan state lokal. Ini adalah lapisan protokol — terbukti dalam kode, tes, dan fixture-byte lintas-bahasa — dengan pijakan RF yang sama jujurnya seperti segala hal lain: jalur mana pun yang pada akhirnya menaiki radio belum terverifikasi di lapangan sampai bring-up perangkat keras yang dilacak di `OPEN_ISSUES.md`.
+
+## BitTorrent — nyata, dan dijembatani ke dalam mesh
+
+Aether kini menyertakan **implementasi BitTorrent yang asli dan dapat dioperasikan bersama** — protokol sesungguhnya yang dipakai klien torrent nyata, bukan tiruan. Jadi sebuah node Aether bisa bergabung dengan swarm biasa dan menukar potongan-potongan sebuah file dengan orang asing di internet, tanpa server di tengah.
+
+Kami tidak sekadar mengklaim ia nyata — kami membuktikannya. Aether diuji terhadap **MonoTorrent**, sebuah pustaka BitTorrent yang matang dan independen yang dibangun oleh orang lain: diberi file yang sama, keduanya menghasilkan sidik jari yang *identik*, sehingga klien torrent nyata mana pun memperlakukan Aether sebagai salah satu miliknya sendiri. Siapa pun bisa mengarahkan klien BitTorrent nyata ke sana dan membuktikannya sendiri.
+
+Di atas itu, Aether menambahkan sebuah **jembatan**: sebuah node dengan internet bisa menarik sebuah torrent dari web yang lebih luas, mengemas ulang potongan-potongannya sebagai chunk mesh terenkripsi milik Aether sendiri, dan membagikannya ke depan — sehingga seseorang dengan **tanpa internet sama sekali** tetap bisa menerima file itu melintasi mesh luring. Itulah intinya: menghubungkan jaringan berbagi-file terbesar dunia dengan orang-orang yang biasanya tak bisa dijangkaunya.
+
+**Di mana posisinya, secara jujur.** *Format* BitTorrent — bagaimana sebuah torrent dijelaskan, disidik-jari, dan dibingkai di kabel — telah dibangun dan **identik byte-per-byte di seluruh 8 bahasa**, disematkan ke korpus fixture bersama di `fixtures/bittorrent/`. Klien yang berfungsi penuh dan jembatan mesh telah lengkap dan terverifikasi dalam **referensi C#**; ketujuh bahasa lainnya membawa format protokol yang identik, dengan lapisan jaringan langsungnya sebagai langkah berikutnya.
+
+> **Untuk pengembang.** Cakupan: bencode + `.torrent`/magnet + SHA-1 info-hash dan peer-wire BEP-3 (rarest-first), tracker HTTP + UDP (BEP-3/15/23), Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), µTP (BEP-29), dan merkle SHA-256 BitTorrent v2 (BEP-52), plus sebuah **gateway** piece↔chunk ke dalam layanan konten dan pengunduh tersegmentasi yang konkuren dan dapat-dilanjutkan. Referensi C# (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`) mengirimkan klien TCP/µTP langsung, node DHT, tracker, gateway, dan pengunduh, dengan tes interop MonoTorrent di `tests/AetherNet.BitTorrent.Interop.Tests`. Korpus identitas-byte 8-bahasa (`fixtures/bittorrent/vectors.json`, 7 kategori) mencakup bencode, info-hash, peer-wire, µTP, merkle, compact-info, dan KRPC; setiap SDK mengirimkan tes fixture yang cocok.
 
 ## Keamanan & privasi
 
@@ -235,29 +259,31 @@ Sebuah node di tingkatan standar dan sebuah node di tingkatan native dapat berko
 
 Aether dibangun dalam 8 bahasa agar ia berjalan di ponsel, laptop, tablet, dan mikrokontroler. Semua implementasi menghasilkan paket yang kompatibel-kabel — sebuah pesan yang dienkripsi oleh node Rust dapat direlai oleh node Python dan didekripsi oleh node Swift.
 
-| Bahasa | Direktori | Format kabel | Routing/DTN/SOS | X3DH | Double Ratchet | Pool OPK | Suara/Grup | Streaming/Video/Watch |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Bahasa | Direktori | Format kabel | Routing/DTN/SOS | X3DH | Double Ratchet | Pool OPK | Suara/Grup | Streaming/Video/Watch | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-Kedelapan bahasa menghasilkan paket kabel yang identik byte, diverifikasi oleh 17 fixture format-kabel kanonis dan 6 vektor uji Signal yang dijalankan di CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). Perutean (RREQ/RREP gaya-AODV), DTN store-and-forward, siaran SOS, suara, streaming, dan layanan pengerasan-keamanan diimplementasikan dalam setiap bahasa dengan **~3.000 tes** di seluruh 8 implementasi:
+> **Kolom BitTorrent:** ✅ = klien lengkap yang berfungsi + gateway mesh (referensi C#). ◐ = **format kabel** BitTorrent identik byte-per-byte di sini (disematkan ke `fixtures/bittorrent/`), dengan lapisan jaringan langsung sebagai langkah berikutnya — lihat [BitTorrent — nyata, dan dijembatani ke dalam mesh](#bittorrent--real-and-bridged-into-the-mesh). Setiap kolom lain nyata dan berfungsi dalam kedelapan bahasa.
 
-| Bahasa | Tes | Platform CI |
+Kedelapan bahasa menghasilkan paket kabel yang identik byte, diverifikasi terhadap 17 fixture format-kabel kanonis dan 6 vektor uji Signal (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — setiap bahasa diperiksa terhadap byte yang sama. Perutean (RREQ/RREP gaya-AODV), DTN store-and-forward, siaran SOS, suara, streaming, dan layanan pengerasan-keamanan diimplementasikan dalam setiap bahasa dengan **~3.000 tes** di seluruh 8 implementasi:
+
+| Bahasa | Tes | Platform uji |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Total** | **~3.000** | |
 
 Interop Signal lintas-bahasa berlabuh ke `fixtures/signal/` dengan vektor uji bersama untuk X3DH (`x3dh_basic`), ratchet simetris (`ratchet_step_basic`, `ratchet_step_three_iterations`), KDF_RK (`kdf_rk_basic`), dan putaran-penuh sesi X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Setiap implementasi harus menghasilkan output yang identik byte terhadap fixture itu. Kedelapan bahasa kini mengirimkan sesi Signal lengkap (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 Apa yang dibangun dan apa yang berikutnya.
 
 **Selesai (terverifikasi lintas-bahasa, seluruh 8 implementasi):**
-- Format kabel: identik byte di 8 bahasa, berlabuh oleh 17 fixture kanonis dan asersi lintas-bahasa di CI (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — matriks 9-job (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, plus job integritas fixture) di `.github/workflows/ci.yml`.
+- Format kabel: identik byte di 8 bahasa, berlabuh oleh 17 fixture kanonis dan asersi lintas-bahasa (`fixtures/expected/*.bin`)
+- **Workflow GitHub Actions (didefinisikan, bukan gerbang saat ini)** — sebuah matriks 9-job (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, plus sebuah job integritas-fixture) didefinisikan di `.github/workflows/ci.yml`. Komit saat ini didorong dengan `[skip ci]`, sehingga penegakan yang sesungguhnya adalah korpus fixture yang dijalankan **secara lokal, per bahasa** (Swift dan C di server build macOS); CI bisa dinyalakan kembali tanpa perubahan kode.
 - Penandatanganan dan verifikasi paket Ed25519
 - Enkripsi AES-256-GCM
 - Primitif penurunan kunci HKDF / HMAC
@@ -524,7 +550,7 @@ Apa yang dibangun dan apa yang berikutnya.
 - Layanan DTN store-and-forward dengan transfer kustodi, replikasi sadar-geohash, TTL 72 jam
 - Layanan siaran SOS dengan flood, dedup, penjaga asal-sendiri, batas-laju (3/jam)
 - Sambungan ekstensibilitas: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (default Noop)
-- **~3.000 tes** di seluruh 8 bahasa (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — semuanya hijau di CI
+- **~3.000 tes** di seluruh 8 bahasa (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — semuanya hijau, dijalankan per bahasa (Swift dan C di server build macOS)
 - ✅ **Kunci efemeral X3DH nyata (8 bahasa)** — 4 X25519 DH (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) dengan penurunan akar HKDF-SHA256. Disematkan oleh `fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Penyelarasan Double Ratchet seluruh-keluarga** — Signal §5 lengkap dengan HMAC-SHA256 + pemisahan domain 0x01/0x02 di ratchet simetris, HKDF-SHA256 KDF_RK di langkah DH-ratchet, rotasi-DH saat menerima. Diverifikasi oleh fixture `ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic`.
 - ✅ **PROTOCOL_SPEC §2 / §3 / §4 / §9 direkonsiliasi dengan HEAD** — lihat `docs/PROTOCOL_SPEC.md`.
@@ -641,7 +667,7 @@ Ya. AetherNet menggunakan Signal Protocol (kesepakatan kunci X3DH plus Double Ra
 Bluetooth LE, Wi-Fi Direct, NearLink (SLE), radio serial LoRa/CircleLink, relay HTTP/QUIC, dan WebRTC untuk peer-to-peer internet langsung. Protokol secara otomatis memilih transport tersedia berdaya-terendah per paket dan mundur ke berikutnya.
 
 **Dalam bahasa pemrograman apa saja ia tersedia?**
-Delapan — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, dan C. Setiap implementasi menghasilkan paket kabel yang identik byte, ditegakkan oleh korpus fixture lintas-bahasa bersama di CI, sehingga sebuah paket yang dibangun oleh satu bahasa didekode tanpa perubahan oleh bahasa lain mana pun.
+Delapan — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, dan C. Setiap implementasi menghasilkan paket kabel yang identik byte, ditegakkan oleh korpus fixture lintas-bahasa bersama yang menjadi acuan pemeriksaan setiap implementasi, sehingga sebuah paket yang dibangun oleh satu bahasa didekode tanpa perubahan oleh bahasa lain mana pun.
 
 **Apa bedanya dengan Meshtastic, Briar, atau Bridgefy?**
 Meshtastic hanya-LoRa; AetherNet adalah multi-transport (Bluetooth + Wi-Fi + NearLink + LoRa) dan membawa suara, video, dan streaming selain pesan. Briar hanya-Android dan merutekan lewat Tor; AetherNet lintas-platform dan mesh murni. Tidak seperti SDK tertutup, AetherNet berlisensi MIT dan diimplementasikan secara terbuka dalam delapan bahasa. Tabel perbandingan di atas memuat detailnya.

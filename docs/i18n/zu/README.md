@@ -16,7 +16,15 @@ Yabelana ngamafayela, imilayezo, kanye nezikwele (streams) nabantu abaseduze. Ak
 
 [English](../../../README.md) · [Français](../fr/README.md) · [Español](../es/README.md) · [العربية](../ar/README.md) · [中文简体](../zh-CN/README.md) · [日本語](../ja/README.md) · [Deutsch](../de/README.md) · [Português (BR)](../pt-BR/README.md) · [Русский](../ru/README.md) · [فارسی](../fa/README.md) · [한국어](../ko/README.md) · [isiZulu](README.md) · [Afrikaans](../af/README.md) · [Sesotho](../st/README.md) · [Kiswahili](../sw/README.md) · [Hausa](../ha/README.md) · [አማርኛ](../am/README.md) · [हिन्दी](../hi/README.md) · [Bahasa Indonesia](../id/README.md) · [বাংলা](../bn/README.md) · [اردو](../ur/README.md)
 
-> **Iphrothokholi eyodwa, izilimi eziyisishiyagalombili, efanayo ncamashi ku-wire.** I-Aether yakhiwe ngo-**C#, Rust, TypeScript, Python, Go, Kotlin, Swift, kanye no-C** — futhi lonke iphakethe (packet) liyafana ibhayithi nebhayithi kuzo zonke lezi zilimi, kuqinisekiswa yi-corpus yezifixture ezisatshalaliswa phakathi kwezilimi ku-CI. Yakha inodi yakho nganoma iyiphi kwezisishiyagalombili; iyasebenzisana nazo zonke ezinye. Le README iyatholakala nasezilimini zabantu eziyi-11 (izixhumanisi zingenhla).
+> **Iphrothokholi eyodwa, izilimi eziyisishiyagalombili, efanayo ncamashi ku-wire.** I-Aether yakhiwe ngo-**C#, Rust, TypeScript, Python, Go, Kotlin, Swift, kanye no-C** — futhi lonke iphakethe (packet) liyafana ibhayithi nebhayithi kuzo zonke lezi zilimi, kuqinisekiswa yi-corpus yezifixture ezisatshalaliswa phakathi kwezilimi okumele zonke izenzo zivumelane nayo, ibhayithi ngebhayithi. Yakha inodi yakho nganoma iyiphi kwezisishiyagalombili; iyasebenzisana nazo zonke ezinye. Le README iyatholakala nasezilimini zabantu eziyi-20 (izixhumanisi zingenhla).
+
+## Ngamazwi alula
+
+**I-AetherNet ivumela amafoni nama-laptop ukuba akhulumisane ngokuqondile — ngaphandle kwe-inthanethi, ngaphandle kwenkampani yocingo, futhi ngaphandle kwe-akhawunti.** Uma abantu abakuzungezile bene-app, ungabathumelela imilayezo, uthumele izithombe namafayela amakhulu, wenze amakholi ezwi nawevidiyo, futhi wabelane nge-live stream, usebenzisa kuphela ama-radio ebanga elifushane asevele ekhona kuwo wonke ifoni (i-Bluetooth ne-Wi-Fi). Uma othile ekude kakhulu ukuze afinyeleleke ngokuqondile, umyalezo wakho uqhasha ngokuthula usuka kwelinye ifoni uye kwelilandelayo waze ufike — futhi ulinde kuze kube izinsuku ezintathu ukuthola indlela uma kudingeka. Ungaze ufinyelele nasezinethiwekhini ezinkulu zomphakathi zokwabelana ngamafayela emhlaba (ubuchwepheshe obufanayo obungemuva kokulanda okusemthethweni njenge-Linux nezibuyekezo zemidlalo), uthathe ifayela, uliphathele ngaphakathi kumngane ongenayo nhlobo i-inthanethi.
+
+Yonke into ibethelwe i-end-to-end, ngakho umuntu okhuluma naye kuphela ongakwazi ukuyifunda — amafoni ayidlulisayo awakwazi. **Imahhala futhi ivulekile** kunoma ubani ukuba ayisebenzise noma ayihlole, futhi ibhalwe izikhathi eziyisishiyagalombili, ngezilimi zokuhlela eziyisishiyagalombili, ukuze ikwazi ukusebenza cishe kunoma iyiphi idivayisi.
+
+**Iphelele kangakanani?** "Ubuchopho" benethiwekhi — amafomethi omyalezo, ukubethela, ukwedlulisa, kanye nokwabelana ngamafayela — kwakhiwe futhi kuhlolwe ngomshini kuzo zonke izilimi eziyisishiyagalombili. Okusadinga ukuhlolwa emhlabeni wangempela ama-radio angempela akhulumisana emoyeni phakathi kwamafoni amabili aphathekayo; leso sinyathelo se-hardware yilokho okusele, futhi sikulandelela ngokuvulekile ku-`OPEN_ISSUES.md`. Konke okungezansi kuyindaba efanayo ngemininingwane eyengeziwe.
 
 ## Yini ongayenza ngayo?
 
@@ -58,6 +66,10 @@ Faka incwadi yesikole ukuze ithengiswe. Abantu abahamba abasebangeni le-mesh bay
 **Bukelani ifilimu ndawonye, kuyo yonke i-mesh.**
 
 Iqembu lakho linobusuku bamafilimu. Othile unefayela. I-Aether ivumelanisa ukudlala kuwo wonke amadivayisi — dlala, misa, seka — konke ngesikhathi esisodwa. Uma abanye abantu kuphela abanefayela, i-mesh iyalisabalalisa ngesikhathi sangempela njenge-P2P stream. Wonke umuntu ufaka isandla nge-SDPKT ukuze bayithenge uma kungekho muntu onayo.
+
+**Thola ifayela elikhulu ngendlela yonke i-inthanethi esivele yabelana ngamafayela ngayo.**
+
+I-BitTorrent iwubuchwepheshe obungemuva kwengxenye enkulu yokwabelana ngamafayela okusemthethweni emhlabeni — ukukhishwa kwe-Linux, izibuyekezo zemidlalo, i-Internet Archive. I-Aether manje isiyikhuluma *ngokweqiniso*: inodi ye-Aether ingajoyina i-BitTorrent swarm evamile bese idonsa ifayela ngqo esixukwini, ngaphandle kweseva emaphakathi. Nayi into eshintshayo kubantu abangenayo idatha — inodi eyodwa ye-Aether *enayo* i-inthanethi ingalanda i-torrent bese **iyabelana ngayo kabusha kuyo yonke i-mesh ye-offline**, ngakho umngane oyi-offline ngokuphelele usalithola ifayela, isinyathelo nesinyathelo, nge-Bluetooth ne-Wi-Fi. Inethiwekhi enkulu kunazo zonke yokwabelana ngamafayela emhlabeni, ifinyelela abantu i-inthanethi engabafinyeleli.
 
 ## Isebenza kanjani
 
@@ -131,6 +143,18 @@ I-Aether ayiyona nje i-transport. Zonke izinhlobo zephakethe ezigodliwe iphrotho
 Lezi zihlala phezu kwezinsiza esezivele ziphelele **ze-messaging, izwi le-1-to-1 nele-qembu, amakholi evidiyo, i-live streaming, ukubukela-ndawonye, i-AODV routing, i-DTN store-and-forward, kanye ne-SOS flood** — nazo ezenziwe kuzo zonke izilimi eziyi-8.
 
 > **Ukuthi "kwakhiwe" kusho ukuthini lapha, ngokunembile.** Insiza ngayinye ikhiqiza futhi iphathe iphakethe layo le-wire, iphakamise imicimbi efanele, futhi iboshelwe ku-fixture yezinga lebhayithi okumele umndeni wonke wezilimi uyifice. I-application yakho ixhuma insiza ku-Signal session yayo, ku-routing table, kanye nesimo sasendaweni. Lena yingqimba yephrothokholi — efakazelwe kukhodi, ezivivinyweni, kanye nakuma-byte-fixtures phakathi kwezilimi — kusisekelo se-RF esifanayo esiqotho nakho konke okunye: noma iyiphi indlela ekugcineni ehamba ku-radio ayikaqinisekiswa ensimini kuze kube i-hardware bring-up elandelelwa ku-`OPEN_ISSUES.md`.
+
+## BitTorrent — eyangempela, futhi exhunywe ku-mesh
+
+I-Aether manje isihlanganisa **ukwenziwa kwe-BitTorrent kwangempela, okusebenzisanayo** — iphrothokholi yangempela esetshenziswa ama-torrent client angempela, hhayi into efana nayo nje. Ngakho inodi ye-Aether ingajoyina i-swarm evamile bese ihwebelana ngezingcezu zefayela nabantu ongabazi ku-inthanethi, kungekho seva emaphakathi.
+
+Asizange nje sithi iyangempela — sikufakazele. I-Aether yahlolwa maqondana ne-**MonoTorrent**, ilabhulali ye-BitTorrent evuthiwe, ezimele, eyakhiwe ngabanye abantu: uma inikwa ifayela elifanayo, zombili zikhiqiza i-fingerprint *efanayo ncamashi*, ngakho noma iyiphi i-torrent client yangempela iphatha i-Aether njengenye yayo. Noma ubani angakhomba i-BitTorrent client yangempela kuyo bese ezibonela ngokwakhe.
+
+Ngaphezu kwalokho, i-Aether yengeza i-**bridge**: inodi ene-inthanethi ingadonsa i-torrent kwiwebhu ebanzi, iphinde ipakishe izingcezu zayo njengama-chunk e-mesh abethelwe e-Aether, bese iyabelana ngayo phambili — ngakho umuntu **ongenayo nhlobo i-inthanethi** usangakwazi ukuthola lelo fayela kuyo yonke i-mesh ye-offline. Yilokho okuyinhloso: xhuma inethiwekhi enkulu kunazo zonke yokwabelana ngamafayela emhlabeni kubantu evamise ukungakwazi ukubafinyelela.
+
+**Ukuthi imi kuphi, ngokwethembeka.** Ama-*fomethi* e-BitTorrent — ukuthi i-torrent ichazwa, i-fingerprint yenziwa, futhi i-frame yenziwa kanjani ku-wire — akhiwe futhi **ayafana ibhayithi ngebhayithi kuzo zonke izilimi eziyi-8**, aboshelwe ku-corpus yezifixture esatshalaliswayo ku-`fixtures/bittorrent/`. I-client egcwele esebenzayo kanye ne-mesh bridge kuphelele futhi kuqinisekisiwe ku-**C# reference**; ezinye izilimi eziyisikhombisa zithwala amafomethi ephrothokholi afanayo, nengqimba yazo yenethiwekhi ephilayo njengesinyathelo esilandelayo.
+
+> **Kubathuthukisi.** Okuhlanganisiwe: i-bencode + `.torrent`/magnet + i-SHA-1 info-hash kanye ne-BEP-3 peer-wire (rarest-first), ama-tracker e-HTTP + UDP (BEP-3/15/23), i-Mainline DHT + PEX + ut_metadata (BEP-5/11/9/10), i-µTP (BEP-29), kanye ne-BitTorrent v2 SHA-256 merkle (BEP-52), kanye ne-**gateway** ye-piece↔chunk engena kwinsiza yokuqukethwe kanye ne-segmented downloader esebenza kanyekanye, engaqhutshwa kabusha. I-C# reference (`src/AetherNet.BitTorrent`, `src/AetherNet.BitTorrent.Gateway`) ithumela i-client ephilayo ye-TCP/µTP, inodi ye-DHT, ama-tracker, i-gateway, kanye ne-downloader, ne-MonoTorrent interop test ku-`tests/AetherNet.BitTorrent.Interop.Tests`. I-corpus ye-byte-identity yezilimi eziyi-8 (`fixtures/bittorrent/vectors.json`, izigaba eziyisikhombisa) ihlanganisa i-bencode, i-info-hash, i-peer-wire, i-µTP, i-merkle, i-compact-info, kanye ne-KRPC; i-SDK ngayinye ithumela isivivinyo se-fixture esihambisanayo.
 
 ## Ezokuphepha nobumfihlo
 
@@ -235,29 +259,31 @@ Inodi esezingeni elijwayelekile nenodi esezingeni lomdabu zingakhulumisana ngoku
 
 I-Aether yakhiwe ngezilimi eziyi-8 ukuze isebenze kumafoni, kuma-laptop, kumathebulethi, nakuma-microcontroller. Zonke izenzo zikhiqiza amaphakethe ahambisana ku-wire — umyalezo obethelwe yinodi ye-Rust ungadluliselwa yinodi ye-Python bese uhlutshwa yinodi ye-Swift.
 
-| Ulimi | Uhla | Ifomethi ye-wire | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch |
-|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
-| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ |
+| Ulimi | Uhla | Ifomethi ye-wire | Routing/DTN/SOS | X3DH | Double Ratchet | OPK pool | Voice/Group | Streaming/Video/Watch | BitTorrent |
+|----------|-----------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| C# (.NET 10) | `src/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ✅ |
+| Rust | `rust/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| TypeScript | `typescript/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Python | `python/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Go | `go/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Kotlin | `kotlin/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| Swift | `swift/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
+| C | `c/` | ✅ | ✅ | ✅ | ✅ | ✅ (100) | ✅ | ✅ | ◐ |
 
-Zonke izilimi eziyi-8 zikhiqiza amaphakethe e-wire afana ibhayithi, kuqinisekiswa yizifixture zefomethi ye-wire eziyi-17 ezisemthethweni kanye nama-Signal test vectors ama-6 asetshenziswa ku-CI (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`). I-Routing (i-AODV-style RREQ/RREP), i-DTN store-and-forward, i-SOS broadcast, izwi, i-streaming, kanye nezinsiza ze-security-hardening kwenziwe kulo lonke ulimi nge-**~3,000 izivivinyo** kuzo zonke izenzo eziyi-8:
+**Ikholomu ye-BitTorrent:** ✅ = i-client egcwele, esebenzayo + i-mesh gateway (i-C# reference). ◐ = ama-**wire format** e-BitTorrent ayafana ibhayithi ngebhayithi lapha (aboshelwe ku-`fixtures/bittorrent/`), nengqimba yenethiwekhi ephilayo njengesinyathelo esilandelayo — bheka [BitTorrent — eyangempela, futhi exhunywe ku-mesh](#bittorrent--real-and-bridged-into-the-mesh). Wonke amanye amakholomu angempela futhi asebenza kuzo zonke izilimi eziyi-8.
 
-| Ulimi | Izivivinyo | I-CI platform |
+Zonke izilimi eziyi-8 zikhiqiza amaphakethe e-wire afana ibhayithi, kuqinisekiswa yizifixture zefomethi ye-wire eziyi-17 ezisemthethweni kanye nama-Signal test vectors ama-6 (`fixtures/expected/*.bin`, `fixtures/signal/expected/*.json`) — **lonke ulimi luhlolwa ngamabhayithi afanayo**. I-Routing (i-AODV-style RREQ/RREP), i-DTN store-and-forward, i-SOS broadcast, izwi, i-streaming, kanye nezinsiza ze-security-hardening kwenziwe kulo lonke ulimi nge-**~3,000 izivivinyo** kuzo zonke izenzo eziyi-8:
+
+| Ulimi | Izivivinyo | Iplatform yezivivinyo |
 |----------|------:|-------------|
-| C# (.NET 10) | 530 | ubuntu-latest |
-| TypeScript / Node 20 | 459 | ubuntu-latest |
-| Kotlin / JVM 21 | 457 | ubuntu-latest |
-| Go 1.22 | 423 | ubuntu-latest |
-| Python 3.12 | 387 | ubuntu-latest |
-| Swift 6 | 295 | macos-14 |
-| C (GCC) | 253 | ubuntu-latest |
-| Rust (stable) | ~195 | ubuntu-latest |
+| C# (.NET 10) | 530 | Linux |
+| TypeScript / Node 20 | 459 | Linux |
+| Kotlin / JVM 21 | 457 | Linux |
+| Go 1.22 | 423 | Linux |
+| Python 3.12 | 387 | Linux |
+| Swift 6 | 295 | macOS |
+| C (GCC) | 253 | Linux |
+| Rust (stable) | ~195 | Linux |
 | **Isamba** | **~3,000** | |
 
 I-Cross-language Signal interop iboshwe ku-`fixtures/signal/` ngama-test vectors abiwe e-X3DH (`x3dh_basic`), i-symmetric ratchet (`ratchet_step_basic`, `ratchet_step_three_iterations`), i-KDF_RK (`kdf_rk_basic`), kanye nomjikelezo ophelele weseshini ye-X3DH (`x3dh_session_msg1`, `x3dh_session_reply`). Sonke isenzo kumele sikhiqize okuphumayo okufana ibhayithi ngebhayithi maqondana nalezo fixtures. Zonke izilimi eziyi-8 manje zithumela i-Signal session egcwele (`generate_pre_key_bundle`, `process_pre_key_bundle`, `encrypt`, `decrypt`).
@@ -513,8 +539,8 @@ aethernet_packet_free(packet);
 Okwakhiwe kanye nokulandelayo.
 
 **Kwenziwe (kuqinisekiswe phakathi kwezilimi, zonke izenzo eziyi-8):**
-- Ifomethi ye-wire: iyafana ibhayithi ngebhayithi kuzo zonke izilimi eziyi-8, iboshwe yizifixture eziyi-17 ezisemthethweni kanye nokuqinisekiswa phakathi kwezilimi ku-CI (`fixtures/expected/*.bin`)
-- ✅ **GitHub Actions CI** — i-9-job matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS-14, Rust stable, C/GCC, kanye ne-fixture integrity job) ku-`.github/workflows/ci.yml`.
+- Ifomethi ye-wire: iyafana ibhayithi ngebhayithi kuzo zonke izilimi eziyi-8, iboshwe yizifixture eziyi-17 ezisemthethweni kanye nokuqinisekiswa phakathi kwezilimi (`fixtures/expected/*.bin`)
+- **GitHub Actions workflow (echaziwe, hhayi isango lamanje)** — i-9-job matrix (C#/.NET 10, Go 1.22, TypeScript/Node 20, Python 3.12, Kotlin/JVM 21, Swift/macOS, Rust stable, C/GCC, kanye ne-fixture-integrity job) ichaziwe ku-`.github/workflows/ci.yml`. Ama-commit njengamanje aphushwa nge-`[skip ci]`, ngakho ukuphoqelela kwangempela yi-corpus yezifixture esebenza **endaweni, ngolimi ngalunye** (i-Swift ne-C ku-macOS build server); i-CI ingaphinde ivulwe ngaphandle kokushintsha ikhodi.
 - Ukusayina kanye nokuqinisekiswa kwephakethe le-Ed25519
 - Ukubethela kwe-AES-256-GCM
 - Ama-primitive okususelwa kokhiye e-HKDF / HMAC
@@ -524,7 +550,7 @@ Okwakhiwe kanye nokulandelayo.
 - Insiza ye-DTN store-and-forward ne-custody transfer, i-geohash-aware replication, i-72h TTL
 - Insiza ye-SOS broadcast ne-flood, i-dedup, i-self-origin guard, i-rate-limit (3/hr)
 - Ama-seams okwelulwa: `IncentiveProvider`, `BackendClient`, `FeatureFlagProvider` (ama-Noop defaults)
-- **~3,000 izivivinyo** kuzo zonke izilimi eziyi-8 (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — zonke ziluhlaza ku-CI
+- **~3,000 izivivinyo** kuzo zonke izilimi eziyi-8 (C# 530, TypeScript 459, Kotlin 457, Go 423, Python 387, Swift 295, C 253, Rust ~195) — zonke ziluhlaza, zisetshenziswa ngolimi ngalunye (i-Swift ne-C ku-macOS build server)
 - ✅ **I-X3DH ephemeral key yangempela (izilimi eziyi-8)** — ama-X25519 DHs amane (`DH(IK_A,SPK_B) || DH(EK_A,IK_B) || DH(EK_A,SPK_B) || DH(EK_A,OPK_B)`) nge-HKDF-SHA256 root derivation. Iboshwe yi-`fixtures/signal/expected/x3dh_basic.json`.
 - ✅ **Ukuqondaniswa kwe-Double Ratchet kuwo wonke umndeni** — i-Signal §5 egcwele ne-HMAC-SHA256 + 0x01/0x02 domain separation ku-symmetric ratchet, i-HKDF-SHA256 KDF_RK ku-DH-ratchet step, i-DH-rotation ekwamukeleni. Kuqinisekiswe yi-`ratchet_step_basic`, `ratchet_step_three_iterations`, `kdf_rk_basic` fixtures.
 - ✅ **I-PROTOCOL_SPEC §2 / §3 / §4 / §9 ibuyisaniswe ne-HEAD** — bheka i-`docs/PROTOCOL_SPEC.md`.
@@ -641,7 +667,7 @@ Yebo. I-AetherNet isebenzisa i-Signal Protocol (i-X3DH key agreement kanye ne-Do
 I-Bluetooth LE, i-Wi-Fi Direct, i-NearLink (SLE), i-LoRa/CircleLink serial radio, i-HTTP/QUIC relay, kanye ne-WebRTC yokuxhumana kwe-inthanethi okuqondile kwe-peer-to-peer. Iphrothokholi ikhetha ngokuzenzakalelayo i-transport etholakalayo enamandla aphansi kunazo zonke ngephakethe ngalinye bese ibuyela kwelandelayo.
 
 **Itholakala ngeziphi izilimi zokuhlela?**
-Eziyisishiyagalombili — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, kanye no-C. Sonke isenzo sikhiqiza amaphakethe e-wire afana ibhayithi ngebhayithi, kuqinisekiswa yi-corpus yezifixture ezisatshalaliswa phakathi kwezilimi ku-CI, ngakho iphakethe elakhiwe ngolunye ulimi lihlutshwa lingashintshiwe nganoma yiluphi olunye.
+Eziyisishiyagalombili — C#, Rust, TypeScript, Python, Go, Kotlin, Swift, kanye no-C. Sonke isenzo sikhiqiza amaphakethe e-wire afana ibhayithi ngebhayithi, kuqinisekiswa yi-corpus yezifixture ezisatshalaliswa phakathi kwezilimi okumele zonke izenzo zihlolwe ngayo, ngakho iphakethe elakhiwe ngolunye ulimi lihlutshwa lingashintshiwe nganoma yiluphi olunye.
 
 **Ihluke kanjani ku-Meshtastic, Briar, noma Bridgefy?**
 I-Meshtastic yi-LoRa-kuphela; i-AetherNet iyi-multi-transport (i-Bluetooth + Wi-Fi + NearLink + LoRa) futhi ithwala izwi, ividiyo, kanye ne-streaming kanye nemilayezo. I-Briar iyi-Android-kuphela futhi idlulisa nge-Tor; i-AetherNet iyi-cross-platform futhi iyi-mesh emsulwa. Ngokungafani nama-SDK avaliwe, i-AetherNet inelayisensi ye-MIT futhi yenziwe ngokuvulekile ngezilimi eziyisishiyagalombili. Ithebula lokuqhathanisa elingenhla linemininingwane.
