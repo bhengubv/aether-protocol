@@ -42,6 +42,14 @@ var products: [Product] = [
         name: "AetherNetProtocol",
         targets: ["AetherNetProtocol"]
     ),
+    // BitTorrent codec core (BEP-3/5/9/10/11/23/29/52): a standalone library mirroring
+    // the Go `bittorrent` package and the C# AetherNet.BitTorrent project. Encoded bytes
+    // and hashes are byte-identical across every AetherNet SDK; the fixture corpus in
+    // fixtures/bittorrent/vectors.json is the cross-language gate.
+    .library(
+        name: "AetherNetBitTorrent",
+        targets: ["AetherNetBitTorrent"]
+    ),
     // The transport-agnostic WebRTC signalling carrier (SDP/ICE offer/answer framing over any
     // byte channel) has NO libdatachannel dependency — it imports only Foundation. Like the C
     // SDK's carrier, it lives in an UNCONDITIONAL library so it (and its acceptance test) build
@@ -65,6 +73,15 @@ var targets: [Target] = [
         ],
         path: "Sources/AetherNetProtocol"
     ),
+    // Standalone BitTorrent codec core. Depends only on swift-crypto (SHA-1 / SHA-256,
+    // both deterministic — no Ed25519 here, so byte-identity holds) and Foundation.
+    .target(
+        name: "AetherNetBitTorrent",
+        dependencies: [
+            .product(name: "Crypto", package: "swift-crypto")
+        ],
+        path: "Sources/AetherNetBitTorrent"
+    ),
     // Foundation-only WebRTC signalling carrier: WebRtcSignal / WebRtcSignaling /
     // RelayWebRtcSignaling. Always built (no CDataChannel), so the SDP/ICE handshake plumbing is
     // available to every consumer and testable without the native lib.
@@ -86,8 +103,15 @@ var targets: [Target] = [
         // the core protocol test target. WebRTCSignaling has its own always-built test target
         // (below); WebRTC needs the AetherNetWebRTC + libdatachannel dependency and is gated. The
         // exclude also keeps both dirs from becoming "unhandled" files when the WebRTC test target
-        // is gated out.
-        exclude: ["WebRTC", "WebRTCSignaling"]
+        // is gated out. BitTorrent likewise has its own test target (below).
+        exclude: ["WebRTC", "WebRTCSignaling", "BitTorrent"]
+    ),
+    // BitTorrent fixture + parity tests. Its own target (path Tests/BitTorrent) so it can
+    // be run in isolation with `swift test --filter AetherNetBitTorrentTests`.
+    .testTarget(
+        name: "AetherNetBitTorrentTests",
+        dependencies: ["AetherNetBitTorrent"],
+        path: "Tests/BitTorrent"
     ),
     // Always-built acceptance test for the Foundation-only carrier: round-trip + byte-identity +
     // non-signalling-ignored. Runs on the DEFAULT `swift test` (no libdatachannel), mirroring the

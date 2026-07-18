@@ -2,6 +2,7 @@
 
 pub mod bandwidth;
 pub mod bandwidth_wire;
+pub mod bittorrent;
 pub mod identity;
 pub mod anomaly_detector;
 pub mod channels;

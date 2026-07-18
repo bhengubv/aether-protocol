@@ -1,0 +1,181 @@
+{
+  "bencode_roundtrip": [
+    "693065",
+    "69343265",
+    "692d343265",
+    "343a7370616d",
+    "6c65",
+    "6c69316569326565",
+    "6465",
+    "64333a636f77333a6d6f6f343a7370616d343a6567677365",
+    "64343a696e666f64363a6c656e67746869336565343a6e616d65333a62617265"
+  ],
+  "info_hash": [
+    {
+      "name": "single_small",
+      "size": 43,
+      "mult": 7,
+      "add": 1,
+      "name_str": "payload.bin",
+      "piece_length": 16384,
+      "info_hash_hex": "beba91eb1e66bb113d73ce730503e186a25ea31c"
+    },
+    {
+      "name": "multi_piece",
+      "size": 70000,
+      "mult": 31,
+      "add": 7,
+      "name_str": "movie.bin",
+      "piece_length": 32768,
+      "info_hash_hex": "6d86148ce2f49de7de6acbf629ae215bb36db795"
+    }
+  ],
+  "peer_messages": [
+    {
+      "name": "keepalive",
+      "kind": "keepalive",
+      "a": 0,
+      "b": 0,
+      "c": 0,
+      "wire_hex": "00000000"
+    },
+    {
+      "name": "choke",
+      "kind": "choke",
+      "a": 0,
+      "b": 0,
+      "c": 0,
+      "wire_hex": "0000000100"
+    },
+    {
+      "name": "unchoke",
+      "kind": "unchoke",
+      "a": 0,
+      "b": 0,
+      "c": 0,
+      "wire_hex": "0000000101"
+    },
+    {
+      "name": "interested",
+      "kind": "interested",
+      "a": 0,
+      "b": 0,
+      "c": 0,
+      "wire_hex": "0000000102"
+    },
+    {
+      "name": "have5",
+      "kind": "have",
+      "a": 5,
+      "b": 0,
+      "c": 0,
+      "wire_hex": "000000050400000005"
+    },
+    {
+      "name": "request",
+      "kind": "request",
+      "a": 1,
+      "b": 0,
+      "c": 16384,
+      "wire_hex": "0000000d06000000010000000000004000"
+    },
+    {
+      "name": "port",
+      "kind": "port",
+      "a": 6881,
+      "b": 0,
+      "c": 0,
+      "wire_hex": "00000003091ae1"
+    }
+  ],
+  "utp_packets": [
+    {
+      "name": "data",
+      "type": 0,
+      "conn_id": 4660,
+      "timestamp": 11259375,
+      "timestamp_diff": 0,
+      "window": 65536,
+      "seq": 5,
+      "ack": 4,
+      "payload_hex": "dead",
+      "wire_hex": "0100123400abcdef000000000001000000050004dead"
+    },
+    {
+      "name": "syn",
+      "type": 4,
+      "conn_id": 42,
+      "timestamp": 0,
+      "timestamp_diff": 0,
+      "window": 1024,
+      "seq": 1,
+      "ack": 0,
+      "payload_hex": "",
+      "wire_hex": "4100002a00000000000000000000040000010000"
+    }
+  ],
+  "merkle": [
+    {
+      "name": "one_block",
+      "size": 100,
+      "mult": 7,
+      "add": 1,
+      "root_hex": "4303a0db0805657f94896cbe70712284dd3d74b1324a92b677b792b63b5d7538"
+    },
+    {
+      "name": "two_blocks",
+      "size": 16434,
+      "mult": 7,
+      "add": 1,
+      "root_hex": "e978c803be9fea8b6e9e3368c07e7317354812f4457bc173cc20d6b5c7287335"
+    },
+    {
+      "name": "three_blocks",
+      "size": 32778,
+      "mult": 7,
+      "add": 1,
+      "root_hex": "a9f5ab80aca8e2ef842fa2352e7c1ca57e25d940933f7473a407d03936b6e918"
+    }
+  ],
+  "compact": [
+    {
+      "name": "node",
+      "kind": "node",
+      "id_hex": "000102030405060708090a0b0c0d0e0f10111213",
+      "wire_hex": "000102030405060708090a0b0c0d0e0f10111213010203041ae1"
+    },
+    {
+      "name": "peers",
+      "kind": "peers",
+      "peers": [
+        {
+          "ip": "10.0.0.1",
+          "port": 1000
+        },
+        {
+          "ip": "8.8.8.8",
+          "port": 2000
+        }
+      ],
+      "wire_hex": "0a00000103e80808080807d0"
+    }
+  ],
+  "krpc": [
+    {
+      "name": "get_peers",
+      "kind": "get_peers",
+      "tx_hex": "6161",
+      "id_hex": "aabbccddeeff00112233445566778899aabbccdd",
+      "info_hash_hex": "0123456789abcdef0123456789abcdef01234567",
+      "wire_hex": "64313a6164323a696432303aaabbccddeeff00112233445566778899aabbccdd393a696e666f5f6861736832303a0123456789abcdef0123456789abcdef0123456765313a71393a6765745f7065657273313a74323a6161313a79313a7165"
+    },
+    {
+      "name": "error",
+      "kind": "error",
+      "tx_hex": "6161",
+      "error_code": 201,
+      "error_message": "A Generic Error Ocurred",
+      "wire_hex": "64313a656c693230316532333a412047656e65726963204572726f72204f63757272656465313a74323a6161313a79313a6565"
+    }
+  ]
+}

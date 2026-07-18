@@ -217,6 +217,12 @@ add_library(aethernet-protocol STATIC
     src/ble_privacy.c
     src/panic_wipe.c
     src/sync.c
+    # BitTorrent codec + logic core (BEP-3 and friends) — bencode, metainfo/info-hash,
+    # magnet, peer-wire, µTP, BEP-52 merkle, DHT compact/KRPC, BEP-10/9/11 extensions,
+    # rarest-first picker, piece store. Self-contained SHA-1 lives in this source; SHA-256
+    # reuses aethernet_sha256() (libsodium). Byte-identical to go/bittorrent + the C#
+    # reference, proven by tests/test_bittorrent_fixture.c against fixtures/bittorrent.
+    src/bittorrent.c
     # cJSON (MIT, DaveGamble/cJSON) — single portable source compiled directly
     # (FetchContent_Populate above; its bundled CMakeLists is never run). Provides
     # the JSON parse path for the WebRTC signalling carrier decode and the

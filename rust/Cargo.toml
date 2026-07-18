@@ -39,6 +39,9 @@ aes = "0.9.0-rc"
 cipher = "0.5.0-rc"
 hkdf = "0.13"
 sha2 = "0.11"
+# SHA-1 for BitTorrent v1 info-hash + piece hashing (BEP-3). Separate digest major
+# from sha2 0.11 — the two RustCrypto trees coexist without conflict.
+sha1 = "0.10"
 hmac = "0.13"
 rand = "0.8"
 # Constant-time byte comparison for duress-PIN verification (security::panic_wipe).

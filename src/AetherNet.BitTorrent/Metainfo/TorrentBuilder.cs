@@ -24,11 +24,11 @@ public static class TorrentBuilder
 
         int pieceCount = (int)((data.Length + (long)pieceLength - 1) / pieceLength);
         var pieces = new byte[pieceCount * 20];
+        Span<byte> hash = stackalloc byte[20];
         for (int i = 0; i < pieceCount; i++)
         {
             long start = (long)i * pieceLength;
             int len = (int)Math.Min(pieceLength, data.Length - start);
-            Span<byte> hash = stackalloc byte[20];
             SHA1.HashData(data.Slice((int)start, len), hash);
             hash.CopyTo(pieces.AsSpan(i * 20, 20));
         }

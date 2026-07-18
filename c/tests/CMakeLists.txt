@@ -239,6 +239,27 @@ target_link_libraries(test-sync PRIVATE aethernet-protocol pthread)
 add_test(NAME syncTests COMMAND test-sync
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+# Cross-language BitTorrent codec parity gate. Loads fixtures/bittorrent/vectors.json
+# (27 vectors, 7 categories: bencode_roundtrip / info_hash / peer_messages / utp_packets
+# / merkle / compact / krpc) and asserts this C port (src/bittorrent.c) reproduces every
+# vector byte-for-byte — mirroring go/bittorrent/fixture_test.go. Like test_sync.c the
+# corpus is nested, so it is parsed with cJSON (compiled into aethernet-protocol; the
+# symbols come transitively from the linked static library, only the include dirs are
+# needed here). Run from the repo root so the relative fixture path resolves; the
+# lowercase "bittorrent" token lets `ctest -R bittorrent` (a case-sensitive regex)
+# select it.
+add_executable(test-bittorrent-fixture
+    test_bittorrent_fixture.c
+)
+target_include_directories(test-bittorrent-fixture PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${cjson_SOURCE_DIR}
+    ${CJSON_SHIM_DIR}
+)
+target_link_libraries(test-bittorrent-fixture PRIVATE aethernet-protocol pthread)
+add_test(NAME bittorrentFixtureTests COMMAND test-bittorrent-fixture
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+
 # Portable, dependency-free fuzz harness covering:
 #   - aethernet_packet_deserialize (random bytes, oversize length prefix, mutated valid wire)
 #   - Crypto primitives: aethernet_x25519_*, aethernet_hkdf_sha256, aethernet_hmac_sha256
@@ -638,4 +659,5 @@ add_custom_target(aether-tests
         test-ble-privacy
         test-panic-wipe
         test-sync
+        test-bittorrent-fixture
 )
