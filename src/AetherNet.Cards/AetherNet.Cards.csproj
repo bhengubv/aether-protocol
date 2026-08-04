@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Cards</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Signed, versioned, content-addressed "cards" for the Aether mesh — portable page/data blobs any node can carry and serve. A card binds an author-scoped name to content-addressed bytes with an Ed25519 signature, and the directory accepts only authentic, monotonically-newer bindings, so a carrier can neither substitute nor roll back a card.</Description>
+    <PackageTags>mesh;cards;content-addressed;ed25519;signed;directory;aether;decentralized-web</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.Content/AetherNet.Content.csproj" />
+    <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
+  </ItemGroup>
+
+</Project>

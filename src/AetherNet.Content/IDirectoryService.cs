@@ -48,6 +48,25 @@ public interface IDirectoryService
     /// </summary>
     Task<ContentDescriptor?> ResolveAsync(string name, TimeSpan? queryTimeout = null, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Publish an AUTHENTICATED binding: broadcast a <see cref="PacketType.NamePublish"/> carrying the
+    /// author's Ed25519 public key, a monotonic <paramref name="version"/>, and the
+    /// <paramref name="signature"/> over the canonical body (see <c>NameBindingCodec</c>). Receivers with
+    /// an <c>INameBindingVerifier</c> accept it only if the signature verifies, the author matches any
+    /// binding already held for the name, and the version strictly increases — closing the name-hijack
+    /// and rollback gaps that plain <see cref="PublishAsync"/> leaves open.
+    /// </summary>
+    Task PublishSignedAsync(string name, ContentDescriptor descriptor, byte[] authorPublicKey, long version, byte[] signature, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resolve an authenticated binding within an ownership <paramref name="scope"/> (e.g. the owner's
+    /// AetherTag). The storage slot is <c>scope</c>-bound (<see cref="NameHashing.ScopedSlot"/>), so only
+    /// the scope owner could have published it — an impostor's binding for the same name lands in the
+    /// impostor's own scope and never here. Returns null if nothing is held for
+    /// (<paramref name="scope"/>, <paramref name="name"/>).
+    /// </summary>
+    Task<NameBinding?> ResolveBindingByScopeAsync(string scope, string name, TimeSpan? queryTimeout = null, CancellationToken cancellationToken = default);
+
     /// <summary>Enumerate every name currently in the local catalogue (snapshot).</summary>
     Task<IReadOnlyList<string>> ListNamesAsync(CancellationToken cancellationToken = default);
 

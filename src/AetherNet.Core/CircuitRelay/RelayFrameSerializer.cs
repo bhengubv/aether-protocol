@@ -36,7 +36,7 @@ public static class RelayFrameSerializer
     public const byte Version = 0x01;
 
     private const int MaxPayload = 16 * 1024 * 1024;
-    private const byte MaxType = (byte)RelayMessageType.Data;   // 7
+    private const byte MaxType = (byte)RelayMessageType.RouteAnnounce; // 8 (native discovery extension)
     private const byte MaxStatus = (byte)RelayStatus.MalformedMessage; // 6
 
     public static byte[] Serialize(RelayFrame f)

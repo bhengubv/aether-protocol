@@ -67,18 +67,19 @@ public enum PacketType : byte
     /// </summary>
     ChunkBitmap = 37,
 
-    // ── IDs 38–49 reserved for Phase-2 extensions ────────────────────────────
+    // ── IDs 38–49: Phase-2 extension block ────────────────────────────────────
     //
     // Rules:
-    //   • Core protocol types occupy 1–37 and 50–52.
-    //   • IDs 38–49 are reserved for the aether-* extension packages. Each
-    //     extension must document its type here before shipping. New assignments
-    //     require a CHANGELOG entry and must not break existing implementations
-    //     (nodes MUST ignore unrecognised PacketType values gracefully).
-    //   • IDs 38–39 are currently unassigned — reserved for future core use.
+    //   • Core protocol types occupy 1–37 and 50–57.
+    //   • IDs 38–49 are reserved for aether-* extension packages. Each extension
+    //     documents its type here before shipping. New assignments require a
+    //     CHANGELOG entry and must not break existing implementations (nodes MUST
+    //     ignore unrecognised PacketType values gracefully). Adding a type is a
+    //     MINOR release and does not change ProtocolVersion.
     //
-    //   38 = NamePublish (v1.2.0 — IDirectoryService application-layer naming)
-    //   39 = NameQuery   (v1.2.0 — IDirectoryService application-layer naming)
+    //   38 NamePublish · 39 NameQuery (directory) · 40 SpaceBreadcrumb ·
+    //   41 ForgeAnnounce · 42 VaultShardRequest · 43 PoVTokenExchange ·
+    //   44–49 (unassigned)
     //
 
     /// <summary>
@@ -129,8 +130,6 @@ public enum PacketType : byte
     /// Proof-of-Vicinity trust between two nodes.
     /// </summary>
     PoVTokenExchange = 43,
-
-    //   44–49 = (unassigned — reserved for future Phase-2 extensions)
 
     /// <summary>
     /// Capability handshake — sender announces supported protocol-version range

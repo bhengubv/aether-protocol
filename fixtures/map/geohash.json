@@ -1,0 +1,105 @@
+{
+  "description": "Canonical geohash encode + cell/neighbour vectors (aether-map). 'geohash' is Geohash.Encode(lat,lon,precision); 'cell_and_neighbours' is the cell followed by its 8 neighbours in order N,NE,E,SE,S,SW,W,NW. Alphabet 0123456789bcdefghjkmnpqrstuvwxyz. Every language SDK MUST reproduce these exactly.",
+  "encode": [
+    {
+      "lat": 57.64911,
+      "lon": 10.40744,
+      "precision": 11,
+      "geohash": "u4pruydqqvj"
+    },
+    {
+      "lat": 42.6,
+      "lon": -5.6,
+      "precision": 5,
+      "geohash": "ezs42"
+    },
+    {
+      "lat": 51.5074,
+      "lon": -0.1278,
+      "precision": 9,
+      "geohash": "gcpvj0duq"
+    },
+    {
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "precision": 7,
+      "geohash": "u09tvw0"
+    },
+    {
+      "lat": -33.9249,
+      "lon": 18.4241,
+      "precision": 8,
+      "geohash": "k3vp520j"
+    },
+    {
+      "lat": 35.6895,
+      "lon": 139.6917,
+      "precision": 10,
+      "geohash": "xn774c06kt"
+    },
+    {
+      "lat": 0,
+      "lon": 0,
+      "precision": 6,
+      "geohash": "s00000"
+    }
+  ],
+  "neighbours": [
+    {
+      "geohash": "u4pruy",
+      "cell_and_neighbours": [
+        "u4pruy",
+        "u4pruz",
+        "u4prvp",
+        "u4prvn",
+        "u4prvj",
+        "u4pruv",
+        "u4prut",
+        "u4pruw",
+        "u4prux"
+      ]
+    },
+    {
+      "geohash": "gcpvj0",
+      "cell_and_neighbours": [
+        "gcpvj0",
+        "gcpvj1",
+        "gcpvj3",
+        "gcpvj2",
+        "gcpuvr",
+        "gcpuvp",
+        "gcpuuz",
+        "gcpvhb",
+        "gcpvhc"
+      ]
+    },
+    {
+      "geohash": "u120fw",
+      "cell_and_neighbours": [
+        "u120fw",
+        "u120fx",
+        "u120fz",
+        "u120fy",
+        "u120fv",
+        "u120ft",
+        "u120fm",
+        "u120fq",
+        "u120fr"
+      ]
+    },
+    {
+      "geohash": "s0000",
+      "cell_and_neighbours": [
+        "s0000",
+        "s0002",
+        "s0003",
+        "s0001",
+        "kpbpc",
+        "kpbpb",
+        "7zzzz",
+        "ebpbp",
+        "ebpbr"
+      ]
+    }
+  ]
+}

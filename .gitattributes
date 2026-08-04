@@ -7,3 +7,13 @@ rust/Cargo.toml text eol=lf
 rust/Cargo.lock text eol=lf
 
 # Rust: rustc 1.91+ rejects bare CR in source. Force LF on checkout/checkin.
+
+# .NET sources and project files: force LF. Some .cs files carried malformed
+# double-CR (\r\r\n) endings (which inflate line counts 2x and cause diff noise);
+# normalize going forward. Bulk `git add --renormalize` of existing files is a
+# separate task. LF matches the cross-platform (Windows + macOS) build.
+*.cs      text eol=lf
+*.csproj  text eol=lf
+*.props   text eol=lf
+*.targets text eol=lf
+*.slnx    text eol=lf

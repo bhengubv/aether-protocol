@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Map</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Durable, conflict-free neighbourhood map for AetherNet (aether-map Phase-2 extension). A field-level CRDT (Hybrid Logical Clock) over map features (storefronts, sidewalk accessibility, environmental readings) that merges concurrent multi-author edits offline, peer-to-peer, with no server. Pure managed code — no third-party dependencies; the durable SQLite store ships in AetherNet.Map.Sqlite.</Description>
+    <PackageTags>mesh;map;crdt;geohash;offline;poi;cartography;aether;hlc</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+  </ItemGroup>
+
+</Project>

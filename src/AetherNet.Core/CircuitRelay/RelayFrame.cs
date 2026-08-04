@@ -25,6 +25,14 @@ public enum RelayMessageType : byte
     ConnectResponse = 6,
     /// <summary>Either endpoint → relay → other endpoint: opaque tunnelled payload.</summary>
     Data = 7,
+
+    /// <summary>
+    /// Native discovery (an AetherNet extension beyond the v2 control set): a node broadcasts that it is
+    /// reachable via <see cref="RelayFrame.RelayUhid"/> until <see cref="RelayFrame.ReservationExpiresAtMs"/>.
+    /// This is the cold-start "reservation gossip" that lets peers learn a dest→relay route on their own,
+    /// with no manual configuration. Nodes that don't implement it ignore the unknown verb.
+    /// </summary>
+    RouteAnnounce = 8,
 }
 
 /// <summary>

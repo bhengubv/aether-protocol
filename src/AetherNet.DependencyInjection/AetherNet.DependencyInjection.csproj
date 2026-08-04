@@ -26,6 +26,7 @@
     <ProjectReference Include="../AetherNet.Streaming/AetherNet.Streaming.csproj" />
     <ProjectReference Include="../AetherNet.Voice/AetherNet.Voice.csproj" />
     <ProjectReference Include="../AetherNet.Content/AetherNet.Content.csproj" />
+    <ProjectReference Include="../AetherNet.Cards/AetherNet.Cards.csproj" />
     <ProjectReference Include="../AetherNet.Space/AetherNet.Space.csproj" />
     <ProjectReference Include="../AetherNet.Forge/AetherNet.Forge.csproj" />
     <ProjectReference Include="../AetherNet.Vault/AetherNet.Vault.csproj" />

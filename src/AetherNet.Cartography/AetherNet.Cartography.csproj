@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Cartography</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Walk-to-earn trust layer for AetherNet (aether-cartography Phase-2 extension). Coordinate-bound, witness-co-signed Proof-of-Location that resists GPS spoofing and Sybil/bot farms with no server, plus a map-data-quality (content-trust) score distinct from routing reputation. The primitive a map-contribution reward is gated on.</Description>
+    <PackageTags>mesh;proof-of-location;walk-to-earn;sybil;geohash;cartography;aether;offline</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
+  </ItemGroup>
+
+</Project>

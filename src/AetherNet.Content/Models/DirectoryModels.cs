@@ -33,6 +33,27 @@ public sealed class NamePublishPayload
     /// <summary>If non-null, this is a unicast response to a prior <see cref="AetherNet.Protocol.PacketType.NameQuery"/>
     /// whose <see cref="NameQueryPayload.QueryId"/> matched this value. If null, the publish is unsolicited.</summary>
     public Guid? InResponseToQueryId { get; set; }
+
+    /// <summary>
+    /// Monotonic version of this name→descriptor binding. An authenticated publish MUST increase it; a
+    /// receiver rejects a binding whose version is not strictly greater than the newest authenticated one
+    /// it already holds (anti-rollback). 0 for unsigned legacy publishes.
+    /// </summary>
+    public long Version { get; set; }
+
+    /// <summary>
+    /// Base64 of the author's 32-byte Ed25519 public key. Non-null marks an AUTHENTICATED binding: the
+    /// receiver verifies <see cref="Signature"/> over the canonical body
+    /// (see <see cref="AetherNet.Content.NameBindingCodec"/>) before trusting it, and refuses a later
+    /// binding for the same name signed by a different key. Null = unsigned legacy binding.
+    /// </summary>
+    public string? AuthorPublicKey { get; set; }
+
+    /// <summary>
+    /// Base64 of the 64-byte Ed25519 signature over the canonical binding body
+    /// {nameHash, authorPublicKey, version, descriptor.rootHash}. Null = unsigned legacy binding.
+    /// </summary>
+    public string? Signature { get; set; }
 }
 
 /// <summary>
@@ -69,4 +90,22 @@ public sealed class DirectoryEntryAnnouncedEventArgs : EventArgs
 
     /// <summary>UTC time the announcement arrived locally.</summary>
     public DateTime AnnouncedAtUtc { get; init; } = DateTime.UtcNow;
+
+    /// <summary>Base64 Ed25519 author key when the announce was AUTHENTICATED; null for unsigned.</summary>
+    public string? AuthorPublicKey { get; init; }
+
+    /// <summary>Binding version (0 for unsigned).</summary>
+    public long Version { get; init; }
 }
+
+/// <summary>
+/// A resolved name binding: the content descriptor plus — when the binding was AUTHENTICATED — the
+/// author key, version, and signature the directory verified on ingest. Returned by
+/// <see cref="IDirectoryService.ResolveBindingAsync"/>.
+/// </summary>
+public sealed record NameBinding(
+    ContentDescriptor Descriptor,
+    byte[]? AuthorPublicKey,
+    long Version,
+    byte[]? Signature,
+    bool Authenticated);

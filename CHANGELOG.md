@@ -10,6 +10,81 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+### Added
+
+- **Signed, versioned, content-addressed cards** (`src/AetherNet.Cards/`) + **authenticated directory
+  bindings** (`src/AetherNet.Content/`). A card binds a name to a content-addressed blob with an Ed25519
+  signature. `DirectoryService` accepts a signed `NamePublish` only when the signature verifies over the
+  canonical `NameBindingCodec` body and the version strictly increases, and it **files each authenticated
+  binding under a slot the directory derives from the signing key** —
+  `ScopedSlot(verifier.DeriveScope(author), Hash(name))`. Because the slot is scope-bound and the scope
+  comes from the key, a name is owned exclusively by the key whose scope (AetherTag) matches it: a carrier
+  can neither substitute nor roll back a card, and **cannot squat another author's name slot** (there is
+  no shared slot to race for). `AetherNet.Content` stays crypto-free — signature verification and scope
+  derivation are injected via `INameBindingVerifier` (Ed25519 + AetherTag impl in `AetherNet.Cards`),
+  wired by `AddCards()`. No new packet type (rides `NamePublish`); **backward-compatible** — unsigned
+  publishes are unchanged.
+- **`aether://` resolver** (`src/AetherNet.Cards/AetherResolver.cs`, `IAetherResolver`). Resolves an
+  `aether://<tag>/<name>` URI — via the existing `AetherUri` grammar (authority = `AetherNetTag`, path =
+  resource) — to the verified `Card` its tag owner published. Because each authenticated binding is filed
+  under a key-derived slot scoped by the author's tag, a card is reachable from the tag in the URI alone,
+  and the resolver re-checks the resolved key against the tag (`AetherNetTag.Verify`) as defence in depth.
+  `aether://<tag>/content/<rootHash>` resolves to a content target the caller fetches via `IContentService`.
+  Registered by `AddCards()`. The cards + resolver surface is covered by **24 tests** — content-hash
+  tamper, codec field-binding, signature/version admission, **independent per-owner slots (no lock-out)**,
+  two-node carry→resolve-by-URI, and a **squatter that cannot block owner resolution**.
+- **Traffic lanes / QoS** (`src/AetherNet.Core/Qos/`). A generic, app-blind `LaneScheduler<T>` orders
+  outbound traffic across five lanes (`TrafficClass`: Emergency, Control, Realtime, Standard, Bulk):
+  Emergency + Control are a strict must-deliver tier, and Realtime / Standard / Bulk share the rest by
+  **weighted deficit round-robin** (default 4 : 2 : 1) — so a bulk download can never starve a real-time
+  call, yet bulk still makes guaranteed progress and no lane is head-of-line-blocked. `TrafficClassifier`
+  assigns a default lane from a packet's SOS-priority byte + a coarse type category; the class is a
+  **local scheduling hint, never written to the wire** (an app-identifying class on the wire would be a
+  profiling surface). Covered by 25 tests (strict priority, FIFO-in-lane, real-time not starved by a
+  500-deep bulk backlog, bulk still progresses, weighted throughput, oversized packet, classifier
+  mapping). The scheduler is the primitive; wiring it in front of the transport send loop is the
+  integration step.
+- **Privacy hardening — T1 (control-payload encryption) + T2 (ERID exchange composed).**
+  - **T1:** a Core-level `IControlPayloadCipher` seam (`src/AetherNet.Core/Privacy/`) — with a Messaging
+    `ControlPayloadCipherAdapter` over the Signal envelope cipher — lets `AetherNet.Core` control services
+    seal their payloads without depending on the crypto stack. `ProfileService` now seals its PII payload
+    (display name / avatar / free-text status) to the recipient inside the Signal session: **no session ⇒
+    no send** (never a cleartext fallback), and an unopenable inbound payload is dropped. Closes the
+    highest-value cleartext control-payload leak. (The parity fixture is unchanged — it pins the inner
+    payload format, which encryption wraps rather than alters.)
+  - **T2:** the rotating-ERID machinery shipped **built-but-unconnected** (derivation, announcement codec,
+    resolver directory, and the in-session seal were each unit-tested in isolation, but the two halves were
+    never wired and the directory never populated). New `EridExchangeCoordinator`
+    (`src/AetherNet.Core/Identity/`) + `AddErid()` compose them end-to-end: on an established session a node
+    seals its routing key through `IControlPayloadCipher` and announces it (packet 56); an inbound
+    announcement is opened and the peer's key recorded in `EridDirectory`, so an established peer can resolve
+    the node's rotating wire ERID while an outsider cannot. **Additive and off-wire** — the stable UHID still
+    ships until the capability-gated cutover. Covered by an end-to-end integration test (announce → open →
+    resolve; inbound via the transport handler; no-session ⇒ no send).
+  - **Not in this pass (gated):** the ERID **wire cutover** (swapping the stable UHID for the ERID in the
+    packet header changes the byte-pinned wire across all 8 ports; its endpoint needs the two-node RF
+    delivery proof); **SOS** coarse-flood / encrypt-to-contacts (a safety tradeoff reserved for explicit
+    sign-off); and **MeshTip** payload encryption (money-facing; the tip is relayed + settled hop-by-hop, so
+    naive end-to-end encryption breaks the relay/settle flow — it needs a settlement-model change).
+- **Relay layer — native circuit-relay cold-start (relay discovery).** The native circuit-relay-v2 transport
+  (`CircuitRelayTransportService`) was already complete and tested (reserve → connect → bridge → data, with
+  reservation TTLs + per-bridge data/duration budgets), but its routes could only be set by hand
+  (`SetRoute` — tests only). New `RelayDiscoveryService` (`src/AetherNet.Core/CircuitRelay/`) + a
+  `RelayMessageType.RouteAnnounce` verb close the cold-start: a NAT'd node that has reserved capacity on a
+  relay broadcasts *"reach me via relay R (until expiry)"*, and any peer that hears it learns the dest→relay
+  route on its own — the decentralised, native "reservation gossip" that `SetRoute` refers to (relay-capable
+  nodes are found via the existing `NodeCapabilities.Relay` bit; no external bootstrap). Own / stale /
+  non-relay announcements are ignored. The libp2p/IPFS day-1 scaffold (js-libp2p client bootstrap) is a
+  separate JS-side/external effort — the C# transport is deliberately the "no-libp2p equivalent."
+- **Line-ending hygiene**: added `.editorconfig` + `.gitattributes` rules forcing LF on `.cs` and .NET
+  project files (some sources carried malformed double-CR `\r\r\n` endings that inflate line counts and
+  cause diff noise). Bulk renormalization of existing files is tracked separately.
+
+### Documentation
+
+- Brought `docs/PROTOCOL_SPEC.md` §2.5 (Packet Types) current — the table had stopped at `34`; added
+  the already-shipped `35–43` and `50–57` types it was missing.
+
 ## [3.0.0] — 2026-07-18
 
 **BitTorrent + mesh content distribution — a category expansion for AetherNet.** An AetherNet node can

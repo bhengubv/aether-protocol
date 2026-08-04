@@ -1,0 +1,18 @@
+root = true
+
+[*]
+charset = utf-8
+
+# .NET sources and project files: force LF (some .cs files had malformed
+# double-CR \r\r\n endings). LF matches the cross-platform Windows+macOS build.
+[*.cs]
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{csproj,props,targets,slnx}]
+end_of_line = lf
+indent_style = space
+indent_size = 2

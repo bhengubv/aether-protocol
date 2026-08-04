@@ -2,6 +2,7 @@
 
 using AetherNet.ApiClients;
 using AetherNet.Bandwidth;
+using AetherNet.Cards;
 using AetherNet.Channels;
 using AetherNet.Heartbeat;
 using AetherNet.Profiles;
@@ -16,6 +17,7 @@ using AetherNet.Extensibility;
 using AetherNet.Handshake;
 using AetherNet.Identity;
 using AetherNet.Presence;
+using AetherNet.Privacy;
 using AetherNet.Incentive;
 using AetherNet.Messaging;
 using AetherNet.Models;
@@ -61,6 +63,7 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _bandwidthAdded;
     private bool _presenceAdded;
     private bool _eridAnnounceAdded;
+    private bool _eridExchangeAdded;
     private bool _voicePttAdded;
     private bool _screenShareAdded;
     private bool _messagingAdded;
@@ -79,6 +82,7 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
     private bool _groupVoiceAdded;
     private bool _contentAdded;
     private bool _directoryAdded;
+    private bool _cardsAdded;
     private bool _spaceAdded;
     private bool _forgeAdded;
     private bool _vaultAdded;
@@ -236,7 +240,7 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
             var sender = sp.GetRequiredService<IMeshSender>();
             var logger = sp.GetService<ILogger<ProfileService>>()
                 ?? NullLogger<ProfileService>.Instance;
-            return new ProfileService(sender, logger);
+            return new ProfileService(sender, sp.GetService<IControlPayloadCipher>(), logger);
         });
 
         return this;
@@ -322,6 +326,38 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
         return this;
     }
 
+    public IAetherNetProtocolBuilder AddErid()
+    {
+        if (!_signalAdded)
+            throw new InvalidOperationException(
+                "AddErid() requires AddSignalProtocol() first — it derives the ERID routing key and provides the session cipher.");
+        if (!_eridAnnounceAdded)
+            throw new InvalidOperationException(
+                "AddErid() requires AddEridAnnounce() first — the type-56 transport the exchange rides on.");
+        if (_eridExchangeAdded) return this;
+        _eridExchangeAdded = true;
+
+        // The rotating-address directory, keyed by this node's SECRET routing key (derived from identity).
+        Services.TryAddSingleton<EridDirectory>(sp =>
+            new EridDirectory(sp.GetRequiredService<ISignalProtocolService>().DeriveEridRoutingKey()));
+
+        // The coordinator that composes the two built-but-unconnected halves. Resolve it at startup to
+        // activate its inbound subscription (IEridAnnounceService.AnnounceReceived → the directory), and
+        // call AnnounceToAsync on session establishment. Requires the control cipher from AddMessaging.
+        Services.TryAddSingleton<EridExchangeCoordinator>(sp =>
+        {
+            var announce = sp.GetRequiredService<IEridAnnounceService>();
+            var directory = sp.GetRequiredService<EridDirectory>();
+            var cipher = sp.GetRequiredService<IControlPayloadCipher>();
+            var key = sp.GetRequiredService<ISignalProtocolService>().DeriveEridRoutingKey();
+            var logger = sp.GetService<ILogger<EridExchangeCoordinator>>()
+                ?? NullLogger<EridExchangeCoordinator>.Instance;
+            return new EridExchangeCoordinator(announce, directory, cipher, key, logger: logger);
+        });
+
+        return this;
+    }
+
     public IAetherNetProtocolBuilder AddVoicePtt()
     {
         if (_voicePttAdded) return this;
@@ -383,6 +419,11 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
                 ?? NullLogger<SignalMessageEnvelopeCipher>.Instance;
             return new SignalMessageEnvelopeCipher(signal, logger);
         });
+
+        // Bridge the Signal envelope cipher to the Core-level control-payload seam, so control services
+        // (profiles, …) can seal their payloads through the same session.
+        Services.TryAddSingleton<IControlPayloadCipher>(sp =>
+            new ControlPayloadCipherAdapter(sp.GetRequiredService<IMessageEnvelopeCipher>()));
 
         Services.TryAddSingleton<IMessagingService>(sp =>
         {
@@ -858,8 +899,32 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
             var sender = sp.GetRequiredService<IMeshSender>();
             var logger = sp.GetService<ILogger<DirectoryService>>()
                          ?? NullLogger<DirectoryService>.Instance;
-            return new DirectoryService(sender, logger);
+            return new DirectoryService(sender, sp.GetService<INameBindingVerifier>(), logger);
         });
+
+        return this;
+    }
+
+    public IAetherNetProtocolBuilder AddCards()
+    {
+        if (!_contentAdded)
+            throw new InvalidOperationException(
+                "AddCards() requires AddContent() to have been called first. " +
+                "Card blobs are content-addressed via IContentService.");
+        if (!_directoryAdded)
+            throw new InvalidOperationException(
+                "AddCards() requires AddDirectory() to have been called first. " +
+                "Card name→content bindings are published and resolved via IDirectoryService.");
+        if (_cardsAdded) return this;
+        _cardsAdded = true;
+
+        // The Ed25519 bridge that lets the (crypto-free) directory verify signed name bindings.
+        Services.TryAddSingleton<INameBindingVerifier, Ed25519NameBindingVerifier>();
+        Services.TryAddSingleton<ICardService>(sp =>
+            new CardService(
+                sp.GetRequiredService<IContentService>(),
+                sp.GetRequiredService<IDirectoryService>()));
+        Services.TryAddSingleton<IAetherResolver, AetherResolver>();
 
         return this;
     }

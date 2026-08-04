@@ -207,6 +207,23 @@ porting.
 | 32    | ScreenShare       | Unicast       | Screen share frame (same pipeline as video, flagged separately) |
 | 33    | WatchChunkRequest | Unicast       | Priority chunk request biased to playback position |
 | 34    | TorrentMetadata   | Multicast     | BitTorrent .torrent file or magnet link metadata exchange |
+| 35    | GroupVideoSignaling | Unicast     | Group video session signaling (create/join/leave/kick/SFU) |
+| 36    | StreamAbandon     | Broadcast     | Adaptive-bitrate abandon marker |
+| 37    | ChunkBitmap       | Broadcast     | Chunk-availability bitmap (Chunk Shuffle) |
+| 38    | NamePublish       | Broadcast/Unicast | Name → ContentDescriptor announcement (directory) |
+| 39    | NameQuery         | Broadcast     | Name-resolution query (directory) |
+| 40    | SpaceBreadcrumb   | Flood (geo)   | Geo-pinned content breadcrumb (aether-space) |
+| 41    | ForgeAnnounce     | Broadcast     | Forge cache-entry announcement (aether-forge) |
+| 42    | VaultShardRequest | Broadcast     | Vault shard locate request (aether-vault) |
+| 43    | PoVTokenExchange  | Unicast (short-range) | Proof-of-Vicinity co-presence token (aether-market) |
+| 50    | Hello             | Unicast       | Capability/version handshake |
+| 51    | HelloAck          | Unicast       | Handshake reply (negotiated version + capability intersection) |
+| 52    | ReputationUpdate  | Broadcast     | Reputation gossip (delta scaled by reporter's own reputation) |
+| 53    | BandwidthProbe    | Unicast       | Active bandwidth probe (ABMF) |
+| 54    | BandwidthAck      | Unicast       | Active bandwidth probe acknowledgment (ABMF) |
+| 55    | BandwidthGossip   | Unicast       | Bandwidth estimate warm-start (ABMF) |
+| 56    | EridAnnounce      | Unicast (encrypted) | Rotating-address (ERID) handshake control |
+| 57    | CircuitRelayControl | Unicast (1-hop) | Native circuit-relay-v2 control/data frame |
 
 ### 2.6. Node Capabilities
 

@@ -122,6 +122,15 @@ public interface IAetherNetProtocolBuilder
     IAetherNetProtocolBuilder AddEridAnnounce();
 
     /// <summary>
+    /// Compose the ERID exchange end-to-end: register the <c>EridDirectory</c> and the
+    /// <c>EridExchangeCoordinator</c> that connects the transport (<see cref="AddEridAnnounce"/>) to the
+    /// session cipher, so a peer's rotating-address routing key is learned in-session and stored for
+    /// resolution. Requires <see cref="AddSignalProtocol"/> + <see cref="AddEridAnnounce"/> (and the control
+    /// cipher from <see cref="AddMessaging"/>). Additive / off-wire until the capability-gated cutover.
+    /// </summary>
+    IAetherNetProtocolBuilder AddErid();
+
+    /// <summary>
     /// Register <c>VoicePttService</c> as a singleton <c>IVoicePttService</c> (<c>PacketType.VoicePtt</c>
     /// directed push-to-talk audio frames — binary, sharing the VoiceCall/VideoFrame header). Requires <c>IMeshSender</c>.
     /// </summary>
@@ -354,6 +363,14 @@ public interface IAetherNetProtocolBuilder
     /// called first; throws <see cref="InvalidOperationException"/> otherwise.
     /// </summary>
     IAetherNetProtocolBuilder AddSpace();
+
+    /// <summary>
+    /// Register the cards layer (aether-cards): signed, versioned, content-addressed page/data blobs.
+    /// Wires an Ed25519 <c>INameBindingVerifier</c> into the directory (so it authenticates signed name
+    /// bindings) and registers <c>ICardService</c>. Requires <see cref="AddContent"/> and
+    /// <see cref="AddDirectory"/>.
+    /// </summary>
+    IAetherNetProtocolBuilder AddCards();
 
     /// <summary>
     /// Register <c>InMemoryForgeService</c> as a singleton <c>IForgeService</c>

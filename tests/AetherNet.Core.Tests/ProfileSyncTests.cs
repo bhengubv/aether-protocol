@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 
+using System.Text;
 using System.Text.Json;
 using AetherNet.Models;
+using AetherNet.Privacy;
 using AetherNet.Profiles;
 using AetherNet.Protocol;
 using AetherNet.Routing;
@@ -11,8 +13,9 @@ using Xunit;
 namespace AetherNet.Core.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="ProfileService"/> (PacketType.ProfileSync). Directed exchange — a fake
-/// <see cref="IMeshSender"/> captures the directed send.
+/// Unit tests for <see cref="ProfileService"/> (PacketType.ProfileSync). The profile payload is PII, so it
+/// is sealed to the recipient via <see cref="IControlPayloadCipher"/> — the wire never carries cleartext,
+/// and no session means no send. A reversible fake cipher stands in for the real Signal envelope here.
 /// </summary>
 public sealed class ProfileSyncTests
 {
@@ -30,28 +33,48 @@ public sealed class ProfileSyncTests
         public Task<int> BroadcastAsync(MeshPacket packet, CancellationToken ct = default) => Task.FromResult(0);
     }
 
+    // Reversible stand-in for the Signal envelope: XOR 0xFF is its own inverse, so the wire bytes are not
+    // the plaintext yet round-trip exactly. (Real encryption is covered by SignalMessageEnvelopeCipherTests.)
+    private sealed class FakeControlCipher : IControlPayloadCipher
+    {
+        public static byte[] Seal(byte[] data)
+        {
+            var r = new byte[data.Length];
+            for (var i = 0; i < data.Length; i++) r[i] = (byte)(data[i] ^ 0xFF);
+            return r;
+        }
+
+        public Task<byte[]?> EncryptAsync(string recipientUhid, byte[] plaintext, CancellationToken ct = default)
+            => Task.FromResult<byte[]?>(Seal(plaintext));
+        public Task<byte[]?> DecryptAsync(string senderUhid, byte[] ciphertext, CancellationToken ct = default)
+            => Task.FromResult<byte[]?>(Seal(ciphertext));
+        public bool HasSession(string peerUhid) => true;
+    }
+
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
     };
 
     private static ProfileService Build(FakeMeshSender sender)
-        => new(sender, NullLogger<ProfileService>.Instance);
+        => new(sender, new FakeControlCipher(), NullLogger<ProfileService>.Instance);
 
     private static MeshPacket ProfilePacket(string uhid, string name, string avatar, string status, long updatedAtMs) => new()
     {
         Type = PacketType.ProfileSync,
         SourceUhid = uhid,
         DestinationUhid = "aether:local:01",
-        Payload = JsonSerializer.SerializeToUtf8Bytes(new ProfileSyncPayload
+        Payload = FakeControlCipher.Seal(JsonSerializer.SerializeToUtf8Bytes(new ProfileSyncPayload
         {
             Uhid = uhid,
             DisplayName = name,
             AvatarRef = avatar,
             StatusMessage = status,
             UpdatedAtMs = updatedAtMs,
-        }, JsonOpts),
+        }, JsonOpts)),
     };
+
+    // ─── Payload format parity (unchanged by encryption — the inner plaintext is still this JSON) ───
 
     [Theory]
     [InlineData("aether:alice:01", "Alice", "blake3:abc", "available", 1700000000000L,
@@ -69,12 +92,14 @@ public sealed class ProfileSyncTests
             StatusMessage = status,
             UpdatedAtMs = updatedAtMs,
         };
-        var json = System.Text.Encoding.UTF8.GetString(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOpts));
+        var json = Encoding.UTF8.GetString(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOpts));
         Assert.Equal(expected, json);
     }
 
+    // ─── Sealed send ───
+
     [Fact]
-    public async Task PublishProfileTo_SendsDirectedProfileToPeer()
+    public async Task PublishProfileTo_SealsPayload_NoCleartextPiiOnWire()
     {
         var sender = new FakeMeshSender { LocalUhid = "aether:alice:01" };
         var svc = Build(sender);
@@ -86,10 +111,32 @@ public sealed class ProfileSyncTests
         var sent = Assert.Single(sender.Sends);
         Assert.Equal(PacketType.ProfileSync, sent.Packet.Type);
         Assert.Equal("aether:bob:02", sent.NextHop);
-        var body = JsonSerializer.Deserialize<ProfileSyncPayload>(sent.Packet.Payload, JsonOpts)!;
-        Assert.Equal("aether:alice:01", body.Uhid);
-        Assert.Equal("Alice", body.DisplayName);
+
+        // The wire payload is sealed — it is neither the plaintext JSON nor does it leak the PII.
+        var plaintext = JsonSerializer.SerializeToUtf8Bytes(svc.GetLocalProfile(), JsonOpts);
+        Assert.NotEqual(plaintext, sent.Packet.Payload);
+        Assert.DoesNotContain("Alice", Encoding.UTF8.GetString(sent.Packet.Payload));
+
+        // …and it round-trips back to the real profile once opened.
+        var opened = JsonSerializer.Deserialize<ProfileSyncPayload>(FakeControlCipher.Seal(sent.Packet.Payload), JsonOpts)!;
+        Assert.Equal("aether:alice:01", opened.Uhid);
+        Assert.Equal("Alice", opened.DisplayName);
     }
+
+    [Fact]
+    public async Task PublishProfileTo_WithNoSession_SendsNothing()
+    {
+        var sender = new FakeMeshSender { LocalUhid = "aether:alice:01" };
+        var svc = new ProfileService(sender, new NullControlPayloadCipher(), NullLogger<ProfileService>.Instance);
+        svc.SetLocalProfile("Alice", "blake3:abc", "available");
+
+        var ok = await svc.PublishProfileToAsync("aether:bob:02");
+
+        Assert.False(ok);
+        Assert.Empty(sender.Sends); // never falls back to cleartext
+    }
+
+    // ─── Sealed receive ───
 
     [Fact]
     public async Task Handle_CachesPeerProfileAndRaisesEvent()
@@ -138,5 +185,15 @@ public sealed class ProfileSyncTests
         var pkt = ProfilePacket("aether:bob:02", "Bob", "", "", 1L);
         pkt.Type = PacketType.Data;
         Assert.False(await svc.HandleAsync(pkt));
+    }
+
+    [Fact]
+    public async Task Handle_UndecryptablePayload_IsDropped()
+    {
+        // A receiver with no session cannot open the sealed payload — it is dropped, not cached.
+        var svc = new ProfileService(new FakeMeshSender(), new NullControlPayloadCipher(), NullLogger<ProfileService>.Instance);
+        var ok = await svc.HandleAsync(ProfilePacket("aether:bob:02", "Bob", "", "busy", 1L));
+        Assert.False(ok);
+        Assert.Empty(svc.GetKnownProfiles());
     }
 }

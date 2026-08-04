@@ -149,7 +149,7 @@ public class CircuitRelaySerializerTests
 
     [Theory]
     [InlineData((byte)0)]   // 0 is not a valid type
-    [InlineData((byte)8)]   // past Data(7)
+    [InlineData((byte)9)]   // past RouteAnnounce(8)
     [InlineData((byte)255)]
     public void Deserialize_RejectsInvalidType(byte badType)
     {
