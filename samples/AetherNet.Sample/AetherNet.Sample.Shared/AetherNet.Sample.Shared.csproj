@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+  </ItemGroup>
+
+  <!-- The AetherNet reference protocol (same four projects the console demo consumes).
+       The Shared RCL is referenced by both heads, so the MAUI app and the Web app
+       both get the live protocol with no per-head re-wiring. -->
+  <ItemGroup>
+    <ProjectReference Include="../../../src/AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Security/AetherNet.Security.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Transport/AetherNet.Transport.csproj" />
+    <!-- The mesh-web: content-addressed Cards + the aether:// resolver (pulls in AetherNet.Content). -->
+    <ProjectReference Include="../../../src/AetherNet.Cards/AetherNet.Cards.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Content/AetherNet.Content.csproj" />
+  </ItemGroup>
+
+</Project>

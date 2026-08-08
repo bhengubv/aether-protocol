@@ -1,0 +1,373 @@
+@page "/"
+@using AetherNet.Sample.Shared.Services
+@implements IDisposable
+@inject AetherDemoService Demo
+
+<PageTitle>AetherNet — live mesh demo</PageTitle>
+
+<div class="aether">
+
+    <header class="aether-head">
+        <h1>AetherNet</h1>
+        <p>A live three-node mesh, running right here with <strong>zero infrastructure</strong> — no
+            servers, no accounts, no cell towers. Real Ed25519 identities and the real channel and
+            video call-control services; only the radio is simulated by an in-process wire.</p>
+    </header>
+
+    <section class="mesh">
+        @foreach (var node in _nodes)
+        {
+            <div class="node" style="border-top-color:@node.Color">
+                <div class="node-name">
+                    <span class="dot" style="background:@node.Color"></span>
+                    @node.Name
+                    @if (node.IsRelay)
+                    {
+                        <span class="relay">relay</span>
+                    }
+                </div>
+                <div class="field"><span class="k">AetherTag</span><span class="tag">@node.Tag</span></div>
+                <div class="field"><span class="k">UHID</span><span class="v">@node.Uhid</span></div>
+                <div class="field"><span class="k">detects</span><span class="v">@(node.Peers.Count == 0 ? "—" : string.Join(", ", node.Peers))</span></div>
+            </div>
+        }
+    </section>
+
+    <section class="actions">
+        <div class="act">
+            <h2>1 · Identity</h2>
+            <p>Every node has a shareable AetherTag — SHA-256 of its public key. Add a friend by tag,
+                verify it against their key, and a forged tag is rejected.</p>
+            <button class="btn" disabled="@_busy" @onclick="Verify">Bob adds Alice by tag</button>
+        </div>
+
+        <div class="act">
+            <h2>2 · Group text</h2>
+            <p>Alice publishes once to <code>@_channelLabel</code>; it floods to every subscriber.</p>
+            <input class="msg" @bind="_groupMessage" @bind:event="oninput"
+                   disabled="@_busy" placeholder="Type a message…" />
+            <button class="btn" disabled="@(_busy || string.IsNullOrWhiteSpace(_groupMessage))" @onclick="Publish">Publish to the group</button>
+        </div>
+
+        <div class="act">
+            <h2>3 · Video</h2>
+            <p>Call-control (ring / accept / hang-up) rides the same mesh — one-to-one and group.</p>
+            <div class="btn-row">
+                <button class="btn" disabled="@_busy" @onclick="OneToOne">1:1 — Alice → Bob</button>
+                <button class="btn" disabled="@_busy" @onclick="Group">Group — Alice → Bob + Charlie</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="console">
+        <div class="console-head">
+            <span>Wire log</span>
+            <button class="btn ghost" disabled="@_busy" @onclick="Clear">Clear</button>
+        </div>
+        <div class="wirelog">
+            @foreach (var line in _logNewestFirst)
+            {
+                <div class="line @Css(line.Kind)">
+                    <span class="who" style="color:@line.Color">@line.Who</span>
+                    <span class="txt">@line.Text</span>
+                </div>
+            }
+        </div>
+    </section>
+
+</div>
+
+@code {
+    private IReadOnlyList<AetherDemoService.NodeView> _nodes = Array.Empty<AetherDemoService.NodeView>();
+    private IReadOnlyList<AetherDemoService.LogLine> _logNewestFirst = Array.Empty<AetherDemoService.LogLine>();
+    private string _groupMessage = "Load-shedding at 6 — charge your phones.";
+    private string _channelLabel = "#neighbourhood-watch";
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        Demo.Changed += OnChanged;
+        Demo.Start();
+        Refresh();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        Refresh();
+        StateHasChanged();
+    });
+
+    private void Refresh()
+    {
+        _nodes = Demo.Nodes();
+        var snapshot = Demo.Snapshot();
+        _logNewestFirst = snapshot.Reverse().ToArray();
+    }
+
+    private async Task Verify()
+    {
+        if (_busy) return;
+        _busy = true;
+        try { Demo.VerifyAetherTag(); }
+        finally { _busy = false; }
+    }
+
+    private async Task Publish()
+    {
+        if (_busy || string.IsNullOrWhiteSpace(_groupMessage)) return;
+        _busy = true;
+        try { await Demo.PublishGroupTextAsync(_groupMessage); }
+        finally { _busy = false; }
+    }
+
+    private async Task OneToOne()
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await Demo.OneToOneVideoAsync(); }
+        finally { _busy = false; }
+    }
+
+    private async Task Group()
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await Demo.GroupVideoAsync(); }
+        finally { _busy = false; }
+    }
+
+    private void Clear() => Demo.ClearLog();
+
+    private static string Css(AetherDemoService.LogKind kind) => kind switch
+    {
+        AetherDemoService.LogKind.System => "k-system",
+        AetherDemoService.LogKind.Warn => "k-warn",
+        _ => "k-normal",
+    };
+
+    public void Dispose() => Demo.Changed -= OnChanged;
+}
+
+<style>
+    .aether {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 0 4px 24px;
+        color: #2c3e50;
+    }
+
+    .aether-head h1 {
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        margin: 4px 0 6px;
+        color: #2196F3;
+    }
+
+    .aether-head p {
+        margin: 0 0 18px;
+        max-width: 720px;
+        line-height: 1.5;
+        color: #4a5b6b;
+    }
+
+    .mesh {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .node {
+        flex: 1 1 220px;
+        min-width: 210px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-top: 3px solid #2196F3;
+        border-radius: 10px;
+        padding: 12px 14px;
+        box-shadow: 0 1px 2px rgba(44, 62, 80, 0.06);
+    }
+
+    .node-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 1.05rem;
+        margin-bottom: 10px;
+    }
+
+    .dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .relay {
+        margin-left: auto;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #2196F3;
+        background: #e8f3fe;
+        border-radius: 999px;
+        padding: 2px 8px;
+    }
+
+    .field {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+        margin-top: 4px;
+        font-size: 0.82rem;
+    }
+
+    .field .k {
+        flex: 0 0 62px;
+        color: #8a97a6;
+        text-transform: uppercase;
+        font-size: 0.66rem;
+        letter-spacing: 0.5px;
+    }
+
+    .field .v {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: #4a5b6b;
+        word-break: break-all;
+    }
+
+    .field .tag {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #2c3e50;
+        letter-spacing: 0.5px;
+    }
+
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .act {
+        flex: 1 1 300px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .act h2 {
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin: 0 0 6px;
+        color: #2c3e50;
+    }
+
+    .act p {
+        margin: 0 0 12px;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        color: #6b7a89;
+        flex: 1 1 auto;
+    }
+
+    .act code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background: #eef2f6;
+        border-radius: 4px;
+        padding: 1px 5px;
+        color: #2c3e50;
+    }
+
+    .btn {
+        appearance: none;
+        border: none;
+        background: #2196F3;
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 0.86rem;
+        padding: 9px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.12s ease, opacity 0.12s ease;
+    }
+
+    .btn:hover:not(:disabled) { background: #1976D2; }
+    .btn:disabled { opacity: 0.5; cursor: default; }
+
+    .btn.ghost {
+        background: transparent;
+        color: #6b7a89;
+        padding: 4px 10px;
+        font-size: 0.78rem;
+    }
+
+    .btn.ghost:hover:not(:disabled) { background: #eef2f6; }
+
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .msg {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #cfd8e3;
+        border-radius: 8px;
+        padding: 9px 11px;
+        font-size: 0.86rem;
+        margin-bottom: 10px;
+        color: #2c3e50;
+    }
+
+    .msg:focus { outline: 2px solid #bcdcfb; border-color: #2196F3; }
+
+    .console {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .console-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 14px;
+        background: #f5f7fa;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: #8a97a6;
+    }
+
+    .wirelog {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 2px;
+        height: 300px;
+        overflow-y: auto;
+        padding: 10px 14px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.82rem;
+        line-height: 1.5;
+    }
+
+    .line { display: flex; gap: 8px; }
+    .line .who { flex: 0 0 auto; font-weight: 700; min-width: 52px; }
+    .line .txt { color: #3b4a59; }
+    .line.k-system .txt { color: #6b7a89; font-style: italic; }
+    .line.k-warn .txt { color: #c0392b; font-weight: 600; }
+
+    @@media (max-width: 520px) {
+        .aether-head h1 { font-size: 1.6rem; }
+        .field .k { flex-basis: 54px; }
+    }
+</style>
