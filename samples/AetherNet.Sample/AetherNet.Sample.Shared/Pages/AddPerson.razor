@@ -1,0 +1,153 @@
+@page "/add"
+@using AetherNet.Sample.Shared.Data
+@using AetherNet.Sample.Shared.Services
+@implements IDisposable
+@inject IIdentityService Me
+@inject ContactService Contacts
+@inject NavigationManager Nav
+
+<PageTitle>Aether — add someone</PageTitle>
+
+<div class="add">
+    <h1 class="scr-title">Add someone</h1>
+    <p class="lede">There's no search on Aether — you add each other, like swapping numbers.</p>
+
+    <section class="mine">
+        <div class="mine-label">Your Aether name</div>
+        <div class="mine-tag">@Me.AetherTag</div>
+        <div class="qr">@((MarkupString)_qrSvg)</div>
+        <div class="mine-hint">Let them scan this, or read it out.</div>
+    </section>
+
+    <section class="entry">
+        <div class="glabel">Add by name</div>
+        <input class="tagbox" @bind="_theirTag" @bind:event="oninput" @onkeydown="OnKey"
+               placeholder="KXJB7-MN2P4" spellcheck="false" autocapitalize="characters" />
+        <button class="primary block" disabled="@(_busy || string.IsNullOrWhiteSpace(_theirTag))" @onclick="Add">Add them</button>
+        @if (_error is { } err)
+        {
+            <p class="warn">@err</p>
+        }
+        @if (_added is { } who)
+        {
+            <p class="ok">Added @who — they'll go live once they add you back.</p>
+        }
+    </section>
+
+    @if (_incoming.Count > 0)
+    {
+        <section class="entry">
+            <div class="glabel">Waiting for you</div>
+            @foreach (var c in _incoming)
+            {
+                <div class="req">
+                    <span class="req-tag">@c.Tag</span>
+                    <button class="primary small" disabled="@_busy" @onclick="() => Accept(c.Tag)">Add back</button>
+                </div>
+            }
+        </section>
+    }
+
+    @if (_mutual.Count > 0)
+    {
+        <section class="entry">
+            <div class="glabel">On Aether with you</div>
+            @foreach (var c in _mutual)
+            {
+                <div class="req"><span class="req-tag">@c.Tag</span><span class="live">● connected</span></div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private string _theirTag = "";
+    private string? _error;
+    private string? _added;
+    private bool _busy;
+    private string _qrSvg = "";
+    private IReadOnlyList<ContactRecord> _incoming = Array.Empty<ContactRecord>();
+    private IReadOnlyList<ContactRecord> _mutual = Array.Empty<ContactRecord>();
+
+    protected override void OnInitialized()
+    {
+        Contacts.Changed += OnChanged;
+        _qrSvg = QrSvg.Render(Contacts.MyInvite);
+        Refresh();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+
+    private void Refresh()
+    {
+        _incoming = Contacts.Incoming;
+        _mutual = Contacts.Mutual;
+    }
+
+    private async Task Add()
+    {
+        if (_busy) return;
+        _busy = true;
+        _error = null;
+        _added = null;
+        try
+        {
+            if (await Contacts.AddAsync(_theirTag, via: "typed"))
+            {
+                _added = _theirTag.Trim().ToUpperInvariant();
+                _theirTag = "";
+                Refresh();
+            }
+            else
+            {
+                _error = "That doesn't look like an Aether name. They look like KXJB7-MN2P4.";
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Accept(string tag)
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await Contacts.AddAsync(tag, via: "radio"); Refresh(); }
+        finally { _busy = false; }
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Add();
+    }
+
+    public void Dispose() => Contacts.Changed -= OnChanged;
+}
+
+<style>
+    .add { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+    .scr-title { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); padding: 4px 2px 0; }
+    .lede { font-size: 0.95rem; line-height: 1.5; color: var(--ink-2); padding: 0 2px; }
+
+    .mine { display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-sm); }
+    .mine-label { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+    .mine-tag { font-family: var(--mono); font-size: 1.6rem; font-weight: 800; letter-spacing: 2px; color: var(--brand); }
+    .qr { width: 190px; height: 190px; background: #fff; border-radius: 12px; padding: 10px; }
+    .qr svg { width: 100%; height: 100%; display: block; }
+    .mine-hint { font-size: 0.82rem; color: var(--ink-3); }
+
+    .entry { display: flex; flex-direction: column; gap: 10px; }
+    .glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
+    .tagbox { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 14px 16px; font-family: var(--mono); font-size: 1.05rem; letter-spacing: 1px; text-transform: uppercase; }
+    .tagbox:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
+
+    .primary { appearance: none; border: none; background: var(--brand); color: #fff; font-weight: 700; font-size: 0.98rem; padding: 14px 18px; border-radius: 12px; cursor: pointer; }
+    .primary:disabled { opacity: .45; cursor: default; }
+    .primary.small { padding: 9px 14px; font-size: 0.85rem; border-radius: 10px; }
+    .block { display: block; width: 100%; }
+
+    .req { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+    .req-tag { font-family: var(--mono); font-weight: 700; color: var(--ink); }
+    .live { color: var(--brand); font-weight: 700; font-size: 0.82rem; }
+
+    .warn { color: var(--warn); font-size: 0.86rem; font-weight: 600; }
+    .ok { color: var(--brand); font-size: 0.86rem; font-weight: 600; }
+</style>

@@ -14,6 +14,7 @@
     <Project Path="src/AetherNet.BitTorrent.Gateway/AetherNet.BitTorrent.Gateway.csproj" />
     <Project Path="src/AetherNet.Cards/AetherNet.Cards.csproj" />
     <Project Path="src/AetherNet.Content/AetherNet.Content.csproj" />
+    <Project Path="src/AetherNet.Content.Sqlite/AetherNet.Content.Sqlite.csproj" />
     <Project Path="src/AetherNet.Core/AetherNet.Core.csproj" />
     <Project Path="src/AetherNet.Space/AetherNet.Space.csproj" />
     <Project Path="src/AetherNet.Forge/AetherNet.Forge.csproj" />
@@ -22,6 +23,7 @@
     <Project Path="src/AetherNet.Fmhy/AetherNet.Fmhy.csproj" />
     <Project Path="src/AetherNet.Map/AetherNet.Map.csproj" />
     <Project Path="src/AetherNet.Map.Sqlite/AetherNet.Map.Sqlite.csproj" />
+    <Project Path="src/AetherNet.Cartography/AetherNet.Cartography.csproj" />
     <Project Path="src/AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
     <Project Path="src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
     <Project Path="src/AetherNet.Security/AetherNet.Security.csproj" />
@@ -39,6 +41,8 @@
     <Project Path="tests/AetherNet.BitTorrent.Gateway.Tests/AetherNet.BitTorrent.Gateway.Tests.csproj" />
     <Project Path="tests/AetherNet.BitTorrent.Interop.Tests/AetherNet.BitTorrent.Interop.Tests.csproj" />
     <Project Path="tests/AetherNet.Content.Download.Tests/AetherNet.Content.Download.Tests.csproj" />
+    <Project Path="tests/AetherNet.Content.Sqlite.Tests/AetherNet.Content.Sqlite.Tests.csproj" />
+    <Project Path="tests/AetherNet.Sample.Shared.Tests/AetherNet.Sample.Shared.Tests.csproj" />
     <Project Path="tests/AetherNet.Cards.Tests/AetherNet.Cards.Tests.csproj" />
     <Project Path="tests/AetherNet.Core.Tests/AetherNet.Core.Tests.csproj" />
     <Project Path="tests/AetherNet.Space.Tests/AetherNet.Space.Tests.csproj" />
@@ -49,6 +53,7 @@
     <Project Path="tests/AetherNet.Fmhy.Tests/AetherNet.Fmhy.Tests.csproj" />
     <Project Path="tests/AetherNet.Map.Tests/AetherNet.Map.Tests.csproj" />
     <Project Path="tests/AetherNet.Map.Sqlite.Tests/AetherNet.Map.Sqlite.Tests.csproj" />
+    <Project Path="tests/AetherNet.Cartography.Tests/AetherNet.Cartography.Tests.csproj" />
     <Project Path="tests/AetherNet.Soak.Tests/AetherNet.Soak.Tests.csproj" />
     <Project Path="tests/cross-language/runners/csharp/AetherNet.InteropTest.csproj" />
   </Folder>

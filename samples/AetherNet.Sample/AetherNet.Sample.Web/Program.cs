@@ -1,4 +1,7 @@
+using AetherNet.Content;
+using AetherNet.Content.Sqlite;
 using AetherNet.Sample.Web.Components;
+using AetherNet.Sample.Shared.Data;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Web.Services;
 
@@ -10,6 +13,26 @@ builder.Services.AddRazorComponents()
 
 // Add device-specific services used by the AetherNet.Sample.Shared project
 builder.Services.AddSingleton<IFormFactor, FormFactor>();
+
+// Durable state for this host. The Web head is a demo surface, so it keeps its database beside the
+// app rather than in a phone's private storage.
+var dataDir = Path.Combine(AppContext.BaseDirectory, "aether-data");
+Directory.CreateDirectory(dataDir);
+builder.Services.AddSingleton(_ => new AetherStore(Path.Combine(dataDir, "aether.db")));
+builder.Services.AddSingleton<IContentStore>(_ => new SqliteContentStore(Path.Combine(dataDir, "content.db")));
+builder.Services.AddSingleton<ISecretVault>(_ => new FileSecretVault(Path.Combine(dataDir, "vault")));
+
+// This device's own AetherNet identity — one AetherTag shown across the whole app.
+builder.Services.AddSingleton<IIdentityService, IdentityService>();
+
+// The people this device knows, and the add/be-added handshake.
+builder.Services.AddSingleton<ContactService>();
+
+// Radios are physical; this host has none, so setup says so honestly.
+builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
+
+// Conversations + people (the messenger surface).
+builder.Services.AddSingleton<MessengerService>();
 
 // The live in-process AetherNet mesh that the demo UI drives. Singleton on the server: the
 // InProcess transport uses a process-wide registry, so one shared mesh avoids UHID collisions

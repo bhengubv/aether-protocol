@@ -1,0 +1,83 @@
+@page "/nearby"
+@using AetherNet.Sample.Shared.Services
+@implements IDisposable
+@inject MessengerService M
+@inject IRadioMesh Radio
+@inject NavigationManager Nav
+
+<PageTitle>Aether — nearby</PageTitle>
+
+<div class="nearby">
+    <h1 class="scr-title">Nearby</h1>
+
+    <div class="people">
+        @foreach (var p in M.Nearby)
+        {
+            <button class="prow" @onclick='() => Nav.NavigateTo($"chat/{p.Id}")'>
+                <span class="av" style="background:@p.Color">
+                    @p.Initial<span class="near"></span>
+                </span>
+                <span class="pmid">
+                    <span class="pname">@p.Name</span>
+                    <span class="pstat">nearby now</span>
+                </span>
+                <span class="msg">Message</span>
+            </button>
+        }
+    </div>
+
+    <button class="connect" @onclick='() => Nav.NavigateTo("add")'>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Add someone by their Aether name</span>
+    </button>
+
+    @if (Radio.IsSupported)
+    {
+        <button class="connect @(Radio.IsLinked ? "linked" : null)" disabled="@Radio.IsLinked" @onclick="Radio.Link">
+            @if (Radio.IsLinked)
+            {
+                <text>● Connected to a phone near you</text>
+            }
+            else
+            {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Connect a phone near you</span>
+            }
+        </button>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        M.Changed += OnChanged;
+        Radio.Changed += OnChanged;
+    }
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() { M.Changed -= OnChanged; Radio.Changed -= OnChanged; }
+}
+
+<style>
+    .nearby { max-width: 720px; margin: 0 auto; }
+    .scr-title { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); padding: 4px 4px 12px; }
+
+    .people { display: flex; flex-direction: column; }
+    .prow { appearance: none; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 13px; padding: 11px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+    .prow:active { background: var(--surface-2); }
+
+    .av { position: relative; flex: 0 0 auto; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.2rem; }
+    .near { position: absolute; right: -1px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); border: 3px solid var(--bg); }
+
+    .pmid { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .pname { font-weight: 680; font-size: 1.02rem; color: var(--ink); }
+    .pstat { font-size: 0.8rem; color: var(--brand); font-weight: 600; }
+    .msg { flex: 0 0 auto; font-size: 0.82rem; font-weight: 700; color: var(--brand); background: var(--brand-tint); padding: 7px 13px; border-radius: 999px; }
+
+    .connect {
+        width: 100%; margin-top: 18px; appearance: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        background: transparent; border: 1.5px dashed var(--line); color: var(--ink-2);
+        border-radius: 14px; padding: 15px; font-weight: 650; font-size: 0.95rem;
+    }
+    .connect:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+    .connect svg { width: 20px; height: 20px; }
+    .connect.linked { color: var(--brand); border-style: solid; border-color: var(--brand); }
+</style>

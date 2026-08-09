@@ -1,0 +1,264 @@
+@page "/welcome"
+@layout EmptyLayout
+@using AetherNet.Sample.Shared.Data
+@using AetherNet.Sample.Shared.Services
+@inject IIdentityService Me
+@inject IRadioSetup Radios
+@inject ContactService Contacts
+@inject AetherStore Store
+@inject NavigationManager Nav
+
+<PageTitle>Aether — set up</PageTitle>
+
+<div class="wiz">
+    <div class="wiz-body">
+
+        @if (_step == Step.Hello)
+        {
+            <div class="pane">
+                <div class="mark"></div>
+                <h1>Aether</h1>
+                <p class="lede">Message the people around you with no towers, no accounts and no
+                    company in the middle. Let's switch on the radios your phone already has.</p>
+            </div>
+        }
+        else if (_step == Step.You)
+        {
+            <div class="pane">
+                <div class="idcard">
+                    <span class="id-label">This is you</span>
+                    <span class="id-tag">@Me.AetherTag</span>
+                    <span class="id-note">@Me.ProtectionDescription</span>
+                </div>
+                <h1>Your name on Aether</h1>
+                <p class="lede">Nobody assigned it and nobody can take it — it comes from a key that
+                    was just made on this phone and never leaves it. Share it and people can reach you.</p>
+            </div>
+        }
+        else if (_step == Step.Radios)
+        {
+            <div class="pane">
+                <h1>Switch on your radios</h1>
+                <p class="lede">This is how your phone reaches the ones near it.</p>
+
+                <div class="radios">
+                    @foreach (var r in _radios)
+                    {
+                        <div class="radio @Css(r.State)">
+                            <div class="r-top">
+                                <span class="r-name">@r.Name</span>
+                                <span class="r-pill">@Label(r.State)</span>
+                            </div>
+                            <div class="r-detail">@r.Detail</div>
+                            @if (r.ActionLabel is { } action)
+                            {
+                                <button class="r-btn" disabled="@_busy" @onclick="() => Fix(r.Name)">@action</button>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (_blocking)
+                {
+                    <p class="warn">Aether can't reach anyone until Bluetooth is on.</p>
+                }
+            </div>
+        }
+        else if (_step == Step.Gateway)
+        {
+            <div class="pane">
+                <h1>Share your connection?</h1>
+                <p class="lede">If you have data, your phone can carry messages for people near you
+                    who don't. They pay nothing, you choose, and you can switch it off any time.</p>
+                <label class="toggle">
+                    <input type="checkbox" checked="@_gateway" @onchange="e => _gateway = (bool)(e.Value ?? false)" />
+                    <span>Let nearby phones use my connection</span>
+                </label>
+            </div>
+        }
+        else if (_step == Step.AddFirst)
+        {
+            <div class="pane">
+                <h1>Add your first person</h1>
+                <p class="lede">Aether has no search and no directory — you add each other, like
+                    swapping numbers. Type their Aether name, or have them show you theirs.</p>
+
+                <input class="tagbox" @bind="_theirTag" @bind:event="oninput"
+                       placeholder="e.g. KXJB7-MN2P4" spellcheck="false" autocapitalize="characters" />
+                <button class="primary block" disabled="@(_busy || string.IsNullOrWhiteSpace(_theirTag))"
+                        @onclick="AddFirst">Add them</button>
+
+                @if (_addError is { } err)
+                {
+                    <p class="warn">@err</p>
+                }
+                @if (_added is { } who)
+                {
+                    <p class="ok">Added @who — they'll show up once they add you back.</p>
+                }
+                <p class="fineprint">You can skip this and add people later.</p>
+            </div>
+        }
+
+    </div>
+
+    <div class="wiz-foot">
+        <div class="dots">
+            @foreach (var s in AllSteps)
+            {
+                <span class="dot @(s == _step ? "on" : null)"></span>
+            }
+        </div>
+        <button class="primary block" disabled="@(_busy || _blocking)" @onclick="Next">@NextLabel</button>
+    </div>
+</div>
+
+@code {
+    private enum Step { Hello, You, Radios, Gateway, AddFirst }
+
+    private static readonly Step[] AllSteps = Enum.GetValues<Step>();
+
+    private Step _step = Step.Hello;
+    private IReadOnlyList<RadioStatus> _radios = Array.Empty<RadioStatus>();
+    private bool _busy;
+    private bool _gateway;
+    private string _theirTag = "";
+    private string? _addError;
+    private string? _added;
+
+    private bool _blocking => _step == Step.Radios && _radios.Any(r => r.IsBlocking);
+
+    private string NextLabel => _step switch
+    {
+        Step.Hello => "Get started",
+        Step.AddFirst => "Done",
+        _ => "Continue",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _gateway = Store.GetFlag(SetupKeys.GatewayEnabled);
+        await RefreshRadios();
+    }
+
+    private async Task RefreshRadios()
+    {
+        _radios = await Radios.CheckAsync();
+        StateHasChanged();
+    }
+
+    private async Task Fix(string radioName)
+    {
+        if (_busy) return;
+        _busy = true;
+        StateHasChanged();
+        try
+        {
+            await Radios.RequestAsync(radioName);
+            await RefreshRadios();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task AddFirst()
+    {
+        _addError = null;
+        _added = null;
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            if (await Contacts.AddAsync(_theirTag, via: "typed"))
+            {
+                _added = _theirTag.Trim().ToUpperInvariant();
+                _theirTag = "";
+            }
+            else
+            {
+                _addError = "That doesn't look like an Aether name. They look like KXJB7-MN2P4.";
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Next()
+    {
+        // Re-check on the way into the radio step so the state is live, not stale from page load.
+        if (_step == Step.You) await RefreshRadios();
+
+        if (_step == Step.Gateway) Store.SetFlag(SetupKeys.GatewayEnabled, _gateway);
+
+        if (_step == Step.AddFirst)
+        {
+            Store.SetFlag(SetupKeys.Complete, true);
+            Nav.NavigateTo("", replace: true);
+            return;
+        }
+
+        _step = AllSteps[Array.IndexOf(AllSteps, _step) + 1];
+    }
+
+    private static string Label(RadioState s) => s switch
+    {
+        RadioState.Ready => "ready",
+        RadioState.Partial => "ready",
+        RadioState.NeedsPermission => "needs you",
+        RadioState.NeedsSystemToggle => "switched off",
+        RadioState.Unsupported => "not on this phone",
+        _ => "checking",
+    };
+
+    private static string Css(RadioState s) => s switch
+    {
+        RadioState.Ready or RadioState.Partial => "ok",
+        RadioState.Unsupported => "na",
+        _ => "todo",
+    };
+}
+
+<style>
+    .wiz { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); z-index: 60; }
+    .wiz-body { flex: 1 1 auto; overflow-y: auto; scrollbar-width: none; padding: max(env(safe-area-inset-top), 28px) 22px 8px; }
+    .wiz-body::-webkit-scrollbar { display: none; }
+    .wiz-foot { flex: 0 0 auto; padding: 12px 22px calc(env(safe-area-inset-bottom) + 18px); display: flex; flex-direction: column; gap: 14px; }
+
+    .pane { display: flex; flex-direction: column; gap: 14px; padding-top: 12px; max-width: 560px; margin: 0 auto; }
+    .pane h1 { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); }
+    .lede { font-size: 1rem; line-height: 1.55; color: var(--ink-2); }
+    .fineprint { font-size: 0.8rem; color: var(--ink-3); text-align: center; }
+
+    .mark { width: 64px; height: 64px; border-radius: 50%; background: conic-gradient(from 210deg, var(--brand), var(--brand-deep), var(--brand)); box-shadow: inset 0 0 0 12px var(--bg), 0 0 0 2px var(--brand); margin: 24px auto 8px; }
+
+    .idcard { display: flex; flex-direction: column; gap: 6px; padding: 20px; border-radius: var(--radius); color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-deep)); box-shadow: 0 12px 30px rgba(33,150,243,.28); }
+    .id-label { font-size: 0.7rem; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; opacity: .9; }
+    .id-tag { font-family: var(--mono); font-size: 2rem; font-weight: 800; letter-spacing: 2px; }
+    .id-note { font-size: 0.78rem; opacity: .9; }
+
+    .radios { display: flex; flex-direction: column; gap: 10px; }
+    .radio { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .radio.ok { border-color: var(--brand); }
+    .radio.na { opacity: .55; }
+    .r-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .r-name { font-weight: 700; color: var(--ink); }
+    .r-pill { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-3); }
+    .radio.ok .r-pill { background: var(--brand-tint); color: var(--brand); }
+    .r-detail { font-size: 0.86rem; line-height: 1.45; color: var(--ink-2); }
+    .r-btn { align-self: flex-start; appearance: none; border: 1.5px solid var(--brand); background: transparent; color: var(--brand); font-weight: 650; font-size: 0.86rem; padding: 9px 16px; border-radius: 10px; cursor: pointer; }
+
+    .toggle { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; color: var(--ink); font-weight: 600; }
+    .toggle input { width: 22px; height: 22px; accent-color: var(--brand); }
+
+    .tagbox { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 14px 16px; font-family: var(--mono); font-size: 1.05rem; letter-spacing: 1px; text-transform: uppercase; }
+    .tagbox:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
+
+    .primary { appearance: none; border: none; background: var(--brand); color: #fff; font-weight: 700; font-size: 1rem; padding: 15px 18px; border-radius: 14px; cursor: pointer; }
+    .primary:disabled { opacity: .45; cursor: default; }
+    .block { display: block; width: 100%; }
+
+    .warn { color: var(--warn); font-size: 0.86rem; font-weight: 600; }
+    .ok { color: var(--brand); font-size: 0.86rem; font-weight: 600; }
+
+    .dots { display: flex; gap: 7px; justify-content: center; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+    .dot.on { background: var(--brand); width: 22px; border-radius: 999px; }
+</style>

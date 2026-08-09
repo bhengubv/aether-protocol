@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Content.Sqlite</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Durable on-device SQLite store for AetherNet.Content. Backs IContentStore with a Microsoft.Data.Sqlite database — one row per content descriptor (indexed scalars plus the manifest JSON) and one per chunk — so published and collected content survives a restart. Kept as a separate package so the AetherNet.Content core stays dependency-free and portable to the other 7 languages.</Description>
+    <PackageTags>mesh;content;sqlite;content-addressed;offline;cards;aether</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Content/AetherNet.Content.csproj" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <!-- Latest available SQLitePCLRaw; still pre-SQLite-3.50.2 (see audit-suppression note below). -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+  <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: a SQLite < 3.50.2 memory-safety bug reachable ONLY by
+       executing attacker-controlled SQL (a crafted query with an extreme number of aggregate terms).
+       SQLitePCLRaw has not yet shipped a bundle with the patched SQLite engine, so there is no version
+       to upgrade to (affected: all SQLitePCLRaw.lib.e_sqlite3 <= 2.1.11). This store executes only
+       internal, fully-parameterized SQL over local device data and never runs untrusted SQL, so the
+       vulnerable surface is not exposed. Suppressed with justification; TRACKED to bump once a patched
+       SQLitePCLRaw (SQLite >= 3.50.2) is published. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+
+</Project>

@@ -38,7 +38,10 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
             "6e65726c-696e-0002-0000-000000000001", _localUhid, logger));
         Register(new AndroidNfcTransportService(_localUhid, logger));
         Register(new AndroidLoRaTransportService(_localUhid, logger));
-        _selected = _order[0]; // Wi-Fi Direct — the most capable, fully-proven radio
+        // Default to BLE: it links via GATT (advertise/scan) with no dependency on the Wi-Fi P2P
+        // service-discovery framework, so it comes up reliably phone-to-phone. Wi-Fi Direct stays
+        // available in the picker for higher throughput once linking is confirmed.
+        _selected = _radios.TryGetValue("BLE", out var ble) ? ble : _order[0];
     }
 
     private void Register(IRadio r)
@@ -55,6 +58,9 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
                 Emit($"[{r.Name}] ◀ from {from}: \"{Encoding.UTF8.GetString(pkt.Payload)}\"");
             }
             catch { Emit($"[{r.Name}] ◀ {bytes.Length} bytes from {from}"); }
+
+            // Hand the raw packet to any higher layer riding this radio (the mesh-web).
+            PacketReceived?.Invoke(bytes);
         };
     }
 
@@ -66,6 +72,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     public string? PeerTag => _selected.PeerTag;
 
     public event Action? Changed;
+    public event Action<byte[]>? PacketReceived;
     public IReadOnlyList<string> Log { get { lock (_gate) { return _log.ToArray(); } } }
 
     public void SelectRadio(string name)
@@ -93,6 +100,9 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         var ok = await _selected.SendAsync(PacketSerializer.Serialize(pkt)).ConfigureAwait(false);
         Emit(ok ? $"[{_selected.Name}] ▶ sent: \"{text}\"" : $"[{_selected.Name}] ▶ send failed");
     }
+
+    /// <summary>Push a raw serialized packet to the linked peer over the selected radio (the mesh-web pipe).</summary>
+    public Task<bool> SendPacketAsync(byte[] packetBytes) => _selected.SendAsync(packetBytes);
 
     public void Stop()
     {

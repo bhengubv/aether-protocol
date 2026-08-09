@@ -45,6 +45,16 @@ public interface IRadioMesh
     /// <summary>Send one real MeshPacket carrying <paramref name="text"/> to the linked peer.</summary>
     Task SendTestAsync(string text);
 
+    /// <summary>
+    /// Send one raw, already-serialized <c>MeshPacket</c> to the linked peer over the selected radio.
+    /// This is the pipe the mesh-web rides — the directory + content planes push their packets through
+    /// it. Returns false if no peer is linked / the send failed.
+    /// </summary>
+    Task<bool> SendPacketAsync(byte[] packetBytes);
+
+    /// <summary>Raised with a raw, serialized <c>MeshPacket</c> that arrived over a radio.</summary>
+    event Action<byte[]>? PacketReceived;
+
     /// <summary>Tear the radios down.</summary>
     void Stop();
 }

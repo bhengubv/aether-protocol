@@ -1,0 +1,110 @@
+@page "/chat/{Peer}"
+@using AetherNet.Sample.Shared.Services
+@implements IDisposable
+@inject MessengerService M
+@inject NavigationManager Nav
+
+<PageTitle>Aether</PageTitle>
+
+@if (_c is { } c)
+{
+    <div class="cv">
+        <header class="cv-head">
+            <button class="back" @onclick="Back" aria-label="Back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <span class="av" style="background:@c.Color">@c.Initial</span>
+            <span class="cv-title">
+                <span class="cv-name">@c.Name</span>
+                @if (c.Nearby)
+                {
+                    <span class="cv-sub">nearby now</span>
+                }
+            </span>
+        </header>
+
+        <div class="cv-thread">
+            @foreach (var m in M.Thread(Peer))
+            {
+                <div class="brow @(m.Mine ? "mine" : null)">
+                    @if (!m.Mine && c.Group)
+                    {
+                        <span class="bwho">@m.Who</span>
+                    }
+                    <div class="bub @(m.Mine ? "mine" : null)">@m.Text</div>
+                </div>
+            }
+        </div>
+
+        <div class="cv-composer">
+            <input class="cv-input" @bind="_draft" @bind:event="oninput" @onkeydown="OnKey"
+                   placeholder="Message" />
+            <button class="cv-send" disabled="@string.IsNullOrWhiteSpace(_draft)" @onclick="Send" aria-label="Send">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Peer { get; set; } = "";
+
+    private MessengerService.Contact? _c;
+    private string _draft = "";
+
+    protected override void OnInitialized() => M.Changed += OnChanged;
+    protected override void OnParametersSet() => _c = M.Get(Peer);
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+    private void Back() => Nav.NavigateTo("");
+
+    private async Task Send()
+    {
+        M.Send(Peer, _draft);
+        _draft = "";
+        await Task.CompletedTask;
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Send();
+    }
+
+    public void Dispose() => M.Changed -= OnChanged;
+}
+
+<style>
+    .cv { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: var(--bg); }
+
+    .cv-head {
+        flex: 0 0 auto; display: flex; align-items: center; gap: 11px;
+        padding: max(env(safe-area-inset-top), 28px) 14px 10px;
+        background: var(--surface); border-bottom: 1px solid var(--line);
+    }
+    .back { appearance: none; border: none; background: transparent; color: var(--ink); cursor: pointer; padding: 4px; margin: -4px; display: flex; }
+    .back svg { width: 26px; height: 26px; }
+    .cv-head .av { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.05rem; }
+    .cv-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .cv-name { font-weight: 720; font-size: 1.05rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cv-sub { font-size: 0.76rem; color: var(--brand); font-weight: 600; }
+
+    .cv-thread { flex: 1 1 auto; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 8px; padding: 16px 14px; }
+    .cv-thread::-webkit-scrollbar { display: none; }
+
+    .brow { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+    .brow.mine { align-items: flex-end; }
+    .bwho { font-size: 0.7rem; font-weight: 700; color: var(--brand); padding-left: 12px; }
+    .bub { max-width: 80%; padding: 10px 14px; border-radius: 18px; font-size: 0.96rem; line-height: 1.38; background: var(--surface); border: 1px solid var(--line); color: var(--ink); border-bottom-left-radius: 5px; }
+    .bub.mine { background: var(--brand); color: #fff; border: none; border-bottom-left-radius: 18px; border-bottom-right-radius: 5px; }
+
+    .cv-composer {
+        flex: 0 0 auto; display: flex; align-items: center; gap: 9px;
+        padding: 10px 12px calc(env(safe-area-inset-bottom) + 12px);
+        background: var(--surface); border-top: 1px solid var(--line);
+    }
+    .cv-input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 22px; padding: 12px 16px; font-size: 0.98rem; }
+    .cv-input:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
+    .cv-send { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .cv-send:disabled { opacity: .4; }
+    .cv-send svg { width: 21px; height: 21px; }
+</style>

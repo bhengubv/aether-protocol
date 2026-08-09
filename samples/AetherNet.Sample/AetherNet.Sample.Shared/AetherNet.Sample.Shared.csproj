@@ -8,6 +8,20 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+    <!-- The device database: identity, contacts, settings (see Data/AetherStore.cs). -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
+    <!-- QR generation only (MIT). Scanning is the phone's own camera app via the aether:// scheme —
+         no camera permission, no scanning SDK, nothing from Google Play Services. -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
+  <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: SQLite < 3.50.2, reachable only by executing
+       attacker-controlled SQL. SQLitePCLRaw has not shipped a patched bundle yet. This app runs only
+       internal, fully-parameterized SQL over local device data. Same justification as
+       AetherNet.Map.Sqlite / AetherNet.Content.Sqlite; TRACKED to bump when a patched bundle ships. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
   </ItemGroup>
 
   <!-- The AetherNet reference protocol (same four projects the console demo consumes).
@@ -21,6 +35,8 @@
     <!-- The mesh-web: content-addressed Cards + the aether:// resolver (pulls in AetherNet.Content). -->
     <ProjectReference Include="../../../src/AetherNet.Cards/AetherNet.Cards.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Content/AetherNet.Content.csproj" />
+    <!-- Durable content store, so hosted and collected cards survive a restart. -->
+    <ProjectReference Include="../../../src/AetherNet.Content.Sqlite/AetherNet.Content.Sqlite.csproj" />
   </ItemGroup>
 
 </Project>

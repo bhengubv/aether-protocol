@@ -1,23 +1,55 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@using AetherNet.Sample.Shared.Data
+@inject AetherStore Store
+@inject NavigationManager Nav
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<div class="app">
+    <header class="appbar">
+        <span class="brand">
+            <span class="glyph"></span>Aether
+        </span>
+    </header>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
+    <main class="viewport">
+        @Body
     </main>
+
+    <nav class="tabbar">
+        <NavLink class="tab" href="" Match="NavLinkMatch.All">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/></svg>
+            <span>Chats</span>
+        </NavLink>
+        <NavLink class="tab" href="nearby">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 5.6M17.5 19a5.5 5.5 0 0 0-3-4.9"/></svg>
+            <span>Nearby</span>
+        </NavLink>
+        <NavLink class="tab" href="meshweb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+            <span>AetherNet</span>
+        </NavLink>
+        <NavLink class="tab" href="settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+            <span>You</span>
+        </NavLink>
+    </nav>
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
+    Something went wrong.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    /// Setup is not optional: until the device is actually on AetherNet, every route lands on the
+    /// wizard. Nothing else in the app makes sense before that.
+    protected override void OnInitialized()
+    {
+        if (Store.GetFlag(SetupKeys.Complete)) return;
+
+        var path = Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+        var page = path.Split('?')[0];
+        if (!page.StartsWith("welcome", StringComparison.OrdinalIgnoreCase))
+            Nav.NavigateTo("welcome", replace: true);
+    }
+}

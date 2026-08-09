@@ -29,7 +29,7 @@
     <MauiXamlInflator>SourceGen</MauiXamlInflator>
 
     <!-- Display name -->
-    <ApplicationTitle>AetherNet.Sample</ApplicationTitle>
+    <ApplicationTitle>Aether</ApplicationTitle>
 
     <!-- App Identifier -->
     <ApplicationId>com.companyname.aethernet.sample</ApplicationId>

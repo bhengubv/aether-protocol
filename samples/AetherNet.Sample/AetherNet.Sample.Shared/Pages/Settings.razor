@@ -1,0 +1,85 @@
+@page "/settings"
+@using AetherNet.Sample.Shared.Services
+@inject IIdentityService Me
+@inject IJSRuntime JS
+
+<PageTitle>Aether — you</PageTitle>
+
+<div class="you">
+    <div class="profile">
+        <span class="pav">@Initial</span>
+        <div class="pinfo">
+            <span class="pname">You</span>
+            <button class="ptag" @onclick="CopyTag">@(_copied ? "Copied ✓" : Me.AetherTag)</button>
+        </div>
+    </div>
+
+    <section class="group">
+        <div class="glabel">Appearance</div>
+        <div class="seg">
+            <button class="seg-btn @(_theme == "light" ? "on" : null)" @onclick='() => SetTheme("light")'>Light</button>
+            <button class="seg-btn @(_theme == "dark" ? "on" : null)" @onclick='() => SetTheme("dark")'>Dark</button>
+            <button class="seg-btn @(_theme == "system" ? "on" : null)" @onclick='() => SetTheme("system")'>System</button>
+        </div>
+    </section>
+
+    <section class="group">
+        <div class="glabel">About</div>
+        <a class="about" href="https://github.com/bhengubv/aether-protocol" target="_blank" rel="noopener">
+            <span class="about-body">
+                <span class="about-t">Aether runs on AetherNet</span>
+                <span class="about-s">an open, serverless mesh protocol</span>
+            </span>
+            <span class="chev">↗</span>
+        </a>
+    </section>
+</div>
+
+@code {
+    private bool _copied;
+    private string _theme = "system";
+
+    private string Initial => string.IsNullOrEmpty(Me.AetherTag) ? "?" : Me.AetherTag[..1];
+
+    private async Task CopyTag()
+    {
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", Me.AetherTag); } catch { }
+        _copied = true;
+    }
+
+    private async Task SetTheme(string theme)
+    {
+        _theme = theme;
+        try
+        {
+            if (theme == "system")
+                await JS.InvokeVoidAsync("document.documentElement.removeAttribute", "data-theme");
+            else
+                await JS.InvokeVoidAsync("document.documentElement.setAttribute", "data-theme", theme);
+        }
+        catch { }
+    }
+}
+
+<style>
+    .you { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+
+    .profile { display: flex; align-items: center; gap: 16px; padding: 12px 4px 4px; }
+    .pav { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--brand), var(--brand-deep)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 2rem; }
+    .pinfo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .pname { font-size: 1.5rem; font-weight: 800; color: var(--ink); }
+    .ptag { appearance: none; border: none; background: transparent; cursor: pointer; text-align: left; padding: 0; font-family: var(--mono); font-size: 0.95rem; font-weight: 700; letter-spacing: 1px; color: var(--brand); }
+
+    .group { display: flex; flex-direction: column; gap: 10px; }
+    .glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
+
+    .seg { display: flex; gap: 6px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 5px; }
+    .seg-btn { flex: 1 1 0; appearance: none; border: none; background: transparent; color: var(--ink-2); font-weight: 650; font-size: 0.92rem; padding: 10px 0; border-radius: 8px; cursor: pointer; }
+    .seg-btn.on { background: var(--surface); color: var(--brand); box-shadow: var(--shadow-sm); }
+
+    .about { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 15px 17px; box-shadow: var(--shadow-sm); }
+    .about-body { display: flex; flex-direction: column; gap: 2px; }
+    .about-t { font-weight: 700; color: var(--ink); font-size: 0.98rem; }
+    .about-s { font-size: 0.82rem; color: var(--ink-2); }
+    .chev { color: var(--ink-3); font-size: 1.2rem; font-weight: 700; }
+</style>

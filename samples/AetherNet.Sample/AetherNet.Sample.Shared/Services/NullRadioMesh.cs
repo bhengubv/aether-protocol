@@ -24,5 +24,7 @@ public sealed class NullRadioMesh : IRadioMesh
     public void SelectRadio(string name) { }
     public void Link() { }
     public Task SendTestAsync(string text) => Task.CompletedTask;
+    public Task<bool> SendPacketAsync(byte[] packetBytes) => Task.FromResult(false);
+    public event Action<byte[]>? PacketReceived { add { } remove { } }
     public void Stop() { }
 }
