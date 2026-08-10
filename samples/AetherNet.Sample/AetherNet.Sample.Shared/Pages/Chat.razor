@@ -13,7 +13,7 @@
         <button class="back" @onclick="Back" aria-label="Back">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
-        <span class="av">@(Peer.Length > 0 ? Peer[..1] : "?")</span>
+        <span class="av" style="background:@TagPalette.For(Peer)">@TagPalette.Initial(Peer)</span>
         <span class="cv-title">
             <span class="cv-name">@Peer</span>
             <span class="cv-sub @(_secure ? "secure" : null)">@Status</span>
@@ -29,10 +29,16 @@
         @foreach (var m in _messages)
         {
             <div class="brow @(m.Mine ? "mine" : null)">
-                <div class="bub @(m.Mine ? "mine" : null)">@m.Body</div>
                 @if (m.Mine)
                 {
+                    <div class="bub mine">@m.Body</div>
                     <span class="tick">@Tick(m.State)</span>
+                }
+                else
+                {
+                    @* Their words carry their colour — the same one their avatar uses, so in a group
+                       you can tell who is speaking without reading a single tag. *@
+                    <div class="bub" style="border-left-color:@TagPalette.For(m.PeerTag); background:@TagPalette.Wash(m.PeerTag)">@m.Body</div>
                 }
             </div>
         }
@@ -129,7 +135,9 @@
 
     .brow { display: flex; align-items: flex-end; gap: 5px; }
     .brow.mine { justify-content: flex-end; }
-    .bub { max-width: 80%; padding: 10px 14px; border-radius: 18px; font-size: 0.96rem; line-height: 1.38; background: var(--surface); border: 1px solid var(--line); color: var(--ink); border-bottom-left-radius: 5px; }
+    /* Incoming: a colour stripe down the speaker's edge, tinted to match. Legible on light and dark
+       because the wash is transparent over the page rather than a fixed fill. */
+    .bub { max-width: 80%; padding: 10px 14px; border-radius: 18px; font-size: 0.96rem; line-height: 1.38; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--brand); color: var(--ink); border-bottom-left-radius: 5px; }
     .bub.mine { background: var(--brand); color: #fff; border: none; border-bottom-left-radius: 18px; border-bottom-right-radius: 5px; }
     .tick { font-size: 0.68rem; color: var(--ink-3); padding-bottom: 2px; }
 

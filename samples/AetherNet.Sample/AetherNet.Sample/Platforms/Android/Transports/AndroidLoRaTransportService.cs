@@ -29,6 +29,10 @@ public sealed class AndroidLoRaTransportService : IRadio, IDisposable
 
     public string Name => "LoRa";
     public bool IsAvailable => FindModule() is not null;
+
+    /// <inheritdoc />
+    public string? UnavailableReason =>
+        FindModule() is null ? "plug in a USB LoRa module" : null;
     public bool IsLinked => false;
     public string? PeerTag => null;
 

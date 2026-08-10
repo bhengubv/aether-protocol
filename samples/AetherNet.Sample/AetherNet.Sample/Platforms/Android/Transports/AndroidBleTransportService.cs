@@ -35,6 +35,7 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
 
     private readonly string _name;
     private readonly string _localUhid;
+    private readonly string? _unavailableReason;
     private readonly ILogger _logger;
     private readonly BluetoothManager? _btManager;
     private readonly BluetoothAdapter? _adapter;
@@ -68,9 +69,14 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     // Inbound reassembly, keyed by msgId.
     private readonly Dictionary<byte, Reassembly> _inbound = new();
 
+    /// <param name="unavailableReason">
+    /// Set when this instance stands in for a radio the device does not physically have — it then
+    /// reports itself unavailable instead of quietly running over Bluetooth under another name.
+    /// </param>
     public AndroidBleTransportService(string name, string serviceUuid, string rxUuid, string txUuid,
-        string localUhid, ILogger logger)
+        string localUhid, ILogger logger, string? unavailableReason = null)
     {
+        _unavailableReason = unavailableReason;
         _name = name;
         ServiceUuid = UUID.FromString(serviceUuid)!;
         RxUuid = UUID.FromString(rxUuid)!;
@@ -82,7 +88,19 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     }
 
     public string Name => _name;
-    public bool IsAvailable => _adapter is { IsEnabled: true };
+
+    /// <summary>
+    /// Available whenever Bluetooth is on — a device can always scan/connect (central) even if it
+    /// can't advertise (some phones, e.g. the P30 Lite, lack BLE peripheral support). An instance
+    /// standing in for hardware the phone does not have is never available, whatever Bluetooth does.
+    /// </summary>
+    public bool IsAvailable => _unavailableReason is null && _adapter is { IsEnabled: true };
+
+    /// <inheritdoc />
+    public string? UnavailableReason => _unavailableReason
+        ?? (_adapter is null ? "this phone has no Bluetooth"
+            : !_adapter.IsEnabled ? "Bluetooth is switched off"
+            : null);
     public bool IsLinked => _linked;
     public string? PeerTag => _peerTag;
 

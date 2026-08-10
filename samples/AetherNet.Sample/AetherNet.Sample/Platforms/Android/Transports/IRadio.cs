@@ -15,6 +15,12 @@ internal interface IRadio
     /// <summary>Whether this radio exists / is usable on the current device.</summary>
     bool IsAvailable { get; }
 
+    /// <summary>
+    /// Why this radio cannot be used here — missing hardware, a switched-off adapter — or null when
+    /// it is usable. A radio the phone does not physically have must say so rather than appear ready.
+    /// </summary>
+    string? UnavailableReason => null;
+
     /// <summary>True once a peer has completed the link handshake.</summary>
     bool IsLinked { get; }
 

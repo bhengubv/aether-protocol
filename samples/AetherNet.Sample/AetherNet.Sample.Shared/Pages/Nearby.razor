@@ -23,8 +23,8 @@
         @foreach (var p in _people)
         {
             <button class="prow" @onclick="@(() => Nav.NavigateTo($"chat/{p.Tag}"))">
-                <span class="av">
-                    @p.Tag[..1]@if (p.IsMutual) { <span class="near"></span> }
+                <span class="av" style="background:@TagPalette.For(p.Tag)">
+                    @TagPalette.Initial(p.Tag)@if (p.IsMutual) { <span class="near"></span> }
                 </span>
                 <span class="pmid">
                     <span class="pname">@p.Tag</span>
@@ -42,6 +42,30 @@
     <button class="connect" @onclick='() => Nav.NavigateTo("add")'>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Add someone by their Aether name</span>
     </button>
+
+    @if (Radio.Radios.Count > 0)
+    {
+        <div class="radios">
+            <div class="radios-label">Connect over</div>
+            <div class="chips">
+                @foreach (var r in Radio.Radios)
+                {
+                    <button class="chip @(r.Name == Radio.SelectedRadio ? "on" : null) @(r.Available ? null : "off")"
+                            disabled="@(!r.Available)" title="@r.Reason" @onclick="@(() => Pick(r.Name))">@r.Name</button>
+                }
+            </div>
+            @{ var off = Radio.Radios.Where(r => !r.Available && r.Reason is not null).ToArray(); }
+            @if (off.Length > 0)
+            {
+                <div class="why">
+                    @foreach (var r in off)
+                    {
+                        <div><span class="why-name">@r.Name</span> — @r.Reason</div>
+                    }
+                </div>
+            }
+        </div>
+    }
 
     @if (Radio.IsSupported)
     {
@@ -70,6 +94,8 @@
 
     private void OnChanged() => _ = InvokeAsync(() => { _people = Contacts.Contacts; StateHasChanged(); });
 
+    private void Pick(string name) { Radio.SelectRadio(name); StateHasChanged(); }
+
     private static string State(ContactRecord c) =>
         c.IsMutual ? "connected" : c.IsIncoming ? "wants to connect" : "waiting for them";
 
@@ -90,6 +116,14 @@
     .linked-now { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--brand); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; color: var(--ink-2); font-size: 0.88rem; }
     .linked-now .mono { font-family: var(--mono); font-weight: 700; color: var(--ink); }
     .near-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px var(--brand-tint); flex: 0 0 auto; }
+    .radios { margin: 14px 0 4px; }
+    .radios-label { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; margin-bottom: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-weight: 650; font-size: 0.82rem; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
+    .chip.on { border-color: var(--brand); color: var(--brand); background: var(--brand-tint); }
+    .chip.off { opacity: .4; cursor: default; }
+    .why { margin-top: 10px; padding-left: 4px; display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; color: var(--ink-3); line-height: 1.4; }
+    .why-name { font-weight: 700; color: var(--ink-2); }
     .near { position: absolute; right: -1px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); border: 3px solid var(--bg); }
 
     .pmid { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }

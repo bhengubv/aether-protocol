@@ -59,7 +59,19 @@ public sealed class AndroidWifiDirectTransportService : ITransportService, IRadi
 
     // ── ITransportService metadata ───────────────────────────────────────────
     public string Name => "Wi-Fi Direct";
-    public bool IsAvailable => _manager is not null && !_disposed;
+    // Ask the platform whether the hardware is actually here, rather than inferring it from having
+    // obtained a manager object — a device with no Wi-Fi Direct still hands one out.
+    public bool IsAvailable => HasFeature && _manager is not null && !_disposed;
+
+    /// <inheritdoc />
+    public string? UnavailableReason =>
+        !HasFeature ? "this phone has no Wi-Fi Direct"
+        : _manager is null ? "Wi-Fi Direct is unavailable"
+        : null;
+
+    private static bool HasFeature =>
+        global::Android.App.Application.Context.PackageManager?
+            .HasSystemFeature(global::Android.Content.PM.PackageManager.FeatureWifiDirect) == true;
     public long MaxBandwidthBps => 250_000_000;   // ~250 Mbps practical
     public int MaxRangeMeters => 200;
     public int PowerCostRelative => 6;             // higher than BLE, lower than cellular

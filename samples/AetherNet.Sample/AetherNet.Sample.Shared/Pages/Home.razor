@@ -27,8 +27,8 @@
             @foreach (var p in _people)
             {
                 <button class="row" @onclick="@(() => Nav.NavigateTo($"chat/{p.Contact.Tag}"))">
-                    <span class="av" style="background:@Colour(p.Contact.Tag)">
-                        @p.Contact.Tag[..1]
+                    <span class="av" style="background:@TagPalette.For(p.Contact.Tag)">
+                        @TagPalette.Initial(p.Contact.Tag)
                         @if (p.Contact.IsMutual)
                         {
                             <span class="near"></span>
@@ -91,15 +91,6 @@
         if (age < TimeSpan.FromMinutes(1)) return "now";
         if (age < TimeSpan.FromDays(1)) return when.ToString("HH:mm");
         return age < TimeSpan.FromDays(7) ? when.ToString("ddd") : when.ToString("dd/MM");
-    }
-
-    /// A stable colour per person, so the same tag always looks the same.
-    private static string Colour(string tag)
-    {
-        var palette = new[] { "#2196F3", "#1976D2", "#4aa8ff", "#2c3e50", "#5c6f80" };
-        var h = 0;
-        foreach (var c in tag) h = unchecked(h * 31 + c);
-        return palette[Math.Abs(h) % palette.Length];
     }
 
     public void Dispose()

@@ -2,8 +2,11 @@
 
 namespace AetherNet.Sample.Shared.Services;
 
-/// <summary>One physical radio the app can link over, and whether it's usable on this device.</summary>
-public sealed record RadioInfo(string Name, bool Available);
+/// <summary>
+/// One physical radio the app can link over, and whether it's usable on this device.
+/// <paramref name="Reason"/> says why not, so the UI can explain instead of just greying a chip out.
+/// </summary>
+public sealed record RadioInfo(string Name, bool Available, string? Reason = null);
 
 /// <summary>
 /// The app's over-the-air link across ALL of AetherNet's radios — Wi-Fi Direct, BLE, NFC,

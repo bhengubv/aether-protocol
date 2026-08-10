@@ -36,9 +36,15 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         Register(new AndroidBleTransportService("BLE",
             "61657468-6572-0001-0000-000000000001", "61657468-6572-0003-0000-000000000001",
             "61657468-6572-0002-0000-000000000001", _localUhid, logger));
+        // NearLink (SparkLink) is Huawei silicon driven by HarmonyOS APIs. Android's Bluetooth stack
+        // cannot speak it, so on an Android phone there is no way to detect it, let alone use it. The
+        // GATT engine below is a stand-in for the day the hardware is there — it must never present
+        // itself as a working radio, because running Bluetooth under the NearLink name would be a lie
+        // about what the device just did.
         Register(new AndroidBleTransportService("NearLink",
             "6e65726c-696e-0001-0000-000000000001", "6e65726c-696e-0003-0000-000000000001",
-            "6e65726c-696e-0002-0000-000000000001", _localUhid, logger));
+            "6e65726c-696e-0002-0000-000000000001", _localUhid, logger,
+            unavailableReason: "needs NearLink hardware and HarmonyOS"));
         Register(new AndroidNfcTransportService(_localUhid, logger));
         Register(new AndroidLoRaTransportService(_localUhid, logger));
         // Default to BLE: it links via GATT (advertise/scan) with no dependency on the Wi-Fi P2P
@@ -68,7 +74,8 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     }
 
     public string LocalTag { get; }
-    public IReadOnlyList<RadioInfo> Radios => _order.Select(r => new RadioInfo(r.Name, r.IsAvailable)).ToArray();
+    public IReadOnlyList<RadioInfo> Radios =>
+        _order.Select(r => new RadioInfo(r.Name, r.IsAvailable, r.UnavailableReason)).ToArray();
     public string SelectedRadio => _selected.Name;
     public bool IsSupported => _selected.IsAvailable;
     public bool IsLinked => _selected.IsLinked;
