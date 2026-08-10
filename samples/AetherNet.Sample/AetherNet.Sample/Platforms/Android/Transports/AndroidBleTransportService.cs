@@ -57,9 +57,12 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     private volatile int _mtu = 23;                       // negotiated ATT MTU (BLE default until raised)
 
     // Outbound queue — BLE serialises GATT ops, so one frame is in flight at a time.
+    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(3);
+
     private readonly object _sendLock = new();
     private readonly Queue<byte[]> _sendQueue = new();
     private bool _sending;
+    private DateTime _sendStartedUtc;
     private byte _msgSeq;
 
     // Inbound reassembly, keyed by msgId.
@@ -242,8 +245,17 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         byte[]? frame;
         lock (_sendLock)
         {
-            if (_sending || _sendQueue.Count == 0) return;
+            if (_sendQueue.Count == 0) return;
+            if (_sending)
+            {
+                // A frame is still in flight. BLE only ever confirms via a callback, and if the stack
+                // silently drops one the queue would wedge forever and every later packet would vanish
+                // with no error. Time it out and carry on rather than going quiet.
+                if (DateTime.UtcNow - _sendStartedUtc < SendTimeout) return;
+                L($"send timed out after {SendTimeout.TotalMilliseconds:0}ms — releasing the queue");
+            }
             _sending = true;
+            _sendStartedUtc = DateTime.UtcNow;
             frame = _sendQueue.Dequeue();
         }
         SendFrameNow(frame);
@@ -264,15 +276,20 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
             {
                 _rxCharRemote.WriteType = GattWriteType.Default;         // with response ⇒ OnCharacteristicWrite fires
                 _rxCharRemote.SetValue(frame);
-                _gatt.WriteCharacteristic(_rxCharRemote);
+                var ok = _gatt.WriteCharacteristic(_rxCharRemote);
+                L($"▶ central write {frame.Length}B accepted={ok}");
+                if (!ok) OnFrameSent();                                  // stack refused it — don't wedge the queue
             }
             else if (_gattServer is not null && _txChar is not null && _peripheralPeer is not null) // peripheral → notify
             {
                 _txChar.SetValue(frame);
-                _gattServer.NotifyCharacteristicChanged(_peripheralPeer, _txChar, false); // ⇒ OnNotificationSent fires
+                var ok = _gattServer.NotifyCharacteristicChanged(_peripheralPeer, _txChar, false); // ⇒ OnNotificationSent
+                L($"▶ peripheral notify {frame.Length}B accepted={ok}");
+                if (!ok) OnFrameSent();
             }
             else
             {
+                L($"▶ dropped {frame.Length}B — no GATT path (central={_gatt is not null} peripheral={_peripheralPeer is not null})");
                 lock (_sendLock) { _sending = false; }                  // no transport yet — stop cleanly
             }
         }
@@ -304,6 +321,7 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         if (value[0] == FrameFragment)
         {
             var full = Reassemble(value);
+            L($"◀ fragment {value.Length}B{(full is not null ? $" — message complete, {full.Length}B" : "")}");
             if (full is not null && _peerTag is not null)
                 DataReceived?.Invoke(_peerTag, full);
         }
@@ -399,11 +417,23 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         }
         public override void OnCharacteristicWrite(BluetoothGatt? g, BluetoothGattCharacteristic? ch, GattStatus status)
         {
+            o.L($"write complete status={status}");
             o.OnFrameSent();   // a fragment write completed — release the next
         }
+
         public override void OnCharacteristicChanged(BluetoothGatt? g, BluetoothGattCharacteristic? ch)
         {
-            if (ch?.GetValue() is { } v) o.HandleFrame(v, notifyBack: false); // central got a TX notify
+            var v = ch?.GetValue();
+            o.L($"notify in (legacy cb) {v?.Length.ToString() ?? "null"}B");
+            if (v is not null) o.HandleFrame(v, notifyBack: false); // central got a TX notify
+        }
+
+        // Android 13+ calls this overload instead of the deprecated one above. Harmless on older
+        // devices; without it a phone on 13+ would silently receive nothing.
+        public override void OnCharacteristicChanged(BluetoothGatt g, BluetoothGattCharacteristic ch, byte[] value)
+        {
+            o.L($"notify in (value cb) {value?.Length ?? 0}B");
+            if (value is not null) o.HandleFrame(value, notifyBack: false);
         }
     }
 

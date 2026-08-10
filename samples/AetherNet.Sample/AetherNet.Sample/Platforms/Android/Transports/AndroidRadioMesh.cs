@@ -23,10 +23,13 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     private readonly string _localUhid;
     private IRadio _selected;
 
-    public AndroidRadioMesh(ILogger<AndroidRadioMesh> logger)
+    public AndroidRadioMesh(IIdentityService me, ILogger<AndroidRadioMesh> logger)
     {
-        var (_, pub) = Ed25519SigningService.GenerateKeyPair();
-        LocalTag = AetherNetTag.FromPublicKey(pub).Value;
+        // The radio announces the SAME AetherTag the rest of the app uses. Generating one here would
+        // give the device a third identity — the peer you linked with would not be the peer you added,
+        // and it would change on every restart.
+        ArgumentNullException.ThrowIfNull(me);
+        LocalTag = me.AetherTag;
         _localUhid = LocalTag;
 
         Register(new AndroidWifiDirectTransportService(global::Android.App.Application.Context!, _localUhid, logger));
@@ -102,7 +105,13 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     }
 
     /// <summary>Push a raw serialized packet to the linked peer over the selected radio (the mesh-web pipe).</summary>
-    public Task<bool> SendPacketAsync(byte[] packetBytes) => _selected.SendAsync(packetBytes);
+    public async Task<bool> SendPacketAsync(byte[] packetBytes)
+    {
+        var ok = await _selected.SendAsync(packetBytes).ConfigureAwait(false);
+        global::Android.Util.Log.Info("AetherBLE",
+            $"app→radio {packetBytes.Length}B on {_selected.Name} linked={_selected.IsLinked} sent={ok}");
+        return ok;
+    }
 
     public void Stop()
     {
