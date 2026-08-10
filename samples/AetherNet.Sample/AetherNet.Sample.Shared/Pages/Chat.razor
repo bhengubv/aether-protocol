@@ -1,68 +1,93 @@
 @page "/chat/{Peer}"
+@using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @implements IDisposable
-@inject MessengerService M
+@inject ChatService Messages
+@inject ContactService Contacts
 @inject NavigationManager Nav
 
 <PageTitle>Aether</PageTitle>
 
-@if (_c is { } c)
-{
-    <div class="cv">
-        <header class="cv-head">
-            <button class="back" @onclick="Back" aria-label="Back">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-            </button>
-            <span class="av" style="background:@c.Color">@c.Initial</span>
-            <span class="cv-title">
-                <span class="cv-name">@c.Name</span>
-                @if (c.Nearby)
+<div class="cv">
+    <header class="cv-head">
+        <button class="back" @onclick="Back" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="av">@(Peer.Length > 0 ? Peer[..1] : "?")</span>
+        <span class="cv-title">
+            <span class="cv-name">@Peer</span>
+            <span class="cv-sub @(_secure ? "secure" : null)">@Status</span>
+        </span>
+    </header>
+
+    <div class="cv-thread">
+        @if (_messages.Count == 0)
+        {
+            <div class="cv-empty">Nothing here yet. Whatever you send is encrypted end-to-end and
+                goes straight to their phone.</div>
+        }
+        @foreach (var m in _messages)
+        {
+            <div class="brow @(m.Mine ? "mine" : null)">
+                <div class="bub @(m.Mine ? "mine" : null)">@m.Body</div>
+                @if (m.Mine)
                 {
-                    <span class="cv-sub">nearby now</span>
+                    <span class="tick">@Tick(m.State)</span>
                 }
-            </span>
-        </header>
-
-        <div class="cv-thread">
-            @foreach (var m in M.Thread(Peer))
-            {
-                <div class="brow @(m.Mine ? "mine" : null)">
-                    @if (!m.Mine && c.Group)
-                    {
-                        <span class="bwho">@m.Who</span>
-                    }
-                    <div class="bub @(m.Mine ? "mine" : null)">@m.Text</div>
-                </div>
-            }
-        </div>
-
-        <div class="cv-composer">
-            <input class="cv-input" @bind="_draft" @bind:event="oninput" @onkeydown="OnKey"
-                   placeholder="Message" />
-            <button class="cv-send" disabled="@string.IsNullOrWhiteSpace(_draft)" @onclick="Send" aria-label="Send">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
-            </button>
-        </div>
+            </div>
+        }
     </div>
-}
+
+    <div class="cv-composer">
+        <input class="cv-input" @bind="_draft" @bind:event="oninput" @onkeydown="OnKey" placeholder="Message" />
+        <button class="cv-send" disabled="@string.IsNullOrWhiteSpace(_draft)" @onclick="Send" aria-label="Send">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
+        </button>
+    </div>
+</div>
 
 @code {
     [Parameter] public string Peer { get; set; } = "";
 
-    private MessengerService.Contact? _c;
+    private IReadOnlyList<ChatMessage> _messages = Array.Empty<ChatMessage>();
     private string _draft = "";
+    private bool _secure;
 
-    protected override void OnInitialized() => M.Changed += OnChanged;
-    protected override void OnParametersSet() => _c = M.Get(Peer);
+    private string Status => _secure
+        ? "end-to-end encrypted"
+        : (Contacts.Contacts.FirstOrDefault(c => c.Tag == Peer)?.IsMutual == true
+            ? "setting up encryption…"
+            : "waiting for them to add you back");
 
-    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
-    private void Back() => Nav.NavigateTo("");
+    protected override void OnInitialized()
+    {
+        Messages.Changed += OnChanged;
+        Contacts.Changed += OnChanged;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Refresh();
+        // Start the Signal handshake as soon as the conversation opens, so the first message a person
+        // types can leave immediately instead of sitting pending.
+        await Messages.EnsureSessionAsync(Peer);
+        Refresh();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+
+    private void Refresh()
+    {
+        _messages = Messages.Conversation(Peer);
+        _secure = Messages.IsSecure(Peer);
+    }
 
     private async Task Send()
     {
-        M.Send(Peer, _draft);
+        var text = _draft;
         _draft = "";
-        await Task.CompletedTask;
+        await Messages.SendAsync(Peer, text);
+        Refresh();
     }
 
     private async Task OnKey(KeyboardEventArgs e)
@@ -70,7 +95,16 @@
         if (e.Key == "Enter") await Send();
     }
 
-    public void Dispose() => M.Changed -= OnChanged;
+    private void Back() => Nav.NavigateTo("");
+
+    /// Honest delivery state: a clock means it is still on this phone, waiting for a session.
+    private static string Tick(string state) => state == ChatMessage.Sent ? "✓" : "🕘";
+
+    public void Dispose()
+    {
+        Messages.Changed -= OnChanged;
+        Contacts.Changed -= OnChanged;
+    }
 }
 
 <style>
@@ -83,19 +117,21 @@
     }
     .back { appearance: none; border: none; background: transparent; color: var(--ink); cursor: pointer; padding: 4px; margin: -4px; display: flex; }
     .back svg { width: 26px; height: 26px; }
-    .cv-head .av { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.05rem; }
+    .cv-head .av { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; background: var(--brand); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.05rem; }
     .cv-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-    .cv-name { font-weight: 720; font-size: 1.05rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cv-sub { font-size: 0.76rem; color: var(--brand); font-weight: 600; }
+    .cv-name { font-family: var(--mono); font-weight: 700; font-size: 1rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cv-sub { font-size: 0.74rem; color: var(--ink-3); }
+    .cv-sub.secure { color: var(--brand); font-weight: 600; }
 
     .cv-thread { flex: 1 1 auto; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 8px; padding: 16px 14px; }
     .cv-thread::-webkit-scrollbar { display: none; }
+    .cv-empty { color: var(--ink-3); font-size: 0.88rem; line-height: 1.5; text-align: center; padding: 32px 20px; }
 
-    .brow { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-    .brow.mine { align-items: flex-end; }
-    .bwho { font-size: 0.7rem; font-weight: 700; color: var(--brand); padding-left: 12px; }
+    .brow { display: flex; align-items: flex-end; gap: 5px; }
+    .brow.mine { justify-content: flex-end; }
     .bub { max-width: 80%; padding: 10px 14px; border-radius: 18px; font-size: 0.96rem; line-height: 1.38; background: var(--surface); border: 1px solid var(--line); color: var(--ink); border-bottom-left-radius: 5px; }
     .bub.mine { background: var(--brand); color: #fff; border: none; border-bottom-left-radius: 18px; border-bottom-right-radius: 5px; }
+    .tick { font-size: 0.68rem; color: var(--ink-3); padding-bottom: 2px; }
 
     .cv-composer {
         flex: 0 0 auto; display: flex; align-items: center; gap: 9px;

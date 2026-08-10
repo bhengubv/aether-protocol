@@ -28,11 +28,19 @@ builder.Services.AddSingleton<IIdentityService, IdentityService>();
 // The people this device knows, and the add/be-added handshake.
 builder.Services.AddSingleton<ContactService>();
 
+// Same real messaging stack as the phone. This host has no radio, so messages stay pending —
+// honestly queued rather than pretending to send.
+builder.Services.AddSingleton<AetherNet.Security.Services.ISignalProtocolService,
+    AetherNet.Security.Services.SignalProtocolService>();
+builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
+    new AetherNet.PreKeys.PreKeyExchangeService(
+        new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
+            sp.GetRequiredService<IRadioMesh>())));
+builder.Services.AddSingleton<ChatService>();
+
 // Radios are physical; this host has none, so setup says so honestly.
 builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
 
-// Conversations + people (the messenger surface).
-builder.Services.AddSingleton<MessengerService>();
 
 // The live in-process AetherNet mesh that the demo UI drives. Singleton on the server: the
 // InProcess transport uses a process-wide registry, so one shared mesh avoids UHID collisions

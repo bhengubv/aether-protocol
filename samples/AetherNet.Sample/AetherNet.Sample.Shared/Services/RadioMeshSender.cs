@@ -13,7 +13,7 @@ namespace AetherNet.Sample.Shared.Services;
 /// the next-hop UHID is irrelevant on a one-hop link. Inbound bytes arrive on
 /// <see cref="IRadioMesh.PacketReceived"/> and are dispatched by the mesh-web node, not here.
 /// </summary>
-internal sealed class RadioMeshSender : IMeshSender
+public sealed class RadioMeshSender : IMeshSender
 {
     private readonly IRadioMesh _radio;
 

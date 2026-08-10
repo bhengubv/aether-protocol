@@ -1,7 +1,8 @@
 @page "/nearby"
+@using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @implements IDisposable
-@inject MessengerService M
+@inject ContactService Contacts
 @inject IRadioMesh Radio
 @inject NavigationManager Nav
 
@@ -10,19 +11,31 @@
 <div class="nearby">
     <h1 class="scr-title">Nearby</h1>
 
+    @if (Radio.IsLinked && Radio.PeerTag is { } peer)
+    {
+        <div class="linked-now">
+            <span class="near-dot"></span>
+            <span><span class="mono">@peer</span> is connected to this phone over @Radio.SelectedRadio</span>
+        </div>
+    }
+
     <div class="people">
-        @foreach (var p in M.Nearby)
+        @foreach (var p in _people)
         {
-            <button class="prow" @onclick='() => Nav.NavigateTo($"chat/{p.Id}")'>
-                <span class="av" style="background:@p.Color">
-                    @p.Initial<span class="near"></span>
+            <button class="prow" @onclick="@(() => Nav.NavigateTo($"chat/{p.Tag}"))">
+                <span class="av">
+                    @p.Tag[..1]@if (p.IsMutual) { <span class="near"></span> }
                 </span>
                 <span class="pmid">
-                    <span class="pname">@p.Name</span>
-                    <span class="pstat">nearby now</span>
+                    <span class="pname">@p.Tag</span>
+                    <span class="pstat">@State(p)</span>
                 </span>
                 <span class="msg">Message</span>
             </button>
+        }
+        @if (_people.Count == 0)
+        {
+            <div class="none">Nobody added yet.</div>
         }
     </div>
 
@@ -46,13 +59,21 @@
 </div>
 
 @code {
+    private IReadOnlyList<ContactRecord> _people = Array.Empty<ContactRecord>();
+
     protected override void OnInitialized()
     {
-        M.Changed += OnChanged;
+        Contacts.Changed += OnChanged;
         Radio.Changed += OnChanged;
+        _people = Contacts.Contacts;
     }
-    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
-    public void Dispose() { M.Changed -= OnChanged; Radio.Changed -= OnChanged; }
+
+    private void OnChanged() => _ = InvokeAsync(() => { _people = Contacts.Contacts; StateHasChanged(); });
+
+    private static string State(ContactRecord c) =>
+        c.IsMutual ? "connected" : c.IsIncoming ? "wants to connect" : "waiting for them";
+
+    public void Dispose() { Contacts.Changed -= OnChanged; Radio.Changed -= OnChanged; }
 }
 
 <style>
@@ -63,7 +84,12 @@
     .prow { appearance: none; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 13px; padding: 11px 6px; border-bottom: 1px solid var(--line); text-align: left; }
     .prow:active { background: var(--surface-2); }
 
-    .av { position: relative; flex: 0 0 auto; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.2rem; }
+    .av { position: relative; flex: 0 0 auto; width: 50px; height: 50px; border-radius: 50%; background: var(--brand-deep); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.2rem; }
+    .pname { font-family: var(--mono); }
+    .none { color: var(--ink-3); font-style: italic; padding: 18px 6px; }
+    .linked-now { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--brand); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; color: var(--ink-2); font-size: 0.88rem; }
+    .linked-now .mono { font-family: var(--mono); font-weight: 700; color: var(--ink); }
+    .near-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px var(--brand-tint); flex: 0 0 auto; }
     .near { position: absolute; right: -1px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); border: 3px solid var(--bg); }
 
     .pmid { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }

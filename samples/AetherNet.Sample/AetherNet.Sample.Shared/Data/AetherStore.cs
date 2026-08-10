@@ -31,6 +31,18 @@ public sealed record ContactRecord(
     public bool IsPending => AddedByMe && !AddedByThem;
 }
 
+/// <summary>One message in a conversation, as this device stored it.</summary>
+/// <param name="PeerTag">The other person's AetherTag — the conversation this belongs to.</param>
+/// <param name="Body">The plaintext. It is only ever plaintext here, on your own device.</param>
+/// <param name="Mine">You wrote it.</param>
+/// <param name="State">pending (waiting for a secure session) · sent · received.</param>
+public sealed record ChatMessage(string Id, string PeerTag, string Body, bool Mine, string State, long SentMs)
+{
+    public const string Pending = "pending";
+    public const string Sent = "sent";
+    public const string Received = "received";
+}
+
 /// <summary>
 /// This device's own database — identity, the people it knows, and app settings. Everything here is
 /// local and stays local: there is no server copy and no central directory, so the address book is
@@ -92,7 +104,19 @@ public sealed class AetherStore : IDisposable
                 value TEXT NOT NULL
             );
             """);
+        Exec("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id        TEXT PRIMARY KEY NOT NULL,
+                peer_tag  TEXT NOT NULL,
+                body      TEXT NOT NULL,
+                mine      INTEGER NOT NULL,
+                state     TEXT NOT NULL,
+                sent_ms   INTEGER NOT NULL
+            );
+            """);
         Exec("CREATE INDEX IF NOT EXISTS ix_contacts_last_seen ON contacts(last_seen_ms);");
+        Exec("CREATE INDEX IF NOT EXISTS ix_messages_peer ON messages(peer_tag, sent_ms);");
+        Exec("CREATE INDEX IF NOT EXISTS ix_messages_state ON messages(state);");
     }
 
     // ── Identity ────────────────────────────────────────────────────────────────
@@ -221,6 +245,108 @@ public sealed class AetherStore : IDisposable
             return cmd.ExecuteNonQuery() > 0;
         }
     }
+
+    // ── Messages ────────────────────────────────────────────────────────────────
+
+    /// <summary>The conversation with one peer, oldest first.</summary>
+    public IReadOnlyList<ChatMessage> GetMessages(string peerTag, int limit = 500)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(peerTag);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, peer_tag, body, mine, state, sent_ms FROM messages
+                WHERE peer_tag = @tag ORDER BY sent_ms DESC LIMIT @limit;
+                """;
+            cmd.Parameters.AddWithValue("@tag", peerTag);
+            cmd.Parameters.AddWithValue("@limit", limit);
+            var list = new List<ChatMessage>();
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read()) list.Add(ReadMessage(reader));
+            list.Reverse();          // read newest-first for the LIMIT, show oldest-first
+            return list;
+        }
+    }
+
+    /// <summary>The most recent message with each peer — what the chat list shows.</summary>
+    public IReadOnlyList<ChatMessage> GetLatestPerPeer()
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, peer_tag, body, mine, state, sent_ms FROM messages
+                WHERE sent_ms = (SELECT MAX(sent_ms) FROM messages m2 WHERE m2.peer_tag = messages.peer_tag)
+                GROUP BY peer_tag ORDER BY sent_ms DESC;
+                """;
+            var list = new List<ChatMessage>();
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read()) list.Add(ReadMessage(reader));
+            return list;
+        }
+    }
+
+    /// <summary>Messages still waiting for a secure session before they can go out.</summary>
+    public IReadOnlyList<ChatMessage> GetPendingMessages(string peerTag)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(peerTag);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, peer_tag, body, mine, state, sent_ms FROM messages
+                WHERE peer_tag = @tag AND state = 'pending' ORDER BY sent_ms;
+                """;
+            cmd.Parameters.AddWithValue("@tag", peerTag);
+            var list = new List<ChatMessage>();
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read()) list.Add(ReadMessage(reader));
+            return list;
+        }
+    }
+
+    public void SaveMessage(ChatMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO messages (id, peer_tag, body, mine, state, sent_ms)
+                VALUES (@id, @tag, @body, @mine, @state, @ms)
+                ON CONFLICT(id) DO UPDATE SET state=@state;
+                """;
+            cmd.Parameters.AddWithValue("@id", message.Id);
+            cmd.Parameters.AddWithValue("@tag", message.PeerTag);
+            cmd.Parameters.AddWithValue("@body", message.Body);
+            cmd.Parameters.AddWithValue("@mine", message.Mine ? 1 : 0);
+            cmd.Parameters.AddWithValue("@state", message.State);
+            cmd.Parameters.AddWithValue("@ms", message.SentMs);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public void SetMessageState(string id, string state)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "UPDATE messages SET state = @state WHERE id = @id;";
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.Parameters.AddWithValue("@state", state);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static ChatMessage ReadMessage(SqliteDataReader r) => new(
+        Id: r.GetString(0),
+        PeerTag: r.GetString(1),
+        Body: r.GetString(2),
+        Mine: r.GetInt32(3) != 0,
+        State: r.GetString(4),
+        SentMs: r.GetInt64(5));
 
     // ── Settings ────────────────────────────────────────────────────────────────
 

@@ -44,8 +44,15 @@ public static class MauiProgram
         // The people this device knows, and the add/be-added handshake.
         builder.Services.AddSingleton<ContactService>();
 
-        // Conversations + people (the messenger surface).
-        builder.Services.AddSingleton<MessengerService>();
+        // Real end-to-end encrypted messaging over the radio: Signal's X3DH + double ratchet, with
+        // pre-key bundles exchanged over the mesh itself.
+        builder.Services.AddSingleton<AetherNet.Security.Services.ISignalProtocolService,
+            AetherNet.Security.Services.SignalProtocolService>();
+        builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
+            new AetherNet.PreKeys.PreKeyExchangeService(
+                new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
+                    sp.GetRequiredService<IRadioMesh>())));
+        builder.Services.AddSingleton<ChatService>();
 
         // The live in-process AetherNet mesh that the demo UI drives.
         builder.Services.AddScoped<AetherDemoService>();
@@ -84,6 +91,9 @@ public static class MauiProgram
                 app.Services.GetService<IIdentityService>();
                 app.Services.GetService<IContentStore>();
                 app.Services.GetService<ContactService>();
+                // Constructing the chat service is what subscribes it to the radio, so a message can
+                // arrive before the user has opened a conversation.
+                app.Services.GetService<ChatService>();
             }
             catch (Exception ex)
             {
