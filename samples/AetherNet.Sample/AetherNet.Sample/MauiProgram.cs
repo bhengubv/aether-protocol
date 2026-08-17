@@ -38,7 +38,13 @@ public static class MauiProgram
         builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
 #endif
 
-        // One AetherTag for the whole app — generated once, then loaded every run after that.
+        // The device's node identity. This app does not mint one — it asks, and the node mints only if
+        // this device has never had an identity. One device is one node; an app that mints its own puts
+        // a second peer on the same handset.
+        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityStore>(sp =>
+            new VaultNodeIdentityStore(sp.GetRequiredService<ISecretVault>()));
+        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
+            new AetherNet.Identity.NodeIdentity(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
         builder.Services.AddSingleton<IIdentityService, IdentityService>();
 
         // The people this device knows, and the add/be-added handshake.
@@ -93,7 +99,13 @@ public static class MauiProgram
                 app.Services.GetService<ContactService>();
                 // Constructing the chat service is what subscribes it to the radio, so a message can
                 // arrive before the user has opened a conversation.
-                app.Services.GetService<ChatService>();
+                var chat = app.Services.GetService<ChatService>();
+#if ANDROID
+                // Put the message path in the system log next to the radio's own lines, so a receipt
+                // that never comes back can be told apart from one that was never sent.
+                if (chat is not null)
+                    chat.Trace += m => global::Android.Util.Log.Info("AetherChat", m);
+#endif
             }
             catch (Exception ex)
             {

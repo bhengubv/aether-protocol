@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+
+  <!--
+    Deliberately references only the platform-neutral half of the sample. Anything worth a test
+    belongs on this side of the line: the wire framing, the envelopes, the state machines. A platform
+    head should hold nothing but the calls into that platform's radio APIs — which is what keeps an
+    iOS head possible later without re-deriving the protocol, and what makes any of it testable at
+    all on a build server with no phone attached.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\AetherNet.Sample.Shared\AetherNet.Sample.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

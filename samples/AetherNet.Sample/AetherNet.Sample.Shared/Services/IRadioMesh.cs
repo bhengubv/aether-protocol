@@ -6,7 +6,11 @@ namespace AetherNet.Sample.Shared.Services;
 /// One physical radio the app can link over, and whether it's usable on this device.
 /// <paramref name="Reason"/> says why not, so the UI can explain instead of just greying a chip out.
 /// </summary>
-public sealed record RadioInfo(string Name, bool Available, string? Reason = null);
+/// <summary>
+/// A radio as the picker sees it. <paramref name="Fixable"/> separates "you can switch this on" from
+/// "this phone does not have one" — both are unavailable, but only one is worth offering a tap for.
+/// </summary>
+public sealed record RadioInfo(string Name, bool Available, string? Reason = null, bool Fixable = false);
 
 /// <summary>
 /// The app's over-the-air link across ALL of AetherNet's radios — Wi-Fi Direct, BLE, NFC,
@@ -30,8 +34,30 @@ public interface IRadioMesh
     /// <summary>True once a peer has linked over the selected radio.</summary>
     bool IsLinked { get; }
 
-    /// <summary>The linked peer's AetherTag, or null.</summary>
+    /// <summary>
+    /// Who is on the other end of the link — their AetherTag once it is known, and until then the
+    /// rotating wire address the radio saw in the handshake. Null when nothing is linked.
+    /// </summary>
     string? PeerTag { get; }
+
+    /// <summary>
+    /// Name the peer on the current link.
+    ///
+    /// <para>
+    /// A radio never learns who it is talking to. The long-term identity deliberately does not travel
+    /// in clear — the handshake carries a rotating address — so the radio can say "someone is here"
+    /// and nothing more. The result was a chat screen insisting you were <b>"connected to someone else"</b>
+    /// while delivering your messages to exactly the right person.
+    /// </para>
+    ///
+    /// <para>
+    /// The identity arrives inside the session, so only the layer that opens the session can supply it.
+    /// It must call this <b>after a message from that peer has actually decrypted</b>, never on the
+    /// strength of the claim in a packet header: a header is a claim anyone can make, whereas ciphertext
+    /// that opens under a peer's ratchet could only have come from them.
+    /// </para>
+    /// </summary>
+    void IdentifyPeer(string aetherTag);
 
     /// <summary>Raised whenever the log or link state changes; the UI re-renders on it.</summary>
     event Action? Changed;

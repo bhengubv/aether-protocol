@@ -21,6 +21,17 @@ internal interface IRadio
     /// </summary>
     string? UnavailableReason => null;
 
+    /// <summary>
+    /// Can the person holding the phone do something about <see cref="UnavailableReason"/>?
+    ///
+    /// <para>
+    /// A missing permission or a switched-off adapter is fixable — offer the tap. Absent silicon is
+    /// not, and inviting someone to fix a phone that has no NFC chip in it is just a lie with a
+    /// friendly tone.
+    /// </para>
+    /// </summary>
+    bool IsFixable => false;
+
     /// <summary>True once a peer has completed the link handshake.</summary>
     bool IsLinked { get; }
 

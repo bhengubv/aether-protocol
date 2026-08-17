@@ -39,7 +39,109 @@ public sealed class ContactService
         _radio = radio;
 
         if (_radio is not null)
+        {
             _radio.PacketReceived += OnPacket;
+            _radio.Changed += OnRadioChanged;
+        }
+    }
+
+    /// <summary>Whether the radio had a link last time it told us, so we can spot a real transition.</summary>
+    private int _wasLinked;
+
+    /// <summary>
+    /// A link appearing is the moment to tell anyone still waiting on us.
+    ///
+    /// <para>
+    /// Adding someone is almost always done before any link exists — it happens during first-run setup,
+    /// because a link is the very thing the person is trying to establish. That announcement cannot go
+    /// anywhere, and without this it was never sent again: both phones sit on "waiting for them to add
+    /// you back" forever with a working radio between them. A message survives this because it goes on
+    /// a backlog and is flushed; the add needs the same.
+    /// </para>
+    /// </summary>
+    private void OnRadioChanged()
+    {
+        var linked = _radio is { IsLinked: true };
+
+        // Changed fires for every line the radio logs, and announcing sends packets, which log — so
+        // acting on the event itself feeds itself. Only a transition into a link counts.
+        if (Interlocked.Exchange(ref _wasLinked, linked ? 1 : 0) == 1 || !linked) return;
+
+        _ = AnnounceOutstandingAsync();
+    }
+
+    /// <summary>How long to keep trying after a link appears, and how often.</summary>
+    private static readonly TimeSpan AnnounceRetryEvery = TimeSpan.FromSeconds(2);
+    private const int AnnounceAttempts = 5;
+
+    /// <summary>
+    /// Who we have successfully got an announcement out to.
+    ///
+    /// <para>
+    /// Deliberately <b>not</b> the same question as "are we mutual". Them adding us says nothing about
+    /// whether our announcement ever reached them — they may have added us from a QR code, or their
+    /// packet may have crossed ours. Treating mutual as "told them" is what stranded a P30: its
+    /// announcement lost a 4 ms race with the link flag, then merlin's add arrived and made the contact
+    /// mutual, so the retry decided there was nothing left to say. merlin never heard from it.
+    /// </para>
+    ///
+    /// <para>
+    /// In memory rather than on disk: a restart costs one extra announcement on the next link, which is
+    /// cheap and self-correcting, while a stale "already told them" on disk would be permanent.
+    /// </para>
+    /// </summary>
+    private readonly HashSet<string> _announced = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Re-announce to everyone who has not added us back yet.
+    ///
+    /// <para>
+    /// Tried several times rather than once, because the link event and the radio's own "I am linked"
+    /// flag do not flip at the same instant — on a P30 Lite the announcement went out 3 ms before the
+    /// flag turned true, the send was refused, and with nothing scheduled after it that phone never
+    /// told its peer again. A few cheap retries close a gap measured in milliseconds.
+    /// </para>
+    ///
+    /// <para>
+    /// A settled pair is left alone: re-announcing to someone who already has us is pointless traffic
+    /// on a radio with little to spare, and on a mesh it is a beacon nobody asked for. The loop stops
+    /// as soon as nothing is outstanding.
+    /// </para>
+    /// </summary>
+    private async Task AnnounceOutstandingAsync()
+    {
+        for (var attempt = 0; attempt < AnnounceAttempts; attempt++)
+        {
+            // Still owed unless BOTH are true: the announcement actually went out, and they have added
+            // us back. Either alone is not enough — a send that succeeded may still have been lost on
+            // the air, and them adding us says nothing about whether our own announcement arrived.
+            ContactRecord[] outstanding;
+            lock (_announced)
+                outstanding = _store.GetContacts()
+                    .Where(c => c.AddedByMe && !(_announced.Contains(c.Tag) && c.AddedByThem))
+                    .ToArray();
+
+            if (outstanding.Length == 0) return;
+
+            var allSent = true;
+            foreach (var contact in outstanding)
+            {
+                try
+                {
+                    if (await AnnounceAsync(contact.Tag).ConfigureAwait(false))
+                        lock (_announced) _announced.Add(contact.Tag);
+                    else
+                        allSent = false;
+                }
+                catch (Exception) { allSent = false; }
+            }
+
+            // Everything went out. Whether they answer is their business.
+            if (allSent) return;
+
+            await Task.Delay(AnnounceRetryEvery).ConfigureAwait(false);
+            if (_radio is not { IsLinked: true }) return;   // link went away; nothing to retry onto
+        }
     }
 
     /// <summary>Raised when the contact list changes, so the UI can re-render.</summary>
@@ -114,7 +216,12 @@ public sealed class ContactService
         _store.UpsertContact(tag, key, byMe: true, byThem: false, via, displayName);
         Changed?.Invoke();
 
-        await AnnounceAsync(tag).ConfigureAwait(false);
+        // Adding almost always happens during first-run setup, before any link exists — so this very
+        // often cannot go anywhere. What matters is that the failure is remembered: the contact record
+        // holds the debt and the next link pays it.
+        if (await AnnounceAsync(tag).ConfigureAwait(false))
+            lock (_announced) _announced.Add(tag);
+
         return true;
     }
 
@@ -128,9 +235,10 @@ public sealed class ContactService
     /// envelope rather than minting a new packet type — a new type costs all eight language SDKs and
     /// their byte-parity fixtures, and buys nothing here.
     /// </summary>
-    public async Task AnnounceAsync(string? toTag = null)
+    /// <returns>True when the radio actually carried it — not merely that we asked.</returns>
+    public async Task<bool> AnnounceAsync(string? toTag = null)
     {
-        if (_radio is null) return;
+        if (_radio is null) return false;
 
         var body = JsonSerializer.SerializeToUtf8Bytes(new AddRequest
         {
@@ -152,7 +260,7 @@ public sealed class ContactService
             Payload = payload,
         };
 
-        await _radio.SendPacketAsync(PacketSerializer.Serialize(packet)).ConfigureAwait(false);
+        return await _radio.SendPacketAsync(PacketSerializer.Serialize(packet)).ConfigureAwait(false);
     }
 
     /// <summary>

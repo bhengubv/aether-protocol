@@ -8,6 +8,8 @@ using Java.Util;
 using Microsoft.Extensions.Logging;
 using AndroidApp = Android.App.Application;
 
+using AetherNet.Sample.Shared.Services;
+
 namespace AetherNet.Sample.Platforms.Android.Transports;
 
 /// <summary>
@@ -28,13 +30,10 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     private readonly UUID TxUuid; // peripheral → central notify
     private static readonly UUID CccdUuid = UUID.FromString("00002902-0000-1000-8000-00805f9b34fb")!;
 
-    // Frame kinds (first byte of every BLE frame).
-    private const byte FrameHandshake = 0x01; // [0x01][uhid utf8]
-    private const byte FrameFragment = 0x02;  // [0x02][msgId][idxLo idxHi][cntLo cntHi][payload]
-    private const int FragHeader = 6;
 
     private readonly string _name;
     private readonly string _localUhid;
+    private readonly byte[] _routingKey;
     private readonly string? _unavailableReason;
     private readonly ILogger _logger;
     private readonly BluetoothManager? _btManager;
@@ -53,8 +52,14 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     private BluetoothGattCharacteristic? _rxCharRemote;   // peer's RX we write to (central role)
 
     private volatile bool _linked;
+    private volatile bool _relinking;                     // rebuilding after a drop; ignore further drops
     private volatile bool _disposed;
+
+    // Proof of life — the rules live in LinkLiveness so they can be reasoned about away from a radio.
+    private readonly LinkLiveness _liveness = new();
+    private System.Threading.Timer? _watchdog;
     private string? _peerTag;
+    private string? _peerErid;
     private volatile int _mtu = 23;                       // negotiated ATT MTU (BLE default until raised)
 
     // Outbound queue — BLE serialises GATT ops, so one frame is in flight at a time.
@@ -66,15 +71,14 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     private DateTime _sendStartedUtc;
     private byte _msgSeq;
 
-    // Inbound reassembly, keyed by msgId.
-    private readonly Dictionary<byte, Reassembly> _inbound = new();
+    private readonly MeshFraming.Reassembler _reassembler = new();
 
     /// <param name="unavailableReason">
     /// Set when this instance stands in for a radio the device does not physically have — it then
     /// reports itself unavailable instead of quietly running over Bluetooth under another name.
     /// </param>
     public AndroidBleTransportService(string name, string serviceUuid, string rxUuid, string txUuid,
-        string localUhid, ILogger logger, string? unavailableReason = null)
+        string localUhid, ILogger logger, string? unavailableReason = null, byte[]? routingKey = null)
     {
         _unavailableReason = unavailableReason;
         _name = name;
@@ -82,6 +86,11 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         RxUuid = UUID.FromString(rxUuid)!;
         TxUuid = UUID.FromString(txUuid)!;
         _localUhid = localUhid;
+        // Must come from the identity SECRET. Deriving it from the AetherTag would be theatre: the
+        // tag is public — printed on QR codes, read aloud — so every address it ever produced could
+        // be computed by anyone, which is worse than sending the tag, because it looks private.
+        _routingKey = routingKey ?? throw new ArgumentNullException(nameof(routingKey),
+            "A rotating wire address needs a key derived from the identity secret, not from the public tag.");
         _logger = logger;
         _btManager = AndroidApp.Context.GetSystemService(Context.BluetoothService) as BluetoothManager;
         _adapter = _btManager?.Adapter;
@@ -101,6 +110,10 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         ?? (_adapter is null ? "this phone has no Bluetooth"
             : !_adapter.IsEnabled ? "Bluetooth is switched off"
             : null);
+
+    /// <inheritdoc />
+    /// <remarks>A switched-off adapter is a tap away; a phone with no Bluetooth in it is not.</remarks>
+    public bool IsFixable => _unavailableReason is null && _adapter is { IsEnabled: false };
     public bool IsLinked => _linked;
     public string? PeerTag => _peerTag;
 
@@ -114,10 +127,139 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
 
     public void Link()
     {
+        // Registered even when the adapter is currently off, so the radio is picked up the moment the
+        // person turns Bluetooth back on — and, more importantly, so we are told BEFORE it goes away.
+        WatchAdapterState();
+
         if (_adapter is null || !_adapter.IsEnabled) { L("Bluetooth is off"); return; }
-        L("linking — advertising + scanning for the AetherNet BLE service…");
-        StartPeripheral();
-        StartCentral();
+        if (LinkLooksAlive()) { L("already linked"); return; }
+
+        // Rebuild, and ignore the disconnects our own teardown provokes.
+        _relinking = true;
+        try
+        {
+            if (_linked || _gatt is not null || _peripheralPeer is not null)
+                ResetLink("the link stopped answering");
+
+            L("linking — advertising + scanning for the AetherNet BLE service…");
+            StartPeripheral();
+            StartCentral();
+            StartWatchdog();
+        }
+        finally { _relinking = false; }
+    }
+
+    /// <summary>
+    /// Is this link actually carrying traffic, or does it only look connected?
+    /// <para>
+    /// A flag is not enough. When the other phone's app restarts, its GATT server goes with it, but
+    /// Android can leave our connection object alive and never report a disconnect — so we keep
+    /// writing into a socket nobody is reading and hear nothing back. That state passed an
+    /// <c>IsLinked</c> check happily, which is exactly how a phone got stranded: every message left,
+    /// no receipt ever returned, and re-linking was skipped as unnecessary.
+    /// </para>
+    /// <para>
+    /// Since every message is now acknowledged, silence after we have spoken is real evidence. If our
+    /// last send is newer than anything we have heard, and that was a while ago, the link is dead
+    /// whatever the flag says.
+    /// </para>
+    /// </summary>
+    private bool LinkLooksAlive()
+    {
+        if (!_linked) return false;
+
+        var haveTransport = (_gatt is not null && _rxCharRemote is not null) || _peripheralPeer is not null;
+        if (!haveTransport) return false;
+
+        // Only an unanswered question counts against the link.
+        return !_liveness.IsLost(DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// Watch the link even when nobody is looking at it. Checking only when the user taps Connect is
+    /// useless: at that moment the link has just been made and is healthy by definition. The state we
+    /// need to catch — connected object, dead peer, silence — appears minutes later, mid-conversation,
+    /// and only a standing check will see it.
+    /// </summary>
+    private void StartWatchdog()
+    {
+        _watchdog ??= new System.Threading.Timer(_ =>
+        {
+            if (_disposed || _relinking || !_linked) return;
+
+            var now = DateTime.UtcNow;
+
+            if (_liveness.ShouldPing(now))
+            {
+                // Quiet. Ask outright rather than assuming the worst — and asking regularly also keeps
+                // Android from reaping a connection it thinks nobody is using.
+                _liveness.NotePingSent(now);
+                EnqueueFrames(new[] { new[] { MeshFraming.FramePing } });
+                return;
+            }
+
+            if (_liveness.IsLost(now))
+                OnLinkLost($"nothing back from the peer for {LinkLiveness.PongWithin.TotalSeconds:0}s");
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>Drop everything tied to the current connection. Does not start looking again.</summary>
+    private void ResetLink(string why)
+    {
+        L($"link reset ({why})");
+
+        _linked = false;
+        _peerTag = null;
+        _rxCharRemote = null;
+        _peripheralPeer = null;
+        _mtu = 23;
+        _liveness.Reset();
+
+        try { _gatt?.Close(); } catch { }
+        _gatt = null;
+
+        lock (_sendLock)
+        {
+            _sendQueue.Clear();      // queued frames belong to a peer that is gone
+            _sending = false;
+        }
+        // reassembly state belongs to the shared framing and is rebuilt on the next fragment
+    }
+
+    /// <summary>
+    /// The peer went away — the other phone closed the app, walked out of range, or turned Bluetooth
+    /// off. Android tells us once and never again, so everything that was tied to that connection has
+    /// to be let go here: the flag the UI reads, the GATT client, the device we were notifying, and
+    /// anything queued for a peer that can no longer receive it.
+    /// <para>
+    /// Then we start looking again. Without this the radio stays convinced it is still connected,
+    /// the Connect button stays disabled because the app believes it has a link, and the peripheral
+    /// never resumes advertising — so the two phones can never find each other again without both
+    /// apps being restarted. That is what stranded merlin.
+    /// </para>
+    /// </summary>
+    private void OnLinkLost(string why)
+    {
+        if (_disposed || _relinking) return;
+        var had = _linked || _gatt is not null || _peripheralPeer is not null;
+        if (!had) return;
+
+        // Tearing the old server down to rebuild it makes Android report *another* disconnect. Doing
+        // the rebuild inline therefore re-enters this method and recurses until the stack gives out —
+        // which is exactly how this crashed the app the first time. Latch, then rebuild off this
+        // callback thread once the radio has settled.
+        _relinking = true;
+
+        L($"link lost ({why}) — clearing and listening again");
+        ResetLink(why);
+        Status?.Invoke("link lost");
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            _relinking = false;
+            if (!_disposed && !_linked) Link();   // advertise + scan again so the link can re-form
+        });
     }
 
     private void StartPeripheral()
@@ -127,6 +269,9 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
             L("this phone can't BLE-advertise — running central-only (it will connect to the other)");
             return;
         }
+        // Re-linking must not stack a second server and advertiser on top of the first.
+        try { if (_advCallback is not null) _advertiser?.StopAdvertising(_advCallback); } catch { }
+        try { _gattServer?.Close(); } catch { }
         _gattServer = _btManager!.OpenGattServer(AndroidApp.Context!, new ServerCb(this));
         var service = new BluetoothGattService(ServiceUuid, GattServiceType.Primary);
         var rx = new BluetoothGattCharacteristic(RxUuid,
@@ -153,6 +298,7 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     private void StartCentral()
     {
         _scanner = _adapter!.BluetoothLeScanner;
+        try { if (_scanCallback is not null) _scanner?.StopScan(_scanCallback); } catch { }
         var filter = new ScanFilter.Builder()!.SetServiceUuid(new ParcelUuid(ServiceUuid))!.Build();
         var settings = new ScanSettings.Builder()!.SetScanMode(global::Android.Bluetooth.LE.ScanMode.LowLatency)!.Build();
         _scanCallback = new ScanCb(this);
@@ -217,36 +363,17 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         return Task.FromResult(true);
     }
 
-    private byte[] Handshake()
-    {
-        var uhid = System.Text.Encoding.UTF8.GetBytes(_localUhid);
-        var f = new byte[1 + uhid.Length];
-        f[0] = FrameHandshake;
-        Buffer.BlockCopy(uhid, 0, f, 1, uhid.Length);
-        return f;
-    }
+    /// <summary>
+    /// The opening frame. Built by the shared framing rather than here: it is protocol, not platform,
+    /// and a second copy on each radio head is how the two drifted apart in the first place.
+    /// </summary>
+    private byte[] Handshake() => MeshFraming.Handshake(_routingKey);
 
-    private List<byte[]> Fragment(byte[] data)
+    private IReadOnlyList<byte[]> Fragment(byte[] data)
     {
-        var mtu = _mtu > 0 ? _mtu : 23;
-        var usable = Math.Max(1, mtu - 3 - FragHeader);           // ATT header is 3 bytes
-        var count = Math.Max(1, (data.Length + usable - 1) / usable);
         byte id;
         lock (_sendLock) { id = unchecked(_msgSeq++); }
-        var frames = new List<byte[]>(count);
-        for (var i = 0; i < count; i++)
-        {
-            var off = i * usable;
-            var len = Math.Min(usable, data.Length - off);
-            var f = new byte[FragHeader + len];
-            f[0] = FrameFragment;
-            f[1] = id;
-            f[2] = (byte)(i & 0xFF); f[3] = (byte)((i >> 8) & 0xFF);
-            f[4] = (byte)(count & 0xFF); f[5] = (byte)((count >> 8) & 0xFF);
-            Buffer.BlockCopy(data, off, f, FragHeader, len);
-            frames.Add(f);
-        }
-        return frames;
+        return MeshFraming.Fragment(data, _mtu, id);
     }
 
     private void EnqueueFrames(IEnumerable<byte[]> frames)
@@ -323,60 +450,56 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     private void HandleFrame(byte[] value, bool notifyBack)
     {
         if (value.Length == 0) return;
+        _liveness.RecordInbound(DateTime.UtcNow);   // the peer is demonstrably still there
 
-        if (value[0] == FrameHandshake)
+        if (value[0] == MeshFraming.FramePing) { EnqueueFrames(new[] { new[] { MeshFraming.FramePong } }); return; }
+        if (value[0] == MeshFraming.FramePong) return;   // liveness only — nothing else to do with it
+
+        if (value[0] == MeshFraming.FrameHandshake)
         {
-            _peerTag = System.Text.Encoding.UTF8.GetString(value, 1, value.Length - 1);
+            // A rotating address, not an identity. Who the peer actually is arrives inside the first
+            // message they send — the long-term tag never travels in clear, which is the whole point.
+            _peerErid = System.Text.Encoding.UTF8.GetString(value, 1, value.Length - 1);
             _linked = true;
-            L($"linked with {_peerTag}");
-            PeerLinked?.Invoke(_peerTag);
+            L($"linked with a peer at {_peerErid}");
+            PeerLinked?.Invoke(_peerErid);
             try { _advertiser?.StopAdvertising(_advCallback); } catch { }
             try { _scanner?.StopScan(_scanCallback); } catch { }
             if (notifyBack) EnqueueFrames(new[] { Handshake() });      // peripheral answers the handshake
             return;
         }
 
-        if (value[0] == FrameFragment)
+        if (value[0] == MeshFraming.FrameFragment)
         {
             var full = Reassemble(value);
             L($"◀ fragment {value.Length}B{(full is not null ? $" — message complete, {full.Length}B" : "")}");
-            if (full is not null && _peerTag is not null)
-                DataReceived?.Invoke(_peerTag, full);
+            if (full is null) return;
+
+            // The peer names itself inside the message it just sent, so this is where we learn who is
+            // on the other end — after the link exists, never before it.
+            LearnPeerFrom(full);
+            DataReceived?.Invoke(_peerTag ?? _peerErid ?? "", full);
         }
     }
 
-    private byte[]? Reassemble(byte[] frame)
+    private byte[]? Reassemble(byte[] frame) => _reassembler.Accept(frame);
+
+    /// <summary>
+    /// Read the peer's AetherTag out of a message they sent us. The handshake deliberately carries no
+    /// identity, so this is the first point at which the other end has a name.
+    /// </summary>
+    private void LearnPeerFrom(byte[] packetBytes)
     {
-        if (frame.Length < FragHeader) return null;
-        var id = frame[1];
-        var idx = frame[2] | (frame[3] << 8);
-        var cnt = frame[4] | (frame[5] << 8);
-        if (cnt <= 0 || idx < 0 || idx >= cnt) return null;
-
-        lock (_inbound)
+        if (_peerTag is not null) return;
+        try
         {
-            if (!_inbound.TryGetValue(id, out var asm) || asm.Count != cnt)
-            {
-                asm = new Reassembly(cnt);
-                _inbound[id] = asm;
-            }
-            if (asm.Parts[idx] is null)
-            {
-                var payload = new byte[frame.Length - FragHeader];
-                Buffer.BlockCopy(frame, FragHeader, payload, 0, payload.Length);
-                asm.Parts[idx] = payload;
-                asm.Have++;
-            }
-            if (asm.Have < asm.Count) return null;
-
-            var total = 0;
-            foreach (var p in asm.Parts) total += p!.Length;
-            var full = new byte[total];
-            var o = 0;
-            foreach (var p in asm.Parts) { Buffer.BlockCopy(p!, 0, full, o, p!.Length); o += p!.Length; }
-            _inbound.Remove(id);
-            return full;
+            var source = AetherNet.Protocol.PacketSerializer.Deserialize(packetBytes).SourceUhid;
+            if (string.IsNullOrEmpty(source)) return;
+            _peerTag = source;
+            L($"peer is {_peerTag}");
+            PeerLinked?.Invoke(_peerTag);
         }
+        catch { /* not a packet we can read — the link still stands */ }
     }
 
     public void Stop() => Dispose();
@@ -385,19 +508,98 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        try { _advertiser?.StopAdvertising(_advCallback); } catch { }
-        try { _scanner?.StopScan(_scanCallback); } catch { }
-        try { _gatt?.Disconnect(); _gatt?.Close(); } catch { }
-        try { _gattServer?.Close(); } catch { }
+        try { if (_stateReceiver is not null) AndroidApp.Context!.UnregisterReceiver(_stateReceiver); } catch { }
+        _stateReceiver = null;
+        ReleaseRadio();
     }
 
-    private sealed class Reassembly
+    /// <summary>
+    /// Hand every Bluetooth object back. Safe to call at any time and more than once.
+    /// </summary>
+    private void ReleaseRadio()
     {
-        public Reassembly(int count) { Count = count; Parts = new byte[count][]; }
-        public int Count { get; }
-        public byte[]?[] Parts { get; }
-        public int Have { get; set; }
+        try { _watchdog?.Dispose(); } catch { }
+        _watchdog = null;
+
+        try { if (_advCallback is not null) _advertiser?.StopAdvertising(_advCallback); } catch { }
+        try { if (_scanCallback is not null) _scanner?.StopScan(_scanCallback); } catch { }
+        try { _gatt?.Disconnect(); _gatt?.Close(); } catch { }
+        try { _gattServer?.Close(); } catch { }
+
+        _advertiser = null;
+        _scanner = null;
+        _gatt = null;
+        _gattServer = null;
+        _txChar = null;
+        _rxCharRemote = null;
+        _peripheralPeer = null;
+        _linked = false;
+        _peerTag = null;
+        _peerErid = null;
+        _liveness.Reset();
+
+        lock (_sendLock) { _sendQueue.Clear(); _sending = false; }
     }
+
+    // ── The adapter going away ──────────────────────────────────────────────────
+
+    private StateReceiver? _stateReceiver;
+
+    /// <summary>
+    /// Watch for Bluetooth being switched off, and let go of everything before it goes.
+    ///
+    /// <para>
+    /// Android announces <c>STATE_TURNING_OFF</c> <b>before</b> the stack is torn down, which is the
+    /// only moment an app can release cleanly. Ignoring it means the framework tries to dismantle a
+    /// stack while this app still holds an open GATT server, a running advertiser, a scanner, a live
+    /// client connection, and a watchdog timer still pushing pings into it.
+    /// </para>
+    ///
+    /// <para>
+    /// That is not theoretical. On 2026-08-15 turning Bluetooth off on a Redmi while this transport was
+    /// linked took <b>system_server</b> down with it — zygote and system_server restarted (kernel uptime
+    /// untouched at 8 days, so the phone never rebooted, but the whole Android runtime did). An app must
+    /// never be able to do that to the device it is running on.
+    /// </para>
+    /// </summary>
+    private void WatchAdapterState()
+    {
+        if (_stateReceiver is not null) return;
+
+        _stateReceiver = new StateReceiver(this);
+        AndroidApp.Context!.RegisterReceiver(_stateReceiver, new IntentFilter(BluetoothAdapter.ActionStateChanged));
+    }
+
+    private void OnAdapterState(State state)
+    {
+        switch (state)
+        {
+            // Released here rather than at STATE_OFF: by then the stack is already going and the
+            // release is exactly what the framework is waiting on.
+            case State.TurningOff:
+            case State.Off:
+                if (_gattServer is null && _gatt is null && _advertiser is null) return;
+                L("Bluetooth is going off — releasing the radio");
+                ReleaseRadio();
+                OnLinkLost("Bluetooth was switched off");
+                break;
+
+            case State.On:
+                L("Bluetooth is back — listening again");
+                if (!_disposed) Link();
+                break;
+        }
+    }
+
+    private sealed class StateReceiver(AndroidBleTransportService o) : BroadcastReceiver
+    {
+        public override void OnReceive(Context? context, Intent? intent)
+        {
+            if (intent?.Action != BluetoothAdapter.ActionStateChanged) return;
+            o.OnAdapterState((State)intent.GetIntExtra(BluetoothAdapter.ExtraState, (int)State.Off));
+        }
+    }
+
 
     // ── Android callback adapters ───────────────────────────────────────────────
 
@@ -419,6 +621,7 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         public override void OnConnectionStateChange(BluetoothGatt? g, GattStatus status, ProfileState newState)
         {
             if (newState == ProfileState.Connected && g is not null) o.OnClientConnected(g);
+            else if (newState == ProfileState.Disconnected) o.OnLinkLost($"central disconnected, status={status}");
         }
         public override void OnMtuChanged(BluetoothGatt? g, int mtu, GattStatus status)
         {
@@ -436,6 +639,9 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         public override void OnCharacteristicWrite(BluetoothGatt? g, BluetoothGattCharacteristic? ch, GattStatus status)
         {
             o.L($"write complete status={status}");
+            // Deliberately not proof of life: this completion comes from the peer's Bluetooth
+            // controller, not from its app. Both were seen succeeding on a link where nothing reached
+            // either app — see LinkLiveness.
             o.OnFrameSent();   // a fragment write completed — release the next
         }
 
@@ -478,6 +684,7 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
 
         public override void OnNotificationSent(BluetoothDevice? device, GattStatus status)
         {
+            // Also not proof of life, for the same reason as OnCharacteristicWrite.
             o.OnFrameSent();   // a notify was flushed — release the next fragment
         }
 
@@ -489,6 +696,7 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         public override void OnConnectionStateChange(BluetoothDevice? device, ProfileState status, ProfileState newState)
         {
             if (device is not null && newState == ProfileState.Connected) o._peripheralPeer = device;
+            else if (newState == ProfileState.Disconnected) o.OnLinkLost("peer disconnected from our GATT server");
         }
     }
 }

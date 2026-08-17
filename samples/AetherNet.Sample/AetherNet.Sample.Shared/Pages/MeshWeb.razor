@@ -36,7 +36,96 @@
     <div class="page">
         @if (_page is { Ok: true } p)
         {
-            <div class="doc">@((MarkupString)p.Html!)</div>
+            @* Drawn block by block, never injected. A card is authored by a stranger, so nothing in
+               it may execute or fetch — and a block this build does not recognise is skipped rather
+               than failing the whole card, so a newer author never breaks an older reader. *@
+            <div class="doc" style="@Accent(p.Card)">
+                @if (p.Card is { } card)
+                {
+                    @* The hero. A card's first picture runs the full width above the title, the way a
+                       page has a masthead — which is most of the difference between something that
+                       looks like a place and something that looks like a document. Until the bytes
+                       arrive the description holds the same space, so the card never jumps. *@
+                    var hero = card.Blocks.FirstOrDefault(b => b.Kind == CardBlock.Image);
+                    @if (hero is not null)
+                    {
+                        @if (_assets.TryGetValue(hero.ContentHash ?? "", out var heroUri))
+                        {
+                            <img class="card-hero" src="@heroUri" alt="@hero.Value" />
+                        }
+                        else
+                        {
+                            <div class="card-hero pending"><span>@hero.Value</span></div>
+                        }
+                    }
+
+                    <h1 class="card-title">@card.Title</h1>
+                    foreach (var block in card.Blocks)
+                    {
+                        switch (block.Kind)
+                        {
+                            case CardBlock.Heading:
+                                <h2 class="card-h">@block.Value</h2>
+                                break;
+
+                            case CardBlock.Text:
+                                <p class="card-p">@block.Value</p>
+                                break;
+
+                            case CardBlock.List:
+                                <ul class="card-ul">
+                                    @foreach (var item in block.Items ?? [])
+                                    {
+                                        <li>@item</li>
+                                    }
+                                </ul>
+                                break;
+
+                            case CardBlock.KeyValue:
+                                <div class="card-kv"><span>@block.Value</span></div>
+                                break;
+
+                            @* The picture. The card names a content hash; the bytes come from the mesh
+                               and we build the data: URI ourselves, so a stranger's card can never make
+                               the app fetch anything. Until the artwork arrives the description stands
+                               in for it — the card is readable either way. *@
+                            case CardBlock.Image when !ReferenceEquals(block, hero):
+                                @if (_assets.TryGetValue(block.ContentHash ?? "", out var uri))
+                                {
+                                    <img class="card-art" src="@uri" alt="@block.Value" />
+                                }
+                                else
+                                {
+                                    <div class="card-art pending">@block.Value</div>
+                                }
+                                break;
+
+                            @* Theme is applied to the card as a whole, not drawn in place. *@
+                            case CardBlock.Theme:
+                                break;
+
+                            @* A link goes to another card on the mesh and nowhere else. It is drawn as
+                               a button that re-enters this same resolver rather than as an anchor, so
+                               a stranger's card cannot hand the browser an address of its own choosing.
+                               Anything that is not an aether:// address is shown as plain text — the
+                               card still renders, the link simply does not work, which is the safe way
+                               round. *@
+                            case CardBlock.Link:
+                                @if (IsMeshAddress(block.Target))
+                                {
+                                    <button type="button" class="card-link" @onclick="@(() => Go(block.Target!))">
+                                        @(block.Value ?? block.Target)
+                                    </button>
+                                }
+                                else
+                                {
+                                    <p class="card-p">@block.Value</p>
+                                }
+                                break;
+                        }
+                    }
+                }
+            </div>
             <div class="siteinfo">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
                 @if (p.Own)
@@ -74,6 +163,66 @@
     private bool _busy;
     private bool _autoOpened;
 
+    /// <summary>
+    /// Artwork already assembled, by content hash. Held here rather than fetched during render because
+    /// a picture may still be arriving over the radio, and a card must draw immediately either way.
+    /// </summary>
+    private readonly Dictionary<string, string> _assets = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The card's own colour, applied to the card and nothing else.
+    ///
+    /// <para>
+    /// A card is a blob from a stranger, so its accent is untrusted input written into a style
+    /// attribute — the one place a card gets anywhere near CSS. It is admitted only as a plain hex
+    /// colour, and it sets a variable the card's own rules read, so the worst a hostile card can do
+    /// is choose an ugly colour for itself. Anything else, and the card keeps the app's blue.
+    /// </para>
+    /// </summary>
+    private static string? Accent(CardDocument? card)
+    {
+        var colour = card?.Blocks
+            .FirstOrDefault(b => b.Kind == CardBlock.Theme && CardBlock.IsUsableAccent(b.Value))?.Value;
+
+        return colour is null ? null : $"--card-accent:{colour}";
+    }
+
+    /// <summary>
+    /// Pull in any picture this card names. Runs after the page is already on screen, so the card is
+    /// readable while its artwork is still crossing the radio.
+    /// </summary>
+    private async Task LoadArtAsync(CardDocument? card)
+    {
+        if (card is null) return;
+
+        foreach (var hash in card.Blocks
+            .Where(b => b.Kind == CardBlock.Image)
+            .Select(b => b.ContentHash)
+            .Where(h => h is not null && !_assets.ContainsKey(h))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray())
+        {
+            if (await Mesh.AssetAsync(hash) is { } uri)
+            {
+                _assets[hash!] = uri;
+                StateHasChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// May this card send the reader somewhere? Only to another card on the mesh.
+    /// <para>
+    /// The card is a blob written by a stranger, so its link targets are untrusted input. An
+    /// <c>http</c> or <c>javascript</c> target would turn a card into a way to reach out of the mesh
+    /// — exactly what publishing cards as inert JSON instead of HTML exists to prevent. Anything that
+    /// is not an <c>aether://</c> address is drawn as plain text and goes nowhere.
+    /// </para>
+    /// </summary>
+    private static bool IsMeshAddress(string? target) =>
+        !string.IsNullOrWhiteSpace(target) &&
+        target.StartsWith("aether://", StringComparison.OrdinalIgnoreCase);
+
     protected override async Task OnInitializedAsync()
     {
         Mesh.Changed += OnChanged;
@@ -110,6 +259,8 @@
         {
             _busy = false;
         }
+
+        await LoadArtAsync(_page?.Card);
     }
 
     private async Task OnKey(KeyboardEventArgs e)
@@ -147,7 +298,130 @@
 
     /* The page itself — the rendered card fills the view like a web page. */
     .page { min-height: 46vh; }
-    .doc { }
+
+    /* The card. Every block below is drawn by us from typed JSON — a stranger's card gets our
+       typography and nothing of its own, which is exactly why it can be trusted to render.
+
+       The one thing a card chooses for itself is --card-accent, and only as a plain hex colour that
+       has already been checked. Everything accented below reads it and falls back to the app's blue,
+       so a card that sets no theme still looks deliberate. */
+    .doc {
+        --card-accent: var(--brand);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 0 20px 24px;
+        overflow: hidden;
+    }
+
+    /* Full-bleed masthead: out to the card's edges, under its rounded top corners. The app-wide
+       `img { max-width: 100% }` that keeps pages from scrolling sideways would otherwise clamp this
+       back inside the padding, so it is lifted here and nowhere else — the card clips it anyway. */
+    .card-hero {
+        display: block;
+        width: calc(100% + 40px);
+        max-width: none;
+        margin: 0 -20px 18px;
+        aspect-ratio: 600 / 260;
+        object-fit: cover;
+    }
+    /* The picture is still crossing the radio. Hold its exact space so nothing jumps when it lands. */
+    .card-hero.pending {
+        display: flex;
+        align-items: flex-end;
+        padding: 14px 20px;
+        background: linear-gradient(135deg, var(--card-accent), var(--surface-2, var(--line)));
+        color: #fff;
+        font-size: 0.85rem;
+        font-weight: 600;
+        opacity: .55;
+    }
+
+    .card-title {
+        margin: 0 0 2px;
+        padding-top: 4px;
+        font-size: 1.42rem;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.01em;
+        color: var(--ink);
+    }
+    /* No hero? Then the title is the top of the card and needs its own breathing room. */
+    .card-hero + .card-title { padding-top: 0; }
+    .doc > .card-title:first-child { padding-top: 22px; }
+
+    /* A hairline under the title separates "who this is" from "what they're saying". */
+    .card-title + * { margin-top: 14px; }
+    .card-title::after {
+        content: "";
+        display: block;
+        width: 38px;
+        height: 3px;
+        margin-top: 10px;
+        border-radius: 2px;
+        background: var(--card-accent);
+    }
+
+    /* An inline picture stays inside the text column — it illustrates, it is not the masthead. */
+    .card-art { display: block; width: 100%; border-radius: 12px; margin: 4px 0 14px; }
+    .card-art.pending {
+        aspect-ratio: 600 / 260;
+        display: flex;
+        align-items: flex-end;
+        padding: 12px 14px;
+        background: var(--brand-tint);
+        color: var(--ink-3);
+        font-size: 0.85rem;
+    }
+
+    .card-h { margin: 20px 0 8px; font-size: 1.02rem; font-weight: 750; color: var(--ink); }
+    .card-p { margin: 0 0 12px; font-size: 0.95rem; line-height: 1.55; color: var(--ink-2); max-width: 62ch; }
+
+    .card-ul { margin: 0 0 14px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+    .card-ul li {
+        position: relative;
+        padding-left: 18px;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        color: var(--ink);
+    }
+    .card-ul li::before {
+        content: "";
+        position: absolute;
+        left: 2px; top: 0.62em;
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--card-accent);
+    }
+
+    /* A labelled fact reads as a row, so hours and prices scan at a glance instead of as prose. */
+    .card-kv {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 0.92rem;
+    }
+    .card-kv:last-of-type { border-bottom: 0; }
+    .card-kv span { color: var(--ink); }
+
+    /* A link is a button, not an anchor: it re-enters our own resolver, so a card can never hand the
+       browser an address of its own choosing. */
+    .card-link {
+        appearance: none;
+        margin: 8px 8px 0 0;
+        padding: 10px 17px;
+        border: none;
+        border-radius: 999px;
+        background: var(--card-accent);
+        color: #fff;
+        font: inherit;
+        font-size: 0.9rem;
+        font-weight: 650;
+        cursor: pointer;
+    }
+    .card-link:active { transform: translateY(1px); }
     .siteinfo { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--ink-3); padding: 10px 6px 0; }
     .siteinfo svg { width: 13px; height: 13px; color: var(--ink-3); }
     .siteinfo .mono { font-family: var(--mono); }

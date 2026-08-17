@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ replacement for the older backup flags. Every transfer mode is refused for the same
+  reason allowBackup is false: this device's identity is sealed by a Keystore key that never leaves the
+  phone and does not survive being moved. Copying the sealed bytes to another device — by cloud backup,
+  by device-to-device transfer, or by adb — produces a phone holding an identity it can never open, and
+  a node that correctly refuses to mint over a sealed identity then cannot start at all.
+
+  An identity moves by being regenerated from a recovery phrase the person holds. It does not move by
+  copying ciphertext away from the key that opens it.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

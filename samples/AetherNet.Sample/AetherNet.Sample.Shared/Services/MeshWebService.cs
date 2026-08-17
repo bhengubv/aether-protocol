@@ -3,6 +3,7 @@
 using System.Text;
 using AetherNet.Cards;
 using AetherNet.Content;
+using AetherNet.Content.Models;
 using AetherNet.Identity;
 using AetherNet.Protocol;
 using AetherNet.Routing;
@@ -30,6 +31,7 @@ public sealed class MeshWebService
     private readonly ILoggerFactory _loggerFactory;
     private readonly IRadioMesh? _radio;
     private readonly IIdentityService _me;
+    private readonly AetherNet.Identity.INodeIdentity _node;
     private readonly IContentStore _contentStore;
     private readonly SemaphoreSlim _initGate = new(1, 1);
     private readonly List<string> _pages = new();
@@ -48,13 +50,19 @@ public sealed class MeshWebService
     private bool _wasLinked;
     private bool _helloSent;
 
+    private readonly Dictionary<string, string> _assets = new(StringComparer.Ordinal);
+    private ContentDescriptor? _art;
+
     public MeshWebService(
         IIdentityService me,
+        AetherNet.Identity.INodeIdentity node,
         IContentStore contentStore,
         IRadioMesh? radio = null,
         ILoggerFactory? loggerFactory = null)
     {
         _me = me ?? throw new ArgumentNullException(nameof(me));
+        // Cards are signed by the device, so the node signs them. This service never sees the key.
+        _node = node ?? throw new ArgumentNullException(nameof(node));
         _contentStore = contentStore ?? throw new ArgumentNullException(nameof(contentStore));
         _radio = radio;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -91,7 +99,6 @@ public sealed class MeshWebService
 
             // One identity for the whole app: the card is signed by the same tag Settings shows, and it
             // is the same tag after a restart — so an address someone saved still resolves to you.
-            var privateKey = _me.PrivateKey;
             _localTag = _me.AetherTag;
             _persona = PickPersona(_localTag);
 
@@ -118,12 +125,28 @@ public sealed class MeshWebService
             var cards = new CardService(_content, _directory);
             _resolver = new AetherResolver(cards);
 
-            // Publish this device's persona: each page content-addressed, signed under this tag.
-            foreach (var (name, html) in _persona.Pages)
+            // The persona's artwork goes on the mesh first, as content in its own right — the card then
+            // names it by hash. Publishing it separately is what lets a third phone that only ever met
+            // a card-holder still render the picture: the bytes are addressed, not located.
+            _art = await _content
+                .PublishAsync($"{_persona.Key}-art", Encoding.UTF8.GetBytes(PersonaArt(_persona.Key, _localTag)),
+                    "image/svg+xml", cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            var artHash = _art.RootHash;
+
+            // Publish this device's persona: each page content-addressed, signed under this tag. Links
+            // between a persona's own pages are written with a placeholder because the tag is not known
+            // when the personas are declared — it is resolved here, to this device's real tag, so a
+            // card can only ever point at its own author. The artwork hash is filled in the same way.
+            foreach (var (name, document) in _persona.Pages)
             {
+                var json = document.ToJson()
+                    .Replace(PageAuthorToken, _localTag, StringComparison.Ordinal)
+                    .Replace(PageArtToken, artHash, StringComparison.Ordinal);
+
                 await cards.PublishCardAsync(
-                        name, Encoding.UTF8.GetBytes(html), "text/html",
-                        privateKey, version: 1, cancellationToken)
+                        name, Encoding.UTF8.GetBytes(json), CardDocument.ContentType,
+                        _node, version: 1, cancellationToken)
                     .ConfigureAwait(false);
                 _pages.Add(name);
             }
@@ -133,6 +156,19 @@ public sealed class MeshWebService
         finally
         {
             _initGate.Release();
+        }
+
+        // Greet whoever is already there.
+        //
+        // The link usually comes up while you are somewhere else in the app, and you reach the
+        // mesh-web afterwards. A greeting sent only when the link *changes* is therefore never sent
+        // at all — by either phone, each waiting on a transition that happened before it was
+        // listening — and neither ever learns there is a site an arm's length away.
+        if (_radio is { IsLinked: true } && !_helloSent)
+        {
+            _helloSent = true;
+            _wasLinked = true;
+            _ = SendHelloBurstAsync();
         }
     }
 
@@ -208,11 +244,18 @@ public sealed class MeshWebService
 
     // Send the beacon a few times — BLE notifies/writes can drop one, and both phones need it to
     // discover each other, so the exchange is reliably bidirectional.
+    //
+    // The artwork's descriptor rides along, because a picture is separate content from the card that
+    // names it: the card carries its own descriptor, the art does not. Without the descriptor a peer
+    // has nothing to verify an arriving chunk against, so it cannot even ask — announcing here is what
+    // lets a phone that has only just met us draw our card in full rather than as text.
     private async Task SendHelloBurstAsync()
     {
         for (var i = 0; i < 4; i++)
         {
             await SendHelloAsync().ConfigureAwait(false);
+            if (i is 0 or 3 && _art is { } art)
+                await _content.AnnounceAsync(art).ConfigureAwait(false);
             await Task.Delay(500).ConfigureAwait(false);
         }
     }
@@ -286,12 +329,14 @@ public sealed class MeshWebService
                 if (bytes is null)
                     return MeshPage.Fail(address, "content didn't arrive over the mesh");
 
-                var html = Encoding.UTF8.GetString(bytes);
+                                var document = CardDocument.Parse(Encoding.UTF8.GetString(bytes));
+                if (document is null)
+                    return MeshPage.Fail(address, "that is not a card this renderer can draw");
                 if (!own)
-                    Remember(address, authorTag, html);
+                    Remember(address, authorTag, document);
 
                 return new MeshPage(
-                    Ok: true, Address: address, Name: card.Name, Html: html, AuthorTag: authorTag,
+                    Ok: true, Address: address, Name: card.Name, Card: document, AuthorTag: authorTag,
                     RootHash: card.Descriptor.RootHash, Bytes: bytes.LongLength,
                     Chunks: card.Descriptor.ChunkCount, Version: card.Version,
                     Remote: remote, Own: own, Error: null);
@@ -311,6 +356,46 @@ public sealed class MeshWebService
         }
     }
 
+    /// <summary>
+    /// The bytes behind an image block, as something an <c>&lt;img&gt;</c> can show.
+    ///
+    /// <para>
+    /// The card names a content hash, never a place — so this assembles the bytes we already hold (or
+    /// pull from the mesh) and hands back a <c>data:</c> URI built <b>by us</b>. The card never supplies
+    /// a URI of its own, so opening a stranger's card cannot cause a single outbound request.
+    /// </para>
+    ///
+    /// <para>Null when the artwork has not arrived yet — the caller shows the description instead.</para>
+    /// </summary>
+    public async Task<string?> AssetAsync(string? contentHash, CancellationToken cancellationToken = default)
+    {
+        if (!CardBlock.IsUsableAssetHash(contentHash)) return null;
+        if (_assets.TryGetValue(contentHash!, out var cached)) return cached;
+
+        var bytes = await _content.AssembleAsync(contentHash!, cancellationToken).ConfigureAwait(false);
+        if (bytes is null)
+        {
+            // Not held here. The author announces the artwork's descriptor when the link comes up; until
+            // that has arrived there is nothing to verify an incoming chunk against, so we ask for
+            // nothing and the reader sees the description. The picture fills in on the next open.
+            if (await _store.GetDescriptorAsync(contentHash!, cancellationToken).ConfigureAwait(false) is null)
+                return null;
+
+            await _content
+                .RequestChunksAsync(contentHash!, Array.Empty<int>(), null, cancellationToken)
+                .ConfigureAwait(false);
+            bytes = await WaitForContentAsync(contentHash!, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (bytes is null || bytes.Length == 0) return null;
+
+        // Card art is SVG: a few hundred bytes that stay sharp at any size, which is what a link
+        // measured at roughly 5 kbps can actually carry.
+        var uri = "data:image/svg+xml;base64," + Convert.ToBase64String(bytes);
+        _assets[contentHash!] = uri;
+        return uri;
+    }
+
     private async Task<byte[]?> WaitForContentAsync(string rootHash, CancellationToken cancellationToken)
     {
         for (var i = 0; i < 60; i++)
@@ -323,22 +408,12 @@ public sealed class MeshWebService
         return await _content.AssembleAsync(rootHash, cancellationToken).ConfigureAwait(false);
     }
 
-    private void Remember(string address, string tag, string html)
+    private void Remember(string address, string tag, CardDocument document)
     {
         if (_saved.Any(s => s.Address == address))
             return;
-        _saved.Add(new SavedCard(address, tag, TitleOf(html)));
+        _saved.Add(new SavedCard(address, tag, document.Title));
         RaiseChanged();
-    }
-
-    private static string TitleOf(string html)
-    {
-        var i = html.IndexOf("<h1", StringComparison.OrdinalIgnoreCase);
-        if (i < 0) return "Saved card";
-        var gt = html.IndexOf('>', i);
-        if (gt < 0) return "Saved card";
-        var end = html.IndexOf("</h1>", gt, StringComparison.OrdinalIgnoreCase);
-        return end < 0 ? "Saved card" : html[(gt + 1)..end].Trim().Replace("&amp;", "&");
     }
 
     private void RaiseChanged() => Changed?.Invoke();
@@ -352,89 +427,174 @@ public sealed class MeshWebService
         return Personas[Math.Abs(h) % Personas.Length];
     }
 
-    private sealed record Persona(string Key, (string Name, string Html)[] Pages);
+    private sealed record Persona(string Key, (string Name, CardDocument Document)[] Pages);
 
     private static readonly Persona[] Personas =
     {
         new("board", new[]
         {
-            ("home", Page("Kagiso Community Board",
-                """
-                <p>Notices pinned by people on your street.</p>
-                <ul><li>⚡ Load-shedding: Stage 4, off 18:00–20:30</li>
-                <li>🚗 Lift club to town, 07:15 from the rank</li>
-                <li>💧 Water tanker on Vilakazi St, Thursday</li></ul>
-                <p>No signal? It still updates — it's on the mesh.</p>
-                """)),
-            ("market", Page("Saturday Market",
-                "<p>8am–1pm · community hall</p><ul><li>🍅 Co-op produce</li><li>🥘 Kota &amp; vetkoek</li><li>🎶 Amapiano from 11</li></ul>")),
+            ("home", Card("Kagiso Community Board",
+                Accent(BoardAccent),
+                Art("The noticeboard at the corner"),
+                CardBlock.Of(CardBlock.Text, "Notices pinned by people on your street."),
+                Kv("Updated", "This morning"),
+                Kv("Pinned by", "14 neighbours"),
+                Items("Load-shedding: Stage 4, off 18:00-20:30",
+                      "Lift club to town, 07:15 from the rank",
+                      "Water tanker on Vilakazi St, Thursday"),
+                CardBlock.Of(CardBlock.Text, "No signal? It still updates - it is on the mesh."),
+                Link("This week's schedule", "power"))),
+
+            ("power", Card("Load-shedding this week",
+                Accent(BoardAccent),
+                CardBlock.Of(CardBlock.Text, "Posted by whoever gets the notice first."),
+                Kv("Monday", "Stage 2 · 06:00 - 08:30"),
+                Kv("Tuesday", "Stage 4 · 18:00 - 20:30"),
+                Kv("Wednesday", "Stage 4 · 18:00 - 20:30"),
+                Kv("Thursday", "None expected"),
+                Kv("Friday", "Stage 2 · 20:00 - 22:30"),
+                CardBlock.Of(CardBlock.Text, "Times shift. Charge when the power is on."),
+                Link("Back to the board", "home"))),
         }),
         new("spaza", new[]
         {
-            ("home", Page("Thabo's Spaza Shop",
-                """
-                <p>Open 6am–9pm · cash &amp; SnapScan</p>
-                <ul><li>Fresh bread daily from 7</li><li>Airtime, data &amp; electricity</li>
-                <li>Cold drinks &amp; ice</li><li>Paraffin &amp; candles</li></ul>
-                <p>On the corner of Vilakazi &amp; 7th.</p>
-                """)),
-            ("specials", Page("Today's Specials",
-                "<ul><li>2L cooldrink — R22</li><li>Loaf + polony — R30</li><li>Airtime R12 = R10</li></ul>")),
-        }),
-        new("salon", new[]
-        {
-            ("home", Page("Lerato's Hair &amp; Nails",
-                """
-                <p>Walk-ins welcome · Tue–Sun</p>
-                <ul><li>💇🏾‍♀️ Cornrows &amp; braids</li><li>💅 Gel nails &amp; acrylics</li>
-                <li>✂️ Cuts &amp; fades</li></ul>
-                <p>Book on the board or just pop in.</p>
-                """)),
-            ("prices", Page("Price List",
-                "<ul><li>Braids — from R150</li><li>Gel nails — R120</li><li>Fade — R60</li></ul>")),
+            ("home", Card("Mama Dlamini's Spaza",
+                Accent(SpazaAccent),
+                Art("The shop front on the corner"),
+                CardBlock.Of(CardBlock.Text, "Open 06:00 to 20:00, every day."),
+                Kv("Open", "06:00 - 20:00, every day"),
+                Kv("Airtime", "All networks"),
+                Kv("Stokvel", "Ask inside"),
+                Items("Bread, milk, airtime, paraffin",
+                      "Cold drinks in the fridge at the back",
+                      "Ask about the stokvel"),
+                CardBlock.Of(CardBlock.Text, "Pay in cash or on the mesh."),
+                Link("Today's prices", "prices"))),
+
+            ("prices", Card("Today's prices",
+                Accent(SpazaAccent),
+                CardBlock.Of(CardBlock.Text, "Changed this morning. Cash or mesh, same price."),
+                Kv("Bread", "R18"),
+                Kv("Milk 1L", "R24"),
+                Kv("Paraffin 1L", "R31"),
+                Kv("Airtime", "From R5"),
+                Link("Back to the shop", "home"))),
         }),
         new("taxi", new[]
         {
-            ("home", Page("Kagiso Taxi Rank",
-                """
-                <p>Live-ish routes &amp; fares, pinned by drivers.</p>
-                <ul><li>🚐 Town — R18 · every 10 min</li><li>🚐 Mall — R15</li>
-                <li>🚐 Clinic — R12</li></ul>
-                <p>First taxi 05:00 · last 21:30.</p>
-                """)),
-            ("fares", Page("Fares",
-                "<ul><li>Town — R18</li><li>Mall — R15</li><li>Clinic — R12</li><li>Station — R20</li></ul>")),
-        }),
-        new("fixit", new[]
-        {
-            ("home", Page("Sipho's Fix-It",
-                """
-                <p>Phones, kettles, radios — if it's broken, bring it.</p>
-                <ul><li>🔌 Appliance repairs</li><li>📱 Screen &amp; battery swaps</li>
-                <li>🔦 Load-shedding lights &amp; power banks</li></ul>
-                <p>Behind the taxi rank. Cash only.</p>
-                """)),
-            ("hours", Page("Opening Hours",
-                "<ul><li>Mon–Fri 8–17</li><li>Sat 8–13</li><li>Sun closed</li></ul>")),
+            ("home", Card("Rank 7 Taxi Times",
+                Accent(TaxiAccent),
+                Art("The rank at seven in the morning"),
+                CardBlock.Of(CardBlock.Text, "Times people actually saw, not a timetable."),
+                Kv("First one", "05:10"),
+                Kv("To the mall", "About every 20 min"),
+                Kv("Last one back", "21:30"),
+                Items("Town: first 05:10, then when it fills",
+                      "Mall: roughly every 20 minutes to 18:00",
+                      "Last one back: 21:30, do not count on it"),
+                Link("What it costs", "fares"))),
+
+            ("fares", Card("Fares from Rank 7",
+                Accent(TaxiAccent),
+                CardBlock.Of(CardBlock.Text, "What people paid this week. Have the coins ready."),
+                Kv("Town", "R16"),
+                Kv("The mall", "R13"),
+                Kv("Krugersdorp", "R22"),
+                Kv("After 20:00", "R2 more, most drivers"),
+                Link("Back to the times", "home"))),
         }),
     };
 
-    private static string Page(string title, string body) =>
-        $$"""
-        <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);
-                    background:var(--surface);border:1px solid var(--line);border-radius:14px;
-                    padding:20px 22px;line-height:1.55">
-          <h1 style="margin:0 0 12px;font-size:1.35rem;color:var(--brand)">{{title}}</h1>
-          {{body}}
-        </div>
-        """;
+    /// <summary>
+    /// Build a card: a title and an ordered list of typed blocks. No markup anywhere — a renderer
+    /// draws these, so a card authored by a stranger cannot execute anything or fetch anything.
+    /// </summary>
+    private static CardDocument Card(string title, params CardBlock[] blocks) =>
+        new() { Title = title, Blocks = [.. blocks] };
+
+    private static CardBlock Items(params string[] items) =>
+        new() { Kind = CardBlock.List, Items = [.. items] };
+
+    /// <summary>A labelled fact — opening hours, a price, a platform number.</summary>
+    private static CardBlock Kv(string key, string value) =>
+        new() { Kind = CardBlock.KeyValue, Value = $"{key} · {value}" };
+
+    /// <summary>
+    /// A link to another card <b>by this same author</b>. The address carries a placeholder for the
+    /// author's tag, which is not known when the personas are declared and is resolved at publish time
+    /// — so a card can only ever point within the mesh, never at the open web.
+    /// </summary>
+    private static CardBlock Link(string label, string page) =>
+        new() { Kind = CardBlock.Link, Value = label, Target = $"aether://{PageAuthorToken}/{page}" };
+
+    /// <summary>Stand-in for the author's tag inside a declared persona, swapped in at publish time.</summary>
+    private const string PageAuthorToken = "{author}";
+
+    /// <summary>Stand-in for the persona artwork's content hash, which only exists once published.</summary>
+    private const string PageArtToken = "{art}";
+
+    /// <summary>The card's picture, referenced by hash rather than by where it lives.</summary>
+    private static CardBlock Art(string description) =>
+        new() { Kind = CardBlock.Image, ContentHash = PageArtToken, Value = description };
+
+    /// <summary>The card's accent colour — one declared value, interpreted by our renderer.</summary>
+    private static CardBlock Accent(string hex) =>
+        new() { Kind = CardBlock.Theme, Value = hex };
+
+    /// <summary>
+    /// A persona's artwork, drawn as SVG.
+    ///
+    /// <para>
+    /// A few hundred bytes that stay sharp at any size — which is the only kind of picture a link
+    /// measured at roughly 5 kbps can carry without the reader waiting a minute and a half. It is also
+    /// generated rather than photographed, so every device produces its own without shipping assets in
+    /// the APK.
+    /// </para>
+    /// </summary>
+    private static string PersonaArt(string key, string tag)
+    {
+        var accent = AccentFor(key);
+        var mark = key switch { "spaza" => "S", "taxi" => "T", _ => "K" };
+
+        return $"""
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 260" role="img">
+              <defs>
+                <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="{accent}"/>
+                  <stop offset="1" stop-color="{accent}" stop-opacity=".55"/>
+                </linearGradient>
+              </defs>
+              <rect width="600" height="260" fill="url(#g)"/>
+              <circle cx="505" cy="52" r="120" fill="#fff" fill-opacity=".08"/>
+              <circle cx="90" cy="232" r="90" fill="#000" fill-opacity=".10"/>
+              <text x="40" y="150" font-family="system-ui,sans-serif" font-size="104" font-weight="800"
+                    fill="#fff" fill-opacity=".92">{mark}</text>
+              <text x="42" y="196" font-family="ui-monospace,monospace" font-size="20"
+                    fill="#fff" fill-opacity=".70">{tag}</text>
+            </svg>
+            """;
+    }
+
+    // Each persona gets its own colour, so two cards never look like the same document. Declared once
+    // and read by both the card's theme block and its artwork — a picture in one colour under a card
+    // in another is exactly the kind of drift a shared constant prevents.
+    private const string SpazaAccent = "#B4541F";
+    private const string TaxiAccent = "#1F6FB4";
+    private const string BoardAccent = "#2E7D4F";
+
+    private static string AccentFor(string key) => key switch
+    {
+        "spaza" => SpazaAccent,
+        "taxi" => TaxiAccent,
+        _ => BoardAccent,
+    };
 
     /// <summary>A peer card kept on this phone after fetching it over the radio.</summary>
     public sealed record SavedCard(string Address, string Tag, string Title);
 
     /// <summary>A rendered (or failed) mesh-web page handed to the UI.</summary>
     public sealed record MeshPage(
-        bool Ok, string Address, string? Name, string? Html, string? AuthorTag,
+        bool Ok, string Address, string? Name, CardDocument? Card, string? AuthorTag,
         string? RootHash, long Bytes, int Chunks, long Version, bool Remote, bool Own, string? Error)
     {
         public static MeshPage Fail(string address, string error) =>

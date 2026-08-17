@@ -12,6 +12,7 @@ This package is **pure managed code with no third-party dependencies** — it is
 language SDKs port, byte-for-byte, pinned by `fixtures/map/`. The durable, queryable on-device store
 (SQLite) ships separately in **`AetherNet.Map.Sqlite`** so this core stays dependency-free.
 
-Wire: `MapDelta` (packet 44) carries one feature's CRDT ops; `MapFeatureRequest` (packet 45) is the
-anti-entropy pull a node issues on entering a new geohash cell. Both ride the existing broadcast +
-DTN geocast paths.
+Wire: one feature's CRDT ops serialise via `MapFeatureCodec`, and a node entering a new geohash cell
+issues an anti-entropy pull via `MapFeatureRequestCodec`. The packet-type binding and mesh dispatch
+live in the consuming app — the map is an app-domain capability layered on the neutral AetherNet pipe —
+riding the existing broadcast + DTN geocast paths.

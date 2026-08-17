@@ -21,6 +21,7 @@ public sealed class NullRadioMesh : IRadioMesh
     public IReadOnlyList<string> Log =>
         new[] { "Radios are physical — run the app on two Android phones to link them over the air." };
 
+    public void IdentifyPeer(string aetherTag) { }
     public void SelectRadio(string name) { }
     public void Link() { }
     public Task SendTestAsync(string text) => Task.CompletedTask;

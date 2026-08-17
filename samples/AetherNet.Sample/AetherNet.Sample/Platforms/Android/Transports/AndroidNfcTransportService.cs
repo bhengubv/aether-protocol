@@ -34,6 +34,10 @@ public sealed class AndroidNfcTransportService : IRadio, IDisposable
         _nfc is null ? "this phone has no NFC"
         : !_nfc.IsEnabled ? "NFC is switched off"
         : null;
+
+    /// <inheritdoc />
+    /// <remarks>Switched off is fixable; no NFC chip in the phone is not.</remarks>
+    public bool IsFixable => _nfc is { IsEnabled: false };
     public bool IsLinked => false;
     public string? PeerTag => null;
 

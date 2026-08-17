@@ -18,6 +18,10 @@
 <body>
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
+    <script>
+        // A conversation is read from the bottom — keep the newest message in view.
+        window.aetherScrollToEnd = function (el) { if (el) el.scrollTop = el.scrollHeight; };
+    </script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 

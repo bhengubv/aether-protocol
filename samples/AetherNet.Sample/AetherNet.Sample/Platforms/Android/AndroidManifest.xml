@@ -1,6 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true"></application>
+    <!-- allowBackup is false because the identity is sealed by a key that lives in the Keystore and is
+         destroyed on uninstall. Android's backup restores the sealed blob but cannot restore the key,
+         so a restored device comes back holding an identity nothing on it can ever open — and the node
+         correctly refuses to mint over a sealed identity, which leaves the app unable to start at all.
+         Watched on a P30 Lite 2026-08-15: two uninstalls, and a blob with a 1970 timestamp and the old
+         key name kept reappearing. Backing up an identity is only meaningful with the recovery phrase
+         that regenerates it, never by copying bytes the device can no longer decrypt. -->
+    <application android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true"></application>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -22,6 +29,14 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <!-- Holding the mesh link while the app is off-screen. Android cuts Bluetooth for background
+         apps — measured on the P30: the link survives indefinitely with the app in front and dies a
+         couple of minutes after it is not — so a connection that must outlive the screen has to be
+         owned by a foreground service. connectedDevice is the type that covers exactly this. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- NFC (tap-to-pair) and LoRa (external USB module) radios. -->
     <uses-permission android:name="android.permission.NFC" />

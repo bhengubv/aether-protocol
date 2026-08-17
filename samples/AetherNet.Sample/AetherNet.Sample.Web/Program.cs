@@ -22,7 +22,12 @@ builder.Services.AddSingleton(_ => new AetherStore(Path.Combine(dataDir, "aether
 builder.Services.AddSingleton<IContentStore>(_ => new SqliteContentStore(Path.Combine(dataDir, "content.db")));
 builder.Services.AddSingleton<ISecretVault>(_ => new FileSecretVault(Path.Combine(dataDir, "vault")));
 
-// This device's own AetherNet identity — one AetherTag shown across the whole app.
+// This device's node identity. The app asks for it rather than minting one — the identity belongs to
+// the device, not to whichever app happened to run first.
+builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityStore>(sp =>
+    new VaultNodeIdentityStore(sp.GetRequiredService<ISecretVault>()));
+builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
+    new AetherNet.Identity.NodeIdentity(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
 builder.Services.AddSingleton<IIdentityService, IdentityService>();
 
 // The people this device knows, and the add/be-added handshake.

@@ -5,6 +5,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.wifi.p2p.WifiP2pConfig
+import android.net.wifi.p2p.WifiP2pDevice
+import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.util.Log
@@ -49,6 +52,12 @@ class AetherNetWifiDirectService(private val context: Context) {
     private var channel: WifiP2pManager.Channel? = null
     private var serverSocket: ServerSocket? = null
 
+    // Our own Wi-Fi Direct address (from THIS_DEVICE_CHANGED) drives the deterministic
+    // initiator rule below; the guards stop us re-connecting once a group is forming/formed.
+    @Volatile private var thisDeviceAddress: String = ""
+    @Volatile private var connecting = false
+    @Volatile private var groupFormed = false
+
     // ── Broadcast receiver ────────────────────────────────────────────────────
 
     val receiver: BroadcastReceiver = object : BroadcastReceiver() {
@@ -68,7 +77,14 @@ class AetherNetWifiDirectService(private val context: Context) {
                 WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
                     manager.requestPeers(channel) { peers ->
                         notify("Discovered ${peers.deviceList.size} Wi-Fi Direct peer(s)")
+                        maybeConnect(peers)
                     }
+                }
+                WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
+                    @Suppress("DEPRECATION")
+                    val self = intent.getParcelableExtra<WifiP2pDevice>(
+                        WifiP2pManager.EXTRA_WIFI_P2P_DEVICE)
+                    if (self != null) thisDeviceAddress = self.deviceAddress ?: ""
                 }
             }
         }
@@ -99,13 +115,34 @@ class AetherNetWifiDirectService(private val context: Context) {
     fun stop() {
         serverSocket?.runCatching { close() }
         manager.removeGroup(channel, null)
+        connecting = false
+        groupFormed = false
         notify("Stopped")
+    }
+
+    /**
+     * Deterministic group formation: exactly ONE side calls connect() — the peer whose
+     * Wi-Fi Direct address sorts higher — so the two phones don't both initiate and race.
+     * The lower-addressed phone simply waits for the incoming connection. Everything after
+     * group formation (sockets, framing, echo) already works.
+     */
+    private fun maybeConnect(peers: WifiP2pDeviceList) {
+        if (connecting || groupFormed || thisDeviceAddress.isEmpty()) return
+        val target = peers.deviceList.firstOrNull { thisDeviceAddress > it.deviceAddress } ?: return
+        connecting = true
+        notify("Initiating connect() to ${target.deviceAddress} (we are the initiator)")
+        val config = WifiP2pConfig().apply { deviceAddress = target.deviceAddress }
+        manager.connect(channel, config, object : WifiP2pManager.ActionListener {
+            override fun onSuccess()            = notify("connect() accepted — negotiating group...")
+            override fun onFailure(reason: Int) { connecting = false; notify("connect() failed (reason=$reason)") }
+        })
     }
 
     // ── Connection handling ───────────────────────────────────────────────────
 
     private fun handleConnectionInfo(info: WifiP2pInfo) {
         if (!info.groupFormed) { notify("Group not formed yet"); return }
+        groupFormed = true
 
         if (info.isGroupOwner) {
             notify("Role: Group Owner — starting TCP server on port $TCP_PORT")

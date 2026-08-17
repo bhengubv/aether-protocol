@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject ContactService Contacts
 @inject IRadioMesh Radio
+@inject IRadioSetup Setup
 @inject NavigationManager Nav
 
 <PageTitle>Aether — nearby</PageTitle>
@@ -48,10 +49,14 @@
         <div class="radios">
             <div class="radios-label">Connect over</div>
             <div class="chips">
+                @* A radio that is merely switched off is still worth tapping — that is where you go
+                   to switch it on. Disabling every unavailable chip made the one thing a person could
+                   actually do unreachable. A radio the phone doesn't physically have stays dead. *@
                 @foreach (var r in Radio.Radios)
                 {
                     <button class="chip @(r.Name == Radio.SelectedRadio ? "on" : null) @(r.Available ? null : "off")"
-                            disabled="@(!r.Available)" title="@r.Reason" @onclick="@(() => Pick(r.Name))">@r.Name</button>
+                            disabled="@(!r.Available && !r.Fixable)" title="@r.Reason"
+                            @onclick="@(() => Pick(r))">@r.Name</button>
                 }
             </div>
             @{ var off = Radio.Radios.Where(r => !r.Available && r.Reason is not null).ToArray(); }
@@ -60,7 +65,13 @@
                 <div class="why">
                     @foreach (var r in off)
                     {
-                        <div><span class="why-name">@r.Name</span> — @r.Reason</div>
+                        <div>
+                            <span class="why-name">@r.Name</span> — @r.Reason
+                            @if (r.Fixable)
+                            {
+                                <span class="fixit">tap to fix</span>
+                            }
+                        </div>
                     }
                 </div>
             }
@@ -94,7 +105,29 @@
 
     private void OnChanged() => _ = InvokeAsync(() => { _people = Contacts.Contacts; StateHasChanged(); });
 
-    private void Pick(string name) { Radio.SelectRadio(name); StateHasChanged(); }
+    /// <summary>
+    /// Pick a radio — or, if it can't run yet, go and ask for whatever it is missing.
+    ///
+    /// <para>
+    /// Wi-Fi Direct needs permission to look for phones nearby, and without it Android refuses every
+    /// request with a bare "internal error". Selecting it in that state does nothing at all, so the
+    /// tap has to lead somewhere: the same permission prompt the wizard uses.
+    /// </para>
+    /// </summary>
+    private async Task Pick(RadioInfo radio)
+    {
+        if (radio.Available)
+        {
+            Radio.SelectRadio(radio.Name);
+        }
+        else
+        {
+            await Setup.RequestAsync(radio.Name);
+            if (Radio.Radios.FirstOrDefault(r => r.Name == radio.Name) is { Available: true })
+                Radio.SelectRadio(radio.Name);
+        }
+        StateHasChanged();
+    }
 
     private static string State(ContactRecord c) =>
         c.IsMutual ? "connected" : c.IsIncoming ? "wants to connect" : "waiting for them";
@@ -121,7 +154,10 @@
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .chip { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-weight: 650; font-size: 0.82rem; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
     .chip.on { border-color: var(--brand); color: var(--brand); background: var(--brand-tint); }
-    .chip.off { opacity: .4; cursor: default; }
+    /* Dimmed, but still a button when it can be fixed — this is the way to switch the radio on. */
+    .chip.off { opacity: .55; border-style: dashed; }
+    .chip:disabled { opacity: .35; cursor: default; border-style: solid; }
+    .fixit { color: var(--brand); font-weight: 700; white-space: nowrap; }
     .why { margin-top: 10px; padding-left: 4px; display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; color: var(--ink-3); line-height: 1.4; }
     .why-name { font-weight: 700; color: var(--ink-2); }
     .near { position: absolute; right: -1px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); border: 3px solid var(--bg); }

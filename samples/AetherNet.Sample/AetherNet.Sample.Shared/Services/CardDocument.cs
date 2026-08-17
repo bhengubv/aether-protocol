@@ -1,0 +1,128 @@
+// SPDX-License-Identifier: MIT
+
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace AetherNet.Sample.Shared.Services;
+
+/// <summary>
+/// A card — the mesh-web's unit of publishing, decided in <c>02_REMAINING_WORK</c> §2.
+///
+/// <para>
+/// It is <b>a signed JSON blob, not HTML</b>, because two properties are non-negotiable for
+/// decentralised hosting. It is rendered from a blob authored by a <b>stranger</b>, so it must be
+/// <b>safe</b>. And the same blob must render on any device, offline, years later, with the author
+/// long gone, so it must be <b>portable</b>. HTML surrenders both: it executes, it fetches, and it
+/// depends on an engine that will have moved on.
+/// </para>
+///
+/// <para>
+/// So a card is a versioned document plus an ordered list of typed blocks, drawn by one renderer we
+/// own — uniform, theme-aware, and <b>inert</b>. An old renderer meeting an unknown block skips it
+/// rather than failing the card, so a newer author never breaks an older reader.
+/// </para>
+/// </summary>
+public sealed class CardDocument
+{
+    [JsonPropertyName("v")] public int Version { get; set; } = 1;
+    [JsonPropertyName("title")] public string Title { get; set; } = "";
+    [JsonPropertyName("blocks")] public List<CardBlock> Blocks { get; set; } = [];
+
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    /// <summary>The media type a card is published under — never <c>text/html</c>.</summary>
+    public const string ContentType = "application/vnd.aether.card+json";
+
+    public string ToJson() => JsonSerializer.Serialize(this, Options);
+
+    /// <summary>
+    /// Read a card. Anything that is not one comes back null rather than being coerced — a renderer
+    /// that guesses at malformed input is how a stranger's blob becomes a stranger's instructions.
+    /// </summary>
+    public static CardDocument? Parse(string json)
+    {
+        try
+        {
+            var card = JsonSerializer.Deserialize<CardDocument>(json, Options);
+            return card is null || card.Blocks is null ? null : card;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+}
+
+/// <summary>
+/// One piece of a card. <see cref="Kind"/> says how to draw it; a renderer that does not know the
+/// kind leaves it out and carries on.
+/// </summary>
+public sealed class CardBlock
+{
+    public const string Heading = "heading";
+    public const string Text = "text";
+    public const string List = "list";
+    public const string KeyValue = "kv";
+    public const string Link = "link";
+
+    /// <summary>A picture, carried by content hash. <see cref="Value"/> is its description.</summary>
+    public const string Image = "image";
+
+    /// <summary>
+    /// The card's own accent colour, so a shop does not look like a taxi rank. A declared choice this
+    /// renderer interprets — never a style sheet.
+    /// </summary>
+    public const string Theme = "theme";
+
+    [JsonPropertyName("k")] public string Kind { get; set; } = Text;
+    [JsonPropertyName("t")] public string? Value { get; set; }
+    [JsonPropertyName("items")] public List<string>? Items { get; set; }
+
+    /// <summary>
+    /// An asset referenced by content-hash, never a URL. Nothing phones home: the bytes come from the
+    /// mesh, which is what lets a card render years later with no network at all.
+    /// </summary>
+    [JsonPropertyName("hash")] public string? ContentHash { get; set; }
+
+    /// <summary>
+    /// Where a <see cref="Link"/> block points — an <c>aether://</c> address, never an <c>http</c> one.
+    /// <para>
+    /// A card that can reach the open web is a card that phones home the moment a stranger renders it,
+    /// which is the whole thing the card model exists to prevent. Links stay inside the mesh.
+    /// </para>
+    /// </summary>
+    [JsonPropertyName("to")] public string? Target { get; set; }
+
+    public static CardBlock Of(string kind, string value) => new() { Kind = kind, Value = value };
+
+    /// <summary>
+    /// Is this something we can fetch from the mesh, or is it an address?
+    ///
+    /// <para>
+    /// A content hash names bytes; a URL names a place to go and get them. Only the first can be
+    /// honoured. A card that could name <c>http</c>, <c>data:</c> or a protocol-relative address would
+    /// reach outside the mesh the instant a stranger opened it — and would stop working the day that
+    /// host disappeared, which is precisely what content-addressing exists to prevent.
+    /// </para>
+    /// </summary>
+    public static bool IsUsableAssetHash(string? hash) =>
+        !string.IsNullOrWhiteSpace(hash) &&
+        hash.All(c => char.IsAsciiLetterOrDigit(c));
+
+    /// <summary>
+    /// Is this an accent colour we are willing to apply?
+    ///
+    /// <para>
+    /// A plain hex colour and nothing else. The accent is written into a style, so anything richer is a
+    /// way for a stranger's card to inject CSS and restyle the app around itself.
+    /// </para>
+    /// </summary>
+    public static bool IsUsableAccent(string? colour) =>
+        !string.IsNullOrWhiteSpace(colour) &&
+        colour.Length is 4 or 7 &&
+        colour[0] == '#' &&
+        colour.Skip(1).All(char.IsAsciiHexDigit);
+}

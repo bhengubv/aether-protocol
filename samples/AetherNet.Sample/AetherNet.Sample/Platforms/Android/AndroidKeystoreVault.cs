@@ -28,31 +28,60 @@ public sealed class AndroidKeystoreVault : ISecretVault
     private const int TagBits = 128;
 
     private readonly string _directory;
-    private readonly bool _hardware;
-    private readonly FileSecretVault? _fallback;
+    private readonly ResilientSecretVault _vault;
 
     public AndroidKeystoreVault(string directory)
     {
         ArgumentException.ThrowIfNullOrEmpty(directory);
         _directory = directory;
         Directory.CreateDirectory(_directory);
-        _hardware = TryEnsureKey();
-        // A phone with no usable Keystore (or one that later invalidates the key) must still be able to
-        // keep an identity — degrade to the encrypted-file vault rather than losing the tag on restart.
-        _fallback = _hardware ? null : new FileSecretVault(Path.Combine(_directory, "fallback"));
+        TryEnsureKey();
+
+        // A phone with no usable Keystore must still be able to keep an identity, so an encrypted-file
+        // vault sits behind this one. Both are always consulted: whether the Keystore works is a fact
+        // about this run, not about the device, and a vault that only looks where it can write today
+        // will report "no identity here" about a phone that has one — after which the caller mints a
+        // replacement and the AetherTag changes for good.
+        _vault = new ResilientSecretVault(
+            new KeystoreSealedStore(_directory),
+            new FileSecretVault(Path.Combine(_directory, "fallback")));
     }
 
-    public bool IsHardwareBacked => _hardware;
+    public bool IsHardwareBacked => _vault.IsHardwareBacked;
 
-    public string ProtectionDescription => _hardware
-        ? "Sealed by this phone's secure hardware"
-        : "Encrypted on this device";
+    public string ProtectionDescription => _vault.ProtectionDescription;
 
-    public byte[]? Get(string name)
+    /// <inheritdoc />
+    public byte[]? Get(string name) => _vault.Get(name);
+
+    /// <inheritdoc />
+    public bool Has(string name) => _vault.Has(name);
+
+    /// <inheritdoc />
+    public void Set(string name, byte[] secret) => _vault.Set(name, secret);
+
+    /// <summary>
+    /// The Keystore half on its own: a sealed blob on disk, opened by a key the OS will not export.
+    /// </summary>
+    private sealed class KeystoreSealedStore(string directory) : ISecretVault
     {
-        if (_fallback is not null) return _fallback.Get(name);
+        public bool IsHardwareBacked => true;
+        public string ProtectionDescription => "Sealed by this phone's secure hardware";
 
-        var path = PathFor(name);
+        /// <summary>
+        /// Is a sealed blob stored here — <b>not</b> "can it be opened right now". Those are different
+        /// questions, and answering the second one here is what lets a phone forget who it is.
+        /// </summary>
+        public bool Has(string name) => File.Exists(PathFor(directory, name));
+
+        public byte[]? Get(string name) => ReadSealed(directory, name);
+
+        public void Set(string name, byte[] secret) => WriteSealed(directory, name, secret);
+    }
+
+    private static byte[]? ReadSealed(string directory, string name)
+    {
+        var path = PathFor(directory, name);
         if (!File.Exists(path)) return null;
 
         var blob = File.ReadAllBytes(path);
@@ -60,29 +89,30 @@ public sealed class AndroidKeystoreVault : ISecretVault
 
         try
         {
-            var key = LoadKey();
-            if (key is null) return null;
+            // The blob is right here, so an identity exists. A missing key means it cannot be opened
+            // this run — never that there is nothing to open.
+            var key = LoadKey()
+                ?? throw new SecretUnavailableException("The key that seals this phone's identity is not available.");
 
             using var cipher = Cipher.GetInstance("AES/GCM/NoPadding")!;
             cipher.Init(Javax.Crypto.CipherMode.DecryptMode, key, new GCMParameterSpec(TagBits, blob[..NonceSize]));
             return cipher.DoFinal(blob[NonceSize..]);
         }
-        catch (Java.Lang.Exception)
+        catch (Java.Lang.Exception ex)
         {
-            // Key invalidated (e.g. the user removed their lock screen) or blob tampered.
-            return null;
+            // A sealed identity exists — we simply cannot open it this instant. The commonest reason
+            // is the screen being locked, because the key is deliberately marked unusable until the
+            // phone is unlocked. Returning null here would be a lie with permanent consequences: the
+            // caller reads "no identity yet", mints a new keypair, writes it over this one, and the
+            // person's AetherTag changes for good. Say "not now", never "not there".
+            throw new SecretUnavailableException(
+                "The identity is sealed and cannot be opened while the phone is locked.", ex);
         }
     }
 
-    public void Set(string name, byte[] secret)
+    private static void WriteSealed(string directory, string name, byte[] secret)
     {
         ArgumentNullException.ThrowIfNull(secret);
-
-        if (_fallback is not null)
-        {
-            _fallback.Set(name, secret);
-            return;
-        }
 
         var key = LoadKey() ?? throw new InvalidOperationException("Keystore identity key unavailable.");
         using var cipher = Cipher.GetInstance("AES/GCM/NoPadding")!;
@@ -95,7 +125,7 @@ public sealed class AndroidKeystoreVault : ISecretVault
         nonce.CopyTo(blob.AsSpan(0));
         sealedBytes.CopyTo(blob.AsSpan(nonce.Length));
 
-        var path = PathFor(name);
+        var path = PathFor(directory, name);
         var temp = path + ".tmp";
         File.WriteAllBytes(temp, blob);
         File.Move(temp, path, overwrite: true);
@@ -123,10 +153,18 @@ public sealed class AndroidKeystoreVault : ISecretVault
                 .SetEncryptionPaddings(KeyProperties.EncryptionPaddingNone!)!
                 .SetKeySize(256)!;
 
-            // API 28+: the key refuses to operate while the screen is locked, so the identity is only
-            // usable once the human has actually unlocked the phone.
-            if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.P)
-                builder = builder.SetUnlockedDeviceRequired(true)!;
+            // Deliberately NOT SetUnlockedDeviceRequired / SetUserAuthenticationRequired.
+            //
+            // The identity is read the instant the app starts, before there is an Activity to prompt
+            // with — and on a mesh it is read again by background work holding a radio with the screen
+            // off. A key that refuses to operate unless the device is unlocked turns both of those into
+            // a failure that cannot be recovered from in place: the node correctly refuses to mint over
+            // a sealed identity it cannot open, so the app simply never starts. Watched on a P30 Lite
+            // on 2026-08-15 — first run sealed the identity, every run after that could not open it.
+            //
+            // What still protects it: the key is generated inside the Keystore and never leaves, so a
+            // copy of the app's data directory yields a sealed blob and nothing else. The device's own
+            // lock screen protects the device, which is the boundary the identity belongs to anyway.
 
             var generator = KeyGenerator.GetInstance(KeyProperties.KeyAlgorithmAes!, AndroidKeyStore)!;
             generator.Init(builder.Build());
@@ -140,7 +178,7 @@ public sealed class AndroidKeystoreVault : ISecretVault
         }
     }
 
-    private string PathFor(string name) =>
-        Path.Combine(_directory, Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(name))) + ".sealed");
+    private static string PathFor(string directory, string name) =>
+        Path.Combine(directory, Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(name))) + ".sealed");
 }
 #endif

@@ -31,15 +31,42 @@ public sealed record ContactRecord(
     public bool IsPending => AddedByMe && !AddedByThem;
 }
 
+/// <summary>
+/// A group conversation: a chat with more than one person in it.
+/// </summary>
+/// <param name="Id">
+/// The group's own id, which takes the place of a person's tag everywhere a conversation is named.
+/// It is generated once by whoever creates the group and never changes, so every member agrees on
+/// which conversation a message belongs to without anyone coordinating.
+/// </param>
+/// <param name="AdminTag">Whoever created it — the one who may rename it and add or remove people.</param>
+public sealed record GroupRecord(string Id, string Name, string AdminTag, long CreatedMs);
+
 /// <summary>One message in a conversation, as this device stored it.</summary>
 /// <param name="PeerTag">The other person's AetherTag — the conversation this belongs to.</param>
 /// <param name="Body">The plaintext. It is only ever plaintext here, on your own device.</param>
 /// <param name="Mine">You wrote it.</param>
-/// <param name="State">pending (waiting for a secure session) · sent · received.</param>
-public sealed record ChatMessage(string Id, string PeerTag, string Body, bool Mine, string State, long SentMs)
+/// <param name="State">pending · sent · delivered · failed · received.</param>
+/// <param name="SenderTag">
+/// Who wrote it. In a one-to-one chat this is the same as <paramref name="PeerTag"/> and carries no
+/// extra information, but in a group the thread is the group and the author is someone in it — so
+/// the author has to be stored separately or a group conversation cannot say who is speaking.
+/// </param>
+public sealed record ChatMessage(
+    string Id, string PeerTag, string Body, bool Mine, string State, long SentMs, string? SenderTag = null)
 {
+    /// <summary>Still on this phone — no secure session yet, so it has not gone out.</summary>
     public const string Pending = "pending";
+
+    /// <summary>Handed to the radio. Says nothing about whether the other phone got it.</summary>
     public const string Sent = "sent";
+
+    /// <summary>The other phone confirmed it. This is the only state that means "they have it".</summary>
+    public const string Delivered = "delivered";
+
+    /// <summary>Went out but was never confirmed — treat it as lost, and retry when we can.</summary>
+    public const string Failed = "failed";
+
     public const string Received = "received";
 }
 
@@ -114,9 +141,54 @@ public sealed class AetherStore : IDisposable
                 sent_ms   INTEGER NOT NULL
             );
             """);
+        // A group is a chat. It gets its own identity and membership, but its messages live in the
+        // same table as everything else, keyed by the group's id where a one-to-one chat uses the
+        // other person's tag — so the chat list, the conversation screen and delivery receipts all
+        // work on a group without knowing it is one.
+        Exec("""
+            CREATE TABLE IF NOT EXISTS groups (
+                id         TEXT PRIMARY KEY NOT NULL,
+                name       TEXT NOT NULL,
+                admin_tag  TEXT NOT NULL,
+                created_ms INTEGER NOT NULL
+            );
+            """);
+        Exec("""
+            CREATE TABLE IF NOT EXISTS group_members (
+                group_id TEXT NOT NULL,
+                tag      TEXT NOT NULL,
+                added_ms INTEGER NOT NULL,
+                PRIMARY KEY (group_id, tag)
+            );
+            """);
+        // Receipts this phone owes and could not send. A receipt only travels inside a secure session,
+        // so a message can arrive during a session rebuild, be read and saved, and have no way to be
+        // confirmed at that moment. Forgetting it strands the sender on a failure for a message that is
+        // sitting on this phone — and the message will not arrive again to prompt a second attempt.
+        Exec("""
+            CREATE TABLE IF NOT EXISTS owed_receipts (
+                message_id TEXT PRIMARY KEY NOT NULL,
+                peer_tag   TEXT NOT NULL,
+                owed_ms    INTEGER NOT NULL
+            );
+            """);
+        AddColumnIfMissing("messages", "sender_tag", "TEXT");
         Exec("CREATE INDEX IF NOT EXISTS ix_contacts_last_seen ON contacts(last_seen_ms);");
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_peer ON messages(peer_tag, sent_ms);");
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_state ON messages(state);");
+    }
+
+    /// <summary>
+    /// Add a column to an existing table if it is not already there — phones in the field already
+    /// have a messages table, and a schema change must not cost anyone their conversations.
+    /// </summary>
+    private void AddColumnIfMissing(string table, string column, string type)
+    {
+        using var check = _conn.CreateCommand();
+        check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = @c;";
+        check.Parameters.AddWithValue("@c", column);
+        if (Convert.ToInt64(check.ExecuteScalar()) > 0) return;
+        Exec($"ALTER TABLE {table} ADD COLUMN {column} {type};");
     }
 
     // ── Identity ────────────────────────────────────────────────────────────────
@@ -256,7 +328,7 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, peer_tag, body, mine, state, sent_ms FROM messages
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag FROM messages
                 WHERE peer_tag = @tag ORDER BY sent_ms DESC LIMIT @limit;
                 """;
             cmd.Parameters.AddWithValue("@tag", peerTag);
@@ -276,7 +348,7 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, peer_tag, body, mine, state, sent_ms FROM messages
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag FROM messages
                 WHERE sent_ms = (SELECT MAX(sent_ms) FROM messages m2 WHERE m2.peer_tag = messages.peer_tag)
                 GROUP BY peer_tag ORDER BY sent_ms DESC;
                 """;
@@ -287,21 +359,102 @@ public sealed class AetherStore : IDisposable
         }
     }
 
-    /// <summary>Messages still waiting for a secure session before they can go out.</summary>
-    public IReadOnlyList<ChatMessage> GetPendingMessages(string peerTag)
+    /// <summary>
+    /// Messages that are not in the other person's hands yet — they never went out, they went out and
+    /// were never confirmed, or we gave up on them. All get another try the moment the peer is
+    /// reachable, because only a receipt proves anything and everything short of one is still owed.
+    /// </summary>
+    public IReadOnlyList<ChatMessage> GetUnsentMessages(string peerTag)
     {
         ArgumentException.ThrowIfNullOrEmpty(peerTag);
         lock (_gate)
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, peer_tag, body, mine, state, sent_ms FROM messages
-                WHERE peer_tag = @tag AND state = 'pending' ORDER BY sent_ms;
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag FROM messages
+                WHERE peer_tag = @tag AND mine = 1 AND state <> 'delivered' ORDER BY sent_ms;
                 """;
             cmd.Parameters.AddWithValue("@tag", peerTag);
             var list = new List<ChatMessage>();
             using var reader = cmd.ExecuteReader();
             while (reader.Read()) list.Add(ReadMessage(reader));
+            return list;
+        }
+    }
+
+    /// <summary>
+    /// Note that a message was read and saved but could not be confirmed yet. Kept on disk rather than
+    /// in memory: the sender is already waiting, and losing the debt to a restart means their message
+    /// shows as failed forever.
+    /// </summary>
+    public void RememberOwedReceipt(string peerTag, string messageId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(peerTag);
+        ArgumentException.ThrowIfNullOrEmpty(messageId);
+
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO owed_receipts (message_id, peer_tag, owed_ms) VALUES (@id, @tag, @ms)
+                ON CONFLICT(message_id) DO NOTHING;
+                """;
+            cmd.Parameters.AddWithValue("@id", messageId);
+            cmd.Parameters.AddWithValue("@tag", peerTag);
+            cmd.Parameters.AddWithValue("@ms", Now());
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Receipts still owed to one person, oldest first.</summary>
+    public IReadOnlyList<string> GetOwedReceipts(string peerTag)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(peerTag);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT message_id FROM owed_receipts WHERE peer_tag = @tag ORDER BY owed_ms;";
+            cmd.Parameters.AddWithValue("@tag", peerTag);
+            var list = new List<string>();
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read()) list.Add(reader.GetString(0));
+            return list;
+        }
+    }
+
+    /// <summary>The receipt went out; the debt is settled.</summary>
+    public void ForgetOwedReceipt(string messageId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(messageId);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM owed_receipts WHERE message_id = @id;";
+            cmd.Parameters.AddWithValue("@id", messageId);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Everyone this phone still owes a message to. A radio link coming up is the moment to try them
+    /// all: the radio can only say it is linked to <i>something</i> — the wire address it saw is not a
+    /// person and nothing is filed under it — so who to talk to has to come from what is waiting.
+    /// </summary>
+    public IReadOnlyList<string> GetPeersWithUnsentMessages()
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            // Same rule as GetUnsentMessages, deliberately: this decides whose conversation a new link
+            // is worth reviving, and a narrower rule here means a phone with messages waiting is told
+            // it owes nobody, never starts a session, and sits behind "setting up encryption…" forever.
+            cmd.CommandText = """
+                SELECT DISTINCT peer_tag FROM messages
+                WHERE mine = 1 AND state <> 'delivered';
+                """;
+            var list = new List<string>();
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read()) list.Add(reader.GetString(0));
             return list;
         }
     }
@@ -313,8 +466,8 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                INSERT INTO messages (id, peer_tag, body, mine, state, sent_ms)
-                VALUES (@id, @tag, @body, @mine, @state, @ms)
+                INSERT INTO messages (id, peer_tag, body, mine, state, sent_ms, sender_tag)
+                VALUES (@id, @tag, @body, @mine, @state, @ms, @sender)
                 ON CONFLICT(id) DO UPDATE SET state=@state;
                 """;
             cmd.Parameters.AddWithValue("@id", message.Id);
@@ -323,6 +476,53 @@ public sealed class AetherStore : IDisposable
             cmd.Parameters.AddWithValue("@mine", message.Mine ? 1 : 0);
             cmd.Parameters.AddWithValue("@state", message.State);
             cmd.Parameters.AddWithValue("@ms", message.SentMs);
+            cmd.Parameters.AddWithValue("@sender", (object?)message.SenderTag ?? DBNull.Value);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Move a message to a new state only if it is still in the one we expect.
+    /// <para>
+    /// A receipt can arrive before the send call that triggered it has even returned — on a fast
+    /// link the peer answers while we are still inside our own send. An unconditional write then
+    /// puts "sent" back over a "delivered" that already landed, and the message never recovers,
+    /// because nothing will confirm it a second time.
+    /// </para>
+    /// </summary>
+    public void SetMessageStateIf(string id, string expected, string next)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "UPDATE messages SET state = @next WHERE id = @id AND state = @expected;";
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.Parameters.AddWithValue("@expected", expected);
+            cmd.Parameters.AddWithValue("@next", next);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Move a message on unless the other phone has already confirmed it.
+    /// <para>
+    /// Confirmation is the end of the road, and the only state a message must never come back from —
+    /// but everything before it may move forward again. A message that was given up on and then re-sent
+    /// over a new link has genuinely gone out a second time, and has to stop showing as a failure or
+    /// the person is looking at a red mark on a message that is on its way.
+    /// </para>
+    /// </summary>
+    public void SetMessageStateUnlessDelivered(string id, string next)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "UPDATE messages SET state = @next WHERE id = @id AND state <> @delivered;";
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.Parameters.AddWithValue("@next", next);
+            cmd.Parameters.AddWithValue("@delivered", ChatMessage.Delivered);
             cmd.ExecuteNonQuery();
         }
     }
@@ -346,7 +546,102 @@ public sealed class AetherStore : IDisposable
         Body: r.GetString(2),
         Mine: r.GetInt32(3) != 0,
         State: r.GetString(4),
-        SentMs: r.GetInt64(5));
+        SentMs: r.GetInt64(5),
+        SenderTag: r.IsDBNull(6) ? null : r.GetString(6));
+
+    // ── Groups ──────────────────────────────────────────────────────────────────
+
+    public void SaveGroup(GroupRecord group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO groups (id, name, admin_tag, created_ms)
+                VALUES (@id, @name, @admin, @ms)
+                ON CONFLICT(id) DO UPDATE SET name = @name;
+                """;
+            cmd.Parameters.AddWithValue("@id", group.Id);
+            cmd.Parameters.AddWithValue("@name", group.Name);
+            cmd.Parameters.AddWithValue("@admin", group.AdminTag);
+            cmd.Parameters.AddWithValue("@ms", group.CreatedMs);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public void AddGroupMember(string groupId, string tag)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        ArgumentException.ThrowIfNullOrEmpty(tag);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO group_members (group_id, tag, added_ms) VALUES (@g, @t, @ms)
+                ON CONFLICT(group_id, tag) DO NOTHING;
+                """;
+            cmd.Parameters.AddWithValue("@g", groupId);
+            cmd.Parameters.AddWithValue("@t", tag);
+            cmd.Parameters.AddWithValue("@ms", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public void RemoveGroupMember(string groupId, string tag)
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM group_members WHERE group_id = @g AND tag = @t;";
+            cmd.Parameters.AddWithValue("@g", groupId);
+            cmd.Parameters.AddWithValue("@t", tag);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public GroupRecord? GetGroup(string groupId)
+    {
+        if (string.IsNullOrEmpty(groupId)) return null;
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT id, name, admin_tag, created_ms FROM groups WHERE id = @id;";
+            cmd.Parameters.AddWithValue("@id", groupId);
+            using var r = cmd.ExecuteReader();
+            return r.Read()
+                ? new GroupRecord(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt64(3))
+                : null;
+        }
+    }
+
+    public IReadOnlyList<GroupRecord> GetGroups()
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT id, name, admin_tag, created_ms FROM groups ORDER BY created_ms;";
+            var list = new List<GroupRecord>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add(new GroupRecord(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt64(3)));
+            return list;
+        }
+    }
+
+    public IReadOnlyList<string> GetGroupMembers(string groupId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groupId);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT tag FROM group_members WHERE group_id = @g ORDER BY added_ms;";
+            cmd.Parameters.AddWithValue("@g", groupId);
+            var list = new List<string>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add(r.GetString(0));
+            return list;
+        }
+    }
 
     // ── Settings ────────────────────────────────────────────────────────────────
 

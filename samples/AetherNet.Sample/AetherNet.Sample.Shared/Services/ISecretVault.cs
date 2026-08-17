@@ -17,10 +17,29 @@ public interface ISecretVault
     /// <summary>A short, honest description of how the secret is protected, for the UI to show.</summary>
     string ProtectionDescription { get; }
 
+    /// <summary>
+    /// The secret, or null if this device has never stored one.
+    /// <para>
+    /// Throws <see cref="SecretUnavailableException"/> when a secret <b>is</b> stored but cannot be
+    /// opened right now — a locked phone, most often. Null and "not now" must never be confused: a
+    /// caller that reads null will create a replacement, and for an identity key that is destruction,
+    /// not recovery.
+    /// </para>
+    /// </summary>
     byte[]? Get(string name);
+
+    /// <summary>Is something stored under this name, whether or not it can be opened right now?</summary>
+    bool Has(string name);
 
     void Set(string name, byte[] secret);
 }
+
+/// <summary>
+/// A secret exists but cannot be read at this moment. Always temporary — try again once the phone is
+/// unlocked. Never a reason to make a new one.
+/// </summary>
+public sealed class SecretUnavailableException(string message, Exception? inner = null)
+    : Exception(message, inner);
 
 /// <summary>
 /// Fallback vault for hosts without a hardware keystore (the Web head, desktop). The secret is
@@ -70,12 +89,16 @@ public sealed class FileSecretVault : ISecretVault
             aes.Decrypt(nonce, cipher, tag, plain);
             return plain;
         }
-        catch (CryptographicException)
+        catch (CryptographicException ex)
         {
-            // Tampered or written under a different key — treat as absent rather than crashing the app.
-            return null;
+            // The file is there, so a secret was stored; we just cannot open it. Saying "absent" here
+            // would invite the caller to overwrite it with a new one.
+            throw new SecretUnavailableException("The stored secret could not be decrypted.", ex);
         }
     }
+
+    /// <inheritdoc />
+    public bool Has(string name) => File.Exists(PathFor(name));
 
     public void Set(string name, byte[] secret)
     {

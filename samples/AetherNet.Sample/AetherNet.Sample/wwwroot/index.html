@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>Aether</title>
     <base href="/" />
     <!-- No Bootstrap: Aether has its own design system in app.css, and Bootstrap's generic class
@@ -19,6 +19,32 @@
     <div class="status-bar-safe-area"></div>
 
     <div id="app">Loading...</div>
+
+    <!-- The on-screen keyboard does not change 100vh, so a full-height screen keeps its old size and
+         one end of it — the conversation header or the composer — ends up behind the keyboard. The
+         visual viewport is the only thing that reports the area you can actually see, so publish its
+         height and let the layout use that instead. -->
+    <script>
+        (function () {
+            var vv = window.visualViewport;
+            if (!vv) return;
+            function apply() {
+                // Height alone is not enough: Android also *pans* the window, which slides a
+                // top-anchored screen off the top of the display. offsetTop is how far it slid.
+                document.documentElement.style.setProperty('--vvh', vv.height + 'px');
+                document.documentElement.style.setProperty('--vvt', vv.offsetTop + 'px');
+            }
+            vv.addEventListener('resize', apply);
+            vv.addEventListener('scroll', apply);
+            apply();
+        })();
+    </script>
+
+    <!-- A conversation is read from the bottom: the newest message is the one you want, so the thread
+         always opens and stays at the end rather than at the first thing ever said. -->
+    <script>
+        window.aetherScrollToEnd = function (el) { if (el) el.scrollTop = el.scrollHeight; };
+    </script>
 
     <script src="_framework/blazor.webview.js" autostart="false"></script>
 

@@ -20,7 +20,7 @@ public static class TagPalette
     {
         "#2196F3", // brand blue
         "#1565C0", // deep blue
-        "#4aa8ff", // sky
+        "#0277BD", // cerulean
         "#0D47A1", // navy
         "#3F51B5", // indigo
         "#2c3e50", // slate
@@ -41,9 +41,6 @@ public static class TagPalette
         foreach (var c in tag) hash = unchecked(hash * 31 + c);
         return Colours[Math.Abs(hash % Colours.Length)];
     }
-
-    /// <summary>A faint wash of the person's colour, for tinting the surface behind their words.</summary>
-    public static string Wash(string? tag) => For(tag) + "22";   // ~13% alpha
 
     /// <summary>The first character of a tag, for the avatar.</summary>
     public static string Initial(string? tag) =>

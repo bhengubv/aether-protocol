@@ -49,13 +49,13 @@ public sealed class AndroidRadioSetup : IRadioSetup
         switch (radioName)
         {
             case Ble:
-                await RequestPermissionsAsync(BluetoothPermissions()).ConfigureAwait(false);
+                await RequestAsync<BluetoothPermission>().ConfigureAwait(false);
                 if (BluetoothAdapter.DefaultAdapter is { IsEnabled: false })
                     OpenSettings(global::Android.Provider.Settings.ActionBluetoothSettings);
                 return CheckBle();
 
             case WifiDirect:
-                await RequestPermissionsAsync(WifiDirectPermissions()).ConfigureAwait(false);
+                await RequestAsync<WifiDirectPermission>().ConfigureAwait(false);
                 if (!LocationServicesOn())
                     OpenSettings(global::Android.Provider.Settings.ActionLocationSourceSettings);
                 return CheckWifiDirect();
@@ -164,19 +164,43 @@ public sealed class AndroidRadioSetup : IRadioSetup
     private static bool Granted(string permission) =>
         ContextCompat.CheckSelfPermission(AndroidApp.Context, permission) == Permission.Granted;
 
-    private static async Task RequestPermissionsAsync(string[] permissions)
+    /// <summary>
+    /// Ask for a permission and <b>wait for the answer</b>.
+    ///
+    /// <para>
+    /// The previous version fired <c>ActivityCompat.RequestPermissions</c> and slept 400 ms, which is
+    /// a guess at how fast someone reads a dialog. It reliably lost: the caller re-checked, still saw
+    /// the permission missing, and the screen stayed on "needs permission" even after the person had
+    /// tapped Allow. MAUI's own <see cref="Permissions"/> completes when the dialog does, so the
+    /// caller re-checks against the real answer.
+    /// </para>
+    /// </summary>
+    private static async Task RequestAsync<TPermission>()
+        where TPermission : Permissions.BasePermission, new()
     {
-        var missing = permissions.Where(p => !Granted(p)).ToArray();
-        if (missing.Length == 0) return;
+        if (await Permissions.CheckStatusAsync<TPermission>().ConfigureAwait(false) == PermissionStatus.Granted)
+            return;
+        await Permissions.RequestAsync<TPermission>().ConfigureAwait(false);
+    }
 
-        if (global::Android.App.Application.Context is not null &&
-            Platform.CurrentActivity is { } activity)
-        {
-            AndroidX.Core.App.ActivityCompat.RequestPermissions(activity, missing, 9701);
-            // The dialog is modal to the user but not to us; give it room to be answered before the
-            // caller re-checks. The wizard re-checks on resume anyway, so this is a nudge, not a wait.
-            await Task.Delay(400).ConfigureAwait(false);
-        }
+    /// <summary>
+    /// The permissions Wi-Fi Direct needs, declared so MAUI can request them as one prompt.
+    /// <para>
+    /// Android 13 added <c>NEARBY_WIFI_DEVICES</c> precisely so that finding a phone next to you stops
+    /// meaning "may track where you are". Below that there is no such split and fine location is the
+    /// only way to ask — which is why this radio wants a location prompt on a phone like merlin.
+    /// </para>
+    /// </summary>
+    private sealed class WifiDirectPermission : Permissions.BasePlatformPermission
+    {
+        public override (string androidPermission, bool isRuntime)[] RequiredPermissions =>
+            WifiDirectPermissions().Select(p => (p, true)).ToArray();
+    }
+
+    private sealed class BluetoothPermission : Permissions.BasePlatformPermission
+    {
+        public override (string androidPermission, bool isRuntime)[] RequiredPermissions =>
+            BluetoothPermissions().Select(p => (p, true)).ToArray();
     }
 
     private static bool LocationServicesOn()

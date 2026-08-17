@@ -26,6 +26,24 @@ public sealed class ChatService
     /// <summary>Marks a chat payload inside a generic Data packet.</summary>
     private const string Marker = "AETHERMSG";
 
+    /// <summary>Marks a delivery receipt. Same length as <see cref="Marker"/> on purpose.</summary>
+    private const string AckMarker = "AETHERACK";
+
+    /// <summary>Marks anything to do with a group — a message in one, or news of one.</summary>
+    private const string GroupMarker = "AETHERGRP";
+
+    /// <summary>A message id is a 32-character hex GUID, carried inside the encrypted body.</summary>
+    private const int IdLength = 32;
+
+    /// <summary>
+    /// How long a message may sit unconfirmed before we call it failed. A radio hop is milliseconds;
+    /// anything past this is not slow, it is lost.
+    /// </summary>
+    private static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>Message ids we have sent and are still waiting to hear back about.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _awaitingAck = new();
+
     private readonly AetherStore _store;
     private readonly IIdentityService _me;
     private readonly IRadioMesh? _radio;
@@ -33,6 +51,7 @@ public sealed class ChatService
     private readonly IPreKeyExchangeService _preKeys;
     private readonly ILogger _log;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
+    private readonly SessionRepair _repair;
     private bool _bundlePublished;
 
     public ChatService(
@@ -49,18 +68,126 @@ public sealed class ChatService
         _preKeys = preKeys ?? throw new ArgumentNullException(nameof(preKeys));
         _radio = radio;
         _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<ChatService>();
+        _repair = new SessionRepair();
 
         _preKeys.BundleReceived += OnBundleReceived;
         if (_radio is not null)
+        {
             _radio.PacketReceived += OnPacket;
+            _radio.Changed += OnRadioChanged;
+        }
+    }
+
+    /// <summary>
+    /// A radio link coming up is the moment to finish whatever was waiting on it: start the secure
+    /// session if there is not one, then push everything still undelivered.
+    /// <para>
+    /// Without this, a conversation that has lost its session — both phones restarted, say — sits on
+    /// "setting up encryption…" forever even with a perfectly good link, because the handshake was
+    /// only ever attempted once, when the page opened, and nothing asked again.
+    /// </para>
+    /// </summary>
+    private void OnRadioChanged()
+    {
+        var peer = _radio is { IsLinked: true } ? _radio.PeerTag : null;
+
+        // Changed fires for every line the radio logs, and resuming sends packets, which log — so
+        // acting on the event itself feeds itself and the radio drowns in retries. Only a real
+        // transition, into a link with a particular peer, is worth doing anything about.
+        var previous = Interlocked.Exchange(ref _linkedPeer, peer);
+        if (string.IsNullOrEmpty(peer) || peer == previous) return;
+
+        foreach (var tag in PeersToResume(peer)) _ = ResumeAsync(tag);
+    }
+
+    /// <summary>
+    /// Which conversations a new link is worth reviving.
+    /// <para>
+    /// The radio names its peer with the rotating address it saw in the handshake, because the
+    /// long-term identity deliberately never travels in clear and only arrives inside the session.
+    /// That address is not a person and nothing is filed under it, so taking it at face value would
+    /// flush an empty conversation and leave the real backlog sitting there — which is exactly what
+    /// two phones were caught doing, rebuilding their link every thirty seconds and re-sending
+    /// nothing. When the radio can only offer an address, go by what is actually owed instead.
+    /// </para>
+    /// </summary>
+    private IEnumerable<string> PeersToResume(string radioPeer)
+    {
+        if (AetherNet.Identity.AetherNetTag.TryParse(radioPeer, out _)) return [radioPeer];
+
+        var owed = _store.GetPeersWithUnsentMessages();
+        return owed.Count > 0 ? owed : [];
+    }
+
+    /// <summary>Who the radio was linked to last time it told us, so we can spot a real change.</summary>
+    private string? _linkedPeer;
+
+    /// <summary>
+    /// Get a conversation moving again over a link that has just come up. The handshake is retried a
+    /// few times because the other phone may still be starting up and unable to answer yet — one
+    /// unanswered request must not strand the conversation.
+    /// </summary>
+    private async Task ResumeAsync(string peerTag)
+    {
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            try
+            {
+                await EnsureSessionAsync(peerTag).ConfigureAwait(false);
+
+                if (_signal.HasSession(peerTag))
+                {
+                    await FlushAsync(peerTag).ConfigureAwait(false);
+                    Changed?.Invoke();
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Could not resume the conversation with {Peer}", peerTag);
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+            if (_radio is not { IsLinked: true }) return;   // link went away; nothing to retry onto
+        }
     }
 
     /// <summary>Raised when a conversation changes, so the UI can re-render.</summary>
     public event Action? Changed;
 
+    /// <summary>
+    /// Running commentary on the message path, for whoever can actually surface it — on a phone the
+    /// host wires this to the system log. Without it a receipt that never arrives is indistinguishable
+    /// from one that was never sent.
+    /// </summary>
+    public event Action<string>? Trace;
+
+    private void T(string m) => Trace?.Invoke(m);
+
+    /// <summary>
+    /// Sign a contribution with this device's identity key.
+    /// <para>
+    /// Provenance has to be checkable, not merely claimed: a member's phone is told who wrote a
+    /// message, and without a signature it has no way to confirm it — nor does any third phone the
+    /// message reaches later. Cheap to add now; the docs are blunt that it is brutal to retrofit
+    /// trust onto a corpus collected without it.
+    /// </para>
+    /// </summary>
+    private byte[] SignContribution(byte[] body) =>
+        _signal.SignDataAsync(body).GetAwaiter().GetResult();
+
     public IReadOnlyList<ChatMessage> Conversation(string peerTag) => _store.GetMessages(peerTag);
 
     public IReadOnlyList<ChatMessage> Latest() => _store.GetLatestPerPeer();
+
+    /// <summary>The groups this phone is in — they belong in the chat list beside everyone else.</summary>
+    public IReadOnlyList<GroupRecord> Groups() => _store.GetGroups();
+
+    /// <summary>The group with this id, or null if the conversation is with a person.</summary>
+    public GroupRecord? Group(string id) => _store.GetGroup(id);
+
+    /// <summary>Who is in a group.</summary>
+    public IReadOnlyList<string> GroupMembers(string id) => _store.GetGroupMembers(id);
 
     /// <summary>True once there is a secure session with this peer — messages flow immediately.</summary>
     public bool IsSecure(string peerTag) => !string.IsNullOrEmpty(peerTag) && _signal.HasSession(peerTag);
@@ -95,11 +222,22 @@ public sealed class ChatService
     private async Task EnsureLocalBundleAsync(CancellationToken cancellationToken)
     {
         if (_bundlePublished) return;
+        await RefreshLocalBundleAsync(cancellationToken).ConfigureAwait(false);
+    }
 
+    /// <summary>
+    /// Publish a brand-new bundle, spent one-time key and all.
+    /// <para>
+    /// Not something to do casually — every bundle costs a one-time key — but a handshake that is about
+    /// to happen needs one nobody has used. Publishing once at startup is enough for exactly one
+    /// session with one peer, which is fine right up until the first repair.
+    /// </para>
+    /// </summary>
+    private async Task RefreshLocalBundleAsync(CancellationToken cancellationToken = default)
+    {
         await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_bundlePublished) return;
             var bundle = await _signal.GeneratePreKeyBundleAsync(_me.AetherTag, cancellationToken).ConfigureAwait(false);
             _preKeys.SetLocalBundle(bundle);
             _bundlePublished = true;
@@ -133,11 +271,23 @@ public sealed class ChatService
         await TryDeliverAsync(message, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Push everything still pending for a peer — called once a session comes up.</summary>
+    /// <summary>
+    /// Settle up with a peer: push everything they do not have yet — anything still pending, and
+    /// anything that went out but was never confirmed — and pay any receipts we owe them. Called when a
+    /// session comes up and whenever we hear from them.
+    /// <para>
+    /// The receipts go first. They are the cheapest thing on the link and the thing someone is actively
+    /// waiting on: until one arrives, a message that is already sitting on this phone is showing as a
+    /// failure on theirs.
+    /// </para>
+    /// </summary>
     public async Task FlushAsync(string peerTag, CancellationToken cancellationToken = default)
     {
-        foreach (var pending in _store.GetPendingMessages(peerTag))
-            await TryDeliverAsync(pending, cancellationToken).ConfigureAwait(false);
+        foreach (var owed in _store.GetOwedReceipts(peerTag))
+            await SendAckAsync(peerTag, owed).ConfigureAwait(false);
+
+        foreach (var unsent in _store.GetUnsentMessages(peerTag))
+            await TryDeliverAsync(unsent, cancellationToken).ConfigureAwait(false);
     }
 
     // ── Send path ───────────────────────────────────────────────────────────────
@@ -146,36 +296,312 @@ public sealed class ChatService
     {
         if (_radio is null || !_signal.HasSession(message.PeerTag)) return;
 
+        // Already in the air with its own receipt timer running. Sending it again would put a second
+        // copy on a link that is busy carrying the first, and every flush would multiply the backlog.
+        if (_awaitingAck.ContainsKey(message.Id)) return;
+
         try
         {
+            // The id rides inside the ciphertext so the other phone can name what it is confirming,
+            // without that id being readable to anything listening to the radio.
             var sealedPayload = await _signal
-                .EncryptAsync(message.PeerTag, Encoding.UTF8.GetBytes(message.Body), cancellationToken)
+                .EncryptAsync(message.PeerTag, Encoding.UTF8.GetBytes(message.Id + message.Body), cancellationToken)
                 .ConfigureAwait(false);
 
-            var body = EncryptedPayloadCodec.Serialize(sealedPayload);
-            var payload = new byte[Marker.Length + body.Length];
-            Encoding.UTF8.GetBytes(Marker).CopyTo(payload, 0);
-            body.CopyTo(payload, Marker.Length);
+            // Start waiting before sending, not after: a close peer can answer while we are still
+            // inside the send call, and a receipt that arrives before we are listening is lost.
+            _awaitingAck[message.Id] = 0;
 
-            var packet = new MeshPacket
+            if (await _radio.SendPacketAsync(Wrap(Marker, sealedPayload, message.PeerTag)).ConfigureAwait(false))
             {
-                Type = PacketType.Data,
-                SourceUhid = _me.AetherTag,
-                DestinationUhid = message.PeerTag,
-                Ttl = 1,
-                Payload = payload,
-            };
-
-            if (await _radio.SendPacketAsync(PacketSerializer.Serialize(packet)).ConfigureAwait(false))
-            {
-                _store.SetMessageState(message.Id, ChatMessage.Sent);
+                // "sent" only means the radio took it. Until they confirm, we do not claim delivery —
+                // and if nothing comes back we say so rather than leaving a tick that is a lie.
+                //
+                // Not over a "delivered", though: on a fast link the receipt can beat this line, and
+                // writing "sent" over it would leave a confirmed message unconfirmed forever. Anything
+                // else may move — including a message we had given up on, which has now really gone
+                // again and must stop showing as a failure.
+                _store.SetMessageStateUnlessDelivered(message.Id, ChatMessage.Sent);
                 Changed?.Invoke();
+                _ = FailIfUnconfirmedAsync(message.Id, message.PeerTag);
+            }
+            else
+            {
+                _awaitingAck.TryRemove(message.Id, out _);   // nothing went out; nothing to wait for
             }
         }
         catch (Exception ex)
         {
             // Stays pending and will be retried on the next flush rather than being lost.
             _log.LogWarning(ex, "Could not deliver message {Id} to {Peer}", message.Id, message.PeerTag);
+        }
+    }
+
+    /// <summary>Wrap an encrypted body in a marked Data packet addressed to one peer.</summary>
+    private byte[] Wrap(string marker, AetherNet.Security.Models.EncryptedPayload sealedPayload, string peerTag)
+    {
+        var body = EncryptedPayloadCodec.Serialize(sealedPayload);
+        var payload = new byte[marker.Length + body.Length];
+        Encoding.UTF8.GetBytes(marker).CopyTo(payload, 0);
+        body.CopyTo(payload, marker.Length);
+
+        return PacketSerializer.Serialize(new MeshPacket
+        {
+            Type = PacketType.Data,
+            SourceUhid = _me.AetherTag,
+            DestinationUhid = peerTag,
+            Ttl = 1,
+            Payload = payload,
+        });
+    }
+
+    /// <summary>
+    /// If no receipt arrives in time, decide whether this message has actually failed.
+    /// </summary>
+    private async Task FailIfUnconfirmedAsync(string messageId, string peerTag)
+    {
+        await Task.Delay(AckTimeout).ConfigureAwait(false);
+        await GiveUpIfUnconfirmedAsync(messageId, peerTag).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Say a message failed — but only if we have genuinely stopped trying.
+    ///
+    /// <para>
+    /// "Failed" is a promise that nothing more is happening, and it is read as one: the person retypes
+    /// the message, or concludes the other side never heard. So it is wrong to show it while the phone
+    /// is still working. A link that has dropped will come back and the message goes again; a session
+    /// being rebuilt is about to carry it. Neither is failure, and in both cases the message stays on
+    /// the list of things still owed and is re-sent by the next flush.
+    /// </para>
+    ///
+    /// <para>
+    /// The opening line of a conversation is where this showed: it goes out over a session that turns
+    /// out to be broken, and the receipt timer runs out in the middle of the recovery that is about to
+    /// deliver it. Every later message was confirmed both ways; only the first wore a red mark.
+    /// </para>
+    ///
+    /// <para>
+    /// A live link and a working session with still nothing back is the real thing, and is still called
+    /// what it is.
+    /// </para>
+    /// </summary>
+    public async Task GiveUpIfUnconfirmedAsync(string messageId, string peerTag)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(messageId);
+        if (!_awaitingAck.TryRemove(messageId, out _)) return;   // already confirmed
+
+        if (_radio is not { IsLinked: true })
+        {
+            T($"no receipt for {messageId[..8]} — no link, still trying");
+            return;
+        }
+
+        if (!_signal.HasSession(peerTag))
+        {
+            // Left owed, and deliberately not re-sent from here. Every unconfirmed message runs its own
+            // timer, so flushing on each one means one flush per message, each re-sending the whole
+            // backlog — forty waiting messages become sixteen hundred sends. The flush already happens
+            // where it belongs: when a session comes up, and when we hear from them.
+            T($"no receipt for {messageId[..8]} — session being rebuilt, still owed");
+            return;
+        }
+
+        _store.SetMessageStateUnlessDelivered(messageId, ChatMessage.Failed);
+        T($"no receipt for {messageId[..8]} in {AckTimeout.TotalSeconds:0}s → failed");
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Tell the sender we have their message, naming it by id.
+    /// <para>
+    /// A receipt that cannot go right now is written down rather than dropped. The message is already
+    /// on this phone, so it will not arrive again to prompt a second attempt — and the person who sent
+    /// it is watching it fail for want of an answer we owe them.
+    /// </para>
+    /// </summary>
+    private async Task SendAckAsync(string peerTag, string messageId)
+    {
+        if (_radio is null) return;
+
+        if (!_signal.HasSession(peerTag))
+        {
+            _store.RememberOwedReceipt(peerTag, messageId);
+            T($"ack owed {messageId[..8]} → {peerTag} (no session yet)");
+            return;
+        }
+
+        try
+        {
+            var sealedPayload = await _signal
+                .EncryptAsync(peerTag, Encoding.UTF8.GetBytes(messageId))
+                .ConfigureAwait(false);
+
+            var ok = await _radio.SendPacketAsync(Wrap(AckMarker, sealedPayload, peerTag)).ConfigureAwait(false);
+            T($"ack out {messageId[..8]} → {peerTag} sent={ok}");
+
+            if (ok) _store.ForgetOwedReceipt(messageId);
+            else _store.RememberOwedReceipt(peerTag, messageId);
+        }
+        catch (Exception ex)
+        {
+            _store.RememberOwedReceipt(peerTag, messageId);
+            _log.LogWarning(ex, "Could not acknowledge {Id} to {Peer}", messageId, peerTag);
+            T($"ack out FAILED {messageId[..8]}: {ex.Message}");
+        }
+    }
+
+    // ── Groups ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Start a group. Everyone invited is told about it over their own private session, so the group
+    /// exists on every member's phone with the same id and the same membership — there is no server
+    /// holding the list, and nobody has to be online at the same moment for it to be created.
+    /// </summary>
+    public async Task<GroupRecord> CreateGroupAsync(string name, IEnumerable<string> members,
+        CancellationToken cancellationToken = default)
+    {
+        var group = new GroupRecord(
+            Id: "G" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
+            Name: string.IsNullOrWhiteSpace(name) ? "Group" : name.Trim(),
+            AdminTag: _me.AetherTag,
+            CreatedMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+        _store.SaveGroup(group);
+        _store.AddGroupMember(group.Id, _me.AetherTag);
+        foreach (var m in members.Where(m => !string.IsNullOrWhiteSpace(m)).Distinct())
+            _store.AddGroupMember(group.Id, m);
+
+        Changed?.Invoke();
+        await AnnounceGroupAsync(group, cancellationToken).ConfigureAwait(false);
+        return group;
+    }
+
+    /// <summary>Tell every member (except us) that this group exists and who is in it.</summary>
+    private async Task AnnounceGroupAsync(GroupRecord group, CancellationToken cancellationToken)
+    {
+        var members = _store.GetGroupMembers(group.Id);
+        var payload = GroupEnvelope.News(group, members, SignContribution);
+
+        foreach (var m in members.Where(m => m != _me.AetherTag))
+        {
+            await EnsureSessionAsync(m, cancellationToken).ConfigureAwait(false);
+            await SendGroupPayloadAsync(m, payload, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Send to a group by sending to each member privately.
+    /// <para>
+    /// Every copy is sealed with that member's own ratchet, so a group is not a weaker kind of chat —
+    /// it is several of the same chat. No group key exists to be stolen, and a member who leaves can
+    /// simply stop being sent copies.
+    /// </para>
+    /// </summary>
+    public async Task SendToGroupAsync(string groupId, string text, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(groupId) || string.IsNullOrWhiteSpace(text)) return;
+        var group = _store.GetGroup(groupId);
+        if (group is null) return;
+
+        var message = new ChatMessage(
+            Id: Guid.NewGuid().ToString("N"),
+            PeerTag: groupId,
+            Body: text.Trim(),
+            Mine: true,
+            State: ChatMessage.Pending,
+            SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            SenderTag: _me.AetherTag);
+
+        _store.SaveMessage(message);
+        Changed?.Invoke();
+
+        var payload = GroupEnvelope.Message(groupId, message.Id, _me.AetherTag, message.Body, SignContribution);
+        var reached = false;
+
+        foreach (var m in _store.GetGroupMembers(groupId).Where(m => m != _me.AetherTag))
+        {
+            await EnsureSessionAsync(m, cancellationToken).ConfigureAwait(false);
+            if (await SendGroupPayloadAsync(m, payload, cancellationToken).ConfigureAwait(false)) reached = true;
+        }
+
+        // One member reached is enough to call it sent; a group message that reached nobody stays
+        // pending and goes out with the rest when someone becomes reachable.
+        if (reached)
+        {
+            _store.SetMessageState(message.Id, ChatMessage.Sent);
+            Changed?.Invoke();
+        }
+    }
+
+    private async Task<bool> SendGroupPayloadAsync(string memberTag, string json, CancellationToken cancellationToken)
+    {
+        if (_radio is null || !_signal.HasSession(memberTag)) return false;
+
+        try
+        {
+            var sealedPayload = await _signal
+                .EncryptAsync(memberTag, Encoding.UTF8.GetBytes(json), cancellationToken)
+                .ConfigureAwait(false);
+
+            var ok = await _radio.SendPacketAsync(Wrap(GroupMarker, sealedPayload, memberTag)).ConfigureAwait(false);
+            T($"group → {memberTag} sent={ok}");
+            return ok;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not send group traffic to {Peer}", memberTag);
+            return false;
+        }
+    }
+
+    /// <summary>A group message or group news arrived from one of its members.</summary>
+    private async Task ReceiveGroupAsync(string? senderTag, byte[] payload)
+    {
+        if (string.IsNullOrEmpty(senderTag)) return;
+
+        try
+        {
+            var sealedPayload = EncryptedPayloadCodec.Deserialize(payload.AsSpan(GroupMarker.Length).ToArray());
+            var json = Encoding.UTF8.GetString(
+                await _signal.DecryptAsync(senderTag, sealedPayload).ConfigureAwait(false));
+
+            _radio?.IdentifyPeer(senderTag);
+
+            var e = GroupEnvelope.Parse(json);
+            if (e is null) return;
+
+            if (e.Kind == "new")
+            {
+                _store.SaveGroup(new GroupRecord(e.GroupId, e.Name ?? "Group", senderTag,
+                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+                foreach (var m in e.Members ?? Array.Empty<string>()) _store.AddGroupMember(e.GroupId, m);
+                _store.AddGroupMember(e.GroupId, _me.AetherTag);
+                T($"group news: {e.Name} ({e.GroupId}) from {senderTag}");
+                Changed?.Invoke();
+                return;
+            }
+
+            if (e.Kind != "msg" || e.MessageId is null || e.Body is null) return;
+
+            // Keyed by the sender's message id, so the same message arriving twice — a retry, or a
+            // relay from another member — updates the one we have instead of repeating their words.
+            _store.SaveMessage(new ChatMessage(
+                Id: e.MessageId,
+                PeerTag: e.GroupId,
+                Body: e.Body,
+                Mine: false,
+                State: ChatMessage.Received,
+                SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                SenderTag: e.Sender ?? senderTag));
+
+            await SendAckAsync(senderTag, e.MessageId).ConfigureAwait(false);
+            Changed?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not open group traffic from {Peer}", senderTag);
+            T($"group in UNREADABLE from {senderTag}: {ex.Message}");
         }
     }
 
@@ -197,9 +623,41 @@ public sealed class ChatService
         if (packet.Type != PacketType.Data) return;
         var payload = packet.Payload;
         if (payload is null || payload.Length <= Marker.Length) return;
-        if (Encoding.UTF8.GetString(payload, 0, Marker.Length) != Marker) return;
 
-        _ = ReceiveAsync(packet.SourceUhid, payload);
+        switch (Encoding.UTF8.GetString(payload, 0, Marker.Length))
+        {
+            case Marker: _ = ReceiveAsync(packet.SourceUhid, payload); break;
+            case AckMarker: _ = ReceiveAckAsync(packet.SourceUhid, payload); break;
+            case GroupMarker: _ = ReceiveGroupAsync(packet.SourceUhid, payload); break;
+        }
+    }
+
+    /// <summary>A receipt came back: that message really is on the other phone.</summary>
+    private async Task ReceiveAckAsync(string? senderTag, byte[] payload)
+    {
+        if (string.IsNullOrEmpty(senderTag)) return;
+
+        try
+        {
+            var sealedPayload = EncryptedPayloadCodec.Deserialize(payload.AsSpan(AckMarker.Length).ToArray());
+            var messageId = Encoding.UTF8.GetString(
+                await _signal.DecryptAsync(senderTag, sealedPayload).ConfigureAwait(false));
+
+            // A receipt that opened is the same proof a message is — often the earlier one, because the
+            // person you spoke to first answers before they say anything of their own.
+            _radio?.IdentifyPeer(senderTag);
+
+            _awaitingAck.TryRemove(messageId, out _);
+            _store.SetMessageState(messageId, ChatMessage.Delivered);
+            T($"ack in  {messageId[..Math.Min(8, messageId.Length)]} ← {senderTag} → delivered");
+            Changed?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not read a receipt from {Peer}", senderTag);
+            T($"ack in  UNREADABLE from {senderTag}: {ex.Message}");
+            if (LooksLikeABrokenSession(ex)) await RepairSessionAsync(senderTag).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -220,15 +678,27 @@ public sealed class ChatService
         {
             var body = payload.AsSpan(Marker.Length).ToArray();
             var sealedPayload = EncryptedPayloadCodec.Deserialize(body);
-            var plaintext = await _signal.DecryptAsync(senderTag, sealedPayload).ConfigureAwait(false);
+            var text = Encoding.UTF8.GetString(
+                await _signal.DecryptAsync(senderTag, sealedPayload).ConfigureAwait(false));
+
+            // That opened, so this really is them — the radio can stop calling them a wire address.
+            _radio?.IdentifyPeer(senderTag);
+
+            if (text.Length < IdLength) return;
+
+            // Keep the sender's own id as the key, so a retry of the same message updates the one we
+            // already have instead of showing the person's words twice.
+            var messageId = text[..IdLength];
 
             _store.SaveMessage(new ChatMessage(
-                Id: Guid.NewGuid().ToString("N"),
+                Id: messageId,
                 PeerTag: senderTag,
-                Body: Encoding.UTF8.GetString(plaintext),
+                Body: text[IdLength..],
                 Mine: false,
                 State: ChatMessage.Received,
                 SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+
+            await SendAckAsync(senderTag, messageId).ConfigureAwait(false);
 
             // Seeing their message means we can reach them — send anything we were holding.
             await FlushAsync(senderTag).ConfigureAwait(false);
@@ -238,8 +708,53 @@ public sealed class ChatService
         {
             // A message we cannot open is dropped, never shown as if it were readable.
             _log.LogWarning(ex, "Could not open a message from {Peer}", senderTag);
+            if (LooksLikeABrokenSession(ex)) await RepairSessionAsync(senderTag).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// A payload from this peer would not open. Treat the session as finished and get a new one built.
+    ///
+    /// <para>
+    /// The old session has to go first: while it is still there, a fresh pre-key bundle is ignored as
+    /// "we already have a session with them", so the broken session prevents the only thing that would
+    /// fix it. Then this phone asks for a new bundle itself rather than deferring to the peer — a
+    /// diverged ratchet usually breaks in one direction only, and the side still sending happily has no
+    /// idea anything is wrong. Waiting for it is waiting forever.
+    /// </para>
+    /// </summary>
+    private async Task RepairSessionAsync(string peerTag)
+    {
+        if (string.IsNullOrEmpty(peerTag)) return;
+        if (!_repair.ShouldRestart(peerTag, DateTime.UtcNow)) return;
+
+        _signal.DropSession(peerTag);
+        T($"session with {peerTag} could not read a payload → dropped");
+
+        // Publish a new bundle before asking for theirs. A bundle carries a ONE-TIME pre-key: the peer
+        // consumed ours establishing the session that just died, and a second message naming the same
+        // id is refused outright. Offering the spent one again means the repair completes on this side
+        // and is thrown away on theirs — two phones did exactly that every forty seconds, indefinitely.
+        await RefreshLocalBundleAsync().ConfigureAwait(false);
+
+        try
+        {
+            await _preKeys.RequestBundleAsync(peerTag).ConfigureAwait(false);
+            T($"asked {peerTag} for a fresh bundle");
+        }
+        catch (Exception ex)
+        {
+            // The link will come back and the next failure starts this again — nothing is lost.
+            _log.LogWarning(ex, "Could not ask {Peer} for a fresh pre-key bundle", peerTag);
+        }
+    }
+
+    /// <summary>
+    /// Is this the failure of a session that no longer works, as opposed to a payload that was never
+    /// meant for us? A mismatched authentication tag is the ratchet saying it has diverged.
+    /// </summary>
+    private static bool LooksLikeABrokenSession(Exception ex) =>
+        ex is System.Security.Cryptography.CryptographicException;   // AuthenticationTagMismatch is one of these
 
     private void OnBundleReceived(object? sender, PreKeyBundleReceivedEventArgs e)
     {
