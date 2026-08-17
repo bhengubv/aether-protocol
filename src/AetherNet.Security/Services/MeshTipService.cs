@@ -75,11 +75,13 @@ public sealed class MeshTipService : IMeshTipService
         string recipientUhid,
         decimal amount,
         string trafficType,
+        string ecosystemId,
         Guid? referenceId = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(recipientUhid);
         ArgumentNullException.ThrowIfNull(trafficType);
+        ArgumentNullException.ThrowIfNull(ecosystemId);
 
         // Build the payload. Amount is passed through verbatim — no policy applied.
         var payload = new TipPacketPayload
@@ -88,6 +90,7 @@ public sealed class MeshTipService : IMeshTipService
             RecipientUhid = recipientUhid,
             Amount        = amount,
             TrafficType   = trafficType,
+            EcosystemId   = ecosystemId,
             ReferenceId   = referenceId,
             Timestamp     = DateTimeOffset.UtcNow,
         };

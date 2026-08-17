@@ -47,6 +47,8 @@ public interface IMeshTipService
     /// <param name="amount">Generic, unit-less value to credit. Passed through unaltered.</param>
     /// <param name="trafficType">Free-form tag describing the relayed traffic
     ///   (e.g. <c>"message-relay"</c>, <c>"gateway-share"</c>). Opaque to the protocol.</param>
+    /// <param name="ecosystemId">Identifier of the ecosystem issuing the tip, so a receiver
+    ///   routes it to the right settlement ledger. Opaque to the protocol; may be empty.</param>
     /// <param name="referenceId">Optional correlation id linking the tip to a unit of work.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The signed <see cref="MeshPacket"/> that was routed onto the mesh.</returns>
@@ -54,6 +56,7 @@ public interface IMeshTipService
         string recipientUhid,
         decimal amount,
         string trafficType,
+        string ecosystemId,
         Guid? referenceId = null,
         CancellationToken ct = default);
 

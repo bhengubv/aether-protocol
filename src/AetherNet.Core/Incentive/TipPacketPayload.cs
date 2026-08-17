@@ -11,8 +11,8 @@ namespace AetherNet.Incentive;
 /// Generic "value-earned" relay-tip envelope carried inside a
 /// <see cref="PacketType.TipPacket"/> (24). Wire format: UTF-8 JSON with
 /// snake_case property names (<c>tipper_uhid</c>, <c>recipient_uhid</c>,
-/// <c>amount</c>, <c>traffic_type</c>, <c>reference_id</c>, <c>timestamp</c>,
-/// <c>signature</c>).
+/// <c>amount</c>, <c>traffic_type</c>, <c>ecosystem_id</c>, <c>reference_id</c>,
+/// <c>timestamp</c>, <c>signature</c>).
 ///
 /// <para>
 /// This model is deliberately value-agnostic. <see cref="Amount"/> is a bare
@@ -25,12 +25,19 @@ namespace AetherNet.Incentive;
 /// </para>
 ///
 /// <para>
+/// <see cref="EcosystemId"/> tags which ecosystem issued the tip so a receiving
+/// node routes it to the right settlement ledger — the protocol stays neutral and
+/// never hard-codes any one ecosystem's wallet. It is signed like every other
+/// field so a relay cannot re-attribute a tip to a different ecosystem.
+/// </para>
+///
+/// <para>
 /// The payload is self-signed by the tipper: <see cref="Signature"/> is an
 /// Ed25519 signature over the canonical byte layout produced by
 /// <see cref="BuildCanonicalData"/>, computed via the existing identity-signing
 /// service. The signature binds the tipper, recipient, amount, traffic type,
-/// reference, and timestamp together so an intermediate relay cannot tamper with
-/// any field without invalidating it.
+/// ecosystem, reference, and timestamp together so an intermediate relay cannot
+/// tamper with any field without invalidating it.
 /// </para>
 /// </summary>
 public sealed class TipPacketPayload
@@ -53,6 +60,13 @@ public sealed class TipPacketPayload
     /// e.g. <c>"message-relay"</c> or <c>"gateway-share"</c>. Opaque to the protocol.
     /// </summary>
     public string TrafficType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Identifier of the ecosystem that issued this tip, so a receiving node routes it to
+    /// the right settlement ledger (each ecosystem logs its own tips to its own wallet).
+    /// Free-form and opaque to the protocol; empty for an unattributed tip.
+    /// </summary>
+    public string EcosystemId { get; set; } = string.Empty;
 
     /// <summary>
     /// Optional correlation id linking this tip to some host-defined unit of work
@@ -81,6 +95,7 @@ public sealed class TipPacketPayload
     ///   RecipientLen(4 LE i32) || Recipient(UTF-8)
     ///   AmountLen(4 LE i32)    || Amount(UTF-8, invariant round-trip "G" form)
     ///   TrafficLen(4 LE i32)   || TrafficType(UTF-8)
+    ///   EcosystemLen(4 LE i32) || EcosystemId(UTF-8)
     ///   ReferenceId(16, all-zero GUID when null)
     ///   TimestampUnixMs(8 LE i64)
     /// </code>
@@ -95,12 +110,14 @@ public sealed class TipPacketPayload
         var recipientBytes = Encoding.UTF8.GetBytes(RecipientUhid);
         var amountBytes = Encoding.UTF8.GetBytes(Amount.ToString(CultureInfo.InvariantCulture));
         var trafficBytes = Encoding.UTF8.GetBytes(TrafficType);
+        var ecosystemBytes = Encoding.UTF8.GetBytes(EcosystemId);
 
         var totalLength =
             4 + tipperBytes.Length
             + 4 + recipientBytes.Length
             + 4 + amountBytes.Length
             + 4 + trafficBytes.Length
+            + 4 + ecosystemBytes.Length
             + 16 // ReferenceId GUID
             + 8; // Timestamp (i64 LE)
 
@@ -111,6 +128,7 @@ public sealed class TipPacketPayload
         offset += WriteLengthPrefixed(buffer, offset, recipientBytes);
         offset += WriteLengthPrefixed(buffer, offset, amountBytes);
         offset += WriteLengthPrefixed(buffer, offset, trafficBytes);
+        offset += WriteLengthPrefixed(buffer, offset, ecosystemBytes);
 
         // ReferenceId — 16 bytes, all-zero when null.
         (ReferenceId ?? Guid.Empty).TryWriteBytes(buffer.AsSpan(offset, 16));

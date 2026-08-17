@@ -89,12 +89,13 @@ public sealed class CrossLangFixtureGenerator
     // ── 1. TIPPING ──────────────────────────────────────────────────────────────────────────────────
 
     private static TipPacketPayload BuildTip(
-        string tipper, string recipient, decimal amount, string traffic, Guid? refId, long unixMs) => new()
+        string tipper, string recipient, decimal amount, string traffic, string ecosystem, Guid? refId, long unixMs) => new()
     {
         TipperUhid    = tipper,
         RecipientUhid = recipient,
         Amount        = amount,
         TrafficType   = traffic,
+        EcosystemId   = ecosystem,
         ReferenceId   = refId,
         Timestamp     = DateTimeOffset.FromUnixTimeMilliseconds(unixMs),
     };
@@ -104,19 +105,19 @@ public sealed class CrossLangFixtureGenerator
         var tipperPub = PublicKeyFromSeed(TipperSeed);
 
         // Fixed, varied cases — incl. a null reference_id and a high-precision/large amount.
-        var inputs = new (string Tipper, string Recipient, decimal Amount, string Traffic, Guid? RefId, long UnixMs)[]
+        var inputs = new (string Tipper, string Recipient, decimal Amount, string Traffic, string Ecosystem, Guid? RefId, long UnixMs)[]
         {
-            ("aether:tipper:aa", "aether:recipient:bb", 12.50m,    "message-relay",
+            ("aether:tipper:aa", "aether:recipient:bb", 12.50m,    "message-relay", "thegeeknetwork",
                 Guid.Parse("11112222-3333-4444-5555-666677778888"), 1_700_000_000_000L),
-            ("aether:tipper:zz", "aether:recipient:bb", 0.0001m,   "gateway-share",
+            ("aether:tipper:zz", "aether:recipient:bb", 0.0001m,   "gateway-share", "",
                 null,                                                1_699_999_999_001L),
-            ("aether:node:00",   "aether:node:01",      123456.789m, "stream-relay",
+            ("aether:node:00",   "aether:node:01",      123456.789m, "stream-relay", "otherco",
                 Guid.Parse("deadbeef-cafe-4bad-8f00-0123456789ab"), 1_701_234_567_890L),
         };
 
         var cases = inputs.Select(inp =>
         {
-            var tip = BuildTip(inp.Tipper, inp.Recipient, inp.Amount, inp.Traffic, inp.RefId, inp.UnixMs);
+            var tip = BuildTip(inp.Tipper, inp.Recipient, inp.Amount, inp.Traffic, inp.Ecosystem, inp.RefId, inp.UnixMs);
             var canonical = tip.BuildCanonicalData();
             var signature = Ed25519SigningService.Sign(TipperSeed, canonical);
 
@@ -128,6 +129,7 @@ public sealed class CrossLangFixtureGenerator
                 // record that exact string so ports compare the same serialization, not a parsed double.
                 amount         = inp.Amount.ToString(CultureInfo.InvariantCulture),
                 traffic_type   = inp.Traffic,
+                ecosystem_id   = inp.Ecosystem,
                 reference_id   = inp.RefId?.ToString("D"),   // null when the tip stands alone
                 timestamp_unix_ms = inp.UnixMs,
                 canonical_bytes = Hex(canonical),
@@ -140,8 +142,8 @@ public sealed class CrossLangFixtureGenerator
             note = "Canonical tipping parity vectors from the C# reference (TipPacketPayload.BuildCanonicalData "
                  + "+ Ed25519). Every language port MUST reproduce canonical_bytes and signature byte-for-byte. "
                  + "Canonical layout (LE lengths): TipperLen|Tipper|RecipientLen|Recipient|AmountLen|Amount("
-                 + "invariant G string, UTF-8)|TrafficLen|Traffic|ReferenceId(16, all-zero GUID when null)|"
-                 + "TimestampUnixMs(8 LE i64).",
+                 + "invariant G string, UTF-8)|TrafficLen|Traffic|EcosystemLen|Ecosystem|ReferenceId(16, "
+                 + "all-zero GUID when null)|TimestampUnixMs(8 LE i64).",
             algorithm     = "Ed25519",
             ed25519_seed  = Hex(TipperSeed),   // 32-byte raw seed (private). Public key + signatures derive from it.
             public_key    = Hex(tipperPub),    // 32-byte raw Ed25519 public key for ed25519_seed.
@@ -170,6 +172,7 @@ public sealed class CrossLangFixtureGenerator
                 c.GetProperty("recipient_uhid").GetString()!,
                 decimal.Parse(c.GetProperty("amount").GetString()!, CultureInfo.InvariantCulture),
                 c.GetProperty("traffic_type").GetString()!,
+                c.GetProperty("ecosystem_id").GetString()!,
                 refId,
                 c.GetProperty("timestamp_unix_ms").GetInt64());
 

@@ -368,7 +368,8 @@ public sealed class MeshTipServiceTests
         var refId = Guid.NewGuid();
 
         var produced = await svc.SendTipAsync(
-            RecipientUhid, amount: 42.42m, trafficType: "message-relay", referenceId: refId);
+            RecipientUhid, amount: 42.42m, trafficType: "message-relay",
+            ecosystemId: "thegeeknetwork", referenceId: refId);
 
         // Type 24, addressed to the recipient, with a non-empty envelope signature.
         Assert.Equal(PacketType.TipPacket, produced.Type);
@@ -387,6 +388,7 @@ public sealed class MeshTipServiceTests
         Assert.Equal(RecipientUhid, payload.RecipientUhid);
         Assert.Equal(42.42m, payload.Amount);
         Assert.Equal("message-relay", payload.TrafficType);
+        Assert.Equal("thegeeknetwork", payload.EcosystemId);
         Assert.Equal(refId, payload.ReferenceId);
 
         // The payload signature is a real Ed25519 signature over the canonical bytes —
@@ -402,7 +404,7 @@ public sealed class MeshTipServiceTests
         // End-to-end: send produces a packet; feeding it back into Handle settles the same fields.
         var (svc, sender, _, provider) = Build();
 
-        var produced = await svc.SendTipAsync(RecipientUhid, amount: 1.23m, trafficType: "gateway-share");
+        var produced = await svc.SendTipAsync(RecipientUhid, amount: 1.23m, trafficType: "gateway-share", ecosystemId: "thegeeknetwork");
         var onWire = Assert.Single(sender.Broadcasts);
 
         // The local node is the tipper, so it is not the recipient — Handle will settle + relay.
@@ -413,6 +415,7 @@ public sealed class MeshTipServiceTests
         Assert.Equal(RecipientUhid, settled.RecipientUhid);
         Assert.Equal(1.23m, settled.Amount);
         Assert.Equal("gateway-share", settled.TrafficType);
+        Assert.Equal("thegeeknetwork", settled.EcosystemId);
         _ = produced;
     }
 }
