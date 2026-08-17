@@ -32,6 +32,19 @@ public interface ISosBroadcastService
     /// </summary>
     Task<bool> BroadcastSosAsync(string broadcastType, string? message, double latitude, double longitude, string? geohash = null, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Originate an SOS with an explicit <see cref="SosReach"/>, optional trusted contacts, and per-SOS
+    /// check-in / beacon timings. A <see cref="SosReach.Contacts"/> alert is a check-in (dead-man's switch):
+    /// if the source does not mark itself safe within <paramref name="escalateAfter"/> it auto-widens to a
+    /// full broadcast; once broadcasting it re-emits a locator beacon every <paramref name="beaconInterval"/>
+    /// until the source marks safe — the only thing that stops it (an acknowledgement never does).
+    /// <paramref name="escalateAfter"/> and <paramref name="beaconInterval"/> default to
+    /// <see cref="Constants.ProtocolConstants.SosDefaultEscalateAfterSeconds"/> and
+    /// <see cref="Constants.ProtocolConstants.SosDefaultBeaconIntervalSeconds"/> when null.
+    /// Returns false if the rolling rate limit is exhausted.
+    /// </summary>
+    Task<bool> BroadcastSosAsync(string broadcastType, string? message, double latitude, double longitude, SosReach reach, IReadOnlyCollection<string>? contacts = null, TimeSpan? escalateAfter = null, TimeSpan? beaconInterval = null, string? geohash = null, CancellationToken cancellationToken = default);
+
     /// <summary>Mark an SOS resolved locally and stop forwarding it. No-op if the id is unknown.</summary>
     Task ResolveAsync(Guid broadcastId, CancellationToken cancellationToken = default);
 

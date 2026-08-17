@@ -32,6 +32,18 @@ public sealed class SosAlert
     /// <summary>Optional precomputed geohash for the origin (opaque to the protocol; produced by the host).</summary>
     public string? Geohash { get; set; }
 
+    /// <summary>
+    /// Who this SOS currently reaches. May widen from <see cref="SosReach.Contacts"/> to
+    /// <see cref="SosReach.Both"/> when a contacts-only alert escalates.
+    /// </summary>
+    public SosReach Reach { get; set; } = SosReach.Nearby;
+
+    /// <summary>
+    /// True once a contacts-only SOS has auto-widened to a broadcast because the source did not mark
+    /// itself safe within its check-in window.
+    /// </summary>
+    public bool Escalated { get; set; }
+
     /// <summary>UTC timestamp when this alert was received locally (or originated).</summary>
     public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
 
