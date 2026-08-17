@@ -17,6 +17,18 @@ public interface ICardService
     Task<Card> PublishCardAsync(string name, byte[] content, string contentType, byte[] authorPrivateKey, long version, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Publish a card authored by this device, naming the node rather than handing over its key.
+    ///
+    /// <para>
+    /// Preferred over the overload above. Publishing needs a <i>signature</i> over the name binding, not
+    /// the secret that produces it — so the node signs and the identity stays where it belongs. Handing
+    /// a private key to every component that wants to publish is how a device's identity ends up copied
+    /// into places that have no business holding it.
+    /// </para>
+    /// </summary>
+    Task<Card> PublishCardAsync(string name, byte[] content, string contentType, AetherNet.Identity.INodeIdentity author, long version, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Resolve the card published by <paramref name="authorPublicKey"/> under <paramref name="name"/>.
     /// Returns null if not found, not authenticated, or authenticated by a different author. The card's
     /// content bytes are fetched separately via <c>IContentService</c> using the descriptor's root hash.
