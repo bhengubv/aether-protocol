@@ -46,6 +46,13 @@ builder.Services.AddSingleton<ChatService>();
 // Radios are physical; this host has none, so setup says so honestly.
 builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
 
+// So is a microphone. The call service exists here so the UI compiles and can explain itself, but it
+// will always say a call is impossible rather than pretending to place one.
+builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
+builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
+builder.Services.AddSingleton<WifiDirectBroker>();
+builder.Services.AddSingleton<CallService>();
+
 
 // The live in-process AetherNet mesh that the demo UI drives. Singleton on the server: the
 // InProcess transport uses a process-wide registry, so one shared mesh avoids UHID collisions

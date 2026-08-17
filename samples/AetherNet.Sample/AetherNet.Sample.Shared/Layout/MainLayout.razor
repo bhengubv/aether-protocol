@@ -1,6 +1,10 @@
 @inherits LayoutComponentBase
 @using AetherNet.Sample.Shared.Data
+@using AetherNet.Sample.Shared.Services
+@using AetherNet.Voice.Models
+@implements IDisposable
 @inject AetherStore Store
+@inject CallService Calls
 @inject NavigationManager Nav
 
 <div class="app">
@@ -9,6 +13,18 @@
             <span class="glyph"></span>Aether
         </span>
     </header>
+
+    @* A ringing phone has to be answerable from wherever you are. This lived inside the conversation
+       with the caller, so a call only rang if you already happened to have their chat open — which is
+       the one moment you least need telling. *@
+    @if (Calls.Current is { State: CallState.Incoming } ringing)
+    {
+        <div class="ringing">
+            <span class="ringwho">@ringing.CallerUhid is calling</span>
+            <button class="ring-ans" @onclick="Answer">Answer</button>
+            <button class="ring-end" @onclick="Decline">Decline</button>
+        </div>
+    }
 
     <main class="viewport">
         @Body
@@ -45,6 +61,8 @@
     /// wizard. Nothing else in the app makes sense before that.
     protected override void OnInitialized()
     {
+        Calls.Changed += OnCallChanged;
+
         if (Store.GetFlag(SetupKeys.Complete)) return;
 
         var path = Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
@@ -52,4 +70,21 @@
         if (!page.StartsWith("welcome", StringComparison.OrdinalIgnoreCase))
             Nav.NavigateTo("welcome", replace: true);
     }
+
+    private void OnCallChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>
+    /// Answering takes you to the conversation, so the call has somewhere to live and you can see who
+    /// you are talking to and what you last said to them.
+    /// </summary>
+    private async Task Answer()
+    {
+        var peer = Calls.Current?.CallerUhid;
+        await Calls.AnswerAsync();
+        if (!string.IsNullOrEmpty(peer)) Nav.NavigateTo($"chat/{peer}");
+    }
+
+    private Task Decline() => Calls.DeclineAsync();
+
+    public void Dispose() => Calls.Changed -= OnCallChanged;
 }

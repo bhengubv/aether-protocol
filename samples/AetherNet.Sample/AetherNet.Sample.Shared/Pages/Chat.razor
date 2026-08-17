@@ -1,9 +1,11 @@
 @page "/chat/{Peer}"
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
+@using AetherNet.Voice.Models
 @implements IDisposable
 @inject ChatService Messages
 @inject ContactService Contacts
+@inject CallService Calls
 @inject IRadioMesh Radio
 @inject NavigationManager Nav
 @inject IJSRuntime JS
@@ -35,7 +37,43 @@
                 <span>@Status</span>
             </span>
         </span>
+
+        @* Calling is only offered to a person, never to a group, and only when it could actually
+           work. A greyed button with the reason beats one that rings out into nothing. *@
+        @if (_group is null)
+        {
+            <button class="callbtn" disabled="@(!CanCall)" title="@(CanCall ? $"Call {Peer}" : Calls.CannotCallReason)"
+                    @onclick="Call" aria-label="Call">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </button>
+        }
     </header>
+
+    @* The call itself lives as a bar above the thread rather than a separate screen, so the
+       conversation stays where it was when the call ends. *@
+    @if (Calls.Current is { } call && Calls.PeerTag == Peer)
+    {
+        <div class="callbar @(call.State == CallState.Connected ? "on" : null)">
+            <span class="callwho">
+                @(call.State switch
+                {
+                    CallState.Incoming => $"{Peer} is calling",
+                    CallState.Outgoing => $"Calling {Peer}…",
+                    CallState.Connected => $"On a call with {Peer}",
+                    _ => Peer,
+                })
+            </span>
+            @if (call.State == CallState.Incoming)
+            {
+                <button class="ans" @onclick="Answer">Answer</button>
+                <button class="end" @onclick="Decline">Decline</button>
+            }
+            else
+            {
+                <button class="end" @onclick="HangUp">Hang up</button>
+            }
+        </div>
+    }
 
     <div class="cv-thread" @ref="_thread">
         @if (_messages.Count == 0)
@@ -114,7 +152,21 @@
         Messages.Changed += OnChanged;
         Contacts.Changed += OnChanged;
         Radio.Changed += OnChanged;
+        Calls.Changed += OnChanged;
     }
+
+    // ── Calling ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A call needs a microphone, a linked radio, and a secure session — the same one the messages
+    /// use, because a call is not sent in clear either.
+    /// </summary>
+    private bool CanCall => Calls.Current is null && Connected && _secure && Calls.CanCall;
+
+    private Task Call() => Calls.CallAsync(Peer);
+    private Task Answer() => Calls.AnswerAsync();
+    private Task Decline() => Calls.DeclineAsync();
+    private Task HangUp() => Calls.HangUpAsync();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -177,6 +229,7 @@
         Messages.Changed -= OnChanged;
         Contacts.Changed -= OnChanged;
         Radio.Changed -= OnChanged;
+        Calls.Changed -= OnChanged;
     }
 }
 
@@ -197,7 +250,31 @@
     .back { appearance: none; border: none; background: transparent; color: var(--ink); cursor: pointer; padding: 4px; margin: -4px; display: flex; }
     .back svg { width: 26px; height: 26px; }
     .cv-head .av { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; background: var(--brand); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.05rem; }
-    .cv-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .cv-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+
+    /* Calling sits at the far end of the header, where a phone icon belongs. */
+    .callbtn {
+        flex: 0 0 auto; appearance: none; border: none; background: transparent;
+        color: var(--brand); cursor: pointer; padding: 6px; margin: -6px -2px -6px 0; display: flex;
+    }
+    .callbtn svg { width: 23px; height: 23px; }
+    .callbtn:disabled { color: var(--ink-3); opacity: .5; cursor: default; }
+
+    /* The call rides above the thread so the conversation is still there when it ends. */
+    .callbar {
+        flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+        padding: 11px 14px; background: var(--brand-tint);
+        border-bottom: 1px solid var(--line); font-size: 0.9rem;
+    }
+    .callbar.on { background: var(--brand); }
+    .callbar.on .callwho { color: #fff; }
+    .callwho { flex: 1 1 auto; font-weight: 650; color: var(--brand); min-width: 0; }
+    .callbar button {
+        flex: 0 0 auto; appearance: none; border: none; border-radius: 999px;
+        padding: 7px 15px; font: inherit; font-weight: 700; font-size: 0.85rem; cursor: pointer;
+    }
+    .ans { background: #2E7D4F; color: #fff; }
+    .end { background: #B4331F; color: #fff; }
     .cv-name { font-family: var(--mono); font-weight: 700; font-size: 1rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* A group has a name someone chose, not a tag — so it reads as words, not as an address. */
     .cv-name.grp-name { font-family: inherit; font-weight: 750; font-size: 1.06rem; }

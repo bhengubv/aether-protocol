@@ -29,6 +29,15 @@ public sealed class FakeSignalProtocol : ISignalProtocolService
     /// </summary>
     public bool RatchetBroken { get; set; }
 
+    /// <summary>
+    /// When true, <b>encrypting</b> throws — the failure a caller must treat as "do not send this",
+    /// as distinct from <see cref="RatchetBroken"/>, which is the receiving side's problem.
+    /// </summary>
+    public bool EncryptFails { get; set; }
+
+    /// <summary>Everything this fake was asked to seal, and for whom — proof a caller went through the ratchet.</summary>
+    public List<(string Peer, byte[] Plaintext)> Encrypted { get; } = [];
+
     public bool DropSession(string peerUhid)
     {
         Dropped.Add(peerUhid);
@@ -39,7 +48,11 @@ public sealed class FakeSignalProtocol : ISignalProtocolService
     {
         if (!HasSession(peerUhid))
             throw new InvalidOperationException($"No session with {peerUhid} — nothing may be sent.");
+        if (EncryptFails)
+            throw new System.Security.Cryptography.CryptographicException(
+                $"Cannot encrypt for {peerUhid} — the session is unusable.");
 
+        Encrypted.Add((peerUhid, plaintext));
         return Task.FromResult(new EncryptedPayload(
             Ciphertext: plaintext, Nonce: [], MessageType: 0, SenderUhid: "", Counter: 0));
     }

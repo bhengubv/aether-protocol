@@ -14,6 +14,11 @@
     <!-- QR generation only (MIT). Scanning is the phone's own camera app via the aether:// scheme —
          no camera permission, no scanning SDK, nothing from Google Play Services. -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
+    <!-- Opus, in pure managed C# (BSD-3-Clause). The protocol library deliberately ships no codec —
+         IVoiceCodec is a seam the host fills — and this is what fills it here. Managed rather than a
+         native libopus build because it needs no NDK toolchain, no per-ABI artefacts, and no second
+         package: one APK, same as every other radio in this app. -->
+    <PackageReference Include="Concentus" Version="2.2.2" />
   </ItemGroup>
 
   <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: SQLite < 3.50.2, reachable only by executing
@@ -37,6 +42,8 @@
     <ProjectReference Include="../../../src/AetherNet.Content/AetherNet.Content.csproj" />
     <!-- Durable content store, so hosted and collected cards survive a restart. -->
     <ProjectReference Include="../../../src/AetherNet.Content.Sqlite/AetherNet.Content.Sqlite.csproj" />
+    <!-- 1:1 voice: the call state machine, signalling schema and jitter buffer. -->
+    <ProjectReference Include="../../../src/AetherNet.Voice/AetherNet.Voice.csproj" />
   </ItemGroup>
 
 </Project>

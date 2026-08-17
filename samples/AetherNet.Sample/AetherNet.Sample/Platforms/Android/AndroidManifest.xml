@@ -42,4 +42,11 @@
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
+    <!-- 1:1 voice. The microphone is only ever opened for the duration of a call, and MODIFY_AUDIO_SETTINGS
+         is what lets the call route to the earpiece and follow the in-call volume keys. Not required:
+         a phone with no microphone is still a perfectly good mesh node. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 </manifest>

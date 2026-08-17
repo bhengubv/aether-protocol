@@ -1,0 +1,216 @@
+// SPDX-License-Identifier: MIT
+#if ANDROID
+using Android.Content.PM;
+using Android.Media;
+using AetherNet.Sample.Shared.Services;
+using AndroidX.Core.Content;
+using AndroidApp = Android.App.Application;
+using Stream = Android.Media.Stream;
+
+namespace AetherNet.Sample.Platforms.Android;
+
+/// <summary>
+/// The microphone and earpiece on an Android phone.
+///
+/// <para>
+/// Both ends are opened with the <b>voice communication</b> profiles rather than the general-purpose
+/// ones. That is not cosmetic: <see cref="AudioSource.VoiceCommunication"/> is what asks the platform
+/// for echo cancellation, noise suppression and automatic gain — without it, each phone's speaker is
+/// picked straight back up by its own microphone and the two ends howl at each other within a second
+/// of connecting. The same reason picks <see cref="Stream.VoiceCall"/> for output, which also routes
+/// to the earpiece and follows the in-call volume keys.
+/// </para>
+/// </summary>
+public sealed class AndroidAudioIo : IAudioIo, IDisposable
+{
+    private readonly object _gate = new();
+
+    private AudioRecord? _mic;
+    private AudioTrack? _speaker;
+    private CancellationTokenSource? _capture;
+    private Task? _captureLoop;
+    private bool _disposed;
+
+    public bool IsRunning { get; private set; }
+
+    public bool IsPresent => HasMicrophone && !_disposed;
+
+    public bool IsAvailable => HasMicrophone && HasPermission && !_disposed;
+
+    public string? UnavailableReason =>
+        !HasMicrophone ? "this phone has no microphone"
+        : !HasPermission ? "needs permission to use the microphone"
+        : null;
+
+    private static bool HasMicrophone =>
+        AndroidApp.Context.PackageManager?.HasSystemFeature(PackageManager.FeatureMicrophone) == true;
+
+    private static bool HasPermission =>
+        ContextCompat.CheckSelfPermission(AndroidApp.Context, global::Android.Manifest.Permission.RecordAudio)
+        == Permission.Granted;
+
+    public event Action<short[]>? FrameCaptured;
+
+    /// <summary>
+    /// Ask for the microphone, and wait for the answer.
+    ///
+    /// <para>
+    /// MAUI's own <see cref="Permissions"/> completes when the dialog does. The raw
+    /// <c>ActivityCompat.RequestPermissions</c> does not — it returns immediately and the caller
+    /// re-checks against a stale answer, which is how the radio screen used to insist a permission was
+    /// missing seconds after the person had granted it.
+    /// </para>
+    /// </summary>
+    public async Task<bool> EnsurePermissionAsync()
+    {
+        if (!HasMicrophone) return false;
+        if (HasPermission) return true;
+
+        try
+        {
+            var status = await Permissions.RequestAsync<Permissions.Microphone>().ConfigureAwait(false);
+            return status == PermissionStatus.Granted;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public Task<bool> StartAsync(int sampleRateHz, int frameDurationMs, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (_disposed || IsRunning) return Task.FromResult(IsRunning);
+            if (!IsAvailable) return Task.FromResult(false);
+
+            var frameSamples = sampleRateHz * frameDurationMs / 1000;
+
+            // The platform has a floor on buffer size that varies by device; ask it rather than
+            // guessing, then make sure we have room for several frames so a scheduling hiccup does not
+            // overrun the buffer and drop audio.
+            var minIn = AudioRecord.GetMinBufferSize(sampleRateHz, ChannelIn.Mono, Encoding.Pcm16bit);
+            var minOut = AudioTrack.GetMinBufferSize(sampleRateHz, ChannelOut.Mono, Encoding.Pcm16bit);
+            if (minIn <= 0 || minOut <= 0) return Task.FromResult(false);
+
+            var frameBytes = frameSamples * 2;
+            var inBuffer = Math.Max(minIn, frameBytes * 4);
+            var outBuffer = Math.Max(minOut, frameBytes * 4);
+
+            try
+            {
+                _mic = new AudioRecord(AudioSource.VoiceCommunication, sampleRateHz,
+                    ChannelIn.Mono, Encoding.Pcm16bit, inBuffer);
+                _speaker = new AudioTrack(Stream.VoiceCall, sampleRateHz,
+                    ChannelOut.Mono, Encoding.Pcm16bit, outBuffer, AudioTrackMode.Stream);
+
+                if (_mic.State != State.Initialized || _speaker.State != AudioTrackState.Initialized)
+                {
+                    ReleaseLocked();
+                    return Task.FromResult(false);
+                }
+
+                _mic.StartRecording();
+                _speaker.Play();
+            }
+            catch (Exception)
+            {
+                ReleaseLocked();
+                return Task.FromResult(false);
+            }
+
+            IsRunning = true;
+            _capture = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _captureLoop = Task.Run(() => CaptureAsync(frameSamples, _capture.Token));
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <summary>
+    /// Read whole frames and hand them out. Runs on its own thread because it must keep pace with the
+    /// microphone: fall behind and the platform's buffer overruns, which is heard as chopped speech.
+    /// </summary>
+    private void CaptureAsync(int frameSamples, CancellationToken token)
+    {
+        var frame = new short[frameSamples];
+
+        while (!token.IsCancellationRequested)
+        {
+            AudioRecord? mic;
+            lock (_gate) mic = _mic;
+            if (mic is null) return;
+
+            int read;
+            try { read = mic.Read(frame, 0, frameSamples); }
+            catch (Exception) { return; }
+
+            if (read <= 0) continue;
+
+            // A short read is a partial frame. Passing it on would encode as though it were whole and
+            // the far end would hear the call speed up, so it is dropped.
+            if (read != frameSamples) continue;
+
+            var copy = new short[frameSamples];
+            Array.Copy(frame, copy, frameSamples);
+            try { FrameCaptured?.Invoke(copy); } catch { /* a handler must never kill the mic */ }
+        }
+    }
+
+    public void Play(short[] pcm)
+    {
+        if (pcm is null || pcm.Length == 0) return;
+
+        AudioTrack? speaker;
+        lock (_gate) speaker = IsRunning ? _speaker : null;
+        if (speaker is null) return;
+
+        try { speaker.Write(pcm, 0, pcm.Length); }
+        catch (Exception) { /* the call is going away; silence is the right outcome */ }
+    }
+
+    public async Task StopAsync()
+    {
+        CancellationTokenSource? capture;
+        Task? loop;
+
+        lock (_gate)
+        {
+            if (!IsRunning) return;
+            IsRunning = false;
+            capture = _capture;
+            loop = _captureLoop;
+            _capture = null;
+            _captureLoop = null;
+        }
+
+        try { capture?.Cancel(); } catch { }
+
+        // Let the capture thread notice before the microphone is taken out from under it.
+        if (loop is not null)
+            try { await loop.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false); } catch { }
+
+        lock (_gate) ReleaseLocked();
+        capture?.Dispose();
+    }
+
+    private void ReleaseLocked()
+    {
+        try { if (_mic?.RecordingState == RecordState.Recording) _mic.Stop(); } catch { }
+        try { _mic?.Release(); } catch { }
+        _mic?.Dispose();
+        _mic = null;
+
+        try { if (_speaker?.PlayState == PlayState.Playing) _speaker.Stop(); } catch { }
+        try { _speaker?.Release(); } catch { }
+        _speaker?.Dispose();
+        _speaker = null;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        StopAsync().GetAwaiter().GetResult();
+    }
+}
+#endif

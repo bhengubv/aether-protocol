@@ -80,6 +80,14 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         };
     }
 
+    /// <summary>
+    /// The Wi-Fi Direct radio's group-hosting side, so the broker can create and join groups on it.
+    /// Exposed as the capability rather than the radio, because hosting a group is specific to this
+    /// one radio and means nothing to the others.
+    /// </summary>
+    public AetherNet.Sample.Shared.Services.IWifiDirectGroup WifiDirect =>
+        (AetherNet.Sample.Shared.Services.IWifiDirectGroup)_radios["Wi-Fi Direct"];
+
     public string LocalTag { get; }
     public IReadOnlyList<RadioInfo> Radios =>
         _order.Select(r => new RadioInfo(r.Name, r.IsAvailable, r.UnavailableReason, r.IsFixable)).ToArray();

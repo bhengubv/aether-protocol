@@ -21,6 +21,47 @@
     border-bottom: 1px solid var(--line);
 }
 
+/* A ringing phone, above whatever screen you happen to be on. Sticky under the app bar rather than a
+   modal: it must be impossible to miss, and equally impossible to be trapped behind. */
+.ringing {
+    position: sticky;
+    top: calc(var(--bar-h) + max(env(safe-area-inset-top), 28px));
+    z-index: 19;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 14px;
+    background: var(--brand);
+    border-bottom: 1px solid var(--line);
+    font-size: 0.9rem;
+}
+
+.ringwho {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: #fff;
+    font-weight: 700;
+    font-family: var(--mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ringing button {
+    flex: 0 0 auto;
+    appearance: none;
+    border: none;
+    border-radius: 999px;
+    padding: 7px 15px;
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.ring-ans { background: #fff; color: #1B6B44; }
+.ring-end { background: #8E2417; color: #fff; }
+
 .brand {
     display: flex;
     align-items: center;

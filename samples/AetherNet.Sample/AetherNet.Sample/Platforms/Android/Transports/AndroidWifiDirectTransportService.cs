@@ -4,6 +4,7 @@ using Android.Content;
 using Android.Net.Wifi.P2p;
 using Android.Net.Wifi.P2p.Nsd;
 using Android.OS;
+using AetherNet.Sample.Shared.Services;
 using AetherNet.Transport.Abstractions;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
@@ -23,8 +24,12 @@ namespace AetherNet.Sample.Platforms.Android.Transports;
 /// each side who the peer is → thereafter every frame is [4-byte LE length][payload] and
 /// surfaces on <see cref="DataReceived"/> as (peerUhid, bytes).
 /// </summary>
-public sealed class AndroidWifiDirectTransportService : ITransportService, IRadio, IDisposable
+public sealed class AndroidWifiDirectTransportService
+    : ITransportService, IRadio, AetherNet.Sample.Shared.Services.IWifiDirectGroup, IDisposable
 {
+    /// <inheritdoc />
+    bool AetherNet.Sample.Shared.Services.IWifiDirectGroup.IsSupported => IsAvailable;
+
     private const int TcpPort = 8888;
     private const string ServiceInstance = "aethernet";
     private const string ServiceType = "_aethernet._tcp";
@@ -305,6 +310,122 @@ public sealed class AndroidWifiDirectTransportService : ITransportService, IRadi
             onFailure: r => L($"discoverPeers failed reason={r}")));
         _manager.DiscoverServices(_channel, new ActionListener("discoverServices", _logger,
             onFailure: r => L($"discoverServices failed reason={r}")));
+    }
+
+    // ── Brokered groups: created, not negotiated ────────────────────────────────
+
+    /// <summary>
+    /// Create a group outright and become its owner, then read back what a second phone needs to join.
+    ///
+    /// <para>
+    /// <c>createGroup()</c> does not negotiate with anybody, so there is no race to lose and no
+    /// "Invitation to connect" dialog for a peer to ignore. The framework picks the network name and
+    /// passphrase; we simply read them and hand them over the link that already works.
+    /// </para>
+    /// </summary>
+    public async Task<WifiDirectCredentials?> HostAsync(CancellationToken cancellationToken = default)
+    {
+        if (_manager is null) return null;
+        if (Blocker is { } blocker) { L($"can't host — {blocker}"); return null; }
+
+        EnsureInitialized();
+        if (_channel is null) return null;
+
+        // A group already open here is the wrong one — it may be from a previous run, with credentials
+        // nobody has. Start clean.
+        await LeaveAsync().ConfigureAwait(false);
+
+        var created = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        L("creating a group to host");
+        _manager.CreateGroup(_channel, new ActionListener("createGroup", _logger,
+            onFailure: r => { L($"createGroup failed reason={r}"); created.TrySetResult(false); },
+            onSuccess: () => created.TrySetResult(true)));
+
+        if (!await created.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false))
+            return null;
+
+        // The group exists but its details are not immediately readable; ask until they are.
+        for (var attempt = 0; attempt < 20 && !cancellationToken.IsCancellationRequested; attempt++)
+        {
+            if (await ReadGroupAsync(cancellationToken).ConfigureAwait(false) is { } credentials)
+            {
+                _groupFormed = true;
+                L($"hosting {credentials.NetworkName}");
+                return credentials;
+            }
+            await Task.Delay(250, cancellationToken).ConfigureAwait(false);
+        }
+
+        L("created a group but could not read its credentials");
+        return null;
+    }
+
+    private Task<WifiDirectCredentials?> ReadGroupAsync(CancellationToken cancellationToken)
+    {
+        if (_manager is null || _channel is null) return Task.FromResult<WifiDirectCredentials?>(null);
+
+        var read = new TaskCompletionSource<WifiDirectCredentials?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _manager.RequestGroupInfo(_channel, new GroupInfoListener(group =>
+        {
+            var credentials = group is { NetworkName: { } ssid, Passphrase: { } pass }
+                ? new WifiDirectCredentials(ssid, pass)
+                : null;
+            read.TrySetResult(WifiDirectCredentials.IsUsable(credentials) ? credentials : null);
+        }));
+
+        return read.Task.WaitAsync(TimeSpan.FromSeconds(3), cancellationToken)
+            .ContinueWith(t => t.IsCompletedSuccessfully ? t.Result : null, TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// Join a named group directly.
+    ///
+    /// <para>
+    /// Naming the network and its passphrase is what makes this dialog-free: Android has nothing to ask
+    /// the user about, because nothing is being negotiated. It also needs no discovery at all, which is
+    /// the other half of what made the old path unreliable.
+    /// </para>
+    /// </summary>
+    public async Task<bool> JoinAsync(WifiDirectCredentials credentials, CancellationToken cancellationToken = default)
+    {
+        if (_manager is null || !WifiDirectCredentials.IsUsable(credentials)) return false;
+        if (Blocker is { } blocker) { L($"can't join — {blocker}"); return false; }
+
+        EnsureInitialized();
+        if (_channel is null) return false;
+
+        await LeaveAsync().ConfigureAwait(false);
+
+        // Searching and joining at the same time is the collision the old path kept losing to. Nothing
+        // here needs discovery, so stop it.
+        _manager.StopPeerDiscovery(_channel, new ActionListener("stopPeerDiscovery", _logger, onFailure: _ => { }));
+
+        var config = new WifiP2pConfig.Builder()
+            .SetNetworkName(credentials.NetworkName)
+            .SetPassphrase(credentials.Passphrase)
+            .Build();
+
+        var joined = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        L($"joining {credentials.NetworkName}");
+        _manager.Connect(_channel, config, new ActionListener("joinGroup", _logger,
+            onFailure: r => { L($"join failed reason={r}"); joined.TrySetResult(false); },
+            onSuccess: () => joined.TrySetResult(true)));
+
+        return await joined.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Leave whatever group this phone is in, and wait for it to actually be gone.</summary>
+    public async Task LeaveAsync()
+    {
+        if (_manager is null || _channel is null) return;
+
+        var left = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _manager.RemoveGroup(_channel, new ActionListener("removeGroup", _logger,
+            onFailure: _ => left.TrySetResult(true),      // usually "no group" — which is the goal anyway
+            onSuccess: () => left.TrySetResult(true)));
+
+        try { await left.Task.WaitAsync(TimeSpan.FromSeconds(4)).ConfigureAwait(false); }
+        catch (TimeoutException) { }
     }
 
     /// <summary>

@@ -60,6 +60,22 @@ public static class MauiProgram
                     sp.GetRequiredService<IRadioMesh>())));
         builder.Services.AddSingleton<ChatService>();
 
+        // 1:1 voice. The microphone is physical, so it only exists on the phone; everywhere else the
+        // call service is constructible but honestly says it cannot place one.
+#if ANDROID
+        builder.Services.AddSingleton<IAudioIo, AetherNet.Sample.Platforms.Android.AndroidAudioIo>();
+        // Wi-Fi Direct's group is created and handed over BLE rather than negotiated, so the radio
+        // itself is the thing that hosts and joins.
+        builder.Services.AddSingleton<IWifiDirectGroup>(sp =>
+            ((AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh)
+                sp.GetRequiredService<IRadioMesh>()).WifiDirect);
+#else
+        builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
+        builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
+#endif
+        builder.Services.AddSingleton<WifiDirectBroker>();
+        builder.Services.AddSingleton<CallService>();
+
         // The live in-process AetherNet mesh that the demo UI drives.
         builder.Services.AddScoped<AetherDemoService>();
 
@@ -105,6 +121,18 @@ public static class MauiProgram
                 // that never comes back can be told apart from one that was never sent.
                 if (chat is not null)
                     chat.Trace += m => global::Android.Util.Log.Info("AetherChat", m);
+#endif
+                // Same for the call path — constructing it is what subscribes it to the radio, so a
+                // call can ring before the user has opened anything.
+                var calls = app.Services.GetService<CallService>();
+                // Constructing the broker is what subscribes it to the radio, so a peer's group
+                // handoff can arrive before anyone has tried to call.
+                var wifiDirect = app.Services.GetService<WifiDirectBroker>();
+#if ANDROID
+                if (calls is not null)
+                    calls.Trace += m => global::Android.Util.Log.Info("AetherVoice", m);
+                if (wifiDirect is not null)
+                    wifiDirect.Trace += m => global::Android.Util.Log.Info("AetherWFD", m);
 #endif
             }
             catch (Exception ex)
