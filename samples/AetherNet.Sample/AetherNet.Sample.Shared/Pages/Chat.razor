@@ -158,10 +158,19 @@
     // ── Calling ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// A call needs a microphone, a linked radio, and a secure session — the same one the messages
-    /// use, because a call is not sent in clear either.
+    /// A call needs a microphone, a radio with a link on it, and a secure session — the same one the
+    /// messages use, because a call is not sent in clear either.
+    ///
+    /// <para>
+    /// Deliberately does <b>not</b> require the radio to have worked out who is on the other end yet.
+    /// A link rebuilt seconds ago carries a fresh wire address and is anonymous again until something
+    /// decrypts over it, and on BLE between two handsets that happens every minute or two — which left
+    /// the call button greyed out most of the time for no good reason. The call is addressed to an
+    /// AetherTag and sealed to it: if someone else is on the radio, they cannot open it. Who the radio
+    /// currently thinks is there does not change who can read it.
+    /// </para>
     /// </summary>
-    private bool CanCall => Calls.Current is null && Connected && _secure && Calls.CanCall;
+    private bool CanCall => Calls.Current is null && Radio.IsLinked && _secure && Calls.CanCall;
 
     private Task Call() => Calls.CallAsync(Peer);
     private Task Answer() => Calls.AnswerAsync();

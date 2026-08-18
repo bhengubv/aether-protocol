@@ -114,6 +114,18 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     /// <inheritdoc />
     /// <remarks>A switched-off adapter is a tap away; a phone with no Bluetooth in it is not.</remarks>
     public bool IsFixable => _unavailableReason is null && _adapter is { IsEnabled: false };
+
+    /// <summary>
+    /// What this actually carries between two handsets, measured — not what the spec promises.
+    ///
+    /// <para>
+    /// BLE advertises megabits; with 512-byte ATT writes, serialised GATT operations and a connection
+    /// interval measured in tens of milliseconds, these two phones manage about five kilobits. That is
+    /// ample for chat and hopeless for voice, and the number is here so the mesh can tell the
+    /// difference rather than discovering it as congestion.
+    /// </para>
+    /// </summary>
+    public long MaxBandwidthBps => 5_000;
     public bool IsLinked => _linked;
     public string? PeerTag => _peerTag;
 

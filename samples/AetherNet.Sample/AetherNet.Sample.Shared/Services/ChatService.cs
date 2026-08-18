@@ -723,6 +723,22 @@ public sealed class ChatService
     /// idea anything is wrong. Waiting for it is waiting forever.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Throw away a session that cannot read, and get a fresh one built.
+    ///
+    /// <para>
+    /// Public because voice needs exactly this and must not have its own copy. A call hits the same
+    /// wall a message does — <c>AuthenticationTagMismatch</c>, meaning the two sides hold sessions that
+    /// do not agree — and for a long time the call path simply gave up where chat quietly recovered.
+    /// That is why sending a message first appeared to "fix" calling: chat's repair had already
+    /// collapsed the two divergent sessions into one before the call was placed.
+    /// </para>
+    /// </summary>
+    public Task RepairAsync(string peerTag) => RepairSessionAsync(peerTag);
+
+    /// <summary>Is this the failure that means the session is finished rather than the payload bad?</summary>
+    public static bool IsBrokenSession(Exception ex) => LooksLikeABrokenSession(ex);
+
     private async Task RepairSessionAsync(string peerTag)
     {
         if (string.IsNullOrEmpty(peerTag)) return;

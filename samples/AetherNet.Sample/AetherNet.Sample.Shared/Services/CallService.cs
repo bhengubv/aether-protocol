@@ -33,6 +33,12 @@ public sealed class CallService : IDisposable
     private readonly ISignalProtocolService _signal;
     private readonly IAudioIo _audio;
     private readonly WifiDirectBroker? _wifiDirect;
+
+    /// <summary>
+    /// Chat, only for its session repair. A call hits exactly the wall a message does, and duplicating
+    /// the recovery would mean two implementations of the trickiest code in the app drifting apart.
+    /// </summary>
+    private readonly ChatService? _chat;
     private readonly ILogger _log;
 
     private IVoiceCallService? _voice;
@@ -54,10 +60,12 @@ public sealed class CallService : IDisposable
         IIdentityService me,
         ISignalProtocolService signal,
         IAudioIo audio,
+        ChatService? chat = null,
         WifiDirectBroker? wifiDirect = null,
         IRadioMesh? radio = null,
         ILoggerFactory? loggerFactory = null)
     {
+        _chat = chat;
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
         _audio = audio ?? throw new ArgumentNullException(nameof(audio));
@@ -127,14 +135,14 @@ public sealed class CallService : IDisposable
         var voice = Voice();
         Current = await voice.PlaceAsync(peerTag, Offered, cancellationToken).ConfigureAwait(false);
 
-        // The caller mints the call's media key and hands it over inside the session. One message,
-        // in order, once — which is what the ratchet is for. The fifty frames a second that follow are
-        // not, and use this key instead.
-        var master = CallMediaCipher.NewMasterKey();
-        _sender!.Media = new CallMediaCipher(master, iAmTheCaller: true);
-        await SendKeyAsync(peerTag, master, cancellationToken).ConfigureAwait(false);
-        System.Security.Cryptography.CryptographicOperations.ZeroMemory(master);
-
+        // The media key is NOT sent here. The offer is very often the first thing this pair has ever
+        // encrypted to each other, and the far side has no session until it decrypts that offer —
+        // decrypting is what builds it. Sending a second message a few hundred milliseconds behind
+        // lands it on a session still being constructed, and it does not open. Watched on device
+        // 2026-08-18 with identities minutes old: the offer and the key both refused, every time,
+        // while chat over the same pair worked because chat sends one message and waits.
+        //
+        // So the key goes out when they answer, by which point both sides have a live session.
         T($"calling {peerTag}");
         Raise();
         return true;
@@ -392,10 +400,25 @@ public sealed class CallService : IDisposable
             // the responder's side. Gating on HasSession therefore drops the one message that would
             // have created the session — and the call rings out while the offer sits discarded. The
             // chat path never had this check, which is why messages worked and calls did not.
-            opened = await EncryptedMeshSender.UnsealAsync(packet, _signal, from).ConfigureAwait(false);
+            string? why = null;
+            opened = await EncryptedMeshSender
+                .UnsealAsync(packet, _signal, from, CancellationToken.None, r => why = r)
+                .ConfigureAwait(false);
             if (opened is null)
             {
-                T($"call signalling from {from} dropped — the payload would not open");
+                T($"call signalling from {from} dropped — {why ?? "the payload would not open"}" +
+                  $" (session={_signal.HasSession(from)})");
+
+                // A tag mismatch with a session present means the two sides hold sessions that do not
+                // agree — both established one as initiator, so each seals under a root key the other
+                // has never seen. It is not recoverable by retrying; the dead session has to go and a
+                // new one be built from a fresh bundle. Chat has done this for months, which is the
+                // only reason sending a message first appeared to make calling work.
+                if (_chat is not null && why?.Contains("AuthenticationTagMismatch", StringComparison.Ordinal) == true)
+                {
+                    T($"repairing the session with {from} and trying the call again");
+                    await _chat.RepairAsync(from).ConfigureAwait(false);
+                }
                 return;
             }
         }
@@ -431,6 +454,16 @@ public sealed class CallService : IDisposable
     /// <summary>The caller only opens the microphone once the callee has actually picked up.</summary>
     private async Task ConnectCallerAudioAsync(VoiceCallSession session)
     {
+        // They answered, so their session is live and a second message will open. Mint the call's key
+        // and hand it over before a single frame goes out — frames are sealed with it, and one sent
+        // beforehand would simply be dropped at the far end.
+        var peer = session.RemoteUhid(_me.AetherTag);
+        var master = CallMediaCipher.NewMasterKey();
+        _sender!.Media?.Dispose();
+        _sender.Media = new CallMediaCipher(master, iAmTheCaller: true);
+        await SendKeyAsync(peer, master, CancellationToken.None).ConfigureAwait(false);
+        System.Security.Cryptography.CryptographicOperations.ZeroMemory(master);
+
         if (!await StartAudioAsync(CancellationToken.None).ConfigureAwait(false))
         {
             await HangUpAsync(HangupReason.NetworkFailure).ConfigureAwait(false);

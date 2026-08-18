@@ -176,7 +176,8 @@ public sealed class EncryptedMeshSender : IMeshSender
         MeshPacket packet,
         ISignalProtocolService signal,
         string peerTag,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<string>? why = null)
     {
         if (packet.Payload is null || packet.Payload.Length == 0) return null;
 
@@ -196,8 +197,12 @@ public sealed class EncryptedMeshSender : IMeshSender
                 Payload = plain,
             };
         }
-        catch
+        catch (Exception ex)
         {
+            // Say what went wrong. Swallowing this is why three separate theories about why calls
+            // would not connect all had to be tested on hardware — the failure was silent, so every
+            // explanation looked equally plausible.
+            why?.Invoke($"{ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }

@@ -32,6 +32,19 @@ internal interface IRadio
     /// </summary>
     bool IsFixable => false;
 
+    /// <summary>
+    /// Roughly what this radio can carry, in bits per second.
+    ///
+    /// <para>
+    /// Used to pick which linked radio moves the traffic, and it is not a nicety: measured BLE between
+    /// two of these handsets is about 5 kbps, and one voice call asks for roughly a hundred times that.
+    /// Sending media over it does not merely sound bad — it saturates the link and starves the
+    /// signalling sharing it, which is how a call that had been answered sat forever on "Calling…"
+    /// because the answer could not get through the audio.
+    /// </para>
+    /// </summary>
+    long MaxBandwidthBps => 0;
+
     /// <summary>True once a peer has completed the link handshake.</summary>
     bool IsLinked { get; }
 

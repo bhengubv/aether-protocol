@@ -224,10 +224,30 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     /// <summary>The radios worth trying, best first: the active one, then any other holding a link.</summary>
     private IEnumerable<IRadio> Candidates()
     {
-        var first = Active;
+        var first = Widest();
         yield return first;
         foreach (var r in _order)
             if (!ReferenceEquals(r, first) && r.IsLinked) yield return r;
+    }
+
+    /// <summary>
+    /// The widest linked radio, or the ordinary choice if none is wider.
+    ///
+    /// <para>
+    /// A preferred radio is a preference about <b>reaching people</b>, not an instruction to force a
+    /// call down a link that cannot hold one. BLE measures about 5 kbps between these handsets and one
+    /// voice call wants roughly a hundred times that; sending media over it does not merely sound bad,
+    /// it saturates the link and starves the signalling sharing it. Watched on device 2026-08-18: the
+    /// callee answered and streamed happily, the caller sat on "Calling..." forever, because the answer
+    /// could not get past the audio it was answering.
+    /// </para>
+    /// </summary>
+    private IRadio Widest()
+    {
+        var best = Active;
+        foreach (var r in _order)
+            if (r.IsLinked && r.MaxBandwidthBps > best.MaxBandwidthBps) best = r;
+        return best;
     }
 
     public void Stop()

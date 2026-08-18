@@ -32,7 +32,7 @@
     <ApplicationTitle>Aether</ApplicationTitle>
 
     <!-- App Identifier -->
-    <ApplicationId>com.companyname.aethernet.sample</ApplicationId>
+    <ApplicationId>com.bhengubv.aethernet</ApplicationId>
 
     <!-- Versions -->
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
@@ -46,6 +46,26 @@
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+  </PropertyGroup>
+
+  <!-- Release on Android: build something a real phone can actually hold.
+
+       The Debug package is ~94 MB because it carries the runtime for BOTH arm64 and x86_64 — 136 MB
+       of native code each, and only one of them can ever run on a handset. Measured on merlin (a 3 GB
+       Redmi Note 9): the device sits at 96% memory with a gigabyte swapped out, the low-memory killer
+       takes the app whenever the screen sleeps, and it rebooted under us. x86_64 exists for emulators,
+       so Release drops it and keeps the two ABIs phones actually use.
+
+       Trimming is left at the SDK default rather than Full: this is a Blazor app and it reaches for
+       types by reflection through the renderer, System.Text.Json and SQLitePCLRaw. Full trimming
+       removes those and the failure shows up as a blank page on the device rather than a build error,
+       which is the worst place to find it. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <RuntimeIdentifiers>android-arm64;android-arm</RuntimeIdentifiers>
+    <AndroidLinkMode>SdkOnly</AndroidLinkMode>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
