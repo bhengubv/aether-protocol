@@ -229,6 +229,36 @@ public sealed class SignalProtocolService : ISignalProtocolService
     }
 
     /// <summary>
+    /// The constructor a host uses to make sessions <b>durable</b>.
+    ///
+    /// <para>
+    /// Without this, sessions live only in memory and every launch begins with amnesia: two devices
+    /// rebuild independently, each as X3DH initiator, and end up with different root keys for the same
+    /// pair — after which every message between them fails its authentication tag. The ratchet is
+    /// working correctly; there are simply two of them.
+    /// </para>
+    ///
+    /// <para>
+    /// Persistence was implemented and tested long before this overload existed, but every public
+    /// constructor passed <c>null</c> for the store, so no host could switch it on. That gap is the
+    /// single most expensive defect this project has had.
+    /// </para>
+    /// </summary>
+    /// <param name="sessionStore">
+    /// Durable, app-private storage for the session blobs. See
+    /// <see cref="ISignalSessionBlobStore"/> for what they contain and why where you put them matters.
+    /// </param>
+    public SignalProtocolService(
+        ILogger<SignalProtocolService> logger,
+        ISignalSessionBlobStore sessionStore)
+        : this(logger, DefaultOpkPoolSize,
+            sessionStore: new BlobBackedSignalSessionStore(
+                sessionStore ?? throw new ArgumentNullException(nameof(sessionStore))),
+            preKeyStore: null, rotationOptions: null, nowProvider: null)
+    {
+    }
+
+    /// <summary>
     /// Constructor accepting persistent stores, rotation options, and a
     /// synthetic clock. Internal because <see cref="ISignalSessionStore"/>
     /// exposes the internal <see cref="SignalSession"/>; only assemblies

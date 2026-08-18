@@ -35,8 +35,14 @@ builder.Services.AddSingleton<ContactService>();
 
 // Same real messaging stack as the phone. This host has no radio, so messages stay pending —
 // honestly queued rather than pretending to send.
-builder.Services.AddSingleton<AetherNet.Security.Services.ISignalProtocolService,
-    AetherNet.Security.Services.SignalProtocolService>();
+// Sessions live in the device database so a conversation survives a restart. Without it both
+// sides rebuild as X3DH initiator and diverge into two ratchets for one pair.
+builder.Services.AddSingleton<AetherNet.Security.Services.ISignalSessionBlobStore>(sp =>
+    new StoredSignalSessions(sp.GetRequiredService<AetherStore>()));
+builder.Services.AddSingleton<AetherNet.Security.Services.ISignalProtocolService>(sp =>
+    new AetherNet.Security.Services.SignalProtocolService(
+        sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AetherNet.Security.Services.SignalProtocolService>>(),
+        sp.GetRequiredService<AetherNet.Security.Services.ISignalSessionBlobStore>()));
 builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
     new AetherNet.PreKeys.PreKeyExchangeService(
         new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,

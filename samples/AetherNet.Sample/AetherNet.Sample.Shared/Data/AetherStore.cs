@@ -176,6 +176,22 @@ public sealed class AetherStore : IDisposable
         Exec("CREATE INDEX IF NOT EXISTS ix_contacts_last_seen ON contacts(last_seen_ms);");
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_peer ON messages(peer_tag, sent_ms);");
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_state ON messages(state);");
+
+        // Signal sessions. Held only in memory until now, which meant every launch began with
+        // amnesia: two phones would each rebuild as X3DH initiator, end up with different root keys
+        // for the same pair, and then fail every message on its authentication tag. It reads exactly
+        // like broken crypto and it is not — there were simply two ratchets.
+        //
+        // The blob holds root and chain keys and the ratchet private key: everything needed to read
+        // the conversation. It lives here because this database is app-private, which is the same
+        // protection the messages themselves already have.
+        Exec("""
+            CREATE TABLE IF NOT EXISTS signal_sessions (
+                peer_tag  TEXT PRIMARY KEY NOT NULL,
+                blob      BLOB NOT NULL,
+                saved_ms  INTEGER NOT NULL
+            );
+            """);
     }
 
     /// <summary>
@@ -223,6 +239,73 @@ public sealed class AetherStore : IDisposable
             cmd.Parameters.AddWithValue("@key", publicKey);
             cmd.Parameters.AddWithValue("@ms", Now());
             cmd.ExecuteNonQuery();
+        }
+    }
+
+    // ── Signal sessions ─────────────────────────────────────────────────────────
+
+    /// <summary>The stored ratchet state for this peer, or null if there is none.</summary>
+    public byte[]? GetSessionBlob(string peerTag)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(peerTag);
+
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT blob FROM signal_sessions WHERE peer_tag = @tag;";
+            cmd.Parameters.AddWithValue("@tag", peerTag);
+            return cmd.ExecuteScalar() as byte[];
+        }
+    }
+
+    /// <summary>
+    /// Store this peer's ratchet state, replacing what was there. Written on every message in
+    /// either direction, so it stays a single indexed upsert against a local file.
+    /// </summary>
+    public void SaveSessionBlob(string peerTag, byte[] blob)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(peerTag);
+        ArgumentNullException.ThrowIfNull(blob);
+
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO signal_sessions (peer_tag, blob, saved_ms) VALUES (@tag, @blob, @ms)
+                ON CONFLICT(peer_tag) DO UPDATE SET blob=@blob, saved_ms=@ms;
+                """;
+            cmd.Parameters.AddWithValue("@tag", peerTag);
+            cmd.Parameters.AddWithValue("@blob", blob);
+            cmd.Parameters.AddWithValue("@ms", Now());
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Forget a session that has been judged unusable, so a fresh one can replace it.</summary>
+    public void DeleteSessionBlob(string peerTag)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(peerTag);
+
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM signal_sessions WHERE peer_tag = @tag;";
+            cmd.Parameters.AddWithValue("@tag", peerTag);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Everyone with a stored session, so they can be rehydrated at startup.</summary>
+    public IReadOnlyList<string> GetSessionPeers()
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT peer_tag FROM signal_sessions;";
+            using var r = cmd.ExecuteReader();
+            var peers = new List<string>();
+            while (r.Read()) peers.Add(r.GetString(0));
+            return peers;
         }
     }
 

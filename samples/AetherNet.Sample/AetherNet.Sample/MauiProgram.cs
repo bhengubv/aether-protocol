@@ -52,8 +52,16 @@ public static class MauiProgram
 
         // Real end-to-end encrypted messaging over the radio: Signal's X3DH + double ratchet, with
         // pre-key bundles exchanged over the mesh itself.
-        builder.Services.AddSingleton<AetherNet.Security.Services.ISignalProtocolService,
-            AetherNet.Security.Services.SignalProtocolService>();
+        // Sessions are kept in the device database, so a conversation survives the app closing. Without
+        // this the ratchet starts from nothing on every launch and two phones diverge into separate
+        // sessions for the same pair — which fails every message on its authentication tag and reads
+        // exactly like broken crypto.
+        builder.Services.AddSingleton<AetherNet.Security.Services.ISignalSessionBlobStore>(sp =>
+            new StoredSignalSessions(sp.GetRequiredService<AetherStore>()));
+        builder.Services.AddSingleton<AetherNet.Security.Services.ISignalProtocolService>(sp =>
+            new AetherNet.Security.Services.SignalProtocolService(
+                sp.GetRequiredService<ILogger<AetherNet.Security.Services.SignalProtocolService>>(),
+                sp.GetRequiredService<AetherNet.Security.Services.ISignalSessionBlobStore>()));
         builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
             new AetherNet.PreKeys.PreKeyExchangeService(
                 new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
