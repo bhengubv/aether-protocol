@@ -32,6 +32,25 @@ public sealed class ChatService
     /// <summary>Marks anything to do with a group — a message in one, or news of one.</summary>
     private const string GroupMarker = "AETHERGRP";
 
+    /// <summary>
+    /// Marks a session ping: an empty message whose only job is to exist.
+    ///
+    /// <para>
+    /// When a session is rebuilt, the far side does not know. It still holds the old one and keeps
+    /// sealing under a root key this phone has just thrown away, so every message between them fails
+    /// its tag — forever, because neither has a reason to try again. What breaks the deadlock is one
+    /// message under the new session: it carries the pre-key material, and processing it replaces the
+    /// stale session on the other side.
+    /// </para>
+    ///
+    /// <para>
+    /// Chat has been getting this for free by flushing pending messages after a repair. A call has
+    /// nothing pending, so it deadlocked — which is why voice could repair correctly and still never
+    /// connect. This makes the nudge explicit rather than a side effect of having a backlog.
+    /// </para>
+    /// </summary>
+    private const string PingMarker = "AETHERPNG";
+
     /// <summary>A message id is a 32-character hex GUID, carried inside the encrypted body.</summary>
     private const int IdLength = 32;
 
@@ -629,6 +648,54 @@ public sealed class ChatService
             case Marker: _ = ReceiveAsync(packet.SourceUhid, payload); break;
             case AckMarker: _ = ReceiveAckAsync(packet.SourceUhid, payload); break;
             case GroupMarker: _ = ReceiveGroupAsync(packet.SourceUhid, payload); break;
+            case PingMarker: _ = ReceivePingAsync(packet.SourceUhid, payload); break;
+        }
+    }
+
+    /// <summary>
+    /// Send one message under the current session purely so the other side adopts it.
+    /// <para>
+    /// Never shown and never stored — the value is entirely in the far side having decrypted it.
+    /// </para>
+    /// </summary>
+    private async Task PingAsync(string peerTag, CancellationToken cancellationToken = default)
+    {
+        if (_radio is null || !_signal.HasSession(peerTag)) return;
+
+        try
+        {
+            var sealedPayload = await _signal
+                .EncryptAsync(peerTag, Encoding.UTF8.GetBytes("hello"), cancellationToken)
+                .ConfigureAwait(false);
+
+            await _radio.SendPacketAsync(Wrap(PingMarker, sealedPayload, peerTag)).ConfigureAwait(false);
+            T($"pinged {peerTag} so they pick up the new session");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not ping {Peer} after rebuilding the session", peerTag);
+        }
+    }
+
+    /// <summary>
+    /// A ping arrived. Opening it is the entire point — that is what adopts their session on this
+    /// side — so there is deliberately nothing else to do with it.
+    /// </summary>
+    private async Task ReceivePingAsync(string? senderTag, byte[] payload)
+    {
+        if (string.IsNullOrEmpty(senderTag)) return;
+
+        try
+        {
+            var sealedPayload = EncryptedPayloadCodec.Deserialize(payload.AsSpan(PingMarker.Length).ToArray());
+            await _signal.DecryptAsync(senderTag, sealedPayload).ConfigureAwait(false);
+            _radio?.IdentifyPeer(senderTag);
+            T($"session ping from {senderTag} — their session is live here now");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not open a session ping from {Peer}", senderTag);
+            if (LooksLikeABrokenSession(ex)) await RepairSessionAsync(senderTag).ConfigureAwait(false);
         }
     }
 
@@ -786,6 +853,11 @@ public sealed class ChatService
         try
         {
             await _signal.ProcessPreKeyBundleAsync(bundle, cancellationToken).ConfigureAwait(false);
+
+            // Tell them the session exists, before anything else. Flushing a backlog would do it, but
+            // only if there is one — and the case that matters most is a call, which has nothing to
+            // flush.
+            await PingAsync(peerTag, cancellationToken).ConfigureAwait(false);
             await FlushAsync(peerTag, cancellationToken).ConfigureAwait(false);
             Changed?.Invoke();
         }
