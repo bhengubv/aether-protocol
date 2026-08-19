@@ -153,7 +153,19 @@ public sealed class VoiceCallService : IVoiceCallService
             Payload = payload,
         };
 
-        var route = await _routing.FindRouteAsync(remote, cancellationToken).ConfigureAwait(false);
+        // Media takes the route it already knows, or goes out to everyone — it never waits to be told
+        // one.
+        //
+        // FindRouteAsync falls through to discovery when nothing is cached: it broadcasts a route
+        // request and waits RouteTimeoutMs (five seconds) for a reply. On a direct radio link there is
+        // no router to answer, so every single frame paid the full timeout and then broadcast anyway.
+        // Measured on two phones: 5040ms per frame, flat, against a microphone producing fifty a
+        // second — so 249 of every 250 frames were discarded and the call was silent. The call itself
+        // looked perfect: connected, encrypted, both microphones open, nothing in any log.
+        //
+        // Signalling still discovers, because an offer is worth waiting five seconds for. A voice frame
+        // is not: one that arrives five seconds late is not audio, it is history.
+        var route = _routing.GetCachedRoute(remote);
         if (route is not null)
             await _sender.SendAsync(packet, route.NextHopUhid, cancellationToken).ConfigureAwait(false);
         else

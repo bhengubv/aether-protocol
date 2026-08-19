@@ -53,10 +53,16 @@ public sealed class CallService : IDisposable
     /// <para>
     /// Sixteen frames is about a third of a second of speech. Deep enough to ride out a radio that
     /// stalls for a moment, shallow enough that what finally goes out is still current — past that a
-    /// listener would rather have the newer audio than the backlog. Between two handsets BLE carries
-    /// around 5 kbps and this codec produces 24, so most of a call's frames are discarded here by
-    /// design; that is the radio's honest capacity, not a fault, and it is why voice wants the Wi-Fi
-    /// Direct upgrade.
+    /// listener would rather have the newer audio than the backlog.
+    /// </para>
+    ///
+    /// <para>
+    /// This is a jitter absorber, not a bandwidth excuse. These two handsets negotiate an ATT MTU of
+    /// 517 and already carry 512-byte packets, which is on the order of 100 kbps — Opus at 24 kbps
+    /// needs about 3 kB/s and fits with room to spare. An earlier note in this file claimed BLE could
+    /// only manage 5 kbps; that figure came from a link still on the 23-byte default MTU and is wrong
+    /// for this one. If frames are not arriving, look for them being dropped before the radio, not for
+    /// the radio being too small.
     /// </para>
     /// </summary>
     private Channel<(Guid CallId, byte[] Payload, uint Sequence)>? _outgoing;
@@ -289,24 +295,63 @@ public sealed class CallService : IDisposable
     /// </summary>
     private async Task PumpOutgoingAsync(ChannelReader<(Guid CallId, byte[] Payload, uint Sequence)> frames)
     {
+        // Say what is happening to the audio, once a second, in one line. A call where every frame is
+        // quietly discarded looks exactly like a call that is working — the state machine is happy, the
+        // microphone is open, the screen says connected, and nobody can hear anything. This path has
+        // now hidden a failure three times in one day; it does not get to do it silently again.
+        var sent = 0;
+        var failed = 0;
+        var slowestMs = 0L;
+        var totalMs = 0L;
+        string? lastFailure = null;
+        var window = System.Diagnostics.Stopwatch.StartNew();
+
+        void Report()
+        {
+            if (sent == 0 && failed == 0) return;
+            // How long a frame takes to hand to the radio is the whole story: fifty a second means
+            // twenty milliseconds each, and anything near a second means the audio cannot work no
+            // matter how good the codec or how wide the link.
+            var each = sent > 0 ? totalMs / sent : 0;
+            T(failed == 0
+                ? $"audio out: {sent} frames, {each}ms each (slowest {slowestMs}ms)"
+                : $"audio out: {sent} sent ({each}ms each), {failed} not sent — {lastFailure ?? "the radio would not take them"}");
+            sent = 0;
+            failed = 0;
+            slowestMs = 0;
+            totalMs = 0;
+            window.Restart();
+        }
+
         try
         {
             await foreach (var frame in frames.ReadAllAsync().ConfigureAwait(false))
             {
                 if (_voice is null) continue;
+                var clock = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
                     await _voice.SendFrameAsync(frame.CallId, frame.Payload, frame.Sequence)
                         .ConfigureAwait(false);
+                    sent++;
+                    totalMs += clock.ElapsedMilliseconds;
+                    if (clock.ElapsedMilliseconds > slowestMs) slowestMs = clock.ElapsedMilliseconds;
                 }
                 catch (Exception ex)
                 {
-                    // One frame that would not go is not a reason to stop sending the rest.
+                    // One frame that would not go is not a reason to stop sending the rest — but it is
+                    // a reason to say so.
+                    failed++;
+                    lastFailure = $"{ex.GetType().Name}: {ex.Message}";
                     _log.LogDebug(ex, "sending a voice frame");
                 }
+
+                if (window.ElapsedMilliseconds >= 1000) Report();
             }
         }
         catch (OperationCanceledException) { /* the call ended */ }
+
+        Report();
     }
 
     private void OnFrameReceived(object? sender, VoiceFrame frame)

@@ -222,7 +222,10 @@ public sealed class GroupVoiceCallService : IGroupVoiceCallService
                 Priority = 64,
                 Payload = payload,
             };
-            var route = await _routing.FindRouteAsync(peer, cancellationToken).ConfigureAwait(false);
+            // Cached route or broadcast — never discovery. See VoiceCallService.SendFrameAsync: waiting
+            // RouteTimeoutMs per frame silences the call. Here it is worse, because this runs once per
+            // member, so a group of four would pay twenty seconds for a twenty-millisecond frame.
+            var route = _routing.GetCachedRoute(peer);
             if (route is not null)
                 await _sender.SendAsync(packet, route.NextHopUhid, cancellationToken).ConfigureAwait(false);
             else
