@@ -113,16 +113,21 @@ public static class MauiProgram
         // UI thread the moment a page @injects it. Constructing them here first means the page resolves
         // an object that is already built. (See docs/DOTNET_MAUI_DOS_AND_DONTS.md — blocking ctors are
         // the recurring freeze in this stack.)
+        // Each service is warmed on its own. One shared try/catch meant a single service that would
+        // not build took the whole warm-up with it — including the tracing hooks below — and the app
+        // then ran with no voice on the radio at all, which reads exactly like a dead radio. Chasing
+        // that cost a full device session.
         _ = Task.Run(() =>
         {
-            try
+            Warm("store", () => app.Services.GetService<AetherStore>());
+            Warm("identity", () => app.Services.GetService<IIdentityService>());
+            Warm("cards", () => app.Services.GetService<IContentStore>());
+            Warm("contacts", () => app.Services.GetService<ContactService>());
+
+            // Constructing these is what subscribes them to the radio, so a message can arrive, and a
+            // call can ring, before the user has opened anything.
+            Warm("chat", () =>
             {
-                app.Services.GetService<AetherStore>();
-                app.Services.GetService<IIdentityService>();
-                app.Services.GetService<IContentStore>();
-                app.Services.GetService<ContactService>();
-                // Constructing the chat service is what subscribes it to the radio, so a message can
-                // arrive before the user has opened a conversation.
                 var chat = app.Services.GetService<ChatService>();
 #if ANDROID
                 // Put the message path in the system log next to the radio's own lines, so a receipt
@@ -130,26 +135,55 @@ public static class MauiProgram
                 if (chat is not null)
                     chat.Trace += m => global::Android.Util.Log.Info("AetherChat", m);
 #endif
-                // Same for the call path — constructing it is what subscribes it to the radio, so a
-                // call can ring before the user has opened anything.
+            });
+
+            Warm("calls", () =>
+            {
                 var calls = app.Services.GetService<CallService>();
-                // Constructing the broker is what subscribes it to the radio, so a peer's group
-                // handoff can arrive before anyone has tried to call.
-                var wifiDirect = app.Services.GetService<WifiDirectBroker>();
 #if ANDROID
                 if (calls is not null)
                     calls.Trace += m => global::Android.Util.Log.Info("AetherVoice", m);
+#endif
+            });
+
+            // The broker subscribes too, so a peer's group handoff arrives before anyone has called.
+            Warm("wifi-direct", () =>
+            {
+                var wifiDirect = app.Services.GetService<WifiDirectBroker>();
+#if ANDROID
                 if (wifiDirect is not null)
                     wifiDirect.Trace += m => global::Android.Util.Log.Info("AetherWFD", m);
 #endif
-            }
-            catch (Exception ex)
-            {
-                // Never take the app down for a warm-up; the real resolve will surface any problem.
-                System.Diagnostics.Debug.WriteLine($"Aether warm-up skipped: {ex.Message}");
-            }
+            });
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Build one service, and say so out loud if it will not build.
+    ///
+    /// <para>
+    /// This used to report through <c>Debug.WriteLine</c>, which a Release build strips — so on the
+    /// only configuration that ships, a service failing to construct was completely silent. The app
+    /// came up, the pages rendered, and nothing worked, with nothing anywhere to say why.
+    /// </para>
+    /// </summary>
+    private static void Warm(string what, Action build)
+    {
+        try
+        {
+            build();
+        }
+        catch (Exception ex)
+        {
+            // Never take the app down for a warm-up; the page that needs it will surface the problem
+            // in its own way. But leave a trail.
+#if ANDROID
+            global::Android.Util.Log.Error("AetherWarmup", $"{what} did not start: {ex}");
+#else
+            System.Diagnostics.Debug.WriteLine($"Aether warm-up: {what} did not start: {ex.Message}");
+#endif
+        }
     }
 }
