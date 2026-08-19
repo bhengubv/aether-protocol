@@ -186,6 +186,35 @@ public sealed class SignalProtocolService : ISignalProtocolService
     private static readonly byte[] HkdfRatchetInfo = "aether-ratchet-rk-v1"u8.ToArray();
 
     private readonly ConcurrentDictionary<string, SignalSession> _sessions = new();
+
+    /// <summary>
+    /// Ratchets this peer has replaced, newest first, kept so their messages still open.
+    ///
+    /// <para>
+    /// One session per peer holds only while one side at a time rebuilds. When both sides find they
+    /// cannot read and both fetch the other's bundle, both become X3DH <i>initiator</i>, and each
+    /// one's opening message replaces what the other just built. Whichever arrives last wins, and the
+    /// two sides can pick differently — so the pair diverges again, on every attempt, indefinitely.
+    /// That is not a broken ratchet; it is two correct ratchets for one pair.
+    /// </para>
+    ///
+    /// <para>
+    /// Keeping what was replaced ends it: a message opens under whichever ratchet the sender actually
+    /// used, and the one that worked is promoted back to current, so the reply goes out on the ratchet
+    /// the peer is already reading. Convergence stops depending on who spoke first. This is the
+    /// session record libsignal keeps for exactly this race.
+    /// </para>
+    ///
+    /// <para>
+    /// In memory only, and deliberately. These matter for the seconds in which two repairs cross;
+    /// once one message has passed, both sides are on one ratchet and the rest is dead weight. What
+    /// gets stored is the live session.
+    /// </para>
+    /// </summary>
+    private readonly ConcurrentDictionary<string, List<SignalSession>> _superseded = new();
+
+    /// <summary>How many replaced ratchets to keep. Two crossing repairs need one; three is slack.</summary>
+    private const int MaxSupersededSessions = 3;
     private readonly ILogger<SignalProtocolService> _logger;
 
     private byte[] _identityX25519Priv = [];
@@ -491,6 +520,13 @@ public sealed class SignalProtocolService : ISignalProtocolService
     {
         ArgumentException.ThrowIfNullOrEmpty(peerUhid);
 
+        // Set the ratchet aside rather than destroying it. This is called when a payload would not
+        // open, which says the session cannot read what is arriving NOW — not that everything already
+        // sent on it is worthless. A message the peer put on the air before they knew anything had
+        // changed still has to land, and once a new session exists this is what opens it. Memory only:
+        // the stored copy goes below, so a restart really does forget.
+        ArchiveSession(peerUhid);
+
         var removed = _sessions.TryRemove(peerUhid, out _);
 
         // The stored copy has to go too, or the dead session is loaded straight back in on the next
@@ -644,117 +680,218 @@ public sealed class SignalProtocolService : ISignalProtocolService
                 ?? payload.InitiatorEphemeralKeyX25519;
 
             // PreKey message? Establish the responder-side session via mirrored X3DH.
+            CryptographicException? establishFailure = null;
             if (payload.MessageType == 1)
             {
                 if (payload.InitiatorIdentityKeyX25519 == null || senderRatchetPub == null)
                     throw new CryptographicException(
                         "PreKey message missing initiator key material " +
                         "(InitiatorIdentityKeyX25519 and SenderEphemeralKeyX25519 / InitiatorEphemeralKeyX25519).");
-                EstablishResponderSession(peerUhid, payload, senderRatchetPub);
+
+                try
+                {
+                    EstablishResponderSession(peerUhid, payload, senderRatchetPub);
+                }
+                catch (CryptographicException ex)
+                {
+                    // Usually a repeat of an opening message: the one-time pre-key it names was spent
+                    // building the session this node already holds, and a second use is refused. That
+                    // session can still read the message, so this is only fatal if nothing else opens it.
+                    establishFailure = ex;
+                    _logger.LogDebug(ex,
+                        "Could not establish a responder session for {Peer}; trying the ratchets already held.",
+                        LogSanitizer.SanitizeUhid(peerUhid));
+                }
             }
 
-            if (!_sessions.TryGetValue(peerUhid, out var session))
-                throw new InvalidOperationException(
+            if (!_sessions.TryGetValue(peerUhid, out var current))
+                throw (Exception?)establishFailure ?? new InvalidOperationException(
                     $"No session established with peer {LogSanitizer.SanitizeUhid(peerUhid)}");
 
             if (senderRatchetPub == null)
                 throw new CryptographicException(
                     "Message missing SenderEphemeralKeyX25519 — required for the Double Ratchet.");
 
-            // DH-ratchet step? Triggered when the peer's ratchet public key changes.
-            if (session.RemoteEphemeralPub == null
-                || !ConstantTimeEquals(senderRatchetPub, session.RemoteEphemeralPub))
+            // Try the live ratchet, then the ones it replaced. Each attempt runs on a copy, because a
+            // ratchet step mutates the session as it walks: an attempt that failed halfway through
+            // would leave a perfectly good session unable to read anything afterwards. Only the copy
+            // that produced plaintext is kept.
+            var candidates = CandidateSessions(peerUhid, current);
+            CryptographicException? firstFailure = null;
+
+            for (var i = 0; i < candidates.Count; i++)
             {
-                // First, derive any skipped keys from the previous receive chain
-                // (the chain keyed by the OLD RemoteEphemeralPub). Then ratchet.
-                SkipMessageKeys(session, payload.PreviousChainCount);
-                DhRatchetReceive(session, senderRatchetPub);
-
-                using var ratchetActivity = AetherNetTelemetry.ActivitySource.StartActivity("AetherNet.DhRatchet.Step");
-                if (ratchetActivity is not null)
-                    ratchetActivity.SetTag("aethernet.peer.uhid", LogSanitizer.SanitizeUhid(peerUhid));
-                AetherNetTelemetry.DhRatchetSteps.Add(1);
-            }
-
-            byte[]? messageKey = null;
-            try
-            {
-                // Skipped key cached for this (DHr_pub, counter) pair?
-                var skippedKey = SkippedKey(senderRatchetPub, payload.Counter);
-                if (session.SkippedMessageKeys.TryGetValue(skippedKey, out var cached))
+                byte[] plaintext;
+                var attempt = CopyOf(candidates[i]);
+                try
                 {
-                    session.SkippedMessageKeys.Remove(skippedKey);
-                    messageKey = cached;
+                    plaintext = DecryptWithSession(attempt, payload, senderRatchetPub, peerUhid, activity);
                 }
-                else
+                catch (CryptographicException ex)
                 {
-                    if (session.RecvChainKey == null)
-                        throw new CryptographicException(
-                            "Receive chain not initialized (DH-ratchet step missing).");
-
-                    var gap = payload.Counter - session.RecvCounter;
-                    if (gap > MaxSkippedKeys)
-                        throw new CryptographicException(
-                            $"Message counter gap ({gap}) exceeds maximum ({MaxSkippedKeys}). " +
-                            "Session must be re-established.");
-
-                    // Skip ahead, caching intermediate keys.
-                    while (session.RecvCounter < payload.Counter)
-                    {
-                        byte[]? skipKey = null;
-                        try
-                        {
-                            (session.RecvChainKey, skipKey) = RatchetChainKey(session.RecvChainKey!);
-                            session.SkippedMessageKeys[SkippedKey(senderRatchetPub, session.RecvCounter)] = skipKey;
-                            skipKey = null;
-                            session.RecvCounter++;
-                        }
-                        finally
-                        {
-                            if (skipKey != null)
-                                CryptographicOperations.ZeroMemory(skipKey);
-                        }
-                    }
-
-                    (session.RecvChainKey, messageKey) = RatchetChainKey(session.RecvChainKey!);
-                    session.RecvCounter++;
+                    firstFailure ??= ex;
+                    continue;
                 }
 
-                if (payload.Ciphertext.Length < AesTagSize)
-                    throw new CryptographicException("Ciphertext too short.");
-
-                var ciphertextLength = payload.Ciphertext.Length - AesTagSize;
-                var ciphertext = payload.Ciphertext.AsSpan(0, ciphertextLength);
-                var tag = payload.Ciphertext.AsSpan(ciphertextLength, AesTagSize);
-                var plaintext = new byte[ciphertextLength];
-
-                using var aes = new AesGcm(messageKey, AesTagSize);
-                aes.Decrypt(payload.Nonce, ciphertext, tag, plaintext);
-
-                if (activity is not null)
+                if (i > 0)
                 {
-                    activity.SetTag("aethernet.peer.uhid", LogSanitizer.SanitizeUhid(peerUhid));
-                    activity.SetTag("aethernet.message.type", payload.MessageType);
-                    activity.SetTag("aethernet.message.counter", payload.Counter);
+                    // The peer is talking on a ratchet this node had moved off. Theirs is the one that
+                    // works, so adopt it — otherwise the reply goes back on a ratchet they cannot read,
+                    // and the two sides trade repairs forever.
+                    _logger.LogInformation(
+                        "Opened a message from {Peer} on a ratchet this node had replaced; adopting it.",
+                        LogSanitizer.SanitizeUhid(peerUhid));
+                    ArchiveSession(peerUhid);
                 }
-                AetherNetTelemetry.MessagesDecrypted.Add(1);
-                _logger.LogDebug("Decrypted msg from {Peer}, counter={Counter}",
-                    LogSanitizer.SanitizeUhid(peerUhid), payload.Counter);
 
-                TryPersistSession(peerUhid, session);
+                _sessions[peerUhid] = attempt;
+                TryPersistSession(peerUhid, attempt);
                 return Task.FromResult(plaintext);
             }
-            finally
-            {
-                if (messageKey != null)
-                    CryptographicOperations.ZeroMemory(messageKey);
-            }
+
+            throw firstFailure ?? (Exception?)establishFailure ?? new CryptographicException(
+                $"No ratchet held for peer {LogSanitizer.SanitizeUhid(peerUhid)} could open this message.");
         }
         finally
         {
             AetherNetTelemetry.DecryptLatency.Record(stopwatch.GetElapsedMilliseconds());
         }
     }
+
+    /// <summary>
+    /// Walk one message through one ratchet. Mutates <paramref name="session"/> as it goes — that
+    /// is what a ratchet does — so callers hand it a copy they are willing to lose.
+    /// </summary>
+    private byte[] DecryptWithSession(
+        SignalSession session,
+        EncryptedPayload payload,
+        byte[] senderRatchetPub,
+        string peerUhid,
+        System.Diagnostics.Activity? activity)
+    {
+        // DH-ratchet step? Triggered when the peer's ratchet public key changes.
+        if (session.RemoteEphemeralPub == null
+            || !ConstantTimeEquals(senderRatchetPub, session.RemoteEphemeralPub))
+        {
+            // First, derive any skipped keys from the previous receive chain
+            // (the chain keyed by the OLD RemoteEphemeralPub). Then ratchet.
+            SkipMessageKeys(session, payload.PreviousChainCount);
+            DhRatchetReceive(session, senderRatchetPub);
+
+            using var ratchetActivity = AetherNetTelemetry.ActivitySource.StartActivity("AetherNet.DhRatchet.Step");
+            if (ratchetActivity is not null)
+                ratchetActivity.SetTag("aethernet.peer.uhid", LogSanitizer.SanitizeUhid(peerUhid));
+            AetherNetTelemetry.DhRatchetSteps.Add(1);
+        }
+
+        byte[]? messageKey = null;
+        try
+        {
+            // Skipped key cached for this (DHr_pub, counter) pair?
+            var skippedKey = SkippedKey(senderRatchetPub, payload.Counter);
+            if (session.SkippedMessageKeys.TryGetValue(skippedKey, out var cached))
+            {
+                session.SkippedMessageKeys.Remove(skippedKey);
+                messageKey = cached;
+            }
+            else
+            {
+                if (session.RecvChainKey == null)
+                    throw new CryptographicException(
+                        "Receive chain not initialized (DH-ratchet step missing).");
+
+                var gap = payload.Counter - session.RecvCounter;
+                if (gap > MaxSkippedKeys)
+                    throw new CryptographicException(
+                        $"Message counter gap ({gap}) exceeds maximum ({MaxSkippedKeys}). " +
+                        "Session must be re-established.");
+
+                // Skip ahead, caching intermediate keys.
+                while (session.RecvCounter < payload.Counter)
+                {
+                    byte[]? skipKey = null;
+                    try
+                    {
+                        (session.RecvChainKey, skipKey) = RatchetChainKey(session.RecvChainKey!);
+                        session.SkippedMessageKeys[SkippedKey(senderRatchetPub, session.RecvCounter)] = skipKey;
+                        skipKey = null;
+                        session.RecvCounter++;
+                    }
+                    finally
+                    {
+                        if (skipKey != null)
+                            CryptographicOperations.ZeroMemory(skipKey);
+                    }
+                }
+
+                (session.RecvChainKey, messageKey) = RatchetChainKey(session.RecvChainKey!);
+                session.RecvCounter++;
+            }
+
+            if (payload.Ciphertext.Length < AesTagSize)
+                throw new CryptographicException("Ciphertext too short.");
+
+            var ciphertextLength = payload.Ciphertext.Length - AesTagSize;
+            var ciphertext = payload.Ciphertext.AsSpan(0, ciphertextLength);
+            var tag = payload.Ciphertext.AsSpan(ciphertextLength, AesTagSize);
+            var plaintext = new byte[ciphertextLength];
+
+            using var aes = new AesGcm(messageKey, AesTagSize);
+            aes.Decrypt(payload.Nonce, ciphertext, tag, plaintext);
+
+            if (activity is not null)
+            {
+                activity.SetTag("aethernet.peer.uhid", LogSanitizer.SanitizeUhid(peerUhid));
+                activity.SetTag("aethernet.message.type", payload.MessageType);
+                activity.SetTag("aethernet.message.counter", payload.Counter);
+            }
+            AetherNetTelemetry.MessagesDecrypted.Add(1);
+            _logger.LogDebug("Decrypted msg from {Peer}, counter={Counter}",
+                LogSanitizer.SanitizeUhid(peerUhid), payload.Counter);
+
+            return plaintext;
+        }
+        finally
+        {
+            if (messageKey != null)
+                CryptographicOperations.ZeroMemory(messageKey);
+        }
+    }
+
+    /// <summary>Set this peer's live ratchet aside, so a message already sent on it still opens.</summary>
+    private void ArchiveSession(string peerUhid)
+    {
+        if (!_sessions.TryGetValue(peerUhid, out var replaced)) return;
+
+        var previous = _superseded.GetOrAdd(peerUhid, _ => new List<SignalSession>());
+        lock (previous)
+        {
+            previous.Insert(0, replaced);
+            while (previous.Count > MaxSupersededSessions)
+                previous.RemoveAt(previous.Count - 1);
+        }
+    }
+
+    /// <summary>The ratchets worth trying for this peer: the live one, then whatever it replaced.</summary>
+    private List<SignalSession> CandidateSessions(string peerUhid, SignalSession current)
+    {
+        var candidates = new List<SignalSession> { current };
+        if (_superseded.TryGetValue(peerUhid, out var previous))
+        {
+            lock (previous) candidates.AddRange(previous);
+        }
+
+        return candidates;
+    }
+
+    /// <summary>
+    /// A working copy of a session. Round-tripping the persistence snapshot is the copy: anything it
+    /// failed to carry would already be lost across a restart, so there is no second definition of
+    /// "the whole session" to drift from this one.
+    /// </summary>
+    private static SignalSession CopyOf(SignalSession session) =>
+        SignalSessionSerializer.Deserialize(SignalSessionSerializer.Serialize(session))
+            ?? throw new CryptographicException("A session could not be copied for decryption.");
 
     /// <inheritdoc />
     public Task<PreKeyBundle> GeneratePreKeyBundleAsync(string localUhid, CancellationToken ct = default)
@@ -1042,6 +1179,7 @@ public sealed class SignalProtocolService : ISignalProtocolService
             rootKey = null;
             ephemeralPriv = null!; // session retains ownership
 
+            ArchiveSession(bundle.Uhid);
             _sessions[bundle.Uhid] = session;
             AetherNetTelemetry.SessionsEstablished.Add(1);
             TryPersistSession(bundle.Uhid, session);
@@ -1132,6 +1270,7 @@ public sealed class SignalProtocolService : ISignalProtocolService
 
             rootKey = null;
 
+            ArchiveSession(peerUhid);
             _sessions[peerUhid] = session;
             AetherNetTelemetry.SessionsEstablished.Add(1);
 
