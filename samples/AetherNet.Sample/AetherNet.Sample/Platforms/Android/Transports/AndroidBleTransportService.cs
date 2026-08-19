@@ -125,7 +125,11 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     /// difference rather than discovering it as congestion.
     /// </para>
     /// </summary>
-    public long MaxBandwidthBps => 5_000;
+    // Measured on these handsets: ATT MTU 517, ~150-byte packets at fifty a second, and 512-byte
+    // packets carried without trouble — on the order of 100 kbps. The old 5_000 here came from a
+    // link still on the 23-byte default MTU, and it is not a comment: Widest() picks the radio
+    // traffic leaves on from this number, so understating it steers real calls.
+    public long MaxBandwidthBps => 100_000;
     public bool IsLinked => _linked;
     public string? PeerTag => _peerTag;
 

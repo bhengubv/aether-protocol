@@ -142,7 +142,7 @@
                 ? $"{Messages.GroupMembers(Peer).Count} people · end-to-end encrypted"
                 : $"{Messages.GroupMembers(Peer).Count} people · not connected")
         : !Connected ? (Radio.IsLinked ? $"connected to someone else — not {Peer}" : "not connected")
-        : _secure ? $"end-to-end encrypted over {Radio.SelectedRadio}"
+        : _secure ? $"end-to-end encrypted over {Radio.LinkRadio}"
         : Contacts.Contacts.FirstOrDefault(c => c.Tag == Peer)?.IsMutual == true
             ? "setting up encryption…"
             : "waiting for them to add you back";

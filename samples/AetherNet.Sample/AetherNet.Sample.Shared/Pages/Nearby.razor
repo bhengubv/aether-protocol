@@ -16,7 +16,7 @@
     {
         <div class="linked-now">
             <span class="near-dot"></span>
-            <span><span class="mono">@peer</span> is connected to this phone over @Radio.SelectedRadio</span>
+            <span><span class="mono">@peer</span> is connected to this phone over @Radio.LinkRadio</span>
         </div>
     }
 
@@ -41,7 +41,7 @@
     </div>
 
     <button class="connect" @onclick='() => Nav.NavigateTo("add")'>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Add someone by their Aether name</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Add someone by their AetherTag</span>
     </button>
 
     @if (Radio.Radios.Count > 0)
@@ -142,7 +142,7 @@
     /// </para>
     /// </summary>
     private string State(ContactRecord c) =>
-        Radio.IsLinked && Radio.PeerTag == c.Tag ? $"on the air over {Radio.SelectedRadio}"
+        Radio.IsLinked && Radio.PeerTag == c.Tag ? $"on the air over {Radio.LinkRadio}"
         : c.IsMutual ? "you have each other"
         : c.IsIncoming ? "wants to connect"
         : "waiting for them";

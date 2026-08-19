@@ -92,6 +92,17 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     public IReadOnlyList<RadioInfo> Radios =>
         _order.Select(r => new RadioInfo(r.Name, r.IsAvailable, r.UnavailableReason, r.IsFixable)).ToArray();
     public string SelectedRadio => _selected.Name;
+
+    /// <inheritdoc />
+    public string LinkRadio
+    {
+        get
+        {
+            foreach (var r in Candidates())
+                if (r.IsLinked) return r.Name;
+            return _selected.Name;
+        }
+    }
     public bool IsSupported => _selected.IsAvailable;
 
     /// <summary>
@@ -112,8 +123,25 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     {
         get
         {
-            if (Active.PeerTag is not { } wire) return null;
-            lock (_gate) return _known.TryGetValue(wire, out var tag) ? tag : wire;
+            // Ask the radios in the order traffic actually uses them, not the order the picker shows.
+            // The widest linked radio is the one a packet leaves on, and it is very often not the
+            // selected one: bring Wi-Fi Direct up alongside BLE and every byte moves to Wi-Fi Direct
+            // while the picker still says BLE.
+            foreach (var r in Candidates())
+            {
+                if (r.PeerTag is not { } wire) continue;
+                lock (_gate)
+                {
+                    if (_known.TryGetValue(wire, out var tag)) return tag;
+                }
+            }
+
+            // Nobody proven yet — report the wire address of the radio traffic would leave on, so what
+            // is shown is what is being used.
+            foreach (var r in Candidates())
+                if (r.PeerTag is { } wire) return wire;
+
+            return null;
         }
     }
 
@@ -123,21 +151,36 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     /// <inheritdoc />
     public void IdentifyPeer(string aetherTag)
     {
-        if (string.IsNullOrEmpty(aetherTag) || Active.PeerTag is not { } wire || wire == aetherTag)
-            return;
+        if (string.IsNullOrEmpty(aetherTag)) return;
 
-        lock (_gate)
+        // One person, however many radios can see them — so record the tag against the wire address
+        // that EVERY linked radio currently has for them.
+        //
+        // This used to record only the selected radio's address, while sending picks the widest linked
+        // one. With two radios up those are different addresses, so the tag was learned for a link
+        // nothing was being sent on, and the link everything WAS being sent on stayed anonymous. A call
+        // placed over Wi-Fi Direct while BLE held the identity reached nobody, and neither phone had a
+        // word to say about why.
+        foreach (var r in _order)
         {
-            if (_known.TryGetValue(wire, out var already) && already == aetherTag) return;
+            if (!r.IsLinked || r.PeerTag is not { } wire || wire == aetherTag) continue;
 
-            // Wire addresses rotate every epoch, so this would otherwise grow for as long as the app
-            // runs. Nothing here is worth keeping: the live link re-identifies itself on the next
-            // message that opens, which is seconds away on a conversation that is actually going.
-            if (_known.Count > 32) _known.Clear();
-            _known[wire] = aetherTag;
+            bool learned = false;
+            lock (_gate)
+            {
+                if (!_known.TryGetValue(wire, out var already) || already != aetherTag)
+                {
+                    // Wire addresses rotate every epoch, so this would otherwise grow for as long as
+                    // the app runs. Nothing here is worth keeping: the live link re-identifies itself
+                    // on the next message that opens, which is seconds away on a live conversation.
+                    if (_known.Count > 32) _known.Clear();
+                    _known[wire] = aetherTag;
+                    learned = true;
+                }
+            }
+
+            if (learned) Emit($"[{r.Name}] ● {wire} is {aetherTag}");
         }
-
-        Emit($"[{Active.Name}] ● {wire} is {aetherTag}");
     }
 
     public event Action? Changed;
@@ -221,13 +264,31 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         return false;
     }
 
-    /// <summary>The radios worth trying, best first: the active one, then any other holding a link.</summary>
+    /// <summary>
+    /// The radios worth trying, best first: the chosen one, then anything else holding a link.
+    ///
+    /// <para>
+    /// The person's choice wins. Picking a radio is an instruction, not a hint — and it used to be a
+    /// hint: this returned the WIDEST linked radio first regardless, so choosing BLE while Wi-Fi Direct
+    /// was up changed the label on the screen and not one byte of what actually happened.
+    /// </para>
+    ///
+    /// <para>
+    /// Everything else linked still follows, widest first, so a call in progress does not drop dead the
+    /// moment the chosen radio does.
+    /// </para>
+    /// </summary>
     private IEnumerable<IRadio> Candidates()
     {
-        var first = Widest();
-        yield return first;
-        foreach (var r in _order)
-            if (!ReferenceEquals(r, first) && r.IsLinked) yield return r;
+        if (_selected.IsLinked) yield return _selected;
+
+        foreach (var r in _order
+                     .Where(r => r.IsLinked && !ReferenceEquals(r, _selected))
+                     .OrderByDescending(r => r.MaxBandwidthBps))
+            yield return r;
+
+        // Nothing linked at all — still hand it to the chosen radio, which reports the failure honestly.
+        if (!_selected.IsLinked) yield return _selected;
     }
 
     /// <summary>

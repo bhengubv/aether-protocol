@@ -67,7 +67,7 @@ public static class QrSvg
 
         // QRCoder includes a 4-module quiet zone in the matrix; keep it, scanners need it.
         var svg = new StringBuilder(size * size);
-        svg.Append(CultureInfo.InvariantCulture, $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {size} {size}\" role=\"img\" aria-label=\"Your Aether name as a QR code\">");
+        svg.Append(CultureInfo.InvariantCulture, $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {size} {size}\" role=\"img\" aria-label=\"Your AetherTag as a QR code\">");
         svg.Append(CultureInfo.InvariantCulture, $"<rect width=\"{size}\" height=\"{size}\" fill=\"{light}\"/>");
 
         // ── Data modules: dots, skipping the three finder patterns and the centre reserve ──

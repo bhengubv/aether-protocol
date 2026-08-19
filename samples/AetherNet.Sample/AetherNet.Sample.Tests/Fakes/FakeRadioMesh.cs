@@ -34,6 +34,7 @@ public sealed class FakeRadioMesh : IRadioMesh
     public string LocalTag { get; }
     public IReadOnlyList<RadioInfo> Radios { get; } = [new("Fake", true, null)];
     public string SelectedRadio => "Fake";
+    public string LinkRadio => "Fake";
     public bool IsSupported => true;
     public bool IsLinked { get; private set; }
 

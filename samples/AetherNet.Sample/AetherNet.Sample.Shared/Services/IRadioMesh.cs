@@ -25,8 +25,20 @@ public interface IRadioMesh
     /// <summary>Every radio the app carries, with per-device availability.</summary>
     IReadOnlyList<RadioInfo> Radios { get; }
 
-    /// <summary>The currently-selected radio's name.</summary>
+    /// <summary>The currently-selected radio's name — what the picker shows.</summary>
     string SelectedRadio { get; }
+
+    /// <summary>
+    /// The radio a packet actually leaves on right now.
+    ///
+    /// <para>
+    /// Not the same as <see cref="SelectedRadio"/>, and the difference matters to anyone reading the
+    /// screen. Sending takes the widest linked radio, so the moment Wi-Fi Direct comes up alongside
+    /// BLE every byte moves to Wi-Fi Direct while the picker still says BLE — and a banner reading
+    /// "connected over BLE" is then simply false. Say what is carrying the traffic.
+    /// </para>
+    /// </summary>
+    string LinkRadio { get; }
 
     /// <summary>Whether the selected radio is usable on this device.</summary>
     bool IsSupported { get; }

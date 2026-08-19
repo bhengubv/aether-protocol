@@ -81,7 +81,7 @@
             <div class="pane">
                 <h1>Add your first person</h1>
                 <p class="lede">Aether has no search and no directory — you add each other, like
-                    swapping numbers. Type their Aether name, or have them show you theirs.</p>
+                    swapping numbers. Type their AetherTag, or have them show you theirs.</p>
 
                 <input class="tagbox" @bind="_theirTag" @bind:event="oninput"
                        placeholder="e.g. KXJB7-MN2P4" spellcheck="false" autocapitalize="characters" />
@@ -175,7 +175,7 @@
             }
             else
             {
-                _addError = "That doesn't look like an Aether name. They look like KXJB7-MN2P4.";
+                _addError = "That doesn't look like an AetherTag. They look like KXJB7-MN2P4.";
             }
         }
         finally { _busy = false; }
