@@ -483,6 +483,62 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         PumpSend();
     }
 
+    /// <summary>
+    /// The stack refused the frame. Put it back and try again — do NOT treat it as sent.
+    ///
+    /// <para>
+    /// This was the single biggest thing wrong with voice on this radio. Android's GATT stack allows
+    /// one operation in flight per connection and returns false for anything offered while the previous
+    /// is outstanding. The old code called OnFrameSent() on a refusal — marking the frame delivered and
+    /// moving to the next — so a refused write silently threw the frame away. Measured on a live call:
+    /// 820 refusals against 44 accepted writes. Ninety-five per cent of the audio never reached the
+    /// air, and the log reported a healthy fifty writes a second, because it was counting attempts.
+    /// </para>
+    ///
+    /// <para>
+    /// Back at the FRONT of the queue, because a packet is several fragments the far side reassembles
+    /// in order — a frame returning in the wrong place corrupts its packet as surely as dropping it.
+    /// </para>
+    /// </summary>
+    private void Requeue(byte[] frame)
+    {
+        lock (_sendLock)
+        {
+            var rest = _sendQueue.ToArray();
+            _sendQueue.Clear();
+            _sendQueue.Enqueue(frame);
+            foreach (var f in rest) _sendQueue.Enqueue(f);
+            _sending = false;
+        }
+
+        // The stack refuses while an operation is outstanding, so the completion callback usually
+        // restarts us. This is the safety net for when it does not.
+        _ = Task.Delay(RetryAfter).ContinueWith(_ => { if (!_disposed) PumpSend(); });
+    }
+
+    /// <summary>How long to wait before offering a refused frame again.</summary>
+    private static readonly TimeSpan RetryAfter = TimeSpan.FromMilliseconds(6);
+
+    /// <summary>
+    /// Account for a frame offered to the radio, and say something occasionally.
+    ///
+    /// <para>
+    /// Emphatically not one line per frame. At fifty frames a second, writing to logcat, to the logger
+    /// and raising a UI event for every one is real work on the very thread meant to be feeding the
+    /// radio — the instrumentation was competing with the thing it measured.
+    /// </para>
+    /// </summary>
+    private void Sent(bool accepted, byte[] frame, string how)
+    {
+        if (accepted) _framesAccepted++; else _framesRefused++;
+
+        if ((_framesAccepted + _framesRefused) % 250 == 0)
+            L($"▶ {how}: {_framesAccepted} on the air, {_framesRefused} deferred (radio busy), {frame.Length}B");
+    }
+
+    private int _framesAccepted;
+    private int _framesRefused;
+
     private void SendFrameNow(byte[] frame)
     {
         try
@@ -492,15 +548,15 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
                 _rxCharRemote.WriteType = GattWriteType.Default;         // with response ⇒ OnCharacteristicWrite fires
                 _rxCharRemote.SetValue(frame);
                 var ok = _gatt.WriteCharacteristic(_rxCharRemote);
-                L($"▶ central write {frame.Length}B accepted={ok}");
-                if (!ok) OnFrameSent();                                  // stack refused it — don't wedge the queue
+                Sent(ok, frame, "central write");
+                if (!ok) { Requeue(frame); return; }                     // refused ⇒ back-pressure, NOT delivery
             }
             else if (_gattServer is not null && _txChar is not null && _peripheralPeer is not null) // peripheral → notify
             {
                 _txChar.SetValue(frame);
                 var ok = _gattServer.NotifyCharacteristicChanged(_peripheralPeer, _txChar, false); // ⇒ OnNotificationSent
-                L($"▶ peripheral notify {frame.Length}B accepted={ok}");
-                if (!ok) OnFrameSent();
+                Sent(ok, frame, "peripheral notify");
+                if (!ok) { Requeue(frame); return; }                     // refused ⇒ back-pressure, NOT delivery
             }
             else
             {
@@ -737,9 +793,28 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
             BluetoothGattCharacteristic? characteristic, bool preparedWrite, bool responseNeeded,
             int offset, byte[]? value)
         {
-            if (device is not null && value is not null) o.OnServerWrite(device, value);
+            // Answer FIRST, then do the work — and do the work on another thread.
+            //
+            // A write-with-response does not complete on the far side until this response is sent, and
+            // Android allows one GATT operation in flight per connection: while a write is outstanding
+            // it refuses every other. So whatever runs before SendResponse is time the PEER cannot
+            // send anything at all.
+            //
+            // OnServerWrite reassembles the packet, decrypts it, dispatches it, and ends in
+            // AudioTrack.Write, which blocks until the speaker takes the audio. Doing that first meant
+            // playing inbound audio physically stalled the other phone's outbound queue. Measured on a
+            // live call: the central got 13 frames away and then every single write for the rest of the
+            // call was refused, while its peer — which only notifies, and never waits for a response —
+            // sent 500 with not one refusal.
             if (responseNeeded)
                 o._gattServer?.SendResponse(device, requestId, GattStatus.Success, offset, value);
+
+            if (device is not null && value is not null)
+            {
+                var from = device;
+                var payload = value;
+                _ = Task.Run(() => { try { o.OnServerWrite(from, payload); } catch { /* never kill the radio thread */ } });
+            }
         }
 
         // Must acknowledge the CCCD subscribe write, or the central's WriteDescriptor times out (~30s).
