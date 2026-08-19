@@ -571,8 +571,13 @@ public sealed class SignalProtocolService : ISignalProtocolService
             if (session.SendChainKey is null)
             {
                 if (session.RemoteEphemeralPub is null)
-                    throw new InvalidOperationException(
-                        "Cannot derive sending chain: peer's ratchet public key is unknown.");
+                    // A CryptographicException rather than an InvalidOperationException because this
+                    // is a dead session, not a misuse of the API — and every repair path in the stack
+                    // recognises the former. Reported as the latter, a half-built session sat there
+                    // failing every send forever with nothing rebuilding it.
+                    throw new CryptographicException(
+                        "Cannot derive sending chain: peer's ratchet public key is unknown. " +
+                        "This session never completed and has to be re-established.");
                 DhRatchetSendOnly(session, session.RemoteEphemeralPub);
             }
 
@@ -1280,7 +1285,12 @@ public sealed class SignalProtocolService : ISignalProtocolService
                     CryptographicOperations.ZeroMemory(stored.Priv);
             }
             TryConsumeOneTimePreKey(payload.UsedOneTimePreKeyId);
-            TryPersistSession(peerUhid, session);
+
+            // Deliberately NOT persisted here. A responder session at this point has no DHr and no
+            // sending chain — it can receive, and it cannot send a single byte until the message
+            // that established it has actually been opened. Storing it now means that if that
+            // message then fails, what survives every restart is a session that can never speak,
+            // and the node is wedged silently. The decrypt path stores the session once it works.
 
             _logger.LogDebug(
                 "Established responder session with {Peer} via X3DH; one-time pre-key {Id} consumed",
