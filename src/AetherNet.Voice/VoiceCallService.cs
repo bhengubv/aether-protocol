@@ -283,7 +283,15 @@ public sealed class VoiceCallService : IVoiceCallService
             Payload = payload,
         };
 
-        var route = await _routing.FindRouteAsync(remote, cancellationToken).ConfigureAwait(false);
+        // Signalling does not wait for discovery either, and the reason is simpler than it looks:
+        // discovery's own fallback is this same broadcast. Waiting RouteTimeoutMs first cannot make a
+        // packet arrive that a broadcast would not have delivered — it only delays it by five seconds.
+        //
+        // That delay is the whole of a call's feel. Hanging up left the other phone still sending audio
+        // for seven seconds; an answer arrived so late the caller looked like it had never rung. Both
+        // read as "signalling is broken" and neither was: the offer, the answer and the hangup were all
+        // sitting in a route lookup for a router that does not exist on a direct radio link.
+        var route = _routing.GetCachedRoute(remote);
         if (route is not null)
             await _sender.SendAsync(packet, route.NextHopUhid, cancellationToken).ConfigureAwait(false);
         else

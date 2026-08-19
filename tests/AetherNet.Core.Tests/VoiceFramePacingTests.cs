@@ -170,6 +170,99 @@ public class VoiceFramePacingTests
         Assert.Equal(frames, sender.Sent);
     }
 
+    // ── signalling, which also must not wait ───────────────────────────────
+
+    /// <summary>
+    /// Hanging up has to reach the other phone at once. It used to sit in a route lookup, so the peer
+    /// kept sending audio into a call that was over — measured at seven seconds on two handsets.
+    /// </summary>
+    [Fact]
+    public async Task Hanging_up_leaves_immediately()
+    {
+        var (voice, callId, routing, sender) = await ConnectedCallAsync();
+
+        var clock = Stopwatch.StartNew();
+        await voice.HangupAsync(callId);
+        clock.Stop();
+
+        Assert.Equal(0, routing.DiscoveryCalls);
+        Assert.Equal(1, sender.Sent);
+        Assert.True(clock.ElapsedMilliseconds < 500,
+            $"hanging up took {clock.ElapsedMilliseconds}ms to reach the radio");
+    }
+
+    /// <summary>
+    /// So does placing one. A five-second wait before the offer even goes out is indistinguishable
+    /// from a phone that never rang.
+    /// </summary>
+    [Fact]
+    public async Task Placing_a_call_leaves_immediately()
+    {
+        var routing = new SilentRouting();
+        var sender = new CountingSender();
+        var voice = new VoiceCallService(sender, routing, incentives: null, logger: NullLogger<VoiceCallService>.Instance);
+
+        var clock = Stopwatch.StartNew();
+        await voice.PlaceAsync(Peer, ["opus"]);
+        clock.Stop();
+
+        Assert.Equal(0, routing.DiscoveryCalls);
+        Assert.Equal(1, sender.Sent);
+        Assert.True(clock.ElapsedMilliseconds < 500,
+            $"placing a call took {clock.ElapsedMilliseconds}ms to reach the radio");
+    }
+
+    /// <summary>
+    /// And answering. An answer that arrives five seconds late looks to the caller like it never came,
+    /// which is exactly how this presented.
+    /// </summary>
+    [Fact]
+    public async Task Answering_leaves_immediately()
+    {
+        var routing = new SilentRouting();
+        var sender = new CountingSender();
+        var voice = new VoiceCallService(sender, routing, incentives: null, logger: NullLogger<VoiceCallService>.Instance);
+
+        var session = await voice.PlaceAsync(Peer, ["opus"]);
+        session.State = CallState.Incoming;          // as the answering side sees it
+        routing.DiscoveryCalls = 0;
+        sender.Sent = 0;
+
+        var clock = Stopwatch.StartNew();
+        await voice.AnswerAsync(session.Id, "opus", 16_000);
+        clock.Stop();
+
+        Assert.Equal(0, routing.DiscoveryCalls);
+        Assert.Equal(1, sender.Sent);
+        Assert.True(clock.ElapsedMilliseconds < 500,
+            $"answering took {clock.ElapsedMilliseconds}ms to reach the radio");
+    }
+
+    /// <summary>
+    /// A whole call — place, answer, speak, hang up — must never touch discovery. This is the shape a
+    /// person actually experiences, and every part of it was five seconds slow.
+    /// </summary>
+    [Fact]
+    public async Task A_whole_call_from_dial_to_hangup_never_waits()
+    {
+        var routing = new SilentRouting();
+        var sender = new CountingSender();
+        var voice = new VoiceCallService(sender, routing, incentives: null, logger: NullLogger<VoiceCallService>.Instance);
+
+        var clock = Stopwatch.StartNew();
+        var session = await voice.PlaceAsync(Peer, ["opus"]);
+        session.State = CallState.Incoming;
+        await voice.AnswerAsync(session.Id, "opus", 16_000);
+        for (uint i = 0; i < 100; i++)                       // two seconds of speech
+            await voice.SendFrameAsync(session.Id, new byte[80], i);
+        await voice.HangupAsync(session.Id);
+        clock.Stop();
+
+        Assert.Equal(0, routing.DiscoveryCalls);
+        Assert.True(clock.ElapsedMilliseconds < 1000,
+            $"a whole call took {clock.ElapsedMilliseconds}ms of setup and teardown");
+    }
+
     /// <summary>A frame for a call that is not connected is still ignored — this changed nothing there.</summary>
     [Fact]
     public async Task A_frame_for_a_call_that_is_not_connected_goes_nowhere()

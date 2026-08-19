@@ -422,7 +422,10 @@ public sealed class GroupVoiceCallService : IGroupVoiceCallService
             Priority = 32,
             Payload = payload,
         };
-        var route = await _routing.FindRouteAsync(toUhid, cancellationToken).ConfigureAwait(false);
+        // Cached route or broadcast, never discovery — see VoiceCallService.SendSignalingAsync. Waiting
+        // cannot deliver anything the broadcast would not; it only makes joining and leaving a group
+        // call take five seconds each.
+        var route = _routing.GetCachedRoute(toUhid);
         if (route is not null)
             await _sender.SendAsync(packet, route.NextHopUhid, cancellationToken).ConfigureAwait(false);
         else
