@@ -67,6 +67,14 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
 
     private readonly object _sendLock = new();
     private readonly Queue<byte[]> _sendQueue = new();
+
+    /// <summary>
+    /// How many frames may wait for the radio. At 20ms of speech per frame this is about half a
+    /// second — deep enough that a burst of chat is never touched, shallow enough that audio delay
+    /// cannot creep up over the length of a call.
+    /// </summary>
+    private const int MaxQueuedFrames = 24;
+    private int _dropReports;
     private bool _sending;
     private DateTime _sendStartedUtc;
     private byte _msgSeq;
@@ -375,6 +383,28 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     public Task<bool> SendAsync(byte[] data)
     {
         if (!_linked) return Task.FromResult(false);
+
+        // Refuse the whole packet when the radio is behind — and never drop individual fragments.
+        //
+        // A packet goes out as several BLE writes that the far side reassembles. Dropping one fragment
+        // does not lose one packet: it corrupts the packet that fragment belonged to, and the orphans
+        // left behind splice into whatever arrives next. Tried exactly that for one build and the audio
+        // went from choppy to silent, which is precisely what a reassembler fed half-packets sounds
+        // like.
+        //
+        // Refusing here keeps every packet whole and puts the decision where it belongs: the caller
+        // knows whether its packet is disposable. The voice queue drops its oldest frame and carries
+        // on; chat sees a failed send and re-sends, which it already knows how to do.
+        lock (_sendLock)
+        {
+            if (_sendQueue.Count > MaxQueuedFrames)
+            {
+                if (++_dropReports % 50 == 1)
+                    L($"radio is behind ({_sendQueue.Count} frames queued) — refusing packets until it catches up");
+                return Task.FromResult(false);
+            }
+        }
+
         EnqueueFrames(Fragment(data));
         return Task.FromResult(true);
     }
@@ -392,6 +422,30 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         return MeshFraming.Fragment(data, _mtu, id);
     }
 
+    /// <summary>
+    /// Queue frames for the radio, and never let the queue become the delay.
+    ///
+    /// <para>
+    /// This was unbounded. A microphone produces fifty frames a second regardless of what the radio is
+    /// doing, and this drains one frame per write-complete callback — so any shortfall accumulated
+    /// here, forever. On two phones it reached roughly thirty seconds of backed-up audio: every word
+    /// arrived, in order, half a minute late. The call service above bounds its own queue, but a
+    /// bounded queue draining into an unbounded one is only a slower way to grow.
+    /// </para>
+    ///
+    /// <para>
+    /// Over the cap, the OLDEST frame goes. For speech that is plainly right — nobody wants half a
+    /// minute of backlog played at them. It is right for the rest too: everything on this radio is
+    /// either real-time, or a message whose delivery is already tracked and re-sent by the layer that
+    /// cares about it. Half a second of queue is far more than a burst of chat ever needs, so what
+    /// actually gets dropped here is voice, which is exactly the traffic that should be.
+    /// </para>
+    /// </summary>
+    /// <summary>
+    /// Queue a packet's fragments. Once a packet is admitted, every one of its fragments goes — the
+    /// queue depth is enforced in <see cref="SendAsync"/>, on whole packets, because a half-sent packet
+    /// is worse than no packet at all.
+    /// </summary>
     private void EnqueueFrames(IEnumerable<byte[]> frames)
     {
         lock (_sendLock)

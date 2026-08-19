@@ -25,6 +25,10 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
 {
     private readonly object _gate = new();
 
+    private AudioManager? _audioManager;
+    private Mode _restoreMode = Mode.Normal;
+    private bool _restoreSpeaker;
+
     private readonly object _ringGate = new();
     private Ringtone? _ringtone;
 
@@ -96,12 +100,32 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
             var minOut = AudioTrack.GetMinBufferSize(sampleRateHz, ChannelOut.Mono, Encoding.Pcm16bit);
             if (minIn <= 0 || minOut <= 0) return Task.FromResult(false);
 
+            // Two frames, not four. Every frame held here is 20ms a listener waits, and this sits on top
+            // of the send queue and the radio — the delay a person actually hears is the sum. The
+            // platform floor still wins where it is larger, which is the only reason for the Max.
             var frameBytes = frameSamples * 2;
-            var inBuffer = Math.Max(minIn, frameBytes * 4);
-            var outBuffer = Math.Max(minOut, frameBytes * 4);
+            var inBuffer = Math.Max(minIn, frameBytes * 2);
+            var outBuffer = Math.Max(minOut, frameBytes * 2);
 
             try
             {
+                // Put the phone in call mode and use the loudspeaker.
+                //
+                // Stream.VoiceCall alone routes to the EARPIECE — the little speaker you hold against
+                // your ear — and its level is the in-call volume stream, which the volume buttons do
+                // not touch while the phone is not in a call. So the audio was arriving perfectly and
+                // playing, very quietly, out of a speaker nobody was holding to their ear, while the
+                // volume was already at maximum on a different stream entirely.
+                if (AndroidApp.Context.GetSystemService(global::Android.Content.Context.AudioService)
+                        is AudioManager audio)
+                {
+                    _audioManager = audio;
+                    _restoreMode = audio.Mode;
+                    _restoreSpeaker = audio.SpeakerphoneOn;
+                    audio.Mode = Mode.InCommunication;      // makes the in-call stream the live one
+                    audio.SpeakerphoneOn = true;            // and send it out of the loudspeaker
+                }
+
                 _mic = new AudioRecord(AudioSource.VoiceCommunication, sampleRateHz,
                     ChannelIn.Mono, Encoding.Pcm16bit, inBuffer);
                 _speaker = new AudioTrack(Stream.VoiceCall, sampleRateHz,
@@ -251,6 +275,15 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
         try { _speaker?.Release(); } catch { }
         _speaker?.Dispose();
         _speaker = null;
+
+        // Give the phone back exactly how we found it. Leaving it in call mode with the speakerphone
+        // on would follow the person out of the app and into their music.
+        if (_audioManager is { } audio)
+        {
+            try { audio.SpeakerphoneOn = _restoreSpeaker; } catch { }
+            try { audio.Mode = _restoreMode; } catch { }
+            _audioManager = null;
+        }
     }
 
     public void Dispose()

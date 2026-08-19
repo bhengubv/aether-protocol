@@ -51,9 +51,11 @@ public sealed class CallService : IDisposable
     /// Frames waiting to go out, and the single task draining them.
     ///
     /// <para>
-    /// Sixteen frames is about a third of a second of speech. Deep enough to ride out a radio that
-    /// stalls for a moment, shallow enough that what finally goes out is still current — past that a
-    /// listener would rather have the newer audio than the backlog.
+    /// Four frames is 80ms. It was sixteen — a third of a second — chosen to ride out a radio that
+    /// stalls. Measured, this radio does not stall: it takes fifty frames a second at under a
+    /// millisecond each. So that depth absorbed nothing and was simply delay a listener heard, on top
+    /// of the capture buffer, the playback buffer and the time on air. Deep enough to cover a
+    /// scheduling hiccup, shallow enough that nobody waits for it.
     /// </para>
     ///
     /// <para>
@@ -67,7 +69,7 @@ public sealed class CallService : IDisposable
     /// </summary>
     private Channel<(Guid CallId, byte[] Payload, uint Sequence)>? _outgoing;
     private Task? _pump;
-    private const int OutgoingFrameQueue = 16;
+    private const int OutgoingFrameQueue = 4;
     private bool _disposed;
 
     /// <summary>
@@ -265,11 +267,35 @@ public sealed class CallService : IDisposable
         await EndAsync().ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Hang up — stop talking first, then say goodbye.
+    ///
+    /// <para>
+    /// The order matters and used to be the other way round. A live call keeps the radio's queue full
+    /// of audio; sending the hangup while the microphone was still running put it behind half a second
+    /// of speech on a radio that was already behind, so the far phone stayed on the call — still
+    /// playing, still sending — long after this one had hung up, and sometimes never heard about it at
+    /// all.
+    /// </para>
+    ///
+    /// <para>
+    /// Stopping the audio first empties the queue, so the one packet that actually matters goes out on
+    /// a clear radio.
+    /// </para>
+    /// </summary>
     public async Task HangUpAsync(HangupReason reason = HangupReason.Normal, CancellationToken cancellationToken = default)
     {
         if (Current is not { } session) return;
+
+        // Silence first: stop the microphone and drop whatever is still queued for it.
+        StopRinging();
+        _audio.StopRinging();
+        try { await _audio.StopAsync().ConfigureAwait(false); } catch { }
+        _outgoing?.Writer.TryComplete();
+
         try { await Voice().HangupAsync(session.Id, reason, cancellationToken).ConfigureAwait(false); }
         catch (Exception ex) { _log.LogDebug(ex, "hangup"); }
+
         await EndAsync().ConfigureAwait(false);
     }
 
