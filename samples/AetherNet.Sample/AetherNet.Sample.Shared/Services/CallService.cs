@@ -166,14 +166,66 @@ public sealed class CallService : IDisposable
         // while chat over the same pair worked because chat sends one message and waits.
         //
         // So the key goes out when they answer, by which point both sides have a live session.
+        // The protocol fails the call outright when no radio would take the offer. Do not claim to be
+        // calling in that case — there is nothing ringing anywhere.
+        if (Current is { State: CallState.Failed })
+        {
+            T($"could not call {peerTag} — no radio took the offer");
+            Current = null;
+            Raise();
+            return false;
+        }
+
         T($"calling {peerTag}");
         Raise();
+        StopRinging();
+        _ringingOut = new CancellationTokenSource();
+        _ = GiveUpUnlessAnsweredAsync(Current, peerTag, _ringingOut.Token);
         return true;
+    }
+
+    /// <summary>How long to ring before giving up. Long enough to reach a phone in a pocket.</summary>
+    private static readonly TimeSpan RingFor = TimeSpan.FromSeconds(45);
+
+    private CancellationTokenSource? _ringingOut;
+
+    private void StopRinging()
+    {
+        _ringingOut?.Cancel();
+        _ringingOut?.Dispose();
+        _ringingOut = null;
+    }
+
+    /// <summary>
+    /// Give an unanswered call an ending.
+    ///
+    /// <para>
+    /// Nothing used to time an outgoing call out, so a call that reached nobody showed "Calling…" for
+    /// as long as the person was willing to look at it — five minutes, on the run that found this. A
+    /// call that is not going to be answered has to say so, or the screen is simply lying about what
+    /// the radio is doing.
+    /// </para>
+    /// </summary>
+    private async Task GiveUpUnlessAnsweredAsync(VoiceCallSession session, string peerTag, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(RingFor, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { return; }   // answered, or hung up
+
+        if (Current is null || Current.Id != session.Id || Current.State != CallState.Outgoing) return;
+
+        T($"{peerTag} did not answer after {RingFor.TotalSeconds:0}s — giving up");
+        await HangUpAsync(HangupReason.Timeout).ConfigureAwait(false);
     }
 
     public async Task AnswerAsync(CancellationToken cancellationToken = default)
     {
         if (Current is not { State: CallState.Incoming } session) return;
+
+        // Picked up — stop ringing before anything else, because that is the part the person hears.
+        _audio.StopRinging();
 
         // The person answering needs the microphone every bit as much as the person who dialled. This
         // was asked for only when placing a call, so answering one went straight to opening a device
@@ -556,6 +608,7 @@ public sealed class CallService : IDisposable
 
         Current = session;
         T($"incoming call from {session.CallerUhid}");
+        _audio.StartRinging();
         Raise();
     }
 
@@ -597,6 +650,8 @@ public sealed class CallService : IDisposable
 
     private async Task EndAsync()
     {
+        StopRinging();
+        _audio.StopRinging();     // answered, declined, or they gave up — either way, stop making noise
         Current = null;
         try { await _audio.StopAsync().ConfigureAwait(false); } catch { }
 

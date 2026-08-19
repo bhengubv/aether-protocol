@@ -3,6 +3,7 @@
 using System.Buffers.Binary;
 using System.Text.Json;
 using AetherNet.Core.Tests.Fakes;
+using AetherNet.Models;
 using AetherNet.Protocol;
 using AetherNet.Routing;
 using AetherNet.Voice;
@@ -49,6 +50,12 @@ public class VoiceCallServiceTests
     private static (VoiceCallService svc, FakeMeshSender sender, IRoutingService routing) NewService(string localUhid = Local)
     {
         var sender = new FakeMeshSender(localUhid);
+
+        // A peer has to be on the air, because a broadcast that reaches nobody now fails the call
+        // rather than pretending to ring — see VoiceCallService.PlaceAsync. With no peer, these tests
+        // were asserting on a call that, on a real phone, would have been shouting into an empty room.
+        sender.AddPeer(new PeerInfo { Uhid = Remote });
+
         var routing = new RoutingService(sender);
         var svc = new VoiceCallService(sender, routing);
         return (svc, sender, routing);

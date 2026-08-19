@@ -25,6 +25,9 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
 {
     private readonly object _gate = new();
 
+    private readonly object _ringGate = new();
+    private Ringtone? _ringtone;
+
     private AudioRecord? _mic;
     private AudioTrack? _speaker;
     private CancellationTokenSource? _capture;
@@ -153,6 +156,50 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
             var copy = new short[frameSamples];
             Array.Copy(frame, copy, frameSamples);
             try { FrameCaptured?.Invoke(copy); } catch { /* a handler must never kill the mic */ }
+        }
+    }
+
+    /// <summary>
+    /// Ring with the phone's own ringtone.
+    ///
+    /// <para>
+    /// Deliberately not a tone we ship. Using the ringtone the person has already chosen means the
+    /// call sounds like every other call they get, and it inherits everything they have already told
+    /// the phone: their volume, their silent switch, their Do Not Disturb. A bundled tone would
+    /// override all of that and be wrong in a meeting.
+    /// </para>
+    /// </summary>
+    public void StartRinging()
+    {
+        lock (_ringGate)
+        {
+            if (_ringtone is not null) return;
+            try
+            {
+                var uri = RingtoneManager.GetActualDefaultRingtoneUri(AndroidApp.Context, RingtoneType.Ringtone)
+                          ?? RingtoneManager.GetDefaultUri(RingtoneType.Ringtone);
+                if (uri is null) return;
+
+                _ringtone = RingtoneManager.GetRingtone(AndroidApp.Context, uri);
+                if (_ringtone is null) return;
+                _ringtone.Looping = true;                 // a call rings until it is dealt with
+                _ringtone.Play();
+            }
+            catch (Exception)
+            {
+                // A phone that will not ring is not a reason to drop the call — the banner still shows.
+                _ringtone = null;
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public void StopRinging()
+    {
+        lock (_ringGate)
+        {
+            try { _ringtone?.Stop(); } catch (Exception) { /* already gone */ }
+            _ringtone = null;
         }
     }
 

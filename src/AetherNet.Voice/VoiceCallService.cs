@@ -69,7 +69,7 @@ public sealed class VoiceCallService : IVoiceCallService
         };
         _calls[session.Id] = session;
 
-        await SendSignalingAsync(session, new VoiceSignalingMessage
+        var offered = await SendSignalingAsync(session, new VoiceSignalingMessage
         {
             Kind = SignalingKind.Offer,
             CallId = session.Id,
@@ -77,6 +77,20 @@ public sealed class VoiceCallService : IVoiceCallService
             ToUhid = calleeUhid,
             ProposedCodecs = proposedCodecs,
         }, cancellationToken).ConfigureAwait(false);
+
+        if (!offered)
+        {
+            // No radio took the offer, so nothing is ringing anywhere. Saying so now is the whole
+            // point: a call that shows "Calling…" while nothing is on the air is worse than one that
+            // fails, because the person waits instead of trying something else.
+            session.State = CallState.Failed;
+            session.HangupReason = HangupReason.NetworkFailure;
+            session.EndedAt = DateTime.UtcNow;
+            _logger.LogWarning("Voice call {Id} to {Callee} never left this node — no radio took the offer",
+                session.Id, calleeUhid);
+            CallEnded?.Invoke(this, session);
+            return session;
+        }
 
         _logger.LogInformation("Voice call {Id} placed to {Callee}", session.Id, calleeUhid);
         return session;
@@ -266,7 +280,16 @@ public sealed class VoiceCallService : IVoiceCallService
         FrameReceived?.Invoke(this, frame);
     }
 
-    private async Task SendSignalingAsync(VoiceCallSession session, VoiceSignalingMessage message, CancellationToken cancellationToken)
+    /// <summary>
+    /// Put a signalling message on the air. Returns whether it actually left this node.
+    ///
+    /// <para>
+    /// The result used to be discarded, so an offer that reached no radio at all was
+    /// indistinguishable from one that rang. A phone sat showing "Calling…" for five minutes
+    /// with nothing on the air and nothing to say so.
+    /// </para>
+    /// </summary>
+    private async Task<bool> SendSignalingAsync(VoiceCallSession session, VoiceSignalingMessage message, CancellationToken cancellationToken)
     {
         var payload = JsonSerializer.SerializeToUtf8Bytes(message, JsonOptions);
         var remote = string.Equals(message.FromUhid, session.CallerUhid, StringComparison.Ordinal)
@@ -292,12 +315,12 @@ public sealed class VoiceCallService : IVoiceCallService
         // read as "signalling is broken" and neither was: the offer, the answer and the hangup were all
         // sitting in a route lookup for a router that does not exist on a direct radio link.
         var route = _routing.GetCachedRoute(remote);
-        if (route is not null)
-            await _sender.SendAsync(packet, route.NextHopUhid, cancellationToken).ConfigureAwait(false);
-        else
-            await _sender.BroadcastAsync(packet, cancellationToken).ConfigureAwait(false);
+        var delivered = route is not null
+            ? await _sender.SendAsync(packet, route.NextHopUhid, cancellationToken).ConfigureAwait(false)
+            : await _sender.BroadcastAsync(packet, cancellationToken).ConfigureAwait(false) > 0;
 
         await _incentives.RecordRelayAsync(_sender.LocalUhid, packet, cancellationToken).ConfigureAwait(false);
+        return delivered;
     }
 
     /// <summary>

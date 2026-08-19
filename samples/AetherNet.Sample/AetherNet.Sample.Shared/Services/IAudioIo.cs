@@ -33,6 +33,21 @@ public interface IAudioIo
     bool IsRunning { get; }
 
     /// <summary>
+    /// Ring, because a phone that does not make a sound has not really rung.
+    ///
+    /// <para>
+    /// A call arriving with nothing but a banner is only answered by someone already looking at the
+    /// screen, which is the one person who did not need telling. Uses the phone's own ringtone rather
+    /// than shipping one, so it matches every other call the person gets and respects the silent
+    /// switch and volume they have already chosen.
+    /// </para>
+    /// </summary>
+    void StartRinging();
+
+    /// <summary>Stop ringing — answered, declined, or the caller gave up.</summary>
+    void StopRinging();
+
+    /// <summary>
     /// One frame from the microphone, exactly <c>sampleRateHz × frameDurationMs / 1000</c> samples.
     /// Raised on a capture thread, so a handler must not block — a call's audio is a hard real-time
     /// budget, and time spent here is time the next frame is not being read.
@@ -78,5 +93,7 @@ public sealed class NullAudioIo : IAudioIo
         => Task.FromResult(false);
 
     public void Play(short[] pcm) { }
+    public void StartRinging() { }
+    public void StopRinging() { }
     public Task StopAsync() => Task.CompletedTask;
 }
