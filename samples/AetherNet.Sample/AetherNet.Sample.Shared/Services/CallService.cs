@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text;
+using System.Threading.Channels;
 using AetherNet.Protocol;
 using AetherNet.Routing;
 using AetherNet.Security.Services;
@@ -45,6 +46,22 @@ public sealed class CallService : IDisposable
     private EncryptedMeshSender? _sender;
     private OpusVoiceCodec? _codec;
     private uint _sequence;
+
+    /// <summary>
+    /// Frames waiting to go out, and the single task draining them.
+    ///
+    /// <para>
+    /// Sixteen frames is about a third of a second of speech. Deep enough to ride out a radio that
+    /// stalls for a moment, shallow enough that what finally goes out is still current — past that a
+    /// listener would rather have the newer audio than the backlog. Between two handsets BLE carries
+    /// around 5 kbps and this codec produces 24, so most of a call's frames are discarded here by
+    /// design; that is the radio's honest capacity, not a fault, and it is why voice wants the Wi-Fi
+    /// Direct upgrade.
+    /// </para>
+    /// </summary>
+    private Channel<(Guid CallId, byte[] Payload, uint Sequence)>? _outgoing;
+    private Task? _pump;
+    private const int OutgoingFrameQueue = 16;
     private bool _disposed;
 
     /// <summary>
@@ -206,6 +223,17 @@ public sealed class CallService : IDisposable
         _codec = new OpusVoiceCodec();
         _sequence = 0;
 
+        // One queue and one sender per call. DropOldest is what keeps the microphone from outrunning
+        // the radio without ever blocking the capture thread or growing without limit.
+        _outgoing = Channel.CreateBounded<(Guid, byte[], uint)>(
+            new BoundedChannelOptions(OutgoingFrameQueue)
+            {
+                FullMode = BoundedChannelFullMode.DropOldest,
+                SingleReader = true,
+                SingleWriter = true,
+            });
+        _pump = Task.Run(() => PumpOutgoingAsync(_outgoing.Reader));
+
         var ok = await _audio
             .StartAsync(_codec.SampleRateHz, _codec.FrameDurationMs, cancellationToken)
             .ConfigureAwait(false);
@@ -215,13 +243,23 @@ public sealed class CallService : IDisposable
     }
 
     /// <summary>
-    /// A frame off the microphone: encode it and put it on the air.
+    /// A frame off the microphone: encode it and hand it to the sender.
     ///
     /// <para>
-    /// Deliberately fire-and-forget. This runs on the capture thread, and the next frame is already
-    /// being recorded — waiting for the radio here would stall the microphone and chop the speech.
-    /// A voice frame that is late is worth less than the one behind it, so a dropped frame is the
-    /// right trade.
+    /// This runs on the capture thread and the next frame is already being recorded, so it must not
+    /// wait for the radio — that would stall the microphone and chop the speech. It used to say so by
+    /// dropping the send task on the floor and moving on, one task per frame. At fifty frames a second
+    /// against a radio that cannot carry them, the unfinished ones pile up: two phones each reached
+    /// eight thread-pool threads and a quarter of a million bytes of queued audio within five seconds,
+    /// and Android killed both processes for memory mid-call. The call connected every time and died
+    /// before a word could be heard.
+    /// </para>
+    ///
+    /// <para>
+    /// So the frame goes into a small fixed queue that one sender drains. The trade the old comment
+    /// described is now actually enforced: when the queue is full the OLDEST frame is discarded, never
+    /// the newest, because a late voice frame is worth less than the one behind it. What it no longer
+    /// does is pretend the radio can keep up.
     /// </para>
     /// </summary>
     private void OnMicrophoneFrame(short[] pcm)
@@ -232,12 +270,43 @@ public sealed class CallService : IDisposable
         {
             var encoded = _codec.Encode(pcm);
             var sequence = unchecked(_sequence++);
-            _ = _voice.SendFrameAsync(session.Id, encoded, sequence);
+            // Bounded and DropOldest, so this never blocks and never grows.
+            _outgoing?.Writer.TryWrite((session.Id, encoded, sequence));
         }
         catch (Exception ex)
         {
             _log.LogDebug(ex, "encoding a microphone frame");
         }
+    }
+
+    /// <summary>
+    /// Put queued frames on the air, one at a time, for as long as the call lasts.
+    ///
+    /// <para>
+    /// One frame in flight at a time is the point. The radio decides the pace; the microphone does not
+    /// get to outrun it, and nothing accumulates while it is slow.
+    /// </para>
+    /// </summary>
+    private async Task PumpOutgoingAsync(ChannelReader<(Guid CallId, byte[] Payload, uint Sequence)> frames)
+    {
+        try
+        {
+            await foreach (var frame in frames.ReadAllAsync().ConfigureAwait(false))
+            {
+                if (_voice is null) continue;
+                try
+                {
+                    await _voice.SendFrameAsync(frame.CallId, frame.Payload, frame.Sequence)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    // One frame that would not go is not a reason to stop sending the rest.
+                    _log.LogDebug(ex, "sending a voice frame");
+                }
+            }
+        }
+        catch (OperationCanceledException) { /* the call ended */ }
     }
 
     private void OnFrameReceived(object? sender, VoiceFrame frame)
@@ -485,6 +554,19 @@ public sealed class CallService : IDisposable
     {
         Current = null;
         try { await _audio.StopAsync().ConfigureAwait(false); } catch { }
+
+        // Close the queue and let the sender finish. Anything still waiting is stale speech from a
+        // call that is over, so it goes with it.
+        _outgoing?.Writer.TryComplete();
+        if (_pump is not null)
+        {
+            try { await _pump.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false); }
+            catch (TimeoutException) { /* a wedged radio must not hold up hanging up */ }
+            catch (Exception ex) { _log.LogDebug(ex, "draining the outgoing voice queue"); }
+        }
+        _outgoing = null;
+        _pump = null;
+
         _codec?.Dispose();
         _codec = null;
 
