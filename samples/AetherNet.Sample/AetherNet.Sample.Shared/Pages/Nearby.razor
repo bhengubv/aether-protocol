@@ -129,8 +129,23 @@
         StateHasChanged();
     }
 
-    private static string State(ContactRecord c) =>
-        c.IsMutual ? "connected" : c.IsIncoming ? "wants to connect" : "waiting for them";
+    /// <summary>
+    /// Where this person stands with you — whether you have each other, which is a different question
+    /// from whether a radio can reach them right now.
+    ///
+    /// <para>
+    /// This row used to say "connected" for anyone mutual. That is the same word the rest of the app
+    /// uses for a live link, so a phone with no radio link at all read as connected here while the
+    /// conversation with that very person read "not connected" — both correct, and together they cost
+    /// an hour of chasing a contradiction that did not exist. Reachability is said once, in the banner
+    /// above, and this line no longer competes with it.
+    /// </para>
+    /// </summary>
+    private string State(ContactRecord c) =>
+        Radio.IsLinked && Radio.PeerTag == c.Tag ? $"on the air over {Radio.SelectedRadio}"
+        : c.IsMutual ? "you have each other"
+        : c.IsIncoming ? "wants to connect"
+        : "waiting for them";
 
     public void Dispose() { Contacts.Changed -= OnChanged; Radio.Changed -= OnChanged; }
 }
