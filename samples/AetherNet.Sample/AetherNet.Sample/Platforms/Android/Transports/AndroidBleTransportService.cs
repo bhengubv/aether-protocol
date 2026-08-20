@@ -124,20 +124,28 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     public bool IsFixable => _unavailableReason is null && _adapter is { IsEnabled: false };
 
     /// <summary>
-    /// What this actually carries between two handsets, measured — not what the spec promises.
+    /// What this actually carries between two handsets, measured — not what the spec promises, and
+    /// not what MTU arithmetic suggests.
     ///
     /// <para>
-    /// BLE advertises megabits; with 512-byte ATT writes, serialised GATT operations and a connection
-    /// interval measured in tens of milliseconds, these two phones manage about five kilobits. That is
-    /// ample for chat and hopeless for voice, and the number is here so the mesh can tell the
-    /// difference rather than discovering it as congestion.
+    /// BLE advertises megabits. Counted during live calls on 2026-08-20, these two phones moved
+    /// 9–10 packets a second in ONE direction: 13 central writes accepted against 1,487 deferred.
+    /// That is about eleven kilobits — ample for chat, and hopeless for voice by a factor of five.
+    /// </para>
+    ///
+    /// <para>
+    /// The ceiling is not a tuning problem. A GATT connection carries one operation in flight at a
+    /// time, and a write issued while another is outstanding is refused on the spot. MTU changes how
+    /// many bytes ride each operation; it does not change how many operations fit in a second, and a
+    /// voice frame is bound by the second, not by the byte.
     /// </para>
     /// </summary>
-    // Measured on these handsets: ATT MTU 517, ~150-byte packets at fifty a second, and 512-byte
-    // packets carried without trouble — on the order of 100 kbps. The old 5_000 here came from a
-    // link still on the 23-byte default MTU, and it is not a comment: Widest() picks the radio
-    // traffic leaves on from this number, so understating it steers real calls.
-    public long MaxBandwidthBps => 100_000;
+    // Two wrong numbers stood here before this one. 5_000 was read off a link still on the 23-byte
+    // default MTU. 100_000 replaced it by arithmetic — MTU 517 times fifty a second — and was
+    // labelled "measured" without anyone having measured it. This one was counted. The number is
+    // load-bearing twice over: Widest() picks the radio traffic leaves on from it, and the codec
+    // sizes itself from it, so a flattering figure buys a call that cannot work and will not say so.
+    public long MaxBandwidthBps => 11_000;
     public bool IsLinked => _linked;
     public string? PeerTag => _peerTag;
 

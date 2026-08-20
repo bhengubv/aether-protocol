@@ -176,13 +176,33 @@ public sealed class CallService : IDisposable
     /// Whether a call is worth offering. Deliberately does <b>not</b> require the microphone permission
     /// — that is asked for on the tap, and gating the button on it would hide the only way to grant it.
     /// </summary>
-    public bool CanCall => _audio.IsPresent && _radio is { IsLinked: true };
+    public bool CanCall => _audio.IsPresent && _radio is { IsLinked: true } && HasARadioWideEnough;
 
     /// <summary>Why a call cannot be placed right now, in plain words — or null when it can.</summary>
     public string? CannotCallReason =>
         !_audio.IsPresent ? _audio.UnavailableReason ?? "no microphone"
         : _radio is not { IsLinked: true } ? "no phone is connected to this one"
+        : !HasARadioWideEnough ? "the only connection to this phone is Bluetooth, which is too slow for a call — send a voice note instead"
         : null;
+
+    /// <summary>
+    /// Is there any radio on this phone that could carry a call — now or in a moment?
+    ///
+    /// <para>
+    /// Measured, Bluetooth moves about eleven kilobits between two handsets and a call needs fifty
+    /// (PROTOCOL_SPEC §5.5). Placing one over it does not produce a poor call; it produces a call
+    /// that rings, answers, connects and stays silent, with both people believing it works. Refusing
+    /// up front and naming the reason is kinder than that by a wide margin.
+    /// </para>
+    ///
+    /// <para>
+    /// The current link being narrow is <b>not</b> enough to refuse, because at the moment of asking
+    /// it usually is: Wi-Fi Direct is brought up by the call itself, brokered over Bluetooth. So this
+    /// refuses only when no wide radio exists on this phone at all — nothing is coming.
+    /// </para>
+    /// </summary>
+    private bool HasARadioWideEnough =>
+        OpusVoiceCodec.CanCarryCall(_radio?.LinkBandwidthBps ?? 0) || _wifiDirect is { IsSupported: true };
 
     // ── Placing and answering ─────────────────────────────────────────────────
 
@@ -209,9 +229,10 @@ public sealed class CallService : IDisposable
             return false;
         }
 
-        // Voice needs about 24 kbps and BLE carries about five, so the call brings up the wide pipe on
-        // its way out. Not fatal if it does not come up — the call still rings, and if the far end can
-        // be reached at all the signalling gets there; only the audio would struggle.
+        // Voice needs about 24 kbps each way and BLE carries about eleven in one direction, so the call
+        // brings up the wide pipe on its way out. Not fatal if it does not come up — the call still
+        // rings, and if the far end can be reached at all the signalling gets there; only the audio
+        // would struggle. CanCall has already refused the case where nothing wide could ever arrive.
         if (_wifiDirect is { IsUp: false })
             _ = _wifiDirect.BringUpAsync(peerTag, cancellationToken);
 
@@ -390,7 +411,15 @@ public sealed class CallService : IDisposable
 
         _codec?.Dispose();
         _codec = new OpusVoiceCodec(bitrateBps: bitrate);
-        if (bitrate != OpusVoiceCodec.DefaultBitrateBps)
+
+        // Say which of two very different situations this is. Below the floor the bitrate has been
+        // clamped UP — the encoder is being asked for more than the link can move — and the audio
+        // will not arrive. That reads identically to a dead microphone in the log unless it is named
+        // here, and it cost a full device session to work out once already.
+        if (!OpusVoiceCodec.CanCarryCall(linkBps))
+            T($"WARNING: on {_radio?.LinkRadio ?? "this radio"} at {linkBps / 1000}kbps — a call needs "
+              + $"{OpusVoiceCodec.MinLinkBpsForCall / 1000}kbps, so expect silence until a wider radio takes over");
+        else if (bitrate != OpusVoiceCodec.DefaultBitrateBps)
             T($"encoding at {bitrate / 1000}kbps — {_radio?.LinkRadio ?? "the radio"} reports {linkBps / 1000}kbps");
         _sequence = 0;
 

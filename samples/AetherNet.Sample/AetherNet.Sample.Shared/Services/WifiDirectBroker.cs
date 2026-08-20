@@ -72,6 +72,18 @@ public sealed class WifiDirectBroker : IDisposable
     public bool IsUp { get; private set; }
 
     /// <summary>
+    /// Whether this phone could bring a wide link up at all — not whether one is up now.
+    ///
+    /// <para>
+    /// A call placed over Bluetooth alone cannot work (PROTOCOL_SPEC §5.5), but a call placed while
+    /// Bluetooth is the only link so far usually does, because bringing this group up is the first
+    /// thing the call does. The two are told apart here: no Wi-Fi Direct hardware means no wide link
+    /// is coming, and only then is refusing the call the honest answer.
+    /// </para>
+    /// </summary>
+    public bool IsSupported => !_disposed && _group.IsSupported;
+
+    /// <summary>
     /// Which of two phones creates the group, when both want it at the same moment.
     ///
     /// <para>

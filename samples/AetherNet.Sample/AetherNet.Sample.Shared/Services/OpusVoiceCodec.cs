@@ -64,6 +64,36 @@ public sealed class OpusVoiceCodec : IVoiceCodec, IDisposable
     /// trade is worth making in that direction.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The narrowest link worth attempting a call on.
+    ///
+    /// <para>
+    /// It falls straight out of the two constants above: a call may have about a third of the link,
+    /// and below <see cref="MinBitrateBps"/> wideband speech is not worth carrying. A link that
+    /// cannot give a third of the floor cannot carry a call, and no codec setting changes that.
+    /// </para>
+    ///
+    /// <para>
+    /// This matters because <see cref="BitrateFor"/> clamps UP to the floor. On a narrower link it
+    /// therefore asks for more than the third it is allowed — the stack over-drives a radio it has
+    /// already been told is too slow, and the result is one-way audio rather than poor audio. Both
+    /// ends believe they are in a working call, which is the hardest failure of all to read.
+    /// </para>
+    /// </summary>
+    public const int MinLinkBpsForCall = MinBitrateBps * 3;   // 24 kbps
+
+    /// <summary>
+    /// Whether a radio reporting <paramref name="linkBps"/> can carry a live call at all.
+    ///
+    /// <para>
+    /// A radio that will not say (0) is given the benefit of the doubt, on the same reasoning as
+    /// <see cref="BitrateFor"/>: refusing a call on no evidence is worse than attempting one that
+    /// then struggles honestly. Measured, BLE reports 11 kbps here and is refused; Wi-Fi Direct
+    /// reports megabits and is not.
+    /// </para>
+    /// </summary>
+    public static bool CanCarryCall(long linkBps) => linkBps <= 0 || linkBps >= MinLinkBpsForCall;
+
     /// <param name="linkBps">What the carrying radio says it can move; 0 when it will not say.</param>
     public static int BitrateFor(long linkBps)
     {

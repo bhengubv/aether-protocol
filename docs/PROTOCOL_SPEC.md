@@ -672,7 +672,9 @@ The `TransportManager` selects the optimal transport for each packet based on:
 
 These are the characteristics a *real* adapter advertises to the selector.
 Listing a transport here is not a claim that its radio is implemented on any
-given platform — see §5.4 for what is actually built.
+given platform — see §5.4 for what is actually built, and **§5.5 for what two
+real phones actually achieved**, which for BLE is 180× below the figure in this
+table.
 
 | Transport    | MaxBandwidth   | MaxRange | PowerCost | MaxPeers | Notes |
 |-------------|----------------|----------|-----------|----------|-------|
@@ -706,6 +708,92 @@ in the table above.
 **BLE payload limit:** Packets exceeding 1,024 bytes (`BleMaxPayloadBytes`) are automatically routed to Wi-Fi Direct or NearLink. BLE is used for discovery advertisements, small control packets (RREQ/RREP, presence beacons), and low-bandwidth messaging.
 
 **Wi-Fi Direct** connection timeout is 10,000 ms (`WifiDirectTimeoutMs`) with a maximum of 8 concurrent peers (`MaxWifiDirectPeers`).
+
+### 5.5. Measured throughput (real hardware)
+
+§5.3 lists what an adapter *advertises*. This section lists what two real phones
+actually achieved. Where the two disagree, the measurement wins.
+
+**The bar.** A 1:1 voice call is 20 ms Opus frames, which is **50 packets per
+second in each direction**. A radio either clears that both ways or it cannot
+carry a call. There is no partial credit — 45/sec is a call that breaks up.
+
+Measured 2026-08-20, Redmi Note 9 (merlin, MT6768, Android 12) ↔ Huawei P30 lite
+(Kirin 710, Android 10), during live calls in `samples/AetherNet.Sample`:
+
+| Radio | Measured | Against the 50/s bar | Role |
+|---|---|---|---|
+| **Wi-Fi Direct** | **50–51 frames/sec both directions, 0 refusals, 0 deferrals** | **passes** | carries voice and video |
+| BLE (GATT) | 9–10 packets/sec, one direction only; ~11 kbps; 13 central writes accepted against 1,487 deferred | fails by 5× | discovery + signalling |
+| NFC (HCE) | needs a physical tap; `SendAsync` returns false until there is one | n/a | out-of-band pairing |
+| LoRa | needs a USB module; none attached | n/a | not present on these phones |
+| NearLink | Huawei silicon + HarmonyOS only | n/a | never available on Android |
+| Wi-Fi Aware | `android.hardware.wifi.aware` absent on all three test phones | untested | §5.6 |
+
+**The architecture this dictates:** voice and video ride Wi-Fi Direct; BLE is the
+always-on discovery and signalling radio, and it brokers the Wi-Fi Direct group
+rather than carrying what the group is for.
+
+BLE is **not** a media fallback. At 11 kbps it cannot carry a call at any codec
+setting, and a stack that tries produces one-way audio rather than degraded
+audio — which is far harder to diagnose, because both ends believe they are in a
+working call.
+
+That ceiling is not a tuning problem. A GATT connection carries **one operation
+in flight at a time**; a `writeCharacteristic` issued while another is
+outstanding returns `false` immediately. At the observed round-trip that caps the
+link near 10 operations/sec regardless of MTU, connection interval, or how
+densely the payload is packed. Raising `BleMaxPayloadBytes` moves bytes per
+operation, not operations per second, and a voice frame is latency-bound rather
+than size-bound.
+
+**What BLE is still good for:** everything that is not real-time. A ten-second
+voice note is ~10 KB of Opus and crosses in about 7 seconds. That is why
+attachments are content-addressed and chunked (§9) rather than streamed — slow
+is acceptable when it resumes, and a note that takes seven seconds to arrive is
+still a note, while a call that takes seven seconds to arrive is nothing.
+
+**Implementations MUST NOT** select a transport for real-time media on advertised
+`MaxBandwidthBps` alone. BLE 5.0 advertises ~2 Mbps in §5.3 and delivers ~11 kbps
+between these handsets — a 180× gap, and precisely the gap that makes voice
+selection fail silently. Selection for voice and video SHOULD use an observed
+frame rate over a short window, falling back to the advertised figure only when
+no observation exists yet.
+
+### 5.6. Wi-Fi Aware (NAN)
+
+Wi-Fi Aware is the correct long-term primary transport for a mesh of this shape,
+and is specified here so implementations can target it. **It is unverified on
+hardware** — no phone available to this project has the radio.
+
+`android.hardware.wifi.aware` is absent on all three test devices:
+
+| Phone | Chipset | Aware |
+|---|---|---|
+| Redmi Note 9 (merlin) | MT6768 | ✗ |
+| Redmi Note 12 Pro 5G (rubypro) | MT6877 / Dimensity 1080 | ✗ |
+| Huawei P30 lite | Kirin 710 | ✗ |
+
+Check with `adb shell pm list features | grep aware`.
+
+Unlike NearLink — which is Huawei silicon on HarmonyOS and has no portable form —
+Wi-Fi Aware is an **open Wi-Fi Alliance standard with a standard Android API**
+(`WifiAwareManager`, API 26+). Any vendor may implement it, and code written once
+runs on any phone that ships the HAL. It is simply *optional*, and mid-range
+MediaTek and Kirin parts omit it. Qualcomm flagships (Pixel 3 and later, Galaxy
+S9 and later) carry it.
+
+Why it is the right primary once hardware is in hand:
+
+- **Many-to-many with no group owner.** Wi-Fi Direct elects one, and the mesh
+  then bends around whichever phone won — a topology decision made by the radio
+  rather than by the routing layer.
+- **No pairing dialog.** Nothing for the user to accept, so discovery is
+  genuinely passive.
+- **It does not drop the phone's existing AP connection**, which Wi-Fi Direct
+  can, and which costs the user their internet the moment they take a call.
+- **Low-power discovery designed to run continuously** — the job BLE is currently
+  doing, done by a radio that can also carry the call afterwards.
 
 ---
 
@@ -1045,13 +1133,22 @@ Before initiating a video call, the originator queries the transport layer to de
 
 | Transport | Video Support | Max Resolution | Recommended Codec | Max Bitrate | Watch-Together |
 |-----------|--------------|----------------|-------------------|-------------|----------------|
-| BLE | No (audio-only) | — | — | 64 Kbps | Sync packets only |
+| BLE | No — and not audio either (§5.5) | — | — | ~11 kbps measured | Sync packets only |
 | NearLink | Light | 360p | H.265 | 800 Kbps | SharedFile + StreamFromHost |
 | WiFi Direct | Full | 1080p | H.264 | 3000 Kbps | All modes |
 | Internet | Full | 720p | H.264 | 1500 Kbps | All modes |
 | CircleLink | No (audio-only) | — | — | 64 Kbps | Sync packets only |
 
 If the only available transport is BLE or CircleLink, the video call service automatically downgrades to a voice call.
+
+> **Correction (measured 2026-08-20).** The 64 Kbps figure previously given for
+> BLE was a design parameter, never an observation. Measured between two real
+> handsets, a BLE GATT link carries **~11 kbps in one direction** (§5.5) — below
+> even the Opus floor, and a fifth of what a call needs. **Downgrading a video
+> call to voice over BLE therefore does not produce a working voice call.** An
+> implementation that finds BLE as its only transport SHOULD refuse the call and
+> say so, and MAY offer a voice note instead — which BLE carries comfortably,
+> because a note is not real-time.
 
 ### 10.2. Video Codecs
 
