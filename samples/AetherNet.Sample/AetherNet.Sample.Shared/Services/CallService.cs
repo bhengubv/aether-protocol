@@ -115,6 +115,18 @@ public sealed class CallService : IDisposable
     public string? PeerTag => Current is null ? null : Current.RemoteUhid(_me.AetherTag);
 
     /// <summary>
+    /// Whether this phone placed the call.
+    ///
+    /// <para>
+    /// The media cipher derives a different key for each direction, so both ends must agree on which
+    /// of them is "the caller". That is decided by who dialled — never by who happened to mint the
+    /// key, which is what it used to be inferred from.
+    /// </para>
+    /// </summary>
+    private bool IAmTheCaller =>
+        Current is { } c && string.Equals(c.CallerUhid, _me.AetherTag, StringComparison.Ordinal);
+
+    /// <summary>
     /// Whether a call is worth offering. Deliberately does <b>not</b> require the microphone permission
     /// — that is asked for on the tap, and gating the button on it would hide the only way to grant it.
     /// </summary>
@@ -240,9 +252,23 @@ public sealed class CallService : IDisposable
             return;
         }
 
-        // The answering side does NOT bring the pipe up. The caller hosts and its key is already on
-        // its way over BLE; hosting here as well would create a second group and neither phone would
-        // be in the other's.
+        // The answering side does NOT bring the pipe up. The caller hosts; hosting here as well would
+        // create a second group and neither phone would be in the other's.
+
+        // Mint the call's key HERE, before answering, so this side can seal a frame the instant it
+        // picks up.
+        //
+        // The caller used to mint it on RECEIVING the answer, which left this side unable to send
+        // anything until that key came back — measured at ~300ms of "voice frame DROPPED — the call
+        // has no media key" straight after pickup, which is exactly when someone starts talking.
+        // Minting here costs the caller nothing: the key rides alongside the answer it was already
+        // waiting for.
+        var master = CallMediaCipher.NewMasterKey();
+        Voice();
+        _sender!.Media?.Dispose();
+        _sender.Media = new CallMediaCipher(master, iAmTheCaller: IAmTheCaller);
+        await SendKeyAsync(session.RemoteUhid(_me.AetherTag), master, cancellationToken).ConfigureAwait(false);
+        System.Security.Cryptography.CryptographicOperations.ZeroMemory(master);
 
         if (!await StartAudioAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -551,7 +577,11 @@ public sealed class CallService : IDisposable
             // Building the sender is what creates it if this is the first thing we have seen from them.
             Voice();
             _sender!.Media?.Dispose();
-            _sender.Media = new CallMediaCipher(master, iAmTheCaller: false);
+            // Direction comes from the call's ROLE, never from who happened to send the key. This was
+            // hardcoded false, which only held while the caller was always the one minting — the
+            // moment the answering side mints (so it can speak the instant it picks up) both ends
+            // would derive the same direction keys and neither could read the other.
+            _sender.Media = new CallMediaCipher(master, iAmTheCaller: IAmTheCaller);
             System.Security.Cryptography.CryptographicOperations.ZeroMemory(master);
 
             _radio?.IdentifyPeer(from);
@@ -652,16 +682,9 @@ public sealed class CallService : IDisposable
     /// <summary>The caller only opens the microphone once the callee has actually picked up.</summary>
     private async Task ConnectCallerAudioAsync(VoiceCallSession session)
     {
-        // They answered, so their session is live and a second message will open. Mint the call's key
-        // and hand it over before a single frame goes out — frames are sealed with it, and one sent
-        // beforehand would simply be dropped at the far end.
-        var peer = session.RemoteUhid(_me.AetherTag);
-        var master = CallMediaCipher.NewMasterKey();
-        _sender!.Media?.Dispose();
-        _sender.Media = new CallMediaCipher(master, iAmTheCaller: true);
-        await SendKeyAsync(peer, master, CancellationToken.None).ConfigureAwait(false);
-        System.Security.Cryptography.CryptographicOperations.ZeroMemory(master);
-
+        // The key is minted by the ANSWERING side and travels with the answer, so by the time this
+        // runs the cipher is already in place. Nothing to mint here — and nothing to wait for, which
+        // is the point: this side can speak the moment it hears they picked up.
         if (!await StartAudioAsync(CancellationToken.None).ConfigureAwait(false))
         {
             await HangUpAsync(HangupReason.NetworkFailure).ConfigureAwait(false);
