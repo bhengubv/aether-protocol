@@ -193,8 +193,12 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
     /// override all of that and be wrong in a meeting.
     /// </para>
     /// </summary>
-    public void StartRinging()
+    public void StartRinging(string callerTag)
     {
+        // Ring the SCREEN as well as the speaker — otherwise the call only reaches someone already
+        // looking at Aether, which is the one person who does not need telling.
+        AetherIncomingCall.Show(string.IsNullOrEmpty(callerTag) ? "Someone" : callerTag);
+
         lock (_ringGate)
         {
             if (_ringtone is not null) return;
@@ -226,6 +230,8 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
     /// <inheritdoc />
     public void StopRinging()
     {
+        AetherIncomingCall.Dismiss();
+
         lock (_ringGate)
         {
             try { _ringtone?.Stop(); } catch (Exception) { /* already gone */ }

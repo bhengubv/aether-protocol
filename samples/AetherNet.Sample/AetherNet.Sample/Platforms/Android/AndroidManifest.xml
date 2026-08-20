@@ -39,6 +39,9 @@
     <!-- A call records while the app is not on screen; Android 14 refuses that without this. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- An incoming call has to be able to take over the screen, including over the lock screen. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- NFC (tap-to-pair) and LoRa (external USB module) radios. -->
     <uses-permission android:name="android.permission.NFC" />

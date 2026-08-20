@@ -639,7 +639,7 @@ public sealed class CallService : IDisposable
 
         Current = session;
         T($"incoming call from {session.CallerUhid}");
-        _audio.StartRinging();
+        _audio.StartRinging(session.CallerUhid);
         Raise();
     }
 

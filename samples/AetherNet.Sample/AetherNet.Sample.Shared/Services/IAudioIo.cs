@@ -42,7 +42,7 @@ public interface IAudioIo
     /// switch and volume they have already chosen.
     /// </para>
     /// </summary>
-    void StartRinging();
+    void StartRinging(string callerTag);
 
     /// <summary>Stop ringing — answered, declined, or the caller gave up.</summary>
     void StopRinging();
@@ -109,7 +109,7 @@ public sealed class NullAudioIo : IAudioIo
         => Task.FromResult(false);
 
     public void Play(short[] pcm) { }
-    public void StartRinging() { }
+    public void StartRinging(string callerTag) { }
     public void StopRinging() { }
     public void HoldCall(string? peerTag) { }
     public void ReleaseCall() { }
