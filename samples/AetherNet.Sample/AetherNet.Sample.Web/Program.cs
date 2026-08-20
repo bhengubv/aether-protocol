@@ -49,6 +49,10 @@ builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
             sp.GetRequiredService<IRadioMesh>())));
 builder.Services.AddSingleton<ChatService>();
 
+// The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
+// transfer resumes across a dropped link and works on a radio far too slow for a call.
+builder.Services.AddSingleton<AttachmentService>();
+
 // Radios are physical; this host has none, so setup says so honestly.
 builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
 

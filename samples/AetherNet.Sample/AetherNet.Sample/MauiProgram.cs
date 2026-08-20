@@ -68,6 +68,10 @@ public static class MauiProgram
                     sp.GetRequiredService<IRadioMesh>())));
         builder.Services.AddSingleton<ChatService>();
 
+        // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
+        // transfer resumes across a dropped link and works on a radio far too slow for a call.
+        builder.Services.AddSingleton<AttachmentService>();
+
         // 1:1 voice. The microphone is physical, so it only exists on the phone; everywhere else the
         // call service is constructible but honestly says it cannot place one.
 #if ANDROID
@@ -126,6 +130,17 @@ public static class MauiProgram
 
             // Constructing these is what subscribes them to the radio, so a message can arrive, and a
             // call can ring, before the user has opened anything.
+            // Constructing this is what subscribes it to the radio, so a voice note can start arriving
+            // before anyone opens the conversation it belongs to.
+            Warm("attachments", () =>
+            {
+                var attachments = app.Services.GetService<AttachmentService>();
+#if ANDROID
+                if (attachments is not null)
+                    attachments.Trace += m => global::Android.Util.Log.Info("AetherAtt", m);
+#endif
+            });
+
             Warm("chat", () =>
             {
                 var chat = app.Services.GetService<ChatService>();

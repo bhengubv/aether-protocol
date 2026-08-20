@@ -86,8 +86,28 @@ public sealed record GroupRecord(string Id, string Name, string AdminTag, long C
 /// the author has to be stored separately or a group conversation cannot say who is speaking.
 /// </param>
 public sealed record ChatMessage(
-    string Id, string PeerTag, string Body, bool Mine, string State, long SentMs, string? SenderTag = null)
+    string Id, string PeerTag, string Body, bool Mine, string State, long SentMs, string? SenderTag = null,
+    string? AttachmentHash = null, string? AttachmentType = null, long AttachmentBytes = 0)
 {
+    /// <summary>
+    /// This message carries something other than words — a voice note, a video note, a picture.
+    ///
+    /// <para>
+    /// The bytes are NOT in the message. <see cref="AttachmentHash"/> names them in the content store,
+    /// exactly as a card names its assets: content-addressed, never by URL. That is what lets the
+    /// bubble draw a player before a single byte has arrived, and what lets a half-finished transfer
+    /// pick up where it left off instead of starting again — which matters far more here than it does
+    /// for a live call, because a note has all the time in the world.
+    /// </para>
+    /// </summary>
+    public bool HasAttachment => !string.IsNullOrEmpty(AttachmentHash);
+
+    /// <summary>A recorded clip of someone talking.</summary>
+    public const string VoiceNote = "audio/opus";
+
+    /// <summary>A short recorded clip with a picture.</summary>
+    public const string VideoNote = "video/mp4";
+
     /// <summary>Still on this phone — no secure session yet, so it has not gone out.</summary>
     public const string Pending = "pending";
 
@@ -206,6 +226,12 @@ public sealed class AetherStore : IDisposable
             );
             """);
         AddColumnIfMissing("messages", "sender_tag", "TEXT");
+
+        // A message can carry content as well as words. Added as columns rather than a new table
+        // because a message has at most one attachment and a join would buy nothing.
+        AddColumnIfMissing("messages", "att_hash", "TEXT");
+        AddColumnIfMissing("messages", "att_type", "TEXT");
+        AddColumnIfMissing("messages", "att_bytes", "INTEGER");
         Exec("CREATE INDEX IF NOT EXISTS ix_contacts_last_seen ON contacts(last_seen_ms);");
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_peer ON messages(peer_tag, sent_ms);");
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_state ON messages(state);");
@@ -547,7 +573,7 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag FROM messages
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes FROM messages
                 WHERE peer_tag = @tag ORDER BY sent_ms DESC LIMIT @limit;
                 """;
             cmd.Parameters.AddWithValue("@tag", peerTag);
@@ -567,7 +593,7 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag FROM messages
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes FROM messages
                 WHERE sent_ms = (SELECT MAX(sent_ms) FROM messages m2 WHERE m2.peer_tag = messages.peer_tag)
                 GROUP BY peer_tag ORDER BY sent_ms DESC;
                 """;
@@ -590,7 +616,7 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag FROM messages
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes FROM messages
                 WHERE peer_tag = @tag AND mine = 1 AND state <> 'delivered' ORDER BY sent_ms;
                 """;
             cmd.Parameters.AddWithValue("@tag", peerTag);
@@ -685,8 +711,9 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                INSERT INTO messages (id, peer_tag, body, mine, state, sent_ms, sender_tag)
-                VALUES (@id, @tag, @body, @mine, @state, @ms, @sender)
+                INSERT INTO messages (id, peer_tag, body, mine, state, sent_ms, sender_tag,
+                                      att_hash, att_type, att_bytes)
+                VALUES (@id, @tag, @body, @mine, @state, @ms, @sender, @ahash, @atype, @abytes)
                 ON CONFLICT(id) DO UPDATE SET state=@state;
                 """;
             cmd.Parameters.AddWithValue("@id", message.Id);
@@ -696,6 +723,9 @@ public sealed class AetherStore : IDisposable
             cmd.Parameters.AddWithValue("@state", message.State);
             cmd.Parameters.AddWithValue("@ms", message.SentMs);
             cmd.Parameters.AddWithValue("@sender", (object?)message.SenderTag ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ahash", (object?)message.AttachmentHash ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@atype", (object?)message.AttachmentType ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@abytes", message.AttachmentBytes);
             cmd.ExecuteNonQuery();
         }
     }
@@ -766,7 +796,10 @@ public sealed class AetherStore : IDisposable
         Mine: r.GetInt32(3) != 0,
         State: r.GetString(4),
         SentMs: r.GetInt64(5),
-        SenderTag: r.IsDBNull(6) ? null : r.GetString(6));
+        SenderTag: r.IsDBNull(6) ? null : r.GetString(6),
+        AttachmentHash: r.IsDBNull(7) ? null : r.GetString(7),
+        AttachmentType: r.IsDBNull(8) ? null : r.GetString(8),
+        AttachmentBytes: r.IsDBNull(9) ? 0 : r.GetInt64(9));
 
     // ── Groups ──────────────────────────────────────────────────────────────────
 
