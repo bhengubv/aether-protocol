@@ -1314,17 +1314,42 @@ these on paper. Two other things bind first:
    Wi-Fi Aware as the right long-term primary.
 
 2. **Encoder and decoder count.** Each participant runs one hardware encoder and
-   **N−1 hardware decoders**. Mid-range handsets commonly expose 2–4 concurrent
-   H.264 decoder instances; beyond that `MediaCodec` fails to configure. On the
-   phones this project has, that caps a group video call at roughly **3–5
-   participants** regardless of the radio, and the failure is abrupt rather than
-   gradual — a decoder that cannot be created shows nothing at all.
+   **N−1 hardware decoders**, and a decoder that cannot be created shows nothing
+   at all — the failure is abrupt rather than gradual.
 
-**Therefore:** group video is bounded by *silicon*, not by the mesh, and an
-implementation MUST discover its concurrent-decoder limit rather than assume one.
-A group call that exceeds it SHOULD drop the least-recently-active participants
-to audio and say so, rather than failing to create a decoder and showing a blank
-rectangle with no explanation.
+   > **Corrected 2026-08-20, after asking the phones.** An earlier version of this
+   > section said mid-range handsets expose "2–4" concurrent H.264 decoders and
+   > that this capped a group video call at 3–5 people. That figure was reasoned
+   > from general knowledge, not measured, and it is wrong. Read from the vendor
+   > codec lists on the two test handsets:
+   >
+   > | Phone | Decoder | Declared concurrent instances |
+   > |---|---|---|
+   > | Huawei P30 lite (Kirin 710) | `OMX.hisi.video.decoder.avc` | **16** |
+   > | Redmi Note 9 (MT6768) | `c2.mtk.avc.decoder` | **32** |
+   > | Redmi Note 9 (MT6768), legacy OMX path | `OMX.MTK.VIDEO.DECODER.AVC` | 16 |
+   >
+   > Read with `grep concurrent-instances /vendor/etc/media_codecs*.xml`, which is
+   > the same number `MediaCodecInfo.CodecCapabilities.getMaxSupportedInstances()`
+   > reports.
+   >
+   > These are **declared** limits, at the vendor's reference resolution. What a
+   > phone sustains at call resolution, with an encoder running and a radio busy,
+   > is still unmeasured — and thermal and memory pressure will bite long before
+   > 32. So treat the declared figure as an upper bound rather than a promise. But
+   > it is nowhere near 2–4, and on these handsets the decoder count is **not**
+   > the binding constraint on a group video call.
+
+**Therefore:** an implementation MUST discover its concurrent-decoder limit rather
+than assume one — that requirement stands, and stands more firmly now that
+assuming has been shown to be wrong by an order of magnitude in both directions of
+error. A group call that exceeds the limit SHOULD drop the least-recently-active
+participants to audio and say so, rather than failing to create a decoder and
+showing a blank rectangle with no explanation.
+
+**What binds instead**, on this hardware: the Wi-Fi Direct group owner carrying
+every packet between every pair, and the outbound bandwidth in the table above. A
+phone that can decode sixteen streams still has to receive them.
 
 #### What still has to be measured
 

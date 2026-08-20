@@ -65,6 +65,17 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     /// </summary>
     private const int KeyframeIntervalSeconds = 1;
 
+    /// <summary>
+    /// How many faces are worth putting on a phone screen at once.
+    ///
+    /// <para>
+    /// A limit of the display, not of the silicon. Six tiles on a handset is already a two-by-three
+    /// grid of thumbnails; past that nobody can tell who is who, and the decoders spent on them buy
+    /// nothing.
+    /// </para>
+    /// </summary>
+    private const int UsefulTilesOnAPhoneScreen = 6;
+
     private readonly object _gate = new();
 
     private CameraDevice? _camera;
@@ -113,16 +124,18 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     ///
     /// <para>
     /// <c>GetMaxSupportedInstances</c> is the platform answering the question directly, which is worth
-    /// far more than any table of handsets: the same chip reports different numbers depending on
-    /// resolution and on what else is running. A phone that will not answer gets two, which is the low
-    /// end of what mid-range parts actually manage — better to show fewer people than to configure a
-    /// decoder that fails and shows nobody.
+    /// far more than any table of handsets. Asked this way, the two test phones declare sixteen
+    /// (Kirin 710) and thirty-two (MT6768) — not the two to four an earlier version of this code
+    /// assumed. See PROTOCOL_SPEC §10.10; the assumption was wrong by an order of magnitude, and the
+    /// decoder count turns out not to be what caps a group video call on this hardware.
     /// </para>
     ///
     /// <para>
-    /// One instance is subtracted for this phone's own encoder, which competes for the same pool on
-    /// most parts. PROTOCOL_SPEC §10.10 explains why this number, rather than the radio, is what caps
-    /// a group video call.
+    /// It is still an upper bound rather than a promise: the vendor declares it at a reference
+    /// resolution, with nothing else running, and thermal and memory pressure arrive long before
+    /// thirty-two. One instance is subtracted for this phone's own encoder, which competes for the
+    /// same pool on most parts, and a phone that will not answer gets two — showing fewer people is
+    /// recoverable, and configuring a decoder that fails is not.
     /// </para>
     /// </summary>
     public int MaxConcurrentStreams
@@ -150,8 +163,11 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
                 global::Android.Util.Log.Info("AetherVideo", "could not ask about decoders: " + ex.Message);
             }
 
-            // Leave one for our own encoder, and never claim more than the screen could usefully show.
-            _decoderCap = Math.Clamp(found - 1, 1, 6);
+            // Leave one for our own encoder. The upper bound is a SCREEN limit, not a decoder one:
+            // these phones declare sixteen and thirty-two, and nobody can usefully look at that many
+            // faces on a handset. Naming it for what it is stops the next person reading it as a
+            // hardware claim, which is how the wrong number got in here to begin with.
+            _decoderCap = Math.Clamp(found - 1, 1, UsefulTilesOnAPhoneScreen);
             global::Android.Util.Log.Info("AetherVideo", "this phone can decode " + _decoderCap + " streams at once");
             return _decoderCap;
         }

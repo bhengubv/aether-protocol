@@ -82,19 +82,24 @@ public static class VideoBudget
     }
 
     /// <summary>
-    /// A conservative cap on how many people can be in a group video call on a mid-range phone,
-    /// whatever the radio says.
+    /// What to assume about decoders when the phone will not say — and only then.
     ///
     /// <para>
-    /// Each participant runs one hardware encoder and one decoder per other participant. Mid-range
-    /// handsets commonly expose two to four concurrent H.264 decoder instances, and beyond that
-    /// <c>MediaCodec</c> simply fails to configure — an abrupt failure that shows nothing at all
-    /// rather than degrading. Four is the honest floor of that range plus itself.
+    /// Four, because a host that cannot answer the question is a host nothing is known about, and
+    /// showing fewer people is always recoverable while configuring a decoder that fails is not: it
+    /// shows nothing at all, with no error anyone can act on.
     /// </para>
     ///
     /// <para>
-    /// This is a default to start from, not a measurement. An implementation SHOULD discover the real
-    /// number on the handset it is running on and use that instead.
+    /// <b>This is not a typical number, and an earlier version of this comment claimed it was.</b> It
+    /// said mid-range handsets expose two to four concurrent H.264 decoders. Asked directly, the two
+    /// test phones declare <b>sixteen</b> (Kirin 710) and <b>thirty-two</b> (MT6768). That figure was
+    /// reasoned rather than measured, which is the same mistake BLE's throughput number made twice.
+    /// PROTOCOL_SPEC §10.10 now carries the measurement.
+    /// </para>
+    ///
+    /// <para>
+    /// So this exists only as a floor for silence. Any host that can be asked MUST be asked.
     /// </para>
     /// </summary>
     public const int AssumedDecoderCap = 4;
