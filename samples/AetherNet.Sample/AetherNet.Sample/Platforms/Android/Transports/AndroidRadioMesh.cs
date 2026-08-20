@@ -103,6 +103,19 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
             return _selected.Name;
         }
     }
+
+    /// <inheritdoc />
+    public long LinkBandwidthBps
+    {
+        get
+        {
+            // The radio that traffic actually leaves on, not the one in the picker — sizing media to
+            // the wrong radio is how a call ends up asking a narrow link for a wide one's bitrate.
+            foreach (var r in Candidates())
+                if (r.IsLinked) return r.MaxBandwidthBps;
+            return 0;
+        }
+    }
     public bool IsSupported => _selected.IsAvailable;
 
     /// <summary>

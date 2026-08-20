@@ -13,6 +13,7 @@ public sealed class NullRadioMesh : IRadioMesh
         new[] { new RadioInfo("Wi-Fi Direct", false), new RadioInfo("BLE", false) };
     public string SelectedRadio => "Wi-Fi Direct";
     public string LinkRadio => "Wi-Fi Direct";
+    public long LinkBandwidthBps => 0;   // no radio here, so nothing to promise
     public bool IsSupported => false;
     public bool IsLinked => false;
     public string? PeerTag => null;

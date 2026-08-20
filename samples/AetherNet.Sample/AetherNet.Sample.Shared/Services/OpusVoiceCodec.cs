@@ -43,6 +43,39 @@ public sealed class OpusVoiceCodec : IVoiceCodec, IDisposable
     /// </summary>
     public const int DefaultBitrateBps = 24_000;
 
+    /// <summary>
+    /// The lowest this will ask Opus for. Below about 8 kbps wideband speech stops being worth
+    /// carrying — at that point a voice note (which can take its time) beats a live call.
+    /// </summary>
+    public const int MinBitrateBps = 8_000;
+
+    /// <summary>
+    /// What to ask Opus for on a link that can carry <paramref name="linkBps"/>.
+    ///
+    /// <para>
+    /// A call is two directions sharing one radio, plus packet overhead, plus the signalling that
+    /// keeps it alive. Spending a link's whole measured ceiling on one direction of audio guarantees
+    /// the other direction starves — which is exactly what was measured on BLE, where one side sent
+    /// happily at fifty frames a second while the other could not get a single write in.
+    /// </para>
+    ///
+    /// <para>
+    /// A third is deliberately conservative. Voice degrades gracefully and a stall does not, so the
+    /// trade is worth making in that direction.
+    /// </para>
+    /// </summary>
+    /// <param name="linkBps">What the carrying radio says it can move; 0 when it will not say.</param>
+    public static int BitrateFor(long linkBps)
+    {
+        // Nothing known — assume the link is fine rather than crippling a call on a guess. A radio
+        // that cannot carry it will drop frames, which is recoverable; a call needlessly encoded at
+        // 8 kbps sounds bad for its whole length.
+        if (linkBps <= 0) return DefaultBitrateBps;
+
+        var share = linkBps / 3;
+        return (int)Math.Clamp(share, MinBitrateBps, DefaultBitrateBps);
+    }
+
     private readonly IOpusEncoder _encoder;
     private readonly IOpusDecoder _decoder;
     private bool _disposed;

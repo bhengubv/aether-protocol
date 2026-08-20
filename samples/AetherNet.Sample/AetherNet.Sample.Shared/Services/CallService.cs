@@ -370,8 +370,16 @@ public sealed class CallService : IDisposable
         _audio.HoldCall(PeerTag);
         IsMuted = false;   // every call starts with the microphone live
 
+        // Size the codec to the radio actually carrying the call, not to a constant. This is what
+        // lets a call survive moving between radios: the bitrate follows the link down and back up
+        // instead of asking a narrow one for a wide one's throughput.
+        var linkBps = _radio?.LinkBandwidthBps ?? 0;
+        var bitrate = OpusVoiceCodec.BitrateFor(linkBps);
+
         _codec?.Dispose();
-        _codec = new OpusVoiceCodec();
+        _codec = new OpusVoiceCodec(bitrateBps: bitrate);
+        if (bitrate != OpusVoiceCodec.DefaultBitrateBps)
+            T($"encoding at {bitrate / 1000}kbps — {_radio?.LinkRadio ?? "the radio"} reports {linkBps / 1000}kbps");
         _sequence = 0;
 
         // One queue and one sender per call. DropOldest is what keeps the microphone from outrunning

@@ -35,6 +35,9 @@ public sealed class FakeRadioMesh : IRadioMesh
     public IReadOnlyList<RadioInfo> Radios { get; } = [new("Fake", true, null)];
     public string SelectedRadio => "Fake";
     public string LinkRadio => "Fake";
+
+    /// <summary>What the fake radio claims to carry. Tests set it to size the codec.</summary>
+    public long LinkBandwidthBps { get; set; }
     public bool IsSupported => true;
     public bool IsLinked { get; private set; }
 

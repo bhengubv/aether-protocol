@@ -40,6 +40,18 @@ public interface IRadioMesh
     /// </summary>
     string LinkRadio { get; }
 
+    /// <summary>
+    /// Roughly what the radio currently carrying traffic can move, in bits per second — 0 when
+    /// nothing is linked or the radio will not say.
+    ///
+    /// <para>
+    /// Exposed so media can size itself to the link rather than assume one. A codec that always asks
+    /// for the same bitrate is fine right up until the link changes underneath it, which is exactly
+    /// what automatic radio handover does on purpose.
+    /// </para>
+    /// </summary>
+    long LinkBandwidthBps { get; }
+
     /// <summary>Whether the selected radio is usable on this device.</summary>
     bool IsSupported { get; }
 
