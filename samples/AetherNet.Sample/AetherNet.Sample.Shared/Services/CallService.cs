@@ -40,6 +40,15 @@ public sealed class CallService : IDisposable
     /// the recovery would mean two implementations of the trickiest code in the app drifting apart.
     /// </summary>
     private readonly ChatService? _chat;
+
+    /// <summary>
+    /// Where calls are written down. Optional, because a host without a database can still place a
+    /// call — it simply will not remember it afterwards.
+    /// </summary>
+    private readonly AetherNet.Sample.Shared.Data.AetherStore? _store;
+
+    /// <summary>When the call in progress started, so history has a start and not only an end.</summary>
+    private DateTime? _startedAt;
     private readonly ILogger _log;
 
     private IVoiceCallService? _voice;
@@ -85,11 +94,13 @@ public sealed class CallService : IDisposable
         IIdentityService me,
         ISignalProtocolService signal,
         IAudioIo audio,
+        AetherNet.Sample.Shared.Data.AetherStore? store = null,
         ChatService? chat = null,
         WifiDirectBroker? wifiDirect = null,
         IRadioMesh? radio = null,
         ILoggerFactory? loggerFactory = null)
     {
+        _store = store;
         _chat = chat;
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
@@ -225,6 +236,7 @@ public sealed class CallService : IDisposable
             return false;
         }
 
+        _startedAt = DateTime.UtcNow;   // history needs a start, not only an end
         T($"calling {peerTag}");
         Raise();
         StopRinging();
@@ -713,6 +725,7 @@ public sealed class CallService : IDisposable
         }
 
         Current = session;
+        _startedAt = DateTime.UtcNow;   // a call that is never answered still happened
         T($"incoming call from {session.CallerUhid}");
         _audio.StartRinging(session.CallerUhid);
         Raise();
@@ -747,8 +760,48 @@ public sealed class CallService : IDisposable
         _ = EndAsync();
     }
 
+    /// <summary>
+    /// Write the call down, once, as it ends.
+    ///
+    /// <para>
+    /// Recorded here rather than at each of the several places a call can finish — hung up, declined,
+    /// rung out, network failure — because every one of them ends here, and a history that misses the
+    /// unusual endings is exactly the history nobody can trust. A call that never connected is stored
+    /// with ConnectedMs 0, which is what makes it missed; there is no separate flag to fall out of
+    /// step.
+    /// </para>
+    /// </summary>
+    private void RecordCall()
+    {
+        if (_store is null || Current is not { } call || _startedAt is not { } started) return;
+        _startedAt = null;   // one row per call, however many ways it ends
+
+        try
+        {
+            var peer = call.RemoteUhid(_me.AetherTag);
+            if (string.IsNullOrEmpty(peer)) return;
+
+            _store.SaveCall(new AetherNet.Sample.Shared.Data.CallRecord(
+                Id: call.Id.ToString(),
+                PeerTag: peer,
+                Outgoing: IAmTheCaller,
+                StartedMs: new DateTimeOffset(started, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+                ConnectedMs: call.ConnectedAt is { } c
+                    ? new DateTimeOffset(c, TimeSpan.Zero).ToUnixTimeMilliseconds()
+                    : 0,
+                EndedMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                Reason: call.HangupReason.ToString()));
+        }
+        catch (Exception ex)
+        {
+            // Never let bookkeeping take down the teardown of a call.
+            _log.LogDebug(ex, "recording the call");
+        }
+    }
+
     private async Task EndAsync()
     {
+        RecordCall();             // write it down before the state it describes is cleared
         StopRinging();
         _audio.StopRinging();     // answered, declined, or they gave up — either way, stop making noise
         _audio.ReleaseCall();     // and let the phone go back to being an ordinary phone

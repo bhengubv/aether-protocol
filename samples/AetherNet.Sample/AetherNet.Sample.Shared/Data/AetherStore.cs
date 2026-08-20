@@ -11,6 +11,39 @@ namespace AetherNet.Sample.Shared.Data;
 /// <param name="AddedByMe">You have added them.</param>
 /// <param name="AddedByThem">They have added you.</param>
 /// <param name="AddedVia">How the tag arrived: qr · typed · radio · invite.</param>
+/// <summary>
+/// A call that happened — placed or received, answered or not.
+///
+/// <para>
+/// <see cref="ConnectedMs"/> is 0 when the call never connected, and that is exactly what makes it
+/// missed. There is no separate flag, because a flag is one more thing that can disagree with
+/// reality.
+/// </para>
+/// </summary>
+public sealed record CallRecord(
+    string Id,
+    string PeerTag,
+    bool Outgoing,
+    long StartedMs,
+    long ConnectedMs,
+    long EndedMs,
+    string Reason)
+{
+    /// <summary>They rang, and nobody picked up.</summary>
+    public bool Missed => !Outgoing && ConnectedMs == 0;
+
+    /// <summary>It was answered, so there is a duration worth showing.</summary>
+    public bool Connected => ConnectedMs > 0;
+
+    /// <summary>How long the two of them actually talked, or null if they never did.</summary>
+    public TimeSpan? Duration => ConnectedMs > 0 && EndedMs >= ConnectedMs
+        ? TimeSpan.FromMilliseconds(EndedMs - ConnectedMs)
+        : null;
+
+    /// <summary>When it started, as a local time for showing.</summary>
+    public DateTimeOffset StartedAt => DateTimeOffset.FromUnixTimeMilliseconds(StartedMs).ToLocalTime();
+}
+
 public sealed record ContactRecord(
     string Tag,
     string DisplayName,
@@ -192,6 +225,24 @@ public sealed class AetherStore : IDisposable
                 saved_ms  INTEGER NOT NULL
             );
             """);
+
+        // Calls that happened. A phone that cannot tell you who rang while you were away is missing
+        // something people check more often than they place calls.
+        //
+        // connected_ms is 0 when it never connected, which is exactly what makes a call "missed" —
+        // there is no separate flag to keep in step with reality.
+        Exec("""
+            CREATE TABLE IF NOT EXISTS calls (
+                id           TEXT PRIMARY KEY NOT NULL,
+                peer_tag     TEXT NOT NULL,
+                outgoing     INTEGER NOT NULL,
+                started_ms   INTEGER NOT NULL,
+                connected_ms INTEGER NOT NULL,
+                ended_ms     INTEGER NOT NULL,
+                reason       TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_calls_started ON calls (started_ms DESC);
+            """);
     }
 
     /// <summary>
@@ -262,6 +313,91 @@ public sealed class AetherStore : IDisposable
     /// Store this peer's ratchet state, replacing what was there. Written on every message in
     /// either direction, so it stays a single indexed upsert against a local file.
     /// </summary>
+    // ── Calls ─────────────────────────────────────────────────────────────
+
+    /// <summary>Record a call that has ended. Called once, when the call is over.</summary>
+    public void SaveCall(CallRecord call)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO calls (id, peer_tag, outgoing, started_ms, connected_ms, ended_ms, reason)
+                VALUES (@id, @tag, @out, @started, @connected, @ended, @reason)
+                ON CONFLICT(id) DO UPDATE SET
+                    connected_ms=@connected, ended_ms=@ended, reason=@reason;
+                """;
+            cmd.Parameters.AddWithValue("@id", call.Id);
+            cmd.Parameters.AddWithValue("@tag", call.PeerTag);
+            cmd.Parameters.AddWithValue("@out", call.Outgoing ? 1 : 0);
+            cmd.Parameters.AddWithValue("@started", call.StartedMs);
+            cmd.Parameters.AddWithValue("@connected", call.ConnectedMs);
+            cmd.Parameters.AddWithValue("@ended", call.EndedMs);
+            cmd.Parameters.AddWithValue("@reason", call.Reason);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>The most recent calls, newest first.</summary>
+    public IReadOnlyList<CallRecord> GetCalls(int limit = 200)
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, peer_tag, outgoing, started_ms, connected_ms, ended_ms, reason
+                FROM calls ORDER BY started_ms DESC LIMIT @limit;
+                """;
+            cmd.Parameters.AddWithValue("@limit", limit);
+
+            var list = new List<CallRecord>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                list.Add(new CallRecord(
+                    r.GetString(0), r.GetString(1), r.GetInt64(2) != 0,
+                    r.GetInt64(3), r.GetInt64(4), r.GetInt64(5), r.GetString(6)));
+            return list;
+        }
+    }
+
+    /// <summary>Calls with one person, newest first — for the top of their conversation.</summary>
+    public IReadOnlyList<CallRecord> GetCallsWith(string peerTag, int limit = 50)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(peerTag);
+
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, peer_tag, outgoing, started_ms, connected_ms, ended_ms, reason
+                FROM calls WHERE peer_tag = @tag ORDER BY started_ms DESC LIMIT @limit;
+                """;
+            cmd.Parameters.AddWithValue("@tag", peerTag);
+            cmd.Parameters.AddWithValue("@limit", limit);
+
+            var list = new List<CallRecord>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                list.Add(new CallRecord(
+                    r.GetString(0), r.GetString(1), r.GetInt64(2) != 0,
+                    r.GetInt64(3), r.GetInt64(4), r.GetInt64(5), r.GetString(6)));
+            return list;
+        }
+    }
+
+    /// <summary>How many calls came in and were never answered — for a badge.</summary>
+    public int CountMissed()
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM calls WHERE outgoing = 0 AND connected_ms = 0;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+    }
+
     public void SaveSessionBlob(string peerTag, byte[] blob)
     {
         ArgumentException.ThrowIfNullOrEmpty(peerTag);

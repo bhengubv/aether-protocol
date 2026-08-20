@@ -1,0 +1,108 @@
+@page "/calls"
+@using AetherNet.Sample.Shared.Data
+@using AetherNet.Sample.Shared.Services
+@inject AetherStore Store
+@inject NavigationManager Nav
+
+<PageTitle>Aether — calls</PageTitle>
+
+<div class="calls">
+    <h1 class="scr-title">Calls</h1>
+
+    @if (_calls.Count == 0)
+    {
+        <div class="none">No calls yet.</div>
+    }
+    else
+    {
+        @foreach (var c in _calls)
+        {
+            <button class="crow" @onclick="@(() => Nav.NavigateTo($"chat/{c.PeerTag}"))">
+                <span class="cicon @Kind(c)">
+                    @* Arrow in for received, out for placed — and the missed one is the same arrow,
+                       simply red, because a missed call IS an incoming call that went unanswered. *@
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        @if (c.Outgoing)
+                        {
+                            <path d="M7 17L17 7M17 7H9M17 7v8" />
+                        }
+                        else
+                        {
+                            <path d="M17 7L7 17M7 17h8M7 17V9" />
+                        }
+                    </svg>
+                </span>
+
+                <span class="cmid">
+                    <span class="cname @(c.Missed ? "missed" : null)">@c.PeerTag</span>
+                    <span class="cwhen">@Describe(c)</span>
+                </span>
+
+                <span class="cdur">@(c.Duration is { } d ? Clock(d) : "")</span>
+            </button>
+        }
+    }
+</div>
+
+@code {
+    private IReadOnlyList<CallRecord> _calls = Array.Empty<CallRecord>();
+
+    protected override void OnInitialized() => _calls = Store.GetCalls();
+
+    private static string Kind(CallRecord c) => c.Missed ? "missed" : c.Outgoing ? "out" : "in";
+
+    /// <summary>
+    /// What happened, and when — in the words someone would use. A call that never connected says so
+    /// rather than showing a duration of nothing.
+    /// </summary>
+    private static string Describe(CallRecord c)
+    {
+        var what = c.Missed ? "Missed"
+            : c.Connected ? (c.Outgoing ? "Outgoing" : "Incoming")
+            : c.Outgoing ? "No answer"
+            : "Declined";
+
+        return $"{what} · {When(c.StartedAt)}";
+    }
+
+    /// <summary>Today shows a time, this week a day, older a date. Nobody wants a timestamp.</summary>
+    private static string When(DateTimeOffset at)
+    {
+        var local = at.LocalDateTime;
+        var today = DateTime.Now.Date;
+
+        if (local.Date == today) return local.ToString("HH:mm");
+        if (local.Date == today.AddDays(-1)) return $"Yesterday {local:HH:mm}";
+        if (local.Date > today.AddDays(-7)) return local.ToString("ddd HH:mm");
+        return local.ToString("d MMM");
+    }
+
+    private static string Clock(TimeSpan d) => d.TotalHours >= 1
+        ? $"{(int)d.TotalHours}:{d.Minutes:00}:{d.Seconds:00}"
+        : $"{d.Minutes}:{d.Seconds:00}";
+}
+
+<style>
+    .calls { max-width: 720px; margin: 0 auto; }
+    .scr-title { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); padding: 4px 4px 12px; }
+    .none { color: var(--ink-3); font-style: italic; padding: 18px 6px; }
+
+    .crow {
+        appearance: none; border: none; background: transparent; cursor: pointer; width: 100%;
+        display: flex; align-items: center; gap: 13px;
+        padding: 11px 6px; border-bottom: 1px solid var(--line); text-align: left;
+    }
+    .crow:active { background: var(--surface-2); }
+
+    .cicon { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface-2); }
+    .cicon svg { width: 18px; height: 18px; }
+    .cicon.in     { color: var(--brand); }
+    .cicon.out    { color: var(--ink-2); }
+    .cicon.missed { color: #c0392b; background: #fdecea; }
+
+    .cmid { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+    .cname { font-family: var(--mono); font-weight: 700; color: var(--ink); }
+    .cname.missed { color: #c0392b; }
+    .cwhen { font-size: 0.8rem; color: var(--ink-3); }
+    .cdur { font-size: 0.8rem; color: var(--ink-3); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+</style>
