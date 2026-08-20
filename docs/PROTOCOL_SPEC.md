@@ -1192,6 +1192,28 @@ States: `Initiating(0)`, `Ringing(1)`, `Active(2)`, `OnHold(3)`, `Ended(4)`, `Fa
 
 ### 10.6. Group Video
 
+> **Correction (2026-08-20).** "Unlimited participants" below is wrong, and is
+> kept only because the topology design around it is still sound. A group video
+> call is capped by the number of concurrent hardware decoders on each handset —
+> two to four on mid-range parts — long before any topology matters. §10.10 works
+> this through. An implementation MUST discover that number rather than assume
+> one, and MUST degrade the participants it cannot decode to audio rather than
+> failing to configure a decoder, which shows nothing at all.
+>
+> **What the reference implementation does today.** Full mesh, in both the
+> protocol and the C# sample: each participant encodes once and sends the result
+> to every other participant, sealed under a key derived from the *sender's* tag.
+> "Caller" and "answerer" stop meaning anything past two people, so the direction
+> labels in §4 are replaced by the sender's identity — one master secret, N
+> distinct sealing keys, and no two participants ever sharing one. Which matters:
+> the nonce is a per-cipher counter, so two people sealing under one key would
+> collide within seconds of both talking, and AES-GCM must never do that.
+>
+> The SFU topology below is **not built**. It is the right answer to the
+> group-owner bottleneck a Wi-Fi Direct group creates (§10.10), and it does not
+> help with the decoder cap at all — an SFU reduces what each phone *sends*, not
+> what it must *decode*.
+
 Group video sessions support unlimited participants. The topology is dynamically selected based on participant count:
 
 - **FullMesh** (2-3 participants): Each participant sends one stream to every other participant. Simple, low latency.

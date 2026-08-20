@@ -67,6 +67,7 @@ builder.Services.AddSingleton<IMediaCapture, NullMediaCapture>();
 builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 builder.Services.AddSingleton<WifiDirectBroker>();
 builder.Services.AddSingleton<CallService>();
+builder.Services.AddSingleton<GroupCallService>();
 
 
 // The live in-process AetherNet mesh that the demo UI drives. Singleton on the server: the

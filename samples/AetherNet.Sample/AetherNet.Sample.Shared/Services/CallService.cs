@@ -964,7 +964,7 @@ public sealed class CallService : IDisposable
             if (opened?.Payload is not { Length: > 0 } frame) return;
 
             VideoFrameReceived?.Invoke(frame);
-            _video?.Play(frame);
+            _video?.Play(from, frame);
             return;
         }
 

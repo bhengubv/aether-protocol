@@ -8,6 +8,7 @@
 @inject CallService Calls
 @inject IRadioMesh Radio
 @inject IMediaCapture Recorder
+@inject GroupCallService GroupCalls
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
@@ -39,9 +40,16 @@
             </span>
         </span>
 
-        @* Calling is only offered to a person, never to a group, and only when it could actually
-           work. A greyed button with the reason beats one that rings out into nothing. *@
-        @if (_group is null)
+        @* Only offered when it could actually work. A greyed button with the reason beats one that
+           rings out into nothing. *@
+        @if (_group is not null)
+        {
+            <button class="callbtn" @onclick="CallGroup" aria-label="Call the group"
+                    title="@("Call " + _group.Name)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </button>
+        }
+        else
         {
             <button class="callbtn" disabled="@(!CanCall)" title="@(CanCall ? $"Call {Peer}" : Calls.CannotCallReason)"
                     @onclick="Call" aria-label="Call">
@@ -404,6 +412,16 @@
     private static string Clock(TimeSpan d) => d.Minutes + ":" + d.Seconds.ToString("00");
 
     private void Back() => Nav.NavigateTo("");
+
+    /// <summary>
+    /// Call everyone in the group. The service refuses and says why if nobody can be reached, so
+    /// there is nothing to check here that it does not check better.
+    /// </summary>
+    private async Task CallGroup()
+    {
+        if (_group is null) return;
+        await GroupCalls.StartAsync(_group.Id);
+    }
 
     /// What we actually know, never more. One tick is not a delivery claim — only two is.
     private static string Tick(string state) => state switch

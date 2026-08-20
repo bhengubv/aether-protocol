@@ -58,8 +58,35 @@ public interface IVideoIo
     /// </summary>
     void ShowRemote(bool visible);
 
-    /// <summary>One encoded frame off the radio — decode it and draw it.</summary>
-    void Play(byte[] encodedFrame);
+    /// <summary>
+    /// How many people this phone can show at once.
+    ///
+    /// <para>
+    /// Discovered from the hardware, never assumed. Each incoming stream needs its own decoder, and a
+    /// mid-range phone commonly has two to four; past that <c>MediaCodec</c> does not degrade, it
+    /// fails to configure, and a caller who guessed high gets a blank rectangle with no reason given.
+    /// PROTOCOL_SPEC §10.10 makes discovering this a requirement rather than a nicety, and it is why
+    /// a group video call is capped by silicon long before the radio runs out.
+    /// </para>
+    /// </summary>
+    int MaxConcurrentStreams { get; }
+
+    /// <summary>
+    /// One encoded frame off the radio — decode it and draw it as coming from <paramref name="from"/>.
+    ///
+    /// <para>
+    /// Named rather than anonymous because a group call has several people on camera at once, and
+    /// each needs its own decoder and its own place on screen. A 1:1 call is simply the case where
+    /// there is one name.
+    /// </para>
+    /// </summary>
+    void Play(string from, byte[] encodedFrame);
+
+    /// <summary>
+    /// Stop showing someone — they left, turned their camera off, or lost the last decoder to
+    /// somebody who is actually talking. Frees the decoder for whoever needs it next.
+    /// </summary>
+    void Forget(string who);
 
     /// <summary>Front camera or back. Ignored where there is only one.</summary>
     void SwitchCamera();
@@ -93,8 +120,10 @@ public sealed class NullVideoIo : IVideoIo
     public Task<bool> EnsurePermissionAsync() => Task.FromResult(false);
     public Task<bool> StartAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
     public Task StopAsync() => Task.CompletedTask;
+    public int MaxConcurrentStreams => 0;
     public void ShowRemote(bool visible) { }
-    public void Play(byte[] encodedFrame) { }
+    public void Play(string from, byte[] encodedFrame) { }
+    public void Forget(string who) { }
     public void SwitchCamera() { }
 
     public event Action<byte[]>? FrameEncoded { add { } remove { } }

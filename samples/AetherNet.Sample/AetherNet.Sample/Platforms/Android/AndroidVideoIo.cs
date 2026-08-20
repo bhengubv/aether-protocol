@@ -70,17 +70,36 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     private CameraDevice? _camera;
     private CameraCaptureSession? _session;
     private MediaCodec? _encoder;
-    private MediaCodec? _decoder;
     private Surface? _encoderInput;
     private FrameLayout? _overlay;
-    private SurfaceView? _remoteView;
+    private GridLayout? _grid;
     private TextureView? _localView;
     private Thread? _drain;
     private volatile bool _running;
-    private bool _decoderReady;
     private bool _useFrontCamera = true;
     private byte[]? _codecConfig;
+    private int _decoderCap = -1;
     private bool _disposed;
+
+    /// <summary>
+    /// One person on camera: their decoder, and the tile it draws on.
+    ///
+    /// <para>
+    /// A TextureView rather than a SurfaceView for each. Several SurfaceViews in one window fight over
+    /// z-order and the losers vanish entirely, which in a group call means a participant who is
+    /// present, decoding, and simply invisible — one of the harder failures to explain.
+    /// </para>
+    /// </summary>
+    private sealed class Stream_(string who)
+    {
+        public string Who { get; } = who;
+        public TextureView? View { get; set; }
+        public MediaCodec? Decoder { get; set; }
+        public bool Ready { get; set; }
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Stream_> _streams =
+        new(StringComparer.Ordinal);
 
     public bool IsPresent => global::Android.App.Application.Context.PackageManager?
         .HasSystemFeature(global::Android.Content.PM.PackageManager.FeatureCameraAny) ?? false;
@@ -88,6 +107,55 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     public string? UnavailableReason => IsPresent ? null : "this phone has no camera";
 
     public bool IsRunning => _running;
+
+    /// <summary>
+    /// How many H.264 streams this phone can decode at once — asked of the hardware, not assumed.
+    ///
+    /// <para>
+    /// <c>GetMaxSupportedInstances</c> is the platform answering the question directly, which is worth
+    /// far more than any table of handsets: the same chip reports different numbers depending on
+    /// resolution and on what else is running. A phone that will not answer gets two, which is the low
+    /// end of what mid-range parts actually manage — better to show fewer people than to configure a
+    /// decoder that fails and shows nobody.
+    /// </para>
+    ///
+    /// <para>
+    /// One instance is subtracted for this phone's own encoder, which competes for the same pool on
+    /// most parts. PROTOCOL_SPEC §10.10 explains why this number, rather than the radio, is what caps
+    /// a group video call.
+    /// </para>
+    /// </summary>
+    public int MaxConcurrentStreams
+    {
+        get
+        {
+            if (_decoderCap >= 0) return _decoderCap;
+
+            var found = 2;
+            try
+            {
+                var list = new MediaCodecList(MediaCodecListKind.RegularCodecs);
+                foreach (var info in list.GetCodecInfos() ?? [])
+                {
+                    if (info.IsEncoder) continue;
+                    if (!info.GetSupportedTypes()!.Any(t => string.Equals(t, Mime, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+
+                    var instances = info.GetCapabilitiesForType(Mime)?.MaxSupportedInstances ?? 0;
+                    if (instances > found) found = instances;
+                }
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Info("AetherVideo", "could not ask about decoders: " + ex.Message);
+            }
+
+            // Leave one for our own encoder, and never claim more than the screen could usefully show.
+            _decoderCap = Math.Clamp(found - 1, 1, 6);
+            global::Android.Util.Log.Info("AetherVideo", "this phone can decode " + _decoderCap + " streams at once");
+            return _decoderCap;
+        }
+    }
 
     public event Action<byte[]>? FrameEncoded;
 
@@ -138,9 +206,10 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         _overlay = new FrameLayout(activity);
         _overlay.SetBackgroundColor(Color.Black);
 
-        _remoteView = new SurfaceView(activity);
-        _remoteView.Holder?.AddCallback(new RemoteSurface(this));
-        _overlay.AddView(_remoteView, new FrameLayout.LayoutParams(
+        // A grid rather than one big picture, because a group call has several. With one person in it
+        // the grid is one cell filling the screen, so the 1:1 case costs nothing.
+        _grid = new GridLayout(activity) { ColumnCount = 1, RowCount = 1 };
+        _overlay.AddView(_grid, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
 
         // The local preview is a TextureView rather than a second SurfaceView: two surface views in
@@ -345,57 +414,24 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
     // ── Playing what arrives ──────────────────────────────────────────────────
 
-    /// <summary>The remote surface is only usable once Android says it exists.</summary>
-    private sealed class RemoteSurface(AndroidVideoIo video) : Java.Lang.Object, ISurfaceHolderCallback
+    public void Play(string from, byte[] encodedFrame)
     {
-        public void SurfaceCreated(ISurfaceHolder holder) => video.StartDecoder(holder.Surface);
-        public void SurfaceChanged(ISurfaceHolder holder, Format format, int width, int height) { }
-        public void SurfaceDestroyed(ISurfaceHolder holder) => video.StopDecoder();
-    }
+        if (_disposed || string.IsNullOrEmpty(from)) return;
+        if (encodedFrame is null || encodedFrame.Length == 0) return;
 
-    private void StartDecoder(Surface? surface)
-    {
-        if (surface is null) return;
+        var stream = _streams.GetOrAdd(from, w => new Stream_(w));
 
-        try
+        // The tile has to exist and be laid out before a decoder can be pointed at it, and that has
+        // to happen on the UI thread. The frames that arrive in the meantime are dropped, which costs
+        // a fraction of a second at the start of someone appearing — and they appear on the next
+        // keyframe anyway, which is never more than a second away.
+        if (!stream.Ready)
         {
-            var format = MediaFormat.CreateVideoFormat(Mime, Width, Height)!;
-
-            lock (_gate)
-            {
-                _decoder = MediaCodec.CreateDecoderByType(Mime);
-                _decoder!.Configure(format, surface, null, MediaCodecConfigFlags.None);
-                _decoder.Start();
-                _decoderReady = true;
-            }
+            if (stream.View is null) MainThread.BeginInvokeOnMainThread(() => AddTile(stream));
+            return;
         }
-        catch (Exception ex)
-        {
-            global::Android.Util.Log.Error("AetherVideo", "no H.264 decoder: " + ex);
-        }
-    }
 
-    private void StopDecoder()
-    {
-        lock (_gate)
-        {
-            _decoderReady = false;
-            try { _decoder?.Stop(); } catch { /* already gone */ }
-            try { _decoder?.Release(); } catch { /* already gone */ }
-            _decoder = null;
-        }
-    }
-
-    public void Play(byte[] encodedFrame)
-    {
-        if (_disposed || encodedFrame is null || encodedFrame.Length == 0) return;
-
-        MediaCodec? decoder;
-        lock (_gate)
-        {
-            if (!_decoderReady) return;
-            decoder = _decoder;
-        }
+        var decoder = stream.Decoder;
         if (decoder is null) return;
 
         try
@@ -426,14 +462,159 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         }
     }
 
-    public void ShowRemote(bool visible)
+    /// <summary>
+    /// Give someone a tile and a decoder, and re-lay the grid around them.
+    ///
+    /// <para>
+    /// Runs on the UI thread — a TextureView cannot be added anywhere else, and its surface does not
+    /// exist until Android has laid it out, which is why the decoder is built in the listener below
+    /// rather than here.
+    /// </para>
+    /// </summary>
+    private void AddTile(Stream_ stream)
     {
-        var view = _remoteView;
-        if (view is null) return;
+        if (_disposed || _grid is null || stream.View is not null) return;
+
+        var activity = Platform.CurrentActivity;
+        if (activity is null) return;
+
+        var view = new TextureView(activity);
+        view.SurfaceTextureListener = new TileSurface(this, stream);
+        stream.View = view;
+
+        _grid.AddView(view);
+        Relayout();
+    }
+
+    /// <summary>
+    /// Fit however many people are on camera into the screen.
+    ///
+    /// <para>
+    /// A square-ish grid: one fills the screen, two stack, four make a two-by-two. Sizes are set on
+    /// every cell rather than left to the layout, because GridLayout does not stretch children on its
+    /// own and the default is every tile collapsing to nothing.
+    /// </para>
+    /// </summary>
+    private void Relayout()
+    {
+        if (_grid is null) return;
+
+        var count = _grid.ChildCount;
+        if (count == 0) return;
+
+        var columns = (int)Math.Ceiling(Math.Sqrt(count));
+        var rows = (int)Math.Ceiling(count / (double)columns);
+
+        _grid.ColumnCount = columns;
+        _grid.RowCount = rows;
+
+        var width = _grid.Width > 0 ? _grid.Width / columns : ViewGroup.LayoutParams.MatchParent;
+        var height = _grid.Height > 0 ? _grid.Height / rows : ViewGroup.LayoutParams.MatchParent;
+
+        for (var i = 0; i < count; i++)
+        {
+            var child = _grid.GetChildAt(i);
+            if (child is null) continue;
+
+            child.LayoutParameters = new GridLayout.LayoutParams
+            {
+                Width = width,
+                Height = height,
+            };
+        }
+    }
+
+    /// <summary>A tile's surface exists; point a decoder at it.</summary>
+    private sealed class TileSurface(AndroidVideoIo video, Stream_ stream) : Java.Lang.Object, TextureView.ISurfaceTextureListener
+    {
+        public void OnSurfaceTextureAvailable(SurfaceTexture surface, int width, int height)
+        {
+            surface.SetDefaultBufferSize(Width, Height);
+            video.StartDecoder(stream, new Surface(surface));
+        }
+
+        public bool OnSurfaceTextureDestroyed(SurfaceTexture surface)
+        {
+            video.StopDecoder(stream);
+            return true;
+        }
+
+        public void OnSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) { }
+        public void OnSurfaceTextureUpdated(SurfaceTexture surface) { }
+    }
+
+    private void StartDecoder(Stream_ stream, Surface surface)
+    {
+        try
+        {
+            var format = MediaFormat.CreateVideoFormat(Mime, Width, Height)!;
+
+            lock (_gate)
+            {
+                var decoder = MediaCodec.CreateDecoderByType(Mime);
+                decoder!.Configure(format, surface, null, MediaCodecConfigFlags.None);
+                decoder.Start();
+
+                stream.Decoder = decoder;
+                stream.Ready = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            // This is the failure MaxConcurrentStreams exists to avoid — one decoder too many, and the
+            // platform refuses rather than degrading. Said out loud so it is not a silent blank tile.
+            global::Android.Util.Log.Error("AetherVideo",
+                "no decoder left for " + stream.Who + " — " + ex.Message);
+            stream.Ready = false;
+        }
+    }
+
+    private void StopDecoder(Stream_ stream)
+    {
+        lock (_gate)
+        {
+            stream.Ready = false;
+            try { stream.Decoder?.Stop(); } catch { /* nothing was decoded */ }
+            try { stream.Decoder?.Release(); } catch { /* already gone */ }
+            stream.Decoder = null;
+        }
+    }
+
+    public void Forget(string who)
+    {
+        if (string.IsNullOrEmpty(who) || !_streams.TryRemove(who, out var stream)) return;
+
+        StopDecoder(stream);
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            try { view.Visibility = visible ? ViewStates.Visible : ViewStates.Invisible; }
+            try
+            {
+                if (stream.View is not null) _grid?.RemoveView(stream.View);
+                stream.View = null;
+                Relayout();
+            }
+            catch { /* the overlay is going away */ }
+        });
+    }
+
+    /// <summary>
+    /// Show or hide everybody's picture at once.
+    ///
+    /// <para>
+    /// Kept for the 1:1 path, where "the remote" is a single person and hiding them the moment their
+    /// camera goes off is what stops a frozen last frame. In a group the same thing is done per
+    /// person by <see cref="Forget"/>.
+    /// </para>
+    /// </summary>
+    public void ShowRemote(bool visible)
+    {
+        var grid = _grid;
+        if (grid is null) return;
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try { grid.Visibility = visible ? ViewStates.Visible : ViewStates.Invisible; }
             catch { /* the overlay is going away */ }
         });
     }
@@ -488,7 +669,8 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         _encoderInput = null;
         _codecConfig = null;
 
-        StopDecoder();
+        foreach (var stream in _streams.Values) StopDecoder(stream);
+        _streams.Clear();
 
         await MainThread.InvokeOnMainThreadAsync(RemoveOverlay).ConfigureAwait(false);
     }
@@ -502,7 +684,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         catch { /* the activity went first */ }
 
         _overlay = null;
-        _remoteView = null;
+        _grid = null;
         _localView = null;
     }
 

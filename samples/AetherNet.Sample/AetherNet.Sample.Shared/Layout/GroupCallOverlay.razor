@@ -1,0 +1,169 @@
+@using AetherNet.Sample.Shared.Data
+@using AetherNet.Sample.Shared.Services
+@inject GroupCallService Calls
+@inject AetherStore Store
+@implements IDisposable
+
+@*
+    A call with more than two people in it.
+
+    Deliberately its own screen rather than a mode of the 1:1 one. The two differ in almost everything
+    that matters: there is no single peer to name, no ringing-out to time, no hang-up that ends the
+    call for everybody — only a leave — and a list of people whose state changes independently. Folding
+    those into CallOverlay would have made both harder to read than either is apart.
+*@
+
+@if (Calls.IsRinging || Calls.Joined)
+{
+    <div class="gcall @(ShowingVideo ? "over-video" : null)">
+
+        <div class="ghead @(ShowingVideo ? "hidden" : null)">
+            <div class="gav">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="gname">@GroupName</div>
+            <div class="gstate">@State</div>
+
+            @if (Calls.Joined)
+            {
+                <div class="gpeople">
+                    @foreach (var who in Calls.Participants)
+                    {
+                        <span class="gperson" style="border-color:@TagPalette.For(who)">
+                            <span class="gdot" style="background:@TagPalette.For(who)"></span>
+                            <span class="gtag">@who</span>
+                            @if (Calls.OnCamera.Contains(who))
+                            {
+                                <svg class="gcam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                            }
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (Calls.Joined)
+        {
+            <div class="gactions">
+                @* The camera is capped by the number of decoders this phone has, not by the radio —
+                   so the reason, when there is one, names the actual limit rather than saying no. *@
+                <button class="gbtn @(Calls.CameraOn ? "on" : null)"
+                        disabled="@(!Calls.CanSendVideo && !Calls.CameraOn)"
+                        @onclick="ToggleCamera"
+                        title="@(Calls.CanSendVideo || Calls.CameraOn
+                            ? (Calls.CameraOn ? "Turn the camera off" : "Turn the camera on")
+                            : Calls.CannotSendVideoReason)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" />
+                        @if (!Calls.CameraOn) { <path d="M3 3l18 18" /> }
+                    </svg>
+                    <span>@(Calls.CameraOn ? "Camera on" : "Camera")</span>
+                </button>
+            </div>
+
+            @if (!Calls.CanSendVideo && !Calls.CameraOn && Calls.CannotSendVideoReason is { } why)
+            {
+                <div class="gwhy @(ShowingVideo ? "hidden" : null)">@why</div>
+            }
+        }
+
+        <div class="gend">
+            @if (Calls.IsRinging)
+            {
+                <button class="gcend join" @onclick="Join">Join</button>
+                <button class="gcend leave" @onclick="Decline">Decline</button>
+            }
+            else
+            {
+                <button class="gcend leave wide" @onclick="Leave">Leave</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => Calls.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>True when anyone's camera is on, so the picture behind this must not be painted over.</summary>
+    private bool ShowingVideo => Calls.CameraOn || Calls.OnCamera.Count > 0;
+
+    private string GroupName =>
+        Calls.GroupId is { } id ? Store.GetGroup(id)?.Name ?? id : "Group";
+
+    /// <summary>What is happening, in the words someone would use rather than a state name.</summary>
+    private string State => Calls.IsRinging
+        ? "Group call"
+        : Calls.Participants.Count <= 1
+            ? "Waiting for someone to join…"
+            : Calls.Participants.Count + " people";
+
+    private async Task Join() => await Calls.JoinAsync();
+    private async Task Decline() => await Calls.DeclineAsync();
+    private async Task Leave() => await Calls.LeaveAsync();
+    private async Task ToggleCamera() => await Calls.SetCameraAsync(!Calls.CameraOn);
+
+    public void Dispose() => Calls.Changed -= OnChanged;
+}
+
+<style>
+    .gcall {
+        position: fixed; inset: 0; z-index: 905;
+        background: var(--bg);
+        display: flex; flex-direction: column; align-items: center;
+        padding: 10vh 24px 8vh; gap: 18px;
+    }
+
+    /* With a camera on, the picture is drawn on native surfaces BEHIND this page, so the page has to
+       become transparent rather than merely hide its contents. A solid background here is a solid
+       background over the video. */
+    .gcall.over-video { background: transparent; }
+    .ghead.hidden, .gwhy.hidden { visibility: hidden; }
+    .gcall.over-video .gactions,
+    .gcall.over-video .gend {
+        background: rgba(0, 0, 0, 0.45); border-radius: 18px; padding: 10px 14px; backdrop-filter: blur(6px);
+    }
+
+    .ghead { display: flex; flex-direction: column; align-items: center; gap: 10px; flex: 1 1 auto; }
+    .gav {
+        width: 92px; height: 92px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--surface-2); color: var(--ink-2);
+    }
+    .gav svg { width: 42px; height: 42px; }
+
+    .gname { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); text-align: center; }
+    .gstate { color: var(--ink-3); font-size: 0.92rem; }
+
+    .gpeople { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; max-width: 520px; }
+    .gperson {
+        display: inline-flex; align-items: center; gap: 7px;
+        border: 1.5px solid var(--line); border-radius: 999px; padding: 5px 11px;
+        font-family: var(--mono); font-size: 0.78rem; color: var(--ink-2);
+    }
+    .gdot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+    .gtag { white-space: nowrap; }
+    .gcam { width: 13px; height: 13px; color: var(--brand); }
+
+    .gactions { display: flex; gap: 14px; }
+    .gbtn {
+        appearance: none; border: none; cursor: pointer; background: var(--surface-2); color: var(--ink-2);
+        border-radius: 16px; padding: 12px 16px; min-width: 92px;
+        display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 0.76rem;
+    }
+    .gbtn svg { width: 22px; height: 22px; }
+    .gbtn.on { background: var(--brand); color: #fff; }
+    .gbtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .gwhy { color: var(--ink-3); font-size: 0.8rem; text-align: center; max-width: 340px; }
+
+    .gend { display: flex; gap: 14px; }
+    .gcend {
+        appearance: none; border: none; cursor: pointer; color: #fff; font-weight: 700;
+        border-radius: 999px; padding: 15px 30px; font-size: 1rem;
+    }
+    .gcend.join { background: #1e8e3e; }
+    .gcend.leave { background: #c0392b; }
+    .gcend.wide { padding-left: 52px; padding-right: 52px; }
+</style>

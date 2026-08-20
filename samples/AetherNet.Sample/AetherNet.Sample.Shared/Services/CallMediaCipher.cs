@@ -98,8 +98,77 @@ public sealed class CallMediaCipher : IDisposable
         CryptographicOperations.ZeroMemory(theirs);
     }
 
+
     /// <summary>A fresh master secret for one call.</summary>
     public static byte[] NewMasterKey() => RandomNumberGenerator.GetBytes(KeyBytes);
+
+    /// <summary>
+    /// The same thing for a call with more than two people in it.
+    ///
+    /// <para>
+    /// "Caller" and "answerer" stop meaning anything past two, so the direction labels are replaced by
+    /// <b>who is speaking</b>. Every participant seals under a key derived from their own AetherTag,
+    /// and everyone else opens their stream under a key derived from that same tag. One master secret,
+    /// N distinct keys, and no pair ever has to agree on a role.
+    /// </para>
+    ///
+    /// <para>
+    /// This is what keeps the property that matters. AES-GCM must never seal two different frames
+    /// under the same key and nonce; the nonce is a per-instance counter, so two people sealing under
+    /// one key would collide within seconds of both talking. Deriving from the sender guarantees no
+    /// two participants ever share a sealing key, however many of them there are.
+    /// </para>
+    ///
+    /// <para>
+    /// One instance holds one direction each way: what I send, and what ONE other person sends. A call
+    /// with five people therefore holds four of these — each with its own replay window, for exactly
+    /// the reason audio and video need separate ones.
+    /// </para>
+    /// </summary>
+    /// <param name="master">The per-call secret, minted once and sent to each member in their session.</param>
+    /// <param name="myTag">This device, whose frames this instance seals.</param>
+    /// <param name="theirTag">The one other participant whose frames this instance opens.</param>
+    /// <param name="video">True for the video track, which keeps its own counter.</param>
+    public static CallMediaCipher ForGroup(
+        ReadOnlySpan<byte> master, string myTag, string theirTag, bool video = false)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(myTag);
+        ArgumentException.ThrowIfNullOrEmpty(theirTag);
+
+        // Nobody is in a group call with themselves. Allowing it would hand one instance the same key
+        // to seal and to open with, which is the collision this whole scheme exists to prevent.
+        if (string.Equals(myTag, theirTag, StringComparison.Ordinal))
+            throw new ArgumentException("A participant cannot be their own peer in a group call.", nameof(theirTag));
+
+        return new CallMediaCipher(master, GroupLabel(myTag, video), GroupLabel(theirTag, video));
+    }
+
+    /// <summary>
+    /// One participant's label on one track.
+    ///
+    /// <para>
+    /// The tag is inside the label rather than being the whole of it, so a label can never collide
+    /// with the two 1:1 direction labels above however odd a tag is.
+    /// </para>
+    /// </summary>
+    private static string GroupLabel(string tag, bool video) =>
+        (video ? "aether-group-video-v1-" : "aether-group-voice-v1-") + tag;
+
+    /// <summary>The shared construction, once the two labels have been decided.</summary>
+    private CallMediaCipher(ReadOnlySpan<byte> master, string outboundLabel, string inboundLabel)
+    {
+        if (master.Length != KeyBytes)
+            throw new ArgumentException($"A call key is {KeyBytes} bytes.", nameof(master));
+
+        var mine = Derive(master, outboundLabel);
+        var theirs = Derive(master, inboundLabel);
+
+        _send = new AesGcm(mine, TagBytes);
+        _receive = new AesGcm(theirs, TagBytes);
+
+        CryptographicOperations.ZeroMemory(mine);
+        CryptographicOperations.ZeroMemory(theirs);
+    }
 
     private static byte[] Derive(ReadOnlySpan<byte> master, string label)
     {

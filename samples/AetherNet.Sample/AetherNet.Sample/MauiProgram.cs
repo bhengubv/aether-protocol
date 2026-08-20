@@ -108,6 +108,11 @@ public static class MauiProgram
         builder.Services.AddSingleton<WifiDirectBroker>();
         builder.Services.AddSingleton<CallService>();
 
+        // A call with more than two people in it. Built the same way group chat is — several 1:1
+        // calls rather than a group key — and capped by the number of decoders this phone has, not by
+        // the radio. See GroupCallService and PROTOCOL_SPEC §10.10.
+        builder.Services.AddSingleton<GroupCallService>();
+
         // The live in-process AetherNet mesh that the demo UI drives.
         builder.Services.AddScoped<AetherDemoService>();
 
@@ -178,6 +183,17 @@ public static class MauiProgram
 #if ANDROID
                 if (calls is not null)
                     calls.Trace += m => global::Android.Util.Log.Info("AetherVoice", m);
+#endif
+            });
+
+            // Constructing this is what subscribes it to the radio, so a group call can ring before
+            // anyone has opened the group it belongs to.
+            Warm("group calls", () =>
+            {
+                var group = app.Services.GetService<GroupCallService>();
+#if ANDROID
+                if (group is not null)
+                    group.Trace += m => global::Android.Util.Log.Info("AetherGroupVoice", m);
 #endif
             });
 
