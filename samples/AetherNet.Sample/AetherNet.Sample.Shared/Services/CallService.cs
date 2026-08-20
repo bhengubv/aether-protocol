@@ -303,6 +303,11 @@ public sealed class CallService : IDisposable
 
     private async Task<bool> StartAudioAsync(CancellationToken cancellationToken)
     {
+        // Claim the phone for the duration of the call. Without this Android takes the microphone back
+        // the moment the person opens anything else — the call goes silent, or the process is killed
+        // outright, and the far end is never told.
+        _audio.HoldCall(PeerTag);
+
         _codec?.Dispose();
         _codec = new OpusVoiceCodec();
         _sequence = 0;
@@ -678,6 +683,7 @@ public sealed class CallService : IDisposable
     {
         StopRinging();
         _audio.StopRinging();     // answered, declined, or they gave up — either way, stop making noise
+        _audio.ReleaseCall();     // and let the phone go back to being an ordinary phone
         Current = null;
         try { await _audio.StopAsync().ConfigureAwait(false); } catch { }
 

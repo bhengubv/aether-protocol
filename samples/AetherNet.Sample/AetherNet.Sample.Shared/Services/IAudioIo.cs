@@ -48,6 +48,22 @@ public interface IAudioIo
     void StopRinging();
 
     /// <summary>
+    /// Hold the phone open for a call that is running, and let go when it ends.
+    ///
+    /// <para>
+    /// A call used to die the moment the person opened anything else: Android takes the microphone
+    /// back from whatever is not in front, and from version 14 will only leave it with a service that
+    /// says out loud it is recording. So a call that only survives while you stare at it is not a
+    /// call, and this is the seam that fixes it — implemented by the phone head as a foreground
+    /// service with a notification you can see and cancel, and by every other host as nothing.
+    /// </para>
+    /// </summary>
+    void HoldCall(string? peerTag);
+
+    /// <summary>The call is over — release whatever <see cref="HoldCall"/> claimed.</summary>
+    void ReleaseCall();
+
+    /// <summary>
     /// One frame from the microphone, exactly <c>sampleRateHz × frameDurationMs / 1000</c> samples.
     /// Raised on a capture thread, so a handler must not block — a call's audio is a hard real-time
     /// budget, and time spent here is time the next frame is not being read.
@@ -95,5 +111,7 @@ public sealed class NullAudioIo : IAudioIo
     public void Play(short[] pcm) { }
     public void StartRinging() { }
     public void StopRinging() { }
+    public void HoldCall(string? peerTag) { }
+    public void ReleaseCall() { }
     public Task StopAsync() => Task.CompletedTask;
 }

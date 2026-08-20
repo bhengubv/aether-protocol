@@ -218,6 +218,12 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
     }
 
     /// <inheritdoc />
+    public void HoldCall(string? peerTag) => AetherCallService.Start(peerTag);
+
+    /// <inheritdoc />
+    public void ReleaseCall() => AetherCallService.Stop();
+
+    /// <inheritdoc />
     public void StopRinging()
     {
         lock (_ringGate)

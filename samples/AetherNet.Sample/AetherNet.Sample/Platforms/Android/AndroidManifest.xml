@@ -36,6 +36,8 @@
          owned by a foreground service. connectedDevice is the type that covers exactly this. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- A call records while the app is not on screen; Android 14 refuses that without this. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- NFC (tap-to-pair) and LoRa (external USB module) radios. -->
