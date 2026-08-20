@@ -11,16 +11,35 @@
     phone off the loudspeaker. Every other phone on earth gives you those three, so their absence is
     not minimalism, it is a missing feature.
 *@
-@if (Calls.Current is { } call && call.State is CallState.Outgoing or CallState.Incoming or CallState.Connected)
+@if (Calls.Current is { State: CallState.Connected } && _minimised)
+{
+    @* Put away, not ended. A slim bar so the call is never something you have lost. *@
+    <button class="call-bar" @onclick="Restore">
+        <span class="cb-dot"></span>
+        <span class="cb-who">@Peer</span>
+        <span class="cb-time"><CallDuration Idle="Connected" /></span>
+        <span class="cb-back">Tap to return</span>
+    </button>
+}
+else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallState.Incoming or CallState.Connected)
 {
     <div class="call-screen @(call.State == CallState.Incoming ? "is-ringing" : null)">
         @* With a camera on, the picture IS the screen — it is drawn on native surfaces behind this
            overlay, so everything but the controls has to get out of its way. Painting the usual
            avatar and background over it would hide the very thing the call is now for. *@
+        @* Only once connected: minimising a call that is still ringing would hide the only thing
+           there is to act on. *@
+        @if (call.State == CallState.Connected)
+        {
+            <button class="call-min" @onclick="Minimise" aria-label="Minimise the call" title="Minimise">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+        }
+
         <div class="call-who @(ShowingVideo ? "hidden" : null)">
             <div class="call-av" style="background:@TagPalette.For(Peer)">@TagPalette.Initial(Peer)</div>
             <div class="call-tag">@Peer</div>
-            <div class="call-state">@State(call)</div>
+            <div class="call-state"><CallDuration Idle="@Waiting(call)" /></div>
         </div>
 
         @if (call.State == CallState.Connected)
@@ -89,36 +108,51 @@
 }
 
 @code {
-    private System.Threading.Timer? _tick;
-
     private string Peer => Calls.PeerTag ?? "";
 
-    protected override void OnInitialized()
+    /// <summary>Hidden while the call carries on — see <see cref="Minimise"/>.</summary>
+    private bool _minimised;
+
+    protected override void OnInitialized() => Calls.Changed += OnChanged;
+
+    /// <summary>
+    /// Redraw when something about the call actually changes — NOT on a clock.
+    ///
+    /// <para>
+    /// The running time used to tick here, re-rendering the whole screen once a second for the whole
+    /// call. In Blazor an <c>@@onclick</c> is dispatched by a handler id that a re-render replaces, so
+    /// a tap landing in the same instant as a tick was silently dropped. The duration now lives in
+    /// <c>CallDuration</c>, which re-renders alone, and the buttons here are built once and left
+    /// alone.
+    /// </para>
+    /// </summary>
+    private void OnChanged() => _ = InvokeAsync(() =>
     {
-        Calls.Changed += OnChanged;
+        // A new call must never open behind the minimised bar of the last one.
+        if (Calls.Current is null) _minimised = false;
+        StateHasChanged();
+    });
 
-        // The duration has to count up on its own — nothing else changes once a call connects, so
-        // without a tick the timer would sit frozen at 0:00 for the whole call.
-        _tick = new System.Threading.Timer(_ =>
-        {
-            if (Calls.Current is { State: CallState.Connected }) OnChanged();
-        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-    }
+    /// <summary>
+    /// Put the call away without ending it.
+    ///
+    /// <para>
+    /// The call keeps running — that is what the foreground service is for — and a bar stays on
+    /// screen to get back to it. Without this the call screen was a trap: it covered everything for
+    /// as long as the call lasted, and the only way out of it was to hang up.
+    /// </para>
+    /// </summary>
+    private void Minimise() => _minimised = true;
 
-    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+    private void Restore() => _minimised = false;
 
-    private string State(VoiceCallSession call) => call.State switch
+    private static string Waiting(VoiceCallSession call) => call.State switch
     {
         CallState.Outgoing => "Calling…",
         CallState.Incoming => "is calling",
-        CallState.Connected => Calls.Duration is { } d ? Clock(d) : "Connected",
+        CallState.Connected => "Connected",
         _ => "",
     };
-
-    /// <summary>mm:ss, and h:mm:ss once a call has been going long enough to deserve it.</summary>
-    private static string Clock(TimeSpan d) => d.TotalHours >= 1
-        ? $"{(int)d.TotalHours}:{d.Minutes:00}:{d.Seconds:00}"
-        : $"{d.Minutes}:{d.Seconds:00}";
 
     private void ToggleMute() => Calls.SetMuted(!Calls.IsMuted);
 
@@ -141,11 +175,33 @@
     public void Dispose()
     {
         Calls.Changed -= OnChanged;
-        _tick?.Dispose();
     }
 }
 
 <style>
+    .call-min {
+        position: absolute; top: 18px; left: 14px;
+        appearance: none; border: none; background: transparent; color: var(--ink-2);
+        width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .call-min svg { width: 26px; height: 26px; }
+    .call-min:active { background: var(--surface-2); }
+
+    /* The minimised call. Pinned above the tab bar so it is always reachable and never in the way. */
+    .call-bar {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 899;
+        appearance: none; border: none; cursor: pointer; width: 100%;
+        display: flex; align-items: center; gap: 10px;
+        padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));
+        background: var(--brand); color: #fff; font-size: 0.9rem;
+    }
+    .cb-dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: cbpulse 1.6s ease-in-out infinite; }
+    @@keyframes cbpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .cb-who { font-family: var(--mono); font-weight: 700; }
+    .cb-time { font-variant-numeric: tabular-nums; opacity: 0.9; }
+    .cb-back { margin-left: auto; opacity: 0.85; }
+
     /* Over everything, including the tab bar — a call is the only thing happening while it happens. */
     .call-screen {
         position: fixed; inset: 0; z-index: 900;

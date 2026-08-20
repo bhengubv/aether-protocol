@@ -1,0 +1,46 @@
+@using AetherNet.Sample.Shared.Services
+@inject CallService Calls
+@implements IDisposable
+
+@*
+    The running time on a call, and nothing else.
+
+    Its own component for one reason: it changes every second, and everything around it must not.
+    The call screen re-rendered whole on every tick, and in Blazor an @onclick is dispatched by a
+    handler id that a re-render replaces — so a tap landing in the same instant as a tick was thrown
+    away. That reads as "the buttons don't work", intermittently, which is the worst way for it to
+    read. Watched on merlin 2026-08-20.
+
+    Isolating the tick here means the buttons' render tree is built once and left alone for the whole
+    call, and only these few characters change underneath it.
+*@
+
+<span class="cdur">@Text</span>
+
+@code {
+    private System.Threading.Timer? _tick;
+
+    /// <summary>Shown before a call connects — there is no duration yet, but there is a state.</summary>
+    [Parameter] public string Idle { get; set; } = "";
+
+    protected override void OnInitialized() =>
+        _tick = new System.Threading.Timer(
+            _ => InvokeAsync(StateHasChanged), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+
+    private string Text => Calls.Duration is { } d ? Clock(d) : Idle;
+
+    /// <summary>
+    /// mm:ss, and h:mm:ss once a call has been going long enough to deserve it.
+    ///
+    /// <para>
+    /// <c>TotalMinutes</c> rather than <c>Minutes</c> below the hour: <c>Minutes</c> is the component
+    /// and wraps at sixty, so a 61-minute call would have shown 1:00 twice — once at a minute and
+    /// once an hour later.
+    /// </para>
+    /// </summary>
+    private static string Clock(TimeSpan d) => d.TotalHours >= 1
+        ? $"{(int)d.TotalHours}:{d.Minutes:00}:{d.Seconds:00}"
+        : $"{(int)d.TotalMinutes}:{d.Seconds:00}";
+
+    public void Dispose() => _tick?.Dispose();
+}

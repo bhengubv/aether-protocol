@@ -1033,6 +1033,15 @@ public sealed class CallService : IDisposable
 
     private void OnCallConnected(object? sender, VoiceCallSession session)
     {
+        // Watched on device 2026-08-20: the ANSWERER's running time reset to zero about three minutes
+        // into a call that was otherwise healthy at fifty frames a second, while the caller's stayed
+        // correct. None of the places Current is assigned should be reachable mid-call, so this says
+        // out loud when one is, rather than leaving the next run to guess again.
+        if (Current is { } existing && existing.Id == session.Id && existing.ConnectedAt != session.ConnectedAt)
+            T($"connect time MOVED {existing.ConnectedAt:HH:mm:ss} to {session.ConnectedAt:HH:mm:ss} on call {session.Id}");
+        else if (Current is { } other && other.Id != session.Id)
+            T($"call REPLACED {other.Id} with {session.Id}");
+
         Current = session;
         _ = ConnectCallerAudioAsync(session);
     }
