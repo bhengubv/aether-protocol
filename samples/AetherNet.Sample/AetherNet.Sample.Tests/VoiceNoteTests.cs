@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using AetherNet.Content;
+using AetherNet.Content.Models;
 using AetherNet.Sample.Shared.Data;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Tests.Fakes;
@@ -304,6 +305,38 @@ public class VoiceNoteTests
 
         Assert.True(m.IsVoiceNote);
         Assert.False(m.IsVideoNote);
+    }
+
+    // ── A stalled transfer has to resume ───────────────────────────────────
+
+    /// <summary>
+    /// A note whose chunks stopped arriving must start again when the link comes back.
+    ///
+    /// <para>
+    /// It did not. <c>ResumeAsync</c> existed, documented as "call when a link comes back", and had no
+    /// callers anywhere — so a transfer that stalled stayed stalled forever. Watched on device
+    /// 2026-08-20: 29 chunks asked for, the link dropped and re-established twice, and ten minutes
+    /// later not one chunk had moved.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task A_stalled_note_resumes_when_the_link_comes_back()
+    {
+        using var pair = new Pair();
+        var clip = Clip(30_000);
+
+        // Send with the radio down, so the offer goes nowhere and nothing transfers.
+        pair.RadioA.Unlink();
+        pair.RadioB.Unlink();
+        await pair.ChatA.SendNoteAsync(Them, clip, ChatMessage.VoiceNote, "note.ogg");
+
+        // The link returning is the only prompt there is.
+        pair.RadioA.Link();
+        pair.RadioB.Link();
+        await Task.Delay(200);
+
+        var hash = ContentDescriptor.FromBytes("note.ogg", clip, ChatMessage.VoiceNote, AttachmentService.ChunkBytes).RootHash;
+        Assert.Equal(clip, await pair.AttachmentsB.GetAsync(hash));
     }
 
     // ── The type has to be one a player accepts ────────────────────────────
