@@ -79,80 +79,57 @@ public sealed class AttachmentService : IDisposable
         _radio = radio;
         _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<AttachmentService>();
 
-        if (_radio is not null)
-        {
-            _radio.PacketReceived += OnPacket;
-
-            // A half-arrived note has to be asked for again when the link comes back, and nothing was
-            // doing it. ResumeAsync existed, documented as "call when a link comes back", and had no
-            // callers at all — so a transfer that stalled stayed stalled forever. Watched on device
-            // 2026-08-20: 29 chunks requested, the BLE link dropped and re-established twice, and ten
-            // minutes later not one chunk had moved.
-            _radio.Changed += OnRadioChanged;
-        }
+        if (_radio is not null) _radio.PacketReceived += OnPacket;
     }
 
     /// <summary>
-    /// The radio changed. If there is a link now, chase anything still missing.
+    /// Chase every unfinished transfer with one peer. Call when a link to them comes up.
     ///
     /// <para>
-    /// Deliberately checks the CURRENT level rather than reacting to an edge. A link that was already
-    /// up when this service was built raises no event, and the same edge-triggered mistake has now
-    /// bitten resume, contact-announce and the mesh-web hello in turn.
+    /// Driven from outside rather than from the radio's own event, and that is the whole lesson here.
+    /// A first attempt subscribed to the radio and sent to <c>_radio.PeerTag</c> — which is null right
+    /// after a link comes up, because the long-term identity never travels in clear and only arrives
+    /// once a message from them opens. So the sweep ran at exactly the moment it had nobody to send
+    /// to. <see cref="ChatService"/> already works out who a new link is worth reviving, and already
+    /// waits for the session; this rides that rather than guessing again.
     /// </para>
-    /// </summary>
-    private void OnRadioChanged()
-    {
-        if (_disposed || _radio is not { IsLinked: true }) return;
-        _ = ResumeEverythingAsync();
-    }
-
-    /// <summary>
-    /// Ask the linked peer for every chunk we are still missing, across every unfinished transfer.
     ///
     /// <para>
-    /// Costs nothing when everything has arrived — a complete descriptor asks for nothing. The peer is
-    /// whoever is on the other end of the link now, which is the only one that could answer anyway.
+    /// Per item: <b>incomplete</b> asks for the missing chunks, <b>complete</b> offers it again. Both,
+    /// because there are two different stalls. If the link was down when the note was recorded the
+    /// OFFER never arrived, so the far end has no manifest to ask about and only the holder can break
+    /// the deadlock. Re-offering is idempotent — a peer that already has it wants nothing.
     /// </para>
     /// </summary>
-    private async Task ResumeEverythingAsync()
+    public async Task ResumeAllWithAsync(string peerTag, CancellationToken cancellationToken = default)
     {
-        var peer = _radio?.PeerTag;
-        if (string.IsNullOrEmpty(peer)) return;
+        if (_disposed || string.IsNullOrEmpty(peerTag)) return;
 
         try
         {
             int asked = 0, offered = 0;
 
-            foreach (var descriptor in await _content.ListDescriptorsAsync().ConfigureAwait(false))
+            foreach (var descriptor in await _content.ListDescriptorsAsync(cancellationToken).ConfigureAwait(false))
             {
-                var have = (await _content.ListChunksAsync(descriptor.RootHash).ConfigureAwait(false)).Count;
+                var have = (await _content.ListChunksAsync(descriptor.RootHash, cancellationToken).ConfigureAwait(false)).Count;
 
                 if (have < descriptor.ChunkCount)
                 {
-                    // Ours is incomplete — ask for the rest. This is the stall watched on device: the
-                    // chunks simply stopped and nothing ever asked again.
                     asked++;
-                    await AskForMissingAsync(peer, descriptor).ConfigureAwait(false);
+                    await AskForMissingAsync(peerTag, descriptor).ConfigureAwait(false);
                 }
                 else
                 {
-                    // Ours is complete, so we can serve it — offer it again. This is the OTHER stall,
-                    // and the one the test found: when the link was down as the note was recorded, the
-                    // offer itself never arrived, so the far end has no manifest to ask about and
-                    // re-asking on its side can never help. Re-offering is idempotent — a peer that
-                    // already has it replies wanting nothing.
                     offered++;
-                    await OfferAsync(peer, descriptor, CancellationToken.None).ConfigureAwait(false);
+                    await OfferAsync(peerTag, descriptor, cancellationToken).ConfigureAwait(false);
                 }
             }
 
-            if (asked > 0 || offered > 0)
-                T($"link back — re-asked {asked}, re-offered {offered}");
+            if (asked > 0 || offered > 0) T($"link back with {peerTag} — re-asked {asked}, re-offered {offered}");
         }
         catch (Exception ex)
         {
-            _log.LogDebug(ex, "resuming transfers after a link change");
+            _log.LogDebug(ex, "resuming transfers with {Peer}", peerTag);
         }
     }
 
@@ -437,11 +414,7 @@ public sealed class AttachmentService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        if (_radio is not null)
-        {
-            _radio.PacketReceived -= OnPacket;
-            _radio.Changed -= OnRadioChanged;
-        }
+        if (_radio is not null) _radio.PacketReceived -= OnPacket;
     }
 
     // ── Wire shapes ───────────────────────────────────────────────────────────

@@ -157,6 +157,13 @@ public sealed class ChatService
             {
                 await EnsureSessionAsync(peerTag).ConfigureAwait(false);
 
+                // Notes stall too, and nothing was chasing them: a transfer that stopped stayed
+                // stopped forever. This is the same moment a conversation is revived, and the same
+                // peer — worked out by PeersToResume, which already knows a wire address is not a
+                // person.
+                if (_signal.HasSession(peerTag) && _attachments is not null)
+                    _ = _attachments.ResumeAllWithAsync(peerTag);
+
                 if (_signal.HasSession(peerTag))
                 {
                     await FlushAsync(peerTag).ConfigureAwait(false);

@@ -330,10 +330,13 @@ public class VoiceNoteTests
         pair.RadioB.Unlink();
         await pair.ChatA.SendNoteAsync(Them, clip, ChatMessage.VoiceNote, "note.ogg");
 
-        // The link returning is the only prompt there is.
-        pair.RadioA.Link();
+        // The link returning is the prompt. ChatService works out who is worth reviving and calls
+        // this — the radio cannot, because right after a link comes up it only knows a rotating wire
+        // address and not a person.
         pair.RadioB.Link();
-        await Task.Delay(200);
+        pair.RadioA.Link();
+        await pair.AttachmentsA.ResumeAllWithAsync(Them);
+        await Task.Delay(300);
 
         var hash = ContentDescriptor.FromBytes("note.ogg", clip, ChatMessage.VoiceNote, AttachmentService.ChunkBytes).RootHash;
         Assert.Equal(clip, await pair.AttachmentsB.GetAsync(hash));
