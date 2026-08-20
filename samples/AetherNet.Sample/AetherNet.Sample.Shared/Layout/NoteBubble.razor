@@ -1,0 +1,184 @@
+@using AetherNet.Sample.Shared.Data
+@using AetherNet.Sample.Shared.Services
+@inject AttachmentService Attachments
+@implements IDisposable
+
+@*
+    A message that is somebody talking.
+
+    The bytes are not in the message — it names them by content hash, and they arrive separately, in
+    chunks. So this has three states, and all three are real: waiting for the bytes, holding them, and
+    having given up on them. A bubble that could only draw the last one would leave a note that is
+    still crossing a slow radio looking like a note that failed.
+
+    Playback is the browser's own media element rather than anything native. A finished note is a file
+    in a real container, and every WebView on every head can already play one — which also means the
+    web head plays notes it could never have recorded.
+*@
+
+<div class="note @(Message.IsVideoNote ? "video" : "voice")">
+    @if (_source is not null)
+    {
+        @if (Message.IsVideoNote)
+        {
+            <video class="nplayer" controls playsinline preload="metadata" src="@_source"></video>
+        }
+        else
+        {
+            <audio class="nplayer" controls preload="metadata" src="@_source"></audio>
+        }
+    }
+    else
+    {
+        <div class="npending">
+            <span class="nicon">
+                @if (Message.IsVideoNote)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+                }
+            </span>
+
+            <span class="nmid">
+                <span class="nwhat">@(Message.IsVideoNote ? "Video note" : "Voice note")</span>
+                <span class="nstate">@Describe()</span>
+            </span>
+
+            @if (_progress > 0 && _progress < 1)
+            {
+                <span class="nbar"><span class="nfill" style="width:@((int)(_progress * 100))%"></span></span>
+            }
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Message.Body))
+    {
+        <div class="ncaption">@Message.Body</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ChatMessage Message { get; set; } = default!;
+
+    /// <summary>A data URI holding the whole note, once every chunk of it is here.</summary>
+    private string? _source;
+
+    private double _progress;
+    private bool _disposed;
+    private string? _watching;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // The bubble is reused as the list re-renders, so only start over when it is a different note.
+        if (_watching == Message.AttachmentHash) return;
+
+        _watching = Message.AttachmentHash;
+        _source = null;
+        _progress = 0;
+
+        await LoadAsync();
+    }
+
+    protected override void OnInitialized()
+    {
+        Attachments.Arrived += OnArrived;
+        Attachments.Progress += OnProgress;
+    }
+
+    /// <summary>
+    /// Try to build the player. Nothing happens until every chunk is here — a note is played whole,
+    /// and half of one is not worth showing.
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        if (_disposed || string.IsNullOrEmpty(Message.AttachmentHash)) return;
+
+        try
+        {
+            var bytes = await Attachments.GetAsync(Message.AttachmentHash);
+            if (bytes is null)
+            {
+                _progress = await Attachments.ProgressOfAsync(Message.AttachmentHash);
+                return;
+            }
+
+            // Handing the bytes to the media element directly, rather than through a URL it would have
+            // to fetch. There is no server here to fetch from — the note only ever existed on two
+            // phones — so the data URI is not a shortcut, it is the only honest way to do this.
+            _source = "data:" + (Message.AttachmentType ?? "application/octet-stream")
+                + ";base64," + Convert.ToBase64String(bytes);
+        }
+        catch
+        {
+            // A note that cannot be read stays as a pending bubble rather than an error. It may still
+            // be on its way, and the person can ask for it again.
+            _source = null;
+        }
+    }
+
+    private void OnArrived(string hash)
+    {
+        if (_disposed || hash != Message.AttachmentHash) return;
+
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    private void OnProgress(string hash, double fraction)
+    {
+        if (_disposed || hash != Message.AttachmentHash || _source is not null) return;
+
+        _progress = fraction;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>What is happening, in the words somebody would actually use.</summary>
+    private string Describe()
+    {
+        if (Message.AttachmentBytes <= 0) return "waiting";
+
+        var size = Message.AttachmentBytes < 1024 * 1024
+            ? (Message.AttachmentBytes / 1024) + " KB"
+            : (Message.AttachmentBytes / (1024.0 * 1024)).ToString("0.0") + " MB";
+
+        return _progress switch
+        {
+            <= 0 => Message.Mine ? "sending · " + size : "receiving · " + size,
+            >= 1 => size,
+            _ => (int)(_progress * 100) + "% · " + size,
+        };
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Attachments.Arrived -= OnArrived;
+        Attachments.Progress -= OnProgress;
+    }
+}
+
+<style>
+    .note { display: flex; flex-direction: column; gap: 6px; min-width: 200px; }
+
+    .nplayer { width: 100%; max-width: 260px; display: block; }
+    .note.video .nplayer { max-width: 220px; border-radius: 12px; background: #000; }
+
+    .npending { display: flex; align-items: center; gap: 10px; padding: 2px 0; }
+    .nicon { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--ink-2); }
+    .nicon svg { width: 16px; height: 16px; }
+
+    .nmid { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .nwhat { font-weight: 650; font-size: 0.9rem; }
+    .nstate { font-size: 0.76rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+    .nbar { flex: 1 1 auto; height: 3px; border-radius: 2px; background: var(--surface-2); overflow: hidden; min-width: 40px; }
+    .nfill { display: block; height: 100%; background: var(--brand); transition: width 0.25s linear; }
+
+    .ncaption { font-size: 0.95rem; }
+</style>

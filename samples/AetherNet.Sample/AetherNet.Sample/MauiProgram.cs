@@ -66,11 +66,27 @@ public static class MauiProgram
             new AetherNet.PreKeys.PreKeyExchangeService(
                 new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
                     sp.GetRequiredService<IRadioMesh>())));
-        builder.Services.AddSingleton<ChatService>();
+        builder.Services.AddSingleton<ChatService>(sp => new ChatService(
+            sp.GetRequiredService<AetherStore>(),
+            sp.GetRequiredService<IIdentityService>(),
+            sp.GetRequiredService<AetherNet.Security.Services.ISignalProtocolService>(),
+            sp.GetRequiredService<AetherNet.PreKeys.IPreKeyExchangeService>(),
+            sp.GetService<IRadioMesh>(),
+            sp.GetService<AttachmentService>(),
+            sp.GetService<ILoggerFactory>()));
 
         // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
         // transfer resumes across a dropped link and works on a radio far too slow for a call.
         builder.Services.AddSingleton<AttachmentService>();
+
+        // Recording a note. The microphone and camera are physical, so like the call path this is real
+        // only on the phone; elsewhere it says no rather than recording nothing.
+#if ANDROID
+        builder.Services.AddSingleton<IMediaCapture>(sp =>
+            new AetherNet.Sample.Platforms.Android.AndroidMediaCapture(sp.GetService<IAudioIo>()));
+#else
+        builder.Services.AddSingleton<IMediaCapture, NullMediaCapture>();
+#endif
 
         // 1:1 voice. The microphone is physical, so it only exists on the phone; everywhere else the
         // call service is constructible but honestly says it cannot place one.

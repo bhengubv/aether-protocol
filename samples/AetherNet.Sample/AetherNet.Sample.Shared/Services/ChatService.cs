@@ -68,6 +68,7 @@ public sealed class ChatService
     private readonly IRadioMesh? _radio;
     private readonly ISignalProtocolService _signal;
     private readonly IPreKeyExchangeService _preKeys;
+    private readonly AttachmentService? _attachments;
     private readonly ILogger _log;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private readonly SessionRepair _repair;
@@ -79,12 +80,14 @@ public sealed class ChatService
         ISignalProtocolService signal,
         IPreKeyExchangeService preKeys,
         IRadioMesh? radio = null,
+        AttachmentService? attachments = null,
         ILoggerFactory? loggerFactory = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
         _preKeys = preKeys ?? throw new ArgumentNullException(nameof(preKeys));
+        _attachments = attachments;
         _radio = radio;
         _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<ChatService>();
         _repair = new SessionRepair();
@@ -278,7 +281,8 @@ public sealed class ChatService
         var message = new ChatMessage(
             Id: Guid.NewGuid().ToString("N"),
             PeerTag: peerTag,
-            Body: text.Trim(),
+            // Strip the header marker out of anything typed, so a caption can never be read as one.
+            Body: AttachmentRef.Clean(text).Trim(),
             Mine: true,
             State: ChatMessage.Pending,
             SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
@@ -309,7 +313,72 @@ public sealed class ChatService
             await TryDeliverAsync(unsent, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Send a recorded note — a voice note, a video note.
+    ///
+    /// <para>
+    /// The message is saved and shown at once, naming the note by content hash, while the bytes go
+    /// separately and take as long as they take. On the measured BLE link a ten-second voice note
+    /// crosses in about seven seconds (PROTOCOL_SPEC §5.5) — far too slow to be a call, and perfectly
+    /// fine for something nobody is waiting on in real time.
+    /// </para>
+    ///
+    /// <para>
+    /// Returns false when there is nothing to send or no way to move it. It does <b>not</b> return
+    /// false merely because the session is not up yet: the message is stored pending, exactly as a
+    /// typed one is, and leaves when the session does.
+    /// </para>
+    /// </summary>
+    public async Task<bool> SendNoteAsync(
+        string peerTag, byte[] bytes, string contentType, string name, string caption = "",
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(peerTag) || bytes is null || bytes.Length == 0) return false;
+        if (_attachments is null)
+        {
+            _log.LogWarning("Cannot send a note — this host has no attachment transport");
+            return false;
+        }
+
+        // The bytes are stored and offered first, so the hash on the message is one this phone can
+        // actually serve. A message naming content nobody holds is a permanently broken bubble.
+        var descriptor = await _attachments
+            .SendAsync(peerTag, bytes, contentType, name, cancellationToken)
+            .ConfigureAwait(false);
+
+        var message = new ChatMessage(
+            Id: Guid.NewGuid().ToString("N"),
+            PeerTag: peerTag,
+            Body: AttachmentRef.Clean(caption).Trim(),
+            Mine: true,
+            State: ChatMessage.Pending,
+            SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            AttachmentHash: descriptor.RootHash,
+            AttachmentType: contentType,
+            AttachmentBytes: descriptor.TotalBytes);
+
+        _store.SaveMessage(message);
+        Changed?.Invoke();
+
+        await EnsureSessionAsync(peerTag, cancellationToken).ConfigureAwait(false);
+        await TryDeliverAsync(message, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     // ── Send path ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The body as the other phone will read it: a header naming the note, then the caption.
+    ///
+    /// <para>
+    /// A message with nothing attached produces exactly the bytes it always did, which is the point —
+    /// text is untouched by this and cannot be broken by it.
+    /// </para>
+    /// </summary>
+    private static string OnTheWire(ChatMessage message) => message.HasAttachment
+        ? new AttachmentRef(message.AttachmentHash!, message.AttachmentType ?? "application/octet-stream", message.AttachmentBytes)
+            .Encode(message.Body)
+        : message.Body;
 
     private async Task TryDeliverAsync(ChatMessage message, CancellationToken cancellationToken)
     {
@@ -324,7 +393,7 @@ public sealed class ChatService
             // The id rides inside the ciphertext so the other phone can name what it is confirming,
             // without that id being readable to anything listening to the radio.
             var sealedPayload = await _signal
-                .EncryptAsync(message.PeerTag, Encoding.UTF8.GetBytes(message.Id + message.Body), cancellationToken)
+                .EncryptAsync(message.PeerTag, Encoding.UTF8.GetBytes(message.Id + OnTheWire(message)), cancellationToken)
                 .ConfigureAwait(false);
 
             // Start waiting before sending, not after: a close peer can answer while we are still
@@ -526,7 +595,8 @@ public sealed class ChatService
         var message = new ChatMessage(
             Id: Guid.NewGuid().ToString("N"),
             PeerTag: groupId,
-            Body: text.Trim(),
+            // Strip the header marker out of anything typed, so a caption can never be read as one.
+            Body: AttachmentRef.Clean(text).Trim(),
             Mine: true,
             State: ChatMessage.Pending,
             SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -757,13 +827,20 @@ public sealed class ChatService
             // already have instead of showing the person's words twice.
             var messageId = text[..IdLength];
 
+            // A note names itself in front of the caption. The bytes are not here and are not waited
+            // for — they arrive on their own, and the bubble draws a player and fills it as they land.
+            var (attachment, caption) = AttachmentRef.Decode(text[IdLength..]);
+
             _store.SaveMessage(new ChatMessage(
                 Id: messageId,
                 PeerTag: senderTag,
-                Body: text[IdLength..],
+                Body: caption,
                 Mine: false,
                 State: ChatMessage.Received,
-                SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+                SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                AttachmentHash: attachment?.Hash,
+                AttachmentType: attachment?.ContentType,
+                AttachmentBytes: attachment?.Bytes ?? 0));
 
             await SendAckAsync(senderTag, messageId).ConfigureAwait(false);
 

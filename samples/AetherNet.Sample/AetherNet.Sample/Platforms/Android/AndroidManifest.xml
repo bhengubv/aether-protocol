@@ -56,4 +56,13 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Video notes. The camera is only opened by the recording screen, for as long as that screen is
+         on top, and is handed straight to MediaRecorder — no frame ever passes through this app. Not
+         required: a phone with no camera can still send and play voice notes, and is still a perfectly
+         good mesh node. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 </manifest>

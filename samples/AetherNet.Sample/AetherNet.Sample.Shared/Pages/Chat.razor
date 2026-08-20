@@ -7,6 +7,7 @@
 @inject ContactService Contacts
 @inject CallService Calls
 @inject IRadioMesh Radio
+@inject IMediaCapture Recorder
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
@@ -86,7 +87,9 @@
             <div class="brow @(m.Mine ? "mine" : null)">
                 @if (m.Mine)
                 {
-                    <div class="bub mine">@m.Body</div>
+                    <div class="bub mine">
+                        @if (m.HasAttachment) { <NoteBubble Message="m" /> } else { @m.Body }
+                    </div>
                     <span class="tick @(m.State == ChatMessage.Failed ? "bad" : null)">@Tick(m.State)</span>
                 }
                 else
@@ -99,19 +102,64 @@
                                which side the bubble is on, so the name is said outright, in theirs. *@
                             <span class="who" style="color:@TagPalette.For(who)">@who</span>
                         }
-                        <div class="bub" style="box-shadow: inset 7px 0 0 @TagPalette.For(who)">@m.Body</div>
+                        <div class="bub" style="box-shadow: inset 7px 0 0 @TagPalette.For(who)">
+                            @if (m.HasAttachment) { <NoteBubble Message="m" /> } else { @m.Body }
+                        </div>
                     </div>
                 }
             </div>
         }
     </div>
 
-    <div class="cv-composer">
-        <input class="cv-input" @bind="_draft" @bind:event="oninput" @onkeydown="OnKey" placeholder="Message" />
-        <button class="cv-send" disabled="@string.IsNullOrWhiteSpace(_draft)" @onclick="Send" aria-label="Send">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
-        </button>
-    </div>
+    @if (_recording)
+    {
+        @* While recording, the composer becomes the recording. Nothing else is offered, because
+           nothing else can be done with one hand holding a button down. *@
+        <div class="cv-composer recording">
+            <span class="rdot"></span>
+            <span class="rtime">@Clock(Recorder.Elapsed)</span>
+            <span class="rhint">Release to send · slide away to cancel</span>
+            <button class="rcancel" @onclick="CancelNote" aria-label="Cancel">Cancel</button>
+        </div>
+    }
+    else
+    {
+        <div class="cv-composer">
+            <input class="cv-input" @bind="_draft" @bind:event="oninput" @onkeydown="OnKey" placeholder="Message" />
+
+            @if (string.IsNullOrWhiteSpace(_draft))
+            {
+                @* The buttons swap on what is typed, the way every messenger does it: nothing typed
+                   means you are more likely to be recording, and a draft means you are not. *@
+                @if (Recorder.CanRecordVideo)
+                {
+                    <button class="cv-note" @onclick="RecordVideo" title="Video note" aria-label="Video note">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                    </button>
+                }
+
+                <button class="cv-note mic @(_starting ? "arming" : null)"
+                        disabled="@(!Recorder.CanRecordVoice)"
+                        title="@(Recorder.CanRecordVoice ? "Hold to record" : Recorder.UnavailableReason)"
+                        aria-label="Hold to record a voice note"
+                        @onpointerdown="StartNote" @onpointerup="StopNote"
+                        @onpointerleave="CancelNote" @onpointercancel="CancelNote">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+                </button>
+            }
+            else
+            {
+                <button class="cv-send" @onclick="Send" aria-label="Send">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
+                </button>
+            }
+        </div>
+    }
+
+    @if (_noteProblem is not null)
+    {
+        <div class="cv-note-problem">@_noteProblem</div>
+    }
 </div>
 
 @code {
@@ -153,6 +201,8 @@
         Contacts.Changed += OnChanged;
         Radio.Changed += OnChanged;
         Calls.Changed += OnChanged;
+        Recorder.Ticked += OnTicked;
+        Recorder.Capped += OnCapped;
     }
 
     // ── Calling ───────────────────────────────────────────────────────────────
@@ -222,6 +272,137 @@
         if (e.Key == "Enter") await Send();
     }
 
+    // ── Notes ─────────────────────────────────────────────────────────────────
+
+    private bool _recording;
+    private bool _starting;
+    private string? _noteProblem;
+
+    /// <summary>
+    /// Press and hold. Asking for the microphone happens here, at the tap, because that is the moment
+    /// the reason for asking is obvious — and the permission dialog is why the button shows an
+    /// "arming" state rather than jumping straight to recording.
+    /// </summary>
+    private async Task StartNote()
+    {
+        if (_recording || _starting) return;
+
+        _noteProblem = null;
+        _starting = true;
+        StateHasChanged();
+
+        try
+        {
+            if (!await Recorder.EnsurePermissionAsync(video: false))
+            {
+                _noteProblem = "Aether needs the microphone to record a note.";
+                return;
+            }
+
+            if (!await Recorder.StartVoiceAsync())
+            {
+                _noteProblem = Recorder.UnavailableReason ?? "Could not start recording.";
+                return;
+            }
+
+            _recording = true;
+        }
+        finally
+        {
+            _starting = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Let go, and it goes. Anything too short to be deliberate comes back as nothing.</summary>
+    private async Task StopNote()
+    {
+        if (!_recording) return;
+        _recording = false;
+        StateHasChanged();
+
+        var note = await Recorder.StopVoiceAsync();
+        await SendNote(note, tooShort: "Hold the button to record.");
+    }
+
+    /// <summary>
+    /// Sliding off the button throws the recording away. Every messenger has this, and people use it
+    /// constantly — a note you have thought better of halfway through must not be sendable by
+    /// accident.
+    /// </summary>
+    private async Task CancelNote()
+    {
+        if (!_recording) return;
+        _recording = false;
+        await Recorder.CancelAsync();
+        StateHasChanged();
+    }
+
+    private async Task RecordVideo()
+    {
+        _noteProblem = null;
+
+        if (!await Recorder.EnsurePermissionAsync(video: true))
+        {
+            _noteProblem = "Aether needs the camera and microphone to record a video note.";
+            StateHasChanged();
+            return;
+        }
+
+        var note = await Recorder.RecordVideoAsync();
+        await SendNote(note, tooShort: "That was too short to send.");
+    }
+
+    /// <summary>
+    /// One place where a finished recording becomes a message, so voice, video and the recorder's own
+    /// cap all behave identically. A group has no attachment path yet — the transfer is addressed to
+    /// one peer — and this says so rather than dropping the note without a word.
+    /// </summary>
+    private async Task SendNote(RecordedNote? note, string tooShort)
+    {
+        if (note is null)
+        {
+            _noteProblem = tooShort;
+            StateHasChanged();
+            return;
+        }
+
+        if (_group is not null)
+        {
+            _noteProblem = "Notes go to one person at a time for now.";
+            StateHasChanged();
+            return;
+        }
+
+        var sent = await Messages.SendNoteAsync(
+            Peer, note.Bytes, note.ContentType, note.SuggestedName);
+
+        if (!sent) _noteProblem = "Could not send that note.";
+
+        Refresh();
+        StateHasChanged();
+    }
+
+    /// <summary>The recorder stopped itself at the cap. Send what it got, and say what happened.</summary>
+    private void OnCapped(RecordedNote? note)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            _recording = false;
+            await SendNote(note, tooShort: "That was too short to send.");
+            _noteProblem = "A note can be up to " + (int)Recorder.MaxDuration.TotalSeconds + " seconds.";
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>Redraw the running time. Ticks land on a timer thread, so it has to be marshalled.</summary>
+    private void OnTicked()
+    {
+        if (_recording) _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static string Clock(TimeSpan d) => d.Minutes + ":" + d.Seconds.ToString("00");
+
     private void Back() => Nav.NavigateTo("");
 
     /// What we actually know, never more. One tick is not a delivery claim — only two is.
@@ -239,6 +420,13 @@
         Contacts.Changed -= OnChanged;
         Radio.Changed -= OnChanged;
         Calls.Changed -= OnChanged;
+        Recorder.Ticked -= OnTicked;
+        Recorder.Capped -= OnCapped;
+
+        // Leaving the conversation must not leave the microphone open. Nobody expects a note to keep
+        // recording after they have navigated away, and one that did would be sent to whoever they
+        // opened next.
+        if (_recording) _ = Recorder.CancelAsync();
     }
 }
 
@@ -319,6 +507,26 @@
     }
     .cv-input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 22px; padding: 12px 16px; font-size: 0.98rem; }
     .cv-input:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
+
+    /* Recording buttons match the send button's footprint exactly, so the composer does not jump as
+       they swap on what is typed. */
+    .cv-note {
+        flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--surface-2); color: var(--ink-2); touch-action: none; user-select: none;
+    }
+    .cv-note svg { width: 20px; height: 20px; }
+    .cv-note:disabled { opacity: 0.45; cursor: not-allowed; }
+    .cv-note.mic:active, .cv-note.arming { background: var(--brand); color: #fff; }
+
+    .cv-composer.recording { gap: 10px; align-items: center; }
+    .rdot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: #c0392b; animation: rpulse 1s ease-in-out infinite; }
+    @@keyframes rpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+    .rtime { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink); }
+    .rhint { flex: 1 1 auto; font-size: 0.78rem; color: var(--ink-3); min-width: 0; }
+    .rcancel { flex: 0 0 auto; appearance: none; border: none; background: transparent; color: #c0392b; font-weight: 650; cursor: pointer; padding: 8px; }
+
+    .cv-note-problem { padding: 6px 16px 10px; font-size: 0.82rem; color: #c0392b; background: var(--bg); }
     .cv-send { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
     .cv-send:disabled { opacity: .4; }
     .cv-send svg { width: 21px; height: 21px; }

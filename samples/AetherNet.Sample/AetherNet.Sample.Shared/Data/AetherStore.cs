@@ -102,8 +102,25 @@ public sealed record ChatMessage(
     /// </summary>
     public bool HasAttachment => !string.IsNullOrEmpty(AttachmentHash);
 
+    /// <summary>Somebody talking — in whichever container this phone could write.</summary>
+    public bool IsVoiceNote => AttachmentType is VoiceNote or VoiceNoteAac;
+
+    /// <summary>Somebody talking, with a picture.</summary>
+    public bool IsVideoNote => AttachmentType == VideoNote;
+
     /// <summary>A recorded clip of someone talking.</summary>
     public const string VoiceNote = "audio/opus";
+
+    /// <summary>
+    /// The same thing on a phone too old to write Opus into a container.
+    ///
+    /// <para>
+    /// Android only gained an Ogg/Opus recorder at API 29. This app runs from 24, so older handsets
+    /// record AAC in an MP4 container instead. Both are notes and both play; they are kept apart here
+    /// because the extension has to match the bytes or the platform's own player refuses to open them.
+    /// </para>
+    /// </summary>
+    public const string VoiceNoteAac = "audio/mp4";
 
     /// <summary>A short recorded clip with a picture.</summary>
     public const string VideoNote = "video/mp4";
