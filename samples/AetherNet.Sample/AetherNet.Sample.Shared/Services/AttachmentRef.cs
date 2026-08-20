@@ -22,7 +22,7 @@ namespace AetherNet.Sample.Shared.Services;
 /// </para>
 /// </summary>
 /// <param name="Hash">Content hash of the note, as it is known to the content store.</param>
-/// <param name="ContentType">What kind of thing it is — <c>audio/opus</c>, <c>video/mp4</c>.</param>
+/// <param name="ContentType">What kind of thing it is — <c>audio/ogg</c>, <c>video/mp4</c>.</param>
 /// <param name="Bytes">How big it is, so the far end can draw a real progress bar from the first frame.</param>
 public sealed record AttachmentRef(string Hash, string ContentType, long Bytes)
 {

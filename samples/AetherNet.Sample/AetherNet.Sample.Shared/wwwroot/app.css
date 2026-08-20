@@ -79,6 +79,24 @@ html, body {
     color: var(--ink);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+
+    /* This is an app, not a document.
+       Chrome on Android treats a long press on any text as "select it", which pops the
+       Copy / Share / Select all menu and — worse — swallows the pointerup that ended the press.
+       Holding the microphone to record a voice note therefore selected the words next to it,
+       the menu appeared under the finger, and releasing never stopped the recording. Watched on
+       merlin 2026-08-20 with the recorder still running at 0:08 after a four-second hold.
+       Text people might actually want to copy opts back in below. */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* The things worth copying: somebody's words, and the addresses people have to pass around. */
+.bub, .cv-empty, .ncaption, .mono, .cname, .gtag, .cv-name {
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 h1, h2, h3, h4, p { margin: 0; }

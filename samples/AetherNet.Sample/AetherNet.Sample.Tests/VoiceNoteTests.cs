@@ -306,6 +306,38 @@ public class VoiceNoteTests
         Assert.False(m.IsVideoNote);
     }
 
+    // ── The type has to be one a player accepts ────────────────────────────
+
+    /// <summary>
+    /// A note is handed to a media element as <c>data:{ContentType};base64,...</c>, so the type must
+    /// be the CONTAINER, not the codec.
+    ///
+    /// <para>
+    /// This was <c>audio/opus</c>, which no browser accepts — Opus is the codec and Ogg is the file.
+    /// The note transferred, verified, and was acknowledged, then sat in the conversation as a player
+    /// reading "0:00 / 0:00" with 91 KB of good audio behind it. Nothing failed anywhere; it simply
+    /// could not be played.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(ChatMessage.VoiceNote)]
+    [InlineData(ChatMessage.VoiceNoteAac)]
+    [InlineData(ChatMessage.VideoNote)]
+    public void Every_note_type_is_a_container_a_player_understands(string contentType)
+    {
+        string[] playable = ["audio/ogg", "audio/mpeg", "audio/mp4", "audio/wav", "audio/webm", "video/mp4", "video/webm"];
+
+        Assert.Contains(contentType, playable);
+    }
+
+    /// <summary>And the extension has to match the container, or the platform refuses to open it.</summary>
+    [Theory]
+    [InlineData(ChatMessage.VoiceNote, ".ogg")]
+    [InlineData(ChatMessage.VoiceNoteAac, ".m4a")]
+    [InlineData(ChatMessage.VideoNote, ".mp4")]
+    public void The_name_agrees_with_the_type(string contentType, string extension)
+        => Assert.EndsWith(extension, new RecordedNote([1, 2, 3], contentType, TimeSpan.FromSeconds(2)).SuggestedName);
+
     // ── A host that cannot record ──────────────────────────────────────────
 
     /// <summary>

@@ -98,52 +98,53 @@
         }
     </div>
 
-    @if (_recording)
-    {
-        @* While recording, the composer becomes the recording. Nothing else is offered, because
-           nothing else can be done with one hand holding a button down. *@
-        <div class="cv-composer recording @(Calls.IsMinimised ? "under-call" : null)">
+    @* ONE composer, always. The recording state changes what is shown beside the microphone — it
+       must never replace the microphone itself.
+
+       The button is what receives the press. Swapping the composer out when recording began removed
+       that button from the page mid-gesture, so the matching pointerup had nothing to land on and the
+       recorder ran on after the finger lifted. Watched on merlin 2026-08-20: a four-second hold left
+       it recording at 0:12. Same shape as the call buttons dropping taps — an element that handles a
+       gesture cannot be destroyed part-way through one. *@
+    <div class="cv-composer @(Calls.IsMinimised ? "under-call" : null) @(_recording ? "recording" : null)">
+        @if (_recording)
+        {
             <span class="rdot"></span>
             <span class="rtime">@Clock(Recorder.Elapsed)</span>
             <span class="rhint">Release to send · slide away to cancel</span>
-            <button class="rcancel" @onclick="CancelNote" aria-label="Cancel">Cancel</button>
-        </div>
-    }
-    else
-    {
-        @* A minimised call pins a bar to the bottom of the screen, so the composer has to sit above it
-       or the call covers the one thing you minimised it to reach. *@
-    <div class="cv-composer @(Calls.IsMinimised ? "under-call" : null)">
+        }
+        else
+        {
             <input class="cv-input" @bind="_draft" @bind:event="oninput" @onkeydown="OnKey" placeholder="Message" />
+        }
 
-            @if (string.IsNullOrWhiteSpace(_draft))
+        @if (string.IsNullOrWhiteSpace(_draft))
+        {
+            @* The buttons swap on what is typed, the way every messenger does it: nothing typed
+               means you are more likely to be recording, and a draft means you are not. *@
+            @if (Recorder.CanRecordVideo && !_recording)
             {
-                @* The buttons swap on what is typed, the way every messenger does it: nothing typed
-                   means you are more likely to be recording, and a draft means you are not. *@
-                @if (Recorder.CanRecordVideo)
-                {
-                    <button class="cv-note" @onclick="RecordVideo" title="Video note" aria-label="Video note">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-                    </button>
-                }
-
-                <button class="cv-note mic @(_starting ? "arming" : null)"
-                        disabled="@(!Recorder.CanRecordVoice)"
-                        title="@(Recorder.CanRecordVoice ? "Hold to record" : Recorder.UnavailableReason)"
-                        aria-label="Hold to record a voice note"
-                        @onpointerdown="StartNote" @onpointerup="StopNote"
-                        @onpointerleave="CancelNote" @onpointercancel="CancelNote">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+                <button class="cv-note" @onclick="RecordVideo" title="Video note" aria-label="Video note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
                 </button>
             }
-            else
-            {
-                <button class="cv-send" @onclick="Send" aria-label="Send">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
-                </button>
-            }
-        </div>
-    }
+
+            <button class="cv-note mic @(_recording ? "live" : null) @(_starting ? "arming" : null)"
+                    disabled="@(!Recorder.CanRecordVoice)"
+                    title="@(Recorder.CanRecordVoice ? "Hold to record" : Recorder.UnavailableReason)"
+                    aria-label="Hold to record a voice note"
+                    @onpointerdown="StartNote" @onpointerup="StopNote"
+                    @onpointerleave="CancelNote" @onpointercancel="CancelNote">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+            </button>
+        }
+        else
+        {
+            <button class="cv-send" @onclick="Send" aria-label="Send">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
+            </button>
+        }
+    </div>
 
     @if (_noteProblem is not null)
     {
@@ -501,6 +502,7 @@
     .cv-note.mic:active, .cv-note.arming { background: var(--brand); color: #fff; }
 
     .cv-composer.recording { gap: 10px; align-items: center; }
+    .cv-note.mic.live { background: #c0392b; color: #fff; }
     .rdot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: #c0392b; animation: rpulse 1s ease-in-out infinite; }
     @@keyframes rpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
     .rtime { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink); }

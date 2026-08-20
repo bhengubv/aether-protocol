@@ -108,8 +108,18 @@ public sealed record ChatMessage(
     /// <summary>Somebody talking, with a picture.</summary>
     public bool IsVideoNote => AttachmentType == VideoNote;
 
-    /// <summary>A recorded clip of someone talking.</summary>
-    public const string VoiceNote = "audio/opus";
+    /// <summary>
+    /// A recorded clip of someone talking.
+    ///
+    /// <para>
+    /// <c>audio/ogg</c>, not <c>audio/opus</c>. Opus is the codec; Ogg is the container the recorder
+    /// actually writes, and the container is what a player is handed. Chrome rejects
+    /// <c>audio/opus</c> outright — the note transferred, verified and acknowledged, and then sat in
+    /// the conversation as a player reading "0:00 / 0:00" with nothing to play. Watched on merlin
+    /// 2026-08-20 with 91 KB of perfectly good audio behind it.
+    /// </para>
+    /// </summary>
+    public const string VoiceNote = "audio/ogg";
 
     /// <summary>
     /// The same thing on a phone too old to write Opus into a container.
