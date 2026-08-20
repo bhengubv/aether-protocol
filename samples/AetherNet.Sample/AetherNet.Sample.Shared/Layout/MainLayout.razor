@@ -17,14 +17,10 @@
     @* A ringing phone has to be answerable from wherever you are. This lived inside the conversation
        with the caller, so a call only rang if you already happened to have their chat open — which is
        the one moment you least need telling. *@
-    @if (Calls.Current is { State: CallState.Incoming } ringing)
-    {
-        <div class="ringing">
-            <span class="ringwho">@ringing.CallerUhid is calling</span>
-            <button class="ring-ans" @onclick="Answer">Answer</button>
-            <button class="ring-end" @onclick="Decline">Decline</button>
-        </div>
-    }
+    @* The whole call now lives in CallOverlay — full screen, with a duration, mute and a speaker
+       toggle. This was a strip at the top of the chat, which was enough to prove audio worked and not
+       enough to use. *@
+    <CallOverlay />
 
     <main class="viewport">
         @Body
@@ -73,18 +69,8 @@
 
     private void OnCallChanged() => _ = InvokeAsync(StateHasChanged);
 
-    /// <summary>
-    /// Answering takes you to the conversation, so the call has somewhere to live and you can see who
-    /// you are talking to and what you last said to them.
-    /// </summary>
-    private async Task Answer()
-    {
-        var peer = Calls.Current?.CallerUhid;
-        await Calls.AnswerAsync();
-        if (!string.IsNullOrEmpty(peer)) Nav.NavigateTo($"chat/{peer}");
-    }
-
-    private Task Decline() => Calls.DeclineAsync();
+    // Answering and declining moved to CallOverlay, which owns the whole call now. The call no longer
+    // navigates anywhere on answer: it covers the screen, so there is nothing underneath to arrange.
 
     public void Dispose() => Calls.Changed -= OnCallChanged;
 }

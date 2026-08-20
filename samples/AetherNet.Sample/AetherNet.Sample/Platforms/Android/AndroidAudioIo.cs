@@ -222,10 +222,37 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
     }
 
     /// <inheritdoc />
-    public void HoldCall(string? peerTag) => AetherCallService.Start(peerTag);
+    public bool CanSwitchSpeaker => _audioManager is not null;
 
     /// <inheritdoc />
-    public void ReleaseCall() => AetherCallService.Stop();
+    public bool SpeakerphoneOn
+    {
+        get => _audioManager?.SpeakerphoneOn ?? false;
+        set
+        {
+            // Only meaningful while a call holds the audio mode — outside one, the phone is not in
+            // communication mode and this would do nothing but confuse the next app.
+            if (_audioManager is not { } audio) return;
+            try { audio.SpeakerphoneOn = value; } catch (Exception) { /* the call is going away */ }
+        }
+    }
+
+    /// <inheritdoc />
+    public void HoldCall(string? peerTag)
+    {
+        AetherCallService.Start(peerTag);
+
+        // A cheek is a touchscreen. Blank the display while the phone is at an ear, or the call gets
+        // muted, switched to earpiece and hung up by the side of someone's face.
+        AetherProximityLock.Acquire();
+    }
+
+    /// <inheritdoc />
+    public void ReleaseCall()
+    {
+        AetherProximityLock.Release();
+        AetherCallService.Stop();
+    }
 
     /// <inheritdoc />
     public void StopRinging()

@@ -1,0 +1,155 @@
+@using AetherNet.Sample.Shared.Services
+@using AetherNet.Voice.Models
+@implements IDisposable
+@inject CallService Calls
+
+@*
+    The call, full screen, over everything.
+
+    A call used to be a strip at the top of a chat. That is enough to prove the audio works and not
+    enough to use: no way to tell how long you have been talking, no way to mute, no way to get the
+    phone off the loudspeaker. Every other phone on earth gives you those three, so their absence is
+    not minimalism, it is a missing feature.
+*@
+@if (Calls.Current is { } call && call.State is CallState.Outgoing or CallState.Incoming or CallState.Connected)
+{
+    <div class="call-screen @(call.State == CallState.Incoming ? "is-ringing" : null)">
+        <div class="call-who">
+            <div class="call-av" style="background:@TagPalette.For(Peer)">@TagPalette.Initial(Peer)</div>
+            <div class="call-tag">@Peer</div>
+            <div class="call-state">@State(call)</div>
+        </div>
+
+        @if (call.State == CallState.Connected)
+        {
+            <div class="call-actions">
+                <button class="cbtn @(Calls.IsMuted ? "on" : null)" @onclick="ToggleMute"
+                        title="@(Calls.IsMuted ? "Unmute" : "Mute")">
+                    @if (Calls.IsMuted)
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 3l18 18"/><path d="M9 9v3a3 3 0 0 0 5.1 2.1"/><path d="M15 10V5a3 3 0 0 0-6 0v1"/><path d="M19 10a7 7 0 0 1-1.8 4.7M5 10a7 7 0 0 0 11 5.7"/></svg>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/></svg>
+                    }
+                    <span>@(Calls.IsMuted ? "Muted" : "Mute")</span>
+                </button>
+
+                @if (Calls.CanSwitchSpeaker)
+                {
+                    <button class="cbtn @(Calls.SpeakerphoneOn ? "on" : null)" @onclick="ToggleSpeaker"
+                            title="@(Calls.SpeakerphoneOn ? "Switch to earpiece" : "Switch to speaker")">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/>@if (Calls.SpeakerphoneOn) {<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>}</svg>
+                        <span>@(Calls.SpeakerphoneOn ? "Speaker" : "Earpiece")</span>
+                    </button>
+                }
+            </div>
+        }
+
+        <div class="call-end">
+            @if (call.State == CallState.Incoming)
+            {
+                <button class="cend answer" @onclick="Answer">Answer</button>
+                <button class="cend decline" @onclick="Decline">Decline</button>
+            }
+            else
+            {
+                <button class="cend decline wide" @onclick="HangUp">Hang up</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private System.Threading.Timer? _tick;
+
+    private string Peer => Calls.PeerTag ?? "";
+
+    protected override void OnInitialized()
+    {
+        Calls.Changed += OnChanged;
+
+        // The duration has to count up on its own — nothing else changes once a call connects, so
+        // without a tick the timer would sit frozen at 0:00 for the whole call.
+        _tick = new System.Threading.Timer(_ =>
+        {
+            if (Calls.Current is { State: CallState.Connected }) OnChanged();
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private string State(VoiceCallSession call) => call.State switch
+    {
+        CallState.Outgoing => "Calling…",
+        CallState.Incoming => "is calling",
+        CallState.Connected => Calls.Duration is { } d ? Clock(d) : "Connected",
+        _ => "",
+    };
+
+    /// <summary>mm:ss, and h:mm:ss once a call has been going long enough to deserve it.</summary>
+    private static string Clock(TimeSpan d) => d.TotalHours >= 1
+        ? $"{(int)d.TotalHours}:{d.Minutes:00}:{d.Seconds:00}"
+        : $"{d.Minutes}:{d.Seconds:00}";
+
+    private void ToggleMute() => Calls.SetMuted(!Calls.IsMuted);
+    private void ToggleSpeaker() => Calls.SpeakerphoneOn = !Calls.SpeakerphoneOn;
+
+    private Task Answer() => Calls.AnswerAsync();
+    private Task Decline() => Calls.DeclineAsync();
+    private Task HangUp() => Calls.HangUpAsync();
+
+    public void Dispose()
+    {
+        Calls.Changed -= OnChanged;
+        _tick?.Dispose();
+    }
+}
+
+<style>
+    /* Over everything, including the tab bar — a call is the only thing happening while it happens. */
+    .call-screen {
+        position: fixed; inset: 0; z-index: 900;
+        background: var(--bg);
+        display: flex; flex-direction: column; align-items: center;
+        padding: 12vh 24px 8vh;
+    }
+
+    .call-who { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 1 1 auto; }
+    .call-av {
+        width: 108px; height: 108px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-weight: 750; font-size: 2.6rem;
+    }
+    .call-tag { font-family: var(--mono); font-size: 1.35rem; font-weight: 700; color: var(--ink); }
+    .call-state { font-size: 1rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+    /* A ringing call breathes, so it reads as waiting rather than stuck. */
+    .is-ringing .call-av { animation: callpulse 1.6s ease-in-out infinite; }
+    @@keyframes callpulse {
+        0%, 100% { box-shadow: 0 0 0 0 var(--brand-tint); }
+        50%      { box-shadow: 0 0 0 18px transparent; }
+    }
+
+    .call-actions { display: flex; gap: 18px; margin-bottom: 8vh; }
+    .cbtn {
+        appearance: none; border: 1px solid var(--line); background: var(--surface);
+        color: var(--ink-2); border-radius: 18px; padding: 14px 18px; min-width: 96px;
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
+        font-size: 0.78rem; font-weight: 650; cursor: pointer;
+    }
+    .cbtn svg { width: 24px; height: 24px; }
+    .cbtn.on { background: var(--brand-tint); border-color: var(--brand); color: var(--brand); }
+    .cbtn:active { transform: scale(0.97); }
+
+    .call-end { display: flex; gap: 16px; }
+    .cend {
+        appearance: none; border: none; border-radius: 999px;
+        padding: 16px 30px; font-size: 1rem; font-weight: 700; color: #fff; cursor: pointer;
+    }
+    .cend.wide { padding-left: 52px; padding-right: 52px; }
+    .answer { background: #1f9d55; }
+    .decline { background: #c0392b; }
+    .cend:active { transform: scale(0.98); }
+</style>

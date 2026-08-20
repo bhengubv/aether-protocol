@@ -42,6 +42,8 @@
     <!-- An incoming call has to be able to take over the screen, including over the lock screen. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Blanks the screen while the phone is held to an ear during a call. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- NFC (tap-to-pair) and LoRa (external USB module) radios. -->
     <uses-permission android:name="android.permission.NFC" />

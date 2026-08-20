@@ -64,6 +64,21 @@ public interface IAudioIo
     void ReleaseCall();
 
     /// <summary>
+    /// Whether call audio is coming out of the loudspeaker rather than the earpiece.
+    ///
+    /// <para>
+    /// A call currently forces the loudspeaker on, because <c>Stream.VoiceCall</c> alone plays out of
+    /// the earpiece at a volume the volume buttons do not control — which sounds exactly like a broken
+    /// call. That default is right, but it has to be the person's to change: holding the phone to your
+    /// ear should work too.
+    /// </para>
+    /// </summary>
+    bool SpeakerphoneOn { get; set; }
+
+    /// <summary>Whether this host can switch between the earpiece and the loudspeaker at all.</summary>
+    bool CanSwitchSpeaker { get; }
+
+    /// <summary>
     /// One frame from the microphone, exactly <c>sampleRateHz × frameDurationMs / 1000</c> samples.
     /// Raised on a capture thread, so a handler must not block — a call's audio is a hard real-time
     /// budget, and time spent here is time the next frame is not being read.
@@ -113,5 +128,7 @@ public sealed class NullAudioIo : IAudioIo
     public void StopRinging() { }
     public void HoldCall(string? peerTag) { }
     public void ReleaseCall() { }
+    public bool SpeakerphoneOn { get => false; set { } }
+    public bool CanSwitchSpeaker => false;
     public Task StopAsync() => Task.CompletedTask;
 }

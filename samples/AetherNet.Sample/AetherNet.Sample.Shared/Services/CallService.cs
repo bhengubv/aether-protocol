@@ -115,6 +115,41 @@ public sealed class CallService : IDisposable
     public string? PeerTag => Current is null ? null : Current.RemoteUhid(_me.AetherTag);
 
     /// <summary>
+    /// Whether this phone's microphone is muted for the call.
+    ///
+    /// <para>
+    /// Muting drops the frame before it is encoded rather than sending encoded silence. Silence would
+    /// be politer to a jitter buffer, but it also means a muted microphone is still being transmitted,
+    /// and on a radio this tight that is bandwidth spent saying nothing.
+    /// </para>
+    /// </summary>
+    public bool IsMuted { get; private set; }
+
+    /// <summary>Mute or unmute, and tell the UI.</summary>
+    public void SetMuted(bool muted)
+    {
+        if (IsMuted == muted) return;
+        IsMuted = muted;
+        T(muted ? "microphone muted" : "microphone live");
+        Raise();
+    }
+
+    /// <summary>Whether call audio is on the loudspeaker rather than the earpiece.</summary>
+    public bool SpeakerphoneOn
+    {
+        get => _audio.SpeakerphoneOn;
+        set { _audio.SpeakerphoneOn = value; Raise(); }
+    }
+
+    /// <summary>Whether this device can switch between earpiece and loudspeaker at all.</summary>
+    public bool CanSwitchSpeaker => _audio.CanSwitchSpeaker;
+
+    /// <summary>How long the call has been connected, or null when no call is connected.</summary>
+    public TimeSpan? Duration => Current is { State: CallState.Connected, ConnectedAt: { } at }
+        ? DateTime.UtcNow - at
+        : null;
+
+    /// <summary>
     /// Whether this phone placed the call.
     ///
     /// <para>
@@ -333,6 +368,7 @@ public sealed class CallService : IDisposable
         // the moment the person opens anything else — the call goes silent, or the process is killed
         // outright, and the far end is never told.
         _audio.HoldCall(PeerTag);
+        IsMuted = false;   // every call starts with the microphone live
 
         _codec?.Dispose();
         _codec = new OpusVoiceCodec();
@@ -380,6 +416,7 @@ public sealed class CallService : IDisposable
     private void OnMicrophoneFrame(short[] pcm)
     {
         if (Current is not { State: CallState.Connected } session || _codec is null || _voice is null) return;
+        if (IsMuted) return;   // drop it here — a muted microphone should cost the radio nothing
 
         try
         {
