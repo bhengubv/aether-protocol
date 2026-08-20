@@ -163,4 +163,85 @@ public class VideoCallTests
         Assert.True(OpusVoiceCodec.CanCarryCall(0));
         Assert.False(0 >= CallService.MinLinkBpsForVideo);
     }
+
+    // ── What a group costs ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// The gate the call applies must agree with the budget it is derived from. Two different numbers
+    /// for the same thing is how a spec and an implementation quietly stop describing each other.
+    /// </summary>
+    [Fact]
+    public void The_video_gate_matches_the_budget_for_two_people()
+        => Assert.True(CallService.MinLinkBpsForVideo >= VideoBudget.RequiredBps(2));
+
+    /// <summary>
+    /// There is no server to fan out through, so every phone sends to every other one. Both
+    /// directions grow with the group, and a call that is comfortable at two is several times as
+    /// expensive at five. These figures are the table in PROTOCOL_SPEC §10.10.
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(8)]
+    public void A_group_costs_a_stream_for_every_other_person(int participants)
+    {
+        var expected = ((VideoBudget.StreamBps * (participants - 1)) + VideoBudget.VoiceBps) * 3;
+
+        Assert.Equal(expected, VideoBudget.RequiredBps(participants));
+    }
+
+    /// <summary>A group grows what it costs, always — never less for more people.</summary>
+    [Fact]
+    public void A_bigger_group_never_costs_less()
+    {
+        var costs = Enumerable.Range(2, 10).Select(VideoBudget.RequiredBps).ToArray();
+
+        Assert.Equal(costs.OrderBy(c => c), costs);
+    }
+
+    /// <summary>Fewer than two people is not a call, and costs nothing.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(-3)]
+    public void Nobody_to_call_costs_nothing(int participants)
+        => Assert.Equal(0, VideoBudget.RequiredBps(participants));
+
+    /// <summary>
+    /// The finding that matters most about group video: the mesh is not what stops it. Wi-Fi Direct
+    /// has bandwidth for a large group on paper, and the phones do not have the decoders for one.
+    /// </summary>
+    [Fact]
+    public void Silicon_binds_before_the_radio_does()
+    {
+        const long wifiDirect = 250_000_000;
+
+        var byRadio = VideoBudget.LargestGroupTheLinkCouldCarry(wifiDirect);
+        var actual = VideoBudget.LargestGroup(wifiDirect);
+
+        Assert.True(byRadio > VideoBudget.AssumedDecoderCap,
+            "the radio should not be the binding constraint on Wi-Fi Direct");
+        Assert.Equal(VideoBudget.AssumedDecoderCap, actual);
+    }
+
+    /// <summary>And on a narrow radio the radio does bind, which is the other half of that.</summary>
+    [Theory]
+    [InlineData(11_000)]       // BLE, measured
+    [InlineData(1_000_000)]    // not even two people
+    public void A_narrow_radio_carries_no_group_video_at_all(long linkBps)
+        => Assert.Equal(0, VideoBudget.LargestGroup(linkBps));
+
+    /// <summary>
+    /// A phone that reports its own decoder count is believed over the assumed one. The assumption is
+    /// a starting point for hardware nobody has asked yet, never an answer to prefer.
+    /// </summary>
+    [Theory]
+    [InlineData(2, 2)]
+    [InlineData(3, 3)]
+    [InlineData(8, 8)]
+    [InlineData(0, 0)]
+    public void A_measured_decoder_count_wins_over_the_assumed_one(int cap, int expected)
+        => Assert.Equal(expected, VideoBudget.LargestGroup(250_000_000, decoderCap: cap));
 }

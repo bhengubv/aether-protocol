@@ -1231,6 +1231,102 @@ The video jitter buffer operates independently from the voice jitter buffer (whi
 | Group video | Group channel key (AES-GCM) | Distributed via Signal Protocol at session creation |
 | Screen share | Same as parent call mode | Inherited from video call session |
 
+### 10.10. The limits of video
+
+**What is measured and what is not.** §5.5 records radio throughput actually
+counted between two handsets. Nothing in this section is that. These are limits
+**derived** from the measured link capacity and the encoder settings the
+implementation uses, and they are written down so that the first real video call
+has a number to disagree with. Where a figure here turns out to be wrong, the
+measurement wins and this section changes.
+
+#### What one video call costs
+
+The reference implementation encodes H.264 at 640×480, 20 fps, 800 kbps, with a
+keyframe every second. Against the measured radios:
+
+| Radio | Measured capacity | One video call (0.8 Mbps + voice, ×2 directions) | Verdict |
+|---|---|---|---|
+| **Wi-Fi Direct** | ~250 Mbps declared; 50 pkt/s each way measured at voice sizes | ~1.7 Mbps | **fits with room to spare** |
+| BLE | ~11 kbps measured | ~1.7 Mbps | **150× short — impossible** |
+| Wi-Fi Aware | untested (§5.6) | ~1.7 Mbps | unknown |
+
+The gate the implementation applies is **3 Mbps** on the carrying link: 0.8 Mbps
+of video each way, the voice it still has to carry, and the same one-third margin
+the audio codec uses. Below that the camera is not offered at all.
+
+That gate is deliberately stricter than the equivalent for voice, and the
+asymmetry is the point. An unknown link is given the benefit of the doubt for a
+call, because refusing on no evidence is worse than attempting one that then
+struggles. Video gets no such benefit: it is expensive enough that guessing wrong
+does not merely produce poor video — the frames crowd out the voice sharing the
+radio, and a working audio call becomes a frozen picture and silence.
+
+#### What group video costs
+
+Group video on a mesh has no server to fan out through. Every participant encodes
+once and sends to everyone else, so **outbound bandwidth grows linearly with the
+group** while inbound grows the same way:
+
+| Participants | Streams out per phone | Out | In | Total per phone |
+|---|---|---|---|---|
+| 2 | 1 | 0.8 Mbps | 0.8 Mbps | 1.6 Mbps |
+| 3 | 2 | 1.6 Mbps | 1.6 Mbps | 3.2 Mbps |
+| 4 | 3 | 2.4 Mbps | 2.4 Mbps | 4.8 Mbps |
+| 5 | 4 | 3.2 Mbps | 3.2 Mbps | 6.4 Mbps |
+| 8 | 7 | 5.6 Mbps | 5.6 Mbps | 11.2 Mbps |
+
+Those are raw stream figures. The link a phone actually needs is the **outbound**
+column times three — the same one-third margin the audio codec applies, which is
+where the return direction and the packet overhead come from. So a three-person
+video call wants a link of roughly 5 Mbps, and an eight-person one wants 17.
+
+Bandwidth is not the binding constraint — Wi-Fi Direct has headroom for all of
+these on paper. Two other things bind first:
+
+1. **The group owner.** A Wi-Fi Direct group has exactly one owner, and every
+   packet between two members crosses it. At five participants the owner carries
+   roughly four times what any other member does, on the same radio, while also
+   encoding and decoding its own streams. The topology is decided by the radio
+   rather than by the routing layer, which is precisely the reason §5.6 names
+   Wi-Fi Aware as the right long-term primary.
+
+2. **Encoder and decoder count.** Each participant runs one hardware encoder and
+   **N−1 hardware decoders**. Mid-range handsets commonly expose 2–4 concurrent
+   H.264 decoder instances; beyond that `MediaCodec` fails to configure. On the
+   phones this project has, that caps a group video call at roughly **3–5
+   participants** regardless of the radio, and the failure is abrupt rather than
+   gradual — a decoder that cannot be created shows nothing at all.
+
+**Therefore:** group video is bounded by *silicon*, not by the mesh, and an
+implementation MUST discover its concurrent-decoder limit rather than assume one.
+A group call that exceeds it SHOULD drop the least-recently-active participants
+to audio and say so, rather than failing to create a decoder and showing a blank
+rectangle with no explanation.
+
+#### What still has to be measured
+
+The following are open, and none of them can be settled without two handsets on a
+Wi-Fi Direct link:
+
+- **Sustained frame rate**, the way §5.5 counted voice — frames per second
+  actually arriving, in each direction, over a call of at least a minute.
+- **Glass-to-glass latency.** Above roughly 400 ms a video call stops feeling
+  like a conversation, and the encode, radio and decode stages each contribute.
+- **Whether video starves voice.** They share one radio and one queue. This is
+  the failure that matters most, because it converts a working call into a broken
+  one, and it will not appear in a bandwidth calculation.
+- **Thermal behaviour.** Continuous hardware encode plus decode plus Wi-Fi Direct
+  is close to the sustained-power ceiling of a mid-range phone. A call that is
+  fine for two minutes and throttles at six is a different product from one that
+  holds.
+- **The real concurrent-decoder count** on each handset, which sets the group
+  cap above.
+
+Until those exist, an implementation SHOULD treat the figures in this section as
+a starting configuration rather than a specification, and MUST NOT present video
+as available on any radio not proven to carry it.
+
 ---
 
 ## 11. Watch Together
