@@ -41,11 +41,18 @@ internal interface IRadio
     /// </para>
     ///
     /// <para>
-    /// A note on BLE, because an earlier version of this comment had it wrong and the wrong number was
-    /// then repeated as fact for hours. These handsets negotiate an ATT MTU of 517 and carry 512-byte
-    /// packets at about fifty a second — on the order of 100 kbps, comfortably more than the 24 kbps a
-    /// voice call needs. The "5 kbps" figure came from a link still on the 23-byte default MTU. If
-    /// audio is not getting through, measure before blaming the radio.
+    /// <b>Measure it. Do not calculate it.</b> This number has been wrong twice, and each time the
+    /// wrong one was repeated as fact for hours. 5 kbps came from a link still on the 23-byte default
+    /// MTU. 100 kbps replaced it by arithmetic — MTU 517 times fifty a second — and was written down
+    /// as "measured" by someone who had not measured it. Counted during live calls, BLE between these
+    /// handsets moves about <b>11 kbps in one direction</b>: a GATT connection carries one operation
+    /// in flight at a time, so MTU changes the bytes per operation and not the operations per second.
+    /// </para>
+    ///
+    /// <para>
+    /// PROTOCOL_SPEC §5.5 holds what has actually been counted, per radio. A voice call needs 50
+    /// packets/sec each way; BLE fails that by five times and Wi-Fi Direct clears it. If audio is not
+    /// getting through, read that section before blaming the code.
     /// </para>
     /// </summary>
     long MaxBandwidthBps => 0;

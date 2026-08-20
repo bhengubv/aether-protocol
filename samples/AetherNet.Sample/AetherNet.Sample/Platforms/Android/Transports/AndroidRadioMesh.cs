@@ -52,6 +52,11 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
             "6e65726c-696e-0001-0000-000000000001", "6e65726c-696e-0003-0000-000000000001",
             "6e65726c-696e-0002-0000-000000000001", _localUhid, logger,
             unavailableReason: "needs NearLink hardware and HarmonyOS", routingKey: routingKey));
+        // Wi-Fi Aware is registered even though no phone here has the hardware. It is an open Wi-Fi
+        // Alliance standard with a standard Android API, so the code is portable in a way NearLink's
+        // never can be, and registering it means the picker says "this phone does not have Wi-Fi
+        // Aware" rather than the radio not existing at all. See PROTOCOL_SPEC §5.6.
+        Register(new AndroidWifiAwareTransportService(() => WireAddress.For(routingKey), logger));
         Register(new AndroidNfcTransportService(_localUhid, logger));
         Register(new AndroidLoRaTransportService(_localUhid, logger));
         // Default to BLE: it links via GATT (advertise/scan) with no dependency on the Wi-Fi P2P

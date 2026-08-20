@@ -21,6 +21,12 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32" />
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
 
+    <!-- Wi-Fi Aware. Not required: no phone this project has ships the HAL (PROTOCOL_SPEC §5.6), and
+         a phone without it is still a perfectly good mesh node — it simply uses another radio. The
+         permissions Aware needs (NEARBY_WIFI_DEVICES, CHANGE_NETWORK_STATE, and location below API
+         33) are the same ones Wi-Fi Direct already asks for above. -->
+    <uses-feature android:name="android.hardware.wifi.aware" android:required="false" />
+
     <!-- BLE radio. SCAN/CONNECT/ADVERTISE for Android 12+; legacy BLUETOOTH/ADMIN for ≤11.
          BLUETOOTH_SCAN declares neverForLocation so we don't ask for location on 12+. -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
