@@ -58,31 +58,10 @@
         }
     </header>
 
-    @* The call itself lives as a bar above the thread rather than a separate screen, so the
-       conversation stays where it was when the call ends. *@
-    @if (Calls.Current is { } call && Calls.PeerTag == Peer)
-    {
-        <div class="callbar @(call.State == CallState.Connected ? "on" : null)">
-            <span class="callwho">
-                @(call.State switch
-                {
-                    CallState.Incoming => $"{Peer} is calling",
-                    CallState.Outgoing => $"Calling {Peer}…",
-                    CallState.Connected => $"On a call with {Peer}",
-                    _ => Peer,
-                })
-            </span>
-            @if (call.State == CallState.Incoming)
-            {
-                <button class="ans" @onclick="Answer">Answer</button>
-                <button class="end" @onclick="Decline">Decline</button>
-            }
-            else
-            {
-                <button class="end" @onclick="HangUp">Hang up</button>
-            }
-        </div>
-    }
+    @* The call has its own screen — CallOverlay — which covers this one while it is up, and a bar
+       pinned to the bottom while it is put away. There used to be a third call bar here, above the
+       thread, from before that screen existed; it could only ever appear as a duplicate of the
+       minimised one, so it is gone. *@
 
     <div class="cv-thread" @ref="_thread">
         @if (_messages.Count == 0)
@@ -123,7 +102,7 @@
     {
         @* While recording, the composer becomes the recording. Nothing else is offered, because
            nothing else can be done with one hand holding a button down. *@
-        <div class="cv-composer recording">
+        <div class="cv-composer recording @(Calls.IsMinimised ? "under-call" : null)">
             <span class="rdot"></span>
             <span class="rtime">@Clock(Recorder.Elapsed)</span>
             <span class="rhint">Release to send · slide away to cancel</span>
@@ -132,7 +111,9 @@
     }
     else
     {
-        <div class="cv-composer">
+        @* A minimised call pins a bar to the bottom of the screen, so the composer has to sit above it
+       or the call covers the one thing you minimised it to reach. *@
+    <div class="cv-composer @(Calls.IsMinimised ? "under-call" : null)">
             <input class="cv-input" @bind="_draft" @bind:event="oninput" @onkeydown="OnKey" placeholder="Message" />
 
             @if (string.IsNullOrWhiteSpace(_draft))
@@ -231,9 +212,6 @@
     private bool CanCall => Calls.Current is null && Radio.IsLinked && _secure && Calls.CanCall;
 
     private Task Call() => Calls.CallAsync(Peer);
-    private Task Answer() => Calls.AnswerAsync();
-    private Task Decline() => Calls.DeclineAsync();
-    private Task HangUp() => Calls.HangUpAsync();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -475,21 +453,6 @@
     .callbtn svg { width: 23px; height: 23px; }
     .callbtn:disabled { color: var(--ink-3); opacity: .5; cursor: default; }
 
-    /* The call rides above the thread so the conversation is still there when it ends. */
-    .callbar {
-        flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
-        padding: 11px 14px; background: var(--brand-tint);
-        border-bottom: 1px solid var(--line); font-size: 0.9rem;
-    }
-    .callbar.on { background: var(--brand); }
-    .callbar.on .callwho { color: #fff; }
-    .callwho { flex: 1 1 auto; font-weight: 650; color: var(--brand); min-width: 0; }
-    .callbar button {
-        flex: 0 0 auto; appearance: none; border: none; border-radius: 999px;
-        padding: 7px 15px; font: inherit; font-weight: 700; font-size: 0.85rem; cursor: pointer;
-    }
-    .ans { background: #2E7D4F; color: #fff; }
-    .end { background: #B4331F; color: #fff; }
     .cv-name { font-family: var(--mono); font-weight: 700; font-size: 1rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* A group has a name someone chose, not a tag — so it reads as words, not as an address. */
     .cv-name.grp-name { font-family: inherit; font-weight: 750; font-size: 1.06rem; }
@@ -543,6 +506,9 @@
     .rtime { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink); }
     .rhint { flex: 1 1 auto; font-size: 0.78rem; color: var(--ink-3); min-width: 0; }
     .rcancel { flex: 0 0 auto; appearance: none; border: none; background: transparent; color: #c0392b; font-weight: 650; cursor: pointer; padding: 8px; }
+
+    /* The height of the minimised-call bar, so the composer clears it. */
+    .cv-composer.under-call { margin-bottom: 46px; }
 
     .cv-note-problem { padding: 6px 16px 10px; font-size: 0.82rem; color: #c0392b; background: var(--bg); }
     .cv-send { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }

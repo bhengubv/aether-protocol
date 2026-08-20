@@ -11,7 +11,7 @@
     phone off the loudspeaker. Every other phone on earth gives you those three, so their absence is
     not minimalism, it is a missing feature.
 *@
-@if (Calls.Current is { State: CallState.Connected } && _minimised)
+@if (Calls.Current is { State: CallState.Connected } && Calls.IsMinimised)
 {
     @* Put away, not ended. A slim bar so the call is never something you have lost. *@
     <button class="call-bar" @onclick="Restore">
@@ -110,9 +110,6 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
 @code {
     private string Peer => Calls.PeerTag ?? "";
 
-    /// <summary>Hidden while the call carries on — see <see cref="Minimise"/>.</summary>
-    private bool _minimised;
-
     protected override void OnInitialized() => Calls.Changed += OnChanged;
 
     /// <summary>
@@ -129,7 +126,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     private void OnChanged() => _ = InvokeAsync(() =>
     {
         // A new call must never open behind the minimised bar of the last one.
-        if (Calls.Current is null) { _minimised = false; _connectedAt = null; }
+        if (Calls.Current is null) _connectedAt = null;
         else if (Calls.Current is { State: CallState.Connected } && _connectedAt is null)
             _connectedAt = DateTime.UtcNow;
 
@@ -145,9 +142,9 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     /// as long as the call lasted, and the only way out of it was to hang up.
     /// </para>
     /// </summary>
-    private void Minimise() => _minimised = true;
+    private void Minimise() => Calls.SetMinimised(true);
 
-    private void Restore() => _minimised = false;
+    private void Restore() => Calls.SetMinimised(false);
 
     private static string Waiting(VoiceCallSession call) => call.State switch
     {
@@ -222,7 +219,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
 
     /* The minimised call. Pinned above the tab bar so it is always reachable and never in the way. */
     .call-bar {
-        position: fixed; left: 0; right: 0; bottom: 0; z-index: 899;
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 950;
         appearance: none; border: none; cursor: pointer; width: 100%;
         display: flex; align-items: center; gap: 10px;
         padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));

@@ -155,6 +155,25 @@ public sealed class CallService : IDisposable
         set { _audio.SpeakerphoneOn = value; Raise(); }
     }
 
+    /// <summary>
+    /// The call is running but its screen is put away.
+    ///
+    /// <para>
+    /// Lives here rather than in the call screen because other pages have to make room for the bar
+    /// that replaces it. It covered the chat composer on the first run — a call you could not type
+    /// underneath, which is most of the point of minimising one.
+    /// </para>
+    /// </summary>
+    public bool IsMinimised { get; private set; }
+
+    /// <summary>Put the call screen away, or bring it back. Never ends the call.</summary>
+    public void SetMinimised(bool minimised)
+    {
+        if (IsMinimised == minimised) return;
+        IsMinimised = minimised;
+        Raise();
+    }
+
     /// <summary>Whether this device can switch between earpiece and loudspeaker at all.</summary>
     public bool CanSwitchSpeaker => _audio.CanSwitchSpeaker;
 
@@ -1147,6 +1166,7 @@ public sealed class CallService : IDisposable
         // too — a video overlay outliving its call covers the whole app with a black rectangle.
         VideoOn = false;
         TheirVideoOn = false;
+        IsMinimised = false;   // a new call must never open behind the last one's bar
         if (_video is not null)
         {
             _video.FrameEncoded -= OnEncodedFrame;
