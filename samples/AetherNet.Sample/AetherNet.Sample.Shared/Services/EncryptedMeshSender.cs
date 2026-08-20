@@ -47,6 +47,12 @@ public sealed class EncryptedMeshSender : IMeshSender
     /// </summary>
     public CallMediaCipher? Media { get; set; }
 
+    /// <summary>
+    /// The video track's cipher — same master secret, different key, and crucially its own counter.
+    /// Null until the camera goes on, which is also what makes video refusable: no cipher, no frames.
+    /// </summary>
+    public CallMediaCipher? Video { get; set; }
+
     public EncryptedMeshSender(IMeshSender inner, ISignalProtocolService signal, Action<string>? trace = null)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
@@ -85,7 +91,12 @@ public sealed class EncryptedMeshSender : IMeshSender
         // Media goes under the call's own key. Doing it here rather than in the caller means every
         // path out — including the ones inside the protocol library — is covered by the same rule.
         if (packet.Type == PacketType.VoiceCall)
-            return SealMedia(packet);
+            return SealMedia(packet, Media);
+
+        // Video is media too, under its own key. Same rule, same place — the point of doing this here
+        // is that no path out can forget it.
+        if (packet.Type == PacketType.VideoFrame)
+            return SealMedia(packet, Video);
 
         var peer = packet.DestinationUhid;
         if (string.IsNullOrEmpty(peer))
@@ -127,11 +138,11 @@ public sealed class EncryptedMeshSender : IMeshSender
     /// Seal a media frame under the call's key. Dropped if the call has no key yet — a frame in clear
     /// is not a lesser evil than a frame not sent.
     /// </summary>
-    private MeshPacket? SealMedia(MeshPacket packet)
+    private MeshPacket? SealMedia(MeshPacket packet, CallMediaCipher? cipher)
     {
-        if (Media is null)
+        if (cipher is null)
         {
-            _trace?.Invoke("voice frame DROPPED — the call has no media key");
+            _trace?.Invoke($"{packet.Type} frame DROPPED — the call has no key for that track");
             return null;
         }
 
@@ -143,7 +154,7 @@ public sealed class EncryptedMeshSender : IMeshSender
             DestinationUhid = packet.DestinationUhid,
             Ttl = packet.Ttl,
             Priority = packet.Priority,
-            Payload = Media.Seal(packet.Payload ?? Array.Empty<byte>()),
+            Payload = cipher.Seal(packet.Payload ?? Array.Empty<byte>()),
         };
     }
 
@@ -153,8 +164,13 @@ public sealed class EncryptedMeshSender : IMeshSender
     /// </summary>
     public MeshPacket? OpenMedia(MeshPacket packet)
     {
-        if (Media is null || packet.Payload is null) return null;
-        if (Media.Open(packet.Payload) is not { } plain) return null;
+        // Each track opens under its own key. Trying the wrong one does not merely fail — it advances
+        // nothing and looks exactly like a tampered frame, so the choice is made by packet type here
+        // rather than by trying both.
+        var cipher = packet.Type == PacketType.VideoFrame ? Video : Media;
+
+        if (cipher is null || packet.Payload is null) return null;
+        if (cipher.Open(packet.Payload) is not { } plain) return null;
 
         return new MeshPacket
         {

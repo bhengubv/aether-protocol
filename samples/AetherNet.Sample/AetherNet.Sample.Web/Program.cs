@@ -59,6 +59,7 @@ builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
 // So is a microphone. The call service exists here so the UI compiles and can explain itself, but it
 // will always say a call is impossible rather than pretending to place one.
 builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
+builder.Services.AddSingleton<IVideoIo, NullVideoIo>();
 
 // And no microphone means no notes to record either. Playing one back works everywhere, though —
 // that is the browser's own media element, not a radio.

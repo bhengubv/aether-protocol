@@ -50,6 +50,20 @@ public sealed class CallMediaCipher : IDisposable
     private const string CallerToAnswerer = "aether-voice-caller-to-answerer-v1";
     private const string AnswererToCaller = "aether-voice-answerer-to-caller-v1";
 
+    /// <summary>
+    /// And video gets its own pair again, for the same reason one direction does.
+    ///
+    /// <para>
+    /// Audio and video share a call and a master secret, but they must not share a cipher. The nonce
+    /// is a per-cipher counter, so two tracks sealing through one instance would be safe on the
+    /// nonce and broken on the replay window — the receiver keeps the highest counter it has seen,
+    /// and two interleaved streams would each look like the other replaying old frames. Half of every
+    /// track would be discarded, silently, as an attack.
+    /// </para>
+    /// </summary>
+    private const string VideoCallerToAnswerer = "aether-video-caller-to-answerer-v1";
+    private const string VideoAnswererToCaller = "aether-video-answerer-to-caller-v1";
+
     private readonly AesGcm _send;
     private readonly AesGcm _receive;
     private uint _counter;
@@ -58,13 +72,24 @@ public sealed class CallMediaCipher : IDisposable
 
     /// <param name="master">The per-call secret, exchanged once inside the session.</param>
     /// <param name="iAmTheCaller">Which of the two directions this phone sends on.</param>
-    public CallMediaCipher(ReadOnlySpan<byte> master, bool iAmTheCaller)
+    /// <param name="video">
+    /// True for the video track. One call has two of these — one per track — because they must not
+    /// share a counter; see <see cref="VideoCallerToAnswerer"/>.
+    /// </param>
+    public CallMediaCipher(ReadOnlySpan<byte> master, bool iAmTheCaller, bool video = false)
     {
         if (master.Length != KeyBytes)
             throw new ArgumentException($"A call key is {KeyBytes} bytes.", nameof(master));
 
-        var mine = Derive(master, iAmTheCaller ? CallerToAnswerer : AnswererToCaller);
-        var theirs = Derive(master, iAmTheCaller ? AnswererToCaller : CallerToAnswerer);
+        var outbound = video
+            ? (iAmTheCaller ? VideoCallerToAnswerer : VideoAnswererToCaller)
+            : (iAmTheCaller ? CallerToAnswerer : AnswererToCaller);
+        var inbound = video
+            ? (iAmTheCaller ? VideoAnswererToCaller : VideoCallerToAnswerer)
+            : (iAmTheCaller ? AnswererToCaller : CallerToAnswerer);
+
+        var mine = Derive(master, outbound);
+        var theirs = Derive(master, inbound);
 
         _send = new AesGcm(mine, TagBytes);
         _receive = new AesGcm(theirs, TagBytes);

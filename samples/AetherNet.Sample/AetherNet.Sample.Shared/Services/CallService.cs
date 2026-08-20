@@ -33,6 +33,7 @@ public sealed class CallService : IDisposable
     private readonly IRadioMesh? _radio;
     private readonly ISignalProtocolService _signal;
     private readonly IAudioIo _audio;
+    private readonly IVideoIo? _video;
     private readonly WifiDirectBroker? _wifiDirect;
 
     /// <summary>
@@ -94,6 +95,7 @@ public sealed class CallService : IDisposable
         IIdentityService me,
         ISignalProtocolService signal,
         IAudioIo audio,
+        IVideoIo? video = null,
         AetherNet.Sample.Shared.Data.AetherStore? store = null,
         ChatService? chat = null,
         WifiDirectBroker? wifiDirect = null,
@@ -105,6 +107,7 @@ public sealed class CallService : IDisposable
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
         _audio = audio ?? throw new ArgumentNullException(nameof(audio));
+        _video = video;
         _wifiDirect = wifiDirect;
         _radio = radio;
         _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<CallService>();
@@ -333,8 +336,7 @@ public sealed class CallService : IDisposable
         // waiting for.
         var master = CallMediaCipher.NewMasterKey();
         Voice();
-        _sender!.Media?.Dispose();
-        _sender.Media = new CallMediaCipher(master, iAmTheCaller: IAmTheCaller);
+        KeyBothTracks(master);
         await SendKeyAsync(session.RemoteUhid(_me.AetherTag), master, cancellationToken).ConfigureAwait(false);
         System.Security.Cryptography.CryptographicOperations.ZeroMemory(master);
 
@@ -391,6 +393,256 @@ public sealed class CallService : IDisposable
         catch (Exception ex) { _log.LogDebug(ex, "hangup"); }
 
         await EndAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Key both tracks from the one master secret.
+    ///
+    /// <para>
+    /// Video is keyed even while the camera is off, and deliberately so. Turning it on mid-call is a
+    /// single signalling message; if the key were minted at that moment, the first frames would arrive
+    /// ahead of it and be discarded — which reads exactly like a camera that does not work.
+    /// </para>
+    ///
+    /// <para>
+    /// Direction comes from the call's ROLE, never from who happened to send the key. It was hardcoded
+    /// once, which held only while the caller always minted — the moment the answering side mints, so
+    /// it can speak the instant it picks up, both ends derive the same direction keys and neither can
+    /// read the other.
+    /// </para>
+    /// </summary>
+    private void KeyBothTracks(ReadOnlySpan<byte> master)
+    {
+        _sender!.Media?.Dispose();
+        _sender.Video?.Dispose();
+        _sender.Media = new CallMediaCipher(master, iAmTheCaller: IAmTheCaller);
+        _sender.Video = new CallMediaCipher(master, iAmTheCaller: IAmTheCaller, video: true);
+    }
+
+    // ── The video track ───────────────────────────────────────────────────────
+
+    /// <summary>Marks the message that says whether this phone has its camera on.</summary>
+    private const string VideoMarker = "VID1";
+
+    /// <summary>Camera on, camera off. One byte, because that is all it says.</summary>
+    private const byte CameraOn = 1;
+
+    /// <summary>True while this phone is sending video.</summary>
+    public bool VideoOn { get; private set; }
+
+    /// <summary>True while the other phone is sending video.</summary>
+    public bool TheirVideoOn { get; private set; }
+
+    /// <summary>
+    /// One encoded video frame from the other phone, already decrypted and in call order.
+    ///
+    /// <para>
+    /// Raised on a radio thread and carrying H.264 rather than pixels — decoding is the platform's
+    /// job, and doing it here would put a decoder on the receive path of every host, including the
+    /// ones with no screen to draw on.
+    /// </para>
+    /// </summary>
+    public event Action<byte[]>? VideoFrameReceived;
+
+    /// <summary>
+    /// What a call needs before the camera is offered at all.
+    ///
+    /// <para>
+    /// Video is roughly 800 kbps against voice's 24, and it still has to carry the voice. With the
+    /// same one-third margin the codec uses, that is about three megabits. Wi-Fi Direct clears it
+    /// comfortably; nothing else measured here comes close (PROTOCOL_SPEC §5.5).
+    /// </para>
+    /// </summary>
+    public const long MinLinkBpsForVideo = 3_000_000;
+
+    /// <summary>
+    /// Whether video is worth attempting on the radio actually carrying this call.
+    ///
+    /// <para>
+    /// Offering a camera button on a link that cannot carry one does not produce poor video. It
+    /// produces a frozen picture and ruins the audio that was working a moment ago, because the
+    /// frames crowd out the voice they share the radio with.
+    /// </para>
+    /// </summary>
+    public bool CanSendVideo =>
+        Current is { State: CallState.Connected } &&
+        _video is { IsPresent: true } &&
+        (_radio?.LinkBandwidthBps ?? 0) >= MinLinkBpsForVideo;
+
+    /// <summary>Why the camera is not on offer, in plain words — or null when it is.</summary>
+    public string? CannotSendVideoReason =>
+        Current is not { State: CallState.Connected } ? "not in a call"
+        : _video is not { IsPresent: true } ? _video?.UnavailableReason ?? "this device has no camera"
+        : !CanSendVideo ? (_radio?.LinkRadio ?? "this radio") + " is too slow for video — voice only"
+        : null;
+
+    /// <summary>
+    /// Turn this phone's camera on or off, and tell the other phone either way.
+    ///
+    /// <para>
+    /// Telling them matters as much as the frames do. A phone that simply stops receiving video
+    /// cannot tell a camera that was switched off from a link that has died, and it must not sit
+    /// showing a frozen last frame as though everything were fine.
+    /// </para>
+    /// </summary>
+    public async Task<bool> SetVideoAsync(bool on, CancellationToken cancellationToken = default)
+    {
+        if (Current is not { State: CallState.Connected } call) return false;
+
+        if (on && !CanSendVideo)
+        {
+            T("cannot send video — " + CannotSendVideoReason);
+            return false;
+        }
+
+        if (VideoOn == on) return true;
+
+        if (on)
+        {
+            if (_video is null) return false;
+
+            // Asked for here, at the tap, rather than during setup — this is the moment the reason is
+            // obvious. A refusal leaves the voice call exactly as it was.
+            if (!await _video.EnsurePermissionAsync().ConfigureAwait(false))
+            {
+                T("cannot send video — the camera was not allowed");
+                return false;
+            }
+
+            if (!await _video.StartAsync(cancellationToken).ConfigureAwait(false))
+            {
+                T("cannot send video — " + (_video.UnavailableReason ?? "the camera would not open"));
+                return false;
+            }
+
+            _video.FrameEncoded += OnEncodedFrame;
+            _video.ShowRemote(TheirVideoOn);
+        }
+        else if (_video is not null)
+        {
+            _video.FrameEncoded -= OnEncodedFrame;
+
+            // Only give the screen back when neither camera is on. Turning mine off while they are
+            // still showing me theirs must not black their picture out.
+            if (!TheirVideoOn) await _video.StopAsync().ConfigureAwait(false);
+        }
+
+        VideoOn = on;
+        await AnnounceVideoAsync(call.RemoteUhid(_me.AetherTag), on, cancellationToken).ConfigureAwait(false);
+        Raise();
+        return true;
+    }
+
+    /// <summary>Flip between the front and back cameras mid-call.</summary>
+    public void SwitchCamera() => _video?.SwitchCamera();
+
+    /// <summary>
+    /// A frame off this phone's encoder. Sent without waiting: the encoder's thread must keep
+    /// draining, and a frame held here is a frame not being encoded behind it.
+    /// </summary>
+    private void OnEncodedFrame(byte[] frame) => _ = SendVideoFrameAsync(frame);
+
+    /// <summary>
+    /// Send one encoded video frame.
+    ///
+    /// <para>
+    /// Dropped rather than queued when the camera is off or the call has ended. A video frame is
+    /// worthless a moment after it was captured, so there is nothing to be gained by holding one —
+    /// unlike a voice frame, which at least still carries a word somebody said.
+    /// </para>
+    /// </summary>
+    public async Task SendVideoFrameAsync(byte[] encoded, CancellationToken cancellationToken = default)
+    {
+        if (!VideoOn || encoded is null || encoded.Length == 0) return;
+        if (Current is not { State: CallState.Connected } call) return;
+
+        var remote = call.RemoteUhid(_me.AetherTag);
+        if (string.IsNullOrEmpty(remote)) return;
+
+        try
+        {
+            var packet = new MeshPacket
+            {
+                Type = PacketType.VideoFrame,
+                SourceUhid = _me.AetherTag,
+                DestinationUhid = remote,
+                Ttl = 1,                   // one hop; a relayed video call is not a video call
+                Payload = encoded,
+            };
+
+            await _sender!.SendAsync(packet, remote, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "video frame");
+        }
+    }
+
+    /// <summary>Tell the other phone the camera went on or off. Inside the session, like the key.</summary>
+    private async Task AnnounceVideoAsync(string peerTag, bool on, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(peerTag) || _radio is null) return;
+
+        try
+        {
+            var sealedBody = await _signal
+                .EncryptAsync(peerTag, new[] { on ? CameraOn : (byte)0 }, cancellationToken)
+                .ConfigureAwait(false);
+
+            var body = AetherNet.Messaging.EncryptedPayloadCodec.Serialize(sealedBody);
+            var payload = new byte[VideoMarker.Length + body.Length];
+            System.Text.Encoding.UTF8.GetBytes(VideoMarker).CopyTo(payload, 0);
+            body.CopyTo(payload, VideoMarker.Length);
+
+            await _radio.SendPacketAsync(PacketSerializer.Serialize(new MeshPacket
+            {
+                Type = PacketType.Data,
+                SourceUhid = _me.AetherTag,
+                DestinationUhid = peerTag,
+                Ttl = 1,      // the same one hop the key takes; a camera state is between two phones
+                Payload = payload,
+            })).ConfigureAwait(false);
+
+            T("camera " + (on ? "on" : "off"));
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "video announce");
+        }
+    }
+
+    /// <summary>They turned their camera on or off.</summary>
+    private async Task ReceiveVideoStateAsync(string? from, byte[] payload)
+    {
+        if (string.IsNullOrEmpty(from)) return;
+
+        try
+        {
+            var sealedBody = AetherNet.Messaging.EncryptedPayloadCodec.Deserialize(
+                payload.AsSpan(VideoMarker.Length).ToArray());
+            var body = await _signal.DecryptAsync(from, sealedBody).ConfigureAwait(false);
+
+            TheirVideoOn = body.Length > 0 && body[0] == CameraOn;
+
+            // Their camera going on when mine is off still needs somewhere to draw, so the surfaces
+            // come up for their picture alone. And going off hides it at once, rather than leaving a
+            // frozen last frame that cannot be told apart from a dead link.
+            if (TheirVideoOn && _video is { IsRunning: false, IsPresent: true })
+                await _video.StartAsync().ConfigureAwait(false);
+
+            _video?.ShowRemote(TheirVideoOn);
+
+            if (!TheirVideoOn && !VideoOn && _video is { IsRunning: true })
+                await _video.StopAsync().ConfigureAwait(false);
+
+            _radio?.IdentifyPeer(from);
+            T("their camera is " + (TheirVideoOn ? "on" : "off"));
+            Raise();
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "video state");
+        }
     }
 
     // ── The audio path ────────────────────────────────────────────────────────
@@ -637,7 +889,18 @@ public sealed class CallService : IDisposable
             return;
         }
 
-        if (packet.Type is not (PacketType.VoiceSignaling or PacketType.VoiceCall)) return;
+        // So does the camera going on and off. It has to be told, rather than inferred from frames
+        // stopping: a phone cannot otherwise tell a switched-off camera from a dead link, and would
+        // sit showing a frozen last frame as though the call were fine.
+        if (packet.Type == PacketType.Data &&
+            packet.Payload is { } v && v.Length > VideoMarker.Length &&
+            Encoding.UTF8.GetString(v, 0, VideoMarker.Length) == VideoMarker)
+        {
+            _ = ReceiveVideoStateAsync(packet.SourceUhid, v);
+            return;
+        }
+
+        if (packet.Type is not (PacketType.VoiceSignaling or PacketType.VoiceCall or PacketType.VideoFrame)) return;
         _ = HandleVoiceAsync(packet);
     }
 
@@ -662,12 +925,7 @@ public sealed class CallService : IDisposable
 
             // Building the sender is what creates it if this is the first thing we have seen from them.
             Voice();
-            _sender!.Media?.Dispose();
-            // Direction comes from the call's ROLE, never from who happened to send the key. This was
-            // hardcoded false, which only held while the caller was always the one minting — the
-            // moment the answering side mints (so it can speak the instant it picks up) both ends
-            // would derive the same direction keys and neither could read the other.
-            _sender.Media = new CallMediaCipher(master, iAmTheCaller: IAmTheCaller);
+            KeyBothTracks(master);
             System.Security.Cryptography.CryptographicOperations.ZeroMemory(master);
 
             _radio?.IdentifyPeer(from);
@@ -697,6 +955,19 @@ public sealed class CallService : IDisposable
         // Media opens under the call's own key; signalling opens under the ratchet. Frames must not go
         // near the ratchet — fifty a second outrun it and every one of them fails.
         MeshPacket? opened;
+        if (packet.Type == PacketType.VideoFrame)
+        {
+            // Handed straight on, still encoded. Decoding belongs to whatever has a screen, and doing
+            // it here would put a decoder on the receive path of every host that has none.
+            Voice();
+            opened = _sender!.OpenMedia(packet);
+            if (opened?.Payload is not { Length: > 0 } frame) return;
+
+            VideoFrameReceived?.Invoke(frame);
+            _video?.Play(frame);
+            return;
+        }
+
         if (packet.Type == PacketType.VoiceCall)
         {
             Voice();
@@ -858,6 +1129,19 @@ public sealed class CallService : IDisposable
         {
             _sender.Media?.Dispose();
             _sender.Media = null;
+            _sender.Video?.Dispose();
+            _sender.Video = null;
+        }
+
+        // The cameras go with it. Leaving these set means the next call opens believing it is already
+        // showing video, and the screen draws over a stream nobody is sending. The surfaces come down
+        // too — a video overlay outliving its call covers the whole app with a black rectangle.
+        VideoOn = false;
+        TheirVideoOn = false;
+        if (_video is not null)
+        {
+            _video.FrameEncoded -= OnEncodedFrame;
+            try { await _video.StopAsync().ConfigureAwait(false); } catch { /* the call is over anyway */ }
         }
 
         Raise();

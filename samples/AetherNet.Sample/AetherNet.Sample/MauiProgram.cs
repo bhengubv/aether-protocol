@@ -92,6 +92,9 @@ public static class MauiProgram
         // call service is constructible but honestly says it cannot place one.
 #if ANDROID
         builder.Services.AddSingleton<IAudioIo, AetherNet.Sample.Platforms.Android.AndroidAudioIo>();
+        // Live video is native surfaces layered over the WebView — see AndroidVideoIo for why frames
+        // must never pass through Blazor.
+        builder.Services.AddSingleton<IVideoIo, AetherNet.Sample.Platforms.Android.AndroidVideoIo>();
         // Wi-Fi Direct's group is created and handed over BLE rather than negotiated, so the radio
         // itself is the thing that hosts and joins.
         builder.Services.AddSingleton<IWifiDirectGroup>(sp =>
@@ -99,6 +102,7 @@ public static class MauiProgram
                 sp.GetRequiredService<IRadioMesh>()).WifiDirect);
 #else
         builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
+        builder.Services.AddSingleton<IVideoIo, NullVideoIo>();
         builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 #endif
         builder.Services.AddSingleton<WifiDirectBroker>();
