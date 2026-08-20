@@ -239,6 +239,18 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         foreach (var r in _order)
         {
             if (ReferenceEquals(r, _selected) || !r.IsAvailable || r.IsLinked) continue;
+
+            // "Also listening" is right for a radio that listens. It is wrong for one that dials out:
+            // bringing Wi-Fi Direct up here made both phones call connect() at each other the moment
+            // each tapped Connect, which is the race WifiDirectBroker exists to prevent — and losing
+            // it puts an "Invitation to connect" dialog in front of the app on the other handset.
+            // The broker starts this radio when a call needs it, having first decided who hosts.
+            if (r.Initiates)
+            {
+                Emit($"[{r.Name}] left to the broker — it dials out, so it must not race");
+                continue;
+            }
+
             Emit($"[{r.Name}] also listening");
             try { r.Link(); } catch (Exception ex) { Emit($"[{r.Name}] could not listen: {ex.Message}"); }
         }

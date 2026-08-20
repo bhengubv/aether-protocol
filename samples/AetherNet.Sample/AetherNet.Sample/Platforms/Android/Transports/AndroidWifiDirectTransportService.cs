@@ -840,6 +840,14 @@ public sealed class AndroidWifiDirectTransportService
     public IReadOnlyCollection<string> ConnectedPeers => _peers.Keys.ToArray();
 
     // ── IRadio ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Yes — Link() calls connect(), so this must never be started as a bystander. See
+    /// <see cref="IRadio.Initiates"/> and <c>WifiDirectBroker</c>, which is the only thing allowed to
+    /// decide that a group should form.
+    /// </summary>
+    public bool Initiates => true;
+
     public bool IsLinked => !_peers.IsEmpty;
     public string? PeerTag => _peers.Keys.FirstOrDefault();
     public Task<bool> SendAsync(byte[] data)

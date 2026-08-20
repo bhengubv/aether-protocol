@@ -93,6 +93,11 @@ public sealed class ChatService
         _repair = new SessionRepair();
 
         _preKeys.BundleReceived += OnBundleReceived;
+
+        // Attachments share this session and had no way to recover from a broken one. Chat is where
+        // repair lives — voice already borrows it for the same reason — so notes borrow it too rather
+        // than growing a second copy of the trickiest code in the app.
+        if (_attachments is not null) _attachments.SessionLooksBroken += OnAttachmentSessionBroken;
         if (_radio is not null)
         {
             _radio.PacketReceived += OnPacket;
@@ -120,6 +125,23 @@ public sealed class ChatService
         if (string.IsNullOrEmpty(peer) || peer == previous) return;
 
         foreach (var tag in PeersToResume(peer)) _ = ResumeAsync(tag);
+    }
+
+    /// <summary>
+    /// A note could not be opened from this peer. Rebuild the session, then chase the transfer again —
+    /// resume asks only for what is missing, so nothing already received is fetched twice.
+    /// </summary>
+    private void OnAttachmentSessionBroken(string peer)
+    {
+        if (string.IsNullOrEmpty(peer)) return;
+
+        _ = Task.Run(async () =>
+        {
+            // Just ask for the rebuild. Chasing the transfer here would be too early — the session is
+            // not back until the peer answers with a bundle, and FlushAsync is what runs then.
+            T($"a note from {peer} would not open — rebuilding the session");
+            await RepairSessionAsync(peer).ConfigureAwait(false);
+        });
     }
 
     /// <summary>
@@ -318,6 +340,14 @@ public sealed class ChatService
 
         foreach (var unsent in _store.GetUnsentMessages(peerTag))
             await TryDeliverAsync(unsent, cancellationToken).ConfigureAwait(false);
+
+        // Notes are owed too. This is the one moment that means "there is a working session with them
+        // right now" — which is what a stalled transfer has been waiting for, and what repairing a
+        // session cannot say for itself: RepairSessionAsync only ASKS for a fresh bundle, and the
+        // session does not exist until the reply lands. Resuming straight after the ask found no
+        // session and skipped, so a note sat at 26 of 29 chunks through a repair that had worked.
+        if (_attachments is not null)
+            await _attachments.ResumeAllWithAsync(peerTag, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

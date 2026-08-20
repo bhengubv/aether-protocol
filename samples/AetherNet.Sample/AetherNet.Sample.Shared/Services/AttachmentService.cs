@@ -133,6 +133,24 @@ public sealed class AttachmentService : IDisposable
         }
     }
 
+    /// <summary>
+    /// A packet from this peer would not open, and the session is the likely reason.
+    ///
+    /// <para>
+    /// Raised rather than acted on, because repairing a session is <see cref="ChatService"/>'s job and
+    /// duplicating it would mean two copies of the trickiest code in the app drifting apart. This is
+    /// the seam voice already uses for the same reason.
+    /// </para>
+    ///
+    /// <para>
+    /// Without it, attachments were the one path with no recovery at all. Chat repairs itself, voice
+    /// repairs itself, and a note whose WANT could not be decrypted simply died — which is exactly
+    /// what a note stuck at 26 of 29 chunks across a dozen restarts looked like, while chat over the
+    /// same pair carried on working perfectly.
+    /// </para>
+    /// </summary>
+    public event Action<string>? SessionLooksBroken;
+
     /// <summary>Raised when an attachment finishes arriving, so the bubble can turn into a player.</summary>
     public event Action<string>? Arrived;
 
@@ -209,6 +227,12 @@ public sealed class AttachmentService : IDisposable
     {
         if (string.IsNullOrEmpty(from)) return;
 
+        // Every failure below used to go to ILogger, which on the phone goes nowhere anybody looks —
+        // so a peer that received an attachment packet and could not open it was indistinguishable
+        // from a peer that never received one. A note stuck at 26 of 29 chunks with a completely
+        // empty log on the sending side is what that costs.
+        T($"{marker} in from {from}");
+
         try
         {
             var sealedBody = EncryptedPayloadCodec.Deserialize(payload.AsSpan(marker.Length).ToArray());
@@ -224,7 +248,13 @@ public sealed class AttachmentService : IDisposable
         }
         catch (Exception ex)
         {
+            T($"{marker} from {from} would NOT open — {ex.GetType().Name}: {ex.Message}");
             _log.LogWarning(ex, "Could not handle an attachment {Marker} from {Peer}", marker, from);
+
+            // A tag mismatch is not corruption on the wire — it is two sides holding sessions that no
+            // longer agree. Somebody has to rebuild it, and the transfer resumes on its own once one
+            // does, because resume asks only for what is still missing.
+            if (LooksLikeABrokenSession(ex)) SessionLooksBroken?.Invoke(from);
         }
     }
 
@@ -380,7 +410,20 @@ public sealed class AttachmentService : IDisposable
 
     private async Task SendSealedAsync(string peerTag, string marker, byte[] body, CancellationToken cancellationToken)
     {
-        if (_radio is null || !_signal.HasSession(peerTag)) return;
+        // A send that does not happen has to say so. This returned silently, so a WANT that was
+        // composed, logged and then dropped for want of a session looked exactly like a WANT that was
+        // sent and ignored by the far end — and a note stuck at 26 of 29 chunks gave no clue which.
+        if (_radio is null)
+        {
+            T($"{marker} to {peerTag} DROPPED — no radio");
+            return;
+        }
+
+        if (!_signal.HasSession(peerTag))
+        {
+            T($"{marker} to {peerTag} DROPPED — no session with that name");
+            return;
+        }
 
         try
         {
@@ -406,6 +449,20 @@ public sealed class AttachmentService : IDisposable
             _log.LogDebug(ex, "Could not send an attachment {Marker} to {Peer}", marker, peerTag);
         }
     }
+
+    /// <summary>
+    /// Whether this failure means the session, rather than the packet.
+    ///
+    /// <para>
+    /// A diverged double ratchet fails its authentication tag — the ciphertext is intact and the key
+    /// is wrong. Anything else here is a malformed or truncated packet, which repairing a session
+    /// would not help and which asking again will.
+    /// </para>
+    /// </summary>
+    private static bool LooksLikeABrokenSession(Exception ex) =>
+        ex is System.Security.Cryptography.AuthenticationTagMismatchException
+        || ex is System.Security.Cryptography.CryptographicException
+        || ex.InnerException is System.Security.Cryptography.AuthenticationTagMismatchException;
 
     private static string Short(string hash) => hash.Length <= 8 ? hash : hash[..8];
     private void T(string message) => Trace?.Invoke(message);
