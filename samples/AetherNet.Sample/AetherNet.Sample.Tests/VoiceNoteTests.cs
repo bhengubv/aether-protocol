@@ -342,6 +342,55 @@ public class VoiceNoteTests
         Assert.Equal(clip, await pair.AttachmentsB.GetAsync(hash));
     }
 
+    /// <summary>
+    /// The rendezvous failure, which one well-timed ask cannot survive.
+    ///
+    /// <para>
+    /// Repairing a session drops the old one before the new one exists, so for a few hundred
+    /// milliseconds the peer has NO session and anything asked of it is discarded with nothing to
+    /// re-send it. Watched on merlin 2026-08-20: the P30 asked at :46.207, merlin had no session
+    /// until :46.799, and the note stayed at 26 of 29 chunks through a repair that had worked.
+    /// </para>
+    ///
+    /// <para>
+    /// Here the sender's session is taken away at the moment the receiver asks. Nothing prompts either
+    /// side again — no link change, no message — so only asking again on its own can finish this.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task A_note_survives_the_gap_while_a_session_is_rebuilt()
+    {
+        using var pair = new Pair();
+        var clip = Clip(20_000);
+        var descriptor = ContentDescriptor.FromBytes("note.ogg", clip, ChatMessage.VoiceNote, AttachmentService.ChunkBytes);
+
+        // Nothing leaves the sender while the note is recorded, so it ends up holding all of it and
+        // the receiver none. (Unlinking the RECEIVER would not do it — the fake radio delivers on the
+        // sender's link, not the receiver's.)
+        pair.RadioA.Unlink();
+        await pair.ChatA.SendNoteAsync(Them, clip, ChatMessage.VoiceNote, "note.ogg");
+
+        // The receiver learns the manifest and nothing else — which is the state the two phones were
+        // actually in: knowing exactly what is missing, and unable to get it.
+        await pair.ContentB.SaveDescriptorAsync(descriptor);
+
+        // The sender loses its session BEFORE the link returns, exactly as repairing one does: the
+        // radio is fine and the session is not, which is the whole difficulty.
+        pair.SignalA.ForgetSessionWith(Them);
+        pair.RadioA.Link();
+        pair.AttachmentsB.Chase(Me);
+        await Task.Delay(400);
+
+        Assert.Null(await pair.AttachmentsB.GetAsync(descriptor.RootHash));
+
+        // The session returns and nothing else happens — no link event, no message, no new offer.
+        // Asking again is the only thing left, and it has to be enough.
+        pair.SignalA.OpenSessionWith(Them);
+        await Task.Delay(4_000);
+
+        Assert.Equal(clip, await pair.AttachmentsB.GetAsync(descriptor.RootHash));
+    }
+
     // ── The type has to be one a player accepts ────────────────────────────
 
     /// <summary>

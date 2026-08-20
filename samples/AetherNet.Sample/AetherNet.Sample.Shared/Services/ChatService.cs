@@ -69,6 +69,26 @@ public sealed class ChatService
     private readonly ISignalProtocolService _signal;
     private readonly IPreKeyExchangeService _preKeys;
     private readonly AttachmentService? _attachments;
+
+    /// <summary>
+    /// Brings the wide radio up. Optional — null on hosts that have none.
+    ///
+    /// <para>
+    /// Wi-Fi Direct is the core radio, not a special case for calls. Every phone has it, and it is
+    /// the only one measured to carry real traffic: fifty frames a second each way against BLE's
+    /// eleven kilobits (PROTOCOL_SPEC §5.5). It was being raised by <c>CallService</c> alone, so
+    /// everything else — messages, receipts, notes — crawled over BLE while the fast radio sat idle,
+    /// and a ninety-kilobyte voice note took over a minute on a phone that could move it in under a
+    /// second.
+    /// </para>
+    ///
+    /// <para>
+    /// Raising it any earlier than this would be unsafe: forming a group needs both sides to agree
+    /// who hosts, and the broker settles that from the two tags — which are only known once there is
+    /// a session. That is exactly the moment below.
+    /// </para>
+    /// </summary>
+    private readonly WifiDirectBroker? _wifiDirect;
     private readonly ILogger _log;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private readonly SessionRepair _repair;
@@ -81,8 +101,10 @@ public sealed class ChatService
         IPreKeyExchangeService preKeys,
         IRadioMesh? radio = null,
         AttachmentService? attachments = null,
+        WifiDirectBroker? wifiDirect = null,
         ILoggerFactory? loggerFactory = null)
     {
+        _wifiDirect = wifiDirect;
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
@@ -346,8 +368,23 @@ public sealed class ChatService
         // session cannot say for itself: RepairSessionAsync only ASKS for a fresh bundle, and the
         // session does not exist until the reply lands. Resuming straight after the ask found no
         // session and skipped, so a note sat at 26 of 29 chunks through a repair that had worked.
+        // Ask once now, and keep asking if they cannot answer yet — repairing a session leaves a gap
+        // in which a request is simply lost, and one well-timed ask cannot cover it.
         if (_attachments is not null)
+        {
             await _attachments.ResumeAllWithAsync(peerTag, cancellationToken).ConfigureAwait(false);
+            _attachments.Chase(peerTag);
+        }
+
+        // And put the good radio up, for everything rather than for calls. There is a session with
+        // this person, so both sides know both tags, so the broker can settle who hosts without a
+        // race. Not awaited: a group takes seconds to form and nothing here should wait on it — the
+        // traffic goes over whatever is linked now and moves across when the group arrives.
+        if (_wifiDirect is { IsUp: false, IsSupported: true })
+        {
+            T($"bringing up Wi-Fi Direct with {peerTag} — it is the radio that can actually carry this");
+            _ = _wifiDirect.BringUpAsync(peerTag, cancellationToken);
+        }
     }
 
     /// <summary>

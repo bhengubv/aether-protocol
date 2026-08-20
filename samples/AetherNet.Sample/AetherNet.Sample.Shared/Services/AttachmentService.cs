@@ -83,6 +83,122 @@ public sealed class AttachmentService : IDisposable
     }
 
     /// <summary>
+    /// Keep asking this peer for what is missing until it arrives, or until it is clearly not coming.
+    ///
+    /// <para>
+    /// A single well-timed ask is not enough, and the device session proved it. Repairing a session
+    /// drops the old one before the new one exists, so for a few hundred milliseconds a peer has no
+    /// session at all — and a WANT that lands in that gap is discarded with nothing to re-send it.
+    /// Watched on merlin: the P30's session came up first and asked at :46.207, merlin had no session
+    /// until :46.799, and the note stayed at 26 of 29 chunks through a repair that had worked
+    /// perfectly. Both sides then retried on their own schedules and missed each other again.
+    /// </para>
+    ///
+    /// <para>
+    /// So this does not try to catch the right moment. It asks, waits, and asks again while anything
+    /// is still missing — which is safe precisely because the content store already knows what is
+    /// missing, so an ask carries no state and repeating one costs a single small packet. Backs off
+    /// when nothing is moving and resets the moment a chunk lands, so a healthy transfer is chased
+    /// hard and a hopeless one goes quiet.
+    /// </para>
+    ///
+    /// <para>
+    /// Idempotent: calling it while a chase is already running for that peer does nothing.
+    /// </para>
+    /// </summary>
+    public void Chase(string peerTag)
+    {
+        if (_disposed || string.IsNullOrEmpty(peerTag)) return;
+        if (!_chasing.TryAdd(peerTag, 0)) return;
+
+        _ = ChaseAsync(peerTag);
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _chasing =
+        new(StringComparer.Ordinal);
+
+    /// <summary>First wait between asks; doubles while nothing moves.</summary>
+    private static readonly TimeSpan FirstWait = TimeSpan.FromSeconds(2);
+
+    /// <summary>Never wait longer than this — a peer that comes back should be noticed promptly.</summary>
+    private static readonly TimeSpan LongestWait = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// How many asks in a row may achieve nothing before giving up.
+    ///
+    /// <para>
+    /// It has to end. A peer that has gone for good must not leave a phone asking forever, and the
+    /// next link-up starts a fresh chase anyway — so giving up here costs nothing but the battery it
+    /// saves.
+    /// </para>
+    /// </summary>
+    private const int GiveUpAfterQuietRounds = 8;
+
+    private async Task ChaseAsync(string peerTag)
+    {
+        try
+        {
+            var wait = FirstWait;
+            var quiet = 0;
+
+            while (!_disposed)
+            {
+                var before = await MissingChunksAsync().ConfigureAwait(false);
+                if (before == 0) return;
+
+                await ResumeAllWithAsync(peerTag).ConfigureAwait(false);
+                await Task.Delay(wait).ConfigureAwait(false);
+
+                var after = await MissingChunksAsync().ConfigureAwait(false);
+                if (after == 0)
+                {
+                    T($"everything from {peerTag} has arrived");
+                    return;
+                }
+
+                if (after < before)
+                {
+                    // Moving. Ask again soon.
+                    wait = FirstWait;
+                    quiet = 0;
+                }
+                else if (++quiet >= GiveUpAfterQuietRounds)
+                {
+                    T($"still missing {after} chunk(s) from {peerTag} — giving up until the link changes");
+                    return;
+                }
+                else
+                {
+                    var next = wait + wait;
+                    wait = next > LongestWait ? LongestWait : next;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "chasing transfers with {Peer}", peerTag);
+        }
+        finally
+        {
+            _chasing.TryRemove(peerTag, out _);
+        }
+    }
+
+    /// <summary>How many chunks this phone is still waiting for, across every transfer.</summary>
+    private async Task<int> MissingChunksAsync()
+    {
+        var missing = 0;
+
+        foreach (var descriptor in await _content.ListDescriptorsAsync().ConfigureAwait(false))
+        {
+            var have = (await _content.ListChunksAsync(descriptor.RootHash).ConfigureAwait(false)).Count;
+            if (have < descriptor.ChunkCount) missing += descriptor.ChunkCount - have;
+        }
+
+        return missing;
+    }
+
+    /// <summary>
     /// Chase every unfinished transfer with one peer. Call when a link to them comes up.
     ///
     /// <para>
@@ -275,6 +391,9 @@ public sealed class AttachmentService : IDisposable
 
         await _content.SaveDescriptorAsync(descriptor).ConfigureAwait(false);
         await AskForMissingAsync(from, descriptor).ConfigureAwait(false);
+
+        // One ask is a hope, not a plan — see Chase. If they cannot answer this instant, keep asking.
+        Chase(from);
     }
 
     /// <summary>

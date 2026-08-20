@@ -18,6 +18,12 @@ public sealed class FakeSignalProtocol : ISignalProtocolService
     /// <summary>Grant a session with this peer, as a completed handshake would.</summary>
     public void OpenSessionWith(string peerUhid) => _sessions.Add(peerUhid);
 
+    /// <summary>
+    /// Take a session away, as repairing one does: the old is dropped before the new exists, and for
+    /// that gap the peer can open nothing at all.
+    /// </summary>
+    public void ForgetSessionWith(string peerUhid) => _sessions.Remove(peerUhid);
+
     public bool HasSession(string peerUhid) => _sessions.Contains(peerUhid);
 
     /// <summary>Peers whose session was thrown away, in order — a repair leaves its trace here.</summary>

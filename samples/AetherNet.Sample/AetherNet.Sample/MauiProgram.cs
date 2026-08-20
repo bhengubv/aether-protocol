@@ -73,6 +73,8 @@ public static class MauiProgram
             sp.GetRequiredService<AetherNet.PreKeys.IPreKeyExchangeService>(),
             sp.GetService<IRadioMesh>(),
             sp.GetService<AttachmentService>(),
+            // The wide radio is raised for every conversation, not only for calls — see ChatService.
+            sp.GetService<WifiDirectBroker>(),
             sp.GetService<ILoggerFactory>()));
 
         // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
