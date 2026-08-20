@@ -127,20 +127,55 @@ public sealed class WifiDirectBroker : IDisposable
         {
             if (IsUp) return true;
 
-            // Whoever asks for the pipe hosts it. The caller is the side that knows it needs one, so
-            // making it wait on a rule about tags is how this deadlocked before — both phones deferring
-            // to a host that had no reason to create anything.
+            // Exactly one of us hosts, and the rule decides which — see HostsTheGroup.
+            //
+            // "Whoever asks hosts it" was right while only ONE side ever asked: the caller placing a
+            // call. Wi-Fi Direct is now the core radio and both phones ask the moment they have a
+            // session, so both hosted — merlin on DIRECT-2W-Redmi Note 9, the P30 on
+            // DIRECT-Ap-NIATango0056, each dutifully sending the other its key, neither joining
+            // anything. Two groups is the same as no group.
+            //
+            // The old deadlock this comment used to warn about cannot come back. That was one side
+            // deferring to a host with no reason to create anything; now both sides ask, so whichever
+            // one the rule names will create it. The other waits, and the credentials arrive over the
+            // link that already works.
+            if (!HostsTheGroup(_me.AetherTag, peerTag))
+            {
+                T($"{peerTag} hosts this one — waiting for their key");
+                return false;
+            }
+
             var credentials = await _group.HostAsync(cancellationToken).ConfigureAwait(false);
             if (credentials is null) { T("could not create a group to host"); return false; }
 
             IsUp = true;
             Raise();
 
-            var sent = await SendAsync(peerTag, credentials, cancellationToken).ConfigureAwait(false);
-            T(sent
-                ? $"hosting {credentials.NetworkName}; sent the key to {peerTag}"
-                : $"hosting {credentials.NetworkName}, but could not send the key to {peerTag}");
-            return sent;
+            // Keep offering the key. A group nobody can join is worse than no group at all: it is up,
+            // it is empty, and every byte keeps crawling over BLE past a radio that would move it in a
+            // fraction of the time. Watched on merlin — "hosting DIRECT-2W-Redmi Note 9, but could not
+            // send the key" — after which a voice note carried on at eleven kilobits while the fast
+            // radio sat idle beside it.
+            //
+            // One attempt was never enough, for exactly the reason one attachment request was not: the
+            // radio may be mid-reconnect, or the session may be a few hundred milliseconds from
+            // existing. Wi-Fi Direct is the radio this whole mesh is built on, so it is worth waiting
+            // a few seconds to get somebody onto it.
+            var sent = await OfferTheKeyAsync(peerTag, credentials, cancellationToken).ConfigureAwait(false);
+
+            if (sent)
+            {
+                T($"hosting {credentials.NetworkName}; sent the key to {peerTag}");
+                return true;
+            }
+
+            // Nobody is coming. Give the group back rather than leaving it up and empty — holding one
+            // costs power and can disturb the phone's own Wi-Fi.
+            T($"hosting {credentials.NetworkName}, but {peerTag} never got the key — taking it down");
+            IsUp = false;
+            await _group.LeaveAsync().ConfigureAwait(false);
+            Raise();
+            return false;
         }
         finally
         {
@@ -159,6 +194,38 @@ public sealed class WifiDirectBroker : IDisposable
     }
 
     // ── The handoff ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// How many times to offer the key before concluding the peer is not coming.
+    ///
+    /// <para>
+    /// Six tries over about twelve seconds. Long enough to ride out a radio mid-reconnect or a session
+    /// that is moments from existing; short enough that a phone which has genuinely gone does not hold
+    /// a group open on the strength of it.
+    /// </para>
+    /// </summary>
+    private const int KeyOffers = 6;
+
+    private async Task<bool> OfferTheKeyAsync(
+        string peerTag, WifiDirectCredentials credentials, CancellationToken cancellationToken)
+    {
+        var wait = TimeSpan.FromMilliseconds(400);
+
+        for (var attempt = 1; attempt <= KeyOffers; attempt++)
+        {
+            if (_disposed || cancellationToken.IsCancellationRequested) return false;
+            if (await SendAsync(peerTag, credentials, cancellationToken).ConfigureAwait(false)) return true;
+
+            if (attempt == KeyOffers) break;
+
+            T($"key to {peerTag} did not go (try {attempt}/{KeyOffers}) — retrying");
+            try { await Task.Delay(wait, cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return false; }
+            wait += wait;
+        }
+
+        return false;
+    }
 
     private async Task<bool> SendAsync(string peerTag, WifiDirectCredentials credentials, CancellationToken cancellationToken)
     {
@@ -229,6 +296,11 @@ public sealed class WifiDirectBroker : IDisposable
         }
         catch (Exception ex)
         {
+            // Say it out loud. This went only to ILogger, which on the phone goes nowhere anybody
+            // looks — so a handoff that arrived and could not be opened was indistinguishable from one
+            // that never arrived, and merlin sat on "waiting for their key" in silence while the P30
+            // had already sent it. That is the third service tonight to hide a failure this way.
+            T($"the group key from {from} would NOT open — {ex.GetType().Name}: {ex.Message}");
             _log.LogWarning(ex, "Could not open a Wi-Fi Direct handoff from {Peer}", from);
             return;
         }

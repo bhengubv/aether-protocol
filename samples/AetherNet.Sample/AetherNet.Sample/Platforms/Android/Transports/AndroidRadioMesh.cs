@@ -59,10 +59,24 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         Register(new AndroidWifiAwareTransportService(() => WireAddress.For(routingKey), logger));
         Register(new AndroidNfcTransportService(_localUhid, logger));
         Register(new AndroidLoRaTransportService(_localUhid, logger));
-        // Default to BLE: it links via GATT (advertise/scan) with no dependency on the Wi-Fi P2P
-        // service-discovery framework, so it comes up reliably phone-to-phone. Wi-Fi Direct stays
-        // available in the picker for higher throughput once linking is confirmed.
-        _selected = _radios.TryGetValue("BLE", out var ble) ? ble : _order[0];
+        // Wi-Fi Direct is the radio this mesh is built on, and the default says so.
+        //
+        // Every phone has it, and it is the only one measured to carry real traffic: 50 frames/sec
+        // each way against BLE's 11 kbps in ONE direction (PROTOCOL_SPEC §5.5). BLE was the default
+        // because it links reliably with no dependency on Wi-Fi P2P service discovery — which is true,
+        // and is why it stays as the radio that FINDS people and brokers the group. It is not the one
+        // that should carry what it finds.
+        //
+        // Defaulting to BLE quietly made it the answer to everything: messages, receipts and notes all
+        // went over eleven kilobits while the fast radio sat idle, and a 91 KB voice note took over a
+        // minute on a phone that can move it in under a second.
+        //
+        // This is a preference, not a restriction — Widest() still sends over whichever radio is
+        // actually linked, so nothing breaks before the group forms, and everything moves across the
+        // moment it does.
+        _selected = _radios.TryGetValue("Wi-Fi Direct", out var wifiDirect) ? wifiDirect
+            : _radios.TryGetValue("BLE", out var ble) ? ble
+            : _order[0];
     }
 
     private void Register(IRadio r)
@@ -233,25 +247,28 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // moment they have tapped Connect.
         AetherLinkService.Start();
 
-        Emit($"[{_selected.Name}] linking…");
-        _selected.Link();
-
+        // Bring up every radio that LISTENS — including the selected one if it listens.
+        //
+        // The preferred radio is now Wi-Fi Direct, and it does not listen: Link() on it calls
+        // connect(). Dialling it from here is what made both phones call connect() at each other the
+        // moment each tapped Connect — the race WifiDirectBroker exists to prevent, and losing it puts
+        // an "Invitation to connect" dialog in front of the app on the other handset.
+        //
+        // So the preference and the bring-up are separate things. This raises the radios that find
+        // people; the broker raises the one that carries them, once it knows from the two tags who
+        // should host. Widest() then sends over whichever is actually linked, so traffic flows over
+        // BLE until the group forms and moves across the instant it does.
         foreach (var r in _order)
         {
-            if (ReferenceEquals(r, _selected) || !r.IsAvailable || r.IsLinked) continue;
+            if (!r.IsAvailable || r.IsLinked) continue;
 
-            // "Also listening" is right for a radio that listens. It is wrong for one that dials out:
-            // bringing Wi-Fi Direct up here made both phones call connect() at each other the moment
-            // each tapped Connect, which is the race WifiDirectBroker exists to prevent — and losing
-            // it puts an "Invitation to connect" dialog in front of the app on the other handset.
-            // The broker starts this radio when a call needs it, having first decided who hosts.
             if (r.Initiates)
             {
                 Emit($"[{r.Name}] left to the broker — it dials out, so it must not race");
                 continue;
             }
 
-            Emit($"[{r.Name}] also listening");
+            Emit(ReferenceEquals(r, _selected) ? $"[{r.Name}] linking…" : $"[{r.Name}] also listening");
             try { r.Link(); } catch (Exception ex) { Emit($"[{r.Name}] could not listen: {ex.Message}"); }
         }
     }

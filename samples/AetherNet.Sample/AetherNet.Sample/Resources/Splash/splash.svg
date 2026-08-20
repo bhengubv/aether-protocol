@@ -1,15 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
-  The launch screen. Same mark as the icon and the header, so the app looks like one thing from the
-  moment it is tapped. This was the .NET bot on template purple.
+  The launch screen — the very first frame, painted by Android before the WebView exists.
+
+  FLAT FILL, NO GRADIENT, NO url(#...) REFERENCES. This had a gradient stroke, and Resizetizer
+  converted the whole file to `<layer-list />` — an empty drawable, no error, no artwork. Every launch
+  was a blank dark screen and had been all along. Check obj/.../res/drawable/maui_splash_image.xml
+  after changing this file: if it is not a <vector> with a <path>, nothing will be drawn.
+
+  Same mark as the icon and the header, so the app looks like one thing from the moment it is tapped.
 -->
 <svg width="456" height="456" viewBox="0 0 456 456" version="1.1" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#4aa8ff" />
-            <stop offset="0.55" stop-color="#2196F3" />
-            <stop offset="1" stop-color="#1976D2" />
-        </linearGradient>
-    </defs>
-    <circle cx="228" cy="228" r="128" fill="none" stroke="url(#brand)" stroke-width="72" />
+    <!-- The ring, as a filled path rather than a stroked circle: strokes are the other thing the
+         converter is unreliable about. Outer edge clockwise, inner edge anti-clockwise, so even-odd
+         filling leaves the middle open. -->
+    <path fill="#2196F3" fill-rule="evenodd"
+          d="M228,64 A164,164 0 1,1 227.9,64 Z
+             M228,128 A100,100 0 1,0 228.1,128 Z" />
+
+    <!-- The node at the centre: this device, inside the mesh rather than above it. -->
+    <circle cx="228" cy="228" r="52" fill="#2196F3" />
 </svg>

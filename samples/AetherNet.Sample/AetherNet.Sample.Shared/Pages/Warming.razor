@@ -1,0 +1,200 @@
+@page "/warming"
+@layout EmptyLayout
+@using AetherNet.Sample.Shared.Data
+@using AetherNet.Sample.Shared.Services
+@implements IDisposable
+@inject WarmUpService Warm
+@inject AetherStore Store
+@inject NavigationManager Nav
+
+@*
+    The app getting ready, in front of you rather than behind your back.
+
+    Everything here used to happen lazily — the identity unsealed on first read, the databases opened
+    when a page asked, the radios linked when somebody tapped Connect, the Wi-Fi Direct group formed
+    only when a call needed it. Each of those is a stall in front of a person who has just asked for
+    something, and together they made a mesh that works look like a mesh that hesitates.
+
+    So the waiting moves here, where nothing has been asked for yet and there is something to watch.
+    The animation is not decoration over a progress bar: the mesh IS the progress. Each capability
+    lights its own node as it comes up, the links draw between them, and when the picture is whole the
+    app opens. Nothing is faked and no delay is added — it is on screen exactly as long as the work
+    takes.
+*@
+
+<div class="warm">
+    <div class="warm-stage">
+        <svg viewBox="0 0 260 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Links from the centre outward. Each lights when the capability at its far end is up,
+                 so the mesh grows outward from you as the phone becomes able to do things. -->
+            <g stroke-linecap="round" stroke-width="1.6">
+                @foreach (var n in Nodes.Skip(1))
+                {
+                    <line x1="130" y1="130" x2="@n.X" y2="@n.Y"
+                          class="wl @Lit(n.Key)" />
+                }
+            </g>
+
+            <!-- A packet on every link that is live, so a finished mesh is visibly carrying something
+                 rather than merely drawn. -->
+            @foreach (var n in Nodes.Skip(1).Where(n => State(n.Key) == WarmState.Ready))
+            {
+                <circle r="2.8" fill="currentColor" class="wp">
+                    <animateMotion dur="2.4s" repeatCount="indefinite"
+                                   path="@($"M130,130 L{n.X},{n.Y}")" />
+                </circle>
+            }
+
+            <g>
+                @foreach (var n in Nodes.Skip(1))
+                {
+                    <circle cx="@n.X" cy="@n.Y" r="8" class="wn @Lit(n.Key)" />
+                }
+            </g>
+
+            <!-- You, at the centre. Ringed while there is still work to do. -->
+            <circle cx="130" cy="130" r="19" class="wme-ring @(Warm.IsWarm ? "done" : null)" />
+            <circle cx="130" cy="130" r="10" class="wme @Lit("identity")" />
+        </svg>
+    </div>
+
+    <div class="warm-name">Aether</div>
+
+    @* What is happening, one line, in the words someone would use. Not a log — the node that is
+       lighting up already says where we are. *@
+    <div class="warm-line">@Now</div>
+
+    <div class="warm-count">@Done of @Warm.Steps.Count ready</div>
+</div>
+
+@code {
+    private CancellationTokenSource? _cts;
+
+    /// <summary>Where each capability sits. The centre is you; everything else radiates from it.</summary>
+    private sealed record Node(string Key, int X, int Y);
+
+    private static readonly Node[] Nodes =
+    [
+        new("identity",   130, 130),
+        new("store",      130,  38),
+        new("cards",      206,  74),
+        new("chat",       224, 152),
+        new("notes",      172, 216),
+        new("calls",       88, 216),
+        new("bluetooth",   36, 152),
+        new("wifidirect",  54,  74),
+        new("internet",   130, 232),
+    ];
+
+    private WarmState State(string key) =>
+        Warm.Steps.FirstOrDefault(s => s.Key == key)?.State ?? WarmState.Waiting;
+
+    /// <summary>The class that decides how a node and its link are drawn.</summary>
+    private string Lit(string key) => State(key) switch
+    {
+        WarmState.Ready => "on",
+        WarmState.Working => "busy",
+        WarmState.Absent => "absent",
+        WarmState.Failed => "failed",
+        _ => "",
+    };
+
+    private int Done => Warm.Steps.Count(s => s.State is WarmState.Ready or WarmState.Absent);
+
+    /// <summary>The step being worked on, or the last thing that had something to say.</summary>
+    private string Now
+    {
+        get
+        {
+            var busy = Warm.Steps.FirstOrDefault(s => s.State == WarmState.Working);
+            if (busy is not null) return busy.Detail is { Length: > 0 } d ? $"{busy.Title} — {d}" : busy.Title;
+
+            if (Warm.IsWarm) return "Ready";
+
+            var last = Warm.Steps.LastOrDefault(s => s.State != WarmState.Waiting);
+            return last?.Title ?? "Starting up";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Warm.Changed += OnChanged;
+        _cts = new CancellationTokenSource();
+
+        await Warm.WarmAsync(_cts.Token);
+
+        // Let the finished mesh be seen for a moment. This is the ONLY deliberate pause in the whole
+        // screen, and it exists so the last node lighting up does not vanish in the same frame.
+        await Task.Delay(700);
+        Leave();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>
+    /// On to the app. A phone that has never been set up goes to the wizard instead — warming first is
+    /// still right, because the wizard immediately asks the radios what they can do.
+    /// </summary>
+    private void Leave() => Nav.NavigateTo(
+        Store.GetFlag(SetupKeys.Complete) ? "" : "welcome", replace: true);
+
+    public void Dispose()
+    {
+        Warm.Changed -= OnChanged;
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}
+
+<style>
+    .warm {
+        position: fixed; inset: 0; background: var(--bg);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+        overflow: hidden;
+    }
+
+    .warm-stage { width: min(66vw, 260px); aspect-ratio: 1; color: var(--brand); }
+    .warm-stage svg { width: 100%; height: 100%; overflow: visible; }
+
+    /* Waiting is faint, working pulses, ready is solid. Absent is drawn dashed and dim — present in
+       the picture, honestly not there. Failed is the one warm colour on the screen. */
+    .wl { stroke: var(--line); transition: stroke .5s ease, opacity .5s ease; opacity: .5; }
+    .wl.busy { stroke: var(--brand); opacity: .5; animation: wpulse 1.1s ease-in-out infinite; }
+    .wl.on { stroke: var(--brand); opacity: .75; }
+    .wl.absent { stroke: var(--line); opacity: .3; stroke-dasharray: 3 5; }
+    .wl.failed { stroke: #c0392b; opacity: .5; }
+
+    .wn { fill: var(--line); transition: fill .5s ease, r .35s cubic-bezier(.2,1.5,.4,1); }
+    .wn.busy { fill: var(--brand); animation: wpulse 1.1s ease-in-out infinite; }
+    .wn.on { fill: var(--brand); r: 9; }
+    .wn.absent { fill: var(--line); opacity: .45; }
+    .wn.failed { fill: #c0392b; }
+
+    @@keyframes wpulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+    .wme { fill: var(--line); transition: fill .5s ease; }
+    .wme.on { fill: var(--brand); }
+
+    .wme-ring { fill: none; stroke: var(--brand); stroke-width: 2; opacity: .3;
+                transform-box: fill-box; transform-origin: center;
+                animation: wbreathe 2.4s ease-in-out infinite; }
+    .wme-ring.done { animation: none; opacity: .5; }
+    @@keyframes wbreathe {
+        0%, 100% { transform: scale(1);    opacity: .3; }
+        50%      { transform: scale(1.28); opacity: .06; }
+    }
+
+    .wp { opacity: .85; }
+
+    .warm-name {
+        margin-top: 30px; font-size: 1.9rem; font-weight: 830; letter-spacing: -0.03em; color: var(--ink);
+    }
+    .warm-line { color: var(--ink-2); font-size: .92rem; text-align: center; padding: 0 28px; min-height: 1.3em; }
+    .warm-count { color: var(--ink-3); font-size: .78rem; margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+    /* Someone who has asked for less movement gets the same information, still. */
+    @@media (prefers-reduced-motion: reduce) {
+        .wl.busy, .wn.busy, .wme-ring { animation: none; }
+        .wp { display: none; }
+    }
+</style>

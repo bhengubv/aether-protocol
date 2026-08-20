@@ -6,6 +6,7 @@
 @inject AetherStore Store
 @inject CallService Calls
 @inject NavigationManager Nav
+@inject WarmUpService Warm
 
 <div class="app">
     <header class="appbar">
@@ -60,6 +61,19 @@
     {
         Calls.Changed += OnCallChanged;
 
+        // Nothing is ready until it has been made ready, and making it ready in front of somebody who
+        // has just tapped something is what made this app feel like it hesitated. So every route lands
+        // on the warm-up first: it opens the databases, unseals the identity, publishes the pre-keys,
+        // brings the radios up and forms the Wi-Fi Direct group, then hands over to a phone that can
+        // do everything immediately. It runs once per launch, so this is not a redirect loop.
+        if (!Warm.IsWarm)
+        {
+            Nav.NavigateTo("warming", replace: true);
+            return;
+        }
+
+        // Setup is not optional either: until the device is actually on AetherNet, every route lands
+        // on the wizard. Nothing else in the app makes sense before that.
         if (Store.GetFlag(SetupKeys.Complete)) return;
 
         var path = Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');

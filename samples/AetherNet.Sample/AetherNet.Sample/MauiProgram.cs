@@ -81,6 +81,10 @@ public static class MauiProgram
         // transfer resumes across a dropped link and works on a radio far too slow for a call.
         builder.Services.AddSingleton<AttachmentService>();
 
+        // Brings the whole product up before the app opens — see WarmUpService. Singleton, because a
+        // second warm-up would be a second set of radios coming up underneath the first.
+        builder.Services.AddSingleton<WarmUpService>();
+
         // Recording a note. The microphone and camera are physical, so like the call path this is real
         // only on the phone; elsewhere it says no rather than recording nothing.
 #if ANDROID
