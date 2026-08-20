@@ -93,7 +93,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
             </div>
         }
 
-        <div class="call-end">
+        <div class="call-end @(call.State == CallState.Connected ? "connected" : null)">
             @if (call.State == CallState.Incoming)
             {
                 <button class="cend answer" @onclick="Answer">Answer</button>
@@ -129,7 +129,10 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     private void OnChanged() => _ = InvokeAsync(() =>
     {
         // A new call must never open behind the minimised bar of the last one.
-        if (Calls.Current is null) _minimised = false;
+        if (Calls.Current is null) { _minimised = false; _connectedAt = null; }
+        else if (Calls.Current is { State: CallState.Connected } && _connectedAt is null)
+            _connectedAt = DateTime.UtcNow;
+
         StateHasChanged();
     });
 
@@ -168,9 +171,38 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     private bool ShowingVideo => Calls.VideoOn || Calls.TheirVideoOn;
     private void ToggleSpeaker() => Calls.SpeakerphoneOn = !Calls.SpeakerphoneOn;
 
+    /// <summary>
+    /// When this call connected here, so <see cref="HangUp"/> can ignore the tap that answered it.
+    /// </summary>
+    private DateTime? _connectedAt;
+
+    /// <summary>
+    /// How long Hang up ignores taps after a call connects.
+    ///
+    /// <para>
+    /// Measured on device: the Answer button on the incoming screen sat at the same pixels as Hang up
+    /// on the connected screen that replaces it. Answering therefore put a destructive control
+    /// directly under a finger that was already there — and a call answered at 19:50:53 ended at
+    /// 19:50:54, by the answerer, for no reason anyone could see.
+    /// </para>
+    ///
+    /// <para>
+    /// The layout no longer overlaps, which is the real fix. This is the belt: a lingering finger, a
+    /// touch bounce, or an impatient second tap must not end a call somebody just took. Deliberately
+    /// short — a call must always be endable, and this only ever swallows a tap that arrived before a
+    /// human could have decided to send it.
+    /// </para>
+    /// </summary>
+    private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(900);
+
     private Task Answer() => Calls.AnswerAsync();
     private Task Decline() => Calls.DeclineAsync();
-    private Task HangUp() => Calls.HangUpAsync();
+
+    private Task HangUp()
+    {
+        if (_connectedAt is { } at && DateTime.UtcNow - at < Settle) return Task.CompletedTask;
+        return Calls.HangUpAsync();
+    }
 
     public void Dispose()
     {
@@ -248,6 +280,10 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     .cbtn.on { background: var(--brand-tint); border-color: var(--brand); color: var(--brand); }
     .cbtn:active { transform: scale(0.97); }
 
+    /* Answer and Hang up belong to different screens that replace each other, so they must never
+       occupy the same pixels — answering would otherwise leave a finger resting on Hang up. The
+       connected screen's control sits well below where the ringing screen's pair was. */
+    .call-end.connected { transform: translateY(42px); }
     .call-end { display: flex; gap: 16px; }
     .cend {
         appearance: none; border: none; border-radius: 999px;
