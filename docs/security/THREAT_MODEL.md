@@ -228,4 +228,4 @@ Assert.Empty(findings.Where(f => f.IsHighSeverity));
 1. Install: `git clone https://github.com/bhengubv/Claude-BugHunter.git ~/.claude/skills/Claude-BugHunter`
 2. Open aether-protocol in Claude Code
 3. Describe what you're testing: *"I see a HelloPayload with no signature field — test auth bypass"*
-4. Claude auto-loads `hunt-auth-bypass` and walks you through T-01 patterns
+4. Claude auto-loads `hunt-auth-bypass` and walks you through T-01 patterns

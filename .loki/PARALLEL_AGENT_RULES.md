@@ -35,4 +35,4 @@ Final:  [HH:mm:ss] DONE: summary | Tests: N passed
 
 ## PowerShell log helper
 $log = "C:\Dev\Solutions\com.bhengubv\aether-protocol\.loki\progress\track-N.log"
-Add-Content $log "[$(Get-Date -Format HH:mm:ss)] STEP: Created IRoutingService.py"
+Add-Content $log "[$(Get-Date -Format HH:mm:ss)] STEP: Created IRoutingService.py"

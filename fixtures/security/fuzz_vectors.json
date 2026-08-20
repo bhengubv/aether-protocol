@@ -100,4 +100,4 @@
     "expected": "AnomalyScore > 0.8 for all nodes, AetherNetSecurityEvent emitted",
     "notes": "Rapid join storm is a classic Sybil indicator. BehavioralAnomalyDetector should track join rate per time window."
   }
-]
+]
