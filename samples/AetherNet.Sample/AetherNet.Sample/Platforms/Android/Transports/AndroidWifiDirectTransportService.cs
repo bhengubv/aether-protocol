@@ -657,8 +657,21 @@ public sealed class AndroidWifiDirectTransportService
         GroupLost?.Invoke();
     }
 
+    /// <summary>
+    /// Accept clients, for as long as this phone owns the group.
+    /// </summary>
+    /// <remarks>
+    /// Guarded, because the connection broadcast fires more than once for the same group and each
+    /// firing used to start another server. The second bind fails — the port is already ours — and in
+    /// failing it overwrote the field the first accept loop was reading from, so the working server
+    /// exited and the group owner stopped listening inside a group it was still hosting. The client on
+    /// the other side saw "Connection refused" every three seconds while both phones agreed they were
+    /// in the same group.
+    /// </remarks>
     private async Task RunServerAsync()
     {
+        if (Interlocked.Exchange(ref _serverRunning, 1) == 1) return;
+
         try
         {
             _server = new TcpListener(IPAddress.Any, TcpPort);
@@ -667,23 +680,73 @@ public sealed class AndroidWifiDirectTransportService
             while (!_disposed)
             {
                 var client = await _server.AcceptTcpClientAsync().ConfigureAwait(false);
-                _ = Task.Run(() => HandleSocketAsync(client));
+                _ = Task.Run(async () =>
+                {
+                    using (client) await HandleSocketAsync(client).ConfigureAwait(false);
+                });
             }
         }
-        catch (Exception ex) when (!_disposed) { _logger.LogError(ex, "Wi-Fi Direct server error"); }
+        catch (Exception ex) when (!_disposed) { L($"GO: server stopped ({ex.Message})"); }
+        finally
+        {
+            Interlocked.Exchange(ref _serverRunning, 0);
+        }
     }
 
+    /// <summary>
+    /// Dial the group owner, and keep dialling for as long as we are in its group.
+    ///
+    /// <para>
+    /// A group and a connection are not the same thing, and this is where that bites. Android keeps
+    /// the group up perfectly happily while the TCP socket across it dies — the owner restarts its
+    /// server, the client's socket goes with it, and the group reports itself formed throughout. One
+    /// dial attempt meant the client then sat inside a healthy group with nowhere to send: measured as
+    /// "app→radio 149B on Wi-Fi Direct linked=False sent=False" while both phones agreed they were in
+    /// DIRECT-RYZ4HH1Y9.
+    /// </para>
+    ///
+    /// <para>
+    /// So it redials. The owner's server may not be listening the instant the group forms — it is
+    /// starting at the same moment we are connecting — and it may restart later; neither is a reason
+    /// to give up on a group we are still in.
+    /// </para>
+    /// </summary>
     private async Task RunClientAsync(string goAddress)
     {
+        if (Interlocked.Exchange(ref _clientRunning, 1) == 1) return;
+
         try
         {
-            var client = new TcpClient();
-            await client.ConnectAsync(IPAddress.Parse(goAddress), TcpPort).ConfigureAwait(false);
-            L("client: TCP connected to GO");
-            await HandleSocketAsync(client).ConfigureAwait(false);
+            while (!_disposed && _groupFormed)
+            {
+                try
+                {
+                    using var client = new TcpClient();
+                    await client.ConnectAsync(IPAddress.Parse(goAddress), TcpPort).ConfigureAwait(false);
+                    L("client: TCP connected to GO");
+                    await HandleSocketAsync(client).ConfigureAwait(false);
+                    if (!_disposed && _groupFormed) L("client: connection to GO ended — redialling");
+                }
+                catch (Exception ex) when (!_disposed)
+                {
+                    L($"client: could not reach the GO ({ex.Message}) — retrying");
+                }
+
+                if (!_disposed && _groupFormed)
+                    await Task.Delay(RedialAfter).ConfigureAwait(false);
+            }
         }
-        catch (Exception ex) when (!_disposed) { _logger.LogError(ex, "Wi-Fi Direct client connect failed"); }
+        finally
+        {
+            Interlocked.Exchange(ref _clientRunning, 0);
+        }
     }
+
+    /// <summary>How long to wait before dialling the group owner again.</summary>
+    private static readonly TimeSpan RedialAfter = TimeSpan.FromSeconds(3);
+
+    private int _clientRunning;
+    private int _serverRunning;
 
     private async Task HandleSocketAsync(TcpClient client)
     {
@@ -718,8 +781,9 @@ public sealed class AndroidWifiDirectTransportService
         catch (Exception ex) when (!_disposed) { L($"socket to {peerUhid ?? "a peer"} closed: {ex.Message}"); }
         finally
         {
+            // The caller owns the socket. It disposed it here as well, which on the client path meant
+            // the redial loop's `using` disposed something already gone.
             if (peerUhid is not null) _peers.TryRemove(peerUhid, out _);
-            client.Dispose();
         }
     }
 
@@ -732,8 +796,10 @@ public sealed class AndroidWifiDirectTransportService
             L($"▶ nowhere to send {data.Length}B — {peerUhid} is not one of the {_peers.Count} linked");
             return false;
         }
+        await link.Write.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { await WriteFrameAsync(link.Stream, data).ConfigureAwait(false); return true; }
         catch (Exception ex) { L($"▶ send to {peerUhid} failed: {ex.Message}"); return false; }
+        finally { link.Write.Release(); }
     }
 
     public async Task<bool> SendStreamAsync(string peerUhid, Stream stream, CancellationToken cancellationToken = default)
@@ -801,7 +867,25 @@ public sealed class AndroidWifiDirectTransportService
             _manager.RemoveGroup(_channel, null);
     }
 
-    private sealed record PeerLink(TcpClient Client, NetworkStream Stream);
+    /// <summary>
+    /// One peer's socket, and the lock that keeps frames on it whole.
+    ///
+    /// <para>
+    /// A frame is a length followed by a payload, written with three separate awaits. Two sends
+    /// running at once interleave those writes, and the far side then reads a length out of the
+    /// middle of somebody else's payload — so it closes the connection, and this side sees "Broken
+    /// pipe" on a socket that was perfectly healthy a moment ago.
+    /// </para>
+    /// <para>
+    /// It looked like a flaky radio, and it was not. Attachments send their chunks concurrently, so
+    /// the moment anything larger than a text message crossed, the link tore itself down and rebuilt,
+    /// over and over. Nothing about it was visible from either end except the reconnects.
+    /// </para>
+    /// </summary>
+    private sealed record PeerLink(TcpClient Client, NetworkStream Stream)
+    {
+        public SemaphoreSlim Write { get; } = new(1, 1);
+    }
 
     // ── Android listener/receiver adapters ──────────────────────────────────────
 
