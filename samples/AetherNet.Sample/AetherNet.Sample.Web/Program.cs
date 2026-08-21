@@ -47,6 +47,7 @@ builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
     new AetherNet.PreKeys.PreKeyExchangeService(
         new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
             sp.GetRequiredService<IRadioMesh>())));
+builder.Services.AddSingleton<CircleDirectory>();
 builder.Services.AddSingleton<ChatService>();
 
 // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
@@ -66,7 +67,6 @@ builder.Services.AddSingleton<IVideoIo, NullVideoIo>();
 // that is the browser's own media element, not a radio.
 builder.Services.AddSingleton<IMediaCapture, NullMediaCapture>();
 builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
-builder.Services.AddSingleton<WifiDirectBroker>();
 builder.Services.AddSingleton<CallService>();
 builder.Services.AddSingleton<GroupCallService>();
 

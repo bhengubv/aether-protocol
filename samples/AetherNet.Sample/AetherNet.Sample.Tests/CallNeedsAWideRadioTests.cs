@@ -67,11 +67,13 @@ public class CallNeedsAWideRadioTests
         var radio = new FakeRadioMesh(me.AetherTag) { LinkBandwidthBps = linkBps };
         if (linked) radio.Link();
 
-        var broker = hasWifiDirect
-            ? new WifiDirectBroker(me, signal, new Group(true), radio)
-            : null;
+        // Having the radio at all is the capability now — there is no broker in front of it. The radio
+        // brings itself up, so "narrow link today, wide radio present" is read straight off the mesh.
+        radio.Radios = hasWifiDirect
+            ? [new RadioInfo("Wi-Fi Direct", true), new RadioInfo("BLE", true)]
+            : [new RadioInfo("BLE", true)];
 
-        return new CallService(me, signal, new PresentAudio(), wifiDirect: broker, radio: radio);
+        return new CallService(me, signal, new PresentAudio(), radio: radio);
     }
 
     // ── refusing what cannot work ──────────────────────────────────────────

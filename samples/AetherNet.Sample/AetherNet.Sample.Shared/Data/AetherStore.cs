@@ -206,6 +206,19 @@ public sealed class AetherStore : IDisposable
             );
             """);
         Exec("""
+            -- A contact's SECRET routing key, learned inside an established session and never on the
+            -- wire. Holding it is what lets this phone recognise that contact behind a rotating
+            -- address — and not holding one is what makes everybody else a stranger.
+            --
+            -- Deliberately not a column on `contacts`: a contact you have added is not the same thing
+            -- as a contact who has let you recognise them, and collapsing the two would make an
+            -- un-exchanged contact look recognisable.
+            CREATE TABLE IF NOT EXISTS peer_routing_keys (
+                tag         TEXT PRIMARY KEY NOT NULL,
+                routing_key BLOB NOT NULL,
+                learned_ms  INTEGER NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key   TEXT PRIMARY KEY NOT NULL,
                 value TEXT NOT NULL
@@ -537,6 +550,66 @@ public sealed class AetherStore : IDisposable
     /// sticky — passing false never un-adds, so an inbound request can land before or after your own
     /// add and the pair still converges on mutual.
     /// </summary>
+    /// <summary>
+    /// Every peer routing key this phone holds, by AetherTag. Loaded once at start-up — recognising a
+    /// broadcaster happens on the radio's discovery path, which must not touch the database.
+    /// </summary>
+    public IReadOnlyDictionary<string, byte[]> GetPeerRoutingKeys()
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT tag, routing_key FROM peer_routing_keys;";
+            using var reader = cmd.ExecuteReader();
+
+            var keys = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            while (reader.Read())
+            {
+                var key = (byte[])reader["routing_key"];
+                if (key.Length > 0) keys[reader.GetString(0)] = key;
+            }
+            return keys;
+        }
+    }
+
+    /// <summary>
+    /// Remember a contact's routing key. Replaces an earlier one for the same contact, because a
+    /// re-key means the old one stops matching and keeping it would just slow every lookup down.
+    /// </summary>
+    public void UpsertPeerRoutingKey(string tag, byte[] routingKey)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(tag);
+        ArgumentNullException.ThrowIfNull(routingKey);
+        if (routingKey.Length == 0) return;
+
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO peer_routing_keys (tag, routing_key, learned_ms)
+                VALUES (@tag, @key, @ms)
+                ON CONFLICT(tag) DO UPDATE SET routing_key = @key, learned_ms = @ms;
+                """;
+            cmd.Parameters.AddWithValue("@tag", tag);
+            cmd.Parameters.AddWithValue("@key", routingKey);
+            cmd.Parameters.AddWithValue("@ms", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Forget a contact's routing key — they can no longer be recognised behind an address.</summary>
+    public void RemovePeerRoutingKey(string tag)
+    {
+        if (string.IsNullOrEmpty(tag)) return;
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM peer_routing_keys WHERE tag = @tag;";
+            cmd.Parameters.AddWithValue("@tag", tag);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
     public void UpsertContact(string tag, byte[]? publicKey, bool byMe, bool byThem, string via, string? displayName = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(tag);

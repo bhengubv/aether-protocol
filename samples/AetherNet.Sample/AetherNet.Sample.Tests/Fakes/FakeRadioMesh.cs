@@ -32,7 +32,7 @@ public sealed class FakeRadioMesh : IRadioMesh
     public List<byte[]> Delivered { get; } = [];
 
     public string LocalTag { get; }
-    public IReadOnlyList<RadioInfo> Radios { get; } = [new("Fake", true, null)];
+    public IReadOnlyList<RadioInfo> Radios { get; set; } = [new("Fake", true, null)];
     public string SelectedRadio => "Fake";
     public string LinkRadio => "Fake";
 

@@ -73,9 +73,13 @@ public static class MauiProgram
             sp.GetRequiredService<AetherNet.PreKeys.IPreKeyExchangeService>(),
             sp.GetService<IRadioMesh>(),
             sp.GetService<AttachmentService>(),
-            // The wide radio is raised for every conversation, not only for calls — see ChatService.
-            sp.GetService<WifiDirectBroker>(),
+            sp.GetService<CircleDirectory>(),
             sp.GetService<ILoggerFactory>()));
+
+        // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
+        // that question about a rotating address, and without an answer the only way to find out is
+        // to dial a stranger and see who picks up.
+        builder.Services.AddSingleton<CircleDirectory>();
 
         // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
         // transfer resumes across a dropped link and works on a radio far too slow for a call.
@@ -111,7 +115,6 @@ public static class MauiProgram
         builder.Services.AddSingleton<IVideoIo, NullVideoIo>();
         builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 #endif
-        builder.Services.AddSingleton<WifiDirectBroker>();
         builder.Services.AddSingleton<CallService>();
 
         // A call with more than two people in it. Built the same way group chat is — several 1:1
@@ -203,15 +206,11 @@ public static class MauiProgram
 #endif
             });
 
-            // The broker subscribes too, so a peer's group handoff arrives before anyone has called.
-            Warm("wifi-direct", () =>
-            {
-                var wifiDirect = app.Services.GetService<WifiDirectBroker>();
-#if ANDROID
-                if (wifiDirect is not null)
-                    wifiDirect.Trace += m => global::Android.Util.Log.Info("AetherWFD", m);
-#endif
-            });
+            // The Wi-Fi Direct radio finds its own peers and settles who hosts on its own, so there is
+            // nothing here to start. Resolving the directory is the point: recognising a contact
+            // behind a rotating address is what keeps the radio from dialling strangers, and it must
+            // be loaded before the first beacon is seen rather than on the discovery path.
+            Warm("circle", () => app.Services.GetService<CircleDirectory>());
         });
 
         return app;

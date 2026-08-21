@@ -51,6 +51,18 @@ public sealed class ChatService
     /// </summary>
     private const string PingMarker = "AETHERPNG";
 
+    /// <summary>
+    /// Carries this phone's routing key to one contact, sealed in their session.
+    ///
+    /// <para>
+    /// It rides the encrypted path and nothing else, because a routing key read off the air by anybody
+    /// else would let them recognise this phone behind every address it ever rotates through — the
+    /// exact thing the rotation exists to prevent. The contact announce is not an option: it goes out
+    /// in clear.
+    /// </para>
+    /// </summary>
+    private const string CircleMarker = "AETHERCIR";
+
     /// <summary>A message id is a 32-character hex GUID, carried inside the encrypted body.</summary>
     private const int IdLength = 32;
 
@@ -88,10 +100,13 @@ public sealed class ChatService
     /// a session. That is exactly the moment below.
     /// </para>
     /// </summary>
-    private readonly WifiDirectBroker? _wifiDirect;
+    private readonly CircleDirectory? _circle;
     private readonly ILogger _log;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private readonly SessionRepair _repair;
+
+    /// <summary>Contacts already handed our routing key this run — it is long-term, so once is enough.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _sharedCircleKey = new(StringComparer.Ordinal);
     private bool _bundlePublished;
 
     public ChatService(
@@ -101,10 +116,10 @@ public sealed class ChatService
         IPreKeyExchangeService preKeys,
         IRadioMesh? radio = null,
         AttachmentService? attachments = null,
-        WifiDirectBroker? wifiDirect = null,
+        CircleDirectory? circle = null,
         ILoggerFactory? loggerFactory = null)
     {
-        _wifiDirect = wifiDirect;
+        _circle = circle;
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
@@ -375,6 +390,12 @@ public sealed class ChatService
             await _attachments.ResumeAllWithAsync(peerTag, cancellationToken).ConfigureAwait(false);
             _attachments.Chase(peerTag);
         }
+
+        // A session is the only place a routing key can safely travel, so this is the moment to hand
+        // it over — the contact is real, the session is up, and until they have it their beacon is
+        // indistinguishable from a stranger's.
+        if (_circle is not null && _signal.HasSession(peerTag))
+            _ = ShareRoutingKeyAsync(peerTag, cancellationToken);
 
         // Wi-Fi Direct is not asked for here any more. It finds its own peers over DNS-SD and
         // settles who hosts from the ids both sides advertise, so a message being sent is not news to
@@ -791,6 +812,7 @@ public sealed class ChatService
             case AckMarker: _ = ReceiveAckAsync(packet.SourceUhid, payload); break;
             case GroupMarker: _ = ReceiveGroupAsync(packet.SourceUhid, payload); break;
             case PingMarker: _ = ReceivePingAsync(packet.SourceUhid, payload); break;
+            case CircleMarker: _ = ReceiveCircleAsync(packet.SourceUhid, payload); break;
         }
     }
 
@@ -816,6 +838,68 @@ public sealed class ChatService
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Could not ping {Peer} after rebuilding the session", peerTag);
+        }
+    }
+
+    /// <summary>
+    /// Let one contact recognise this phone behind its rotating address, by handing them the key the
+    /// address is derived from.
+    ///
+    /// <para>
+    /// Sent once per contact and then never again unless they re-key, because the key does not rotate
+    /// — only the addresses derived from it do. Sending it on every settle-up would put a long-term
+    /// secret on the radio dozens of times a day for no gain.
+    /// </para>
+    /// </summary>
+    private async Task ShareRoutingKeyAsync(string peerTag, CancellationToken cancellationToken = default)
+    {
+        if (_radio is null || _circle is null || !_signal.HasSession(peerTag)) return;
+        if (!_sharedCircleKey.TryAdd(peerTag, 0)) return;
+
+        try
+        {
+            var sealedPayload = await _signal
+                .EncryptAsync(peerTag, _me.RoutingKey, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (await _radio.SendPacketAsync(Wrap(CircleMarker, sealedPayload, peerTag)).ConfigureAwait(false))
+                T($"{peerTag} can recognise this phone now — they hold its routing key");
+            else
+                _sharedCircleKey.TryRemove(peerTag, out _);   // nothing went out; try again next flush
+        }
+        catch (Exception ex)
+        {
+            _sharedCircleKey.TryRemove(peerTag, out _);
+            _log.LogWarning(ex, "Could not share the routing key with {Peer}", peerTag);
+        }
+    }
+
+    /// <summary>
+    /// A contact handed us their routing key. From here their beacon has a name on it, so the radio
+    /// can tell them apart from every stranger broadcasting nearby.
+    /// </summary>
+    private async Task ReceiveCircleAsync(string? senderTag, byte[] payload)
+    {
+        if (string.IsNullOrEmpty(senderTag) || _circle is null) return;
+
+        try
+        {
+            var sealedPayload = EncryptedPayloadCodec.Deserialize(payload.AsSpan(CircleMarker.Length).ToArray());
+            var key = await _signal.DecryptAsync(senderTag, sealedPayload).ConfigureAwait(false);
+            if (key.Length == 0) return;
+
+            _circle.Learn(senderTag, key);
+            _radio?.IdentifyPeer(senderTag);
+            T($"{senderTag} can be recognised behind a rotating address now");
+
+            // Recognition has to be mutual to be useful: they can find us, and we still cannot find
+            // them. Answering costs one packet and closes the pair.
+            await ShareRoutingKeyAsync(senderTag).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not open a routing key from {Peer}", senderTag);
+            if (LooksLikeABrokenSession(ex)) await RepairSessionAsync(senderTag).ConfigureAwait(false);
         }
     }
 

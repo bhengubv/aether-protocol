@@ -24,7 +24,8 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     private readonly byte[] _routingKey;
     private IRadio _selected;
 
-    public AndroidRadioMesh(IIdentityService me, ILogger<AndroidRadioMesh> logger)
+    public AndroidRadioMesh(IIdentityService me, ILogger<AndroidRadioMesh> logger,
+        AetherNet.Sample.Shared.Services.CircleDirectory? circle = null)
     {
         // The radio announces the SAME AetherTag the rest of the app uses. Generating one here would
         // give the device a third identity — the peer you linked with would not be the peer you added,
@@ -39,7 +40,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         var routingKey = me.RoutingKey;
         _routingKey = routingKey;
 
-        Register(new AndroidWifiDirectTransportService(global::Android.App.Application.Context!, _localUhid, logger, routingKey));
+        Register(new AndroidWifiDirectTransportService(global::Android.App.Application.Context!, _localUhid, logger, routingKey, circle));
         Register(new AndroidBleTransportService("BLE",
             "61657468-6572-0001-0000-000000000001", "61657468-6572-0003-0000-000000000001",
             "61657468-6572-0002-0000-000000000001", _localUhid, logger, routingKey: routingKey));

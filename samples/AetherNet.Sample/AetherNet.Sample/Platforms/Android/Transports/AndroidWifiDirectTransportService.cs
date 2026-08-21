@@ -80,6 +80,9 @@ public sealed class AndroidWifiDirectTransportService
     private readonly TimeSpan _findSkew;
     private bool _listening;
 
+    /// <summary>Who this phone already knows. Nobody else is ever dialled.</summary>
+    private readonly AetherNet.Sample.Shared.Services.CircleDirectory? _circle;
+
     /// <summary>When the framework last told us anything about peers — proof the search is alive.</summary>
     private DateTime _lastPeerNewsUtc = DateTime.MinValue;
 
@@ -100,8 +103,10 @@ public sealed class AndroidWifiDirectTransportService
     private readonly ConcurrentDictionary<string, PeerLink> _peers = new(StringComparer.Ordinal);
     private TcpListener? _server;
 
-    public AndroidWifiDirectTransportService(Context context, string localUhid, ILogger logger, byte[]? routingKey = null)
+    public AndroidWifiDirectTransportService(Context context, string localUhid, ILogger logger,
+        byte[]? routingKey = null, AetherNet.Sample.Shared.Services.CircleDirectory? circle = null)
     {
+        _circle = circle;
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _localUhid = localUhid ?? throw new ArgumentNullException(nameof(localUhid));
         // Must come from the identity secret. The tag is public, so an address derived from it could
@@ -682,7 +687,6 @@ public sealed class AndroidWifiDirectTransportService
     /// so ordering the two strings gives opposite answers on the two handsets, every time.
     /// </para>
     /// </summary>
-    private static bool IHost(string mine, string theirs) => string.CompareOrdinal(mine, theirs) < 0;
 
     /// <summary>
     /// A peer was found by DNS-SD. Decide who hosts, then act — nobody negotiates.
@@ -716,27 +720,43 @@ public sealed class AndroidWifiDirectTransportService
             return;
         }
 
-        if (!_peerIds.TryGetValue(address, out var theirs))
+        if (!_peerIds.TryGetValue(address, out var theirAddress))
         {
             L($"no id yet from {address} — leaving it for the next sweep");
             return;
         }
 
-        var mine = CurrentAddress();
-        if (string.Equals(mine, theirs, StringComparison.Ordinal)) return;   // ourselves, somehow
+        var myAddress = CurrentAddress();
+        if (string.Equals(myAddress, theirAddress, StringComparison.Ordinal)) return;
 
-        if (IHost(mine, theirs))
+        // Everything above proves this is an AetherNet node on a phone. None of it proves it is a node
+        // belonging to somebody who knows you, and that is the part that matters.
+        //
+        // A cold connect — dialling a beacon because it answered, without knowing whose it is — puts
+        // an unknown device inside a group that is carrying calls and messages for people who never
+        // agreed to it, and it does so on the strength of a broadcast anyone can imitate. So the
+        // rotating address is resolved against contacts who have shared a routing key inside an
+        // established session. A stranger holds no key, resolves to nobody, and is left alone: not
+        // dialled, not invited, not answered.
+        var theirTag = _circle?.Recognise(theirAddress);
+        if (theirTag is null)
         {
-            // Create and wait. The joiner comes to us, so there is nothing to connect to and nothing
-            // to race over.
-            L($"{theirs} found — this phone hosts, creating the group");
+            L($"{address} is an AetherNet node, but not one of yours — not dialled");
+            return;
+        }
+
+        // Settled on the stable tags, not the rotating addresses. Both phones know both tags and both
+        // compute the same answer, so exactly one creates the group and exactly one joins it — which
+        // is what keeps Android's "Invitation to connect" dialog off a screen nobody was looking at.
+        if (AetherNet.Sample.Shared.Services.GroupRole.HostsTheGroup(_localUhid, theirTag))
+        {
+            L($"{theirTag} is in your Circle — this phone hosts, creating the group");
             _ = HostAsync();
             return;
         }
 
         if (!TryBeginConnect()) return;
-
-        L($"{theirs} found — they host, joining {address}");
+        L($"{theirTag} is in your Circle and hosts — joining at {address}");
         ConnectTo(address);
     }
 

@@ -34,7 +34,6 @@ public sealed class CallService : IDisposable
     private readonly ISignalProtocolService _signal;
     private readonly IAudioIo _audio;
     private readonly IVideoIo? _video;
-    private readonly WifiDirectBroker? _wifiDirect;
 
     /// <summary>
     /// Chat, only for its session repair. A call hits exactly the wall a message does, and duplicating
@@ -98,7 +97,6 @@ public sealed class CallService : IDisposable
         IVideoIo? video = null,
         AetherNet.Sample.Shared.Data.AetherStore? store = null,
         ChatService? chat = null,
-        WifiDirectBroker? wifiDirect = null,
         IRadioMesh? radio = null,
         ILoggerFactory? loggerFactory = null)
     {
@@ -108,7 +106,6 @@ public sealed class CallService : IDisposable
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
         _audio = audio ?? throw new ArgumentNullException(nameof(audio));
         _video = video;
-        _wifiDirect = wifiDirect;
         _radio = radio;
         _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<CallService>();
 
@@ -224,7 +221,9 @@ public sealed class CallService : IDisposable
     /// </para>
     /// </summary>
     private bool HasARadioWideEnough =>
-        OpusVoiceCodec.CanCarryCall(_radio?.LinkBandwidthBps ?? 0) || _wifiDirect is { IsSupported: true };
+        OpusVoiceCodec.CanCarryCall(_radio?.LinkBandwidthBps ?? 0) ||
+        // A radio that can carry a call but has not linked yet is still a phone that can call.
+        _radio?.Radios.Any(r => r.Name == "Wi-Fi Direct" && r.Available) == true;
 
     // ── Placing and answering ─────────────────────────────────────────────────
 
@@ -255,8 +254,6 @@ public sealed class CallService : IDisposable
         // brings up the wide pipe on its way out. Not fatal if it does not come up — the call still
         // rings, and if the far end can be reached at all the signalling gets there; only the audio
         // would struggle. CanCall has already refused the case where nothing wide could ever arrive.
-        if (_wifiDirect is { IsUp: false })
-            _ = _wifiDirect.BringUpAsync(peerTag, cancellationToken);
 
         var voice = Voice();
         Current = await voice.PlaceAsync(peerTag, Offered, cancellationToken).ConfigureAwait(false);

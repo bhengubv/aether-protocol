@@ -31,12 +31,15 @@ public sealed class ContactService
     private readonly AetherStore _store;
     private readonly IIdentityService _me;
     private readonly IRadioMesh? _radio;
+    private readonly CircleDirectory? _circle;
 
-    public ContactService(AetherStore store, IIdentityService me, IRadioMesh? radio = null)
+    public ContactService(AetherStore store, IIdentityService me, IRadioMesh? radio = null,
+        CircleDirectory? circle = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _radio = radio;
+        _circle = circle;
 
         if (_radio is not null)
         {
@@ -227,6 +230,10 @@ public sealed class ContactService
 
     public void Remove(string tag)
     {
+        // The relationship is what granted the capability to recognise them, so ending it has to take
+        // that capability with it. Leaving the key behind would keep answering their beacon for a
+        // person this phone has just been told it does not know.
+        _circle?.Forget(tag);
         if (_store.RemoveContact(tag)) Changed?.Invoke();
     }
 
