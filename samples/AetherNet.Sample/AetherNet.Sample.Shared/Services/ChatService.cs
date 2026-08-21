@@ -376,22 +376,13 @@ public sealed class ChatService
             _attachments.Chase(peerTag);
         }
 
-        // And put the good radio up, for everything rather than for calls. There is a session with
-        // this person, so both sides know both tags, so the broker can settle who hosts without a
-        // race. Not awaited: a group takes seconds to form and nothing here should wait on it — the
-        // traffic goes over whatever is linked now and moves across when the group arrives.
-        // Asked on EVERY settle-up, not only when the group is down.
+        // Wi-Fi Direct is not asked for here any more. It finds its own peers over DNS-SD and
+        // settles who hosts from the ids both sides advertise, so a message being sent is not news to
+        // it — by the time there is a message, the group is either already up or coming up on its own.
         //
-        // This was guarded on IsUp:false, which made the whole thing a one-shot: the group forms
-        // within a second of launch, before BLE has linked, so its one key offer is lost — and then
-        // this guard ensured the broker was never asked again. Two phones sat either side of an empty
-        // Wi-Fi Direct network moving everything over eleven kilobits. A group that is up is not the
-        // same as a group anybody is in, and only the broker can tell the difference, so let it.
-        if (_wifiDirect is { IsSupported: true })
-        {
-            T($"asking Wi-Fi Direct about {peerTag} — it is the radio that can actually carry this");
-            _ = _wifiDirect.BringUpAsync(peerTag, cancellationToken);
-        }
+        // Asking from here made chat a trigger for group formation, which put the two phones into a
+        // race: the radio's own discovery and this call both tried to form a group, and the one that
+        // won locked the other out.
     }
 
     /// <summary>

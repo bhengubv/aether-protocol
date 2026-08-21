@@ -247,26 +247,17 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // moment they have tapped Connect.
         AetherLinkService.Start();
 
-        // Bring up every radio that LISTENS — including the selected one if it listens.
+        // Every radio brings ITSELF up. None of them needs another one's help, and none of them can
+        // take another one down.
         //
-        // The preferred radio is now Wi-Fi Direct, and it does not listen: Link() on it calls
-        // connect(). Dialling it from here is what made both phones call connect() at each other the
-        // moment each tapped Connect — the race WifiDirectBroker exists to prevent, and losing it puts
-        // an "Invitation to connect" dialog in front of the app on the other handset.
-        //
-        // So the preference and the bring-up are separate things. This raises the radios that find
-        // people; the broker raises the one that carries them, once it knows from the two tags who
-        // should host. Widest() then sends over whichever is actually linked, so traffic flows over
-        // BLE until the group forms and moves across the instant it does.
+        // Wi-Fi Direct was excluded here and left to a broker that handed it credentials over BLE.
+        // That made the slowest radio in the app a prerequisite for the fastest: one BLE link that
+        // claimed to be up while refusing writes took calls, notes and the group with it. It now finds
+        // its own peers over DNS-SD and settles who hosts from the ids both sides advertise, so there
+        // is nothing left to broker and no race to avoid.
         foreach (var r in _order)
         {
             if (!r.IsAvailable || r.IsLinked) continue;
-
-            if (r.Initiates)
-            {
-                Emit($"[{r.Name}] left to the broker — it dials out, so it must not race");
-                continue;
-            }
 
             Emit(ReferenceEquals(r, _selected) ? $"[{r.Name}] linking…" : $"[{r.Name}] also listening");
             try { r.Link(); } catch (Exception ex) { Emit($"[{r.Name}] could not listen: {ex.Message}"); }

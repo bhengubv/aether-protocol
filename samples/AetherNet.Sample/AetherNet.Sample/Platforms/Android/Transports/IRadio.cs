@@ -57,26 +57,6 @@ internal interface IRadio
     /// </summary>
     long MaxBandwidthBps => 0;
 
-    /// <summary>
-    /// Whether <see cref="Link"/> reaches OUT to another phone rather than just listening.
-    ///
-    /// <para>
-    /// BLE, NFC and LoRa are passive: bringing them up advertises and listens, and two phones doing it
-    /// at once is exactly how they find each other. Wi-Fi Direct is not — it calls <c>connect()</c>,
-    /// and two phones calling it at each other is a race. Losing that race is not quiet: Android falls
-    /// back to an "Invitation to connect" dialog on the other handset that nobody is looking at, and
-    /// which takes window focus so the app looks wedged too.
-    /// </para>
-    ///
-    /// <para>
-    /// So a radio that initiates is never brought up as a bystander. Only the thing that knows who
-    /// should host — <c>WifiDirectBroker</c>, which decides that from the two tags and hands the
-    /// credentials over the link that already works — may start it. Watched on the P30 2026-08-20:
-    /// tapping Connect on both phones raised exactly that dialog and stalled the test behind it.
-    /// </para>
-    /// </summary>
-    bool Initiates => false;
-
     /// <summary>True once a peer has completed the link handshake.</summary>
     bool IsLinked { get; }
 

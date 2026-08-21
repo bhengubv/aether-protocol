@@ -72,9 +72,13 @@ public sealed class AndroidWifiDirectTransportService
     /// because the restart itself is what keeps each phone visible.
     /// </para>
     /// </summary>
-    private TimeSpan FindLifetime => TimeSpan.FromSeconds(3) + _findSkew;
+    // A DNS-SD cycle takes far longer than a peer scan — the responses come back well after the first
+    // peers do. Three seconds restarted the search before a single service response could land, which
+    // is why the peer list was the only thing this radio ever saw.
+    private TimeSpan FindLifetime => TimeSpan.FromSeconds(15) + _findSkew;
 
     private readonly TimeSpan _findSkew;
+    private bool _listening;
 
     /// <summary>When the framework last told us anything about peers — proof the search is alive.</summary>
     private DateTime _lastPeerNewsUtc = DateTime.MinValue;
@@ -262,7 +266,6 @@ public sealed class AndroidWifiDirectTransportService
         LeaveAnyStaleGroup();
         L("linking — advertising + discovering the AetherNet service…");
         Advertise();
-        StartFinding();
         _ = Task.Run(RediscoverLoopAsync);
     }
 
@@ -281,35 +284,41 @@ public sealed class AndroidWifiDirectTransportService
         var info = WifiP2pDnsSdServiceInfo.NewInstance(ServiceInstance, ServiceType, record);
         _manager.AddLocalService(_channel, info, new ActionListener("addLocalService", _logger,
             onFailure: r => L($"addLocalService failed reason={r} — this phone will not be findable")));
-        _manager.SetDnsSdResponseListeners(_channel, new ServiceResponseListener(this), new TxtRecordListener());
-        _manager.AddServiceRequest(_channel, WifiP2pDnsSdServiceRequest.NewInstance(),
-            new ActionListener("addServiceRequest", _logger));
+        _manager.SetDnsSdResponseListeners(_channel, new ServiceResponseListener(this), new TxtRecordListener(this));
+
+        // Clear before adding. Requests accumulate across re-announcements, and a channel holding the
+        // same request several times answers each sighting several times over — which reads as a
+        // storm of peers rather than one phone saying hello once.
+        _manager.ClearServiceRequests(_channel, new ActionListener("clearServiceRequests", _logger,
+            onSuccess: () => _manager.AddServiceRequest(_channel, WifiP2pDnsSdServiceRequest.NewInstance(),
+                new ActionListener("addServiceRequest", _logger,
+                    onSuccess: StartFinding))));
     }
 
     /// <summary>
-    /// Start looking — for peers <b>and</b> for our service.
+    /// Start looking for our own service.
     ///
     /// <para>
-    /// Both matter, and only one was being asked for. <c>discoverServices()</c> was doing all the work
-    /// on the P30, whose framework starts a peer scan underneath it; on merlin it never surfaced the
-    /// other phone at all, so merlin could see a printer beaconing away and never its own peer. The
-    /// two phones then sat in a one-sided invitation: the P30 called connect(), merlin went to
-    /// <c>Invited</c>, and nothing on merlin knew there was anyone to answer.
-    /// </para>
-    ///
-    /// <para>
-    /// <c>discoverPeers()</c> is the call that makes a phone both look and <b>be findable</b>, so it is
-    /// asked for explicitly rather than hoped for as a side effect.
+    /// Only <c>discoverServices()</c> is asked for, and that is deliberate: it runs a peer scan of its
+    /// own underneath, and a separate <c>discoverPeers()</c> call cancels the service cycle that is
+    /// already running. Asking for both is what made DNS-SD look broken on this hardware — every
+    /// service response was killed a second or two before it could arrive, and the peer list was the
+    /// only thing that ever came back. The peer scan still happens; it is just no longer restarted out
+    /// from under the thing we actually want.
     /// </para>
     /// </summary>
     private void StartFinding()
     {
         if (_manager is null || _channel is null) return;
 
-        _manager.DiscoverPeers(_channel, new ActionListener("discoverPeers", _logger,
-            onFailure: r => L($"discoverPeers failed reason={r}")));
         _manager.DiscoverServices(_channel, new ActionListener("discoverServices", _logger,
-            onFailure: r => L($"discoverServices failed reason={r}")));
+            // If the service cycle will not start at all, a plain peer scan is still better than
+            // sitting blind — it cannot say who is an AetherNet node, but it proves the radio is alive.
+            onFailure: r =>
+            {
+                L($"discoverServices failed reason={r} — falling back to a plain peer scan");
+                _manager.DiscoverPeers(_channel, new ActionListener("discoverPeers", _logger));
+            }));
     }
 
     // ── Brokered groups: created, not negotiated ────────────────────────────────
@@ -476,11 +485,34 @@ public sealed class AndroidWifiDirectTransportService
     /// counts as the search still being alive and resets the clock.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Keep looking, and — just as important — keep being findable.
+    ///
+    /// <para>
+    /// Two phones both sitting in <c>p2p_find</c> is why service discovery never completed. Find
+    /// alternates its own search and listen phases on a timer neither app controls, so with both ends
+    /// free-running, one side's query keeps arriving while the other is mid-search and nobody is home
+    /// to answer. The supplicant says so in as many words: <c>Service Discovery Query TX callback:
+    /// success=0</c>, then <c>Do not start Service Discovery … due to it being the first no-ACK peer
+    /// in this search iteration</c>. Both phones were answering queries perfectly well; neither was
+    /// ever awake to hear the reply.
+    /// </para>
+    /// <para>
+    /// So this deliberately spends part of every cycle listening instead of searching. From API 30 the
+    /// framework exposes that directly as <c>startListening()</c>; below it, the listen phases inside
+    /// find are all there is, and the skew below is what keeps the two ends out of phase. Either way
+    /// the point is the same — stop both sides talking over each other.
+    /// </para>
+    /// </summary>
     private async Task RediscoverLoopAsync()
     {
         // Restarted whenever a group goes away, so it has to be safe to call while already running —
         // two loops search twice as often and cancel each other's finds.
         if (Interlocked.Exchange(ref _findLoopRunning, 1) == 1) return;
+
+        // Derived from this phone's own id, so the two ends of a pair land on different phases and
+        // stay there. A random skew would drift back into step as often as out of it.
+        var listening = _findSkew.TotalMilliseconds % 2 < 1;
 
         try
         {
@@ -493,17 +525,50 @@ public sealed class AndroidWifiDirectTransportService
                 // what makes Android reject the connect with BUSY.
                 if (_connecting) continue;
                 if (DateTime.UtcNow - _lastPeerNewsUtc < FindLifetime) continue;
-
-                L($"nothing seen for {FindLifetime.TotalSeconds:0.0}s — starting a new search");
                 _lastPeerNewsUtc = DateTime.UtcNow;
-                try { StartFinding(); }
+
+                listening = !listening;
+                try
+                {
+                    if (listening && CanListen)
+                    {
+                        L($"listening for {FindLifetime.TotalSeconds:0}s — so a query has somebody to answer it");
+                        StartListening();
+                    }
+                    else
+                    {
+                        L($"searching for {FindLifetime.TotalSeconds:0}s");
+                        StopListening();
+                        StartFinding();
+                    }
+                }
                 catch (Exception ex) { _logger.LogDebug(ex, "re-discover error"); }
             }
         }
         finally
         {
+            StopListening();
             Interlocked.Exchange(ref _findLoopRunning, 0);
         }
+    }
+
+    /// <summary>Whether this Android can be told to listen without also searching (API 30+).</summary>
+    private static bool CanListen =>
+        global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.R;
+
+    private void StartListening()
+    {
+        if (!CanListen || _manager is null || _channel is null || _listening) return;
+        _listening = true;
+        _manager.StartListening(_channel, new ActionListener("startListening", _logger,
+            onFailure: _ => _listening = false));
+    }
+
+    private void StopListening()
+    {
+        if (!CanListen || _manager is null || _channel is null || !_listening) return;
+        _listening = false;
+        _manager.StopListening(_channel, new ActionListener("stopListening", _logger));
     }
 
     private int _findLoopRunning;
@@ -590,32 +655,89 @@ public sealed class AndroidWifiDirectTransportService
     }
 
     /// <summary>
-    /// Is this peer a phone rather than some other Wi-Fi Direct gadget?
+    /// The id another phone advertised, kept against the address it came from.
+    ///
     /// <para>
-    /// The primary device type is a WPS triple like <c>10-0050F204-5</c>; category 10 is Telephone,
-    /// 3 is Printer. Filtering on it is what stops us pairing with the office printer — the exact
-    /// thing that happened before DNS-SD was introduced, and which we still have to avoid now that
-    /// DNS-SD has turned out not to work on these phones.
+    /// The TXT record arrives just before the service record does, so this is filled in by the time
+    /// <see cref="OnServiceFound"/> needs it. When it is not — a peer whose record was missed — that
+    /// peer is simply left alone this round and found on the next sweep, which is far better than
+    /// guessing at a role.
     /// </para>
     /// </summary>
-    private static bool IsPhone(WifiP2pDevice d)
-    {
-        var type = d.PrimaryDeviceType;
-        if (string.IsNullOrEmpty(type)) return true;   // unknown — let the handshake decide
-        return type.StartsWith("10-", StringComparison.Ordinal);
-    }
+    /// <summary>Which discovered addresses are phones, by WPS category. Nothing else is ever dialled.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _phones =
+        new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>A joiner found a peer advertising our service — connect to that one only.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _peerIds =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private void RememberPeerId(string deviceAddress, string id) => _peerIds[deviceAddress] = id;
+
+    /// <summary>
+    /// Which of two phones creates the group.
+    ///
+    /// <para>
+    /// The same shape of rule the app uses everywhere else: one both sides can evaluate alone, with no
+    /// round trip and no way to disagree. Each advertises its rotating address and sees the other's,
+    /// so ordering the two strings gives opposite answers on the two handsets, every time.
+    /// </para>
+    /// </summary>
+    private static bool IHost(string mine, string theirs) => string.CompareOrdinal(mine, theirs) < 0;
+
+    /// <summary>
+    /// A peer was found by DNS-SD. Decide who hosts, then act — nobody negotiates.
+    ///
+    /// <para>
+    /// This used to call <c>connect()</c> the moment it saw anything, on both phones at once. Two
+    /// phones calling connect() at each other is a race, and losing it drops Android's "Invitation to
+    /// connect" dialog in front of an app nobody is looking at. Deciding first removes the race
+    /// entirely: the host creates the group and waits, and the joiner connects to a group that already
+    /// exists, which needs no invitation and shows no dialog.
+    /// </para>
+    ///
+    /// <para>
+    /// This is also what makes the radio self-sufficient. It finds its own peers, agrees its own roles
+    /// and forms its own group — no second radio, and no credentials over the air.
+    /// </para>
+    /// </summary>
     private void OnServiceFound(string? instanceName, string? registrationType, WifiP2pDevice? src)
     {
         L($"service seen: {instanceName} / {registrationType} @ {src?.DeviceAddress}");
         if (_groupFormed || src is null || _manager is null || _channel is null) return;
         if (registrationType?.Contains("aethernet", StringComparison.OrdinalIgnoreCase) != true &&
             instanceName?.Contains("aethernet", StringComparison.OrdinalIgnoreCase) != true) return;
+
+        var address = src.DeviceAddress;
+        if (string.IsNullOrEmpty(address)) return;
+
+        if (_phones.TryGetValue(address, out var isPhone) && !isPhone)
+        {
+            L($"{address} advertises our service but is not a phone — left alone");
+            return;
+        }
+
+        if (!_peerIds.TryGetValue(address, out var theirs))
+        {
+            L($"no id yet from {address} — leaving it for the next sweep");
+            return;
+        }
+
+        var mine = CurrentAddress();
+        if (string.Equals(mine, theirs, StringComparison.Ordinal)) return;   // ourselves, somehow
+
+        if (IHost(mine, theirs))
+        {
+            // Create and wait. The joiner comes to us, so there is nothing to connect to and nothing
+            // to race over.
+            L($"{theirs} found — this phone hosts, creating the group");
+            _ = HostAsync();
+            return;
+        }
+
         if (!TryBeginConnect()) return;
 
-        L($"connecting to AetherNet peer {src.DeviceAddress}");
-        ConnectTo(src.DeviceAddress!);
+        L($"{theirs} found — they host, joining {address}");
+        ConnectTo(address);
     }
 
     public void Discover()
@@ -645,16 +767,10 @@ public sealed class AndroidWifiDirectTransportService
         _manager.RequestPeers(_channel, new PeerListListener(list =>
         {
             L($"{list.DeviceList.Count} peer(s) discovered");
+            NotePeers(list);
             foreach (var d in list.DeviceList)
-                global::Android.Util.Log.Info("AetherWFD",
-                    $"  peer {d.DeviceAddress} status={d.Status} type={d.PrimaryDeviceType}");
+                if (d.DeviceAddress is { Length: > 0 } a) _phones[a] = IsPhone(d);
 
-            // DNS-SD is the precise way to find our own app, but on these phones the service
-            // responses never arrive — both sides discover each other as plain peers and no service
-            // callback ever fires, so a group could never form. Fall back to the peer list, filtered
-            // to phones, which keeps the original reason for using DNS-SD: never dialling the
-            // office printer that also advertises itself over Wi-Fi Direct.
-            MaybeConnect(list);
         }));
     }
 
@@ -724,36 +840,66 @@ public sealed class AndroidWifiDirectTransportService
 
         if (_disposed) return;
         Advertise();
-        StartFinding();
         _ = Task.Run(RediscoverLoopAsync);
     }
 
     /// <summary>
-    /// Both sides call connect() to the discovered peer; Android's framework negotiates a single
-    /// group and elects the Group Owner. (The local device address is privacy-masked on modern
-    /// Android, so a "who initiates" rule based on it can't work — both initiating is the robust path.)
+    /// Who is nearby, for the log and for liveness — never for dialling.
+    ///
+    /// <para>
+    /// This used to pick the first phone-shaped device in the list and call <c>connect()</c> on it,
+    /// from both sides at once. That is three separate faults in one line. It dials devices that have
+    /// never heard of AetherNet, because "is a phone" is all the peer list can tell you. It races the
+    /// other end, which is what puts Android's "Invitation to connect" dialog in front of someone who
+    /// asked for nothing. And it beats DNS-SD to the latch every time, because a peer scan answers in
+    /// a second or two and a service cycle takes longer — so the careful path never got to run.
+    /// </para>
+    /// <para>
+    /// A peer sighting now means only what it can actually prove: the radio is awake and someone is
+    /// out there. Deciding whether that someone is one of ours, and which of us hosts, is
+    /// <see cref="OnServiceFound"/>'s job — it is the only path with the ids in hand to answer either
+    /// question.
+    /// </para>
     /// </summary>
-    private void MaybeConnect(WifiP2pDeviceList list)
+    private static void NotePeers(WifiP2pDeviceList list)
     {
-        if (_groupFormed || _manager is null || _channel is null) return;
-
-        // Available: free to be invited. Invited: an invitation is already in flight between us, and
-        // calling connect() from this side is what completes it — Wi-Fi Direct forms the group when
-        // both ends have asked. Treating Invited as "busy, leave it alone" is why the two phones sat
-        // staring at each other: one had invited, the other never answered, and it never timed out.
-        WifiP2pDevice? target = null;
         foreach (var d in list.DeviceList)
-        {
-            if (d.Status is not (WifiP2pDeviceState.Available or WifiP2pDeviceState.Invited)) continue;
-            if (!IsPhone(d)) continue;                                // printers advertise here too
-            target = d;
-            break;
-        }
-        if (target is null) return;
-        if (!TryBeginConnect()) return;
+            global::Android.Util.Log.Info("AetherWFD",
+                $"  peer {d.DeviceAddress} status={d.Status} type={d.PrimaryDeviceType} " +
+                $"({Category(d)}){(IsPhone(d) ? "" : " — not a phone, never dialled")}");
+    }
 
-        L($"initiating connect() to {target.DeviceAddress}");
-        ConnectTo(target.DeviceAddress!);
+    /// <summary>
+    /// What kind of gadget this is, from the WPS primary device type it puts in its own beacon.
+    ///
+    /// <para>
+    /// The triple looks like <c>10-0050F204-5</c>: the leading number is the WPS category, and it
+    /// arrives in the peer list itself — no query, no round trip, no cooperation from the other end
+    /// beyond it being a Wi-Fi Direct device at all. So there is never an excuse for dialling the
+    /// office printer: we were told it was a printer the moment we saw it.
+    /// </para>
+    /// </summary>
+    private static string Category(WifiP2pDevice d) => d.PrimaryDeviceType?.Split('-')[0] switch
+    {
+        "1" => "computer", "2" => "input device", "3" => "printer", "4" => "camera",
+        "5" => "storage", "6" => "network infrastructure", "7" => "display",
+        "8" => "multimedia device", "9" => "gaming device", "10" => "phone",
+        "11" => "audio device", _ => "unknown",
+    };
+
+    /// <summary>
+    /// Is this peer a phone rather than some other Wi-Fi Direct gadget?
+    /// <para>
+    /// Category 10 is Telephone. An unknown type is allowed through — a phone that reports nothing is
+    /// still more likely one of ours than not, and the service check behind this one is what actually
+    /// decides. A printer, a display or a camera is never dialled, whatever else happens.
+    /// </para>
+    /// </summary>
+    private static bool IsPhone(WifiP2pDevice d)
+    {
+        var type = d.PrimaryDeviceType;
+        if (string.IsNullOrEmpty(type)) return true;
+        return type.StartsWith("10-", StringComparison.Ordinal);
     }
 
     // ── Sockets ────────────────────────────────────────────────────────────────
@@ -840,13 +986,6 @@ public sealed class AndroidWifiDirectTransportService
     public IReadOnlyCollection<string> ConnectedPeers => _peers.Keys.ToArray();
 
     // ── IRadio ──────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Yes — Link() calls connect(), so this must never be started as a bystander. See
-    /// <see cref="IRadio.Initiates"/> and <c>WifiDirectBroker</c>, which is the only thing allowed to
-    /// decide that a group should form.
-    /// </summary>
-    public bool Initiates => true;
 
     public bool IsLinked => !_peers.IsEmpty;
     public string? PeerTag => _peers.Keys.FirstOrDefault();
@@ -954,10 +1093,28 @@ public sealed class AndroidWifiDirectTransportService
             => owner.OnServiceFound(instanceName, registrationType, srcDevice);
     }
 
-    private sealed class TxtRecordListener : Java.Lang.Object, WifiP2pManager.IDnsSdTxtRecordListener
+    /// <summary>
+    /// The peer's advertised id, which is what lets the two of them agree who hosts.
+    ///
+    /// <para>
+    /// This body was empty and the record was thrown away — so discovery knew a peer existed and
+    /// nothing about it, and both phones did the only thing left: called <c>connect()</c> at each
+    /// other. That is the race, and losing it is Android's "Invitation to connect" dialog on a screen
+    /// nobody is looking at. The id costs nothing to keep and turns the race into a decision.
+    /// </para>
+    /// </summary>
+    private sealed class TxtRecordListener(AndroidWifiDirectTransportService owner)
+        : Java.Lang.Object, WifiP2pManager.IDnsSdTxtRecordListener
     {
         public void OnDnsSdTxtRecordAvailable(string? fullDomainName,
-            IDictionary<string, string>? txtRecordMap, WifiP2pDevice? srcDevice) { }
+            IDictionary<string, string>? txtRecordMap, WifiP2pDevice? srcDevice)
+        {
+            if (srcDevice?.DeviceAddress is not { Length: > 0 } address) return;
+            if (txtRecordMap is null || !txtRecordMap.TryGetValue("id", out var id)) return;
+            if (string.IsNullOrEmpty(id)) return;
+
+            owner.RememberPeerId(address, id);
+        }
     }
 }
 #endif
