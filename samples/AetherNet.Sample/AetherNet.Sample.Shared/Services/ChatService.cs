@@ -1249,7 +1249,7 @@ public sealed class ChatService
         if (!_repair.ShouldRestart(peerTag, DateTime.UtcNow)) return;
 
         _signal.DropSession(peerTag);
-        T($"session with {peerTag} could not read a payload → dropped");
+        T($"no usable session with {peerTag} → dropping it and asking for a fresh bundle");
 
         // Publish a new bundle before asking for theirs. A bundle carries a ONE-TIME pre-key: the peer
         // consumed ours establishing the session that just died, and a second message naming the same
@@ -1273,8 +1273,28 @@ public sealed class ChatService
     /// Is this the failure of a session that no longer works, as opposed to a payload that was never
     /// meant for us? A mismatched authentication tag is the ratchet saying it has diverged.
     /// </summary>
+    /// <summary>
+    /// Is this the kind of failure a fresh session would fix?
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two failures, one remedy. A session that has gone bad throws
+    /// <see cref="System.Security.Cryptography.CryptographicException"/> — an authentication tag that
+    /// does not match, because the two ratchets have diverged. Having no session at all throws
+    /// <see cref="InvalidOperationException"/> from the Signal service instead.
+    /// </para>
+    /// <para>
+    /// Only the first was matched here, and the second is the one that matters most: it is what a
+    /// phone sees the very first time somebody messages it after a reinstall. The message crossed the
+    /// radio perfectly, decryption failed for the most ordinary reason there is, and it was dropped in
+    /// silence with no attempt to build the session that would have opened it — forever, because
+    /// every later message failed the same way. Measured on the P30: "No session established with
+    /// peer ZXFA…d90b", once per message, while the sender's messages timed out one after another.
+    /// </para>
+    /// </remarks>
     private static bool LooksLikeABrokenSession(Exception ex) =>
-        ex is System.Security.Cryptography.CryptographicException;   // AuthenticationTagMismatch is one of these
+        ex is System.Security.Cryptography.CryptographicException   // AuthenticationTagMismatch is one of these
+        || (ex is InvalidOperationException && ex.Message.Contains("session", StringComparison.OrdinalIgnoreCase));
 
     private void OnBundleReceived(object? sender, PreKeyBundleReceivedEventArgs e)
     {

@@ -101,6 +101,16 @@ public interface IWifiDirectGroup
     /// <summary>Join a group by name and passphrase, with no discovery and no invitation.</summary>
     Task<bool> JoinAsync(WifiDirectCredentials credentials, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Whether this phone is in a group right now.
+    /// </summary>
+    /// <remarks>
+    /// Asked rather than remembered. A join that was accepted and then quietly failed to form leaves
+    /// the caller believing it succeeded — which is exactly how two phones ended up sitting four
+    /// seconds out of step with nothing retrying.
+    /// </remarks>
+    bool IsInGroup => false;
+
     /// <summary>Leave whatever group this phone is in. Safe when it is in none.</summary>
     Task LeaveAsync();
 

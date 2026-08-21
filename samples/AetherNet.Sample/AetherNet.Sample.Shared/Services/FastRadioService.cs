@@ -158,8 +158,13 @@ public sealed class FastRadioService : IDisposable
                 return;
             }
 
-            if (string.Equals(_currentGroup, credentials!.NetworkName, StringComparison.Ordinal))
-                return;   // already where we should be
+            // Ask the radio, do not trust what we remember. A join that was accepted and then failed
+            // to form would otherwise be recorded as done and never tried again.
+            if (string.Equals(_currentGroup, credentials!.NetworkName, StringComparison.Ordinal)
+                && _group.IsInGroup)
+                return;   // genuinely where we should be
+
+            _currentGroup = null;
 
             if (iHost)
             {

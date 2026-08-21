@@ -355,6 +355,14 @@ public sealed class AndroidWifiDirectTransportService
     /// Whether this Android lets the group be named. <c>createGroup(config)</c> arrived at API 29, and
     /// below it the framework picks — which puts that phone back to needing the credentials delivered.
     /// </summary>
+    /// <summary>How long to wait for a group to actually form after connect() has been accepted.</summary>
+    private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(20);
+
+    private static readonly TimeSpan JoinPoll = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>Whether this phone is in a Wi-Fi Direct group right now.</summary>
+    public bool IsInGroup => _groupFormed;
+
     private static bool CanNameTheGroup =>
         global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.Q;
 
@@ -403,13 +411,32 @@ public sealed class AndroidWifiDirectTransportService
             .SetPassphrase(credentials.Passphrase)
             .Build();
 
-        var joined = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var accepted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         L($"joining {credentials.NetworkName}");
         _manager.Connect(_channel, config, new ActionListener("joinGroup", _logger,
-            onFailure: r => { L($"join failed reason={r}"); joined.TrySetResult(false); },
-            onSuccess: () => joined.TrySetResult(true)));
+            onFailure: r => { L($"join failed reason={r}"); accepted.TrySetResult(false); },
+            onSuccess: () => accepted.TrySetResult(true)));
 
-        return await joined.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false);
+        if (!await accepted.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false))
+            return false;
+
+        // Accepted is not joined.
+        //
+        // connect() answers as soon as the framework has taken the request, which it will happily do
+        // for a group that does not exist yet — and then report groupFormed=False a few seconds later
+        // with no further comment. Returning true there told the caller it was done, so the retry loop
+        // above stopped retrying, and two phones sat four seconds out of step forever. Measured: one
+        // joined at :28, the other created the group at :32.
+        //
+        // So wait for the group to actually form. The connection broadcast is what says so.
+        for (var waited = TimeSpan.Zero; waited < JoinTimeout; waited += JoinPoll)
+        {
+            if (_groupFormed) return true;
+            await Task.Delay(JoinPoll, cancellationToken).ConfigureAwait(false);
+        }
+
+        L($"{credentials.NetworkName} did not form — it is probably not up yet");
+        return false;
     }
 
     /// <summary>Leave whatever group this phone is in, and wait for it to actually be gone.</summary>
@@ -679,10 +706,16 @@ public sealed class AndroidWifiDirectTransportService
                     PeerLinked?.Invoke(peerUhid);
                     continue;
                 }
-                if (peerUhid is not null) DataReceived?.Invoke(peerUhid, frame);
+                if (peerUhid is null) continue;
+
+                // Logged because a packet that leaves one phone and never appears on the other is
+                // otherwise indistinguishable from one that was never sent — and both ends reported
+                // success while a message quietly went nowhere.
+                L($"◀ {frame.Length}B from {peerUhid}");
+                DataReceived?.Invoke(peerUhid, frame);
             }
         }
-        catch (Exception ex) when (!_disposed) { _logger.LogDebug(ex, "Wi-Fi Direct socket closed"); }
+        catch (Exception ex) when (!_disposed) { L($"socket to {peerUhid ?? "a peer"} closed: {ex.Message}"); }
         finally
         {
             if (peerUhid is not null) _peers.TryRemove(peerUhid, out _);
@@ -694,9 +727,13 @@ public sealed class AndroidWifiDirectTransportService
 
     public async Task<bool> SendAsync(string peerUhid, byte[] data, CancellationToken cancellationToken = default)
     {
-        if (!_peers.TryGetValue(peerUhid, out var link)) return false;
+        if (!_peers.TryGetValue(peerUhid, out var link))
+        {
+            L($"▶ nowhere to send {data.Length}B — {peerUhid} is not one of the {_peers.Count} linked");
+            return false;
+        }
         try { await WriteFrameAsync(link.Stream, data).ConfigureAwait(false); return true; }
-        catch (Exception ex) { _logger.LogDebug(ex, "Wi-Fi Direct send failed to {Uhid}", peerUhid); return false; }
+        catch (Exception ex) { L($"▶ send to {peerUhid} failed: {ex.Message}"); return false; }
     }
 
     public async Task<bool> SendStreamAsync(string peerUhid, Stream stream, CancellationToken cancellationToken = default)

@@ -172,6 +172,12 @@ public static class MauiProgram
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
         builder.Logging.AddDebug();
+#if ANDROID
+        // AddDebug alone writes to System.Diagnostics.Debug, which on Android goes nowhere. Every
+        // LogWarning in the app was invisible on the only platform it runs on — a message that failed
+        // to decrypt said so faithfully, into a void.
+        builder.Logging.AddProvider(new AetherNet.Sample.Platforms.Android.LogcatLoggerProvider());
+#endif
 #endif
 
         var app = builder.Build();
@@ -242,6 +248,18 @@ public static class MauiProgram
             // behind a rotating address is what keeps the radio from dialling strangers, and it must
             // be loaded before the first beacon is seen rather than on the discovery path.
             Warm("circle", () => app.Services.GetService<CircleDirectory>());
+
+            // The fast radio's own commentary, next to the radio's. Which group this phone decided on,
+            // and whether it hosted or joined it, is the first thing to check when two phones that
+            // should be talking are not.
+            Warm("fast-radio", () =>
+            {
+                var fast = app.Services.GetService<FastRadioService>();
+#if ANDROID
+                if (fast is not null)
+                    fast.Trace += m => global::Android.Util.Log.Info("AetherFast", m);
+#endif
+            });
         });
 
         return app;
