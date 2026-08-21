@@ -57,6 +57,16 @@ internal interface IRadio
     /// </summary>
     long MaxBandwidthBps => 0;
 
+    /// <summary>
+    /// What this radio is actually doing, measured — as opposed to <see cref="MaxBandwidthBps"/>,
+    /// which is what it says about itself.
+    /// </summary>
+    /// <remarks>
+    /// Radios that carry nothing do not need one; the default is a meter that has never been fed and
+    /// therefore reports nothing, which is the honest answer for a radio with no traffic.
+    /// </remarks>
+    AetherNet.Sample.Shared.Services.LinkQuality Quality => AetherNet.Sample.Shared.Services.LinkQuality.Silent;
+
     /// <summary>True once a peer has completed the link handshake.</summary>
     bool IsLinked { get; }
 

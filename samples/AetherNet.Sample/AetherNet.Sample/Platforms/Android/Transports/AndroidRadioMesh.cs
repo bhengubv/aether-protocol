@@ -126,10 +126,22 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     {
         get
         {
-            // The radio that traffic actually leaves on, not the one in the picker — sizing media to
-            // the wrong radio is how a call ends up asking a narrow link for a wide one's bitrate.
+            // What the link has been MEASURED doing, and only then what it claims.
+            //
+            // Every advertised figure in this app has been wrong: BLE published 2 Mbps and delivered
+            // 11 kbps one way; Wi-Fi Direct still reports a flat 250 Mbps that nothing has checked.
+            // Sizing media to a number nobody verified is how 800 kbps of video went onto a link that
+            // was time-slicing against the phone's own access point.
+            //
+            // The measured figure is a FLOOR — what has crossed, not what could — so it is only used
+            // once enough has crossed to mean something. Before that the advertised number is all
+            // there is, and it is at least honest about being a guess.
             foreach (var r in Candidates())
-                if (r.IsLinked) return r.MaxBandwidthBps;
+            {
+                if (!r.IsLinked) continue;
+                var measured = r.Quality.ThroughputBps();
+                return measured > 0 ? measured : r.MaxBandwidthBps;
+            }
             return 0;
         }
     }
@@ -141,6 +153,19 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     /// can still be reached over another radio is still reachable.
     /// </summary>
     private IRadio Active => _selected.IsLinked ? _selected : _order.FirstOrDefault(r => r.IsLinked) ?? _selected;
+
+    /// <summary>
+    /// How hard the carrying radio is working, 0 to 1. Media sizes itself from this.
+    /// </summary>
+    public double LinkStrain
+    {
+        get
+        {
+            foreach (var r in Candidates())
+                if (r.IsLinked) return r.Quality.Strain();
+            return 0;
+        }
+    }
 
     public bool IsLinked => _order.Any(r => r.IsLinked);
 

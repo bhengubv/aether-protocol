@@ -771,6 +771,10 @@ public sealed class CallService : IDisposable
 
         void Report()
         {
+            // Once a second, with the audio loop already awake — the picture is sized here rather than
+            // on its own timer because this is the thread that knows whether frames are getting out.
+            SizeMediaToLink();
+
             if (sent == 0 && failed == 0) return;
             // How long a frame takes to hand to the radio is the whole story: fifty a second means
             // twenty milliseconds each, and anything near a second means the audio cannot work no
@@ -1189,6 +1193,40 @@ public sealed class CallService : IDisposable
         _audio.FrameCaptured -= OnMicrophoneFrame;
         _codec?.Dispose();
     }
+
+    /// <summary>
+    /// Size the picture and the voice to what the link is actually doing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Video first and hardest. It does not degrade — an encoder given less than it needs produces
+    /// frames too late to show, and the decoder then waits on a keyframe while the audio sharing the
+    /// link breaks up too. Cutting the picture is what buys the voice room, so it is cut first.
+    /// </para>
+    /// <para>
+    /// Nothing here consults a bandwidth figure. Strain rises when sends start queueing, which happens
+    /// before anything is lost and needs no capacity to be known — and every capacity figure this app
+    /// has trusted turned out to be arithmetic wearing a measurement's clothes.
+    /// </para>
+    /// </remarks>
+    private void SizeMediaToLink()
+    {
+        if (_radio is null) return;
+
+        var strain = _radio.LinkStrain;
+
+        // Two people on a 1:1 call: this phone's camera and theirs.
+        _video?.SizeToLink(strain, people: 2);
+
+        var wanted = MediaBitrate.Voice(_voiceBitrateBps, strain);
+        if (wanted == _voiceBitrateBps) return;
+
+        _voiceBitrateBps = wanted;
+        T($"voice → {wanted / 1000}k (strain {strain:0.00})");
+    }
+
+    /// <summary>What the voice codec is being asked for. Starts at its best and gives ground last.</summary>
+    private int _voiceBitrateBps = MediaBitrate.VoiceCeilingBps;
 }
 
 /// <summary>Stands in when there is no radio at all, so the Web head can construct the service.</summary>
@@ -1201,4 +1239,5 @@ internal sealed class NullMeshSender(string localUhid) : IMeshSender
         => Task.FromResult(false);
     public Task<int> BroadcastAsync(MeshPacket packet, CancellationToken cancellationToken = default)
         => Task.FromResult(0);
+
 }

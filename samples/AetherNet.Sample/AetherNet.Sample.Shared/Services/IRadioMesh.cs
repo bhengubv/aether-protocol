@@ -41,6 +41,16 @@ public interface IRadioMesh
     string LinkRadio { get; }
 
     /// <summary>
+    /// How hard the carrying link is working right now, 0 (comfortable) to 1 (failing).
+    /// </summary>
+    /// <remarks>
+    /// The honest signal for sizing media. Unlike a bandwidth figure it needs no capacity to be known
+    /// — it rises when sends start queueing, which happens before anything is lost, and every
+    /// capacity figure this app has trusted turned out to be fiction.
+    /// </remarks>
+    double LinkStrain => 0;
+
+    /// <summary>
     /// Roughly what the radio currently carrying traffic can move, in bits per second — 0 when
     /// nothing is linked or the radio will not say.
     ///

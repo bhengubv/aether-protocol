@@ -52,7 +52,15 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
     private const int Height = 480;
     private const int Fps = 20;
-    private const int BitrateBps = 800_000;
+    /// <summary>
+    /// Where the encoder starts. It does not stay here — see <see cref="SizeToLink"/>.
+    /// </summary>
+    /// <remarks>
+    /// This was a const that nothing ever changed, so every call pushed the same 800 kbps whether it
+    /// had a five-gigahertz channel to itself or was time-slicing against the phone's own access
+    /// point. It is now only an opening bid.
+    /// </remarks>
+    private const int StartingBitrateBps = MediaBitrate.VideoCeilingBps;
 
     /// <summary>
     /// A keyframe every second.
@@ -81,6 +89,60 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     private CameraDevice? _camera;
     private CameraCaptureSession? _session;
     private MediaCodec? _encoder;
+    private int _bitrateBps;
+    private DateTimeOffset _lastSized = DateTimeOffset.MinValue;
+
+    /// <inheritdoc />
+    public int BitrateBps => _running ? _bitrateBps : 0;
+
+    /// <summary>
+    /// How often the picture may change size. Every frame would be chasing noise; once a second is
+    /// fast enough to get out of the way of a link going bad and slow enough to be stable.
+    /// </summary>
+    private static readonly TimeSpan SizeEvery = TimeSpan.FromSeconds(1);
+
+    /// <inheritdoc />
+    public void SizeToLink(double strain, int people)
+    {
+        var encoder = _encoder;
+        if (!_running || encoder is null) return;
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - _lastSized < SizeEvery) return;
+        _lastSized = now;
+
+        var wanted = MediaBitrate.Video(_bitrateBps, strain, people);
+
+        // Below the floor there is no picture worth the bytes, and continuing to send an unwatchable
+        // one crowds out the voice — which is the half of a call people actually need.
+        if (wanted <= 0)
+        {
+            global::Android.Util.Log.Info("AetherVideo",
+                $"link too tight for video (strain {strain:0.00}) — stopping the camera");
+            _ = StopAsync();
+            return;
+        }
+
+        // A tenth either way is not worth reconfiguring the encoder for.
+        if (Math.Abs(wanted - _bitrateBps) < _bitrateBps / 10) return;
+
+        try
+        {
+            // setParameters, not a reconfigure: the encoder keeps running and the stream keeps its
+            // sequence, so the far side sees a change in quality rather than a gap.
+            using var change = new global::Android.OS.Bundle();
+            change.PutInt(MediaCodec.ParameterKeyVideoBitrate, wanted);
+            encoder.SetParameters(change);
+
+            global::Android.Util.Log.Info("AetherVideo",
+                $"video {_bitrateBps / 1000}k → {wanted / 1000}k (strain {strain:0.00}, {people} on the link)");
+            _bitrateBps = wanted;
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Error("AetherVideo", "could not change the bitrate: " + ex);
+        }
+    }
     private Surface? _encoderInput;
     private FrameLayout? _overlay;
     private GridLayout? _grid;
@@ -279,7 +341,8 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         {
             var format = MediaFormat.CreateVideoFormat(Mime, Width, Height)!;
             format.SetInteger(MediaFormat.KeyColorFormat, (int)MediaCodecCapabilities.Formatsurface);
-            format.SetInteger(MediaFormat.KeyBitRate, BitrateBps);
+            format.SetInteger(MediaFormat.KeyBitRate, StartingBitrateBps);
+            _bitrateBps = StartingBitrateBps;
             format.SetInteger(MediaFormat.KeyFrameRate, Fps);
             format.SetInteger(MediaFormat.KeyIFrameInterval, KeyframeIntervalSeconds);
 

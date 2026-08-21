@@ -170,7 +170,21 @@ public sealed class GroupCallService : IDisposable
         Joined &&
         _video is { IsPresent: true } &&
         Participants.Count <= VideoCap + 1 &&
-        (_radio?.LinkBandwidthBps ?? 0) >= VideoBudget.RequiredBps(Participants.Count);
+        MediaBitrate.WorthVideo(_radio?.LinkBandwidthBps ?? 0, Participants.Count);
+
+    /// <summary>
+    /// Size the picture to the link, counting every camera on it.
+    /// </summary>
+    /// <remarks>
+    /// A group divides the link between however many people have a camera on, so the same strain
+    /// means a much smaller share each. Sizing as though it were a 1:1 call is how one person turning
+    /// their camera on breaks the call for everybody.
+    /// </remarks>
+    public void SizeMediaToLink()
+    {
+        if (_radio is null || !Joined) return;
+        _video?.SizeToLink(_radio.LinkStrain, Math.Max(Participants.Count, 2));
+    }
 
     /// <summary>Why the camera is not on offer, in plain words — or null when it is.</summary>
     public string? CannotSendVideoReason
@@ -184,10 +198,13 @@ public sealed class GroupCallService : IDisposable
             if (people > VideoCap + 1)
                 return $"this phone can show video for {VideoCap} at a time, and there are {people - 1} others";
 
-            var needed = VideoBudget.RequiredBps(people);
-            return (_radio?.LinkBandwidthBps ?? 0) < needed
-                ? $"{_radio?.LinkRadio ?? "this radio"} cannot carry video for {people} — voice only"
-                : null;
+            // Asked of what the link has been measured carrying, not of what it advertises. The
+            // advertised figure for Wi-Fi Direct is a flat 250 Mbps that nothing has ever checked, so
+            // a gate built on it says yes to everything — including a link time-slicing against the
+            // phone's own access point.
+            return MediaBitrate.WorthVideo(_radio?.LinkBandwidthBps ?? 0, people)
+                ? null
+                : $"{_radio?.LinkRadio ?? "this radio"} is not carrying enough for video with {people} — voice only";
         }
     }
 
@@ -378,6 +395,10 @@ public sealed class GroupCallService : IDisposable
     /// </summary>
     private void OnMicrophoneFrame(short[] pcm)
     {
+        // The picture is sized here, on the thread that knows whether frames are getting out. Guarded
+        // by its own clock inside SizeToLink, so calling it per frame costs nothing.
+        SizeMediaToLink();
+
         if (!Joined || _codec is null || _audio is null) return;
 
         try

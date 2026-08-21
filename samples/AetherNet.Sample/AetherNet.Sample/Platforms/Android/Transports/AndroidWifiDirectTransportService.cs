@@ -319,12 +319,52 @@ public sealed class AndroidWifiDirectTransportService
 
         if (WifiDirectCredentials.IsUsable(wanted) && CanNameTheGroup)
         {
-            L($"creating {wanted!.NetworkName} — the name this Circle already knows");
-            var config = new WifiP2pConfig.Builder()
-                .SetNetworkName(wanted.NetworkName)
-                .SetPassphrase(wanted.Passphrase)
-                .Build();
-            _manager.CreateGroup(_channel, config, listener);
+            var builder = new WifiP2pConfig.Builder()
+                .SetNetworkName(wanted!.NetworkName)
+                .SetPassphrase(wanted.Passphrase);
+
+            // Put the group on the channel this phone's own Wi-Fi is already using.
+            //
+            // There is one radio. Hosting a group on 2.4GHz while the phone is associated to an access
+            // point on 5GHz asks that radio to be in two places at once, and the chip answers by
+            // time-slicing between them. Nothing fails and nothing is logged — the household Wi-Fi
+            // simply hangs for as long as the group is up, and the group gets a fraction of the air it
+            // thinks it has. Measured here: both phones associated at 5500MHz, group formed at 2412MHz.
+            //
+            // Sharing the channel costs nothing. The group and the access point are then two networks
+            // the radio is already tuned for, and neither has to wait for the other.
+            // Wait for the phone's own Wi-Fi to come back before deciding where to put the group.
+            //
+            // Hosting takes the station down on some phones — the P30 goes to "Supplicant state:
+            // DISCONNECTED, Frequency: -1MHz" for as long as it is group owner. Leaving the old group
+            // gives it back, but not instantly, and asking a disconnected phone what channel it is on
+            // returns nothing. That answer then means "no channel to match", the group goes to 2.4GHz
+            // by default, and the station never recovers — so the next launch asks a disconnected
+            // phone again and gets the same answer. The loop closes on itself and the household Wi-Fi
+            // never comes back until Wi-Fi is toggled by hand.
+            var station = await WaitForStationAsync(cancellationToken).ConfigureAwait(false);
+
+            if (station > 0 && CanHostOn(station))
+            {
+                L($"hosting on {station}MHz — the channel this phone's Wi-Fi is already on");
+                builder.SetGroupOperatingFrequency(station);
+            }
+            else if (station >= 5000)
+            {
+                // The access point is on a channel Wi-Fi Direct is not allowed to use — every 5GHz
+                // channel from 52 to 144 is radar-shared, and P2P is barred from all of them. Asking
+                // anyway is not refused, it is silently ignored: measured here, a request for 5500MHz
+                // produced a group on 2437MHz and the phone's own Wi-Fi went from 2.5ms to the gateway
+                // to an average of 135ms with spikes past a third of a second.
+                //
+                // Staying in the same band is the next best thing. The radio still has two channels to
+                // serve, but it does not also have to change band to do it.
+                L($"{station}MHz is a radar channel and off limits to Wi-Fi Direct — asking for 5GHz instead");
+                builder.SetGroupOperatingBand((global::Android.Net.Wifi.P2p.Frequency)GroupOwnerBand5Ghz);
+            }
+
+            L($"creating {wanted.NetworkName} — the name this Circle already knows");
+            _manager.CreateGroup(_channel, builder.Build(), listener);
         }
         else
         {
@@ -350,6 +390,92 @@ public sealed class AndroidWifiDirectTransportService
         L("created a group but could not read its credentials");
         return null;
     }
+
+    /// <inheritdoc />
+    public LinkQuality Quality { get; } = new();
+
+    private static TimeSpan Since(long timestamp) =>
+        System.Diagnostics.Stopwatch.GetElapsedTime(timestamp);
+
+    /// <summary>
+    /// The channel this phone's ordinary Wi-Fi is on, or 0 when it is not associated to anything.
+    /// </summary>
+    /// <remarks>
+    /// Zero is the right answer for "not on Wi-Fi": with no access point to share a radio with there
+    /// is nothing to match, and pinning the group to a channel for no reason only takes away the
+    /// framework's freedom to pick a good one.
+    /// </remarks>
+    private int StationFrequencyMhz()
+    {
+        try
+        {
+            if (_context.GetSystemService(Context.WifiService) is not global::Android.Net.Wifi.WifiManager wifi)
+                return 0;
+
+            return Math.Max(wifi.ConnectionInfo?.Frequency ?? 0, 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not read the station channel");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Give the phone's own Wi-Fi a moment to reassociate, and report the channel it lands on.
+    /// </summary>
+    /// <remarks>
+    /// Returns 0 when it does not come back — a phone genuinely not on Wi-Fi has no channel to share,
+    /// and waiting longer for one would only delay a group that is going to form anyway.
+    /// </remarks>
+    private async Task<int> WaitForStationAsync(CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + StationWait;
+        var announced = false;
+
+        while (DateTime.UtcNow < deadline && !cancellationToken.IsCancellationRequested)
+        {
+            var frequency = StationFrequencyMhz();
+            if (frequency > 0) return frequency;
+
+            if (!announced)
+            {
+                L("waiting for this phone's Wi-Fi to come back before choosing a channel");
+                announced = true;
+            }
+            await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+        }
+
+        return StationFrequencyMhz();
+    }
+
+    /// <summary>
+    /// How long to wait for the station. Long enough for a reassociation, short enough that a phone
+    /// with no Wi-Fi at all is not kept waiting for one.
+    /// </summary>
+    private static readonly TimeSpan StationWait = TimeSpan.FromSeconds(8);
+
+    /// <summary>
+    /// Whether Wi-Fi Direct is allowed to host a group on this channel.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 2.4GHz is always fine. In 5GHz, the band from 5260 to 5720MHz — channels 52 through 144 — is
+    /// shared with weather and military radar, and regulators require a device to listen for radar
+    /// before transmitting and to vacate if it hears any. A Wi-Fi Direct group owner cannot do that,
+    /// so it is simply not permitted there.
+    /// </para>
+    /// <para>
+    /// Worth checking rather than just asking: the framework does not refuse an illegal channel, it
+    /// ignores the request and puts the group wherever it likes — which is how a request for 5500MHz
+    /// became a group on 2437MHz with nothing said about it.
+    /// </para>
+    /// </remarks>
+    /// <summary>WifiP2pConfig.GROUP_OWNER_BAND_5GHZ. Named rather than left as a bare 2.</summary>
+    private const int GroupOwnerBand5Ghz = 2;
+
+    private static bool CanHostOn(int frequencyMhz) =>
+        frequencyMhz is (>= 2400 and <= 2500) or (>= 5000 and < 5260) or (> 5720 and <= 5900);
 
     /// <summary>
     /// Whether this Android lets the group be named. <c>createGroup(config)</c> arrived at API 29, and

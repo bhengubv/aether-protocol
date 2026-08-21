@@ -30,6 +30,20 @@ public interface IVideoIo
     /// <summary>True between a successful <see cref="StartAsync"/> and its stop.</summary>
     bool IsRunning { get; }
 
+    /// <summary>
+    /// Tell the encoder how hard the link is working, so the picture can size itself to it.
+    /// </summary>
+    /// <param name="strain">0 comfortable, 1 failing — from <see cref="IRadioMesh.LinkStrain"/>.</param>
+    /// <param name="people">How many cameras share the link.</param>
+    /// <remarks>
+    /// Safe to call constantly and cheap when nothing needs to change. Video that does not adapt does
+    /// not degrade gracefully — it stalls, and takes the audio sharing the link down with it.
+    /// </remarks>
+    void SizeToLink(double strain, int people) { }
+
+    /// <summary>What the encoder is producing right now, or 0 when it is not running.</summary>
+    int BitrateBps => 0;
+
     /// <summary>Ask for the camera, at the moment the person taps the camera button.</summary>
     Task<bool> EnsurePermissionAsync();
 
