@@ -439,7 +439,8 @@ public sealed class GroupCallService : IDisposable
 
                 await _radio.SendPacketAsync(PacketSerializer.Serialize(new MeshPacket
                 {
-                    Type = PacketType.Data,
+                    // Speech. Real-time lane, so it overtakes anything bulk in flight.
+                    Type = PacketType.VoiceCall,
                     SourceUhid = _me.AetherTag,
                     DestinationUhid = p.Tag,
                     Ttl = 1,           // one hop; a relayed group call is not a group call
@@ -463,7 +464,8 @@ public sealed class GroupCallService : IDisposable
         try { packet = PacketSerializer.Deserialize(bytes); }
         catch { return; }
 
-        if (packet.Type != PacketType.Data || packet.Payload is not { } payload) return;
+        if (packet.Type is not (PacketType.Data or PacketType.VoiceCall or PacketType.GroupVideoSignaling)
+            || packet.Payload is not { } payload) return;
         if (payload.Length <= SignalMarker.Length) return;
 
         var marker = Encoding.UTF8.GetString(payload, 0, SignalMarker.Length);
@@ -554,7 +556,7 @@ public sealed class GroupCallService : IDisposable
 
             return await _radio.SendPacketAsync(PacketSerializer.Serialize(new MeshPacket
             {
-                Type = PacketType.Data,
+                Type = PacketType.GroupVideoSignaling,
                 SourceUhid = _me.AetherTag,
                 DestinationUhid = peerTag,
                 Ttl = 1,

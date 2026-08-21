@@ -116,6 +116,7 @@ public sealed class ChatService
     private readonly ProxyDirectory? _proxies;
     private readonly IAppShareService? _appShare;
     private readonly IRelayHost? _gateway;
+    private readonly FastRadioService? _fastRadio;
 
     private readonly ILogger _log;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
@@ -136,12 +137,14 @@ public sealed class ChatService
         ProxyDirectory? proxies = null,
         IAppShareService? appShare = null,
         IRelayHost? gateway = null,
+        FastRadioService? fastRadio = null,
         ILoggerFactory? loggerFactory = null)
     {
         _circle = circle;
         _proxies = proxies;
         _appShare = appShare;
         _gateway = gateway;
+        _fastRadio = fastRadio;
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
@@ -425,6 +428,10 @@ public sealed class ChatService
         if (_circle is not null && _signal.HasSession(peerTag))
             _ = ShareRoutingKeyAsync(peerTag, cancellationToken);
 
+        // Something to send is exactly when the fast radio is worth having up, and the only time it
+        // is. Holding it the rest of the day cost this phone its own Wi-Fi and carried nothing.
+        _fastRadio?.Wake();
+
         // The fast radio is not asked for here at all. FastRadioService brings it up from the contact
         // list, which it can do before a single message exists — asking from here made chat a
         // prerequisite for the radio, and the radio a prerequisite for chat. It finds its own peers over DNS-SD and
@@ -549,6 +556,25 @@ public sealed class ChatService
     }
 
     /// <summary>Wrap an encrypted body in a marked Data packet addressed to one peer.</summary>
+    /// <summary>
+    /// The protocol type each of this app's messages really is.
+    /// </summary>
+    /// <remarks>
+    /// The protocol had a slot for nearly all of these already — Ack, Heartbeat, ChannelMessage, even
+    /// EridAnnounce for the routing key. The app was not using any of them. The markers stay as the
+    /// payload discriminator, because several of these share one type, but the packet now says what it
+    /// is on the outside where it can be acted on.
+    /// </remarks>
+    private static PacketType TypeFor(string marker) => marker switch
+    {
+        AckMarker => PacketType.Ack,
+        PingMarker => PacketType.Heartbeat,
+        GroupMarker => PacketType.ChannelMessage,
+        CircleMarker => PacketType.EridAnnounce,
+        ProxyMarker => PacketType.CircuitRelayControl,
+        _ => PacketType.Data,
+    };
+
     private byte[] Wrap(string marker, AetherNet.Security.Models.EncryptedPayload sealedPayload, string peerTag)
     {
         var body = EncryptedPayloadCodec.Serialize(sealedPayload);
@@ -558,7 +584,11 @@ public sealed class ChatService
 
         return PacketSerializer.Serialize(new MeshPacket
         {
-            Type = PacketType.Data,
+            // The type is what everything downstream sorts on — the send lane here, and a relay or
+            // another implementation of this protocol anywhere else. Sending all of it as Data with a
+            // marker buried in the ciphertext made every packet look identical from the outside, which
+            // is why a phone call and a file transfer shared one queue.
+            Type = TypeFor(marker),
             SourceUhid = _me.AetherTag,
             DestinationUhid = peerTag,
             Ttl = 1,
@@ -832,7 +862,12 @@ public sealed class ChatService
             return;
         }
 
-        if (packet.Type != PacketType.Data) return;
+        // Accepts every type this app sends. It used to accept only Data, which was true when
+        // everything was Data — and would silently drop the lot the moment anything was typed
+        // properly.
+        if (packet.Type is not (PacketType.Data or PacketType.Ack or PacketType.Heartbeat
+            or PacketType.ChannelMessage or PacketType.EridAnnounce or PacketType.CircuitRelayControl))
+            return;
         var payload = packet.Payload;
         if (payload is null || payload.Length <= Marker.Length) return;
 

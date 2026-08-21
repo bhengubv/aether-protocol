@@ -32,8 +32,25 @@ public class IdentityServiceTests
         public byte[]? Get(string name) => _secrets.TryGetValue(name, out var s) ? s : null;
     }
 
-    private static IdentityService Build(FakeNodeIdentityStore device, AetherStore store, ISecretVault? vault = null) =>
-        new(device.Node(), vault ?? new FakeVault(), store);
+    /// <summary>
+    /// Build the service and resolve the identity, which is what starting the app does.
+    /// </summary>
+    /// <remarks>
+    /// The unsealing used to happen in the constructor, which meant it ran on whichever thread
+    /// resolved the service — the UI thread, in a Blazor Hybrid app, where three keystore round trips
+    /// froze the interface. It now happens behind a Lazy that the warm-up drives off that thread.
+    /// <para>
+    /// The guarantees these tests exist for are unchanged: a locked device still refuses rather than
+    /// minting a second identity, and starting twice still writes once. Only the moment they surface
+    /// moved, so the tests ask at the new moment.
+    /// </para>
+    /// </remarks>
+    private static IdentityService Build(FakeNodeIdentityStore device, AetherStore store, ISecretVault? vault = null)
+    {
+        var identity = new IdentityService(device.Node(), vault ?? new FakeVault(), store);
+        _ = identity.AetherTag;   // resolve now, exactly as the warm-up does
+        return identity;
+    }
 
     // ── The app asks; it does not mint ────────────────────────────────────────
 

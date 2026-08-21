@@ -77,6 +77,7 @@ public static class MauiProgram
             sp.GetService<ProxyDirectory>(),
             sp.GetService<IAppShareService>(),
             sp.GetService<IRelayHost>(),
+            sp.GetService<FastRadioService>(),
             sp.GetService<ILoggerFactory>()));
 
         // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
@@ -157,7 +158,16 @@ public static class MauiProgram
         // Brings the fast radio up from the contact list, before any message exists. It asks no radio
         // anything: both phones already hold the tags and the host's key, so both work out the same
         // group without a word passing between them.
-        builder.Services.AddSingleton<FastRadioService>();
+        builder.Services.AddSingleton<FastRadioService>(sp => new FastRadioService(
+            sp.GetRequiredService<AetherStore>(),
+            sp.GetRequiredService<IIdentityService>(),
+            sp.GetRequiredService<IWifiDirectGroup>(),
+            sp.GetService<ContactService>(),
+            sp.GetService<ILogger<FastRadioService>>(),
+            // Putting the radio away releases the foreground service with it, so the notification
+            // does not outlive the link it was taken for.
+            onIdle: () => (sp.GetService<IRadioMesh>()
+                as AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh)?.ReleaseIfIdle()));
 
         // Hosting a group is specific to one radio and means nothing to the other, so it is exposed as
         // the capability rather than the radio.

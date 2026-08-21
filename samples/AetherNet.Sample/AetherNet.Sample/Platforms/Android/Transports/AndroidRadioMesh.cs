@@ -287,6 +287,21 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         }
     }
 
+    /// <summary>
+    /// Give the foreground service back when nothing is linked.
+    /// </summary>
+    /// <remarks>
+    /// Android only lets an app hold a connection off-screen while a foreground service is running, so
+    /// it is needed exactly as long as there IS a connection and not a moment longer. It used to be
+    /// taken on the first Link() and never given back — a permanent notification the person cannot
+    /// dismiss, for radios that were often carrying nothing.
+    /// </remarks>
+    public void ReleaseIfIdle()
+    {
+        if (_order.Any(r => r.IsLinked)) return;
+        AetherLinkService.Stop();
+    }
+
     public async Task SendTestAsync(string text)
     {
         if (_selected.PeerTag is null) { Emit($"[{_selected.Name}] no peer linked yet"); return; }
@@ -313,16 +328,36 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     /// duplicate updates the message already there instead of showing the words again.
     /// </para>
     /// </summary>
-    public async Task<bool> SendPacketAsync(byte[] packetBytes)
+    public Task<bool> SendPacketAsync(byte[] packetBytes) =>
+        SendPacketAsync(packetBytes, LaneFor(packetBytes));
+
+    /// <summary>
+    /// Send in a named lane, so a phone call is never queued behind a file transfer.
+    /// </summary>
+    public async Task<bool> SendPacketAsync(byte[] packetBytes, SendLane lane)
     {
         foreach (var r in Candidates())
         {
-            var ok = await r.SendAsync(packetBytes).ConfigureAwait(false);
+            var ok = await r.SendAsync(packetBytes, lane).ConfigureAwait(false);
             global::Android.Util.Log.Info("AetherBLE",
-                $"app→radio {packetBytes.Length}B on {r.Name} linked={r.IsLinked} sent={ok}");
+                $"app→radio {packetBytes.Length}B {lane} on {r.Name} linked={r.IsLinked} sent={ok}");
             if (ok) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Read the lane off the packet itself, for callers that do not name one.
+    /// </summary>
+    /// <remarks>
+    /// Only possible now that packets carry their real type. While everything was
+    /// <see cref="PacketType.Data"/> with a string marker hidden inside the ciphertext, nothing out
+    /// here could tell speech from a file — which is precisely why they shared a queue.
+    /// </remarks>
+    private static SendLane LaneFor(byte[] packetBytes)
+    {
+        try { return PacketPriority.Lane(PacketSerializer.Deserialize(packetBytes).Type); }
+        catch { return SendLane.Interactive; }
     }
 
     /// <summary>

@@ -96,6 +96,16 @@ internal interface IRadio
     /// </summary>
     System.Threading.Tasks.Task<bool> SendAsync(byte[] data);
 
+    /// <summary>
+    /// Send in a particular lane, so speech is never queued behind a file.
+    /// </summary>
+    /// <remarks>
+    /// Radios that cannot separate lanes ignore it and send in order, which is what they did before —
+    /// no worse than they were, and correct for a radio with one queue in hardware.
+    /// </remarks>
+    System.Threading.Tasks.Task<bool> SendAsync(byte[] data, AetherNet.Sample.Shared.Services.SendLane lane)
+        => SendAsync(data);
+
     /// <summary>Tear the radio down.</summary>
     void Stop();
 

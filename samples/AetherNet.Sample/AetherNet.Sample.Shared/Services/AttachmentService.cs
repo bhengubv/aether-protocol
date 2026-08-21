@@ -329,7 +329,7 @@ public sealed class AttachmentService : IDisposable
         try { packet = PacketSerializer.Deserialize(raw); }
         catch { return; }
 
-        if (packet.Type != PacketType.Data) return;
+        if (packet.Type is not (PacketType.Data or PacketType.ChunkData)) return;
         var payload = packet.Payload;
         if (payload is null || payload.Length <= OfferMarker.Length) return;
 
@@ -555,7 +555,9 @@ public sealed class AttachmentService : IDisposable
 
             await _radio.SendPacketAsync(PacketSerializer.Serialize(new MeshPacket
             {
-                Type = PacketType.Data,
+                // Bulk, and typed as such. This is what lets the send path hold a 36KB chunk back
+                // while a call is in progress instead of putting it in front of somebody's voice.
+                Type = PacketType.ChunkData,
                 SourceUhid = _me.AetherTag,
                 DestinationUhid = peerTag,
                 Ttl = 1,

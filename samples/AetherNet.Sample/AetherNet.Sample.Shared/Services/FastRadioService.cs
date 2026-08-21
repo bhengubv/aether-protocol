@@ -49,8 +49,12 @@ public sealed class FastRadioService : IDisposable
     /// </summary>
     private static readonly TimeSpan KeepUpEvery = TimeSpan.FromSeconds(8);
 
+    /// <param name="onIdle">
+    ///   Called when the radio is put away, so the host can release whatever it took to hold the link.
+    /// </param>
     public FastRadioService(AetherStore store, IIdentityService me, IWifiDirectGroup group,
-        ContactService? contacts = null, ILogger<FastRadioService>? logger = null)
+        ContactService? contacts = null, ILogger<FastRadioService>? logger = null,
+        Action? onIdle = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
@@ -117,7 +121,11 @@ public sealed class FastRadioService : IDisposable
         {
             while (!_disposed && !cancellationToken.IsCancellationRequested)
             {
-                try { await BringUpAsync(cancellationToken).ConfigureAwait(false); }
+                try
+                {
+                    if (Wanted) await BringUpAsync(cancellationToken).ConfigureAwait(false);
+                    else await DropIfIdleAsync().ConfigureAwait(false);
+                }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex) { _log.LogDebug(ex, "[FastRadio] keep-up"); }
 
@@ -127,6 +135,65 @@ public sealed class FastRadioService : IDisposable
             Interlocked.Exchange(ref _keepingUp, 0);
         }, CancellationToken.None);
     }
+
+    /// <summary>
+    /// Say that something needs the fast radio now — a message to send, a call, a transfer.
+    /// </summary>
+    /// <remarks>
+    /// Cheap and idempotent; call it whenever traffic appears. The link comes up if it is not up and
+    /// the clock restarts, so a conversation keeps it alive without anybody managing it.
+    /// </remarks>
+    public void Wake()
+    {
+        _wantedUntil = DateTimeOffset.UtcNow + HoldFor;
+        if (_disposed || _group.IsInGroup) return;
+
+        _ = Task.Run(async () =>
+        {
+            try { await BringUpAsync().ConfigureAwait(false); }
+            catch (Exception ex) { _log.LogDebug(ex, "[FastRadio] wake"); }
+        });
+    }
+
+    /// <summary>Whether anything has wanted the link recently enough to keep holding it.</summary>
+    private bool Wanted => DateTimeOffset.UtcNow < _wantedUntil;
+
+    /// <summary>
+    /// Put the radio away when nobody has needed it for a while.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the difference between a connection and a residence. Holding a Wi-Fi Direct group
+    /// permanently makes the phone an access point that beacons around the clock, and on this hardware
+    /// the host loses its own Wi-Fi for as long as it does — measured, the station went to
+    /// "DISCONNECTED, Frequency: -1MHz" and the other phone's latency to its gateway went from 4ms to
+    /// 836ms. All of that to carry nothing, because most of the time there is nothing to carry.
+    /// </para>
+    /// <para>
+    /// The cost is a few seconds before the first packet of a new conversation. That is a tick
+    /// appearing a moment later, or a ring taking slightly longer — against a radio the phone gets to
+    /// keep the rest of the day.
+    /// </para>
+    /// </remarks>
+    private async Task DropIfIdleAsync()
+    {
+        if (!_group.IsInGroup || _currentGroup is null) return;
+
+        T("nothing needs the fast radio — putting it away so this phone gets its Wi-Fi back");
+        _currentGroup = null;
+        await _group.LeaveAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// How long the link is held after the last thing that wanted it.
+    /// </summary>
+    /// <remarks>
+    /// Long enough to cover the gaps in a conversation — nobody types continuously — and short enough
+    /// that a phone put down in a pocket is not still running an access point ten minutes later.
+    /// </remarks>
+    private static readonly TimeSpan HoldFor = TimeSpan.FromSeconds(45);
+
+    private DateTimeOffset _wantedUntil = DateTimeOffset.MinValue;
 
     /// <summary>
     /// Host the Circle's group, or join it. Safe to call as often as you like — it does nothing when

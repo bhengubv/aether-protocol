@@ -115,6 +115,15 @@ public interface IRadioMesh
     /// </summary>
     Task<bool> SendPacketAsync(byte[] packetBytes);
 
+    /// <summary>
+    /// Send in a named lane. Real-time overtakes everything; bulk waits for a gap.
+    /// </summary>
+    /// <remarks>
+    /// Hosts with one queue send in order and are no worse than they were. Where lanes exist, this is
+    /// what stops a 36KB attachment chunk holding the wire while voice frames expire behind it.
+    /// </remarks>
+    Task<bool> SendPacketAsync(byte[] packetBytes, SendLane lane) => SendPacketAsync(packetBytes);
+
     /// <summary>Raised with a raw, serialized <c>MeshPacket</c> that arrived over a radio.</summary>
     event Action<byte[]>? PacketReceived;
 

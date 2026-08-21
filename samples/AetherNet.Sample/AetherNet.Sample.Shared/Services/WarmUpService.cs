@@ -146,7 +146,14 @@ public sealed class WarmUpService
             // does on a cold start, and it used to happen on whichever page first asked who you are.
             case "identity":
                 var me = Get<IIdentityService>();
-                step.Detail = me?.AetherTag;
+                if (me is null) { Absent(step, "no identity on this device"); break; }
+
+                // Unsealing touches the hardware keystore, which is slow and must not happen on the
+                // UI thread. Doing it here means every later read is a field.
+                if (me is IdentityService identity)
+                    await identity.PrepareAsync().ConfigureAwait(false);
+
+                step.Detail = me.AetherTag;
                 break;
 
             // Opening SQLite and running the schema migration. On the UI thread this is the freeze

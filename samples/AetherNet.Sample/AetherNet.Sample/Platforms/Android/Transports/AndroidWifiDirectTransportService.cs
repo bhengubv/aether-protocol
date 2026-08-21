@@ -890,7 +890,12 @@ public sealed class AndroidWifiDirectTransportService
                     System.Text.Encoding.UTF8.GetString(frame, 0, 5) == "ERID:")
                 {
                     peerUhid = System.Text.Encoding.UTF8.GetString(frame, 5, frame.Length - 5);
-                    _peers[peerUhid] = new PeerLink(client, stream);
+                    var link = new PeerLink(client, stream);
+                    _peers[peerUhid] = link;
+
+                    // One sender per peer, draining its lanes for as long as the socket lives.
+                    var who = peerUhid;
+                    _ = Task.Run(() => PumpLanesAsync(who, link));
                     L($"linked with {peerUhid}");
                     PeerLinked?.Invoke(peerUhid);
                     continue;
@@ -915,17 +920,70 @@ public sealed class AndroidWifiDirectTransportService
 
     // ── ITransportService send/query ────────────────────────────────────────────
 
-    public async Task<bool> SendAsync(string peerUhid, byte[] data, CancellationToken cancellationToken = default)
+    public Task<bool> SendAsync(string peerUhid, byte[] data, CancellationToken cancellationToken = default) =>
+        SendAsync(peerUhid, data, SendLane.Interactive, cancellationToken);
+
+    /// <summary>
+    /// Put a packet in its lane. The sender drains real-time first, then interactive, then bulk.
+    /// </summary>
+    public Task<bool> SendAsync(string peerUhid, byte[] data, SendLane lane,
+        CancellationToken cancellationToken = default)
     {
         if (!_peers.TryGetValue(peerUhid, out var link))
         {
             L($"▶ nowhere to send {data.Length}B — {peerUhid} is not one of the {_peers.Count} linked");
-            return false;
+            Quality.Record(data.Length, TimeSpan.Zero, sent: false);
+            return Task.FromResult(false);
         }
-        await link.Write.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { await WriteFrameAsync(link.Stream, data).ConfigureAwait(false); return true; }
-        catch (Exception ex) { L($"▶ send to {peerUhid} failed: {ex.Message}"); return false; }
-        finally { link.Write.Release(); }
+
+        var queue = link.Lanes[(int)lane];
+        queue.Enqueue(data);
+
+        // Bulk is bounded. Real-time and interactive are not, because they are small and rare enough
+        // that a bound would only ever throw away something somebody is waiting for.
+        if (lane == SendLane.Bulk)
+            while (queue.Count > PeerLink.BulkDepth && queue.TryDequeue(out _)) { }
+
+        link.Ready.Release();
+        return Task.FromResult(true);
+    }
+
+    /// <summary>
+    /// Drain one peer's lanes for as long as it is linked, strictly in priority order.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not fair. A file has nobody waiting on any particular chunk and resumes if it is
+    /// interrupted; speech has a deadline measured in tens of milliseconds and is worthless past it.
+    /// Starving bulk while a call is in progress is the correct outcome, not a bug — the transfer
+    /// carries on the moment the call ends.
+    /// </remarks>
+    private async Task PumpLanesAsync(string peerUhid, PeerLink link)
+    {
+        while (!_disposed && _peers.ContainsKey(peerUhid))
+        {
+            try { await link.Ready.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
+            catch (ObjectDisposedException) { return; }
+
+            byte[]? frame = null;
+            for (var lane = 0; lane < PacketPriority.Lanes && frame is null; lane++)
+                link.Lanes[lane].TryDequeue(out frame);
+            if (frame is null) continue;
+
+            // Timed across the whole write, because how long the wire takes to accept a frame is the
+            // congestion signal everything else sizes itself from.
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            try
+            {
+                await WriteFrameAsync(link.Stream, frame).ConfigureAwait(false);
+                Quality.Record(frame.Length, Since(started), sent: true);
+            }
+            catch (Exception ex)
+            {
+                L($"▶ send to {peerUhid} failed: {ex.Message}");
+                Quality.Record(frame.Length, Since(started), sent: false);
+                return;   // the socket is gone; the redial loop will build a new one
+            }
+        }
     }
 
     public async Task<bool> SendStreamAsync(string peerUhid, Stream stream, CancellationToken cancellationToken = default)
@@ -945,7 +1003,11 @@ public sealed class AndroidWifiDirectTransportService
     public bool IsLinked => !_peers.IsEmpty;
     public string? PeerTag => _peers.Keys.FirstOrDefault();
     public Task<bool> SendAsync(byte[] data)
-        => PeerTag is { } p ? SendAsync(p, data) : Task.FromResult(false);
+        => SendAsync(data, SendLane.Interactive);
+
+    /// <inheritdoc />
+    public Task<bool> SendAsync(byte[] data, SendLane lane)
+        => PeerTag is { } p ? SendAsync(p, data, lane) : Task.FromResult(false);
     public void Stop() => Dispose();
 
     // ── Framing: [4-byte little-endian length][payload] ─────────────────────────
@@ -1011,6 +1073,28 @@ public sealed class AndroidWifiDirectTransportService
     private sealed record PeerLink(TcpClient Client, NetworkStream Stream)
     {
         public SemaphoreSlim Write { get; } = new(1, 1);
+
+        /// <summary>
+        /// One queue per lane, so speech never waits behind a file.
+        /// </summary>
+        /// <remarks>
+        /// A single queue meant a 36KB attachment chunk held the wire for about a third of a second
+        /// while every voice frame offered during it sat behind it. The call broke up for as long as
+        /// anything was transferring, and no bitrate was low enough to help — the problem was the
+        /// order, not the volume.
+        /// </remarks>
+        public System.Collections.Concurrent.ConcurrentQueue<byte[]>[] Lanes { get; } =
+            [new(), new(), new()];
+
+        /// <summary>Wakes the sender when something is queued.</summary>
+        public SemaphoreSlim Ready { get; } = new(0);
+
+        /// <summary>
+        /// How much may wait in the bulk lane before the oldest is dropped. Attachments resume, so a
+        /// dropped chunk is asked for again; an unbounded queue on a slow link is a phone running out
+        /// of memory instead.
+        /// </summary>
+        public const int BulkDepth = 64;
     }
 
     // ── Android listener/receiver adapters ──────────────────────────────────────

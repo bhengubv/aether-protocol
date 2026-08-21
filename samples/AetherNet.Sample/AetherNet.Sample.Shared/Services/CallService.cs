@@ -34,6 +34,7 @@ public sealed class CallService : IDisposable
     private readonly ISignalProtocolService _signal;
     private readonly IAudioIo _audio;
     private readonly IVideoIo? _video;
+    private readonly FastRadioService? _fastRadio;
 
     /// <summary>
     /// Chat, only for its session repair. A call hits exactly the wall a message does, and duplicating
@@ -98,7 +99,8 @@ public sealed class CallService : IDisposable
         AetherNet.Sample.Shared.Data.AetherStore? store = null,
         ChatService? chat = null,
         IRadioMesh? radio = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        FastRadioService? fastRadio = null)
     {
         _store = store;
         _chat = chat;
@@ -106,6 +108,7 @@ public sealed class CallService : IDisposable
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
         _audio = audio ?? throw new ArgumentNullException(nameof(audio));
         _video = video;
+        _fastRadio = fastRadio;
         _radio = radio;
         _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<CallService>();
 
@@ -612,7 +615,9 @@ public sealed class CallService : IDisposable
 
             await _radio.SendPacketAsync(PacketSerializer.Serialize(new MeshPacket
             {
-                Type = PacketType.Data,
+                // Typed, so the send path can put it in the real-time lane. While this was Data
+                // it queued behind attachment chunks like everything else.
+                Type = PacketType.VideoFrame,
                 SourceUhid = _me.AetherTag,
                 DestinationUhid = peerTag,
                 Ttl = 1,      // the same one hop the key takes; a camera state is between two phones
@@ -881,7 +886,7 @@ public sealed class CallService : IDisposable
 
             await _radio.SendPacketAsync(PacketSerializer.Serialize(new MeshPacket
             {
-                Type = PacketType.Data,
+                Type = PacketType.VoiceSignaling,
                 SourceUhid = _me.AetherTag,
                 DestinationUhid = peerTag,
                 Ttl = 1,
@@ -901,7 +906,7 @@ public sealed class CallService : IDisposable
         catch { return; }
 
         // The key handoff rides an ordinary data packet, as the mesh-web and the Wi-Fi Direct broker do.
-        if (packet.Type == PacketType.Data &&
+        if (packet.Type is PacketType.Data or PacketType.VideoFrame or PacketType.VoiceSignaling or PacketType.VoiceCall &&
             packet.Payload is { } p && p.Length > KeyMarker.Length &&
             Encoding.UTF8.GetString(p, 0, KeyMarker.Length) == KeyMarker)
         {
@@ -912,7 +917,7 @@ public sealed class CallService : IDisposable
         // So does the camera going on and off. It has to be told, rather than inferred from frames
         // stopping: a phone cannot otherwise tell a switched-off camera from a dead link, and would
         // sit showing a frozen last frame as though the call were fine.
-        if (packet.Type == PacketType.Data &&
+        if (packet.Type is PacketType.Data or PacketType.VideoFrame or PacketType.VoiceSignaling or PacketType.VoiceCall &&
             packet.Payload is { } v && v.Length > VideoMarker.Length &&
             Encoding.UTF8.GetString(v, 0, VideoMarker.Length) == VideoMarker)
         {
@@ -1212,6 +1217,9 @@ public sealed class CallService : IDisposable
     private void SizeMediaToLink()
     {
         if (_radio is null) return;
+
+        // Once a second for as long as the call lasts, so the link is never put away underneath one.
+        _fastRadio?.Wake();
 
         var strain = _radio.LinkStrain;
 
