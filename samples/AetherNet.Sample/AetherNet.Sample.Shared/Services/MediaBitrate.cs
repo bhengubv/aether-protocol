@@ -96,18 +96,29 @@ public static class MediaBitrate
     }
 
     /// <summary>
-    /// Whether a link that has demonstrated <paramref name="observedBps"/> is worth putting video on
-    /// at all.
+    /// Whether this link is worth putting video on.
     /// </summary>
+    /// <param name="strain">From <see cref="LinkQuality.Strain"/> — how hard the link is working now.</param>
+    /// <param name="people">How many cameras would share it.</param>
     /// <remarks>
-    /// Takes a MEASURED floor, not an advertised capacity. A link that has never carried more than
-    /// eleven kilobits has not earned a camera, whatever its datasheet says — that figure is the one
-    /// BLE published while delivering a hundred and eightieth of it.
+    /// <para>
+    /// Asks whether the link is <em>struggling</em>, not how much it has carried. Throughput is a
+    /// floor — what actually crossed — and using it as a capacity test is self-fulfilling: during a
+    /// voice call the link carries about 24 kbps because that is all anyone offered it, so a test for
+    /// "has it carried 120 kbps" answers no, forever, and video can never start. Measured on device:
+    /// "Wi-Fi Direct is not carrying enough for video with 2 — voice only", on a link that had just
+    /// moved seven thousand voice frames without refusing one.
+    /// </para>
+    /// <para>
+    /// A comfortable link gets the benefit of the doubt, and <see cref="Video"/> takes it straight back
+    /// if the picture turns out to be too much — down to stopping the camera. Finding out by trying is
+    /// the only honest way to learn a capacity nobody will tell you.
+    /// </para>
     /// </remarks>
-    public static bool WorthVideo(long observedBps, int people = 2)
+    public static bool WorthVideo(double strain, int people = 2)
     {
-        if (observedBps <= 0) return false;
-        var share = Math.Max(people - 1, 1);
-        return observedBps >= (long)VideoFloorBps * share;
+        // Already working hard with voice alone: adding a camera would take the call down with it.
+        var ceiling = people >= 4 ? 0.15 : 0.3;
+        return strain < ceiling;
     }
 }

@@ -216,27 +216,41 @@ public class LinkSizingTests
     // ── the gate ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The measured figure decides. A link that has never carried more than eleven kilobits has not
-    /// earned a camera, whatever its datasheet claims — that figure is the one BLE published while
-    /// delivering a hundred and eightieth of it.
+    /// A link already working hard on voice alone does not get a camera as well — adding one would
+    /// take the call down with it.
     /// </summary>
     [Fact]
-    public void A_link_that_has_never_carried_anything_does_not_get_video()
+    public void A_struggling_link_does_not_get_video()
     {
-        Assert.False(MediaBitrate.WorthVideo(11_000));
-        Assert.False(MediaBitrate.WorthVideo(0));
+        Assert.False(MediaBitrate.WorthVideo(strain: 0.5));
+        Assert.False(MediaBitrate.WorthVideo(strain: 1.0));
     }
 
+    /// <summary>
+    /// A comfortable link gets the benefit of the doubt, because the alternative is never finding out.
+    ///
+    /// <para>
+    /// This replaces a test that asked whether the link had already carried enough. That question is
+    /// unanswerable in the only case that matters: during a voice call a link carries about 24 kbps
+    /// because that is all anyone offered it, so "has it carried 120 kbps" is no, forever, and video
+    /// could never start. Measured on device before this changed — a link that had moved seven
+    /// thousand voice frames without a single refusal was told it could not manage a camera.
+    /// </para>
+    /// </summary>
     [Fact]
-    public void A_link_that_has_carried_real_traffic_does()
+    public void A_comfortable_link_gets_the_benefit_of_the_doubt()
     {
-        Assert.True(MediaBitrate.WorthVideo(2_000_000));
+        Assert.True(MediaBitrate.WorthVideo(strain: 0.0));
+        Assert.True(MediaBitrate.WorthVideo(strain: 0.1));
     }
 
+    /// <summary>
+    /// More cameras is more to go wrong, so a crowded call needs a calmer link before it will add one.
+    /// </summary>
     [Fact]
     public void A_link_good_for_two_may_not_be_good_for_five()
     {
-        Assert.True(MediaBitrate.WorthVideo(300_000, people: 2));
-        Assert.False(MediaBitrate.WorthVideo(300_000, people: 5));
+        Assert.True(MediaBitrate.WorthVideo(strain: 0.2, people: 2));
+        Assert.False(MediaBitrate.WorthVideo(strain: 0.2, people: 5));
     }
 }

@@ -317,6 +317,10 @@ public sealed class ChatService
     /// </summary>
     public async Task EnsureSessionAsync(string peerTag, CancellationToken cancellationToken = default)
     {
+        // A session cannot be built over a radio that is down, so this needs it too — and this is the
+        // path a call takes before it rings.
+        _fastRadio?.Wake();
+
         if (string.IsNullOrEmpty(peerTag) || _radio is null) return;
 
         await EnsureLocalBundleAsync(cancellationToken).ConfigureAwait(false);
@@ -386,6 +390,12 @@ public sealed class ChatService
 
         _store.SaveMessage(message);
         Changed?.Invoke();
+
+        // Wake the radio here, where something first needs it — not only in FlushAsync, which runs
+        // once a link already exists. Waking on the settle-up path alone meant the first message of a
+        // conversation sat pending against "not connected" forever: the thing that would have brought
+        // the radio up was itself waiting for the radio to be up.
+        _fastRadio?.Wake();
 
         await EnsureSessionAsync(peerTag, cancellationToken).ConfigureAwait(false);
         await TryDeliverAsync(message, cancellationToken).ConfigureAwait(false);

@@ -277,7 +277,7 @@ public sealed class AndroidWifiDirectTransportService
         // so plainly — "Service Discovery Query TX callback: success=0". Sending the credentials over
         // the link instead only moved the problem, since they needed the radio they were for.
         EnsureInitialized();
-        LeaveAnyStaleGroup();
+        _ = LeaveAnyStaleGroupAsync();
         L("radio up — the group comes from the Circle, not from a search");
     }
 
@@ -296,8 +296,11 @@ public sealed class AndroidWifiDirectTransportService
     ///   derived the same answer before anybody switched a radio on.
     ///   </para>
     /// </param>
-    public async Task<WifiDirectCredentials?> HostAsync(WifiDirectCredentials? wanted,
-        CancellationToken cancellationToken = default)
+    public Task<WifiDirectCredentials?> HostAsync(WifiDirectCredentials? wanted,
+        CancellationToken cancellationToken = default) => HostAsync(wanted, cancellationToken, attempt: 0);
+
+    private async Task<WifiDirectCredentials?> HostAsync(WifiDirectCredentials? wanted,
+        CancellationToken cancellationToken, int attempt)
     {
         if (_manager is null) return null;
         if (Blocker is { } blocker) { L($"can't host — {blocker}"); return null; }
@@ -309,16 +312,28 @@ public sealed class AndroidWifiDirectTransportService
         // nobody has. Start clean.
         await LeaveAsync().ConfigureAwait(false);
 
-        // Searching while creating is a collision, and there is nothing left to search for.
-        _manager.StopPeerDiscovery(_channel, new ActionListener("stopPeerDiscovery", _logger, onFailure: _ => { }));
+        // Searching while creating is a collision, and there is nothing left to search for. Awaited,
+        // because issuing createGroup while this is still in flight is what BUSY means.
+        await P2pAsync("stopPeerDiscovery", l => _manager.StopPeerDiscovery(_channel, l)).ConfigureAwait(false);
 
-        var created = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var listener = new ActionListener("createGroup", _logger,
-            onFailure: r => { L($"createGroup failed reason={r}"); created.TrySetResult(false); },
-            onSuccess: () => created.TrySetResult(true));
+        // BUSY is the framework saying "not yet", not "no".
+        //
+        // Android serialises every Wi-Fi P2P operation on the channel, and issuing the next before the
+        // last has finished is refused with reason 2. Tearing down an old group, stopping discovery
+        // and creating a group all in a row is exactly that sequence — measured here as
+        // "cancelConnect failed (Busy)", "removeGroup failed (Busy)", "stopPeerDiscovery failed
+        // (Busy)", "createGroup failed reason=2", one after another, and the group never formed.
+        //
+        // So it waits and asks again. A transient refusal treated as a permanent one is how a radio
+        // that works looks broken.
 
+        bool created;
         if (WifiDirectCredentials.IsUsable(wanted) && CanNameTheGroup)
         {
+            // Asking for a channel is a preference, not a requirement. If the framework refuses the
+            // request outright we would rather have a group on a channel we did not choose than no
+            // group at all — so the preference is dropped and asked again, once.
+            var askForChannel = attempt < 1;
             var builder = new WifiP2pConfig.Builder()
                 .SetNetworkName(wanted!.NetworkName)
                 .SetPassphrase(wanted.Passphrase);
@@ -342,7 +357,9 @@ public sealed class AndroidWifiDirectTransportService
             // by default, and the station never recovers — so the next launch asks a disconnected
             // phone again and gets the same answer. The loop closes on itself and the household Wi-Fi
             // never comes back until Wi-Fi is toggled by hand.
-            var station = await WaitForStationAsync(cancellationToken).ConfigureAwait(false);
+            var station = askForChannel
+                ? await WaitForStationAsync(cancellationToken).ConfigureAwait(false)
+                : 0;
 
             if (station > 0 && CanHostOn(station))
             {
@@ -364,19 +381,34 @@ public sealed class AndroidWifiDirectTransportService
             }
 
             L($"creating {wanted.NetworkName} — the name this Circle already knows");
-            _manager.CreateGroup(_channel, builder.Build(), listener);
+            var config = builder.Build();
+            created = await P2pAsync("createGroup", l => _manager.CreateGroup(_channel, config, l)).ConfigureAwait(false);
         }
         else
         {
             L("creating a group to host");
-            _manager.CreateGroup(_channel, listener);
+            created = await P2pAsync("createGroup", l => _manager.CreateGroup(_channel, l)).ConfigureAwait(false);
         }
 
-        if (!await created.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false))
-            return null;
+        if (!created)
+        {
+            // A plain refusal on the first go is most likely the channel preference — drop it and ask
+            // again without one before concluding the radio will not host.
+            if (attempt == 0)
+            {
+                L("the radio refused that request — asking again without a channel preference");
+                return await HostAsync(wanted, cancellationToken, attempt + 1).ConfigureAwait(false);
+            }
+
+            if (LastFailure != BusyReason || attempt >= BusyRetries) return null;
+
+            L($"the radio is still busy — asking again in a moment ({attempt + 1}/{BusyRetries})");
+            await Task.Delay(BusyBackoff * (attempt + 1), cancellationToken).ConfigureAwait(false);
+            return await HostAsync(wanted, cancellationToken, attempt + 1).ConfigureAwait(false);
+        }
 
         // The group exists but its details are not immediately readable; ask until they are.
-        for (var attempt = 0; attempt < 20 && !cancellationToken.IsCancellationRequested; attempt++)
+        for (var read = 0; read < 20 && !cancellationToken.IsCancellationRequested; read++)
         {
             if (await ReadGroupAsync(cancellationToken).ConfigureAwait(false) is { } credentials)
             {
@@ -482,6 +514,76 @@ public sealed class AndroidWifiDirectTransportService
     /// below it the framework picks — which puts that phone back to needing the credentials delivered.
     /// </summary>
     /// <summary>How long to wait for a group to actually form after connect() has been accepted.</summary>
+    /// <summary>
+    /// Run one Wi-Fi P2P operation and wait for the framework to finish it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Android serialises every P2P operation on the channel. Issuing the next before the last has
+    /// called back is refused with BUSY — and because we then issue another, and another, the refusals
+    /// never stop. Measured on the P30: <c>removeGroup</c>, <c>stopPeerDiscovery</c> and
+    /// <c>createGroup</c> all returned Busy on every attempt for fifty seconds straight, through four
+    /// retries, while the app kept firing them over the top of each other.
+    /// </para>
+    /// <para>
+    /// That looked like a radio refusing to work and was the app jamming itself. Everything goes
+    /// through here now: one at a time, each waited for, with a timeout so a callback the framework
+    /// never delivers cannot wedge the queue behind it.
+    /// </para>
+    /// </remarks>
+    private async Task<bool> P2pAsync(string op, Action<WifiP2pManager.IActionListener> issue,
+        TimeSpan? timeout = null)
+    {
+        if (_manager is null || _channel is null) return false;
+
+        await _p2p.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var failed = 0;
+
+            issue(new ActionListener(op, _logger,
+                onFailure: r => { failed = r; done.TrySetResult(false); },
+                onSuccess: () => done.TrySetResult(true)));
+
+            var ok = await done.Task.WaitAsync(timeout ?? OperationTimeout).ConfigureAwait(false);
+            LastFailure = ok ? 0 : failed;
+            return ok;
+        }
+        catch (TimeoutException)
+        {
+            // The framework never answered. Carrying on is better than never issuing anything again,
+            // and the operation may well have taken effect anyway.
+            L($"{op} did not answer in {(timeout ?? OperationTimeout).TotalSeconds:0}s");
+            LastFailure = 0;
+            return false;
+        }
+        finally
+        {
+            _p2p.Release();
+        }
+    }
+
+    /// <summary>Why the last operation failed, or 0. Read straight after a P2pAsync that returned false.</summary>
+    private int LastFailure { get; set; }
+
+    /// <summary>One P2P operation at a time, across the whole radio.</summary>
+    private readonly SemaphoreSlim _p2p = new(1, 1);
+
+    /// <summary>
+    /// How long to wait for a callback before deciding the framework has swallowed it.
+    /// </summary>
+    private static readonly TimeSpan OperationTimeout = TimeSpan.FromSeconds(8);
+
+    /// <summary>WifiP2pManager.BUSY. The framework is mid-operation, not refusing.</summary>
+    private const int BusyReason = 2;
+
+    /// <summary>How many times to wait out a busy radio before giving up on this round.</summary>
+    private const int BusyRetries = 4;
+
+    /// <summary>Grows with each attempt, so a radio that needs a moment gets one.</summary>
+    private static readonly TimeSpan BusyBackoff = TimeSpan.FromMilliseconds(1200);
+
     private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(20);
 
     private static readonly TimeSpan JoinPoll = TimeSpan.FromMilliseconds(500);
@@ -530,21 +632,20 @@ public sealed class AndroidWifiDirectTransportService
 
         // Searching and joining at the same time is the collision the old path kept losing to. Nothing
         // here needs discovery, so stop it.
-        _manager.StopPeerDiscovery(_channel, new ActionListener("stopPeerDiscovery", _logger, onFailure: _ => { }));
+        await P2pAsync("stopPeerDiscovery", l => _manager.StopPeerDiscovery(_channel, l)).ConfigureAwait(false);
 
         var config = new WifiP2pConfig.Builder()
             .SetNetworkName(credentials.NetworkName)
             .SetPassphrase(credentials.Passphrase)
             .Build();
 
-        var accepted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         L($"joining {credentials.NetworkName}");
-        _manager.Connect(_channel, config, new ActionListener("joinGroup", _logger,
-            onFailure: r => { L($"join failed reason={r}"); accepted.TrySetResult(false); },
-            onSuccess: () => accepted.TrySetResult(true)));
-
-        if (!await accepted.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false))
+        if (!await P2pAsync("joinGroup", l => _manager.Connect(_channel, config, l),
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false))
+        {
+            if (LastFailure != 0) L($"join failed reason={LastFailure}");
             return false;
+        }
 
         // Accepted is not joined.
         //
@@ -570,13 +671,9 @@ public sealed class AndroidWifiDirectTransportService
     {
         if (_manager is null || _channel is null) return;
 
-        var left = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _manager.RemoveGroup(_channel, new ActionListener("removeGroup", _logger,
-            onFailure: _ => left.TrySetResult(true),      // usually "no group" — which is the goal anyway
-            onSuccess: () => left.TrySetResult(true)));
-
-        try { await left.Task.WaitAsync(TimeSpan.FromSeconds(4)).ConfigureAwait(false); }
-        catch (TimeoutException) { }
+        // A failure here is usually "there is no group", which is the goal anyway.
+        await P2pAsync("removeGroup", l => _manager.RemoveGroup(_channel, l),
+            TimeSpan.FromSeconds(4)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -592,17 +689,26 @@ public sealed class AndroidWifiDirectTransportService
     /// the framework unwilling to start a new one.
     /// </para>
     /// </summary>
-    private void LeaveAnyStaleGroup()
+    /// <summary>
+    /// Put the radio back to a clean state before doing anything with it.
+    /// </summary>
+    /// <remarks>
+    /// Strictly in order and each awaited. Firing these together is what produced fifty seconds of
+    /// BUSY on every operation — the framework was never given the chance to finish one.
+    /// </remarks>
+    private async Task LeaveAnyStaleGroupAsync()
     {
         if (_manager is null || _channel is null) return;
 
-        _manager.CancelConnect(_channel, new ActionListener("cancelConnect", _logger, onFailure: _ => { }));
-        _manager.RequestGroupInfo(_channel, new GroupInfoListener(group =>
-        {
-            if (group is null) return;
-            L($"leaving a leftover group ({group.NetworkName}) so this phone can be invited again");
-            _manager.RemoveGroup(_channel, new ActionListener("removeGroup", _logger, onFailure: _ => { }));
-        }));
+        await P2pAsync("cancelConnect", l => _manager.CancelConnect(_channel, l),
+            TimeSpan.FromSeconds(4)).ConfigureAwait(false);
+
+        var group = await ReadGroupAsync(CancellationToken.None).ConfigureAwait(false);
+        if (group is not null)
+            L($"leaving a leftover group ({group.NetworkName}) so this phone starts clean");
+
+        await P2pAsync("removeGroup", l => _manager.RemoveGroup(_channel, l),
+            TimeSpan.FromSeconds(4)).ConfigureAwait(false);
     }
 
     private sealed class GroupInfoListener(Action<WifiP2pGroup?> onGroup)

@@ -123,8 +123,18 @@ public sealed class FastRadioService : IDisposable
             {
                 try
                 {
-                    if (Wanted) await BringUpAsync(cancellationToken).ConfigureAwait(false);
-                    else await DropIfIdleAsync().ConfigureAwait(false);
+                    // Held for as long as the app is running, and measured rather than assumed.
+                    //
+                    // It was torn down after 45s idle, to spare the phone's own Wi-Fi. The numbers that
+                    // justified that were taken on a handset whose Wi-Fi was switched off, and are
+                    // wrong. Measured properly, on two healthy phones with the group up on 2437 while
+                    // both stations sat on 5500: the client goes from 21ms to 39ms average and the host
+                    // from 15ms to 23ms, and NEITHER station drops. That is a real cost and a small one.
+                    //
+                    // Tearing down cost far more than it saved: a phone whose radio is down cannot be
+                    // told it has an incoming call, so every call to an idle phone rang out. A doubling
+                    // of ping latency is worth paying to be reachable.
+                    await BringUpAsync(cancellationToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex) { _log.LogDebug(ex, "[FastRadio] keep-up"); }

@@ -170,7 +170,7 @@ public sealed class GroupCallService : IDisposable
         Joined &&
         _video is { IsPresent: true } &&
         Participants.Count <= VideoCap + 1 &&
-        MediaBitrate.WorthVideo(_radio?.LinkBandwidthBps ?? 0, Participants.Count);
+        MediaBitrate.WorthVideo(_radio?.LinkStrain ?? 0, Participants.Count);
 
     /// <summary>
     /// Size the picture to the link, counting every camera on it.
@@ -202,9 +202,11 @@ public sealed class GroupCallService : IDisposable
             // advertised figure for Wi-Fi Direct is a flat 250 Mbps that nothing has ever checked, so
             // a gate built on it says yes to everything — including a link time-slicing against the
             // phone's own access point.
-            return MediaBitrate.WorthVideo(_radio?.LinkBandwidthBps ?? 0, people)
+            // Asked of how hard the link is working, not of how much it has carried. A link carrying
+            // only voice has only carried voice — that says nothing about whether it could carry more.
+            return MediaBitrate.WorthVideo(_radio?.LinkStrain ?? 0, people)
                 ? null
-                : $"{_radio?.LinkRadio ?? "this radio"} is not carrying enough for video with {people} — voice only";
+                : $"{_radio?.LinkRadio ?? "this radio"} is working too hard for video with {people} — voice only";
         }
     }
 
