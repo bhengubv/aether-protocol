@@ -266,6 +266,27 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
         }
     }
 
+    /// <summary>
+    /// Put audio out of the speaker.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One writer at a time, always. <c>AudioTrack.write</c> is not safe to call concurrently: its
+    /// buffer accounting is kept in shared memory, and two writers corrupt it. When they do, the
+    /// platform does not return an error — it calls <c>abort()</c>, and the whole process is gone.
+    /// </para>
+    /// <para>
+    /// Measured on the P30 during a group call, the moment a camera came on:
+    /// <c>abort ← __android_log_assert ← ClientProxy::releaseBuffer ← AudioTrack::write</c>. The
+    /// process died with no managed exception and no warning, which is why it looked like the app
+    /// had simply been closed. A 1:1 call never showed it — there is one remote stream, so one
+    /// writer, and the second only appears once something else starts playing at the same time.
+    /// </para>
+    /// <para>
+    /// The lock is separate from <c>_gate</c> deliberately: a write blocks until the buffer drains,
+    /// and holding the state lock for that long would stall anyone trying to end the call.
+    /// </para>
+    /// </remarks>
     public void Play(short[] pcm)
     {
         if (pcm is null || pcm.Length == 0) return;
@@ -274,9 +295,19 @@ public sealed class AndroidAudioIo : IAudioIo, IDisposable
         lock (_gate) speaker = IsRunning ? _speaker : null;
         if (speaker is null) return;
 
-        try { speaker.Write(pcm, 0, pcm.Length); }
-        catch (Exception) { /* the call is going away; silence is the right outcome */ }
+        lock (_speakerWrite)
+        {
+            // Re-check inside the lock: the call can end while a previous write is draining, and
+            // writing to a released track is the other way to abort the process.
+            lock (_gate) { if (!IsRunning || !ReferenceEquals(_speaker, speaker)) return; }
+
+            try { speaker.Write(pcm, 0, pcm.Length); }
+            catch (Exception) { /* the call is going away; silence is the right outcome */ }
+        }
     }
+
+    /// <summary>Held across every speaker write, and nothing else. See <see cref="Play"/>.</summary>
+    private readonly object _speakerWrite = new();
 
     public async Task StopAsync()
     {

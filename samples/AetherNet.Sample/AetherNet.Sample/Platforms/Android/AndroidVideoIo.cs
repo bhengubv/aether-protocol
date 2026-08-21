@@ -379,6 +379,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         }
     }
 
+    private int _captureGeneration;
     private global::Android.OS.HandlerThread? _cameraThread;
     private global::Android.OS.Handler? _cameraHandler;
 
@@ -476,7 +477,12 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             var request = camera.CreateCaptureRequest(CameraTemplate.Record);
             foreach (var target in targets) request.AddTarget(target);
 
-            camera.CreateCaptureSession(targets, new Streaming(this, request.Build()), CameraThread);
+            // Stamped, because a session that is being replaced still delivers its callbacks. The
+            // preview arriving late closes one session and opens another, and the closed one's
+            // OnConfigured then fires — adopting it would overwrite the live session with a dead one
+            // and configure a closed session, which throws "Session has been closed".
+            var generation = ++_captureGeneration;
+            camera.CreateCaptureSession(targets, new Streaming(this, request.Build(), generation), CameraThread);
         }
         catch (Exception ex)
         {
@@ -513,11 +519,19 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         public void OnSurfaceTextureUpdated(SurfaceTexture surface) { }
     }
 
-    private sealed class Streaming(AndroidVideoIo video, CaptureRequest request)
+    private sealed class Streaming(AndroidVideoIo video, CaptureRequest request, int generation)
         : CameraCaptureSession.StateCallback
     {
         public override void OnConfigured(CameraCaptureSession session)
         {
+            // A callback from a session we have already moved on from. Close it and leave the live
+            // one alone.
+            if (generation != video._captureGeneration)
+            {
+                try { session.Close(); } catch { /* already gone */ }
+                return;
+            }
+
             video._session = session;
             try { session.SetRepeatingRequest(request, null, video.CameraThread); }
             catch (Exception ex) { global::Android.Util.Log.Error("AetherVideo", "capture refused: " + ex); }
@@ -588,10 +602,18 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     /// </summary>
     private void AddTile(Stream_ stream)
     {
-        if (_disposed || _grid is null || stream.View is not null) return;
+        if (_disposed || stream.View is not null) return;
 
         var activity = Platform.CurrentActivity;
         if (activity is null) return;
+
+        // Somebody else turned their camera on and this phone did not. The surfaces to draw them on
+        // were only ever built as a side effect of starting our OWN camera, so a person who joined a
+        // video call to watch had nowhere to watch it: every frame arrived, found no grid, and was
+        // dropped. On screen that was a blank window with call controls floating on it, while the
+        // radio moved 155KB/s of video nobody could see.
+        if (_grid is null) AddOverlay();
+        if (_grid is null) return;
 
         var view = new TextureView(activity);
         view.SurfaceTextureListener = new TileSurface(this, stream);

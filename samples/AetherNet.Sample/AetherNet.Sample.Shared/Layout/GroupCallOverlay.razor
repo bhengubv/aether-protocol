@@ -119,6 +119,18 @@
        become transparent rather than merely hide its contents. A solid background here is a solid
        background over the video. */
     .gcall.over-video { background: transparent; }
+
+    /* The same reach as the 1:1 overlay needs, for the same reason: this screen going transparent
+       only reveals the app behind it, and the app is opaque. Without these the group call showed the
+       chat list while everybody's camera streamed behind it — 228KB/s of video arriving and none of
+       it visible. */
+    html:has(.gcall.over-video),
+    body:has(.gcall.over-video),
+    .app:has(.gcall.over-video) { background: transparent; }
+
+    .app:has(.gcall.over-video) > .appbar,
+    .app:has(.gcall.over-video) > .viewport,
+    .app:has(.gcall.over-video) > .tabbar { visibility: hidden; }
     .ghead.hidden, .gwhy.hidden { visibility: hidden; }
     .gcall.over-video .gactions,
     .gcall.over-video .gend {
