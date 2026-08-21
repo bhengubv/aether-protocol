@@ -92,11 +92,27 @@ public interface IWifiDirectGroup
     /// </summary>
     Task<WifiDirectCredentials?> HostAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Create the group under credentials the Circle can already derive, so nothing has to be sent.
+    /// </summary>
+    Task<WifiDirectCredentials?> HostAsync(WifiDirectCredentials? wanted,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Join a group by name and passphrase, with no discovery and no invitation.</summary>
     Task<bool> JoinAsync(WifiDirectCredentials credentials, CancellationToken cancellationToken = default);
 
     /// <summary>Leave whatever group this phone is in. Safe when it is in none.</summary>
     Task LeaveAsync();
+
+    /// <summary>
+    /// The group has gone — the other phone left, or the radio dropped it.
+    /// </summary>
+    /// <remarks>
+    /// The radio deliberately does not put it back itself. It has no idea who ought to be in a group
+    /// with this phone; that is the contact list's business, and it is what decides whether to host or
+    /// to join. A radio that reconnected on its own would be guessing.
+    /// </remarks>
+    event Action? GroupLost;
 }
 
 /// <summary>Stands in where there are no radios — the Web head, desktop.</summary>
@@ -105,7 +121,13 @@ public sealed class NullWifiDirectGroup : IWifiDirectGroup
     public bool IsSupported => false;
     public Task<WifiDirectCredentials?> HostAsync(CancellationToken cancellationToken = default)
         => Task.FromResult<WifiDirectCredentials?>(null);
+    public Task<WifiDirectCredentials?> HostAsync(WifiDirectCredentials? wanted,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<WifiDirectCredentials?>(null);
     public Task<bool> JoinAsync(WifiDirectCredentials credentials, CancellationToken cancellationToken = default)
         => Task.FromResult(false);
     public Task LeaveAsync() => Task.CompletedTask;
+
+    /// <summary>Never raised — there is no group here to lose.</summary>
+    public event Action? GroupLost { add { } remove { } }
 }

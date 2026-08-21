@@ -214,16 +214,18 @@ public sealed class WarmUpService
             // takes seconds, which is exactly why it belongs here and not in front of a person who
             // has just pressed Call.
             case "wifidirect":
+                var fast = Get<FastRadioService>();
                 var mesh = Get<IRadioMesh>();
-                if (mesh is not { IsSupported: true }) { Absent(step, "not on this device"); break; }
+                if (fast is null || mesh is not { IsSupported: true }) { Absent(step, "not on this device"); break; }
 
-                // Nothing to drive from here. The radio came up in the step above and is already
-                // advertising itself and listening for others; all this step does is wait a moment to
-                // see whether anyone answers, and say so either way.
-                step.Detail = await WaitForAsync(() => mesh.LinkRadio == "Wi-Fi Direct" && mesh.IsLinked,
-                        TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false)
-                    ? $"group up with {mesh.PeerTag ?? "a phone nearby"}"
-                    : "ready — the group forms the moment another phone is in range";
+                // Nothing to discover and nothing to wait for a peer to say. The group is worked out
+                // from the contact list, so it can be brought up here, before anybody taps anything.
+                await fast.BringUpAsync(cancellationToken).ConfigureAwait(false);
+
+                // And keep it up after this screen is gone. The other phone may not have been ready
+                // yet, and nothing else in the app is watching for the moment it becomes ready.
+                fast.KeepUp();
+                step.Detail = fast.State;
                 break;
 
             // The second leg: when nobody is in range, a phone with data can carry for one that has

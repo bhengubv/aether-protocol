@@ -74,24 +74,6 @@ public sealed class ChatService
     /// </summary>
     private const string ProxyMarker = "AETHERPXY";
 
-    /// <summary>
-    /// Carries the Wi-Fi Direct group's name and passphrase to one contact, sealed in their session.
-    ///
-    /// <para>
-    /// This is how the fast radio comes up now, and it replaces service discovery entirely. Four
-    /// measured attempts showed DNS-SD cannot complete between these handsets — both answer queries
-    /// and neither receives the reply, because both ends free-run p2p_find and every query lands while
-    /// the other is mid-search. <c>createGroup()</c>, by contrast, has succeeded on every single run.
-    /// </para>
-    ///
-    /// <para>
-    /// So the host makes the group and tells its Circle where it is. Nobody has to be discovered,
-    /// nobody is dialled, no invitation dialog appears, and credentials reach only people already
-    /// inside a session — a stranger cannot receive them, which is what makes this safe where
-    /// broadcasting them never could be.
-    /// </para>
-    /// </summary>
-    private const string GroupMarkerWfd = "AETHERWFD";
 
     /// <summary>A message id is a 32-character hex GUID, carried inside the encrypted body.</summary>
     private const int IdLength = 32;
@@ -134,10 +116,7 @@ public sealed class ChatService
     private readonly ProxyDirectory? _proxies;
     private readonly IAppShareService? _appShare;
     private readonly IRelayHost? _gateway;
-    private readonly IWifiDirectGroup? _group;
 
-    /// <summary>Contacts already handed the current group's credentials.</summary>
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _toldAboutGroup = new(StringComparer.Ordinal);
     private readonly ILogger _log;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private readonly SessionRepair _repair;
@@ -157,14 +136,12 @@ public sealed class ChatService
         ProxyDirectory? proxies = null,
         IAppShareService? appShare = null,
         IRelayHost? gateway = null,
-        IWifiDirectGroup? group = null,
         ILoggerFactory? loggerFactory = null)
     {
         _circle = circle;
         _proxies = proxies;
         _appShare = appShare;
         _gateway = gateway;
-        _group = group;
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
@@ -448,13 +425,9 @@ public sealed class ChatService
         if (_circle is not null && _signal.HasSession(peerTag))
             _ = ShareRoutingKeyAsync(peerTag, cancellationToken);
 
-        // The fast radio comes up here, from the contact list rather than from discovery. Both phones
-        // know both tags, so both compute the same answer about who hosts, and the host simply says
-        // where the group is.
-        if (_signal.HasSession(peerTag))
-            _ = BringUpFastRadioAsync(peerTag, cancellationToken);
-
-        // Discovery is not asked for here any more. It finds its own peers over DNS-SD and
+        // The fast radio is not asked for here at all. FastRadioService brings it up from the contact
+        // list, which it can do before a single message exists — asking from here made chat a
+        // prerequisite for the radio, and the radio a prerequisite for chat. It finds its own peers over DNS-SD and
         // settles who hosts from the ids both sides advertise, so a message being sent is not news to
         // it — by the time there is a message, the group is either already up or coming up on its own.
         //
@@ -871,7 +844,6 @@ public sealed class ChatService
             case PingMarker: _ = ReceivePingAsync(packet.SourceUhid, payload); break;
             case CircleMarker: _ = ReceiveCircleAsync(packet.SourceUhid, payload); break;
             case ProxyMarker: _ = ReceiveProxyAsync(packet.SourceUhid, payload); break;
-            case GroupMarkerWfd: _ = ReceiveGroupKeyAsync(packet.SourceUhid, payload); break;
         }
     }
 
@@ -989,71 +961,6 @@ public sealed class ChatService
                 _log.LogWarning(ex, "Could not offer the shared app for install");
             }
         });
-    }
-
-    /// <summary>
-    /// Bring the fast radio up with one contact — by hosting for them, or by waiting to be told where
-    /// to join.
-    /// </summary>
-    /// <remarks>
-    /// Who hosts is decided from the two AetherTags, which both phones already hold, so there is
-    /// nothing to negotiate and nothing to discover. That is the whole point: discovery is what could
-    /// not be made to work, and it turns out not to be needed — you do not have to find somebody whose
-    /// name you already know.
-    /// </remarks>
-    private async Task BringUpFastRadioAsync(string peerTag, CancellationToken cancellationToken = default)
-    {
-        if (_group is not { IsSupported: true } || _radio is null) return;
-        if (!GroupRole.HostsTheGroup(_me.AetherTag, peerTag)) return;   // they host; we wait to be told
-        if (!_toldAboutGroup.TryAdd(peerTag, 0)) return;
-
-        try
-        {
-            var credentials = await _group.HostAsync(cancellationToken).ConfigureAwait(false);
-            if (!WifiDirectCredentials.IsUsable(credentials))
-            {
-                _toldAboutGroup.TryRemove(peerTag, out _);
-                return;
-            }
-
-            var sealedPayload = await _signal
-                .EncryptAsync(peerTag, Encoding.UTF8.GetBytes(credentials!.ToJson()), cancellationToken)
-                .ConfigureAwait(false);
-
-            if (await _radio.SendPacketAsync(Wrap(GroupMarkerWfd, sealedPayload, peerTag)).ConfigureAwait(false))
-                T($"hosting {credentials.NetworkName} — told {peerTag} where to join");
-            else
-                _toldAboutGroup.TryRemove(peerTag, out _);   // nothing went out; offer again next flush
-        }
-        catch (Exception ex)
-        {
-            _toldAboutGroup.TryRemove(peerTag, out _);
-            _log.LogWarning(ex, "Could not host a group for {Peer}", peerTag);
-        }
-    }
-
-    /// <summary>A contact is hosting the group and has told us where it is. Join it.</summary>
-    private async Task ReceiveGroupKeyAsync(string? senderTag, byte[] payload)
-    {
-        if (string.IsNullOrEmpty(senderTag) || _group is not { IsSupported: true }) return;
-
-        try
-        {
-            var sealedPayload = EncryptedPayloadCodec.Deserialize(payload.AsSpan(GroupMarkerWfd.Length).ToArray());
-            var json = Encoding.UTF8.GetString(await _signal.DecryptAsync(senderTag, sealedPayload).ConfigureAwait(false));
-
-            var credentials = WifiDirectCredentials.Parse(json);
-            if (!WifiDirectCredentials.IsUsable(credentials)) return;
-
-            T($"{senderTag} is hosting {credentials!.NetworkName} — joining");
-            if (await _group.JoinAsync(credentials).ConfigureAwait(false))
-                T($"on {credentials.NetworkName} with {senderTag} — the fast radio is up");
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "Could not join {Peer}'s group", senderTag);
-            if (LooksLikeABrokenSession(ex)) await RepairSessionAsync(senderTag).ConfigureAwait(false);
-        }
     }
 
     /// <summary>Whether this phone can hand the app to another one.</summary>

@@ -56,8 +56,11 @@ public class CallNeedsAWideRadioTests
         public bool IsSupported => supported;
         public Task<WifiDirectCredentials?> HostAsync(CancellationToken ct = default)
             => Task.FromResult<WifiDirectCredentials?>(null);
+        public Task<WifiDirectCredentials?> HostAsync(WifiDirectCredentials? wanted, CancellationToken ct = default)
+            => Task.FromResult<WifiDirectCredentials?>(null);
         public Task<bool> JoinAsync(WifiDirectCredentials c, CancellationToken ct = default) => Task.FromResult(false);
         public Task LeaveAsync() => Task.CompletedTask;
+        public event Action? GroupLost { add { } remove { } }
     }
 
     private static CallService APhone(long linkBps, bool linked = true, bool hasWifiDirect = true)
