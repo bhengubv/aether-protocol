@@ -72,6 +72,17 @@ public sealed class WifiDirectBroker : IDisposable
     public bool IsUp { get; private set; }
 
     /// <summary>
+    /// The group this phone is hosting, kept so the key can be offered again.
+    ///
+    /// <para>
+    /// Null when joining rather than hosting — a joiner has nothing to hand out. Held because the
+    /// first offer goes out seconds after launch, often before any radio can carry it, and the only
+    /// way to recover is to still have the credentials when a link finally arrives.
+    /// </para>
+    /// </summary>
+    private WifiDirectCredentials? _hosting;
+
+    /// <summary>
     /// Whether this phone could bring a wide link up at all — not whether one is up now.
     ///
     /// <para>
@@ -125,7 +136,28 @@ public sealed class WifiDirectBroker : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (IsUp) return true;
+            // A group that is up is not the same as a group anybody is in.
+            //
+            // This used to return here, and that quietly made the key a one-shot: the group forms
+            // within a second of launch — before BLE has linked — so the single offer went out over a
+            // radio that could not carry it and was gone. Every later attempt then short-circuited on
+            // a group nobody had ever joined, and the phones sat either side of an empty network
+            // moving their traffic over eleven kilobits. Watched on merlin 12:30:01: the P30 reported
+            // "sent the key" and merlin never logged it arriving at all.
+            //
+            // So while we are hosting, offer it again. Idempotent by construction — a peer that has
+            // already joined ignores a second key, and the offer is one small packet. Every link-up
+            // asks, so the first link that actually works delivers it.
+            if (IsUp)
+            {
+                if (_hosting is null) return true;
+
+                var again = await OfferTheKeyAsync(peerTag, _hosting, cancellationToken).ConfigureAwait(false);
+                T(again
+                    ? $"already hosting {_hosting.NetworkName} — offered the key to {peerTag} again"
+                    : $"already hosting {_hosting.NetworkName}, but {peerTag} still cannot be reached");
+                return again;
+            }
 
             // Exactly one of us hosts, and the rule decides which — see HostsTheGroup.
             //
@@ -149,6 +181,7 @@ public sealed class WifiDirectBroker : IDisposable
             if (credentials is null) { T("could not create a group to host"); return false; }
 
             IsUp = true;
+            _hosting = credentials;
             Raise();
 
             // Keep offering the key. A group nobody can join is worse than no group at all: it is up,
@@ -173,6 +206,7 @@ public sealed class WifiDirectBroker : IDisposable
             // costs power and can disturb the phone's own Wi-Fi.
             T($"hosting {credentials.NetworkName}, but {peerTag} never got the key — taking it down");
             IsUp = false;
+            _hosting = null;
             await _group.LeaveAsync().ConfigureAwait(false);
             Raise();
             return false;
@@ -188,6 +222,7 @@ public sealed class WifiDirectBroker : IDisposable
     {
         if (!IsUp) return;
         IsUp = false;
+        _hosting = null;
         await _group.LeaveAsync().ConfigureAwait(false);
         T("left the group");
         Raise();
@@ -267,6 +302,12 @@ public sealed class WifiDirectBroker : IDisposable
         var payload = packet.Payload;
         if (payload is null || payload.Length <= Marker.Length) return;
         if (Encoding.UTF8.GetString(payload, 0, Marker.Length) != Marker) return;
+
+        // Said the moment it lands, before anything can go wrong with it. Without this, a key that
+        // arrived and could not be used looked exactly like a key that never arrived — merlin sat on
+        // "waiting for their key" in silence while the P30's log showed it sent on the first try, and
+        // there was no way to tell which end to look at.
+        T($"a group key arrived from {packet.SourceUhid}");
 
         _ = ReceiveAsync(packet.SourceUhid, payload);
     }

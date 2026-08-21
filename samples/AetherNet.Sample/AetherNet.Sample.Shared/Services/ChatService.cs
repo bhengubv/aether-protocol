@@ -380,9 +380,16 @@ public sealed class ChatService
         // this person, so both sides know both tags, so the broker can settle who hosts without a
         // race. Not awaited: a group takes seconds to form and nothing here should wait on it — the
         // traffic goes over whatever is linked now and moves across when the group arrives.
-        if (_wifiDirect is { IsUp: false, IsSupported: true })
+        // Asked on EVERY settle-up, not only when the group is down.
+        //
+        // This was guarded on IsUp:false, which made the whole thing a one-shot: the group forms
+        // within a second of launch, before BLE has linked, so its one key offer is lost — and then
+        // this guard ensured the broker was never asked again. Two phones sat either side of an empty
+        // Wi-Fi Direct network moving everything over eleven kilobits. A group that is up is not the
+        // same as a group anybody is in, and only the broker can tell the difference, so let it.
+        if (_wifiDirect is { IsSupported: true })
         {
-            T($"bringing up Wi-Fi Direct with {peerTag} — it is the radio that can actually carry this");
+            T($"asking Wi-Fi Direct about {peerTag} — it is the radio that can actually carry this");
             _ = _wifiDirect.BringUpAsync(peerTag, cancellationToken);
         }
     }
