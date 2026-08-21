@@ -227,11 +227,17 @@ public sealed class WarmUpService
                 break;
 
             // The second leg: when nobody is in range, a phone with data can carry for one that has
-            // none. NOT BUILT — the relay transports live in src/AetherNet.Transport/Relay and are not
-            // registered on this head, so saying anything else here would be a claim the app cannot
-            // back. Reported as absent rather than quietly skipped.
+            // none. The relay server lives on the volunteering phone — there is no service to sign up
+            // to — so the honest question here is whether anybody in this Circle has offered yet.
             case "internet":
-                Absent(step, "not wired up on this device yet");
+                var proxies = Get<ProxyDirectory>();
+                if (proxies is null) { Absent(step, "not on this device"); break; }
+
+                step.Detail = proxies.IsGateway
+                    ? "this phone is relaying for the Circle"
+                    : proxies.Best is { } via
+                        ? $"relaying through {via}"
+                        : "ready — needs somebody in your Circle to switch on relaying";
                 break;
         }
     }

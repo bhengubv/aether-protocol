@@ -25,7 +25,8 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     private IRadio _selected;
 
     public AndroidRadioMesh(IIdentityService me, ILogger<AndroidRadioMesh> logger,
-        AetherNet.Sample.Shared.Services.CircleDirectory? circle = null)
+        AetherNet.Sample.Shared.Services.CircleDirectory? circle = null,
+        AetherNet.Sample.Shared.Services.ProxyDirectory? proxies = null)
     {
         // The radio announces the SAME AetherTag the rest of the app uses. Generating one here would
         // give the device a third identity — the peer you linked with would not be the peer you added,
@@ -58,6 +59,10 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // never can be, and registering it means the picker says "this phone does not have Wi-Fi
         // Aware" rather than the radio not existing at all. See PROTOCOL_SPEC §5.6.
         Register(new AndroidWifiAwareTransportService(() => WireAddress.For(routingKey), logger));
+        // The second leg. Last in the ladder on purpose: it costs the person data and puts their
+        // traffic through somebody else's phone, so it is what you use when the alternative is nothing
+        // at all — which, for a network meant to hold up when you walk out of range, is most of the time.
+        Register(new AndroidInternetTransportService(global::Android.App.Application.Context!, _localUhid, logger, proxies));
         Register(new AndroidNfcTransportService(_localUhid, logger));
         Register(new AndroidLoRaTransportService(_localUhid, logger));
         // Wi-Fi Direct is the radio this mesh is built on, and the default says so.

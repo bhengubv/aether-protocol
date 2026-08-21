@@ -666,6 +666,32 @@ public sealed class AetherStore : IDisposable
     // ── Messages ────────────────────────────────────────────────────────────────
 
     /// <summary>The conversation with one peer, oldest first.</summary>
+    /// <summary>
+    /// Every message naming this content, across all conversations.
+    ///
+    /// <para>
+    /// Content is addressed by hash, not by conversation, so the same bytes arriving once can satisfy
+    /// a message in more than one chat. Asking "what was this" therefore has to ask the whole table
+    /// rather than one peer's messages.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<ChatMessage> GetMessagesWithAttachment(string hash)
+    {
+        if (string.IsNullOrEmpty(hash)) return [];
+
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT * FROM messages WHERE attachment_hash = @hash;";
+            cmd.Parameters.AddWithValue("@hash", hash);
+            using var reader = cmd.ExecuteReader();
+
+            var found = new List<ChatMessage>();
+            while (reader.Read()) found.Add(ReadMessage(reader));
+            return found;
+        }
+    }
+
     public IReadOnlyList<ChatMessage> GetMessages(string peerTag, int limit = 500)
     {
         ArgumentException.ThrowIfNullOrEmpty(peerTag);

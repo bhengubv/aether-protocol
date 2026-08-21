@@ -210,6 +210,20 @@ public sealed class AndroidMediaCapture : IMediaCapture, IDisposable
 
             if (bytes.Length == 0) return null;
 
+            // What the encoder actually did, not what it was asked to do.
+            //
+            // SetAudioEncodingBitRate is a hint and a good number of encoders quietly ignore it: a
+            // nine-second note asked to be 24 kbps came out 91 KB, which is 81 kbps — three and a half
+            // times over. Nothing errors, so the only way to know is to weigh the result. It is logged
+            // every time because the figure varies by phone, and a transfer time calculated from the
+            // requested bitrate is a transfer time that is wrong on the device it matters on.
+            var actualBps = elapsed.TotalSeconds > 0
+                ? (long)(bytes.Length * 8 / elapsed.TotalSeconds)
+                : 0;
+            global::Android.Util.Log.Info("AetherNote",
+                $"note: {bytes.Length:N0}B over {elapsed.TotalSeconds:0.0}s = {actualBps:N0} bps " +
+                $"(asked for {VoiceBitrateBps:N0})");
+
             return new RecordedNote(
                 bytes,
                 CanWriteOpus ? ChatMessage.VoiceNote : ChatMessage.VoiceNoteAac,

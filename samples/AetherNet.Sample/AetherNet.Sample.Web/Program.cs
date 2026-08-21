@@ -48,6 +48,7 @@ builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
         new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
             sp.GetRequiredService<IRadioMesh>())));
 builder.Services.AddSingleton<CircleDirectory>();
+builder.Services.AddSingleton<ProxyDirectory>();
 builder.Services.AddSingleton<ChatService>();
 
 // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a

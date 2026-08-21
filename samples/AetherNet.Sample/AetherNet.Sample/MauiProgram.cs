@@ -74,12 +74,24 @@ public static class MauiProgram
             sp.GetService<IRadioMesh>(),
             sp.GetService<AttachmentService>(),
             sp.GetService<CircleDirectory>(),
+            sp.GetService<ProxyDirectory>(),
+            sp.GetService<IAppShareService>(),
             sp.GetService<ILoggerFactory>()));
 
         // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
         // that question about a rotating address, and without an answer the only way to find out is
         // to dial a stranger and see who picks up.
         builder.Services.AddSingleton<CircleDirectory>();
+
+        // Which phone in the Circle is carrying traffic for the others, and where to reach it. There
+        // is no directory to look this up in by design — the address arrives from a contact, inside
+        // their session, or not at all.
+        builder.Services.AddSingleton<ProxyDirectory>();
+
+        // The app carries itself: a mesh that needs a store to spread has a single point of
+        // failure standing in front of its very first step.
+        builder.Services.AddSingleton<IAppShareService, AetherNet.Sample.Platforms.Android.AndroidAppShareService>();
+        builder.Services.AddSingleton<AetherNet.Sample.Platforms.Android.GatewayService>();
 
         // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
         // transfer resumes across a dropped link and works on a radio far too slow for a call.

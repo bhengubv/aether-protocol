@@ -63,6 +63,17 @@ public sealed class ChatService
     /// </summary>
     private const string CircleMarker = "AETHERCIR";
 
+    /// <summary>
+    /// Tells one contact that this phone is carrying traffic for the Circle, and where to reach it.
+    ///
+    /// <para>
+    /// Sealed in their session like the routing key, and for the same reason: a proxy address on the
+    /// air is an invitation to anyone listening to route their traffic through a stranger's phone, and
+    /// to that phone's owner to carry it.
+    /// </para>
+    /// </summary>
+    private const string ProxyMarker = "AETHERPXY";
+
     /// <summary>A message id is a 32-character hex GUID, carried inside the encrypted body.</summary>
     private const int IdLength = 32;
 
@@ -101,6 +112,8 @@ public sealed class ChatService
     /// </para>
     /// </summary>
     private readonly CircleDirectory? _circle;
+    private readonly ProxyDirectory? _proxies;
+    private readonly IAppShareService? _appShare;
     private readonly ILogger _log;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private readonly SessionRepair _repair;
@@ -117,9 +130,13 @@ public sealed class ChatService
         IRadioMesh? radio = null,
         AttachmentService? attachments = null,
         CircleDirectory? circle = null,
+        ProxyDirectory? proxies = null,
+        IAppShareService? appShare = null,
         ILoggerFactory? loggerFactory = null)
     {
         _circle = circle;
+        _proxies = proxies;
+        _appShare = appShare;
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
@@ -134,7 +151,13 @@ public sealed class ChatService
         // Attachments share this session and had no way to recover from a broken one. Chat is where
         // repair lives — voice already borrows it for the same reason — so notes borrow it too rather
         // than growing a second copy of the trickiest code in the app.
-        if (_attachments is not null) _attachments.SessionLooksBroken += OnAttachmentSessionBroken;
+        if (_attachments is not null)
+        {
+            _attachments.SessionLooksBroken += OnAttachmentSessionBroken;
+
+            // An app that arrives has to offer itself, or it is a forty-megabyte bubble nobody can open.
+            _attachments.Arrived += OnAttachmentArrived;
+        }
         if (_radio is not null)
         {
             _radio.PacketReceived += OnPacket;
@@ -813,6 +836,7 @@ public sealed class ChatService
             case GroupMarker: _ = ReceiveGroupAsync(packet.SourceUhid, payload); break;
             case PingMarker: _ = ReceivePingAsync(packet.SourceUhid, payload); break;
             case CircleMarker: _ = ReceiveCircleAsync(packet.SourceUhid, payload); break;
+            case ProxyMarker: _ = ReceiveProxyAsync(packet.SourceUhid, payload); break;
         }
     }
 
@@ -899,6 +923,134 @@ public sealed class ChatService
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Could not open a routing key from {Peer}", senderTag);
+            if (LooksLikeABrokenSession(ex)) await RepairSessionAsync(senderTag).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Something finished arriving. If it is the app itself, offer to install it.
+    /// </summary>
+    /// <remarks>
+    /// Only offers — the system installer is what asks, and the person is what decides. Nothing
+    /// installs because it finished downloading.
+    /// </remarks>
+    private void OnAttachmentArrived(string hash)
+    {
+        if (_appShare is not { IsSupported: true } || _attachments is null) return;
+        if (!_store.GetMessagesWithAttachment(hash).Any(m => m.AttachmentType == AppPackageType)) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var bytes = await _attachments.GetAsync(hash).ConfigureAwait(false);
+                if (bytes is null || bytes.Length == 0) return;
+
+                T($"the app arrived ({bytes.Length / (1024 * 1024)} MB) — offering to install it");
+                await _appShare.OfferToInstallAsync(bytes).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Could not offer the shared app for install");
+            }
+        });
+    }
+
+    /// <summary>The content type an Android package arrives under. Recognised on the way in, so a
+    /// shared app offers to install itself rather than sitting in a chat as an unopenable blob.</summary>
+    public const string AppPackageType = "application/vnd.android.package-archive";
+
+    /// <summary>
+    /// Give somebody the app itself.
+    ///
+    /// <para>
+    /// It goes as an ordinary attachment, which is the whole trick: attachments are already
+    /// content-addressed, chunked and resumable, so a forty-megabyte package survives a link dropping
+    /// halfway and picks up where it stopped. A bespoke transfer path for this would be a second
+    /// implementation of something already working, and a worse one.
+    /// </para>
+    ///
+    /// <para>
+    /// The receiving phone ends at Android's own installer prompt. That is not an obstacle to route
+    /// around — it is the moment a person decides to trust what the phone beside them just handed
+    /// over, and an app that arranged to skip it would be malware with good manners.
+    /// </para>
+    /// </summary>
+    public async Task<bool> ShareAppAsync(string peerTag, CancellationToken cancellationToken = default)
+    {
+        if (_appShare is not { IsSupported: true })
+        {
+            T($"cannot share the app: {_appShare?.UnavailableReason ?? "not supported on this phone"}");
+            return false;
+        }
+
+        var installer = await _appShare.ReadInstallerAsync(cancellationToken).ConfigureAwait(false);
+        if (installer is null || installer.Length == 0) return false;
+
+        T($"sharing the app with {peerTag} — {installer.Length / (1024 * 1024)} MB, no store involved");
+        return await SendNoteAsync(peerTag, installer, AppPackageType, "Aether.apk",
+            "Aether — install this to join", cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Tell one contact where to reach this phone while it is acting as the Circle's relay — or that
+    /// it has stopped.
+    /// </summary>
+    public async Task OfferProxyAsync(string peerTag, string? url, CancellationToken cancellationToken = default)
+    {
+        if (_radio is null || !_signal.HasSession(peerTag)) return;
+
+        try
+        {
+            // An empty address is how a phone withdraws. Saying nothing would leave every contact
+            // pointing at a relay that has stopped answering, which looks exactly like a dead network.
+            var sealedPayload = await _signal
+                .EncryptAsync(peerTag, Encoding.UTF8.GetBytes(url ?? string.Empty), cancellationToken)
+                .ConfigureAwait(false);
+
+            if (await _radio.SendPacketAsync(Wrap(ProxyMarker, sealedPayload, peerTag)).ConfigureAwait(false))
+                T(url is null ? $"told {peerTag} this phone has stopped relaying"
+                              : $"offered {peerTag} a relay at {url}");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not offer a relay to {Peer}", peerTag);
+        }
+    }
+
+    /// <summary>Tell everyone we hold a session with. Used when the gateway is switched on or off.</summary>
+    public async Task OfferProxyToCircleAsync(string? url, CancellationToken cancellationToken = default)
+    {
+        foreach (var contact in _store.GetContacts())
+        {
+            if (!contact.IsMutual) continue;
+            await OfferProxyAsync(contact.Tag, url, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>A contact is offering to carry this phone's traffic — or has stopped.</summary>
+    private async Task ReceiveProxyAsync(string? senderTag, byte[] payload)
+    {
+        if (string.IsNullOrEmpty(senderTag) || _proxies is null) return;
+
+        try
+        {
+            var sealedPayload = EncryptedPayloadCodec.Deserialize(payload.AsSpan(ProxyMarker.Length).ToArray());
+            var url = Encoding.UTF8.GetString(await _signal.DecryptAsync(senderTag, sealedPayload).ConfigureAwait(false));
+
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                _proxies.Withdraw(senderTag);
+                T($"{senderTag} has stopped relaying");
+                return;
+            }
+
+            _proxies.Offer(senderTag, url);
+            T($"{senderTag} is relaying for the Circle at {url}");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not open a relay offer from {Peer}", senderTag);
             if (LooksLikeABrokenSession(ex)) await RepairSessionAsync(senderTag).ConfigureAwait(false);
         }
     }

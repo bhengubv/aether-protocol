@@ -747,11 +747,26 @@ densely the payload is packed. Raising `BleMaxPayloadBytes` moves bytes per
 operation, not operations per second, and a voice frame is latency-bound rather
 than size-bound.
 
-**What BLE is still good for:** everything that is not real-time. A ten-second
-voice note is ~10 KB of Opus and crosses in about 7 seconds. That is why
-attachments are content-addressed and chunked (§9) rather than streamed — slow
-is acceptable when it resumes, and a note that takes seven seconds to arrive is
-still a note, while a call that takes seven seconds to arrive is nothing.
+**What BLE is still good for:** everything that is not real-time — but the
+figures below are the ones that matter, and the arithmetic ones were wrong.
+
+A ten-second voice note was described here as ~10 KB of Opus crossing in about
+7 seconds. That was calculated from the bitrate the recorder is *asked* for
+(24 kbps), and `MediaRecorder.setAudioEncodingBitRate` is a hint that encoders
+on both of these handsets ignore. Measured: **9 seconds of speech produced
+91 KB**, an effective ~81 kbps — about 3.5× the request, and roughly **10× the
+size** this section previously implied. At 11 kbps that note takes **over a
+minute** to cross BLE, not seven seconds.
+
+Nothing errors when the hint is ignored, so the only way to know is to weigh
+the output; the sample logs the effective bitrate of every note it records for
+exactly this reason. **Implementations MUST NOT** derive transfer times from a
+requested encoder bitrate. Measure the encoded artefact.
+
+That gap is why attachments are content-addressed and chunked (§9) rather than
+streamed — slow is acceptable when it resumes, and a note that takes a minute
+to arrive is still a note, while a call that takes a minute to arrive is
+nothing.
 
 **Implementations MUST NOT** select a transport for real-time media on advertised
 `MaxBandwidthBps` alone. BLE 5.0 advertises ~2 Mbps in §5.3 and delivers ~11 kbps

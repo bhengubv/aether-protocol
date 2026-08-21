@@ -146,7 +146,33 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     // load-bearing twice over: Widest() picks the radio traffic leaves on from it, and the codec
     // sizes itself from it, so a flattering figure buys a call that cannot work and will not say so.
     public long MaxBandwidthBps => 11_000;
-    public bool IsLinked => _linked;
+    /// <summary>
+    /// Linked means a peer is there <b>and</b> there is a way to reach them. Both halves, or it is not
+    /// a link.
+    ///
+    /// <para>
+    /// This used to report the first half alone, and the two come up separately: a handshake arriving
+    /// inbound sets the peer, while the ability to answer needs the central to have subscribed to the
+    /// notify characteristic. Between those two moments this radio said it was linked and could not
+    /// send a byte — which is exactly what "app→radio 391B on BLE linked=True sent=False" was, over
+    /// and over, on a phone whose queue filled with frames it had nowhere to put.
+    /// </para>
+    ///
+    /// <para>
+    /// The damage was not the wasted frames. The mesh picks a radio by asking which one is linked, so
+    /// a radio claiming a link it cannot use takes the traffic and drops it, while a radio that could
+    /// have carried it sits idle. Saying "not linked" is what lets the mesh route around it.
+    /// </para>
+    /// </summary>
+    public bool IsLinked => _linked && HasSendPath;
+
+    /// <summary>
+    /// Whether there is a live GATT path out of here — a remote characteristic to write to as the
+    /// central, or a subscribed peer to notify as the peripheral.
+    /// </summary>
+    private bool HasSendPath =>
+        (_gatt is not null && _rxCharRemote is not null) ||
+        (_gattServer is not null && _txChar is not null && _peripheralPeer is not null);
     public string? PeerTag => _peerTag;
 
     public event Action<string>? PeerLinked;
@@ -544,6 +570,7 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
             L($"▶ {how}: {_framesAccepted} on the air, {_framesRefused} deferred (radio busy), {frame.Length}B");
     }
 
+    private int _pathReports;
     private int _framesAccepted;
     private int _framesRefused;
 
@@ -568,8 +595,16 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
             }
             else
             {
-                L($"▶ dropped {frame.Length}B — no GATT path (central={_gatt is not null} peripheral={_peripheralPeer is not null})");
-                lock (_sendLock) { _sending = false; }                  // no transport yet — stop cleanly
+                // Hold it rather than throw it away. The path comes up moments after the peer does —
+                // the central still has to subscribe — and a frame discarded in that window is a hole
+                // in the middle of a packet the far side is reassembling, which is worse than late.
+                //
+                // The queue is bounded by MaxQueuedFrames above, so a path that never arrives cannot
+                // grow this without limit; it fills, SendAsync starts refusing, and IsLinked now says
+                // "not linked" so the mesh sends over something that works instead.
+                if (++_pathReports % 50 == 1)
+                    L($"▶ holding {frame.Length}B — no GATT path yet (central={_gatt is not null} peripheral={_peripheralPeer is not null})");
+                Requeue(frame);
             }
         }
         catch (Exception ex)
