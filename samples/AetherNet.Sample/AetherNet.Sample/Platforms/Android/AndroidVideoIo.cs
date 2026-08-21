@@ -242,6 +242,34 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         // Below the WebView in z-order so the call controls Blazor draws stay on top and tappable.
         content.AddView(_overlay, 0, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
+
+        // …and below an OPAQUE WebView is below a wall. The page goes see-through in CSS while a
+        // camera is on, but a WebView paints its own background underneath the page regardless, so
+        // the video was drawn correctly, decoded correctly, and covered up. Both phones showed the
+        // chat list while a live camera streamed behind it.
+        SetWebViewTransparent(content, true);
+    }
+
+    /// <summary>
+    /// Let the video behind the page be seen — or put the page's own background back.
+    /// </summary>
+    /// <remarks>
+    /// Found by walking the view tree rather than held as a reference: the WebView belongs to MAUI's
+    /// BlazorWebView and is rebuilt when the handler is, so anything cached here would eventually
+    /// point at a view that is no longer on screen.
+    /// </remarks>
+    private static void SetWebViewTransparent(ViewGroup root, bool transparent)
+    {
+        for (var i = 0; i < root.ChildCount; i++)
+        {
+            var child = root.GetChildAt(i);
+            if (child is global::Android.Webkit.WebView web)
+            {
+                web.SetBackgroundColor(transparent ? Color.Transparent : Color.Black);
+                continue;
+            }
+            if (child is ViewGroup group) SetWebViewTransparent(group, transparent);
+        }
     }
 
     /// <summary>Build the H.264 encoder and take its input surface for the camera to draw onto.</summary>
@@ -324,6 +352,36 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         }
     }
 
+    /// <summary>
+    /// The thread camera2 delivers its callbacks on.
+    ///
+    /// <para>
+    /// Every camera2 entry point takes a Handler, and passing null means "use the calling thread's
+    /// Looper". Video is started from a background thread, which has none — so the P30 happened to
+    /// work and merlin threw <c>IllegalArgumentException: No handler given, and current thread has no
+    /// looper!</c> straight out of <c>openCamera</c>. Same code, same call, opposite outcome, decided
+    /// entirely by which thread the caller arrived on.
+    /// </para>
+    /// <para>
+    /// A thread of our own settles it, and is what camera2 wants anyway: callbacks land off the UI
+    /// thread, so opening a session cannot stall the interface.
+    /// </para>
+    /// </summary>
+    private global::Android.OS.Handler CameraThread
+    {
+        get
+        {
+            if (_cameraHandler is not null) return _cameraHandler;
+
+            _cameraThread = new global::Android.OS.HandlerThread("aether-camera");
+            _cameraThread.Start();
+            return _cameraHandler = new global::Android.OS.Handler(_cameraThread.Looper!);
+        }
+    }
+
+    private global::Android.OS.HandlerThread? _cameraThread;
+    private global::Android.OS.Handler? _cameraHandler;
+
     private bool OpenCamera()
     {
         try
@@ -334,7 +392,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             var id = PickCamera(manager);
             if (manager is null || id is null) return false;
 
-            manager.OpenCamera(id, new Opened(this), null);
+            manager.OpenCamera(id, new Opened(this), CameraThread);
             return true;
         }
         catch (Exception ex)
@@ -406,7 +464,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             var request = camera.CreateCaptureRequest(CameraTemplate.Record);
             foreach (var target in targets) request.AddTarget(target);
 
-            camera.CreateCaptureSession(targets, new Streaming(this, request.Build()), null);
+            camera.CreateCaptureSession(targets, new Streaming(this, request.Build()), CameraThread);
         }
         catch (Exception ex)
         {
@@ -420,7 +478,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         public override void OnConfigured(CameraCaptureSession session)
         {
             video._session = session;
-            try { session.SetRepeatingRequest(request, null, null); }
+            try { session.SetRepeatingRequest(request, null, video.CameraThread); }
             catch (Exception ex) { global::Android.Util.Log.Error("AetherVideo", "capture refused: " + ex); }
         }
 
@@ -667,6 +725,12 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         try { _camera?.Close(); } catch { /* already gone */ }
         _camera = null;
 
+        // The camera thread outlives the camera unless it is stopped, and a HandlerThread left running
+        // per call is a thread leaked per call.
+        try { _cameraThread?.QuitSafely(); } catch { /* already gone */ }
+        _cameraThread = null;
+        _cameraHandler = null;
+
         MediaCodec? encoder;
         lock (_gate) { encoder = _encoder; _encoder = null; }
 
@@ -695,7 +759,13 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     {
         try
         {
-            if (_overlay?.Parent is ViewGroup parent) parent.RemoveView(_overlay);
+            if (_overlay?.Parent is ViewGroup parent)
+            {
+                // Put the page's background back before the overlay goes, or every screen after this
+                // call renders over a black window.
+                SetWebViewTransparent(parent, false);
+                parent.RemoveView(_overlay);
+            }
         }
         catch { /* the activity went first */ }
 

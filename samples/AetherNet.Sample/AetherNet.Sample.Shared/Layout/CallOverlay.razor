@@ -246,6 +246,18 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
        solid background over the video. The controls keep their own backdrop so they stay readable
        against whatever the camera happens to be pointing at. */
     .call-screen:has(.call-who.hidden) { background: transparent; }
+
+    /* Transparent is not enough on its own: the call screen sits over the app, and the app is what
+       was actually being seen instead of the video — the chat list, painted over the camera. The whole
+       stack has to get out of the way, all the way down to the page itself, or the picture stays
+       hidden behind whatever the person happened to have open. */
+    html:has(.call-who.hidden),
+    body:has(.call-who.hidden),
+    .app:has(.call-who.hidden) { background: transparent; }
+
+    .app:has(.call-who.hidden) > .appbar,
+    .app:has(.call-who.hidden) > .viewport,
+    .app:has(.call-who.hidden) > .tabbar { visibility: hidden; }
     .call-who.hidden { visibility: hidden; }
     .call-screen:has(.call-who.hidden) .call-actions,
     .call-screen:has(.call-who.hidden) .call-end {
@@ -266,14 +278,23 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
         50%      { box-shadow: 0 0 0 18px transparent; }
     }
 
-    .call-actions { display: flex; gap: 18px; margin-bottom: 8vh; }
+    /* Sized to the narrowest phone we ship to, not to the widest.
+       Four fixed 96px buttons plus their padding wants 582px; a 360px phone has 360, so Mute ran off
+       one edge and Flip off the other the moment turning the camera on added a fourth. Nothing said
+       so — the row simply overflowed, and two controls became unreachable. */
+    .call-actions {
+        display: flex; gap: 8px; margin-bottom: 8vh;
+        max-width: 100%; justify-content: center; flex-wrap: wrap;
+    }
     .cbtn {
         appearance: none; border: 1px solid var(--line); background: var(--surface);
-        color: var(--ink-2); border-radius: 18px; padding: 14px 18px; min-width: 96px;
+        color: var(--ink-2); border-radius: 18px; padding: 12px 8px;
+        flex: 1 1 68px; min-width: 0; max-width: 100px;
         display: flex; flex-direction: column; align-items: center; gap: 6px;
         font-size: 0.78rem; font-weight: 650; cursor: pointer;
     }
-    .cbtn svg { width: 24px; height: 24px; }
+    .cbtn svg { width: 24px; height: 24px; flex: none; }
+    .cbtn span { text-align: center; line-height: 1.15; }
     .cbtn.on { background: var(--brand-tint); border-color: var(--brand); color: var(--brand); }
     .cbtn:active { transform: scale(0.97); }
 
