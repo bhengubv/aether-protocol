@@ -42,22 +42,14 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         _routingKey = routingKey;
 
         Register(new AndroidWifiDirectTransportService(global::Android.App.Application.Context!, _localUhid, logger, routingKey, circle));
-        Register(new AndroidBleTransportService("BLE",
-            "61657468-6572-0001-0000-000000000001", "61657468-6572-0003-0000-000000000001",
-            "61657468-6572-0002-0000-000000000001", _localUhid, logger, routingKey: routingKey));
-        // NearLink (SparkLink) is Huawei silicon driven by HarmonyOS APIs. Android's Bluetooth stack
-        // cannot speak it, so on an Android phone there is no way to detect it, let alone use it. The
-        // GATT engine below is a stand-in for the day the hardware is there — it must never present
-        // itself as a working radio, because running Bluetooth under the NearLink name would be a lie
-        // about what the device just did.
-        Register(new AndroidBleTransportService("NearLink",
-            "6e65726c-696e-0001-0000-000000000001", "6e65726c-696e-0003-0000-000000000001",
-            "6e65726c-696e-0002-0000-000000000001", _localUhid, logger,
-            unavailableReason: "needs NearLink hardware and HarmonyOS", routingKey: routingKey));
-        // Wi-Fi Aware is registered even though no phone here has the hardware. It is an open Wi-Fi
-        // Alliance standard with a standard Android API, so the code is portable in a way NearLink's
-        // never can be, and registering it means the picker says "this phone does not have Wi-Fi
-        // Aware" rather than the radio not existing at all. See PROTOCOL_SPEC §5.6.
+        // Bluetooth is gone, and so is the NearLink stand-in that was Bluetooth wearing a different
+        // name. It measured 11 kbps in one direction — it cannot carry a call, a note or an APK — and
+        // while it was registered it did real harm: the mesh picks whichever radio reports a link, so
+        // BLE kept taking traffic that Wi-Fi Direct was sitting there able to carry properly.
+        //
+        // Two radios, and they are independent. Wi-Fi Direct is the one every phone has and the only
+        // one measured to carry real traffic. Internet is what you fall back to when nobody is in
+        // range, and it is a phone in your Circle relaying, not a service.
         Register(new AndroidWifiAwareTransportService(() => WireAddress.For(routingKey), logger));
         // The second leg. Last in the ladder on purpose: it costs the person data and puts their
         // traffic through somebody else's phone, so it is what you use when the alternative is nothing

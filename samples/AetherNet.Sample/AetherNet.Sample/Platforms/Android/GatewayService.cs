@@ -20,7 +20,7 @@ namespace AetherNet.Sample.Platforms.Android;
 /// would leave them pointed at a phone that has stopped answering.
 /// </para>
 /// </summary>
-public sealed class GatewayService : IAsyncDisposable
+public sealed class GatewayService : IRelayHost, IAsyncDisposable
 {
     /// <summary>
     /// A high port, so no privilege is needed and nothing well-known is taken. It is only ever reached
@@ -29,19 +29,30 @@ public sealed class GatewayService : IAsyncDisposable
     public const int Port = 5200;
 
     private readonly ProxyDirectory _proxies;
-    private readonly ChatService _chat;
+    private readonly Func<string?, CancellationToken, Task> _announce;
     private readonly ILogger<GatewayService> _logger;
     private RelayServer? _server;
 
-    public GatewayService(ProxyDirectory proxies, ChatService chat, ILogger<GatewayService>? logger = null)
+    /// <param name="announce">
+    ///   How the Circle is told. A callback rather than ChatService itself, because chat holds the
+    ///   gateway and the gateway would hold chat — two singletons that cannot both be constructed.
+    /// </param>
+    public GatewayService(ProxyDirectory proxies, Func<string?, CancellationToken, Task> announce,
+        ILogger<GatewayService>? logger = null)
     {
         _proxies = proxies ?? throw new ArgumentNullException(nameof(proxies));
-        _chat = chat ?? throw new ArgumentNullException(nameof(chat));
+        _announce = announce ?? throw new ArgumentNullException(nameof(announce));
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<GatewayService>.Instance;
     }
 
     /// <summary>Whether this phone is carrying traffic for others right now.</summary>
     public bool IsRunning => _server is { IsRunning: true };
+
+    /// <inheritdoc />
+    public bool IsRelaying => IsRunning;
+
+    /// <inheritdoc />
+    public string? RelayAddress => Address;
 
     /// <summary>The address contacts were given, or null when not relaying.</summary>
     public string? Address { get; private set; }
@@ -52,7 +63,7 @@ public sealed class GatewayService : IAsyncDisposable
     /// <summary>
     /// Start carrying traffic, and tell the Circle where to find us.
     /// </summary>
-    public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> StartRelayingAsync(CancellationToken cancellationToken = default)
     {
         if (IsRunning) return true;
 
@@ -76,7 +87,7 @@ public sealed class GatewayService : IAsyncDisposable
 
         // Told inside each session, one contact at a time. There is no directory to publish to, and
         // that is the point — the address goes to people who already know us and nobody else.
-        await _chat.OfferProxyToCircleAsync(Address, cancellationToken).ConfigureAwait(false);
+        await _announce(Address, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation("[Gateway] Relaying for the Circle at {Address}", Address);
         return true;
     }
@@ -86,18 +97,19 @@ public sealed class GatewayService : IAsyncDisposable
     /// relay that no longer answers — which is indistinguishable, from their side, from the network
     /// being down.
     /// </summary>
-    public async Task StopAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> StopRelayingAsync(CancellationToken cancellationToken = default)
     {
         _proxies.IsGateway = false;
-        if (_server is null) return;
+        if (_server is null) return true;
 
-        await _chat.OfferProxyToCircleAsync(null, cancellationToken).ConfigureAwait(false);
+        await _announce(null, cancellationToken).ConfigureAwait(false);
 
         var server = _server;
         _server = null;
         Address = null;
         await server.DisposeAsync().ConfigureAwait(false);
         _logger.LogInformation("[Gateway] Stopped relaying");
+        return true;
     }
 
     /// <summary>

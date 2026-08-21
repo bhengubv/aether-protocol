@@ -76,6 +76,8 @@ public static class MauiProgram
             sp.GetService<CircleDirectory>(),
             sp.GetService<ProxyDirectory>(),
             sp.GetService<IAppShareService>(),
+            sp.GetService<IRelayHost>(),
+            sp.GetService<IWifiDirectGroup>(),
             sp.GetService<ILoggerFactory>()));
 
         // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
@@ -91,7 +93,15 @@ public static class MauiProgram
         // The app carries itself: a mesh that needs a store to spread has a single point of
         // failure standing in front of its very first step.
         builder.Services.AddSingleton<IAppShareService, AetherNet.Sample.Platforms.Android.AndroidAppShareService>();
-        builder.Services.AddSingleton<AetherNet.Sample.Platforms.Android.GatewayService>();
+        builder.Services.AddSingleton<AetherNet.Sample.Platforms.Android.GatewayService>(sp =>
+            new AetherNet.Sample.Platforms.Android.GatewayService(
+                sp.GetRequiredService<ProxyDirectory>(),
+                // Resolved when it is called, not when it is built — chat holds the gateway, so
+                // asking for chat here would be two singletons each waiting on the other.
+                (url, ct) => sp.GetRequiredService<ChatService>().OfferProxyToCircleAsync(url, ct),
+                sp.GetService<ILogger<AetherNet.Sample.Platforms.Android.GatewayService>>()));
+        builder.Services.AddSingleton<IRelayHost>(sp =>
+            sp.GetRequiredService<AetherNet.Sample.Platforms.Android.GatewayService>());
 
         // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
         // transfer resumes across a dropped link and works on a radio far too slow for a call.
@@ -144,6 +154,11 @@ public static class MauiProgram
         // The real over-the-air radio mesh — a native radio inside THIS one app.
 #if ANDROID
         builder.Services.AddSingleton<IRadioMesh, AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh>();
+
+        // Hosting a group is specific to one radio and means nothing to the other, so it is exposed as
+        // the capability rather than the radio.
+        builder.Services.AddSingleton<IWifiDirectGroup>(sp =>
+            ((AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh)sp.GetRequiredService<IRadioMesh>()).WifiDirect);
 #else
         builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();
 #endif

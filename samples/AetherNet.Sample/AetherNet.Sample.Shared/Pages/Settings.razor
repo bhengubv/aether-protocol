@@ -2,6 +2,9 @@
 @using AetherNet.Sample.Shared.Services
 @inject IIdentityService Me
 @inject IJSRuntime JS
+@inject ProxyDirectory Proxies
+@inject ChatService Chat
+@implements IDisposable
 
 <PageTitle>Aether — you</PageTitle>
 
@@ -23,6 +26,52 @@
         </div>
     </section>
 
+    @* The second leg, in the only place it can honestly live: a switch the person owns. Carrying
+       somebody else's traffic spends their battery and their data bundle, so it is never on quietly. *@
+    <section class="group">
+        <div class="glabel">Relay for your Circle</div>
+        <button class="about" @onclick="ToggleGateway" disabled="@_busy">
+            <span class="about-body">
+                <span class="about-t">@(Proxies.IsGateway ? "This phone is relaying" : "Relay for your Circle")</span>
+                <span class="about-s">@GatewayDetail</span>
+            </span>
+            <span class="chev">@(Proxies.IsGateway ? "on" : "off")</span>
+        </button>
+    </section>
+
+    @* Handing somebody the app with no store in the middle. It goes to people you have already added,
+       because a stranger you can hand a forty-megabyte package to is a stranger with your attention. *@
+    <section class="group">
+        <div class="glabel">Share Aether</div>
+        @if (Chat.CanShareApp)
+        {
+            @foreach (var contact in Chat.MutualContacts)
+            {
+                <button class="about" @onclick="() => ShareWith(contact)" disabled="@_busy">
+                    <span class="about-body">
+                        <span class="about-t">Send Aether to @contact</span>
+                        <span class="about-s">@ShareSize — over the mesh, no app store</span>
+                    </span>
+                    <span class="chev">→</span>
+                </button>
+            }
+            @if (Chat.MutualContacts.Count == 0)
+            {
+                <div class="about"><span class="about-body">
+                    <span class="about-t">Nobody to share with yet</span>
+                    <span class="about-s">add someone first — then you can hand them the app</span>
+                </span></div>
+            }
+        }
+        else
+        {
+            <div class="about"><span class="about-body">
+                <span class="about-t">Not available on this phone</span>
+                <span class="about-s">@Chat.CannotShareAppReason</span>
+            </span></div>
+        }
+    </section>
+
     <section class="group">
         <div class="glabel">About</div>
         <a class="about" href="https://github.com/bhengubv/aether-protocol" target="_blank" rel="noopener">
@@ -36,7 +85,44 @@
 </div>
 
 @code {
+    private bool _busy;
+    private string? _shareNote;
     private bool _copied;
+
+    private string GatewayDetail => _shareNote
+        ?? (Proxies.IsGateway ? "your Circle can reach each other through this phone"
+            : Proxies.Best is { } via ? $"currently relaying through {via}"
+            : "lets people with no data reach each other through yours");
+
+    private string ShareSize => Chat.AppShareSizeBytes > 0
+        ? $"{Chat.AppShareSizeBytes / (1024 * 1024)} MB"
+        : "the app itself";
+
+    protected override void OnInitialized() => Proxies.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Proxies.Changed -= OnChanged;
+
+    private async Task ToggleGateway()
+    {
+        _busy = true;
+        try { await Chat.SetRelayingAsync(!Proxies.IsGateway); }
+        finally { _busy = false; }
+    }
+
+    private async Task ShareWith(string tag)
+    {
+        _busy = true;
+        try
+        {
+            _shareNote = await Chat.ShareAppAsync(tag)
+                ? $"sending Aether to {tag}"
+                : "could not start the share";
+        }
+        finally { _busy = false; }
+    }
+
     private string _theme = "system";
 
     private string Initial => string.IsNullOrEmpty(Me.AetherTag) ? "?" : Me.AetherTag[..1];
