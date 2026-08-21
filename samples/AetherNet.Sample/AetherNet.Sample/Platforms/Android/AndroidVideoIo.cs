@@ -454,11 +454,23 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         {
             var targets = new List<Surface> { input };
 
+            // A TextureView has no SurfaceTexture until Android has laid it out, and the session is
+            // built the moment the camera opens — so whether the preview is included is a race
+            // between the camera and the view system. The P30 won it and showed a preview; merlin
+            // lost it and the person holding the phone could not see themselves at all, with nothing
+            // logged either way.
+            //
+            // Losing the race must not cost the preview permanently, so the session is rebuilt when
+            // the surface turns up.
             var texture = _localView?.SurfaceTexture;
             if (texture is not null)
             {
                 texture.SetDefaultBufferSize(Width, Height);
                 targets.Add(new Surface(texture));
+            }
+            else if (_localView is not null && _localView.SurfaceTextureListener is null)
+            {
+                _localView.SurfaceTextureListener = new PreviewReady(this);
             }
 
             var request = camera.CreateCaptureRequest(CameraTemplate.Record);
@@ -470,6 +482,35 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         {
             global::Android.Util.Log.Error("AetherVideo", "could not start capture: " + ex);
         }
+    }
+
+    /// <summary>
+    /// The local preview's surface has arrived. Rebuild the capture session so it is included.
+    /// </summary>
+    /// <remarks>
+    /// Only ever fires when the preview lost the race with the camera. Closing the old session first
+    /// matters: a camera can hold one session at a time, and configuring a second over a live one is
+    /// refused rather than replacing it.
+    /// </remarks>
+    private sealed class PreviewReady(AndroidVideoIo video) : Java.Lang.Object, TextureView.ISurfaceTextureListener
+    {
+        public void OnSurfaceTextureAvailable(SurfaceTexture surface, int width, int height)
+        {
+            try
+            {
+                video._session?.Close();
+                video._session = null;
+                video.StartCapture();
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Error("AetherVideo", "could not add the local preview: " + ex);
+            }
+        }
+
+        public bool OnSurfaceTextureDestroyed(SurfaceTexture surface) => true;
+        public void OnSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) { }
+        public void OnSurfaceTextureUpdated(SurfaceTexture surface) { }
     }
 
     private sealed class Streaming(AndroidVideoIo video, CaptureRequest request)
