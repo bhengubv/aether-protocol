@@ -88,6 +88,8 @@ public static class MauiProgram
         // Which phone in the Circle is carrying traffic for the others, and where to reach it. There
         // is no directory to look this up in by design — the address arrives from a contact, inside
         // their session, or not at all.
+        // What this device actually has, measured against everything AetherNet can use.
+        builder.Services.AddSingleton<IRadioInventory, AetherNet.Sample.Platforms.Android.AndroidRadioInventory>();
         builder.Services.AddSingleton<ProxyDirectory>();
 
         // The app carries itself: a mesh that needs a store to spread has a single point of

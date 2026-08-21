@@ -89,15 +89,31 @@ public sealed class WarmUpService
     /// cosmetic — a radio brought up before there is an identity has nothing to announce.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Every radio surveyed so far, so the screen can show the list rather than one line at a time.
+    /// </summary>
+    public List<RadioCapability> Found { get; } = [];
+
+    /// <summary>
+    /// Long enough to read one line. The survey itself is instant — this pause exists entirely so a
+    /// person can see what their device has, which is the whole point of the step.
+    /// </summary>
+    private static readonly TimeSpan RadioPause = TimeSpan.FromMilliseconds(320);
+
     public IReadOnlyList<WarmStep> Steps { get; } =
     [
+        // First, and deliberately so. A phone with three of the seven radios AetherNet can use is not
+        // a broken app, it is a phone with three radios — and the person holding it should learn that
+        // from us, before they conclude the software is at fault. It also shows them exactly what a
+        // better device would buy.
+        new("radios",    "Identifying radios on this device"),
         new("identity",  "Your AetherTag"),
         new("store",     "Conversations and contacts"),
         new("cards",     "Cards and the mesh web"),
         new("chat",      "Messaging"),
         new("notes",     "Notes, files and app sharing"),
         new("calls",     "Voice and video calls"),
-        new("bluetooth", "Bluetooth — finding people"),
+        new("radiosup",  "Waking the radios"),
         new("wifidirect","Wi-Fi Direct — the fast radio"),
         new("internet",  "Internet relay — reaching further"),
     ];
@@ -144,6 +160,28 @@ public sealed class WarmUpService
         {
             // Unsealing the key from the phone's secure hardware is the slowest thing the app ever
             // does on a cold start, and it used to happen on whichever page first asked who you are.
+            case "radios":
+                var inventory = Get<IRadioInventory>();
+                var radios = inventory?.Survey() ?? [];
+                if (radios.Count == 0) { Absent(step, "no radios to survey on this host"); break; }
+
+                // Walked one at a time so the list can be read as it fills, rather than appearing at
+                // once as a verdict.
+                Found.Clear();
+                foreach (var found in radios)
+                {
+                    Found.Add(found);
+                    step.Detail = found.Present
+                        ? $"{found.Name} found"
+                        : $"{found.Name} — {found.Detail}";
+                    Raise();
+                    await Task.Delay(RadioPause, cancellationToken).ConfigureAwait(false);
+                }
+
+                var have = radios.Count(r => r.Present);
+                step.Detail = $"{have} of {radios.Count} radios on this device";
+                break;
+
             case "identity":
                 var me = Get<IIdentityService>();
                 if (me is null) { Absent(step, "no identity on this device"); break; }
@@ -204,16 +242,15 @@ public sealed class WarmUpService
                 break;
 
             // Bluetooth finds people. It is not what carries them; see the Wi-Fi Direct step.
-            case "bluetooth":
+            case "radiosup":
                 var radio = Get<IRadioMesh>();
                 if (radio is null || !radio.IsSupported) { Absent(step, "no radio on this device"); break; }
 
+                // Waking them is not the same as forming a link. The fast radio is deliberately left
+                // down until something needs it — holding a Wi-Fi Direct group around the clock cost
+                // this phone its own Wi-Fi and carried nothing most of the day.
                 radio.Link();
-                if (await WaitForAsync(() => radio.IsLinked, TimeSpan.FromSeconds(12), cancellationToken)
-                        .ConfigureAwait(false))
-                    step.Detail = radio.PeerTag is { } peer ? $"found {peer}" : "listening";
-                else
-                    step.Detail = "listening — nobody nearby yet";
+                step.Detail = radio.PeerTag is { } peer ? $"linked with {peer}" : "ready";
                 break;
 
             // The core radio. Fifty frames a second each way against Bluetooth's eleven kilobits, so

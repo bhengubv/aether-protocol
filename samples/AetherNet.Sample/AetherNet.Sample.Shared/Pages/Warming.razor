@@ -64,6 +64,23 @@
        lighting up already says where we are. *@
     <div class="warm-line">@Now</div>
 
+    @* The radio survey, shown as a list rather than one line at a time. A person seeing three of
+       seven found learns where the ceiling is — and that it is their device's, not ours. *@
+    @if (Warm.Found.Count > 0)
+    {
+        <div class="warm-radios">
+            <div class="warm-radios-head">@Warm.Found.Count(r => r.Present) of @Warm.Found.Count radios on this device</div>
+            @foreach (var radio in Warm.Found)
+            {
+                <div class="warm-radio @(radio.Present ? "has" : "hasnt")">
+                    <span class="wr-mark">@(radio.Present ? "✓" : "—")</span>
+                    <span class="wr-name">@radio.Name</span>
+                    <span class="wr-note">@(radio.Present && radio.Carrying ? "carrying" : radio.Present ? "present" : "not on this device")</span>
+                </div>
+            }
+        </div>
+    }
+
     <div class="warm-count">@Done of @Warm.Steps.Count ready</div>
 </div>
 
@@ -147,6 +164,27 @@
 }
 
 <style>
+    /* Sized so seven lines fit the shortest phone we ship to without scrolling — the list is the
+       point, and a list you have to scroll is a list nobody reads. */
+    .warm-radios {
+        display: flex; flex-direction: column; gap: 2px;
+        margin: 10px auto 14px; width: 100%; max-width: 300px;
+    }
+    .warm-radios-head {
+        font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase;
+        opacity: 0.5; margin-bottom: 6px;
+    }
+    .warm-radio {
+        display: flex; align-items: baseline; gap: 8px;
+        font-size: 0.78rem; line-height: 1.35;
+    }
+    .warm-radio .wr-mark { width: 12px; flex: none; text-align: center; }
+    .warm-radio .wr-name { flex: 1 1 auto; }
+    .warm-radio .wr-note { opacity: 0.55; font-size: 0.72rem; }
+    .warm-radio.has { color: var(--ink); }
+    .warm-radio.has .wr-mark { color: var(--brand); }
+    .warm-radio.hasnt { color: var(--ink-2); opacity: 0.6; }
+
     .warm {
         position: fixed; inset: 0; background: var(--bg);
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;

@@ -48,6 +48,7 @@ builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
         new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
             sp.GetRequiredService<IRadioMesh>())));
 builder.Services.AddSingleton<CircleDirectory>();
+builder.Services.AddSingleton<IRadioInventory, NullRadioInventory>();
 builder.Services.AddSingleton<ProxyDirectory>();
 builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 builder.Services.AddSingleton<FastRadioService>();
