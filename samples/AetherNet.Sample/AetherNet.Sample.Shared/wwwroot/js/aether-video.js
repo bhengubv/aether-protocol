@@ -51,6 +51,12 @@ const BITRATE = 400000;
 // the camera went on mid-call, a frame was lost — can draw nothing until the next one arrives.
 const KEYFRAME_EVERY_MS = 1000;
 
+/// How long a recovering decoder waits for a keyframe before giving up on finding one.
+///
+/// Three keyframe intervals. Long enough that a genuine gap is ridden out, short enough that a
+/// decoder which is never going to recognise one does not sit black indefinitely.
+const KeyframePatience = 3000;
+
 // Everything belonging to one running camera. Torn down as a unit.
 let session = null;
 
@@ -108,6 +114,7 @@ const stat = {
     decodeErrors: 0,
     decoderResets: 0,
     stalls: 0,         // fed, but producing nothing — a broken reference chain
+    keyframeGaveUp: 0, // waited too long for a keyframe and fed the decoder anyway
 };
 
 /// What the pipeline has actually done. Reset every time it is read, so two reads bracket a window.
@@ -422,7 +429,8 @@ export function play(who, bytes) {
         decoder.configure({ codec: CODEC, optimizeForLatency: true });
         peer = {
             decoder: decoder, canvas: canvas, ctx: ctx,
-            waitingForKey: true, lastDrawAt: performance.now(), fedSinceDraw: 0,
+            waitingForKey: true, waitingSince: performance.now(),
+            lastDrawAt: performance.now(), fedSinceDraw: 0,
         };
         peers.set(who, peer);
     }
@@ -434,8 +442,22 @@ export function play(who, bytes) {
         // which costs at most a second and avoids a burst of errors nobody can act on.
         const key = isKeyframe(bytes);
         if (peer.waitingForKey) {
-            if (!key) { stat.awaitingKey++; return; }
-            peer.waitingForKey = false;
+            if (key) {
+                peer.waitingForKey = false;
+            } else if (performance.now() - peer.waitingSince > KeyframePatience) {
+                // Waited long enough. A keyframe should arrive every second, so if none has been
+                // recognised in three there is something wrong with the recognising rather than with
+                // the sending — and sitting black forever on that basis is the worse failure.
+                //
+                // Measured on merlin: the decoder reset twice inside one minute and drew nothing at
+                // all for the whole of it, while frames arrived the entire time at seven a second.
+                // Feeding it produces either a picture or a real error, and either is progress.
+                stat.keyframeGaveUp++;
+                peer.waitingForKey = false;
+            } else {
+                stat.awaitingKey++;
+                return;
+            }
         }
 
         // Being fed and producing nothing.
@@ -494,6 +516,7 @@ function recover(peer, who) {
     }
 
     peer.waitingForKey = true;
+    peer.waitingSince = performance.now();
     peer.fedSinceDraw = 0;
     peer.lastDrawAt = performance.now();
     stat.decoderResets++;

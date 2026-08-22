@@ -691,7 +691,45 @@ public sealed class CallService : IDisposable
     /// A frame off this phone's encoder. Sent without waiting: the encoder's thread must keep
     /// draining, and a frame held here is a frame not being encoded behind it.
     /// </summary>
-    private void OnEncodedFrame(byte[] frame) => _ = SendVideoFrameAsync(frame);
+    /// <summary>How many video frames are being sent right now. Bounded, deliberately.</summary>
+    /// <remarks>
+    /// <para>
+    /// This was <c>_ = SendVideoFrameAsync(frame)</c> with nothing limiting it, so the number of
+    /// sends in flight was however many the camera produced. Sealing and sending are not free, and
+    /// when the radio is slower than the camera each unfinished send holds its frame, its packet and
+    /// its task alive — an unbounded queue with no name and nothing watching it.
+    /// </para>
+    /// <para>
+    /// Measured over a six-minute call on merlin: memory climbed from 283MB to 399MB, a hundred and
+    /// sixteen megabytes, while the frames actually reaching the radio fell from 5 a second to 1.5.
+    /// The pile-up and the slowdown are the same event seen from two sides.
+    /// </para>
+    /// <para>
+    /// Two in flight. A video frame is worthless a moment after it was captured, so a third waiting
+    /// its turn behind two others would be stale before it moved — dropping it costs nothing and
+    /// keeps both the memory and the delay bounded.
+    /// </para>
+    /// </remarks>
+    private int _videoSendsInFlight;
+
+    private const int MaxVideoSendsInFlight = 2;
+
+    private void OnEncodedFrame(byte[] frame)
+    {
+        if (Interlocked.Increment(ref _videoSendsInFlight) > MaxVideoSendsInFlight)
+        {
+            Interlocked.Decrement(ref _videoSendsInFlight);
+            return;
+        }
+
+        _ = SendAndReleaseAsync(frame);
+    }
+
+    private async Task SendAndReleaseAsync(byte[] frame)
+    {
+        try { await SendVideoFrameAsync(frame).ConfigureAwait(false); }
+        finally { Interlocked.Decrement(ref _videoSendsInFlight); }
+    }
 
     /// <summary>
     /// Send one encoded video frame.

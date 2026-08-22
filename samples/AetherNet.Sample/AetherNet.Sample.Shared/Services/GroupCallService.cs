@@ -471,10 +471,34 @@ public sealed class GroupCallService : IDisposable
         }
     }
 
+    /// <summary>How many video fan-outs are running right now. Bounded, deliberately.</summary>
+    /// <remarks>
+    /// The same unbounded fire-and-forget the 1:1 path had, and worse here: a fan-out seals and sends
+    /// once PER participant, so a slow radio holds one frame alive several times over. Measured on the
+    /// 1:1 path over six minutes: 116MB of growth while frames actually reaching the radio fell from
+    /// 5 a second to 1.5. Two in flight — a third would be stale before it moved.
+    /// </remarks>
+    private int _videoFanOutsInFlight;
+
+    private const int MaxVideoFanOutsInFlight = 2;
+
     private void OnEncodedVideo(byte[] frame)
     {
         if (!CameraOn) return;
-        _ = FanOutAsync(VideoMarker, frame, video: true);
+
+        if (Interlocked.Increment(ref _videoFanOutsInFlight) > MaxVideoFanOutsInFlight)
+        {
+            Interlocked.Decrement(ref _videoFanOutsInFlight);
+            return;
+        }
+
+        _ = FanOutAndReleaseAsync(frame);
+    }
+
+    private async Task FanOutAndReleaseAsync(byte[] frame)
+    {
+        try { await FanOutAsync(VideoMarker, frame, video: true).ConfigureAwait(false); }
+        finally { Interlocked.Decrement(ref _videoFanOutsInFlight); }
     }
 
     /// <summary>Send one already-encoded frame to everybody, each under their own key.</summary>
