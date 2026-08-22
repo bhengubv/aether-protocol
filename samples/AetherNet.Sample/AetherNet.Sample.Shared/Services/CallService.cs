@@ -204,6 +204,18 @@ public sealed class CallService : IDisposable
     /// </summary>
     public bool CanCall => _audio.IsPresent && _radio is { IsLinked: true } && HasARadioWideEnough;
 
+    /// <summary>
+    /// Whether the link is struggling enough that the person should be told.
+    /// </summary>
+    /// <remarks>
+    /// This app has measured link strain for a while and acted on it — dropping the video bitrate,
+    /// and shutting the camera when a picture stopped being affordable — while telling the person
+    /// nothing at all. A call that quietly gets worse with no explanation reads as a broken app; the
+    /// same call with two words on screen reads as a bad signal, which is the truth.
+    /// </remarks>
+    public bool LinkIsStruggling => Current is { State: CallState.Connected }
+        && (_radio?.LinkStrain ?? 0) >= 0.5;
+
     /// <summary>Why a call cannot be placed right now, in plain words — or null when it can.</summary>
     public string? CannotCallReason =>
         !_audio.IsPresent ? _audio.UnavailableReason ?? "no microphone"

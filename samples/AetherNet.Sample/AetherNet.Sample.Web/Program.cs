@@ -33,6 +33,10 @@ builder.Services.AddSingleton<IIdentityService, IdentityService>();
 // The people this device knows, and the add/be-added handshake.
 builder.Services.AddSingleton<ContactService>();
 
+// Where a scanned or pasted aether:// invite arrives. The shell subscribes to it, so it has to exist
+// on every head — this was registered on the phone only, and the web head simply refused to render.
+builder.Services.AddSingleton<InviteLinks>();
+
 // Same real messaging stack as the phone. This host has no radio, so messages stay pending —
 // honestly queued rather than pretending to send.
 // Sessions live in the device database so a conversation survives a restart. Without it both
@@ -68,9 +72,10 @@ builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
 
 // Video, on the other hand, now works here too — it is WebCodecs and getUserMedia in the Shared
 // project rather than anything native, so the web head gets the same implementation the phone does.
-// Scoped rather than singleton: a server-rendered head has one of these per circuit, and a JS module
-// reference belongs to the page that imported it.
-builder.Services.AddScoped<IVideoIo, WebVideoIo>();
+// A singleton, like every other device service — the call services that own it are singletons, and a
+// scoped one makes the container refuse to build at all. The page hands it a JS runtime when it
+// appears, which is what MainLayout does.
+builder.Services.AddSingleton<IVideoIo, WebVideoIo>();
 
 // And no microphone means no notes to record either. Playing one back works everywhere, though —
 // that is the browser's own media element, not a radio.

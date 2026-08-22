@@ -31,7 +31,6 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
 {
     private const string ModulePath = "./_content/AetherNet.Sample.Shared/js/aether-video.js";
 
-    private readonly IJSRuntime _js;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly DeviceClaim _claim = new();
 
@@ -43,7 +42,29 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     /// <summary>What the module reported it can do, once asked. Null until then.</summary>
     private Capabilities? _caps;
 
-    public WebVideoIo(IJSRuntime js) => _js = js;
+    /// <summary>
+    /// The page's JavaScript runtime, handed over when a page appears.
+    /// </summary>
+    /// <remarks>
+    /// Not taken in the constructor, and that is not a style choice. <c>IJSRuntime</c> is scoped —
+    /// one per circuit on a server-rendered head — while the call services that own this are
+    /// singletons, so constructing it with one makes the container refuse to build at all. The web
+    /// head is what caught that: on the phone there is a single scope, and it would have looked
+    /// perfectly fine right up until the day somebody ran the web app.
+    /// </remarks>
+    private IJSRuntime? _js;
+
+    /// <summary>Give the device the page it lives in. A new page replaces the old one.</summary>
+    public void Attach(IJSRuntime js)
+    {
+        if (_disposed || ReferenceEquals(_js, js)) return;
+
+        // A different page means the imported module and the callbacks belong to something that is
+        // gone. Drop them rather than calling into it.
+        _js = js;
+        _module = null;
+        _caps = null;
+    }
 
     // ── what this device can do ───────────────────────────────────────────────
 
@@ -92,10 +113,13 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     /// answer — starting a camera — awaits <see cref="AskAsync"/> instead, and the first render of a
     /// call screen must not stall on a device enumeration.
     /// </remarks>
-    public bool IsPresent => _caps?.Usable ?? true;
+    public bool IsPresent => _js is not null && (_caps?.Usable ?? true);
 
     /// <inheritdoc />
-    public string? UnavailableReason => _caps is { Usable: false } caps ? caps.Missing : null;
+    public string? UnavailableReason =>
+        _js is null ? "there is no page to show video in"
+        : _caps is { Usable: false } caps ? caps.Missing
+        : null;
 
     // ── the one state ─────────────────────────────────────────────────────────
 
@@ -292,7 +316,10 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     // ── plumbing ──────────────────────────────────────────────────────────────
 
     private async ValueTask<IJSObjectReference> ModuleAsync()
-        => _module ??= await _js.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(false);
+    {
+        if (_js is not { } js) throw new InvalidOperationException("no page to show video in");
+        return _module ??= await js.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(false);
+    }
 
     private async Task CallAsync(string method)
     {

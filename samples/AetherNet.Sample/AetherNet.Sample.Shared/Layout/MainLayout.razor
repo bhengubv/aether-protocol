@@ -9,6 +9,8 @@
 @inject WarmUpService Warm
 @inject ContactService Contacts
 @inject InviteLinks Invites
+@inject IVideoIo Video
+@inject IJSRuntime JS
 
 <div class="app">
     <header class="appbar">
@@ -89,6 +91,19 @@
         var page = path.Split('?')[0];
         if (!page.StartsWith("welcome", StringComparison.OrdinalIgnoreCase))
             Nav.NavigateTo("welcome", replace: true);
+    }
+
+    /// <summary>
+    /// Hand the video device the page it lives in.
+    /// </summary>
+    /// <remarks>
+    /// After the first render, because that is the first moment JavaScript can be called at all on a
+    /// server-rendered head. The device is a singleton and the runtime is scoped, so it cannot be
+    /// injected into it — the page has to give it over, and the shell is the page that is always there.
+    /// </remarks>
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && Video is WebVideoIo web) web.Attach(JS);
     }
 
     private void OnCallChanged() => _ = InvokeAsync(StateHasChanged);

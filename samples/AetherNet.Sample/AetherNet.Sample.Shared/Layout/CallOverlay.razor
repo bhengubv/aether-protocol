@@ -31,7 +31,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
            there is to act on. *@
         @if (call.State == CallState.Connected)
         {
-            <button class="call-min" @onclick="Minimise" aria-label="Minimise the call" title="Minimise">
+            <button class="call-min @ChromeClass" @onclick="Minimise" aria-label="Minimise the call" title="Minimise">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
             </button>
         }
@@ -43,17 +43,38 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
            missing picture. Here they lay out with the controls like anything else. *@
         @if (ShowingVideo)
         {
-            <div class="call-video">
-                @if (Calls.TheirVideoOn)
-                {
-                    <canvas id="@RemoteId" class="cv-remote"></canvas>
-                }
-                @* Mirrored, and only here. A self-view is a mirror because that is what a person
-                   expects of their own face; what the other end receives is not flipped. Doing one
-                   rotation for both was the whole of "the video is reversed". *@
-                <video id="aether-local" class="cv-local @(Calls.VideoOn ? null : "off")"
-                       autoplay muted playsinline></video>
+            @* Tapping anywhere on the picture brings the controls back, the way every other video
+               call on the phone behaves. *@
+            <div class="call-video @(Swapped ? "swapped" : null)" @onclick="Wake">
+
+                @* Their picture. When their camera is off this is where they still belong — an avatar
+                   with their tag, not a black rectangle where a person used to be. *@
+                <div class="cv-main">
+                    <canvas id="@RemoteId" class="cv-canvas @(Calls.TheirVideoOn ? null : "off")"></canvas>
+                    @if (!Calls.TheirVideoOn)
+                    {
+                        <div class="cv-away">
+                            <div class="call-av" style="background:@TagPalette.For(Peer)">@TagPalette.Initial(Peer)</div>
+                            <div class="cv-away-who">@Peer</div>
+                            <div class="cv-away-why">Camera off</div>
+                        </div>
+                    }
+                </div>
+
+                @* This phone's own picture. Mirrored, and ONLY here: a person expects their own face
+                   to behave like a mirror, and the far end must receive them the right way round.
+                   Applying one identical rotation to both was the whole of "the video is reversed".
+
+                   Tapping it swaps the two, which is the one gesture everybody already knows. *@
+                <video id="aether-local" class="cv-self @(Calls.VideoOn ? null : "off")"
+                       autoplay muted playsinline
+                       @onclick="Swap" @onclick:stopPropagation="true"></video>
             </div>
+        }
+
+        @if (Calls.LinkIsStruggling)
+        {
+            <div class="call-weak">Weak signal</div>
         }
 
         <div class="call-who @(ShowingVideo ? "hidden" : null)">
@@ -64,7 +85,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
 
         @if (call.State == CallState.Connected)
         {
-            <div class="call-actions">
+            <div class="call-actions @ChromeClass">
                 <button class="cbtn @(Calls.IsMuted ? "on" : null)" @onclick="ToggleMute"
                         title="@(Calls.IsMuted ? "Unmute" : "Mute")">
                     @if (Calls.IsMuted)
@@ -113,7 +134,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
             </div>
         }
 
-        <div class="call-end @(call.State == CallState.Connected ? "connected" : null)">
+        <div class="call-end @(call.State == CallState.Connected ? "connected" : null) @ChromeClass">
             @if (call.State == CallState.Incoming)
             {
                 <button class="cend answer" @onclick="Answer">Answer</button>
@@ -146,7 +167,13 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     private void OnChanged() => _ = InvokeAsync(() =>
     {
         // A new call must never open behind the minimised bar of the last one.
-        if (Calls.Current is null) _connectedAt = null;
+        if (Calls.Current is null)
+        {
+            _connectedAt = null;
+            Swapped = false;
+            _chromeUp = true;
+            _idle?.Cancel();
+        }
         else if (Calls.Current is { State: CallState.Connected } && _connectedAt is null)
             _connectedAt = DateTime.UtcNow;
 
@@ -186,6 +213,76 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
 
     /// <summary>True when either camera is on, and there is therefore a picture to lay out.</summary>
     private bool ShowingVideo => Calls.VideoOn || Calls.TheirVideoOn;
+
+    // ── the chrome gets out of the way ────────────────────────────────────
+
+    /// <summary>Whether the buttons are on screen. Only ever false while a picture is showing.</summary>
+    private bool _chromeUp = true;
+
+    private CancellationTokenSource? _idle;
+
+    /// <summary>
+    /// How long the controls stay up after a tap.
+    /// </summary>
+    /// <remarks>
+    /// Long enough to find the button you meant, short enough that the picture is not permanently
+    /// obscured by four buttons across somebody's face. Every other video call on the phone does this;
+    /// leaving them up forever is the thing that reads as unfinished.
+    /// </remarks>
+    private static readonly TimeSpan ChromeIdle = TimeSpan.FromSeconds(4);
+
+    /// <summary>Controls are only ever hidden over a picture — on a voice call they stay put.</summary>
+    private string? ChromeClass => ShowingVideo && !_chromeUp ? "away" : null;
+
+    /// <summary>A tap anywhere on the picture brings them back and restarts the clock.</summary>
+    private void Wake()
+    {
+        _chromeUp = true;
+        StartIdleTimer();
+        StateHasChanged();
+    }
+
+    private void StartIdleTimer()
+    {
+        _idle?.Cancel();
+        _idle?.Dispose();
+
+        if (!ShowingVideo) { _idle = null; return; }
+
+        var cts = new CancellationTokenSource();
+        _idle = cts;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(ChromeIdle, cts.Token);
+                await InvokeAsync(() => { _chromeUp = false; StateHasChanged(); });
+            }
+            catch (OperationCanceledException) { /* tapped again, or the call ended */ }
+        });
+    }
+
+    // ── which picture is the big one ──────────────────────────────────────
+
+    /// <summary>
+    /// Whether the small picture and the big one have been swapped.
+    /// </summary>
+    /// <remarks>
+    /// Tapping your own picture to make it the large one is the one gesture in a video call that
+    /// everybody already knows. It costs a CSS class here because both pictures are ordinary
+    /// elements — under the old native overlay it would have meant re-parenting surfaces.
+    /// </remarks>
+    private bool Swapped { get; set; }
+
+    private void Swap()
+    {
+        // Nothing to swap with if only one camera is on.
+        if (!Calls.VideoOn || !Calls.TheirVideoOn) { Wake(); return; }
+
+        Swapped = !Swapped;
+        Wake();
+    }
 
     /// <summary>
     /// The element the far end's frames are drawn on. Must match what the module builds its id from.
@@ -230,9 +327,29 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
         return Calls.HangUpAsync();
     }
 
+    /// <summary>
+    /// Bring the controls up whenever a picture appears or disappears, and start the clock.
+    /// </summary>
+    /// <remarks>
+    /// A camera going on is exactly the moment somebody wants to see the buttons — to flip the
+    /// camera, or to turn it straight back off.
+    /// </remarks>
+    private bool _wasShowingVideo;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (ShowingVideo == _wasShowingVideo) return;
+
+        _wasShowingVideo = ShowingVideo;
+        _chromeUp = true;
+        StartIdleTimer();
+    }
+
     public void Dispose()
     {
         Calls.Changed -= OnChanged;
+        _idle?.Cancel();
+        _idle?.Dispose();
     }
 }
 
@@ -286,20 +403,79 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
 
     .call-video { position: absolute; inset: 0; overflow: hidden; background: #000; }
 
+    /* Both pictures fade in rather than appearing. A hard cut from an avatar to a live camera is the
+       single most obvious tell that something is homemade. */
+    .cv-main, .cv-self { animation: cvfade 220ms ease-out; }
+    @@keyframes cvfade { from { opacity: 0; } to { opacity: 1; } }
+
     /* The far end fills the screen. object-fit does the fitting the rotation matrices used to get
        wrong — cover crops to fill without ever distorting, whatever shape arrives. */
-    .cv-remote { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cv-main { position: absolute; inset: 0; }
+    .cv-canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cv-canvas.off { display: none; }
+
+    /* Their camera is off. They are still on the call, so they still get a face — a black rectangle
+       where a person was is the thing that makes a call feel dead. */
+    .cv-away {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+        background: var(--bg);
+    }
+    .cv-away-who { font-family: var(--mono); font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+    .cv-away-why { font-size: 0.9rem; color: var(--ink-2); }
 
     /* This phone's own picture, in the corner. Mirrored, and ONLY here: a person expects their own
        face to behave like a mirror, and the far end must receive them the right way round. */
-    .cv-local {
-        position: absolute; top: 18px; right: 14px;
+    .cv-self {
+        position: absolute; right: 14px;
+        top: calc(14px + env(safe-area-inset-top, 0px));
         width: 27vw; max-width: 132px; aspect-ratio: 9 / 16;
-        object-fit: cover; border-radius: 14px;
+        object-fit: cover; border-radius: 16px;
         background: #111; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
         transform: scaleX(-1);
+        cursor: pointer;
+        transition: width 180ms ease, border-radius 180ms ease, inset 180ms ease;
     }
-    .cv-local.off { display: none; }
+    .cv-self.off { display: none; }
+    .cv-self:active { filter: brightness(1.08); }
+
+    /* Tapped: the two trade places. Both are ordinary elements, so this is a class rather than the
+       surface re-parenting the native overlay would have needed. */
+    .call-video.swapped .cv-self {
+        inset: 0; top: 0; right: 0;
+        width: 100%; max-width: none; aspect-ratio: auto; height: 100%;
+        border-radius: 0; box-shadow: none;
+    }
+    .call-video.swapped .cv-main {
+        inset: auto 14px auto auto;
+        top: calc(14px + env(safe-area-inset-top, 0px));
+        width: 27vw; max-width: 132px; aspect-ratio: 9 / 16;
+        border-radius: 16px; overflow: hidden;
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+    }
+    .call-video.swapped .cv-away { gap: 6px; }
+    .call-video.swapped .cv-away .call-av { width: 44px; height: 44px; font-size: 1.1rem; }
+    .call-video.swapped .cv-away-who, .call-video.swapped .cv-away-why { display: none; }
+
+    /* The controls get out of the way of the picture, and come back on a tap. Four buttons parked
+       permanently across somebody's face is the thing that reads as unfinished. */
+    .call-actions, .call-end, .call-min { transition: opacity 200ms ease, transform 200ms ease; }
+    .call-actions.away, .call-end.away {
+        opacity: 0; pointer-events: none; transform: translateY(12px);
+    }
+    .call-min.away { opacity: 0; pointer-events: none; }
+
+    /* Measured, not guessed: this app has adjusted the picture and shut the camera on a struggling
+       link for a while now, and told the person nothing. A call that quietly gets worse with no
+       explanation reads as a broken app; two words read as a bad signal, which is the truth. */
+    .call-weak {
+        position: absolute; left: 50%; transform: translateX(-50%);
+        top: calc(18px + env(safe-area-inset-top, 0px));
+        padding: 6px 14px; border-radius: 999px;
+        background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(6px);
+        color: #fff; font-size: 0.8rem; font-weight: 650; letter-spacing: 0.02em;
+        animation: cvfade 220ms ease-out;
+    }
     /* With a picture behind them the controls stop being page furniture and become an overlay, so
        they dock to the bottom edge the way every other video call on the phone does. Floating them
        in the middle of the frame — which is where 8vh of margin and a 42px nudge put them — lands
@@ -311,8 +487,10 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
         margin: 0 0 14px; padding: 0 16px; width: 100%;
     }
     .call-screen:has(.call-who.hidden) .call-end {
-        transform: none; margin-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+        margin-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
     }
+    /* The hide transform has to win over the docking one, or hidden controls slide the wrong way. */
+    .call-screen:has(.call-who.hidden) .call-end:not(.away) { transform: none; }
     /* One scrim for both rows rather than a slab behind each: a gradient keeps the bottom of the
        picture visible while still guaranteeing the controls have something to read against, whatever
        the camera happens to be pointing at. */
