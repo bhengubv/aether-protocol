@@ -57,9 +57,33 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     /// and <see cref="SizeToLink"/> takes it straight back down if that turns out to be optimistic.
     /// </para>
     /// </remarks>
-    private const int Width = 960;
+    /// <summary>
+    /// What to ask for before the camera has been asked what it can do — and the size every remote
+    /// tile is opened at, since a decoder learns its real size from the stream anyway.
+    /// </summary>
+    private const int Width = 1280;
 
-    private const int Height = 540;
+    private const int Height = 720;
+
+    /// <summary>
+    /// What this camera will actually deliver, chosen from its own list rather than picked.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A capture session is configured against surfaces of a specific size, and a size the camera does
+    /// not publish is rejected outright — <c>onConfigureFailed</c>, no detail, no fallback. Measured:
+    /// asking for 960x540, a perfectly reasonable-looking 16:9, produced "capture session would not
+    /// configure" on merlin and no camera at all. 640x480 had worked only because it is one of the few
+    /// sizes every camera in the world supports.
+    /// </para>
+    /// <para>
+    /// So the size is no longer chosen here. The camera publishes what it can do and the closest thing
+    /// to a phone-shaped picture is taken from that list.
+    /// </para>
+    /// </remarks>
+    private volatile int _capWidth = Width;
+
+    private volatile int _capHeight = Height;
     private const int Fps = 20;
     /// <summary>
     /// Where the encoder starts. It does not stay here — see <see cref="SizeToLink"/>.
@@ -458,7 +482,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     {
         try
         {
-            var format = MediaFormat.CreateVideoFormat(Mime, Width, Height)!;
+            var format = MediaFormat.CreateVideoFormat(Mime, _capWidth, _capHeight)!;
             format.SetInteger(MediaFormat.KeyColorFormat, (int)MediaCodecCapabilities.Formatsurface);
             format.SetInteger(MediaFormat.KeyBitRate, StartingBitrateBps);
             _bitrateBps = StartingBitrateBps;
@@ -633,8 +657,60 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     /// the compositor, and correct for both ends at once.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Take the most phone-shaped picture this camera actually offers.
+    /// </summary>
+    /// <remarks>
+    /// Nearest to sixteen by nine, and no wider than 1280 — a bigger picture on this link buys blur
+    /// rather than detail, because the bitrate is what is scarce, not the pixels. Ties go to the wider
+    /// one. If the camera will not answer, the default stands and the session either configures or
+    /// says so honestly.
+    /// </remarks>
+    private void NoteCaptureSize(CameraManager manager, string id)
+    {
+        try
+        {
+            var map = manager.GetCameraCharacteristics(id)
+                .Get(CameraCharacteristics.ScalerStreamConfigurationMap)
+                as global::Android.Hardware.Camera2.Params.StreamConfigurationMap;
+
+            var sizes = map?.GetOutputSizes(Java.Lang.Class.FromType(typeof(MediaCodec)));
+            if (sizes is null || sizes.Length == 0) return;
+
+            global::Android.Util.Size? best = null;
+            var bestScore = double.MaxValue;
+
+            foreach (var size in sizes)
+            {
+                if (size.Width > 1280 || size.Height > 1280) continue;
+
+                // How far from 16:9, plus a gentle preference for the larger of two equally-shaped
+                // options.
+                var aspect = Math.Abs((size.Width / (double)size.Height) - (16.0 / 9.0));
+                var score = aspect - (size.Width / 100000.0);
+
+                if (score >= bestScore) continue;
+                bestScore = score;
+                best = size;
+            }
+
+            if (best is null) return;
+
+            _capWidth = best.Width;
+            _capHeight = best.Height;
+            global::Android.Util.Log.Info("AetherVideo",
+                $"camera {id} offers {sizes.Length} sizes — capturing at {_capWidth}x{_capHeight}");
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Info("AetherVideo", "could not ask about capture sizes: " + ex.Message);
+        }
+    }
+
     private void NoteRotation(CameraManager manager, string id, bool front)
     {
+        NoteCaptureSize(manager, id);
+
         try
         {
             var sensor = (manager.GetCameraCharacteristics(id)
@@ -778,7 +854,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             var texture = local?.SurfaceTexture;
             if (texture is not null)
             {
-                texture.SetDefaultBufferSize(Width, Height);
+                texture.SetDefaultBufferSize(_capWidth, _capHeight);
                 targets.Add(new Surface(texture));
 
                 // Seeing yourself sideways is the same bug as the far end seeing you sideways, and it
