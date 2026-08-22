@@ -54,6 +54,58 @@ public class AttachmentTests : IDisposable
         Assert.Equal(ChatMessage.VoiceNote, m.AttachmentType);
     }
 
+    /// <summary>
+    /// The lookup every arriving chunk depends on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This query named a column the table does not have — <c>attachment_hash</c> where the schema
+    /// says <c>att_hash</c>. SQLite only rejects that when the statement runs, so it built cleanly,
+    /// passed every existing test (none of which called this) and failed on device for every single
+    /// incoming attachment:
+    /// </para>
+    /// <para>
+    /// <c>Could not handle an attachment AETHERATT from QQQEY-MSMP8 — SQLite Error 1: 'no such column:
+    /// attachment_hash'</c>
+    /// </para>
+    /// <para>
+    /// It was a warning in a log nobody was reading, and attachments simply never arrived.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_message_can_be_found_by_the_content_it_carries()
+    {
+        var hash = "hash-of-the-clip";
+        _store.SaveMessage(new ChatMessage("m1", "peer", "", true, ChatMessage.Sent, 1,
+            AttachmentHash: hash, AttachmentType: ChatMessage.VoiceNote, AttachmentBytes: 2048));
+
+        var found = _store.GetMessagesWithAttachment(hash);
+
+        Assert.Single(found);
+        Assert.Equal("m1", found[0].Id);
+        Assert.Equal(hash, found[0].AttachmentHash);
+    }
+
+    /// <summary>
+    /// The same clip sent to two people is one piece of content and two messages. A chunk arriving
+    /// for it has to reach both, or one conversation shows a bubble that never fills in.
+    /// </summary>
+    [Fact]
+    public void The_same_clip_in_two_conversations_finds_both()
+    {
+        var hash = "shared-clip";
+        _store.SaveMessage(new ChatMessage("m1", "alice", "", true, ChatMessage.Sent, 1,
+            AttachmentHash: hash, AttachmentType: ChatMessage.VoiceNote, AttachmentBytes: 2048));
+        _store.SaveMessage(new ChatMessage("m2", "bob", "", true, ChatMessage.Sent, 2,
+            AttachmentHash: hash, AttachmentType: ChatMessage.VoiceNote, AttachmentBytes: 2048));
+
+        Assert.Equal(2, _store.GetMessagesWithAttachment(hash).Count);
+    }
+
+    [Fact]
+    public void Content_nobody_is_waiting_for_finds_nothing()
+        => Assert.Empty(_store.GetMessagesWithAttachment("never-seen"));
+
     /// <summary>An attachment survives the app closing, like everything else in a conversation.</summary>
     [Fact]
     public void An_attachment_survives_a_restart()

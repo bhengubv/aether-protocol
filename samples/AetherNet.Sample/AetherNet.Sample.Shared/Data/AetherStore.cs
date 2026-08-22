@@ -276,6 +276,10 @@ public sealed class AetherStore : IDisposable
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_peer ON messages(peer_tag, sent_ms);");
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_state ON messages(state);");
 
+        // Every arriving chunk asks which message it belongs to, so this is looked up per chunk of
+        // every attachment rather than once per attachment.
+        Exec("CREATE INDEX IF NOT EXISTS ix_messages_att ON messages(att_hash);");
+
         // Signal sessions. Held only in memory until now, which meant every launch began with
         // amnesia: two phones would each rebuild as X3DH initiator, end up with different root keys
         // for the same pair, and then fail every message on its authentication tag. It reads exactly
@@ -682,7 +686,10 @@ public sealed class AetherStore : IDisposable
         lock (_gate)
         {
             using var cmd = _conn.CreateCommand();
-            cmd.CommandText = "SELECT * FROM messages WHERE attachment_hash = @hash;";
+            // att_hash — the column this table actually has. It was written as attachment_hash, which
+            // SQLite rejects at execute time rather than at build time, so every single incoming
+            // attachment failed with "no such column" and the only sign was a warning in the log.
+            cmd.CommandText = "SELECT * FROM messages WHERE att_hash = @hash;";
             cmd.Parameters.AddWithValue("@hash", hash);
             using var reader = cmd.ExecuteReader();
 
