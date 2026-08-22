@@ -1045,10 +1045,19 @@ public sealed class AndroidWifiDirectTransportService
         var queue = link.Lanes[(int)lane];
         queue.Enqueue(data);
 
-        // Bulk is bounded. Real-time and interactive are not, because they are small and rare enough
-        // that a bound would only ever throw away something somebody is waiting for.
-        if (lane == SendLane.Bulk)
-            while (queue.Count > PeerLink.BulkDepth && queue.TryDequeue(out _)) { }
+        // Video and bulk are bounded; speech and everything a person is waiting on are not.
+        //
+        // Video was in the unbounded real-time lane, on the reasoning that real-time traffic is small
+        // and rare. Voice is. Video is 3.6 to 4.8 kilobytes twenty times a second in both directions,
+        // and on a link that cannot carry that, an unbounded queue does not drop a single frame — it
+        // delivers all of them late, and the lateness grows for as long as the call lasts. Dropping
+        // the oldest is the only answer that keeps a picture current, and it costs nothing: a frame
+        // whose moment has passed is discarded by the far side anyway.
+        if (PacketPriority.MayDropOldest(lane))
+        {
+            var depth = lane == SendLane.Video ? PeerLink.VideoDepth : PeerLink.BulkDepth;
+            while (queue.Count > depth && queue.TryDequeue(out _)) { }
+        }
 
         link.Ready.Release();
         return Task.FromResult(true);
@@ -1190,7 +1199,7 @@ public sealed class AndroidWifiDirectTransportService
         /// order, not the volume.
         /// </remarks>
         public System.Collections.Concurrent.ConcurrentQueue<byte[]>[] Lanes { get; } =
-            [new(), new(), new()];
+            [new(), new(), new(), new()];
 
         /// <summary>Wakes the sender when something is queued.</summary>
         public SemaphoreSlim Ready { get; } = new(0);
@@ -1201,6 +1210,17 @@ public sealed class AndroidWifiDirectTransportService
         /// of memory instead.
         /// </summary>
         public const int BulkDepth = 64;
+
+        /// <summary>
+        /// How many video frames may wait before the oldest is thrown away.
+        /// </summary>
+        /// <remarks>
+        /// Six, which at twenty frames a second is about a third of a second of slack. Enough to ride
+        /// out a brief stall in the radio; far too little to accumulate the delay that made a call
+        /// feel like a recording. The alternative to dropping here is not a smoother picture — it is
+        /// the same frames arriving later and later.
+        /// </remarks>
+        public const int VideoDepth = 6;
     }
 
     // ── Android listener/receiver adapters ──────────────────────────────────────

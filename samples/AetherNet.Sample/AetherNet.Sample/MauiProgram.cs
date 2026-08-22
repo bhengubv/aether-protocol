@@ -49,6 +49,7 @@ public static class MauiProgram
 
         // The people this device knows, and the add/be-added handshake.
         builder.Services.AddSingleton<ContactService>();
+        builder.Services.AddSingleton<InviteLinks>();
 
         // Real end-to-end encrypted messaging over the radio: Signal's X3DH + double ratchet, with
         // pre-key bundles exchanged over the mesh itself.
@@ -210,6 +211,18 @@ public static class MauiProgram
             Warm("identity", () => app.Services.GetService<IIdentityService>());
             Warm("cards", () => app.Services.GetService<IContentStore>());
             Warm("contacts", () => app.Services.GetService<ContactService>());
+
+            // Published where the Android activity can reach it. An activity is built by the system
+            // rather than by the container, so a scanned invite has no other way in — and until this
+            // existed it had no way in at all.
+            Warm("invites", () =>
+            {
+                var invites = app.Services.GetService<InviteLinks>();
+                InviteLinks.Current = invites;
+
+                // A scan that launched the app cold delivered its link before any of this existed.
+                invites?.Deliver(MainActivity.ConsumePendingLink());
+            });
 
             // Constructing these is what subscribes them to the radio, so a message can arrive, and a
             // call can ring, before the user has opened anything.

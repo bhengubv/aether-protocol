@@ -40,17 +40,26 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     private const string Mime = "video/avc";   // H.264, the one encoder every Android phone has
 
     /// <summary>
-    /// 640x480 at 20 fps and 800 kbps.
-    ///
-    /// <para>
-    /// Chosen against the radio rather than against the screen. Wi-Fi Direct measured comfortably
-    /// above three megabits, and video has to leave room for the voice it shares the link with; a
-    /// bigger picture would look better right up to the moment it started eating the call.
-    /// </para>
+    /// 960x540 at 20 fps, sized to the shape of a phone screen as much as to the radio.
     /// </summary>
-    private const int Width = 640;
+    /// <remarks>
+    /// <para>
+    /// This was 640x480 — four by three, the shape of a television from 1995. Turned a quarter to be
+    /// drawn upright it becomes 480x640, and a phone screen is about 1080x2100. Nothing about those
+    /// two rectangles agrees: fit it and it floats in the middle of the screen, fill it and half the
+    /// picture is thrown away.
+    /// </para>
+    /// <para>
+    /// Sixteen by nine turned upright is 540x960 — an aspect of 0.5625 against the screen's 0.514,
+    /// which is close enough that it very nearly fills it with almost nothing cropped. It is also a
+    /// wider picture for the same shape, so it is sharper on the way out as well as better fitted.
+    /// Still chosen against the radio: video has to leave room for the voice it shares the link with,
+    /// and <see cref="SizeToLink"/> takes it straight back down if that turns out to be optimistic.
+    /// </para>
+    /// </remarks>
+    private const int Width = 960;
 
-    private const int Height = 480;
+    private const int Height = 540;
     private const int Fps = 20;
     /// <summary>
     /// Where the encoder starts. It does not stay here — see <see cref="SizeToLink"/>.
@@ -104,7 +113,8 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     /// <inheritdoc />
     public void SizeToLink(double strain, int people)
     {
-        var encoder = _encoder;
+        MediaCodec? encoder;
+        lock (_gate) encoder = _encoder;
         if (!_running || encoder is null) return;
 
         var now = DateTimeOffset.UtcNow;
@@ -119,7 +129,13 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         {
             global::Android.Util.Log.Info("AetherVideo",
                 $"link too tight for video (strain {strain:0.00}) — stopping the camera");
-            _ = StopAsync();
+
+            // Stop SENDING, not everything. This was a full stop, which also released every decoder
+            // and took the overlay down — so a link that got tight killed the picture coming IN as
+            // well as the one going out, and the screen fell back to the avatar mid-call. Two-way
+            // video is precisely what makes a link tight enough to reach this line, so the one case
+            // that triggers it was the one case it broke worst.
+            _ = StopSendingAsync();
             return;
         }
 
@@ -144,15 +160,47 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         }
     }
     private Surface? _encoderInput;
-    private FrameLayout? _overlay;
-    private GridLayout? _grid;
-    private TextureView? _localView;
+
+    // Written on the UI thread, read from radio threads deciding whether there is anywhere to draw.
+    // Volatile so a radio thread cannot go on seeing a grid that the UI thread has already removed.
+    private volatile FrameLayout? _overlay;
+    private volatile GridLayout? _grid;
+    private volatile TextureView? _localView;
+
     private Thread? _drain;
     private volatile bool _running;
+
+    /// <summary>
+    /// Set the moment a stop begins, so a camera that opens after we stopped wanting it is closed
+    /// rather than left running.
+    /// </summary>
+    /// <remarks>
+    /// <c>openCamera</c> is asynchronous: the device arrives later on <c>OnOpened</c>, and until it
+    /// does there is nothing to close. Hanging up inside that window left the camera open with no
+    /// reference anywhere to release it. Measured on merlin: <c>Device 1</c> held by this app for
+    /// seventy-eight minutes after the call ended, while the app's own UI read "Camera off".
+    /// </remarks>
+    private volatile bool _stopping;
+
+    /// <summary>Completed when the camera is genuinely delivering frames, or has genuinely failed.</summary>
+    private TaskCompletionSource<bool>? _opening;
+
     private bool _useFrontCamera = true;
     private byte[]? _codecConfig;
     private int _decoderCap = -1;
-    private bool _disposed;
+    private volatile bool _disposed;
+
+    /// <summary>How far this phone's camera sensor is rotated from the way the person is holding it.</summary>
+    private volatile int _captureRotation;
+
+    /// <summary>
+    /// How long to wait for the camera before calling it a failure.
+    /// </summary>
+    /// <remarks>
+    /// Long enough for a cold open on the slowest phone here, short enough that a camera another app
+    /// is holding does not leave someone staring at a button that has visibly done nothing.
+    /// </remarks>
+    private static readonly TimeSpan CameraOpenTimeout = TimeSpan.FromSeconds(6);
 
     /// <summary>
     /// One person on camera: their decoder, and the tile it draws on.
@@ -166,9 +214,25 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     private sealed class Stream_(string who)
     {
         public string Who { get; } = who;
+
+        /// <summary>
+        /// Held for the whole of a decode and the whole of a release, so the two cannot overlap.
+        /// </summary>
+        /// <remarks>
+        /// Its own lock rather than the class-wide one. Frames arrive on a radio thread and tiles are
+        /// torn down on the UI thread, so <c>DequeueInputBuffer</c> could be running against a codec
+        /// another thread had just released — a use-after-free in native code, which surfaces as a
+        /// process abort with no managed stack. Sharing the class-wide gate would instead put a radio
+        /// thread behind whatever the camera is doing, at fifty frames a second.
+        /// </remarks>
+        public readonly object Gate = new();
+
         public TextureView? View { get; set; }
         public MediaCodec? Decoder { get; set; }
-        public bool Ready { get; set; }
+        public volatile bool Ready;
+
+        /// <summary>Degrees to rotate this person's picture so it is drawn the way up they are holding their phone.</summary>
+        public int Rotation;
     }
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Stream_> _streams =
@@ -204,6 +268,8 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     {
         get
         {
+            lock (_gate)
+            {
             if (_decoderCap >= 0) return _decoderCap;
 
             var found = 2;
@@ -232,6 +298,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             _decoderCap = Math.Clamp(found - 1, 1, UsefulTilesOnAPhoneScreen);
             global::Android.Util.Log.Info("AetherVideo", "this phone can decode " + _decoderCap + " streams at once");
             return _decoderCap;
+            }
         }
     }
 
@@ -242,16 +309,60 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
     // ── Coming up ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Open this phone's camera and start sending.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every failure here unwinds with <see cref="StopSendingAsync"/>, never <see cref="StopAsync"/>.
+    /// The difference is the whole point: a full stop clears every decoder and takes the overlay down,
+    /// so a camera of mine that would not open used to destroy a picture of theirs that was already
+    /// working — the surfaces went, the page turned opaque again, and the person watching lost the
+    /// call they could see in order to be told about the one they could not send.
+    /// </para>
+    /// <para>
+    /// It also waits for the camera to actually arrive. <c>openCamera</c> returns immediately and
+    /// reports the outcome later on a callback, so returning true at that point was a guess — and a
+    /// guess that got announced to the far end as "my camera is on", leaving them holding a black tile
+    /// for a camera that never opened.
+    /// </para>
+    /// </remarks>
     public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
     {
         if (_disposed || _running || !IsPresent) return false;
 
         try
         {
-            await MainThread.InvokeOnMainThreadAsync(AddOverlay).ConfigureAwait(false);
+            _stopping = false;
 
-            if (!StartEncoder()) { await StopAsync().ConfigureAwait(false); return false; }
-            if (!OpenCamera()) { await StopAsync().ConfigureAwait(false); return false; }
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                AddOverlay();
+
+                // The overlay may already be up from watching someone else, in which case the corner
+                // was deliberately hidden. There is a picture to put in it now.
+                var local = _localView;
+                if (local is not null) local.Visibility = ViewStates.Visible;
+            }).ConfigureAwait(false);
+
+            if (!StartEncoder()) { await StopSendingAsync().ConfigureAwait(false); return false; }
+
+            var opened = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _opening = opened;
+
+            if (!OpenCamera()) { await StopSendingAsync().ConfigureAwait(false); return false; }
+
+            using var deadline = new CancellationTokenSource(CameraOpenTimeout);
+            using var link = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
+            using (link.Token.Register(() => opened.TrySetResult(false)))
+            {
+                if (!await opened.Task.ConfigureAwait(false))
+                {
+                    global::Android.Util.Log.Error("AetherVideo", "the camera never started delivering");
+                    await StopSendingAsync().ConfigureAwait(false);
+                    return false;
+                }
+            }
 
             _running = true;
             return true;
@@ -259,7 +370,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         catch (Exception ex)
         {
             global::Android.Util.Log.Error("AetherVideo", "could not start video: " + ex);
-            await StopAsync().ConfigureAwait(false);
+            await StopSendingAsync().ConfigureAwait(false);
             return false;
         }
     }
@@ -275,6 +386,14 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     /// </summary>
     private void AddOverlay()
     {
+        // Idempotent, and it has to be. Two entry points reach here now — starting this phone's
+        // camera, and bringing up surfaces to watch somebody else's — and a second overlay does not
+        // replace the first, it covers it: an opaque black FrameLayout on top of the one holding the
+        // live tile, with _grid repointed at the new empty one. Measured on the P30: the far end's
+        // decoder kept running and drawing, per-frame codec telemetry and all, into a view nobody
+        // could see, while the screen showed the avatar.
+        if (_disposed || _overlay is not null) return;
+
         var activity = Platform.CurrentActivity;
         if (activity is null) return;
 
@@ -434,11 +553,17 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     {
         get
         {
-            if (_cameraHandler is not null) return _cameraHandler;
+            // Under the gate: this is reached from the caller's thread, from the camera's own
+            // callbacks and from a stop running concurrently, and an unguarded lazy build races into
+            // two HandlerThreads — one of which then owns callbacks nobody ever quits.
+            lock (_gate)
+            {
+                if (_cameraHandler is not null) return _cameraHandler;
 
-            _cameraThread = new global::Android.OS.HandlerThread("aether-camera");
-            _cameraThread.Start();
-            return _cameraHandler = new global::Android.OS.Handler(_cameraThread.Looper!);
+                _cameraThread = new global::Android.OS.HandlerThread("aether-camera");
+                _cameraThread.Start();
+                return _cameraHandler = new global::Android.OS.Handler(_cameraThread.Looper!);
+            }
         }
     }
 
@@ -479,39 +604,162 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             var facing = (manager!.GetCameraCharacteristics(id)
                 .Get(CameraCharacteristics.LensFacing) as Java.Lang.Integer)?.IntValue();
 
-            if (facing == (int)wanted) return id;
+            if (facing != (int)wanted) continue;
+
+            NoteRotation(manager, id, front: facing == (int)LensFacing.Front);
+            return id;
         }
 
+        NoteRotation(manager!, ids[0], front: false);
         return ids[0];
+    }
+
+    /// <summary>
+    /// Work out which way up this camera's pictures come out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A camera sensor is soldered to the board at a fixed angle — 90° on most phones, 270° on some —
+    /// and it delivers frames in that orientation regardless of how the phone is being held. Nothing in
+    /// this class ever asked. The encoder was configured 640×480 landscape, the sensor handed it a
+    /// landscape frame, and everyone saw a picture lying on its side.
+    /// </para>
+    /// <para>
+    /// It cannot be fixed at the encoder. <c>KEY_ROTATION</c> is metadata a container carries, and this
+    /// sends a bare H.264 elementary stream with no container, so the angle would be dropped on the
+    /// wire. Rotating the pixels instead would mean a GL pass between the camera and the encoder's
+    /// input surface, which is the one copy per frame this whole class exists to avoid. So the angle
+    /// travels beside the video as a number, and whoever draws it turns their own surface — free, on
+    /// the compositor, and correct for both ends at once.
+    /// </para>
+    /// </remarks>
+    private void NoteRotation(CameraManager manager, string id, bool front)
+    {
+        try
+        {
+            var sensor = (manager.GetCameraCharacteristics(id)
+                .Get(CameraCharacteristics.SensorOrientation) as Java.Lang.Integer)?.IntValue() ?? 0;
+
+            var display = Platform.CurrentActivity?.WindowManager?.DefaultDisplay?.Rotation switch
+            {
+                SurfaceOrientation.Rotation90 => 90,
+                SurfaceOrientation.Rotation180 => 180,
+                SurfaceOrientation.Rotation270 => 270,
+                _ => 0,
+            };
+
+            _captureRotation = VideoRotation.ForCapture(sensor, display, front);
+
+            global::Android.Util.Log.Info("AetherVideo",
+                $"camera {id} sensor {sensor}°, display {display}° → picture needs {_captureRotation}°");
+        }
+        catch (Exception ex)
+        {
+            _captureRotation = 0;
+            global::Android.Util.Log.Info("AetherVideo", "could not read the sensor orientation: " + ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    public int CaptureRotation => _captureRotation;
+
+    /// <inheritdoc />
+    public void SetRemoteRotation(string who, int degrees)
+    {
+        if (string.IsNullOrEmpty(who)) return;
+
+        var stream = _streams.GetOrAdd(who, w => new Stream_(w));
+        stream.Rotation = VideoRotation.Normalise(degrees);
+
+        var view = stream.View;
+        if (view is not null) MainThread.BeginInvokeOnMainThread(() => Turn(view, stream.Rotation));
+    }
+
+    /// <summary>
+    /// Turn a surface so its picture is the right way up, and scale it so the turn does not letterbox.
+    /// </summary>
+    /// <remarks>
+    /// A quarter turn transposes the picture's proportions, so rotating alone leaves it inset inside
+    /// its own tile with bars on two sides. Scaling by the tile's aspect ratio puts it back to filling
+    /// the tile, which is what every other video call on the phone does.
+    /// </remarks>
+    private static void Turn(TextureView view, int degrees)
+    {
+        try
+        {
+            var w = view.Width;
+            var h = view.Height;
+            if (w <= 0 || h <= 0) return;
+
+            var matrix = new Matrix();
+            float cx = w / 2f, cy = h / 2f;
+            matrix.PostRotate(degrees, cx, cy);
+
+            if (degrees % 180 != 0)
+            {
+                // A quarter turn swaps the picture's proportions, so it has to be rescaled to sit
+                // inside the tile again — and the direction of that rescale is the whole question.
+                //
+                // Math.Max fills the tile, and on a phone that means an enormous zoom: a 1080x2100
+                // tile has an aspect of about 1:1.94, so filling it after a quarter turn scales the
+                // picture up by 1.94 and throws away everything outside the middle. What it looked
+                // like on the phone was a camera stuck on maximum zoom.
+                //
+                // Math.Min fits it instead. Nothing is cropped and nothing is magnified — what the
+                // camera saw is what appears.
+                var scale = Math.Min(w / (float)h, h / (float)w);
+                matrix.PostScale(scale, scale, cx, cy);
+            }
+
+            view.SetTransform(matrix);
+            view.Invalidate();
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Info("AetherVideo", "could not turn a surface: " + ex.Message);
+        }
     }
 
     private sealed class Opened(AndroidVideoIo video) : CameraDevice.StateCallback
     {
         public override void OnOpened(CameraDevice camera)
         {
-            video._camera = camera;
+            // The call may already be over. This callback is the FIRST moment there is a device to
+            // close, so a stop that ran while the camera was opening had nothing to act on and left it
+            // held — for as long as the process lived.
+            if (video._disposed || video._stopping)
+            {
+                try { camera.Close(); } catch { /* nothing to close */ }
+                video._opening?.TrySetResult(false);
+                return;
+            }
+
+            lock (video._gate) video._camera = camera;
             video.StartCapture();
         }
 
         public override void OnDisconnected(CameraDevice camera)
         {
             camera.Close();
-            video._camera = null;
+            lock (video._gate) video._camera = null;
+            video._opening?.TrySetResult(false);
         }
 
         public override void OnError(CameraDevice camera, CameraError error)
         {
             global::Android.Util.Log.Error("AetherVideo", "camera error: " + error);
             camera.Close();
-            video._camera = null;
+            lock (video._gate) video._camera = null;
+            video._opening?.TrySetResult(false);
         }
     }
 
     /// <summary>Point the camera at both the encoder and the little local preview.</summary>
     private void StartCapture()
     {
-        var camera = _camera;
-        var input = _encoderInput;
+        CameraDevice? camera;
+        Surface? input;
+        lock (_gate) { camera = _camera; input = _encoderInput; }
         if (camera is null || input is null) return;
 
         try
@@ -526,11 +774,17 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             //
             // Losing the race must not cost the preview permanently, so the session is rebuilt when
             // the surface turns up.
-            var texture = _localView?.SurfaceTexture;
+            var local = _localView;
+            var texture = local?.SurfaceTexture;
             if (texture is not null)
             {
                 texture.SetDefaultBufferSize(Width, Height);
                 targets.Add(new Surface(texture));
+
+                // Seeing yourself sideways is the same bug as the far end seeing you sideways, and it
+                // is the one you notice first because it is your own face.
+                var turn = _captureRotation;
+                if (local is not null) MainThread.BeginInvokeOnMainThread(() => Turn(local, turn));
             }
             else if (_localView is not null && _localView.SurfaceTextureListener is null)
             {
@@ -544,12 +798,13 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             // preview arriving late closes one session and opens another, and the closed one's
             // OnConfigured then fires — adopting it would overwrite the live session with a dead one
             // and configure a closed session, which throws "Session has been closed".
-            var generation = ++_captureGeneration;
+            var generation = System.Threading.Interlocked.Increment(ref _captureGeneration);
             camera.CreateCaptureSession(targets, new Streaming(this, request.Build(), generation), CameraThread);
         }
         catch (Exception ex)
         {
             global::Android.Util.Log.Error("AetherVideo", "could not start capture: " + ex);
+            _opening?.TrySetResult(false);
         }
     }
 
@@ -595,13 +850,28 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
                 return;
             }
 
-            video._session = session;
-            try { session.SetRepeatingRequest(request, null, video.CameraThread); }
-            catch (Exception ex) { global::Android.Util.Log.Error("AetherVideo", "capture refused: " + ex); }
+            lock (video._gate) video._session = session;
+
+            try
+            {
+                session.SetRepeatingRequest(request, null, video.CameraThread);
+
+                // Frames are flowing. THIS is the moment the camera is genuinely on — not when
+                // openCamera returned, which is what used to be reported as success.
+                video._opening?.TrySetResult(true);
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Error("AetherVideo", "capture refused: " + ex);
+                video._opening?.TrySetResult(false);
+            }
         }
 
         public override void OnConfigureFailed(CameraCaptureSession session)
-            => global::Android.Util.Log.Error("AetherVideo", "capture session would not configure");
+        {
+            global::Android.Util.Log.Error("AetherVideo", "capture session would not configure");
+            video._opening?.TrySetResult(false);
+        }
     }
 
     // ── Playing what arrives ──────────────────────────────────────────────────
@@ -623,8 +893,12 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             return;
         }
 
+        // The whole decode happens under the stream's lock, because releasing a codec out from under
+        // a thread that is mid-DequeueInputBuffer is a native crash, not an exception.
+        lock (stream.Gate)
+        {
         var decoder = stream.Decoder;
-        if (decoder is null) return;
+        if (decoder is null || !stream.Ready) return;
 
         try
         {
@@ -651,6 +925,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         catch (Exception ex)
         {
             global::Android.Util.Log.Info("AetherVideo", "dropped a frame: " + ex.Message);
+        }
         }
     }
 
@@ -731,6 +1006,10 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         {
             surface.SetDefaultBufferSize(Width, Height);
             video.StartDecoder(stream, new Surface(surface));
+
+            // The angle usually arrives before the surface does — the camera-on signal beats the first
+            // frame, which is what builds the tile. Applying it here is what makes it stick.
+            if (stream.View is { } view) Turn(view, stream.Rotation);
         }
 
         public bool OnSurfaceTextureDestroyed(SurfaceTexture surface)
@@ -749,7 +1028,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         {
             var format = MediaFormat.CreateVideoFormat(Mime, Width, Height)!;
 
-            lock (_gate)
+            lock (stream.Gate)
             {
                 var decoder = MediaCodec.CreateDecoderByType(Mime);
                 decoder!.Configure(format, surface, null, MediaCodecConfigFlags.None);
@@ -771,7 +1050,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
     private void StopDecoder(Stream_ stream)
     {
-        lock (_gate)
+        lock (stream.Gate)
         {
             stream.Ready = false;
             try { stream.Decoder?.Stop(); } catch { /* nothing was decoded */ }
@@ -807,7 +1086,22 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     public async Task ShowIncomingAsync()
     {
         if (_disposed || _grid is not null) return;
-        await MainThread.InvokeOnMainThreadAsync(AddOverlay).ConfigureAwait(false);
+
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            AddOverlay();
+
+            // Watching is not sending. The corner is where this phone's own picture goes, and there is
+            // no picture to put in it.
+            //
+            // INVISIBLE, never GONE. A gone view is not laid out, and a TextureView that is not laid
+            // out never gets a SurfaceTexture — so the camera has nothing to point the preview at when
+            // it does start. Measured: the phone that was watching first turned its own camera on,
+            // sent video perfectly well and showed itself nothing, while the other phone's corner was
+            // fine. Invisible keeps the surface alive behind an empty rectangle.
+            var local = _localView;
+            if (local is not null) local.Visibility = ViewStates.Invisible;
+        }).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -839,10 +1133,19 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
         try
         {
-            _session?.Close();
-            _session = null;
-            _camera?.Close();
-            _camera = null;
+            CameraCaptureSession? session;
+            CameraDevice? camera;
+            lock (_gate)
+            {
+                session = _session; _session = null;
+                camera = _camera; _camera = null;
+            }
+
+            try { session?.Close(); } catch { /* already gone */ }
+            try { camera?.Close(); } catch { /* already gone */ }
+
+            // The far end is told again after this: the back camera is mounted at its own angle, so
+            // flipping changes which way up this phone's picture arrives.
             OpenCamera();
         }
         catch (Exception ex)
@@ -853,39 +1156,83 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
     // ── Going away ────────────────────────────────────────────────────────────
 
-    public async Task StopAsync()
+    /// <summary>
+    /// Stop THIS phone's camera, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Sending and watching are separate things, and tearing them down together was a real fault
+    /// twice over. A camera of mine that failed to open ran the full stop and took the far end's live
+    /// picture with it; and turning my camera off while theirs was still on ran no stop at all, so the
+    /// camera stayed open and encoding with the button reading "Camera off".
+    /// </para>
+    /// <para>
+    /// This closes the camera, the session, the encoder and the thread that drains it. Decoders,
+    /// tiles and the overlay are left exactly as they are, because somebody else may still be on
+    /// screen.
+    /// </para>
+    /// </remarks>
+    public async Task StopSendingAsync()
     {
+        // Before anything else: a camera still opening must be closed by its own callback, and this is
+        // the flag that tells it so.
+        _stopping = true;
         _running = false;
+        _opening?.TrySetResult(false);
 
-        try { _session?.Close(); } catch { /* already gone */ }
-        _session = null;
+        CameraCaptureSession? session;
+        CameraDevice? camera;
+        global::Android.OS.HandlerThread? thread;
+        MediaCodec? encoder;
+        Surface? input;
+        Thread? drain;
 
-        try { _camera?.Close(); } catch { /* already gone */ }
-        _camera = null;
+        lock (_gate)
+        {
+            session = _session; _session = null;
+            camera = _camera; _camera = null;
+            thread = _cameraThread; _cameraThread = null; _cameraHandler = null;
+            encoder = _encoder; _encoder = null;
+            input = _encoderInput; _encoderInput = null;
+            drain = _drain; _drain = null;
+            _codecConfig = null;
+        }
+
+        try { session?.Close(); } catch { /* already gone */ }
+        try { camera?.Close(); } catch { /* already gone */ }
 
         // The camera thread outlives the camera unless it is stopped, and a HandlerThread left running
         // per call is a thread leaked per call.
-        try { _cameraThread?.QuitSafely(); } catch { /* already gone */ }
-        _cameraThread = null;
-        _cameraHandler = null;
-
-        MediaCodec? encoder;
-        lock (_gate) { encoder = _encoder; _encoder = null; }
+        try { thread?.QuitSafely(); } catch { /* already gone */ }
 
         // The drain thread exits when it sees the encoder go; joining it first means the encoder is
         // never released underneath a thread still reading from it.
-        if (_drain is not null)
+        if (drain is not null)
         {
-            try { _drain.Join(500); } catch { /* it will exit on its own */ }
-            _drain = null;
+            try { drain.Join(500); } catch { /* it will exit on its own */ }
         }
 
         try { encoder?.Stop(); } catch { /* nothing was ever encoded */ }
         try { encoder?.Release(); } catch { /* already gone */ }
+        try { input?.Release(); } catch { /* already gone */ }
 
-        try { _encoderInput?.Release(); } catch { /* already gone */ }
-        _encoderInput = null;
-        _codecConfig = null;
+        // The little corner picture is this phone's own, so it goes when the camera does — hidden
+        // rather than removed, so its surface survives for the next time the camera comes on.
+        var local = _localView;
+        if (local is not null)
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                try { local.Visibility = ViewStates.Invisible; } catch { /* the overlay went first */ }
+            }).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Stop everything: this phone's camera, everybody else's picture, and the surfaces they were
+    /// drawn on. For the end of a call, not for turning a camera off.
+    /// </summary>
+    public async Task StopAsync()
+    {
+        await StopSendingAsync().ConfigureAwait(false);
 
         foreach (var stream in _streams.Values) StopDecoder(stream);
         _streams.Clear();

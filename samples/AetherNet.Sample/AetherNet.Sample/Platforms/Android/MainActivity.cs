@@ -86,5 +86,10 @@ public class MainActivity : MauiAppCompatActivity
 
         PendingLink = data;
         LinkReceived?.Invoke(data);
+
+        // The one that actually reaches the app. The two lines above are kept because the activity is
+        // built before the container is, so a link that arrives on a cold launch has nowhere else to
+        // wait — but the relay is what the UI listens to.
+        InviteLinks.Current?.Deliver(data);
     }
 }

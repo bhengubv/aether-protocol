@@ -97,7 +97,17 @@ public sealed class FastRadioService : IDisposable
         ContactRecord? lowest = null;
         foreach (var contact in _store.GetContacts())
         {
-            if (!contact.IsMutual || contact.PublicKey is not { Length: > 0 }) continue;
+            // A key is all this needs, and demanding mutuality as well was circular. Becoming mutual
+            // requires their add-request to arrive; their add-request travels over the radio; the
+            // radio needs a group; the group needs a host chosen HERE. So two phones that had never
+            // met sat forever, each one added by the other, each one refusing to form the group that
+            // was the only way to finish adding. Measured on a clean pair: both said "nobody added
+            // yet — the group forms as soon as there is somebody to form it with", with the other
+            // person plainly in the contact list.
+            //
+            // Adding somebody is a decision to associate with them. Their half of it is a fact about
+            // the conversation, not a precondition for switching a radio on.
+            if (contact.PublicKey is not { Length: > 0 }) continue;
             if (lowest is null || string.CompareOrdinal(contact.Tag, lowest.Tag) < 0) lowest = contact;
         }
         return lowest;

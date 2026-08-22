@@ -24,16 +24,37 @@ public enum SendLane
     RealTime = 0,
 
     /// <summary>
+    /// Pictures, in flight. Every bit as time-critical as speech and an order of magnitude larger, so
+    /// it gets its own lane immediately below it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Video used to share <see cref="RealTime"/> with voice, and that lane is unbounded — deliberately,
+    /// on the reasoning that real-time traffic is "small and rare enough" that a bound would only ever
+    /// throw away something somebody is waiting for. That was true of voice: 149 to 391 bytes, fifty a
+    /// second. It is not true of video: 3.6 to 4.8 kilobytes, twenty a second, in both directions at
+    /// once. On a link that cannot keep up, an unbounded queue of those does not drop anything — it
+    /// delivers every single one of them, late, and the delay grows for as long as the call lasts.
+    /// </para>
+    /// <para>
+    /// Its own lane means it can be bounded and dropped from without ever discarding a syllable of
+    /// speech, which is the same order this app applies everywhere else: the picture gives way first,
+    /// so the voice does not have to.
+    /// </para>
+    /// </remarks>
+    Video = 1,
+
+    /// <summary>
     /// Somebody is waiting for it — a message, a receipt, a call being set up. Late is annoying rather
     /// than useless, so it yields to speech but not to a file.
     /// </summary>
-    Interactive = 1,
+    Interactive = 2,
 
     /// <summary>
     /// Nobody is watching the clock. Attachments and app packages get whatever is left, and they resume
     /// if the link drops, so being pushed aside costs them nothing.
     /// </summary>
-    Bulk = 2,
+    Bulk = 3,
 }
 
 /// <summary>
@@ -52,9 +73,14 @@ public static class PacketPriority
     /// <summary>Which lane this kind of packet belongs in.</summary>
     public static SendLane Lane(PacketType type) => type switch
     {
-        // Speech and pictures, in flight. These have a deadline measured in tens of milliseconds.
-        PacketType.VoiceCall or PacketType.VoicePtt or PacketType.VideoFrame
-            or PacketType.StreamSegment or PacketType.ScreenShare => SendLane.RealTime,
+        // Speech, in flight. A deadline measured in tens of milliseconds, and small enough that it
+        // never needs to be dropped to meet it.
+        PacketType.VoiceCall or PacketType.VoicePtt => SendLane.RealTime,
+
+        // Pictures, in flight. The same deadline and roughly twenty times the size, which is why they
+        // are no longer queued beside the speech they would otherwise delay.
+        PacketType.VideoFrame or PacketType.StreamSegment
+            or PacketType.ScreenShare => SendLane.Video,
 
         // Setting a call up is worth as much as the call: a key or an answer arriving late is a call
         // that never starts.
@@ -70,5 +96,16 @@ public static class PacketPriority
     };
 
     /// <summary>How many lanes there are — for anything that needs one queue per lane.</summary>
-    public const int Lanes = 3;
+    public const int Lanes = 4;
+
+    /// <summary>
+    /// Whether a lane may throw away its oldest to stay current, rather than growing without limit.
+    /// </summary>
+    /// <remarks>
+    /// True of exactly the two lanes whose contents survive being dropped: a video frame is worthless
+    /// once its moment has passed, and an attachment chunk is content-addressed and asked for again.
+    /// Speech is never dropped — it is small enough not to need it — and neither is anything a person
+    /// is waiting on.
+    /// </remarks>
+    public static bool MayDropOldest(SendLane lane) => lane is SendLane.Video or SendLane.Bulk;
 }

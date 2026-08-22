@@ -56,6 +56,32 @@ public interface IVideoIo
     /// </remarks>
     Task ShowIncomingAsync() => Task.CompletedTask;
 
+    /// <summary>
+    /// Stop this phone's camera without disturbing anybody else's picture.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="StopAsync"/>, which ends the whole thing. Sending and watching are
+    /// separate, and running them together was wrong in both directions: a camera that would not open
+    /// tore down a picture that was already working, and turning a camera off while the other person's
+    /// was still on stopped nothing at all — leaving it open and encoding behind a button reading
+    /// "Camera off".
+    /// </remarks>
+    Task StopSendingAsync() => StopAsync();
+
+    /// <summary>
+    /// How far the far end must turn this phone's picture to draw it the way up it was taken.
+    /// </summary>
+    /// <remarks>
+    /// A camera sensor is fixed to the board at an angle and delivers frames that way whatever the
+    /// person is doing with the phone. It cannot be corrected at the encoder — this sends a bare H.264
+    /// stream with no container to carry the rotation metadata in — and correcting it in pixels would
+    /// mean a copy per frame. So it travels as a number and is applied by whoever draws it.
+    /// </remarks>
+    int CaptureRotation => 0;
+
+    /// <summary>Draw this person's picture turned by the angle they announced.</summary>
+    void SetRemoteRotation(string who, int degrees) { }
+
     /// <summary>Ask for the camera, at the moment the person taps the camera button.</summary>
     Task<bool> EnsurePermissionAsync();
 

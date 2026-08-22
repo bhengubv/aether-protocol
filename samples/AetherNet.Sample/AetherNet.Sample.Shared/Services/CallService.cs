@@ -556,9 +556,13 @@ public sealed class CallService : IDisposable
         {
             _video.FrameEncoded -= OnEncodedFrame;
 
-            // Only give the screen back when neither camera is on. Turning mine off while they are
-            // still showing me theirs must not black their picture out.
-            if (!TheirVideoOn) await _video.StopAsync().ConfigureAwait(false);
+            // Only give the SCREEN back when neither camera is on — turning mine off while they are
+            // still showing me theirs must not black their picture out. The camera itself stops
+            // either way: unhooking the frame event only stops them being sent, and this used to
+            // leave the camera open and encoding for the rest of the call with the button reading
+            // "Camera off".
+            if (TheirVideoOn) await _video.StopSendingAsync().ConfigureAwait(false);
+            else await _video.StopAsync().ConfigureAwait(false);
         }
 
         VideoOn = on;
@@ -568,7 +572,30 @@ public sealed class CallService : IDisposable
     }
 
     /// <summary>Flip between the front and back cameras mid-call.</summary>
-    public void SwitchCamera() => _video?.SwitchCamera();
+    /// <remarks>
+    /// The far end is told again afterwards. The two lenses are mounted at different angles and the
+    /// front one is mirrored, so a flip changes which way up this phone's picture arrives — announcing
+    /// only on/off would leave them watching a correct picture upside down.
+    /// </remarks>
+    public void SwitchCamera()
+    {
+        _video?.SwitchCamera();
+
+        if (!VideoOn || Current is not { State: CallState.Connected } call) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                // The new lens is opened asynchronously; its angle is not known the instant the flip
+                // is asked for.
+                await Task.Delay(400).ConfigureAwait(false);
+                await AnnounceVideoAsync(call.RemoteUhid(_me.AetherTag), true, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex) { _log.LogDebug(ex, "re-announcing the camera angle"); }
+        });
+    }
 
     /// <summary>
     /// A frame off this phone's encoder. Sent without waiting: the encoder's thread must keep
@@ -619,8 +646,13 @@ public sealed class CallService : IDisposable
 
         try
         {
+            // Two bytes now: whether the camera is on, and which way up its pictures come out. A
+            // reader that only knows the first byte still gets the camera state right, which is what
+            // keeps this compatible with a phone running the older build.
+            var turn = VideoRotation.ToWire(_video?.CaptureRotation ?? 0);
+
             var sealedBody = await _signal
-                .EncryptAsync(peerTag, new[] { on ? CameraOn : (byte)0 }, cancellationToken)
+                .EncryptAsync(peerTag, new[] { on ? CameraOn : (byte)0, turn }, cancellationToken)
                 .ConfigureAwait(false);
 
             var body = AetherNet.Messaging.EncryptedPayloadCodec.Serialize(sealedBody);
@@ -659,6 +691,10 @@ public sealed class CallService : IDisposable
             var body = await _signal.DecryptAsync(from, sealedBody).ConfigureAwait(false);
 
             TheirVideoOn = body.Length > 0 && body[0] == CameraOn;
+
+            // A phone on the older build sends one byte and no angle. Zero is the right answer for it:
+            // it is what was being drawn before, so nothing gets worse.
+            _video?.SetRemoteRotation(from, body.Length > 1 ? VideoRotation.FromWire(body[1]) : 0);
 
             // Their camera going on when mine is off still needs somewhere to draw, so the surfaces
             // come up for their picture alone — and ONLY the surfaces. This used to call StartAsync,

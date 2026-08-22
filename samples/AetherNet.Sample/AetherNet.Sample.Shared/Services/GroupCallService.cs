@@ -372,7 +372,13 @@ public sealed class GroupCallService : IDisposable
         else if (_video is not null)
         {
             _video.FrameEncoded -= OnEncodedVideo;
+
+            // The same distinction the 1:1 path draws. The screen only goes back when nobody is on
+            // camera any more, but this phone's own camera stops either way — unhooking the event
+            // stops frames being sent and leaves the camera open and encoding behind a button that
+            // says it is off.
             if (OnCamera.Count == 0) await _video.StopAsync().ConfigureAwait(false);
+            else await _video.StopSendingAsync().ConfigureAwait(false);
         }
 
         CameraOn = on;

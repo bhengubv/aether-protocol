@@ -237,6 +237,9 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
         background: var(--bg);
         display: flex; flex-direction: column; align-items: center;
         padding: 12vh 24px 8vh;
+        /* Its own stacking context, so the video scrim can sit behind the controls without falling
+           behind the native video surface underneath the whole page. */
+        isolation: isolate;
     }
 
     .call-who { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 1 1 auto; }
@@ -259,9 +262,38 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     .app:has(.call-who.hidden) > .viewport,
     .app:has(.call-who.hidden) > .tabbar { visibility: hidden; }
     .call-who.hidden { visibility: hidden; }
-    .call-screen:has(.call-who.hidden) .call-actions,
+    /* With a picture behind them the controls stop being page furniture and become an overlay, so
+       they dock to the bottom edge the way every other video call on the phone does. Floating them
+       in the middle of the frame — which is where 8vh of margin and a 42px nudge put them — lands
+       them squarely across the face of whoever you are talking to. */
+    .call-screen:has(.call-who.hidden) {
+        justify-content: flex-end; padding: 0;
+    }
+    .call-screen:has(.call-who.hidden) .call-actions {
+        margin: 0 0 14px; padding: 0 16px; width: 100%;
+    }
     .call-screen:has(.call-who.hidden) .call-end {
-        background: rgba(0, 0, 0, 0.45); border-radius: 18px; padding: 10px 14px; backdrop-filter: blur(6px);
+        transform: none; margin-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    }
+    /* One scrim for both rows rather than a slab behind each: a gradient keeps the bottom of the
+       picture visible while still guaranteeing the controls have something to read against, whatever
+       the camera happens to be pointing at. */
+    .call-screen:has(.call-who.hidden)::after {
+        content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 42vh;
+        background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.45) 45%, transparent 100%);
+        pointer-events: none; z-index: -1;
+    }
+    .call-screen:has(.call-who.hidden) .cbtn {
+        background: rgba(0, 0, 0, 0.42); border-color: rgba(255, 255, 255, 0.22); color: #fff;
+        backdrop-filter: blur(8px);
+    }
+    .call-screen:has(.call-who.hidden) .cbtn.on {
+        background: var(--brand); border-color: var(--brand); color: #fff;
+    }
+
+    /* The minimise chevron sits on the picture too, so it needs its own readability. */
+    .call-screen:has(.call-who.hidden) .call-min {
+        color: #fff; background: rgba(0, 0, 0, 0.35); backdrop-filter: blur(6px);
     }
     .call-av {
         width: 108px; height: 108px; border-radius: 50%;

@@ -7,6 +7,8 @@
 @inject CallService Calls
 @inject NavigationManager Nav
 @inject WarmUpService Warm
+@inject ContactService Contacts
+@inject InviteLinks Invites
 
 <div class="app">
     <header class="appbar">
@@ -61,6 +63,13 @@
     {
         Calls.Changed += OnCallChanged;
 
+        // Somebody scanned an invite. This is the only path that carries a public key, and until it
+        // was wired the link was parsed, validated and thrown away — so a scan added nobody, and two
+        // phones that had never met could never obtain the keys they need to find each other on the
+        // radio at all.
+        Invites.Arrived += OnInvite;
+        OnInvite(Invites.TakeWaiting());
+
         // Nothing is ready until it has been made ready, and making it ready in front of somebody who
         // has just tapped something is what made this app feel like it hesitated. So every route lands
         // on the warm-up first: it opens the databases, unseals the identity, publishes the pre-keys,
@@ -84,8 +93,40 @@
 
     private void OnCallChanged() => _ = InvokeAsync(StateHasChanged);
 
+    /// <summary>
+    /// Add whoever the invite names, wherever the person happens to be in the app.
+    /// </summary>
+    /// <remarks>
+    /// Handled in the shell rather than on the add-a-person page, because a scan arrives from outside
+    /// the app entirely — usually straight from the phone's own camera app onto whatever screen was
+    /// last open. Requiring a particular page to be in front would put the handler exactly where the
+    /// link never lands.
+    /// </remarks>
+    private void OnInvite(string? link)
+    {
+        if (string.IsNullOrWhiteSpace(link)) return;
+
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await Contacts.AddAsync(link, via: "invite");
+                StateHasChanged();
+            }
+            catch (Exception)
+            {
+                // A bad invite is not worth interrupting anyone over; AddAsync already refuses a tag
+                // the key does not derive.
+            }
+        });
+    }
+
     // Answering and declining moved to CallOverlay, which owns the whole call now. The call no longer
     // navigates anywhere on answer: it covers the screen, so there is nothing underneath to arrange.
 
-    public void Dispose() => Calls.Changed -= OnCallChanged;
+    public void Dispose()
+    {
+        Calls.Changed -= OnCallChanged;
+        Invites.Arrived -= OnInvite;
+    }
 }
