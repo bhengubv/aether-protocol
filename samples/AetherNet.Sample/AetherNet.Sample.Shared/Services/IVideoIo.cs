@@ -95,6 +95,41 @@ public interface IVideoIo
     /// </remarks>
     void SetRemoteRotation(string who, int degrees, int videoWidth, int videoHeight) { }
 
+    // ── Who is driving ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Take charge of the camera, the encoder and the surfaces. Refused if something else has them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// There is one of these objects for the whole app — one camera, one encoder, one overlay, one
+    /// table of who is on screen — and it was injected into both the 1:1 call service and the group
+    /// call service, each a singleton, each subscribed to the radio from startup, neither aware the
+    /// other existed. Between them they had seven places that tore it all down and three that brought
+    /// it up.
+    /// </para>
+    /// <para>
+    /// The failure that falls out of that needs no unusual timing: be in a group video call, decline
+    /// an unrelated 1:1 call, and the decline runs a full teardown — every decoder released, every
+    /// tile removed, the overlay gone. The group call carries on with no picture, and nothing anywhere
+    /// reports an error, because from the 1:1 service's point of view it did exactly the right thing.
+    /// </para>
+    /// <para>
+    /// Claiming makes that impossible to express. Reclaiming what you already hold succeeds, so this
+    /// is safe to call on every path that needs the camera.
+    /// </para>
+    /// </remarks>
+    bool Claim(object owner) => true;
+
+    /// <summary>Whether this is the thing currently driving the camera.</summary>
+    bool HeldBy(object owner) => true;
+
+    /// <summary>
+    /// Give it back, and tear it down — but only if it was yours. A release from anything else is
+    /// ignored, which is the whole point.
+    /// </summary>
+    Task ReleaseAsync(object owner) => StopAsync();
+
     /// <summary>Ask for the camera, at the moment the person taps the camera button.</summary>
     Task<bool> EnsurePermissionAsync();
 

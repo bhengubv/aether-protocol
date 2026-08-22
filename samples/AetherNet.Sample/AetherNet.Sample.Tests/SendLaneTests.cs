@@ -65,6 +65,35 @@ public class SendLaneTests
     public void Setting_a_call_up_is_worth_as_much_as_the_call(PacketType type)
         => Assert.Equal(SendLane.RealTime, PacketPriority.Lane(type));
 
+    /// <summary>
+    /// The camera going on or off must never be droppable, and it is not video however much it looks
+    /// like it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It was sent as <see cref="PacketType.VideoFrame"/>, on the reasoning that the type put it in
+    /// the real-time lane — true when it was written, and silently falsified the moment video was
+    /// given a lane of its own. VideoFrame then meant a six-deep drop-oldest queue: correct for
+    /// pictures, catastrophic for this.
+    /// </para>
+    /// <para>
+    /// A dropped camera-off leaves the far end showing a frozen last frame for the rest of the call,
+    /// which is the exact failure this packet exists to prevent — and it would be dropped precisely
+    /// when the link is busy, which is precisely when a camera is on.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_camera_going_off_can_never_be_dropped()
+    {
+        var control = PacketPriority.Lane(PacketType.VideoSignaling);
+        var media = PacketPriority.Lane(PacketType.VideoFrame);
+
+        Assert.NotEqual(media, control);
+        Assert.False(PacketPriority.MayDropOldest(control),
+            "the far end would sit on a frozen frame for the rest of the call");
+        Assert.True(PacketPriority.MayDropOldest(media));
+    }
+
     [Theory]
     [InlineData(PacketType.ChunkData)]
     [InlineData(PacketType.ChunkRequest)]

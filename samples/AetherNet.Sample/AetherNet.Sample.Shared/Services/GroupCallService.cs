@@ -361,6 +361,12 @@ public sealed class GroupCallService : IDisposable
                 return false;
             }
 
+            if (!_video.Claim(this))
+            {
+                T("cannot send video — the camera is busy with another call");
+                return false;
+            }
+
             if (!await _video.StartAsync(cancellationToken).ConfigureAwait(false))
             {
                 T("cannot send video — " + (_video.UnavailableReason ?? "the camera would not open"));
@@ -377,7 +383,7 @@ public sealed class GroupCallService : IDisposable
             // camera any more, but this phone's own camera stops either way — unhooking the event
             // stops frames being sent and leaves the camera open and encoding behind a button that
             // says it is off.
-            if (OnCamera.Count == 0) await _video.StopAsync().ConfigureAwait(false);
+            if (OnCamera.Count == 0) await _video.ReleaseAsync(this).ConfigureAwait(false);
             else await _video.StopSendingAsync().ConfigureAwait(false);
         }
 
@@ -521,6 +527,12 @@ public sealed class GroupCallService : IDisposable
             if (p.Video.Open(payload.AsSpan(VideoMarker.Length)) is not { } frame) return;
 
             p.LastHeard = DateTime.UtcNow;
+
+            // Drawing somebody builds the shared overlay, so this needs the device as much as sending
+            // does. If a 1:1 call has it, these frames are dropped rather than fought over — you
+            // cannot be in two video calls at once, and the one you are looking at should win.
+            if (!_video.Claim(this)) return;
+
             _video.Play(from, frame);
         }
         catch (Exception ex)
@@ -851,7 +863,7 @@ public sealed class GroupCallService : IDisposable
         if (_video is not null)
         {
             _video.FrameEncoded -= OnEncodedVideo;
-            try { await _video.StopAsync().ConfigureAwait(false); } catch { /* the call is over */ }
+            try { await _video.ReleaseAsync(this).ConfigureAwait(false); } catch { /* the call is over */ }
         }
 
         foreach (var p in _participants.Values) p.Dispose();

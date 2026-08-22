@@ -543,6 +543,13 @@ public sealed class CallService : IDisposable
                 return false;
             }
 
+            // One camera, and something else may already be using it.
+            if (!_video.Claim(this))
+            {
+                T("cannot send video — the camera is busy with another call");
+                return false;
+            }
+
             if (!await _video.StartAsync(cancellationToken).ConfigureAwait(false))
             {
                 T("cannot send video — " + (_video.UnavailableReason ?? "the camera would not open"));
@@ -561,8 +568,10 @@ public sealed class CallService : IDisposable
             // either way: unhooking the frame event only stops them being sent, and this used to
             // leave the camera open and encoding for the rest of the call with the button reading
             // "Camera off".
+            // Still watching them: keep the device, just stop the camera. Nobody left to watch: give
+            // it back, which is what tears the surfaces down.
             if (TheirVideoOn) await _video.StopSendingAsync().ConfigureAwait(false);
-            else await _video.StopAsync().ConfigureAwait(false);
+            else await _video.ReleaseAsync(this).ConfigureAwait(false);
         }
 
         VideoOn = on;
@@ -667,9 +676,18 @@ public sealed class CallService : IDisposable
 
             await _radio.SendPacketAsync(PacketSerializer.Serialize(new MeshPacket
             {
-                // Typed, so the send path can put it in the real-time lane. While this was Data
-                // it queued behind attachment chunks like everything else.
-                Type = PacketType.VideoFrame,
+                // VideoSignaling, NOT VideoFrame. This is the camera going on or off, and it is not
+                // video — it is the thing that tells the far end whether to expect any.
+                //
+                // It rode PacketType.VideoFrame, on the reasoning that the type put it in the
+                // real-time lane. That reasoning stopped being true the moment video was given its
+                // own lane: VideoFrame now means SendLane.Video, which is bounded at six frames and
+                // drops its oldest to stay current. Correct for pictures — a frame whose moment has
+                // passed is worthless — and catastrophic for this, which has no moment and must
+                // arrive. A dropped camera-off leaves the far end showing a frozen last frame for the
+                // rest of the call, which is the exact failure this packet exists to prevent, and it
+                // would drop precisely when the link is busy, which is precisely when video is on.
+                Type = PacketType.VideoSignaling,
                 SourceUhid = _me.AetherTag,
                 DestinationUhid = peerTag,
                 Ttl = 1,      // the same one hop the key takes; a camera state is between two phones
@@ -685,9 +703,37 @@ public sealed class CallService : IDisposable
     }
 
     /// <summary>They turned their camera on or off.</summary>
+    /// <remarks>
+    /// <para>
+    /// Only from the person this phone is actually on a call with. This used to check nothing beyond
+    /// the packet having a sender: any contact, at any moment, with no call in progress at all, could
+    /// set <see cref="TheirVideoOn"/> — which brings up a full-screen native overlay and, because the
+    /// page goes transparent to let video through, takes the app bar, the content and the tab bar with
+    /// it. A contact could black out somebody's phone from across the room.
+    /// </para>
+    /// <para>
+    /// The decryption is not the gate. It opens under their ratchet, which every contact has — that
+    /// proves who sent it, not that they had any business sending it. The group call path has had this
+    /// right all along: it checks that it has joined, that the sender is a participant, and that the
+    /// participant is one it is showing.
+    /// </para>
+    /// </remarks>
     private async Task ReceiveVideoStateAsync(string? from, byte[] payload)
     {
         if (string.IsNullOrEmpty(from)) return;
+
+        // In a call, and with them.
+        if (Current is not { State: CallState.Connected or CallState.Outgoing or CallState.Incoming })
+        {
+            _log.LogDebug("camera state from {Peer} with no call in progress — ignored", from);
+            return;
+        }
+
+        if (!string.Equals(PeerTag, from, StringComparison.Ordinal))
+        {
+            _log.LogDebug("camera state from {Peer}, who is not who this call is with — ignored", from);
+            return;
+        }
 
         try
         {
@@ -710,13 +756,14 @@ public sealed class CallService : IDisposable
             // come up for their picture alone — and ONLY the surfaces. This used to call StartAsync,
             // which opens this phone's camera as well: the person was shown "Camera off" while their
             // camera was genuinely running. Showing a picture and sending one are different things.
-            if (TheirVideoOn && _video is { IsPresent: true })
+            // Watching needs the device too — it builds the same overlay the camera does.
+            if (TheirVideoOn && _video is { IsPresent: true } && _video.Claim(this))
                 await _video.ShowIncomingAsync().ConfigureAwait(false);
 
             _video?.ShowRemote(TheirVideoOn);
 
-            if (!TheirVideoOn && !VideoOn && _video is { IsRunning: true })
-                await _video.StopAsync().ConfigureAwait(false);
+            if (!TheirVideoOn && !VideoOn && _video is not null)
+                await _video.ReleaseAsync(this).ConfigureAwait(false);
 
             _radio?.IdentifyPeer(from);
             T("their camera is " + (TheirVideoOn ? "on" : "off"));
@@ -967,9 +1014,22 @@ public sealed class CallService : IDisposable
         try { packet = PacketSerializer.Deserialize(bytes); }
         catch { return; }
 
+        // Media goes straight through. A video frame is a video frame — it carries no marker and must
+        // never be examined for one, which is what used to happen twenty times a second: every frame
+        // had four bytes decoded to UTF-8 and string-compared, twice, before anything could be done
+        // with it. That is the cost of a packet type that does not say what it contains.
+        if (packet.Type is PacketType.VideoFrame or PacketType.VoiceCall)
+        {
+            _ = HandleVoiceAsync(packet);
+            return;
+        }
+
+        // Everything below is control, and only control is ever sniffed.
+        if (packet.Type is not (PacketType.Data or PacketType.VoiceSignaling or PacketType.VideoSignaling))
+            return;
+
         // The key handoff rides an ordinary data packet, as the mesh-web and the Wi-Fi Direct broker do.
-        if (packet.Type is PacketType.Data or PacketType.VideoFrame or PacketType.VoiceSignaling or PacketType.VoiceCall &&
-            packet.Payload is { } p && p.Length > KeyMarker.Length &&
+        if (packet.Payload is { } p && p.Length > KeyMarker.Length &&
             Encoding.UTF8.GetString(p, 0, KeyMarker.Length) == KeyMarker)
         {
             _ = ReceiveKeyAsync(packet.SourceUhid, p);
@@ -979,15 +1039,15 @@ public sealed class CallService : IDisposable
         // So does the camera going on and off. It has to be told, rather than inferred from frames
         // stopping: a phone cannot otherwise tell a switched-off camera from a dead link, and would
         // sit showing a frozen last frame as though the call were fine.
-        if (packet.Type is PacketType.Data or PacketType.VideoFrame or PacketType.VoiceSignaling or PacketType.VoiceCall &&
-            packet.Payload is { } v && v.Length > VideoMarker.Length &&
+        //
+        if (packet.Payload is { } v && v.Length > VideoMarker.Length &&
             Encoding.UTF8.GetString(v, 0, VideoMarker.Length) == VideoMarker)
         {
             _ = ReceiveVideoStateAsync(packet.SourceUhid, v);
             return;
         }
 
-        if (packet.Type is not (PacketType.VoiceSignaling or PacketType.VoiceCall or PacketType.VideoFrame)) return;
+        if (packet.Type is not (PacketType.VoiceSignaling or PacketType.VideoSignaling)) return;
         _ = HandleVoiceAsync(packet);
     }
 
@@ -1048,7 +1108,21 @@ public sealed class CallService : IDisposable
             // it here would put a decoder on the receive path of every host that has none.
             Voice();
             opened = _sender!.OpenMedia(packet);
-            if (opened?.Payload is not { Length: > 0 } frame) return;
+            if (opened?.Payload is not { Length: > 0 } frame)
+            {
+                // It would not open as media. Almost always that is a frame from a call this phone
+                // has already left, and it is simply dropped — but a phone on a build older than this
+                // one sends its camera-on and camera-off as VideoFrame too, and that must still get
+                // through or a mixed pair can never tell each other about their cameras.
+                //
+                // Checked HERE rather than on the way in, so the common case — an ordinary frame,
+                // twenty a second — is never string-compared against a marker at all.
+                if (packet.Payload is { } legacy && legacy.Length > VideoMarker.Length &&
+                    Encoding.UTF8.GetString(legacy, 0, VideoMarker.Length) == VideoMarker)
+                    _ = ReceiveVideoStateAsync(from, legacy);
+
+                return;
+            }
 
             VideoFrameReceived?.Invoke(frame);
             _video?.Play(from, frame);
@@ -1238,7 +1312,11 @@ public sealed class CallService : IDisposable
         if (_video is not null)
         {
             _video.FrameEncoded -= OnEncodedFrame;
-            try { await _video.StopAsync().ConfigureAwait(false); } catch { /* the call is over anyway */ }
+
+            // Release rather than stop. If a group call is the one actually using the camera, this
+            // call has no business tearing it down — and before ownership existed, declining an
+            // unrelated 1:1 call did exactly that.
+            try { await _video.ReleaseAsync(this).ConfigureAwait(false); } catch { /* the call is over anyway */ }
         }
 
         Raise();

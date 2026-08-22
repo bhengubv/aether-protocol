@@ -344,6 +344,28 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
     public event Action<byte[]>? FrameEncoded;
 
+    // ── Who is driving ────────────────────────────────────────────────────────
+
+    /// <summary>The one thing allowed to start and stop this. See <see cref="DeviceClaim"/>.</summary>
+    private readonly DeviceClaim _claim = new();
+
+    /// <inheritdoc />
+    public bool Claim(object owner) => !_disposed && _claim.Claim(owner);
+
+    /// <inheritdoc />
+    public bool HeldBy(object owner) => _claim.HeldBy(owner);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The claim is given up before the teardown runs, and deliberately not under this class's own
+    /// gate: <see cref="StopAsync"/> takes that gate to swap the camera and encoder out, and holding
+    /// it across a camera close would deadlock the first time either needed the other.
+    /// </remarks>
+    public async Task ReleaseAsync(object owner)
+    {
+        if (_claim.Release(owner)) await StopAsync().ConfigureAwait(false);
+    }
+
     public async Task<bool> EnsurePermissionAsync()
         => await Permissions.RequestAsync<Permissions.Camera>().ConfigureAwait(false) == PermissionStatus.Granted;
 
