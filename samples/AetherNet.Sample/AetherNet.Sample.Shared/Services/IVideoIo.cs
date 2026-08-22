@@ -233,6 +233,9 @@ public interface IVideoIo
     /// <summary>Whether this is the thing currently driving the camera.</summary>
     bool HeldBy(object owner) => true;
 
+    /// <summary>Whether a claim would succeed — free, or already yours. For asking without taking.</summary>
+    bool CanClaim(object owner) => true;
+
     /// <summary>
     /// Give it back, and tear it down — but only if it was yours. A release from anything else is
     /// ignored, which is the whole point.

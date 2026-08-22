@@ -505,12 +505,14 @@ public sealed class CallService : IDisposable
     public bool CanSendVideo =>
         Current is { State: CallState.Connected } &&
         _video is { IsPresent: true } &&
+        _video.CanClaim(this) &&
         MediaBitrate.WorthVideo(_radio?.LinkStrain ?? 0);
 
     /// <summary>Why the camera is not on offer, in plain words — or null when it is.</summary>
     public string? CannotSendVideoReason =>
         Current is not { State: CallState.Connected } ? "not in a call"
         : _video is not { IsPresent: true } ? _video?.UnavailableReason ?? "this device has no camera"
+        : _video?.CanClaim(this) == false ? "the camera is busy with another call"
         : !CanSendVideo ? (_radio?.LinkRadio ?? "this radio") + " is working too hard for video — voice only"
         : null;
 
@@ -560,6 +562,15 @@ public sealed class CallService : IDisposable
                 return false;
             }
 
+            // Intent goes up the moment the device is genuinely capturing, and BEFORE anything else.
+            // Between StartAsync returning and this line there used to be several statements, and a
+            // camera that gave up inside that window was ignored — MustGiveUp is false while intent
+            // is false — after which this method set VideoOn anyway and announced a camera that had
+            // already stopped.
+            VideoOn = true;
+
+            // Detached first so this can never attach twice, whatever path arrived here.
+            _video.FrameEncoded -= OnEncodedFrame;
             _video.FrameEncoded += OnEncodedFrame;
             _video.ShowRemote(TheirVideoOn);
         }
@@ -617,6 +628,12 @@ public sealed class CallService : IDisposable
     private async Task CameraGaveUpAsync()
     {
         VideoOn = false;
+
+        // Detach, or the next camera-on attaches a SECOND handler and every frame is sent twice —
+        // doubling the load on the very link whose congestion stopped the camera in the first place.
+        // Only the deliberate paths used to unsubscribe, because only they existed.
+        if (_video is not null) _video.FrameEncoded -= OnEncodedFrame;
+
         T("the camera stopped — telling them, so they are not left on a frozen picture");
 
         if (Current is { State: CallState.Connected } call)
@@ -793,29 +810,55 @@ public sealed class CallService : IDisposable
                 payload.AsSpan(VideoMarker.Length).ToArray());
             var body = await _signal.DecryptAsync(from, sealedBody).ConfigureAwait(false);
 
-            TheirVideoOn = body.Length > 0 && body[0] == CameraOn;
+            var theirCameraOn = body.Length > 0 && body[0] == CameraOn;
 
-            // A phone on an older build sends fewer bytes. Zero degrees is the right answer for the
-            // angle — it is what was drawn before, so nothing gets worse — and a zero size leaves
-            // whatever the tile was already using.
-            _video?.SetRemoteRotation(
-                from,
-                body.Length > 1 ? VideoRotation.FromWire(body[1]) : 0,
-                body.Length > 2 ? body[2] * 16 : 0,
-                body.Length > 3 ? body[3] * 16 : 0);
+            if (theirCameraOn)
+            {
+                // Believe them only as far as this phone can act on it.
+                //
+                // TheirVideoOn was set from the packet and the surfaces attempted afterwards, so a
+                // claim that failed — the camera busy with a group call — left this phone insisting
+                // the other person was on camera with nowhere to draw them. The UI keys the whole
+                // screen off that: app bar, content and tab bar all hide and the page goes
+                // transparent to let video through. The result was a blank screen with nothing
+                // behind it.
+                if (_video is not { IsPresent: true } || !_video.Claim(this))
+                {
+                    T("their camera is on, but this phone cannot show it right now");
+                    return;
+                }
 
-            // Their camera going on when mine is off still needs somewhere to draw, so the surfaces
-            // come up for their picture alone — and ONLY the surfaces. This used to call StartAsync,
-            // which opens this phone's camera as well: the person was shown "Camera off" while their
-            // camera was genuinely running. Showing a picture and sending one are different things.
-            // Watching needs the device too — it builds the same overlay the camera does.
-            if (TheirVideoOn && _video is { IsPresent: true } && _video.Claim(this))
+                // A phone on an older build sends fewer bytes. Zero degrees is the right answer for
+                // the angle — it is what was drawn before, so nothing gets worse — and a zero size
+                // leaves whatever the tile was already using.
+                _video.SetRemoteRotation(
+                    from,
+                    body.Length > 1 ? VideoRotation.FromWire(body[1]) : 0,
+                    body.Length > 2 ? body[2] * 16 : 0,
+                    body.Length > 3 ? body[3] * 16 : 0);
+
+                TheirVideoOn = true;
+
+                // Their camera going on when mine is off still needs somewhere to draw, so the
+                // surfaces come up for their picture alone — and ONLY the surfaces. This used to call
+                // StartAsync, which opens this phone's camera as well: the person was shown
+                // "Camera off" while their camera was genuinely running.
                 await _video.ShowIncomingAsync().ConfigureAwait(false);
+                _video.ShowRemote(true);
+            }
+            else
+            {
+                TheirVideoOn = false;
+                _video?.ShowRemote(false);
 
-            _video?.ShowRemote(TheirVideoOn);
+                // Their decoder and their tile go with their camera. Forget existed for exactly this
+                // and was only ever called by the group service, so a 1:1 call held both for the rest
+                // of the call every time somebody switched off.
+                _video?.Forget(from);
 
-            if (!TheirVideoOn && !VideoOn && _video is not null)
-                await _video.ReleaseAsync(this).ConfigureAwait(false);
+                if (!VideoOn && _video is not null)
+                    await _video.ReleaseAsync(this).ConfigureAwait(false);
+            }
 
             _radio?.IdentifyPeer(from);
             T("their camera is " + (TheirVideoOn ? "on" : "off"));

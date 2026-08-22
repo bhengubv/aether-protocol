@@ -193,6 +193,9 @@ public sealed class GroupCallService : IDisposable
     private async Task CameraGaveUpAsync()
     {
         CameraOn = false;
+
+        // Detach, or the next camera-on attaches a second handler and every frame goes out twice.
+        if (_video is not null) _video.FrameEncoded -= OnEncodedVideo;
         T("the camera stopped — telling the others, so they are not left on a frozen picture");
 
         try
@@ -407,6 +410,10 @@ public sealed class GroupCallService : IDisposable
                 return false;
             }
 
+            CameraOn = true;
+
+            // Detached first so this can never attach twice, whatever path arrived here.
+            _video.FrameEncoded -= OnEncodedVideo;
             _video.FrameEncoded += OnEncodedVideo;
         }
         else if (_video is not null)

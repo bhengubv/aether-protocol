@@ -363,6 +363,9 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     public bool HeldBy(object owner) => _claim.HeldBy(owner);
 
     /// <inheritdoc />
+    public bool CanClaim(object owner) => !_disposed && _claim.CanClaim(owner);
+
+    /// <inheritdoc />
     /// <remarks>
     /// The claim is given up before the teardown runs, and deliberately not under this class's own
     /// gate: <see cref="StopAsync"/> takes that gate to swap the camera and encoder out, and holding

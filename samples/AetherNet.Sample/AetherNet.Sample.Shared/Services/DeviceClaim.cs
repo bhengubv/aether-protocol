@@ -58,6 +58,20 @@ public sealed class DeviceClaim
         }
     }
 
+    /// <summary>
+    /// Whether a claim would succeed — free, or already yours.
+    /// </summary>
+    /// <remarks>
+    /// For asking without taking. A camera button that only finds out the device is busy when it is
+    /// pressed has already prompted for a permission and produced an error for something it could
+    /// have known was unavailable.
+    /// </remarks>
+    public bool CanClaim(object? owner)
+    {
+        if (owner is null) return false;
+        lock (_gate) return _owner is null || ReferenceEquals(_owner, owner);
+    }
+
     /// <summary>Whether this particular thing is the one currently driving.</summary>
     public bool HeldBy(object? owner)
     {

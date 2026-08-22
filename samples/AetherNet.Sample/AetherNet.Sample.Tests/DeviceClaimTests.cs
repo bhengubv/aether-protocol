@@ -108,6 +108,48 @@ public class DeviceClaimTests
         Assert.True(claim.Claim(oneToOne), "once given up, the next one may have it");
     }
 
+    // ── asking without taking ──────────────────────────────────────────────
+
+    /// <summary>
+    /// A camera button that only discovers the device is busy when it is pressed has already asked
+    /// for a permission and produced an error for something it could have known.
+    /// </summary>
+    [Fact]
+    public void You_can_ask_whether_you_could_have_it_without_taking_it()
+    {
+        var claim = new DeviceClaim();
+        var oneToOne = new Service("1:1");
+
+        Assert.True(claim.CanClaim(oneToOne));
+        Assert.False(claim.IsHeld, "asking must not take");
+    }
+
+    [Fact]
+    public void Asking_says_no_while_somebody_else_has_it()
+    {
+        var claim = new DeviceClaim();
+        var group = new Service("group");
+        var oneToOne = new Service("1:1");
+
+        claim.Claim(group);
+
+        Assert.False(claim.CanClaim(oneToOne));
+        Assert.True(claim.CanClaim(group), "the holder can always reclaim its own");
+    }
+
+    [Fact]
+    public void Asking_says_yes_again_once_it_is_given_back()
+    {
+        var claim = new DeviceClaim();
+        var group = new Service("group");
+        var oneToOne = new Service("1:1");
+
+        claim.Claim(group);
+        claim.Release(group);
+
+        Assert.True(claim.CanClaim(oneToOne));
+    }
+
     [Fact]
     public void Releasing_something_nobody_holds_is_harmless()
         => Assert.False(new DeviceClaim().Release(new Service("nobody")));
