@@ -1101,8 +1101,34 @@ public sealed class AndroidWifiDirectTransportService
         // whose moment has passed is discarded by the far side anyway.
         if (PacketPriority.MayDropOldest(lane))
         {
-            var depth = lane == SendLane.Video ? PeerLink.VideoDepth : PeerLink.BulkDepth;
-            while (queue.Count > depth && queue.TryDequeue(out _)) { }
+            if (lane == SendLane.Video)
+            {
+                // Video drops in WHOLE GOPs, never one frame at a time.
+                //
+                // H.264 without temporal layering is a chain: every P-frame is decoded against the
+                // one before it. Discarding the oldest frame and keeping the rest hands the far side
+                // a chain with a link missing, and its decoder then accepts every subsequent frame
+                // and produces NOTHING from them — silently, with no error to react to, until the
+                // next keyframe. Dropping one frame at a time therefore keeps the chain permanently
+                // broken while the queue keeps overflowing.
+                //
+                // Measured over a three-minute call: frames arriving fell 11.6/s to 4/s while frames
+                // drawn fell 10.8/s to ZERO, with decodeErrors 0 throughout. The receiver was being
+                // fed continuously and could not use any of it.
+                //
+                // Clearing the lane instead costs at most one keyframe interval — a second — and the
+                // far side comes back cleanly rather than staying broken.
+                if (queue.Count > PeerLink.VideoDepth)
+                {
+                    var dropped = 0;
+                    while (queue.TryDequeue(out _)) dropped++;
+                    L($"▶ video backed up — dropped {dropped} frames to the next keyframe");
+                }
+            }
+            else
+            {
+                while (queue.Count > PeerLink.BulkDepth && queue.TryDequeue(out _)) { }
+            }
         }
 
         link.Ready.Release();

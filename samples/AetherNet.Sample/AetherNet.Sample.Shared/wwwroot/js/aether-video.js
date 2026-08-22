@@ -60,6 +60,8 @@ const stat = {
     encoded: 0,        // the encoder produced a chunk
     sentToNet: 0,      // a chunk was handed to .NET
     encoderErrors: 0,
+    sameFrame: 0,      // the camera had not produced a new frame yet
+    captureErrors: 0,
 
     played: 0,         // .NET handed us bytes to show
     noTile: 0,         // ...but there was no canvas to draw on yet
@@ -68,6 +70,7 @@ const stat = {
     drawn: 0,          // actually painted
     decodeErrors: 0,
     decoderResets: 0,
+    stalls: 0,         // fed, but producing nothing — a broken reference chain
 };
 
 /// What the pipeline has actually done. Reset every time it is read, so two reads bracket a window.
@@ -95,7 +98,9 @@ export async function capabilities() {
         secure: isSecureContext,
         getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
         webCodecs: typeof VideoEncoder === 'function' && typeof VideoDecoder === 'function',
-        frameCallback: 'requestVideoFrameCallback' in HTMLVideoElement.prototype,
+        // Not required any more — capture runs on a timer, because rVFC only fires while the
+        // element is painted and a call must keep sending when its preview is not on screen.
+        frameCallback: true,
         codec: false,
         cameras: 0,
     };
@@ -192,7 +197,7 @@ export async function start(chunkSink, stateSink, front) {
         session = {
             stream, video, encoder, front,
             width: size.width, height: size.height,
-            lastKeyAt: 0, lastFrameAt: 0, stopped: false, bitrate: BITRATE,
+            lastKeyAt: 0, lastStamp: -1, timer: null, stopped: false, bitrate: BITRATE,
         };
 
         pump();
@@ -223,44 +228,56 @@ async function measure(video) {
         : { width: WIDTH, height: HEIGHT };
 }
 
-// One encoded frame per displayed frame, paced to FPS.
+// Capture, on a clock of our own.
 //
-// requestVideoFrameCallback rather than MediaStreamTrackProcessor: the processor is Chromium-only and
-// this has to run in WKWebView too. It also fires on real presentation, so pacing follows what the
-// camera actually delivered rather than a timer's idea of it.
+// This used to be driven by requestVideoFrameCallback, which is the "correct" API and the wrong
+// choice here: it only fires while the element is being PAINTED. Capture therefore depended on the
+// little self-view being composited — so anything that stopped it being drawn stopped the camera
+// being sent, silently, with the track still reporting "live" and the encoder still "configured".
+//
+// Measured during a five-minute call: ticks 0, framesMade 0, sentToNet 0, on a video element that
+// reported live, unpaused, 360x640, with the screen awake and the page visible. The far end simply
+// stopped seeing anything and nothing anywhere said why. Worse, the chain is self-terminating: it
+// re-arms itself from inside its own callback, so one missed call ends capture for the rest of the
+// session with no way back.
+//
+// A timer does not care whether anything is on screen. new VideoFrame(video) reads the element's
+// current frame regardless of paint, so this keeps sending while the preview is hidden, occluded, or
+// behind whatever else the person has done with their phone — which is what a call has to do.
 function pump() {
     const s = session;
     if (!s || s.stopped) return;
 
-    const tick = (now) => {
+    s.timer = setInterval(() => {
         const cur = session;
         if (!cur || cur.stopped) return;
 
-        stat.ticks++;
         try {
-            const minGap = 1000 / FPS;
-            if (now - cur.lastFrameAt >= minGap - 1) {
-                cur.lastFrameAt = now;
+            // Nothing new to send. The camera runs slower than this in poor light — 4fps on a dark
+            // room is ordinary — and re-encoding a frame already sent costs bytes for no picture.
+            if (cur.video.readyState < 2) return;
+            if (cur.video.currentTime === cur.lastStamp) { stat.sameFrame++; return; }
+            cur.lastStamp = cur.video.currentTime;
 
-                const key = (now - cur.lastKeyAt) >= KEYFRAME_EVERY_MS;
-                if (key) cur.lastKeyAt = now;
+            stat.ticks++;
 
-                const frame = new VideoFrame(cur.video, { timestamp: Math.round(now * 1000) });
-                stat.framesMade++;
-                // Never let the encoder build a backlog: a frame whose moment has passed is worthless,
-                // and queueing it only makes the next one later still.
-                if (cur.encoder.encodeQueueSize < 2) cur.encoder.encode(frame, { keyFrame: key });
-                else stat.encodeSkipped++;
-                frame.close();
-            }
+            const now = performance.now();
+            const key = (now - cur.lastKeyAt) >= KEYFRAME_EVERY_MS;
+            if (key) cur.lastKeyAt = now;
+
+            // Never let the encoder build a backlog: a frame whose moment has passed is worthless,
+            // and queueing it only makes the next one later still.
+            if (cur.encoder.encodeQueueSize >= 2) { stat.encodeSkipped++; return; }
+
+            const frame = new VideoFrame(cur.video, { timestamp: Math.round(now * 1000) });
+            stat.framesMade++;
+            try { cur.encoder.encode(frame, { keyFrame: key }); }
+            finally { frame.close(); }
         } catch (e) {
-            console.warn('[aether-video] dropped a frame', e);
+            stat.captureErrors++;
+            stat.lastCaptureError = String(e && e.message || e);
         }
-
-        cur.video.requestVideoFrameCallback(tick);
-    };
-
-    s.video.requestVideoFrameCallback(tick);
+    }, Math.round(1000 / FPS));
 }
 
 // -- going away --------------------------------------------------------------
@@ -271,6 +288,7 @@ export async function stop() {
 
     if (s) {
         s.stopped = true;
+        try { if (s.timer) clearInterval(s.timer); } catch (e) { }
         try { if (s.encoder.state !== 'closed') s.encoder.close(); } catch (e) { }
         try { s.stream.getTracks().forEach(t => t.stop()); } catch (e) { }
         try { s.video.srcObject = null; } catch (e) { }
@@ -309,6 +327,8 @@ export function play(who, bytes) {
                     if (canvas.height !== frame.displayHeight) canvas.height = frame.displayHeight;
                     ctx.drawImage(frame, 0, 0);
                     stat.drawn++;
+                    peer.lastDrawAt = performance.now();
+                    peer.fedSinceDraw = 0;
                 } finally {
                     frame.close();
                 }
@@ -324,7 +344,10 @@ export function play(who, bytes) {
         // optimizeForLatency: show the first frame as soon as it decodes rather than filling a reorder
         // buffer first. This is a conversation, not playback.
         decoder.configure({ codec: CODEC, optimizeForLatency: true });
-        peer = { decoder: decoder, canvas: canvas, ctx: ctx, waitingForKey: true };
+        peer = {
+            decoder: decoder, canvas: canvas, ctx: ctx,
+            waitingForKey: true, lastDrawAt: performance.now(), fedSinceDraw: 0,
+        };
         peers.set(who, peer);
     }
 
@@ -337,6 +360,20 @@ export function play(who, bytes) {
         if (peer.waitingForKey) {
             if (!key) { stat.awaitingKey++; return; }
             peer.waitingForKey = false;
+        }
+
+        // Being fed and producing nothing.
+        //
+        // A decoder handed a chain with a link missing does not complain — it accepts every frame and
+        // outputs none of them, with no error to react to, until a keyframe arrives. So silence has to
+        // be treated as a fault in its own right, because it is the only symptom there is. Measured on
+        // device before this existed: frames decoded 4 a second, frames drawn zero, decodeErrors zero,
+        // for minutes.
+        peer.fedSinceDraw++;
+        if (peer.fedSinceDraw > 8 && performance.now() - peer.lastDrawAt > 700) {
+            stat.stalls++;
+            recover(peer, who);
+            if (!isKeyframe(bytes)) { stat.awaitingKey++; return; }
         }
 
         stat.decoded++;
@@ -366,6 +403,24 @@ function isKeyframe(bytes) {
         if (bytes[i + 2] === 0 && bytes[i + 3] === 1 && nalIsKey(bytes[i + 4])) return true;
     }
     return false;
+}
+
+// Put a stalled decoder back to a state it can start from.
+//
+// Reset rather than close: the canvas, the tile and the peer entry all stay, so nothing on screen
+// jumps. It picks up again on the next keyframe, which is never more than a second away.
+function recover(peer, who) {
+    try {
+        peer.decoder.reset();
+        peer.decoder.configure({ codec: CODEC, optimizeForLatency: true });
+    } catch (e) {
+        console.warn('[aether-video] could not reset the decoder for', who, e);
+    }
+
+    peer.waitingForKey = true;
+    peer.fedSinceDraw = 0;
+    peer.lastDrawAt = performance.now();
+    stat.decoderResets++;
 }
 
 function nalIsKey(b) {
