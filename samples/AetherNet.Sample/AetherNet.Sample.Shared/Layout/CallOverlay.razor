@@ -141,6 +141,16 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
             </div>
         }
 
+        @* A layer whose only job is to bring the controls back.
+           The wake tap used to rely on landing on the picture, which means it depended on which child
+           element happened to be under the finger and on that element not having pointer-events
+           disabled. When it failed there was no way back: the controls were opacity 0 and untappable,
+           and that includes Hang up — a call with no way to end it. A dedicated layer cannot miss. *@
+        @if (ShowingVideo && !_chromeUp)
+        {
+            <div class="call-wake" @onclick="Wake"></div>
+        }
+
         <div class="call-end @(call.State == CallState.Connected ? "connected" : null) @ChromeClass">
             @if (call.State == CallState.Incoming)
             {
@@ -469,10 +479,19 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     /* The controls get out of the way of the picture, and come back on a tap. Four buttons parked
        permanently across somebody's face is the thing that reads as unfinished. */
     .call-actions, .call-end, .call-min { transition: opacity 200ms ease, transform 200ms ease; }
-    .call-actions.away, .call-end.away {
-        opacity: 0; pointer-events: none; transform: translateY(12px);
-    }
+    .call-actions.away { opacity: 0; pointer-events: none; transform: translateY(12px); }
     .call-min.away { opacity: 0; pointer-events: none; }
+
+    /* Above the picture and below nothing. It exists only while the controls are away, so it can
+       never swallow a tap meant for a button. */
+    .call-wake { position: absolute; inset: 0; z-index: 3; background: transparent; }
+
+    /* Hang up fades with the rest but never stops being tappable.
+       Everything else can be brought back with a tap; ending a call is the one thing a person must
+       be able to do at the moment they decide to, and hunting for an invisible control to reveal
+       another control is not that. */
+    .call-end.away { opacity: 0.001; pointer-events: auto; transform: translateY(12px); }
+    .call-end.away:active { opacity: 1; }
 
     /* Measured, not guessed: this app has adjusted the picture and shut the camera on a struggling
        link for a while now, and told the person nothing. A call that quietly gets worse with no
