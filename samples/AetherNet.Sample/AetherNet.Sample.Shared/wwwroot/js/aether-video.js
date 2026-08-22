@@ -44,6 +44,27 @@ let session = null;
 // One decoder and one canvas per person on screen.
 const peers = new Map();
 
+// How many frames may be crossing into .NET at once.
+//
+// Three is about a sixth of a second at twenty frames a second — enough to ride out a momentary
+// stall in the bridge, far too few to accumulate the delay that made one phone send ten frames a
+// second and deliver one and a half.
+const MaxInFlight = 3;
+
+/// How long a crossing may take before it is written off.
+///
+/// A frame handed to .NET is answered through the same bridge it went out on, so when that bridge
+/// congests the ANSWERS are what stop arriving — not the frames. Measured on merlin: three in flight,
+/// permanently, promises that never settled, and capture correctly refusing to add to the pile. The
+/// backpressure worked and the result was no video at all, for the rest of the call.
+///
+/// Two seconds is far longer than a crossing can usefully take. Writing one off does not resend it —
+/// a frame that old is worthless — it just stops one lost answer from being a permanent stop.
+const InFlightTimeout = 2000;
+
+let inFlight = 0;
+let oldestInFlight = 0;
+
 let onChunk = null;      // .NET, waiting for encoded bytes
 let onState = null;      // .NET, waiting for capture-state changes
 
@@ -62,6 +83,9 @@ const stat = {
     encoderErrors: 0,
     sameFrame: 0,      // the camera had not produced a new frame yet
     captureErrors: 0,
+    interopBusy: 0,    // skipped because .NET had not taken the last frames yet
+    interopErrors: 0,
+    interopTimeouts: 0,   // answers that never came back at all
 
     played: 0,         // .NET handed us bytes to show
     noTile: 0,         // ...but there was no canvas to draw on yet
@@ -76,6 +100,7 @@ const stat = {
 /// What the pipeline has actually done. Reset every time it is read, so two reads bracket a window.
 export function stats() {
     const snapshot = { ...stat, at: Math.round(performance.now()) };
+    snapshot.inFlight = inFlight;
     snapshot.session = session
         ? { encoderState: session.encoder.state, queue: session.encoder.encodeQueueSize,
             size: session.width + 'x' + session.height, bitrate: session.bitrate,
@@ -130,6 +155,8 @@ export async function start(chunkSink, stateSink, front) {
 
     onChunk = chunkSink;
     onState = stateSink;
+    inFlight = 0;
+    oldestInFlight = 0;
     raise('Starting');
 
     try {
@@ -172,7 +199,26 @@ export async function start(chunkSink, stateSink, front) {
                 // Fire and forget. Awaiting here would stall the encoder's own output queue behind a
                 // round trip into .NET, twenty times a second.
                 stat.encoded++;
-                if (onChunk) { onChunk.invokeMethodAsync('ReceiveChunk', bytes); stat.sentToNet++; }
+                if (!onChunk) return;
+
+                // Count what is genuinely in flight.
+                //
+                // invokeMethodAsync returns a promise and this never waited for it, so the only limit
+                // on how many frames could be queued into the bridge was how fast the camera ran.
+                // Measured on merlin: JavaScript handed .NET ten frames a second and the radio saw
+                // 1.4 — nothing refused, nothing dropped by the transport, the rest simply piling up
+                // in the crossing. A backlog in a real-time path is worse than a gap: every frame in
+                // it is already too late by the time it moves.
+                if (inFlight === 0) oldestInFlight = performance.now();
+                inFlight++;
+                stat.sentToNet++;
+
+                const settle = () => {
+                    inFlight = Math.max(0, inFlight - 1);
+                    if (inFlight === 0) oldestInFlight = 0;
+                };
+                onChunk.invokeMethodAsync('ReceiveChunk', bytes)
+                    .then(settle, () => { settle(); stat.interopErrors++; });
             },
             error: (e) => {
                 stat.encoderErrors++;
@@ -268,6 +314,23 @@ function pump() {
             // Never let the encoder build a backlog: a frame whose moment has passed is worthless,
             // and queueing it only makes the next one later still.
             if (cur.encoder.encodeQueueSize >= 2) { stat.encodeSkipped++; return; }
+
+            // Nor let the crossing into .NET build one. Checked BEFORE encoding, so a frame that
+            // could not be delivered is never paid for — on a phone where the bridge is the narrow
+            // part, encoding into a queue is spending battery to make the picture later.
+            if (inFlight >= MaxInFlight) {
+                // Nothing has come back for a long time. The answers are lost rather than late, so
+                // hold the count open no longer — otherwise one congested moment stops video for the
+                // rest of the call, which is what happened.
+                if (oldestInFlight && performance.now() - oldestInFlight > InFlightTimeout) {
+                    stat.interopTimeouts++;
+                    inFlight = 0;
+                    oldestInFlight = 0;
+                } else {
+                    stat.interopBusy++;
+                    return;
+                }
+            }
 
             const frame = new VideoFrame(cur.video, { timestamp: Math.round(now * 1000) });
             stat.framesMade++;
