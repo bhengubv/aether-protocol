@@ -103,7 +103,10 @@
     /// </remarks>
     protected override void OnAfterRender(bool firstRender)
     {
-        if (firstRender && Video is WebVideoIo web) web.Attach(JS);
+        // InvokeAsync is the renderer's dispatcher, which is the thread an Android WebView insists
+        // every JavaScript call happens on. Frames arrive on radio threads, so without this the
+        // busiest path in the app was calling the WebView from the wrong thread twenty times a second.
+        if (firstRender && Video is WebVideoIo web) web.Attach(JS, InvokeAsync);
     }
 
     private void OnCallChanged() => _ = InvokeAsync(StateHasChanged);

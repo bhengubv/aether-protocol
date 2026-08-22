@@ -41,17 +41,24 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
            page had to be made transparent to see them — and why the app bar and tab bar had to be
            hidden, and why anything that went wrong in that chain showed a blank screen instead of a
            missing picture. Here they lay out with the controls like anything else. *@
-        @if (ShowingVideo)
+        @* Rendered for the whole of a connected call, not only while a picture is showing.
+           The module attaches the camera to #aether-local, and that element only existed once video
+           was already on — which is only true AFTER the camera has started. So the camera opened,
+           found nowhere to go, and gave itself up. Whether anything is visible is a class; whether
+           there is somewhere to draw is not negotiable.
+
+           Tapping anywhere on the picture brings the controls back, the way every other video call
+           on the phone behaves. *@
+        @if (call.State == CallState.Connected)
         {
-            @* Tapping anywhere on the picture brings the controls back, the way every other video
-               call on the phone behaves. *@
-            <div class="call-video @(Swapped ? "swapped" : null)" @onclick="Wake">
+            <div class="call-video @(ShowingVideo ? null : "idle") @(Swapped ? "swapped" : null)"
+                 @onclick="Wake">
 
                 @* Their picture. When their camera is off this is where they still belong — an avatar
                    with their tag, not a black rectangle where a person used to be. *@
-                <div class="cv-main">
+                <div class="cv-main @(Calls.TheirVideoOn || Calls.VideoOn ? null : "off")">
                     <canvas id="@RemoteId" class="cv-canvas @(Calls.TheirVideoOn ? null : "off")"></canvas>
-                    @if (!Calls.TheirVideoOn)
+                    @if (!Calls.TheirVideoOn && ShowingVideo)
                     {
                         <div class="cv-away">
                             <div class="call-av" style="background:@TagPalette.For(Peer)">@TagPalette.Initial(Peer)</div>
@@ -383,9 +390,6 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
         background: var(--bg);
         display: flex; flex-direction: column; align-items: center;
         padding: 12vh 24px 8vh;
-        /* Its own stacking context, so the video scrim can sit behind the controls without falling
-           behind the native video surface underneath the whole page. */
-        isolation: isolate;
     }
 
     .call-who { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 1 1 auto; }
@@ -402,6 +406,11 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     .call-who.hidden { display: none; }
 
     .call-video { position: absolute; inset: 0; overflow: hidden; background: #000; }
+
+    /* Present, so the camera has somewhere to attach, but taking up no space and catching no taps
+       until there is actually a picture. */
+    .call-video.idle { background: transparent; pointer-events: none; }
+    .cv-main.off { display: none; }
 
     /* Both pictures fade in rather than appearing. A hard cut from an avatar to a live camera is the
        single most obvious tell that something is homemade. */
@@ -494,14 +503,23 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
     /* One scrim for both rows rather than a slab behind each: a gradient keeps the bottom of the
        picture visible while still guaranteeing the controls have something to read against, whatever
        the camera happens to be pointing at. */
+    /* The scrim sits OVER the picture and under the controls.
+       It was at z-index -1, which put it behind the video entirely — so against a bright wall the
+       white labels were painted straight onto the picture and became unreadable. A control you
+       cannot read is worse than one that is in the way. */
     .call-screen:has(.call-who.hidden)::after {
-        content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 42vh;
-        background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.45) 45%, transparent 100%);
-        pointer-events: none; z-index: -1;
+        content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 46vh;
+        background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.5) 42%, transparent 100%);
+        pointer-events: none; z-index: 1;
     }
+    .call-screen:has(.call-who.hidden) .call-actions,
+    .call-screen:has(.call-who.hidden) .call-end,
+    .call-screen:has(.call-who.hidden) .call-min,
+    .call-weak { z-index: 2; }
     .call-screen:has(.call-who.hidden) .cbtn {
-        background: rgba(0, 0, 0, 0.42); border-color: rgba(255, 255, 255, 0.22); color: #fff;
-        backdrop-filter: blur(8px);
+        background: rgba(18, 18, 20, 0.58); border-color: rgba(255, 255, 255, 0.26); color: #fff;
+        backdrop-filter: blur(10px);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     }
     .call-screen:has(.call-who.hidden) .cbtn.on {
         background: var(--brand); border-color: var(--brand); color: #fff;

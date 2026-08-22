@@ -109,6 +109,16 @@ export async function start(chunkSink, stateSink, front) {
         video.playsInline = true;
         try { await video.play(); } catch (e) { /* autoplay policy; the frame loop still runs */ }
 
+        // Ask the camera what it actually gave us, and encode THAT.
+        //
+        // The size was hardcoded to the size that was requested, and a camera is under no obligation
+        // to agree. Asked for 640x360 and handed back 360x640 — the browser had already turned the
+        // picture upright, which is the entire reason none of the old sensor-orientation arithmetic is
+        // needed here. Encoding a portrait frame into a landscape box squashed every face on the far
+        // end, which is exactly the class of mistake the native path kept making with assumed
+        // dimensions.
+        const size = await measure(video);
+
         const encoder = new VideoEncoder({
             output: (chunk) => {
                 const bytes = new Uint8Array(chunk.byteLength);
@@ -125,7 +135,7 @@ export async function start(chunkSink, stateSink, front) {
 
         encoder.configure({
             codec: CODEC,
-            width: WIDTH, height: HEIGHT,
+            width: size.width, height: size.height,
             bitrate: BITRATE,
             framerate: FPS,
             latencyMode: 'realtime',
@@ -135,7 +145,11 @@ export async function start(chunkSink, stateSink, front) {
             avc: { format: 'annexb' },
         });
 
-        session = { stream, video, encoder, front, lastKeyAt: 0, lastFrameAt: 0, stopped: false, bitrate: BITRATE };
+        session = {
+            stream, video, encoder, front,
+            width: size.width, height: size.height,
+            lastKeyAt: 0, lastFrameAt: 0, stopped: false, bitrate: BITRATE,
+        };
 
         pump();
         raise('Capturing');
@@ -145,6 +159,24 @@ export async function start(chunkSink, stateSink, front) {
         await stop();
         return false;
     }
+}
+
+// What the camera actually delivered, once it has delivered anything.
+//
+// videoWidth is 0 until metadata arrives, so this waits rather than assuming — and falls back to the
+// requested size if the camera never says, because a squashed picture is still better than none.
+async function measure(video) {
+    if (video.videoWidth > 0) return { width: video.videoWidth, height: video.videoHeight };
+
+    await new Promise((resolve) => {
+        const done = () => { video.removeEventListener('loadedmetadata', done); resolve(); };
+        video.addEventListener('loadedmetadata', done);
+        setTimeout(done, 2000);
+    });
+
+    return video.videoWidth > 0
+        ? { width: video.videoWidth, height: video.videoHeight }
+        : { width: WIDTH, height: HEIGHT };
 }
 
 // One encoded frame per displayed frame, paced to FPS.
@@ -306,7 +338,7 @@ export function sizeToLink(bitrate) {
         // A reconfigure, not a new encoder: the stream keeps its sequence, so the far side sees a
         // change in quality rather than a gap it has to recover from.
         s.encoder.configure({
-            codec: CODEC, width: WIDTH, height: HEIGHT,
+            codec: CODEC, width: s.width, height: s.height,
             bitrate: bitrate, framerate: FPS, latencyMode: 'realtime',
             avc: { format: 'annexb' },
         });

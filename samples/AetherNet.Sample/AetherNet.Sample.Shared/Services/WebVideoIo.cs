@@ -37,7 +37,26 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     private IJSObjectReference? _module;
     private DotNetObjectReference<WebVideoIo>? _self;
     private volatile CaptureState _capture = CaptureState.Idle;
-    private bool _disposed;
+    private volatile bool _disposed;
+
+    /// <summary>
+    /// The renderer's dispatcher. Every call into JavaScript goes through it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not a nicety. Frames arrive on radio threads — <c>Play</c> is reached from the packet handler
+    /// twenty times a second — and an Android WebView requires every <c>evaluateJavascript</c> on the
+    /// UI thread. Blazor does not marshal that for you: calling the runtime from a background thread
+    /// is undefined, and the failure is the kind that looks like a flaky radio rather than a threading
+    /// bug. Capture from the encoder callback and state changes from JavaScript arrive on their own
+    /// threads too.
+    /// </para>
+    /// <para>
+    /// The dispatcher is the framework's own answer to this, and it is the reason this type takes one
+    /// alongside the runtime rather than just the runtime.
+    /// </para>
+    /// </remarks>
+    private Func<Func<Task>, Task>? _onPage;
 
     /// <summary>What the module reported it can do, once asked. Null until then.</summary>
     private Capabilities? _caps;
@@ -55,15 +74,53 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     private IJSRuntime? _js;
 
     /// <summary>Give the device the page it lives in. A new page replaces the old one.</summary>
-    public void Attach(IJSRuntime js)
+    /// <param name="onPage">
+    ///   Runs work on the page's own thread. A component's <c>InvokeAsync</c> is exactly this, and it
+    ///   already runs inline when the caller is on the right thread — so a call that does not need
+    ///   marshalling does not pay for it.
+    /// </param>
+    public void Attach(IJSRuntime js, Func<Func<Task>, Task> onPage)
     {
-        if (_disposed || ReferenceEquals(_js, js)) return;
+        lock (_fields)
+        {
+            if (_disposed || ReferenceEquals(_js, js)) return;
 
-        // A different page means the imported module and the callbacks belong to something that is
-        // gone. Drop them rather than calling into it.
-        _js = js;
-        _module = null;
-        _caps = null;
+            // A different page means the imported module and the callbacks belong to something that
+            // is gone. Drop them rather than calling into it.
+            _js = js;
+            _onPage = onPage;
+            _module = null;
+            _caps = null;
+        }
+    }
+
+    /// <summary>Guards the handful of fields that more than one thread touches.</summary>
+    private readonly object _fields = new();
+
+    /// <summary>
+    /// Run something against the module, on the thread the framework requires.
+    /// </summary>
+    /// <remarks>
+    /// Everything that reaches JavaScript goes through here. <c>CheckAccess</c> first, so a call that
+    /// is already on the right thread is not bounced through the queue for nothing — which matters
+    /// when it happens twenty times a second.
+    /// </remarks>
+    private Task OnPageAsync(Func<IJSObjectReference, Task> work)
+    {
+        IJSObjectReference? module;
+        Func<Func<Task>, Task>? onPage;
+        lock (_fields) { module = _module; onPage = _onPage; }
+
+        if (_disposed || module is null) return Task.CompletedTask;
+        return onPage is null ? Guarded(module, work) : onPage(() => Guarded(module, work));
+    }
+
+    private static async Task Guarded(IJSObjectReference module, Func<IJSObjectReference, Task> work)
+    {
+        try { await work(module).ConfigureAwait(false); }
+        catch (JSDisconnectedException) { /* the page went first */ }
+        catch (ObjectDisposedException) { /* so did we */ }
+        catch (TaskCanceledException) { /* the circuit is closing */ }
     }
 
     // ── what this device can do ───────────────────────────────────────────────
@@ -95,16 +152,15 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     private async ValueTask<Capabilities> AskAsync()
     {
         if (_caps is { } known) return known;
-
-        try
-        {
-            var module = await ModuleAsync().ConfigureAwait(false);
-            return _caps = await module.InvokeAsync<Capabilities>("capabilities").ConfigureAwait(false);
-        }
-        catch (Exception)
-        {
+        if (await ModuleAsync().ConfigureAwait(false) is null)
             return _caps = new Capabilities(false, false, false, false, false, 0);
-        }
+
+        Capabilities? found = null;
+        await OnPageAsync(async m =>
+            found = await m.InvokeAsync<Capabilities>("capabilities").ConfigureAwait(false))
+            .ConfigureAwait(false);
+
+        return _caps = found ?? new Capabilities(false, false, false, false, false, 0);
     }
 
     /// <inheritdoc />
@@ -139,6 +195,11 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     /// The camera stops for ordinary reasons the .NET side cannot see — a track ending, an encoder
     /// failing, another tab or app taking the device. This is how intent is stopped from outliving it.
     /// </remarks>
+    /// <remarks>
+    /// Arrives from JavaScript, and the listeners are the call services — which subscribe and
+    /// unsubscribe from wherever a camera button was handled. The handler is snapshotted so an
+    /// unsubscribe landing between the null check and the call cannot turn this into a crash.
+    /// </remarks>
     [JSInvokable]
     public void ReceiveState(string state)
     {
@@ -152,7 +213,9 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
 
         if (_capture == next) return;
         _capture = next;
-        CaptureChanged?.Invoke(next);
+
+        var listeners = CaptureChanged;
+        listeners?.Invoke(next);
     }
 
     // ── frames ────────────────────────────────────────────────────────────────
@@ -170,7 +233,9 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     public void ReceiveChunk(byte[] frame)
     {
         if (_disposed || frame.Length == 0) return;
-        FrameEncoded?.Invoke(frame);
+
+        var listeners = FrameEncoded;
+        listeners?.Invoke(frame);
     }
 
     /// <inheritdoc />
@@ -180,15 +245,16 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
         if (_module is not { } module) return;
 
         // Fire and forget on purpose. A frame is worthless a moment after it was captured, so waiting
-        // for the decode to be accepted would only make the next one later.
-        _ = module.InvokeVoidAsync("play", from, encodedFrame);
+        // for the decode to be accepted would only make the next one later. It still has to reach the
+        // page on the page's own thread — this arrives on a radio thread.
+        _ = OnPageAsync(m => m.InvokeVoidAsync("play", from, encodedFrame).AsTask());
     }
 
     /// <inheritdoc />
     public void Forget(string who)
     {
         if (_disposed || string.IsNullOrEmpty(who)) return;
-        _ = _module?.InvokeVoidAsync("forget", who);
+        _ = OnPageAsync(m => m.InvokeVoidAsync("forget", who).AsTask());
     }
 
     // ── coming up and going away ──────────────────────────────────────────────
@@ -210,15 +276,19 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
         try
         {
             if (!CaptureStates.CanStart(_capture)) return false;
+            if (await ModuleAsync().ConfigureAwait(false) is null) return false;
             if (!(await AskAsync().ConfigureAwait(false)).Usable) return false;
 
-            var module = await ModuleAsync().ConfigureAwait(false);
             _self ??= DotNetObjectReference.Create(this);
 
             // The module reports Starting and then Capturing through ReceiveState, so the state is set
             // by what actually happened rather than by this method having returned.
-            return await module.InvokeAsync<bool>("start", cancellationToken, _self, _self, _front)
-                .ConfigureAwait(false);
+            var started = false;
+            await OnPageAsync(async m =>
+                started = await m.InvokeAsync<bool>("start", cancellationToken, _self, _self, _front)
+                    .ConfigureAwait(false)).ConfigureAwait(false);
+
+            return started;
         }
         catch (Exception)
         {
@@ -280,11 +350,11 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
         // crowds out the voice — which is the half of a call people actually need.
         if (wanted <= 0) { _ = StopSendingAsync(); return; }
 
-        _ = _module?.InvokeVoidAsync("sizeToLink", wanted);
+        _ = OnPageAsync(m => m.InvokeVoidAsync("sizeToLink", wanted).AsTask());
         _bitrateBps = wanted;
     }
 
-    private int _bitrateBps;
+    private volatile int _bitrateBps;
 
     /// <inheritdoc />
     public int BitrateBps => CaptureStates.IsOn(_capture) ? (_bitrateBps > 0 ? _bitrateBps : 400_000) : 0;
@@ -315,32 +385,67 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
 
     // ── plumbing ──────────────────────────────────────────────────────────────
 
-    private async ValueTask<IJSObjectReference> ModuleAsync()
+    /// <summary>
+    /// Import the module, on the page's thread, once.
+    /// </summary>
+    /// <remarks>
+    /// The import is itself a call into JavaScript, so it has the same thread requirement as every
+    /// other one — and it is reached from <see cref="StartAsync"/>, which a call service invokes from
+    /// wherever the camera button happened to be handled.
+    /// </remarks>
+    private async Task<IJSObjectReference?> ModuleAsync()
     {
-        if (_js is not { } js) throw new InvalidOperationException("no page to show video in");
-        return _module ??= await js.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(false);
+        IJSRuntime? js;
+        Func<Func<Task>, Task>? onPage;
+        IJSObjectReference? already;
+        lock (_fields) { js = _js; onPage = _onPage; already = _module; }
+
+        if (already is not null) return already;
+        if (js is null) return null;
+
+        IJSObjectReference? imported = null;
+
+        async Task Import()
+        {
+            try { imported = await js.InvokeAsync<IJSObjectReference>("import", ModulePath).ConfigureAwait(false); }
+            catch (JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+        }
+
+        if (onPage is null) await Import().ConfigureAwait(false);
+        else await onPage(Import).ConfigureAwait(false);
+
+        if (imported is null) return null;
+
+        lock (_fields) { _module ??= imported; return _module; }
     }
 
-    private async Task CallAsync(string method)
-    {
-        if (_disposed || _module is not { } module) return;
-
-        try { await module.InvokeVoidAsync(method).ConfigureAwait(false); }
-        catch (JSDisconnectedException) { /* the page went first */ }
-        catch (ObjectDisposedException) { /* so did we */ }
-    }
+    private Task CallAsync(string method)
+        => OnPageAsync(m => m.InvokeVoidAsync(method).AsTask());
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed) return;
-        _disposed = true;
-
-        await CallAsync("stopAll").ConfigureAwait(false);
-
-        if (_module is not null)
+        IJSObjectReference? module;
+        lock (_fields)
         {
-            try { await _module.DisposeAsync().ConfigureAwait(false); }
+            if (_disposed) return;
+
+            // Set BEFORE the teardown, so anything arriving from a radio thread or from JavaScript
+            // while this runs turns into a no-op rather than a call into something half gone.
+            _disposed = true;
+            module = _module;
+            _module = null;
+        }
+
+        if (module is not null)
+        {
+            try
+            {
+                await Guarded(module, m => m.InvokeVoidAsync("stopAll").AsTask()).ConfigureAwait(false);
+                await module.DisposeAsync().ConfigureAwait(false);
+            }
             catch (JSDisconnectedException) { /* the page went first */ }
+            catch (ObjectDisposedException) { /* so did we */ }
         }
 
         _self?.Dispose();
