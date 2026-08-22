@@ -199,10 +199,21 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     /// rather than left running.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>openCamera</c> is asynchronous: the device arrives later on <c>OnOpened</c>, and until it
-    /// does there is nothing to close. Hanging up inside that window left the camera open with no
-    /// reference anywhere to release it. Measured on merlin: <c>Device 1</c> held by this app for
-    /// seventy-eight minutes after the call ended, while the app's own UI read "Camera off".
+    /// does there is nothing to close. A stop inside that window therefore has no reference to release,
+    /// and the camera opens afterwards with nobody holding it.
+    /// </para>
+    /// <para>
+    /// This is a real window in the code, and the guard is worth having — but it has NOT been seen on
+    /// a phone, and an earlier version of this comment claimed it had. The "camera held for
+    /// seventy-eight minutes" it cited came from grepping <c>dumpsys media.camera</c> for
+    /// "Device 1 is open", which appears under a heading reading
+    /// <c>**********Dumpsys from previous open session**********</c> — a retained snapshot of the
+    /// LAST session, not live state. The live answer is <c>Active Camera Clients</c>, and on both
+    /// phones it is empty whenever no call is running. Every CONNECT in the camera service's own event
+    /// log has a matching DISCONNECT.
+    /// </para>
     /// </remarks>
     private volatile bool _stopping;
 
