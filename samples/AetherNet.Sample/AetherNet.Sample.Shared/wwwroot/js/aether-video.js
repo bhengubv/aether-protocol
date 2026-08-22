@@ -31,7 +31,20 @@ const CODEC = 'avc1.42E01E';   // H.264 Baseline 3.0 — probed as supported on 
 // was really about.
 const WIDTH = 640;
 const HEIGHT = 360;
-const FPS = 20;
+// Eight frames a second.
+//
+// Chosen against the bridge rather than against the eye. Every frame crosses between JavaScript and
+// .NET twice over — out as an encoded chunk, back in as somebody else's to draw — and both directions
+// share one message channel and one renderer dispatcher with Blazor's own rendering.
+//
+// Measured at twenty: about twenty-five crossings a second of four and a half kilobytes each. The
+// P30 sustained it. merlin, the slower of the two by a wide margin, managed the first minute and then
+// saturated — the ANSWERS stopped coming back, capture correctly refused to add to the pile, and
+// video fell to nothing. Eight halves the crossings to sixteen.
+//
+// The cost is real and worth stating: eight frames a second is visibly less smooth than twenty. It is
+// still a conversation, which nothing at all is not.
+const FPS = 8;
 const BITRATE = 400000;
 
 // A keyframe a second. More often than a recording would use, because a receiver that joins late —
