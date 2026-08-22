@@ -912,6 +912,7 @@ public sealed class AndroidWifiDirectTransportService
             while (!_disposed)
             {
                 var client = await _server.AcceptTcpClientAsync().ConfigureAwait(false);
+                Tighten(client);
                 _ = Task.Run(async () =>
                 {
                     using (client) await HandleSocketAsync(client).ConfigureAwait(false);
@@ -954,6 +955,7 @@ public sealed class AndroidWifiDirectTransportService
                 try
                 {
                     using var client = new TcpClient();
+                    Tighten(client);
                     await client.ConnectAsync(IPAddress.Parse(goAddress), TcpPort).ConfigureAwait(false);
                     L("client: TCP connected to GO");
                     await HandleSocketAsync(client).ConfigureAwait(false);
@@ -1072,6 +1074,36 @@ public sealed class AndroidWifiDirectTransportService
     /// Starving bulk while a call is in progress is the correct outcome, not a bug — the transfer
     /// carries on the moment the call ends.
     /// </remarks>
+    /// <summary>
+    /// Stop the kernel hiding congestion from us.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A TCP write returns as soon as the kernel has taken a copy, not when the radio has sent
+    /// anything. With a default send buffer of a megabyte or more and video frames of ten kilobytes,
+    /// a hundred frames can be sitting in the kernel — several seconds of video — while every write
+    /// looks instant and the link reports no strain at all. The lane bound above is then meaningless:
+    /// it keeps six frames, and the kernel keeps a hundred behind it.
+    /// </para>
+    /// <para>
+    /// A small send buffer makes the write block when the radio is actually behind, which is what
+    /// turns congestion into a measurement instead of a delay. NoDelay stops Nagle adding its own
+    /// wait on top of frames that are already whole.
+    /// </para>
+    /// </remarks>
+    private static void Tighten(TcpClient client)
+    {
+        try
+        {
+            client.NoDelay = true;
+            client.SendBufferSize = 64 * 1024;
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Info("AetherWFD", "could not tighten the socket: " + ex.Message);
+        }
+    }
+
     private async Task PumpLanesAsync(string peerUhid, PeerLink link)
     {
         while (!_disposed && _peers.ContainsKey(peerUhid))

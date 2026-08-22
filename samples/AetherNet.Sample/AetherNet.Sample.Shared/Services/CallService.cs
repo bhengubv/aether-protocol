@@ -646,13 +646,18 @@ public sealed class CallService : IDisposable
 
         try
         {
-            // Two bytes now: whether the camera is on, and which way up its pictures come out. A
-            // reader that only knows the first byte still gets the camera state right, which is what
-            // keeps this compatible with a phone running the older build.
+            // Four bytes: whether the camera is on, which way up its pictures come out, and how big
+            // they are. A reader that only knows the first byte still gets the camera state right,
+            // which is what keeps this compatible with a phone running an older build.
+            //
+            // The size travels in sixteens so it fits a byte — 1280x720 is 80x45 — and every capture
+            // size a camera publishes is a multiple of sixteen anyway.
             var turn = VideoRotation.ToWire(_video?.CaptureRotation ?? 0);
+            var wide = (byte)Math.Clamp((_video?.CaptureWidth ?? 0) / 16, 0, 255);
+            var tall = (byte)Math.Clamp((_video?.CaptureHeight ?? 0) / 16, 0, 255);
 
             var sealedBody = await _signal
-                .EncryptAsync(peerTag, new[] { on ? CameraOn : (byte)0, turn }, cancellationToken)
+                .EncryptAsync(peerTag, new[] { on ? CameraOn : (byte)0, turn, wide, tall }, cancellationToken)
                 .ConfigureAwait(false);
 
             var body = AetherNet.Messaging.EncryptedPayloadCodec.Serialize(sealedBody);
@@ -692,9 +697,14 @@ public sealed class CallService : IDisposable
 
             TheirVideoOn = body.Length > 0 && body[0] == CameraOn;
 
-            // A phone on the older build sends one byte and no angle. Zero is the right answer for it:
-            // it is what was being drawn before, so nothing gets worse.
-            _video?.SetRemoteRotation(from, body.Length > 1 ? VideoRotation.FromWire(body[1]) : 0);
+            // A phone on an older build sends fewer bytes. Zero degrees is the right answer for the
+            // angle — it is what was drawn before, so nothing gets worse — and a zero size leaves
+            // whatever the tile was already using.
+            _video?.SetRemoteRotation(
+                from,
+                body.Length > 1 ? VideoRotation.FromWire(body[1]) : 0,
+                body.Length > 2 ? body[2] * 16 : 0,
+                body.Length > 3 ? body[3] * 16 : 0);
 
             // Their camera going on when mine is off still needs somewhere to draw, so the surfaces
             // come up for their picture alone — and ONLY the surfaces. This used to call StartAsync,

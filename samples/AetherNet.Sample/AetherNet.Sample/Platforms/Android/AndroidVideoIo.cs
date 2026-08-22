@@ -257,6 +257,11 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
         /// <summary>Degrees to rotate this person's picture so it is drawn the way up they are holding their phone.</summary>
         public int Rotation;
+
+        /// <summary>The size their camera is actually sending, so the picture can be drawn in its own proportions.</summary>
+        public int VideoWidth = Width;
+
+        public int VideoHeight = Height;
     }
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Stream_> _streams =
@@ -488,6 +493,21 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             _bitrateBps = StartingBitrateBps;
             format.SetInteger(MediaFormat.KeyFrameRate, Fps);
             format.SetInteger(MediaFormat.KeyIFrameInterval, KeyframeIntervalSeconds);
+
+            // Without this the bitrate is a suggestion, and these encoders ignore it. Measured on
+            // merlin: asked for 800 kbps, delivered 9 to 12 kilobytes a frame at roughly thirty frames
+            // a second — 2.6 megabits, more than three times the request, in each direction at once,
+            // on a link measured at about 2.5 megabits total. Everything downstream was then trying to
+            // manage congestion caused by an encoder that was never listening.
+            try
+            {
+                format.SetInteger(MediaFormat.KeyBitrateMode,
+                    (int)global::Android.Media.BitrateMode.Cbr);
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Info("AetherVideo", "no bitrate mode control: " + ex.Message);
+            }
 
             _encoder = MediaCodec.CreateEncoderByType(Mime);
             _encoder!.Configure(format, null, null, MediaCodecConfigFlags.Encode);
@@ -740,52 +760,72 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     public int CaptureRotation => _captureRotation;
 
     /// <inheritdoc />
-    public void SetRemoteRotation(string who, int degrees)
+    public int CaptureWidth => _capWidth;
+
+    /// <inheritdoc />
+    public int CaptureHeight => _capHeight;
+
+    /// <inheritdoc />
+    public void SetRemoteRotation(string who, int degrees, int videoWidth, int videoHeight)
     {
         if (string.IsNullOrEmpty(who)) return;
 
         var stream = _streams.GetOrAdd(who, w => new Stream_(w));
         stream.Rotation = VideoRotation.Normalise(degrees);
+        if (videoWidth > 0 && videoHeight > 0)
+        {
+            stream.VideoWidth = videoWidth;
+            stream.VideoHeight = videoHeight;
+        }
 
         var view = stream.View;
-        if (view is not null) MainThread.BeginInvokeOnMainThread(() => Turn(view, stream.Rotation));
+        if (view is not null)
+            MainThread.BeginInvokeOnMainThread(
+                () => Turn(view, stream.Rotation, stream.VideoWidth, stream.VideoHeight));
     }
 
     /// <summary>
-    /// Turn a surface so its picture is the right way up, and scale it so the turn does not letterbox.
+    /// Turn a surface so its picture is the right way up, in its true proportions.
     /// </summary>
     /// <remarks>
-    /// A quarter turn transposes the picture's proportions, so rotating alone leaves it inset inside
-    /// its own tile with bars on two sides. Scaling by the tile's aspect ratio puts it back to filling
-    /// the tile, which is what every other video call on the phone does.
+    /// <para>
+    /// Three steps, and skipping any of them produces a picture that is visibly wrong in a different
+    /// way. A TextureView stretches whatever buffer it is given to fill itself, so a 1280x720 frame is
+    /// already squashed into a 1080x2100 rectangle before any transform runs. Rotating THAT and then
+    /// scaling it by the view's own aspect — which is what this did — produced a flattened horizontal
+    /// band across the middle of the screen with black above and below.
+    /// </para>
+    /// <para>
+    /// So: undo the stretch first, then rotate, then scale the now-correctly-shaped picture to fit the
+    /// view. It needs the video's real dimensions to do the first step, which is why they travel
+    /// alongside the angle rather than being assumed.
+    /// </para>
     /// </remarks>
-    private static void Turn(TextureView view, int degrees)
+    private static void Turn(TextureView view, int degrees, int videoWidth, int videoHeight)
     {
         try
         {
             var w = view.Width;
             var h = view.Height;
-            if (w <= 0 || h <= 0) return;
+            if (w <= 0 || h <= 0 || videoWidth <= 0 || videoHeight <= 0) return;
 
-            var matrix = new Matrix();
             float cx = w / 2f, cy = h / 2f;
+            var matrix = new Matrix();
+
+            // 1. Undo the stretch. After this the picture is in its own proportions, centred, and
+            //    smaller than the view.
+            matrix.PostScale(videoWidth / (float)w, videoHeight / (float)h, cx, cy);
+
+            // 2. Turn it the right way up.
             matrix.PostRotate(degrees, cx, cy);
 
-            if (degrees % 180 != 0)
-            {
-                // A quarter turn swaps the picture's proportions, so it has to be rescaled to sit
-                // inside the tile again — and the direction of that rescale is the whole question.
-                //
-                // Math.Max fills the tile, and on a phone that means an enormous zoom: a 1080x2100
-                // tile has an aspect of about 1:1.94, so filling it after a quarter turn scales the
-                // picture up by 1.94 and throws away everything outside the middle. What it looked
-                // like on the phone was a camera stuck on maximum zoom.
-                //
-                // Math.Min fits it instead. Nothing is cropped and nothing is magnified — what the
-                // camera saw is what appears.
-                var scale = Math.Min(w / (float)h, h / (float)w);
-                matrix.PostScale(scale, scale, cx, cy);
-            }
+            // 3. Grow it back until it fits. A quarter turn swaps which dimension is which, and
+            //    getting that wrong is what makes a portrait picture come out letterboxed.
+            var turnedWidth = degrees % 180 == 0 ? videoWidth : videoHeight;
+            var turnedHeight = degrees % 180 == 0 ? videoHeight : videoWidth;
+
+            var scale = Math.Min(w / (float)turnedWidth, h / (float)turnedHeight);
+            matrix.PostScale(scale, scale, cx, cy);
 
             view.SetTransform(matrix);
             view.Invalidate();
@@ -860,7 +900,8 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
                 // Seeing yourself sideways is the same bug as the far end seeing you sideways, and it
                 // is the one you notice first because it is your own face.
                 var turn = _captureRotation;
-                if (local is not null) MainThread.BeginInvokeOnMainThread(() => Turn(local, turn));
+                int vw = _capWidth, vh = _capHeight;
+                if (local is not null) MainThread.BeginInvokeOnMainThread(() => Turn(local, turn, vw, vh));
             }
             else if (_localView is not null && _localView.SurfaceTextureListener is null)
             {
@@ -869,6 +910,19 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
             var request = camera.CreateCaptureRequest(CameraTemplate.Record);
             foreach (var target in targets) request.AddTarget(target);
+
+            // The camera decides the frame rate, not the encoder. KEY_FRAME_RATE is only what the
+            // encoder budgets FOR — hand it thirty frames a second when it planned for twenty and it
+            // spends fifty per cent more than it was asked for, every second.
+            try
+            {
+                request.Set(CaptureRequest.ControlAeTargetFpsRange,
+                    new global::Android.Util.Range(Java.Lang.Integer.ValueOf(Fps), Java.Lang.Integer.ValueOf(Fps)));
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Info("AetherVideo", "could not pin the frame rate: " + ex.Message);
+            }
 
             // Stamped, because a session that is being replaced still delivers its callbacks. The
             // preview arriving late closes one session and opens another, and the closed one's
@@ -1085,7 +1139,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
             // The angle usually arrives before the surface does — the camera-on signal beats the first
             // frame, which is what builds the tile. Applying it here is what makes it stick.
-            if (stream.View is { } view) Turn(view, stream.Rotation);
+            if (stream.View is { } view) Turn(view, stream.Rotation, stream.VideoWidth, stream.VideoHeight);
         }
 
         public bool OnSurfaceTextureDestroyed(SurfaceTexture surface)

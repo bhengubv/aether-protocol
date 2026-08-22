@@ -79,8 +79,21 @@ public interface IVideoIo
     /// </remarks>
     int CaptureRotation => 0;
 
-    /// <summary>Draw this person's picture turned by the angle they announced.</summary>
-    void SetRemoteRotation(string who, int degrees) { }
+    /// <summary>The size this phone's camera is actually delivering, chosen from what it publishes.</summary>
+    int CaptureWidth => 1280;
+
+    /// <inheritdoc cref="CaptureWidth"/>
+    int CaptureHeight => 720;
+
+    /// <summary>
+    /// Draw this person's picture turned by the angle they announced, in the proportions they sent.
+    /// </summary>
+    /// <remarks>
+    /// The size matters as much as the angle. A surface stretches whatever it is given to fill itself,
+    /// so without the real dimensions the picture is already distorted before any rotation runs — and
+    /// rotating a distorted picture produces a flattened band rather than a turned one.
+    /// </remarks>
+    void SetRemoteRotation(string who, int degrees, int videoWidth, int videoHeight) { }
 
     /// <summary>Ask for the camera, at the moment the person taps the camera button.</summary>
     Task<bool> EnsurePermissionAsync();
