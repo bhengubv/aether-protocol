@@ -36,6 +36,26 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
             </button>
         }
 
+        @* The picture, as ordinary elements.
+           These used to be native Android views layered UNDER the WebView, which is why the whole
+           page had to be made transparent to see them — and why the app bar and tab bar had to be
+           hidden, and why anything that went wrong in that chain showed a blank screen instead of a
+           missing picture. Here they lay out with the controls like anything else. *@
+        @if (ShowingVideo)
+        {
+            <div class="call-video">
+                @if (Calls.TheirVideoOn)
+                {
+                    <canvas id="@RemoteId" class="cv-remote"></canvas>
+                }
+                @* Mirrored, and only here. A self-view is a mirror because that is what a person
+                   expects of their own face; what the other end receives is not flipped. Doing one
+                   rotation for both was the whole of "the video is reversed". *@
+                <video id="aether-local" class="cv-local @(Calls.VideoOn ? null : "off")"
+                       autoplay muted playsinline></video>
+            </div>
+        }
+
         <div class="call-who @(ShowingVideo ? "hidden" : null)">
             <div class="call-av" style="background:@TagPalette.For(Peer)">@TagPalette.Initial(Peer)</div>
             <div class="call-tag">@Peer</div>
@@ -164,8 +184,17 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
 
     private void Flip() => Calls.SwitchCamera();
 
-    /// <summary>True when either camera is on, and there is therefore a picture behind this.</summary>
+    /// <summary>True when either camera is on, and there is therefore a picture to lay out.</summary>
     private bool ShowingVideo => Calls.VideoOn || Calls.TheirVideoOn;
+
+    /// <summary>
+    /// The element the far end's frames are drawn on. Must match what the module builds its id from.
+    /// </summary>
+    private string RemoteId => "aether-remote-" + Safe(Peer);
+
+    /// <summary>An AetherTag is already safe for an id; anything else might not be.</summary>
+    private static string Safe(string who)
+        => new(who.Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').ToArray());
     private void ToggleSpeaker() => Calls.SpeakerphoneOn = !Calls.SpeakerphoneOn;
 
     /// <summary>
@@ -244,24 +273,33 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
 
     .call-who { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 1 1 auto; }
 
-    /* The picture is drawn on a native surface BEHIND this page, so with a camera on the screen has
-       to become transparent — not merely have its avatar hidden. A solid background here would be a
-       solid background over the video. The controls keep their own backdrop so they stay readable
-       against whatever the camera happens to be pointing at. */
-    .call-screen:has(.call-who.hidden) { background: transparent; }
+    /* The picture is an element in this screen now, so it simply covers what is behind it — the call
+       screen is already fixed and full-bleed. Nothing outside this component needs to know.
 
-    /* Transparent is not enough on its own: the call screen sits over the app, and the app is what
-       was actually being seen instead of the video — the chat list, painted over the camera. The whole
-       stack has to get out of the way, all the way down to the page itself, or the picture stays
-       hidden behind whatever the person happened to have open. */
-    html:has(.call-who.hidden),
-    body:has(.call-who.hidden),
-    .app:has(.call-who.hidden) { background: transparent; }
+       What used to be here was a cascade of transparency: the call screen, then html, body and .app,
+       then visibility:hidden on the app bar, the viewport and the tab bar. All of it existed for one
+       reason — the video was drawn on native views layered UNDER the WebView, so the entire page had
+       to be made see-through to reveal them. That is what made a failure anywhere in the chain show a
+       blank screen rather than a missing picture, and it is why the page background had to be put
+       back afterwards by hand. None of it is needed once the picture lays out with the controls. */
+    .call-who.hidden { display: none; }
 
-    .app:has(.call-who.hidden) > .appbar,
-    .app:has(.call-who.hidden) > .viewport,
-    .app:has(.call-who.hidden) > .tabbar { visibility: hidden; }
-    .call-who.hidden { visibility: hidden; }
+    .call-video { position: absolute; inset: 0; overflow: hidden; background: #000; }
+
+    /* The far end fills the screen. object-fit does the fitting the rotation matrices used to get
+       wrong — cover crops to fill without ever distorting, whatever shape arrives. */
+    .cv-remote { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* This phone's own picture, in the corner. Mirrored, and ONLY here: a person expects their own
+       face to behave like a mirror, and the far end must receive them the right way round. */
+    .cv-local {
+        position: absolute; top: 18px; right: 14px;
+        width: 27vw; max-width: 132px; aspect-ratio: 9 / 16;
+        object-fit: cover; border-radius: 14px;
+        background: #111; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+        transform: scaleX(-1);
+    }
+    .cv-local.off { display: none; }
     /* With a picture behind them the controls stop being page furniture and become an overlay, so
        they dock to the bottom edge the way every other video call on the phone does. Floating them
        in the middle of the frame — which is where 8vh of margin and a 42px nudge put them — lands

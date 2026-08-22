@@ -65,7 +65,12 @@ builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
 // So is a microphone. The call service exists here so the UI compiles and can explain itself, but it
 // will always say a call is impossible rather than pretending to place one.
 builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
-builder.Services.AddSingleton<IVideoIo, NullVideoIo>();
+
+// Video, on the other hand, now works here too — it is WebCodecs and getUserMedia in the Shared
+// project rather than anything native, so the web head gets the same implementation the phone does.
+// Scoped rather than singleton: a server-rendered head has one of these per circuit, and a JS module
+// reference belongs to the page that imported it.
+builder.Services.AddScoped<IVideoIo, WebVideoIo>();
 
 // And no microphone means no notes to record either. Playing one back works everywhere, though —
 // that is the browser's own media element, not a radio.

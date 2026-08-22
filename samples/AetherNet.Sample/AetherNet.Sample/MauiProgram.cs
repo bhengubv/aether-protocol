@@ -127,9 +127,6 @@ public static class MauiProgram
         // call service is constructible but honestly says it cannot place one.
 #if ANDROID
         builder.Services.AddSingleton<IAudioIo, AetherNet.Sample.Platforms.Android.AndroidAudioIo>();
-        // Live video is native surfaces layered over the WebView — see AndroidVideoIo for why frames
-        // must never pass through Blazor.
-        builder.Services.AddSingleton<IVideoIo, AetherNet.Sample.Platforms.Android.AndroidVideoIo>();
         // Wi-Fi Direct's group is created and handed over BLE rather than negotiated, so the radio
         // itself is the thing that hosts and joins.
         builder.Services.AddSingleton<IWifiDirectGroup>(sp =>
@@ -137,9 +134,22 @@ public static class MauiProgram
                 sp.GetRequiredService<IRadioMesh>()).WifiDirect);
 #else
         builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
-        builder.Services.AddSingleton<IVideoIo, NullVideoIo>();
         builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 #endif
+
+        // Live video, for every head there is and every head there will be.
+        //
+        // This was a native Android implementation: camera2 into a MediaCodec surface, decoded onto
+        // TextureViews layered UNDER the WebView. It served exactly one platform, it could never serve
+        // the web head, and it had no path to iOS at all — which is the whole reason MAUI Blazor
+        // Hybrid exists. It also spent its life fighting its host, since seeing a native view through
+        // a WebView means making the entire page transparent.
+        //
+        // WebCodecs and getUserMedia do the same job in the layer the app already shares. Measured in
+        // the live WebView on both test handsets before committing to it: secure context, camera
+        // reachable, VideoEncoder and VideoDecoder present, H.264 Baseline supported at the size and
+        // bitrate a call actually needs.
+        builder.Services.AddSingleton<IVideoIo, WebVideoIo>();
         builder.Services.AddSingleton<CallService>();
 
         // A call with more than two people in it. Built the same way group chat is — several 1:1
@@ -181,6 +191,7 @@ public static class MauiProgram
 #endif
 
         builder.Services.AddMauiBlazorWebView();
+
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
