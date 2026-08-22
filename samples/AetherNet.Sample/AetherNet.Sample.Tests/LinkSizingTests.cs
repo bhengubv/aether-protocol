@@ -123,13 +123,41 @@ public class LinkSizingTests
         Assert.Equal(400_000, next);
     }
 
-    /// <summary>Up slow: finding the limit repeatedly is a stutter every time.</summary>
+    /// <summary>
+    /// Up slow: finding the limit repeatedly is a stutter every time.
+    /// </summary>
+    /// <remarks>
+    /// Expressed against the ceiling rather than a number. It was written as "from 400,000, expect
+    /// more than 400,000" — true while the ceiling was 800 kbps for a 720p picture, and false the
+    /// moment the ceiling came down to 400 kbps to match the 640x360 the browser actually captures.
+    /// A test that pins today's constant fails on a deliberate change and says nothing about the
+    /// behaviour it was meant to protect.
+    /// </remarks>
     [Fact]
     public void Video_creeps_back_up_when_the_link_is_comfortable()
     {
-        var next = MediaBitrate.Video(current: 400_000, strain: 0.0);
+        var from = MediaBitrate.VideoCeilingBps / 2;
 
-        Assert.InRange(next, 401_000, 500_000);
+        var next = MediaBitrate.Video(current: from, strain: 0.0);
+
+        Assert.True(next > from, "a comfortable link should be asked for a little more");
+        Assert.True(next <= MediaBitrate.VideoCeilingBps, "and never more than the picture can use");
+    }
+
+    /// <summary>
+    /// And the ceiling is the one the picture is actually sent at.
+    /// </summary>
+    /// <remarks>
+    /// These drifted apart once already: the encoder captured 640x360 while the ceiling was still the
+    /// 800 kbps chosen for 1280x720, so adaptation climbed to twice what the picture needed on every
+    /// healthy link. 400 kbps is the WebRTC reference figure for H.264 webcam at that size.
+    /// </remarks>
+    [Fact]
+    public void The_ceiling_matches_the_picture_that_is_sent()
+    {
+        Assert.Equal(400_000, MediaBitrate.VideoCeilingBps);
+        Assert.True(MediaBitrate.VideoCeilingBps > MediaBitrate.VideoFloorBps * 2,
+            "there has to be room to adapt between the floor and the ceiling");
     }
 
     [Fact]

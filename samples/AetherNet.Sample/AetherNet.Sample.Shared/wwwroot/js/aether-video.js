@@ -47,6 +47,47 @@ const peers = new Map();
 let onChunk = null;      // .NET, waiting for encoded bytes
 let onState = null;      // .NET, waiting for capture-state changes
 
+// -- counting what actually happens ------------------------------------------
+//
+// Every diagnosis in this area that was made by reasoning about the code turned out to be wrong, and
+// each wrong one cost a build, an install and a two-minute wait for the radio to come back. A picture
+// that is not appearing has about six places it can be lost, and they are indistinguishable from the
+// outside — so each one is counted, and stats() reads them out.
+const stat = {
+    ticks: 0,          // requestVideoFrameCallback fired
+    framesMade: 0,     // a VideoFrame was constructed from the video element
+    encodeSkipped: 0,  // encoder queue was full, frame dropped before encoding
+    encoded: 0,        // the encoder produced a chunk
+    sentToNet: 0,      // a chunk was handed to .NET
+    encoderErrors: 0,
+
+    played: 0,         // .NET handed us bytes to show
+    noTile: 0,         // ...but there was no canvas to draw on yet
+    awaitingKey: 0,    // ...dropped because the decoder has not had a keyframe
+    decoded: 0,        // handed to the decoder
+    drawn: 0,          // actually painted
+    decodeErrors: 0,
+    decoderResets: 0,
+};
+
+/// What the pipeline has actually done. Reset every time it is read, so two reads bracket a window.
+export function stats() {
+    const snapshot = { ...stat, at: Math.round(performance.now()) };
+    snapshot.session = session
+        ? { encoderState: session.encoder.state, queue: session.encoder.encodeQueueSize,
+            size: session.width + 'x' + session.height, bitrate: session.bitrate,
+            videoW: session.video.videoWidth, videoH: session.video.videoHeight,
+            paused: session.video.paused, ended: session.video.srcObject
+                ? session.video.srcObject.getVideoTracks().map(t => t.readyState).join(',') : 'no stream' }
+        : null;
+    snapshot.peers = [...peers.entries()].map(([who, p]) => ({
+        who, state: p.decoder.state, waitingForKey: p.waitingForKey,
+        canvas: p.canvas.width + 'x' + p.canvas.height,
+    }));
+    for (const k of Object.keys(stat)) stat[k] = 0;
+    return snapshot;
+}
+
 // -- what this device can actually do ----------------------------------------
 
 export async function capabilities() {
@@ -125,9 +166,12 @@ export async function start(chunkSink, stateSink, front) {
                 chunk.copyTo(bytes);
                 // Fire and forget. Awaiting here would stall the encoder's own output queue behind a
                 // round trip into .NET, twenty times a second.
-                if (onChunk) onChunk.invokeMethodAsync('ReceiveChunk', bytes);
+                stat.encoded++;
+                if (onChunk) { onChunk.invokeMethodAsync('ReceiveChunk', bytes); stat.sentToNet++; }
             },
             error: (e) => {
+                stat.encoderErrors++;
+                stat.lastEncoderError = String(e && e.message || e);
                 console.error('[aether-video] encoder failed', e);
                 stop();
             },
@@ -192,6 +236,7 @@ function pump() {
         const cur = session;
         if (!cur || cur.stopped) return;
 
+        stat.ticks++;
         try {
             const minGap = 1000 / FPS;
             if (now - cur.lastFrameAt >= minGap - 1) {
@@ -201,9 +246,11 @@ function pump() {
                 if (key) cur.lastKeyAt = now;
 
                 const frame = new VideoFrame(cur.video, { timestamp: Math.round(now * 1000) });
+                stat.framesMade++;
                 // Never let the encoder build a backlog: a frame whose moment has passed is worthless,
                 // and queueing it only makes the next one later still.
                 if (cur.encoder.encodeQueueSize < 2) cur.encoder.encode(frame, { keyFrame: key });
+                else stat.encodeSkipped++;
                 frame.close();
             }
         } catch (e) {
@@ -247,10 +294,12 @@ export async function stopAll() {
 export function play(who, bytes) {
     if (!who || !bytes || bytes.length === 0) return;
 
+    stat.played++;
+
     let peer = peers.get(who);
     if (!peer) {
         const canvas = document.getElementById('aether-remote-' + cssSafe(who));
-        if (!canvas) return;   // no tile laid out yet; the next keyframe is at most a second away
+        if (!canvas) { stat.noTile++; return; }   // no tile yet; the next keyframe is a second away
 
         const ctx = canvas.getContext('2d');
         const decoder = new VideoDecoder({
@@ -259,11 +308,14 @@ export function play(who, bytes) {
                     if (canvas.width !== frame.displayWidth) canvas.width = frame.displayWidth;
                     if (canvas.height !== frame.displayHeight) canvas.height = frame.displayHeight;
                     ctx.drawImage(frame, 0, 0);
+                    stat.drawn++;
                 } finally {
                     frame.close();
                 }
             },
             error: (e) => {
+                stat.decodeErrors++;
+                stat.lastDecodeError = String(e && e.message || e);
                 console.warn('[aether-video] decoder failed for', who, e);
                 forget(who);
             },
@@ -283,16 +335,20 @@ export function play(who, bytes) {
         // which costs at most a second and avoids a burst of errors nobody can act on.
         const key = isKeyframe(bytes);
         if (peer.waitingForKey) {
-            if (!key) return;
+            if (!key) { stat.awaitingKey++; return; }
             peer.waitingForKey = false;
         }
 
+        stat.decoded++;
         peer.decoder.decode(new EncodedVideoChunk({
             type: key ? 'key' : 'delta',
             timestamp: Math.round(performance.now() * 1000),
             data: bytes,
         }));
     } catch (e) {
+        stat.decodeErrors++;
+        stat.decoderResets++;
+        stat.lastDecodeError = String(e && e.message || e);
         console.warn('[aether-video] could not decode from', who, e);
         peer.waitingForKey = true;
     }

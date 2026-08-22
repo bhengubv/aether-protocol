@@ -1096,7 +1096,19 @@ public sealed class AndroidWifiDirectTransportService
         try
         {
             client.NoDelay = true;
-            client.SendBufferSize = 64 * 1024;
+
+            // 16KB, and the number is a LATENCY budget rather than a throughput one.
+            //
+            // Whatever the kernel accepts, it will deliver — in order, eventually. So the send buffer
+            // is exactly how much video is allowed to be in flight, and therefore how far behind the
+            // far end is permitted to fall. Measured: video frames run about 4.5KB, so the 64KB this
+            // started at held roughly fourteen of them, and at fifteen frames a second that is nine
+            // tenths of a second of delay — which is precisely what a person watching described.
+            //
+            // 16KB is three or four frames, a quarter of a second. Small enough that a write blocks
+            // while the radio is genuinely behind, which is what makes strain a measurement instead
+            // of a delay, and small enough that the delay it does impose is not worth naming.
+            client.SendBufferSize = 16 * 1024;
         }
         catch (Exception ex)
         {

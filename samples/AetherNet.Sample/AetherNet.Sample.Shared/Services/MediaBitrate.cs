@@ -22,8 +22,24 @@ namespace AetherNet.Sample.Shared.Services;
 /// </summary>
 public static class MediaBitrate
 {
-    /// <summary>The most video worth sending on this app's picture size — more buys nothing visible.</summary>
-    public const int VideoCeilingBps = 800_000;
+    /// <summary>
+    /// The most video worth sending at this app's picture size.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 400 kbps, which is the WebRTC reference figure for H.264 webcam at 640x360 — the size the
+    /// browser actually captures at. It was 800 kbps, chosen for a 1280x720 picture this app no
+    /// longer sends, and adaptation climbs to the ceiling on a healthy link, so every call was running
+    /// at twice what it needed. Measured on device: the encoder reported 800000 while the negotiated
+    /// picture was 360x640.
+    /// </para>
+    /// <para>
+    /// It also has to fit the radio. Wi-Fi Direct measured about 2.5 Mbps total and carries BOTH
+    /// directions plus the voice, so 800 kbps each way was well over a megabit and a half of the
+    /// budget spent on a picture that looks no better for it.
+    /// </para>
+    /// </remarks>
+    public const int VideoCeilingBps = 400_000;
 
     /// <summary>
     /// Below this, video is worse than nothing: too blocky to read a face and still enough traffic to
