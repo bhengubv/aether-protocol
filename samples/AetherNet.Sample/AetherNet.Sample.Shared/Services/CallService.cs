@@ -464,12 +464,19 @@ public sealed class CallService : IDisposable
     public event Action<byte[]>? VideoFrameReceived;
 
     /// <summary>
-    /// What a call needs before the camera is offered at all.
+    /// What a video call <b>costs</b> a radio.
     ///
     /// <para>
     /// Video is roughly 800 kbps against voice's 24, and it still has to carry the voice. With the
     /// same one-third margin the codec uses, that is about three megabits. Wi-Fi Direct clears it
     /// comfortably; nothing else measured here comes close (PROTOCOL_SPEC §5.5).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>This is no longer the gate</b>, and it should not be used as one. Comparing it against a
+    /// link's measured throughput cannot ever pass mid-call, because a call in progress is carrying
+    /// voice and only voice — see <see cref="CanSendVideo"/>. It is kept as the costing the spec and
+    /// <see cref="VideoBudget"/> are checked against.
     /// </para>
     /// </summary>
     public const long MinLinkBpsForVideo = 3_000_000;
@@ -483,16 +490,24 @@ public sealed class CallService : IDisposable
     /// frames crowd out the voice they share the radio with.
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// Asks whether the link is <em>struggling</em>, not how much it has carried. This used to test
+    /// measured throughput against a floor, which cannot ever pass during a call: the link is carrying
+    /// about 24 kbps because voice is all anyone is offering it, so "is it doing three megabits" is no,
+    /// forever. The camera button stayed disabled and every tap did nothing, silently, on a link that
+    /// had just moved nine thousand voice frames without refusing one. The group call had the same bug;
+    /// this is its twin, and it was missed when that one was fixed.
+    /// </remarks>
     public bool CanSendVideo =>
         Current is { State: CallState.Connected } &&
         _video is { IsPresent: true } &&
-        (_radio?.LinkBandwidthBps ?? 0) >= MinLinkBpsForVideo;
+        MediaBitrate.WorthVideo(_radio?.LinkStrain ?? 0);
 
     /// <summary>Why the camera is not on offer, in plain words — or null when it is.</summary>
     public string? CannotSendVideoReason =>
         Current is not { State: CallState.Connected } ? "not in a call"
         : _video is not { IsPresent: true } ? _video?.UnavailableReason ?? "this device has no camera"
-        : !CanSendVideo ? (_radio?.LinkRadio ?? "this radio") + " is too slow for video — voice only"
+        : !CanSendVideo ? (_radio?.LinkRadio ?? "this radio") + " is working too hard for video — voice only"
         : null;
 
     /// <summary>
@@ -646,10 +661,11 @@ public sealed class CallService : IDisposable
             TheirVideoOn = body.Length > 0 && body[0] == CameraOn;
 
             // Their camera going on when mine is off still needs somewhere to draw, so the surfaces
-            // come up for their picture alone. And going off hides it at once, rather than leaving a
-            // frozen last frame that cannot be told apart from a dead link.
-            if (TheirVideoOn && _video is { IsRunning: false, IsPresent: true })
-                await _video.StartAsync().ConfigureAwait(false);
+            // come up for their picture alone — and ONLY the surfaces. This used to call StartAsync,
+            // which opens this phone's camera as well: the person was shown "Camera off" while their
+            // camera was genuinely running. Showing a picture and sending one are different things.
+            if (TheirVideoOn && _video is { IsPresent: true })
+                await _video.ShowIncomingAsync().ConfigureAwait(false);
 
             _video?.ShowRemote(TheirVideoOn);
 

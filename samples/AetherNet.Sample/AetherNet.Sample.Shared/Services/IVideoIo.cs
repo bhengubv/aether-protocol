@@ -44,6 +44,18 @@ public interface IVideoIo
     /// <summary>What the encoder is producing right now, or 0 when it is not running.</summary>
     int BitrateBps => 0;
 
+    /// <summary>
+    /// Bring up the surfaces needed to DISPLAY someone else's video, without touching this phone's
+    /// camera.
+    /// </summary>
+    /// <remarks>
+    /// This exists because showing a picture and sending one were the same call. Receiving somebody
+    /// else's video ran StartAsync purely to get a surface to draw on — and StartAsync opens the
+    /// camera. Verified on device: the receiving phone's UI said "Camera" off while the system said
+    /// "Device 1 is open". A camera running without the person being told is not a rendering detail.
+    /// </remarks>
+    Task ShowIncomingAsync() => Task.CompletedTask;
+
     /// <summary>Ask for the camera, at the moment the person taps the camera button.</summary>
     Task<bool> EnsurePermissionAsync();
 

@@ -130,9 +130,12 @@ public class VideoCallTests
 
     /// <summary>
     /// Video is roughly 800 kbps against voice's 24, on a radio that still has to carry the voice.
-    /// The floor is well above the voice floor, and deliberately so — this is the number that decides
-    /// whether a camera button appears at all.
+    /// This is what a picture <em>costs</em> — see PROTOCOL_SPEC §5.5 and §10.10.
     /// </summary>
+    /// <remarks>
+    /// It is no longer what decides whether a camera button appears. That decision moved to
+    /// <see cref="MediaBitrate.WorthVideo"/>, and the tests below are the ones that guard it.
+    /// </remarks>
     [Fact]
     public void Video_needs_far_more_of_the_link_than_voice_does()
     {
@@ -141,37 +144,83 @@ public class VideoCallTests
     }
 
     /// <summary>
-    /// Wi-Fi Direct clears it; nothing else measured on these phones comes close. That is the whole
-    /// finding restated as a number the code can act on — see PROTOCOL_SPEC §5.5.
-    /// </summary>
-    [Theory]
-    [InlineData(250_000_000, true)]   // Wi-Fi Direct, as declared
-    [InlineData(11_000, false)]       // BLE, measured 2026-08-20
-    [InlineData(1_000_000, false)]    // a megabit is not enough for video plus its voice
-    [InlineData(0, false)]            // a radio that will not say does not get the benefit here
-    public void Only_a_wide_radio_clears_the_video_bar(long linkBps, bool expected)
-        => Assert.Equal(expected, linkBps >= CallService.MinLinkBpsForVideo);
-
-    /// <summary>
-    /// Note the asymmetry with voice, which is deliberate. An unknown link is given the benefit of
-    /// the doubt for a call — refusing on no evidence is worse than trying. Video is not: it is
-    /// expensive enough that guessing wrong takes the working voice call down with it.
+    /// The regression, stated as the link that produced it.
+    ///
+    /// <para>
+    /// A phone in a voice call moves a couple of hundred bytes every twenty milliseconds and nothing
+    /// else, because voice is all anyone is offering it. Measure that and you get about 60 kbps — far
+    /// under any video floor — so a gate built on measured throughput answers "too slow for video" on
+    /// a link that has not refused a single frame. It is self-fulfilling: video can never start, so
+    /// the link is never asked for more, so the number never moves.
+    /// </para>
+    ///
+    /// <para>
+    /// Strain answers the question that was actually being asked. Both call paths had the throughput
+    /// version; fixing the group one first is how the 1:1 one survived another day.
+    /// </para>
     /// </summary>
     [Fact]
-    public void An_unknown_link_may_carry_voice_but_not_video()
+    public void A_link_carrying_only_voice_still_gets_offered_a_camera()
+    {
+        var t0 = new DateTimeOffset(2026, 8, 21, 12, 0, 0, TimeSpan.Zero);
+
+        // Twenty seconds of a comfortable voice call: 200-byte frames, 3ms to hand to the radio,
+        // one every 20ms. Nothing refused.
+        var voiceOnly = new LinkQuality();
+        for (var i = 0; i < 1000; i++)
+            voiceOnly.Record(200, TimeSpan.FromMilliseconds(3), sent: true, t0.AddMilliseconds(i * 20));
+
+        var now = t0.AddMilliseconds(1000 * 20);
+
+        Assert.True(voiceOnly.ThroughputBps(now) < MediaBitrate.VideoFloorBps,
+            "a voice call does not put video-sized traffic on the wire — that is the point");
+        Assert.Equal(0, voiceOnly.Strain(now), 1);
+        Assert.True(MediaBitrate.WorthVideo(voiceOnly.Strain(now)),
+            "the link is not struggling, so the camera must be on offer");
+    }
+
+    /// <summary>
+    /// A link that genuinely cannot cope says so by struggling, not by being quiet, and then the
+    /// camera is correctly withheld.
+    /// </summary>
+    [Fact]
+    public void A_link_that_is_actually_struggling_is_refused_the_camera()
+    {
+        var t0 = new DateTimeOffset(2026, 8, 21, 12, 0, 0, TimeSpan.Zero);
+
+        var refusing = new LinkQuality();
+        for (var i = 0; i < 40; i++)
+            refusing.Record(200, TimeSpan.FromMilliseconds(1), sent: false, t0.AddMilliseconds(i * 20));
+
+        var now = t0.AddMilliseconds(40 * 20);
+
+        Assert.True(refusing.Strain(now) > 0.9);
+        Assert.False(MediaBitrate.WorthVideo(refusing.Strain(now)));
+    }
+
+    /// <summary>
+    /// The asymmetry with voice is deliberate, and it now runs the other way from how it was written.
+    /// A link nobody has measured is given the benefit of the doubt for <em>both</em> — refusing on no
+    /// evidence is how a camera that would have worked never gets tried — and
+    /// <see cref="MediaBitrate.Video"/> takes it straight back, down to stopping, the moment the
+    /// picture turns out to be too much.
+    /// </summary>
+    [Fact]
+    public void An_unmeasured_link_is_given_the_benefit_of_the_doubt()
     {
         Assert.True(OpusVoiceCodec.CanCarryCall(0));
-        Assert.False(0 >= CallService.MinLinkBpsForVideo);
+        Assert.True(MediaBitrate.WorthVideo(strain: 0));
     }
 
     // ── What a group costs ─────────────────────────────────────────────────
 
     /// <summary>
-    /// The gate the call applies must agree with the budget it is derived from. Two different numbers
-    /// for the same thing is how a spec and an implementation quietly stop describing each other.
+    /// The two places that write down what video costs must agree with each other. Two different
+    /// numbers for the same thing is how a spec and an implementation quietly stop describing each
+    /// other.
     /// </summary>
     [Fact]
-    public void The_video_gate_matches_the_budget_for_two_people()
+    public void The_costings_agree_with_each_other_for_two_people()
         => Assert.True(CallService.MinLinkBpsForVideo >= VideoBudget.RequiredBps(2));
 
     /// <summary>

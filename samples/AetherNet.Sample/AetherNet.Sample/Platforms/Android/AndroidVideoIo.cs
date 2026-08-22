@@ -798,6 +798,18 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         });
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Only the overlay — the camera is deliberately left shut. Drawing someone else's picture needs
+    /// a surface and nothing more; opening this phone's camera to get one is what had the receiving
+    /// handset reporting "Device 1 is open" while its own UI said the camera was off.
+    /// </remarks>
+    public async Task ShowIncomingAsync()
+    {
+        if (_disposed || _grid is not null) return;
+        await MainThread.InvokeOnMainThreadAsync(AddOverlay).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Show or hide everybody's picture at once.
     ///
