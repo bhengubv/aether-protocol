@@ -414,6 +414,21 @@ public sealed class AndroidWifiDirectTransportService
             {
                 _groupFormed = true;
                 L($"hosting {credentials.NetworkName}");
+
+                // Start listening HERE, rather than waiting to be told.
+                //
+                // The server used to start only from the CONNECTION_CHANGED broadcast, and that
+                // broadcast is not guaranteed to arrive for a group this process did not watch form.
+                // Reinstalling is exactly that case: the previous process is killed while it owns a
+                // group, the new one adopts or recreates it and reads its credentials perfectly well —
+                // and never hears the announcement, so it hosts a group it is not listening on. The
+                // other phone joins, dials, and is refused every few seconds while both ends agree
+                // they are in the same group. Restarting the app "fixed" it purely because that made
+                // the broadcast fire again.
+                //
+                // RunServerAsync is guarded by an Interlocked flag, so being called from both places
+                // starts one server and no more.
+                _ = Task.Run(RunServerAsync);
                 return credentials;
             }
             await Task.Delay(250, cancellationToken).ConfigureAwait(false);
@@ -659,11 +674,40 @@ public sealed class AndroidWifiDirectTransportService
         for (var waited = TimeSpan.Zero; waited < JoinTimeout; waited += JoinPoll)
         {
             if (_groupFormed) return true;
+
+            // Ask, rather than only wait. The broadcast is the usual way this arrives and it is not
+            // the only way it can be known — and when it does not come, waiting for it is waiting
+            // forever.
+            AskWhereWeStand();
             await Task.Delay(JoinPoll, cancellationToken).ConfigureAwait(false);
         }
 
         L($"{credentials.NetworkName} did not form — it is probably not up yet");
         return false;
+    }
+
+    /// <summary>
+    /// Ask the framework what this phone is currently part of, instead of waiting to be told.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Everything about connection state arrived on a single broadcast, and a broadcast is not
+    /// guaranteed for a group this process did not watch form. Reinstalling is exactly that: the old
+    /// process is killed owning a group, the new one adopts or recreates it, and never hears the
+    /// announcement. The host then hosts a group it is not listening on, and the client sits in a
+    /// group it never dials into — both perfectly convinced they are connected.
+    /// </para>
+    /// <para>
+    /// Asking is cheap and it is idempotent: the server and the client loops are both guarded, so a
+    /// repeated answer starts nothing twice.
+    /// </para>
+    /// </remarks>
+    private void AskWhereWeStand()
+    {
+        if (_manager is null || _channel is null) return;
+
+        try { _manager.RequestConnectionInfo(_channel, new ConnectionInfo(this)); }
+        catch (Exception ex) { L($"could not ask about the connection ({ex.Message})"); }
     }
 
     /// <summary>Leave whatever group this phone is in, and wait for it to actually be gone.</summary>
@@ -1284,6 +1328,22 @@ public sealed class AndroidWifiDirectTransportService
                         intent.GetParcelableExtra(WifiP2pManager.ExtraWifiP2pDevice) as WifiP2pDevice);
                     break;
             }
+        }
+    }
+
+    /// <summary>
+    /// The framework answering "where do I actually stand", when asked rather than when it feels like
+    /// announcing it.
+    /// </summary>
+    private sealed class ConnectionInfo(AndroidWifiDirectTransportService owner)
+        : Java.Lang.Object, WifiP2pManager.IConnectionInfoListener
+    {
+        public void OnConnectionInfoAvailable(WifiP2pInfo? info)
+        {
+            // ONLY good news. A poll that comes back "no group" is not evidence a group has been
+            // lost — it is routinely what the framework says a moment before it says otherwise, and
+            // acting on it would tear down a working link. Loss stays the broadcast's job.
+            if (info is { GroupFormed: true }) owner.OnConnectionChanged(info);
         }
     }
 
