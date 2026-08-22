@@ -106,6 +106,9 @@ public sealed class GroupCallService : IDisposable
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
         _audio = audio ?? throw new ArgumentNullException(nameof(audio));
         _video = video;
+
+        // The device is the only thing that knows whether a camera is genuinely running.
+        if (_video is not null) _video.CaptureChanged += OnCaptureChanged;
         _radio = radio;
         _store = store;
         _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<GroupCallService>();
@@ -171,6 +174,37 @@ public sealed class GroupCallService : IDisposable
         _video is { IsPresent: true } &&
         Participants.Count <= VideoCap + 1 &&
         MediaBitrate.WorthVideo(_radio?.LinkStrain ?? 0, Participants.Count);
+
+    /// <summary>
+    /// The camera stopped without being asked to — tell everyone, so nobody is left on a frozen face.
+    /// </summary>
+    /// <remarks>
+    /// The same hole the 1:1 call had. <c>SizeToLink</c> shuts the camera when a link cannot carry a
+    /// picture, and a group divides one link between however many people have a camera on, so a group
+    /// is where it happens FIRST. Nothing was told: every other phone in the call went on showing this
+    /// one's last frame, indefinitely.
+    /// </remarks>
+    private void OnCaptureChanged(CaptureState state)
+    {
+        if (!CaptureStates.MustGiveUp(state, CameraOn)) return;
+        _ = CameraGaveUpAsync();
+    }
+
+    private async Task CameraGaveUpAsync()
+    {
+        CameraOn = false;
+        T("the camera stopped — telling the others, so they are not left on a frozen picture");
+
+        try
+        {
+            foreach (var p in _participants.Values.Where(p => p.Joined).ToArray())
+                await SendSignalAsync(p.Tag, GroupCallEnvelope.Camera, CancellationToken.None)
+                    .ConfigureAwait(false);
+        }
+        catch (Exception ex) { _log.LogDebug(ex, "announcing that the camera stopped"); }
+
+        Raise();
+    }
 
     /// <summary>
     /// Size the picture to the link, counting every camera on it.
@@ -383,6 +417,10 @@ public sealed class GroupCallService : IDisposable
             // camera any more, but this phone's own camera stops either way — unhooking the event
             // stops frames being sent and leaves the camera open and encoding behind a button that
             // says it is off.
+            // Intent goes down BEFORE the device does, or a deliberate stop is indistinguishable from
+            // the camera giving up and gets announced twice.
+            CameraOn = false;
+
             if (OnCamera.Count == 0) await _video.ReleaseAsync(this).ConfigureAwait(false);
             else await _video.StopSendingAsync().ConfigureAwait(false);
         }
@@ -900,6 +938,7 @@ public sealed class GroupCallService : IDisposable
 
         _audio.FrameCaptured -= OnMicrophoneFrame;
         if (_radio is not null) _radio.PacketReceived -= OnPacket;
+        if (_video is not null) _video.CaptureChanged -= OnCaptureChanged;
 
         try { EndAsync().GetAwaiter().GetResult(); } catch { /* tearing down */ }
     }

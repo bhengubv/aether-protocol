@@ -108,6 +108,10 @@ public sealed class CallService : IDisposable
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
         _audio = audio ?? throw new ArgumentNullException(nameof(audio));
         _video = video;
+
+        // The device is the only thing that knows whether a camera is genuinely running, and it stops
+        // by itself more often than anything expected it to.
+        if (_video is not null) _video.CaptureChanged += OnCaptureChanged;
         _fastRadio = fastRadio;
         _radio = radio;
         _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<CallService>();
@@ -563,6 +567,11 @@ public sealed class CallService : IDisposable
         {
             _video.FrameEncoded -= OnEncodedFrame;
 
+            // Intent goes down BEFORE the device does. Otherwise stopping the camera on purpose looks
+            // exactly like the camera giving up, and OnCaptureChanged announces a camera-off that
+            // this method is about to announce anyway.
+            VideoOn = false;
+
             // Only give the SCREEN back when neither camera is on — turning mine off while they are
             // still showing me theirs must not black their picture out. The camera itself stops
             // either way: unhooking the frame event only stops them being sent, and this used to
@@ -578,6 +587,49 @@ public sealed class CallService : IDisposable
         await AnnounceVideoAsync(call.RemoteUhid(_me.AetherTag), on, cancellationToken).ConfigureAwait(false);
         Raise();
         return true;
+    }
+
+    /// <summary>
+    /// The camera stopped without being asked to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It happens for ordinary reasons: a link too tight to carry a picture, which
+    /// <c>SizeToLink</c> answers by shutting the camera rather than sending something unwatchable that
+    /// crowds out the voice; an encoder that fails; the hardware taken by another app. Every one of
+    /// those used to leave <see cref="VideoOn"/> true, so this phone went on showing "Camera on" over
+    /// a camera that had stopped — and, far worse, the other phone was never told, so it sat watching
+    /// a frozen last frame for the rest of the call. The only thing that would have corrected it was
+    /// a camera-off message nobody sent, because from every intent flag's point of view nothing had
+    /// changed.
+    /// </para>
+    /// <para>
+    /// A deliberate stop clears <see cref="VideoOn"/> BEFORE it touches the device, so this only ever
+    /// fires for the case it is for: the device giving up on its own.
+    /// </para>
+    /// </remarks>
+    private void OnCaptureChanged(CaptureState state)
+    {
+        if (!CaptureStates.MustGiveUp(state, VideoOn)) return;
+        _ = CameraGaveUpAsync();
+    }
+
+    private async Task CameraGaveUpAsync()
+    {
+        VideoOn = false;
+        T("the camera stopped — telling them, so they are not left on a frozen picture");
+
+        if (Current is { State: CallState.Connected } call)
+        {
+            try
+            {
+                await AnnounceVideoAsync(call.RemoteUhid(_me.AetherTag), false, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex) { _log.LogDebug(ex, "announcing that the camera stopped"); }
+        }
+
+        Raise();
     }
 
     /// <summary>Flip between the front and back cameras mid-call.</summary>
@@ -1335,6 +1387,7 @@ public sealed class CallService : IDisposable
         if (_disposed) return;
         _disposed = true;
         if (_radio is not null) _radio.PacketReceived -= OnPacket;
+        if (_video is not null) _video.CaptureChanged -= OnCaptureChanged;
         _audio.FrameCaptured -= OnMicrophoneFrame;
         _codec?.Dispose();
     }

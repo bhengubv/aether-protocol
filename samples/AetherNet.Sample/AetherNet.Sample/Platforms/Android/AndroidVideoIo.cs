@@ -126,7 +126,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     private DateTimeOffset _lastSized = DateTimeOffset.MinValue;
 
     /// <inheritdoc />
-    public int BitrateBps => _running ? _bitrateBps : 0;
+    public int BitrateBps => CaptureStates.IsOn(_capture) ? _bitrateBps : 0;
 
     /// <summary>
     /// How often the picture may change size. Every frame would be chasing noise; once a second is
@@ -139,7 +139,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     {
         MediaCodec? encoder;
         lock (_gate) encoder = _encoder;
-        if (!_running || encoder is null) return;
+        if (!CaptureStates.IsOn(_capture) || encoder is null) return;
 
         var now = DateTimeOffset.UtcNow;
         if (now - _lastSized < SizeEvery) return;
@@ -192,30 +192,37 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     private volatile TextureView? _localView;
 
     private Thread? _drain;
-    private volatile bool _running;
 
     /// <summary>
-    /// Set the moment a stop begins, so a camera that opens after we stopped wanting it is closed
-    /// rather than left running.
+    /// What the camera is actually doing. Replaces a pair of booleans that could, and did, disagree.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <c>openCamera</c> is asynchronous: the device arrives later on <c>OnOpened</c>, and until it
-    /// does there is nothing to close. A stop inside that window therefore has no reference to release,
-    /// and the camera opens afterwards with nobody holding it.
-    /// </para>
-    /// <para>
-    /// This is a real window in the code, and the guard is worth having — but it has NOT been seen on
-    /// a phone, and an earlier version of this comment claimed it had. The "camera held for
-    /// seventy-eight minutes" it cited came from grepping <c>dumpsys media.camera</c> for
-    /// "Device 1 is open", which appears under a heading reading
-    /// <c>**********Dumpsys from previous open session**********</c> — a retained snapshot of the
-    /// LAST session, not live state. The live answer is <c>Active Camera Clients</c>, and on both
-    /// phones it is empty whenever no call is running. Every CONNECT in the camera service's own event
-    /// log has a matching DISCONNECT.
-    /// </para>
+    /// <c>_running</c> and <c>_stopping</c> were independent, so "starting" was expressed as both
+    /// being false — indistinguishable from idle — and there was no way to refuse a second start while
+    /// the first was still opening the camera. One field cannot contradict itself.
     /// </remarks>
-    private volatile bool _stopping;
+    private volatile CaptureState _capture = CaptureState.Idle;
+
+    /// <inheritdoc />
+    public CaptureState Capture => _capture;
+
+    /// <inheritdoc />
+    public event Action<CaptureState>? CaptureChanged;
+
+    /// <summary>
+    /// Move to a new state and say so. Never called while holding <c>_gate</c> — a listener reacting
+    /// to this will call straight back in.
+    /// </summary>
+    private void MoveTo(CaptureState next)
+    {
+        if (_capture == next) return;
+        _capture = next;
+
+        try { CaptureChanged?.Invoke(next); }
+        catch (Exception ex) { global::Android.Util.Log.Info("AetherVideo", "capture listener threw: " + ex.Message); }
+    }
+
+
 
     /// <summary>Completed when the camera is genuinely delivering frames, or has genuinely failed.</summary>
     private TaskCompletionSource<bool>? _opening;
@@ -283,7 +290,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
     public string? UnavailableReason => IsPresent ? null : "this phone has no camera";
 
-    public bool IsRunning => _running;
+    public bool IsRunning => CaptureStates.IsOn(_capture);
 
     /// <summary>
     /// How many H.264 streams this phone can decode at once — asked of the hardware, not assumed.
@@ -391,11 +398,13 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     /// </remarks>
     public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
     {
-        if (_disposed || _running || !IsPresent) return false;
+        // Not merely "not running": a second start while the first is still opening the camera
+        // used to be indistinguishable from a start from idle.
+        if (_disposed || !CaptureStates.CanStart(_capture) || !IsPresent) return false;
 
         try
         {
-            _stopping = false;
+            MoveTo(CaptureState.Starting);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
@@ -426,7 +435,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
                 }
             }
 
-            _running = true;
+            MoveTo(CaptureState.Capturing);
             return true;
         }
         catch (Exception ex)
@@ -571,7 +580,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     {
         var info = new MediaCodec.BufferInfo();
 
-        while (_running || _encoder is not null)
+        while (_capture != CaptureState.Idle || _encoder is not null)
         {
             MediaCodec? encoder;
             lock (_gate) encoder = _encoder;
@@ -876,7 +885,9 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             // The call may already be over. This callback is the FIRST moment there is a device to
             // close, so a stop that ran while the camera was opening had nothing to act on and left it
             // held — for as long as the process lived.
-            if (video._disposed || video._stopping)
+            // Only adopt a camera we are actively starting. Anything else — a stop that beat it,
+            // a callback from a start already abandoned — is closed rather than kept.
+            if (video._disposed || !CaptureStates.ShouldAdopt(video._capture))
             {
                 try { camera.Close(); } catch { /* nothing to close */ }
                 video._opening?.TrySetResult(false);
@@ -1290,7 +1301,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
 
     public void SwitchCamera()
     {
-        if (!_running) return;
+        if (!CaptureStates.IsOn(_capture)) return;
 
         _useFrontCamera = !_useFrontCamera;
 
@@ -1339,8 +1350,7 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     {
         // Before anything else: a camera still opening must be closed by its own callback, and this is
         // the flag that tells it so.
-        _stopping = true;
-        _running = false;
+        MoveTo(CaptureState.Stopping);
         _opening?.TrySetResult(false);
 
         CameraCaptureSession? session;
@@ -1387,6 +1397,11 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             {
                 try { local.Visibility = ViewStates.Invisible; } catch { /* the overlay went first */ }
             }).ConfigureAwait(false);
+
+        // Down, and announced. This is the edge everything else was missing: a camera that stopped
+        // because the link could not carry it, or because the encoder failed, looked from the outside
+        // exactly like a camera that was still running.
+        MoveTo(CaptureState.Idle);
     }
 
     /// <summary>

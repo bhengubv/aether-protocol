@@ -3,6 +3,99 @@
 namespace AetherNet.Sample.Shared.Services;
 
 /// <summary>
+/// What the camera hardware is actually doing — the single answer to "is video on".
+///
+/// <para>
+/// There were nine. Whether this phone was sending video could be read from <c>VideoOn</c> on the 1:1
+/// call, <c>CameraOn</c> on the group call, and three separate flags inside the camera object itself;
+/// whether the other person was sending it could be read from <c>TheirVideoOn</c>, the group's
+/// <c>OnCamera</c> set, a per-peer <c>Ready</c> flag and the existence of an overlay. Nine answers
+/// across two services and one device, with nothing tying any of them to any other.
+/// </para>
+///
+/// <para>
+/// Every fault fixed in this area has been two of those disagreeing. A button saying "Camera on" over
+/// a camera that was never opened. A phone told "my camera is on" for a capture session that failed to
+/// configure. A person shown "Camera off" while their camera genuinely ran. The variables were not the
+/// symptom, they were the mechanism.
+/// </para>
+///
+/// <para>
+/// This is now the only thing that knows. The services still hold what they INTEND — a person asked
+/// for their camera, or the far end said they turned theirs on — but intent is no longer allowed to
+/// stand in for fact: the device says what it is doing and says so out loud when it changes.
+/// </para>
+/// </summary>
+public enum CaptureState
+{
+    /// <summary>No camera, no encoder, nothing running.</summary>
+    Idle = 0,
+
+    /// <summary>Asked for, not yet delivering. Nothing may be promised to anyone from here.</summary>
+    Starting = 1,
+
+    /// <summary>Frames are genuinely flowing. This, and only this, is "the camera is on".</summary>
+    Capturing = 2,
+
+    /// <summary>Coming down. A camera that arrives now is closed rather than adopted.</summary>
+    Stopping = 3,
+}
+
+/// <summary>
+/// The rules of <see cref="CaptureState"/>, in one place.
+///
+/// <para>
+/// Written down rather than repeated, because they were repeated: the same three comparisons appeared
+/// in the camera object, in the 1:1 call service and in the group call service, each spelled slightly
+/// differently — and it was the differences that produced the faults. "May it start" was written as
+/// "not running", which is also true while it is stopping. "Is it on" was "running" in one place and
+/// "the encoder exists" in another.
+/// </para>
+/// </summary>
+public static class CaptureStates
+{
+    /// <summary>A camera may only be started from a standing stop.</summary>
+    /// <remarks>
+    /// Not merely "not capturing". Starting while a previous start is still opening the camera, or
+    /// while a stop is still closing one, are both ways to end up with two cameras or with none.
+    /// </remarks>
+    public static bool CanStart(CaptureState state) => state == CaptureState.Idle;
+
+    /// <summary>Frames are genuinely flowing. The only thing that counts as "the camera is on".</summary>
+    public static bool IsOn(CaptureState state) => state == CaptureState.Capturing;
+
+    /// <summary>
+    /// Whether a camera arriving from the platform should be kept, or closed on the spot.
+    /// </summary>
+    /// <remarks>
+    /// <c>openCamera</c> answers on a callback, and by the time it does the call may be over.
+    /// Adopting one then is how a camera ends up running with nothing holding it.
+    /// </remarks>
+    public static bool ShouldAdopt(CaptureState state) => state == CaptureState.Starting;
+
+    /// <summary>
+    /// Whether something that believes it is sending video has to be told otherwise.
+    /// </summary>
+    /// <param name="state">What the device is actually doing.</param>
+    /// <param name="intended">Whether the service still believes its camera is on.</param>
+    /// <remarks>
+    /// <para>
+    /// The rule this whole rework exists for: <b>intent may not outlive the device.</b> A camera stops
+    /// by itself for ordinary reasons — a link too tight to carry a picture, a failed encoder, the
+    /// hardware taken by another app — and every one of those used to leave the button reading
+    /// "Camera on" and, far worse, leave the far end watching a frozen last frame for the rest of the
+    /// call, because the only thing that would have corrected it was a camera-off message nobody sent.
+    /// </para>
+    /// <para>
+    /// Anything but <see cref="CaptureState.Capturing"/> means give up and say so — including
+    /// <see cref="CaptureState.Starting"/>, because a camera that is still opening is not one whose
+    /// pictures anybody should be promised.
+    /// </para>
+    /// </remarks>
+    public static bool MustGiveUp(CaptureState state, bool intended) => intended && !IsOn(state);
+}
+
+/// <summary>
 /// The camera and the screen, for the duration of a video call.
 ///
 /// <para>
@@ -28,6 +121,22 @@ public interface IVideoIo
     string? UnavailableReason { get; }
 
     /// <summary>True between a successful <see cref="StartAsync"/> and its stop.</summary>
+    /// <summary>What the hardware is actually doing. The one source of truth.</summary>
+    CaptureState Capture => IsRunning ? CaptureState.Capturing : CaptureState.Idle;
+
+    /// <summary>
+    /// Raised whenever <see cref="Capture"/> changes, including when the device gives up by itself.
+    /// </summary>
+    /// <remarks>
+    /// The camera stops on its own more often than anyone expects: a link too tight to carry a
+    /// picture, an encoder that fails, the hardware taken by another app. Before this existed nothing
+    /// was told when that happened — the button went on saying "Camera on" over a camera that had
+    /// stopped, and the far end sat watching a frozen last frame for the rest of the call, because
+    /// the only thing that would have told it otherwise was a camera-off message that nobody sent.
+    /// </remarks>
+    event Action<CaptureState>? CaptureChanged;
+
+    /// <summary>Shorthand for <see cref="CaptureState.Capturing"/>.</summary>
     bool IsRunning { get; }
 
     /// <summary>
@@ -216,6 +325,9 @@ public sealed class NullVideoIo : IVideoIo
     public bool IsPresent => false;
     public string? UnavailableReason => "this device has no camera to call with";
     public bool IsRunning => false;
+
+    /// <inheritdoc />
+    public event Action<CaptureState>? CaptureChanged { add { } remove { } }
 
     public Task<bool> EnsurePermissionAsync() => Task.FromResult(false);
     public Task<bool> StartAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
