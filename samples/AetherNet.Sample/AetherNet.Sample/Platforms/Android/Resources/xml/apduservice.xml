@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Touch My Blood — what this phone answers to when another phone taps it.
+
+    The AID is D2760000850101: the NFC Forum's NDEF Tag Application, registered by every Type 4 Tag
+    ever made. Claiming it is how a reader that has never heard of Aether knows it can ask us the
+    ordinary tag questions and get ordinary tag answers.
+
+    requireDeviceUnlock is false so a tap works from a screen that is on but not unlocked — handing
+    somebody the app should not require typing a PIN first. Nothing secret crosses: what is served is
+    a one-time address on this handset's own network, and it is only armed while the person is
+    holding the Touch My Blood screen open.
+-->
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/tmb_service"
+    android:requireDeviceUnlock="false">
+    <aid-group
+        android:description="@string/tmb_group"
+        android:category="other">
+        <aid-filter android:name="D2760000850101" />
+    </aid-group>
+</host-apdu-service>

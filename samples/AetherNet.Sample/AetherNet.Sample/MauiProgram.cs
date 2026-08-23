@@ -96,6 +96,12 @@ public static class MauiProgram
         // The app carries itself: a mesh that needs a store to spread has a single point of
         // failure standing in front of its very first step.
         builder.Services.AddSingleton<IAppShareService, AetherNet.Sample.Platforms.Android.AndroidAppShareService>();
+
+        // Touch My Blood: the phone becomes an NFC tag for as long as somebody is offering, and the
+        // handout is the small web server that the tap points at. One singleton each — the tap is
+        // armed and disarmed by the screen, and the handout expires on its own.
+        builder.Services.AddSingleton<ITapShare, AetherNet.Sample.Platforms.Android.AndroidTapShare>();
+        builder.Services.AddSingleton<AppHandout>();
         builder.Services.AddSingleton<AetherNet.Sample.Platforms.Android.GatewayService>(sp =>
             new AetherNet.Sample.Platforms.Android.GatewayService(
                 sp.GetRequiredService<ProxyDirectory>(),

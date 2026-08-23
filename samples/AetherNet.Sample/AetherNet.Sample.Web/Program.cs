@@ -78,6 +78,11 @@ builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
 // No loopback bridge here, and deliberately: this head's page and its server are different machines,
 // so a socket to 127.0.0.1 on the server would reach the wrong one entirely. Video falls back to
 // JavaScript interop, which is what it has always used.
+// Touch My Blood is a phone handing another phone the app. A server has neither an APK of its own
+// nor an NFC chip, so both say so plainly and the screen shows why rather than a button that fails.
+builder.Services.AddSingleton<IAppShareService, NoAppShare>();
+builder.Services.AddSingleton<ITapShare, NoTapShare>();
+builder.Services.AddSingleton<AppHandout>();
 builder.Services.AddSingleton<IVideoBridge, NoVideoBridge>();
 builder.Services.AddSingleton<IVideoIo>(sp => new WebVideoIo(sp.GetService<IVideoBridge>()));
 

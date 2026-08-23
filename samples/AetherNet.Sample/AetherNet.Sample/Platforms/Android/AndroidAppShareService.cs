@@ -60,6 +60,29 @@ public sealed class AndroidAppShareService : IAppShareService
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Android already keeps the package on disk, so this opens the file the app is running from
+    /// rather than copying a hundred megabytes into the heap to hand it to a socket.
+    /// </remarks>
+    public Task<Stream?> OpenInstallerAsync(CancellationToken cancellationToken = default)
+    {
+        if (InstallerPath is not { Length: > 0 } path || !File.Exists(path))
+            return Task.FromResult<Stream?>(null);
+
+        try
+        {
+            return Task.FromResult<Stream?>(
+                new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                    bufferSize: 64 * 1024, useAsync: true));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "[Share] Could not open this app's own installer");
+            return Task.FromResult<Stream?>(null);
+        }
+    }
+
     /// <summary>
     /// Write what arrived somewhere the system installer can read it, then ask the system to install.
     /// </summary>

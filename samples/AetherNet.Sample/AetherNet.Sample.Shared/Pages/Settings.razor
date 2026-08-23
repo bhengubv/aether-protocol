@@ -4,6 +4,7 @@
 @inject IJSRuntime JS
 @inject ProxyDirectory Proxies
 @inject ChatService Chat
+@inject NavigationManager Nav
 @implements IDisposable
 
 <PageTitle>Aether — you</PageTitle>
@@ -45,6 +46,16 @@
         <div class="glabel">Share Aether</div>
         @if (Chat.CanShareApp)
         {
+            @* The one that works on somebody who has nothing. Everything below it goes to people you
+               have already added, which is no use at all to the friend who is not on Aether yet. *@
+            <button class="about" @onclick="@(() => Nav.NavigateTo("/share"))">
+                <span class="about-body">
+                    <span class="about-t">Touch My Blood</span>
+                    <span class="about-s">give Aether to a friend next to you — they need nothing on their phone</span>
+                </span>
+                <span class="chev">→</span>
+            </button>
+
             @foreach (var contact in Chat.MutualContacts)
             {
                 <button class="about" @onclick="() => ShareWith(contact)" disabled="@_busy">

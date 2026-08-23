@@ -1,0 +1,191 @@
+@page "/share"
+@using AetherNet.Sample.Shared.Services
+@implements IDisposable
+@inject IIdentityService Me
+@inject IAppShareService App
+@inject ITapShare Tap
+@inject AppHandout Handout
+
+<PageTitle>Aether — Touch My Blood</PageTitle>
+
+<div class="tmb">
+    <h1 class="scr-title">Touch My Blood</h1>
+    <p class="lede">Give Aether to a friend standing next to you. No shop, no data, no account.</p>
+
+    @if (!App.IsSupported)
+    {
+        <section class="card">
+            <div class="warn">@(App.UnavailableReason ?? "this phone cannot hand over the app")</div>
+        </section>
+    }
+    else if (_invite is null)
+    {
+        <section class="card">
+            <div class="size">@Size</div>
+            <div class="size-sub">that's the whole app — it comes off this phone, not the internet</div>
+            <button class="primary block" @onclick="StartAsync" disabled="@_busy">Start</button>
+            @if (_note is { } n)
+            {
+                <p class="warn">@n</p>
+            }
+        </section>
+    }
+    else
+    {
+        @if (Tap.IsSupported)
+        {
+            <section class="card tap @(_landed ? "landed" : "")">
+                <div class="tap-mark">@(_landed ? "✓" : "◎")</div>
+                <div class="tap-say">@(_landed ? "Got them." : "Touch the phones back to back")</div>
+                <div class="tap-sub">
+                    @(_landed
+                        ? "They'll see it come up on their side."
+                        : "Their phone doesn't need Aether on it yet.")
+                </div>
+            </section>
+        }
+        else
+        {
+            <section class="card nonfc">
+                <div class="tap-say">No touching on this phone</div>
+                <div class="tap-sub">@(Tap.UnavailableReason ?? "this phone has no NFC")@(Tap.IsFixable ? " — switch it on and come back" : "")</div>
+            </section>
+        }
+
+        <section class="card qr-card">
+            <div class="glabel">@(Tap.IsSupported ? "Or let them scan this" : "Let them scan this")</div>
+            <div class="qr">@((MarkupString)_qr)</div>
+            <div class="qr-sub">Their normal camera works — nothing to install first.</div>
+        </section>
+
+        <section class="card status">
+            <div class="row"><span>Taken by</span><strong>@Handout.Served of @AppHandout.MaxHandovers</strong></div>
+            <div class="row"><span>Open for</span><strong>@Countdown</strong></div>
+            <button class="ghost block" @onclick="StopSharing">Stop</button>
+        </section>
+    }
+</div>
+
+<style>
+    .tmb { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    .scr-title { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); padding: 4px 2px 0; }
+    .lede { font-size: 0.95rem; line-height: 1.5; color: var(--ink-2); padding: 0 2px; }
+
+    .card { display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 20px; box-shadow: var(--shadow-sm); }
+
+    .size { font-size: 2.4rem; font-weight: 830; letter-spacing: -0.03em; color: var(--brand); line-height: 1; }
+    .size-sub { font-size: 0.85rem; color: var(--ink-3); text-align: center; }
+
+    /* The tap target. It is not a button — nothing is pressed, the phones are held together — so it
+       reads as a state rather than a control. */
+    .tap { padding: 30px 20px; }
+    .tap-mark { font-size: 3.2rem; line-height: 1; color: var(--brand); animation: breathe 2.4s ease-in-out infinite; }
+    .tap.landed .tap-mark { animation: none; }
+    .tap-say { font-size: 1.15rem; font-weight: 800; color: var(--ink); text-align: center; }
+    .tap-sub { font-size: 0.85rem; color: var(--ink-3); text-align: center; }
+    .nonfc .tap-say { color: var(--ink-2); font-weight: 700; font-size: 1rem; }
+
+    @@keyframes breathe { 0%, 100% { opacity: .35; transform: scale(.94); } 50% { opacity: 1; transform: scale(1); } }
+    @@media (prefers-reduced-motion: reduce) { .tap-mark { animation: none; opacity: 1; } }
+
+    .qr { width: 190px; height: 190px; background: #fff; border-radius: 12px; padding: 10px; }
+    .qr svg { width: 100%; height: 100%; display: block; }
+    .qr-sub { font-size: 0.82rem; color: var(--ink-3); text-align: center; }
+    .glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+
+    .status { align-items: stretch; gap: 8px; }
+    .row { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: var(--ink-2); }
+    .row strong { color: var(--ink); font-family: var(--mono); }
+
+    .primary { appearance: none; border: none; background: var(--brand); color: #fff; font-weight: 700; font-size: 0.98rem; padding: 14px 18px; border-radius: 12px; cursor: pointer; }
+    .primary:disabled { opacity: .45; cursor: default; }
+    .ghost { appearance: none; background: transparent; border: 1px solid var(--line); color: var(--ink-2); font-weight: 700; font-size: 0.9rem; padding: 11px 16px; border-radius: 12px; cursor: pointer; margin-top: 4px; }
+    .block { display: block; width: 100%; }
+
+    .warn { color: var(--warn); font-size: 0.86rem; font-weight: 600; text-align: center; }
+</style>
+
+@code {
+    private string? _invite;
+    private string _qr = "";
+    private string? _note;
+    private bool _busy;
+    private bool _landed;
+    private System.Threading.Timer? _tick;
+
+    private string Size => App.SizeBytes > 0
+        ? $"{App.SizeBytes / (1024 * 1024)} MB"
+        : "—";
+
+    private string Countdown => Handout.Remaining is { TotalSeconds: > 0 } left
+        ? $"{(int)left.TotalMinutes}:{left.Seconds:00}"
+        : "closed";
+
+    protected override void OnInitialized()
+    {
+        Handout.Changed += OnChanged;
+        Tap.Tapped += OnTapped;
+    }
+
+    private async Task StartAsync()
+    {
+        _busy = true;
+        _note = null;
+
+        try
+        {
+            // Off the UI thread: opening the listener and reading the package size both touch the
+            // file system, and this is the button somebody presses while a friend is watching.
+            var invite = await Task.Run(() => Handout.Start());
+
+            if (invite is null)
+            {
+                _note = "couldn't start — this phone needs to be on the same Wi-Fi as your friend";
+                return;
+            }
+
+            _invite = invite;
+            _qr = QrSvg.Render(invite);
+            _landed = false;
+
+            // Only armed while this screen is up. A phone that quietly offers its own installer to
+            // anything that brushes past it in a taxi is not a feature.
+            Tap.Arm(invite, Me.AetherTag);
+
+            _tick = new System.Threading.Timer(_ => OnChanged(), null, 1000, 1000);
+        }
+        finally { _busy = false; }
+    }
+
+    private void StopSharing()
+    {
+        Tap.Disarm();
+        Handout.Stop();
+        _invite = null;
+        _qr = "";
+        _landed = false;
+        _tick?.Dispose();
+        _tick = null;
+    }
+
+    private void OnTapped() => _ = InvokeAsync(() => { _landed = true; StateHasChanged(); });
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        // The handout closes itself when the window runs out; the screen should follow it rather than
+        // sit there showing a QR code that stopped working a minute ago.
+        if (_invite is not null && Handout.Invite is null) StopSharing();
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        Handout.Changed -= OnChanged;
+        Tap.Tapped -= OnTapped;
+        _tick?.Dispose();
+
+        // Leaving the screen stops the offer. Nothing keeps serving because somebody wandered off.
+        Tap.Disarm();
+        Handout.Stop();
+    }
+}

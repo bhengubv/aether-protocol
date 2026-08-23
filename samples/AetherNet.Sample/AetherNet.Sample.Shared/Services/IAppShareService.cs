@@ -40,6 +40,27 @@ public interface IAppShareService
     Task<byte[]?> ReadInstallerAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The same installer, as a stream, for handing to something that takes it a piece at a time.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Serving the app to a phone that has nothing means pushing tens of megabytes down a socket that
+    /// accepts a few kilobytes at a time. Reading the whole package into an array first is the kind of
+    /// allocation that gets an app killed on a 3 GB handset, and it would be killed precisely during
+    /// the one moment the feature had to work.
+    /// </para>
+    /// <para>
+    /// The default reads it whole, so nothing has to implement this to be correct — but a platform
+    /// that knows where the file is should open it instead.
+    /// </para>
+    /// </remarks>
+    async Task<Stream?> OpenInstallerAsync(CancellationToken cancellationToken = default)
+    {
+        var bytes = await ReadInstallerAsync(cancellationToken).ConfigureAwait(false);
+        return bytes is null ? null : new MemoryStream(bytes, writable: false);
+    }
+
+    /// <summary>
     /// Hand the installer to a phone that has just received it, so the person can install it.
     /// </summary>
     /// <remarks>
@@ -48,4 +69,22 @@ public interface IAppShareService
     /// just handed them, and an app that arranged to skip it would be malware with good manners.
     /// </remarks>
     Task<bool> OfferToInstallAsync(byte[] installer, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// For heads that are not an installable app — the web head, and any desktop.
+/// </summary>
+/// <remarks>
+/// A server has no APK to hand anybody and no phone to hand it to. It says so rather than offering a
+/// button that fails, which is the same rule the radios follow.
+/// </remarks>
+public sealed class NoAppShare : IAppShareService
+{
+    public bool IsSupported => false;
+    public string? UnavailableReason => "the app can only be handed over from a phone";
+    public long SizeBytes => 0;
+    public Task<byte[]?> ReadInstallerAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<byte[]?>(null);
+    public Task<bool> OfferToInstallAsync(byte[] installer, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
 }

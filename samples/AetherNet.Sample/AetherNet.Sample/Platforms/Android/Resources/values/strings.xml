@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown in Android's own "tap and pay / other" settings list, so it is named the way the
+         person knows it rather than by the protocol underneath. -->
+    <string name="tmb_service">Touch My Blood</string>
+    <string name="tmb_group">Share Aether with a friend by touching phones</string>
+</resources>
