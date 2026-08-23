@@ -49,6 +49,17 @@ const BITRATE = 400000;
 
 // A keyframe a second. More often than a recording would use, because a receiver that joins late —
 // the camera went on mid-call, a frame was lost — can draw nothing until the next one arrives.
+/// What to capture at while this device is ALSO decoding somebody.
+///
+/// Encoding and decoding are the two expensive things a video call does, and doing both at once costs
+/// roughly double. Measured on merlin, the slower of the two handsets: decoding alone it holds 7.3
+/// frames a second indefinitely with memory falling, and encoding at the same time it collapses after
+/// four or five minutes — draw rate to zero, memory climbing, decoder rebuilds achieving nothing.
+///
+/// The decoder was never broken. It was being asked for more than the device had, so it is asked for
+/// less: five frames a second while both cameras are on, eight when only this one is.
+const FPS_BOTH_WAYS = 5;
+
 const KEYFRAME_EVERY_MS = 1000;
 
 /// How long a recovering decoder waits for a keyframe before giving up on finding one.
@@ -101,6 +112,7 @@ const stat = {
     sentToNet: 0,      // a chunk was handed to .NET
     encoderErrors: 0,
     sameFrame: 0,      // the camera had not produced a new frame yet
+    pacedDown: 0,      // skipped because this device is decoding as well as encoding
     captureErrors: 0,
     interopBusy: 0,    // skipped because .NET had not taken the last frames yet
     interopErrors: 0,
@@ -263,7 +275,7 @@ export async function start(chunkSink, stateSink, front) {
         session = {
             stream, video, encoder, front,
             width: size.width, height: size.height,
-            lastKeyAt: 0, lastStamp: -1, timer: null, stopped: false, bitrate: BITRATE,
+            lastKeyAt: 0, lastStamp: -1, lastSentAt: 0, timer: null, stopped: false, bitrate: BITRATE,
         };
 
         pump();
@@ -323,6 +335,13 @@ function pump() {
             // room is ordinary — and re-encoding a frame already sent costs bytes for no picture.
             if (cur.video.readyState < 2) return;
             if (cur.video.currentTime === cur.lastStamp) { stat.sameFrame++; return; }
+
+            // Slower while somebody else's picture is also being decoded here.
+            const target = peers.size > 0 ? FPS_BOTH_WAYS : FPS;
+            const now0 = performance.now();
+            if (now0 - cur.lastSentAt < (1000 / target) - 2) { stat.pacedDown++; return; }
+            cur.lastSentAt = now0;
+
             cur.lastStamp = cur.video.currentTime;
 
             stat.ticks++;
