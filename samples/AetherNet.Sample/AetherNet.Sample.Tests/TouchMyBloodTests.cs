@@ -36,11 +36,24 @@ public class TouchMyBloodTests
     }
 
     [Fact]
-    public void An_invite_ends_in_something_android_will_offer_to_install()
+    public void An_invite_names_a_page_and_not_a_package()
     {
-        // The thing fetching this is a browser, and a browser names a download after the last segment
-        // of the path. A file with no .apk on the end is one Android will not open.
-        Assert.EndsWith("/aether.apk", ShareInvite.Compose("10.0.0.2", 8080, ShareInvite.NewToken()),
+        // What a tap lands on has to explain itself. Pointing straight at the file dropped ninety
+        // megabytes into somebody's downloads with a raw address and a hex string to account for it,
+        // which is what a phishing link looks like however sound the bytes are.
+        var token = ShareInvite.NewToken();
+        var invite = ShareInvite.Compose("10.0.0.2", 8080, token);
+
+        Assert.DoesNotContain(".apk", invite, StringComparison.Ordinal);
+        Assert.EndsWith(token, invite, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_package_still_ends_in_something_android_will_offer_to_install()
+    {
+        // One press further on. A browser names a download after the last segment of the path, and a
+        // file with no .apk on the end is one Android will not open.
+        Assert.EndsWith("/aether.apk", ShareInvite.DownloadFrom(ShareInvite.NewToken()),
             StringComparison.Ordinal);
     }
 
@@ -62,8 +75,8 @@ public class TouchMyBloodTests
     [InlineData("http://host:8080/other/00112233445566778899aabbccddeeff/aether.apk")] // wrong path
     [InlineData("http://host:8080/tmb/short/aether.apk")]                              // token too short
     [InlineData("http://host:8080/tmb/00112233445566778899aabbccddeegg/aether.apk")]   // not hex
-    [InlineData("http://host:8080/tmb/00112233445566778899aabbccddeeff/other.apk")]    // wrong file
-    [InlineData("http://host:8080/tmb/00112233445566778899aabbccddeeff")]              // no file
+    [InlineData("http://host:8080/tmb/00112233445566778899aabbccddeeff/other.apk")]    // not the package
+    [InlineData("http://host:8080/tmb/00112233445566778899aabbccddeeff/extra/bits")]
     public void Anything_that_is_not_an_invite_is_refused(string? url)
         => Assert.False(ShareInvite.TryParse(url, out _, out _, out _));
 
@@ -156,6 +169,50 @@ public class TouchMyBloodTests
         // A phone whose identity has not come up yet must still be able to hand over the app.
         const string url = "http://10.0.0.2:8080/tmb/00112233445566778899aabbccddeeff/aether.apk";
         Assert.Equal(url, Ndef.ReadUri(Ndef.UriAndTag(url, "")));
+    }
+
+    [Fact]
+    public void Reading_a_message_that_is_not_one_never_throws()
+    {
+        // Whatever a reader hands back is untrusted: a real tag written by somebody else, a partial
+        // read, a phone that gave up halfway through the tap. This parser is the first thing to touch
+        // it and it does not get to throw on a person's handset.
+        var random = new Random(20260823);
+
+        for (var i = 0; i < 5000; i++)
+        {
+            var message = new byte[random.Next(0, 64)];
+            random.NextBytes(message);
+            Ndef.ReadUri(message);       // a URI, or null. Never an exception.
+        }
+    }
+
+    [Theory]
+    [InlineData(new byte[] { })]
+    [InlineData(new byte[] { 0xD1 })]
+    [InlineData(new byte[] { 0xD1, 0x01 })]
+    [InlineData(new byte[] { 0xD1, 0x01, 0x05 })]                    // claims 5 bytes, carries none
+    [InlineData(new byte[] { 0xD1, 0x01, 0xFF, 0x55, 0x03, 0x78 })]  // claims 255, carries 2
+    [InlineData(new byte[] { 0xC1, 0x01, 0x04, 0x55, 0x03, 0x78 })]  // a long record, which we never write
+    [InlineData(new byte[] { 0xD1, 0x01, 0x01, 0x55 })]              // a code and no URI after it
+    [InlineData(new byte[] { 0xD1, 0x01, 0x02, 0x55, 0x63, 0x78 })]  // an abbreviation that does not exist
+    public void A_malformed_message_reads_as_nothing_rather_than_as_something(byte[] message)
+        => Assert.Null(Ndef.ReadUri(message));
+
+    [Fact]
+    public void A_message_whose_records_run_off_the_end_is_refused()
+    {
+        // Truncate a real one at every possible point. Not one of them may be mistaken for a shorter
+        // valid message — a URI assembled out of half a record points somewhere nobody intended.
+        var whole = Ndef.UriAndTag("http://10.0.0.2:8080/tmb/00112233445566778899aabbccddeeff/aether.apk", "KXJB7-MN2P4");
+        var full = Ndef.ReadUri(whole);
+
+        for (var cut = 1; cut < whole.Length; cut++)
+        {
+            var read = Ndef.ReadUri(whole[..cut]);
+            Assert.True(read is null || read == full,
+                $"a message cut at {cut} read as \"{read}\"");
+        }
     }
 
     // ── The server that answers ──────────────────────────────────────────────

@@ -1231,6 +1231,17 @@ public sealed class AndroidWifiDirectTransportService
 
     public bool IsLinked => !_peers.IsEmpty;
     public string? PeerTag => _peers.Keys.FirstOrDefault();
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A group has one owner and several clients, so this radio genuinely holds several links at once
+    /// — it is the one radio here that can be a relay.
+    /// </remarks>
+    public IReadOnlyCollection<string> Peers => _peers.Keys.ToArray();
+
+    /// <inheritdoc />
+    public Task<bool> SendToAsync(string peerAddress, byte[] data, SendLane lane)
+        => SendAsync(peerAddress, data, lane);
     public Task<bool> SendAsync(byte[] data)
         => SendAsync(data, SendLane.Interactive);
 

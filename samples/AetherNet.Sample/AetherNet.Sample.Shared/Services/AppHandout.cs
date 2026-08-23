@@ -58,6 +58,7 @@ public sealed class AppHandout : IDisposable
     private TcpListener? _listener;
     private CancellationTokenSource? _life;
     private string _token = string.Empty;
+    private string? _from;
     private DateTimeOffset _expires;
     private int _served;
     private bool _disposed;
@@ -100,7 +101,11 @@ public sealed class AppHandout : IDisposable
     ///   network it shares with the phone being handed to. Named explicitly by tests, and by any
     ///   caller that knows better than the first interface that answers.
     /// </param>
-    public string? Start(string? host = null)
+    /// <param name="from">
+    ///   The giver's AetherTag, shown on the page so the person can see who is offering rather than
+    ///   only an address and a hex string.
+    /// </param>
+    public string? Start(string? host = null, string? from = null)
     {
         lock (_gate)
         {
@@ -127,6 +132,7 @@ public sealed class AppHandout : IDisposable
 
             var port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             _token = ShareInvite.NewToken();
+            _from = from;
             _expires = DateTimeOffset.UtcNow + _window;
             _served = 0;
             _life = new CancellationTokenSource();
@@ -199,16 +205,31 @@ public sealed class AppHandout : IDisposable
                 if (await ReadRequestLineAsync(stream, life).ConfigureAwait(false) is not { } request)
                     return;
 
-                // One method, one path, one token. Everything else is somebody scanning the network.
-                var ok = request.Method == "GET"
-                         && Remaining > TimeSpan.Zero
-                         && _served < MaxHandovers
-                         && ShareInvite.PathCarries(request.Path, _token);
+                // One token, two things behind it: the page that explains the offer, and the package
+                // itself. Everything else is somebody scanning the network.
+                var allowed = (request.Method is "GET" or "HEAD")
+                              && Remaining > TimeSpan.Zero
+                              && ShareInvite.PathCarries(request.Path, _token);
 
-                if (!ok)
+                if (!allowed)
                 {
-                    await WriteAsync(stream, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", life)
-                        .ConfigureAwait(false);
+                    await NotFoundAsync(stream, life).ConfigureAwait(false);
+                    return;
+                }
+
+                var wantsPackage = request.Path.EndsWith(ShareInvite.FileName, StringComparison.Ordinal);
+
+                if (!wantsPackage)
+                {
+                    // The page is free — it is a few kilobytes of text, and a friend re-reading it
+                    // before they press the button must not spend one of the handovers.
+                    await SendCardAsync(stream, request.Method == "HEAD", life).ConfigureAwait(false);
+                    return;
+                }
+
+                if (_served >= MaxHandovers)
+                {
+                    await NotFoundAsync(stream, life).ConfigureAwait(false);
                     return;
                 }
 
@@ -216,6 +237,34 @@ public sealed class AppHandout : IDisposable
             }
             catch (Exception) { /* the taker walked off, or the network did */ }
         }
+    }
+
+    private static Task NotFoundAsync(NetworkStream stream, CancellationToken life) =>
+        WriteAsync(stream, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", life);
+
+    /// <summary>
+    /// The page a tap lands on: who is offering, what it is, and how big.
+    /// </summary>
+    private async Task SendCardAsync(NetworkStream stream, bool headOnly, CancellationToken life)
+    {
+        var body = Encoding.UTF8.GetBytes(
+            ShareCard.Render(_from, _app.SizeBytes, ShareInvite.DownloadFrom(_token)));
+
+        var head = new StringBuilder()
+            .Append("HTTP/1.1 200 OK\r\n")
+            .Append("Content-Type: text/html; charset=utf-8\r\n")
+            .Append("Content-Length: ").Append(body.Length).Append("\r\n")
+            // Nothing here is worth keeping: the token behind it expires in minutes, and a page held
+            // in a browser cache is a page that outlives the offer it describes.
+            .Append("Cache-Control: no-store\r\n")
+            .Append("Connection: close\r\n\r\n")
+            .ToString();
+
+        await WriteAsync(stream, head, life).ConfigureAwait(false);
+        if (headOnly) return;
+
+        await stream.WriteAsync(body, life).ConfigureAwait(false);
+        await stream.FlushAsync(life).ConfigureAwait(false);
     }
 
     private async Task SendInstallerAsync(NetworkStream stream, bool headOnly, CancellationToken life)

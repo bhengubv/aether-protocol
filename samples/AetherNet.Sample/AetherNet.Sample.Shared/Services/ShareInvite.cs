@@ -42,6 +42,16 @@ public static class ShareInvite
     /// </remarks>
     public const string FileName = "aether.apk";
 
+    /// <summary>
+    /// Where the package sits, relative to the page that offers it.
+    /// </summary>
+    /// <remarks>
+    /// One press further on than the tap lands. An invite that pointed straight here dropped ninety
+    /// megabytes into somebody's downloads with a raw address and a hex string to explain it, which is
+    /// what a phishing link looks like — however sound the bytes were.
+    /// </remarks>
+    public static string DownloadFrom(string token) => string.Concat(Path, token, "/", FileName);
+
     /// <summary>How many characters of hex the one-time secret is.</summary>
     /// <remarks>
     /// 32 hex characters is 128 bits. This travels in a URL on a shared network, and it is the only
@@ -79,7 +89,7 @@ public static class ShareInvite
             throw new ArgumentException("A token must be hex — it travels in a URL path.", nameof(token));
 
         return string.Concat(
-            "http://", host, ":", port.ToString(CultureInfo.InvariantCulture), Path, token, "/", FileName);
+            "http://", host, ":", port.ToString(CultureInfo.InvariantCulture), Path, token);
     }
 
     /// <summary>
@@ -97,12 +107,7 @@ public static class ShareInvite
         if (uri.IsDefaultPort) return false;                 // an invite always names its port
         if (!uri.AbsolutePath.StartsWith(Path, StringComparison.Ordinal)) return false;
 
-        var rest = uri.AbsolutePath[Path.Length..];
-        var slash = rest.IndexOf('/', StringComparison.Ordinal);
-        if (slash <= 0) return false;
-
-        var candidate = rest[..slash];
-        if (rest[(slash + 1)..] != FileName) return false;
+        var candidate = uri.AbsolutePath[Path.Length..].TrimEnd('/');
         if (candidate.Length != TokenLength || !IsHex(candidate)) return false;
 
         host = uri.Host;

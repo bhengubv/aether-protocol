@@ -73,6 +73,32 @@ internal interface IRadio
     /// <summary>The linked peer's AetherTag, or null.</summary>
     string? PeerTag { get; }
 
+    /// <summary>
+    /// Every peer currently linked over this radio, by wire address.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A relay node is linked to several people at once — that is what makes it a relay — so
+    /// <see cref="PeerTag"/> is not enough to describe it. The default answers with the one peer a
+    /// single-peer radio has, so a radio that can only ever hold one link needs to say nothing.
+    /// </para>
+    /// </remarks>
+    IReadOnlyCollection<string> Peers => PeerTag is { } only ? new[] { only } : [];
+
+    /// <summary>
+    /// Send to one named peer rather than to whoever happens to be first.
+    /// </summary>
+    /// <remarks>
+    /// Carrying somebody else's traffic means choosing where it goes. Without this a node with six
+    /// links passes everything to the same one — which is not a relay, it is a phone shouting into
+    /// the nearest socket.
+    /// </remarks>
+    System.Threading.Tasks.Task<bool> SendToAsync(string peerAddress, byte[] data,
+        AetherNet.Sample.Shared.Services.SendLane lane)
+        => string.Equals(peerAddress, PeerTag, StringComparison.Ordinal)
+            ? SendAsync(data, lane)
+            : System.Threading.Tasks.Task.FromResult(false);
+
     /// <summary>Bring the radio up and link to another phone running this app.</summary>
     void Link();
 

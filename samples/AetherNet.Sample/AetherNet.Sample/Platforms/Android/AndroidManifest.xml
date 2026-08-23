@@ -38,12 +38,6 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32" />
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
 
-    <!-- LAN radio. Android drops broadcast and multicast traffic while the Wi-Fi chip is
-         power-saving unless the app holds a MulticastLock, and taking that lock needs this. Without
-         it the discovery beacons go out perfectly and none of them ever arrive, which looks exactly
-         like a network that blocks them. It is a normal permission — granted at install, nothing to
-         ask the person holding the phone. -->
-    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!-- Wi-Fi Aware. Not required: no phone this project has ships the HAL (PROTOCOL_SPEC §5.6), and
          a phone without it is still a perfectly good mesh node — it simply uses another radio. The

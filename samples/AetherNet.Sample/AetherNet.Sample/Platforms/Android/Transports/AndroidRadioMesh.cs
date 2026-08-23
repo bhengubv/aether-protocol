@@ -22,6 +22,18 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     private readonly List<IRadio> _order = new();
     private readonly string _localUhid;
     private readonly byte[] _routingKey;
+    private readonly AetherNet.Sample.Shared.Services.CircleDirectory? _circle;
+
+    /// <summary>
+    /// Carrying for the people this phone has added.
+    /// </summary>
+    /// <remarks>
+    /// The thing that makes this a mesh rather than a set of pairs. Two people who have added each
+    /// other are often out of range of each other; a third phone both of them added is not, and it
+    /// passes the note without ever being able to read it.
+    /// </remarks>
+    private readonly MeshRelay _relay = new();
+
     private IRadio _selected;
 
     public AndroidRadioMesh(IIdentityService me, ILogger<AndroidRadioMesh> logger,
@@ -40,13 +52,8 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // instead would let anyone holding that tag compute every address this phone will ever use.
         var routingKey = me.RoutingKey;
         _routingKey = routingKey;
+        _circle = circle;
 
-        // The cheapest leg first: two phones already on the same Wi-Fi need no group, no election and
-        // no credentials — they are both already on a network and can simply open a socket. It was
-        // missing entirely, so two handsets a metre apart on the same access point still tore down
-        // their association to build a private one, and every failure that came with forming a group
-        // was being paid indoors where there was nothing to form one for.
-        Register(new AndroidLanTransportService(global::Android.App.Application.Context!, logger, routingKey, circle));
         Register(new AndroidWifiDirectTransportService(global::Android.App.Application.Context!, _localUhid, logger, routingKey, circle));
         // Bluetooth is gone, and so is the NearLink stand-in that was Bluetooth wearing a different
         // name. It measured 11 kbps in one direction — it cannot carry a call, a note or an APK — and
@@ -78,18 +85,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // This is a preference, not a restriction — Widest() still sends over whichever radio is
         // actually linked, so nothing breaks before the group forms, and everything moves across the
         // moment it does.
-        //
-        // LAN goes in front of it. Not because it is faster — it is the same chip and the same air,
-        // and claiming otherwise would be inventing a number — but because it costs nothing to
-        // establish. Wi-Fi Direct has to form a group before it can carry a byte, and forming one
-        // takes the chip away from the access point the phone is already associated with. Indoors,
-        // where both phones are on the same network, that whole procedure buys nothing.
-        //
-        // It is still only a preference. On a network with client isolation — most guest and hotel
-        // Wi-Fi — LAN never links, and Widest()/Candidates() carry on over the group exactly as
-        // before. Preferring the cheap leg is safe precisely because the expensive one is still there.
-        _selected = _radios.TryGetValue("LAN", out var lan) ? lan
-            : _radios.TryGetValue("Wi-Fi Direct", out var wifiDirect) ? wifiDirect
+        _selected = _radios.TryGetValue("Wi-Fi Direct", out var wifiDirect) ? wifiDirect
             : _radios.TryGetValue("BLE", out var ble) ? ble
             : _order[0];
     }
@@ -109,10 +105,86 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
             }
             catch { Emit($"[{r.Name}] ◀ {bytes.Length} bytes from {from}"); }
 
-            // Hand the raw packet to any higher layer riding this radio (the mesh-web).
-            PacketReceived?.Invoke(bytes);
+            // Ours, or somebody's we carry? A packet addressed to a contact who is not us goes back
+            // out on whichever radio can reach them, one hop shorter, and is NOT delivered upstairs —
+            // this node is a router for it, not a reader.
+            if (!Carry(bytes)) PacketReceived?.Invoke(bytes);
         };
     }
+
+    /// <summary>
+    /// Pass a packet on if it belongs to two people this phone has added.
+    /// </summary>
+    /// <returns>True when it was carried, and therefore must not also be delivered here.</returns>
+    private bool Carry(byte[] bytes)
+    {
+        MeshPacket packet;
+        try { packet = PacketSerializer.Deserialize(bytes); }
+        catch { return false; }               // not a packet we understand — let the layer above look
+
+        // Only this class holds the routing key, and only the circle can put a name to a rotating
+        // address, so the two lookups the relay cannot do for itself are answered here.
+        var mine = WireAddress.IsMine(packet.DestinationUhid, _routingKey);
+        var from = _circle?.Recognise(packet.SourceUhid);
+        var to = _circle?.Recognise(packet.DestinationUhid);
+
+        var decision = _relay.Look(packet, mine, from, to);
+        if (!decision.ShouldCarry) return false;
+
+        var onward = PacketSerializer.Serialize(MeshRelay.OneHopShorter(packet));
+        _ = ForwardAsync(decision.To!, onward, PacketPriority.Lane(packet.Type), packet.Ttl - 1);
+        return true;
+    }
+
+    private async Task ForwardAsync(string toTag, byte[] onward, SendLane lane, int ttlLeft)
+    {
+        var sent = await SendToPeerAsync(toTag, onward, lane).ConfigureAwait(false);
+
+        // Said either way. A relay that silently fails looks exactly like a relay nobody is using,
+        // and the difference matters a great deal when somebody's message did not arrive.
+        Emit(sent
+            ? $"↻ carried {onward.Length}B for {toTag} — {ttlLeft} hops left"
+            : $"↻ could not reach {toTag} to carry {onward.Length}B");
+    }
+
+    /// <summary>
+    /// Send to one particular person, over whichever radio currently has a link to them.
+    /// </summary>
+    /// <remarks>
+    /// Addressed by AetherTag rather than by wire address on purpose: the address rotates every
+    /// fifteen minutes and the person does not, so a route held by address goes stale on the hour.
+    /// </remarks>
+    public async Task<bool> SendToPeerAsync(string aetherTag, byte[] packetBytes, SendLane lane)
+    {
+        if (string.IsNullOrEmpty(aetherTag)) return false;
+
+        foreach (var r in _order)
+        {
+            if (!r.IsLinked) continue;
+
+            foreach (var address in r.Peers)
+            {
+                if (!IsPerson(address, aetherTag)) continue;
+                if (await r.SendToAsync(address, packetBytes, lane).ConfigureAwait(false)) return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Is this wire address that person, either proven in-session or derivable from their key?</summary>
+    private bool IsPerson(string address, string aetherTag)
+    {
+        lock (_gate)
+        {
+            if (_known.TryGetValue(address, out var known) && known == aetherTag) return true;
+        }
+
+        return string.Equals(_circle?.Recognise(address), aetherTag, StringComparison.Ordinal);
+    }
+
+    /// <summary>How many packets this phone has carried for other people.</summary>
+    public long Carried => _relay.Carried;
 
     /// <summary>
     /// The Wi-Fi Direct radio's group-hosting side, so the broker can create and join groups on it.

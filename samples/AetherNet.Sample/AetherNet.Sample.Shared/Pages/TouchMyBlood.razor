@@ -136,7 +136,7 @@
         {
             // Off the UI thread: opening the listener and reading the package size both touch the
             // file system, and this is the button somebody presses while a friend is watching.
-            var invite = await Task.Run(() => Handout.Start());
+            var invite = await Task.Run(() => Handout.Start(from: Me.AetherTag));
 
             if (invite is null)
             {
