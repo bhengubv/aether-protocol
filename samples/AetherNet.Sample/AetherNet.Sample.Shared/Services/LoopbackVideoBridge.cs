@@ -246,17 +246,44 @@ public sealed class LoopbackVideoBridge : IVideoBridge, IDisposable
         lock (_gate) page = _page;
         if (page is null) return;
 
-        var tag = Encoding.UTF8.GetBytes(who);
-        if (tag.Length > 255) return;
+        var tagLength = Encoding.UTF8.GetByteCount(who);
+        if (tagLength > 255) return;
 
-        var body = new byte[1 + tag.Length + frame.Length];
-        body[0] = (byte)tag.Length;
-        tag.CopyTo(body, 1);
-        frame.CopyTo(body, 1 + tag.Length);
+        // One allocation, not three.
+        //
+        // This built a tagged body, then handed it to Frame() which allocated again and copied again,
+        // then the payload was copied a third time on the way in. Fifteen frames a second of four
+        // kilobytes is a couple of hundred kilobytes of garbage a second per phone, and a collection
+        // pause in a real-time path is a visible stutter. The header, the tag and the frame are
+        // written straight into one buffer instead.
+        var payloadLength = 1 + tagLength + frame.Length;
+        var headerLength = payloadLength < 126 ? 2 : payloadLength < 65536 ? 4 : 10;
+
+        var message = new byte[headerLength + payloadLength];
+        message[0] = 0x80 | 0x2;                       // final frame, binary
+
+        if (headerLength == 2)
+        {
+            message[1] = (byte)payloadLength;
+        }
+        else if (headerLength == 4)
+        {
+            message[1] = 126;
+            BinaryPrimitives.WriteUInt16BigEndian(message.AsSpan(2), (ushort)payloadLength);
+        }
+        else
+        {
+            message[1] = 127;
+            BinaryPrimitives.WriteUInt64BigEndian(message.AsSpan(2), (ulong)payloadLength);
+        }
+
+        message[headerLength] = (byte)tagLength;
+        Encoding.UTF8.GetBytes(who, message.AsSpan(headerLength + 1));
+        frame.CopyTo(message, headerLength + 1 + tagLength);
 
         // Fire and forget, and never awaited: a frame is worthless a moment after it was captured, so
         // waiting for the socket would only make the next one later.
-        _ = WriteAsync(page, Frame(body, 0x2));
+        _ = WriteAsync(page, message);
     }
 
     private async Task WriteAsync(NetworkStream page, byte[] bytes)
@@ -268,7 +295,14 @@ public sealed class LoopbackVideoBridge : IVideoBridge, IDisposable
         }
     }
 
-    /// <summary>Wrap a payload as one unmasked WebSocket frame. A server never masks.</summary>
+    /// <summary>
+    /// Wrap a payload as one unmasked WebSocket frame. A server never masks.
+    /// </summary>
+    /// <remarks>
+    /// Control frames only — pongs, which are a handful of bytes and arrive rarely. Video frames are
+    /// written straight into a single buffer in <see cref="SendToPage"/> rather than allocated here
+    /// and copied again.
+    /// </remarks>
     private static byte[] Frame(byte[] payload, int opcode)
     {
         var n = payload.Length;
