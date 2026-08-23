@@ -31,25 +31,31 @@ const CODEC = 'avc1.42E01E';   // H.264 Baseline 3.0 — probed as supported on 
 // was really about.
 const WIDTH = 640;
 const HEIGHT = 360;
-// Eight frames a second.
+// Fifteen frames a second.
 //
-// Chosen against the bridge rather than against the eye. Every frame crosses between JavaScript and
-// .NET twice over — out as an encoded chunk, back in as somebody else's to draw — and both directions
-// share one message channel and one renderer dispatcher with Blazor's own rendering.
+// It was eight, and before that twenty. Eight was chosen against the JavaScript bridge: every frame
+// crossed it twice, out as an encoded chunk and back in as somebody else's to draw, and on a Redmi
+// Note 9 that saturated at about four each way before the answers stopped coming back at all.
 //
-// Measured at twenty: about twenty-five crossings a second of four and a half kilobytes each. The
-// P30 sustained it. merlin, the slower of the two by a wide margin, managed the first minute and then
-// saturated — the ANSWERS stopped coming back, capture correctly refused to add to the pile, and
-// video fell to nothing. Eight halves the crossings to sixteen.
-//
-// The cost is real and worth stating: eight frames a second is visibly less smooth than twenty. It is
-// still a conversation, which nothing at all is not.
-const FPS = 8;
+// Frames do not cross that bridge any more — they go over a WebSocket to a server inside this app,
+// on loopback, which carries binary, has nothing else on it and no dispatcher in front of it. So the
+// number that was chosen for the bridge is no longer the number that matters.
+const FPS = 15;
 const BITRATE = 400000;
 
 // A keyframe a second. More often than a recording would use, because a receiver that joins late —
 // the camera went on mid-call, a frame was lost — can draw nothing until the next one arrives.
 /// What to capture at while this device is ALSO decoding somebody.
+///
+/// Ten, and this is now about the silicon rather than about any bridge.
+///
+/// With frames on their own socket both phones push fourteen a second and the P30 draws all of it,
+/// steadily, for six minutes. merlin does not: it encodes fourteen happily and draws nothing while
+/// doing so, stalling two to four times a minute. Decoding alone it manages 7.3 indefinitely, so the
+/// ceiling is the two jobs together on a Helio G85, not either one.
+///
+/// This was five when frames crossed the JavaScript bridge, which was a different constraint that
+/// happened to need a similar number. Kept separate from FPS precisely so the two can move apart.
 ///
 /// Encoding and decoding are the two expensive things a video call does, and doing both at once costs
 /// roughly double. Measured on merlin, the slower of the two handsets: decoding alone it holds 7.3
@@ -58,7 +64,7 @@ const BITRATE = 400000;
 ///
 /// The decoder was never broken. It was being asked for more than the device had, so it is asked for
 /// less: five frames a second while both cameras are on, eight when only this one is.
-const FPS_BOTH_WAYS = 5;
+const FPS_BOTH_WAYS = 10;
 
 const KEYFRAME_EVERY_MS = 1000;
 
@@ -95,6 +101,9 @@ const InFlightTimeout = 2000;
 let inFlight = 0;
 let oldestInFlight = 0;
 
+/// The frame channel, when one is open. Null means frames travel by interop.
+let sock = null;
+
 let onChunk = null;      // .NET, waiting for encoded bytes
 let onState = null;      // .NET, waiting for capture-state changes
 
@@ -117,6 +126,9 @@ const stat = {
     interopBusy: 0,    // skipped because .NET had not taken the last frames yet
     interopErrors: 0,
     interopTimeouts: 0,   // answers that never came back at all
+    viaBridge: 0,         // frames that took the socket rather than the interop bridge
+    bridgeOpened: 0,
+    bridgeErrors: 0,
 
     played: 0,         // .NET handed us bytes to show
     noTile: 0,         // ...but there was no canvas to draw on yet
@@ -133,6 +145,7 @@ const stat = {
 export function stats() {
     const snapshot = { ...stat, at: Math.round(performance.now()) };
     snapshot.inFlight = inFlight;
+    snapshot.bridge = sock ? { state: sock.readyState, buffered: sock.bufferedAmount } : null;
     snapshot.session = session
         ? { encoderState: session.encoder.state, queue: session.encoder.encodeQueueSize,
             size: session.width + 'x' + session.height, bitrate: session.bitrate,
@@ -182,13 +195,16 @@ export async function capabilities() {
 
 // -- coming up ---------------------------------------------------------------
 
-export async function start(chunkSink, stateSink, front) {
+export async function start(chunkSink, stateSink, front, bridge) {
     if (session) return true;
 
     onChunk = chunkSink;
     onState = stateSink;
     inFlight = 0;
     oldestInFlight = 0;
+
+    // Frames get their own channel where one is offered. See openBridge.
+    if (bridge && bridge.port) await openBridge(bridge);
     raise('Starting');
 
     try {
@@ -231,6 +247,20 @@ export async function start(chunkSink, stateSink, front) {
                 // Fire and forget. Awaiting here would stall the encoder's own output queue behind a
                 // round trip into .NET, twenty times a second.
                 stat.encoded++;
+
+                // The socket, if it is up. No promise to wait on, no dispatcher, no base64 — just
+                // bytes on a connection that carries nothing else.
+                if (sock && sock.readyState === 1) {
+                    try {
+                        sock.send(bytes);
+                        stat.sentToNet++;
+                        stat.viaBridge++;
+                    } catch (e) {
+                        stat.bridgeErrors++;
+                    }
+                    return;
+                }
+
                 if (!onChunk) return;
 
                 // Count what is genuinely in flight.
@@ -357,7 +387,7 @@ function pump() {
             // Nor let the crossing into .NET build one. Checked BEFORE encoding, so a frame that
             // could not be delivered is never paid for — on a phone where the bridge is the narrow
             // part, encoding into a queue is spending battery to make the picture later.
-            if (inFlight >= MaxInFlight) {
+            if (!(sock && sock.readyState === 1) && inFlight >= MaxInFlight) {
                 // Nothing has come back for a long time. The answers are lost rather than late, so
                 // hold the count open no longer — otherwise one congested moment stops video for the
                 // rest of the call, which is what happened.
@@ -391,6 +421,7 @@ export async function stop() {
     if (s) {
         s.stopped = true;
         try { if (s.timer) clearInterval(s.timer); } catch (e) { }
+        closeBridge();
         try { if (s.encoder.state !== 'closed') s.encoder.close(); } catch (e) { }
         try { s.stream.getTracks().forEach(t => t.stop()); } catch (e) { }
         try { s.video.srcObject = null; } catch (e) { }
@@ -624,6 +655,65 @@ export async function switchCamera() {
 
 // An AetherTag is already safe for an id; anything else might not be.
 function cssSafe(who) { return String(who).replace(/[^A-Za-z0-9_-]/g, ''); }
+
+// -- the frame channel ------------------------------------------------------
+//
+// A WebSocket to a server inside this same app, on loopback. It never reaches a network interface.
+//
+// It exists because Blazor's interop is one message channel shared by every call in both directions
+// and by the renderer's dispatcher — fine for a button, wrong for a video call, where every frame
+// crosses it twice. Measured on a Redmi Note 9: about four frames a second each way before the
+// ANSWERS stopped coming back and video stopped with them.
+//
+// Frames in from .NET arrive here too, tagged: one byte of length, the peer's tag, then the frame.
+async function openBridge(bridge) {
+    closeBridge();
+
+    return new Promise((resolve) => {
+        let settled = false;
+        const done = (ok) => { if (!settled) { settled = true; resolve(ok); } };
+
+        try {
+            // The token is in the path because a browser cannot set headers on a WebSocket. Loopback
+            // is not private on Android — any app here can reach 127.0.0.1 — so without it anything
+            // installed on this phone could read one side of a call and inject frames into the other.
+            const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/video/${bridge.token}`);
+            ws.binaryType = 'arraybuffer';
+
+            ws.onopen = () => { sock = ws; stat.bridgeOpened++; done(true); };
+
+            ws.onmessage = (m) => {
+                try {
+                    const buf = new Uint8Array(m.data);
+                    if (buf.length < 2) return;
+                    const tagLen = buf[0];
+                    if (buf.length < 1 + tagLen + 1) return;
+                    const who = new TextDecoder().decode(buf.subarray(1, 1 + tagLen));
+                    play(who, buf.subarray(1 + tagLen));
+                } catch (e) {
+                    stat.bridgeErrors++;
+                }
+            };
+
+            ws.onerror = () => { stat.bridgeErrors++; done(false); };
+
+            // Falling back is not a failure. A head with no server, or a socket that goes away
+            // mid-call, simply means frames travel by interop again — slower, and still a call.
+            ws.onclose = () => { if (sock === ws) sock = null; done(false); };
+
+            setTimeout(() => done(false), 3000);
+        } catch (e) {
+            stat.bridgeErrors++;
+            done(false);
+        }
+    });
+}
+
+function closeBridge() {
+    const w = sock;
+    sock = null;
+    try { if (w && w.readyState <= 1) w.close(); } catch (e) { }
+}
 
 function raise(state) {
     try { if (onState) onState.invokeMethodAsync('ReceiveState', state); }

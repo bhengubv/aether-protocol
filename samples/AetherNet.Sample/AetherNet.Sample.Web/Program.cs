@@ -75,7 +75,11 @@ builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
 // A singleton, like every other device service — the call services that own it are singletons, and a
 // scoped one makes the container refuse to build at all. The page hands it a JS runtime when it
 // appears, which is what MainLayout does.
-builder.Services.AddSingleton<IVideoIo, WebVideoIo>();
+// No loopback bridge here, and deliberately: this head's page and its server are different machines,
+// so a socket to 127.0.0.1 on the server would reach the wrong one entirely. Video falls back to
+// JavaScript interop, which is what it has always used.
+builder.Services.AddSingleton<IVideoBridge, NoVideoBridge>();
+builder.Services.AddSingleton<IVideoIo>(sp => new WebVideoIo(sp.GetService<IVideoBridge>()));
 
 // And no microphone means no notes to record either. Playing one back works everywhere, though —
 // that is the browser's own media element, not a radio.

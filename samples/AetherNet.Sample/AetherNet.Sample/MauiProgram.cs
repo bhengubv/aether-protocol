@@ -149,7 +149,11 @@ public static class MauiProgram
         // the live WebView on both test handsets before committing to it: secure context, camera
         // reachable, VideoEncoder and VideoDecoder present, H.264 Baseline supported at the size and
         // bitrate a call actually needs.
-        builder.Services.AddSingleton<IVideoIo, WebVideoIo>();
+        // Frames do not go through the JavaScript bridge. They go over a WebSocket to a server inside
+        // this app, on loopback — measured, because the bridge saturates at about four frames a second
+        // each way on a Redmi Note 9 and then stops answering at all.
+        builder.Services.AddSingleton<IVideoBridge, LoopbackVideoBridge>();
+        builder.Services.AddSingleton<IVideoIo>(sp => new WebVideoIo(sp.GetService<IVideoBridge>()));
         builder.Services.AddSingleton<CallService>();
 
         // A call with more than two people in it. Built the same way group chat is — several 1:1

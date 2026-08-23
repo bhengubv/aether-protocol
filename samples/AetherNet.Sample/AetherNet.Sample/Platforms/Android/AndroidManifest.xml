@@ -7,7 +7,7 @@
          Watched on a P30 Lite 2026-08-15: two uninstalls, and a blob with a 1970 timestamp and the old
          key name kept reappearing. Backing up an identity is only meaningful with the recovery phrase
          that regenerates it, never by copying bytes the device can no longer decrypt. -->
-    <application android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true">
+    <application android:networkSecurityConfig="@xml/network_security_config" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true">
         <!--
           Handing the app to somebody standing next to you needs the APK to leave this process, and a
           file:// URI has been refused since Android 7. The provider is how the system installer is

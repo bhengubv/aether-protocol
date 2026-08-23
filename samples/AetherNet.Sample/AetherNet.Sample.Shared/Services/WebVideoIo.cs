@@ -34,6 +34,19 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly DeviceClaim _claim = new();
 
+    /// <summary>
+    /// The frame channel, when this head has one.
+    /// </summary>
+    /// <remarks>
+    /// Frames do not belong on the JavaScript bridge. It is one message channel shared by every
+    /// interop call in both directions and by the renderer's dispatcher, and it saturated at about
+    /// four frames a second each way on a Redmi Note 9 — past which the answers stopped coming back
+    /// entirely. A loopback WebSocket carries binary, has nothing else on it, and is full duplex.
+    /// </remarks>
+    private readonly IVideoBridge _bridge;
+
+    private bool _bridgeWired;
+
     private IJSObjectReference? _module;
     private DotNetObjectReference<WebVideoIo>? _self;
     private volatile CaptureState _capture = CaptureState.Idle;
@@ -72,6 +85,8 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     /// perfectly fine right up until the day somebody ran the web app.
     /// </remarks>
     private IJSRuntime? _js;
+
+    public WebVideoIo(IVideoBridge? bridge = null) => _bridge = bridge ?? new NoVideoBridge();
 
     /// <summary>Give the device the page it lives in. A new page replaces the old one.</summary>
     /// <param name="onPage">
@@ -266,7 +281,16 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     /// mesh from the handler, which is where the send lane takes over.
     /// </remarks>
     [JSInvokable]
-    public void ReceiveChunk(byte[] frame)
+    public void ReceiveChunk(byte[] frame) => OnFrameFromPage(frame);
+
+    /// <summary>
+    /// One encoded frame from this device's camera, however it arrived.
+    /// </summary>
+    /// <remarks>
+    /// Over the bridge when this head has one, and through JavaScript interop when it does not. The
+    /// two paths converge here so nothing downstream has to know which was used.
+    /// </remarks>
+    private void OnFrameFromPage(byte[] frame)
     {
         if (_disposed || frame.Length == 0) return;
 
@@ -278,6 +302,13 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     public void Play(string from, byte[] encodedFrame)
     {
         if (_disposed || string.IsNullOrEmpty(from) || encodedFrame.Length == 0) return;
+
+        // The bridge, when the page is on it. No dispatcher, no base64, and nothing else sharing it.
+        if (_bridge.PageConnected)
+        {
+            _bridge.SendToPage(from, encodedFrame);
+            return;
+        }
 
         if (_module is null)
         {
@@ -327,13 +358,15 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
             if (await ModuleAsync().ConfigureAwait(false) is null) return false;
             if (!(await AskAsync().ConfigureAwait(false)).Usable) return false;
 
+            var bridge = await BridgeAsync().ConfigureAwait(false);
+
             _self ??= DotNetObjectReference.Create(this);
 
             // The module reports Starting and then Capturing through ReceiveState, so the state is set
             // by what actually happened rather than by this method having returned.
             var started = false;
             await OnPageAsync(async m =>
-                started = await m.InvokeAsync<bool>("start", cancellationToken, _self, _self, _front)
+                started = await m.InvokeAsync<bool>("start", cancellationToken, _self, _self, _front, bridge)
                     .ConfigureAwait(false)).ConfigureAwait(false);
 
             return started;
@@ -454,6 +487,30 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     /// other one — and it is reached from <see cref="StartAsync"/>, which a call service invokes from
     /// wherever the camera button happened to be handled.
     /// </remarks>
+    /// <summary>
+    /// Bring the frame channel up and describe it to the page, or say there is not one.
+    /// </summary>
+    /// <remarks>
+    /// Wired once. The bridge outlives any single call — the page holds its socket open for as long
+    /// as it is loaded — so subscribing per call would attach a handler per call.
+    /// </remarks>
+    private async Task<VideoBridgeEndpoint?> BridgeAsync()
+    {
+        var endpoint = await _bridge.StartAsync().ConfigureAwait(false);
+        if (endpoint is null) return null;
+
+        lock (_fields)
+        {
+            if (!_bridgeWired)
+            {
+                _bridge.FrameFromPage += OnFrameFromPage;
+                _bridgeWired = true;
+            }
+        }
+
+        return endpoint;
+    }
+
     private async Task<IJSObjectReference?> ModuleAsync()
     {
         IJSRuntime? js;
@@ -508,6 +565,9 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
             catch (JSDisconnectedException) { /* the page went first */ }
             catch (ObjectDisposedException) { /* so did we */ }
         }
+
+        if (_bridgeWired) _bridge.FrameFromPage -= OnFrameFromPage;
+        (_bridge as IDisposable)?.Dispose();
 
         _self?.Dispose();
         _gate.Dispose();
