@@ -403,40 +403,18 @@ export function play(who, bytes) {
         if (!canvas) { stat.noTile++; return; }   // no tile yet; the next keyframe is a second away
 
         const ctx = canvas.getContext('2d');
-        const decoder = new VideoDecoder({
-            output: (frame) => {
-                try {
-                    if (canvas.width !== frame.displayWidth) canvas.width = frame.displayWidth;
-                    if (canvas.height !== frame.displayHeight) canvas.height = frame.displayHeight;
-                    ctx.drawImage(frame, 0, 0);
-                    stat.drawn++;
-                    peer.lastDrawAt = performance.now();
-                    peer.fedSinceDraw = 0;
-                } finally {
-                    frame.close();
-                }
-            },
-            error: (e) => {
-                stat.decodeErrors++;
-                stat.lastDecodeError = String(e && e.message || e);
-                console.warn('[aether-video] decoder failed for', who, e);
-                forget(who);
-            },
-        });
-
-        // optimizeForLatency: show the first frame as soon as it decodes rather than filling a reorder
-        // buffer first. This is a conversation, not playback.
-        decoder.configure({ codec: CODEC, optimizeForLatency: true });
         peer = {
-            decoder: decoder, canvas: canvas, ctx: ctx,
+            decoder: null, canvas: canvas, ctx: ctx,
             waitingForKey: true, waitingSince: performance.now(),
             lastDrawAt: performance.now(), fedSinceDraw: 0,
+            stamp: 0, rebuilds: 0,
         };
+        peer.decoder = makeDecoder(peer, who);
         peers.set(who, peer);
     }
 
     try {
-        if (peer.decoder.state !== 'configured') return;
+        if (!peer.decoder || peer.decoder.state !== 'configured') return;
 
         // A decoder cannot start mid-GOP. Until the first keyframe arrives everything is dropped,
         // which costs at most a second and avoids a burst of errors nobody can act on.
@@ -475,9 +453,19 @@ export function play(who, bytes) {
         }
 
         stat.decoded++;
+
+        // A counter, not a clock.
+        //
+        // This stamped every chunk with performance.now(), which is neither the sender's timeline nor
+        // guaranteed to differ between two chunks arriving in the same millisecond — and a decoder
+        // handed equal or decreasing timestamps is entitled to do anything it likes, including
+        // quietly producing nothing. A counter is monotonic by construction. The values need not
+        // match the sender's; nothing here reorders, and every frame is shown the moment it decodes.
+        peer.stamp += Math.round(1000000 / FPS);
+
         peer.decoder.decode(new EncodedVideoChunk({
             type: key ? 'key' : 'delta',
-            timestamp: Math.round(performance.now() * 1000),
+            timestamp: peer.stamp,
             data: bytes,
         }));
     } catch (e) {
@@ -507,18 +495,61 @@ function isKeyframe(bytes) {
 //
 // Reset rather than close: the canvas, the tile and the peer entry all stay, so nothing on screen
 // jumps. It picks up again on the next keyframe, which is never more than a second away.
+// Build a decoder for one person.
+//
+// optimizeForLatency: show the first frame as soon as it decodes rather than filling a reorder buffer
+// first. This is a conversation, not playback.
+function makeDecoder(peer, who) {
+    const decoder = new VideoDecoder({
+        output: (frame) => {
+            try {
+                const c = peer.canvas;
+                if (c.width !== frame.displayWidth) c.width = frame.displayWidth;
+                if (c.height !== frame.displayHeight) c.height = frame.displayHeight;
+                peer.ctx.drawImage(frame, 0, 0);
+                stat.drawn++;
+                peer.lastDrawAt = performance.now();
+                peer.fedSinceDraw = 0;
+            } finally {
+                frame.close();
+            }
+        },
+        error: (e) => {
+            stat.decodeErrors++;
+            stat.lastDecodeError = String(e && e.message || e);
+            console.warn('[aether-video] decoder failed for', who, e);
+            recover(peer, who);
+        },
+    });
+
+    decoder.configure({ codec: CODEC, optimizeForLatency: true });
+    return decoder;
+}
+
+// Put a stalled decoder back to a state it can start from.
+//
+// It used to reset() and reconfigure the same decoder, and that is not enough for one that has
+// genuinely wedged: measured on merlin, the decoder accepted frames and produced nothing for minutes,
+// through repeated resets, with keyframes arriving and being recognised the whole time. A hardware
+// decoder in that state does not come back from reset — it comes back from being replaced.
+//
+// The canvas, the tile and the peer entry all survive, so nothing on screen jumps.
 function recover(peer, who) {
+    try { if (peer.decoder && peer.decoder.state !== 'closed') peer.decoder.close(); }
+    catch (e) { /* it was already gone */ }
+
     try {
-        peer.decoder.reset();
-        peer.decoder.configure({ codec: CODEC, optimizeForLatency: true });
+        peer.decoder = makeDecoder(peer, who);
     } catch (e) {
-        console.warn('[aether-video] could not reset the decoder for', who, e);
+        console.warn('[aether-video] could not rebuild the decoder for', who, e);
+        peer.decoder = null;
     }
 
     peer.waitingForKey = true;
     peer.waitingSince = performance.now();
     peer.fedSinceDraw = 0;
     peer.lastDrawAt = performance.now();
+    peer.rebuilds++;
     stat.decoderResets++;
 }
 

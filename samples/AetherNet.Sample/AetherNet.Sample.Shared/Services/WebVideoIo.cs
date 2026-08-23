@@ -278,7 +278,19 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
     public void Play(string from, byte[] encodedFrame)
     {
         if (_disposed || string.IsNullOrEmpty(from) || encodedFrame.Length == 0) return;
-        if (_module is not { } module) return;
+
+        if (_module is null)
+        {
+            // Frames arriving with nowhere to put them. Load the module and drop this one — the next
+            // is at most a keyframe away, and a frame held while an import completes is stale anyway.
+            //
+            // Belt as well as braces: ShowIncomingAsync loads it when their camera is announced, and
+            // this catches the case where frames arrive before that announcement does. Dropping
+            // silently for the whole call, which is what happened, is not something to leave depending
+            // on one message arriving first.
+            _ = ModuleAsync();
+            return;
+        }
 
         // Fire and forget on purpose. A frame is worthless a moment after it was captured, so waiting
         // for the decode to be accepted would only make the next one later. It still has to reach the
@@ -354,10 +366,23 @@ public sealed class WebVideoIo : IVideoIo, IAsyncDisposable
 
     /// <inheritdoc />
     /// <remarks>
-    /// Nothing to do. The surfaces are elements the call screen renders, so there is no overlay to
-    /// bring up and nothing to layer over anything — which is the point of moving here.
+    /// <para>
+    /// There are no surfaces to bring up — they are elements the call screen renders — but there IS
+    /// the module, and this is the moment to make sure it exists.
+    /// </para>
+    /// <para>
+    /// It is imported lazily on first use, and the only thing that used to import it was starting a
+    /// camera. So a phone that never turned its own camera on never loaded the module, and every
+    /// frame the other person sent was dropped on arrival because there was nowhere to send it:
+    /// <see cref="Play"/> returns immediately when there is no module. Watching without sending —
+    /// somebody showing you something — was impossible, and it failed in total silence.
+    /// </para>
+    /// <para>
+    /// Measured: merlin sat in a call with the P30 sending 9 frames a second at the radio, its own
+    /// canvas present and TheirVideoOn true, and played 0.0 for six minutes.
+    /// </para>
     /// </remarks>
-    public Task ShowIncomingAsync() => Task.CompletedTask;
+    public async Task ShowIncomingAsync() => await ModuleAsync().ConfigureAwait(false);
 
     /// <inheritdoc />
     /// <remarks>
