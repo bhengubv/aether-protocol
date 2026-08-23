@@ -41,6 +41,12 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         var routingKey = me.RoutingKey;
         _routingKey = routingKey;
 
+        // The cheapest leg first: two phones already on the same Wi-Fi need no group, no election and
+        // no credentials — they are both already on a network and can simply open a socket. It was
+        // missing entirely, so two handsets a metre apart on the same access point still tore down
+        // their association to build a private one, and every failure that came with forming a group
+        // was being paid indoors where there was nothing to form one for.
+        Register(new AndroidLanTransportService(global::Android.App.Application.Context!, logger, routingKey, circle));
         Register(new AndroidWifiDirectTransportService(global::Android.App.Application.Context!, _localUhid, logger, routingKey, circle));
         // Bluetooth is gone, and so is the NearLink stand-in that was Bluetooth wearing a different
         // name. It measured 11 kbps in one direction — it cannot carry a call, a note or an APK — and
@@ -72,7 +78,18 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // This is a preference, not a restriction — Widest() still sends over whichever radio is
         // actually linked, so nothing breaks before the group forms, and everything moves across the
         // moment it does.
-        _selected = _radios.TryGetValue("Wi-Fi Direct", out var wifiDirect) ? wifiDirect
+        //
+        // LAN goes in front of it. Not because it is faster — it is the same chip and the same air,
+        // and claiming otherwise would be inventing a number — but because it costs nothing to
+        // establish. Wi-Fi Direct has to form a group before it can carry a byte, and forming one
+        // takes the chip away from the access point the phone is already associated with. Indoors,
+        // where both phones are on the same network, that whole procedure buys nothing.
+        //
+        // It is still only a preference. On a network with client isolation — most guest and hotel
+        // Wi-Fi — LAN never links, and Widest()/Candidates() carry on over the group exactly as
+        // before. Preferring the cheap leg is safe precisely because the expensive one is still there.
+        _selected = _radios.TryGetValue("LAN", out var lan) ? lan
+            : _radios.TryGetValue("Wi-Fi Direct", out var wifiDirect) ? wifiDirect
             : _radios.TryGetValue("BLE", out var ble) ? ble
             : _order[0];
     }
