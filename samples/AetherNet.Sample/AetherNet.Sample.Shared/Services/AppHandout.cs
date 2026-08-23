@@ -52,6 +52,7 @@ public sealed class AppHandout : IDisposable
     public const int MaxHandovers = 3;
 
     private readonly IAppShareService _app;
+    private readonly TimeSpan _window;
     private readonly object _gate = new();
 
     private TcpListener? _listener;
@@ -61,8 +62,15 @@ public sealed class AppHandout : IDisposable
     private int _served;
     private bool _disposed;
 
-    public AppHandout(IAppShareService app) =>
+    /// <param name="window">
+    ///   How long an invite stays good for. Defaults to <see cref="Window"/>; named by tests, which
+    ///   otherwise could only check that the door closes by waiting five minutes for it.
+    /// </param>
+    public AppHandout(IAppShareService app, TimeSpan? window = null)
+    {
         _app = app ?? throw new ArgumentNullException(nameof(app));
+        _window = window is { Ticks: > 0 } chosen ? chosen : Window;
+    }
 
     /// <summary>The address to put on a tap or a QR, or null when nothing is being offered.</summary>
     public string? Invite { get; private set; }
@@ -119,7 +127,7 @@ public sealed class AppHandout : IDisposable
 
             var port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             _token = ShareInvite.NewToken();
-            _expires = DateTimeOffset.UtcNow + Window;
+            _expires = DateTimeOffset.UtcNow + _window;
             _served = 0;
             _life = new CancellationTokenSource();
             Invite = ShareInvite.Compose(advertise, port, _token);

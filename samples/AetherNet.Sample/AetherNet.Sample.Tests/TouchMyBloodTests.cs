@@ -313,6 +313,51 @@ public class TouchMyBloodTests
     }
 
     [Fact]
+    public async Task The_door_closes_on_time_even_if_nobody_came_through_it()
+    {
+        // A phone that was offered and then put in a pocket must stop serving its own installer to
+        // the network. Nothing here presses Stop — the window running out is the whole test.
+        using var handout = new AppHandout(new FakeApp(Package), TimeSpan.FromSeconds(2));
+        var invite = handout.Start("127.0.0.1");
+        Assert.NotNull(invite);
+        var port = PortOf(invite);
+        Assert.True(ShareInvite.TryParse(invite, out _, out _, out var token));
+
+        var (open, _) = await FetchAsync(port, $"{ShareInvite.Path}{token}/{ShareInvite.FileName}");
+        Assert.Contains("200", open, StringComparison.Ordinal);
+
+        await Task.Delay(TimeSpan.FromSeconds(3.5));
+
+        Assert.Null(handout.Invite);
+        Assert.Equal(TimeSpan.Zero, handout.Remaining);
+        await Assert.ThrowsAnyAsync<SocketException>(
+            () => FetchAsync(port, $"{ShareInvite.Path}{token}/{ShareInvite.FileName}"));
+    }
+
+    [Fact]
+    public async Task An_invite_that_expired_is_replaced_rather_than_resurrected()
+    {
+        using var handout = new AppHandout(new FakeApp(Package), TimeSpan.FromSeconds(1));
+        var first = handout.Start("127.0.0.1");
+        Assert.NotNull(first);
+        Assert.True(ShareInvite.TryParse(first, out _, out _, out var firstToken));
+
+        await Task.Delay(TimeSpan.FromSeconds(2.5));
+
+        var second = handout.Start("127.0.0.1");
+        Assert.NotNull(second);
+        Assert.NotEqual(first, second);
+
+        // The old secret must not open the new door. Pressing Start again is a new offer, not a
+        // renewal of one that already lapsed.
+        Assert.True(ShareInvite.TryParse(second, out _, out var port, out var secondToken));
+        Assert.NotEqual(firstToken, secondToken);
+
+        var (refused, _) = await FetchAsync(port, $"{ShareInvite.Path}{firstToken}/{ShareInvite.FileName}");
+        Assert.Contains("404", refused, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Asking_twice_hands_out_one_invite()
     {
         using var handout = new AppHandout(new FakeApp(Package));

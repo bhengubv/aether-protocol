@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
-using AetherNet.Sample.Shared.Services;
+
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 
-namespace AetherNet.Sample.Platforms.Android.Transports;
+namespace AetherNet.Sample.Shared.Services;
 
 /// <summary>
 /// The bits every stream-oriented radio needs: how a frame is written, how a socket is tuned, and
@@ -23,8 +22,14 @@ namespace AetherNet.Sample.Platforms.Android.Transports;
 /// currently works, and that belongs after the LAN leg has been proven on both handsets — not in the
 /// same commit.
 /// </para>
+///
+/// <para>
+/// It sits on the platform-neutral side because nothing in it is platform-specific, and because the
+/// lane rules below are the most expensive knowledge in this codebase. They were untestable while
+/// they lived beside a radio; they are not any more.
+/// </para>
 /// </summary>
-internal static class Framing
+public static class Framing
 {
     /// <summary>The largest frame that will be read before the connection is treated as garbage.</summary>
     /// <remarks>
@@ -85,16 +90,26 @@ internal static class Framing
     /// naming. NoDelay stops Nagle adding a wait of its own to frames that are already whole.
     /// </para>
     /// </remarks>
-    public static void Tighten(TcpClient client)
+    /// <returns>
+    ///   False when the socket refused to be tuned, so the caller can say so. Not fatal — an untuned
+    ///   socket still carries traffic, it just hides congestion until the delay is visible to a person.
+    /// </returns>
+    public static bool Tighten(TcpClient client)
     {
         try
         {
             client.NoDelay = true;
             client.SendBufferSize = 16 * 1024;
+            return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            global::Android.Util.Log.Info("AetherLAN", "could not tighten the socket: " + ex.Message);
+            // Broad on purpose, and it has to be. A socket that has already gone does not throw
+            // ObjectDisposedException here — TcpClient's NoDelay setter dereferences an inner socket
+            // that is null by then and throws NullReferenceException. Narrowing this to the two
+            // obvious exception types looked tidier and turned best-effort tuning into something that
+            // could take a link handler down on a peer that walked away a moment too early.
+            return false;
         }
     }
 }
@@ -111,7 +126,7 @@ internal static class Framing
 /// It looked like a flaky radio for days. Hence one pump per link, and never a bare write.
 /// </para>
 /// </summary>
-internal sealed record MeshLink(TcpClient Client, NetworkStream Stream)
+public sealed record MeshLink(TcpClient Client, NetworkStream Stream)
 {
     /// <summary>
     /// One queue per lane, so speech never waits behind a file.
@@ -205,4 +220,3 @@ internal sealed record MeshLink(TcpClient Client, NetworkStream Stream)
         return null;
     }
 }
-#endif

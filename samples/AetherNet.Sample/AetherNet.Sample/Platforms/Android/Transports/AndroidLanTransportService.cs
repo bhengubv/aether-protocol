@@ -534,7 +534,8 @@ internal sealed class AndroidLanTransportService : ITransportService, IRadio, ID
 
     private async Task HandleSocketAsync(TcpClient client)
     {
-        Framing.Tighten(client);
+        if (!Framing.Tighten(client))
+            L("could not tune the socket — video may run late before the link reports strain");
 
         var stream = client.GetStream();
         string? theirAddress = null;
