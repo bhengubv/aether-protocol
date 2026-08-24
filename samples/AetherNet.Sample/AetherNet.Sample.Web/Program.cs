@@ -36,6 +36,7 @@ builder.Services.AddSingleton<ContactService>();
 // Where a scanned or pasted aether:// invite arrives. The shell subscribes to it, so it has to exist
 // on every head — this was registered on the phone only, and the web head simply refused to render.
 builder.Services.AddSingleton<InviteLinks>();
+builder.Services.AddSingleton<Taps>();
 
 // Same real messaging stack as the phone. This host has no radio, so messages stay pending —
 // honestly queued rather than pretending to send.

@@ -85,36 +85,61 @@ public static class Ndef
     }
 
     /// <summary>
-    /// A URI record and an external record carrying the giver's AetherTag, in one message.
+    /// One record: who this phone is.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A phone with no app reads the first record and opens the address; the second is data it does
-    /// not recognise and quietly ignores, which is what the spec says an unknown record type must do.
-    /// A phone that DOES have Aether reads both, so tapping a mate who is already on the network adds
-    /// them instead of offering them software they are already running.
+    /// <b>Android dispatches on the FIRST record and never looks past it.</b> This carried a web
+    /// address first and the identity second, so a tap always went to a browser and the intent filter
+    /// claiming our own record could never fire. Two records looked like serving two audiences; one
+    /// static tag cannot, because the tag has no way to know who is reading it.
     /// </para>
     /// <para>
-    /// One tap, two meanings, decided by what the phone on the other side already has.
+    /// So the tap is Aether talking to Aether. A phone that has the app opens it and knows who touched
+    /// it. A phone that does not gets nothing from the tap — which is the honest outcome, because the
+    /// alternative was handing a stranger a raw IP address in a browser under a "not secure" warning,
+    /// and a bad first impression is worse than none.
     /// </para>
     /// </remarks>
-    public static byte[] UriAndTag(string uri, string aetherTag)
+    public static byte[] Tag(string aetherTag)
     {
-        if (string.IsNullOrWhiteSpace(aetherTag)) return Uri(uri);
+        if (string.IsNullOrWhiteSpace(aetherTag))
+            throw new ArgumentException("A tap has to say who it is.", nameof(aetherTag));
 
-        var first = Uri(uri);
-        // Clear the "message end" bit on the first record — it is no longer the last one.
-        first[0] &= unchecked((byte)~MessageEnd);
-
-        var tag = Record(
-            MessageEnd | ShortRecord | TnfExternal,
+        return Record(
+            MessageBegin | MessageEnd | ShortRecord | TnfExternal,
             Encoding.ASCII.GetBytes(TagRecordType),
-            Encoding.ASCII.GetBytes(aetherTag));
+            Encoding.ASCII.GetBytes(aetherTag.Trim()));
+    }
 
-        var message = new byte[first.Length + tag.Length];
-        first.CopyTo(message, 0);
-        tag.CopyTo(message, first.Length);
-        return message;
+    /// <summary>Read the AetherTag out of a tap, or null when this was not one of ours.</summary>
+    public static string? ReadTag(byte[]? message)
+    {
+        if (message is null || message.Length < 4) return null;
+
+        var offset = 0;
+        while (offset + 3 <= message.Length)
+        {
+            var header = message[offset];
+            if ((header & ShortRecord) == 0) return null;
+
+            var typeLength = message[offset + 1];
+            var payloadLength = message[offset + 2];
+            var typeAt = offset + 3;
+            var payloadAt = typeAt + typeLength;
+            if (payloadAt + payloadLength > message.Length) return null;
+
+            if ((header & 0x07) == TnfExternal &&
+                typeLength == TagRecordType.Length &&
+                Encoding.ASCII.GetString(message, typeAt, typeLength) == TagRecordType &&
+                payloadLength > 0)
+                return Encoding.ASCII.GetString(message, payloadAt, payloadLength);
+
+            if ((header & MessageEnd) != 0) return null;
+            offset = payloadAt + payloadLength;
+        }
+
+        return null;
     }
 
     /// <summary>

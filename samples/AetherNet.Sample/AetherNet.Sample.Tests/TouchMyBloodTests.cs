@@ -136,82 +136,58 @@ public class TouchMyBloodTests
     }
 
     [Fact]
-    public void A_tap_carries_the_address_and_the_person()
+    public void A_tap_carries_who_you_are_and_nothing_else()
     {
-        const string url = "http://10.0.0.2:8080/tmb/00112233445566778899aabbccddeeff/aether.apk";
-        var message = Ndef.UriAndTag(url, "KXJB7-MN2P4");
+        // Android dispatches on the FIRST record and never looks past it. This message used to lead
+        // with a web address, so every tap went to a browser and the intent filter claiming our own
+        // record could never fire — a claim wired to nothing.
+        var message = Ndef.Tag("KXJB7-MN2P4");
 
-        // A phone with no Aether reads the first record and opens the address; a phone that has it
-        // reads the second and knows who tapped.
-        Assert.Equal(url, Ndef.ReadUri(message));
-        Assert.Contains("KXJB7-MN2P4", Encoding.ASCII.GetString(message), StringComparison.Ordinal);
+        Assert.Equal("KXJB7-MN2P4", Ndef.ReadTag(message));
+        Assert.Null(Ndef.ReadUri(message));
         Assert.Contains(Ndef.TagRecordType, Encoding.ASCII.GetString(message), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void The_message_begins_once_and_ends_once()
+    public void The_identity_is_the_first_and_only_record()
     {
-        // MB on the first record, ME on the last, and never both on the first when there are two.
-        // Get this wrong and a reader stops after one record — or worse, keeps reading past the end.
-        var one = Ndef.Uri("http://x");
-        Assert.Equal(0x80, one[0] & 0x80);
-        Assert.Equal(0x40, one[0] & 0x40);
+        var message = Ndef.Tag("KXJB7-MN2P4");
 
-        var two = Ndef.UriAndTag("http://x", "TAG");
-        Assert.Equal(0x80, two[0] & 0x80);
-        Assert.Equal(0x00, two[0] & 0x40);                   // the first is no longer the last
-        Assert.Equal(0x40, two[^(3 + Ndef.TagRecordType.Length + 3)] & 0x40);
+        // Message begin AND message end both on record one: there is no second record for a browser
+        // to be dispatched on.
+        Assert.Equal(0x80, message[0] & 0x80);
+        Assert.Equal(0x40, message[0] & 0x40);
+        Assert.Equal(0x04, message[0] & 0x07);       // an external type — ours, not a well-known one
+
+        Assert.Equal(3 + Ndef.TagRecordType.Length + "KXJB7-MN2P4".Length, message.Length);
     }
 
     [Fact]
-    public void A_tap_with_no_tag_is_still_a_valid_tap()
+    public void A_tap_that_says_nothing_is_refused()
     {
-        // A phone whose identity has not come up yet must still be able to hand over the app.
-        const string url = "http://10.0.0.2:8080/tmb/00112233445566778899aabbccddeeff/aether.apk";
-        Assert.Equal(url, Ndef.ReadUri(Ndef.UriAndTag(url, "")));
+        foreach (var nothing in new[] { null, "", "   " })
+            Assert.Throws<ArgumentException>(() => Ndef.Tag(nothing!));
     }
 
     [Fact]
-    public void Reading_a_message_that_is_not_one_never_throws()
+    public void Reading_a_tap_that_is_not_ours_gives_nothing()
     {
-        // Whatever a reader hands back is untrusted: a real tag written by somebody else, a partial
-        // read, a phone that gave up halfway through the tap. This parser is the first thing to touch
-        // it and it does not get to throw on a person's handset.
-        var random = new Random(20260823);
+        // Somebody else's tag, a poster, a bus pass. All of it comes through the same reader.
+        Assert.Null(Ndef.ReadTag(Ndef.Uri("http://example.com")));
+        Assert.Null(Ndef.ReadTag(null));
+        Assert.Null(Ndef.ReadTag([]));
+        Assert.Null(Ndef.ReadTag([0xD1, 0x01]));
+    }
 
+    [Fact]
+    public void Reading_a_tap_never_throws_on_nonsense()
+    {
+        var random = new Random(20260824);
         for (var i = 0; i < 5000; i++)
         {
-            var message = new byte[random.Next(0, 64)];
-            random.NextBytes(message);
-            Ndef.ReadUri(message);       // a URI, or null. Never an exception.
-        }
-    }
-
-    [Theory]
-    [InlineData(new byte[] { })]
-    [InlineData(new byte[] { 0xD1 })]
-    [InlineData(new byte[] { 0xD1, 0x01 })]
-    [InlineData(new byte[] { 0xD1, 0x01, 0x05 })]                    // claims 5 bytes, carries none
-    [InlineData(new byte[] { 0xD1, 0x01, 0xFF, 0x55, 0x03, 0x78 })]  // claims 255, carries 2
-    [InlineData(new byte[] { 0xC1, 0x01, 0x04, 0x55, 0x03, 0x78 })]  // a long record, which we never write
-    [InlineData(new byte[] { 0xD1, 0x01, 0x01, 0x55 })]              // a code and no URI after it
-    [InlineData(new byte[] { 0xD1, 0x01, 0x02, 0x55, 0x63, 0x78 })]  // an abbreviation that does not exist
-    public void A_malformed_message_reads_as_nothing_rather_than_as_something(byte[] message)
-        => Assert.Null(Ndef.ReadUri(message));
-
-    [Fact]
-    public void A_message_whose_records_run_off_the_end_is_refused()
-    {
-        // Truncate a real one at every possible point. Not one of them may be mistaken for a shorter
-        // valid message — a URI assembled out of half a record points somewhere nobody intended.
-        var whole = Ndef.UriAndTag("http://10.0.0.2:8080/tmb/00112233445566778899aabbccddeeff/aether.apk", "KXJB7-MN2P4");
-        var full = Ndef.ReadUri(whole);
-
-        for (var cut = 1; cut < whole.Length; cut++)
-        {
-            var read = Ndef.ReadUri(whole[..cut]);
-            Assert.True(read is null || read == full,
-                $"a message cut at {cut} read as \"{read}\"");
+            var junk = new byte[random.Next(0, 64)];
+            random.NextBytes(junk);
+            Ndef.ReadTag(junk);      // a tag, or null. Never an exception.
         }
     }
 

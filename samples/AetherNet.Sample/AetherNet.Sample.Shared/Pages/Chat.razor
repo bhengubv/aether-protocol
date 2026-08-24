@@ -193,6 +193,30 @@
         Calls.Changed += OnChanged;
         Recorder.Ticked += OnTicked;
         Recorder.Capped += OnCapped;
+
+        // While this conversation is open it answers for itself, because a route can say WHICH chat
+        // and nothing more. What makes a handoff feel alive is the half-written sentence and the
+        // place in the thread, and only this page knows those.
+        Messages.Holding = async () => Handoff.Describe(
+            $"/chat/{Uri.EscapeDataString(Peer)}", _draft, await ScrollFractionAsync());
+
+        // Somebody handed us this conversation. Pick up their sentence where they left it.
+        if (Messages.TakeArriving() is { Kind: Handoff.Kind.Chat } handed &&
+            string.Equals(handed.Target, Peer, StringComparison.Ordinal))
+        {
+            if (!string.IsNullOrEmpty(handed.Draft)) _draft = handed.Draft;
+            _landOn = handed.At;
+        }
+    }
+
+    /// <summary>Where they were in the thread, until it has been applied once.</summary>
+    private double? _landOn;
+
+    /// <summary>How far down this thread is scrolled, 0 to 1.</summary>
+    private async Task<double?> ScrollFractionAsync()
+    {
+        try { return await JS.InvokeAsync<double>("aetherScrollFraction", _thread); }
+        catch { return null; }          // a host without the helper, or a thread not yet rendered
     }
 
     // ── Calling ───────────────────────────────────────────────────────────────
@@ -231,6 +255,18 @@
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Land where they were standing, once, before the usual scroll-to-end takes over. Applied
+        // after a render because the thread has to exist and have a height before a fraction of it
+        // means anything.
+        if (_landOn is { } where)
+        {
+            _landOn = null;
+            _shown = _messages.Count;
+            try { await JS.InvokeVoidAsync("aetherScrollToFraction", _thread, where); }
+            catch { /* host without the helper */ }
+            return;
+        }
+
         if (_shown == _messages.Count) return;
         _shown = _messages.Count;
         try { await JS.InvokeVoidAsync("aetherScrollToEnd", _thread); } catch { /* host without the helper */ }
@@ -413,6 +449,10 @@
 
     public void Dispose()
     {
+        // Stop answering for a screen that is no longer open, or a tap would hand over a conversation
+        // the person has already walked away from.
+        Messages.Holding = null;
+
         Messages.Changed -= OnChanged;
         Contacts.Changed -= OnChanged;
         Radio.Changed -= OnChanged;

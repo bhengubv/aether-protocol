@@ -889,6 +889,153 @@ public sealed class ChatService
             case PingMarker: _ = ReceivePingAsync(packet.SourceUhid, payload); break;
             case CircleMarker: _ = ReceiveCircleAsync(packet.SourceUhid, payload); break;
             case ProxyMarker: _ = ReceiveProxyAsync(packet.SourceUhid, payload); break;
+            case Handoff.WantMarker: _ = ReceiveHandoffWantAsync(packet.SourceUhid, payload); break;
+            case Handoff.Marker: _ = ReceiveHandoffAsync(packet.SourceUhid, payload); break;
+        }
+    }
+
+    // ── Handing over what is on screen ──────────────────────────────────────
+
+    /// <summary>
+    /// Where this phone is standing right now, so it can be handed over.
+    /// </summary>
+    /// <remarks>
+    /// Set by the shell as the person moves around. It is a route rather than an object because that
+    /// is all the far side needs — it has the mesh too, and can fetch whatever the route names.
+    /// </remarks>
+    public string? WhereIAm { get; set; }
+
+    /// <summary>
+    /// What the screen currently open is holding — including the parts a route cannot express.
+    /// </summary>
+    /// <remarks>
+    /// A route says which conversation. It cannot say that you are half way through typing a sentence,
+    /// and the half-written sentence is the thing that makes a handoff feel alive rather than
+    /// administrative. So the page that is open answers for itself, and falls back to the route when
+    /// nothing has claimed it.
+    /// </remarks>
+    /// <remarks>
+    /// Asynchronous because where you are scrolled lives in the browser, not in C#, and can only be
+    /// asked for. It is asked once, at the moment of a tap, so the cost is a single call in a gesture
+    /// that happens rarely — not a listener chattering across the bridge all day.
+    /// </remarks>
+    public Func<Task<Handoff.Note?>>? Holding { get; set; }
+
+    /// <summary>
+    /// The handoff that just arrived, for the page about to open to pick up.
+    /// </summary>
+    /// <remarks>
+    /// A route cannot carry a half-written sentence, and the page is created after the navigation, so
+    /// there is a gap between the note arriving and anything existing that could use it. This is that
+    /// gap, and it is taken exactly once — a draft that reappeared every time you opened a chat would
+    /// be somebody else's words haunting your keyboard.
+    /// </remarks>
+    private Handoff.Note? _arriving;
+
+    /// <summary>Take whatever was handed over, once.</summary>
+    public Handoff.Note? TakeArriving()
+    {
+        var note = _arriving;
+        _arriving = null;
+        return note;
+    }
+
+    /// <summary>A place arrived from somebody who was just touched. The shell navigates to it.</summary>
+    public event Action<string>? HandoffArrived;
+
+    /// <summary>
+    /// "I just touched your phone — what have you got?"
+    /// </summary>
+    /// <remarks>
+    /// The reader has to speak first. A tap is one-way — one phone is a tag and the other reads it —
+    /// so only the phone that did the touching knows who it touched. The gesture still reads as
+    /// giving; the asking simply runs the other way underneath.
+    /// </remarks>
+    public async Task AskForHandoffAsync(string peerTag, CancellationToken cancellationToken = default)
+    {
+        if (_radio is null || string.IsNullOrEmpty(peerTag) || !_signal.HasSession(peerTag)) return;
+
+        try
+        {
+            var sealedPayload = await _signal
+                .EncryptAsync(peerTag, Encoding.UTF8.GetBytes("?"), cancellationToken)
+                .ConfigureAwait(false);
+
+            await _radio.SendPacketAsync(Wrap(Handoff.WantMarker, sealedPayload, peerTag)).ConfigureAwait(false);
+            T($"touched {peerTag} — asked what they are holding");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not ask {Peer} for a handoff", peerTag);
+        }
+    }
+
+    /// <summary>They touched us. Send back where we are standing, if it is anywhere worth going.</summary>
+    private async Task ReceiveHandoffWantAsync(string? senderTag, byte[] payload)
+    {
+        if (string.IsNullOrEmpty(senderTag) || _radio is null) return;
+
+        try
+        {
+            // Opened before it is acted on. Anyone can put bytes on a radio; only somebody holding the
+            // session can produce something that decrypts, and that is what makes this a friend.
+            var asked = EncryptedPayloadCodec.Deserialize(payload.AsSpan(Handoff.WantMarker.Length).ToArray());
+            await _signal.DecryptAsync(senderTag, asked).ConfigureAwait(false);
+            _radio.IdentifyPeer(senderTag);
+
+            var holding = Holding is { } ask
+                ? await ask().ConfigureAwait(false)
+                : Handoff.Describe(WhereIAm);
+
+            if (holding is not { } note)
+            {
+                T($"{senderTag} touched us, but this screen is not a place worth handing over");
+                return;
+            }
+
+            var sealedPayload = await _signal
+                .EncryptAsync(senderTag, Handoff.Encode(note)).ConfigureAwait(false);
+
+            await _radio.SendPacketAsync(Wrap(Handoff.Marker, sealedPayload, senderTag)).ConfigureAwait(false);
+            T($"handed {note.Kind} to {senderTag}");
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not answer a handoff from {Peer}", senderTag);
+            if (LooksLikeABrokenSession(ex)) await RepairSessionAsync(senderTag).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>A place came back from the phone we touched. Go there.</summary>
+    private async Task ReceiveHandoffAsync(string? senderTag, byte[] payload)
+    {
+        if (string.IsNullOrEmpty(senderTag)) return;
+
+        try
+        {
+            var sealedPayload = EncryptedPayloadCodec.Deserialize(payload.AsSpan(Handoff.Marker.Length).ToArray());
+            var body = await _signal.DecryptAsync(senderTag, sealedPayload).ConfigureAwait(false);
+            _radio?.IdentifyPeer(senderTag);
+
+            var arrived = Handoff.Decode(body);
+            if (Handoff.RouteFor(arrived) is not { } route)
+            {
+                // A kind or a version this build does not know. Doing nothing is the right answer —
+                // landing somebody on the wrong screen is worse than landing them nowhere.
+                T($"{senderTag} handed over something this build does not understand");
+                return;
+            }
+
+            // Put it down before the navigation, because the page that wants it does not exist yet.
+            _arriving = arrived;
+
+            T($"{senderTag} handed us {route}");
+            HandoffArrived?.Invoke(route);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Could not open a handoff from {Peer}", senderTag);
+            if (LooksLikeABrokenSession(ex)) await RepairSessionAsync(senderTag).ConfigureAwait(false);
         }
     }
 

@@ -59,7 +59,7 @@ public sealed class TouchMyBlood : HostApduService
 
     /// <summary>Arm the tap. Call with null to disarm it.</summary>
     public static void Offer(string? invite, string? aetherTag) =>
-        _offer = invite is null ? null : Ndef.UriAndTag(invite, aetherTag ?? string.Empty);
+        _offer = string.IsNullOrWhiteSpace(aetherTag) ? null : Ndef.Tag(aetherTag);
 
     /// <summary>Whether a tap would currently hand anything over.</summary>
     public static bool IsArmed => _offer is not null;

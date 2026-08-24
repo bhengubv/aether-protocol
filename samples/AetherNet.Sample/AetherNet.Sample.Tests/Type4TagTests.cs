@@ -23,10 +23,9 @@ namespace AetherNet.Sample.Tests;
 /// </summary>
 public class Type4TagTests
 {
-    private const string Invite = "http://192.168.0.115:39477/tmb/8547f0c77776a0d26425b5c79cdfd257/aether.apk";
+    private const string Who = "Y6TK9-EW9KK";
 
-    private static Type4Tag Armed(string invite = Invite, string tag = "Y6TK9-EW9KK") =>
-        new() { Offer = Ndef.UriAndTag(invite, tag) };
+    private static Type4Tag Armed(string who = Who) => new() { Offer = Ndef.Tag(who) };
 
     // ── The commands a real reader sends ─────────────────────────────────────
 
@@ -98,7 +97,7 @@ public class Type4TagTests
     [Fact]
     public void A_reader_that_follows_the_spec_gets_the_address()
     {
-        Assert.Equal(Invite, Ndef.ReadUri(ReadTheTag(Armed())));
+        Assert.Equal(Who, Ndef.ReadTag(ReadTheTag(Armed())));
     }
 
     [Theory]
@@ -110,16 +109,15 @@ public class Type4TagTests
     {
         // Readers differ. Some take the advertised maximum, some are conservative, and a message that
         // only reassembles at one particular chunk size is a tap that works on one phone.
-        Assert.Equal(Invite, Ndef.ReadUri(ReadTheTag(Armed(), chunk)));
+        Assert.Equal(Who, Ndef.ReadTag(ReadTheTag(Armed(), chunk)));
     }
 
     [Fact]
-    public void A_long_address_still_crosses()
+    public void A_full_length_tag_still_crosses()
     {
-        // A phone on a long subnet with a five-digit port: still one short record, but let us not
-        // discover the ceiling in somebody's kitchen.
-        var invite = ShareInvite.Compose("192.168.100.200", 65535, ShareInvite.NewToken());
-        Assert.Equal(invite, Ndef.ReadUri(ReadTheTag(Armed(invite))));
+        // An AetherTag is eleven characters with the dash. Short, but let us not discover a ceiling in
+        // somebody's kitchen.
+        Assert.Equal("ZZZZZ-ZZZZZ", Ndef.ReadTag(ReadTheTag(Armed("ZZZZZ-ZZZZZ"))));
     }
 
     [Fact]
@@ -176,9 +174,9 @@ public class Type4TagTests
         var tag = Armed();
         tag.Process(SelectApplication());
 
-        tag.Offer = Ndef.Uri("http://10.0.0.9:1234/tmb/ffffffffffffffffffffffffffffffff/aether.apk");
+        tag.Offer = Ndef.Tag("AAAAA-AAAAA");
 
-        Assert.Equal(Invite, Ndef.ReadUri(ReadFromSelected(tag)));
+        Assert.Equal(Who, Ndef.ReadTag(ReadFromSelected(tag)));
     }
 
     private static byte[] ReadFromSelected(Type4Tag tag)
@@ -276,8 +274,7 @@ public class Type4TagTests
     {
         var cc = Type4Tag.CapabilityContainer;
         var maxFile = (cc[11] << 8) | cc[12];
-        var message = Ndef.UriAndTag(ShareInvite.Compose("192.168.100.200", 65535, ShareInvite.NewToken()),
-                                     "Y6TK9-EW9KK");
+        var message = Ndef.Tag("ZZZZZ-ZZZZZ");
         Assert.True(message.Length + 2 < maxFile,
             $"the message is {message.Length + 2} bytes against an advertised {maxFile}");
     }

@@ -9,6 +9,9 @@
 @inject WarmUpService Warm
 @inject ContactService Contacts
 @inject InviteLinks Invites
+@using Microsoft.AspNetCore.Components.Routing
+@inject Taps Tapped
+@inject ChatService Chat
 @inject IVideoIo Video
 @inject IJSRuntime JS
 
@@ -71,6 +74,19 @@
         // radio at all.
         Invites.Arrived += OnInvite;
         OnInvite(Invites.TakeWaiting());
+
+        // Touch phones with somebody you have added and what they are looking at opens here. The
+        // reader has to speak first — a tap is one-way, so only the phone that did the touching knows
+        // who it touched — which is why this asks rather than waits.
+        Tapped.Touched += OnTouched;
+        OnTouched(Tapped.TakeWaiting());
+
+        Chat.HandoffArrived += OnHandedTo;
+
+        // Kept current so there is always an answer to "what are you holding?". A route rather than
+        // an object: the far side has the mesh too and can fetch whatever the route names.
+        Chat.WhereIAm = Here();
+        Nav.LocationChanged += OnMoved;
 
         // Nothing is ready until it has been made ready, and making it ready in front of somebody who
         // has just tapped something is what made this app feel like it hesitated. So every route lands
@@ -142,9 +158,33 @@
     // Answering and declining moved to CallOverlay, which owns the whole call now. The call no longer
     // navigates anywhere on answer: it covers the screen, so there is nothing underneath to arrange.
 
+    /// <summary>Where this phone is standing, as a route the other side can be told to walk to.</summary>
+    private string Here() => "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+
+    private void OnMoved(object? sender, LocationChangedEventArgs e) => Chat.WhereIAm = Here();
+
+    /// <summary>We touched somebody. Ask them what they have open.</summary>
+    private void OnTouched(string? aetherTag)
+    {
+        if (string.IsNullOrWhiteSpace(aetherTag)) return;
+        _ = Chat.AskForHandoffAsync(aetherTag);
+    }
+
+    /// <summary>They answered. Stand where they were standing.</summary>
+    private void OnHandedTo(string route) => _ = InvokeAsync(() =>
+    {
+        // No prompt and no confirmation. Between two people who have already added each other there
+        // is nothing to ask permission for, and asking would turn a gesture into a form.
+        Nav.NavigateTo(route);
+        StateHasChanged();
+    });
+
     public void Dispose()
     {
         Calls.Changed -= OnCallChanged;
         Invites.Arrived -= OnInvite;
+        Tapped.Touched -= OnTouched;
+        Chat.HandoffArrived -= OnHandedTo;
+        Nav.LocationChanged -= OnMoved;
     }
 }

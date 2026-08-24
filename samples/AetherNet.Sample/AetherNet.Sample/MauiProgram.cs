@@ -50,6 +50,7 @@ public static class MauiProgram
         // The people this device knows, and the add/be-added handshake.
         builder.Services.AddSingleton<ContactService>();
         builder.Services.AddSingleton<InviteLinks>();
+        builder.Services.AddSingleton<Taps>();
 
         // Real end-to-end encrypted messaging over the radio: Signal's X3DH + double ratchet, with
         // pre-key bundles exchanged over the mesh itself.
@@ -240,6 +241,7 @@ public static class MauiProgram
             {
                 var invites = app.Services.GetService<InviteLinks>();
                 InviteLinks.Current = invites;
+                Taps.Current = app.Services.GetService<Taps>();
 
                 // A scan that launched the app cold delivered its link before any of this existed.
                 invites?.Deliver(MainActivity.ConsumePendingLink());

@@ -17,6 +17,16 @@ namespace AetherNet.Sample;
     new[] { Intent.ActionView },
     Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
     DataScheme = "aether")]
+// Touching a phone that already has Aether opens Aether, rather than whichever app registered the
+// broadest NFC filter. Our tag carries an external record — bhengubv.com:aethertag — and Android
+// turns an external record into exactly this URI, so claiming it claims our own taps and nobody
+// else's. Measured on a P30: without this, a tap went to WeChat.
+[IntentFilter(
+    new[] { "android.nfc.action.NDEF_DISCOVERED" },
+    Categories = new[] { Intent.CategoryDefault },
+    DataScheme = "vnd.android.nfc",
+    DataHost = "ext",
+    DataPathPrefix = "/bhengubv.com:aethertag")]
 public class MainActivity : MauiAppCompatActivity
 {
     /// <summary>An <c>aether://…</c> link the OS handed us before the UI was listening.</summary>
@@ -76,6 +86,8 @@ public class MainActivity : MauiAppCompatActivity
 
     private static void Capture(Intent? intent)
     {
+        if (CaptureTap(intent)) return;
+
         var data = intent?.DataString;
         if (string.IsNullOrWhiteSpace(data)) return;
         if (!data.StartsWith("aether://", StringComparison.OrdinalIgnoreCase)) return;
@@ -91,5 +103,53 @@ public class MainActivity : MauiAppCompatActivity
         // built before the container is, so a link that arrives on a cold launch has nowhere else to
         // wait — but the relay is what the UI listens to.
         InviteLinks.Current?.Deliver(data);
+    }
+
+    /// <summary>
+    /// Somebody's phone was touched against this one, and it was an Aether phone.
+    /// </summary>
+    /// <remarks>
+    /// The tag carries two records: an address, for a phone that has never heard of Aether, and this
+    /// one, for a phone that has. A handset with the app reads the second and knows who it touched; a
+    /// handset without it ignores a record type it does not recognise, exactly as the spec says it
+    /// must, and follows the address instead. One gesture, two meanings, decided by what the phone on
+    /// the other side already has.
+    /// </remarks>
+    private static bool CaptureTap(Intent? intent)
+    {
+        if (intent?.Action != global::Android.Nfc.NfcAdapter.ActionNdefDiscovered) return false;
+
+        try
+        {
+            if (intent.GetParcelableArrayExtra(global::Android.Nfc.NfcAdapter.ExtraNdefMessages)
+                is not { Length: > 0 } messages) return false;
+
+            foreach (var parcel in messages)
+            {
+                if (parcel is not global::Android.Nfc.NdefMessage message) continue;
+
+                foreach (var record in message.GetRecords() ?? [])
+                {
+                    if (record is null) continue;
+                    if (record.Tnf != global::Android.Nfc.NdefRecord.TnfExternalType) continue;
+
+                    var type = System.Text.Encoding.ASCII.GetString(record.GetTypeInfo() ?? []);
+                    if (!string.Equals(type, Ndef.TagRecordType, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var tag = System.Text.Encoding.ASCII.GetString(record.GetPayload() ?? []).Trim();
+                    if (string.IsNullOrEmpty(tag)) continue;
+
+                    Taps.Current?.Deliver(tag);
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Info("AetherTMB", "could not read a tap: " + ex.Message);
+        }
+
+        return false;
     }
 }

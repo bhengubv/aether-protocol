@@ -57,6 +57,7 @@ public sealed class AndroidTapShare : ITapShare
         if (!IsSupported) return;
         TouchMyBlood.Offer(invite, aetherTag);
         Prefer(true);
+        Capture(true);
     }
 
     /// <inheritdoc />
@@ -64,6 +65,63 @@ public sealed class AndroidTapShare : ITapShare
     {
         TouchMyBlood.Offer(null, null);
         Prefer(false);
+        Capture(false);
+    }
+
+    /// <summary>
+    /// While this screen is open, nothing else on this phone gets a tag it reads.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A phone does two jobs on a tap and this only used to do one of them.</b> Claiming the
+    /// preferred service covers being READ — a peer taps us and gets our card. It does nothing about
+    /// this handset READING, which it does by default, and whatever it reads is handed to whichever
+    /// app registered the broadest NFC filter.
+    /// </para>
+    /// <para>
+    /// Measured on a P30 during Touch My Blood: touching another phone opened <b>WeChat</b>. It
+    /// registers <c>android.nfc.action.TECH_DISCOVERED</c>, which matches on the tag technology rather
+    /// than its contents and therefore catches essentially anything, and nothing at all was registered
+    /// for the narrower <c>NDEF_DISCOVERED</c>. So the tap was read by this phone, dispatched by the
+    /// platform, and swallowed by a chat app.
+    /// </para>
+    /// <para>
+    /// Foreground dispatch routes anything read to this activity instead, where it is ignored. Null
+    /// filters and null tech lists mean "everything", which is exactly the intent: for as long as
+    /// somebody is handing over the app, no other application on this phone gets a look in.
+    /// </para>
+    /// </remarks>
+    private void Capture(bool capture)
+    {
+        if (_nfc is null) return;
+        if (Microsoft.Maui.ApplicationModel.Platform.CurrentActivity is not { } activity) return;
+
+        // The NFC foreground APIs are activity-lifecycle bound and must be called on the thread that
+        // owns the activity. This is reached from a Blazor event handler, which is not that thread.
+        Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try
+            {
+                if (!capture) { _nfc.DisableForegroundDispatch(activity); return; }
+
+                var back = new global::Android.Content.Intent(activity, activity.GetType())
+                    .AddFlags(global::Android.Content.ActivityFlags.SingleTop);
+
+                // The platform fills the tag into this intent, so on Android 12 and later it has to be
+                // declared mutable — an immutable one is rejected outright and the capture silently
+                // never happens.
+                var flags = global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.S
+                    ? global::Android.App.PendingIntentFlags.Mutable
+                    : 0;
+
+                var pending = global::Android.App.PendingIntent.GetActivity(activity, 0, back, flags);
+                _nfc.EnableForegroundDispatch(activity, pending, null, null);
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Info("AetherTMB", "could not capture the tap: " + ex.Message);
+            }
+        });
     }
 
     /// <summary>

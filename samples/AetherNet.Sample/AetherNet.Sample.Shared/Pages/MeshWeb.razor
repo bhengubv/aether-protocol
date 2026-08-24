@@ -2,6 +2,7 @@
 @using AetherNet.Sample.Shared.Services
 @implements IDisposable
 @inject MeshWebService Mesh
+@inject ChatService Chat
 
 <PageTitle>Aether — AetherNet</PageTitle>
 
@@ -226,7 +227,21 @@
     protected override async Task OnInitializedAsync()
     {
         Mesh.Changed += OnChanged;
+
+        // While a card is open this page answers for itself: a route says which card, and only the
+        // page knows how far down it somebody had read.
+        Chat.Holding = () => Task.FromResult(Handoff.Describe(
+            $"/meshweb?a={Uri.EscapeDataString(_address)}", null, null));
+
         await Mesh.EnsureReadyAsync();
+
+        // Somebody handed us a card. Open theirs rather than our own home page.
+        if (Chat.TakeArriving() is { Kind: Handoff.Kind.Card } handed)
+        {
+            await Go(handed.Target);
+            return;
+        }
+
         await Go(Mesh.HomeAddress);
         if (Mesh.RadioAvailable && !Mesh.RadioLinked)
             Mesh.LinkRadio();
@@ -271,7 +286,12 @@
     private static string TrimScheme(string a) =>
         a.StartsWith("aether://", StringComparison.OrdinalIgnoreCase) ? a["aether://".Length..] : a;
 
-    public void Dispose() => Mesh.Changed -= OnChanged;
+    public void Dispose()
+    {
+        // Stop answering for a page that is no longer open.
+        Chat.Holding = null;
+        Mesh.Changed -= OnChanged;
+    }
 }
 
 <style>
