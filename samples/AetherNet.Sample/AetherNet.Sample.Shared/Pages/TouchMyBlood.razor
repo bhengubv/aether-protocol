@@ -1,11 +1,13 @@
 @page "/share"
 @using AetherNet.Sample.Shared.Services
+@using AetherNet.Sample.Shared.Data
 @implements IDisposable
 @inject IIdentityService Me
 @inject IAppShareService App
 @inject ITapShare Tap
 @inject AppHandout Handout
 @inject IWifiDirectGroup Group
+@inject AetherStore Store
 
 <PageTitle>Aether — Touch My Blood</PageTitle>
 
@@ -24,6 +26,18 @@
         <section class="card">
             <div class="size">@Size</div>
             <div class="size-sub">that's the whole app — it comes off this phone, not the internet</div>
+
+            @* The one thing a stranger reads before deciding to trust any of this. Without it their
+               phone shows them a code, which is the same problem as an address. *@
+            <label class="who">
+                <span class="glabel">Your name</span>
+                <input class="whoin" maxlength="@MyName.Longest" placeholder="Thabang"
+                       value="@_name" @oninput="OnName" />
+            </label>
+            <div class="who-sub">
+                They'll see <strong>@GuestGroup.Label(MyName.OrTag(_name, Me.AetherTag))</strong> on their phone.
+            </div>
+
             <button class="primary block" @onclick="StartAsync" disabled="@_busy">Start</button>
             @if (_note is { } n)
             {
@@ -46,24 +60,6 @@
                 @if (_network is { } net)
                 {
                     <div class="netname">@net.NetworkName</div>
-                }
-
-                <div class="carries">
-                    <button class="@(_provision ? "pick" : "pick on")" @onclick="() => Carry(false)">
-                        Network
-                    </button>
-                    <button class="@(_provision ? "pick on" : "pick")" @onclick="() => Carry(true)">
-                        Whole install
-                    </button>
-                </div>
-                <div class="carries-sub">
-                    @(_provision
-                        ? "Their phone fetches and installs Aether itself. Only a phone still in setup will take this."
-                        : "Their phone joins your network. Works on a phone already in use.")
-                </div>
-                @if (_carrying is { Length: > 0 } saying)
-                {
-                    <div class="carries-sub">@saying</div>
                 }
             </section>
         }
@@ -92,10 +88,6 @@
 <style>
     .tmb { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 
-    .carries { display: flex; gap: 8px; width: 100%; max-width: 340px; margin-top: 6px; }
-    .pick { flex: 1; min-width: 0; padding: 9px 8px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-size: 0.82rem; font-weight: 650; cursor: pointer; }
-    .pick.on { background: var(--brand); border-color: var(--brand); color: #fff; }
-    .carries-sub { font-size: 0.76rem; line-height: 1.45; color: var(--ink-2); text-align: center; max-width: 340px; }
     .scr-title { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); padding: 4px 2px 0; }
     .lede { font-size: 0.95rem; line-height: 1.5; color: var(--ink-2); padding: 0 2px; }
 
@@ -135,6 +127,12 @@
     /* What their phone will show them. Worth putting in front of the giver so they can say the name
        out loud — "join Aether Thabo" is a sentence a person can help somebody with. */
     .netname { font-family: var(--mono); font-size: 0.8rem; color: var(--brand); letter-spacing: .04em; }
+
+    .who { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 340px; margin-top: 6px; }
+    .whoin { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 600; }
+    .whoin:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+    .who-sub { font-size: 0.8rem; color: var(--ink-3); text-align: center; max-width: 340px; }
+    .who-sub strong { color: var(--brand); font-family: var(--mono); font-weight: 600; }
 </style>
 
 @code {
@@ -153,10 +151,27 @@
         ? $"{(int)left.TotalMinutes}:{left.Seconds:00}"
         : "closed";
 
+    private string _name = "";
+
     protected override void OnInitialized()
     {
         Handout.Changed += OnChanged;
         Tap.Tapped += OnTapped;
+
+        _name = MyName.Clean(Store.GetSetting(MyName.Key));
+    }
+
+    /// <summary>
+    /// Remember the name as it is typed.
+    /// </summary>
+    /// <remarks>
+    /// Kept on this device and nowhere else. It is not an account and nobody is asked to prove it —
+    /// the proof is that the person saying it is standing next to you.
+    /// </remarks>
+    private void OnName(ChangeEventArgs e)
+    {
+        _name = MyName.Clean(e.Value?.ToString());
+        Store.SetSetting(MyName.Key, _name);
     }
 
     private async Task StartAsync()
@@ -169,7 +184,7 @@
             // Raise a network with this person's name on it. That name is the whole design: a raw
             // address under a browser's "not secure" warning is a thing people are taught to back
             // away from, and a network called after somebody is a thing they join without thinking.
-            _network = GuestGroup.For(Me.AetherTag);
+            _network = GuestGroup.For(MyName.OrTag(_name, Me.AetherTag));
             var hosted = await Group.HostAsync(_network);
 
             if (hosted is null)
@@ -182,7 +197,7 @@
 
             // Off the UI thread: opening the listener and reading the package size both touch the
             // file system, and this is the button somebody presses while a friend is watching.
-            var invite = await Task.Run(() => Handout.Start(from: Me.AetherTag));
+            var invite = await Task.Run(() => Handout.Start(from: MyName.OrTag(_name, Me.AetherTag)));
 
             if (invite is null)
             {
@@ -198,7 +213,7 @@
             // The tap carries the network, not an address. Their phone joins, sees no internet behind
             // it, and raises its own sign-in sheet — which is the only frame that a stranger's handset
             // will vouch for.
-            await ArmTap();
+            ArmTap();
 
             _tick = new System.Threading.Timer(_ => OnChanged(), null, 1000, 1000);
         }
@@ -206,80 +221,27 @@
     }
 
     private WifiDirectCredentials? _network;
-    private bool _provision;
-    private string? _carrying;
-
     /// <summary>
-    /// Choose what a tap hands over.
-    /// </summary>
-    /// <remarks>
-    /// Android reads the first record of a tap and ignores everything after it, so these are genuinely
-    /// exclusive — one tap cannot both join a phone to a network and ask it to install us. Keeping the
-    /// network the default is deliberate: it is the one that has been proven against a stock handset.
-    /// </remarks>
-    private async Task Carry(bool provision)
-    {
-        if (_provision == provision || _invite is null) return;
-
-        _provision = provision;
-
-        // Choosing is a deliberate act, so the offer gets its full window back. Without this, picking
-        // the heavier tap late leaves seconds to actually touch the phones — and it expires silently,
-        // disarming the tag while somebody is still holding them together.
-        Handout.Extend();
-
-        await ArmTap();
-    }
-
-    /// <summary>
-    /// Load the tap with whichever message is currently chosen.
+    /// Load the tap.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The network tap carries credentials in the format stock Android already acts on — measured: a
-    /// phone with nothing installed read it and joined, with nobody typing anything.
+    /// One thing, not a choice. There was a switch here offering "network" or "whole install", which
+    /// was a debugging control wearing product clothes — nobody handing a friend an app should be
+    /// picking between two payload formats, and one of the two only worked on a phone at its setup
+    /// screen, which is a moment that comes round every few years.
     /// </para>
     /// <para>
-    /// The install tap carries a network, a place and a <b>fingerprint</b>, and asks the receiving
-    /// system to do the whole thing itself. Nothing is rendered to anybody, which is the point: the
-    /// address that made a stranger back away is now read by an operating system that has no opinion
-    /// about how it looks. Whether a tag we emulate is accepted where a sticker would be is the open
-    /// question, and it is answered by touching two phones.
+    /// What is left is the one that works on a phone somebody is already using: credentials in the
+    /// format stock Android acts on. Measured — a handset with nothing installed read it and raised
+    /// its own "connect to this network?" dialog, with nobody typing anything.
     /// </para>
     /// </remarks>
-    private async Task ArmTap()
+    private void ArmTap()
     {
         if (_network is not { } net) return;
 
-        if (!_provision)
-        {
-            Tap.Arm(Me.AetherTag, net.NetworkName, net.Passphrase);
-            _carrying = null;
-            return;
-        }
-
-        _carrying = "reading the installer…";
-        StateHasChanged();
-
-        // Tens of megabytes hashed off the UI thread. Doing it here rather than caching it means the
-        // fingerprint always describes the package actually being served — a stale one would fail at
-        // the far end, after the download, in the most confusing way available.
-        var print = await Task.Run(() => Handout.FingerprintAsync());
-
-        if (print is null || Handout.Package is not { Length: > 0 } where)
-        {
-            _carrying = "couldn't read this phone's own installer — the tap still carries the network";
-            _provision = false;
-            Tap.Arm(Me.AetherTag, net.NetworkName, net.Passphrase);
-            return;
-        }
-
-        Tap.ArmRaw(
-            Provisioning.Message(Handout.PackageName, where, print, net.NetworkName, net.Passphrase,
-                Handout.AdminComponent),
-            "the whole install");
-
-        _carrying = $"fingerprint {print[..8]}…";
+        Tap.Arm(Me.AetherTag, net.NetworkName, net.Passphrase);
     }
 
     private void StopSharing()
@@ -287,10 +249,6 @@
         Tap.Disarm();
         Handout.Stop();
 
-        // The choice OUTLIVES the offer, deliberately. It was reset here at first, and that cost three
-        // taps: stop, start again, and the tag was quietly back to handing over a network while the
-        // person holding it believed they were handing over the whole install.
-        _carrying = null;
 
         // The network goes with the offer. One left up is a phone quietly running an open door.
         if (_network is not null) { _ = Group.LeaveAsync(); _network = null; }
