@@ -31,6 +31,16 @@ public interface IAppShareService
     long SizeBytes { get; }
 
     /// <summary>
+    /// The package being handed over, named the way the receiving system will name it.
+    /// </summary>
+    /// <remarks>
+    /// A default is given so nothing has to implement this to be correct, but a platform that can ask
+    /// itself should — a rename that the constant misses fails at the far end, where the only symptom
+    /// is a phone that downloads the app and then refuses to install it.
+    /// </remarks>
+    string PackageName => "com.bhengubv.aethernet";
+
+    /// <summary>
     /// The app's own installer, ready to send.
     /// </summary>
     /// <remarks>

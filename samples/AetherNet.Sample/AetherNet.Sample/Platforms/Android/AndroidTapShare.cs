@@ -20,6 +20,7 @@ public sealed class AndroidTapShare : ITapShare
 {
     private readonly NfcAdapter? _nfc;
     private readonly bool _hasEmulation;
+    private long _claimedAt;
 
     public AndroidTapShare()
     {
@@ -32,6 +33,31 @@ public sealed class AndroidTapShare : ITapShare
             .HasSystemFeature(global::Android.Content.PM.PackageManager.FeatureNfcHostCardEmulation) == true;
 
         TouchMyBlood.Tapped += () => Tapped?.Invoke();
+
+        // Both NFC claims are bound to an activity being RESUMED, and Android drops them on its own
+        // when it pauses. Measured: the screen stayed open and armed, this class never released
+        // anything, and the dump still read "Current preferred foreground service: null" — so a
+        // notification shade, a lock, or a glance at another app was enough to hand the tap back.
+        //
+        // That is not a cosmetic loss. Another app on this handset claims the same identifier —
+        // "Share your X profile by holding phones together" — so an unclaimed tap does not fail
+        // quietly, it goes to them.
+        Microsoft.Maui.ApplicationModel.Platform.ActivityStateChanged += (_, e) =>
+        {
+            if (e.State is not Microsoft.Maui.ApplicationModel.ActivityState.Resumed) return;
+            if (!TouchMyBlood.IsArmed) return;
+
+            // Resumed arrives twice for one return to the screen, and each claim reconfigures the NFC
+            // controller. Doing that twice in a millisecond is churn on the one radio a tap depends
+            // on, so the second is dropped.
+            var now = Environment.TickCount64;
+            if (now - _claimedAt < 500) return;
+            _claimedAt = now;
+
+            global::Android.Util.Log.Info("AetherTMB", "back in front — claiming the tap again");
+            Prefer(true);
+            Capture(true);
+        };
     }
 
     /// <inheritdoc />
@@ -54,10 +80,42 @@ public sealed class AndroidTapShare : ITapShare
     /// <inheritdoc />
     public void Arm(string aetherTag, string? ssid = null, string? passphrase = null)
     {
-        if (!IsSupported) return;
+        if (!CanArm()) return;
+
         TouchMyBlood.Offer(aetherTag, ssid, passphrase);
         Prefer(true);
         Capture(true);
+    }
+
+    /// <inheritdoc />
+    public void ArmRaw(byte[] message, string what)
+    {
+        if (!CanArm()) return;
+
+        TouchMyBlood.Offer(message, what);
+        Prefer(true);
+        Capture(true);
+    }
+
+    /// <summary>
+    /// Whether this phone can be read at all, said out loud either way.
+    /// </summary>
+    /// <remarks>
+    /// This used to return in silence, and the screen asks <see cref="IsSupported"/> separately — so a
+    /// phone that could not arm still showed "touch the phones back to back" while offering nothing.
+    /// Two taps were spent on that: the giver's log was empty, the taker read an empty NDEF, and
+    /// neither end said why.
+    /// </remarks>
+    private bool CanArm()
+    {
+        if (IsSupported) return true;
+
+        global::Android.Util.Log.Info("AetherTMB",
+            $"⚠ NOT armed — {UnavailableReason ?? "NFC is unavailable"} " +
+            $"(adapter={(_nfc is null ? "absent" : _nfc.IsEnabled ? "on" : "off")}, " +
+            $"emulation={_hasEmulation})");
+
+        return false;
     }
 
     /// <inheritdoc />
@@ -94,7 +152,11 @@ public sealed class AndroidTapShare : ITapShare
     private void Capture(bool capture)
     {
         if (_nfc is null) return;
-        if (Microsoft.Maui.ApplicationModel.Platform.CurrentActivity is not { } activity) return;
+        if (Microsoft.Maui.ApplicationModel.Platform.CurrentActivity is not { } activity)
+        {
+            global::Android.Util.Log.Info("AetherTMB", "⚠ no activity — cannot capture the tap");
+            return;
+        }
 
         // The NFC foreground APIs are activity-lifecycle bound and must be called on the thread that
         // owns the activity. This is reached from a Blazor event handler, which is not that thread.
@@ -116,6 +178,7 @@ public sealed class AndroidTapShare : ITapShare
 
                 var pending = global::Android.App.PendingIntent.GetActivity(activity, 0, back, flags);
                 _nfc.EnableForegroundDispatch(activity, pending, null, null);
+                global::Android.Util.Log.Info("AetherTMB", "captured the tap — nothing else on this phone gets a tag now");
             }
             catch (Exception ex)
             {
@@ -145,7 +208,13 @@ public sealed class AndroidTapShare : ITapShare
         try
         {
             if (_nfc is null) return;
-            if (Microsoft.Maui.ApplicationModel.Platform.CurrentActivity is not { } activity) return;
+            if (Microsoft.Maui.ApplicationModel.Platform.CurrentActivity is not { } activity)
+            {
+                // Both NFC claims are bound to an activity. Without one they cannot be made, and the
+                // tap quietly goes to whichever app registered the broadest filter.
+                global::Android.Util.Log.Info("AetherTMB", "⚠ no activity — cannot claim the tap");
+                return;
+            }
 
             var emulation = CardEmulation.GetInstance(_nfc);
             if (emulation is null) return;
@@ -155,6 +224,9 @@ public sealed class AndroidTapShare : ITapShare
 
             if (preferred) emulation.SetPreferredService(activity, service);
             else emulation.UnsetPreferredService(activity);
+
+            global::Android.Util.Log.Info("AetherTMB",
+                preferred ? "claimed the tap — a reader touching us gets Aether" : "released the tap");
         }
         catch (Exception ex)
         {

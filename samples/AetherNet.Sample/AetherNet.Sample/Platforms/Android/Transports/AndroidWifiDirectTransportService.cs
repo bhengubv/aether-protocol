@@ -459,7 +459,10 @@ public sealed class AndroidWifiDirectTransportService
             if (_context.GetSystemService(Context.WifiService) is not global::Android.Net.Wifi.WifiManager wifi)
                 return 0;
 
-            return Math.Max(wifi.ConnectionInfo?.Frequency ?? 0, 0);
+            // Through the remembered channel, always. The clamp below turns a disconnected radio's
+            // -1 into a 0 that reads like an answer, and 0 at this call site means "put the group
+            // wherever you like" — which is how a guest ends up losing the network they were on.
+            return _station.Best(wifi.ConnectionInfo?.Frequency ?? 0);
         }
         catch (Exception ex)
         {
@@ -475,6 +478,15 @@ public sealed class AndroidWifiDirectTransportService
     /// Returns 0 when it does not come back — a phone genuinely not on Wi-Fi has no channel to share,
     /// and waiting longer for one would only delay a group that is going to form anyway.
     /// </remarks>
+    /// <summary>
+    /// The channel this phone's Wi-Fi was last genuinely on.
+    /// </summary>
+    /// <remarks>
+    /// Held for the life of the service so a reading taken before we own the radio survives being
+    /// asked again after we do — which is every time we host.
+    /// </remarks>
+    private readonly StationChannel _station = new();
+
     private async Task<int> WaitForStationAsync(CancellationToken cancellationToken)
     {
         var deadline = DateTime.UtcNow + StationWait;
@@ -493,7 +505,12 @@ public sealed class AndroidWifiDirectTransportService
             await Task.Delay(500, cancellationToken).ConfigureAwait(false);
         }
 
-        return StationFrequencyMhz();
+        // Out of time. If this phone was ever seen on a real channel, that is a far better answer
+        // than none — asking for nothing puts the group on a default channel, and the phone that
+        // joins it has to leave whatever network it was on to follow.
+        var remembered = StationFrequencyMhz();
+        if (remembered > 0) L($"station still down — using the {remembered}MHz it was last on");
+        return remembered;
     }
 
     /// <summary>

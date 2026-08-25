@@ -305,7 +305,20 @@ public static class MauiProgram
                 var fast = app.Services.GetService<FastRadioService>();
 #if ANDROID
                 if (fast is not null)
-                    fast.Trace += m => global::Android.Util.Log.Info("AetherFast", m);
+                {
+                    // Trace fires every pass of the radio loop, including the passes where nothing has
+                    // changed, because the screen wants a live answer. Logcat does not — written out
+                    // each time, it evicts the tag and takes the lines that mattered with it. The
+                    // service already suppresses repeats before its own logger; this is the same rule
+                    // for the platform log.
+                    var lastSaid = "";
+                    fast.Trace += m =>
+                    {
+                        if (string.Equals(m, lastSaid, StringComparison.Ordinal)) return;
+                        lastSaid = m;
+                        global::Android.Util.Log.Info("AetherFast", m);
+                    };
+                }
 #endif
             });
         });

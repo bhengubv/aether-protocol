@@ -80,6 +80,7 @@ public sealed class TouchMyBlood : HostApduService
             try
             {
                 _offer = WifiHandover.Message(ssid, passphrase);
+                Say($"armed — a tap now hands over the network {ssid} ({_offer.Length}B)");
                 return;
             }
             catch (ArgumentException ex)
@@ -88,24 +89,98 @@ public sealed class TouchMyBlood : HostApduService
             }
         }
 
-        _offer = string.IsNullOrWhiteSpace(aetherTag) ? null : Ndef.Tag(aetherTag);
+        if (string.IsNullOrWhiteSpace(aetherTag))
+        {
+            _offer = null;
+            Say("disarmed — a tap now hands over nothing");
+            return;
+        }
+
+        _offer = Ndef.Tag(aetherTag);
+        Say($"armed — a tap now hands over the identity {aetherTag} ({_offer.Length}B)");
     }
+
+    /// <summary>
+    /// Arm the tap with a message assembled elsewhere.
+    /// </summary>
+    /// <remarks>
+    /// The provisioning tap comes through here. It is built and tested on the neutral side because it
+    /// is the one message this app sends that a person never sees any part of — if a byte of it is
+    /// wrong, the only symptom is a phone that does nothing at all when touched.
+    /// </remarks>
+    public static void Offer(byte[]? message, string what)
+    {
+        if (message is not { Length: > 0 })
+        {
+            _offer = null;
+            Say("disarmed — a tap now hands over nothing");
+            return;
+        }
+
+        _offer = message;
+        Say($"armed — a tap now hands over {what} ({message.Length}B)");
+    }
+
+    /// <summary>
+    /// Trace to logcat under one tag.
+    /// </summary>
+    /// <remarks>
+    /// Every line this class used to print was an error. So a tap that WORKED logged nothing, and
+    /// silence read exactly like a tap that never happened — which is the one failure this feature
+    /// has, and the one thing a log has to be able to tell you apart.
+    /// </remarks>
+    private static void Say(string message) => global::Android.Util.Log.Info("AetherTMB", message);
 
     /// <summary>Whether a tap would currently hand anything over.</summary>
     public static bool IsArmed => _offer is not null;
 
     private readonly Type4Tag _tag = new();
+    private bool _first = true;
 
-    public TouchMyBlood() => _tag.Read += () => Tapped?.Invoke();
+    public TouchMyBlood() => _tag.Read += () =>
+    {
+        Say("● a reader took the whole message — the tap landed");
+        Tapped?.Invoke();
+    };
 
     public override byte[]? ProcessCommandApdu(byte[]? commandApdu, Bundle? extras)
     {
+        // The first command of a tap. Worth one line: it is the only proof that another phone's radio
+        // reached this one at all, and everything after it is either the conversation working or the
+        // conversation failing — both of which are silent from the outside.
+        if (_first) { _first = false; Say("a phone is reading us"); }
+
         // Read afresh for each command rather than captured once: the tag freezes the message itself
         // when the reader selects the application, which is the point at which it must stop changing.
         _tag.Offer = _offer;
-        return _tag.Process(commandApdu);
+        var response = _tag.Process(commandApdu);
+
+        // The whole walk, one line per command.
+        //
+        // Measured: a reader engaged this tag with a 627-byte message on it, stayed for six seconds,
+        // and never completed — while the same tag carrying 106 bytes completes in 199 ms. From the
+        // outside those two are identical: a phone touched, and nothing happened. The only thing that
+        // separates them is which command the reader stopped on, and that is invisible without this.
+        if (commandApdu is { Length: >= 4 })
+        {
+            var status = response is { Length: >= 2 }
+                ? $"{response[^2]:X2}{response[^1]:X2}"
+                : "----";
+
+            global::Android.Util.Log.Info("AetherTMB",
+                $"  ins={commandApdu[1]:X2} p1p2={commandApdu[2]:X2}{commandApdu[3]:X2} " +
+                $"le={(commandApdu.Length > 4 ? commandApdu[^1] : 0)} " +
+                $"→ {(response?.Length ?? 0)}B sw={status}");
+        }
+
+        return response;
     }
 
-    public override void OnDeactivated(DeactivationReason reason) => _tag.Deactivated();
+    public override void OnDeactivated(DeactivationReason reason)
+    {
+        Say($"the phones came apart ({reason})");
+        _first = true;
+        _tag.Deactivated();
+    }
 }
 #endif

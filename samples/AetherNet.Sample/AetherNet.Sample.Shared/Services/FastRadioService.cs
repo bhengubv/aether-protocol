@@ -76,10 +76,37 @@ public sealed class FastRadioService : IDisposable
     /// <summary>What this phone is doing right now, in words a person could read.</summary>
     public string State { get; private set; } = "not started";
 
+    /// <summary>What was last said, so saying it again changes nothing.</summary>
+    private string _said = "";
+
+    /// <summary>
+    /// Say something, once.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This loop runs every few seconds forever, and while a phone has nobody added it has the same
+    /// thing to report every time. Written out each pass, that is two lines every eight seconds, and
+    /// Android's log daemon responds by evicting the tag — <c>chatty: WifiP2pService expire 58
+    /// lines</c>. It does not throttle the noise, it drops whatever the buffer needs to lose.
+    /// </para>
+    /// <para>
+    /// Measured 2026-08-25: the app's entire buffer held 98 lines, nearly all of them this one
+    /// sentence, and the Wi-Fi Direct lines that would have shown whether a group formed had already
+    /// been expired out of it. I read that absence twice and reported a working radio as broken. A log
+    /// that eats itself is worse than no log, because it looks like evidence.
+    /// </para>
+    /// <para>
+    /// The screen still updates every pass — <see cref="State"/> and <see cref="Trace"/> are set
+    /// unconditionally. Only the writing-down is suppressed, and only while nothing has changed.
+    /// </para>
+    /// </remarks>
     private void T(string message)
     {
         State = message;
         Trace?.Invoke(message);
+
+        if (string.Equals(message, _said, StringComparison.Ordinal)) return;
+        _said = message;
         _log.LogInformation("[FastRadio] {Message}", message);
     }
 

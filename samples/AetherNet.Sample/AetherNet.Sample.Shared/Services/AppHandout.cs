@@ -81,6 +81,42 @@ public sealed class AppHandout : IDisposable
     public int Served => _served;
 
     /// <summary>
+    /// Where the installer itself sits — an address no human being is ever shown.
+    /// </summary>
+    /// <remarks>
+    /// The objection to the earlier design was never the browser, it was the raw address a stranger
+    /// was asked to read and trust. This one is read by an operating system, which has no opinion
+    /// about how it looks, and is never rendered on any screen.
+    /// </remarks>
+    public string? Package =>
+        Invite is { Length: > 0 } invite ? string.Concat(invite, "/", ShareInvite.FileName) : null;
+
+    /// <summary>What the far end will call what it just installed.</summary>
+    public string PackageName => _app.PackageName;
+
+    /// <summary>
+    /// The fingerprint of what is being handed over.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the part that makes the handover a claim rather than a link. A tap that names a place
+    /// can be pointed anywhere; a tap that names the bytes cannot, because the far end refuses
+    /// anything that hashes differently. So the bytes are then free to come from us, or from anyone
+    /// else nearby already holding them, without weakening what was promised.
+    /// </para>
+    /// <para>
+    /// Computed rather than cached: it is tens of megabytes read once at the moment of arming, which
+    /// is a fair price on a phone with three gigabytes in it, and a stale fingerprint would fail in
+    /// the most confusing way available — a tap that lands, downloads, and then silently refuses.
+    /// </para>
+    /// </remarks>
+    public async Task<string?> FingerprintAsync(CancellationToken cancellationToken = default)
+    {
+        var installer = await _app.ReadInstallerAsync(cancellationToken).ConfigureAwait(false);
+        return installer is { Length: > 0 } ? Provisioning.Fingerprint(installer) : null;
+    }
+
+    /// <summary>
     /// Whether the guest's phone will be sent to the card by its own operating system.
     /// </summary>
     /// <remarks>
@@ -92,6 +128,30 @@ public sealed class AppHandout : IDisposable
 
     /// <summary>How many lookups a guest has made — proof somebody actually joined.</summary>
     public int PortalAsked => _portal?.Asked ?? 0;
+
+    /// <summary>
+    /// Give the offer its full window back.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For a deliberate act by the person holding the phone, not a way to keep a door open. Choosing
+    /// what the tap hands over is such an act — and choosing the heavier one costs seconds of reading
+    /// the installer, so leaving the clock running punishes exactly the choice that needs the most
+    /// time.
+    /// </para>
+    /// <para>
+    /// Measured: an offer opened at 19:11:53 with a five-minute window, switched to the install tap at
+    /// 19:13:03, and expired at 19:16:52 with the tag still armed — silently taking the tap with it
+    /// while somebody stood there holding two phones together.
+    /// </para>
+    /// </remarks>
+    public void Extend()
+    {
+        if (Invite is null) return;
+
+        _expires = DateTimeOffset.UtcNow + _window;
+        Changed?.Invoke();
+    }
 
     /// <summary>How long this invite has left, or zero when it is not running.</summary>
     public TimeSpan Remaining =>
@@ -190,12 +250,19 @@ public sealed class AppHandout : IDisposable
     }
 
     /// <summary>Close the door on time, whether or not anybody came through it.</summary>
+    /// <remarks>
+    /// <b>Re-read each time round, not slept once.</b> A single delay for the whole window is a
+    /// deadline nothing can move afterwards — <see cref="Extend"/> would push <c>_expires</c> out and
+    /// the offer would still die at the original moment, because the sleep was already scheduled.
+    /// That is exactly how a tap was lost: the tag was armed, the person was holding two phones
+    /// together, and the door shut behind them on a clock they had already been given more of.
+    /// </remarks>
     private async Task ExpireAsync(CancellationToken life)
     {
         try
         {
-            var left = Remaining;
-            if (left > TimeSpan.Zero) await Task.Delay(left, life).ConfigureAwait(false);
+            while (Remaining is { Ticks: > 0 } left)
+                await Task.Delay(left, life).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { return; }
 

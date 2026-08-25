@@ -119,6 +119,8 @@ public class MainActivity : MauiAppCompatActivity
     {
         if (intent?.Action != global::Android.Nfc.NfcAdapter.ActionNdefDiscovered) return false;
 
+        global::Android.Util.Log.Info("AetherTMB", "a tag was read and Android gave it to us");
+
         try
         {
             if (intent.GetParcelableArrayExtra(global::Android.Nfc.NfcAdapter.ExtraNdefMessages)
@@ -140,6 +142,7 @@ public class MainActivity : MauiAppCompatActivity
                     var tag = System.Text.Encoding.ASCII.GetString(record.GetPayload() ?? []).Trim();
                     if (string.IsNullOrEmpty(tag)) continue;
 
+                    global::Android.Util.Log.Info("AetherTMB", $"● we touched {tag} — asking what they hold");
                     Taps.Current?.Deliver(tag);
                     return true;
                 }

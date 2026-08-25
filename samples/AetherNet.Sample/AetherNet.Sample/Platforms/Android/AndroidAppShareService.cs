@@ -34,6 +34,10 @@ public sealed class AndroidAppShareService : IAppShareService
     public bool IsSupported => InstallerPath is { Length: > 0 } path && File.Exists(path);
 
     /// <inheritdoc />
+    /// <remarks>Asked of the running package rather than written down, so a rename cannot go stale.</remarks>
+    public string PackageName => Ctx.PackageName ?? "com.bhengubv.aethernet";
+
+    /// <inheritdoc />
     public string? UnavailableReason => IsSupported ? null : "this phone will not say where the app lives";
 
     public long SizeBytes

@@ -983,6 +983,8 @@ public sealed class ChatService
             await _signal.DecryptAsync(senderTag, asked).ConfigureAwait(false);
             _radio.IdentifyPeer(senderTag);
 
+            T($"◀ {senderTag} touched us and is asking what we hold");
+
             var holding = Holding is { } ask
                 ? await ask().ConfigureAwait(false)
                 : Handoff.Describe(WhereIAm);
@@ -997,7 +999,9 @@ public sealed class ChatService
                 .EncryptAsync(senderTag, Handoff.Encode(note)).ConfigureAwait(false);
 
             await _radio.SendPacketAsync(Wrap(Handoff.Marker, sealedPayload, senderTag)).ConfigureAwait(false);
-            T($"handed {note.Kind} to {senderTag}");
+            T($"▶ handed {senderTag} the {note.Kind} {note.Target}" +
+              (note.Draft is null ? "" : $" with {note.Draft.Length} unsent characters") +
+              (note.At is null ? "" : $" at {note.At:P0}"));
         }
         catch (Exception ex)
         {
@@ -1029,7 +1033,9 @@ public sealed class ChatService
             // Put it down before the navigation, because the page that wants it does not exist yet.
             _arriving = arrived;
 
-            T($"{senderTag} handed us {route}");
+            T($"◀ {senderTag} handed us {route}" +
+              (arrived?.Draft is null ? "" : $" with {arrived.Draft.Length} unsent characters") +
+              (arrived?.At is null ? "" : $" at {arrived.At:P0}"));
             HandoffArrived?.Invoke(route);
         }
         catch (Exception ex)

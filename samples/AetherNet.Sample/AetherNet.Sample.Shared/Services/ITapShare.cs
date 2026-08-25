@@ -50,6 +50,19 @@ public interface ITapShare
     /// <param name="passphrase">Its key. Nobody reads it — the tap carries it.</param>
     void Arm(string aetherTag, string? ssid = null, string? passphrase = null);
 
+    /// <summary>
+    /// Arm the tap with a message built elsewhere.
+    /// </summary>
+    /// <param name="message">A complete NDEF message.</param>
+    /// <param name="what">What it is, in words, for the log — a tap that fails is otherwise silent.</param>
+    /// <remarks>
+    /// Every tap this app knows how to build is assembled and tested on the platform-neutral side,
+    /// where a reader's whole walk can be played against it. This keeps it that way: the platform
+    /// decides whether a tap is possible at all and then hands the bytes over, and never decides what
+    /// those bytes say.
+    /// </remarks>
+    void ArmRaw(byte[] message, string what);
+
     /// <summary>Stop offering. Called when the screen goes away, not left to a timeout.</summary>
     void Disarm();
 
@@ -70,6 +83,7 @@ public sealed class NoTapShare : ITapShare
     public string? UnavailableReason => "this device has no NFC";
     public bool IsArmed => false;
     public void Arm(string aetherTag, string? ssid = null, string? passphrase = null) { }
+    public void ArmRaw(byte[] message, string what) { }
     public void Disarm() { }
     public event Action? Tapped { add { } remove { } }
 }
