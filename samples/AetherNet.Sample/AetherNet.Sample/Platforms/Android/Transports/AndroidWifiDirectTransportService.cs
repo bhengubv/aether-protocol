@@ -330,54 +330,36 @@ public sealed class AndroidWifiDirectTransportService
         bool created;
         if (WifiDirectCredentials.IsUsable(wanted) && CanNameTheGroup)
         {
-            // Asking for a channel is a preference, not a requirement. If the framework refuses the
-            // request outright we would rather have a group on a channel we did not choose than no
-            // group at all — so the preference is dropped and asked again, once.
-            var askForChannel = attempt < 1;
+            // Ask for as much of the channel as the radio will accept, stepping DOWN rather than
+            // giving up.
+            //
+            // This used to ask once and then drop every preference, and that is what cost the friend
+            // joining their internet. Measured: this phone's Wi-Fi was on 5500MHz — a radar channel a
+            // group owner is barred from — so we asked for the 5GHz band, the radio refused, and the
+            // retry asked for nothing at all. The group landed on 2.4GHz against a 5GHz house network,
+            // and a phone has one radio, so theirs had to leave the network to follow us.
+            //
+            // Each rung down costs the other phone more: the same channel costs nothing, the same band
+            // costs a channel change, the other band costs them their Wi-Fi.
+            var ladder = GroupChannel.Ladder(_station.Known > 0
+                ? _station.Known
+                : await WaitForStationAsync(cancellationToken).ConfigureAwait(false));
+
+            var rung = Math.Min(attempt, ladder.Length - 1);
+            var chosen = ladder[rung];
+
             var builder = new WifiP2pConfig.Builder()
                 .SetNetworkName(wanted!.NetworkName)
                 .SetPassphrase(wanted.Passphrase);
 
-            // Put the group on the channel this phone's own Wi-Fi is already using.
-            //
-            // There is one radio. Hosting a group on 2.4GHz while the phone is associated to an access
-            // point on 5GHz asks that radio to be in two places at once, and the chip answers by
-            // time-slicing between them. Nothing fails and nothing is logged — the household Wi-Fi
-            // simply hangs for as long as the group is up, and the group gets a fraction of the air it
-            // thinks it has. Measured here: both phones associated at 5500MHz, group formed at 2412MHz.
-            //
-            // Sharing the channel costs nothing. The group and the access point are then two networks
-            // the radio is already tuned for, and neither has to wait for the other.
-            // Wait for the phone's own Wi-Fi to come back before deciding where to put the group.
-            //
-            // Hosting takes the station down on some phones — the P30 goes to "Supplicant state:
-            // DISCONNECTED, Frequency: -1MHz" for as long as it is group owner. Leaving the old group
-            // gives it back, but not instantly, and asking a disconnected phone what channel it is on
-            // returns nothing. That answer then means "no channel to match", the group goes to 2.4GHz
-            // by default, and the station never recovers — so the next launch asks a disconnected
-            // phone again and gets the same answer. The loop closes on itself and the household Wi-Fi
-            // never comes back until Wi-Fi is toggled by hand.
-            var station = askForChannel
-                ? await WaitForStationAsync(cancellationToken).ConfigureAwait(false)
-                : 0;
-
-            if (station > 0 && CanHostOn(station))
+            if (chosen != GroupChannel.Anything)
             {
-                L($"hosting on {station}MHz — the channel this phone's Wi-Fi is already on");
-                builder.SetGroupOperatingFrequency(station);
+                L($"hosting on {GroupChannel.Describe(chosen, _station.Known)}");
+                builder.SetGroupOperatingFrequency(chosen);
             }
-            else if (station >= 5000)
+            else
             {
-                // The access point is on a channel Wi-Fi Direct is not allowed to use — every 5GHz
-                // channel from 52 to 144 is radar-shared, and P2P is barred from all of them. Asking
-                // anyway is not refused, it is silently ignored: measured here, a request for 5500MHz
-                // produced a group on 2437MHz and the phone's own Wi-Fi went from 2.5ms to the gateway
-                // to an average of 135ms with spikes past a third of a second.
-                //
-                // Staying in the same band is the next best thing. The radio still has two channels to
-                // serve, but it does not also have to change band to do it.
-                L($"{station}MHz is a radar channel and off limits to Wi-Fi Direct — asking for 5GHz instead");
-                builder.SetGroupOperatingBand((global::Android.Net.Wifi.P2p.Frequency)GroupOwnerBand5Ghz);
+                L($"hosting {GroupChannel.Describe(chosen, _station.Known)}");
             }
 
             L($"creating {wanted.NetworkName} — the name this Circle already knows");
@@ -392,11 +374,15 @@ public sealed class AndroidWifiDirectTransportService
 
         if (!created)
         {
-            // A plain refusal on the first go is most likely the channel preference — drop it and ask
-            // again without one before concluding the radio will not host.
-            if (attempt == 0)
+            // A plain refusal is most likely the channel we asked for, so step DOWN the ladder rather
+            // than abandoning the preference altogether.
+            //
+            // Dropping it outright is what cost the joining phone its internet: one refusal and the
+            // group went wherever the framework liked, which was the other band. Each rung is still a
+            // preference, and every one of them is better for the other phone than no preference.
+            if (LastFailure != BusyReason && attempt < GroupChannel.Ladder(_station.Known).Length - 1)
             {
-                L("the radio refused that request — asking again without a channel preference");
+                L("the radio refused that channel — trying the next one down");
                 return await HostAsync(wanted, cancellationToken, attempt + 1).ConfigureAwait(false);
             }
 

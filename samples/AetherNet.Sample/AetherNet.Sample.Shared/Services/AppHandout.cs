@@ -156,6 +156,38 @@ public sealed class AppHandout : IDisposable
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// How long the offer stays open after somebody has actually taken it.
+    /// </summary>
+    /// <remarks>
+    /// Long enough for a second friend at the same table to tap straight away, short enough that the
+    /// person who just received it gets their own Wi-Fi back almost immediately.
+    /// </remarks>
+    public static readonly TimeSpan Grace = TimeSpan.FromSeconds(45);
+
+    /// <summary>
+    /// Bring the closing time forward, because the thing it was open for has happened.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// While this group is up, the phone that joined it may be off its own Wi-Fi entirely — one radio
+    /// cannot always hold both, and if their network sits on a channel a group owner is barred from
+    /// there is no channel we can share. Measured on a Redmi: internet gone, every time.
+    /// </para>
+    /// <para>
+    /// The package moves in about nine seconds. Holding the door open for the remaining four and a
+    /// half minutes turns a brief interruption into a long one, for nobody's benefit.
+    /// </para>
+    /// </remarks>
+    public void CloseSoon()
+    {
+        if (Invite is null) return;
+        if (Remaining <= Grace) return;
+
+        _expires = DateTimeOffset.UtcNow + Grace;
+        Changed?.Invoke();
+    }
+
     /// <summary>How long this invite has left, or zero when it is not running.</summary>
     public TimeSpan Remaining =>
         Invite is null ? TimeSpan.Zero
@@ -164,6 +196,24 @@ public sealed class AppHandout : IDisposable
 
     /// <summary>Raised when a phone starts taking it, and again when it finishes. UI re-renders on it.</summary>
     public event Action? Changed;
+
+    /// <summary>
+    /// Raised the instant a package has finished going out the door.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This exists so the network can come down as soon as it is not needed. A phone has one radio,
+    /// and while our group is up the friend who joined it may be off their own Wi-Fi entirely —
+    /// measured, repeatedly, on a Redmi that lost its internet every time.
+    /// </para>
+    /// <para>
+    /// We cannot always prevent that: the channel their phone is on may be one a group owner is barred
+    /// from, and then there is no channel we can share. What we can do is make it brief. The package
+    /// moves in about nine seconds on this link; holding the group open for five minutes afterwards
+    /// turns nine seconds of no internet into five minutes of it, for nothing.
+    /// </para>
+    /// </remarks>
+    public event Action? Delivered;
 
     /// <summary>
     /// Begin offering the app. Returns the address to hand over, or null when there is nothing to
@@ -404,6 +454,8 @@ public sealed class AppHandout : IDisposable
             // an app killed midway through the one moment it needed to work.
             await installer.CopyToAsync(stream, 64 * 1024, life).ConfigureAwait(false);
             await stream.FlushAsync(life).ConfigureAwait(false);
+
+            Delivered?.Invoke();
         }
         finally { Changed?.Invoke(); }
     }

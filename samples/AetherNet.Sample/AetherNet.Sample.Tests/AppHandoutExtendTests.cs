@@ -99,4 +99,52 @@ public class AppHandoutExtendTests
 
         Assert.Equal(1, said);
     }
+
+    /// <summary>
+    /// Once somebody has taken it, the door starts closing.
+    /// </summary>
+    /// <remarks>
+    /// While the group is up, the phone that joined it may be off its own Wi-Fi — measured on a Redmi,
+    /// internet gone every time. The package moves in about nine seconds; holding the group for the
+    /// rest of a five-minute window turns that into five minutes of no internet for somebody who has
+    /// just been given something.
+    /// </remarks>
+    [Fact]
+    public void Closing_soon_brings_the_window_forward()
+    {
+        using var handout = new AppHandout(new OneApk(), TimeSpan.FromMinutes(5));
+        Assert.NotNull(handout.Start(host: "192.168.49.1", from: "Thabang"));
+
+        Assert.True(handout.Remaining > AppHandout.Grace);
+
+        handout.CloseSoon();
+
+        Assert.True(handout.Remaining <= AppHandout.Grace,
+            $"should be closing within the grace; {handout.Remaining} left");
+        Assert.True(handout.Remaining > TimeSpan.Zero, "but not slammed shut on somebody mid-tap");
+    }
+
+    /// <summary>It never extends a window that is already shorter than the grace.</summary>
+    [Fact]
+    public void Closing_soon_never_gives_time_back()
+    {
+        using var handout = new AppHandout(new OneApk(), TimeSpan.FromMilliseconds(300));
+        Assert.NotNull(handout.Start(host: "192.168.49.1", from: "Thabang"));
+
+        var before = handout.Remaining;
+        handout.CloseSoon();
+
+        Assert.True(handout.Remaining <= before, "closing sooner must never mean later");
+    }
+
+    /// <summary>And closing an offer that was never open does nothing.</summary>
+    [Fact]
+    public void Closing_nothing_soon_does_nothing()
+    {
+        using var handout = new AppHandout(new OneApk(), TimeSpan.FromSeconds(5));
+
+        handout.CloseSoon();
+
+        Assert.Null(handout.Invite);
+    }
 }

@@ -156,6 +156,7 @@
     protected override void OnInitialized()
     {
         Handout.Changed += OnChanged;
+        Handout.Delivered += OnDelivered;
         Tap.Tapped += OnTapped;
 
         _name = MyName.Clean(Store.GetSetting(MyName.Key));
@@ -168,6 +169,29 @@
     /// Kept on this device and nowhere else. It is not an account and nobody is asked to prove it —
     /// the proof is that the person saying it is standing next to you.
     /// </remarks>
+    /// <summary>
+    /// The app has landed on their phone, so the network comes down.
+    /// </summary>
+    /// <remarks>
+    /// While our group is up, the friend who joined it may be off their own Wi-Fi — one radio cannot
+    /// always hold both, and the channel theirs is on may be one we are barred from sharing. Measured
+    /// on a Redmi: internet gone, every time. The transfer takes about nine seconds; leaving the group
+    /// open for the rest of the five-minute window turns that into five minutes of no internet for
+    /// somebody who has just been given something.
+    /// </remarks>
+    private void OnDelivered()
+    {
+        // Everybody who was going to take it has: stop now rather than sit there holding their radio.
+        if (Handout.Served >= AppHandout.MaxHandovers)
+        {
+            InvokeAsync(() => { StopSharing(); StateHasChanged(); });
+            return;
+        }
+
+        // Otherwise leave a short window for the next person at the same table, then close.
+        Handout.CloseSoon();
+    }
+
     private void OnName(ChangeEventArgs e)
     {
         _name = MyName.Clean(e.Value?.ToString());
@@ -272,6 +296,7 @@
     public void Dispose()
     {
         Handout.Changed -= OnChanged;
+        Handout.Delivered -= OnDelivered;
         Tap.Tapped -= OnTapped;
         _tick?.Dispose();
 
