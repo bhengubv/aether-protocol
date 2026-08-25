@@ -60,8 +60,30 @@
        types by reflection through the renderer, System.Text.Json and SQLitePCLRaw. Full trimming
        removes those and the failure shows up as a blank page on the device rather than a build error,
        which is the worst place to find it. -->
-  <PropertyGroup Condition="'$(Configuration)' == 'Release' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+  <!-- The ABI list is NOT Release-only, and that was a real bug rather than a tidiness point.
+       Everything we put on a phone is a Debug build, and Debug was shipping x86_64: measured
+       2026-08-25, 43.3 MB of a 94.8 MB package was emulator libraries that no handset can execute.
+       merlin is a 3 GB phone already killing processes under memory pressure, and half of what it was
+       being asked to install was for a machine that does not exist. Installs failed with
+       "Install canceled by user" — a message that means the session did not complete, not that
+       anybody declined anything, and I spent an afternoon telling the owner to tap a dialog that was
+       never there. -->
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <RuntimeIdentifiers>android-arm64;android-arm</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <!-- Debug goes to a phone, never to a shop, and every phone this project has is arm64 — measured:
+       both report arm64-v8a first in ro.product.cpu.abilist. The 32-bit half is another 42.8 MB that
+       neither handset can execute, and on a 3 GB device already swapping, size is the difference
+       between an install completing and the session dying half way.
+
+       Release keeps both, because a build that goes to strangers has to run on the old 32-bit phones
+       this network is largely for. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <AndroidLinkMode>SdkOnly</AndroidLinkMode>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <DebugSymbols>false</DebugSymbols>
