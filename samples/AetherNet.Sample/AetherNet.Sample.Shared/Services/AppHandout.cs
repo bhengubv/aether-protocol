@@ -56,6 +56,7 @@ public sealed class AppHandout : IDisposable
     private readonly object _gate = new();
 
     private TcpListener? _listener;
+    private CaptivePortal? _portal;
     private CancellationTokenSource? _life;
     private string _token = string.Empty;
     private string? _from;
@@ -78,6 +79,19 @@ public sealed class AppHandout : IDisposable
 
     /// <summary>How many phones have taken it.</summary>
     public int Served => _served;
+
+    /// <summary>
+    /// Whether the guest's phone will be sent to the card by its own operating system.
+    /// </summary>
+    /// <remarks>
+    /// False means the DNS port could not be taken, and the difference is not cosmetic: without it a
+    /// guest joins the network, their probe reaches nothing, and they are left looking at a Wi-Fi
+    /// symbol wondering what was supposed to happen.
+    /// </remarks>
+    public bool PortalUp { get; private set; }
+
+    /// <summary>How many lookups a guest has made — proof somebody actually joined.</summary>
+    public int PortalAsked => _portal?.Asked ?? 0;
 
     /// <summary>How long this invite has left, or zero when it is not running.</summary>
     public TimeSpan Remaining =>
@@ -139,6 +153,14 @@ public sealed class AppHandout : IDisposable
             Invite = ShareInvite.Compose(advertise, port, _token);
         }
 
+        // Every name the guest looks up resolves here for as long as the offer stands. Without it
+        // their connectivity probe never reaches us and their phone decides the internet is fine.
+        if (IPAddress.TryParse(new Uri(Invite!).Host, out var here))
+        {
+            _portal = new CaptivePortal(here);
+            PortalUp = _portal.Start();
+        }
+
         _ = Task.Run(() => AcceptAsync(_life!.Token), CancellationToken.None);
         _ = Task.Run(() => ExpireAsync(_life!.Token), CancellationToken.None);
         Changed?.Invoke();
@@ -154,6 +176,10 @@ public sealed class AppHandout : IDisposable
 
     private void StopLocked()
     {
+        try { _portal?.Dispose(); } catch { }
+        _portal = null;
+        PortalUp = false;
+
         try { _life?.Cancel(); } catch { }
         try { _listener?.Stop(); } catch { }
         _life?.Dispose();
@@ -204,6 +230,16 @@ public sealed class AppHandout : IDisposable
 
                 if (await ReadRequestLineAsync(stream, life).ConfigureAwait(false) is not { } request)
                     return;
+
+                // The guest's phone checks whether the internet is behind this network before it
+                // does anything else. Sending it somewhere is what makes Android raise its own
+                // sign-in sheet — system-drawn, titled with the network's name — which is the whole
+                // reason a stranger ever sees this without reading an address.
+                if (CaptivePortal.IsProbe(request.Path) && Invite is { } offer)
+                {
+                    await WriteAsync(stream, CaptivePortal.RedirectTo(offer), life).ConfigureAwait(false);
+                    return;
+                }
 
                 // One token, two things behind it: the page that explains the offer, and the package
                 // itself. Everything else is somebody scanning the network.

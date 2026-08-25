@@ -52,10 +52,10 @@ public sealed class AndroidTapShare : ITapShare
     public bool IsArmed => TouchMyBlood.IsArmed;
 
     /// <inheritdoc />
-    public void Arm(string invite, string aetherTag)
+    public void Arm(string aetherTag, string? ssid = null, string? passphrase = null)
     {
         if (!IsSupported) return;
-        TouchMyBlood.Offer(invite, aetherTag);
+        TouchMyBlood.Offer(aetherTag, ssid, passphrase);
         Prefer(true);
         Capture(true);
     }
@@ -63,7 +63,7 @@ public sealed class AndroidTapShare : ITapShare
     /// <inheritdoc />
     public void Disarm()
     {
-        TouchMyBlood.Offer(null, null);
+        TouchMyBlood.Offer(null);
         Prefer(false);
         Capture(false);
     }

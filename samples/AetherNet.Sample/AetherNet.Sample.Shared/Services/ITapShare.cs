@@ -46,7 +46,9 @@ public interface ITapShare
     /// Armed only while somebody is looking at the screen that armed it. A phone that quietly offers
     /// its own installer to anything that brushes past it in a taxi is not a feature.
     /// </remarks>
-    void Arm(string invite, string aetherTag);
+    /// <param name="ssid">The network to hand over, when one is being offered.</param>
+    /// <param name="passphrase">Its key. Nobody reads it — the tap carries it.</param>
+    void Arm(string aetherTag, string? ssid = null, string? passphrase = null);
 
     /// <summary>Stop offering. Called when the screen goes away, not left to a timeout.</summary>
     void Disarm();
@@ -67,7 +69,7 @@ public sealed class NoTapShare : ITapShare
     public bool IsSupported => false;
     public string? UnavailableReason => "this device has no NFC";
     public bool IsArmed => false;
-    public void Arm(string invite, string aetherTag) { }
+    public void Arm(string aetherTag, string? ssid = null, string? passphrase = null) { }
     public void Disarm() { }
     public event Action? Tapped { add { } remove { } }
 }

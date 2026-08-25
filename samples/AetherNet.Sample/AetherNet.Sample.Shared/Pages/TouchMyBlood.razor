@@ -5,6 +5,7 @@
 @inject IAppShareService App
 @inject ITapShare Tap
 @inject AppHandout Handout
+@inject IWifiDirectGroup Group
 
 <PageTitle>Aether — Touch My Blood</PageTitle>
 
@@ -39,9 +40,13 @@
                 <div class="tap-say">@(_landed ? "Got them." : "Touch the phones back to back")</div>
                 <div class="tap-sub">
                     @(_landed
-                        ? "They'll see it come up on their side."
+                        ? "Their phone is joining you now."
                         : "Their phone doesn't need Aether on it yet.")
                 </div>
+                @if (_network is { } net)
+                {
+                    <div class="netname">@net.NetworkName</div>
+                }
             </section>
         }
         else
@@ -103,6 +108,10 @@
     .block { display: block; width: 100%; }
 
     .warn { color: var(--warn); font-size: 0.86rem; font-weight: 600; text-align: center; }
+
+    /* What their phone will show them. Worth putting in front of the giver so they can say the name
+       out loud — "join Aether Thabo" is a sentence a person can help somebody with. */
+    .netname { font-family: var(--mono); font-size: 0.8rem; color: var(--brand); letter-spacing: .04em; }
 </style>
 
 @code {
@@ -134,13 +143,28 @@
 
         try
         {
+            // Raise a network with this person's name on it. That name is the whole design: a raw
+            // address under a browser's "not secure" warning is a thing people are taught to back
+            // away from, and a network called after somebody is a thing they join without thinking.
+            _network = GuestGroup.For(Me.AetherTag);
+            var hosted = await Group.HostAsync(_network);
+
+            if (hosted is null)
+            {
+                _note = "couldn't open a network on this phone — Wi-Fi Direct wouldn't start";
+                return;
+            }
+
+            _network = hosted;
+
             // Off the UI thread: opening the listener and reading the package size both touch the
             // file system, and this is the button somebody presses while a friend is watching.
             var invite = await Task.Run(() => Handout.Start(from: Me.AetherTag));
 
             if (invite is null)
             {
-                _note = "couldn't start — this phone needs to be on the same Wi-Fi as your friend";
+                _note = "couldn't start serving the app from this phone";
+                await Group.LeaveAsync();
                 return;
             }
 
@@ -148,19 +172,25 @@
             _qr = QrSvg.Render(invite);
             _landed = false;
 
-            // Only armed while this screen is up. A phone that quietly offers its own installer to
-            // anything that brushes past it in a taxi is not a feature.
-            Tap.Arm(invite, Me.AetherTag);
+            // The tap carries the network, not an address. Their phone joins, sees no internet behind
+            // it, and raises its own sign-in sheet — which is the only frame that a stranger's handset
+            // will vouch for.
+            Tap.Arm(Me.AetherTag, _network.NetworkName, _network.Passphrase);
 
             _tick = new System.Threading.Timer(_ => OnChanged(), null, 1000, 1000);
         }
         finally { _busy = false; }
     }
 
+    private WifiDirectCredentials? _network;
+
     private void StopSharing()
     {
         Tap.Disarm();
         Handout.Stop();
+
+        // The network goes with the offer. One left up is a phone quietly running an open door.
+        if (_network is not null) { _ = Group.LeaveAsync(); _network = null; }
         _invite = null;
         _qr = "";
         _landed = false;

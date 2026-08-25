@@ -57,9 +57,39 @@ public sealed class TouchMyBlood : HostApduService
     /// <summary>Raised when a reader has taken the message — the moment a tap landed.</summary>
     public static event Action? Tapped;
 
-    /// <summary>Arm the tap. Call with null to disarm it.</summary>
-    public static void Offer(string? invite, string? aetherTag) =>
+    /// <summary>
+    /// Arm the tap. Call with nothing to disarm it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two different taps, decided by what is being offered. When a network is being handed over the
+    /// tap carries <b>Wi-Fi credentials</b> — a format stock Android already acts on, the same one
+    /// that makes a phone offer to join a printer. Their handset joins a network with a person's name
+    /// on it, notices there is no internet behind it, and raises its own sign-in sheet. Nobody ever
+    /// reads an address.
+    /// </para>
+    /// <para>
+    /// With no network to give, it carries this phone's identity instead, and a tap between two people
+    /// who both have Aether hands over what is on screen.
+    /// </para>
+    /// </remarks>
+    public static void Offer(string? aetherTag, string? ssid = null, string? passphrase = null)
+    {
+        if (!string.IsNullOrWhiteSpace(ssid) && !string.IsNullOrWhiteSpace(passphrase))
+        {
+            try
+            {
+                _offer = WifiHandover.Message(ssid, passphrase);
+                return;
+            }
+            catch (ArgumentException ex)
+            {
+                global::Android.Util.Log.Info("AetherTMB", "bad network credentials: " + ex.Message);
+            }
+        }
+
         _offer = string.IsNullOrWhiteSpace(aetherTag) ? null : Ndef.Tag(aetherTag);
+    }
 
     /// <summary>Whether a tap would currently hand anything over.</summary>
     public static bool IsArmed => _offer is not null;
