@@ -134,6 +134,15 @@ public sealed class TouchMyBlood : HostApduService
     /// <summary>Whether a tap would currently hand anything over.</summary>
     public static bool IsArmed => _offer is not null;
 
+    /// <summary>
+    /// Exactly what is currently on offer, so the other radio can carry the identical message.
+    /// </summary>
+    /// <remarks>
+    /// Shared rather than rebuilt: two radios presenting slightly different bytes for the same tap is
+    /// a bug that would only ever appear on one of them, and only sometimes.
+    /// </remarks>
+    public static byte[]? Armed => _offer;
+
     private readonly Type4Tag _tag = new();
     private bool _first = true;
 

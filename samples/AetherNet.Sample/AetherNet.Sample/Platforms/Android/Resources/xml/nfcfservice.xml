@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Touch My Blood on the other radio.
+
+    NFC-F is the one Suica runs on, and outside Japan it is empty. Measured here: on NFC-A a stock
+    Redmi answers a tap with X's profile service, because X claims the same identifier we do and the
+    two phones race for who reads whom. On this radio there is nobody to race.
+
+    12FC is not ours and not chosen — it is the system code a reader polls for when it is looking for
+    an NDEF tag on NFC-F. The identity must begin 02FE: the platform reserves that prefix for emulated
+    tags so one can never be mistaken for a real FeliCa card, and rejects anything else.
+-->
+<host-nfcf-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/tmb_service">
+    <system-code-filter android:name="12FC" />
+    <nfcid2-filter android:name="02FE000000000000" />
+    <t3tPmm-filter android:name="FFFFFFFFFFFFFFFF" />
+</host-nfcf-service>

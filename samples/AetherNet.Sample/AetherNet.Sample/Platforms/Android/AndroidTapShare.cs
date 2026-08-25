@@ -20,6 +20,7 @@ public sealed class AndroidTapShare : ITapShare
 {
     private readonly NfcAdapter? _nfc;
     private readonly bool _hasEmulation;
+    private readonly bool _hasNfcF;
     private long _claimedAt;
 
     public AndroidTapShare()
@@ -31,6 +32,11 @@ public sealed class AndroidTapShare : ITapShare
         // this direction however healthy the NFC chip looks.
         _hasEmulation = AndroidApp.Context.PackageManager?
             .HasSystemFeature(global::Android.Content.PM.PackageManager.FeatureNfcHostCardEmulation) == true;
+
+        // The second radio. Measured on the P30: android.hardware.nfc.hcef is present, so this handset
+        // can be a Type 3 tag as well as a Type 4 one — and nothing else on it is competing there.
+        _hasNfcF = AndroidApp.Context.PackageManager?
+            .HasSystemFeature("android.hardware.nfc.hcef") == true;
 
         TouchMyBlood.Tapped += () => Tapped?.Invoke();
 
@@ -83,6 +89,7 @@ public sealed class AndroidTapShare : ITapShare
         if (!CanArm()) return;
 
         TouchMyBlood.Offer(aetherTag, ssid, passphrase);
+        AlsoOnNfcF(TouchMyBlood.Armed, "the same thing");
         Prefer(true);
         Capture(false);
     }
@@ -93,8 +100,53 @@ public sealed class AndroidTapShare : ITapShare
         if (!CanArm()) return;
 
         TouchMyBlood.Offer(message, what);
+        AlsoOnNfcF(message, what);
         Prefer(true);
         Capture(false);
+    }
+
+    /// <summary>
+    /// Put the same message on the other radio.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not a fallback — a second lane. A reader polls NFC-A and NFC-F in turn, and on NFC-A it may
+    /// find X's profile service instead of us, because that app claims the same identifier we do.
+    /// On NFC-F there is nobody else on an ordinary handset outside Japan.
+    /// </para>
+    /// <para>
+    /// Offering both costs one array reference and removes a race we lost repeatedly.
+    /// </para>
+    /// </remarks>
+    private void AlsoOnNfcF(byte[]? message, string what)
+    {
+        if (!_hasNfcF || _nfc is null) return;
+
+        TouchMyBloodF.Offer(message, what);
+
+        if (Microsoft.Maui.ApplicationModel.Platform.CurrentActivity is not { } activity) return;
+
+        Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try
+            {
+                // Unlike the other radio, this one answers ONLY while an activity has switched it on.
+                // A phone in a pocket cannot quietly serve taps, which is the right default.
+                var f = global::Android.Nfc.CardEmulators.NfcFCardEmulation.GetInstance(_nfc);
+                var component = new global::Android.Content.ComponentName(
+                    activity, "com.bhengubv.aethernet.TouchMyBloodF");
+
+                if (message is null) { f?.DisableService(activity); return; }
+
+                var on = f?.EnableService(activity, component) == true;
+                global::Android.Util.Log.Info("AetherTMB",
+                    on ? "F: this phone is now also a Type 3 tag" : "F: could not switch on the NFC-F tag");
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Info("AetherTMB", "F: could not switch on the NFC-F tag: " + ex.Message);
+            }
+        });
     }
 
     /// <summary>
@@ -122,6 +174,7 @@ public sealed class AndroidTapShare : ITapShare
     public void Disarm()
     {
         TouchMyBlood.Offer(null);
+        AlsoOnNfcF(null, "");
         Prefer(false);
         Capture(false);
     }
