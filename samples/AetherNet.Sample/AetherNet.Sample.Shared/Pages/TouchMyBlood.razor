@@ -275,7 +275,8 @@
         }
 
         Tap.ArmRaw(
-            Provisioning.Message(Handout.PackageName, where, print, net.NetworkName, net.Passphrase),
+            Provisioning.Message(Handout.PackageName, where, print, net.NetworkName, net.Passphrase,
+                Handout.AdminComponent),
             "the whole install");
 
         _carrying = $"fingerprint {print[..8]}…";

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The powers this app asks for over somebody's phone: none.
+
+  Provisioning will not run without a device-admin component to hand authority to, so this exists to
+  fill that slot and nothing else. Every policy Android offers here — wiping the device, forcing a
+  lock, expiring passwords, disabling the camera — is deliberately absent, so the answer to "what can
+  this app do to my phone" is short and checkable rather than a promise.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

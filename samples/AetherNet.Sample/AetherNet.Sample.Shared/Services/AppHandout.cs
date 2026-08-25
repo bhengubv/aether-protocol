@@ -94,6 +94,9 @@ public sealed class AppHandout : IDisposable
     /// <summary>What the far end will call what it just installed.</summary>
     public string PackageName => _app.PackageName;
 
+    /// <summary>Which component in it a receiving system hands authority to.</summary>
+    public string AdminComponent => _app.AdminComponent;
+
     /// <summary>
     /// The fingerprint of what is being handed over.
     /// </summary>

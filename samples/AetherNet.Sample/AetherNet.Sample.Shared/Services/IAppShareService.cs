@@ -41,6 +41,15 @@ public interface IAppShareService
     string PackageName => "com.bhengubv.aethernet";
 
     /// <summary>
+    /// The component a receiving system hands authority to, as <c>package/class</c>.
+    /// </summary>
+    /// <remarks>
+    /// Only meaningful where a platform installs this app by itself. Elsewhere it is inert, which is
+    /// why it has a default rather than forcing every implementation to answer.
+    /// </remarks>
+    string AdminComponent => $"{PackageName}/{PackageName}.AetherDeviceAdmin";
+
+    /// <summary>
     /// The app's own installer, ready to send.
     /// </summary>
     /// <remarks>

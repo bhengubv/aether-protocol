@@ -39,6 +39,16 @@ public static class Provisioning
     /// <summary>Which package is being installed.</summary>
     public const string PackageKey = "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_NAME";
 
+    /// <summary>
+    /// Exactly which component inside it receives the authority.
+    /// </summary>
+    /// <remarks>
+    /// Naming the package alone leaves the platform to find the admin component itself, which it will
+    /// do — until an app has more than one and it picks differently than intended. Said explicitly,
+    /// there is nothing to get wrong.
+    /// </remarks>
+    public const string ComponentKey = "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME";
+
     /// <summary>Where the installer can be fetched. Never shown to anybody — the wizard consumes it.</summary>
     public const string LocationKey =
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION";
@@ -82,8 +92,13 @@ public static class Provisioning
     /// <summary>
     /// The payload itself: Java properties, one per line, which is the format this path speaks.
     /// </summary>
+    /// <param name="component">
+    ///   The admin component, as <c>package/class</c>. Optional: without it the platform looks for one
+    ///   itself, which works until an app has more than one.
+    /// </param>
     public static string Properties(
-        string package, string location, string fingerprint, string ssid, string passphrase)
+        string package, string location, string fingerprint, string ssid, string passphrase,
+        string? component = null)
     {
         if (string.IsNullOrWhiteSpace(package)) throw new ArgumentException("no package", nameof(package));
         if (string.IsNullOrWhiteSpace(location)) throw new ArgumentException("no location", nameof(location));
@@ -100,6 +115,7 @@ public static class Provisioning
         Line(text, SecurityKey, Wpa);
         Line(text, PassphraseKey, passphrase);
         Line(text, PackageKey, package);
+        if (!string.IsNullOrWhiteSpace(component)) Line(text, ComponentKey, component);
         Line(text, LocationKey, location);
         Line(text, ChecksumKey, fingerprint);
         Line(text, LeaveAppsKey, "true");
@@ -164,9 +180,11 @@ public static class Provisioning
     /// The whole tap, ready to be handed to a reader.
     /// </summary>
     public static byte[] Message(
-        string package, string location, string fingerprint, string ssid, string passphrase) =>
+        string package, string location, string fingerprint, string ssid, string passphrase,
+        string? component = null) =>
         MimeRecord(MimeType,
-            Encoding.UTF8.GetBytes(Properties(package, location, fingerprint, ssid, passphrase)));
+            Encoding.UTF8.GetBytes(
+                Properties(package, location, fingerprint, ssid, passphrase, component)));
 
     /// <summary>
     /// One NDEF record of a given media type, first and last in its message.
