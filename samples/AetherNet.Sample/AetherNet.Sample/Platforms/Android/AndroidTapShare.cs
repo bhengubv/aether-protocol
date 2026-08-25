@@ -56,7 +56,7 @@ public sealed class AndroidTapShare : ITapShare
 
             global::Android.Util.Log.Info("AetherTMB", "back in front — claiming the tap again");
             Prefer(true);
-            Capture(true);
+            Capture(false);
         };
     }
 
@@ -84,7 +84,7 @@ public sealed class AndroidTapShare : ITapShare
 
         TouchMyBlood.Offer(aetherTag, ssid, passphrase);
         Prefer(true);
-        Capture(true);
+        Capture(false);
     }
 
     /// <inheritdoc />
@@ -94,7 +94,7 @@ public sealed class AndroidTapShare : ITapShare
 
         TouchMyBlood.Offer(message, what);
         Prefer(true);
-        Capture(true);
+        Capture(false);
     }
 
     /// <summary>
@@ -127,26 +127,27 @@ public sealed class AndroidTapShare : ITapShare
     }
 
     /// <summary>
-    /// While this screen is open, nothing else on this phone gets a tag it reads.
+    /// Whether this phone should also be READING while it is offering to be read.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>A phone does two jobs on a tap and this only used to do one of them.</b> Claiming the
-    /// preferred service covers being READ — a peer taps us and gets our card. It does nothing about
-    /// this handset READING, which it does by default, and whatever it reads is handed to whichever
-    /// app registered the broadest NFC filter.
+    /// <b>It should not, and finding that out cost most of an evening.</b> Two phones held together
+    /// each take turns emitting a reader field and listening for one. Whichever emits when the other
+    /// is listening wins, and the loser answers as a card. With foreground dispatch held the whole
+    /// time, this phone emits continuously and therefore wins every single round — so the phone we
+    /// are trying to hand something to spends the entire tap being read by us instead of reading.
     /// </para>
     /// <para>
-    /// Measured on a P30 during Touch My Blood: touching another phone opened <b>WeChat</b>. It
-    /// registers <c>android.nfc.action.TECH_DISCOVERED</c>, which matches on the tag technology rather
-    /// than its contents and therefore catches essentially anything, and nothing at all was registered
-    /// for the narrower <c>NDEF_DISCOVERED</c>. So the tap was read by this phone, dispatched by the
-    /// platform, and swallowed by a chat app.
+    /// Measured from the taker's own NFC service, tap after tap: <c>RF FIELD DEACTIVATED … (cur:1)</c>
+    /// — it saw our reader field and was in card mode for all of it — while its card emulation bound
+    /// to <c>com.twitter.android/…ProfileTagApduService</c>, which claims the same identifier we do.
+    /// So a tap that looked like nothing happening was in fact this phone reading X's profile off
+    /// theirs.
     /// </para>
     /// <para>
-    /// Foreground dispatch routes anything read to this activity instead, where it is ignored. Null
-    /// filters and null tech lists mean "everything", which is exactly the intent: for as long as
-    /// somebody is handing over the app, no other application on this phone gets a look in.
+    /// Dispatch is what this was for: without it, whatever this phone reads goes to whichever app
+    /// registered the broadest filter, and on a P30 that was WeChat. That problem disappears along
+    /// with the reading — a phone that is not looking has nothing to hand to anybody.
     /// </para>
     /// </remarks>
     private void Capture(bool capture)
