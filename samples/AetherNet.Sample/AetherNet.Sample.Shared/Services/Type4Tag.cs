@@ -56,7 +56,7 @@ public sealed class Type4Tag
     [
         0x00, 0x0F,             // CCLEN — this structure is 15 bytes
         0x20,                   // mapping version 2.0
-        0x00, 0x3B,             // MLe — most data returned in one response
+        0x00, 0xF6,             // MLe — most data returned in one response
         0x00, 0x34,             // MLc — most data accepted in one command
         0x04, 0x06,             // NDEF File Control TLV: type 4, length 6
         0xE1, 0x04,             // the NDEF file's id
@@ -64,6 +64,16 @@ public sealed class Type4Tag
         0x00,                   // read access granted
         0xFF,                   // write access denied
     ];
+
+    /// <summary>
+    /// The most data one response may carry — read from the capability container, not written twice.
+    /// </summary>
+    /// <remarks>
+    /// Derived so it cannot drift from what the reader was told. A number promised in one place and
+    /// enforced from another is a number that will disagree with itself eventually, and the disagreement
+    /// only shows up as a tap that quietly does nothing.
+    /// </remarks>
+    public static int MostPerRead => (CapabilityContainer[3] << 8) | CapabilityContainer[4];
 
     private enum File { None, CapabilityContainer, Ndef }
 
@@ -160,7 +170,16 @@ public sealed class Type4Tag
 
         if (offset >= source.Length) return WrongParameters;
 
-        var take = Math.Min(wanted, source.Length - offset);
+        // Never hand back more than we told the reader to expect.
+        //
+        // This was the bug that cost an evening. Le is one byte and zero means 256, so a reader asking
+        // "give me as much as you have" got exactly that — the whole file in one response, however big
+        // it was, in flat contradiction of the MLe we published two files earlier. A 108-byte message
+        // survives that: the frame is over-length but small enough to travel. A 629-byte one does not.
+        // The transfer fails, the reader starts again, and from the outside the tap simply does
+        // nothing — measured as six seconds of retries ending in the platform's own "couldn't read
+        // tag" toast, while our side logged a read that began and never finished.
+        var take = Math.Min(Math.Min(wanted, MostPerRead), source.Length - offset);
         var response = new byte[take + 2];
         Array.Copy(source, offset, response, 0, take);
         response[take] = Ok[0];
