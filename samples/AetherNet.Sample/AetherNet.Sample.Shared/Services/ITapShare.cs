@@ -63,6 +63,16 @@ public interface ITapShare
     /// </remarks>
     void ArmRaw(byte[] message, string what);
 
+    /// <summary>
+    /// Arm the whole handover: the network, then where to go once they are on it.
+    /// </summary>
+    /// <remarks>
+    /// Android reads the first record of a tap and ignores the rest, so one message cannot do both
+    /// jobs. The tag hands over the second on the read that follows the first completing — the same
+    /// touch if the phones are still together, the next one otherwise.
+    /// </remarks>
+    void ArmSequence(byte[] network, byte[] destination);
+
     /// <summary>Stop offering. Called when the screen goes away, not left to a timeout.</summary>
     void Disarm();
 
@@ -84,6 +94,7 @@ public sealed class NoTapShare : ITapShare
     public bool IsArmed => false;
     public void Arm(string aetherTag, string? ssid = null, string? passphrase = null) { }
     public void ArmRaw(byte[] message, string what) { }
+    public void ArmSequence(byte[] network, byte[] destination) { }
     public void Disarm() { }
     public event Action? Tapped { add { } remove { } }
 }

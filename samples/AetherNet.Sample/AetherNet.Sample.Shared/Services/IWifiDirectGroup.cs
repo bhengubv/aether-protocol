@@ -102,6 +102,17 @@ public interface IWifiDirectGroup
     Task<bool> JoinAsync(WifiDirectCredentials credentials, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// What the radio is doing, in words, as it does it.
+    /// </summary>
+    /// <remarks>
+    /// Hosting can take tens of seconds — waiting on the radio, backing off when the framework says
+    /// "not yet", walking the channels. The implementation has always said all of this; nothing was
+    /// listening, so the screen showed a dead button and somebody watching it concluded, reasonably,
+    /// that the app had hung.
+    /// </remarks>
+    event Action<string>? Status;
+
+    /// <summary>
     /// Whether this phone is in a group right now.
     /// </summary>
     /// <remarks>
@@ -128,6 +139,9 @@ public interface IWifiDirectGroup
 /// <summary>Stands in where there are no radios — the Web head, desktop.</summary>
 public sealed class NullWifiDirectGroup : IWifiDirectGroup
 {
+    /// <summary>Nothing to report, because nothing happens here.</summary>
+    public event Action<string>? Status { add { } remove { } }
+
     public bool IsSupported => false;
     public Task<WifiDirectCredentials?> HostAsync(CancellationToken cancellationToken = default)
         => Task.FromResult<WifiDirectCredentials?>(null);

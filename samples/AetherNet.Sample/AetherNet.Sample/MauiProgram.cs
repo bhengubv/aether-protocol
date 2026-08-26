@@ -260,6 +260,19 @@ public static class MauiProgram
 #endif
             });
 
+            Warm("handout", () =>
+            {
+                var handout = app.Services.GetService<AppHandout>();
+#if ANDROID
+                // The serving side used to raise its lines for the screen alone. That is a voice only
+                // one listener can hear, and it left every grep of the log blank while the phone was
+                // actually working — which is how "nothing was served" and "I cannot see what was
+                // served" got confused for each other, repeatedly.
+                if (handout is not null)
+                    handout.Say += m => global::Android.Util.Log.Info("AetherGive", m);
+#endif
+            });
+
             Warm("chat", () =>
             {
                 var chat = app.Services.GetService<ChatService>();

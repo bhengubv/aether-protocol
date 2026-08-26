@@ -11,15 +11,19 @@
 
     --ink: #16232f;         /* primary text */
     --ink-2: #4a5b6b;       /* secondary text */
-    --ink-3: #8a97a6;       /* tertiary / labels */
+    --ink-3: #5b6b7b;       /* tertiary / labels — 5.5:1 on white; #8a97a6 was 2.6:1 */
 
     --bg: #eaeef3;          /* app background */
     --surface: #ffffff;     /* cards, bars */
     --surface-2: #f4f7fa;   /* insets */
     --line: #e2e8f0;        /* hairlines */
+    --line-card: #9ecbf7;   /* card edges — a white card on a pale ground has no edge without it */
 
     --ok: #2196F3;
-    --warn: #c0392b;
+    --warn: #c0392b;        /* something went wrong */
+    --warn-amber: #b26a00;  /* warning — something will be lost */
+    --info: #0b6bcb;        /* information — worth knowing, nothing is wrong */
+    --info-bg: #e7f1fb;
 
     --radius: 16px;
     --radius-sm: 10px;
@@ -40,12 +44,17 @@
 
         --ink: #eaf1f8;
         --ink-2: #a9b8c6;
-        --ink-3: #6b7b8a;
+        --ink-3: #9db0c2;
 
         --bg: #0d1620;
         --surface: #16232f;
         --surface-2: #1c2b39;
         --line: #263544;
+        --line-card: #2f6fa8;
+
+        --warn-amber: #e0a256;
+        --info: #7cc0ff;
+        --info-bg: #12293f;
 
         --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .25);
         --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
@@ -55,16 +64,18 @@
 /* Explicit theme override (Settings toggle stamps data-theme on <html>). */
 :root[data-theme="light"] {
     --brand: #2196F3; --brand-deep: #1976D2; --brand-tint: #e8f3fe;
-    --ink: #16232f; --ink-2: #4a5b6b; --ink-3: #8a97a6;
-    --bg: #eaeef3; --surface: #ffffff; --surface-2: #f4f7fa; --line: #e2e8f0;
+    --ink: #16232f; --ink-2: #4a5b6b; --ink-3: #5b6b7b;
+    --bg: #eaeef3; --surface: #ffffff; --surface-2: #f4f7fa; --line: #e2e8f0; --line-card: #9ecbf7;
+    --warn-amber: #b26a00; --info: #0b6bcb; --info-bg: #e7f1fb;
     --shadow: 0 1px 2px rgba(22, 35, 47, .05), 0 10px 30px rgba(22, 35, 47, .05);
     --shadow-sm: 0 1px 2px rgba(22, 35, 47, .06);
 }
 
 :root[data-theme="dark"] {
     --brand: #4aa8ff; --brand-deep: #2f8ae0; --brand-tint: #14304b;
-    --ink: #eaf1f8; --ink-2: #a9b8c6; --ink-3: #6b7b8a;
-    --bg: #0d1620; --surface: #16232f; --surface-2: #1c2b39; --line: #263544;
+    --ink: #eaf1f8; --ink-2: #a9b8c6; --ink-3: #9db0c2;
+    --bg: #0d1620; --surface: #16232f; --surface-2: #1c2b39; --line: #263544; --line-card: #2f6fa8;
+    --warn-amber: #e0a256; --info: #7cc0ff; --info-bg: #12293f;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .25);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
 }
@@ -106,7 +117,7 @@ a { color: var(--brand); text-decoration: none; }
 
 .card {
     background: var(--surface);
-    border: 1px solid var(--line);
+    border: 1px solid var(--line-card);
     border-radius: var(--radius);
     box-shadow: var(--shadow-sm);
 }

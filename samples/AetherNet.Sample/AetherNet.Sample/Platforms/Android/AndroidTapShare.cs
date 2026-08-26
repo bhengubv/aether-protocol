@@ -23,6 +23,18 @@ public sealed class AndroidTapShare : ITapShare
     private readonly bool _hasNfcF;
     private long _claimedAt;
 
+    /// <summary>
+    /// Set once the platform has proven it cannot actually do NFC-F, whatever it claims.
+    /// </summary>
+    /// <remarks>
+    /// Measured on a P30: <c>pm list features</c> reports android.hardware.nfc.hcef, the package
+    /// manager registers our service happily — and <c>dumpsys nfc</c> mentions NFC-F zero times,
+    /// because EMUI ships no card-emulation registry for that radio. The feature flag is simply
+    /// untrue. Asking again every time somebody arms a tap only churns the one radio the working
+    /// path depends on.
+    /// </remarks>
+    private bool _nfcFIsAFiction;
+
     public AndroidTapShare()
     {
         _nfc = NfcAdapter.GetDefaultAdapter(AndroidApp.Context);
@@ -105,6 +117,17 @@ public sealed class AndroidTapShare : ITapShare
         Capture(false);
     }
 
+    /// <inheritdoc />
+    public void ArmSequence(byte[] network, byte[] destination)
+    {
+        if (!CanArm()) return;
+
+        TouchMyBlood.OfferSequence(network, destination);
+        AlsoOnNfcF(network, "the network");
+        Prefer(true);
+        Capture(false);
+    }
+
     /// <summary>
     /// Put the same message on the other radio.
     /// </summary>
@@ -120,7 +143,7 @@ public sealed class AndroidTapShare : ITapShare
     /// </remarks>
     private void AlsoOnNfcF(byte[]? message, string what)
     {
-        if (!_hasNfcF || _nfc is null) return;
+        if (!_hasNfcF || _nfc is null || _nfcFIsAFiction) return;
 
         TouchMyBloodF.Offer(message, what);
 
@@ -139,12 +162,26 @@ public sealed class AndroidTapShare : ITapShare
                 if (message is null) { f?.DisableService(activity); return; }
 
                 var on = f?.EnableService(activity, component) == true;
+
+                if (on)
+                {
+                    global::Android.Util.Log.Info("AetherTMB", "F: this phone is now also a Type 3 tag");
+                    return;
+                }
+
+                // Not a transient failure. The service is registered with the package manager and the
+                // phone advertises the feature; the NFC stack simply has nowhere to put it. Say so
+                // once and stop asking — the other radio carries the tap regardless.
+                _nfcFIsAFiction = true;
                 global::Android.Util.Log.Info("AetherTMB",
-                    on ? "F: this phone is now also a Type 3 tag" : "F: could not switch on the NFC-F tag");
+                    "F: this phone advertises NFC-F but its NFC stack has no registry for it — "
+                    + "the tap goes out on NFC-A only");
             }
             catch (Exception ex)
             {
-                global::Android.Util.Log.Info("AetherTMB", "F: could not switch on the NFC-F tag: " + ex.Message);
+                _nfcFIsAFiction = true;
+                global::Android.Util.Log.Info("AetherTMB",
+                    "F: this phone cannot host an NFC-F tag — " + ex.Message);
             }
         });
     }

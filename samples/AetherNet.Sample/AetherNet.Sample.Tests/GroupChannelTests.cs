@@ -77,42 +77,95 @@ public class GroupChannelTests
     /// Same channel costs nothing, same band costs a channel change, the other band costs them the
     /// network. Getting this order wrong is the bug, restated.
     /// </remarks>
-    [Fact]
-    public void The_ladder_is_ordered_by_what_it_costs_the_other_phone()
+    [Theory]
+    [InlineData(5180)]
+    [InlineData(5500)]
+    [InlineData(2437)]
+    public void The_ladder_is_ordered_by_what_it_costs_the_other_phone(int station)
     {
-        var ladder = GroupChannel.Ladder(5180);
+        var ladder = GroupChannel.Ladder(station);
+        var sameBand = station > GroupChannel.LowBandTo;
 
-        Assert.Equal(5180, ladder[0]);                                  // nothing moves
-        Assert.True(ladder[1] > GroupChannel.LowBandTo, "same band");    // a channel change
-        Assert.True(ladder[2] < GroupChannel.LowBandTo, "other band");   // their network
-        Assert.Equal(GroupChannel.Anything, ladder[^1]);                 // last resort
+        // Nothing moves, when that is available at all.
+        if (GroupChannel.Allowed(station)) Assert.Equal(station, ladder[0]);
+
+        // Every rung that keeps their band comes before every rung that costs it. Pinning indices
+        // would only be testing how many channels we happen to try, which is not the property.
+        var lastSameBand = -1;
+        var firstOtherBand = int.MaxValue;
+
+        for (var i = 0; i < ladder.Length; i++)
+        {
+            if (ladder[i] == GroupChannel.Anything) continue;
+            if ((ladder[i] > GroupChannel.LowBandTo) == sameBand) lastSameBand = i;
+            else firstOtherBand = Math.Min(firstOtherBand, i);
+        }
+
+        Assert.True(lastSameBand < firstOtherBand,
+            "a rung that costs them their network must never come before one that does not");
     }
 
     /// <summary>
-    /// It always ends by accepting whatever the radio gives.
+    /// A refusal on one 5 GHz channel does not end the band.
     /// </summary>
     /// <remarks>
-    /// A group on a channel we did not choose still beats no group. Somebody has pressed a button and
-    /// is holding two phones together; something has to happen.
+    /// The measured mistake: 5745 was refused and I read it as "this phone cannot host on 5 GHz".
+    /// Which channels a group owner may occupy varies by chipset, and channel 36 is the one most
+    /// commonly granted — in some documented cases the only one.
     /// </remarks>
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(2437)]
-    [InlineData(5500)]
-    public void The_ladder_always_ends_by_taking_what_it_is_given(int station)
+    [Fact]
+    public void One_refusal_is_not_the_whole_band()
     {
-        Assert.Equal(GroupChannel.Anything, GroupChannel.Ladder(station)[^1]);
+        var ladder = GroupChannel.Ladder(5500);
+        var fiveGhz = ladder.Where(c => c > GroupChannel.LowBandTo).ToArray();
+
+        Assert.True(fiveGhz.Length > 1, "one 5GHz channel is not an attempt at the band");
+        Assert.Equal(5180, fiveGhz[0]);
     }
 
-    /// <summary>With no Wi-Fi at all, it does not pretend to know better.</summary>
+    /// <summary>
+    /// <b>It never offers a rung in the other band.</b>
+    /// </summary>
+    /// <remarks>
+    /// A phone has one radio. Hosting in the band the other phone is not in costs them their network,
+    /// and that is not worth having at any price — measured on a Redmi, internet gone on every single
+    /// handover. There is also no "whatever the radio gives" rung, because what it gives is 2.4GHz.
+    /// If nothing in-band can be had, hosting fails and says so.
+    /// </remarks>
+    [Theory]
+    [InlineData(5500)]
+    [InlineData(5180)]
+    [InlineData(5745)]
+    public void The_band_that_costs_them_their_wifi_is_tried_last(int station)
+    {
+        var ladder = GroupChannel.Ladder(station);
+
+        Assert.True(ladder[^1] < GroupChannel.LowBandTo,
+            "the rung that costs them their network belongs at the very end");
+        Assert.True(ladder.Length > 1, "and never as the only option");
+    }
+
+    /// <summary>A 2.4 GHz phone is served from its own band first.</summary>
     [Fact]
-    public void With_no_wifi_it_asks_for_something_universally_legal()
+    public void A_two_point_four_phone_is_served_from_its_own_band_first()
+    {
+        Assert.True(GroupChannel.Ladder(2412)[0] < GroupChannel.LowBandTo);
+    }
+
+    /// <summary>
+    /// With no Wi-Fi of our own, it still refuses to sit on 2.4 GHz.
+    /// </summary>
+    /// <remarks>
+    /// Not knowing our own channel is not a reason to take the one that breaks theirs. Their phone is
+    /// far more likely to be on 5 GHz than to be on nothing.
+    /// </remarks>
+    [Fact]
+    public void With_no_wifi_it_tries_five_first_and_keeps_two_point_four_in_reserve()
     {
         var ladder = GroupChannel.Ladder(0);
 
-        Assert.Equal(GroupChannel.LowFallback, ladder[0]);
-        Assert.True(GroupChannel.Allowed(ladder[0]));
+        Assert.True(ladder[0] > GroupChannel.LowBandTo, "their phone is likelier to be on 5GHz");
+        Assert.True(ladder[^1] < GroupChannel.LowBandTo, "but something must still work");
     }
 
     /// <summary>No rung is ever a channel a group owner is barred from.</summary>
@@ -128,8 +181,7 @@ public class GroupChannelTests
     public void No_rung_is_ever_illegal(int station)
     {
         foreach (var rung in GroupChannel.Ladder(station))
-            if (rung != GroupChannel.Anything)
-                Assert.True(GroupChannel.Allowed(rung), $"{rung}MHz is barred to a group owner");
+            Assert.True(GroupChannel.Allowed(rung), $"{rung}MHz is barred to a group owner");
     }
 
     /// <summary>No rung repeats — every retry is a genuinely different ask.</summary>

@@ -112,6 +112,25 @@ public sealed class AndroidWifiDirectTransportService
             "A rotating wire address needs a key derived from the identity secret, not the public tag.");
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _manager = context.GetSystemService(Context.WifiP2pService) as WifiP2pManager;
+
+        // Said out loud because the alternative is a screen that reads "Wi-Fi Direct wouldn't start"
+        // over a log that says nothing at all. Measured: exactly that, and it cost an hour of guessing
+        // at permissions and location settings that were all fine.
+        L(_manager is null
+            ? "⚠ this phone did not hand over a Wi-Fi Direct manager — hosting is impossible"
+            : "Wi-Fi Direct manager in hand");
+
+        // Ask now, while the answer is still true.
+        //
+        // The channel is needed at the moment we start hosting, and that is precisely the moment it
+        // cannot be read: taking the radio puts the station down, so the phone reports -1 and we wait
+        // out an eight-second timeout for a number that will never come. Worse, the wrong answer then
+        // decides the band, which is what dragged the group onto 2.4GHz and cost the other phone its
+        // network. Read at startup it costs nothing and is correct.
+        var now = StationFrequencyMhz();
+        L(now > 0
+            ? $"this phone's Wi-Fi is on {now}MHz — the group will stay in that band"
+            : "this phone's Wi-Fi channel is not readable yet");
     }
 
     /// <summary>
@@ -230,8 +249,12 @@ public sealed class AndroidWifiDirectTransportService
 
     private void EnsureInitialized()
     {
-        if (_channel is not null || _manager is null) return;
+        if (_channel is not null) return;
+        if (_manager is null) { L("⚠ no Wi-Fi Direct manager to initialise"); return; }
+
         _channel = _manager.Initialize(_context, Looper.MainLooper, null);
+        if (_channel is null) { L("⚠ Wi-Fi Direct refused to open a channel"); return; }
+
         _receiver = new Receiver(this);
         var filter = new IntentFilter();
         filter.AddAction(WifiP2pManager.WifiP2pStateChangedAction);
@@ -297,16 +320,29 @@ public sealed class AndroidWifiDirectTransportService
     ///   </para>
     /// </param>
     public Task<WifiDirectCredentials?> HostAsync(WifiDirectCredentials? wanted,
-        CancellationToken cancellationToken = default) => HostAsync(wanted, cancellationToken, attempt: 0);
+        CancellationToken cancellationToken = default) => HostAsync(wanted, cancellationToken, rung: 0, busy: 0);
 
+    /// <param name="rung">
+    ///   How far down the channel ladder we are. Advances only when the radio refuses the CHANNEL.
+    /// </param>
+    /// <param name="busy">
+    ///   How many times the radio has said "not yet". Advances only on Busy, and must NOT cost a rung:
+    ///   a busy refusal says nothing whatever about the channel that was asked for.
+    /// </param>
+    /// <remarks>
+    /// These were one counter, and that was a bug with a visible symptom. Measured: 5180, 5240 and
+    /// 5745 were each refused with Busy — the framework still tidying up the previous operation — and
+    /// every one of those refusals burned a channel. The group ended on 2.4GHz, which costs the other
+    /// phone its Wi-Fi, having never had a clean attempt at 5GHz at all.
+    /// </remarks>
     private async Task<WifiDirectCredentials?> HostAsync(WifiDirectCredentials? wanted,
-        CancellationToken cancellationToken, int attempt)
+        CancellationToken cancellationToken, int rung, int busy)
     {
-        if (_manager is null) return null;
+        if (_manager is null) { L("can't host — this phone has no Wi-Fi Direct manager"); return null; }
         if (Blocker is { } blocker) { L($"can't host — {blocker}"); return null; }
 
         EnsureInitialized();
-        if (_channel is null) return null;
+        if (_channel is null) { L("can't host — no channel to the radio"); return null; }
 
         // A group already open here is the wrong one — it may be from a previous run, with credentials
         // nobody has. Start clean.
@@ -345,21 +381,27 @@ public sealed class AndroidWifiDirectTransportService
                 ? _station.Known
                 : await WaitForStationAsync(cancellationToken).ConfigureAwait(false));
 
-            var rung = Math.Min(attempt, ladder.Length - 1);
-            var chosen = ladder[rung];
+            var chosen = ladder[Math.Min(rung, ladder.Length - 1)];
 
             var builder = new WifiP2pConfig.Builder()
                 .SetNetworkName(wanted!.NetworkName)
                 .SetPassphrase(wanted.Passphrase);
 
-            if (chosen != GroupChannel.Anything)
+            // Past the last channel, ask for the BAND and let the radio pick within it.
+            //
+            // Some drivers refuse an exact 5GHz frequency for a group owner while still accepting the
+            // band — measured here, 5180, 5240 and 5745 each came back Error while 2437 was accepted,
+            // so the API works and the refusals are about the value. This is the last thing to try
+            // before concluding the phone cannot host in the other phone's band.
+            if (rung >= ladder.Length)
             {
-                L($"hosting on {GroupChannel.Describe(chosen, _station.Known)}");
-                builder.SetGroupOperatingFrequency(chosen);
+                L("no single channel was accepted — asking for the band and letting the radio choose");
+                builder.SetGroupOperatingBand((global::Android.Net.Wifi.P2p.Frequency)GroupOwnerBand5Ghz);
             }
             else
             {
-                L($"hosting {GroupChannel.Describe(chosen, _station.Known)}");
+                L($"hosting on {GroupChannel.Describe(chosen, _station.Known)}");
+                builder.SetGroupOperatingFrequency(chosen);
             }
 
             L($"creating {wanted.NetworkName} — the name this Circle already knows");
@@ -380,17 +422,35 @@ public sealed class AndroidWifiDirectTransportService
             // Dropping it outright is what cost the joining phone its internet: one refusal and the
             // group went wherever the framework liked, which was the other band. Each rung is still a
             // preference, and every one of them is better for the other phone than no preference.
-            if (LastFailure != BusyReason && attempt < GroupChannel.Ladder(_station.Known).Length - 1)
+            // Busy is about pace. Anything else is about the channel. They are handled separately
+            // because conflating them walks the ladder for reasons that have nothing to do with it.
+            if (LastFailure == BusyReason)
             {
-                L("the radio refused that channel — trying the next one down");
-                return await HostAsync(wanted, cancellationToken, attempt + 1).ConfigureAwait(false);
+                if (busy >= BusyRetries) return null;
+
+                L($"the radio is still busy — asking again in a moment ({busy + 1}/{BusyRetries})");
+                await Task.Delay(BusyBackoff * (busy + 1), cancellationToken).ConfigureAwait(false);
+                return await HostAsync(wanted, cancellationToken, rung, busy + 1).ConfigureAwait(false);
             }
 
-            if (LastFailure != BusyReason || attempt >= BusyRetries) return null;
+            // One past the last channel is the band-level attempt; only give up after that.
+            if (rung <= GroupChannel.Ladder(_station.Known).Length - 1)
+            {
+                // Wait before asking again, because the refusal may be about pace rather than channel.
+                //
+                // Android serialises every P2P operation and answers "Busy" when the last one has not
+                // finished. Measured: the whole ladder ran in 100ms — four attempts about 15ms apart,
+                // each preceded by "removeGroup failed (Busy)" — so every rung was refused by a
+                // framework still tidying up the previous one, and the channel it was refusing had
+                // nothing to do with it. Walking the ladder without pacing turned one retry into four
+                // and made the radio worse, not better.
+                await Task.Delay(BusyBackoff, cancellationToken).ConfigureAwait(false);
 
-            L($"the radio is still busy — asking again in a moment ({attempt + 1}/{BusyRetries})");
-            await Task.Delay(BusyBackoff * (attempt + 1), cancellationToken).ConfigureAwait(false);
-            return await HostAsync(wanted, cancellationToken, attempt + 1).ConfigureAwait(false);
+                L("the radio refused that channel — trying the next one down");
+                return await HostAsync(wanted, cancellationToken, rung + 1, busy).ConfigureAwait(false);
+            }
+
+            return null;
         }
 
         // The group exists but its details are not immediately readable; ask until they are.

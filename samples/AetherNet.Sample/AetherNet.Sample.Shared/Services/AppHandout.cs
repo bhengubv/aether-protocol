@@ -36,10 +36,19 @@ public sealed class AppHandout : IDisposable
     /// How long an invite stays good for.
     /// </summary>
     /// <remarks>
-    /// Long enough to tap, join, fetch and think about it; short enough that a phone left in a pocket
-    /// on a shared network is not quietly serving its own installer for the rest of the afternoon.
+    /// <para>
+    /// Ninety seconds. Long enough to tap, join and fetch — the package itself moves in about nine —
+    /// and short enough that the cost of being wrong is small.
+    /// </para>
+    /// <para>
+    /// <b>It was five minutes, and that was the wrong unit entirely.</b> While this offer is open the
+    /// guest may be off their own Wi-Fi, and the close-early path only fires once somebody has
+    /// actually finished taking the app. Measured: a Redmi joined the group, never fetched, and was
+    /// held off its own network for the full five minutes with nothing happening at all. A guest who
+    /// changes their mind should cost them seconds, not the rest of the afternoon.
+    /// </para>
     /// </remarks>
-    public static readonly TimeSpan Window = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan Window = TimeSpan.FromSeconds(90);
 
     /// <summary>
     /// How many phones one invite will serve.
@@ -50,6 +59,18 @@ public sealed class AppHandout : IDisposable
     /// is a token that leaks.
     /// </remarks>
     public const int MaxHandovers = 3;
+
+    /// <summary>
+    /// What this is doing, in words.
+    /// </summary>
+    /// <remarks>
+    /// This class had no voice at all, and the cost was hours: a guest could join the network and
+    /// either fetch the app, fetch nothing, or be refused, and all three looked identical from here.
+    /// Every branch below says which one happened.
+    /// </remarks>
+    public event Action<string>? Say;
+
+    private void S(string message) => Say?.Invoke(message);
 
     private readonly IAppShareService _app;
     private readonly TimeSpan _window;
@@ -268,10 +289,19 @@ public sealed class AppHandout : IDisposable
 
         // Every name the guest looks up resolves here for as long as the offer stands. Without it
         // their connectivity probe never reaches us and their phone decides the internet is fine.
+        S($"serving from {new Uri(Invite!).Host}:{new Uri(Invite!).Port}");
+
         if (IPAddress.TryParse(new Uri(Invite!).Host, out var here))
         {
             _portal = new CaptivePortal(here);
             PortalUp = _portal.Start();
+
+            // Worth saying either way. Without the portal a guest joins, their phone asks for a name,
+            // nothing answers, and they are left looking at a Wi-Fi symbol wondering what happened —
+            // which is indistinguishable, from here, from a guest who never joined at all.
+            S(PortalUp
+                ? "the sign-in sheet is armed"
+                : "no sign-in sheet — this phone could not take the DNS port");
         }
 
         _ = Task.Run(() => AcceptAsync(_life!.Token), CancellationToken.None);
@@ -369,6 +399,7 @@ public sealed class AppHandout : IDisposable
 
                 if (!allowed)
                 {
+                    S($"refused {request.Method} {request.Path} — wrong token, or the offer has closed");
                     await NotFoundAsync(stream, life).ConfigureAwait(false);
                     return;
                 }
@@ -377,6 +408,7 @@ public sealed class AppHandout : IDisposable
 
                 if (!wantsPackage)
                 {
+                    S("a guest is reading the card");
                     // The page is free — it is a few kilobytes of text, and a friend re-reading it
                     // before they press the button must not spend one of the handovers.
                     await SendCardAsync(stream, request.Method == "HEAD", life).ConfigureAwait(false);
@@ -441,6 +473,7 @@ public sealed class AppHandout : IDisposable
         if (headOnly) return;
 
         Interlocked.Increment(ref _served);
+        S($"handing over the app — {_served} of {MaxHandovers}");
         Changed?.Invoke();
 
         try
@@ -455,6 +488,7 @@ public sealed class AppHandout : IDisposable
             await installer.CopyToAsync(stream, 64 * 1024, life).ConfigureAwait(false);
             await stream.FlushAsync(life).ConfigureAwait(false);
 
+            S("● the app has landed on their phone");
             Delivered?.Invoke();
         }
         finally { Changed?.Invoke(); }

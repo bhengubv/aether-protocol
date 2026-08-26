@@ -54,6 +54,17 @@ public sealed class TouchMyBlood : HostApduService
     /// </remarks>
     private static volatile byte[]? _offer;
 
+    /// <summary>
+    /// The two-answer handover: the network first, then where to go once they are on it.
+    /// </summary>
+    /// <remarks>
+    /// Android reads only the first record of a tap, so one tap cannot do both. This holds the
+    /// progression and the tag consults it on every read — so the read AFTER the credentials have
+    /// been taken hands over the destination instead, in the same touch if the phones are still
+    /// together.
+    /// </remarks>
+    private static readonly TapSequence _sequence = new();
+
     /// <summary>Raised when a reader has taken the message — the moment a tap landed.</summary>
     public static event Action? Tapped;
 
@@ -113,12 +124,33 @@ public sealed class TouchMyBlood : HostApduService
         if (message is not { Length: > 0 })
         {
             _offer = null;
+            _sequence.Disarm();
             Say("disarmed — a tap now hands over nothing");
             return;
         }
 
         _offer = message;
+        _sequence.Disarm();
         Say($"armed — a tap now hands over {what} ({message.Length}B)");
+    }
+
+    /// <summary>
+    /// Arm the whole handover: the network, then the destination.
+    /// </summary>
+    /// <remarks>
+    /// The second message is handed over on the read that follows the first completing. If the phones
+    /// are still together that is the same touch; if they came apart it is the next one. Either way
+    /// nobody reads or types an address.
+    /// </remarks>
+    public static void OfferSequence(byte[]? network, byte[]? destination)
+    {
+        _sequence.Arm(network, destination);
+        _offer = _sequence.Offer;
+
+        Say(destination is { Length: > 0 }
+            ? $"armed — first touch hands over the network ({network?.Length ?? 0}B), "
+              + $"then the way in ({destination.Length}B)"
+            : $"armed — a tap hands over the network ({network?.Length ?? 0}B)");
     }
 
     /// <summary>
@@ -149,6 +181,18 @@ public sealed class TouchMyBlood : HostApduService
     public TouchMyBlood() => _tag.Read += () =>
     {
         Say("● a reader took the whole message — the tap landed");
+
+        // Advance ONLY here, on a completed read. A reader that starts and gives up halfway must be
+        // handed the same thing again — otherwise a phone that never joined the network is given an
+        // address on a network it cannot reach, and fetches nothing forever with no error anywhere.
+        _sequence.Taken();
+
+        if (_sequence.Offer is { Length: > 0 } next)
+        {
+            _offer = next;
+            Say($"→ the next touch hands over the way in ({next.Length}B)");
+        }
+
         Tapped?.Invoke();
     };
 
@@ -188,6 +232,7 @@ public sealed class TouchMyBlood : HostApduService
     public override void OnDeactivated(DeactivationReason reason)
     {
         Say($"the phones came apart ({reason})");
+        _sequence.Parted();
         _first = true;
         _tag.Deactivated();
     }

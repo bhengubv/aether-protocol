@@ -53,6 +53,9 @@ public class CallNeedsAWideRadioTests
     /// <summary>A phone that has Wi-Fi Direct hardware, or does not.</summary>
     private sealed class Group(bool supported) : IWifiDirectGroup
     {
+        /// <summary>Nothing to narrate in a test double.</summary>
+        public event Action<string>? Status { add { } remove { } }
+
         public bool IsSupported => supported;
         public Task<WifiDirectCredentials?> HostAsync(CancellationToken ct = default)
             => Task.FromResult<WifiDirectCredentials?>(null);

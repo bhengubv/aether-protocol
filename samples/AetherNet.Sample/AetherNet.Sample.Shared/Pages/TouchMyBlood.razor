@@ -38,7 +38,20 @@
                 They'll see <strong>@GuestGroup.Label(MyName.OrTag(_name, Me.AetherTag))</strong> on their phone.
             </div>
 
-            <button class="primary block" @onclick="StartAsync" disabled="@_busy">Start</button>
+            <button class="primary block" @onclick="StartAsync" disabled="@_busy">
+                @(_busy ? "Opening…" : "Start")
+            </button>
+            @if (_busy)
+            {
+                <div class="bar" role="progressbar" aria-label="Opening a network"><span></span></div>
+            }
+            @if (_busy && _doing is { Length: > 0 } step)
+            {
+                @* Hosting takes tens of seconds — waiting on the radio, backing off, walking channels.
+                   The radio narrates all of it; without this the screen is a dead button and anybody
+                   watching concludes the app has hung. *@
+                <p class="doing">@step</p>
+            }
             @if (_note is { } n)
             {
                 <p class="warn">@n</p>
@@ -60,6 +73,14 @@
                 @if (_network is { } net)
                 {
                     <div class="netname">@net.NetworkName</div>
+                }
+                @if (_offBand)
+                {
+                    @* Their phone had to leave its own Wi-Fi to reach us. Said plainly, because the
+                       friend WILL notice their internet stop and should hear it from you first. *@
+                    <div class="offband">
+                        While they're getting it, their phone leaves their own Wi-Fi. It comes back straight after.
+                    </div>
                 }
             </section>
         }
@@ -91,7 +112,7 @@
     .scr-title { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); padding: 4px 2px 0; }
     .lede { font-size: 0.95rem; line-height: 1.5; color: var(--ink-2); padding: 0 2px; }
 
-    .card { display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 20px; box-shadow: var(--shadow-sm); }
+    .card { display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line-card); border-radius: var(--radius); padding: 22px 20px; box-shadow: var(--shadow-sm); }
 
     .size { font-size: 2.4rem; font-weight: 830; letter-spacing: -0.03em; color: var(--brand); line-height: 1; }
     .size-sub { font-size: 0.85rem; color: var(--ink-3); text-align: center; }
@@ -133,6 +154,17 @@
     .whoin:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
     .who-sub { font-size: 0.8rem; color: var(--ink-3); text-align: center; max-width: 340px; }
     .who-sub strong { color: var(--brand); font-family: var(--mono); font-weight: 600; }
+    /* Information. Red is an error, amber is a warning, blue is something worth knowing — nothing
+       here has gone wrong, we are just saying what is about to happen. */
+    .offband { font-size: 0.78rem; line-height: 1.45; color: var(--info); background: var(--info-bg); border-radius: var(--radius-sm); padding: 8px 12px; text-align: center; max-width: 340px; font-weight: 600; }
+    .doing { font-size: 0.78rem; line-height: 1.4; color: var(--ink-3); text-align: center; max-width: 340px; margin: 0; font-family: var(--mono); }
+
+    /* Indeterminate on purpose: the radio cannot say how far along it is, and a bar that pretends to
+       know is a worse lie than one that only says "still working". */
+    .bar { width: 100%; max-width: 340px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+    .bar span { display: block; width: 40%; height: 100%; border-radius: 2px; background: var(--brand); animation: slide 1.4s ease-in-out infinite; }
+    @@keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+    @@media (prefers-reduced-motion: reduce) { .bar span { animation: none; width: 100%; opacity: .6; } }
 </style>
 
 @code {
@@ -152,12 +184,17 @@
         : "closed";
 
     private string _name = "";
+    private string? _doing;
+    private bool _sawBandAttempt;
+    private bool _offBand;
 
     protected override void OnInitialized()
     {
         Handout.Changed += OnChanged;
         Handout.Delivered += OnDelivered;
         Tap.Tapped += OnTapped;
+        Group.Status += OnRadio;
+        Handout.Say += OnRadio;
 
         _name = MyName.Clean(Store.GetSetting(MyName.Key));
     }
@@ -192,6 +229,21 @@
         Handout.CloseSoon();
     }
 
+    /// <summary>Show what the radio is doing while it does it.</summary>
+    private void OnRadio(string step)
+    {
+        // Noted when it happens. Reading it off _doing afterwards never worked: by the time hosting
+        // fails, _doing holds whatever the radio said LAST, which is not the line that explains why.
+        if (step.Contains("asking for the band", StringComparison.OrdinalIgnoreCase))
+            _sawBandAttempt = true;
+
+        if (step.Contains("cost them their Wi-Fi", StringComparison.OrdinalIgnoreCase))
+            _offBand = true;
+
+        _doing = step;
+        InvokeAsync(StateHasChanged);
+    }
+
     private void OnName(ChangeEventArgs e)
     {
         _name = MyName.Clean(e.Value?.ToString());
@@ -202,6 +254,8 @@
     {
         _busy = true;
         _note = null;
+        _sawBandAttempt = false;
+        _offBand = false;
 
         try
         {
@@ -213,7 +267,13 @@
 
             if (hosted is null)
             {
-                _note = "couldn't open a network on this phone — Wi-Fi Direct wouldn't start";
+                // Say which of the two it is. "Wouldn't start" covers a phone with the radio off and
+                // a phone that simply cannot host in the band we insist on, and those need different
+                // things from the person reading it.
+                _note = _sawBandAttempt
+                    ? "this phone can only host on 2.4GHz, and that would knock your friend off their "
+                      + "own Wi-Fi — so nothing was opened"
+                    : "couldn't open a network on this phone — Wi-Fi Direct wouldn't start";
                 return;
             }
 
@@ -241,7 +301,7 @@
 
             _tick = new System.Threading.Timer(_ => OnChanged(), null, 1000, 1000);
         }
-        finally { _busy = false; }
+        finally { _busy = false; _doing = null; }
     }
 
     private WifiDirectCredentials? _network;
@@ -265,7 +325,21 @@
     {
         if (_network is not { } net) return;
 
-        Tap.Arm(Me.AetherTag, net.NetworkName, net.Passphrase);
+        // The whole handover in one arming: the network, then the way in.
+        //
+        // Their phone joins on the first touch and has nowhere to go — the sign-in sheet needs a port
+        // Android will not give an app, so nothing on their side speaks. The second message answers
+        // that, and it is handed over on the read AFTER the credentials are taken, which is the same
+        // touch if the phones are still together.
+        var network = WifiHandover.Message(net.NetworkName, net.Passphrase);
+
+        if (Handout.Package is { Length: > 0 } where)
+        {
+            Tap.ArmSequence(network, Ndef.Uri(where));
+            return;
+        }
+
+        Tap.ArmRaw(network, $"the network {net.NetworkName}");
     }
 
     private void StopSharing()
@@ -297,6 +371,8 @@
     {
         Handout.Changed -= OnChanged;
         Handout.Delivered -= OnDelivered;
+        Group.Status -= OnRadio;
+        Handout.Say -= OnRadio;
         Tap.Tapped -= OnTapped;
         _tick?.Dispose();
 

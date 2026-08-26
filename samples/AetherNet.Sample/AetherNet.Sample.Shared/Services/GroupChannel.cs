@@ -34,12 +34,25 @@ public static class GroupChannel
     /// </remarks>
     public const int RadarFrom = 5260, RadarTo = 5720;
 
-    /// <summary>What we ask for in 5 GHz when the phone's own channel is off limits.</summary>
+    /// <summary>
+    /// The 5 GHz channels worth asking for, in the order a group owner is likely to be granted them.
+    /// </summary>
     /// <remarks>
-    /// Channel 149. Above the radar range, allowed to a group owner nearly everywhere, and far enough
-    /// from the low channels that a phone associated at 5500 does not have to change band to reach it.
+    /// <para>
+    /// <b>Low first, and that ordering is the whole point.</b> The obvious pick is channel 149 (5745),
+    /// which sits above the radar range and is legal nearly everywhere — and it is refused by a great
+    /// many chipsets for a group owner. Channel 36 (5180) is the one that is commonly granted; there
+    /// are documented cases where it is the <i>only</i> 5 GHz frequency a P2P group owner will accept.
+    /// </para>
+    /// <para>
+    /// Measured on the P30: 5745 refused outright, which I then read as "this phone cannot host on
+    /// 5 GHz" and dropped the whole band. One refusal is not a band.
+    /// </para>
     /// </remarks>
-    public const int HighFallback = 5745;
+    public static readonly int[] HighTries = [5180, 5220, 5240, 5745];
+
+    /// <summary>The first 5 GHz channel to ask for. Channel 36.</summary>
+    public const int HighFallback = 5180;
 
     /// <summary>And in 2.4 GHz. Channel 6, the middle one, universally legal.</summary>
     public const int LowFallback = 2437;
@@ -74,27 +87,35 @@ public static class GroupChannel
     /// </remarks>
     public static int[] Ladder(int station)
     {
-        if (!StationChannel.IsReal(station)) return [LowFallback, Anything];
+        // Their band first, always. The other band only as a last resort.
+        //
+        // Hosting in the band the other phone is not in costs them their network — one radio cannot
+        // hold two bands — so it is the worst rung and it sits last. But last is not never: measured
+        // on a P30 whose driver is running under Japanese channel rules, EVERY 5GHz request is
+        // refused, and with 2.4GHz forbidden the phone simply cannot hand the app to anybody. A brief
+        // interruption beats a handover that never happens, so long as it IS brief — the offer closes
+        // within a grace of somebody taking it rather than sitting on their radio for five minutes.
+        if (!StationChannel.IsReal(station)) return [.. HighTries, LowFallback];
 
-        var rungs = new List<int>(4);
+        var rungs = new List<int>(HighTries.Length + 2);
 
         // Their phone does not move at all.
         if (Allowed(station)) rungs.Add(station);
 
-        // Same band, legal channel — a channel change rather than a band change.
         if (station > LowBandTo)
         {
-            if (HighFallback != station) rungs.Add(HighFallback);
-        }
-        else if (LowFallback != station)
-        {
+            foreach (var high in HighTries)
+                if (high != station) rungs.Add(high);
+
+            // Costs them their Wi-Fi. Last, and only because the alternative is nothing at all.
             rungs.Add(LowFallback);
         }
+        else
+        {
+            if (LowFallback != station) rungs.Add(LowFallback);
+            foreach (var high in HighTries) rungs.Add(high);
+        }
 
-        // The other band. Costs them the network, but a phone with dual-band concurrency may keep both.
-        rungs.Add(station > LowBandTo ? LowFallback : HighFallback);
-
-        rungs.Add(Anything);
         return [.. rungs];
     }
 
