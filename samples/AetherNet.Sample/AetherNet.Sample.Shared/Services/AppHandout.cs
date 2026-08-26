@@ -112,6 +112,17 @@ public sealed class AppHandout : IDisposable
     public string? Package =>
         Invite is { Length: > 0 } invite ? string.Concat(invite, "/", ShareInvite.FileName) : null;
 
+    /// <summary>
+    /// The giver's own card, shown to whoever is being handed the app.
+    /// </summary>
+    /// <remarks>
+    /// The page a stranger sees before deciding to trust any of this used to be a generic block of
+    /// text. It should be the person's own — their name, their words, their colours — because a card
+    /// that looks like somebody is a different proposition from a card that looks like an installer.
+    /// Null is fine and still produces a page.
+    /// </remarks>
+    public CardDocument? Card { get; set; }
+
     /// <summary>What the far end will call what it just installed.</summary>
     public string PackageName => _app.PackageName;
 
@@ -436,7 +447,7 @@ public sealed class AppHandout : IDisposable
     private async Task SendCardAsync(NetworkStream stream, bool headOnly, CancellationToken life)
     {
         var body = Encoding.UTF8.GetBytes(
-            ShareCard.Render(_from, _app.SizeBytes, ShareInvite.DownloadFrom(_token)));
+            CardPage.Render(Card, _from, _app.SizeBytes, ShareInvite.DownloadFrom(_token)));
 
         var head = new StringBuilder()
             .Append("HTTP/1.1 200 OK\r\n")
