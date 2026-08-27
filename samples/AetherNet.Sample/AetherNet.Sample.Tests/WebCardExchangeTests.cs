@@ -215,7 +215,7 @@ public class WebCardExchangeTests
 
         await a.Web.OpenAsync(b.Web.HomeAddress);
 
-        Assert.Contains(a.Web.SavedCards, c => c.Tag == b.Tag);
+        Assert.Contains(a.Web.Deck.All, c => c.AuthorTag == b.Tag);
     }
 
     /// <summary>

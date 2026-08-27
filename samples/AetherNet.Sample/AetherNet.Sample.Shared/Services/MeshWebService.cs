@@ -29,14 +29,24 @@ public sealed class MeshWebService
 {
     private static readonly byte[] HelloMarker = Encoding.UTF8.GetBytes("MWHELLO");
 
+    /// <summary>
+    /// "Here is a card." Followed by the address, in UTF-8.
+    /// </summary>
+    /// <remarks>
+    /// Rides <c>PacketType.Data</c> rather than getting a type of its own. A new packet type costs
+    /// every one of the eight language SDKs and a round of byte-parity fixtures, and buys nothing
+    /// here — the marker is doing the same job the greeting already does.
+    /// </remarks>
+    private static readonly byte[] GiveMarker = Encoding.UTF8.GetBytes("MWGIVE:");
+
     private readonly ILoggerFactory _loggerFactory;
     private readonly IRadioMesh? _radio;
     private readonly IIdentityService _me;
     private readonly AetherNet.Identity.INodeIdentity _node;
     private readonly IContentStore _contentStore;
     private readonly MyPages _mine;
+    private readonly Deck _deck;
     private readonly SemaphoreSlim _initGate = new(1, 1);
-    private readonly List<SavedCard> _saved = new();
     private volatile bool _ready;
 
     private IMeshSender _sender = default!;
@@ -71,7 +81,8 @@ public sealed class MeshWebService
         IContentStore contentStore,
         IRadioMesh? radio = null,
         ILoggerFactory? loggerFactory = null,
-        MyPages? mine = null)
+        MyPages? mine = null,
+        Deck? deck = null)
     {
         _me = me ?? throw new ArgumentNullException(nameof(me));
         // Cards are signed by the device, so the node signs them. This service never sees the key.
@@ -83,9 +94,20 @@ public sealed class MeshWebService
         // Last, and optional, so every existing caller still compiles. A head that hosts nothing of its
         // own — or a test — gets a set of pages backed by memory rather than by somebody's phone.
         _mine = mine ?? new MyPages(AetherStore.InMemory());
+        _deck = deck ?? new Deck(AetherStore.InMemory());
     }
 
     public event Action? Changed;
+
+    /// <summary>
+    /// Somebody handed us a card. The address they gave, nothing more.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not "somebody handed us a card, here it is". An address is a claim; what arrives
+    /// is fetched and verified against its author's own key and hashes like anything else. Being
+    /// given something is not a reason to trust it — it is only a reason to go and look.
+    /// </remarks>
+    public event Action<string>? Offered;
 
     public string LocalTag => _localTag;
 
@@ -106,8 +128,15 @@ public sealed class MeshWebService
     public string? PeerSiteAddress => _peerSite;
     public void LinkRadio() => _radio?.Link();
 
-    /// <summary>Peer cards fetched over the radio and kept on this phone — browsable offline.</summary>
-    public IReadOnlyList<SavedCard> SavedCards => _saved;
+    /// <summary>
+    /// Cards written by other people that this phone holds — browsable offline, and servable.
+    /// </summary>
+    /// <remarks>
+    /// This was a list in memory, which made "held offline forever" last exactly until the app was
+    /// closed. It is the device's own database now, because a card that does not survive a restart is
+    /// a cache with ambitions rather than an object somebody owns.
+    /// </remarks>
+    public Deck Deck => _deck;
 
     // ─── Setup ──────────────────────────────────────────────────────────────────
 
@@ -173,6 +202,15 @@ public sealed class MeshWebService
                 if (page.Live || page.Name == MyPages.Home)
                     await PublishPageAsync(page, cancellationToken).ConfigureAwait(false);
 
+            // And everything this phone holds for other people.
+            //
+            // Hold-and-forward is the whole card economy: a phone that has been handed a card can
+            // serve it to a third that never met its author, who still verifies it against the
+            // author's own key and hashes. The protocol already answers a query from any binding it
+            // has admitted — but admitted bindings live in memory, so without this a restart quietly
+            // turned this node from a holder back into a bystander.
+            await ReofferHeldCardsAsync(cancellationToken).ConfigureAwait(false);
+
             _ready = true;
         }
         finally
@@ -192,6 +230,120 @@ public sealed class MeshWebService
             _wasLinked = true;
             _ = SendHelloBurstAsync();
         }
+    }
+
+    /// <summary>
+    /// Offer every card this phone holds, on its author's behalf.
+    /// </summary>
+    /// <remarks>
+    /// Two things have to be in place before this node can answer for somebody else's card: the
+    /// descriptor, so an arriving chunk request can be served and a chunk verified, and the author's
+    /// signed name binding, so a query for their address gets their signature rather than ours.
+    /// Replaying the binding files it locally and re-announces it, which is exactly what a holder
+    /// should do on waking up next to other phones.
+    /// </remarks>
+    private async Task ReofferHeldCardsAsync(CancellationToken cancellationToken)
+    {
+        foreach (var held in _deck.All)
+        {
+            if (Deck.DescriptorOf(held) is not { } descriptor) continue;
+
+            await _store.SaveDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
+
+            try
+            {
+                await _directory
+                    .PublishSignedAsync(
+                        held.Name, descriptor, held.AuthorKey, held.Version, held.Signature,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // A card we cannot re-offer is one this phone still reads and cannot pass on. Worth
+                // nothing to anybody else, worth everything to its holder — so it stays in the deck.
+            }
+        }
+    }
+
+    // ─── Handing a card on ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Give a card to whoever is standing next to us — including one we did not write.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Three things go across, in the order the far side needs them. The descriptor, so an arriving
+    /// chunk can be checked against something. The author's own signed binding, replayed exactly as
+    /// they made it, so a query for the address answers with their signature rather than ours. And
+    /// then the address itself, so the other phone knows to go and look.
+    /// </para>
+    /// <para>
+    /// Nothing here asserts anything. The far side fetches, checks the signature against the author's
+    /// key and the chunks against the hashes, and would refuse all of it if any of that failed —
+    /// which is what makes handing on a stranger's card safe to do and safe to receive.
+    /// </para>
+    /// </remarks>
+    /// <returns>False when there is nothing to give or nobody to give it to.</returns>
+    public async Task<bool> GiveAsync(string? address, CancellationToken cancellationToken = default)
+    {
+        await EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
+
+        if (string.IsNullOrWhiteSpace(address)) return false;
+        if (_radio is not { IsLinked: true }) return false;
+
+        // Ours to give, or somebody else's that we hold. Both are legitimate; only the source of the
+        // signature differs, and neither is ours to alter.
+        if (_deck.Get(address) is { } held && Deck.DescriptorOf(held) is { } descriptor)
+        {
+            await _content.AnnounceAsync(descriptor, cancellationToken).ConfigureAwait(false);
+            await _directory
+                .PublishSignedAsync(
+                    held.Name, descriptor, held.AuthorKey, held.Version, held.Signature, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else if (Mine.Get(NameIn(address)) is { Live: true } page)
+        {
+            await PublishPageAsync(page, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            return false;
+        }
+
+        // Every picture the card names, too. A page that arrives without its photograph is a page
+        // whose author is standing right there and cannot be asked.
+        foreach (var picture in _carried.Values.ToArray())
+            await _content.AnnounceAsync(picture, cancellationToken).ConfigureAwait(false);
+
+        return await SayAsync(GiveMarker, address, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Send a marked message to whoever is linked.</summary>
+    private Task<bool> SayAsync(byte[] marker, string said, CancellationToken cancellationToken)
+    {
+        var body = Encoding.UTF8.GetBytes(said);
+        var payload = new byte[marker.Length + body.Length];
+        marker.CopyTo(payload, 0);
+        body.CopyTo(payload, marker.Length);
+
+        return _sender.SendAsync(
+            new MeshPacket
+            {
+                Type = PacketType.Data,
+                SourceUhid = _localTag,
+                DestinationUhid = string.Empty,
+                Ttl = 1,
+                Payload = payload,
+            },
+            string.Empty);
+    }
+
+    /// <summary>The page name inside an address, or empty.</summary>
+    private static string NameIn(string address)
+    {
+        var cut = address.LastIndexOf('/');
+        return cut >= 0 && cut + 1 < address.Length ? address[(cut + 1)..] : "";
     }
 
     // ─── Pictures ────────────────────────────────────────────────────────────────
@@ -357,11 +509,33 @@ public sealed class MeshWebService
             case PacketType.Data when IsHello(packet.Payload):
                 OnPeerHello(packet.SourceUhid);
                 break;
+
+            case PacketType.Data when Offer(packet.Payload) is { Length: > 0 } offered:
+                Offered?.Invoke(offered);
+                break;
         }
     }
 
     private static bool IsHello(byte[]? payload) =>
         payload is not null && payload.AsSpan().SequenceEqual(HelloMarker);
+
+    /// <summary>The address inside an offer, or null if this is not one.</summary>
+    /// <remarks>
+    /// Length-checked before anything is read out of it, and refused unless it is an
+    /// <c>aether://</c> address. A packet from a stranger is untrusted input, and the one thing worse
+    /// than ignoring an offer is following one somewhere off the mesh.
+    /// </remarks>
+    private static string? Offer(byte[]? payload)
+    {
+        if (payload is null || payload.Length <= GiveMarker.Length) return null;
+        if (!payload.AsSpan(0, GiveMarker.Length).SequenceEqual(GiveMarker)) return null;
+
+        var address = Encoding.UTF8.GetString(payload, GiveMarker.Length, payload.Length - GiveMarker.Length);
+
+        return address.StartsWith("aether://", StringComparison.OrdinalIgnoreCase) && address.Length < 512
+            ? address
+            : null;
+    }
 
     private void OnPeerHello(string? peerTag)
     {
@@ -498,8 +672,11 @@ public sealed class MeshWebService
                                 var document = CardDocument.Parse(Encoding.UTF8.GetString(bytes));
                 if (document is null)
                     return MeshPage.Fail(address, "that is not a card this renderer can draw");
+                // Opening somebody's card is how you come to hold it. The whole binding is kept —
+                // their key, their version, their signature — so this phone can hand the card on to
+                // a third that has never met them, and that third can still check it.
                 if (!own)
-                    Remember(address, authorTag, document);
+                    _deck.Hold(address, card, document.Title, from: resolved.Card is not null ? null : null);
 
                 return new MeshPage(
                     Ok: true, Address: address, Name: card.Name, Card: document, AuthorTag: authorTag,
@@ -577,14 +754,6 @@ public sealed class MeshWebService
             await Task.Delay(100, cancellationToken).ConfigureAwait(false);
         }
         return await _content.AssembleAsync(rootHash, cancellationToken).ConfigureAwait(false);
-    }
-
-    private void Remember(string address, string tag, CardDocument document)
-    {
-        if (_saved.Any(s => s.Address == address))
-            return;
-        _saved.Add(new SavedCard(address, tag, document.Title));
-        RaiseChanged();
     }
 
     private void RaiseChanged() => Changed?.Invoke();
@@ -765,9 +934,6 @@ public sealed class MeshWebService
         "taxi" => TaxiAccent,
         _ => BoardAccent,
     };
-
-    /// <summary>A peer card kept on this phone after fetching it over the radio.</summary>
-    public sealed record SavedCard(string Address, string Tag, string Title);
 
     /// <summary>A rendered (or failed) mesh-web page handed to the UI.</summary>
     public sealed record MeshPage(

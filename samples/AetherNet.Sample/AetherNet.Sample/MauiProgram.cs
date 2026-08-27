@@ -175,6 +175,9 @@ public static class MauiProgram
         // here — a person's AetherTag is the domain and each page is a path under it.
         builder.Services.AddSingleton<MyPages>();
 
+        // Cards other people wrote that this phone holds — and can hand on.
+        builder.Services.AddSingleton<Deck>();
+
         // The mesh-web: signed, content-addressed pages served at aether:// addresses.
         // One node per app session hosts what its owner wrote and browses everybody else's.
         builder.Services.AddSingleton<MeshWebService>();

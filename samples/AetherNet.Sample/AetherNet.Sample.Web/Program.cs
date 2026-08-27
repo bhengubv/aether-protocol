@@ -103,6 +103,9 @@ builder.Services.AddSingleton<AetherDemoService>();
 // The pages this device hosts, written here and served from here.
 builder.Services.AddSingleton<MyPages>();
 
+// Cards other people wrote that this phone holds.
+builder.Services.AddSingleton<Deck>();
+
 // The mesh-web: signed, content-addressed pages served at aether:// addresses. Singleton so
 // prerender and interactive renders share one node (the InProcess registry is process-wide).
 builder.Services.AddSingleton<MeshWebService>();

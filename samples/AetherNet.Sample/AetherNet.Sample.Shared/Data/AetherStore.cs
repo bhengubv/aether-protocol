@@ -159,6 +159,36 @@ public sealed record ChatMessage(
 /// Same shape as <c>AetherNet.Map.Sqlite</c> / <c>AetherNet.Content.Sqlite</c>: one long-lived
 /// connection behind a lock, WAL, busy-timeout — reliable single-writer on-device use.
 /// </summary>
+/// <summary>
+/// A card written by somebody else that this phone holds — and can serve.
+/// </summary>
+/// <param name="Address">The <c>aether://</c> address it answers at, under its author's tag.</param>
+/// <param name="AuthorTag">Who wrote it. Derived from <paramref name="AuthorKey"/>, never claimed.</param>
+/// <param name="AuthorKey">Their Ed25519 public key — what a third phone checks the signature against.</param>
+/// <param name="Name">The page name under the author's tag.</param>
+/// <param name="Title">What it calls itself, so a deck reads without opening every card.</param>
+/// <param name="Version">The author's version. A later one replaces this; an earlier one cannot.</param>
+/// <param name="RootHash">The content hash the bytes verify against.</param>
+/// <param name="Signature">The author's signature over the binding. Passing it on carries this along.</param>
+/// <param name="Descriptor">The content manifest, as JSON, so chunks verify without the author present.</param>
+/// <param name="GotMs">When this phone came to hold it.</param>
+/// <param name="GotFrom">Whose phone handed it over — which may not be the author. That is the point.</param>
+public sealed record HeldCard(
+    string Address,
+    string AuthorTag,
+    byte[] AuthorKey,
+    string Name,
+    string Title,
+    long Version,
+    string RootHash,
+    byte[] Signature,
+    string Descriptor,
+    long GotMs,
+    string GotFrom)
+{
+    public DateTimeOffset GotAt => DateTimeOffset.FromUnixTimeMilliseconds(GotMs).ToLocalTime();
+}
+
 public sealed class AetherStore : IDisposable
 {
     private readonly SqliteConnection _conn;
@@ -217,6 +247,32 @@ public sealed class AetherStore : IDisposable
                 tag         TEXT PRIMARY KEY NOT NULL,
                 routing_key BLOB NOT NULL,
                 learned_ms  INTEGER NOT NULL
+            );
+
+            -- Cards this phone HOLDS: written by other people, kept here, and re-served.
+            --
+            -- Not a cache. A card is a portable object — the whole point is that it survives its
+            -- author being gone, unreachable or asleep, so it has to survive this app restarting
+            -- first. It lived in memory before, which meant "held offline forever" lasted until the
+            -- next launch.
+            --
+            -- Everything needed to answer for it on somebody else's behalf is here: the author's key,
+            -- their version, their signature over the binding, and the descriptor the bytes verify
+            -- against. A third phone that never met the author checks the signature against the key
+            -- and the chunks against the descriptor — so passing a card on proves nothing about the
+            -- holder and everything about the author, which is what makes it safe to pass on.
+            CREATE TABLE IF NOT EXISTS held_cards (
+                address      TEXT PRIMARY KEY NOT NULL,
+                author_tag   TEXT NOT NULL,
+                author_key   BLOB NOT NULL,
+                name         TEXT NOT NULL,
+                title        TEXT NOT NULL DEFAULT '',
+                version      INTEGER NOT NULL,
+                root_hash    TEXT NOT NULL,
+                signature    BLOB NOT NULL,
+                descriptor   TEXT NOT NULL,
+                got_ms       INTEGER NOT NULL,
+                got_from     TEXT NOT NULL DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS settings (
@@ -1029,6 +1085,92 @@ public sealed class AetherStore : IDisposable
     }
 
     // ── Settings ────────────────────────────────────────────────────────────────
+
+    // ─── Cards this phone holds ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Keep a card somebody else wrote, with everything needed to serve it on their behalf.
+    /// </summary>
+    /// <remarks>
+    /// Newer wins, and only newer. A held card is replaced when its author has published a later
+    /// version and that version reaches this phone — which is how a card corrects itself without
+    /// anybody going looking, and why an older copy arriving later cannot undo a newer one.
+    /// </remarks>
+    public void HoldCard(HeldCard card)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO held_cards
+                (address, author_tag, author_key, name, title, version, root_hash, signature, descriptor, got_ms, got_from)
+            VALUES ($address, $tag, $key, $name, $title, $version, $root, $sig, $desc, $got, $from)
+            ON CONFLICT(address) DO UPDATE SET
+                title      = excluded.title,
+                version    = excluded.version,
+                root_hash  = excluded.root_hash,
+                signature  = excluded.signature,
+                descriptor = excluded.descriptor,
+                got_ms     = excluded.got_ms,
+                got_from   = excluded.got_from
+            WHERE excluded.version > held_cards.version;";
+        cmd.Parameters.AddWithValue("$address", card.Address);
+        cmd.Parameters.AddWithValue("$tag", card.AuthorTag);
+        cmd.Parameters.AddWithValue("$key", card.AuthorKey);
+        cmd.Parameters.AddWithValue("$name", card.Name);
+        cmd.Parameters.AddWithValue("$title", card.Title);
+        cmd.Parameters.AddWithValue("$version", card.Version);
+        cmd.Parameters.AddWithValue("$root", card.RootHash);
+        cmd.Parameters.AddWithValue("$sig", card.Signature);
+        cmd.Parameters.AddWithValue("$desc", card.Descriptor);
+        cmd.Parameters.AddWithValue("$got", card.GotMs);
+        cmd.Parameters.AddWithValue("$from", card.GotFrom);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Every card this phone holds, newest first.</summary>
+    public IReadOnlyList<HeldCard> GetHeldCards()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT address, author_tag, author_key, name, title, version, root_hash, signature, descriptor, got_ms, got_from
+            FROM held_cards ORDER BY got_ms DESC;";
+
+        var held = new List<HeldCard>();
+        using var reader = cmd.ExecuteReader();
+
+        while (reader.Read())
+            held.Add(new HeldCard(
+                Address: reader.GetString(0),
+                AuthorTag: reader.GetString(1),
+                AuthorKey: (byte[])reader[2],
+                Name: reader.GetString(3),
+                Title: reader.GetString(4),
+                Version: reader.GetInt64(5),
+                RootHash: reader.GetString(6),
+                Signature: (byte[])reader[7],
+                Descriptor: reader.GetString(8),
+                GotMs: reader.GetInt64(9),
+                GotFrom: reader.GetString(10)));
+
+        return held;
+    }
+
+    /// <summary>Whether this phone holds a card at this address.</summary>
+    public bool HoldsCard(string address)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT 1 FROM held_cards WHERE address = $address LIMIT 1;";
+        cmd.Parameters.AddWithValue("$address", address);
+        return cmd.ExecuteScalar() is not null;
+    }
+
+    /// <summary>Let a card go. It stays on every other phone that holds it.</summary>
+    public bool DropCard(string address)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM held_cards WHERE address = $address;";
+        cmd.Parameters.AddWithValue("$address", address);
+        return cmd.ExecuteNonQuery() > 0;
+    }
 
     public string? GetSetting(string key)
     {

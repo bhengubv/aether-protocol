@@ -13,11 +13,51 @@
    should not be reading the other. *@
 <div class="browser">
     <div class="where">
-        <button class="seg @(_mine ? null : "on")" @onclick="() => Show(false)">Browse</button>
-        <button class="seg @(_mine ? "on" : null)" @onclick="() => Show(true)">Mine</button>
+        <button class="seg @(_view == View.Browse ? "on" : null)" @onclick="() => Show(View.Browse)">Browse</button>
+        <button class="seg @(_view == View.Mine ? "on" : null)" @onclick="() => Show(View.Mine)">Mine</button>
+        <button class="seg @(_view == View.Deck ? "on" : null)" @onclick="() => Show(View.Deck)">
+            Deck@(Mesh.Deck.Count > 0 ? $" · {Mesh.Deck.Count}" : "")
+        </button>
     </div>
 
-@if (_mine)
+@if (_took is { Length: > 0 })
+{
+    <div class="took">@_took</div>
+}
+
+@if (_view == View.Deck)
+{
+    @* Cards other people wrote, held here. A card is an object: it opens with no signal, with its
+       author asleep or gone, and it can be handed on to somebody who has never met them — who still
+       checks it against the author's own key, not against ours. *@
+    <div class="mine">
+        <p class="lede">Cards people gave you. They open with no signal and no author — and you can hand any of them on.</p>
+
+        @if (Mesh.Deck.Count == 0)
+        {
+            <div class="empty">
+                <span class="empty-t">Nothing yet</span>
+                <span class="empty-s">Open somebody's address and you keep their card. Stand next to them and they can hand you one.</span>
+            </div>
+        }
+
+        @foreach (var held in Mesh.Deck.All)
+        {
+            <div class="held">
+                <button class="rmain" @onclick="@(() => Go(held.Address))">
+                    <span class="rtitle">@(held.Title is { Length: > 0 } t ? t : held.Name)</span>
+                    <span class="raddr">@held.Address.Replace("aether://", "")</span>
+                    <span class="by">by @held.AuthorTag@(held.GotFrom is { Length: > 0 } f && f != held.AuthorTag ? $" · from {f}" : "")</span>
+                </button>
+                <div class="hacts">
+                    <button class="hact" disabled="@(!Mesh.RadioLinked || _busy)" @onclick="@(() => Give(held.Address))">Give</button>
+                    <button class="hact drop" @onclick="@(() => Drop(held.Address))">Let go</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (_view == View.Mine)
 {
     <div class="mine">
         <p class="lede">Your AetherTag is your domain. Every page below is a path under it, served off this phone — nobody issued it, so nobody can take it back.</p>
@@ -30,7 +70,13 @@
                     <span class="raddr">@(Mesh.LocalTag + "/" + card.Name)</span>
                     <span class="rstate @(card.Live ? "live" : "draft")">@(card.Live ? "published" : "draft")</span>
                 </button>
-                <button class="redit" @onclick="@(() => Nav.NavigateTo("/page/" + card.Name))" aria-label="Edit">Edit</button>
+                <div class="hacts">
+                    <button class="redit" @onclick="@(() => Nav.NavigateTo("/page/" + card.Name))">Edit</button>
+                    @if (card.Live)
+                    {
+                        <button class="hact" disabled="@(!Mesh.RadioLinked || _busy)" @onclick="@(() => Give(Mesh.Address(card.Name)))">Give</button>
+                    }
+                </div>
             </div>
         }
 
@@ -67,11 +113,11 @@ else
         {
             <button class="bm @(_address == $"{Mesh.LocalTag}/{name}" ? "on" : null)" @onclick="@(() => Go(Mesh.Address(name)))">@name</button>
         }
-        @foreach (var card in Mesh.SavedCards)
+        @foreach (var card in Mesh.Deck.All)
         {
-            <button class="bm saved @(_address == TrimScheme(card.Address) ? "on" : null)" @onclick="@(() => Go(card.Address))">🔖 @card.Title</button>
+            <button class="bm saved @(_address == TrimScheme(card.Address) ? "on" : null)" @onclick="@(() => Go(card.Address))">🔖 @(card.Title is { Length: > 0 } t ? t : card.Name)</button>
         }
-        @if (Mesh.PeerSiteAddress is { } peer && !Mesh.SavedCards.Any(c => c.Address == peer))
+        @if (Mesh.PeerSiteAddress is { } peer && !Mesh.Deck.Holds(peer))
         {
             <button class="bm peer" @onclick="@(() => Go(peer))">★ nearby phone</button>
         }
@@ -240,7 +286,10 @@ else
     private MeshWebService.MeshPage? _page;
     private bool _busy;
     private bool _autoOpened;
-    private bool _mine;
+    private enum View { Browse, Mine, Deck }
+
+    private View _view;
+    private string _took = "";
 
     /// <summary>
     /// Artwork already assembled, by content hash. Held here rather than fetched during render because
@@ -389,16 +438,58 @@ else
         !string.IsNullOrWhiteSpace(target) &&
         target.StartsWith("aether://", StringComparison.OrdinalIgnoreCase);
 
-    private void Show(bool mine) => _mine = mine;
+    private void Show(View view) { _view = view; _took = ""; }
+
+    /// <summary>
+    /// Hand a card to whoever is standing next to us.
+    /// </summary>
+    private async Task Give(string address)
+    {
+        _took = await Mesh.GiveAsync(address)
+            ? "Handed over. They have it now — it is theirs, and they can pass it on."
+            : "Nobody is linked right now.";
+
+        StateHasChanged();
+    }
+
+    /// <summary>Let a card go from this phone. Everyone else who holds it still does.</summary>
+    private void Drop(string address)
+    {
+        Mesh.Deck.Drop(address);
+        _took = "Let go. It is still on every other phone that holds it.";
+    }
+
+    /// <summary>
+    /// Somebody handed us one.
+    /// </summary>
+    /// <remarks>
+    /// Opening it is what takes it into the deck — and opening is fetch-and-verify, so an offer from
+    /// a stranger is a reason to look rather than a reason to believe. A card that fails its own
+    /// signature simply never lands.
+    /// </remarks>
+    private void OnOffered(string address) => _ = InvokeAsync(async () =>
+    {
+        await Go(address);
+
+        if (_page is { Ok: true })
+        {
+            _view = View.Deck;
+            _took = "Somebody handed you a card. It is yours now.";
+        }
+
+        StateHasChanged();
+    });
 
     protected override async Task OnInitializedAsync()
     {
         Mesh.Changed += OnChanged;
         Mesh.Mine.Changed += OnChanged;
+        Mesh.Deck.Changed += OnChanged;
+        Mesh.Offered += OnOffered;
 
         // Somebody has just published. They are sent back to the list of their own pages, not to a
         // browser pointed at a stranger.
-        _mine = Nav.Uri.Contains("mine=1", StringComparison.Ordinal);
+        _view = Nav.Uri.Contains("mine=1", StringComparison.Ordinal) ? View.Mine : View.Browse;
 
         // While a card is open this page answers for itself: a route says which card, and only the
         // page knows how far down it somebody had read.
@@ -464,6 +555,8 @@ else
         Chat.Holding = null;
         Mesh.Changed -= OnChanged;
         Mesh.Mine.Changed -= OnChanged;
+        Mesh.Deck.Changed -= OnChanged;
+        Mesh.Offered -= OnOffered;
     }
 }
 
@@ -486,6 +579,21 @@ else
     .rstate.live { color: var(--brand); }
     .rstate.draft { color: var(--ink-3); }
     .redit { flex: 0 0 auto; padding: 0 16px; border-radius: var(--radius); border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+
+    /* A held card. Its author is the fact that matters, so it is on the face rather than hidden. */
+    .held { display: flex; align-items: stretch; gap: 7px; }
+    .held .rmain { gap: 4px; }
+    .by { font-size: 0.72rem; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hacts { display: flex; flex-direction: column; gap: 5px; }
+    .hact { flex: 1 1 0; min-width: 78px; padding: 0 13px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-weight: 700; font-size: 0.8rem; cursor: pointer; }
+    .hact:disabled { opacity: .4; cursor: default; }
+    .hact.drop { color: var(--warn); }
+
+    .took { padding: 11px 14px; border-radius: var(--radius-sm); background: var(--info-bg); color: var(--info); font-size: 0.86rem; line-height: 1.45; }
+
+    .empty { display: flex; flex-direction: column; gap: 4px; padding: 26px 18px; border: 1px dashed var(--line-card); border-radius: var(--radius); text-align: center; }
+    .empty-t { font-size: 1rem; font-weight: 750; color: var(--ink); }
+    .empty-s { font-size: 0.84rem; line-height: 1.5; color: var(--ink-2); }
 
     .new { display: flex; align-items: center; gap: 13px; text-align: left; padding: 15px; border-radius: var(--radius); border: 1px dashed var(--line-card); background: transparent; cursor: pointer; }
     .new:disabled { opacity: .45; cursor: default; }
