@@ -2,7 +2,7 @@
 
 using System.Text;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// Someone's own card, drawn for a stranger standing next to them.

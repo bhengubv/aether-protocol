@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Browser;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;

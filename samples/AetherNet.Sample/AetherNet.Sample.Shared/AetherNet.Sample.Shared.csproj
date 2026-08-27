@@ -27,12 +27,6 @@
 
        The typefaces are SIL Open Font License 1.1 (Instrument Serif, Newsreader) — the licence text
        ships beside them in wwwroot/fonts/OFL-1.1.txt, as the licence requires. -->
-  <ItemGroup>
-    <EmbeddedResource Include="wwwroot/js/aether-shader.js" LogicalName="aether-shader.js" />
-    <EmbeddedResource Include="wwwroot/fonts/instrument-serif.woff2" LogicalName="instrument-serif.woff2" />
-    <EmbeddedResource Include="wwwroot/fonts/newsreader.woff2" LogicalName="newsreader.woff2" />
-  </ItemGroup>
-
   <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: SQLite < 3.50.2, reachable only by executing
        attacker-controlled SQL. SQLitePCLRaw has not shipped a patched bundle yet. This app runs only
        internal, fully-parameterized SQL over local device data. Same justification as
@@ -49,6 +43,9 @@
     <ProjectReference Include="../../../src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Security/AetherNet.Security.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Transport/AetherNet.Transport.csproj" />
+    <!-- AetherView: the whole mesh-web as a library — model, renderer, editor, deck, wire. This app
+         merely hosts it, and fills its two seams (ICardStore, IMeshLink) with a phone's answers. -->
+    <ProjectReference Include="../../../src/AetherNet.Browser/AetherNet.Browser.csproj" />
     <!-- The mesh-web: content-addressed Cards + the aether:// resolver (pulls in AetherNet.Content). -->
     <ProjectReference Include="../../../src/AetherNet.Cards/AetherNet.Cards.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Content/AetherNet.Content.csproj" />

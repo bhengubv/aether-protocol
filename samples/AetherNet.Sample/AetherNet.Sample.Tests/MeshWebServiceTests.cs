@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Browser;
 using System.Text;
 using AetherNet.Content;
 using AetherNet.Sample.Shared.Services;
@@ -10,11 +11,14 @@ namespace AetherNet.Sample.Tests;
 
 public class MeshWebServiceTests
 {
+    /// <summary>The fake radio as the narrow link a browser actually takes.</summary>
+    private static IMeshLink? Link(FakeRadioMesh? radio) => radio is null ? null : new RadioMeshLink(radio);
+
     // Each service registers itself by tag, so every test gets its own device.
     private static (MeshWebService Service, string Tag) ADevice(FakeRadioMesh? radio = null)
     {
         var me = FakeIdentity.Unique();
-        return (new MeshWebService(me, me.Node, new InMemoryContentStore(), radio), me.AetherTag);
+        return (new MeshWebService(me.Node, new InMemoryContentStore(), Link(radio)), me.AetherTag);
     }
 
     private static MeshWebService AService(FakeRadioMesh? radio = null) => ADevice(radio).Service;

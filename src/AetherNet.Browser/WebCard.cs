@@ -3,9 +3,8 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AetherNet.Sample.Shared.Data;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// One page this device hosts on AetherNet.
@@ -74,17 +73,17 @@ public sealed class MyPages
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    private readonly AetherStore _store;
+    private readonly ICardStore _store;
     private readonly List<WebCard> _pages = [];
     private bool _loaded;
 
-    public MyPages(AetherStore store) => _store = store ?? throw new ArgumentNullException(nameof(store));
+    public MyPages(ICardStore store) => _store = store ?? throw new ArgumentNullException(nameof(store));
 
     /// <summary>Raised when a page is written, published or taken down.</summary>
     public event Action? Changed;
 
     /// <summary>The author's own name, as they typed it — the title a first page starts with.</summary>
-    public string? OwnerName => _store.GetSetting(MyName.Key);
+    public string? OwnerName => _store.GetOwnerName();
 
     /// <summary>Every page, in the order the author arranged them.</summary>
     public IReadOnlyList<WebCard> All
@@ -227,8 +226,8 @@ public sealed class MyPages
         if (_loaded) return;
         _loaded = true;
 
-        var stored = _store.GetSetting(Key);
-        if (string.IsNullOrWhiteSpace(stored)) { Inherit(); return; }
+        var stored = _store.GetPages();
+        if (string.IsNullOrWhiteSpace(stored)) return;
 
         try
         {
@@ -251,25 +250,9 @@ public sealed class MyPages
         }
     }
 
-    /// <summary>
-    /// Carry forward the single card this app used to keep, from before a device hosted pages.
-    /// </summary>
-    /// <remarks>
-    /// Somebody who wrote a card in the older editor should find it at their front door rather than
-    /// find it gone. Read, not moved: the old value stays where it is, so a downgrade still has it.
-    /// </remarks>
-    private void Inherit()
-    {
-        var old = _store.GetSetting(OwnCard.Key);
-        if (string.IsNullOrWhiteSpace(old)) return;
-        if (CardDocument.Parse(old) is not { } card) return;
-
-        _pages.Add(new WebCard { Name = Home, Doc = OwnCard.Tidy(card) });
-    }
-
     private void Flush()
     {
-        _store.SetSetting(Key, JsonSerializer.Serialize(_pages, Options));
+        _store.SetPages(JsonSerializer.Serialize(_pages, Options));
         Changed?.Invoke();
     }
 }

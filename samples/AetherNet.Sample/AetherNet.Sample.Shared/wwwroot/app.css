@@ -88,13 +88,13 @@
 @font-face {
     font-family: 'Instrument Serif';
     font-display: swap;
-    src: url('fonts/instrument-serif.woff2') format('woff2');
+    src: url('/_content/AetherNet.Browser/fonts/instrument-serif.woff2') format('woff2');
 }
 
 @font-face {
     font-family: 'Newsreader';
     font-display: swap;
-    src: url('fonts/newsreader.woff2') format('woff2');
+    src: url('/_content/AetherNet.Browser/fonts/newsreader.woff2') format('woff2');
 }
 
 * { box-sizing: border-box; }

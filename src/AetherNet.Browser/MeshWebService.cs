@@ -6,14 +6,12 @@ using AetherNet.Content;
 using AetherNet.Content.Models;
 using AetherNet.Identity;
 using AetherNet.Protocol;
-using AetherNet.Sample.Shared.Data;
 using AetherNet.Routing;
 using AetherNet.Security.Services;
-using AetherNet.Transport.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// The AetherNet <b>mesh-web</b>: web pages that have no URL and no server.
@@ -40,8 +38,7 @@ public sealed class MeshWebService
     private static readonly byte[] GiveMarker = Encoding.UTF8.GetBytes("MWGIVE:");
 
     private readonly ILoggerFactory _loggerFactory;
-    private readonly IRadioMesh? _radio;
-    private readonly IIdentityService _me;
+    private readonly IMeshLink? _link;
     private readonly AetherNet.Identity.INodeIdentity _node;
     private readonly IContentStore _contentStore;
     private readonly MyPages _mine;
@@ -75,26 +72,34 @@ public sealed class MeshWebService
     /// </remarks>
     private readonly Dictionary<string, ContentDescriptor> _carried = new(StringComparer.Ordinal);
 
+    /// <param name="node">
+    ///   This device's identity. It signs cards and it is where the tag comes from — the service never
+    ///   sees the private key, and never needs to.
+    /// </param>
+    /// <param name="contentStore">Where chunks live. Durable on a real device; see <see cref="ICardStore"/>.</param>
+    /// <param name="link">The radio, or null on a device that has none. A browser with no radio still works.</param>
+    /// <param name="mine">The pages this device's owner wrote.</param>
+    /// <param name="deck">The cards this device holds for other people.</param>
     public MeshWebService(
-        IIdentityService me,
         AetherNet.Identity.INodeIdentity node,
         IContentStore contentStore,
-        IRadioMesh? radio = null,
+        IMeshLink? link = null,
         ILoggerFactory? loggerFactory = null,
         MyPages? mine = null,
         Deck? deck = null)
     {
-        _me = me ?? throw new ArgumentNullException(nameof(me));
         // Cards are signed by the device, so the node signs them. This service never sees the key.
         _node = node ?? throw new ArgumentNullException(nameof(node));
         _contentStore = contentStore ?? throw new ArgumentNullException(nameof(contentStore));
-        _radio = radio;
+        _link = link;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
 
-        // Last, and optional, so every existing caller still compiles. A head that hosts nothing of its
-        // own — or a test — gets a set of pages backed by memory rather than by somebody's phone.
-        _mine = mine ?? new MyPages(AetherStore.InMemory());
-        _deck = deck ?? new Deck(AetherStore.InMemory());
+        // Optional so that a host can have a working browser in one line before deciding where the
+        // device keeps things. Memory-backed, which is fine for a test and wrong for a person — see
+        // ICardStore, where durability is the contract rather than a detail.
+        var scratch = new InMemoryCardStore();
+        _mine = mine ?? new MyPages(scratch);
+        _deck = deck ?? new Deck(scratch);
     }
 
     public event Action? Changed;
@@ -122,11 +127,11 @@ public sealed class MeshWebService
 
     public string Address(string name) => $"aether://{_localTag}/{name}";
 
-    public bool RadioAvailable => _radio is { IsSupported: true };
-    public string RadioName => _radio?.SelectedRadio ?? "radio";
-    public bool RadioLinked => _radio?.IsLinked ?? false;
+    public bool RadioAvailable => _link is { IsSupported: true };
+    public string RadioName => _link?.Name ?? "radio";
+    public bool RadioLinked => _link?.IsLinked ?? false;
     public string? PeerSiteAddress => _peerSite;
-    public void LinkRadio() => _radio?.Link();
+    public void LinkRadio() => _link?.Link();
 
     /// <summary>
     /// Cards written by other people that this phone holds — browsable offline, and servable.
@@ -153,21 +158,20 @@ public sealed class MeshWebService
 
             // One identity for the whole app: the card is signed by the same tag Settings shows, and it
             // is the same tag after a restart — so an address someone saved still resolves to you.
-            _localTag = _me.AetherTag;
+            // The tag comes from the device's own key rather than from anything that claims one.
+            _localTag = (await _node.GetOrMintAsync(cancellationToken).ConfigureAwait(false)).Value;
 
-            if (_radio is { IsSupported: true })
+            if (_link is { IsSupported: true })
             {
-                _sender = new RadioMeshSender(_localTag, _radio);
-                _radio.PacketReceived += OnInboundPacket;
-                _radio.Changed += OnRadioChanged;
+                _sender = new MeshLinkSender(_localTag, _link);
+                _link.PacketReceived += OnInboundPacket;
+                _link.Changed += OnRadioChanged;
             }
             else
             {
-                var uhid = "aether:web:" + _localTag;
-                var transport = new InProcessTransportService(
-                    uhid, _loggerFactory.CreateLogger<InProcessTransportService>());
-                transport.DataReceived += (_source, bytes) => OnInboundPacket(bytes);
-                _sender = new InProcessMeshSender(uhid, transport);
+                // No radio. Everything this node says, it hears — so its own cards still resolve
+                // through the ordinary path, and there is no second code path to keep honest.
+                _sender = new LoopbackMeshSender(_localTag, OnInboundPacket);
             }
 
             // Durable: cards this device hosts, and cards it collected from others, survive a restart.
@@ -224,7 +228,7 @@ public sealed class MeshWebService
         // mesh-web afterwards. A greeting sent only when the link *changes* is therefore never sent
         // at all — by either phone, each waiting on a transition that happened before it was
         // listening — and neither ever learns there is a site an arm's length away.
-        if (_radio is { IsLinked: true } && !_helloSent)
+        if (_link is { IsLinked: true } && !_helloSent)
         {
             _helloSent = true;
             _wasLinked = true;
@@ -290,7 +294,7 @@ public sealed class MeshWebService
         await EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(address)) return false;
-        if (_radio is not { IsLinked: true }) return false;
+        if (_link is not { IsLinked: true }) return false;
 
         // Ours to give, or somebody else's that we hold. Both are legitimate; only the source of the
         // signature differs, and neither is ours to alter.
@@ -379,7 +383,7 @@ public sealed class MeshWebService
 
         // Somebody is standing next to us right now. A picture chosen while the link is up should be
         // fetchable on the other phone without waiting for the radio to come back around.
-        if (_radio is { IsLinked: true })
+        if (_link is { IsLinked: true })
             await _content.AnnounceAsync(picture, cancellationToken).ConfigureAwait(false);
 
         return picture.RootHash;
@@ -478,7 +482,7 @@ public sealed class MeshWebService
 
         // Somebody is already standing next to us. A page written while the link is up should be
         // readable on the other phone without waiting for the next time the radio comes back.
-        if (_radio is { IsLinked: true })
+        if (_link is { IsLinked: true })
             foreach (var picture in _carried.Values.ToArray())
                 await _content.AnnounceAsync(picture, cancellationToken).ConfigureAwait(false);
 
@@ -562,7 +566,7 @@ public sealed class MeshWebService
 
     private void OnRadioChanged()
     {
-        var linked = _radio?.IsLinked ?? false;
+        var linked = _link?.IsLinked ?? false;
         if (linked && !_wasLinked)
         {
             _wasLinked = true;

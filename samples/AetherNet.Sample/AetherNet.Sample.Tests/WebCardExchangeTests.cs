@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Browser;
 using System.Text;
 using AetherNet.Content;
 using AetherNet.Sample.Shared.Services;
@@ -33,7 +34,7 @@ public class WebCardExchangeTests
         public Device()
         {
             Radio = new FakeRadioMesh(Me.AetherTag);
-            Web = new MeshWebService(Me, Me.Node, new InMemoryContentStore(), Radio);
+            Web = new MeshWebService(Me.Node, new InMemoryContentStore(), new RadioMeshLink(Radio));
         }
 
         public string Tag => Me.AetherTag;

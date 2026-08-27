@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Browser;
 using AetherNet.Content;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Tests.Fakes;
@@ -28,7 +29,7 @@ public class CardModelTests
     private static (MeshWebService Service, string Tag) ADevice()
     {
         var me = FakeIdentity.Unique();
-        return (new MeshWebService(me, me.Node, new InMemoryContentStore()), me.AetherTag);
+        return (new MeshWebService(me.Node, new InMemoryContentStore()), me.AetherTag);
     }
 
     /// <summary>§2: a card is "a versioned document = metadata + an ordered list of typed blocks".</summary>

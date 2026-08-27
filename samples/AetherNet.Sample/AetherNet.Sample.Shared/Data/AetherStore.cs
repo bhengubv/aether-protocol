@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Browser;
 using Microsoft.Data.Sqlite;
 
 namespace AetherNet.Sample.Shared.Data;
@@ -159,36 +160,6 @@ public sealed record ChatMessage(
 /// Same shape as <c>AetherNet.Map.Sqlite</c> / <c>AetherNet.Content.Sqlite</c>: one long-lived
 /// connection behind a lock, WAL, busy-timeout — reliable single-writer on-device use.
 /// </summary>
-/// <summary>
-/// A card written by somebody else that this phone holds — and can serve.
-/// </summary>
-/// <param name="Address">The <c>aether://</c> address it answers at, under its author's tag.</param>
-/// <param name="AuthorTag">Who wrote it. Derived from <paramref name="AuthorKey"/>, never claimed.</param>
-/// <param name="AuthorKey">Their Ed25519 public key — what a third phone checks the signature against.</param>
-/// <param name="Name">The page name under the author's tag.</param>
-/// <param name="Title">What it calls itself, so a deck reads without opening every card.</param>
-/// <param name="Version">The author's version. A later one replaces this; an earlier one cannot.</param>
-/// <param name="RootHash">The content hash the bytes verify against.</param>
-/// <param name="Signature">The author's signature over the binding. Passing it on carries this along.</param>
-/// <param name="Descriptor">The content manifest, as JSON, so chunks verify without the author present.</param>
-/// <param name="GotMs">When this phone came to hold it.</param>
-/// <param name="GotFrom">Whose phone handed it over — which may not be the author. That is the point.</param>
-public sealed record HeldCard(
-    string Address,
-    string AuthorTag,
-    byte[] AuthorKey,
-    string Name,
-    string Title,
-    long Version,
-    string RootHash,
-    byte[] Signature,
-    string Descriptor,
-    long GotMs,
-    string GotFrom)
-{
-    public DateTimeOffset GotAt => DateTimeOffset.FromUnixTimeMilliseconds(GotMs).ToLocalTime();
-}
-
 public sealed class AetherStore : IDisposable
 {
     private readonly SqliteConnection _conn;

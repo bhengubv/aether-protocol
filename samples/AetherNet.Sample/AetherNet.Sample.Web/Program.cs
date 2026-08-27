@@ -1,3 +1,4 @@
+using AetherNet.Browser;
 using AetherNet.Content;
 using AetherNet.Content.Sqlite;
 using AetherNet.Sample.Web.Components;
@@ -101,14 +102,10 @@ builder.Services.AddSingleton<GroupCallService>();
 builder.Services.AddSingleton<AetherDemoService>();
 
 // The pages this device hosts, written here and served from here.
-builder.Services.AddSingleton<MyPages>();
-
-// Cards other people wrote that this phone holds.
-builder.Services.AddSingleton<Deck>();
-
-// The mesh-web: signed, content-addressed pages served at aether:// addresses. Singleton so
-// prerender and interactive renders share one node (the InProcess registry is process-wide).
-builder.Services.AddSingleton<MeshWebService>();
+// AetherView. Singleton so prerender and interactive renders share one node.
+builder.Services.AddSingleton<ICardStore, AetherStoreCardStore>();
+builder.Services.AddSingleton<IMeshLink, RadioMeshLink>();
+builder.Services.AddAetherBrowser();
 
 // Radios are physical; the Web host has none.
 builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();

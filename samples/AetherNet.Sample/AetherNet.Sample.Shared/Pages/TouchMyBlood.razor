@@ -198,7 +198,7 @@
         Group.Status += OnRadio;
         Handout.Say += OnRadio;
 
-        _name = MyName.Clean(Store.GetSetting(MyName.Key));
+        _name = MyName.Clean(Store.GetSetting(AetherStoreCardStore.NameKey));
     }
 
     /// <summary>
@@ -249,7 +249,7 @@
     private void OnName(ChangeEventArgs e)
     {
         _name = MyName.Clean(e.Value?.ToString());
-        Store.SetSetting(MyName.Key, _name);
+        Store.SetSetting(AetherStoreCardStore.NameKey, _name);
     }
 
     private async Task StartAsync()
@@ -287,7 +287,7 @@
             // deciding whether to accept anything, and it should be the same page anybody already on
             // AetherNet would find at this tag — one page, written once, seen by everybody.
             Handout.Card = Mine.Get(MyPages.Home)?.Doc
-                ?? OwnCard.Load(Store.GetSetting(OwnCard.Key), _name);
+                ?? OwnCard.Load(Store.GetSetting(AetherStoreCardStore.OldCardKey), _name);
 
             // Their pictures, fetched now. The server that answers the tap has one shot at drawing
             // this page, and reaching into the mesh while a stranger's browser waits is a page that

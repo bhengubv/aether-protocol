@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Browser;
 using System.Text;
 using AetherNet.Content;
 using AetherNet.Sample.Shared.Data;
@@ -63,10 +64,10 @@ public class CardTradingTests : IDisposable
         public Phone(AetherStore store, IContentStore? content = null)
         {
             Radio = new FakeRadioMesh(Me.AetherTag);
-            Pages = new MyPages(store);
-            Deck = new Deck(store);
+            Pages = new MyPages(new AetherStoreCardStore(store));
+            Deck = new Deck(new AetherStoreCardStore(store));
             Content = content ?? new InMemoryContentStore();
-            Web = new MeshWebService(Me, Me.Node, Content, Radio, null, Pages, Deck);
+            Web = new MeshWebService(Me.Node, Content, new RadioMeshLink(Radio), null, Pages, Deck);
         }
 
         public string Tag => Me.AetherTag;
@@ -159,7 +160,7 @@ public class CardTradingTests : IDisposable
         await me.Web.OpenAsync(them.Web.Address("shop"));
 
         // The app closes and opens again. Same database, everything else new.
-        var later = new Deck(mine);
+        var later = new Deck(new AetherStoreCardStore(mine));
 
         Assert.Contains(later.All, c => c.Name == "shop" && c.AuthorTag == them.Tag);
     }
@@ -439,7 +440,7 @@ public class CardTradingTests : IDisposable
     public void A_newer_version_replaces_a_held_card()
     {
         using var store = ADisk();
-        var deck = new Deck(store);
+        var deck = new Deck(new AetherStoreCardStore(store));
 
         store.HoldCard(Held(version: 1, title: "Old hours"));
         store.HoldCard(Held(version: 2, title: "New hours"));
@@ -457,7 +458,7 @@ public class CardTradingTests : IDisposable
     public void An_older_version_cannot_undo_a_newer_one()
     {
         using var store = ADisk();
-        var deck = new Deck(store);
+        var deck = new Deck(new AetherStoreCardStore(store));
 
         store.HoldCard(Held(version: 5, title: "Current"));
         store.HoldCard(Held(version: 2, title: "Stale"));

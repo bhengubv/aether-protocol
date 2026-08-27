@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Browser;
 using System.Reflection;
 using AetherNet.Sample.Shared.Services;
 using Xunit;

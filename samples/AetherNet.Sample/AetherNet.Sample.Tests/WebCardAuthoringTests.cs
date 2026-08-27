@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Browser;
 using System.Text;
 using AetherNet.Content;
 using AetherNet.Sample.Shared.Data;
@@ -37,13 +38,13 @@ namespace AetherNet.Sample.Tests;
 /// </summary>
 public class WebCardAuthoringTests
 {
-    private static MyPages APhone() => new(AetherStore.InMemory());
+    private static MyPages APhone() => new(new InMemoryCardStore());
 
     private static (MeshWebService Service, MyPages Pages) ADevice()
     {
         var me = FakeIdentity.Unique();
         var pages = APhone();
-        return (new MeshWebService(me, me.Node, new InMemoryContentStore(), null, null, pages), pages);
+        return (new MeshWebService(me.Node, new InMemoryContentStore(), null, null, pages), pages);
     }
 
     // ── Addresses somebody has to be able to say out loud ──────────────────────
@@ -104,9 +105,9 @@ public class WebCardAuthoringTests
     public void A_page_is_still_there_after_the_app_is_closed()
     {
         using var store = AetherStore.InMemory();
-        new MyPages(store).Save(new WebCard { Name = "shop", Doc = new CardDocument { Title = "The shop" } });
+        new MyPages(new AetherStoreCardStore(store)).Save(new WebCard { Name = "shop", Doc = new CardDocument { Title = "The shop" } });
 
-        var later = new MyPages(store);
+        var later = new MyPages(new AetherStoreCardStore(store));
 
         Assert.Equal("The shop", later.Get("shop")!.Doc.Title);
     }
@@ -195,7 +196,7 @@ public class WebCardAuthoringTests
         using var store = AetherStore.InMemory();
         store.SetSetting(OwnCard.Key, new CardDocument { Title = "Written before" }.ToJson());
 
-        var mine = new MyPages(store);
+        var mine = new MyPages(new AetherStoreCardStore(store));
 
         Assert.Equal("Written before", mine.Get(MyPages.Home)?.Doc.Title);
     }
@@ -210,7 +211,7 @@ public class WebCardAuthoringTests
         using var store = AetherStore.InMemory();
         store.SetSetting(MyPages.Key, "{ not json at all");
 
-        var mine = new MyPages(store);
+        var mine = new MyPages(new AetherStoreCardStore(store));
 
         Assert.Empty(mine.All);
         Assert.Equal("{ not json at all", store.GetSetting(MyPages.Key));
@@ -636,7 +637,7 @@ public class WebCardAuthoringTests
         hereRadio.Link();
         thereRadio.Link();
 
-        var here = new MeshWebService(me, me.Node, new InMemoryContentStore(), hereRadio, null, mine);
+        var here = new MeshWebService(me.Node, new InMemoryContentStore(), new RadioMeshLink(hereRadio), null, mine);
         await here.EnsureReadyAsync();
 
         var hash = await here.KeepPictureAsync(AJpeg(), "image/jpeg");
@@ -651,7 +652,7 @@ public class WebCardAuthoringTests
         });
         await here.PublishAsync("shop");
 
-        var there = new MeshWebService(you, you.Node, new InMemoryContentStore(), thereRadio, null, APhone());
+        var there = new MeshWebService(you.Node, new InMemoryContentStore(), new RadioMeshLink(thereRadio), null, APhone());
         await there.EnsureReadyAsync();
 
         var page = await there.OpenAsync(here.Address("shop"));
@@ -825,7 +826,7 @@ public class WebCardAuthoringTests
         await service.PublishAsync("shop");
 
         var second = new MeshWebService(
-            FakeIdentity.Unique(), FakeIdentity.Unique().Node, new InMemoryContentStore(), null, null, mine);
+            FakeIdentity.Unique().Node, new InMemoryContentStore(), null, null, mine);
         await second.EnsureReadyAsync();
 
         Assert.Contains("shop", second.Pages);

@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Text;
 using QRCoder;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// Renders an <c>aether://</c> invite as an inline, brand-styled SVG QR code.

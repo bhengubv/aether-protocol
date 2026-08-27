@@ -2,7 +2,7 @@
 
 using System.Reflection;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// The bytes a page needs to look like itself, carried inside the assembly.
@@ -28,7 +28,7 @@ public static class PageAssets
     /// device, and the editor previews a card six times over without building a megabyte of base64
     /// every time somebody types a letter.
     /// </remarks>
-    public const string WebFontBase = "_content/AetherNet.Sample.Shared/fonts/";
+    public const string WebFontBase = "_content/AetherNet.Browser/fonts/";
 
     private static readonly Dictionary<string, byte[]?> Held = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Lock Gate = new();

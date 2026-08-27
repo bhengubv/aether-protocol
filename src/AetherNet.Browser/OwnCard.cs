@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// The card a person writes about themselves.

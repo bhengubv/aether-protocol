@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// What a photograph on a page is allowed to be.

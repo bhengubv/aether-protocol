@@ -2,7 +2,7 @@
 
 using System.Text;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// The masthead every page gets, drawn rather than photographed.

@@ -3,7 +3,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// A card — the mesh-web's unit of publishing, decided in <c>02_REMAINING_WORK</c> §2.

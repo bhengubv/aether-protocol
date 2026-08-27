@@ -1,13 +1,7 @@
-@page "/page/new"
-@page "/page/{Name}"
-@using AetherNet.Sample.Shared.Services
 @implements IDisposable
 @inject MyPages Mine
 @inject MeshWebService Mesh
-@inject NavigationManager Nav
 @inject IJSRuntime JS
-
-<PageTitle>Aether — @(_page is null ? "New page" : _page.Name)</PageTitle>
 
 @* Four steps, and never more than one decision on screen at a time.
    A page written as one long form is a page most people abandon halfway down, and an abandoned page
@@ -320,7 +314,19 @@
 </div>
 
 @code {
+    /// <summary>The page to edit, or null / "new" to make one.</summary>
     [Parameter] public string? Name { get; set; }
+
+    /// <summary>
+    /// Raised when the person is finished — published, cancelled, or took the page down.
+    /// </summary>
+    /// <remarks>
+    /// A callback rather than a navigation. The editor has no idea what is hosting it: one tab of a
+    /// sample app today, a system browser later, somebody else's app after that. Deciding where to go
+    /// next is the host's, and an editor that navigated would have to be told about routes it should
+    /// never have heard of.
+    /// </remarks>
+    [Parameter] public EventCallback Done { get; set; }
 
     private enum Step { Kind, Look, Write, Publish }
 
@@ -340,7 +346,7 @@
     private bool _busy;
 
     private ElementReference? _picker;
-    private DotNetObjectReference<PageEditor>? _me;
+    private DotNetObjectReference<CardEditor>? _me;
     private int _picking = -1;
     private bool _busyPic;
     private string _picNote = "";
@@ -410,7 +416,7 @@
 
             if (_page is null)
             {
-                Nav.NavigateTo("/meshweb");
+                _ = Done.InvokeAsync();
                 return;
             }
 
@@ -559,13 +565,13 @@
         if (at > 0) _step = Steps[at - 1];
     }
 
-    private void Leave() => Nav.NavigateTo("/meshweb?mine=1");
+    private Task Leave() => Done.InvokeAsync();
 
     /// <summary>Take this page off the device.</summary>
-    private void Down()
+    private async Task Down()
     {
         Mine.Remove(_name);
-        Nav.NavigateTo("/meshweb?mine=1");
+        await Done.InvokeAsync();
     }
 
     private void ChooseKind(PageTemplate template)
@@ -805,7 +811,7 @@
             }
 
             _live = true;
-            Nav.NavigateTo("/meshweb?mine=1");
+            await Done.InvokeAsync();
         }
         catch (Exception ex)
         {

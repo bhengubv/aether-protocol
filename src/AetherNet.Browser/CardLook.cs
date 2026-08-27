@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// A complete look for somebody's card — type, colour, decoration and layout together.

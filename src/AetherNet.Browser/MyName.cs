@@ -2,7 +2,7 @@
 
 using System.Text;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// What a stranger reads when this phone offers them something.
@@ -27,9 +27,6 @@ namespace AetherNet.Sample.Shared.Services;
 /// </summary>
 public static class MyName
 {
-    /// <summary>Where it lives in this device's own settings.</summary>
-    public const string Key = "my_name";
-
     /// <summary>
     /// The longest name we will carry.
     /// </summary>

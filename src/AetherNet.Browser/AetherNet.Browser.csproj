@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    AetherView — the mesh browser, as a library.
+
+    Everything needed to browse, author, hold and hand on AetherNet cards, with no assumptions about
+    the app doing the hosting. Drop <AetherBrowser /> anywhere and it works: it has no routes of its
+    own, no dependency on a shell, and every place it touches the device is an interface the host
+    fills. That is what lets the same component be one tab in a sample app today and the system
+    browser on Circle OS later.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+    <!-- QR generation only (MIT). A tip jar shows a code the reader can finish on their own
+         connection — the page never follows it for them, and never fetches anything to draw it. -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
+  <!--
+    The protocol underneath. Cards are signed name-bindings over content-addressed blobs, so the
+    browser needs the naming layer, the content layer, and the key handling that verifies both.
+    Deliberately NOT the messaging or voice libraries: a browser has no business with either.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.Cards/AetherNet.Cards.csproj" />
+    <ProjectReference Include="../AetherNet.Content/AetherNet.Content.csproj" />
+    <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
+    <ProjectReference Include="../AetherNet.Transport/AetherNet.Transport.csproj" />
+  </ItemGroup>
+
+  <!--
+    Carried inside the assembly as well as served from wwwroot, because the same bytes are needed two
+    ways: linked by pages drawn inside the app, and embedded into a page handed to a phone with no
+    internet at all. One file on disk, two deliveries.
+
+    The typefaces are SIL Open Font License 1.1 (Instrument Serif, Newsreader) — the licence text
+    ships beside them in wwwroot/fonts/OFL-1.1.txt, as the licence requires.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot/js/aether-shader.js" LogicalName="aether-shader.js" />
+    <EmbeddedResource Include="wwwroot/fonts/instrument-serif.woff2" LogicalName="instrument-serif.woff2" />
+    <EmbeddedResource Include="wwwroot/fonts/newsreader.woff2" LogicalName="newsreader.woff2" />
+  </ItemGroup>
+
+</Project>

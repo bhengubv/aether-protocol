@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using AetherNet.Browser;
 using AetherNet.Content;
 using AetherNet.Content.Sqlite;
 using AetherNet.Sample.Shared.Data;
@@ -173,14 +174,11 @@ public static class MauiProgram
 
         // The pages this device hosts. Written on the phone, kept in its own database, served from
         // here — a person's AetherTag is the domain and each page is a path under it.
-        builder.Services.AddSingleton<MyPages>();
-
-        // Cards other people wrote that this phone holds — and can hand on.
-        builder.Services.AddSingleton<Deck>();
-
-        // The mesh-web: signed, content-addressed pages served at aether:// addresses.
-        // One node per app session hosts what its owner wrote and browses everybody else's.
-        builder.Services.AddSingleton<MeshWebService>();
+        // AetherView. The browser is a library; this app fills its two seams with a phone's
+        // answers — the device database, and the real radios — and hosts the component.
+        builder.Services.AddSingleton<ICardStore, AetherStoreCardStore>();
+        builder.Services.AddSingleton<IMeshLink, RadioMeshLink>();
+        builder.Services.AddAetherBrowser();
 
         // The real over-the-air radio mesh — a native radio inside THIS one app.
 #if ANDROID

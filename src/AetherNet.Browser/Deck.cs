@@ -4,9 +4,8 @@ using System.Text.Json;
 using AetherNet.Cards;
 using AetherNet.Content.Models;
 using AetherNet.Identity;
-using AetherNet.Sample.Shared.Data;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Browser;
 
 /// <summary>
 /// The cards this phone holds — written by other people, kept here, and served on from here.
@@ -37,9 +36,9 @@ public sealed class Deck
 {
     private static readonly JsonSerializerOptions Options = new();
 
-    private readonly AetherStore _store;
+    private readonly ICardStore _store;
 
-    public Deck(AetherStore store) => _store = store ?? throw new ArgumentNullException(nameof(store));
+    public Deck(ICardStore store) => _store = store ?? throw new ArgumentNullException(nameof(store));
 
     /// <summary>Raised when a card is taken in or let go.</summary>
     public event Action? Changed;
