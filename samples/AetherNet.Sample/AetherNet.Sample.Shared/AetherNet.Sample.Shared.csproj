@@ -21,6 +21,18 @@
     <PackageReference Include="Concentus" Version="2.2.2" />
   </ItemGroup>
 
+  <!-- Carried inside the assembly as well as served from wwwroot, because the same bytes are needed
+       two ways: linked by the app's own pages, and embedded into a page handed to a phone that has no
+       internet at all. One file on disk, two deliveries.
+
+       The typefaces are SIL Open Font License 1.1 (Instrument Serif, Newsreader) — the licence text
+       ships beside them in wwwroot/fonts/OFL-1.1.txt, as the licence requires. -->
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot/js/aether-shader.js" LogicalName="aether-shader.js" />
+    <EmbeddedResource Include="wwwroot/fonts/instrument-serif.woff2" LogicalName="instrument-serif.woff2" />
+    <EmbeddedResource Include="wwwroot/fonts/newsreader.woff2" LogicalName="newsreader.woff2" />
+  </ItemGroup>
+
   <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: SQLite < 3.50.2, reachable only by executing
        attacker-controlled SQL. SQLitePCLRaw has not shipped a patched bundle yet. This app runs only
        internal, fully-parameterized SQL over local device data. Same justification as

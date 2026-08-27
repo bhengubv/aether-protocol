@@ -28,13 +28,20 @@ namespace AetherNet.Sample.Shared.Services;
 /// between a card that looks made and one that looks typed, for less than a small photograph.
 /// </para>
 /// </summary>
+/// <param name="Accent">
+/// The look's colour as a plain hex value. A look names a palette, and a palette is a stylesheet the
+/// handout renderer owns; the mesh-web browser draws cards itself and reads a single accent instead,
+/// and the generated masthead is a third drawing again. Declaring the colour once is what stops a page
+/// coming out sepia with a green picture above it.
+/// </param>
 public sealed record CardLook(
     string Key,
     string Name,
     string Blurb,
     string Display,
     string Body,
-    string Scheme)
+    string Scheme,
+    string Accent)
 {
     /// <summary>Looks shipped with the app, in the order the editor offers them.</summary>
     /// <remarks>
@@ -48,31 +55,31 @@ public sealed record CardLook(
             "Quiet and legible. Nothing to distract from what you wrote.",
             Display: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
             Body: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-            Scheme: "mono"),
+            Scheme: "mono", Accent: "#1c1c1a"),
 
         new("terminal", "Terminal",
             "Monospace throughout. Precise, technical, unfussy.",
             Display: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             Body: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-            Scheme: "mono"),
+            Scheme: "mono", Accent: "#1c1c1a"),
 
         new("editorial", "Editorial",
             "A serif headline over generous text. Reads like a page, not a profile.",
             Display: "'Instrument Serif', Georgia, 'Times New Roman', serif",
             Body: "'Newsreader', Georgia, 'Times New Roman', serif",
-            Scheme: "sepia"),
+            Scheme: "sepia", Accent: "#7a4a1e"),
 
         new("studio", "Studio",
             "Big type, tight spacing, plenty of air. For work you want looked at.",
             Display: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
             Body: "'Newsreader', Georgia, 'Times New Roman', serif",
-            Scheme: "moss"),
+            Scheme: "moss", Accent: "#2c5a33"),
 
         new("night", "Night",
             "Dark, low-contrast, unhurried. Good for photographs.",
             Display: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
             Body: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-            Scheme: "azure"),
+            Scheme: "azure", Accent: "#1a4f7a"),
     ];
 
     /// <summary>What a card gets when it asks for nothing.</summary>

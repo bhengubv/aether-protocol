@@ -47,10 +47,10 @@
 
         @* Sits above sharing on purpose: the card is what a stranger reads at the moment they are
            handed the app, so it is worth writing before you go looking for somebody to hand it to. *@
-        <button class="about" @onclick="@(() => Nav.NavigateTo("/mycard"))">
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/meshweb?mine=1"))">
             <span class="about-body">
-                <span class="about-t">Your card</span>
-                <span class="about-s">what somebody sees when you hand them Aether — pick a look and write it</span>
+                <span class="about-t">Your pages</span>
+                <span class="about-s">what this phone puts on AetherNet — your tag is the domain</span>
             </span>
             <span class="chev">→</span>
         </button>

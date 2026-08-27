@@ -39,12 +39,28 @@ public class MeshWebServiceTests
     }
 
     [Fact]
-    public async Task HomeAddress_is_the_home_card()
+    public async Task HomeAddress_is_the_front_door()
     {
         var service = AService();
         await service.EnsureReadyAsync();
 
-        Assert.Equal(service.Address("home"), service.HomeAddress);
+        Assert.Equal(service.Address(MyPages.Home), service.HomeAddress);
+    }
+
+    /// <summary>
+    /// A device that has published nothing still answers somewhere. A tag that resolves to nothing is
+    /// indistinguishable, to the person who typed it, from a tag that is broken — so the front door
+    /// exists from first launch rather than from first edit.
+    /// </summary>
+    [Fact]
+    public async Task A_device_answers_at_its_front_door_before_anybody_has_written_anything()
+    {
+        var service = AService();
+
+        await service.EnsureReadyAsync();
+
+        Assert.Contains(MyPages.Home, service.Pages);
+        Assert.True((await service.OpenAsync(service.HomeAddress)).Ok);
     }
 
     // ── Hosting your own card ─────────────────────────────────────────────────
@@ -134,7 +150,11 @@ public class MeshWebServiceTests
         foreach (var name in service.Pages)
         {
             var page = await service.OpenAsync(service.Address(name));
-            var accent = page.Card!.Blocks.SingleOrDefault(b => b.Kind == CardBlock.Theme);
+
+            // Two theme blocks by design: the look a person chose, and the plain colour that look
+            // stands for. The first means nothing to a reader whose app is older than the look.
+            var accent = page.Card!.Blocks
+                .SingleOrDefault(b => b.Kind == CardBlock.Theme && CardBlock.IsUsableAccent(b.Value));
 
             Assert.True(accent is not null, $"{name} declares no accent");
             Assert.True(CardBlock.IsUsableAccent(accent!.Value), $"{name} accent '{accent.Value}' is refused");
@@ -183,7 +203,8 @@ public class MeshWebServiceTests
         var service = AService();
         await service.EnsureReadyAsync();
         var page = await service.OpenAsync(service.HomeAddress);
-        var accent = page.Card!.Blocks.Single(b => b.Kind == CardBlock.Theme).Value!;
+        var accent = page.Card!.Blocks
+            .Single(b => b.Kind == CardBlock.Theme && CardBlock.IsUsableAccent(b.Value)).Value!;
         var image = page.Card.Blocks.First(b => b.Kind == CardBlock.Image);
 
         var svg = Encoding.UTF8.GetString(
@@ -216,6 +237,29 @@ public class MeshWebServiceTests
     {
         var (service, tag) = ADevice();
         await service.EnsureReadyAsync();
+
+        service.Mine.Save(new WebCard { Name = "prices", Doc = new CardDocument { Title = "Prices" } });
+        service.Mine.Save(new WebCard
+        {
+            Name = "shop",
+            Doc = new CardDocument
+            {
+                Title = "The shop",
+                Blocks =
+                [
+                    new CardBlock
+                    {
+                        Kind = CardBlock.Link,
+                        Value = "What it costs",
+                        Target = service.Address("prices"),
+                    },
+                ],
+            },
+        });
+
+        await service.PublishAsync("prices");
+        await service.PublishAsync("shop");
+
         var found = 0;
 
         foreach (var name in service.Pages)

@@ -80,6 +80,23 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
 }
 
+/* The typefaces a card's look is made of.
+
+   SIL Open Font License 1.1 — Instrument Serif and Newsreader, licence text in fonts/OFL-1.1.txt.
+   Loaded here for cards drawn inside the app; a card leaving the device carries its own copy, because
+   the phone it lands on has no internet to fetch one from. */
+@font-face {
+    font-family: 'Instrument Serif';
+    font-display: swap;
+    src: url('fonts/instrument-serif.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Newsreader';
+    font-display: swap;
+    src: url('fonts/newsreader.woff2') format('woff2');
+}
+
 * { box-sizing: border-box; }
 
 html, body {

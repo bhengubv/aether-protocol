@@ -1,0 +1,748 @@
+@page "/page/new"
+@page "/page/{Name}"
+@using AetherNet.Sample.Shared.Services
+@inject MyPages Mine
+@inject MeshWebService Mesh
+@inject NavigationManager Nav
+
+<PageTitle>Aether — @(_page is null ? "New page" : _page.Name)</PageTitle>
+
+@* Four steps, and never more than one decision on screen at a time.
+   A page written as one long form is a page most people abandon halfway down, and an abandoned page
+   is a node with nothing on it — which is the only failure mode that actually matters here. Steps
+   give the work a beginning, a visible middle and an end you can reach. *@
+<div class="wiz">
+    <header class="top">
+        <button class="back" @onclick="Leave" aria-label="Close">✕</button>
+        <div class="rail">
+            @foreach (var step in Steps)
+            {
+                <span class="pip @(step < _step ? "done" : step == _step ? "now" : null)"></span>
+            }
+        </div>
+        <span class="count">@(Steps.IndexOf(_step) + 1) of @Steps.Count</span>
+    </header>
+
+    <div class="head">
+        <h1 class="h">@Title</h1>
+        <p class="sub">@Sub</p>
+    </div>
+
+    <div class="body">
+        @switch (_step)
+        {
+            case Step.Kind:
+                <div class="picks">
+                    @foreach (var template in PageTemplate.All)
+                    {
+                        <button class="pick @(template.Key == _template.Key ? "on" : null)"
+                                @onclick="() => ChooseKind(template)">
+                            <span class="pick-n">@template.Name</span>
+                            <span class="pick-b">@template.Blurb</span>
+                        </button>
+                    }
+                </div>
+                break;
+
+            case Step.Look:
+                @* Shown, not named. "Studio" is a word; a picture of Studio is a decision somebody can
+                   actually make — and it is drawn by the same renderer a reader's phone will use, so
+                   what they pick is what arrives. *@
+                <div class="looks">
+                    @foreach (var look in CardLook.All)
+                    {
+                        <button class="look @(look.Key == _look.Key ? "on" : null)"
+                                @onclick="() => ChooseLook(look)">
+                            <span class="shot">
+                                <iframe class="mini" tabindex="-1" title="@look.Name"
+                                        srcdoc="@Sample(look)"></iframe>
+                            </span>
+                            <span class="look-t">
+                                <span class="look-n">@look.Name</span>
+                                <span class="look-b">@look.Blurb</span>
+                            </span>
+                        </button>
+                    }
+                </div>
+                break;
+
+            case Step.Write:
+                <section class="panel open">
+                    <div class="phead">
+                        <span class="plabel">The basics</span>
+                    </div>
+                    <div class="pbody">
+                        <label class="field">
+                            <span class="flabel">Title</span>
+                            <input class="in" maxlength="60" placeholder="@TitleHint"
+                                   value="@_doc.Title" @oninput="OnTitle" />
+                            @if (string.IsNullOrWhiteSpace(_doc.Title))
+                            {
+                                <p class="hint">A page needs this — it is the first thing anybody reads.</p>
+                            }
+                        </label>
+
+                        <label class="field">
+                            <span class="flabel">Address</span>
+                            @if (_live)
+                            {
+                                <div class="addr fixed">
+                                    <span class="tag">@Mesh.LocalTag/</span><span class="nm">@_name</span>
+                                </div>
+                                <p class="hint">Published — the address stays put now, so anyone who wrote it down still finds you.</p>
+                            }
+                            else
+                            {
+                                <div class="addr">
+                                    <span class="tag">@Mesh.LocalTag/</span>
+                                    <input class="in bare" maxlength="@MyPages.LongestName" placeholder="me"
+                                           value="@_name" @oninput="OnName" />
+                                </div>
+                                <p class="hint">Lowercase, no spaces. This is what someone types to reach the page.</p>
+                            }
+                        </label>
+                    </div>
+                </section>
+
+                @* One panel open at a time. Every field visible at once is what turned this into a
+                   scroll; a page is a handful of small decisions, so it is shown as a handful of
+                   small decisions. *@
+                @for (var i = 0; i < _doc.Blocks.Count; i++)
+                {
+                    var index = i;
+                    var block = _doc.Blocks[index];
+                    if (!OwnCard.IsEditable(block)) { continue; }
+
+                    <section class="panel @(_open == index ? "open" : null)">
+                        <button class="phead" @onclick="() => Toggle(index)">
+                            <span class="ptext">
+                                <span class="plabel">@OwnCard.Label(block.Kind)</span>
+                                <span class="psay">@Summary(block)</span>
+                            </span>
+                            <span class="chev">@(_open == index ? "▾" : "▸")</span>
+                        </button>
+
+                        @if (_open == index)
+                        {
+                            <div class="pbody">
+                                @switch (block.Kind)
+                                {
+                                    case CardBlock.List:
+                                        @for (var j = 0; j < (block.Items?.Count ?? 0); j++)
+                                        {
+                                            var item = j;
+                                            <input class="in" maxlength="@OwnCard.LongestValue"
+                                                   placeholder="@OwnCard.Placeholder(block.Kind)"
+                                                   value="@block.Items![item]" @oninput="e => OnItem(index, item, e)" />
+                                        }
+                                        <button class="ghost" @onclick="() => AddItem(index)">Add a line</button>
+                                        break;
+
+                                    case CardBlock.Text:
+                                        <textarea class="in area" rows="4" maxlength="@OwnCard.LongestValue"
+                                                  placeholder="@OwnCard.Placeholder(block.Kind)"
+                                                  @oninput="e => OnValue(index, e)">@block.Value</textarea>
+                                        break;
+
+                                    case CardBlock.KeyValue:
+                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                               placeholder="@OwnCard.Placeholder(block.Kind)"
+                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
+                                        <p class="hint">Put an = between the label and what it says.</p>
+                                        break;
+
+                                    case CardBlock.Link:
+                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                               placeholder="@OwnCard.Placeholder(block.Kind)"
+                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
+                                        <select class="in" @onchange="e => OnTarget(index, e)">
+                                            <option value="">Which of your pages?</option>
+                                            @foreach (var other in Mine.All.Where(p => p.Name != _name))
+                                            {
+                                                <option value="@Mesh.Address(other.Name)"
+                                                        selected="@(block.Target == Mesh.Address(other.Name))">
+                                                    @other.Name
+                                                </option>
+                                            }
+                                        </select>
+                                        @if (Mine.All.Count(p => p.Name != _name) == 0)
+                                        {
+                                            <p class="hint">You have no other pages yet. Make one and this can point at it.</p>
+                                        }
+                                        break;
+
+                                    case CardBlock.Tip:
+                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                               placeholder="@OwnCard.Placeholder(block.Kind)"
+                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
+                                        <input class="in" maxlength="200" inputmode="url" spellcheck="false"
+                                               placeholder="https://buymeacoffee.com/you"
+                                               value="@block.Target" @oninput="e => OnTarget(index, e)" />
+                                        @if (CardBlock.IsUsableTip(block.Target))
+                                        {
+                                            <p class="hint good">Money goes to @CardBlock.TipHost(block.Target).</p>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(block.Target))
+                                        {
+                                            <p class="hint bad">Has to be an https address. This one is not one we'll show.</p>
+                                        }
+                                        else
+                                        {
+                                            <p class="hint">Buy Me a Coffee, Ko-fi, your own page — whoever you already use.</p>
+                                        }
+                                        break;
+
+                                    default:
+                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                               placeholder="@OwnCard.Placeholder(block.Kind)"
+                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
+                                        break;
+                                }
+
+                                <div class="prow">
+                                    <button class="tiny" @onclick="() => Move(index, -1)" aria-label="Move up">↑</button>
+                                    <button class="tiny" @onclick="() => Move(index, 1)" aria-label="Move down">↓</button>
+                                    <button class="tiny drop" @onclick="() => Drop(index)" aria-label="Remove">Remove</button>
+                                </div>
+                            </div>
+                        }
+                    </section>
+                }
+
+                @* Taking a page down is the other half of putting one up. Without it the only way out
+                   of a page somebody regrets is to leave it standing under their own tag. *@
+                @if (_page is not null)
+                {
+                    <section class="adds">
+                        <span class="plabel">This page</span>
+                        <button class="ghost drop" @onclick="Down">Take it down</button>
+                        <p class="hint">
+                            Removes it from this phone, so nobody can reach it here any more. A copy on
+                            somebody else's phone is theirs — it stays.
+                        </p>
+                    </section>
+                }
+
+                <section class="adds">
+                    <span class="plabel">Add</span>
+                    <div class="addrow">
+                        @foreach (var kind in OwnCard.Writable)
+                        {
+                            <button class="ghost" disabled="@Full" @onclick="() => Add(kind)">@OwnCard.Label(kind)</button>
+                        }
+                    </div>
+                    @if (Full)
+                    {
+                        <p class="hint">That is as long as a page gets. It stays something a person reads.</p>
+                    }
+                </section>
+                break;
+
+            case Step.Publish:
+                <div class="done">
+                    <div class="shot big">
+                        <iframe class="full" title="Your page" srcdoc="@_preview"></iframe>
+                    </div>
+
+                    <div class="where">
+                        <span class="wlabel">It will answer at</span>
+                        <span class="waddr">aether://@Mesh.LocalTag/@_name</span>
+                    </div>
+
+                    @if (_said is { Length: > 0 })
+                    {
+                        <p class="said">@_said</p>
+                    }
+                </div>
+                break;
+        }
+    </div>
+
+    <footer class="foot">
+        @if (Steps.IndexOf(_step) > 0)
+        {
+            <button class="ghost wide" @onclick="Back">Back</button>
+        }
+
+        @if (_step == Step.Publish)
+        {
+            <button class="go" disabled="@(_busy || !CanPublish)" @onclick="Publish">
+                @(_busy ? "Publishing…" : _live ? "Publish changes" : "Publish")
+            </button>
+        }
+        else
+        {
+            <button class="go" disabled="@(!CanGo)" @onclick="Next">Next</button>
+        }
+    </footer>
+</div>
+
+@code {
+    [Parameter] public string? Name { get; set; }
+
+    private enum Step { Kind, Look, Write, Publish }
+
+    private List<Step> Steps = [];
+    private Step _step = Step.Look;
+
+    private WebCard? _page;
+    private CardDocument _doc = new();
+    private PageTemplate _template = PageTemplate.All[0];
+    private CardLook _look = CardLook.Of(null);
+    private string _name = "";
+    private bool _live;
+
+    private int _open = -1;
+    private string _preview = "";
+    private string _said = "";
+    private bool _busy;
+
+    private bool Fresh => string.IsNullOrWhiteSpace(Name) || Name == "new";
+    private bool Full => _doc.Blocks.Count >= OwnCard.MostBlocks;
+
+    private string Title => _step switch
+    {
+        Step.Kind => "What is this page?",
+        Step.Look => "Pick a look",
+        Step.Write => "Write it",
+        _ => "Ready",
+    };
+
+    private string Sub => _step switch
+    {
+        Step.Kind => "It starts you off with the right shape. You can change anything after.",
+        Step.Look => "Every one of these is finished. You are choosing a design, not making one.",
+        Step.Write => "Fill in what you want. Anything you leave blank simply does not appear.",
+        _ => "This is your page as somebody else's phone will draw it.",
+    };
+
+    private string TitleHint => _template.Key switch
+    {
+        "business" => "Urban Plumbers",
+        "notice" => "Water off Thursday",
+        _ => "Your name",
+    };
+
+    // A page needs a name a reader sees and an address a reader types. Everything else on it is
+    // optional — somebody with a title and nothing else has a short page, not a broken one.
+    private bool CanGo => _step switch
+    {
+        Step.Write => Named,
+        _ => true,
+    };
+
+    private bool CanPublish => Named;
+
+    private bool Named => _name.Length > 0 && !string.IsNullOrWhiteSpace(_doc.Title);
+
+    protected override void OnInitialized()
+    {
+        if (Fresh)
+        {
+            Steps = [Step.Kind, Step.Look, Step.Write, Step.Publish];
+            _step = Step.Kind;
+            _template = PageTemplate.All[0];
+            _doc = _template.Build(Mine.OwnerName);
+            _name = Mine.Free(_template.Suggests);
+        }
+        else
+        {
+            Steps = [Step.Look, Step.Write, Step.Publish];
+            _step = Step.Look;
+            _page = Mine.Get(Name);
+
+            if (_page is null)
+            {
+                Nav.NavigateTo("/meshweb");
+                return;
+            }
+
+            _doc = _page.Doc;
+            _name = _page.Name;
+            _live = _page.Live;
+        }
+
+        _look = CardLook.FromCard(_doc);
+        Draw();
+    }
+
+    // ─── Steps ──────────────────────────────────────────────────────────────────
+
+    private void Next()
+    {
+        var at = Steps.IndexOf(_step);
+        if (at < 0 || at + 1 >= Steps.Count) return;
+
+        _step = Steps[at + 1];
+        if (_step == Step.Publish) Draw();
+    }
+
+    private void Back()
+    {
+        var at = Steps.IndexOf(_step);
+        if (at > 0) _step = Steps[at - 1];
+    }
+
+    private void Leave() => Nav.NavigateTo("/meshweb?mine=1");
+
+    /// <summary>Take this page off the device.</summary>
+    private void Down()
+    {
+        Mine.Remove(_name);
+        Nav.NavigateTo("/meshweb?mine=1");
+    }
+
+    private void ChooseKind(PageTemplate template)
+    {
+        _template = template;
+        _doc = template.Build(Mine.OwnerName);
+        _look = CardLook.FromCard(_doc);
+        _name = Mine.Free(template.Suggests);
+        _open = -1;
+        Draw();
+    }
+
+    private void ChooseLook(CardLook look)
+    {
+        OwnCard.SetLook(_doc, look.Key);
+        _look = look;
+        if (!Fresh || _page is not null) Save(); else Draw();
+    }
+
+    private void Toggle(int index) => _open = _open == index ? -1 : index;
+
+    // ─── Fields ─────────────────────────────────────────────────────────────────
+
+    private void OnTitle(ChangeEventArgs e)
+    {
+        _doc.Title = e.Value?.ToString() ?? "";
+        Save();
+    }
+
+    private void OnName(ChangeEventArgs e)
+    {
+        var wanted = MyPages.Clean(e.Value?.ToString());
+        if (wanted == _name) return;
+
+        // Renaming is moving: the old name would otherwise stay behind as a second page holding the
+        // same words.
+        if (_page is not null && !string.IsNullOrEmpty(_page.Name) && wanted.Length > 0)
+            Mine.Remove(_page.Name);
+
+        _name = wanted;
+        if (_name.Length > 0) Save();
+    }
+
+    private void OnValue(int index, ChangeEventArgs e)
+    {
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+        _doc.Blocks[index].Value = e.Value?.ToString();
+        Save();
+    }
+
+    private void OnTarget(int index, ChangeEventArgs e)
+    {
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+        _doc.Blocks[index].Target = e.Value?.ToString();
+        Save();
+    }
+
+    private void OnItem(int index, int item, ChangeEventArgs e)
+    {
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+        if (_doc.Blocks[index].Items is not { } items) return;
+        if (item < 0 || item >= items.Count) return;
+
+        items[item] = e.Value?.ToString() ?? "";
+        Save();
+    }
+
+    private void AddItem(int index)
+    {
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+        (_doc.Blocks[index].Items ??= []).Add("");
+        Save();
+    }
+
+    private void Add(string kind)
+    {
+        OwnCard.Add(_doc, kind);
+        _open = _doc.Blocks.Count - 1;
+        Save();
+    }
+
+    private void Move(int index, int by)
+    {
+        OwnCard.Move(_doc, index, by);
+        if (_open == index) _open = Math.Clamp(index + by, 0, _doc.Blocks.Count - 1);
+        Save();
+    }
+
+    private void Drop(int index)
+    {
+        OwnCard.Remove(_doc, index);
+        _open = -1;
+        Save();
+    }
+
+    // ─── Keeping it ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Written on every keystroke, deliberately.
+    /// </summary>
+    /// <remarks>
+    /// There is no save button and nothing to lose. A page is a few hundred bytes of JSON into this
+    /// device's own database; writing it constantly costs nothing, and somebody closing the screen
+    /// having forgotten to press something costs them the page. Saving is not publishing — this only
+    /// moves the draft, and the copy other people can read is untouched until they say so.
+    /// </remarks>
+    private void Save()
+    {
+        if (_name.Length == 0) return;
+
+        // A page comes into existence when it is given a name a reader would see — not when somebody
+        // taps through a look. Tapping through used to leave a nameless draft behind on every pass,
+        // and drafts of nothing are what a person's list of pages fills up with.
+        if (_page is null && string.IsNullOrWhiteSpace(_doc.Title)) { Draw(); return; }
+
+        _page ??= new WebCard();
+        _page.Name = _name;
+        _page.Doc = _doc;
+
+        Mine.Save(_page);
+        _page = Mine.Get(_name) ?? _page;
+        _doc = _page.Doc;
+        _live = _page.Live;
+        Draw();
+    }
+
+    /// <summary>
+    /// The preview is the renderer a stranger's phone uses, and the document it will actually receive.
+    /// </summary>
+    /// <remarks>
+    /// Drawn from the published form, not from the draft. A template arrives as a shape with its
+    /// values blank, and showing those blanks here would tell the author their page has empty boxes on
+    /// it — which is the opposite of what a reader sees, and would send them off filling in fields
+    /// nobody was ever going to read.
+    /// </remarks>
+    private void Draw() =>
+        _preview = CardPage.Render(
+            OwnCard.ForPublish(_doc), _doc.Title, 0,
+            downloadPath: null, fontBase: PageAssets.WebFontBase);
+
+    /// <summary>
+    /// The same page in a different look, drawn small.
+    /// </summary>
+    /// <remarks>
+    /// Their own title and their own words where they have written any, because a look is a decision
+    /// about <i>their</i> page — a thumbnail of somebody else's content answers a different question.
+    /// </remarks>
+    private string Sample(CardLook look)
+    {
+        var shown = new CardDocument
+        {
+            Title = _doc.Title.Length > 0 ? _doc.Title : (Mine.OwnerName ?? "Your page"),
+            Blocks = [CardBlock.Of(CardBlock.Theme, look.Key), .. Shown()],
+        };
+
+        return CardPage.Render(
+            shown, shown.Title, 0, downloadPath: null,
+            fontBase: PageAssets.WebFontBase, still: true);
+    }
+
+    /// <summary>
+    /// Enough of a page for a thumbnail to be worth looking at.
+    /// </summary>
+    /// <remarks>
+    /// Their own words come first, because a look is a decision about <i>their</i> page. But a page
+    /// that is one heading long makes five identical thumbnails — the look is carried by body text
+    /// beside a heading beside a labelled fact, and with none of those on screen there is nothing to
+    /// choose between. So what they have written is topped up until there is a page to judge.
+    /// </remarks>
+    private IEnumerable<CardBlock> Shown()
+    {
+        var shown = OwnCard.ForPublish(_doc).Blocks
+            .Where(b => b.Kind is CardBlock.Text or CardBlock.Heading or CardBlock.KeyValue)
+            .Take(3)
+            .ToList();
+
+        foreach (var filler in Filler)
+        {
+            if (shown.Count >= 3) break;
+            if (shown.Any(b => b.Kind == filler.Kind)) continue;
+            shown.Add(filler);
+        }
+
+        return shown;
+    }
+
+    private static readonly CardBlock[] Filler =
+    [
+        CardBlock.Of(CardBlock.Text, "A few lines about what you do, in your own words."),
+        CardBlock.Of(CardBlock.Heading, "Where to find me"),
+        CardBlock.Of(CardBlock.KeyValue, "Open = Mon to Sat"),
+    ];
+
+    // ─── Publishing ─────────────────────────────────────────────────────────────
+
+    private async Task Publish()
+    {
+        if (_busy || _name.Length == 0) return;
+
+        _busy = true;
+        _said = "";
+        StateHasChanged();
+
+        try
+        {
+            Save();
+            var address = await Mesh.PublishAsync(_name);
+
+            if (address is null)
+            {
+                _said = "Could not put it on the mesh. Nothing was lost — try again.";
+                return;
+            }
+
+            _live = true;
+            Nav.NavigateTo("/meshweb?mine=1");
+        }
+        catch (Exception ex)
+        {
+            _said = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ─── Reading a block at a glance ────────────────────────────────────────────
+
+    /// <summary>What a closed panel says about itself.</summary>
+    /// <remarks>
+    /// A row of panels labelled only by kind — "Words", "Words", "Detail" — is a filing cabinet with
+    /// no labels on the drawers. The content is the label.
+    /// </remarks>
+    private static string Summary(CardBlock block)
+    {
+        if (block.Kind == CardBlock.List)
+        {
+            var lines = (block.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i)).ToArray();
+            return lines.Length == 0 ? "Empty" : string.Join(" · ", lines.Take(2));
+        }
+
+        if (block.Kind == CardBlock.Tip)
+            return CardBlock.IsUsableTip(block.Target) ? CardBlock.TipHost(block.Target) : "Not set";
+
+        return string.IsNullOrWhiteSpace(block.Value) ? "Empty" : block.Value.Trim();
+    }
+}
+
+<style>
+    .wiz { display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin: 0 auto; }
+
+    /* Where you are, always. A wizard whose end is invisible is a form. */
+    .top { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 12px; margin: -16px -16px 0; padding: 14px 16px 12px; background: var(--bg); }
+    .back { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-size: 0.9rem; cursor: pointer; }
+    .rail { flex: 1 1 auto; display: flex; gap: 5px; }
+    .pip { flex: 1 1 0; height: 4px; border-radius: 2px; background: var(--line); }
+    .pip.done { background: var(--brand); opacity: .55; }
+    .pip.now { background: var(--brand); }
+    .count { flex: 0 0 auto; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+    .head { display: flex; flex-direction: column; gap: 5px; padding: 0 2px; }
+    .h { margin: 0; font-size: 1.65rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; }
+    .sub { margin: 0; font-size: 0.92rem; line-height: 1.5; color: var(--ink-2); max-width: 46ch; }
+
+    .body { display: flex; flex-direction: column; gap: 10px; min-height: 42vh; padding-bottom: 78px; }
+
+    /* Step 1 — what kind of page. */
+    .picks { display: flex; flex-direction: column; gap: 8px; }
+    .pick { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--line-card); background: var(--surface); cursor: pointer; }
+    .pick.on { border-color: var(--brand); background: var(--brand-tint); }
+    .pick-n { font-size: 1.02rem; font-weight: 750; color: var(--ink); }
+    .pick-b { font-size: 0.82rem; line-height: 1.45; color: var(--ink-2); }
+
+    /* Step 2 — the looks, each drawn rather than named. */
+    .looks { display: flex; flex-direction: column; gap: 10px; }
+    .look { display: flex; align-items: stretch; gap: 14px; text-align: left; padding: 12px; border-radius: var(--radius); border: 1px solid var(--line-card); background: var(--surface); cursor: pointer; }
+    .look.on { border-color: var(--brand); background: var(--brand-tint); }
+    .look-t { display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0; }
+    .look-n { font-size: 1.05rem; font-weight: 780; color: var(--ink); }
+    .look-b { font-size: 0.82rem; line-height: 1.45; color: var(--ink-2); }
+
+    /* A real page, shrunk. The iframe is laid out at reading width and scaled down, so the thumbnail
+       is the same document a reader gets rather than a drawing of one. */
+    .shot { flex: 0 0 auto; width: 132px; height: 135px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #fff; position: relative; }
+    .mini { position: absolute; top: 0; left: 0; width: 400px; height: 410px; border: 0; transform: scale(0.33); transform-origin: top left; pointer-events: none; }
+    .shot.big { width: 100%; height: 62vh; border-radius: 14px; }
+    .full { width: 100%; height: 100%; border: 0; }
+
+    /* Step 3 — one panel at a time. */
+    .panel { border: 1px solid var(--line-card); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+    .panel.open { border-color: var(--brand); }
+    .phead { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; background: transparent; border: 0; cursor: pointer; text-align: left; }
+    .ptext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .plabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+    .psay { font-size: 0.9rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chev { flex: 0 0 auto; color: var(--ink-3); font-size: 0.8rem; }
+    .pbody { display: flex; flex-direction: column; gap: 9px; padding: 4px 15px 15px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .flabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+    .in { width: 100%; padding: 12px 13px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-size: 0.95rem; font-family: inherit; }
+    .in:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+    .area { resize: vertical; line-height: 1.5; }
+
+    .addr { display: flex; align-items: center; gap: 0; padding: 0 0 0 13px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-2); font-family: var(--mono); }
+    .addr .tag { font-size: 0.86rem; color: var(--ink-3); white-space: nowrap; }
+    .addr .nm { font-size: 0.95rem; color: var(--ink); padding: 12px 0; }
+    .addr .bare { border: 0; background: transparent; padding-left: 0; font-family: var(--mono); }
+    .addr.fixed { padding-right: 13px; }
+
+    .hint { margin: 0; font-size: 0.76rem; line-height: 1.45; color: var(--ink-3); }
+    .hint.good { color: var(--brand); font-weight: 600; }
+    .hint.bad { color: var(--warn); font-weight: 600; }
+
+    .prow { display: flex; gap: 6px; padding-top: 3px; }
+    .tiny { min-width: 34px; height: 34px; padding: 0 11px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-size: 0.82rem; cursor: pointer; }
+    .tiny.drop { color: var(--warn); margin-left: auto; }
+    .ghost.drop { color: var(--warn); border-color: var(--warn); align-self: flex-start; }
+
+    .adds { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 0; }
+    .addrow { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ghost { appearance: none; background: transparent; border: 1px solid var(--line); color: var(--ink-2); font-weight: 700; font-size: 0.84rem; padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer; }
+    .ghost:disabled { opacity: .4; cursor: default; }
+    .ghost.wide { flex: 0 0 auto; padding: 14px 22px; }
+
+    /* Step 4 — the whole thing, and where it will live. */
+    .done { display: flex; flex-direction: column; gap: 12px; }
+    .where { display: flex; flex-direction: column; gap: 3px; padding: 12px 15px; border-radius: var(--radius); border: 1px solid var(--line-card); background: var(--surface); }
+    .wlabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+    .waddr { font-family: var(--mono); font-size: 0.92rem; color: var(--brand); word-break: break-all; }
+    .said { margin: 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--info-bg); color: var(--info); font-size: 0.88rem; line-height: 1.45; }
+
+    /* Next is never below the fold.
+       A step whose button has to be scrolled to is a step somebody stops on, and the whole reason
+       this is a wizard rather than a form is that people finish wizards. It rides just above the tab
+       bar — the viewport already reserves that space, so the offset is the height of the bar. */
+    /* Next is never below the fold.
+       Sticky was tried and does not hold here — the wizard is a flex column inside the shell's own
+       scroller, and on a tall step the button simply scrolled away. Fixed to the window, riding
+       directly above the tab bar, with the body padded so nothing hides underneath it. */
+    .foot {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: calc(var(--tab-h) + env(safe-area-inset-bottom));
+        z-index: 12;
+        display: flex;
+        gap: 8px;
+        padding: 11px 16px 13px;
+        background: var(--bg);
+        border-top: 1px solid var(--line);
+    }
+    .go { flex: 1 1 auto; padding: 15px 22px; border: 0; border-radius: var(--radius-sm); background: var(--brand); color: #fff; font-size: 1rem; font-weight: 750; cursor: pointer; }
+    .go:disabled { opacity: .45; cursor: default; }
+</style>

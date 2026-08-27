@@ -37,12 +37,21 @@ public static class OwnCard
 
     /// <summary>The kinds somebody can add by hand, in the order the editor offers them.</summary>
     /// <remarks>
-    /// Image is absent deliberately: a picture has to come from somewhere, and until the card's assets
-    /// travel with it there is nothing honest to offer. Link is absent because a card link points
-    /// inside the mesh, which the stranger reading this cannot reach yet.
+    /// <para>
+    /// Image is absent deliberately: a picture has to come from somewhere, and until a page's assets
+    /// travel with it there is nothing honest to offer.
+    /// </para>
+    /// <para>
+    /// Link is present now that a person hosts more than one page — it points at another page under
+    /// their own tag, chosen from a list rather than typed, so a link can only ever go somewhere that
+    /// exists and belongs to its author.
+    /// </para>
     /// </remarks>
     public static readonly string[] Writable =
-        [CardBlock.Heading, CardBlock.Text, CardBlock.List, CardBlock.KeyValue];
+        [CardBlock.Heading, CardBlock.Text, CardBlock.List, CardBlock.KeyValue, CardBlock.Link, CardBlock.Tip];
+
+    /// <summary>The most lines one list block may hold.</summary>
+    public const int MostItems = 12;
 
     /// <summary>What each kind is called on the button that adds it.</summary>
     public static string Label(string kind) => kind switch
@@ -51,10 +60,29 @@ public static class OwnCard
         CardBlock.Text => "Words",
         CardBlock.List => "List",
         CardBlock.KeyValue => "Detail",
-        CardBlock.Link => "Link",
+        CardBlock.Link => "Link to another page",
+        CardBlock.Tip => "Tip jar",
         CardBlock.Image => "Picture",
         CardBlock.Theme => "Colour",
         _ => kind,
+    };
+
+    /// <summary>
+    /// What the empty field says before anybody types in it.
+    /// </summary>
+    /// <remarks>
+    /// Written as an example of the answer rather than a name for the question. "A few words about
+    /// what you do" gets a sentence; "Words" gets a blank stare.
+    /// </remarks>
+    public static string Placeholder(string kind) => kind switch
+    {
+        CardBlock.Heading => "Hours",
+        CardBlock.Text => "A few words about what you do",
+        CardBlock.List => "One thing per line",
+        CardBlock.KeyValue => "Open = Mon to Sat, 8 to 5",
+        CardBlock.Link => "What the link says",
+        CardBlock.Tip => "Buy me a coffee",
+        _ => "",
     };
 
     /// <summary>
@@ -111,10 +139,12 @@ public static class OwnCard
             if (block.Value is { Length: > LongestValue })
                 block.Value = block.Value[..LongestValue];
 
+            // Empty lines are kept here, not swept up. This runs on every keystroke of the editor, and
+            // a list that loses its blank rows the moment somebody pauses is a list they cannot type
+            // into. They are dropped at publish time instead — see ForPublish.
             if (block.Items is { Count: > 0 } items)
-                block.Items = [.. items.Where(i => !string.IsNullOrWhiteSpace(i))
-                                       .Select(i => i.Length > LongestValue ? i[..LongestValue] : i)
-                                       .Take(MostBlocks)];
+                block.Items = [.. items.Select(i => i.Length > LongestValue ? i[..LongestValue] : i)
+                                       .Take(MostItems)];
 
             blocks.Add(block);
         }
@@ -184,4 +214,69 @@ public static class OwnCard
 
     /// <summary>Whether this block is one a person edits, rather than one the app manages.</summary>
     public static bool IsEditable(CardBlock block) => Writable.Contains(block.Kind);
+
+    /// <summary>
+    /// The document as it should go on the mesh: everything unfilled left behind.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A page arrives from a template as a shape — headings written, values blank — so that somebody
+    /// fills it in rather than starts from nothing. Those blanks are scaffolding for the author and
+    /// noise for everybody else, and they would be signed, chunked and carried across a radio link to
+    /// be skipped at the far end.
+    /// </para>
+    /// <para>
+    /// A copy, not an edit in place. The author keeps their scaffolding; only the reader is spared it.
+    /// </para>
+    /// </remarks>
+    public static CardDocument ForPublish(CardDocument card)
+    {
+        var blocks = new List<CardBlock>(card.Blocks?.Count ?? 0);
+
+        foreach (var block in card.Blocks ?? [])
+        {
+            switch (block.Kind)
+            {
+                case CardBlock.List:
+                    var lines = (block.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i)).ToList();
+                    if (lines.Count > 0)
+                        blocks.Add(new CardBlock { Kind = block.Kind, Value = block.Value, Items = lines });
+                    break;
+
+                case CardBlock.Tip when CardBlock.IsUsableTip(block.Target):
+                    blocks.Add(block);
+                    break;
+
+                case CardBlock.Tip:
+                    break;
+
+                // A key with nothing after the equals sign is a label nobody answered.
+                case CardBlock.KeyValue when Answered(block.Value):
+                    blocks.Add(block);
+                    break;
+
+                case CardBlock.KeyValue:
+                    break;
+
+                case CardBlock.Theme:
+                    blocks.Add(block);
+                    break;
+
+                default:
+                    if (!string.IsNullOrWhiteSpace(block.Value)) blocks.Add(block);
+                    break;
+            }
+        }
+
+        return new CardDocument { Version = card.Version, Title = card.Title, Blocks = blocks };
+    }
+
+    /// <summary>Whether a labelled fact actually carries a fact.</summary>
+    private static bool Answered(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+
+        var cut = value.IndexOf('=');
+        return cut < 0 ? true : value[(cut + 1)..].Trim().Length > 0;
+    }
 }

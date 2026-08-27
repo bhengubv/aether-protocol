@@ -3,10 +3,53 @@
 @implements IDisposable
 @inject MeshWebService Mesh
 @inject ChatService Chat
+@inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Aether — AetherNet</PageTitle>
 
+@* An AetherNet tab is a browser and a workshop. Browse is somebody else's tag; Mine is what this
+   phone answers with. Separated because they are different jobs, and a person doing one of them
+   should not be reading the other. *@
 <div class="browser">
+    <div class="where">
+        <button class="seg @(_mine ? null : "on")" @onclick="() => Show(false)">Browse</button>
+        <button class="seg @(_mine ? "on" : null)" @onclick="() => Show(true)">Mine</button>
+    </div>
+
+@if (_mine)
+{
+    <div class="mine">
+        <p class="lede">Your AetherTag is your domain. Every page below is a path under it, served off this phone — nobody issued it, so nobody can take it back.</p>
+
+        @foreach (var card in Mesh.Mine.All)
+        {
+            <div class="row">
+                <button class="rmain" @onclick="@(() => Go(Mesh.Address(card.Name)))">
+                    <span class="rtitle">@(string.IsNullOrWhiteSpace(card.Doc.Title) ? card.Name : card.Doc.Title)</span>
+                    <span class="raddr">@(Mesh.LocalTag + "/" + card.Name)</span>
+                    <span class="rstate @(card.Live ? "live" : "draft")">@(card.Live ? "published" : "draft")</span>
+                </button>
+                <button class="redit" @onclick="@(() => Nav.NavigateTo("/page/" + card.Name))" aria-label="Edit">Edit</button>
+            </div>
+        }
+
+        <button class="new" disabled="@Mesh.Mine.Full" @onclick="@(() => Nav.NavigateTo("/page/new"))">
+            <span class="plus">+</span>
+            <span class="ntext">
+                <span class="nt">Create a web card</span>
+                <span class="ns">Four steps. Pick a look, write it, publish it.</span>
+            </span>
+        </button>
+
+        @if (Mesh.Mine.Full)
+        {
+            <p class="lede">That is as many pages as one device offers.</p>
+        }
+    </div>
+}
+else
+{
     <div class="omnibox">
         <span class="lock" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
@@ -40,25 +83,28 @@
             @* Drawn block by block, never injected. A card is authored by a stranger, so nothing in
                it may execute or fetch — and a block this build does not recognise is skipped rather
                than failing the whole card, so a newer author never breaks an older reader. *@
-            <div class="doc" style="@Accent(p.Card)">
+            <div class="doc" style="@Dress(p.Card)">
                 @if (p.Card is { } card)
                 {
                     @* The hero. A card's first picture runs the full width above the title, the way a
                        page has a masthead — which is most of the difference between something that
                        looks like a place and something that looks like a document. Until the bytes
                        arrive the description holds the same space, so the card never jumps. *@
+                    @* The masthead. Three layers in one box: the picture the mesh carries, the
+                       shader painted over it, and the flat accent behind both — so a phone with no
+                       GPU still meets a page rather than a gap. Keyed on the address because Blazor
+                       would otherwise keep one canvas across two cards, and the painter refuses to
+                       repaint a plate it has already done. *@
                     var hero = card.Blocks.FirstOrDefault(b => b.Kind == CardBlock.Image);
-                    @if (hero is not null)
-                    {
-                        @if (_assets.TryGetValue(hero.ContentHash ?? "", out var heroUri))
+                    <div class="plate" @key="p.Address">
+                        @if (hero is not null && _assets.TryGetValue(hero.ContentHash ?? "", out var heroUri))
                         {
-                            <img class="card-hero" src="@heroUri" alt="@hero.Value" />
+                            <img class="plate-art" src="@heroUri" alt="@hero.Value" />
                         }
-                        else
-                        {
-                            <div class="card-hero pending"><span>@hero.Value</span></div>
-                        }
-                    }
+                        <canvas class="plate-gl" data-aether-shader
+                                data-accent="@Paint(card)" data-seed="@Seed(card.Title, p.Name)"></canvas>
+                        <span class="mark">@Mark(card.Title, p.Name)</span>
+                    </div>
 
                     <h1 class="card-title">@card.Title</h1>
                     foreach (var block in card.Blocks)
@@ -82,8 +128,15 @@
                                 </ul>
                                 break;
 
+                            @* A labelled fact reads as two columns, the same way the page renderer
+                               draws it. Printing the raw "Open = 07:00" showed the author's own
+                               notation to a reader, and made the browser and the page disagree about
+                               what the same card looks like. *@
                             case CardBlock.KeyValue:
-                                <div class="card-kv"><span>@block.Value</span></div>
+                                <div class="card-kv">
+                                    <span class="kv-k">@Label(block.Value)</span>
+                                    <span class="kv-v">@Said(block.Value)</span>
+                                </div>
                                 break;
 
                             @* The picture. The card names a content hash; the bytes come from the mesh
@@ -111,6 +164,21 @@
                                Anything that is not an aether:// address is shown as plain text — the
                                card still renders, the link simply does not work, which is the safe way
                                round. *@
+                            @* A tip jar. The one block that names somewhere outside the mesh — and it
+                               is still never followed on the reader's behalf. The address is shown as
+                               text and as a code they can scan on their own connection, so opening a
+                               stranger's card causes no outbound request of any kind. *@
+                            case CardBlock.Tip when CardBlock.IsUsableTip(block.Target):
+                                <div class="card-tip">
+                                    <div class="tip-say">
+                                        <span class="tip-l">@(block.Value ?? "Tip")</span>
+                                        <span class="tip-h">@CardBlock.TipHost(block.Target)</span>
+                                        <span class="tip-u">@block.Target</span>
+                                    </div>
+                                    <div class="tip-qr">@((MarkupString)QrSvg.Render(block.Target!, withMark: false))</div>
+                                </div>
+                                break;
+
                             case CardBlock.Link:
                                 @if (IsMeshAddress(block.Target))
                                 {
@@ -156,6 +224,7 @@
             <div class="muted">Resolving…</div>
         }
     </div>
+}
 </div>
 
 @code {
@@ -163,6 +232,7 @@
     private MeshWebService.MeshPage? _page;
     private bool _busy;
     private bool _autoOpened;
+    private bool _mine;
 
     /// <summary>
     /// Artwork already assembled, by content hash. Held here rather than fetched during render because
@@ -180,12 +250,99 @@
     /// is choose an ugly colour for itself. Anything else, and the card keeps the app's blue.
     /// </para>
     /// </summary>
-    private static string? Accent(CardDocument? card)
+    private static string Dress(CardDocument? card)
     {
         var colour = card?.Blocks
             .FirstOrDefault(b => b.Kind == CardBlock.Theme && CardBlock.IsUsableAccent(b.Value))?.Value;
 
-        return colour is null ? null : $"--card-accent:{colour}";
+        // The look, on the other hand, is not untrusted: a card names one by key and an unknown key
+        // falls back to the default, so the font stacks written here are always our own. Applying them
+        // is what makes the choice somebody made in the editor mean anything to a reader — without it
+        // every page on the mesh comes out in the same typeface whatever its author picked.
+        var look = CardLook.FromCard(card);
+        var dress = $"--card-display:{look.Display};--card-body:{look.Body}";
+
+        return colour is null ? dress : $"--card-accent:{colour};{dress}";
+    }
+
+    /// <summary>The label half of a labelled fact — everything before the equals sign.</summary>
+    private static string Label(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+
+        var cut = value.IndexOf('=');
+        return (cut < 0 ? value : value[..cut]).Trim();
+    }
+
+    /// <summary>And what it says — everything after.</summary>
+    private static string Said(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+
+        var cut = value.IndexOf('=');
+        return cut < 0 ? "" : value[(cut + 1)..].Trim();
+    }
+
+    /// <summary>The colour this card's masthead is painted in.</summary>
+    /// <remarks>
+    /// The card's own accent where it declared one, the look's colour otherwise — never a value from
+    /// anywhere else. It is handed to a shader as a uniform, and it has already been through
+    /// <see cref="CardBlock.IsUsableAccent"/>, so what reaches the GPU is six hexadecimal digits.
+    /// </remarks>
+    private static string Paint(CardDocument? card) =>
+        card?.Blocks.FirstOrDefault(b => b.Kind == CardBlock.Theme && CardBlock.IsUsableAccent(b.Value))?.Value
+        ?? CardLook.FromCard(card).Accent;
+
+    /// <summary>
+    /// How this page folds, as a number.
+    /// </summary>
+    /// <remarks>
+    /// A number rather than the title, so the only things the shader is ever handed are a validated
+    /// colour and an integer. A card is a blob written by a stranger, and the less of it that reaches
+    /// anything executable, the fewer ways there are to be wrong about escaping.
+    /// </remarks>
+    private static int Seed(string? title, string? name)
+    {
+        var hash = 2166136261u;
+
+        foreach (var c in (title is { Length: > 0 } ? title : name) ?? "")
+        {
+            hash ^= c;
+            hash *= 16777619;
+        }
+
+        return (int)(hash % 100000);
+    }
+
+    /// <summary>The single character the masthead is built around.</summary>
+    private static string Mark(string? title, string? name)
+    {
+        foreach (var source in new[] { title, name })
+            foreach (var c in source ?? "")
+                if (char.IsLetterOrDigit(c))
+                    return char.ToUpperInvariant(c).ToString();
+
+        return "A";
+    }
+
+    /// <summary>
+    /// Paint whatever plate is now on screen.
+    /// </summary>
+    /// <remarks>
+    /// After the render rather than during it, because the shader sizes itself from the element the
+    /// browser has already laid out. Failures are swallowed: a card that could not be painted is a
+    /// card drawn flat, which is a look, not a fault.
+    /// </remarks>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("aetherShader.paintAll");
+        }
+        catch (Exception)
+        {
+            // No painter on this head, or the page went away mid-call.
+        }
     }
 
     /// <summary>
@@ -224,9 +381,16 @@
         !string.IsNullOrWhiteSpace(target) &&
         target.StartsWith("aether://", StringComparison.OrdinalIgnoreCase);
 
+    private void Show(bool mine) => _mine = mine;
+
     protected override async Task OnInitializedAsync()
     {
         Mesh.Changed += OnChanged;
+        Mesh.Mine.Changed += OnChanged;
+
+        // Somebody has just published. They are sent back to the list of their own pages, not to a
+        // browser pointed at a stranger.
+        _mine = Nav.Uri.Contains("mine=1", StringComparison.Ordinal);
 
         // While a card is open this page answers for itself: a route says which card, and only the
         // page knows how far down it somebody had read.
@@ -291,11 +455,36 @@
         // Stop answering for a page that is no longer open.
         Chat.Holding = null;
         Mesh.Changed -= OnChanged;
+        Mesh.Mine.Changed -= OnChanged;
     }
 }
 
 <style>
     .browser { display: flex; flex-direction: column; gap: 11px; max-width: 720px; margin: 0 auto; }
+
+    /* Browse or Mine. Two jobs, one tab, and never both on screen. */
+    .where { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+    .seg { flex: 1 1 0; padding: 9px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--ink-2); font-size: 0.88rem; font-weight: 700; cursor: pointer; }
+    .seg.on { background: var(--surface); color: var(--brand); box-shadow: var(--shadow-sm); }
+
+    /* Mine — the pages this phone answers with. */
+    .mine { display: flex; flex-direction: column; gap: 9px; }
+    .lede { margin: 0; padding: 2px 4px; font-size: 0.85rem; line-height: 1.5; color: var(--ink-2); }
+    .row { display: flex; align-items: stretch; gap: 7px; }
+    .rmain { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 13px 15px; border-radius: var(--radius); border: 1px solid var(--line-card); background: var(--surface); cursor: pointer; }
+    .rtitle { font-size: 1rem; font-weight: 750; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .raddr { font-family: var(--mono); font-size: 0.78rem; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rstate { font-size: 0.68rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .rstate.live { color: var(--brand); }
+    .rstate.draft { color: var(--ink-3); }
+    .redit { flex: 0 0 auto; padding: 0 16px; border-radius: var(--radius); border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+
+    .new { display: flex; align-items: center; gap: 13px; text-align: left; padding: 15px; border-radius: var(--radius); border: 1px dashed var(--line-card); background: transparent; cursor: pointer; }
+    .new:disabled { opacity: .45; cursor: default; }
+    .plus { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 1.3rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .ntext { display: flex; flex-direction: column; gap: 2px; }
+    .nt { font-size: 1rem; font-weight: 750; color: var(--ink); }
+    .ns { font-size: 0.82rem; color: var(--ink-2); }
 
     /* Address bar — a browser omnibox pill. */
     .omnibox { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 7px 7px 7px 14px; box-shadow: var(--shadow-sm); }
@@ -327,6 +516,9 @@
        so a card that sets no theme still looks deliberate. */
     .doc {
         --card-accent: var(--brand);
+        --card-display: inherit;
+        --card-body: inherit;
+        font-family: var(--card-body);
         background: var(--surface);
         border: 1px solid var(--line);
         border-radius: 16px;
@@ -335,29 +527,44 @@
     }
 
     /* Full-bleed masthead: out to the card's edges, under its rounded top corners. The app-wide
-       `img { max-width: 100% }` that keeps pages from scrolling sideways would otherwise clamp this
-       back inside the padding, so it is lifted here and nowhere else — the card clips it anyway. */
-    .card-hero {
-        display: block;
+       `img { max-width: 100% }` that keeps pages from scrolling sideways would otherwise clamp the
+       picture back inside the padding, so it is lifted here and nowhere else — the card clips it.
+
+       The plate holds its own space from the first frame, so nothing jumps when a picture that is
+       still crossing the radio finally lands. */
+    .plate {
+        position: relative;
         width: calc(100% + 40px);
-        max-width: none;
         margin: 0 -20px 18px;
-        aspect-ratio: 600 / 260;
-        object-fit: cover;
+        aspect-ratio: 600 / 250;
+        overflow: hidden;
+        background: var(--card-accent);
     }
-    /* The picture is still crossing the radio. Hold its exact space so nothing jumps when it lands. */
-    .card-hero.pending {
-        display: flex;
-        align-items: flex-end;
-        padding: 14px 20px;
-        background: linear-gradient(135deg, var(--card-accent), var(--surface-2, var(--line)));
+    .plate-art, .plate-gl {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        display: block;
+        border: 0;
+    }
+    .plate-art { object-fit: cover; }
+    .mark {
+        position: absolute;
+        left: 18px;
+        bottom: 4px;
+        font-family: var(--card-display);
+        font-size: 4.4rem;
+        line-height: 1;
+        font-weight: 800;
+        letter-spacing: -0.035em;
         color: #fff;
-        font-size: 0.85rem;
-        font-weight: 600;
-        opacity: .55;
+        opacity: .95;
     }
 
     .card-title {
+        font-family: var(--card-display);
         margin: 0 0 2px;
         padding-top: 4px;
         font-size: 1.42rem;
@@ -366,8 +573,8 @@
         letter-spacing: -0.01em;
         color: var(--ink);
     }
-    /* No hero? Then the title is the top of the card and needs its own breathing room. */
-    .card-hero + .card-title { padding-top: 0; }
+    /* The plate is the top of the card, so the title needs no space above it. */
+    .plate + .card-title { padding-top: 0; }
     .doc > .card-title:first-child { padding-top: 22px; }
 
     /* A hairline under the title separates "who this is" from "what they're saying". */
@@ -424,7 +631,8 @@
         font-size: 0.92rem;
     }
     .card-kv:last-of-type { border-bottom: 0; }
-    .card-kv span { color: var(--ink); }
+    .kv-k { color: var(--ink-2); }
+    .kv-v { color: var(--ink); text-align: right; }
 
     /* A link is a button, not an anchor: it re-enters our own resolver, so a card can never hand the
        browser an address of its own choosing. */
@@ -442,6 +650,25 @@
         cursor: pointer;
     }
     .card-link:active { transform: translateY(1px); }
+    /* The tip jar. Shown as a fact — a label, where the money goes, and a code to finish on your own
+       connection — rather than as a button that leaves. */
+    .card-tip {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 10px 0 14px;
+        padding: 13px 15px;
+        border: 1px solid var(--card-accent);
+        border-radius: 14px;
+        background: var(--brand-tint);
+    }
+    .tip-say { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .tip-l { font-size: 1rem; font-weight: 750; color: var(--ink); }
+    .tip-h { font-size: 0.82rem; font-weight: 650; color: var(--card-accent); }
+    .tip-u { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-3); word-break: break-all; }
+    .tip-qr { flex: 0 0 auto; width: 86px; height: 86px; border-radius: 8px; overflow: hidden; background: #fff; padding: 3px; }
+    .tip-qr svg { display: block; width: 100%; height: 100%; }
+
     .siteinfo { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--ink-3); padding: 10px 6px 0; }
     .siteinfo svg { width: 13px; height: 13px; color: var(--ink-3); }
     .siteinfo .mono { font-family: var(--mono); }

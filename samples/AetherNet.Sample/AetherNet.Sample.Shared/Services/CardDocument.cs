@@ -72,6 +72,24 @@ public sealed class CardBlock
     public const string Image = "image";
 
     /// <summary>
+    /// A tip jar — Buy Me a Coffee, Ko-fi, a PayFast page. <see cref="Value"/> is the label a reader
+    /// sees, <see cref="Target"/> the address it stands for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one block that names somewhere outside the mesh, and it exists because creators do not move
+    /// platform for a philosophy — they move when the living they already earn moves with them. A page
+    /// that cannot carry a tip jar is a page nobody who is paid for their work will publish.
+    /// </para>
+    /// <para>
+    /// It is still never fetched and never followed on the reader's behalf. The address is shown, and
+    /// going there is something the person holding the phone decides to do — which keeps the rule that
+    /// matters: opening a stranger's card causes no outbound request of any kind.
+    /// </para>
+    /// </remarks>
+    public const string Tip = "tip";
+
+    /// <summary>
     /// The card's own accent colour, so a shop does not look like a taxi rank. A declared choice this
     /// renderer interprets — never a style sheet.
     /// </summary>
@@ -125,4 +143,61 @@ public sealed class CardBlock
         colour.Length is 4 or 7 &&
         colour[0] == '#' &&
         colour.Skip(1).All(char.IsAsciiHexDigit);
+
+    /// <summary>The longest a tip address may be.</summary>
+    private const int LongestTip = 200;
+
+    /// <summary>
+    /// Is this a tip address we are willing to put in front of a reader?
+    ///
+    /// <para>
+    /// <b>https only.</b> This is the one place a card names money, and an <c>http</c> jar is somebody
+    /// on the same network rewriting where the money goes.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>No credentials in the authority.</b> <c>https://buymeacoffee.com@example.invalid/x</c> reads
+    /// as the real thing to a person and resolves to something else entirely — the oldest way to make
+    /// a familiar name point at a stranger's wallet.
+    /// </para>
+    ///
+    /// <para>
+    /// No allow-list of providers, deliberately. Deciding which tip jars are permitted is a central
+    /// authority over who may be paid, which is the thing this network exists to not be.
+    /// </para>
+    /// </summary>
+    public static bool IsUsableTip(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address)) return false;
+        if (address.Length > LongestTip) return false;
+
+        const string scheme = "https://";
+        if (!address.StartsWith(scheme, StringComparison.OrdinalIgnoreCase)) return false;
+
+        var rest = address[scheme.Length..];
+        if (rest.Length == 0) return false;
+
+        var cut = rest.IndexOfAny(['/', '?', '#']);
+        var authority = cut < 0 ? rest : rest[..cut];
+
+        if (authority.Contains('@')) return false;
+        if (!authority.Contains('.')) return false;
+        if (authority.StartsWith('.') || authority.EndsWith('.')) return false;
+
+        return address.All(c => !char.IsWhiteSpace(c) && !char.IsControl(c));
+    }
+
+    /// <summary>The host a tip address points at, as a reader should see it.</summary>
+    /// <remarks>
+    /// Shown beside the label so the decision is made on where the money actually goes rather than on
+    /// what the author chose to call it.
+    /// </remarks>
+    public static string TipHost(string? address)
+    {
+        if (!IsUsableTip(address)) return "";
+
+        var rest = address!["https://".Length..];
+        var cut = rest.IndexOfAny(['/', '?', '#']);
+        return cut < 0 ? rest : rest[..cut];
+    }
 }

@@ -6,6 +6,7 @@ using AetherNet.Content;
 using AetherNet.Content.Models;
 using AetherNet.Identity;
 using AetherNet.Protocol;
+using AetherNet.Sample.Shared.Data;
 using AetherNet.Routing;
 using AetherNet.Security.Services;
 using AetherNet.Transport.Services;
@@ -33,8 +34,8 @@ public sealed class MeshWebService
     private readonly IIdentityService _me;
     private readonly AetherNet.Identity.INodeIdentity _node;
     private readonly IContentStore _contentStore;
+    private readonly MyPages _mine;
     private readonly SemaphoreSlim _initGate = new(1, 1);
-    private readonly List<string> _pages = new();
     private readonly List<SavedCard> _saved = new();
     private volatile bool _ready;
 
@@ -43,22 +44,33 @@ public sealed class MeshWebService
     private IContentStore _store = default!;
     private IAetherResolver _resolver = default!;
     private IDirectoryService _directory = default!;
+    private ICardService _cards = default!;
     private string _localTag = "";
-    private Persona _persona = Personas[0];
 
     private string? _peerSite;
     private bool _wasLinked;
     private bool _helloSent;
 
     private readonly Dictionary<string, string> _assets = new(StringComparer.Ordinal);
-    private ContentDescriptor? _art;
+
+    /// <summary>
+    /// The masthead of every page this device hosts, by page name.
+    /// </summary>
+    /// <remarks>
+    /// Kept because a picture is separate content from the card that names it: the card carries its own
+    /// descriptor, the artwork does not. Without announcing these a peer has nothing to verify an
+    /// arriving chunk against, so it cannot even ask — and every page it fetches from us renders as
+    /// text with a gap where the masthead should be.
+    /// </remarks>
+    private readonly Dictionary<string, ContentDescriptor> _arts = new(StringComparer.Ordinal);
 
     public MeshWebService(
         IIdentityService me,
         AetherNet.Identity.INodeIdentity node,
         IContentStore contentStore,
         IRadioMesh? radio = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        MyPages? mine = null)
     {
         _me = me ?? throw new ArgumentNullException(nameof(me));
         // Cards are signed by the device, so the node signs them. This service never sees the key.
@@ -66,13 +78,25 @@ public sealed class MeshWebService
         _contentStore = contentStore ?? throw new ArgumentNullException(nameof(contentStore));
         _radio = radio;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+
+        // Last, and optional, so every existing caller still compiles. A head that hosts nothing of its
+        // own — or a test — gets a set of pages backed by memory rather than by somebody's phone.
+        _mine = mine ?? new MyPages(AetherStore.InMemory());
     }
 
     public event Action? Changed;
 
     public string LocalTag => _localTag;
-    public IReadOnlyList<string> Pages => _pages;
-    public string HomeAddress => Address("home");
+
+    /// <summary>The pages this device hosts — written here, served from here.</summary>
+    public MyPages Mine => _mine;
+
+    /// <summary>The names of the pages currently standing on the mesh.</summary>
+    public IReadOnlyList<string> Pages => [.. _mine.All.Where(p => p.Live).Select(p => p.Name)];
+
+    /// <summary>This device's front door.</summary>
+    public string HomeAddress => Address(MyPages.Home);
+
     public string Address(string name) => $"aether://{_localTag}/{name}";
 
     public bool RadioAvailable => _radio is { IsSupported: true };
@@ -100,7 +124,6 @@ public sealed class MeshWebService
             // One identity for the whole app: the card is signed by the same tag Settings shows, and it
             // is the same tag after a restart — so an address someone saved still resolves to you.
             _localTag = _me.AetherTag;
-            _persona = PickPersona(_localTag);
 
             if (_radio is { IsSupported: true })
             {
@@ -122,34 +145,32 @@ public sealed class MeshWebService
             var routing = new RoutingService(_sender);
             _content = new ContentService(_sender, routing, _store);
             _directory = new DirectoryService(_sender, new Ed25519NameBindingVerifier());
-            var cards = new CardService(_content, _directory);
-            _resolver = new AetherResolver(cards);
+            _cards = new CardService(_content, _directory);
+            _resolver = new AetherResolver(_cards);
 
-            // The persona's artwork goes on the mesh first, as content in its own right — the card then
-            // names it by hash. Publishing it separately is what lets a third phone that only ever met
-            // a card-holder still render the picture: the bytes are addressed, not located.
-            _art = await _content
-                .PublishAsync($"{_persona.Key}-art", Encoding.UTF8.GetBytes(PersonaArt(_persona.Key, _localTag)),
-                    "image/svg+xml", cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-            var artHash = _art.RootHash;
+            // Somebody who has published nothing still answers at their front door. A tag that resolves
+            // to nothing is a person a visitor bounces off, and the visitor has no way to tell an empty
+            // node from a broken one — so every device hosts a page from its first launch.
+            if (_mine.Get(MyPages.Home) is null)
+                _mine.Save(new WebCard
+                {
+                    Name = MyPages.Home,
+                    // Their tag stands in until they have typed a name. It is the one thing that is
+                    // true about a device on its first launch, and a front door with a blank heading
+                    // reads as broken rather than as new.
+                    Doc = PageTemplate.Of("me").Build(MyName.OrTag(_mine.OwnerName, _localTag)),
+                });
 
-            // Publish this device's persona: each page content-addressed, signed under this tag. Links
-            // between a persona's own pages are written with a placeholder because the tag is not known
-            // when the personas are declared — it is resolved here, to this device's real tag, so a
-            // card can only ever point at its own author. The artwork hash is filled in the same way.
-            foreach (var (name, document) in _persona.Pages)
-            {
-                var json = document.ToJson()
-                    .Replace(PageAuthorToken, _localTag, StringComparison.Ordinal)
-                    .Replace(PageArtToken, artHash, StringComparison.Ordinal);
-
-                await cards.PublishCardAsync(
-                        name, Encoding.UTF8.GetBytes(json), CardDocument.ContentType,
-                        _node, version: 1, cancellationToken)
-                    .ConfigureAwait(false);
-                _pages.Add(name);
-            }
+            // Everything already standing on the mesh gets said again, because a directory binding
+            // lives in the memory of whichever phones heard it and coming back after a day away means
+            // repeating yourself. The front door goes up whether or not anybody has published it.
+            //
+            // Drafts stay put. Somebody who opened the editor, got halfway and walked off has not
+            // decided to publish anything, and a restart is not their decision either — a half-written
+            // page appearing under their tag is the app publishing on their behalf.
+            foreach (var page in _mine.All.ToArray())
+                if (page.Live || page.Name == MyPages.Home)
+                    await PublishPageAsync(page, cancellationToken).ConfigureAwait(false);
 
             _ready = true;
         }
@@ -170,6 +191,89 @@ public sealed class MeshWebService
             _wasLinked = true;
             _ = SendHelloBurstAsync();
         }
+    }
+
+    // ─── Publishing what you wrote ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Put a page on the mesh, or refresh the copy already standing there.
+    /// </summary>
+    /// <returns>The address it now answers at, or null if there is no page by that name.</returns>
+    public async Task<string?> PublishAsync(string? name, CancellationToken cancellationToken = default)
+    {
+        await EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
+
+        return _mine.Get(name) is { } page
+            ? await PublishPageAsync(page, cancellationToken).ConfigureAwait(false)
+            : null;
+    }
+
+    /// <summary>
+    /// Content-address the page, sign the name binding under this tag, and say so on the mesh.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Three things happen here that the stored page does not carry, and each is added to a copy so the
+    /// author's own draft keeps none of it.
+    /// </para>
+    /// <para>
+    /// The blanks come out — a page arrives from a template as a shape with its values empty, and those
+    /// are scaffolding for whoever is writing, not for whoever is reading.
+    /// </para>
+    /// <para>
+    /// The look's colour goes in as a plain hex block, because the browser that draws a peer's card
+    /// reads a single accent and knows nothing about looks. Without it, a sepia page opens in somebody
+    /// else's app in the default blue.
+    /// </para>
+    /// <para>
+    /// And the masthead is published as content in its own right and named by hash — which is what lets
+    /// a third phone that only ever met a card-holder still draw the picture: the bytes are addressed,
+    /// not located.
+    /// </para>
+    /// </remarks>
+    private async Task<string> PublishPageAsync(WebCard page, CancellationToken cancellationToken)
+    {
+        var look = CardLook.FromCard(page.Doc);
+        var document = OwnCard.ForPublish(page.Doc);
+
+        var themed = document.Blocks.FindIndex(b => b.Kind == CardBlock.Theme);
+        document.Blocks.Insert(themed + 1, CardBlock.Of(CardBlock.Theme, look.Accent));
+
+        var art = await _content
+            .PublishAsync(
+                page.Name + "-art",
+                Encoding.UTF8.GetBytes(PageArt.Svg(document.Title, $"{_localTag}/{page.Name}", look.Accent)),
+                "image/svg+xml",
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        _arts[page.Name] = art;
+        document.Blocks.Insert(0, new CardBlock
+        {
+            Kind = CardBlock.Image,
+            ContentHash = art.RootHash,
+            Value = document.Title,
+        });
+
+        // Newer than whatever stands, always. A binding that is not newer is refused by the directory,
+        // which looks exactly like a successful publish from here and like nothing at all from there.
+        var version = _mine.NextVersion(page.Name);
+
+        await _cards
+            .PublishCardAsync(
+                page.Name, Encoding.UTF8.GetBytes(document.ToJson()), CardDocument.ContentType,
+                _node, version, cancellationToken)
+            .ConfigureAwait(false);
+
+        _mine.WentLive(page.Name, version);
+
+        // Somebody is already standing next to us. A page written while the link is up should be
+        // readable on the other phone without waiting for the next time the radio comes back.
+        if (_radio is { IsLinked: true })
+            await _content.AnnounceAsync(art).ConfigureAwait(false);
+
+        RaiseChanged();
+        return Address(page.Name);
     }
 
     // ─── Inbound wire ────────────────────────────────────────────────────────────
@@ -206,7 +310,10 @@ public sealed class MeshWebService
         if (string.IsNullOrEmpty(peerTag) || peerTag == _localTag)
             return;
 
-        var address = $"aether://{peerTag}/home";
+        // Their front door, which is the same name on every device — a greeting carries a tag, not a
+        // sitemap, so the one page every node is guaranteed to answer at is the only thing worth
+        // guessing at.
+        var address = $"aether://{peerTag}/{MyPages.Home}";
         var changed = _peerSite != address;
         _peerSite = address;
 
@@ -254,8 +361,9 @@ public sealed class MeshWebService
         for (var i = 0; i < 4; i++)
         {
             await SendHelloAsync().ConfigureAwait(false);
-            if (i is 0 or 3 && _art is { } art)
-                await _content.AnnounceAsync(art).ConfigureAwait(false);
+            if (i is 0 or 3)
+                foreach (var art in _arts.Values.ToArray())
+                    await _content.AnnounceAsync(art).ConfigureAwait(false);
             await Task.Delay(500).ConfigureAwait(false);
         }
     }
@@ -418,7 +526,13 @@ public sealed class MeshWebService
 
     private void RaiseChanged() => Changed?.Invoke();
 
-    // ─── Personas — distinct hyper-local sites, one per device ───────────────────
+    // ─── Personas — the demo sites, no longer published ──────────────────────────
+    //
+    // A device used to host one of three invented sites so that two phones showed visibly different
+    // pages before anybody had written anything. It hosts what its owner wrote now, so none of this is
+    // published — it is kept because it is the only worked example of the block model in the repo, and
+    // because deleting somebody's reference material to save a few hundred bytes of source is not a
+    // trade worth making silently.
 
     private static Persona PickPersona(string tag)
     {

@@ -446,8 +446,14 @@ public sealed class AppHandout : IDisposable
     /// </summary>
     private async Task SendCardAsync(NetworkStream stream, bool headOnly, CancellationToken life)
     {
+        // The typefaces travel with it. This page is going to a phone that has joined a Wi-Fi Direct
+        // group and has no route to the internet, so a linked font is a font that never arrives —
+        // and the look collapsing to the handset's own faces is the first impression this network
+        // gets to make. Over the group link the extra bytes are a few milliseconds.
         var body = Encoding.UTF8.GetBytes(
-            CardPage.Render(Card, _from, _app.SizeBytes, ShareInvite.DownloadFrom(_token)));
+            CardPage.Render(
+                Card, _from, _app.SizeBytes, ShareInvite.DownloadFrom(_token),
+                fonts: PageAssets.Face));
 
         var head = new StringBuilder()
             .Append("HTTP/1.1 200 OK\r\n")

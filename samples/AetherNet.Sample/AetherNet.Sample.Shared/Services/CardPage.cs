@@ -84,25 +84,47 @@ public static class CardPage
     /// <param name="card">The document. Null or empty still produces a page — a name and nothing else.</param>
     /// <param name="who">Whose card it is, as a person reads it.</param>
     /// <param name="sizeBytes">How big the download is, so nobody is surprised by it.</param>
-    /// <param name="downloadPath">Where the button points — a path on this same phone.</param>
+    /// <param name="downloadPath">
+    ///   Where the button points — a path on this same phone. <b>Null when there is nothing to hand
+    ///   over</b>, which is the same card drawn as what it is the rest of the time: a page on
+    ///   AetherNet. The offer is the exception, not the document.
+    /// </param>
     /// <param name="assetPath">
     ///   Turns a content hash into a path this page can fetch it from, or null when the bytes are not
     ///   available. Passed in rather than assumed, so the renderer never invents an address.
     /// </param>
     /// <param name="fonts">
     ///   Turns a typeface family into the bytes to carry with the page, or null when they are not
-    ///   available. The reader has no internet, so a linked font never arrives — it is embedded or it
-    ///   is absent, and the look falls back to the handset's own faces.
+    ///   available. For a page leaving this device: the reader has no internet, so a linked font never
+    ///   arrives — it is embedded or it is absent, and the look falls back to the handset's own faces.
+    /// </param>
+    /// <param name="still">
+    ///   Draw the masthead once instead of letting it drift. For a thumbnail: a look-picker shows five
+    ///   cards at once, and five animating GL contexts on a handset is a page that competes with real
+    ///   websites and loses.
+    /// </param>
+    /// <param name="fontBase">
+    ///   Where the same typefaces can be linked from instead, for a page drawn <b>inside</b> this app —
+    ///   the editor's preview, which redraws on every keystroke. Embedding a hundred and thirty
+    ///   kilobytes of font six times over per letter typed is what makes a handset feel slow, and the
+    ///   bytes are already on the device.
     /// </param>
     public static string Render(
         CardDocument? card,
         string? who,
         long sizeBytes,
-        string downloadPath,
+        string? downloadPath,
         Func<string, string?>? assetPath = null,
-        Func<string, byte[]?>? fonts = null)
+        Func<string, byte[]?>? fonts = null,
+        string? fontBase = null,
+        bool still = false)
     {
-        var name = Text(who) is { Length: > 0 } n ? n : "Someone next to you";
+        // "Someone next to you" belongs to the moment somebody is being handed a phone. On a page
+        // that was browsed to it is a stranger's name replaced with a description of where they are
+        // standing, which is not a fallback — it is the wrong sentence.
+        var offering = !string.IsNullOrWhiteSpace(downloadPath);
+        var titled = Text(who) is { Length: > 0 } n ? n : "";
+        var name = titled.Length > 0 ? titled : offering ? "Someone next to you" : "";
         var look = CardLook.FromCard(card);
 
         // A card may still name a palette directly; a look names one for it. The look wins when both
@@ -114,24 +136,139 @@ public static class CardPage
 
         page.Append("<!doctype html><html lang=\"en\" data-palette=\"").Append(palette).Append("\">");
         page.Append("<head><meta charset=\"utf-8\">");
+
+        // What this page may do, stated to the browser rather than promised by us.
+        //
+        // It used to carry no script at all, and that was a property worth something: there was
+        // nothing to get wrong. It carries one now — the masthead painter — because the look is the
+        // argument this network makes before anybody has read a word of it. So the property is
+        // replaced with a stronger one rather than simply given up: default-src 'none' means the page
+        // cannot open a connection, load a font, fetch an image or reach any host, whatever ends up
+        // written into it. Pictures and typefaces arrive as data, or from the phone that served it.
+        //
+        // Nothing an author typed is ever handed to the script. The colour is six hexadecimal digits
+        // that have already been through IsUsableAccent, and the seed is a number computed here.
+        page.Append("<meta http-equiv=\"Content-Security-Policy\" content=\"")
+            .Append("default-src 'none'; img-src data: 'self'; font-src data: 'self'; ")
+            .Append("style-src 'unsafe-inline'; script-src 'unsafe-inline'; ")
+            .Append("base-uri 'none'; form-action 'none'\">");
         page.Append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
-        page.Append("<title>").Append(name).Append("</title>");
-        page.Append("<style>").Append(Faces(fonts)).Append(Style(accent, look)).Append("</style>");
+        page.Append("<title>").Append(name.Length > 0 ? name : "A page on AetherNet").Append("</title>");
+        page.Append("<style>").Append(Faces(look, fonts, fontBase)).Append(Style(accent, look)).Append("</style>");
         page.Append("</head><body><main class=\"card\">");
 
-        page.Append("<p class=\"eyebrow\">Shared with you, phone to phone</p>");
-        page.Append("<h1>").Append(name).Append("</h1>");
+        Plate(page, card, name, accent ?? look.Accent, assetPath, still);
 
-        Blocks(page, card, assetPath);
+        // The eyebrow explains how the page got here, which is only true when it is being handed
+        // over. On AetherNet the reader browsed to it, and telling them it was shared with them is a
+        // small lie printed above somebody's name.
+        if (offering)
+            page.Append("<p class=\"eyebrow\">Shared with you, phone to phone</p>");
 
-        page.Append("<div class=\"give\">");
-        page.Append("<a class=\"btn\" href=\"").Append(Attr(downloadPath)).Append("\">Get Aether</a>");
-        page.Append("<p class=\"size\">").Append(Size(sizeBytes)).Append(" · comes off the phone beside you, not the internet</p>");
-        page.Append("<p class=\"fine\">Your phone will ask whether you're sure. That's normal — it asks that for anything that didn't come from a shop.</p>");
-        page.Append("</div>");
+        // No heading at all rather than an invented one. A page whose author has not named it yet is
+        // shorter; it is not a page belonging to somebody called nothing.
+        if (name.Length > 0)
+            page.Append("<h1>").Append(name).Append("</h1>");
 
-        page.Append("</main></body></html>");
+        Blocks(page, card, assetPath, Hero(card));
+
+        if (offering)
+        {
+            page.Append("<div class=\"give\">");
+            page.Append("<a class=\"btn\" href=\"").Append(Attr(downloadPath)).Append("\">Get Aether</a>");
+            page.Append("<p class=\"size\">").Append(Size(sizeBytes)).Append(" · comes off the phone beside you, not the internet</p>");
+            page.Append("<p class=\"fine\">Your phone will ask whether you're sure. That's normal — it asks that for anything that didn't come from a shop.</p>");
+            page.Append("</div>");
+        }
+
+        page.Append("</main>");
+
+        // Last, so it paints a canvas the page has already laid out. Nothing else depends on it: a
+        // reader whose phone refuses WebGL loses the motion and keeps the page.
+        if (PageAssets.Shader() is { Length: > 0 } shader)
+            page.Append("<script>").Append(shader).Append("</script>");
+
+        page.Append("</body></html>");
         return page.ToString();
+    }
+
+    /// <summary>The picture a card leads with, if it names one we can actually show.</summary>
+    private static CardBlock? Hero(CardDocument? card) =>
+        card?.Blocks?.FirstOrDefault(b =>
+            b.Kind == CardBlock.Image && CardBlock.IsUsableAssetHash(b.ContentHash));
+
+    /// <summary>
+    /// The masthead: a lit surface in the page's own colour, painted by the shader.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is what somebody judges before they have read a word, which is why the aesthetic is not
+    /// decoration here — a page that looks made is most of the argument for joining a network nobody
+    /// has heard of. It is ThreeUI's language: one hue lit toward white, drawn in raw WebGL, because
+    /// the character lives in the shader rather than in any library — and no library could travel to a
+    /// reader with no internet anyway.
+    /// </para>
+    /// <para>
+    /// Three layers, each standing in for the one above. The card's own content-addressed picture sits
+    /// underneath, so a phone with no GPU still shows a masthead rather than a gap; the canvas covers
+    /// it when the shader runs; and behind both is the flat accent, which is what a page with neither
+    /// comes out as. The colour is an already-validated hex value and the seed is computed in the
+    /// script, so nothing an author typed is ever handed to it.
+    /// </para>
+    /// </remarks>
+    private static void Plate(
+        StringBuilder page, CardDocument? card, string name, string accent,
+        Func<string, string?>? assetPath, bool still)
+    {
+        var art = Hero(card) is { } hero ? assetPath?.Invoke(hero.ContentHash!) : null;
+
+        page.Append("<div class=\"plate\">");
+
+        if (art is { Length: > 0 })
+            page.Append("<img class=\"plate-art\" src=\"")
+                .Append(Attr(art))
+                .Append("\" alt=\"\">");
+
+        page.Append("<canvas class=\"plate-gl\" data-aether-shader data-accent=\"")
+            .Append(Attr(accent))
+            .Append("\" data-seed=\"")
+            .Append(Seed(name))
+            .Append(still ? "\" data-still" : "\"")
+            .Append("></canvas>");
+
+        page.Append("<span class=\"mark\">").Append(Mark(name)).Append("</span>");
+        page.Append("</div>");
+    }
+
+    /// <summary>
+    /// How this page folds, as a number.
+    /// </summary>
+    /// <remarks>
+    /// Computed here so nothing an author typed is ever handed to the shader — the script reads a
+    /// colour and an integer, and neither can be anything but a colour and an integer. Stable, so a
+    /// page wears the same masthead every time anybody opens it.
+    /// </remarks>
+    private static int Seed(string name)
+    {
+        var hash = 2166136261u;
+
+        foreach (var c in name)
+        {
+            hash ^= c;
+            hash *= 16777619;
+        }
+
+        return (int)(hash % 100000);
+    }
+
+    /// <summary>The single character the masthead is built around.</summary>
+    private static string Mark(string name)
+    {
+        foreach (var c in name)
+            if (char.IsLetterOrDigit(c))
+                return Text(char.ToUpperInvariant(c).ToString()) ?? "";
+
+        return "A";
     }
 
     /// <summary>
@@ -142,7 +279,8 @@ public static class CardPage
     /// a newer version can write a block an older reader has never heard of, and the older reader still
     /// shows them a card instead of an error.
     /// </remarks>
-    private static void Blocks(StringBuilder page, CardDocument? card, Func<string, string?>? assetPath)
+    private static void Blocks(
+        StringBuilder page, CardDocument? card, Func<string, string?>? assetPath, CardBlock? hero)
     {
         if (card?.Blocks is not { Count: > 0 } blocks) return;
 
@@ -181,7 +319,20 @@ public static class CardPage
                     page.Append("<div class=\"lnk\">").Append(label).Append("</div>");
                     break;
 
-                case CardBlock.Image when assetPath?.Invoke(block.ContentHash ?? "") is { Length: > 0 } src
+                // The tip jar. An anchor, because this page is already open in a browser and following
+                // it is the reader's decision to make — but nothing is fetched to draw it, so opening
+                // a stranger's card still causes no request of any kind. The host is shown beside the
+                // label: the decision belongs on where the money goes, not on what it was called.
+                case CardBlock.Tip when CardBlock.IsUsableTip(block.Target):
+                    page.Append("<a class=\"tip\" href=\"").Append(Attr(block.Target))
+                        .Append("\" rel=\"noopener noreferrer nofollow\" target=\"_blank\">")
+                        .Append("<span>").Append(Text(block.Value) is { Length: > 0 } jar ? jar : "Tip").Append("</span>")
+                        .Append("<span class=\"tip-h\">").Append(Text(CardBlock.TipHost(block.Target))).Append("</span>")
+                        .Append("</a>");
+                    break;
+
+                case CardBlock.Image when !ReferenceEquals(block, hero)
+                                          && assetPath?.Invoke(block.ContentHash ?? "") is { Length: > 0 } src
                                           && CardBlock.IsUsableAssetHash(block.ContentHash):
                     page.Append("<img src=\"").Append(Attr(src))
                         .Append("\" alt=\"").Append(Text(block.Value) ?? "").Append("\">");
@@ -206,20 +357,28 @@ public static class CardPage
     /// rather than a lone family name.
     /// </para>
     /// </remarks>
-    private static string Faces(Func<string, byte[]?>? fonts)
+    private static string Faces(CardLook look, Func<string, byte[]?>? fonts, string? fontBase)
     {
-        if (fonts is null) return "";
-
         var css = new StringBuilder();
 
-        foreach (var family in CardLook.All.SelectMany(l => l.Faces()).Distinct())
+        // Only what this look asks for. Carrying all five looks' faces meant every card paid for four
+        // typefaces it would never draw a letter in — and this page is competing with real websites,
+        // where a hundred and thirty kilobytes nobody reads is the difference somebody feels.
+        foreach (var family in look.Faces().Distinct(StringComparer.Ordinal))
         {
-            if (fonts(family) is not { Length: > 0 } bytes) continue;
-
-            css.Append("@font-face{font-family:'").Append(family)
-               .Append("';font-display:swap;src:url(data:font/woff2;base64,")
-               .Append(Convert.ToBase64String(bytes))
-               .Append(") format('woff2')}");
+            if (fonts?.Invoke(family) is { Length: > 0 } bytes)
+            {
+                css.Append("@font-face{font-family:'").Append(family)
+                   .Append("';font-display:swap;src:url(data:font/woff2;base64,")
+                   .Append(Convert.ToBase64String(bytes))
+                   .Append(") format('woff2')}");
+            }
+            else if (fontBase is not null && PageAssets.FaceFile(family) is { } file)
+            {
+                css.Append("@font-face{font-family:'").Append(family)
+                   .Append("';font-display:swap;src:url(").Append(Attr(fontBase + file))
+                   .Append(") format('woff2')}");
+            }
         }
 
         return css.ToString();
@@ -290,7 +449,17 @@ public static class CardPage
             "display:flex;justify-content:center;padding:28px 18px 60px}" +
 
             ".card{width:100%;max-width:420px;background:var(--content);border:1px solid var(--border);" +
-            "border-radius:var(--rl);padding:26px 22px;display:flex;flex-direction:column;gap:14px}" +
+            "border-radius:var(--rl);padding:26px 22px;display:flex;flex-direction:column;gap:14px;" +
+            "overflow:hidden}" +
+
+            // The masthead, bled to the card's edges. Three layers stacked in one box: the picture the
+            // mesh carries, the shader over it, and the flat accent behind both.
+            ".plate{position:relative;width:calc(100% + 44px);margin:-26px -22px 16px;" +
+            "aspect-ratio:600/250;overflow:hidden;background:var(--accent)}" +
+            ".plate-art,.plate-gl{position:absolute;inset:0;width:100%;height:100%;display:block;border:0}" +
+            ".plate-art{object-fit:cover}" +
+            ".mark{position:absolute;left:20px;bottom:6px;font-family:var(--display);font-size:76px;" +
+            "line-height:1;font-weight:800;letter-spacing:-.035em;color:#fff;opacity:.95}" +
 
             ".eyebrow{margin:0;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-2)}" +
             "h1{margin:0;font-family:var(--display);font-size:30px;line-height:1.1;letter-spacing:-.02em;font-weight:700}" +
@@ -301,6 +470,10 @@ public static class CardPage
             "border-radius:var(--r);font-size:13px}" +
             ".kv span:first-child{color:var(--fg-2)}" +
             ".lnk{padding:7px 10px;background:var(--tint);border-radius:var(--r);font-size:13px;color:var(--accent)}" +
+            ".tip{display:flex;align-items:baseline;justify-content:space-between;gap:12px;" +
+            "margin:6px 0 2px;padding:13px 15px;border:1px solid var(--accent);border-radius:var(--r);" +
+            "text-decoration:none;color:var(--fg);font-weight:650;font-size:14.5px}" +
+            ".tip-h{font-size:11.5px;font-weight:500;color:var(--accent);white-space:nowrap}" +
             "img{width:100%;height:auto;display:block;border-radius:var(--r);border:1px solid var(--border)}" +
 
             ".give{display:flex;flex-direction:column;gap:9px;margin-top:6px;" +

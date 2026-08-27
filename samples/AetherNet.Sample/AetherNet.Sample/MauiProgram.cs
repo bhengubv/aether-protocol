@@ -171,8 +171,12 @@ public static class MauiProgram
         // The live in-process AetherNet mesh that the demo UI drives.
         builder.Services.AddScoped<AetherDemoService>();
 
+        // The pages this device hosts. Written on the phone, kept in its own database, served from
+        // here — a person's AetherTag is the domain and each page is a path under it.
+        builder.Services.AddSingleton<MyPages>();
+
         // The mesh-web: signed, content-addressed pages served at aether:// addresses.
-        // One node per app session hosts the sample site and browses it on-device.
+        // One node per app session hosts what its owner wrote and browses everybody else's.
         builder.Services.AddSingleton<MeshWebService>();
 
         // The real over-the-air radio mesh — a native radio inside THIS one app.

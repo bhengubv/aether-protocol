@@ -8,6 +8,7 @@
 @inject AppHandout Handout
 @inject IWifiDirectGroup Group
 @inject AetherStore Store
+@inject MyPages Mine
 
 <PageTitle>Aether — Touch My Blood</PageTitle>
 
@@ -281,9 +282,11 @@
 
             // Off the UI thread: opening the listener and reading the package size both touch the
             // file system, and this is the button somebody presses while a friend is watching.
-            // Their own card, not a generic page. This is the thing a stranger reads before deciding
-            // whether to accept anything, and it should look like a person rather than an installer.
-            Handout.Card = OwnCard.Load(Store.GetSetting(OwnCard.Key), _name);
+            // Their own front door, not a special document. This is the thing a stranger reads before
+            // deciding whether to accept anything, and it should be the same page anybody already on
+            // AetherNet would find at this tag — one page, written once, seen by everybody.
+            Handout.Card = Mine.Get(MyPages.Home)?.Doc
+                ?? OwnCard.Load(Store.GetSetting(OwnCard.Key), _name);
 
             var invite = await Task.Run(() => Handout.Start(from: MyName.OrTag(_name, Me.AetherTag)));
 

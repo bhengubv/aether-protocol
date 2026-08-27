@@ -100,6 +100,9 @@ builder.Services.AddSingleton<GroupCallService>();
 // between Blazor's prerender and interactive renders (and between browser circuits).
 builder.Services.AddSingleton<AetherDemoService>();
 
+// The pages this device hosts, written here and served from here.
+builder.Services.AddSingleton<MyPages>();
+
 // The mesh-web: signed, content-addressed pages served at aether:// addresses. Singleton so
 // prerender and interactive renders share one node (the InProcess registry is process-wide).
 builder.Services.AddSingleton<MeshWebService>();
