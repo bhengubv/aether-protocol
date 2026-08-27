@@ -54,15 +54,16 @@ public sealed class MeshWebService
     private readonly Dictionary<string, string> _assets = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// The masthead of every page this device hosts, by page name.
+    /// Every picture this device can supply, by content hash.
     /// </summary>
     /// <remarks>
-    /// Kept because a picture is separate content from the card that names it: the card carries its own
-    /// descriptor, the artwork does not. Without announcing these a peer has nothing to verify an
-    /// arriving chunk against, so it cannot even ask — and every page it fetches from us renders as
-    /// text with a gap where the masthead should be.
+    /// Mastheads this app generated and photographs their author chose, held together because a peer
+    /// asking for one cannot tell the difference and should not have to. A picture is separate content
+    /// from the card that names it — the card carries its own descriptor, the picture does not — so
+    /// without announcing these a peer has nothing to verify an arriving chunk against. It cannot even
+    /// ask, and every page it fetches from us renders as text with a hole where the picture goes.
     /// </remarks>
-    private readonly Dictionary<string, ContentDescriptor> _arts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ContentDescriptor> _carried = new(StringComparer.Ordinal);
 
     public MeshWebService(
         IIdentityService me,
@@ -193,6 +194,45 @@ public sealed class MeshWebService
         }
     }
 
+    // ─── Pictures ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Take a photograph into this device's content store and hand back the hash a card names it by.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Content-addressed, never located. The card carries the hash, so the same picture published by
+    /// two people is one piece of content, a page renders years later with its author long gone, and a
+    /// third phone that only ever met somebody holding the card can still supply the bytes.
+    /// </para>
+    /// <para>
+    /// Kept the moment it is chosen rather than at publish time. Somebody who picks a picture, sees it
+    /// in the preview and closes the app should find it there when they come back — and the store is
+    /// the same one everything else on this device already survives in.
+    /// </para>
+    /// </remarks>
+    /// <returns>The root hash, or null if these are not bytes we will carry.</returns>
+    public async Task<string?> KeepPictureAsync(
+        byte[] bytes, string mime, CancellationToken cancellationToken = default)
+    {
+        await EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
+
+        if (!PagePhoto.IsUsable(mime, bytes)) return null;
+
+        var picture = await _content
+            .PublishAsync("picture", bytes, mime, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        _carried[picture.RootHash] = picture;
+
+        // Somebody is standing next to us right now. A picture chosen while the link is up should be
+        // fetchable on the other phone without waiting for the radio to come back around.
+        if (_radio is { IsLinked: true })
+            await _content.AnnounceAsync(picture, cancellationToken).ConfigureAwait(false);
+
+        return picture.RootHash;
+    }
+
     // ─── Publishing what you wrote ───────────────────────────────────────────────
 
     /// <summary>
@@ -239,21 +279,38 @@ public sealed class MeshWebService
         var themed = document.Blocks.FindIndex(b => b.Kind == CardBlock.Theme);
         document.Blocks.Insert(themed + 1, CardBlock.Of(CardBlock.Theme, look.Accent));
 
-        var art = await _content
-            .PublishAsync(
-                page.Name + "-art",
-                Encoding.UTF8.GetBytes(PageArt.Svg(document.Title, $"{_localTag}/{page.Name}", look.Accent)),
-                "image/svg+xml",
-                cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-
-        _arts[page.Name] = art;
-        document.Blocks.Insert(0, new CardBlock
+        // A drawing only where there is no photograph. The generated masthead exists so that a page
+        // nobody has put a picture on still has a face; a page whose author chose one does not need
+        // ours, and two mastheads is a page arguing with itself.
+        if (!document.Blocks.Any(b => b.Kind == CardBlock.Image && CardBlock.IsUsableAssetHash(b.ContentHash)))
         {
-            Kind = CardBlock.Image,
-            ContentHash = art.RootHash,
-            Value = document.Title,
-        });
+            var art = await _content
+                .PublishAsync(
+                    page.Name + "-art",
+                    Encoding.UTF8.GetBytes(PageArt.Svg(document.Title, $"{_localTag}/{page.Name}", look.Accent)),
+                    "image/svg+xml",
+                    cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            _carried[art.RootHash] = art;
+            document.Blocks.Insert(0, new CardBlock
+            {
+                Kind = CardBlock.Image,
+                ContentHash = art.RootHash,
+                Value = document.Title,
+            });
+        }
+
+        // Whatever pictures the page does name, this device must be ready to be asked for.
+        foreach (var named in document.Blocks
+            .Where(b => b.Kind == CardBlock.Image && CardBlock.IsUsableAssetHash(b.ContentHash))
+            .Select(b => b.ContentHash!)
+            .Distinct(StringComparer.Ordinal))
+        {
+            if (_carried.ContainsKey(named)) continue;
+            if (await _store.GetDescriptorAsync(named, cancellationToken).ConfigureAwait(false) is { } held)
+                _carried[named] = held;
+        }
 
         // Newer than whatever stands, always. A binding that is not newer is refused by the directory,
         // which looks exactly like a successful publish from here and like nothing at all from there.
@@ -270,7 +327,8 @@ public sealed class MeshWebService
         // Somebody is already standing next to us. A page written while the link is up should be
         // readable on the other phone without waiting for the next time the radio comes back.
         if (_radio is { IsLinked: true })
-            await _content.AnnounceAsync(art).ConfigureAwait(false);
+            foreach (var picture in _carried.Values.ToArray())
+                await _content.AnnounceAsync(picture, cancellationToken).ConfigureAwait(false);
 
         RaiseChanged();
         return Address(page.Name);
@@ -362,8 +420,8 @@ public sealed class MeshWebService
         {
             await SendHelloAsync().ConfigureAwait(false);
             if (i is 0 or 3)
-                foreach (var art in _arts.Values.ToArray())
-                    await _content.AnnounceAsync(art).ConfigureAwait(false);
+                foreach (var picture in _carried.Values.ToArray())
+                    await _content.AnnounceAsync(picture).ConfigureAwait(false);
             await Task.Delay(500).ConfigureAwait(false);
         }
     }
@@ -497,9 +555,14 @@ public sealed class MeshWebService
 
         if (bytes is null || bytes.Length == 0) return null;
 
-        // Card art is SVG: a few hundred bytes that stay sharp at any size, which is what a link
-        // measured at roughly 5 kbps can actually carry.
-        var uri = "data:image/svg+xml;base64," + Convert.ToBase64String(bytes);
+        // As what it is, not as what card art used to be. This assumed SVG, so the first photograph
+        // anybody published came back declared as vector and drew as nothing at all.
+        var kind = await _store.GetDescriptorAsync(contentHash!, cancellationToken).ConfigureAwait(false)
+            is { ContentType.Length: > 0 } held ? held.ContentType : "image/svg+xml";
+
+        if (kind != "image/svg+xml" && !PagePhoto.IsUsable(kind)) return null;
+
+        var uri = $"data:{kind};base64," + Convert.ToBase64String(bytes);
         _assets[contentHash!] = uri;
         return uri;
     }

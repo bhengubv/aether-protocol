@@ -9,6 +9,7 @@
 @inject IWifiDirectGroup Group
 @inject AetherStore Store
 @inject MyPages Mine
+@inject MeshWebService Web
 
 <PageTitle>Aether — Touch My Blood</PageTitle>
 
@@ -288,6 +289,11 @@
             Handout.Card = Mine.Get(MyPages.Home)?.Doc
                 ?? OwnCard.Load(Store.GetSetting(OwnCard.Key), _name);
 
+            // Their pictures, fetched now. The server that answers the tap has one shot at drawing
+            // this page, and reaching into the mesh while a stranger's browser waits is a page that
+            // hangs at the only moment it must not.
+            Handout.Pictures = await PicturesOn(Handout.Card);
+
             var invite = await Task.Run(() => Handout.Start(from: MyName.OrTag(_name, Me.AetherTag)));
 
             if (invite is null)
@@ -373,6 +379,22 @@
         if (_invite is not null && Handout.Invite is null) StopSharing();
         StateHasChanged();
     });
+
+    /// <summary>Every picture a card names, as data this page can carry on its own.</summary>
+    private async Task<IReadOnlyDictionary<string, string>> PicturesOn(CardDocument? card)
+    {
+        var found = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var hash in (card?.Blocks ?? [])
+            .Where(b => b.Kind == CardBlock.Image && CardBlock.IsUsableAssetHash(b.ContentHash))
+            .Select(b => b.ContentHash!)
+            .Distinct(StringComparer.Ordinal))
+        {
+            if (await Web.AssetAsync(hash) is { Length: > 0 } uri) found[hash] = uri;
+        }
+
+        return found;
+    }
 
     public void Dispose()
     {

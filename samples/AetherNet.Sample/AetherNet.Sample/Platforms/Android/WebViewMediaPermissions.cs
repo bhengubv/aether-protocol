@@ -82,12 +82,18 @@ internal static class WebViewMediaPermissions
             else request.Deny();
         }
 
-        // Everything else is MAUI's. Overriding this class at all costs the rest of its behaviour
-        // unless it is handed back.
+        /// <summary>
+        /// Open a chooser when the page asks for a file.
+        /// </summary>
+        /// <remarks>
+        /// Forwarded to MAUI's client first, in case a future version answers it. Today none does —
+        /// the call falls through to <c>base</c>, which returns false, and a tap on a file input does
+        /// nothing whatsoever: no error, no console message. So this answers it.
+        /// </remarks>
         public override bool OnShowFileChooser(global::Android.Webkit.WebView? view,
             IValueCallback? filePathCallback, FileChooserParams? fileChooserParams)
-            => inner?.OnShowFileChooser(view, filePathCallback, fileChooserParams)
-               ?? base.OnShowFileChooser(view, filePathCallback, fileChooserParams);
+            => (inner?.OnShowFileChooser(view, filePathCallback, fileChooserParams) ?? false)
+               || WebViewFilePicker.Show(filePathCallback, fileChooserParams);
 
         public override bool OnConsoleMessage(ConsoleMessage? consoleMessage)
             => inner?.OnConsoleMessage(consoleMessage) ?? base.OnConsoleMessage(consoleMessage);

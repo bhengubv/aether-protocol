@@ -1,9 +1,11 @@
 @page "/page/new"
 @page "/page/{Name}"
 @using AetherNet.Sample.Shared.Services
+@implements IDisposable
 @inject MyPages Mine
 @inject MeshWebService Mesh
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Aether — @(_page is null ? "New page" : _page.Name)</PageTitle>
 
@@ -171,6 +173,46 @@
                                         }
                                         break;
 
+                                    @* A real file input rather than one summoned from script: a
+                                       chooser opens only from a genuine tap, and a click synthesised
+                                       after an await has lost the gesture that would allow it — the
+                                       chooser then silently never appears. *@
+                                    case CardBlock.Image:
+                                        <div class="pic">
+                                            @if (Shown(block) is { Length: > 0 } shown)
+                                            {
+                                                <img class="pic-art" src="@shown" alt="@block.Value" />
+                                            }
+                                            else
+                                            {
+                                                <div class="pic-none">No picture yet</div>
+                                            }
+
+                                            <label class="pick @(_busyPic ? "waiting" : null)">
+                                                @(_busyPic ? "Working…" : Shown(block) is null ? "Choose a picture" : "Choose another")
+                                                <input type="file" accept="image/*" class="hidden"
+                                                       @ref="_picker" />
+                                            </label>
+                                        </div>
+
+                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                               placeholder="@OwnCard.Placeholder(block.Kind)"
+                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
+
+                                        @if (_picNote is { Length: > 0 } && _picking == index)
+                                        {
+                                            <p class="hint bad">@_picNote</p>
+                                        }
+                                        else if (_weights.TryGetValue(block.ContentHash ?? "", out var weight))
+                                        {
+                                            <p class="hint">@PagePhoto.Size(weight) · @PagePhoto.OverSlowLink(weight)</p>
+                                        }
+                                        else
+                                        {
+                                            <p class="hint">Shrunk on this phone before it goes anywhere. Nothing of the original file travels — no location, no camera, no date.</p>
+                                        }
+                                        break;
+
                                     case CardBlock.Tip:
                                         <input class="in" maxlength="@OwnCard.LongestValue"
                                                placeholder="@OwnCard.Placeholder(block.Kind)"
@@ -297,7 +339,22 @@
     private string _said = "";
     private bool _busy;
 
+    private ElementReference? _picker;
+    private DotNetObjectReference<PageEditor>? _me;
+    private int _picking = -1;
+    private bool _busyPic;
+    private string _picNote = "";
+
+    /// <summary>Pictures already resolved, by content hash, so a panel draws without waiting.</summary>
+    private readonly Dictionary<string, string> _pics = new(StringComparer.Ordinal);
+
+    /// <summary>And what each weighs, so the author sees the cost they are asking others to pay.</summary>
+    private readonly Dictionary<string, long> _weights = new(StringComparer.Ordinal);
+
     private bool Fresh => string.IsNullOrWhiteSpace(Name) || Name == "new";
+
+    private string? Shown(CardBlock block) =>
+        block.ContentHash is { Length: > 0 } hash && _pics.TryGetValue(hash, out var uri) ? uri : null;
     private bool Full => _doc.Blocks.Count >= OwnCard.MostBlocks;
 
     private string Title => _step switch
@@ -364,7 +421,126 @@
 
         _look = CardLook.FromCard(_doc);
         Draw();
+
+        // Whatever this page already names. Fetched rather than remembered, because the bytes live in
+        // the content store and the card only ever carries the hash.
+        _ = Load();
     }
+
+    private async Task Load()
+    {
+        foreach (var hash in _doc.Blocks
+            .Where(b => b.Kind == CardBlock.Image && CardBlock.IsUsableAssetHash(b.ContentHash))
+            .Select(b => b.ContentHash!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray())
+        {
+            if (_pics.ContainsKey(hash)) continue;
+            if (await Mesh.AssetAsync(hash) is not { Length: > 0 } uri) continue;
+
+            _pics[hash] = uri;
+            Draw();
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Hand the newly-rendered file input to the picker script.
+    /// </summary>
+    /// <remarks>
+    /// After the render, because the element does not exist before it. The script refuses to attach
+    /// twice to the same input, so calling this on every render costs nothing.
+    /// </remarks>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_picker is not { } input) return;
+
+        _me ??= DotNetObjectReference.Create(this);
+
+        try
+        {
+            await JS.InvokeVoidAsync("aetherPhoto.watch", input, _me, nameof(Picked));
+        }
+        catch (Exception)
+        {
+            // No picker on this head. The panel still shows whatever picture is already there.
+        }
+    }
+
+    /// <summary>
+    /// A picture came back from the browser, already redrawn and shrunk.
+    /// </summary>
+    /// <remarks>
+    /// Everything here is a claim until it is checked. The size, the type and the bytes all crossed a
+    /// JavaScript boundary, so <see cref="PagePhoto"/> looks at the bytes themselves rather than at
+    /// what they say they are — and the content store hashes them, which is what a card names.
+    /// </remarks>
+    [JSInvokable]
+    public async Task Picked(PickedPicture got)
+    {
+        _picNote = "";
+
+        if (got is null || !got.Ok || string.IsNullOrEmpty(got.Base64))
+        {
+            _picNote = got?.Why is { Length: > 0 } why
+                ? why + " — try a smaller one"
+                : "could not use that picture";
+            StateHasChanged();
+            return;
+        }
+
+        _busyPic = true;
+        StateHasChanged();
+
+        try
+        {
+            var bytes = Convert.FromBase64String(got.Base64);
+
+            if (!PagePhoto.IsUsable(got.Mime, bytes))
+            {
+                _picNote = $"that came to {PagePhoto.Size(bytes.Length)}, and a page carries {PagePhoto.Size(PagePhoto.MostBytes)}";
+                return;
+            }
+
+            if (await Mesh.KeepPictureAsync(bytes, got.Mime!) is not { Length: > 0 } hash)
+            {
+                _picNote = "could not keep that picture";
+                return;
+            }
+
+            _pics[hash] = $"data:{got.Mime};base64,{got.Base64}";
+            _weights[hash] = bytes.LongLength;
+
+            if (_picking >= 0 && _picking < _doc.Blocks.Count)
+            {
+                _doc.Blocks[_picking].ContentHash = hash;
+                Save();
+            }
+        }
+        catch (FormatException)
+        {
+            _picNote = "could not read that picture";
+        }
+        finally
+        {
+            _busyPic = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>What the picker hands back.</summary>
+    public sealed class PickedPicture
+    {
+        public bool Ok { get; set; }
+        public string? Why { get; set; }
+        public string? Mime { get; set; }
+        public string? Base64 { get; set; }
+        public long Bytes { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+
+    public void Dispose() => _me?.Dispose();
 
     // ─── Steps ──────────────────────────────────────────────────────────────────
 
@@ -409,7 +585,21 @@
         if (!Fresh || _page is not null) Save(); else Draw();
     }
 
-    private void Toggle(int index) => _open = _open == index ? -1 : index;
+    /// <summary>
+    /// Open one panel, close the rest — and remember which one a picture would belong to.
+    /// </summary>
+    /// <remarks>
+    /// The open panel is the only one whose file input is rendered, so opening a panel is what makes
+    /// it the destination. Deciding this from a click handler on the input instead re-rendered the
+    /// page mid-tap, replaced the element, and cancelled the gesture that was about to open the
+    /// chooser — a button that visibly did nothing.
+    /// </remarks>
+    private void Toggle(int index)
+    {
+        _open = _open == index ? -1 : index;
+        _picking = _open;
+        _picNote = "";
+    }
 
     // ─── Fields ─────────────────────────────────────────────────────────────────
 
@@ -466,8 +656,15 @@
 
     private void Add(string kind)
     {
+        if (kind == CardBlock.Image && _doc.Blocks.Count(b => b.Kind == CardBlock.Image) >= PagePhoto.MostPerPage)
+        {
+            _said = $"A page carries {PagePhoto.MostPerPage} pictures. Every extra one is another minute of somebody's evening on the slow radio.";
+            return;
+        }
+
         OwnCard.Add(_doc, kind);
         _open = _doc.Blocks.Count - 1;
+        _picking = _open;
         Save();
     }
 
@@ -528,7 +725,10 @@
     private void Draw() =>
         _preview = CardPage.Render(
             OwnCard.ForPublish(_doc), _doc.Title, 0,
-            downloadPath: null, fontBase: PageAssets.WebFontBase);
+            downloadPath: null, assetPath: Picture, fontBase: PageAssets.WebFontBase);
+
+    /// <summary>A picture this editor already holds, as something the preview can draw.</summary>
+    private string? Picture(string hash) => _pics.GetValueOrDefault(hash);
 
     /// <summary>
     /// The same page in a different look, drawn small.
@@ -635,6 +835,11 @@
         if (block.Kind == CardBlock.Tip)
             return CardBlock.IsUsableTip(block.Target) ? CardBlock.TipHost(block.Target) : "Not set";
 
+        if (block.Kind == CardBlock.Image)
+            return CardBlock.IsUsableAssetHash(block.ContentHash)
+                ? block.Value is { Length: > 0 } what ? what.Trim() : "A picture"
+                : "None chosen";
+
         return string.IsNullOrWhiteSpace(block.Value) ? "Empty" : block.Value.Trim();
     }
 }
@@ -709,6 +914,14 @@
     .tiny { min-width: 34px; height: 34px; padding: 0 11px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-size: 0.82rem; cursor: pointer; }
     .tiny.drop { color: var(--warn); margin-left: auto; }
     .ghost.drop { color: var(--warn); border-color: var(--warn); align-self: flex-start; }
+
+    /* The picture, and the one control that changes it. */
+    .pic { display: flex; flex-direction: column; gap: 9px; }
+    .pic-art { width: 100%; border-radius: var(--radius-sm); display: block; aspect-ratio: 600 / 250; object-fit: cover; }
+    .pic-none { display: flex; align-items: center; justify-content: center; aspect-ratio: 600 / 250; border: 1px dashed var(--line-card); border-radius: var(--radius-sm); color: var(--ink-3); font-size: 0.85rem; }
+    .pick { align-self: flex-start; padding: 11px 16px; border: 1px solid var(--brand); border-radius: var(--radius-sm); color: var(--brand); font-weight: 700; font-size: 0.88rem; cursor: pointer; }
+    .pick.waiting { opacity: .55; }
+    .hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
     .adds { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 0; }
     .addrow { display: flex; flex-wrap: wrap; gap: 6px; }

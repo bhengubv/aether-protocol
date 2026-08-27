@@ -96,14 +96,22 @@ else
                        would otherwise keep one canvas across two cards, and the painter refuses to
                        repaint a plate it has already done. *@
                     var hero = card.Blocks.FirstOrDefault(b => b.Kind == CardBlock.Image);
-                    <div class="plate" @key="p.Address">
-                        @if (hero is not null && _assets.TryGetValue(hero.ContentHash ?? "", out var heroUri))
+                    var art = hero is not null && _assets.TryGetValue(hero.ContentHash ?? "", out var heroUri)
+                        ? heroUri
+                        : null;
+                    var photograph = PagePhoto.IsPhotograph(art);
+
+                    <div class="plate @(photograph ? "shot" : null)" @key="p.Address">
+                        @if (art is not null)
                         {
-                            <img class="plate-art" src="@heroUri" alt="@hero.Value" />
+                            <img class="plate-art" src="@art" alt="@hero!.Value" />
                         }
-                        <canvas class="plate-gl" data-aether-shader
-                                data-accent="@Paint(card)" data-seed="@Seed(card.Title, p.Name)"></canvas>
-                        <span class="mark">@Mark(card.Title, p.Name)</span>
+                        @if (!photograph)
+                        {
+                            <canvas class="plate-gl" data-aether-shader
+                                    data-accent="@Paint(card)" data-seed="@Seed(card.Title, p.Name)"></canvas>
+                        }
+                        <span class="mark @(photograph ? "quiet" : null)">@Mark(card.Title, p.Name)</span>
                     </div>
 
                     <h1 class="card-title">@card.Title</h1>
@@ -561,6 +569,19 @@ else
         letter-spacing: -0.035em;
         color: #fff;
         opacity: .95;
+    }
+
+    /* Over a photograph the mark is a label on somebody's picture rather than the picture itself, so
+       it stands down — and it gets a scrim, because a white letter on an unknown photograph is a
+       white letter on white about a third of the time. */
+    .mark.quiet { font-size: 2.6rem; text-shadow: 0 1px 14px rgba(0, 0, 0, .55); z-index: 1; }
+    .plate.shot::after {
+        content: "";
+        position: absolute;
+        inset: auto 0 0 0;
+        height: 52%;
+        background: linear-gradient(to top, rgba(0, 0, 0, .52), transparent);
+        pointer-events: none;
     }
 
     .card-title {

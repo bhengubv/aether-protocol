@@ -222,12 +222,27 @@ public static class CardPage
     {
         var art = Hero(card) is { } hero ? assetPath?.Invoke(hero.ContentHash!) : null;
 
-        page.Append("<div class=\"plate\">");
+        // Somebody's photograph is the subject. Painting a shader across it is not a design choice,
+        // and the difference is already in the content type — vector art is a backdrop this app drew,
+        // a photograph is a thing that happened to a person.
+        var photograph = PagePhoto.IsPhotograph(art);
+
+        // The class rather than :has(). This page is read on whatever browser the reader happens to
+        // have, and a selector their engine does not know does not degrade — it simply never matches,
+        // and the scrim that makes the mark legible over a photograph silently is not there.
+        page.Append("<div class=\"plate").Append(photograph ? " shot" : "").Append("\">");
 
         if (art is { Length: > 0 })
             page.Append("<img class=\"plate-art\" src=\"")
                 .Append(Attr(art))
                 .Append("\" alt=\"\">");
+
+        if (photograph)
+        {
+            page.Append("<span class=\"mark quiet\">").Append(Mark(name)).Append("</span>");
+            page.Append("</div>");
+            return;
+        }
 
         page.Append("<canvas class=\"plate-gl\" data-aether-shader data-accent=\"")
             .Append(Attr(accent))
@@ -460,6 +475,13 @@ public static class CardPage
             ".plate-art{object-fit:cover}" +
             ".mark{position:absolute;left:20px;bottom:6px;font-family:var(--display);font-size:76px;" +
             "line-height:1;font-weight:800;letter-spacing:-.035em;color:#fff;opacity:.95}" +
+
+            // Over a photograph the mark stops being the picture and starts being a label on one, so
+            // it gets smaller, and it gets a scrim under it because a white letter on an unknown
+            // photograph is a white letter on white about a third of the time.
+            ".mark.quiet{font-size:44px;opacity:.98;text-shadow:0 1px 14px rgba(0,0,0,.55);z-index:1}" +
+            ".plate.shot::after{content:'';position:absolute;inset:auto 0 0 0;height:52%;" +
+            "background:linear-gradient(to top,rgba(0,0,0,.52),transparent);pointer-events:none}" +
 
             ".eyebrow{margin:0;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-2)}" +
             "h1{margin:0;font-family:var(--display);font-size:30px;line-height:1.1;letter-spacing:-.02em;font-weight:700}" +

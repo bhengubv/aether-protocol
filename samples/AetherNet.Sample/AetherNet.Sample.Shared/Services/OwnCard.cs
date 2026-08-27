@@ -38,8 +38,9 @@ public static class OwnCard
     /// <summary>The kinds somebody can add by hand, in the order the editor offers them.</summary>
     /// <remarks>
     /// <para>
-    /// Image is absent deliberately: a picture has to come from somewhere, and until a page's assets
-    /// travel with it there is nothing honest to offer.
+    /// Picture is here now that a page's assets travel with it — chosen on the phone, shrunk to
+    /// something the slow radio can actually deliver, and named by content hash rather than by a place
+    /// to go and fetch it from.
     /// </para>
     /// <para>
     /// Link is present now that a person hosts more than one page — it points at another page under
@@ -48,7 +49,10 @@ public static class OwnCard
     /// </para>
     /// </remarks>
     public static readonly string[] Writable =
-        [CardBlock.Heading, CardBlock.Text, CardBlock.List, CardBlock.KeyValue, CardBlock.Link, CardBlock.Tip];
+    [
+        CardBlock.Heading, CardBlock.Text, CardBlock.List,
+        CardBlock.KeyValue, CardBlock.Image, CardBlock.Link, CardBlock.Tip,
+    ];
 
     /// <summary>The most lines one list block may hold.</summary>
     public const int MostItems = 12;
@@ -81,6 +85,7 @@ public static class OwnCard
         CardBlock.List => "One thing per line",
         CardBlock.KeyValue => "Open = Mon to Sat, 8 to 5",
         CardBlock.Link => "What the link says",
+        CardBlock.Image => "What it is a picture of",
         CardBlock.Tip => "Buy me a coffee",
         _ => "",
     };
@@ -248,6 +253,15 @@ public static class OwnCard
                     break;
 
                 case CardBlock.Tip:
+                    break;
+
+                // A picture is its hash. A block with no hash is somebody who opened the picker and
+                // changed their mind, and publishing it would put an empty frame on their page.
+                case CardBlock.Image when CardBlock.IsUsableAssetHash(block.ContentHash):
+                    blocks.Add(block);
+                    break;
+
+                case CardBlock.Image:
                     break;
 
                 // A key with nothing after the equals sign is a label nobody answered.

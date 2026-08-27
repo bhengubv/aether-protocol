@@ -51,6 +51,22 @@ public class MainActivity : MauiAppCompatActivity
     }
 
     /// <summary>
+    /// Hand a chosen file back to the page that asked for it.
+    /// </summary>
+    /// <remarks>
+    /// The activity is the only thing that receives an activity result, and the WebView's file
+    /// chooser is started from a chrome client that is not one. Everything else still goes to MAUI —
+    /// permissions, its own pickers — so base is called either way.
+    /// </remarks>
+    protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
+    {
+        base.OnActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == Platforms.Android.WebViewFilePicker.RequestCode)
+            Platforms.Android.WebViewFilePicker.Answer(resultCode, data);
+    }
+
+    /// <summary>
     /// Make the keyboard shorten the app instead of shoving it upwards.
     /// <para>
     /// MAUI draws edge-to-edge, and while it does, Android ignores <c>adjustResize</c> and simply

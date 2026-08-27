@@ -474,6 +474,227 @@ public class WebCardAuthoringTests
         Assert.Contains("Someone next to you", page, StringComparison.Ordinal);
     }
 
+    // ── Pictures that travel ───────────────────────────────────────────────────
+
+    /// <summary>A JPEG, as far as anything that inspects bytes is concerned.</summary>
+    private static byte[] AJpeg(int bytes = 2048)
+    {
+        var picture = new byte[bytes];
+        picture[0] = 0xFF;
+        picture[1] = 0xD8;
+        picture[2] = 0xFF;
+
+        for (var i = 3; i < bytes; i++) picture[i] = (byte)(i * 31 % 251);
+
+        return picture;
+    }
+
+    [Theory]
+    [InlineData("image/jpeg")]
+    [InlineData("image/png")]
+    [InlineData("image/webp")]
+    public void The_kinds_of_picture_a_page_carries_are_ones_every_phone_draws(string mime) =>
+        Assert.True(PagePhoto.IsUsable(mime));
+
+    /// <summary>
+    /// SVG is refused, and not for want of support.
+    /// </summary>
+    /// <remarks>
+    /// An SVG is a document that can carry script and can fetch. Accepting one from a person and
+    /// serving it to strangers would put an executable back inside the one thing on this network that
+    /// has to stay inert — after the card model went to the trouble of being JSON precisely so that it
+    /// could not.
+    /// </remarks>
+    [Fact]
+    public void A_picture_that_is_really_a_document_is_refused() =>
+        Assert.False(PagePhoto.IsUsable("image/svg+xml"));
+
+    /// <summary>
+    /// The type is a claim made across a JavaScript call, so the bytes are asked instead.
+    /// </summary>
+    [Fact]
+    public void Bytes_that_are_not_what_they_say_they_are_are_refused()
+    {
+        var notAJpeg = new byte[] { 0x3C, 0x73, 0x76, 0x67, 0x20 };
+
+        Assert.False(PagePhoto.IsUsable("image/jpeg", notAJpeg));
+        Assert.True(PagePhoto.IsUsable("image/jpeg", AJpeg()));
+    }
+
+    /// <summary>
+    /// The budget is set by the slowest radio, not the fastest.
+    /// </summary>
+    /// <remarks>
+    /// A picture that arrives instantly over Wi-Fi Direct and never arrives at all over Bluetooth is a
+    /// page that works in a demo and fails on a street.
+    /// </remarks>
+    [Fact]
+    public void A_picture_bigger_than_the_budget_is_refused() =>
+        Assert.False(PagePhoto.IsUsable("image/jpeg", AJpeg(PagePhoto.MostBytes + 1)));
+
+    [Fact]
+    public void A_picture_inside_the_budget_is_kept() =>
+        Assert.True(PagePhoto.IsUsable("image/jpeg", AJpeg(PagePhoto.MostBytes)));
+
+    /// <summary>
+    /// A photograph is the subject; a drawing is a backdrop. The masthead turns on the difference, and
+    /// it is read from the content type rather than from anything a card declares about itself.
+    /// </summary>
+    [Fact]
+    public void A_photograph_and_a_drawing_are_told_apart_by_what_they_are()
+    {
+        Assert.True(PagePhoto.IsPhotograph("data:image/jpeg;base64,AAAA"));
+        Assert.False(PagePhoto.IsPhotograph("data:image/svg+xml;base64,AAAA"));
+        Assert.False(PagePhoto.IsPhotograph(null));
+    }
+
+    [Fact]
+    public async Task A_picture_somebody_chose_is_kept_and_can_be_fetched_back()
+    {
+        var (service, _) = ADevice();
+        await service.EnsureReadyAsync();
+
+        var hash = await service.KeepPictureAsync(AJpeg(), "image/jpeg");
+
+        Assert.NotNull(hash);
+        Assert.True(CardBlock.IsUsableAssetHash(hash));
+        Assert.StartsWith("data:image/jpeg;base64,", await service.AssetAsync(hash));
+    }
+
+    /// <summary>
+    /// The bug this catches: every asset came back declared as SVG, because card art used to be the
+    /// only kind there was. A photograph then arrived correctly, verified correctly, and drew as
+    /// nothing at all.
+    /// </summary>
+    [Fact]
+    public async Task A_picture_comes_back_as_what_it_actually_is()
+    {
+        var (service, _) = ADevice();
+        await service.EnsureReadyAsync();
+
+        var photograph = await service.KeepPictureAsync(AJpeg(), "image/jpeg");
+        var page = await service.OpenAsync(service.HomeAddress);
+        var drawing = page.Card!.Blocks.First(b => b.Kind == CardBlock.Image).ContentHash;
+
+        Assert.StartsWith("data:image/jpeg;", await service.AssetAsync(photograph));
+        Assert.StartsWith("data:image/svg+xml;", await service.AssetAsync(drawing));
+    }
+
+    [Fact]
+    public async Task Bytes_we_would_not_carry_are_not_kept()
+    {
+        var (service, _) = ADevice();
+        await service.EnsureReadyAsync();
+
+        Assert.Null(await service.KeepPictureAsync(AJpeg(PagePhoto.MostBytes + 1), "image/jpeg"));
+        Assert.Null(await service.KeepPictureAsync(AJpeg(), "image/svg+xml"));
+        Assert.Null(await service.KeepPictureAsync([], "image/jpeg"));
+    }
+
+    /// <summary>
+    /// A page whose author chose a picture does not also get ours. Two mastheads is a page arguing
+    /// with itself, and the generated one exists only so that a page with no picture still has a face.
+    /// </summary>
+    [Fact]
+    public async Task A_page_with_a_photograph_is_not_given_a_drawing_as_well()
+    {
+        var (service, mine) = ADevice();
+        await service.EnsureReadyAsync();
+
+        var hash = await service.KeepPictureAsync(AJpeg(), "image/jpeg");
+        mine.Save(new WebCard
+        {
+            Name = "shop",
+            Doc = new CardDocument
+            {
+                Title = "The shop",
+                Blocks = [new CardBlock { Kind = CardBlock.Image, ContentHash = hash, Value = "The shop front" }],
+            },
+        });
+
+        var page = await service.OpenAsync((await service.PublishAsync("shop"))!);
+        var picture = Assert.Single(page.Card!.Blocks, b => b.Kind == CardBlock.Image);
+
+        Assert.Equal(hash, picture.ContentHash);
+    }
+
+    /// <summary>
+    /// The whole point: a picture crosses to a phone that has never seen it, verified against the
+    /// descriptor rather than trusted from the sender.
+    /// </summary>
+    [Fact]
+    public async Task A_picture_reaches_a_phone_that_never_had_it()
+    {
+        var mine = APhone();
+        var me = FakeIdentity.Unique();
+        var you = FakeIdentity.Unique();
+
+        var hereRadio = new FakeRadioMesh(me.AetherTag);
+        var thereRadio = new FakeRadioMesh(you.AetherTag);
+        hereRadio.Peer = thereRadio;
+        thereRadio.Peer = hereRadio;
+        hereRadio.Link();
+        thereRadio.Link();
+
+        var here = new MeshWebService(me, me.Node, new InMemoryContentStore(), hereRadio, null, mine);
+        await here.EnsureReadyAsync();
+
+        var hash = await here.KeepPictureAsync(AJpeg(), "image/jpeg");
+        mine.Save(new WebCard
+        {
+            Name = "shop",
+            Doc = new CardDocument
+            {
+                Title = "The shop",
+                Blocks = [new CardBlock { Kind = CardBlock.Image, ContentHash = hash, Value = "The shop front" }],
+            },
+        });
+        await here.PublishAsync("shop");
+
+        var there = new MeshWebService(you, you.Node, new InMemoryContentStore(), thereRadio, null, APhone());
+        await there.EnsureReadyAsync();
+
+        var page = await there.OpenAsync(here.Address("shop"));
+
+        Assert.True(page.Ok, page.Error);
+        Assert.True(page.Remote);
+
+        var named = Assert.Single(page.Card!.Blocks, b => b.Kind == CardBlock.Image);
+        Assert.Equal(hash, named.ContentHash);
+        Assert.StartsWith("data:image/jpeg;base64,", await there.AssetAsync(named.ContentHash));
+    }
+
+    /// <summary>
+    /// A picture nobody chose is not published as an empty frame.
+    /// </summary>
+    [Fact]
+    public void A_picture_block_with_no_picture_in_it_is_not_published()
+    {
+        var card = new CardDocument
+        {
+            Blocks = [new CardBlock { Kind = CardBlock.Image, Value = "The shop front" }],
+        };
+
+        Assert.DoesNotContain(OwnCard.ForPublish(card).Blocks, b => b.Kind == CardBlock.Image);
+    }
+
+    [Fact]
+    public void A_picture_is_something_somebody_can_add_to_a_page() =>
+        Assert.Contains(CardBlock.Image, OwnCard.Writable);
+
+    /// <summary>
+    /// An author is told what they are asking of whoever opens the page. It is the one cost of
+    /// publishing that is paid entirely by other people.
+    /// </summary>
+    [Fact]
+    public void The_cost_of_a_picture_is_stated_in_time_somebody_else_spends()
+    {
+        var said = PagePhoto.OverSlowLink(PagePhoto.MostBytes);
+
+        Assert.Contains("Bluetooth", said, StringComparison.Ordinal);
+        Assert.Contains("minute", said, StringComparison.Ordinal);
+    }
+
     // ── The masthead ───────────────────────────────────────────────────────────
 
     [Fact]

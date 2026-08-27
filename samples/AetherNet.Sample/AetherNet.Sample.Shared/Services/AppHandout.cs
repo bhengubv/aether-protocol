@@ -123,6 +123,18 @@ public sealed class AppHandout : IDisposable
     /// </remarks>
     public CardDocument? Card { get; set; }
 
+    /// <summary>
+    /// The pictures that card names, already fetched, by content hash.
+    /// </summary>
+    /// <remarks>
+    /// Resolved before the group goes up rather than while a stranger's browser is waiting: this
+    /// server answers one request with one page, and reaching into the mesh mid-response to assemble a
+    /// photograph is a page that hangs at the only moment it has to be instant. Empty is fine — the
+    /// page then draws its generated masthead instead.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string> Pictures { get; set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
     /// <summary>What the far end will call what it just installed.</summary>
     public string PackageName => _app.PackageName;
 
@@ -453,6 +465,7 @@ public sealed class AppHandout : IDisposable
         var body = Encoding.UTF8.GetBytes(
             CardPage.Render(
                 Card, _from, _app.SizeBytes, ShareInvite.DownloadFrom(_token),
+                assetPath: hash => Pictures.GetValueOrDefault(hash),
                 fonts: PageAssets.Face));
 
         var head = new StringBuilder()
