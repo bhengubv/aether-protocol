@@ -43,6 +43,20 @@
     @* Handing somebody the app with no store in the middle. It goes to people you have already added,
        because a stranger you can hand a forty-megabyte package to is a stranger with your attention. *@
     <section class="group">
+        <div class="glabel">You</div>
+
+        @* Sits above sharing on purpose: the card is what a stranger reads at the moment they are
+           handed the app, so it is worth writing before you go looking for somebody to hand it to. *@
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/mycard"))">
+            <span class="about-body">
+                <span class="about-t">Your card</span>
+                <span class="about-s">what somebody sees when you hand them Aether — pick a look and write it</span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+    </section>
+
+    <section class="group">
         <div class="glabel">Share Aether</div>
         @if (Chat.CanShareApp)
         {

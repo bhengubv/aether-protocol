@@ -281,6 +281,10 @@
 
             // Off the UI thread: opening the listener and reading the package size both touch the
             // file system, and this is the button somebody presses while a friend is watching.
+            // Their own card, not a generic page. This is the thing a stranger reads before deciding
+            // whether to accept anything, and it should look like a person rather than an installer.
+            Handout.Card = OwnCard.Load(Store.GetSetting(OwnCard.Key), _name);
+
             var invite = await Task.Run(() => Handout.Start(from: MyName.OrTag(_name, Me.AetherTag)));
 
             if (invite is null)

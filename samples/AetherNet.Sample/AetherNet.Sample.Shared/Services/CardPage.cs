@@ -41,6 +41,10 @@ public static class CardPage
     /// <summary>What a card gets when it asks for nothing.</summary>
     public const string DefaultPalette = "mono";
 
+    /// <summary>What the card's theme block says, whatever kind of value it is.</summary>
+    private static string? ThemeValue(CardDocument? card) =>
+        card?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Theme && !string.IsNullOrWhiteSpace(b.Value))?.Value;
+
     /// <summary>Whether this is a palette we know how to draw.</summary>
     public static bool IsPalette(string? name) =>
         name is not null && Palettes.Contains(name.Trim().ToLowerInvariant());
@@ -85,15 +89,25 @@ public static class CardPage
     ///   Turns a content hash into a path this page can fetch it from, or null when the bytes are not
     ///   available. Passed in rather than assumed, so the renderer never invents an address.
     /// </param>
+    /// <param name="fonts">
+    ///   Turns a typeface family into the bytes to carry with the page, or null when they are not
+    ///   available. The reader has no internet, so a linked font never arrives — it is embedded or it
+    ///   is absent, and the look falls back to the handset's own faces.
+    /// </param>
     public static string Render(
         CardDocument? card,
         string? who,
         long sizeBytes,
         string downloadPath,
-        Func<string, string?>? assetPath = null)
+        Func<string, string?>? assetPath = null,
+        Func<string, byte[]?>? fonts = null)
     {
         var name = Text(who) is { Length: > 0 } n ? n : "Someone next to you";
-        var palette = PaletteOf(card);
+        var look = CardLook.FromCard(card);
+
+        // A card may still name a palette directly; a look names one for it. The look wins when both
+        // are present, because a look is a finished design and a loose palette is half of one.
+        var palette = CardLook.IsLook(ThemeValue(card)) ? look.Scheme : PaletteOf(card);
         var accent = AccentOf(card);
 
         var page = new StringBuilder(4096);
@@ -102,7 +116,7 @@ public static class CardPage
         page.Append("<head><meta charset=\"utf-8\">");
         page.Append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
         page.Append("<title>").Append(name).Append("</title>");
-        page.Append("<style>").Append(Style(accent)).Append("</style>");
+        page.Append("<style>").Append(Faces(fonts)).Append(Style(accent, look)).Append("</style>");
         page.Append("</head><body><main class=\"card\">");
 
         page.Append("<p class=\"eyebrow\">Shared with you, phone to phone</p>");
@@ -177,6 +191,41 @@ public static class CardPage
     }
 
     /// <summary>
+    /// Carry the look's typefaces inside the page.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the difference between a card that looks made and one that looks typed, and it costs
+    /// about fifteen kilobytes a face — less than a small photograph. Linking them instead would be
+    /// free and useless: the reader is on a phone-to-phone network with no way out, so a linked font
+    /// never arrives and every look collapses to the same system face.
+    /// </para>
+    /// <para>
+    /// A face the caller cannot supply is simply left out. The look then falls back through its own
+    /// stack to something the handset already has, which is why every look declares a real fallback
+    /// rather than a lone family name.
+    /// </para>
+    /// </remarks>
+    private static string Faces(Func<string, byte[]?>? fonts)
+    {
+        if (fonts is null) return "";
+
+        var css = new StringBuilder();
+
+        foreach (var family in CardLook.All.SelectMany(l => l.Faces()).Distinct())
+        {
+            if (fonts(family) is not { Length: > 0 } bytes) continue;
+
+            css.Append("@font-face{font-family:'").Append(family)
+               .Append("';font-display:swap;src:url(data:font/woff2;base64,")
+               .Append(Convert.ToBase64String(bytes))
+               .Append(") format('woff2')}");
+        }
+
+        return css.ToString();
+    }
+
+    /// <summary>
     /// The stylesheet, inline and self-contained.
     /// </summary>
     /// <remarks>
@@ -191,13 +240,13 @@ public static class CardPage
     /// phone already has one.
     /// </para>
     /// </remarks>
-    private static string Style(string? accent)
+    private static string Style(string? accent, CardLook look)
     {
         var swatch = accent is not null ? $"--accent:{accent};" : "";
 
         return
             ":root{--r:7px;--rl:14px;" +
-            "--font:ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace;" +
+            $"--font:{look.Body};--display:{look.Display};" +
             "--page:#ececeb;--wall:#f3f3f2;--surface:#f7f7f6;--content:#fbfbfa;" +
             "--fg:#121211;--fg-2:#5c5c5a;--accent:#1c1c1a;" +
             "--border:rgba(28,28,26,.09);--tint:rgba(28,28,26,.035);" +
@@ -244,7 +293,7 @@ public static class CardPage
             "border-radius:var(--rl);padding:26px 22px;display:flex;flex-direction:column;gap:14px}" +
 
             ".eyebrow{margin:0;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-2)}" +
-            "h1{margin:0;font-size:26px;line-height:1.15;letter-spacing:-.02em;font-weight:700}" +
+            "h1{margin:0;font-family:var(--display);font-size:30px;line-height:1.1;letter-spacing:-.02em;font-weight:700}" +
             "h2{margin:10px 0 -4px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-2);font-weight:600}" +
             ".say{margin:0;color:var(--fg-2)}" +
             "ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:5px;color:var(--fg-2)}" +
