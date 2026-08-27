@@ -47,6 +47,7 @@
   -->
   <ItemGroup>
     <EmbeddedResource Include="wwwroot/js/aether-shader.js" LogicalName="aether-shader.js" />
+    <EmbeddedResource Include="wwwroot/js/aether-card.js" LogicalName="aether-card.js" />
     <EmbeddedResource Include="wwwroot/fonts/instrument-serif.woff2" LogicalName="instrument-serif.woff2" />
     <EmbeddedResource Include="wwwroot/fonts/newsreader.woff2" LogicalName="newsreader.woff2" />
   </ItemGroup>

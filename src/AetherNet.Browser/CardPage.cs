@@ -30,41 +30,6 @@ namespace AetherNet.Browser;
 /// </summary>
 public static class CardPage
 {
-    /// <summary>The palettes a person can choose between.</summary>
-    /// <remarks>
-    /// Five, named rather than free-form, and this is the whole of the personalisation. Somewhere to
-    /// express yourself without every card becoming unreadable in its own particular way — the choice
-    /// is real, and the result still belongs to one family.
-    /// </remarks>
-    public static readonly string[] Palettes = ["mono", "sepia", "azure", "moss", "mauve"];
-
-    /// <summary>What a card gets when it asks for nothing.</summary>
-    public const string DefaultPalette = "mono";
-
-    /// <summary>What the card's theme block says, whatever kind of value it is.</summary>
-    private static string? ThemeValue(CardDocument? card) =>
-        card?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Theme && !string.IsNullOrWhiteSpace(b.Value))?.Value;
-
-    /// <summary>Whether this is a palette we know how to draw.</summary>
-    public static bool IsPalette(string? name) =>
-        name is not null && Palettes.Contains(name.Trim().ToLowerInvariant());
-
-    /// <summary>
-    /// The palette a card asked for, or the default.
-    /// </summary>
-    /// <remarks>
-    /// Read from a theme block. A card asking for something we do not have is drawn in the default
-    /// rather than refused — an unknown choice is a newer author, not a broken card.
-    /// </remarks>
-    public static string PaletteOf(CardDocument? card)
-    {
-        var asked = card?.Blocks?
-            .FirstOrDefault(b => b.Kind == CardBlock.Theme && IsPalette(b.Value))?
-            .Value?.Trim().ToLowerInvariant();
-
-        return asked ?? DefaultPalette;
-    }
-
     /// <summary>
     /// The accent a card asked for, if it is one we are willing to apply.
     /// </summary>
@@ -127,14 +92,11 @@ public static class CardPage
         var name = titled.Length > 0 ? titled : offering ? "Someone next to you" : "";
         var look = CardLook.FromCard(card);
 
-        // A card may still name a palette directly; a look names one for it. The look wins when both
-        // are present, because a look is a finished design and a loose palette is half of one.
-        var palette = CardLook.IsLook(ThemeValue(card)) ? look.Scheme : PaletteOf(card);
         var accent = AccentOf(card);
 
         var page = new StringBuilder(4096);
 
-        page.Append("<!doctype html><html lang=\"en\" data-palette=\"").Append(palette).Append("\">");
+        page.Append("<!doctype html><html lang=\"en\">");
         page.Append("<head><meta charset=\"utf-8\">");
 
         // What this page may do, stated to the browser rather than promised by us.
@@ -165,12 +127,19 @@ public static class CardPage
         if (offering)
             page.Append("<p class=\"eyebrow\">Shared with you, phone to phone</p>");
 
+        // An eyebrow belongs above the title, wherever its author put it — it qualifies the title
+        // rather than sitting in the flow, and a page that printed it halfway down would be a page
+        // whose author had to know that.
+        if (card?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Eyebrow) is { } brow
+            && Text(brow.Value) is { Length: > 0 } said)
+            page.Append("<p class=\"eyebrow\">").Append(said).Append("</p>");
+
         // No heading at all rather than an invented one. A page whose author has not named it yet is
         // shorter; it is not a page belonging to somebody called nothing.
         if (name.Length > 0)
             page.Append("<h1>").Append(name).Append("</h1>");
 
-        Blocks(page, card, assetPath, Hero(card));
+        Blocks(page, card, assetPath, Hero(card), offering);
 
         if (offering)
         {
@@ -186,7 +155,21 @@ public static class CardPage
         // Last, so it paints a canvas the page has already laid out. Nothing else depends on it: a
         // reader whose phone refuses WebGL loses the motion and keeps the page.
         if (PageAssets.Shader() is { Length: > 0 } shader)
+        {
+            // The background this card asked for, from the catalogue, as source we shipped. The key
+            // was looked up here — nothing an author typed reaches the GPU, and an unknown key is a
+            // newer author rather than a broken card.
+            page.Append("<script>window.aetherField=")
+                .Append(System.Text.Json.JsonSerializer.Serialize(CardShader.FromCard(card).Field))
+                .Append("</script>");
+
             page.Append("<script>").Append(shader).Append("</script>");
+        }
+
+        // And the one that lets a link work and lets the page say how tall it is. Both are things the
+        // page asks its host for; neither is something the page does.
+        if (PageAssets.Links() is { Length: > 0 } links)
+            page.Append("<script>").Append(links).Append("</script>");
 
         page.Append("</body></html>");
         return page.ToString();
@@ -294,8 +277,14 @@ public static class CardPage
     /// a newer version can write a block an older reader has never heard of, and the older reader still
     /// shows them a card instead of an error.
     /// </remarks>
+    /// <param name="offering">
+    ///   Whether this page is being handed to somebody who has no Aether yet. It changes one thing: a
+    ///   link inside the mesh is somewhere they cannot go, so it is drawn as text rather than as an
+    ///   invitation. A reader who is already on the mesh gets a link that works.
+    /// </param>
     private static void Blocks(
-        StringBuilder page, CardDocument? card, Func<string, string?>? assetPath, CardBlock? hero)
+        StringBuilder page, CardDocument? card, Func<string, string?>? assetPath, CardBlock? hero,
+        bool offering)
     {
         if (card?.Blocks is not { Count: > 0 } blocks) return;
 
@@ -305,6 +294,44 @@ public static class CardPage
             {
                 case CardBlock.Heading when Text(block.Value) is { Length: > 0 } h:
                     page.Append("<h2>").Append(h).Append("</h2>");
+                    break;
+
+                // Drawn above the title, not here — see Render. Skipping it means an author can put
+                // it wherever they like in the document and it still lands where it belongs.
+                case CardBlock.Eyebrow:
+                    break;
+
+                case CardBlock.Quote when Text(block.Value) is { Length: > 0 } q:
+                    page.Append("<blockquote>").Append(q).Append("</blockquote>");
+                    break;
+
+                case CardBlock.Rule:
+                    page.Append("<hr>");
+                    break;
+
+                // The plate index. Each line is "name = place"; a line with no place is still a line,
+                // because a catalogue with one unlabelled entry should not lose the entry.
+                case CardBlock.Index when block.Items is { Count: > 0 } plates:
+                    page.Append("<div class=\"index\">");
+
+                    var at = 0;
+                    foreach (var plate in plates)
+                    {
+                        if (Text(plate) is not { Length: > 0 } line) continue;
+
+                        var split = line.IndexOf('=');
+                        at++;
+
+                        page.Append("<div class=\"plate-row\"><span class=\"plate-n\">")
+                            .Append(at.ToString("00"))
+                            .Append("</span><span class=\"plate-t\">")
+                            .Append((split > 0 ? line[..split] : line).Trim())
+                            .Append("</span><span class=\"plate-p\">")
+                            .Append(split > 0 ? line[(split + 1)..].Trim() : "")
+                            .Append("</span></div>");
+                    }
+
+                    page.Append("</div>");
                     break;
 
                 case CardBlock.Text when Text(block.Value) is { Length: > 0 } t:
@@ -327,11 +354,20 @@ public static class CardPage
                         .Append("</span></div>");
                     break;
 
-                // Rendered as text, never as an anchor. A link inside the mesh is meaningless to a
-                // stranger who has no Aether yet, and making it clickable would be an invitation to
-                // somewhere their phone cannot reach.
+                // A link, followable only by somebody who can actually follow it.
+                //
+                // On the page a stranger is handed it is plain text: they have no Aether yet, so a
+                // mesh address is an invitation somewhere their phone cannot go, and the address
+                // itself never appears. On the mesh it works — but never as an address the page can
+                // act on. The target goes into a data attribute, the page asks its host to navigate,
+                // and the host checks it again. A card that could hand a browser an address of its
+                // own choosing is what publishing cards as JSON rather than HTML exists to prevent.
                 case CardBlock.Link when Text(block.Value) is { Length: > 0 } label:
-                    page.Append("<div class=\"lnk\">").Append(label).Append("</div>");
+                    if (!offering && IsMeshAddress(block.Target))
+                        page.Append("<button type=\"button\" class=\"lnk go\" data-aether-to=\"")
+                            .Append(Attr(block.Target)).Append("\">").Append(label).Append("</button>");
+                    else
+                        page.Append("<div class=\"lnk\">").Append(label).Append("</div>");
                     break;
 
                 // The tip jar. An anchor, because this page is already open in a browser and following
@@ -349,8 +385,13 @@ public static class CardPage
                 case CardBlock.Image when !ReferenceEquals(block, hero)
                                           && assetPath?.Invoke(block.ContentHash ?? "") is { Length: > 0 } src
                                           && CardBlock.IsUsableAssetHash(block.ContentHash):
-                    page.Append("<img src=\"").Append(Attr(src))
+                    page.Append("<figure><img src=\"").Append(Attr(src))
                         .Append("\" alt=\"").Append(Text(block.Value) ?? "").Append("\">");
+
+                    if (Text(block.Value) is { Length: > 0 } caption)
+                        page.Append("<figcaption>").Append(caption).Append("</figcaption>");
+
+                    page.Append("</figure>");
                     break;
             }
         }
@@ -416,94 +457,110 @@ public static class CardPage
     /// </remarks>
     private static string Style(string? accent, CardLook look)
     {
-        var swatch = accent is not null ? $"--accent:{accent};" : "";
+        // A card may name its own accent. It has already been through IsUsableAccent, so what lands
+        // here is six hexadecimal digits — the one thing an author gets to change about the look they
+        // chose, and the only place a card gets near CSS at all.
+        var chosen = accent is not null ? $":root{{--accent:{accent}}}" : "";
 
         return
-            ":root{--r:7px;--rl:14px;" +
-            $"--font:{look.Body};--display:{look.Display};" +
-            "--page:#ececeb;--wall:#f3f3f2;--surface:#f7f7f6;--content:#fbfbfa;" +
-            "--fg:#121211;--fg-2:#5c5c5a;--accent:#1c1c1a;" +
-            "--border:rgba(28,28,26,.09);--tint:rgba(28,28,26,.035);" +
-            "--fill:#0c0c0b;--onfill:#fbfbfa;color-scheme:light dark}" +
-
-            // Mono is the default, and it still gets its own rule. Relying on the root values would make
-            // one palette of five work by accident and break the moment a default moves.
-            "html[data-palette=mono]{--page:#ececeb;--wall:#f3f3f2;--surface:#f7f7f6;--content:#fbfbfa;" +
-            "--fg:#121211;--fg-2:#5c5c5a;--accent:#1c1c1a;--border:rgba(28,28,26,.09);--fill:#0c0c0b;--onfill:#fbfbfa}" +
-
-            "html[data-palette=sepia]{--page:#efe9df;--wall:#f5f0e8;--surface:#f9f5ef;--content:#fcfaf6;" +
-            "--fg:#1c1611;--fg-2:#61564a;--accent:#7a4a1e;--border:rgba(28,22,17,.1);--fill:#3a2a1a;--onfill:#fcfaf6}" +
-
-            "html[data-palette=azure]{--page:#e7ecf2;--wall:#eef2f7;--surface:#f4f7fb;--content:#f9fbfd;" +
-            "--fg:#0f1720;--fg-2:#4b5b6b;--accent:#1a4f7a;--border:rgba(15,23,32,.1);--fill:#123a5a;--onfill:#f9fbfd}" +
-
-            "html[data-palette=moss]{--page:#e7ede6;--wall:#eef2ed;--surface:#f4f7f3;--content:#f9fbf9;" +
-            "--fg:#111811;--fg-2:#4d5a4c;--accent:#2c5a33;--border:rgba(17,24,17,.1);--fill:#1c3a20;--onfill:#f9fbf9}" +
-
-            "html[data-palette=mauve]{--page:#eee9ef;--wall:#f3eff4;--surface:#f7f4f8;--content:#fbf9fc;" +
-            "--fg:#181119;--fg-2:#584c5b;--accent:#5c2f6b;--border:rgba(24,17,25,.1);--fill:#3a1f42;--onfill:#fbf9fc}" +
-
-            "@media(prefers-color-scheme:dark){" +
-            ":root,html[data-palette=mono]{--page:#050608;--wall:#0a0b0d;--surface:#101113;--content:#131416;" +
-            "--fg:#f7f8f8;--fg-2:#8a8f98;--accent:#f7f8f8;--border:rgba(255,255,255,.075);" +
-            "--tint:rgba(255,255,255,.026);--fill:#edeef0;--onfill:#0a0b0d}" +
-            "html[data-palette=sepia]{--page:#0a0805;--wall:#100d09;--surface:#16120c;--content:#1a1610;" +
-            "--fg:#f7f2e9;--fg-2:#9a8f7e;--accent:#d7a464;--fill:#e8d5b5;--onfill:#100d09}" +
-            "html[data-palette=azure]{--page:#04070a;--wall:#090d12;--surface:#0e141b;--content:#12181f;" +
-            "--fg:#eef4fa;--fg-2:#7f8f9f;--accent:#6fb2e8;--fill:#d5e6f5;--onfill:#090d12}" +
-            "html[data-palette=moss]{--page:#050805;--wall:#0a0e09;--surface:#0f140e;--content:#131812;" +
-            "--fg:#eff5ee;--fg-2:#849184;--accent:#7cc088;--fill:#d7ecd9;--onfill:#0a0e09}" +
-            "html[data-palette=mauve]{--page:#07050a;--wall:#0c090f;--surface:#120e15;--content:#161219;" +
-            "--fg:#f4eef7;--fg-2:#948a99;--accent:#c08ad2;--fill:#e8d5ef;--onfill:#0c090f}}" +
-
-            $":root{{{swatch}}}" +
+            look.Tokens() + chosen +
 
             "*{box-sizing:border-box}" +
-            "body{margin:0;background:var(--page);color:var(--fg);font-family:var(--font);" +
-            "font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;" +
-            "display:flex;justify-content:center;padding:28px 18px 60px}" +
 
-            ".card{width:100%;max-width:420px;background:var(--content);border:1px solid var(--border);" +
-            "border-radius:var(--rl);padding:26px 22px;display:flex;flex-direction:column;gap:14px;" +
-            "overflow:hidden}" +
+            // The card IS the page. It was a bordered, rounded box floating in the middle of whatever
+            // was showing it — which reads as a widget containing content rather than as a page, and
+            // a widget does not compete with a website. The ground runs edge to edge, the masthead is
+            // full-bleed, and the words sit in a measure inside it.
+            "html{background:var(--paper);-webkit-text-size-adjust:100%}" +
+            "body{margin:0;background:var(--paper);color:var(--ink);" +
+            "font-family:var(--body);font-weight:var(--weight);font-size:var(--size);" +
+            "line-height:var(--leading);-webkit-font-smoothing:antialiased;" +
+            "text-rendering:optimizeLegibility}" +
 
-            // The masthead, bled to the card's edges. Three layers stacked in one box: the picture the
-            // mesh carries, the shader over it, and the flat accent behind both.
-            ".plate{position:relative;width:calc(100% + 44px);margin:-26px -22px 16px;" +
-            "aspect-ratio:600/250;overflow:hidden;background:var(--accent)}" +
+            ".card{display:flex;flex-direction:column;align-items:stretch;" +
+            "gap:0;padding:0 22px 84px;max-width:var(--measure);margin:0 auto}" +
+
+            // Out past the measure to the edges of the window: a full-bleed element inside a centred
+            // column. The negative margin is the gutter and the width puts it back.
+            ".plate{position:relative;width:100vw;max-width:100vw;margin:0 calc(50% - 50vw) 30px;" +
+            "aspect-ratio:600/250;max-height:48vh;overflow:hidden;background:var(--accent)}" +
             ".plate-art,.plate-gl{position:absolute;inset:0;width:100%;height:100%;display:block;border:0}" +
             ".plate-art{object-fit:cover}" +
-            ".mark{position:absolute;left:20px;bottom:6px;font-family:var(--display);font-size:76px;" +
-            "line-height:1;font-weight:800;letter-spacing:-.035em;color:#fff;opacity:.95}" +
-
-            // Over a photograph the mark stops being the picture and starts being a label on one, so
-            // it gets smaller, and it gets a scrim under it because a white letter on an unknown
-            // photograph is a white letter on white about a third of the time.
-            ".mark.quiet{font-size:44px;opacity:.98;text-shadow:0 1px 14px rgba(0,0,0,.55);z-index:1}" +
+            ".mark{position:absolute;left:22px;bottom:2px;font-family:var(--display);" +
+            "font-size:clamp(62px,13vw,108px);line-height:1;font-weight:400;letter-spacing:-.02em;" +
+            "color:#fff;opacity:.95}" +
+            ".mark.quiet{font-size:clamp(38px,8vw,58px);text-shadow:0 1px 14px rgba(0,0,0,.55);z-index:1}" +
             ".plate.shot::after{content:'';position:absolute;inset:auto 0 0 0;height:52%;" +
             "background:linear-gradient(to top,rgba(0,0,0,.52),transparent);pointer-events:none}" +
 
-            ".eyebrow{margin:0;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-2)}" +
-            "h1{margin:0;font-family:var(--display);font-size:30px;line-height:1.1;letter-spacing:-.02em;font-weight:700}" +
-            "h2{margin:10px 0 -4px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-2);font-weight:600}" +
-            ".say{margin:0;color:var(--fg-2)}" +
-            "ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:5px;color:var(--fg-2)}" +
-            ".kv{display:flex;justify-content:space-between;gap:12px;padding:7px 10px;background:var(--tint);" +
-            "border-radius:var(--r);font-size:13px}" +
-            ".kv span:first-child{color:var(--fg-2)}" +
-            ".lnk{padding:7px 10px;background:var(--tint);border-radius:var(--r);font-size:13px;color:var(--accent)}" +
-            ".tip{display:flex;align-items:baseline;justify-content:space-between;gap:12px;" +
-            "margin:6px 0 2px;padding:13px 15px;border:1px solid var(--accent);border-radius:var(--r);" +
-            "text-decoration:none;color:var(--fg);font-weight:650;font-size:14.5px}" +
-            ".tip-h{font-size:11.5px;font-weight:500;color:var(--accent);white-space:nowrap}" +
-            "img{width:100%;height:auto;display:block;border-radius:var(--r);border:1px solid var(--border)}" +
+            // Spacing is vertical rhythm, not a uniform gap. What a thing is decides how much air it
+            // gets above it, which is most of what makes a page feel set rather than stacked.
+            ".eyebrow{margin:0 0 14px;font-size:12px;letter-spacing:.24em;text-transform:uppercase;" +
+            "color:var(--ink-2);font-weight:400}" +
 
-            ".give{display:flex;flex-direction:column;gap:9px;margin-top:6px;" +
-            "padding-top:16px;border-top:1px solid var(--border)}" +
-            ".btn{display:block;text-align:center;background:var(--fill);color:var(--onfill);" +
-            "text-decoration:none;font-weight:600;font-size:15px;padding:14px 16px;border-radius:var(--r)}" +
-            ".size{margin:0;font-size:12px;color:var(--fg-2);text-align:center}" +
-            ".fine{margin:0;font-size:11.5px;line-height:1.5;color:var(--fg-2);text-align:center;opacity:.85}";
+            "h1{margin:0;font-family:var(--display);font-size:clamp(38px,9vw,64px);line-height:1.02;" +
+            "letter-spacing:-.02em;font-weight:400;text-wrap:balance}" +
+
+            "h2{margin:46px 0 14px;font-size:12px;letter-spacing:.22em;text-transform:uppercase;" +
+            "color:var(--ink-2);font-weight:400}" +
+
+            ".say{margin:0 0 22px;max-width:100%}" +
+            ".say+.say{margin-top:-4px}" +
+
+            // A pulled quote earns the space around it by being the only thing there.
+            "blockquote{margin:34px 0;padding:0;font-family:var(--display);" +
+            "font-size:clamp(23px,4.6vw,30px);line-height:1.28;font-weight:400;color:var(--ink)}" +
+
+            "ul{margin:0 0 22px;padding-left:1.15em;display:flex;flex-direction:column;gap:9px}" +
+            "li{padding-left:2px}" +
+
+            // A labelled fact reads as an index row — label left, answer right, a hairline between —
+            // rather than as a chip. It is the shape a printed page uses for exactly this job.
+            ".kv{display:flex;justify-content:space-between;align-items:baseline;gap:18px;" +
+            "padding:14px 2px;border-bottom:1px solid var(--rule);font-size:15px}" +
+            ".kv:first-of-type{border-top:1px solid var(--rule)}" +
+            ".kv span:first-child{color:var(--ink-2)}" +
+            ".kv span:last-child{text-align:right;font-variant-numeric:tabular-nums}" +
+
+            // The plate index. An ordinal, a name in the display face, and where it belongs — set
+            // right, quiet and wide. A catalogue, a menu, a set of works and a schedule are all this.
+            ".index{margin:8px 0 30px;display:flex;flex-direction:column}" +
+            ".plate-row{display:flex;align-items:baseline;gap:18px;padding:15px 4px;" +
+            "border-bottom:1px solid var(--rule)}" +
+            ".plate-row:first-child{border-top:1px solid var(--rule)}" +
+            ".plate-n{flex:0 0 auto;width:2.2em;font-size:12px;letter-spacing:.06em;color:var(--ink-3);" +
+            "font-variant-numeric:tabular-nums}" +
+            ".plate-t{flex:1 1 auto;min-width:0;font-family:var(--display);font-size:20px;" +
+            "line-height:1.2;font-weight:400}" +
+            ".plate-p{flex:0 0 auto;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;" +
+            "color:var(--ink-3);text-align:right}" +
+
+            "hr{margin:38px 0;border:0;border-top:1px solid var(--rule)}" +
+
+            // A picture with something written under it is a figure. The caption is small, quiet and
+            // close to the image — far enough to be a caption, near enough to belong to it.
+            "figure{margin:6px 0 28px;width:100%}" +
+            "figure img{width:100%;height:auto;display:block;border-radius:2px}" +
+            "figcaption{margin-top:9px;font-size:12.5px;letter-spacing:.02em;color:var(--ink-3);" +
+            "line-height:1.5}" +
+
+            ".lnk{display:block;width:100%;text-align:left;margin:0 0 10px;padding:15px 17px;" +
+            "background:var(--tint);border:0;border-radius:3px;font:inherit;font-size:15px;" +
+            "color:var(--accent)}" +
+            ".lnk.go{cursor:pointer}" +
+            ".lnk.go:active{background:var(--rule)}" +
+
+            ".tip{display:flex;align-items:baseline;justify-content:space-between;gap:14px;" +
+            "margin:14px 0 10px;padding:15px 17px;border:1px solid var(--accent);border-radius:3px;" +
+            "text-decoration:none;color:var(--ink);font-size:15px}" +
+            ".tip-h{font-size:12px;letter-spacing:.06em;color:var(--accent);white-space:nowrap}" +
+
+            ".give{display:flex;flex-direction:column;gap:10px;margin-top:46px;" +
+            "padding-top:26px;border-top:1px solid var(--rule)}" +
+            ".btn{display:block;text-align:center;background:var(--ink);color:var(--paper);" +
+            "text-decoration:none;font-weight:500;font-size:16px;padding:16px 18px;border-radius:3px}" +
+            ".size{margin:0;font-size:12.5px;color:var(--ink-2);text-align:center}" +
+            ".fine{margin:0;font-size:12px;line-height:1.5;color:var(--ink-3);text-align:center}";
     }
 
     /// <summary>How big the download is, in a unit a person reads.</summary>
@@ -548,4 +605,18 @@ public static class CardPage
 
     /// <summary>Escape a value going into an attribute, where quotes end the value.</summary>
     private static string Attr(string? raw) => Text(raw) ?? "";
+
+    /// <summary>
+    /// May this card send the reader somewhere? Only to another card on the mesh.
+    /// </summary>
+    /// <remarks>
+    /// A card is a blob written by a stranger, so its link targets are untrusted input. An
+    /// <c>http</c> or <c>javascript</c> target would turn a card into a way to reach out of the mesh
+    /// the moment somebody opened it. Anything that is not an <c>aether://</c> address is drawn as
+    /// plain text and goes nowhere — the card still renders, the link simply does not work, which is
+    /// the safe way round.
+    /// </remarks>
+    private static bool IsMeshAddress(string? target) =>
+        target is { Length: > 0 and < 512 } &&
+        target.StartsWith("aether://", StringComparison.OrdinalIgnoreCase);
 }

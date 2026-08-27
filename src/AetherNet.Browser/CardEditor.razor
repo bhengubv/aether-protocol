@@ -62,6 +62,25 @@
                 </div>
                 break;
 
+            case Step.Back:
+                @* Shown, not named. A grid, because choosing between fourteen is a different act from
+                   choosing between five — you scan a catalogue, you do not read it. *@
+                <div class="backs">
+                    @foreach (var back in CardShader.All)
+                    {
+                        <button class="back-pick @(back.Key == _shader.Key ? "on" : null)"
+                                @onclick="() => ChooseShader(back)">
+                            <span class="back-shot">
+                                <iframe class="back-mini" tabindex="-1" title="@back.Name"
+                                        srcdoc="@Backdrop(back)"></iframe>
+                            </span>
+                            <span class="back-n">@back.Name</span>
+                            <span class="back-b">@back.Blurb</span>
+                        </button>
+                    }
+                </div>
+                break;
+
             case Step.Write:
                 <section class="panel open">
                     <div class="phead">
@@ -123,6 +142,7 @@
                             <div class="pbody">
                                 @switch (block.Kind)
                                 {
+                                    case CardBlock.Index:
                                     case CardBlock.List:
                                         @for (var j = 0; j < (block.Items?.Count ?? 0); j++)
                                         {
@@ -132,6 +152,14 @@
                                                    value="@block.Items![item]" @oninput="e => OnItem(index, item, e)" />
                                         }
                                         <button class="ghost" @onclick="() => AddItem(index)">Add a line</button>
+                                        @if (block.Kind == CardBlock.Index)
+                                        {
+                                            <p class="hint">Put an = between the name and where it belongs. They come out numbered.</p>
+                                        }
+                                        break;
+
+                                    case CardBlock.Rule:
+                                        <p class="hint">A line across the page. Nothing to fill in — it is the pause between two parts.</p>
                                         break;
 
                                     case CardBlock.Text:
@@ -328,7 +356,7 @@
     /// </remarks>
     [Parameter] public EventCallback Done { get; set; }
 
-    private enum Step { Kind, Look, Write, Publish }
+    private enum Step { Kind, Look, Back, Write, Publish }
 
     private List<Step> Steps = [];
     private Step _step = Step.Look;
@@ -337,6 +365,7 @@
     private CardDocument _doc = new();
     private PageTemplate _template = PageTemplate.All[0];
     private CardLook _look = CardLook.Of(null);
+    private CardShader _shader = CardShader.Of(null);
     private string _name = "";
     private bool _live;
 
@@ -367,6 +396,7 @@
     {
         Step.Kind => "What is this page?",
         Step.Look => "Pick a look",
+        Step.Back => "Pick a background",
         Step.Write => "Write it",
         _ => "Ready",
     };
@@ -375,6 +405,7 @@
     {
         Step.Kind => "It starts you off with the right shape. You can change anything after.",
         Step.Look => "Every one of these is finished. You are choosing a design, not making one.",
+        Step.Back => "All of them take your colour. Pick the one that feels like the page.",
         Step.Write => "Fill in what you want. Anything you leave blank simply does not appear.",
         _ => "This is your page as somebody else's phone will draw it.",
     };
@@ -402,7 +433,7 @@
     {
         if (Fresh)
         {
-            Steps = [Step.Kind, Step.Look, Step.Write, Step.Publish];
+            Steps = [Step.Kind, Step.Look, Step.Back, Step.Write, Step.Publish];
             _step = Step.Kind;
             _template = PageTemplate.All[0];
             _doc = _template.Build(Mine.OwnerName);
@@ -410,7 +441,7 @@
         }
         else
         {
-            Steps = [Step.Look, Step.Write, Step.Publish];
+            Steps = [Step.Look, Step.Back, Step.Write, Step.Publish];
             _step = Step.Look;
             _page = Mine.Get(Name);
 
@@ -426,6 +457,7 @@
         }
 
         _look = CardLook.FromCard(_doc);
+        _shader = CardShader.FromCard(_doc);
         Draw();
 
         // Whatever this page already names. Fetched rather than remembered, because the bytes live in
@@ -579,6 +611,7 @@
         _template = template;
         _doc = template.Build(Mine.OwnerName);
         _look = CardLook.FromCard(_doc);
+        _shader = CardShader.FromCard(_doc);
         _name = Mine.Free(template.Suggests);
         _open = -1;
         Draw();
@@ -589,6 +622,34 @@
         OwnCard.SetLook(_doc, look.Key);
         _look = look;
         if (!Fresh || _page is not null) Save(); else Draw();
+    }
+
+    private void ChooseShader(CardShader shader)
+    {
+        OwnCard.SetShader(_doc, shader.Key);
+        _shader = shader;
+        if (!Fresh || _page is not null) Save(); else Draw();
+    }
+
+    /// <summary>
+    /// This background on this page, drawn small.
+    /// </summary>
+    /// <remarks>
+    /// The real renderer with the real catalogue entry — their look, their colour, their title. A
+    /// swatch would be quicker and would answer a different question: what somebody wants to know is
+    /// what their own page looks like wearing this, not what the background looks like on its own.
+    /// </remarks>
+    private string Backdrop(CardShader shader)
+    {
+        var shown = new CardDocument
+        {
+            Title = _doc.Title.Length > 0 ? _doc.Title : (Mine.OwnerName ?? "Your page"),
+            Blocks = [CardBlock.Of(CardBlock.Theme, _look.Key), CardBlock.Of(CardBlock.Theme, shader.Key)],
+        };
+
+        return CardPage.Render(
+            shown, shown.Title, 0, downloadPath: null,
+            fontBase: PageAssets.WebFontBase, still: true);
     }
 
     /// <summary>
@@ -748,7 +809,12 @@
         var shown = new CardDocument
         {
             Title = _doc.Title.Length > 0 ? _doc.Title : (Mine.OwnerName ?? "Your page"),
-            Blocks = [CardBlock.Of(CardBlock.Theme, look.Key), .. Shown()],
+            Blocks =
+            [
+                CardBlock.Of(CardBlock.Theme, look.Key),
+                CardBlock.Of(CardBlock.Theme, _shader.Key),
+                .. Shown(),
+            ],
         };
 
         return CardPage.Render(
@@ -841,6 +907,14 @@
         if (block.Kind == CardBlock.Tip)
             return CardBlock.IsUsableTip(block.Target) ? CardBlock.TipHost(block.Target) : "Not set";
 
+        if (block.Kind == CardBlock.Rule) return "A break";
+
+        if (block.Kind == CardBlock.Index)
+        {
+            var plates = (block.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i)).ToArray();
+            return plates.Length == 0 ? "Empty" : $"{plates.Length} lines";
+        }
+
         if (block.Kind == CardBlock.Image)
             return CardBlock.IsUsableAssetHash(block.ContentHash)
                 ? block.Value is { Length: > 0 } what ? what.Trim() : "A picture"
@@ -849,119 +923,3 @@
         return string.IsNullOrWhiteSpace(block.Value) ? "Empty" : block.Value.Trim();
     }
 }
-
-<style>
-    .wiz { display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin: 0 auto; }
-
-    /* Where you are, always. A wizard whose end is invisible is a form. */
-    .top { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 12px; margin: -16px -16px 0; padding: 14px 16px 12px; background: var(--bg); }
-    .back { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-size: 0.9rem; cursor: pointer; }
-    .rail { flex: 1 1 auto; display: flex; gap: 5px; }
-    .pip { flex: 1 1 0; height: 4px; border-radius: 2px; background: var(--line); }
-    .pip.done { background: var(--brand); opacity: .55; }
-    .pip.now { background: var(--brand); }
-    .count { flex: 0 0 auto; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; color: var(--ink-3); font-variant-numeric: tabular-nums; }
-
-    .head { display: flex; flex-direction: column; gap: 5px; padding: 0 2px; }
-    .h { margin: 0; font-size: 1.65rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; }
-    .sub { margin: 0; font-size: 0.92rem; line-height: 1.5; color: var(--ink-2); max-width: 46ch; }
-
-    .body { display: flex; flex-direction: column; gap: 10px; min-height: 42vh; padding-bottom: 78px; }
-
-    /* Step 1 — what kind of page. */
-    .picks { display: flex; flex-direction: column; gap: 8px; }
-    .pick { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--line-card); background: var(--surface); cursor: pointer; }
-    .pick.on { border-color: var(--brand); background: var(--brand-tint); }
-    .pick-n { font-size: 1.02rem; font-weight: 750; color: var(--ink); }
-    .pick-b { font-size: 0.82rem; line-height: 1.45; color: var(--ink-2); }
-
-    /* Step 2 — the looks, each drawn rather than named. */
-    .looks { display: flex; flex-direction: column; gap: 10px; }
-    .look { display: flex; align-items: stretch; gap: 14px; text-align: left; padding: 12px; border-radius: var(--radius); border: 1px solid var(--line-card); background: var(--surface); cursor: pointer; }
-    .look.on { border-color: var(--brand); background: var(--brand-tint); }
-    .look-t { display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0; }
-    .look-n { font-size: 1.05rem; font-weight: 780; color: var(--ink); }
-    .look-b { font-size: 0.82rem; line-height: 1.45; color: var(--ink-2); }
-
-    /* A real page, shrunk. The iframe is laid out at reading width and scaled down, so the thumbnail
-       is the same document a reader gets rather than a drawing of one. */
-    .shot { flex: 0 0 auto; width: 132px; height: 135px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #fff; position: relative; }
-    .mini { position: absolute; top: 0; left: 0; width: 400px; height: 410px; border: 0; transform: scale(0.33); transform-origin: top left; pointer-events: none; }
-    .shot.big { width: 100%; height: 62vh; border-radius: 14px; }
-    .full { width: 100%; height: 100%; border: 0; }
-
-    /* Step 3 — one panel at a time. */
-    .panel { border: 1px solid var(--line-card); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
-    .panel.open { border-color: var(--brand); }
-    .phead { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; background: transparent; border: 0; cursor: pointer; text-align: left; }
-    .ptext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .plabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
-    .psay { font-size: 0.9rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .chev { flex: 0 0 auto; color: var(--ink-3); font-size: 0.8rem; }
-    .pbody { display: flex; flex-direction: column; gap: 9px; padding: 4px 15px 15px; }
-
-    .field { display: flex; flex-direction: column; gap: 6px; }
-    .flabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
-    .in { width: 100%; padding: 12px 13px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-size: 0.95rem; font-family: inherit; }
-    .in:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
-    .area { resize: vertical; line-height: 1.5; }
-
-    .addr { display: flex; align-items: center; gap: 0; padding: 0 0 0 13px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-2); font-family: var(--mono); }
-    .addr .tag { font-size: 0.86rem; color: var(--ink-3); white-space: nowrap; }
-    .addr .nm { font-size: 0.95rem; color: var(--ink); padding: 12px 0; }
-    .addr .bare { border: 0; background: transparent; padding-left: 0; font-family: var(--mono); }
-    .addr.fixed { padding-right: 13px; }
-
-    .hint { margin: 0; font-size: 0.76rem; line-height: 1.45; color: var(--ink-3); }
-    .hint.good { color: var(--brand); font-weight: 600; }
-    .hint.bad { color: var(--warn); font-weight: 600; }
-
-    .prow { display: flex; gap: 6px; padding-top: 3px; }
-    .tiny { min-width: 34px; height: 34px; padding: 0 11px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: transparent; color: var(--ink-2); font-size: 0.82rem; cursor: pointer; }
-    .tiny.drop { color: var(--warn); margin-left: auto; }
-    .ghost.drop { color: var(--warn); border-color: var(--warn); align-self: flex-start; }
-
-    /* The picture, and the one control that changes it. */
-    .pic { display: flex; flex-direction: column; gap: 9px; }
-    .pic-art { width: 100%; border-radius: var(--radius-sm); display: block; aspect-ratio: 600 / 250; object-fit: cover; }
-    .pic-none { display: flex; align-items: center; justify-content: center; aspect-ratio: 600 / 250; border: 1px dashed var(--line-card); border-radius: var(--radius-sm); color: var(--ink-3); font-size: 0.85rem; }
-    .pick { align-self: flex-start; padding: 11px 16px; border: 1px solid var(--brand); border-radius: var(--radius-sm); color: var(--brand); font-weight: 700; font-size: 0.88rem; cursor: pointer; }
-    .pick.waiting { opacity: .55; }
-    .hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-
-    .adds { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 0; }
-    .addrow { display: flex; flex-wrap: wrap; gap: 6px; }
-    .ghost { appearance: none; background: transparent; border: 1px solid var(--line); color: var(--ink-2); font-weight: 700; font-size: 0.84rem; padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer; }
-    .ghost:disabled { opacity: .4; cursor: default; }
-    .ghost.wide { flex: 0 0 auto; padding: 14px 22px; }
-
-    /* Step 4 — the whole thing, and where it will live. */
-    .done { display: flex; flex-direction: column; gap: 12px; }
-    .where { display: flex; flex-direction: column; gap: 3px; padding: 12px 15px; border-radius: var(--radius); border: 1px solid var(--line-card); background: var(--surface); }
-    .wlabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
-    .waddr { font-family: var(--mono); font-size: 0.92rem; color: var(--brand); word-break: break-all; }
-    .said { margin: 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--info-bg); color: var(--info); font-size: 0.88rem; line-height: 1.45; }
-
-    /* Next is never below the fold.
-       A step whose button has to be scrolled to is a step somebody stops on, and the whole reason
-       this is a wizard rather than a form is that people finish wizards. It rides just above the tab
-       bar — the viewport already reserves that space, so the offset is the height of the bar. */
-    /* Next is never below the fold.
-       Sticky was tried and does not hold here — the wizard is a flex column inside the shell's own
-       scroller, and on a tall step the button simply scrolled away. Fixed to the window, riding
-       directly above the tab bar, with the body padded so nothing hides underneath it. */
-    .foot {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: calc(var(--tab-h) + env(safe-area-inset-bottom));
-        z-index: 12;
-        display: flex;
-        gap: 8px;
-        padding: 11px 16px 13px;
-        background: var(--bg);
-        border-top: 1px solid var(--line);
-    }
-    .go { flex: 1 1 auto; padding: 15px 22px; border: 0; border-radius: var(--radius-sm); background: var(--brand); color: #fff; font-size: 1rem; font-weight: 750; cursor: pointer; }
-    .go:disabled { opacity: .45; cursor: default; }
-</style>

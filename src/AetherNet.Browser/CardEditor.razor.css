@@ -1,0 +1,134 @@
+/* The card editor.
+
+   Scoped, so the class names in here belong to this component and to nothing else.
+
+   These were plain <style> blocks. That was harmless while only one of them was ever on screen, and
+   the moment the browser hosted the editor the generic names collided — the browser's round omnibox
+   button ate the editor's Next. A host embedding this library would have hit the same thing against
+   its own stylesheet, which is the kind of collision that makes a component impossible to drop in.
+
+   Every token falls back, too: a host that has never heard of --brand still gets a working component
+   rather than a transparent one. */
+
+.wiz { display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin: 0 auto; }
+
+    /* Where you are, always. A wizard whose end is invisible is a form. */
+    .top { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 12px; margin: -16px -16px 0; padding: 14px 16px 12px; background: var(--bg, #eaeef3); }
+    .back { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.9rem; cursor: pointer; }
+    .rail { flex: 1 1 auto; display: flex; gap: 5px; }
+    .pip { flex: 1 1 0; height: 4px; border-radius: 2px; background: var(--line, rgba(127,140,158,.28)); }
+    .pip.done { background: var(--brand, #2196F3); opacity: .55; }
+    .pip.now { background: var(--brand, #2196F3); }
+    .count { flex: 0 0 auto; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; color: var(--ink-3, #8a97a6); font-variant-numeric: tabular-nums; }
+
+    .head { display: flex; flex-direction: column; gap: 5px; padding: 0 2px; }
+    .h { margin: 0; font-size: 1.65rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink, #16232f); text-wrap: balance; }
+    .sub { margin: 0; font-size: 0.92rem; line-height: 1.5; color: var(--ink-2, #5b6b7b); max-width: 46ch; }
+
+    .body { display: flex; flex-direction: column; gap: 10px; min-height: 42vh; padding-bottom: 78px; }
+
+    /* Step 1 — what kind of page. */
+    .picks { display: flex; flex-direction: column; gap: 8px; }
+    .pick { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface, #ffffff); cursor: pointer; }
+    .pick.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+    .pick-n { font-size: 1.02rem; font-weight: 750; color: var(--ink, #16232f); }
+    .pick-b { font-size: 0.82rem; line-height: 1.45; color: var(--ink-2, #5b6b7b); }
+
+    /* Step 2 — the looks, each drawn rather than named. */
+    .looks { display: flex; flex-direction: column; gap: 10px; }
+    .look { display: flex; align-items: stretch; gap: 14px; text-align: left; padding: 12px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface, #ffffff); cursor: pointer; }
+    .look.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+    .look-t { display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0; }
+    .look-n { font-size: 1.05rem; font-weight: 780; color: var(--ink, #16232f); }
+    .look-b { font-size: 0.82rem; line-height: 1.45; color: var(--ink-2, #5b6b7b); }
+
+    /* A real page, shrunk. The iframe is laid out at reading width and scaled down, so the thumbnail
+       is the same document a reader gets rather than a drawing of one. */
+    .shot { flex: 0 0 auto; width: 132px; height: 135px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line, rgba(127,140,158,.28)); background: #fff; position: relative; }
+    .mini { position: absolute; top: 0; left: 0; width: 400px; height: 410px; border: 0; transform: scale(0.33); transform-origin: top left; pointer-events: none; }
+    .shot.big { width: 100%; height: 62vh; border-radius: 14px; }
+    .full { width: 100%; height: 100%; border: 0; }
+
+    /* The background catalogue. A grid, because fourteen is a thing you scan. */
+    .backs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .back-pick { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 8px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface, #ffffff); cursor: pointer; }
+    .back-pick.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+    .back-shot { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; border: 1px solid var(--line, rgba(127,140,158,.28)); background: #111; }
+    .back-mini { position: absolute; top: 0; left: 0; width: 400px; height: 300px; border: 0; transform: scale(0.42); transform-origin: top left; pointer-events: none; }
+    .back-n { font-size: 0.92rem; font-weight: 750; color: var(--ink, #16232f); padding-top: 3px; }
+    .back-b { font-size: 0.72rem; line-height: 1.4; color: var(--ink-2, #5b6b7b); }
+
+    /* Step 3 — one panel at a time. */
+    .panel { border: 1px solid var(--line-card, #9ecbf7); border-radius: var(--radius, 14px); background: var(--surface, #ffffff); overflow: hidden; }
+    .panel.open { border-color: var(--brand, #2196F3); }
+    .phead { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; background: transparent; border: 0; cursor: pointer; text-align: left; }
+    .ptext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .plabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3, #8a97a6); }
+    .psay { font-size: 0.9rem; color: var(--ink, #16232f); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chev { flex: 0 0 auto; color: var(--ink-3, #8a97a6); font-size: 0.8rem; }
+    .pbody { display: flex; flex-direction: column; gap: 9px; padding: 4px 15px 15px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .flabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3, #8a97a6); }
+    .in { width: 100%; padding: 12px 13px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: var(--surface-2, #f4f7fa); color: var(--ink, #16232f); font-size: 0.95rem; font-family: inherit; }
+    .in:focus-visible { outline: 2px solid var(--brand, #2196F3); outline-offset: 1px; }
+    .area { resize: vertical; line-height: 1.5; }
+
+    .addr { display: flex; align-items: center; gap: 0; padding: 0 0 0 13px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: var(--surface-2, #f4f7fa); font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
+    .addr .tag { font-size: 0.86rem; color: var(--ink-3, #8a97a6); white-space: nowrap; }
+    .addr .nm { font-size: 0.95rem; color: var(--ink, #16232f); padding: 12px 0; }
+    .addr .bare { border: 0; background: transparent; padding-left: 0; font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
+    .addr.fixed { padding-right: 13px; }
+
+    .hint { margin: 0; font-size: 0.76rem; line-height: 1.45; color: var(--ink-3, #8a97a6); }
+    .hint.good { color: var(--brand, #2196F3); font-weight: 600; }
+    .hint.bad { color: var(--warn, #c0392b); font-weight: 600; }
+
+    .prow { display: flex; gap: 6px; padding-top: 3px; }
+    .tiny { min-width: 34px; height: 34px; padding: 0 11px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.82rem; cursor: pointer; }
+    .tiny.drop { color: var(--warn, #c0392b); margin-left: auto; }
+    .ghost.drop { color: var(--warn, #c0392b); border-color: var(--warn, #c0392b); align-self: flex-start; }
+
+    /* The picture, and the one control that changes it. */
+    .pic { display: flex; flex-direction: column; gap: 9px; }
+    .pic-art { width: 100%; border-radius: var(--radius-sm, 10px); display: block; aspect-ratio: 600 / 250; object-fit: cover; }
+    .pic-none { display: flex; align-items: center; justify-content: center; aspect-ratio: 600 / 250; border: 1px dashed var(--line-card, #9ecbf7); border-radius: var(--radius-sm, 10px); color: var(--ink-3, #8a97a6); font-size: 0.85rem; }
+    .pick { align-self: flex-start; padding: 11px 16px; border: 1px solid var(--brand, #2196F3); border-radius: var(--radius-sm, 10px); color: var(--brand, #2196F3); font-weight: 700; font-size: 0.88rem; cursor: pointer; }
+    .pick.waiting { opacity: .55; }
+    .hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+    .adds { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 0; }
+    .addrow { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ghost { appearance: none; background: transparent; border: 1px solid var(--line, rgba(127,140,158,.28)); color: var(--ink-2, #5b6b7b); font-weight: 700; font-size: 0.84rem; padding: 10px 14px; border-radius: var(--radius-sm, 10px); cursor: pointer; }
+    .ghost:disabled { opacity: .4; cursor: default; }
+    .ghost.wide { flex: 0 0 auto; padding: 14px 22px; }
+
+    /* Step 4 — the whole thing, and where it will live. */
+    .done { display: flex; flex-direction: column; gap: 12px; }
+    .where { display: flex; flex-direction: column; gap: 3px; padding: 12px 15px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface, #ffffff); }
+    .wlabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3, #8a97a6); }
+    .waddr { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 0.92rem; color: var(--brand, #2196F3); word-break: break-all; }
+    .said { margin: 0; padding: 12px 14px; border-radius: var(--radius-sm, 10px); background: var(--info-bg, rgba(31,111,180,.12)); color: var(--info, #1f6fb4); font-size: 0.88rem; line-height: 1.45; }
+
+    /* Next is never below the fold.
+       A step whose button has to be scrolled to is a step somebody stops on, and the whole reason
+       this is a wizard rather than a form is that people finish wizards. It rides just above the tab
+       bar — the viewport already reserves that space, so the offset is the height of the bar. */
+    /* Next is never below the fold.
+       Sticky was tried and does not hold here — the wizard is a flex column inside the shell's own
+       scroller, and on a tall step the button simply scrolled away. Fixed to the window, riding
+       directly above the tab bar, with the body padded so nothing hides underneath it. */
+    .foot {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: calc(var(--tab-h, 62px) + env(safe-area-inset-bottom));
+        z-index: 12;
+        display: flex;
+        gap: 8px;
+        padding: 11px 16px 13px;
+        background: var(--bg, #eaeef3);
+        border-top: 1px solid var(--line, rgba(127,140,158,.28));
+    }
+    .go { flex: 1 1 auto; padding: 15px 22px; border: 0; border-radius: var(--radius-sm, 10px); background: var(--brand, #2196F3); color: #fff; font-size: 1rem; font-weight: 750; cursor: pointer; }
+    .go:disabled { opacity: .45; cursor: default; }

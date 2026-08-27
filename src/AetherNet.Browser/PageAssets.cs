@@ -61,6 +61,19 @@ public static class PageAssets
             ? System.Text.Encoding.UTF8.GetString(bytes)
             : "";
 
+    /// <summary>
+    /// The script that lets a rendered card ask its host to follow a link, and report its height.
+    /// </summary>
+    /// <remarks>
+    /// Carried inside the page rather than linked, for the same reason as everything else here: the
+    /// reader may have no way to fetch anything. A page without it still renders and still reads — its
+    /// links simply do nothing, which is the safe way round.
+    /// </remarks>
+    public static string Links() =>
+        Bytes("aether-card.js") is { Length: > 0 } bytes
+            ? System.Text.Encoding.UTF8.GetString(bytes)
+            : "";
+
     private static byte[]? Bytes(string name)
     {
         lock (Gate)

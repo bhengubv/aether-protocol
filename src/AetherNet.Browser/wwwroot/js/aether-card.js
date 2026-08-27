@@ -67,4 +67,65 @@
         global.setTimeout(measure, 400);
 
     measure();
+
+    // ── The host side of the same conversation ───────────────────────────────────
+    //
+    // The other half of this file. Inlined into a card, everything above asks its host to navigate
+    // and reports how tall it is; loaded by the host, this listens. One file, because they are two
+    // ends of one protocol and splitting them is how two ends drift apart.
+
+    global.aetherCardHost = {
+        /**
+         * How tall a rendered card actually is, asked rather than waited for.
+         *
+         * The card also posts its height when it changes, which covers pictures landing late off a
+         * radio. But a message that never arrives is indistinguishable from a page that happens to be
+         * exactly the default height, so the host asks as well — same-origin srcdoc, so it can simply
+         * look. Returns 0 when there is nothing to measure yet, and the caller keeps what it had.
+         */
+        fit: function (frame) {
+            try {
+                var doc = frame && (frame.contentDocument || (frame.contentWindow || {}).document);
+                if (!doc || !doc.body) return 0;
+
+                var tall = Math.max(
+                    doc.body.scrollHeight, doc.body.offsetHeight,
+                    doc.documentElement.scrollHeight, doc.documentElement.offsetHeight);
+
+                return Math.min(Math.round(tall), 20000);
+            } catch (e) {
+                return 0;
+            }
+        },
+
+        /**
+         * Listen for what a rendered card asks for.
+         *
+         * Only ever two things, and both are checked here as well as on the way out: go to a mesh
+         * address, and "I am this tall". Being rendered does not make a stranger's document trusted,
+         * so the host re-checks everything it is told.
+         */
+        listen: function (owner, go, tall) {
+            if (global.__aetherCardHost) return;
+            global.__aetherCardHost = true;
+
+            global.addEventListener('message', function (event) {
+                var said = event.data;
+                if (!said || said.aether === undefined) return;
+
+                if (said.aether === 'go' && typeof said.to === 'string' &&
+                    said.to.length < 512 && said.to.slice(0, 9).toLowerCase() === 'aether://') {
+                    owner.invokeMethodAsync(go, said.to);
+                    return;
+                }
+
+                if (said.aether === 'tall' && typeof said.px === 'number' &&
+                    isFinite(said.px) && said.px > 0) {
+                    // Bounded. A page claiming to be a hundred thousand pixels tall is a page that
+                    // makes the app unusable, and refusing costs nothing.
+                    owner.invokeMethodAsync(tall, Math.min(Math.round(said.px), 20000));
+                }
+            });
+        },
+    };
 })(window);

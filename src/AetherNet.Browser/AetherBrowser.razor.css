@@ -1,0 +1,130 @@
+/* The mesh browser.
+
+   Scoped, so the class names in here belong to this component and to nothing else.
+
+   These were plain <style> blocks. That was harmless while only one of them was ever on screen, and
+   the moment the browser hosted the editor the generic names collided — the browser's round omnibox
+   button ate the editor's Next. A host embedding this library would have hit the same thing against
+   its own stylesheet, which is the kind of collision that makes a component impossible to drop in.
+
+   Every token falls back, too: a host that has never heard of --brand still gets a working component
+   rather than a transparent one. */
+
+.browser { display: flex; flex-direction: column; gap: 11px; max-width: 720px; margin: 0 auto; }
+
+    /* Browse or Mine. Two jobs, one tab, and never both on screen. */
+    .where { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--surface-2, #f4f7fa); border: 1px solid var(--line, rgba(127,140,158,.28)); }
+    .seg { flex: 1 1 0; padding: 9px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.88rem; font-weight: 700; cursor: pointer; }
+    .seg.on { background: var(--surface, #ffffff); color: var(--brand, #2196F3); box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.08)); }
+    .where.away { display: none; }
+
+    /* Mine — the pages this phone answers with. */
+    .mine { display: flex; flex-direction: column; gap: 9px; }
+    .lede { margin: 0; padding: 2px 4px; font-size: 0.85rem; line-height: 1.5; color: var(--ink-2, #5b6b7b); }
+    .row { display: flex; align-items: stretch; gap: 7px; }
+    .rmain { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 13px 15px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface, #ffffff); cursor: pointer; }
+    .rtitle { font-size: 1rem; font-weight: 750; color: var(--ink, #16232f); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .raddr { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 0.78rem; color: var(--ink-3, #8a97a6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rstate { font-size: 0.68rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .rstate.live { color: var(--brand, #2196F3); }
+    .rstate.draft { color: var(--ink-3, #8a97a6); }
+    .redit { flex: 0 0 auto; padding: 0 16px; border-radius: var(--radius, 14px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+
+    /* A held card. Its author is the fact that matters, so it is on the face rather than hidden. */
+    .held { display: flex; align-items: stretch; gap: 7px; }
+    .held .rmain { gap: 4px; }
+    .by { font-size: 0.72rem; color: var(--ink-3, #8a97a6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hacts { display: flex; flex-direction: column; gap: 5px; }
+    .hact { flex: 1 1 0; min-width: 78px; padding: 0 13px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-weight: 700; font-size: 0.8rem; cursor: pointer; }
+    .hact:disabled { opacity: .4; cursor: default; }
+    .hact.drop { color: var(--warn, #c0392b); }
+
+    .took { padding: 11px 14px; border-radius: var(--radius-sm, 10px); background: var(--info-bg, rgba(31,111,180,.12)); color: var(--info, #1f6fb4); font-size: 0.86rem; line-height: 1.45; }
+
+    .empty { display: flex; flex-direction: column; gap: 4px; padding: 26px 18px; border: 1px dashed var(--line-card, #9ecbf7); border-radius: var(--radius, 14px); text-align: center; }
+    .empty-t { font-size: 1rem; font-weight: 750; color: var(--ink, #16232f); }
+    .empty-s { font-size: 0.84rem; line-height: 1.5; color: var(--ink-2, #5b6b7b); }
+
+    .new { display: flex; align-items: center; gap: 13px; text-align: left; padding: 15px; border-radius: var(--radius, 14px); border: 1px dashed var(--line-card, #9ecbf7); background: transparent; cursor: pointer; }
+    .new:disabled { opacity: .45; cursor: default; }
+    .plus { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; background: var(--brand, #2196F3); color: #fff; font-size: 1.3rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .ntext { display: flex; flex-direction: column; gap: 2px; }
+    .nt { font-size: 1rem; font-weight: 750; color: var(--ink, #16232f); }
+    .ns { font-size: 0.82rem; color: var(--ink-2, #5b6b7b); }
+
+    /* Address bar — a browser omnibox pill. */
+    .omnibox { display: flex; align-items: center; gap: 8px; background: var(--surface, #ffffff); border: 1px solid var(--line, rgba(127,140,158,.28)); border-radius: 999px; padding: 7px 7px 7px 14px; box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.08)); }
+    .lock { display: flex; color: var(--brand, #2196F3); }
+    .lock svg { width: 16px; height: 16px; }
+    .scheme { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-weight: 700; font-size: 0.82rem; color: var(--ink-3, #8a97a6); }
+    .addr { flex: 1 1 auto; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 0.92rem; color: var(--ink, #16232f); }
+    .go { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--brand, #2196F3); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .go:disabled { opacity: .5; }
+    .go svg { width: 19px; height: 19px; }
+
+    /* Bookmarks — a thin, horizontally-scrolling row. */
+    .tabs { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding: 0 2px 1px; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .bm { flex: 0 0 auto; border: 1px solid var(--line, rgba(127,140,158,.28)); background: var(--surface, #ffffff); color: var(--ink-2, #5b6b7b); font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 0.8rem; font-weight: 600; padding: 6px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+    .bm.on { border-color: var(--brand, #2196F3); color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+    .bm.peer { border-color: var(--brand, #2196F3); color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+    .bm.saved { color: var(--ink-2, #5b6b7b); }
+    .bm.saved.on { border-color: var(--brand, #2196F3); color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+
+    /* The card, drawn by its own renderer, owning its whole surface.
+
+       Given exactly the height it says it needs, so the reader scrolls the app rather than scrolling
+       inside a box — the difference between a page and a widget, and the one a reader feels first. */
+    .page {
+        display: block;
+        width: 100%;
+        border: 0;
+        border-radius: 14px;
+        overflow: hidden;
+        background: var(--surface, #ffffff);
+        transition: height .18s ease-out;
+    }
+
+    /* The card. Every block below is drawn by us from typed JSON — a stranger's card gets our
+       typography and nothing of its own, which is exactly why it can be trusted to render.
+
+       The one thing a card chooses for itself is --card-accent, and only as a plain hex colour that
+       has already been checked. Everything accented below reads it and falls back to the app's blue,
+       so a card that sets no theme still looks deliberate. */
+
+    /* Full-bleed masthead: out to the card's edges, under its rounded top corners. The app-wide
+       `img { max-width: 100% }` that keeps pages from scrolling sideways would otherwise clamp the
+       picture back inside the padding, so it is lifted here and nowhere else — the card clips it.
+
+       The plate holds its own space from the first frame, so nothing jumps when a picture that is
+       still crossing the radio finally lands. */
+
+    /* Over a photograph the mark is a label on somebody's picture rather than the picture itself, so
+       it stands down — and it gets a scrim, because a white letter on an unknown photograph is a
+       white letter on white about a third of the time. */
+
+    /* The plate is the top of the card, so the title needs no space above it. */
+    .doc > .card-title:first-child { padding-top: 22px; }
+
+    /* A hairline under the title separates "who this is" from "what they're saying". */
+
+    /* An inline picture stays inside the text column — it illustrates, it is not the masthead. */
+
+
+
+    /* A labelled fact reads as a row, so hours and prices scan at a glance instead of as prose. */
+
+    /* A link is a button, not an anchor: it re-enters our own resolver, so a card can never hand the
+       browser an address of its own choosing. */
+    /* The tip jar. Shown as a fact — a label, where the money goes, and a code to finish on your own
+       connection — rather than as a button that leaves. */
+
+    .siteinfo { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--ink-3, #8a97a6); padding: 10px 6px 0; }
+    .siteinfo svg { width: 13px; height: 13px; color: var(--ink-3, #8a97a6); }
+    .siteinfo .mono { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
+    .siteinfo .air { color: var(--brand, #2196F3); font-weight: 600; }
+    .siteinfo .offline { color: var(--ink-2, #5b6b7b); font-weight: 600; }
+
+    .err { color: var(--ink-2, #5b6b7b); background: var(--surface, #ffffff); border: 1px solid var(--line, rgba(127,140,158,.28)); border-radius: 14px; padding: 18px; line-height: 1.5; }
+    .err .mono { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); color: var(--ink, #16232f); }
+    .muted { color: var(--ink-3, #8a97a6); font-style: italic; padding: 24px 6px; }

@@ -130,9 +130,10 @@ public class CardPageTests
         Assert.Contains("&lt;script&gt;", html, StringComparison.Ordinal);
         Assert.Contains("&lt;img src=x onerror", html, StringComparison.Ordinal);
 
-        // Exactly one script on the page: the one we ship. A second would mean something an author
-        // wrote had become executable, which is the entire failure this test exists to catch.
-        Assert.Equal(1, Scripts(html));
+        // Three scripts, all ours: the background this card named, the masthead painter, and the
+        // link bridge. A fourth would mean something an author wrote had become executable, which is
+        // the failure this exists to catch.
+        Assert.Equal(3, Scripts(html));
         Assert.DoesNotContain("<img", html, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -159,6 +160,20 @@ public class CardPageTests
         Assert.DoesNotContain(payload, html[at..], StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The page without its scripts.
+    /// </summary>
+    /// <remarks>
+    /// The scripts we ship talk about the attributes they look for, so a check for markup that
+    /// searched the whole document would find the code that reads it rather than an element that has
+    /// it. What matters is what was written into the page, not what the renderer knows how to read.
+    /// </remarks>
+    private static string Markup(string html)
+    {
+        var at = html.IndexOf("<script", StringComparison.OrdinalIgnoreCase);
+        return at < 0 ? html : html[..at];
+    }
+
     /// <summary>How many scripts the page carries.</summary>
     private static int Scripts(string html)
     {
@@ -178,7 +193,7 @@ public class CardPageTests
     {
         var html = Render(Card(), who: "</h1><script>alert(1)</script>");
 
-        Assert.Equal(1, Scripts(html));
+        Assert.Equal(3, Scripts(html));
         Assert.Contains("&lt;/h1&gt;", html, StringComparison.Ordinal);
     }
 
@@ -213,42 +228,95 @@ public class CardPageTests
 
     // ── The person's own choices ─────────────────────────────────────────────
 
-    /// <summary>A card carries the palette its author picked.</summary>
+    /// <summary>A card is drawn in the look its author picked.</summary>
     [Theory]
-    [InlineData("mono")]
-    [InlineData("sepia")]
-    [InlineData("azure")]
-    [InlineData("moss")]
-    [InlineData("mauve")]
-    public void A_card_is_drawn_in_the_palette_its_author_picked(string palette)
+    [InlineData("plain")]
+    [InlineData("terminal")]
+    [InlineData("editorial")]
+    [InlineData("studio")]
+    [InlineData("night")]
+    public void A_card_is_drawn_in_the_look_its_author_picked(string key)
     {
-        var html = Render(Card(CardBlock.Of(CardBlock.Theme, palette)));
+        var html = Render(Card(CardBlock.Of(CardBlock.Theme, key)));
 
-        Assert.Contains($"data-palette=\"{palette}\"", html, StringComparison.Ordinal);
-        Assert.Contains($"[data-palette={palette}]", html, StringComparison.Ordinal);
+        Assert.Contains($"--paper:{CardLook.Of(key).Paper}", html, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Every palette is actually defined, not just named.</summary>
+    /// <summary>
+    /// Every look we ship actually draws in its own colours.
+    /// </summary>
     /// <remarks>
-    /// A palette in the list with no rule behind it is a person choosing a look and getting the default
-    /// — which reads as their choice being ignored rather than as a missing stylesheet.
+    /// A look carries its whole design — ground, ink, type, weight, leading, measure — so a look whose
+    /// tokens never reach the page is a look that silently comes out as the one before it. Adding a
+    /// look is adding a record, and this is what stops a new record being decorative.
     /// </remarks>
     [Fact]
-    public void Every_offered_palette_is_drawn()
+    public void Every_look_is_drawn_in_its_own_colours()
     {
-        var html = Render(Card());
+        foreach (var look in CardLook.All)
+        {
+            var html = Render(Card(CardBlock.Of(CardBlock.Theme, look.Key)));
 
-        foreach (var palette in CardPage.Palettes)
-            Assert.Contains($"[data-palette={palette}]", html,
-                StringComparison.Ordinal);
+            Assert.Contains($"--paper:{look.Paper}", html, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains($"--ink:{look.Ink}", html, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains($"--accent:{look.Accent}", html, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
-    /// <summary>An unknown palette falls back rather than failing.</summary>
+    /// <summary>
+    /// And in its own typography — which is the half most likely to be left at a default.
+    /// </summary>
+    /// <remarks>
+    /// Weight, size, leading and measure are what separate a page that reads as set from one that
+    /// reads as filled in. Editorial at weight 400 and leading 1.5 is the same words and a different
+    /// object, and nothing would have failed to tell us.
+    /// </remarks>
     [Fact]
-    public void An_unknown_palette_falls_back()
+    public void Every_look_is_drawn_in_its_own_typography()
     {
-        Assert.Equal(CardPage.DefaultPalette,
-            CardPage.PaletteOf(Card(CardBlock.Of(CardBlock.Theme, "neon"))));
+        foreach (var look in CardLook.All)
+        {
+            var html = Render(Card(CardBlock.Of(CardBlock.Theme, look.Key)));
+
+            Assert.Contains($"--weight:{look.BodyWeight}", html, StringComparison.Ordinal);
+            Assert.Contains("--leading:", html, StringComparison.Ordinal);
+            Assert.Contains("--measure:", html, StringComparison.Ordinal);
+            Assert.Contains(look.Body.Split(',')[0], html, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// The reader has three states, not two: light, dark, and the default that stamps nothing.
+    /// </summary>
+    /// <remarks>
+    /// A colour defined only inside a media query never applies in the un-stamped state, which is
+    /// where most readers are — and the page then renders one theme's text on the other's ground.
+    /// </remarks>
+    [Fact]
+    public void A_look_answers_for_a_light_ground_and_a_dark_one()
+    {
+        var html = Render(Card(CardBlock.Of(CardBlock.Theme, "editorial")));
+        var look = CardLook.Of("editorial");
+
+        Assert.Contains($"--paper:{look.Paper}", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"--paper:{look.PaperDark}", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("prefers-color-scheme:dark", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A look this build has never heard of falls back rather than failing.
+    /// </summary>
+    /// <remarks>
+    /// The compatibility rule the whole model rests on: an unknown value is a newer author, not a
+    /// broken card. A reader on an older build sees the page in the default look and reads every word
+    /// of it.
+    /// </remarks>
+    [Fact]
+    public void An_unknown_look_falls_back()
+    {
+        var html = Render(Card(CardBlock.Of(CardBlock.Theme, "neon-brutalist-2029")));
+
+        Assert.Contains($"--paper:{CardLook.Of(CardLook.DefaultKey).Paper}", html, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>A plain hex accent is honoured.</summary>
@@ -320,11 +388,12 @@ public class CardPageTests
     }
 
     /// <summary>
-    /// A link is shown as text, never as somewhere to go.
+    /// On the page a stranger is handed, a link is shown as text and never as somewhere to go.
     /// </summary>
     /// <remarks>
-    /// Card links live inside the mesh, which a stranger without Aether cannot reach. Making one
-    /// clickable is an invitation to a place their phone cannot follow.
+    /// They have no Aether yet. A card link lives inside the mesh, so making it clickable is an
+    /// invitation to a place their phone cannot follow — and the address itself never appears, since
+    /// it would mean nothing to them and everything to somebody reading over their shoulder.
     /// </remarks>
     [Fact]
     public void A_link_is_not_clickable_for_somebody_who_cannot_follow_it()
@@ -337,8 +406,50 @@ public class CardPageTests
         }));
 
         Assert.Contains("My shop", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("aether://", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("<a class=\"lnk\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("aether://KXJB7", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-aether-to", Markup(html), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// And on the mesh, where the reader can follow it, the same link works.
+    /// </summary>
+    /// <remarks>
+    /// It still never becomes an address the page can act on: the target goes into a data attribute,
+    /// the page asks its host to navigate, and the host checks it again. A card that could hand a
+    /// browser an address of its own choosing is what publishing cards as JSON exists to prevent.
+    /// </remarks>
+    [Fact]
+    public void A_link_works_for_a_reader_who_is_already_on_the_mesh()
+    {
+        var html = CardPage.Render(
+            Card(new CardBlock
+            {
+                Kind = CardBlock.Link,
+                Value = "My shop",
+                Target = "aether://KXJB7-MN2P4/shop",
+            }),
+            "Thabang", 0, downloadPath: null);
+
+        Assert.Contains("data-aether-to=\"aether://KXJB7-MN2P4/shop\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"aether://", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>An http target is never followable, on either page.</summary>
+    [Fact]
+    public void A_link_that_points_off_the_mesh_goes_nowhere()
+    {
+        var html = CardPage.Render(
+            Card(new CardBlock
+            {
+                Kind = CardBlock.Link,
+                Value = "My shop",
+                Target = "https://example.invalid/shop",
+            }),
+            "Thabang", 0, downloadPath: null);
+
+        Assert.Contains("My shop", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-aether-to", Markup(html), StringComparison.Ordinal);
+        Assert.DoesNotContain("example.invalid", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -471,9 +582,9 @@ public class CardPageTests
         }
     }
 
-    /// <summary>An unknown look falls back rather than failing.</summary>
+    /// <summary>And the fallback is the default, not the first thing that happens to match.</summary>
     [Fact]
-    public void An_unknown_look_falls_back()
+    public void An_unknown_look_resolves_to_the_default()
     {
         Assert.Equal(CardLook.DefaultKey, CardLook.Of("holographic").Key);
     }

@@ -68,7 +68,34 @@ public sealed class CardBlock
     public const string KeyValue = "kv";
     public const string Link = "link";
 
-    /// <summary>A picture, carried by content hash. <see cref="Value"/> is its description.</summary>
+    /// <summary>
+    /// A small letterspaced label above a title — a role, a place, a date.
+    /// </summary>
+    /// <remarks>
+    /// Not a heading. A heading opens a section; an eyebrow qualifies the thing under it, and it is
+    /// set small, wide and quiet rather than large and loud. Separating them is what stops every page
+    /// having four things all shouting at the same size.
+    /// </remarks>
+    public const string Eyebrow = "eyebrow";
+
+    /// <summary>
+    /// A numbered index — a list of things, each with a name and where it belongs.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Items"/> are <c>name = place</c>, the same shape a labelled fact uses, drawn as a
+    /// plate index: an ordinal, the name, and the place aligned right, with a hairline between rows.
+    /// It is the single most useful block for making a page look composed rather than typed — a
+    /// catalogue, a menu, a set of works, a schedule are all this shape.
+    /// </remarks>
+    public const string Index = "index";
+
+    /// <summary>A pulled quote, set larger than the prose around it.</summary>
+    public const string Quote = "quote";
+
+    /// <summary>A break between passages. Carries no text.</summary>
+    public const string Rule = "rule";
+
+    /// <summary>A picture, carried by content hash. <see cref="Value"/> is its caption.</summary>
     public const string Image = "image";
 
     /// <summary>

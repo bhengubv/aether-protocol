@@ -50,8 +50,9 @@ public static class OwnCard
     /// </remarks>
     public static readonly string[] Writable =
     [
-        CardBlock.Heading, CardBlock.Text, CardBlock.List,
-        CardBlock.KeyValue, CardBlock.Image, CardBlock.Link, CardBlock.Tip,
+        CardBlock.Eyebrow, CardBlock.Heading, CardBlock.Text, CardBlock.Quote,
+        CardBlock.List, CardBlock.Index, CardBlock.KeyValue, CardBlock.Image,
+        CardBlock.Rule, CardBlock.Link, CardBlock.Tip,
     ];
 
     /// <summary>The most lines one list block may hold.</summary>
@@ -60,10 +61,14 @@ public static class OwnCard
     /// <summary>What each kind is called on the button that adds it.</summary>
     public static string Label(string kind) => kind switch
     {
+        CardBlock.Eyebrow => "Label",
         CardBlock.Heading => "Heading",
         CardBlock.Text => "Words",
+        CardBlock.Quote => "Quote",
         CardBlock.List => "List",
+        CardBlock.Index => "Index",
         CardBlock.KeyValue => "Detail",
+        CardBlock.Rule => "Break",
         CardBlock.Link => "Link to another page",
         CardBlock.Tip => "Tip jar",
         CardBlock.Image => "Picture",
@@ -80,9 +85,12 @@ public static class OwnCard
     /// </remarks>
     public static string Placeholder(string kind) => kind switch
     {
+        CardBlock.Eyebrow => "Plumber · Kagiso · since 2016",
         CardBlock.Heading => "Hours",
         CardBlock.Text => "A few words about what you do",
+        CardBlock.Quote => "The one line you want remembered",
         CardBlock.List => "One thing per line",
+        CardBlock.Index => "Geyser replacement = From R2400",
         CardBlock.KeyValue => "Open = Mon to Sat, 8 to 5",
         CardBlock.Link => "What the link says",
         CardBlock.Image => "What it is a picture of",
@@ -128,17 +136,24 @@ public static class OwnCard
     {
         var blocks = new List<CardBlock>(MostBlocks);
         var themed = false;
+        var backed = false;
 
         foreach (var block in card.Blocks ?? [])
         {
             if (blocks.Count >= MostBlocks) break;
 
-            // One theme block. A second is not a second opinion, it is the first one being overruled
-            // by whichever the renderer happens to find first.
+            // One theme block of each kind. A second look is not a second opinion, it is the first
+            // being overruled by whichever the renderer happens to find first — and the same is true
+            // of a background.
             if (block.Kind == CardBlock.Theme && CardLook.IsLook(block.Value))
             {
                 if (themed) continue;
                 themed = true;
+            }
+            else if (block.Kind == CardBlock.Theme && CardShader.IsShader(block.Value))
+            {
+                if (backed) continue;
+                backed = true;
             }
 
             if (block.Value is { Length: > LongestValue })
@@ -182,6 +197,26 @@ public static class OwnCard
     /// <summary>Which look this card is wearing.</summary>
     public static CardLook LookOf(CardDocument card) => CardLook.FromCard(card);
 
+    /// <summary>
+    /// Choose the background, replacing whatever was chosen before.
+    /// </summary>
+    /// <remarks>
+    /// Kept beside the look rather than inside it: the same typography carries a dozen different
+    /// backgrounds, and a person who has found the words they want should be able to try all of them
+    /// without their page changing shape underneath.
+    /// </remarks>
+    public static void SetShader(CardDocument card, string shader)
+    {
+        if (!CardShader.IsShader(shader)) return;
+
+        card.Blocks ??= [];
+        card.Blocks.RemoveAll(b => b.Kind == CardBlock.Theme && CardShader.IsShader(b.Value));
+        card.Blocks.Insert(0, CardBlock.Of(CardBlock.Theme, shader.Trim().ToLowerInvariant()));
+    }
+
+    /// <summary>Which background this card is wearing.</summary>
+    public static CardShader ShaderOf(CardDocument card) => CardShader.FromCard(card);
+
     /// <summary>Add a block of the given kind, if there is room.</summary>
     public static bool Add(CardDocument card, string kind)
     {
@@ -189,8 +224,8 @@ public static class OwnCard
         if (card.Blocks.Count >= MostBlocks) return false;
         if (!Writable.Contains(kind)) return false;
 
-        card.Blocks.Add(kind == CardBlock.List
-            ? new CardBlock { Kind = kind, Items = [""] }
+        card.Blocks.Add(kind is CardBlock.List or CardBlock.Index
+            ? new CardBlock { Kind = kind, Items = ["", ""] }
             : CardBlock.Of(kind, ""));
 
         return true;
@@ -262,6 +297,18 @@ public static class OwnCard
                     break;
 
                 case CardBlock.Image:
+                    break;
+
+                // An index is its lines. An empty one is a heading with nothing under it.
+                case CardBlock.Index:
+                    var plates = (block.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i)).ToList();
+                    if (plates.Count > 0)
+                        blocks.Add(new CardBlock { Kind = block.Kind, Value = block.Value, Items = plates });
+                    break;
+
+                // A break carries no text, so the empty-value rule below would throw it away.
+                case CardBlock.Rule:
+                    blocks.Add(block);
                     break;
 
                 // A key with nothing after the equals sign is a label nobody answered.

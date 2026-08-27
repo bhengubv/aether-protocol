@@ -26,47 +26,47 @@
         'varying vec2 v_uv;' +
         'void main(){ v_uv = a_p * 0.5 + 0.5; gl_Position = vec4(a_p, 0.0, 1.0); }';
 
-    // A folded surface built from two interfering ring fields, shaded as if lit.
+    // The painter, in two halves.
     //
-    // Rings rather than noise on purpose: concentric strokes are what ThreeUI's surfaces are made of,
-    // they stay crisp at any size, and their gradient is analytic — so the normal comes out of the
-    // field itself rather than out of a texture nobody can carry.
-    var FRAG =
+    // Everything a background has in common lives here: the uniforms, the normal taken by difference,
+    // the lighting, and the single-hue mix that makes every one of them belong to the same family and
+    // take on the colour of whatever page it is on.
+    //
+    // The half that differs is one function — float field(vec2 p) — and it comes from the page. That
+    // is what makes the catalogue a catalogue: a new background is those few lines and nothing else,
+    // and it arrives already lit, already in the right colour, already at the right cost.
+    //
+    // The source is never an author's. A card names a background by key; the key is looked up in the
+    // catalogue and what gets inlined is source we shipped.
+    var HEAD =
         'precision mediump float;' +
         'varying vec2 v_uv;' +
         'uniform vec2 u_size;' +
         'uniform vec3 u_bg;' +
         'uniform float u_t;' +
         'uniform float u_seed;' +
+        'const float TAU = 6.28318530718;';
 
-        'const float TAU = 6.28318530718;' +
-
-        // Two centres, placed from the seed, so no two pages fold the same way.
-        'vec2 centreA(){ return vec2(0.24 + 0.20 * sin(u_seed), 0.34 + 0.16 * cos(u_seed * 1.7)); }' +
-        'vec2 centreB(){ return vec2(0.82 + 0.12 * cos(u_seed * 2.3), 0.18 + 0.22 * sin(u_seed * 0.9)); }' +
-
-        // The height field. Rings around each centre, swirled by the angle so the bands bend rather
-        // than sitting as flat targets, and drifting slowly in time.
+    // Two interfering ripples — the default, and the shape of every entry: take a point, give back a
+    // height. Used when a page names nothing, or names something this build has never heard of.
+    var FIELD =
         'float field(vec2 p){' +
-        '  vec2 a = p - centreA();' +
-        '  vec2 b = p - centreB();' +
-        '  float ra = length(a * vec2(1.0, 1.35));' +
-        '  float rb = length(b * vec2(1.25, 1.0));' +
-        '  float sa = atan(a.y, a.x);' +
-        '  float sb = atan(b.y, b.x);' +
-        '  float folds = 3.0 + floor(mod(u_seed * 3.0, 4.0));' +
-        '  float wa = sin(ra * 26.0 - u_t * 0.55 + sin(sa * folds) * 0.85);' +
-        '  float wb = sin(rb * 19.0 + u_t * 0.37 + cos(sb * (folds + 2.0)) * 0.70);' +
-        '  return wa * 0.62 + wb * 0.48;' +
-        '}' +
+        '  vec2 a = p - vec2(0.24 + 0.20*sin(u_seed), 0.34 + 0.16*cos(u_seed*1.7));' +
+        '  vec2 b = p - vec2(0.82 + 0.12*cos(u_seed*2.3), 0.18 + 0.22*sin(u_seed*0.9));' +
+        '  float folds = 3.0 + floor(mod(u_seed*3.0, 4.0));' +
+        '  float wa = sin(length(a*vec2(1.0,1.35))*26.0 - u_t*0.55 + sin(atan(a.y,a.x)*folds)*0.85);' +
+        '  float wb = sin(length(b*vec2(1.25,1.0))*19.0 + u_t*0.37 + cos(atan(b.y,b.x)*(folds+2.0))*0.70);' +
+        '  return wa*0.62 + wb*0.48;' +
+        '}';
 
+    var TAIL =
         'void main(){' +
         '  vec2 p = v_uv;' +
         '  p.x *= u_size.x / max(u_size.y, 1.0);' +
         '  float e = 1.6 / max(u_size.y, 1.0);' +
 
         // The normal, taken from the field by difference. Cheap, and exact enough for a surface that
-        // is being lit rather than measured.
+        // is being lit rather than measured — and it means a field never has to supply one.
         '  float h = field(p);' +
         '  float hx = field(p + vec2(e, 0.0)) - field(p - vec2(e, 0.0));' +
         '  float hy = field(p + vec2(0.0, e)) - field(p - vec2(0.0, e));' +
@@ -76,13 +76,13 @@
         '  vec3 L = normalize(vec3(-0.30, 0.52, 0.80));' +
         '  vec3 H = normalize(L + V);' +
 
-        // Diffuse raised to a power. A plate faces the viewer almost everywhere, so a plain
-        // dot product sits near one across the whole surface and lifts the entire thing toward
-        // white — the accent stops being the colour of anything and the page loses its material.
+        // Diffuse raised to a power. A plate faces the viewer almost everywhere, so a plain dot
+        // product sits near one across the whole surface and lifts the thing toward white — the
+        // accent stops being the colour of anything and the page loses its material.
         '  float diff = pow(max(dot(N, L), 0.0), 2.2);' +
         '  float spec = pow(max(dot(N, H), 0.0), 34.0);' +
 
-        // A baked gradient across the plate, the way the ThreeUI surfaces brighten toward one corner.
+        // A baked gradient across the plate, the way a lit surface brightens toward one corner.
         '  float grad = dot(v_uv - 0.5, vec2(-0.42, 0.90)) + 0.5;' +
 
         // Most of the light is in the highlight, not the fill. The ridges read as ridges and the
@@ -92,6 +92,13 @@
 
         '  gl_FragColor = vec4(mix(u_bg, vec3(1.0), k), 1.0);' +
         '}';
+
+    /** The background this page asked for, or the default if it asked for nothing we have. */
+    function frag() {
+        var named = global.aetherField;
+        var field = typeof named === 'string' && named.indexOf('float field') >= 0 ? named : FIELD;
+        return HEAD + field + TAIL;
+    }
 
     function compile(gl, type, source) {
         var shader = gl.createShader(type);
@@ -141,7 +148,12 @@
         if (!gl) { canvas.remove(); return false; }
 
         var vs = compile(gl, gl.VERTEX_SHADER, VERT);
-        var fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+        var fs = compile(gl, gl.FRAGMENT_SHADER, frag());
+
+        // A background that will not compile falls back to the one that always does, rather than
+        // taking the masthead down. A catalogue is a thing people add to, and the cost of a bad
+        // entry should be that one page looks ordinary — not that it looks broken.
+        if (vs && !fs) fs = compile(gl, gl.FRAGMENT_SHADER, HEAD + FIELD + TAIL);
         if (!vs || !fs) { canvas.remove(); return false; }
 
         var program = gl.createProgram();
@@ -200,6 +212,14 @@
             // canvas that comes out blank.
             frame(0);
             frame(0);
+
+            // And then hand the context back.
+            //
+            // A picker showing fourteen backgrounds at once wants fourteen contexts, and a browser
+            // gives out about eight — so the fifteenth fails, and on a handset the whole view can go
+            // down with it. A still frame does not need a live context: it becomes an image, and the
+            // context is released immediately. One at a time, however many are on screen.
+            keep(canvas, gl);
             return true;
         }
 
@@ -222,6 +242,34 @@
         global.document.addEventListener('visibilitychange', watch);
         global.requestAnimationFrame(loop);
         return true;
+    }
+
+    /**
+     * Freeze a drawn canvas into an image and give the GPU context back.
+     *
+     * The picture is the canvas's own pixels, so nothing is fetched and nothing changes visually.
+     * What changes is that the page stops holding a WebGL context it will never draw into again —
+     * which is the difference between a gallery of backgrounds and a gallery that takes the app down
+     * on the ninth one.
+     */
+    function keep(canvas, gl) {
+        var frozen;
+        try {
+            frozen = canvas.toDataURL('image/png');
+        } catch (e) {
+            return;
+        }
+
+        var img = global.document.createElement('img');
+        img.src = frozen;
+        img.className = canvas.className;
+        img.setAttribute('alt', '');
+        img.style.cssText = canvas.style.cssText;
+
+        if (canvas.parentNode) canvas.parentNode.replaceChild(img, canvas);
+
+        var lose = gl.getExtension('WEBGL_lose_context');
+        if (lose) lose.loseContext();
     }
 
     /** Paint every masthead on the page that has not been painted yet. */

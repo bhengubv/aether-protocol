@@ -87,6 +87,7 @@ public sealed record PageTemplate(
     {
         "me" =>
         [
+            CardBlock.Of(CardBlock.Eyebrow, ""),
             CardBlock.Of(CardBlock.Text, ""),
             CardBlock.Of(CardBlock.Heading, "What I do"),
             CardBlock.Of(CardBlock.Text, ""),
@@ -96,20 +97,24 @@ public sealed record PageTemplate(
 
         "business" =>
         [
+            CardBlock.Of(CardBlock.Eyebrow, ""),
             CardBlock.Of(CardBlock.Text, ""),
             CardBlock.Of(CardBlock.Heading, "Hours"),
             CardBlock.Of(CardBlock.KeyValue, "Open ="),
             CardBlock.Of(CardBlock.KeyValue, "Closed ="),
+            // A price list is an index: a name, and what it costs, set as a plate. It is the block
+            // that makes a trade's page look composed instead of typed.
             CardBlock.Of(CardBlock.Heading, "What we do"),
-            new CardBlock { Kind = CardBlock.List, Items = ["", "", ""] },
+            new CardBlock { Kind = CardBlock.Index, Items = ["", "", ""] },
             CardBlock.Of(CardBlock.KeyValue, "Call ="),
         ],
 
         "links" =>
         [
+            CardBlock.Of(CardBlock.Eyebrow, ""),
             CardBlock.Of(CardBlock.Text, ""),
             CardBlock.Of(CardBlock.Heading, "Find me"),
-            new CardBlock { Kind = CardBlock.List, Items = ["", "", ""] },
+            new CardBlock { Kind = CardBlock.Index, Items = ["", "", ""] },
             new CardBlock { Kind = CardBlock.Tip, Value = "Buy me a coffee", Target = "" },
         ],
 
