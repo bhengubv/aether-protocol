@@ -159,7 +159,16 @@
                                         break;
 
                                     case CardBlock.Rule:
-                                        <p class="hint">A line across the page. Nothing to fill in — it is the pause between two parts.</p>
+                                        <div class="orns">
+                                            @foreach (var orn in CardOrnament.All)
+                                            {
+                                                <button class="orn-pick @(CardOrnament.Of(block.Value).Key == orn.Key ? "on" : null)"
+                                                        @onclick="() => OnValueSet(index, orn.Key)">
+                                                    <span class="orn-draw">@((MarkupString)orn.Svg())</span>
+                                                    <span class="orn-n">@orn.Name</span>
+                                                </button>
+                                            }
+                                        </div>
                                         break;
 
                                     case CardBlock.Text:
@@ -221,6 +230,12 @@
                                                placeholder="@OwnCard.Placeholder(block.Kind)"
                                                value="@block.Value" @oninput="e => OnValue(index, e)" />
 
+                                        <label class="tick">
+                                            <input type="checkbox" checked="@block.IsWide"
+                                                   @onchange="e => OnWide(index, e)" />
+                                            <span>Show it whole, edge to edge</span>
+                                        </label>
+
                                         @if (_picNote is { Length: > 0 } && _picking == index)
                                         {
                                             <p class="hint bad">@_picNote</p>
@@ -261,6 +276,17 @@
                                                placeholder="@OwnCard.Placeholder(block.Kind)"
                                                value="@block.Value" @oninput="e => OnValue(index, e)" />
                                         break;
+                                }
+
+                                @if (block.Kind is CardBlock.Eyebrow or CardBlock.Heading
+                                        or CardBlock.Text or CardBlock.Quote)
+                                {
+                                    <div class="alignrow">
+                                        <button class="tiny @(block.IsCentred ? null : "on")"
+                                                @onclick="() => OnAlign(index, null)">Left</button>
+                                        <button class="tiny @(block.IsCentred ? "on" : null)"
+                                                @onclick="() => OnAlign(index, Centre)">Centred</button>
+                                    </div>
                                 }
 
                                 <div class="prow">
@@ -690,6 +716,33 @@
         if (_name.Length > 0) Save();
     }
 
+    /// <summary>Set a block's value directly, from a picker rather than a field.</summary>
+    private void OnValueSet(int index, string value)
+    {
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+        _doc.Blocks[index].Value = value;
+        Save();
+    }
+
+    /// <summary>The only alignment a block may ask for besides its default.</summary>
+    private const string Centre = "centre";
+
+    /// <summary>Left or centred. Two values, because a third is a design nobody asked for.</summary>
+    private void OnAlign(int index, string? how)
+    {
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+        _doc.Blocks[index].Align = how;
+        Save();
+    }
+
+    /// <summary>Whether this picture runs to the edges at its own shape rather than as a figure.</summary>
+    private void OnWide(int index, ChangeEventArgs e)
+    {
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+        _doc.Blocks[index].As = e.Value is true ? "wide" : null;
+        Save();
+    }
+
     private void OnValue(int index, ChangeEventArgs e)
     {
         if (index < 0 || index >= _doc.Blocks.Count) return;
@@ -725,7 +778,7 @@
     {
         if (kind == CardBlock.Image && _doc.Blocks.Count(b => b.Kind == CardBlock.Image) >= PagePhoto.MostPerPage)
         {
-            _said = $"A page carries {PagePhoto.MostPerPage} pictures. Every extra one is another minute of somebody's evening on the slow radio.";
+            _said = $"That is {PagePhoto.MostPerPage} pictures — as many as a page carries. Every one is another wait for whoever opens it on the slow radio.";
             return;
         }
 

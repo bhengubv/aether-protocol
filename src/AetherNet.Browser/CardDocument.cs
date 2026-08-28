@@ -141,6 +141,32 @@ public sealed class CardBlock
     /// </summary>
     [JsonPropertyName("to")] public string? Target { get; set; }
 
+    /// <summary>
+    /// How this block sits: <c>centre</c>, or left if it says nothing.
+    /// </summary>
+    /// <remarks>
+    /// A named position rather than a style. A card that could set its own alignment in CSS could set
+    /// anything, and the whole reason a card is typed JSON is that it cannot. One property, two
+    /// values, and a renderer that has never heard of a third simply leaves the block where it was.
+    /// </remarks>
+    [JsonPropertyName("a")] public string? Align { get; set; }
+
+    /// <summary>
+    /// How a picture is shown: <c>wide</c> to run to the edges at its own shape.
+    /// </summary>
+    /// <remarks>
+    /// The first picture on a card is its masthead and is cropped to a band, because a page needs a
+    /// face. A picture that is the subject rather than the backdrop should not be cropped at all —
+    /// somebody's drawing is not a header image.
+    /// </remarks>
+    [JsonPropertyName("as")] public string? As { get; set; }
+
+    /// <summary>Whether this block is centred.</summary>
+    public bool IsCentred => string.Equals(Align, "centre", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether this picture runs to the edges at its own shape.</summary>
+    public bool IsWide => string.Equals(As, "wide", StringComparison.OrdinalIgnoreCase);
+
     public static CardBlock Of(string kind, string value) => new() { Kind = kind, Value = value };
 
     /// <summary>

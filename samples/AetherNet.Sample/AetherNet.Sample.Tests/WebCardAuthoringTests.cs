@@ -224,6 +224,11 @@ public class WebCardAuthoringTests
     /// facts — those are true whoever is writing — but never an answer, because most people publish
     /// what they were given.
     /// </summary>
+    /// <remarks>
+    /// The example is exempt, and only the example. It arrives filled in because the button says so,
+    /// and it is about this network rather than about a person or a business — so somebody who
+    /// publishes it untouched has published something true. Every other template supplies a shape.
+    /// </remarks>
     [Theory]
     [InlineData("me")]
     [InlineData("business")]
@@ -266,6 +271,28 @@ public class WebCardAuthoringTests
 
         Assert.Contains(card.Blocks, b => b.Kind == CardBlock.Heading && !string.IsNullOrWhiteSpace(b.Value));
         Assert.Contains(card.Blocks, b => b.Kind == CardBlock.KeyValue);
+    }
+
+    /// <summary>
+    /// The example is a finished page, not a shape — which is the whole reason it exists.
+    /// </summary>
+    /// <remarks>
+    /// Seeing one page that is properly set teaches what the blocks are for faster than a blank one
+    /// with good labels ever will. If it ever stops arriving finished it stops teaching anything, and
+    /// nothing else would notice.
+    /// </remarks>
+    [Fact]
+    public void The_example_arrives_finished()
+    {
+        var card = PageTemplate.Of("example").Build(null);
+
+        Assert.False(string.IsNullOrWhiteSpace(card.Title));
+        Assert.True(OwnCard.ForPublish(card).Blocks.Count >= 8);
+
+        foreach (var kind in new[]
+                 { CardBlock.Eyebrow, CardBlock.Text, CardBlock.Quote, CardBlock.Heading,
+                   CardBlock.Index, CardBlock.Rule, CardBlock.KeyValue })
+            Assert.Contains(OwnCard.ForPublish(card).Blocks, b => b.Kind == kind);
     }
 
     [Fact]
@@ -694,6 +721,33 @@ public class WebCardAuthoringTests
 
         Assert.Contains("Bluetooth", said, StringComparison.Ordinal);
         Assert.Contains("minute", said, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A page title is not a person's name and is not cut to fit one.
+    /// </summary>
+    /// <remarks>
+    /// Titles went through the cleaner built for a person's name, which is capped at eighteen
+    /// characters so it fits inside a Wi-Fi network name during a handover. Every page called anything
+    /// longer was silently shortened — "A card on AetherNet" was published as "A card on AetherNe" —
+    /// and nothing anywhere said so.
+    /// </remarks>
+    [Fact]
+    public void A_page_title_longer_than_a_persons_name_survives()
+    {
+        var card = OwnCard.Tidy(new CardDocument { Title = "A card on AetherNet" });
+
+        Assert.Equal("A card on AetherNet", card.Title);
+    }
+
+    [Fact]
+    public void A_page_title_is_tidied_rather_than_trusted()
+    {
+        Assert.Equal("The shop on the corner",
+            OwnCard.Tidy(new CardDocument { Title = "  The shop   on the	corner " }).Title);
+
+        Assert.True(OwnCard.Tidy(new CardDocument { Title = new string('a', 400) }).Title.Length
+            <= OwnCard.LongestTitle);
     }
 
     // ── The masthead ───────────────────────────────────────────────────────────

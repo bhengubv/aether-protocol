@@ -175,10 +175,18 @@ public static class CardPage
         return page.ToString();
     }
 
-    /// <summary>The picture a card leads with, if it names one we can actually show.</summary>
+    /// <summary>
+    /// The picture a card leads with, if it names one we can actually show.
+    /// </summary>
+    /// <remarks>
+    /// A picture the author asked to show whole is never it. The masthead is a band, cropped to a
+    /// shape the page chose; somebody who has said "show it whole" has said this is the subject
+    /// rather than the backdrop, and quietly cropping it into a header would be the renderer
+    /// overruling the one instruction they gave it.
+    /// </remarks>
     private static CardBlock? Hero(CardDocument? card) =>
         card?.Blocks?.FirstOrDefault(b =>
-            b.Kind == CardBlock.Image && CardBlock.IsUsableAssetHash(b.ContentHash));
+            b.Kind == CardBlock.Image && !b.IsWide && CardBlock.IsUsableAssetHash(b.ContentHash));
 
     /// <summary>
     /// The masthead: a lit surface in the page's own colour, painted by the shader.
@@ -288,12 +296,32 @@ public static class CardPage
     {
         if (card?.Blocks is not { Count: > 0 } blocks) return;
 
-        foreach (var block in blocks)
+        for (var at = 0; at < blocks.Count; at++)
         {
+            var block = blocks[at];
+
+            // A run of pictures is a gallery, and a run of links is a row. Neither needs a block kind
+            // of its own: somebody adding three pictures in a row means a gallery, and asking them to
+            // say so as well is asking them to know how a renderer is built.
+            if (Run(blocks, at, CardBlock.Image) is > 1 and var pictures
+                && Drawable(blocks, at, pictures, assetPath, hero) is { Count: > 1 } shown)
+            {
+                Gallery(page, shown, assetPath);
+                at += pictures - 1;
+                continue;
+            }
+
+            if (Run(blocks, at, CardBlock.Link) is > 1 and var links && !offering)
+            {
+                Row(page, blocks, at, links);
+                at += links - 1;
+                continue;
+            }
+
             switch (block.Kind)
             {
                 case CardBlock.Heading when Text(block.Value) is { Length: > 0 } h:
-                    page.Append("<h2>").Append(h).Append("</h2>");
+                    page.Append("<h2").Append(Set(block)).Append(">").Append(h).Append("</h2>");
                     break;
 
                 // Drawn above the title, not here — see Render. Skipping it means an author can put
@@ -302,11 +330,15 @@ public static class CardPage
                     break;
 
                 case CardBlock.Quote when Text(block.Value) is { Length: > 0 } q:
-                    page.Append("<blockquote>").Append(q).Append("</blockquote>");
+                    page.Append("<blockquote").Append(Set(block)).Append(">").Append(q).Append("</blockquote>");
                     break;
 
+                // A break with a mark in it. The value names one from the catalogue; a break that
+                // names nothing is a hairline, which is what it always was.
                 case CardBlock.Rule:
-                    page.Append("<hr>");
+                    page.Append("<div class=\"brk\">")
+                        .Append(CardOrnament.Of(block.Value).Svg())
+                        .Append("</div>");
                     break;
 
                 // The plate index. Each line is "name = place"; a line with no place is still a line,
@@ -314,16 +346,16 @@ public static class CardPage
                 case CardBlock.Index when block.Items is { Count: > 0 } plates:
                     page.Append("<div class=\"index\">");
 
-                    var at = 0;
+                    var ordinal = 0;
                     foreach (var plate in plates)
                     {
                         if (Text(plate) is not { Length: > 0 } line) continue;
 
                         var split = line.IndexOf('=');
-                        at++;
+                        ordinal++;
 
                         page.Append("<div class=\"plate-row\"><span class=\"plate-n\">")
-                            .Append(at.ToString("00"))
+                            .Append(ordinal.ToString("00"))
                             .Append("</span><span class=\"plate-t\">")
                             .Append((split > 0 ? line[..split] : line).Trim())
                             .Append("</span><span class=\"plate-p\">")
@@ -335,7 +367,8 @@ public static class CardPage
                     break;
 
                 case CardBlock.Text when Text(block.Value) is { Length: > 0 } t:
-                    page.Append("<p class=\"say\">").Append(t).Append("</p>");
+                    page.Append("<p class=\"say\"").Append(Set(block)).Append(">")
+                        .Append(Marks(t)).Append("</p>");
                     break;
 
                 case CardBlock.List when block.Items is { Count: > 0 } items:
@@ -385,7 +418,8 @@ public static class CardPage
                 case CardBlock.Image when !ReferenceEquals(block, hero)
                                           && assetPath?.Invoke(block.ContentHash ?? "") is { Length: > 0 } src
                                           && CardBlock.IsUsableAssetHash(block.ContentHash):
-                    page.Append("<figure><img src=\"").Append(Attr(src))
+                    page.Append(block.IsWide ? "<figure class=\"wide\">" : "<figure>")
+                        .Append("<img src=\"").Append(Attr(src))
                         .Append("\" alt=\"").Append(Text(block.Value) ?? "").Append("\">");
 
                     if (Text(block.Value) is { Length: > 0 } caption)
@@ -395,6 +429,129 @@ public static class CardPage
                     break;
             }
         }
+    }
+
+    /// <summary>How many blocks of this kind sit together starting here.</summary>
+    private static int Run(IReadOnlyList<CardBlock> blocks, int at, string kind)
+    {
+        var n = 0;
+        while (at + n < blocks.Count && blocks[at + n].Kind == kind) n++;
+        return n;
+    }
+
+    /// <summary>The pictures in a run that can actually be shown, in order.</summary>
+    private static List<CardBlock> Drawable(
+        IReadOnlyList<CardBlock> blocks, int at, int count,
+        Func<string, string?>? assetPath, CardBlock? hero)
+    {
+        var shown = new List<CardBlock>(count);
+
+        for (var i = at; i < at + count; i++)
+        {
+            var block = blocks[i];
+            if (ReferenceEquals(block, hero)) continue;
+            if (!CardBlock.IsUsableAssetHash(block.ContentHash)) continue;
+            if (assetPath?.Invoke(block.ContentHash!) is not { Length: > 0 }) continue;
+
+            shown.Add(block);
+        }
+
+        return shown;
+    }
+
+    /// <summary>
+    /// Several pictures together, as a grid.
+    /// </summary>
+    /// <remarks>
+    /// Two abreast, and a caption under each that has one. A body of work — plates, a portfolio, a
+    /// menu with photographs — is the shape a page of stacked full-width images cannot make, and it is
+    /// most of what separates a page somebody is showing from a page somebody is filling in.
+    /// </remarks>
+    private static void Gallery(StringBuilder page, List<CardBlock> shown, Func<string, string?>? assetPath)
+    {
+        page.Append("<div class=\"gallery\">");
+
+        foreach (var picture in shown)
+        {
+            page.Append("<figure><img src=\"")
+                .Append(Attr(assetPath!.Invoke(picture.ContentHash!)))
+                .Append("\" alt=\"").Append(Text(picture.Value) ?? "").Append("\">");
+
+            if (Text(picture.Value) is { Length: > 0 } caption)
+                page.Append("<figcaption>").Append(caption).Append("</figcaption>");
+
+            page.Append("</figure>");
+        }
+
+        page.Append("</div>");
+    }
+
+    /// <summary>
+    /// Several links together, as a row rather than a stack.
+    /// </summary>
+    /// <remarks>
+    /// What a page's own navigation looks like. Stacked full-width buttons read as a form; a row of
+    /// words reads as a place with parts to it.
+    /// </remarks>
+    private static void Row(StringBuilder page, IReadOnlyList<CardBlock> blocks, int at, int count)
+    {
+        page.Append("<nav class=\"row\">");
+
+        for (var i = at; i < at + count; i++)
+        {
+            var link = blocks[i];
+            if (Text(link.Value) is not { Length: > 0 } label) continue;
+
+            if (IsMeshAddress(link.Target))
+                page.Append("<button type=\"button\" class=\"rowlnk\" data-aether-to=\"")
+                    .Append(Attr(link.Target)).Append("\">").Append(label).Append("</button>");
+            else
+                page.Append("<span class=\"rowlnk\">").Append(label).Append("</span>");
+        }
+
+        page.Append("</nav>");
+    }
+
+    /// <summary>The class attribute a block's alignment asks for, or nothing.</summary>
+    private static string Set(CardBlock block) => block.IsCentred ? " class=\"mid\"" : "";
+
+    /// <summary>
+    /// Emphasis inside a sentence.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A page where nothing inside a paragraph can be stressed is a page of even grey text, and the
+    /// pages this is measured against lean on an underlined phrase in the middle of a line more than
+    /// they lean on anything else.
+    /// </para>
+    /// <para>
+    /// Run <b>after</b> escaping, never before. The text arriving here has already had every angle
+    /// bracket turned into an entity, so the only tags that can exist afterwards are the two this
+    /// writes — an author cannot smuggle markup through by writing it in the middle of a sentence,
+    /// and the card stays as inert as it was.
+    /// </para>
+    /// </remarks>
+    private static string Marks(string escaped)
+    {
+        var made = new StringBuilder(escaped.Length + 16);
+        var open = new Dictionary<char, bool> { ['*'] = false, ['_'] = false };
+
+        foreach (var c in escaped)
+        {
+            if (c is '*' or '_')
+            {
+                var tag = c == '*' ? "em" : "u";
+                made.Append(open[c] ? "</" : "<").Append(tag).Append('>');
+                open[c] = !open[c];
+                continue;
+            }
+
+            made.Append(c);
+        }
+
+        // An unclosed mark is somebody using an asterisk as an asterisk. Closing it silently would
+        // stress the rest of the paragraph, so anything left open is simply undone.
+        return open.Any(o => o.Value) ? escaped : made.ToString();
     }
 
     /// <summary>
@@ -478,7 +635,8 @@ public static class CardPage
             "text-rendering:optimizeLegibility}" +
 
             ".card{display:flex;flex-direction:column;align-items:stretch;" +
-            "gap:0;padding:0 22px 84px;max-width:var(--measure);margin:0 auto}" +
+            "gap:0;padding:0 22px 84px;max-width:var(--measure);margin:0 auto;" +
+            "overflow-x:hidden}" +
 
             // Out past the measure to the edges of the window: a full-bleed element inside a centred
             // column. The negative margin is the gutter and the width puts it back.
@@ -498,8 +656,11 @@ public static class CardPage
             ".eyebrow{margin:0 0 14px;font-size:12px;letter-spacing:.24em;text-transform:uppercase;" +
             "color:var(--ink-2);font-weight:400}" +
 
-            "h1{margin:0;font-family:var(--display);font-size:clamp(38px,9vw,64px);line-height:1.02;" +
-            "letter-spacing:-.02em;font-weight:400;text-wrap:balance}" +
+            // Wraps rather than overflows. A long name set large runs past the measure on a narrow
+            // phone and the last letter is simply gone — which reads as a bug in the page rather than
+            // as a title that needed two lines.
+            "h1{margin:0;font-family:var(--display);font-size:clamp(32px,8.4vw,64px);line-height:1.04;" +
+            "letter-spacing:-.02em;font-weight:400;text-wrap:balance;overflow-wrap:break-word}" +
 
             "h2{margin:46px 0 14px;font-size:12px;letter-spacing:.22em;text-transform:uppercase;" +
             "color:var(--ink-2);font-weight:400}" +
@@ -530,15 +691,49 @@ public static class CardPage
             ".plate-row:first-child{border-top:1px solid var(--rule)}" +
             ".plate-n{flex:0 0 auto;width:2.2em;font-size:12px;letter-spacing:.06em;color:var(--ink-3);" +
             "font-variant-numeric:tabular-nums}" +
+            // Clipped rather than overrunning. A long name used to slide straight under the place
+            // beside it and the two printed on top of each other — which reads as a broken page, and
+            // is the kind of thing that only shows up with real words in it.
             ".plate-t{flex:1 1 auto;min-width:0;font-family:var(--display);font-size:20px;" +
-            "line-height:1.2;font-weight:400}" +
-            ".plate-p{flex:0 0 auto;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;" +
-            "color:var(--ink-3);text-align:right}" +
+            "line-height:1.2;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+            ".plate-p{flex:0 0 auto;max-width:46%;font-size:12.5px;letter-spacing:.08em;" +
+            "text-transform:uppercase;color:var(--ink-3);text-align:right;overflow:hidden;" +
+            "text-overflow:ellipsis;white-space:nowrap}" +
 
-            "hr{margin:38px 0;border:0;border-top:1px solid var(--rule)}" +
+
 
             // A picture with something written under it is a figure. The caption is small, quiet and
             // close to the image — far enough to be a caption, near enough to belong to it.
+            ".mid{text-align:center;margin-left:auto;margin-right:auto}" +
+            "h1.mid,.say.mid{max-width:none}" +
+
+            // A run of pictures. Two abreast on a handset is the most that leaves either of them
+            // worth looking at.
+            ".gallery{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0 30px}" +
+            ".gallery figure{margin:0}" +
+            ".gallery img{aspect-ratio:1;object-fit:cover;border-radius:2px}" +
+            ".gallery figcaption{margin-top:6px;font-size:11.5px}" +
+
+            // A page's own navigation: a row of words, not a stack of buttons.
+            ".row{display:flex;flex-wrap:wrap;gap:18px;margin:0 0 26px;padding:0}" +
+            ".rowlnk{appearance:none;background:none;border:0;padding:0;font:inherit;font-size:15px;" +
+            "color:var(--ink-2);cursor:pointer;text-decoration:none;border-bottom:1px solid var(--rule)}" +
+            ".rowlnk:active{color:var(--accent)}" +
+
+            // The break, with whatever mark it named.
+            ".brk{margin:38px 0;color:var(--accent);line-height:0}" +
+            ".orn{display:block;width:100%;height:24px}" +
+
+            "em{font-style:italic}" +
+            "u{text-decoration:underline;text-underline-offset:3px;" +
+            "text-decoration-color:color-mix(in srgb,currentColor 45%,transparent)}" +
+
+            // A picture that is the subject rather than the backdrop: out to the edges, at its own
+            // shape, uncropped.
+            "figure.wide{width:100vw;max-width:100vw;margin:22px calc(50% - 50vw) 26px}" +
+            "figure.wide img{border-radius:0}" +
+            "figure.wide figcaption{padding:0 22px}" +
+
             "figure{margin:6px 0 28px;width:100%}" +
             "figure img{width:100%;height:auto;display:block;border-radius:2px}" +
             "figcaption{margin-top:9px;font-size:12.5px;letter-spacing:.02em;color:var(--ink-3);" +

@@ -114,7 +114,7 @@ public sealed record CardLook(
             Accent: "#7A4A1E",
             // The light weight and the air are the whole texture. At 400 and 1.5 the same page is a
             // document rather than an editorial one.
-            BodyWeight: 300, BodySize: 17, Leading: 1.74, Measure: 33),
+            BodyWeight: 300, BodySize: 17, Leading: 1.74, Measure: 33) { Fixed = true },
 
         new("studio", "Studio",
             "Big type, tight spacing, plenty of air. For work you want looked at.",
@@ -134,7 +134,7 @@ public sealed record CardLook(
             Paper: "#15181C", Ink: "#E8EDF3",
             PaperDark: "#0A0C0F", InkDark: "#E8EDF3",
             Accent: "#6FB2E8",
-            BodyWeight: 400, BodySize: 16.5, Leading: 1.68, Measure: 33),
+            BodyWeight: 400, BodySize: 16.5, Leading: 1.68, Measure: 33) { Fixed = true },
     ];
 
     /// <summary>What a card gets when it asks for nothing.</summary>
@@ -204,11 +204,29 @@ public sealed record CardLook(
         var light = Palette(Paper, Ink);
         var dark = Palette(PaperDark, InkDark);
 
+        // A look that is a material rather than a colour scheme keeps its ground.
+        //
+        // Paper is paper. Following the reader's phone into dark mode turned the one look built to
+        // feel like a printed page into another dark app screen — which is most of what made it
+        // recognisable, given away to a setting its author never touched. A look that says it is a
+        // surface says so here; the rest still follow the reader.
+        if (Fixed)
+            return ":root{" + light + Type() + "}";
+
         return
             ":root{" + light + Type() + "}" +
             "@media(prefers-color-scheme:dark){:root:not([data-look-mode=\"light\"]){" + dark + "}}" +
             ":root[data-look-mode=\"dark\"]{" + dark + "}";
     }
+
+    /// <summary>
+    /// Whether this look keeps its ground whatever the reader's phone is set to.
+    /// </summary>
+    /// <remarks>
+    /// True for the looks that are a material — paper, or a night that is dark by intent rather than
+    /// by setting. False for the ones that are simply a page, which should follow the reader.
+    /// </remarks>
+    public bool Fixed { get; init; }
 
     private string Palette(string paper, string ink) =>
         $"--paper:{paper};--ink:{ink};--accent:{Accent};" +

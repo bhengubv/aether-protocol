@@ -34,10 +34,18 @@ public static class PagePhoto
 
     /// <summary>How many pictures one page may carry.</summary>
     /// <remarks>
-    /// Four. A page is something a person reads on a handset, and every extra picture is another
-    /// minute of somebody's evening on the slow link.
+    /// <para>
+    /// Twelve. It was four, which is enough for a shop and nowhere near enough for a body of work — a
+    /// sketchbook has nine plates and a portfolio has more, and a limit that makes those impossible is
+    /// a limit that decides what this network is for.
+    /// </para>
+    /// <para>
+    /// The cost is real and it is paid by the reader, so it is stated rather than hidden: twelve
+    /// pictures is about a megabyte and a half, which is nothing over Wi-Fi Direct and a long wait
+    /// over Bluetooth. The author sees that adding up as they go.
+    /// </para>
     /// </remarks>
-    public const int MostPerPage = 4;
+    public const int MostPerPage = 12;
 
     /// <summary>The types we are willing to publish.</summary>
     /// <remarks>

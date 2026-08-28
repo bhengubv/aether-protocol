@@ -195,7 +195,7 @@ public class CardTypographyTests
         var card = Card(new CardBlock { Kind = CardBlock.Rule });
 
         Assert.Contains(OwnCard.ForPublish(card).Blocks, b => b.Kind == CardBlock.Rule);
-        Assert.Contains("<hr>", Render(card), StringComparison.Ordinal);
+        Assert.Contains("class=\"brk\"", Render(card), StringComparison.Ordinal);
     }
 
     // ── Everything an author can write, a reader can see ──────────────────────
@@ -238,7 +238,7 @@ public class CardTypographyTests
                 assetPath: _ => "data:image/jpeg;base64,AAAA");
 
             if (kind == CardBlock.Rule)
-                Assert.Contains("<hr>", html, StringComparison.Ordinal);
+                Assert.Contains("class=\"brk\"", html, StringComparison.Ordinal);
             else
                 Assert.True(html.Contains("MARKER-ZZQ", StringComparison.Ordinal), $"{kind} draws nothing");
         }
@@ -287,6 +287,26 @@ public class CardTypographyTests
         Assert.True(look.BodySize >= 17, $"body is {look.BodySize}px");
         Assert.Contains("Instrument Serif", look.Display, StringComparison.Ordinal);
         Assert.Contains("Newsreader", look.Body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Paper stays paper.
+    /// </summary>
+    /// <remarks>
+    /// A look built to feel like a printed page followed the reader's phone into dark mode and came
+    /// out as another dark app screen — the one thing that made it recognisable, given away to a
+    /// setting its author never touched. A look that is a material keeps its ground; a look that is
+    /// simply a page still follows the reader.
+    /// </remarks>
+    [Fact]
+    public void A_look_that_is_a_material_keeps_its_ground()
+    {
+        var look = CardLook.Of("editorial");
+        var html = Render(Card(CardBlock.Of(CardBlock.Theme, "editorial")));
+
+        Assert.True(look.Fixed, "editorial is a material and should not follow the phone");
+        Assert.Contains($"--paper:{look.Paper}", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("prefers-color-scheme", html, StringComparison.Ordinal);
     }
 
     /// <summary>

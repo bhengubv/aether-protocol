@@ -51,6 +51,10 @@ public sealed record PageTemplate(
             "Something the street needs to know. Times, changes, warnings.",
             Suggests: "notice", Look: "plain"),
 
+        new("example", "Show me a finished one",
+            "A page using everything, set properly. Edit it into your own.",
+            Suggests: "example", Look: "editorial"),
+
         new("blank", "Blank",
             "Nothing at all. Build it yourself.",
             Suggests: "page", Look: "plain"),
@@ -75,7 +79,12 @@ public sealed record PageTemplate(
         var name = MyName.Clean(owner);
         var card = new CardDocument
         {
-            Title = Key is "me" or "links" ? name : "",
+            Title = Key switch
+            {
+                "me" or "links" => name,
+                "example" => "A card on AetherNet",
+                _ => "",
+            },
             Blocks = [CardBlock.Of(CardBlock.Theme, Look), .. Shape()],
         };
 
@@ -123,6 +132,50 @@ public sealed record PageTemplate(
             CardBlock.Of(CardBlock.Text, ""),
             new CardBlock { Kind = CardBlock.List, Items = ["", ""] },
             CardBlock.Of(CardBlock.KeyValue, "Until ="),
+        ],
+
+        // The one template that arrives filled in — and the only one that may, because it says so on
+        // the button. Everything else supplies a shape and leaves every claim blank; this exists
+        // because seeing a finished page teaches what the blocks are for far faster than a blank one
+        // with good labels ever will. It is about this network rather than about a person or a
+        // business, so somebody who publishes it unedited has published something true.
+        "example" =>
+        [
+            CardBlock.Of(CardBlock.Eyebrow, "A page with no server, no URL and no owner but you"),
+
+            CardBlock.Of(CardBlock.Text,
+                "This page is a card. It lives on the phone that wrote it, it opens with no signal, " +
+                "and anybody who has been handed it can hand it on again."),
+
+            CardBlock.Of(CardBlock.Text,
+                "Every part of it below is a block you can add, move or delete. Change the words, " +
+                "pick a different look and background, and it becomes yours."),
+
+            CardBlock.Of(CardBlock.Quote, "Nobody issued your address, so nobody can withdraw it."),
+
+            CardBlock.Of(CardBlock.Heading, "What a card can hold"),
+
+            new CardBlock
+            {
+                Kind = CardBlock.Index,
+                Items =
+                [
+                    "Label = above the title",
+                    "Words = a measure, not a column",
+                    "Quote = set apart",
+                    "Index = this, numbered for you",
+                    "Detail = a fact, aligned right",
+                    "Picture = shrunk before it travels",
+                    "Tip jar = paid to you, not through us",
+                ],
+            },
+
+            new CardBlock { Kind = CardBlock.Rule },
+
+            CardBlock.Of(CardBlock.Heading, "What it costs to carry"),
+            CardBlock.Of(CardBlock.KeyValue, "This whole page = about 2 KB"),
+            CardBlock.Of(CardBlock.KeyValue, "Over Bluetooth = a second or two"),
+            CardBlock.Of(CardBlock.KeyValue, "Kept once opened = forever"),
         ],
 
         _ => [CardBlock.Of(CardBlock.Text, "")],

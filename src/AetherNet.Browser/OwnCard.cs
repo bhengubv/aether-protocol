@@ -26,11 +26,20 @@ public static class OwnCard
 
     /// <summary>How many blocks one card may hold.</summary>
     /// <remarks>
-    /// Twelve. Enough for a name, a few lines and a short list; few enough that the page a stranger
-    /// reads stays a card rather than becoming a website they have to scroll. The limit exists for the
-    /// reader, not for storage.
+    /// <para>
+    /// Forty-eight. It was twelve, on the reasoning that a card should stay a card rather than become
+    /// a website somebody has to scroll — which sounded like restraint and was actually a decision
+    /// about what this network is for. A sketchbook with nine plates, a menu, a portfolio, a body of
+    /// work: all of them are more than twelve blocks, and a limit that rules them out rules out
+    /// everybody who has something to show.
+    /// </para>
+    /// <para>
+    /// Still a limit, because a card is carried across a radio and held on somebody else's phone. But
+    /// the thing that actually costs a reader is pictures, and those have a budget of their own —
+    /// forty-eight blocks of text is a few kilobytes.
+    /// </para>
     /// </remarks>
-    public const int MostBlocks = 12;
+    public const int MostBlocks = 48;
 
     /// <summary>The longest a single line of a card may be.</summary>
     public const int LongestValue = 280;
@@ -55,8 +64,12 @@ public static class OwnCard
         CardBlock.Rule, CardBlock.Link, CardBlock.Tip,
     ];
 
-    /// <summary>The most lines one list block may hold.</summary>
-    public const int MostItems = 12;
+    /// <summary>The most lines one list or index block may hold.</summary>
+    /// <remarks>
+    /// Twenty-four. An index is a catalogue — a menu, a set of works, a price list — and a dozen is
+    /// short for all three.
+    /// </remarks>
+    public const int MostItems = 24;
 
     /// <summary>What each kind is called on the button that adds it.</summary>
     public static string Label(string kind) => kind switch
@@ -173,7 +186,7 @@ public static class OwnCard
             blocks.Insert(0, CardBlock.Of(CardBlock.Theme, CardLook.DefaultKey));
 
         card.Blocks = blocks;
-        card.Title = MyName.Clean(card.Title);
+        card.Title = Titled(card.Title);
         return card;
     }
 
@@ -250,6 +263,26 @@ public static class OwnCard
         if (index < 0 || index >= blocks.Count) return;
 
         blocks.RemoveAt(index);
+    }
+
+    /// <summary>The longest a page title may be.</summary>
+    /// <remarks>
+    /// Sixty. Titles used to go through the cleaner meant for a person's <i>name</i>, which is capped
+    /// at eighteen characters so it fits inside a Wi-Fi network name — so every page called anything
+    /// longer than that was silently cut, and "A card on AetherNet" was published as "A card on
+    /// AetherNe". A page is not a person and does not have to fit in an SSID.
+    /// </remarks>
+    public const int LongestTitle = 60;
+
+    /// <summary>
+    /// Tidy a page's title: collapse the whitespace, keep the words.
+    /// </summary>
+    private static string Titled(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+
+        var said = string.Join(' ', raw.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return said.Length > LongestTitle ? said[..LongestTitle].TrimEnd() : said;
     }
 
     /// <summary>Whether this block is one a person edits, rather than one the app manages.</summary>

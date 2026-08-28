@@ -295,8 +295,9 @@ public class CardPageTests
     [Fact]
     public void A_look_answers_for_a_light_ground_and_a_dark_one()
     {
-        var html = Render(Card(CardBlock.Of(CardBlock.Theme, "editorial")));
-        var look = CardLook.Of("editorial");
+        // A look that follows the reader. Editorial deliberately does not — see the material test.
+        var html = Render(Card(CardBlock.Of(CardBlock.Theme, "plain")));
+        var look = CardLook.Of("plain");
 
         Assert.Contains($"--paper:{look.Paper}", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"--paper:{look.PaperDark}", html, StringComparison.OrdinalIgnoreCase);

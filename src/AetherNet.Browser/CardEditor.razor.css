@@ -132,3 +132,19 @@
     }
     .go { flex: 1 1 auto; padding: 15px 22px; border: 0; border-radius: var(--radius-sm, 10px); background: var(--brand, #2196F3); color: #fff; font-size: 1rem; font-weight: 750; cursor: pointer; }
     .go:disabled { opacity: .45; cursor: default; }
+
+/* The break's catalogue of marks. Drawn at the size they are used, in the app's own ink. */
+.orns { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
+.orn-pick { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; cursor: pointer; color: var(--ink-2, #5b6b7b); }
+.orn-pick.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); color: var(--brand, #2196F3); }
+.orn-draw { display: block; line-height: 0; }
+.orn-draw svg { display: block; width: 100%; height: 22px; }
+.orn-n { font-size: 0.76rem; font-weight: 650; }
+
+/* Left or centred. */
+.alignrow { display: flex; gap: 6px; padding-top: 2px; }
+.alignrow .tiny.on { border-color: var(--brand, #2196F3); color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+
+/* One decision, stated as a sentence rather than as a label and a switch. */
+.tick { display: flex; align-items: center; gap: 9px; font-size: 0.85rem; color: var(--ink-2, #5b6b7b); padding: 2px 0; }
+.tick input { width: 19px; height: 19px; accent-color: var(--brand, #2196F3); }
