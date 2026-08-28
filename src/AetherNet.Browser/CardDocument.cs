@@ -167,6 +167,17 @@ public sealed class CardBlock
     /// <summary>Whether this picture runs to the edges at its own shape.</summary>
     public bool IsWide => string.Equals(As, "wide", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Whether this picture is the page's ground rather than something on it.
+    /// </summary>
+    /// <remarks>
+    /// A wash: an illustration bleeding off the margins, behind everything, that the reader never
+    /// scrolls past because it is the paper rather than a thing printed on it. It is what separates a
+    /// page that was made from a page that was laid out, and there was no way to express it — a
+    /// picture could only ever be a masthead or a figure in the flow.
+    /// </remarks>
+    public bool IsWash => string.Equals(As, "wash", StringComparison.OrdinalIgnoreCase);
+
     public static CardBlock Of(string kind, string value) => new() { Kind = kind, Value = value };
 
     /// <summary>

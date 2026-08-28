@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Side by side</title>
+<style>
+  html,body{margin:0;height:100%;background:#111;font:13px system-ui,sans-serif;color:#ddd}
+  .pair{display:grid;grid-template-columns:1fr 1fr;height:100%}
+  .side{display:flex;flex-direction:column;min-width:0;border-right:1px solid #333}
+  .side h2{margin:0;padding:8px 12px;font-size:12px;font-weight:600;letter-spacing:.08em;
+           text-transform:uppercase;background:#1a1a1a;border-bottom:1px solid #333}
+  .side h2 span{float:right;color:#888;font-weight:400;letter-spacing:0;text-transform:none}
+  iframe{flex:1;width:100%;border:0;background:#fff}
+</style>
+<div class="pair">
+  <div class="side">
+    <h2>The original <span>7.7 MB of images, a folder of assets</span></h2>
+    <iframe src="http://localhost:8731/meng-to-sketchbook.html"></iframe>
+  </div>
+  <div class="side">
+    <h2>The card <span>1.6 MB, one file &middot; document 3.3 KB</span></h2>
+    <iframe src="sketchbook-card.html"></iframe>
+  </div>
+</div>

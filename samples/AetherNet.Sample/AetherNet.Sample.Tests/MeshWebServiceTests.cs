@@ -165,56 +165,24 @@ public class MeshWebServiceTests
         }
     }
 
-    [Fact]
-    public async Task A_home_page_leads_with_a_picture()
-    {
-        var service = AService();
-        await service.EnsureReadyAsync();
-
-        var page = await service.OpenAsync(service.HomeAddress);
-
-        Assert.Contains(page.Card!.Blocks, b => b.Kind == CardBlock.Image);
-    }
-
     /// <summary>
-    /// The artwork is published as content in its own right, and the card names it by hash — but the
-    /// hash only exists once it has been published, so the persona is declared with a placeholder that
-    /// is filled in at publish time. If that substitution ever stops happening the card still renders,
-    /// silently, without its picture. This is the test that notices.
+    /// A page carries only what its author put on it.
     /// </summary>
+    /// <remarks>
+    /// Publishing used to draw a masthead and insert it as a picture nobody chose, so that every page
+    /// had a face. It made pages look the same and look cheap, and it broke the rule that matters
+    /// more than any of this: what a reader sees is what the author wrote. Nothing is added on the
+    /// way out, and this is the test that notices if that starts again.
+    /// </remarks>
     [Fact]
-    public async Task The_picture_a_card_names_can_actually_be_fetched()
+    public async Task Publishing_adds_no_picture_the_author_did_not_choose()
     {
         var service = AService();
         await service.EnsureReadyAsync();
+
         var page = await service.OpenAsync(service.HomeAddress);
-        var image = page.Card!.Blocks.First(b => b.Kind == CardBlock.Image);
 
-        Assert.True(CardBlock.IsUsableAssetHash(image.ContentHash), $"'{image.ContentHash}' is not a hash");
-
-        var uri = await service.AssetAsync(image.ContentHash);
-
-        Assert.StartsWith("data:image/svg+xml;base64,", uri);
-    }
-
-    /// <summary>
-    /// A card and its artwork are separate content, so nothing forces them to agree. They are drawn
-    /// together, though — a green picture under a terracotta heading is a bug the reader sees.
-    /// </summary>
-    [Fact]
-    public async Task The_picture_is_painted_in_the_cards_own_colour()
-    {
-        var service = AService();
-        await service.EnsureReadyAsync();
-        var page = await service.OpenAsync(service.HomeAddress);
-        var accent = page.Card!.Blocks
-            .Single(b => b.Kind == CardBlock.Theme && CardBlock.IsUsableAccent(b.Value)).Value!;
-        var image = page.Card.Blocks.First(b => b.Kind == CardBlock.Image);
-
-        var svg = Encoding.UTF8.GetString(
-            Convert.FromBase64String((await service.AssetAsync(image.ContentHash))!.Split(',')[1]));
-
-        Assert.Contains(accent, svg, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(page.Card!.Blocks, b => b.Kind == CardBlock.Image);
     }
 
     /// <summary>

@@ -129,7 +129,7 @@ public class SketchbookStandardTests
         var title = html.IndexOf("<h1", StringComparison.Ordinal);
 
         Assert.True(brow > 0 && brow < title, "the role line is not above the name");
-        Assert.Contains("class=\"eyebrow\"", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"eyebrow mid\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>Journal / About / Contact, as a row rather than a stack of buttons.</summary>

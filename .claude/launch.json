@@ -2,10 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "aether-web",
-      "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "samples/AetherNet.Sample/AetherNet.Sample.Web/AetherNet.Sample.Web.csproj", "--urls", "http://localhost:5290"],
-      "port": 5290
+      "name": "fixtures",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8799", "--directory",
+                      "samples/AetherNet.Sample/.fixtures"],
+      "port": 8799
     }
   ]
 }

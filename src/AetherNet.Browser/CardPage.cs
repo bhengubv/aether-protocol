@@ -117,9 +117,30 @@ public static class CardPage
         page.Append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
         page.Append("<title>").Append(name.Length > 0 ? name : "A page on AetherNet").Append("</title>");
         page.Append("<style>").Append(Faces(look, fonts, fontBase)).Append(Style(accent, look)).Append("</style>");
-        page.Append("</head><body><main class=\"card\">");
+        page.Append("</head><body>");
 
-        Plate(page, card, name, accent ?? look.Accent, assetPath, still);
+        // The ground, if this page has one.
+        //
+        // There is no masthead. A band of generated colour above somebody's words announces that the
+        // page had nothing of its own to open with, and it made every page look the same and look
+        // cheap. What a page can have instead is a ground: a picture its author chose, bleeding off
+        // the margins behind everything, or — for a page with no imagery at all — the same surface
+        // the catalogue used to paint into the band, drawn faintly under the whole page.
+        if (Wash(card) is { } wash && assetPath?.Invoke(wash.ContentHash!) is { Length: > 0 } ground)
+        {
+            page.Append("<div class=\"wash\" style=\"background-image:url(")
+                .Append(Attr(ground)).Append(")\"></div>");
+        }
+        else if (card?.Blocks?.Any(b => b.Kind == CardBlock.Theme && CardShader.IsShader(b.Value)) == true)
+        {
+            page.Append("<canvas class=\"wash gl\" data-aether-shader data-accent=\"")
+                .Append(Attr(accent ?? look.Accent))
+                .Append("\" data-seed=\"").Append(Seed(name))
+                .Append(still ? "\" data-still" : "\"")
+                .Append("></canvas>");
+        }
+
+        page.Append("<main class=\"card\">");
 
         // The eyebrow explains how the page got here, which is only true when it is being handed
         // over. On AetherNet the reader browsed to it, and telling them it was shared with them is a
@@ -130,16 +151,22 @@ public static class CardPage
         // An eyebrow belongs above the title, wherever its author put it — it qualifies the title
         // rather than sitting in the flow, and a page that printed it halfway down would be a page
         // whose author had to know that.
-        if (card?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Eyebrow) is { } brow
-            && Text(brow.Value) is { Length: > 0 } said)
-            page.Append("<p class=\"eyebrow\">").Append(said).Append("</p>");
+        var brow = card?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Eyebrow);
+
+        // The label and the title are one unit. Centring the label and leaving the name hard left
+        // reads as a mistake, so the title takes the label's alignment — one decision, not two.
+        var mid = brow?.IsCentred == true ? " class=\"mid\"" : "";
+
+        if (brow is not null && Text(brow.Value) is { Length: > 0 } said)
+            page.Append("<p class=\"eyebrow").Append(brow.IsCentred ? " mid" : "").Append("\">")
+                .Append(said).Append("</p>");
 
         // No heading at all rather than an invented one. A page whose author has not named it yet is
         // shorter; it is not a page belonging to somebody called nothing.
         if (name.Length > 0)
-            page.Append("<h1>").Append(name).Append("</h1>");
+            page.Append("<h1").Append(mid).Append(">").Append(name).Append("</h1>");
 
-        Blocks(page, card, assetPath, Hero(card), offering);
+        Blocks(page, card, assetPath, offering);
 
         if (offering)
         {
@@ -175,84 +202,18 @@ public static class CardPage
         return page.ToString();
     }
 
-    /// <summary>
-    /// The picture a card leads with, if it names one we can actually show.
-    /// </summary>
-    /// <remarks>
-    /// A picture the author asked to show whole is never it. The masthead is a band, cropped to a
-    /// shape the page chose; somebody who has said "show it whole" has said this is the subject
-    /// rather than the backdrop, and quietly cropping it into a header would be the renderer
-    /// overruling the one instruction they gave it.
-    /// </remarks>
-    private static CardBlock? Hero(CardDocument? card) =>
+    /// <summary>The picture a card uses as its ground, if it names one.</summary>
+    private static CardBlock? Wash(CardDocument? card) =>
         card?.Blocks?.FirstOrDefault(b =>
-            b.Kind == CardBlock.Image && !b.IsWide && CardBlock.IsUsableAssetHash(b.ContentHash));
+            b.Kind == CardBlock.Image && b.IsWash && CardBlock.IsUsableAssetHash(b.ContentHash));
 
     /// <summary>
-    /// The masthead: a lit surface in the page's own colour, painted by the shader.
+    /// How this page's ground folds, as a number.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// This is what somebody judges before they have read a word, which is why the aesthetic is not
-    /// decoration here — a page that looks made is most of the argument for joining a network nobody
-    /// has heard of. It is ThreeUI's language: one hue lit toward white, drawn in raw WebGL, because
-    /// the character lives in the shader rather than in any library — and no library could travel to a
-    /// reader with no internet anyway.
-    /// </para>
-    /// <para>
-    /// Three layers, each standing in for the one above. The card's own content-addressed picture sits
-    /// underneath, so a phone with no GPU still shows a masthead rather than a gap; the canvas covers
-    /// it when the shader runs; and behind both is the flat accent, which is what a page with neither
-    /// comes out as. The colour is an already-validated hex value and the seed is computed in the
-    /// script, so nothing an author typed is ever handed to it.
-    /// </para>
-    /// </remarks>
-    private static void Plate(
-        StringBuilder page, CardDocument? card, string name, string accent,
-        Func<string, string?>? assetPath, bool still)
-    {
-        var art = Hero(card) is { } hero ? assetPath?.Invoke(hero.ContentHash!) : null;
-
-        // Somebody's photograph is the subject. Painting a shader across it is not a design choice,
-        // and the difference is already in the content type — vector art is a backdrop this app drew,
-        // a photograph is a thing that happened to a person.
-        var photograph = PagePhoto.IsPhotograph(art);
-
-        // The class rather than :has(). This page is read on whatever browser the reader happens to
-        // have, and a selector their engine does not know does not degrade — it simply never matches,
-        // and the scrim that makes the mark legible over a photograph silently is not there.
-        page.Append("<div class=\"plate").Append(photograph ? " shot" : "").Append("\">");
-
-        if (art is { Length: > 0 })
-            page.Append("<img class=\"plate-art\" src=\"")
-                .Append(Attr(art))
-                .Append("\" alt=\"\">");
-
-        if (photograph)
-        {
-            page.Append("<span class=\"mark quiet\">").Append(Mark(name)).Append("</span>");
-            page.Append("</div>");
-            return;
-        }
-
-        page.Append("<canvas class=\"plate-gl\" data-aether-shader data-accent=\"")
-            .Append(Attr(accent))
-            .Append("\" data-seed=\"")
-            .Append(Seed(name))
-            .Append(still ? "\" data-still" : "\"")
-            .Append("></canvas>");
-
-        page.Append("<span class=\"mark\">").Append(Mark(name)).Append("</span>");
-        page.Append("</div>");
-    }
-
-    /// <summary>
-    /// How this page folds, as a number.
-    /// </summary>
-    /// <remarks>
-    /// Computed here so nothing an author typed is ever handed to the shader — the script reads a
-    /// colour and an integer, and neither can be anything but a colour and an integer. Stable, so a
-    /// page wears the same masthead every time anybody opens it.
+    /// Computed here so nothing an author typed is ever handed to the shader — it reads a colour and
+    /// an integer, and neither can be anything but a colour and an integer. Stable, so a page keeps
+    /// the same ground every time anybody opens it.
     /// </remarks>
     private static int Seed(string name)
     {
@@ -267,15 +228,12 @@ public static class CardPage
         return (int)(hash % 100000);
     }
 
-    /// <summary>The single character the masthead is built around.</summary>
-    private static string Mark(string name)
-    {
-        foreach (var c in name)
-            if (char.IsLetterOrDigit(c))
-                return Text(char.ToUpperInvariant(c).ToString()) ?? "";
-
-        return "A";
-    }
+    /// <summary>Whether this card brings any picture of its own that a reader will see.</summary>
+    private static bool Pictured(CardDocument? card, Func<string, string?>? assetPath) =>
+        card?.Blocks?.Any(b =>
+            b.Kind == CardBlock.Image
+            && CardBlock.IsUsableAssetHash(b.ContentHash)
+            && assetPath?.Invoke(b.ContentHash!) is { Length: > 0 }) == true;
 
     /// <summary>
     /// Draw each block, skipping any kind this renderer does not know.
@@ -291,8 +249,7 @@ public static class CardPage
     ///   invitation. A reader who is already on the mesh gets a link that works.
     /// </param>
     private static void Blocks(
-        StringBuilder page, CardDocument? card, Func<string, string?>? assetPath, CardBlock? hero,
-        bool offering)
+        StringBuilder page, CardDocument? card, Func<string, string?>? assetPath, bool offering)
     {
         if (card?.Blocks is not { Count: > 0 } blocks) return;
 
@@ -304,7 +261,7 @@ public static class CardPage
             // of its own: somebody adding three pictures in a row means a gallery, and asking them to
             // say so as well is asking them to know how a renderer is built.
             if (Run(blocks, at, CardBlock.Image) is > 1 and var pictures
-                && Drawable(blocks, at, pictures, assetPath, hero) is { Count: > 1 } shown)
+                && Drawable(blocks, at, pictures, assetPath) is { Count: > 1 } shown)
             {
                 Gallery(page, shown, assetPath);
                 at += pictures - 1;
@@ -415,7 +372,7 @@ public static class CardPage
                         .Append("</a>");
                     break;
 
-                case CardBlock.Image when !ReferenceEquals(block, hero)
+                case CardBlock.Image when !block.IsWash
                                           && assetPath?.Invoke(block.ContentHash ?? "") is { Length: > 0 } src
                                           && CardBlock.IsUsableAssetHash(block.ContentHash):
                     page.Append(block.IsWide ? "<figure class=\"wide\">" : "<figure>")
@@ -441,15 +398,14 @@ public static class CardPage
 
     /// <summary>The pictures in a run that can actually be shown, in order.</summary>
     private static List<CardBlock> Drawable(
-        IReadOnlyList<CardBlock> blocks, int at, int count,
-        Func<string, string?>? assetPath, CardBlock? hero)
+        IReadOnlyList<CardBlock> blocks, int at, int count, Func<string, string?>? assetPath)
     {
         var shown = new List<CardBlock>(count);
 
         for (var i = at; i < at + count; i++)
         {
             var block = blocks[i];
-            if (ReferenceEquals(block, hero)) continue;
+            if (block.IsWash) continue;
             if (!CardBlock.IsUsableAssetHash(block.ContentHash)) continue;
             if (assetPath?.Invoke(block.ContentHash!) is not { Length: > 0 }) continue;
 
@@ -495,7 +451,7 @@ public static class CardPage
     /// </remarks>
     private static void Row(StringBuilder page, IReadOnlyList<CardBlock> blocks, int at, int count)
     {
-        page.Append("<nav class=\"row\">");
+        page.Append(blocks[at].IsCentred ? "<nav class=\"row mid\">" : "<nav class=\"row\">");
 
         for (var i = at; i < at + count; i++)
         {
@@ -629,27 +585,23 @@ public static class CardPage
             // a widget does not compete with a website. The ground runs edge to edge, the masthead is
             // full-bleed, and the words sit in a measure inside it.
             "html{background:var(--paper);-webkit-text-size-adjust:100%}" +
+
+            // The wash. Behind everything, fixed, and clipped to the page rather than tiled — it is a
+            // painted margin, not a wallpaper.
+            ".wash{position:fixed;inset:0;z-index:-1;pointer-events:none;border:0;" +
+            "background-repeat:no-repeat;background-position:center top;background-size:cover}" +
+
+            // A painted surface under a whole page has to be far quieter than one inside a band —
+            // it is the paper, and paper does not compete with what is printed on it.
+            ".wash.gl{opacity:.14}" +
             "body{margin:0;background:var(--paper);color:var(--ink);" +
             "font-family:var(--body);font-weight:var(--weight);font-size:var(--size);" +
             "line-height:var(--leading);-webkit-font-smoothing:antialiased;" +
             "text-rendering:optimizeLegibility}" +
 
             ".card{display:flex;flex-direction:column;align-items:stretch;" +
-            "gap:0;padding:0 22px 84px;max-width:var(--measure);margin:0 auto;" +
+            "gap:0;padding:56px 22px 84px;max-width:var(--measure);margin:0 auto;" +
             "overflow-x:hidden}" +
-
-            // Out past the measure to the edges of the window: a full-bleed element inside a centred
-            // column. The negative margin is the gutter and the width puts it back.
-            ".plate{position:relative;width:100vw;max-width:100vw;margin:0 calc(50% - 50vw) 30px;" +
-            "aspect-ratio:600/250;max-height:48vh;overflow:hidden;background:var(--accent)}" +
-            ".plate-art,.plate-gl{position:absolute;inset:0;width:100%;height:100%;display:block;border:0}" +
-            ".plate-art{object-fit:cover}" +
-            ".mark{position:absolute;left:22px;bottom:2px;font-family:var(--display);" +
-            "font-size:clamp(62px,13vw,108px);line-height:1;font-weight:400;letter-spacing:-.02em;" +
-            "color:#fff;opacity:.95}" +
-            ".mark.quiet{font-size:clamp(38px,8vw,58px);text-shadow:0 1px 14px rgba(0,0,0,.55);z-index:1}" +
-            ".plate.shot::after{content:'';position:absolute;inset:auto 0 0 0;height:52%;" +
-            "background:linear-gradient(to top,rgba(0,0,0,.52),transparent);pointer-events:none}" +
 
             // Spacing is vertical rhythm, not a uniform gap. What a thing is decides how much air it
             // gets above it, which is most of what makes a page feel set rather than stacked.
@@ -705,6 +657,7 @@ public static class CardPage
             // A picture with something written under it is a figure. The caption is small, quiet and
             // close to the image — far enough to be a caption, near enough to belong to it.
             ".mid{text-align:center;margin-left:auto;margin-right:auto}" +
+            "nav.row.mid{justify-content:center}" +
             "h1.mid,.say.mid{max-width:none}" +
 
             // A run of pictures. Two abreast on a handset is the most that leaves either of them
@@ -731,6 +684,7 @@ public static class CardPage
             // A picture that is the subject rather than the backdrop: out to the edges, at its own
             // shape, uncropped.
             "figure.wide{width:100vw;max-width:100vw;margin:22px calc(50% - 50vw) 26px}" +
+            ".card > figure.wide:first-child{margin-top:-56px}" +
             "figure.wide img{border-radius:0}" +
             "figure.wide figcaption{padding:0 22px}" +
 

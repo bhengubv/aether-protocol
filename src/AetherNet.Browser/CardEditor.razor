@@ -230,11 +230,14 @@
                                                placeholder="@OwnCard.Placeholder(block.Kind)"
                                                value="@block.Value" @oninput="e => OnValue(index, e)" />
 
-                                        <label class="tick">
-                                            <input type="checkbox" checked="@block.IsWide"
-                                                   @onchange="e => OnWide(index, e)" />
-                                            <span>Show it whole, edge to edge</span>
-                                        </label>
+                                        <div class="asrow">
+                                            <button class="tiny @(block.As is null ? "on" : null)"
+                                                    @onclick="() => OnAs(index, null)">In the page</button>
+                                            <button class="tiny @(block.IsWide ? "on" : null)"
+                                                    @onclick="() => OnAs(index, Wide)">Whole, edge to edge</button>
+                                            <button class="tiny @(block.IsWash ? "on" : null)"
+                                                    @onclick="() => OnAs(index, Wash)">Behind everything</button>
+                                        </div>
 
                                         @if (_picNote is { Length: > 0 } && _picking == index)
                                         {
@@ -735,11 +738,24 @@
         Save();
     }
 
-    /// <summary>Whether this picture runs to the edges at its own shape rather than as a figure.</summary>
-    private void OnWide(int index, ChangeEventArgs e)
+    /// <summary>A picture shown whole rather than cropped into the masthead.</summary>
+    private const string Wide = "wide";
+
+    /// <summary>A picture used as the page's ground rather than placed on it.</summary>
+    private const string Wash = "wash";
+
+    /// <summary>
+    /// How a picture sits: in the flow, whole across the page, or behind everything.
+    /// </summary>
+    /// <remarks>
+    /// Three named places rather than a set of switches. Somebody choosing between three finished
+    /// answers gets one of three good pages; the same person given size, position and repeat gets a
+    /// hundred bad ones.
+    /// </remarks>
+    private void OnAs(int index, string? how)
     {
         if (index < 0 || index >= _doc.Blocks.Count) return;
-        _doc.Blocks[index].As = e.Value is true ? "wide" : null;
+        _doc.Blocks[index].As = how;
         Save();
     }
 

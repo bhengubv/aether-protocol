@@ -85,7 +85,12 @@ public sealed record CardOrnament(string Key, string Name, string Draw)
         key is not null && All.Any(o => o.Key == key.Trim().ToLowerInvariant());
 
     /// <summary>The mark, as a complete SVG element ready to place in a page.</summary>
+    /// <remarks>
+    /// No <c>xmlns</c>. Inline SVG inside HTML does not need one — and leaving it out means the
+    /// assertion that an exported page contains no <c>http</c> anywhere is exactly true rather than
+    /// true-apart-from-a-namespace, which is the kind of exception that later hides a real one.
+    /// </remarks>
     public string Svg() =>
         "<svg class=\"orn\" viewBox=\"0 0 240 24\" preserveAspectRatio=\"none\" " +
-        "xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\">" + Draw + "</svg>";
+        "aria-hidden=\"true\">" + Draw + "</svg>";
 }

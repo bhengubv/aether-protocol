@@ -435,27 +435,11 @@ public sealed class MeshWebService
         var themed = document.Blocks.FindIndex(b => b.Kind == CardBlock.Theme);
         document.Blocks.Insert(themed + 1, CardBlock.Of(CardBlock.Theme, look.Accent));
 
-        // A drawing only where there is no photograph. The generated masthead exists so that a page
-        // nobody has put a picture on still has a face; a page whose author chose one does not need
-        // ours, and two mastheads is a page arguing with itself.
-        if (!document.Blocks.Any(b => b.Kind == CardBlock.Image && CardBlock.IsUsableAssetHash(b.ContentHash)))
-        {
-            var art = await _content
-                .PublishAsync(
-                    page.Name + "-art",
-                    Encoding.UTF8.GetBytes(PageArt.Svg(document.Title, $"{_localTag}/{page.Name}", look.Accent)),
-                    "image/svg+xml",
-                    cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-
-            _carried[art.RootHash] = art;
-            document.Blocks.Insert(0, new CardBlock
-            {
-                Kind = CardBlock.Image,
-                ContentHash = art.RootHash,
-                Value = document.Title,
-            });
-        }
+        // Nothing is added to somebody's card on the way out.
+        //
+        // This used to draw a masthead and insert it as a picture the author never chose, so that
+        // every page had a face. Identical means identical: what a reader sees is what the author
+        // wrote, and a renderer that quietly adds an image is one that quietly adds anything.
 
         // Whatever pictures the page does name, this device must be ready to be asked for.
         foreach (var named in document.Blocks

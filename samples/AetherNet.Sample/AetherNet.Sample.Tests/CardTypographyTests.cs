@@ -123,23 +123,25 @@ public class CardTypographyTests
     // ── Figures, quotes and breaks ────────────────────────────────────────────
 
     /// <summary>
-    /// The first picture is the masthead. It is not a figure, and it carries no caption.
+    /// There is no masthead. Every picture is a picture.
     /// </summary>
     /// <remarks>
-    /// A page leads with its picture — that is what makes it read as a place rather than a document.
-    /// So the first one is bled to the edges behind the title, and only the ones after it sit in the
-    /// text as figures.
+    /// A band of generated colour above somebody's words announced that the page had nothing of its
+    /// own to open with. It made every page look the same and it made them look cheap — so the first
+    /// picture is not special, it is the first picture.
     /// </remarks>
     [Fact]
-    public void The_first_picture_is_the_masthead()
+    public void A_page_opens_on_its_own_words_rather_than_a_band()
     {
         var html = CardPage.Render(
             Card(new CardBlock { Kind = CardBlock.Image, ContentHash = "abc123", Value = "The shop, 1994" }),
             "Kagiso Plumbing", 0, downloadPath: null,
             assetPath: _ => "data:image/jpeg;base64,AAAA");
 
-        Assert.Contains("plate-art", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("<figure>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("plate-art", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("plate-gl", html, StringComparison.Ordinal);
+        Assert.Contains("<figure>", html, StringComparison.Ordinal);
+        Assert.Contains("<figcaption>The shop, 1994</figcaption>", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -153,9 +155,7 @@ public class CardTypographyTests
     public void A_picture_in_the_body_is_a_figure_with_its_caption()
     {
         var html = CardPage.Render(
-            Card(
-                new CardBlock { Kind = CardBlock.Image, ContentHash = "hero111", Value = "" },
-                new CardBlock { Kind = CardBlock.Image, ContentHash = "abc123", Value = "The shop, 1994" }),
+            Card(new CardBlock { Kind = CardBlock.Image, ContentHash = "abc123", Value = "The shop, 1994" }),
             "Kagiso Plumbing", 0, downloadPath: null,
             assetPath: _ => "data:image/jpeg;base64,AAAA");
 
@@ -168,9 +168,7 @@ public class CardTypographyTests
     public void A_picture_with_nothing_written_under_it_gets_no_caption()
     {
         var html = CardPage.Render(
-            Card(
-                new CardBlock { Kind = CardBlock.Image, ContentHash = "hero111", Value = "" },
-                new CardBlock { Kind = CardBlock.Image, ContentHash = "abc123", Value = "" }),
+            Card(new CardBlock { Kind = CardBlock.Image, ContentHash = "abc123", Value = "" }),
             "Kagiso Plumbing", 0, downloadPath: null,
             assetPath: _ => "data:image/jpeg;base64,AAAA");
 
@@ -229,12 +227,8 @@ public class CardTypographyTests
                 _ => CardBlock.Of(kind, "MARKER-ZZQ"),
             };
 
-            var blocks = kind == CardBlock.Image
-                ? new[] { new CardBlock { Kind = kind, ContentHash = "hero111" }, block }
-                : [block];
-
             var html = CardPage.Render(
-                Card(blocks), "Kagiso Plumbing", 0, downloadPath: null,
+                Card(block), "Kagiso Plumbing", 0, downloadPath: null,
                 assetPath: _ => "data:image/jpeg;base64,AAAA");
 
             if (kind == CardBlock.Rule)

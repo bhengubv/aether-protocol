@@ -345,9 +345,16 @@ public class CardPageTests
     {
         var html = Render(Card(CardBlock.Of(CardBlock.Theme, sneaky)));
 
+        // What must be absent is the payload, not the CSS keywords in it. Forbidding "position:fixed"
+        // anywhere on the page also forbade the renderer's own use of it — so the test broke the day
+        // a legitimate rule needed one, which is a test asserting the wrong thing rather than a page
+        // doing something wrong.
         Assert.Null(CardPage.AccentOf(Card(CardBlock.Of(CardBlock.Theme, sneaky))));
-        Assert.DoesNotContain("position:fixed", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("url(", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(sneaky, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("--accent:" + sneaky, html, StringComparison.Ordinal);
+
+        // And the accent is whatever the look says, never what the card tried to say.
+        Assert.Contains($"--accent:{CardLook.FromCard(Card()).Accent}", html, StringComparison.OrdinalIgnoreCase);
     }
 
     // ── The blocks ───────────────────────────────────────────────────────────

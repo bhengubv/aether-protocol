@@ -168,9 +168,9 @@ public class WebCardExchangeTests
     // ── The picture crosses too ───────────────────────────────────────────────
 
     /// <summary>
-    /// A card carries its own descriptor, so it arrives whole. Its picture does not — the artwork is
+    /// A card carries its own descriptor, so it arrives whole. Its picture does not — a picture is
     /// separate content, named by hash, and a phone cannot verify an arriving chunk without the
-    /// descriptor for it. So the author announces the artwork when the link comes up, and this is
+    /// descriptor for it. So the author announces its pictures when the link comes up, and this is
     /// what proves the announcement actually reaches the other side: without it the card renders as
     /// text with a caption where the picture should be, and nothing anywhere reports a failure.
     /// </summary>
@@ -178,33 +178,84 @@ public class WebCardExchangeTests
     public async Task A_card_from_another_phone_arrives_with_its_picture()
     {
         var (a, b) = await TwoLinkedPhonesAsync();
-        var page = await a.Web.OpenAsync(b.Web.HomeAddress);
-        var image = page.Card!.Blocks.First(x => x.Kind == CardBlock.Image);
+        await PublishWithPictureAsync(b);
+
+        var page = await a.Web.OpenAsync(b.Web.Address("shop"));
+        var image = Assert.Single(page.Card!.Blocks, x => x.Kind == CardBlock.Image);
 
         string? uri = null;
         await EventuallyAsync(() => (uri = a.Web.AssetAsync(image.ContentHash).GetAwaiter().GetResult()) is not null);
 
         Assert.NotNull(uri);
-        Assert.StartsWith("data:image/svg+xml;base64,", uri);
+        Assert.StartsWith("data:image/jpeg;base64,", uri);
     }
 
     /// <summary>
-    /// And it is <b>their</b> picture. Both phones publish artwork of the same shape, so a bug that
-    /// resolved the hash locally instead of over the radio would still return a plausible image.
+    /// And it is <b>their</b> picture.
     /// </summary>
+    /// <remarks>
+    /// Both phones hold pictures of the same kind and shape, so a bug that resolved the hash against
+    /// this phone's own store instead of pulling it over the radio would still hand back a perfectly
+    /// plausible image. The author's tag is written into the bytes, so a lookalike fails.
+    /// </remarks>
     [Fact]
     public async Task The_picture_that_arrives_is_the_authors_own()
     {
         var (a, b) = await TwoLinkedPhonesAsync();
-        var page = await a.Web.OpenAsync(b.Web.HomeAddress);
-        var image = page.Card!.Blocks.First(x => x.Kind == CardBlock.Image);
+
+        // Both sides hold one, so "found a picture" is not the same as "found theirs".
+        await PublishWithPictureAsync(a);
+        await PublishWithPictureAsync(b);
+
+        var page = await a.Web.OpenAsync(b.Web.Address("shop"));
+        var image = Assert.Single(page.Card!.Blocks, x => x.Kind == CardBlock.Image);
 
         string? uri = null;
         await EventuallyAsync(() => (uri = a.Web.AssetAsync(image.ContentHash).GetAwaiter().GetResult()) is not null);
-        var svg = Encoding.UTF8.GetString(Convert.FromBase64String(uri!.Split(',')[1]));
 
-        Assert.Contains(b.Tag, svg, StringComparison.Ordinal);
-        Assert.DoesNotContain(a.Tag, svg, StringComparison.Ordinal);
+        var bytes = Convert.FromBase64String(uri!.Split(',')[1]);
+        var inside = Encoding.UTF8.GetString(bytes);
+
+        Assert.Contains(b.Tag, inside, StringComparison.Ordinal);
+        Assert.DoesNotContain(a.Tag, inside, StringComparison.Ordinal);
+    }
+
+    /// <summary>Give this phone a page with a picture only it could have made.</summary>
+    private static async Task PublishWithPictureAsync(Device phone)
+    {
+        var hash = await phone.Web.KeepPictureAsync(Marked(phone.Tag), "image/jpeg");
+
+        phone.Web.Mine.Save(new WebCard
+        {
+            Name = "shop",
+            Doc = new CardDocument
+            {
+                Title = "The shop",
+                Blocks = [new CardBlock { Kind = CardBlock.Image, ContentHash = hash, Value = "The van" }],
+            },
+        });
+
+        await phone.Web.PublishAsync("shop");
+    }
+
+    /// <summary>A JPEG with the author's tag written inside it.</summary>
+    /// <remarks>
+    /// Real enough to pass the checks a picture goes through, and distinctive enough that a picture
+    /// fetched from the wrong phone is obviously the wrong picture.
+    /// </remarks>
+    private static byte[] Marked(string tag)
+    {
+        var mark = Encoding.UTF8.GetBytes(tag);
+        var picture = new byte[2048];
+
+        picture[0] = 0xFF;
+        picture[1] = 0xD8;
+        picture[2] = 0xFF;
+        mark.CopyTo(picture, 8);
+
+        for (var i = 8 + mark.Length; i < picture.Length; i++) picture[i] = (byte)(i * 31 % 251);
+
+        return picture;
     }
 
     // ── Held, then served offline ─────────────────────────────────────────────

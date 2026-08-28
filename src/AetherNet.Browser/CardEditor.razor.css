@@ -148,3 +148,8 @@
 /* One decision, stated as a sentence rather than as a label and a switch. */
 .tick { display: flex; align-items: center; gap: 9px; font-size: 0.85rem; color: var(--ink-2, #5b6b7b); padding: 2px 0; }
 .tick input { width: 19px; height: 19px; accent-color: var(--brand, #2196F3); }
+
+/* Where a picture sits. Three finished answers, not a panel of controls. */
+.asrow { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+.asrow .tiny { padding: 0 12px; height: 34px; }
+.asrow .tiny.on { border-color: var(--brand, #2196F3); color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }

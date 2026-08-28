@@ -601,11 +601,8 @@ public class WebCardAuthoringTests
         await service.EnsureReadyAsync();
 
         var photograph = await service.KeepPictureAsync(AJpeg(), "image/jpeg");
-        var page = await service.OpenAsync(service.HomeAddress);
-        var drawing = page.Card!.Blocks.First(b => b.Kind == CardBlock.Image).ContentHash;
 
         Assert.StartsWith("data:image/jpeg;", await service.AssetAsync(photograph));
-        Assert.StartsWith("data:image/svg+xml;", await service.AssetAsync(drawing));
     }
 
     [Fact]
@@ -623,6 +620,7 @@ public class WebCardAuthoringTests
     /// A page whose author chose a picture does not also get ours. Two mastheads is a page arguing
     /// with itself, and the generated one exists only so that a page with no picture still has a face.
     /// </summary>
+    /// <summary>Nothing is added beside it, either.</summary>
     [Fact]
     public async Task A_page_with_a_photograph_is_not_given_a_drawing_as_well()
     {
@@ -831,18 +829,36 @@ public class WebCardAuthoringTests
         Assert.Contains(page.Card.Blocks, b => b.Kind == CardBlock.Theme && b.Value == "editorial");
     }
 
+    /// <summary>
+    /// A picture the author chose travels, and is fetched back by hash.
+    /// </summary>
+    /// <remarks>
+    /// This used to assert that publishing <i>gave</i> every page a drawing. It does not any more —
+    /// nothing is added to somebody's card — so what it checks now is the property that was always
+    /// the point: a picture named by content hash comes back as itself.
+    /// </remarks>
     [Fact]
-    public async Task A_published_page_leads_with_a_picture_nobody_had_to_supply()
+    public async Task A_picture_the_author_chose_is_fetched_back_by_hash()
     {
         var (service, mine) = ADevice();
         await service.EnsureReadyAsync();
-        mine.Save(new WebCard { Name = "shop", Doc = new CardDocument { Title = "The shop" } });
+
+        var hash = await service.KeepPictureAsync(AJpeg(), "image/jpeg");
+        mine.Save(new WebCard
+        {
+            Name = "shop",
+            Doc = new CardDocument
+            {
+                Title = "The shop",
+                Blocks = [new CardBlock { Kind = CardBlock.Image, ContentHash = hash, Value = "The van" }],
+            },
+        });
 
         var page = await service.OpenAsync((await service.PublishAsync("shop"))!);
         var picture = Assert.Single(page.Card!.Blocks, b => b.Kind == CardBlock.Image);
 
-        Assert.True(CardBlock.IsUsableAssetHash(picture.ContentHash));
-        Assert.StartsWith("data:image/svg+xml;base64,", await service.AssetAsync(picture.ContentHash));
+        Assert.Equal(hash, picture.ContentHash);
+        Assert.StartsWith("data:image/jpeg;base64,", await service.AssetAsync(picture.ContentHash));
     }
 
     /// <summary>
