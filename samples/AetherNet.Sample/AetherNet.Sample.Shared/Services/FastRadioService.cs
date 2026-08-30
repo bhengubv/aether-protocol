@@ -257,6 +257,32 @@ public sealed class FastRadioService : IDisposable
     private DateTimeOffset _wantedUntil = DateTimeOffset.MinValue;
 
     /// <summary>
+    /// How many refused joins before a phone that was told to join hosts instead.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The tags decide who hosts, and they decide it without asking whether the radio can. A phone
+    /// whose driver refuses to create a group at every channel on the ladder returned null, said "could
+    /// not create the group", and tried again the same way for as long as the app ran — while the other
+    /// phone sat in the join branch, perfectly able to host, and was never asked. Neither of the two
+    /// phones here has ever done that, which is exactly why it went unnoticed.
+    /// </para>
+    /// <para>
+    /// So the tag ordering is a first answer rather than a final one. The phone it chose gets its whole
+    /// attempt, and only when that has actually failed does the other take over. Nothing is negotiated
+    /// and nothing new is on the wire: a radio that can host succeeds on the first pass, so the joiner
+    /// never reaches this count and the stand-in never happens.
+    /// </para>
+    /// </remarks>
+    private const int StandInAfter = 3;
+
+    /// <summary>Refused joins in a row, as the phone the tags told to join.</summary>
+    private int _joinsRefused;
+
+    /// <summary>Set when this phone was told to host and the radio would not, at any channel.</summary>
+    private bool _cannotHost;
+
+    /// <summary>
     /// Host the Circle's group, or join it. Safe to call as often as you like — it does nothing when
     /// the phone is already where it should be.
     /// </summary>
@@ -326,22 +352,49 @@ public sealed class FastRadioService : IDisposable
             // on Wi-Fi Direct, and Wi-Fi Direct waits on none of them.
             if (Meeting.With(_me.AetherTag, peer.Tag) is { } meeting) _mesh?.Link(meeting);
 
-            if (iHost)
+            // Who the tags chose, and whether the radio agreed. A phone told to host that could not
+            // joins instead; a phone told to join that cannot get in hosts instead. See StandInAfter.
+            var standingIn = !iHost && _joinsRefused >= StandInAfter;
+            var hosting = (iHost && !_cannotHost) || standingIn;
+
+            if (hosting)
             {
-                T(firstTime
-                    ? $"hosting {credentials!.NetworkName} — where {peer.Tag} will look for us the first time"
-                    : $"hosting {credentials!.NetworkName} for the Circle");
+                T(standingIn
+                    ? $"{peer.Tag} should be hosting {credentials!.NetworkName} and is not — hosting it here instead"
+                    : firstTime
+                        ? $"hosting {credentials!.NetworkName} — where {peer.Tag} will look for us the first time"
+                        : $"hosting {credentials!.NetworkName} for the Circle");
                 var hosted = await _group.HostAsync(credentials, cancellationToken).ConfigureAwait(false);
                 _currentGroup = hosted is null ? null : credentials.NetworkName;
-                T(hosted is null
-                    ? "could not create the group"
-                    : $"hosting {credentials.NetworkName} — anyone in the Circle can join it now");
+
+                if (hosted is null)
+                {
+                    // Only the phone the tags chose stands down. A stand-in that fails simply keeps
+                    // trying: if it gave up too, both ends would be joining a group nobody hosts.
+                    if (iHost) _cannotHost = true;
+                    T(iHost
+                        ? "could not create the group — this radio refused every channel, so the other phone will be left to host"
+                        : "could not create the group");
+                }
+                else
+                {
+                    _cannotHost = false;
+                    _joinsRefused = 0;
+                    T($"hosting {credentials.NetworkName} — anyone in the Circle can join it now");
+                }
             }
             else
             {
-                T($"{peer.Tag} hosts {credentials.NetworkName} — joining");
+                T(_cannotHost
+                    ? $"this radio will not host, so {peer.Tag} has to — joining {credentials.NetworkName}"
+                    : $"{peer.Tag} hosts {credentials.NetworkName} — joining");
                 var joined = await _group.JoinAsync(credentials, cancellationToken).ConfigureAwait(false);
                 _currentGroup = joined ? credentials.NetworkName : null;
+
+                // Counted only for the phone the tags told to join. The one that stood down from
+                // hosting must keep waiting for its peer rather than taking the role back.
+                if (!iHost) _joinsRefused = joined ? 0 : _joinsRefused + 1;
+
                 T(joined
                     ? $"on {credentials.NetworkName} with {peer.Tag} — the fast radio is up"
                     : $"{credentials.NetworkName} is not up yet — trying again shortly");

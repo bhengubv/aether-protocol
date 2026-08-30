@@ -253,6 +253,7 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
             StartPeripheral();
             StartCentral();
             StartWatchdog();
+            NoticeTheQuiet();
         }
         finally { _relinking = false; }
     }
@@ -318,6 +319,8 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
 
         _linked = false;
         _peerTag = null;
+        _scanningSince = DateTimeOffset.MaxValue;
+        _saidNobodyAdvertises = false;
         _rxCharRemote = null;
         _peripheralPeer = null;
         _mtu = 23;
@@ -370,13 +373,37 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         });
     }
 
+    /// <summary>
+    /// Whether other phones can discover this one over Bluetooth.
+    /// </summary>
+    /// <remarks>
+    /// False on hardware that cannot advertise — the P30 here is one. Such a phone can still find and
+    /// connect to a phone that advertises, so Bluetooth is not lost; it is one-directional. What was
+    /// missing is anybody being told, because the assumption that the OTHER phone can advertise was
+    /// written into a log line and nowhere else. Two devices that both cannot be found are mutually
+    /// invisible over Bluetooth, each scanning an empty room, and the symptom is silence.
+    /// </remarks>
+    public bool CanBeFound { get; private set; }
+
+    /// <summary>
+    /// How long a scan may find nothing before saying what that might mean.
+    /// </summary>
+    private static readonly TimeSpan QuietBeforeSaying = TimeSpan.FromSeconds(45);
+
+    private DateTimeOffset _scanningSince = DateTimeOffset.MaxValue;
+    private bool _saidNobodyAdvertises;
+
     private void StartPeripheral()
     {
         if (_adapter is null || !_adapter.IsMultipleAdvertisementSupported)
         {
-            L("this phone can't BLE-advertise — running central-only (it will connect to the other)");
+            CanBeFound = false;
+            L("this phone cannot advertise, so nobody can find it over Bluetooth — it can still find and connect to a phone that can");
+            Status?.Invoke("can find, cannot be found");
             return;
         }
+
+        CanBeFound = true;
         // Re-linking must not stack a second server and advertiser on top of the first.
         try { if (_advCallback is not null) _advertiser?.StopAdvertising(_advCallback); } catch { }
         try { _gattServer?.Close(); } catch { }
@@ -411,7 +438,26 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         var settings = new ScanSettings.Builder()!.SetScanMode(global::Android.Bluetooth.LE.ScanMode.LowLatency)!.Build();
         _scanCallback = new ScanCb(this);
         _scanner?.StartScan(new List<ScanFilter> { filter }, settings, _scanCallback);
+
+        // Only on the way in. Link() runs again every few seconds for as long as the app is up, and
+        // restarting the clock on each pass would mean it never reaches the point of saying anything.
+        if (_scanningSince == DateTimeOffset.MaxValue) _scanningSince = DateTimeOffset.UtcNow;
         L("central: scanning for peers");
+    }
+
+    /// <summary>
+    /// Say out loud when a scan has been finding nothing for a while and this phone cannot be found
+    /// either — because that pair of facts is the one case where Bluetooth cannot work at all, and it
+    /// used to look exactly like a scan that simply had not got there yet.
+    /// </summary>
+    private void NoticeTheQuiet()
+    {
+        if (_saidNobodyAdvertises || CanBeFound || _linked) return;
+        if (DateTimeOffset.UtcNow - _scanningSince < QuietBeforeSaying) return;
+
+        _saidNobodyAdvertises = true;
+        L("nothing has advertised since the scan started, and this phone cannot advertise either — if the other one cannot either, Bluetooth cannot link them and another radio has to carry");
+        Status?.Invoke("scanning, and cannot be found — Bluetooth may not be able to link this pair");
     }
 
     // ── Central side ────────────────────────────────────────────────────────────
