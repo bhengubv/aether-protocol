@@ -13,8 +13,14 @@
     So the waiting moves here, where nothing has been asked for yet and there is something to watch.
     The animation is not decoration over a progress bar: the mesh IS the progress. Each capability
     lights its own node as it comes up, the links draw between them, and when the picture is whole the
-    app opens. Nothing is faked and no delay is added — it is on screen exactly as long as the work
-    takes.
+    app opens. Two deliberate pauses and no more: the radio list fills at 120 ms a line so it can be
+    seen filling, and the finished mesh is held for 700 ms so the last node does not vanish in the
+    frame it lit. Everything else is on screen exactly as long as the work takes.
+
+    And the screen owns the waiting rather than being held by it. A step allowed to continue — the
+    radios, whose duration is decided by whether somebody else's phone is switched on — gets six
+    seconds, then the app opens and the work carries on behind it. Wi-Fi Direct with no peer to find
+    used to hold this screen for the better part of a minute.
 *@
 
 <div class="warm">
@@ -123,6 +129,8 @@
     {
         WarmState.Ready => "on",
         WarmState.Working => "busy",
+        // Still going, and the app is opening anyway — drawn as busy because that is what it is.
+        WarmState.Continuing => "busy",
         WarmState.Absent => "absent",
         WarmState.Failed => "failed",
         _ => "",

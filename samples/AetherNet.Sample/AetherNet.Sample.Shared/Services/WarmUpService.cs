@@ -27,12 +27,31 @@ public enum WarmState
 
     /// <summary>Tried and could not. The app still opens; this one thing will not work.</summary>
     Failed,
+
+    /// <summary>
+    /// Started, not finished, and not worth holding the app for.
+    /// </summary>
+    /// <remarks>
+    /// The radios are the only steps whose duration depends on somebody ELSE's phone being switched on
+    /// and in range. Wi-Fi Direct with no peer to find retried for the better part of a minute while
+    /// the app sat on the warm-up screen — a screen built to remove waiting, holding a person in one.
+    /// So a step allowed to continue gets a deadline: past it the screen moves on and the work carries
+    /// on behind it, which is what the keep-trying loop was always going to do anyway.
+    /// </remarks>
+    Continuing,
 }
 
 /// <summary>One thing the app can do, and whether it can do it yet.</summary>
 /// <param name="Key">Stable id, used by the screen to light the right node.</param>
 /// <param name="Title">What it is, in the words someone would use.</param>
-public sealed record WarmStep(string Key, string Title)
+/// <param name="MayContinue">
+///   Whether the screen is allowed to stop waiting for this one. True only for the radios: their
+///   duration is set by whether another phone is nearby, which is not a thing the app can hurry, and
+///   they keep trying on their own for as long as the app runs. Everything else — the identity, the
+///   databases, the message stores — must genuinely be ready before a person is let in, because the
+///   whole point of this screen is that nothing stalls afterwards.
+/// </param>
+public sealed record WarmStep(string Key, string Title, bool MayContinue = false)
 {
     public WarmState State { get; set; } = WarmState.Waiting;
 
@@ -92,6 +111,15 @@ public sealed class WarmUpService
     private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(700);
 
     /// <summary>
+    /// How long the screen waits for a step that is allowed to carry on without it.
+    /// </summary>
+    /// <remarks>
+    /// Long enough for a radio that is going to come up promptly to be shown coming up, short enough
+    /// that a radio waiting on a phone which is not there costs six seconds rather than forty-five.
+    /// </remarks>
+    private static readonly TimeSpan WaitAtMost = TimeSpan.FromSeconds(6);
+
+    /// <summary>
     /// The whole product, in the order it makes sense to bring up.
     ///
     /// <para>
@@ -106,10 +134,15 @@ public sealed class WarmUpService
     public List<RadioCapability> Found { get; } = [];
 
     /// <summary>
-    /// Long enough to read one line. The survey itself is instant — this pause exists entirely so a
-    /// person can see what their device has, which is the whole point of the step.
+    /// Long enough for the list to be seen filling rather than appearing at once.
     /// </summary>
-    private static readonly TimeSpan RadioPause = TimeSpan.FromMilliseconds(320);
+    /// <remarks>
+    /// The survey itself is instant; this is added delay, and this screen's own header says nothing is
+    /// faked and no delay is added. At 320 ms across eight radios it was 2.6 seconds of a 12-second
+    /// launch — a fifth of the wait, spent on an animation. At 120 ms the list still fills visibly and
+    /// the launch gets a second and a half back.
+    /// </remarks>
+    private static readonly TimeSpan RadioPause = TimeSpan.FromMilliseconds(120);
 
     public IReadOnlyList<WarmStep> Steps { get; } =
     [
@@ -124,9 +157,9 @@ public sealed class WarmUpService
         new("chat",      "Messaging"),
         new("notes",     "Notes, files and app sharing"),
         new("calls",     "Voice and video calls"),
-        new("radiosup",  "Waking the radios"),
-        new("wifidirect","Wi-Fi Direct — phone to phone"),
-        new("internet",  "Internet relay — reaching further"),
+        new("radiosup",  "Waking the radios", MayContinue: true),
+        new("wifidirect","Wi-Fi Direct — phone to phone", MayContinue: true),
+        new("internet",  "Internet relay — reaching further", MayContinue: true),
     ];
 
     /// <summary>
@@ -153,8 +186,37 @@ public sealed class WarmUpService
 
             try
             {
-                await RunAsync(step, cancellationToken).ConfigureAwait(false);
-                if (step.State == WarmState.Working) step.State = WarmState.Ready;
+                if (step.MayContinue)
+                {
+                    // Deliberately NOT the screen's token. The screen goes away the moment the last
+                    // step settles, and cancelling with it would kill the very work we just decided
+                    // was worth carrying on with.
+                    var running = RunAsync(step, CancellationToken.None);
+                    var finished = await Task.WhenAny(running, Task.Delay(WaitAtMost, cancellationToken))
+                        .ConfigureAwait(false);
+
+                    if (finished != running)
+                    {
+                        step.State = WarmState.Continuing;
+                        step.Detail = "still coming up";
+
+                        // Left running on purpose, and observed so a failure is logged rather than
+                        // swallowed as an unobserved task exception.
+                        _ = running.ContinueWith(
+                            t => _log.LogWarning(t.Exception, "Warm-up step {Step} failed after the screen moved on", step.Key),
+                            TaskContinuationOptions.OnlyOnFaulted);
+                    }
+                    else
+                    {
+                        await running.ConfigureAwait(false);
+                        if (step.State == WarmState.Working) step.State = WarmState.Ready;
+                    }
+                }
+                else
+                {
+                    await RunAsync(step, cancellationToken).ConfigureAwait(false);
+                    if (step.State == WarmState.Working) step.State = WarmState.Ready;
+                }
             }
             catch (Exception ex)
             {
