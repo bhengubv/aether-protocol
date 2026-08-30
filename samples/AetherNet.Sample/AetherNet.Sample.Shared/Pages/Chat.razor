@@ -479,11 +479,11 @@
         flex: 0 0 auto; position: sticky; top: 0; z-index: 3;
         display: flex; align-items: center; gap: 11px;
         padding: max(env(safe-area-inset-top), 28px) 14px 10px;
-        background: var(--surface); border-bottom: 1px solid var(--line);
+        background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border-bottom: 1px solid var(--line);
     }
     .back { appearance: none; border: none; background: transparent; color: var(--ink); cursor: pointer; padding: 4px; margin: -4px; display: flex; }
     .back svg { width: 26px; height: 26px; }
-    .cv-head .av { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; background: var(--brand); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.05rem; }
+    .cv-head .av { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.05rem; }
     .cv-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
 
     /* Calling sits at the far end of the header, where a phone icon belongs. */
@@ -525,7 +525,7 @@
     .cv-composer {
         flex: 0 0 auto; display: flex; align-items: center; gap: 9px;
         padding: 10px 12px calc(env(safe-area-inset-bottom) + 12px);
-        background: var(--surface); border-top: 1px solid var(--line);
+        background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border-top: 1px solid var(--line);
     }
     .cv-input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 22px; padding: 12px 16px; font-size: 0.98rem; }
     .cv-input:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
@@ -539,7 +539,7 @@
     }
     .cv-note svg { width: 20px; height: 20px; }
     .cv-note:disabled { opacity: 0.45; cursor: not-allowed; }
-    .cv-note.mic:active, .cv-note.arming { background: var(--brand); color: #fff; }
+    .cv-note.mic:active, .cv-note.arming { background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); }
 
     .cv-composer.recording { gap: 10px; align-items: center; }
     .cv-note.mic.live { background: var(--brand-deep); color: #fff; }
@@ -553,7 +553,7 @@
     .cv-composer.under-call { margin-bottom: 46px; }
 
     .cv-note-problem { padding: 6px 16px 10px; font-size: 0.82rem; color: var(--brand-deep); background: var(--bg); }
-    .cv-send { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .cv-send { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); display: flex; align-items: center; justify-content: center; cursor: pointer; }
     .cv-send:disabled { opacity: .4; }
     .cv-send svg { width: 21px; height: 21px; }
 </style>

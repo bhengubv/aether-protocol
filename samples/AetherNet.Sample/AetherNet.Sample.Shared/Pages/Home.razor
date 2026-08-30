@@ -140,12 +140,12 @@
     .chats { max-width: 720px; margin: 0 auto; }
     .chats-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .tocalls {
-        appearance: none; border: 1px solid var(--line); background: var(--surface);
+        appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface);
         color: var(--ink-2); border-radius: 999px; padding: 8px 14px; cursor: pointer;
         display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 650;
     }
     .tocalls svg { width: 17px; height: 17px; }
-    .tocalls:active { background: var(--surface-2); }
+    .tocalls:active { background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); }
     .missed-pip {
         background: var(--brand-deep); color: #fff; border-radius: 999px;
         min-width: 20px; padding: 1px 6px; font-size: 0.72rem; font-weight: 800; text-align: center;
@@ -158,7 +158,7 @@
         display: flex; align-items: center; gap: 13px; padding: 11px 6px; text-align: left;
         border-bottom: 1px solid var(--line);
     }
-    .row:active { background: var(--surface-2); }
+    .row:active { background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); }
 
     .av {
         position: relative; flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%;
@@ -167,7 +167,7 @@
     }
     .near {
         position: absolute; right: -1px; bottom: -1px; width: 15px; height: 15px; border-radius: 50%;
-        background: var(--brand); border: 3px solid var(--bg);
+        background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; border: 3px solid var(--bg);
     }
 
     .mid { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -181,20 +181,20 @@
     .empty-title { font-size: 1.2rem; font-weight: 750; color: var(--ink); }
     .empty-body { font-size: 0.92rem; line-height: 1.55; color: var(--ink-2); max-width: 34ch; }
 
-    .primary { appearance: none; border: none; background: var(--brand); color: #fff; font-weight: 700; font-size: 0.98rem; padding: 14px 22px; border-radius: 12px; cursor: pointer; margin-top: 6px; }
+    .primary { appearance: none; border: none; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); font-weight: 700; font-size: 0.98rem; padding: 14px 22px; border-radius: 12px; cursor: pointer; margin-top: 6px; }
 
     .fab {
         position: fixed; right: 18px; z-index: 15;
         bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 18px);
         width: 58px; height: 58px; border-radius: 20px; border: none;
-        background: var(--brand); color: #fff; cursor: pointer;
+        background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); cursor: pointer;
         display: flex; align-items: center; justify-content: center;
         box-shadow: 0 10px 24px rgba(33, 150, 243, .4);
     }
     .fab:active { filter: brightness(.95); }
     .fab svg { width: 25px; height: 25px; }
     /* Starting a group sits above starting a chat — the same gesture, one step further. */
-    .fab-grp { bottom: calc(env(safe-area-inset-bottom) + 150px); background: var(--surface); color: var(--brand); border: 1px solid var(--line); }
+    .fab-grp { bottom: calc(env(safe-area-inset-bottom) + 150px); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); border: 1px solid var(--line); }
     .grp { width: 22px; height: 22px; }
     .name.grp-name { font-family: inherit; font-weight: 750; }
 </style>

@@ -114,7 +114,7 @@
     .scr-title { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); padding: 4px 2px 0; }
     .lede { font-size: 0.95rem; line-height: 1.5; color: var(--ink-2); padding: 0 2px; }
 
-    .card { display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line-card); border-radius: var(--radius); padding: 22px 20px; box-shadow: var(--shadow-sm); }
+    .card { display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line-card); border-radius: var(--radius); padding: 22px 20px; box-shadow: var(--shadow-sm); }
 
     .size { font-size: 2.4rem; font-weight: 830; letter-spacing: -0.03em; color: var(--brand); line-height: 1; }
     .size-sub { font-size: 0.85rem; color: var(--ink-3); text-align: center; }
@@ -140,7 +140,7 @@
     .row { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: var(--ink-2); }
     .row strong { color: var(--ink); font-family: var(--mono); }
 
-    .primary { appearance: none; border: none; background: var(--brand); color: #fff; font-weight: 700; font-size: 0.98rem; padding: 14px 18px; border-radius: 12px; cursor: pointer; }
+    .primary { appearance: none; border: none; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); font-weight: 700; font-size: 0.98rem; padding: 14px 18px; border-radius: 12px; cursor: pointer; }
     .primary:disabled { opacity: .45; cursor: default; }
     .ghost { appearance: none; background: transparent; border: 1px solid var(--line); color: var(--ink-2); font-weight: 700; font-size: 0.9rem; padding: 11px 16px; border-radius: 12px; cursor: pointer; margin-top: 4px; }
     .block { display: block; width: 100%; }
@@ -152,7 +152,7 @@
     .netname { font-family: var(--mono); font-size: 0.8rem; color: var(--brand); letter-spacing: .04em; }
 
     .who { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 340px; margin-top: 6px; }
-    .whoin { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 600; }
+    .whoin { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); color: var(--ink); font-size: 1rem; font-weight: 600; }
     .whoin:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
     .who-sub { font-size: 0.8rem; color: var(--ink-3); text-align: center; max-width: 340px; }
     .who-sub strong { color: var(--brand); font-family: var(--mono); font-weight: 600; }
@@ -164,7 +164,7 @@
     /* Indeterminate on purpose: the radio cannot say how far along it is, and a bar that pretends to
        know is a worse lie than one that only says "still working". */
     .bar { width: 100%; max-width: 340px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-    .bar span { display: block; width: 40%; height: 100%; border-radius: 2px; background: var(--brand); animation: slide 1.4s ease-in-out infinite; }
+    .bar span { display: block; width: 40%; height: 100%; border-radius: 2px; background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; animation: slide 1.4s ease-in-out infinite; }
     @@keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
     @@media (prefers-reduced-motion: reduce) { .bar span { animation: none; width: 100%; opacity: .6; } }
 </style>

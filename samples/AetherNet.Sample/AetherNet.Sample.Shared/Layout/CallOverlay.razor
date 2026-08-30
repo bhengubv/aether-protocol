@@ -378,7 +378,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
         display: flex; align-items: center; justify-content: center;
     }
     .call-min svg { width: 26px; height: 26px; }
-    .call-min:active { background: var(--surface-2); }
+    .call-min:active { background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); }
 
     /* The minimised call. Pinned above the tab bar so it is always reachable and never in the way. */
     .call-bar {
@@ -386,7 +386,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
         appearance: none; border: none; cursor: pointer; width: 100%;
         display: flex; align-items: center; gap: 10px;
         padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));
-        background: var(--brand); color: #fff; font-size: 0.9rem;
+        background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); font-size: 0.9rem;
     }
     .cb-dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: cbpulse 1.6s ease-in-out infinite; }
     @@keyframes cbpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
@@ -541,7 +541,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     }
     .call-screen:has(.call-who.hidden) .cbtn.on {
-        background: var(--brand); border-color: var(--brand); color: #fff;
+        background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; border-color: var(--brand); color: #fff;
     }
 
     /* The minimise chevron sits on the picture too, so it needs its own readability. */
@@ -572,7 +572,7 @@ else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallSt
         max-width: 100%; justify-content: center; flex-wrap: wrap;
     }
     .cbtn {
-        appearance: none; border: 1px solid var(--line); background: var(--surface);
+        appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface);
         color: var(--ink-2); border-radius: 18px; padding: 12px 8px;
         flex: 1 1 68px; min-width: 0; max-width: 100px;
         display: flex; flex-direction: column; align-items: center; gap: 6px;

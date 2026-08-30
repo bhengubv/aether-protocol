@@ -235,7 +235,7 @@
     .id-note { font-size: 0.78rem; opacity: .9; }
 
     .radios { display: flex; flex-direction: column; gap: 10px; }
-    .radio { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .radio { background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
     .radio.ok { border-color: var(--brand); }
     .radio.na { opacity: .55; }
     .r-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -245,13 +245,13 @@
     .r-detail { font-size: 0.86rem; line-height: 1.45; color: var(--ink-2); }
     .r-btn { align-self: flex-start; appearance: none; border: 1.5px solid var(--brand); background: transparent; color: var(--brand); font-weight: 650; font-size: 0.86rem; padding: 9px 16px; border-radius: 10px; cursor: pointer; }
 
-    .toggle { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; color: var(--ink); font-weight: 600; }
+    .toggle { display: flex; align-items: center; gap: 12px; background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line); border-radius: 14px; padding: 16px; color: var(--ink); font-weight: 600; }
     .toggle input { width: 22px; height: 22px; accent-color: var(--brand); }
 
-    .tagbox { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 14px 16px; font-family: var(--mono); font-size: 1.05rem; letter-spacing: 1px; text-transform: uppercase; }
+    .tagbox { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); color: var(--ink); border-radius: 12px; padding: 14px 16px; font-family: var(--mono); font-size: 1.05rem; letter-spacing: 1px; text-transform: uppercase; }
     .tagbox:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
 
-    .primary { appearance: none; border: none; background: var(--brand); color: #fff; font-weight: 700; font-size: 1rem; padding: 15px 18px; border-radius: 14px; cursor: pointer; }
+    .primary { appearance: none; border: none; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); font-weight: 700; font-size: 1rem; padding: 15px 18px; border-radius: 14px; cursor: pointer; }
     .primary:disabled { opacity: .45; cursor: default; }
     .block { display: block; width: 100%; }
 
@@ -260,5 +260,5 @@
 
     .dots { display: flex; gap: 7px; justify-content: center; }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
-    .dot.on { background: var(--brand); width: 22px; border-radius: 999px; }
+    .dot.on { background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; width: 22px; border-radius: 999px; }
 </style>

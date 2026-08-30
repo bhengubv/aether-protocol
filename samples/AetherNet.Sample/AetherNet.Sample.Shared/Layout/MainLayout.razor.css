@@ -17,7 +17,7 @@
        so fall back to a sensible status-bar height. */
     height: calc(var(--bar-h) + max(env(safe-area-inset-top), 28px));
     padding: max(env(safe-area-inset-top), 28px) 16px 0;
-    background: var(--surface);
+    background: var(--bar); color: var(--on-bar); --ink: var(--on-bar); --ink-2: var(--on-bar); --ink-3: var(--on-bar);
     border-bottom: 1px solid var(--line);
 }
 
@@ -31,7 +31,7 @@
     align-items: center;
     gap: 9px;
     padding: 11px 14px;
-    background: var(--brand);
+    background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff;
     border-bottom: 1px solid var(--line);
     font-size: 0.9rem;
 }
@@ -69,7 +69,7 @@
     font-weight: 800;
     font-size: 1.2rem;
     letter-spacing: -0.02em;
-    color: var(--ink);
+    color: var(--on-bar);
 }
 
 .glyph {
@@ -113,7 +113,7 @@
     display: flex;
     height: calc(var(--tab-h) + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
-    background: var(--surface);
+    background: var(--bg); color: var(--ink);
     border-top: 1px solid var(--line);
 }
 

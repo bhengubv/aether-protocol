@@ -129,7 +129,7 @@
     .scr-title { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); padding: 4px 2px 0; }
     .lede { font-size: 0.95rem; line-height: 1.5; color: var(--ink-2); padding: 0 2px; }
 
-    .mine { display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-sm); }
+    .mine { display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-sm); }
     .mine-label { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
     .mine-tag { font-family: var(--mono); font-size: 1.6rem; font-weight: 800; letter-spacing: 2px; color: var(--brand); }
     .qr { width: 190px; height: 190px; background: #fff; border-radius: 12px; padding: 10px; }
@@ -138,15 +138,15 @@
 
     .entry { display: flex; flex-direction: column; gap: 10px; }
     .glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
-    .tagbox { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 14px 16px; font-family: var(--mono); font-size: 1.05rem; letter-spacing: 1px; text-transform: uppercase; }
+    .tagbox { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); color: var(--ink); border-radius: 12px; padding: 14px 16px; font-family: var(--mono); font-size: 1.05rem; letter-spacing: 1px; text-transform: uppercase; }
     .tagbox:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
 
-    .primary { appearance: none; border: none; background: var(--brand); color: #fff; font-weight: 700; font-size: 0.98rem; padding: 14px 18px; border-radius: 12px; cursor: pointer; }
+    .primary { appearance: none; border: none; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); font-weight: 700; font-size: 0.98rem; padding: 14px 18px; border-radius: 12px; cursor: pointer; }
     .primary:disabled { opacity: .45; cursor: default; }
     .primary.small { padding: 9px 14px; font-size: 0.85rem; border-radius: 10px; }
     .block { display: block; width: 100%; }
 
-    .req { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+    .req { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
     .req-tag { font-family: var(--mono); font-weight: 700; color: var(--ink); }
     .live { color: var(--brand); font-weight: 700; font-size: 0.82rem; }
 
