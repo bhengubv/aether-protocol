@@ -96,7 +96,7 @@
 
     <!-- Splash Screen. The colour is the app's own dark background, the same one the activity window
          and the boot screen are painted, so the launch never changes shade. -->
-    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0d1620" BaseSize="128,128" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000000" BaseSize="128,128" />
 
     <!-- Images -->
     <MauiImage Include="Resources\Images\*" />

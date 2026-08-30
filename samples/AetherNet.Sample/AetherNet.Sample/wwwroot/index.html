@@ -125,11 +125,11 @@
         @media (prefers-color-scheme: dark) {
             /* app.css's --bg exactly. It was #0f1720, two shades off, so the app changed colour
                underneath the person at the moment Blazor took over. */
-            :root:not([data-theme="light"]) .boot { --b-bg: #0d1620; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
+            :root:not([data-theme="light"]) .boot { --b-bg: #000000; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
         }
 
         :root[data-theme="light"] .boot { --b-bg: #eaeef3; --b-ink: #16232f; --b-dim: #8a97a6; }
-        :root[data-theme="dark"]  .boot { --b-bg: #0d1620; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
+        :root[data-theme="dark"]  .boot { --b-bg: #000000; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
 
         .boot {
             position: fixed; inset: 0; background: var(--b-bg); overflow: hidden;

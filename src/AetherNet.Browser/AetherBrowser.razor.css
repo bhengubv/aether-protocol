@@ -28,7 +28,7 @@
    .in belongs to the editor. Every token falls back, same as everywhere else here. */
 .in { width: 100%; padding: 10px 12px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: var(--surface-2, #f4f7fa); color: var(--ink, #16232f); font-size: 0.9rem; font-family: inherit; }
 .tiny { min-width: 34px; height: 32px; padding: 0 10px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.78rem; cursor: pointer; }
-.tiny.drop { color: var(--warn, #c0392b); border-color: color-mix(in srgb, var(--warn, #c0392b) 40%, transparent); }
+.tiny.drop { color: var(--brand-deep); border-color: color-mix(in srgb, var(--brand-deep) 40%, transparent); }
 .prow { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 2px; }
 
 .newdeck { display: flex; gap: 8px; align-items: center; margin: 4px 0 14px; }
@@ -58,7 +58,7 @@
     .hacts { display: flex; flex-direction: column; gap: 5px; }
     .hact { flex: 1 1 0; min-width: 78px; padding: 0 13px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-weight: 700; font-size: 0.8rem; cursor: pointer; }
     .hact:disabled { opacity: .4; cursor: default; }
-    .hact.drop { color: var(--warn, #c0392b); }
+    .hact.drop { color: var(--brand-deep); }
 
     .took { padding: 11px 14px; border-radius: var(--radius-sm, 10px); background: var(--info-bg, rgba(31,111,180,.12)); color: var(--info, #1f6fb4); font-size: 0.86rem; line-height: 1.45; }
 

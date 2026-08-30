@@ -20,11 +20,17 @@
     --line-card: #9ecbf7;   /* card edges — a white card on a pale ground has no edge without it */
 
     --ok: #2196F3;
-    /* Dark mode needs its own. #c0392b is 4.67:1 on the light ground and 2.94:1 on the dark
-       surface, so the one message a person most needs to read was the one below contrast — and
-       --warn-amber and --info both had dark variants while this, the most urgent of the three, did
-       not. #ef6a6f is 6.04:1 on the dark ground and 5.29:1 on the dark surface. */
-    --warn: #c0392b;        /* something went wrong */
+    /* There is no --warn any more, and no red.
+
+       It was #c0392b: 4.67:1 on the light ground and 2.94:1 on the dark surface, so the one message a
+       person most needs to read was the one below contrast — and --warn-amber and --info, both less
+       urgent, had dark variants while it did not. Giving it one would have been a second accent to
+       maintain, rare enough that nobody would notice the next time it rotted.
+
+       The brand blue is already carried in both themes and used on every screen, so it cannot rot
+       unnoticed. Where colour was the only thing saying "this failed" — the warm-up mesh — failure is
+       drawn as a hollow node instead, which is a stronger signal than a hue anyway and survives being
+       looked at by somebody who cannot tell the two apart. */
     --warn-amber: #b26a00;  /* warning — something will be lost */
     --info: #0b6bcb;        /* information — worth knowing, nothing is wrong */
     --info-bg: #e7f1fb;
@@ -50,13 +56,12 @@
         --ink-2: #a9b8c6;
         --ink-3: #9db0c2;
 
-        --bg: #0d1620;
+        --bg: #000000;
         --surface: #16232f;
         --surface-2: #1c2b39;
         --line: #263544;
         --line-card: #2f6fa8;
 
-        --warn: #ef6a6f;
         --warn-amber: #e0a256;
         --info: #7cc0ff;
         --info-bg: #12293f;
@@ -71,7 +76,7 @@
     --brand: #2196F3; --brand-deep: #1976D2; --brand-tint: #e8f3fe;
     --ink: #16232f; --ink-2: #4a5b6b; --ink-3: #5b6b7b;
     --bg: #eaeef3; --surface: #ffffff; --surface-2: #f4f7fa; --line: #e2e8f0; --line-card: #9ecbf7;
-    --warn: #c0392b; --warn-amber: #b26a00; --info: #0b6bcb; --info-bg: #e7f1fb;
+    --warn-amber: #b26a00; --info: #0b6bcb; --info-bg: #e7f1fb;
     --shadow: 0 1px 2px rgba(22, 35, 47, .05), 0 10px 30px rgba(22, 35, 47, .05);
     --shadow-sm: 0 1px 2px rgba(22, 35, 47, .06);
 }
@@ -79,8 +84,8 @@
 :root[data-theme="dark"] {
     --brand: #4aa8ff; --brand-deep: #2f8ae0; --brand-tint: #14304b;
     --ink: #eaf1f8; --ink-2: #a9b8c6; --ink-3: #9db0c2;
-    --bg: #0d1620; --surface: #16232f; --surface-2: #1c2b39; --line: #263544; --line-card: #2f6fa8;
-    --warn: #ef6a6f; --warn-amber: #e0a256; --info: #7cc0ff; --info-bg: #12293f;
+    --bg: #000000; --surface: #16232f; --surface-2: #1c2b39; --line: #263544; --line-card: #2f6fa8;
+    --warn-amber: #e0a256; --info: #7cc0ff; --info-bg: #12293f;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .25);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
 }
@@ -227,7 +232,7 @@ img { max-width: 100%; }
     display: none;
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    background: var(--warn);
+    background: var(--brand-deep);
     color: #fff;
     padding: 12px 16px;
     z-index: 1000;
@@ -237,7 +242,7 @@ img { max-width: 100%; }
 #blazor-error-ui .reload { color: #fff; text-decoration: underline; }
 #blazor-error-ui .dismiss { cursor: pointer; float: right; }
 
-.blazor-error-boundary { background: var(--warn); padding: 1rem; color: #fff; border-radius: 8px; }
+.blazor-error-boundary { background: var(--brand-deep); padding: 1rem; color: #fff; border-radius: 8px; }
 .blazor-error-boundary::after { content: "Something went wrong."; }
 
-.validation-message { color: var(--warn); }
+.validation-message { color: var(--brand-deep); }

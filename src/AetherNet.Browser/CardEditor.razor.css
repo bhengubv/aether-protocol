@@ -107,7 +107,7 @@
 
     .hint { margin: 0; font-size: 0.76rem; line-height: 1.45; color: var(--ink-3, #8a97a6); }
     .hint.good { color: var(--brand, #2196F3); font-weight: 600; }
-    .hint.bad { color: var(--warn, #c0392b); font-weight: 600; }
+    .hint.bad { color: var(--brand-deep); font-weight: 600; }
 
     /* How this page is made. Plain, dense and readable — this is the part somebody screenshots and
        sends to a friend, so it has to look like something worth reading rather than a debug dump. */
@@ -134,8 +134,8 @@
 
     .prow { display: flex; gap: 6px; padding-top: 3px; }
     .tiny { min-width: 34px; height: 34px; padding: 0 11px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.82rem; cursor: pointer; }
-    .tiny.drop { color: var(--warn, #c0392b); margin-left: auto; }
-    .ghost.drop { color: var(--warn, #c0392b); border-color: var(--warn, #c0392b); align-self: flex-start; }
+    .tiny.drop { color: var(--brand-deep); margin-left: auto; }
+    .ghost.drop { color: var(--brand-deep); border-color: var(--brand-deep); align-self: flex-start; }
 
     /* The picture, and the one control that changes it. */
     .pic { display: flex; flex-direction: column; gap: 9px; }

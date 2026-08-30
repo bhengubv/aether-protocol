@@ -74,7 +74,7 @@ public class MainActivity : MauiAppCompatActivity
         var night = (Resources?.Configuration?.UiMode & global::Android.Content.Res.UiMode.NightMask)
             == global::Android.Content.Res.UiMode.NightYes;
         Window?.SetBackgroundDrawable(new ColorDrawable(
-            global::Android.Graphics.Color.ParseColor(night ? "#0d1620" : "#eaeef3")));
+            global::Android.Graphics.Color.ParseColor(night ? "#000000" : "#eaeef3")));
     }
 
     /// <summary>

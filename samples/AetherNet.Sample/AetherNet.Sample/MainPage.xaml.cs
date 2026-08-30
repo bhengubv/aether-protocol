@@ -41,7 +41,7 @@ public partial class MainPage : ContentPage
     /// <c>ToArgbHex</c> to get there is a conversion whose output nothing here has ever seen run.
     /// </para>
     /// </remarks>
-    private static string Ground() => IsDark() ? "#0d1620" : "#eaeef3";
+    private static string Ground() => IsDark() ? "#000000" : "#eaeef3";
 
     /// <summary>Whether the phone is dark right now, asking the platform if MAUI cannot say.</summary>
     private static bool IsDark()
