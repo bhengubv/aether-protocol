@@ -210,13 +210,13 @@
     .wl.busy { stroke: var(--brand); opacity: .5; animation: wpulse 1.1s ease-in-out infinite; }
     .wl.on { stroke: var(--brand); opacity: .75; }
     .wl.absent { stroke: var(--line); opacity: .3; stroke-dasharray: 3 5; }
-    .wl.failed { stroke: #c0392b; opacity: .5; }
+    .wl.failed { stroke: var(--warn); opacity: .5; }
 
     .wn { fill: var(--line); transition: fill .5s ease, r .35s cubic-bezier(.2,1.5,.4,1); }
     .wn.busy { fill: var(--brand); animation: wpulse 1.1s ease-in-out infinite; }
     .wn.on { fill: var(--brand); r: 9; }
     .wn.absent { fill: var(--line); opacity: .45; }
-    .wn.failed { fill: #c0392b; }
+    .wn.failed { fill: var(--warn); }
 
     @@keyframes wpulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
