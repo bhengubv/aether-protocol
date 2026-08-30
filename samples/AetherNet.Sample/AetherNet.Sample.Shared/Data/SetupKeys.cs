@@ -10,4 +10,13 @@ public static class SetupKeys
 
     /// <summary>Set when the user opted this device in as an internet gateway for nearby phones.</summary>
     public const string GatewayEnabled = "setup.gateway";
+
+    /// <summary>
+    /// "light", "dark", or "system" — what the person chose in Settings.
+    /// </summary>
+    /// <remarks>
+    /// Absent means system, which is also what "system" means; the two are kept distinct only so a
+    /// deliberate choice to follow the phone can be told from never having chosen.
+    /// </remarks>
+    public const string Theme = "appearance.theme";
 }

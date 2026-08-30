@@ -1,7 +1,10 @@
+@using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Pages
 @using AetherNet.Sample.Shared.Services
 @implements IDisposable
 @inject WarmUpService Warm
+@inject AetherStore Store
+@inject IJSRuntime JS
 
 @*  The warm-up is not a page, and this is where that stops being a lie.
 
@@ -35,6 +38,23 @@ else
 }
 
 @code {
+    /// <summary>
+    /// Put the chosen theme on the document before the app is drawn.
+    /// </summary>
+    /// <remarks>
+    /// Settings stamped <c>data-theme</c> when you pressed the button and nothing read it back, so a
+    /// choice survived until the next launch and no further. This is the root component, so it is the
+    /// first place with both the store and a JavaScript runtime — and it runs while the warm-up screen
+    /// is still up, which is before there is anything themed to see.
+    /// </remarks>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try { await JS.InvokeVoidAsync("aetherTheme", Store.GetSetting(SetupKeys.Theme) ?? "system"); }
+        catch { }
+    }
+
     protected override void OnInitialized() => Warm.Changed += OnChanged;
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);

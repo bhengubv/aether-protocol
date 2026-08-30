@@ -46,6 +46,16 @@ public partial class MainPage : ContentPage
     /// <summary>Whether the phone is dark right now, asking the platform if MAUI cannot say.</summary>
     private static bool IsDark()
     {
+        // What the person chose, before what the phone is set to. Read from Preferences rather than
+        // the database because this runs on the first paint, long before the store is open.
+#if ANDROID
+        switch (Microsoft.Maui.Storage.Preferences.Get(Platforms.Android.AndroidAppTheme.Key, "system"))
+        {
+            case "light": return false;
+            case "dark": return true;
+        }
+#endif
+
         var theme = Application.Current?.RequestedTheme ?? AppTheme.Unspecified;
         if (theme != AppTheme.Unspecified) return theme == AppTheme.Dark;
 

@@ -55,6 +55,7 @@ builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
             sp.GetRequiredService<IRadioMesh>())));
 builder.Services.AddSingleton<CircleDirectory>();
 builder.Services.AddSingleton<IRadioInventory, NullRadioInventory>();
+builder.Services.AddSingleton<IAppTheme, NullAppTheme>();
 builder.Services.AddSingleton<ProxyDirectory>();
 builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 builder.Services.AddSingleton<FastRadioService>();

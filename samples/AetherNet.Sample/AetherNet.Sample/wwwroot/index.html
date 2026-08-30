@@ -16,6 +16,28 @@
 
 <body>
 
+    <!-- First thing in the body, deliberately.
+
+         A choice of Light or Dark has to be on the document before anything paints, or the boot
+         screen comes up in the phone's theme and the app changes colour underneath the person a
+         second later — the exact flash the single ground colour was introduced to remove. Blazor
+         cannot do it: it is not running yet. So the choice is mirrored into localStorage when it is
+         made, and read back here, synchronously, ahead of the first frame. -->
+    <script>
+        window.aetherTheme = function (theme) {
+            try {
+                if (theme && theme !== 'system') {
+                    document.documentElement.setAttribute('data-theme', theme);
+                    localStorage.setItem('aether-theme', theme);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    localStorage.removeItem('aether-theme');
+                }
+            } catch (e) { }
+        };
+        try { window.aetherTheme(localStorage.getItem('aether-theme')); } catch (e) { }
+    </script>
+
     <div class="status-bar-safe-area"></div>
 
     <!--
@@ -95,14 +117,19 @@
     </div>
 
     <style>
-        /* Light by default, dark when the phone is — the app's own surfaces, so nothing changes colour
-           underneath the user when Blazor takes over. */
+        /* Three states, the same three app.css has: light is the base, the phone's dark overrides it
+           unless an explicit light choice says otherwise, and a stamped data-theme beats both. Without
+           the third, somebody who chose Light on a dark phone got a dark boot screen and a light app. */
         .boot { --b-bg: #eaeef3; --b-ink: #16232f; --b-dim: #8a97a6; --b-brand: #2196F3; }
+
         @media (prefers-color-scheme: dark) {
             /* app.css's --bg exactly. It was #0f1720, two shades off, so the app changed colour
                underneath the person at the moment Blazor took over. */
-            .boot { --b-bg: #0d1620; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
+            :root:not([data-theme="light"]) .boot { --b-bg: #0d1620; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
         }
+
+        :root[data-theme="light"] .boot { --b-bg: #eaeef3; --b-ink: #16232f; --b-dim: #8a97a6; }
+        :root[data-theme="dark"]  .boot { --b-bg: #0d1620; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
 
         .boot {
             position: fixed; inset: 0; background: var(--b-bg); overflow: hidden;

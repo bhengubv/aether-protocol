@@ -93,6 +93,8 @@ public static class MauiProgram
         // their session, or not at all.
         // What this device actually has, measured against everything AetherNet can use.
         builder.Services.AddSingleton<IRadioInventory, AetherNet.Sample.Platforms.Android.AndroidRadioInventory>();
+        // What the person chose in Settings, applied to the shell as well as the page.
+        builder.Services.AddSingleton<IAppTheme, AetherNet.Sample.Platforms.Android.AndroidAppTheme>();
         builder.Services.AddSingleton<ProxyDirectory>();
 
         // The app carries itself: a mesh that needs a store to spread has a single point of

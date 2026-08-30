@@ -1,10 +1,13 @@
 @page "/settings"
+@using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @inject IIdentityService Me
 @inject IJSRuntime JS
 @inject ProxyDirectory Proxies
 @inject ChatService Chat
 @inject NavigationManager Nav
+@inject AetherStore Store
+@inject IAppTheme Shell
 @implements IDisposable
 
 <PageTitle>Aether — you</PageTitle>
@@ -123,7 +126,11 @@
         ? $"{Chat.AppShareSizeBytes / (1024 * 1024)} MB"
         : "the app itself";
 
-    protected override void OnInitialized() => Proxies.Changed += OnChanged;
+    protected override void OnInitialized()
+    {
+        Proxies.Changed += OnChanged;
+        _theme = Store.GetSetting(SetupKeys.Theme) ?? "system";
+    }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
@@ -148,6 +155,14 @@
         finally { _busy = false; }
     }
 
+    /// <summary>
+    /// What the person chose, read back from the store rather than assumed.
+    /// </summary>
+    /// <remarks>
+    /// This was a field initialised to "system" and never loaded, so the buttons showed System on
+    /// every visit no matter what had been picked — and the choice itself lasted exactly as long as
+    /// the page did.
+    /// </remarks>
     private string _theme = "system";
 
     private string Initial => string.IsNullOrEmpty(Me.AetherTag) ? "?" : Me.AetherTag[..1];
@@ -161,14 +176,13 @@
     private async Task SetTheme(string theme)
     {
         _theme = theme;
-        try
-        {
-            if (theme == "system")
-                await JS.InvokeVoidAsync("document.documentElement.removeAttribute", "data-theme");
-            else
-                await JS.InvokeVoidAsync("document.documentElement.setAttribute", "data-theme", theme);
-        }
-        catch { }
+        Store.SetSetting(SetupKeys.Theme, theme);
+
+        // The shell as well as the page. See IAppTheme — data-theme reaches the document and nothing
+        // behind it, and what is behind it is what somebody sees for the first second of every launch.
+        Shell.Apply(theme);
+
+        try { await JS.InvokeVoidAsync("aetherTheme", theme); } catch { }
     }
 }
 
