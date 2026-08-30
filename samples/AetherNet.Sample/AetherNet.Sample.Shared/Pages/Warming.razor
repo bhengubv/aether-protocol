@@ -172,9 +172,17 @@
         display: flex; flex-direction: column; gap: 2px;
         margin: 10px auto 14px; width: 100%; max-width: 300px;
     }
+    /* Quiet is said with a token, never with opacity.
+
+       These three rules reached for opacity, and opacity on a parent multiplies with opacity on a
+       child — so an absent radio's note rendered at 0.6 x 0.55 = 0.33 and measured 1.53:1 against the
+       light ground. app.css raised --ink-3 from #8a97a6 to #5b6b7b for exactly this reason (2.6:1 was
+       not enough), and this file threw the improvement away. --ink-3 alone is 4.7:1 light and 8.2:1
+       dark, and still reads as quieter beside --ink at 13.7:1. Dark mode hid all of it: on a dark
+       ground everything is muted, so washed-out text looks deliberate. */
     .warm-radios-head {
         font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase;
-        opacity: 0.5; margin-bottom: 6px;
+        color: var(--ink-3); margin-bottom: 6px;
     }
     .warm-radio {
         display: flex; align-items: baseline; gap: 8px;
@@ -182,10 +190,10 @@
     }
     .warm-radio .wr-mark { width: 12px; flex: none; text-align: center; }
     .warm-radio .wr-name { flex: 1 1 auto; }
-    .warm-radio .wr-note { opacity: 0.55; font-size: 0.72rem; }
+    .warm-radio .wr-note { color: var(--ink-3); font-size: 0.72rem; }
     .warm-radio.has { color: var(--ink); }
     .warm-radio.has .wr-mark { color: var(--brand); }
-    .warm-radio.hasnt { color: var(--ink-2); opacity: 0.6; }
+    .warm-radio.hasnt { color: var(--ink-3); }
 
     .warm {
         position: fixed; inset: 0; background: var(--bg);
