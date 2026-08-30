@@ -105,6 +105,24 @@ public interface IRadioMesh
     /// <summary>Bring the selected radio up and link to the other phone.</summary>
     void Link();
 
+    /// <summary>
+    /// Bring every radio up to meet one particular person.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// All of them at once, and none waiting on another. Which one ends up carrying the traffic is not
+    /// decided here and is never decided by the person holding the phone — the widest linked radio
+    /// takes it, and hands it on when a wider one appears.
+    /// </para>
+    /// <para>
+    /// Deliberately without a default body. One was tried, and every call landed on it rather than on
+    /// the mesh that had a real implementation — so the radios came up for everybody, nothing was
+    /// told who it was meeting, and the whole thing looked like it was working. A member with no
+    /// default cannot be quietly not implemented.
+    /// </para>
+    /// </remarks>
+    void Link(Meeting meeting);
+
     /// <summary>Send one real MeshPacket carrying <paramref name="text"/> to the linked peer.</summary>
     Task SendTestAsync(string text);
 

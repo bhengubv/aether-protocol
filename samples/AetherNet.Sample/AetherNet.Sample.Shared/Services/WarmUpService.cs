@@ -82,6 +82,16 @@ public sealed class WarmUpService
     public bool IsWarm { get; private set; }
 
     /// <summary>
+    /// A moment at the end, so the finished mesh is seen rather than flashing past.
+    /// </summary>
+    /// <remarks>
+    /// It used to be a delay inside the screen, before it navigated away. The screen no longer
+    /// navigates — the app hands over the instant <see cref="IsWarm"/> goes true — so the pause has to
+    /// be on this side of that flag or there is nothing left to pause.
+    /// </remarks>
+    private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(700);
+
+    /// <summary>
     /// The whole product, in the order it makes sense to bring up.
     ///
     /// <para>
@@ -103,8 +113,8 @@ public sealed class WarmUpService
 
     public IReadOnlyList<WarmStep> Steps { get; } =
     [
-        // First, and deliberately so. A phone with three of the seven radios AetherNet can use is not
-        // a broken app, it is a phone with three radios — and the person holding it should learn that
+        // First, and deliberately so. A phone with four of the eight radios AetherNet can use is not
+        // a broken app, it is a phone with four radios — and the person holding it should learn that
         // from us, before they conclude the software is at fault. It also shows them exactly what a
         // better device would buy.
         new("radios",    "Identifying radios on this device"),
@@ -115,7 +125,7 @@ public sealed class WarmUpService
         new("notes",     "Notes, files and app sharing"),
         new("calls",     "Voice and video calls"),
         new("radiosup",  "Waking the radios"),
-        new("wifidirect","Wi-Fi Direct — the fast radio"),
+        new("wifidirect","Wi-Fi Direct — phone to phone"),
         new("internet",  "Internet relay — reaching further"),
     ];
 
@@ -129,7 +139,14 @@ public sealed class WarmUpService
 
         foreach (var step in Steps)
         {
-            if (cancellationToken.IsCancellationRequested) break;
+            // Said out loud, because a run that stopped here leaves every later step sitting in
+            // Waiting — which on screen is a node that never lights, indistinguishable from one that
+            // came up and had nothing to say.
+            if (cancellationToken.IsCancellationRequested)
+            {
+                _log.LogWarning("[warm] stopped before {Step}: the run was cancelled", step.Key);
+                break;
+            }
 
             step.State = WarmState.Working;
             Raise();
@@ -148,8 +165,16 @@ public sealed class WarmUpService
                 _log.LogWarning(ex, "Warm-up step {Step} failed", step.Key);
             }
 
+            // One line per step, to logcat. Warm-up is the only part of the app whose whole job is to
+            // finish before anybody is watching, so when a capability quietly does not come up there
+            // is nothing on screen to read afterwards and no way to tell "absent" from "never ran".
+            _log.LogInformation("[warm] {Step} {State} {Detail}", step.Key, step.State, step.Detail ?? "");
+
             Raise();
         }
+
+        try { await Task.Delay(Settle, cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
 
         IsWarm = true;
         Raise();
@@ -172,9 +197,10 @@ public sealed class WarmUpService
                 foreach (var found in radios)
                 {
                     Found.Add(found);
-                    step.Detail = found.Present
-                        ? $"{found.Name} found"
-                        : $"{found.Name} — {found.Detail}";
+                    // The name only. Whatever else there is to say about this radio is landing in
+                    // the row directly below in the same frame, and saying it twice made the line
+                    // above read as three sentences spliced with dashes.
+                    step.Detail = found.Name;
                     Raise();
                     await Task.Delay(RadioPause, cancellationToken).ConfigureAwait(false);
                 }
@@ -242,22 +268,22 @@ public sealed class WarmUpService
                     : "voice only — no camera here";
                 break;
 
-            // Bluetooth finds people. It is not what carries them; see the Wi-Fi Direct step.
+            // Every radio at once — Wi-Fi Direct, Wi-Fi, Bluetooth, Wi-Fi Aware, NFC, LoRa. None of
+            // them is "the" radio: they all come up, and whichever turns out to be widest carries.
             case "radiosup":
                 var radio = Get<IRadioMesh>();
                 if (radio is null || !radio.IsSupported) { Absent(step, "no radio on this device"); break; }
 
-                // Waking them is not the same as forming a link. The fast radio is deliberately left
-                // down until something needs it — holding a Wi-Fi Direct group around the clock cost
-                // this phone its own Wi-Fi and carried nothing most of the day.
+                // Waking them is not the same as forming a link — this is the radios listening, and
+                // the steps after it are the links themselves.
                 radio.Link();
                 step.Detail = radio.PeerTag is { } peer ? $"linked with {peer}" : "ready";
                 break;
 
-            // The core radio. Fifty frames a second each way against Bluetooth's eleven kilobits, so
-            // this is the one that actually carries a call, a video note or an APK. Forming the group
-            // takes seconds, which is exactly why it belongs here and not in front of a person who
-            // has just pressed Call.
+            // The widest radio that needs no network of any kind: fifty frames a second each way,
+            // against Bluetooth's eleven kilobits. Forming the group takes seconds, which is exactly
+            // why it belongs here and not in front of somebody who has just pressed Call — and why it
+            // is brought up whether or not anything needs it yet.
             case "wifidirect":
                 var fast = Get<FastRadioService>();
                 var mesh = Get<IRadioMesh>();

@@ -101,6 +101,66 @@ public class CardExportTests
         Assert.DoesNotContain("<script src", page, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// A page that links out still fetches nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// These are two different things and the difference is the whole design. Every real page links
+    /// from inside its sentences — the page this standard is measured against does it eleven times —
+    /// so a card that could not would not be the same page. But a link is somewhere the reader may
+    /// choose to go, and a subresource is somewhere the page goes on their behalf before they have
+    /// decided anything.
+    /// </para>
+    /// <para>
+    /// So the rule is not "no addresses". It is that nothing is fetched: no stylesheet, no font, no
+    /// script, no image, no background. Opening a stranger's card causes no request of any kind, and
+    /// it stays true of a card covered in links.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_page_that_links_out_still_fetches_nothing()
+    {
+        var card = Card();
+        card.Blocks.Add(CardBlock.Of(CardBlock.Text, "Read [the notes](https://kagiso.example/notes)."));
+
+        var page = CardExport.Standalone(card, Picture);
+
+        Assert.Contains("href=\"https://kagiso.example/notes\"", page, StringComparison.Ordinal);
+
+        // Every way a page can go and get something, and none of them point anywhere but at itself.
+        Assert.DoesNotContain("<link", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("@import", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<script src", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("src=\"http", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("url(http", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("srcset", page, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// And the mesh copy of that same page is still the same file.
+    /// </summary>
+    /// <remarks>
+    /// Worth its own test because links are the one thing that could reasonably have been rendered
+    /// differently in the two places, and a difference here is exactly the drift this whole class
+    /// exists to catch.
+    /// </remarks>
+    [Fact]
+    public void A_page_that_links_out_is_the_same_in_both_places()
+    {
+        static CardDocument Linked()
+        {
+            var card = Card();
+            card.Blocks.Add(CardBlock.Of(CardBlock.Text, "Read [the notes](https://kagiso.example/notes)."));
+            return card;
+        }
+
+        var onTheMesh = CardPage.Render(
+            Linked(), "Kagiso Plumbing", 0, downloadPath: null, assetPath: Picture, fonts: PageAssets.Face);
+
+        Assert.Equal(onTheMesh, CardExport.Standalone(Linked(), Picture));
+    }
+
     [Fact]
     public void The_typefaces_travel_with_it()
     {

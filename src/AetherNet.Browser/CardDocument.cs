@@ -69,6 +69,28 @@ public sealed class CardBlock
     public const string Link = "link";
 
     /// <summary>
+    /// The page's name, as the reader sees it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A block rather than a property, so an author can put it where they want it and put things
+    /// above it. It used to be hoisted to the top of every page along with the label, which meant a
+    /// page could not open with a picture, or put its navigation over its name, or do any of the
+    /// things a designed page does — the renderer was deciding the layout and calling it a document.
+    /// </para>
+    /// <para>
+    /// <see cref="CardDocument.Title"/> stays as the page's name for lists, addresses and file names.
+    /// A card with no title block still shows that name first, so nothing written before this
+    /// suddenly loses its heading.
+    /// </para>
+    /// <para>
+    /// <c>As</c> may be <c>small</c>, which sets it as a wordmark rather than a headline — the
+    /// difference between a masthead and a signature, and a decision only the author can make.
+    /// </para>
+    /// </remarks>
+    public const string Title = "title";
+
+    /// <summary>
     /// A small letterspaced label above a title — a role, a place, a date.
     /// </summary>
     /// <remarks>
@@ -161,10 +183,21 @@ public sealed class CardBlock
     /// </remarks>
     [JsonPropertyName("as")] public string? As { get; set; }
 
-    /// <summary>Whether this block is centred.</summary>
+    /// <summary>
+    /// Whether this block is centred.
+    /// </summary>
+    /// <remarks>
+    /// Not written, and neither are the three below. They are questions asked about <c>a</c> and
+    /// <c>as</c>, not things a block stores — but they were being serialised into every block of
+    /// every card, so a third of a document was answers to questions nobody asked, repeated once per
+    /// block, over a radio. Worse for the one person this format exists to teach: somebody reading
+    /// the JSON to learn how a card works was shown four fields that look settable and are not.
+    /// </remarks>
+    [JsonIgnore]
     public bool IsCentred => string.Equals(Align, "centre", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Whether this picture runs to the edges at its own shape.</summary>
+    [JsonIgnore]
     public bool IsWide => string.Equals(As, "wide", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
@@ -176,7 +209,12 @@ public sealed class CardBlock
     /// page that was made from a page that was laid out, and there was no way to express it — a
     /// picture could only ever be a masthead or a figure in the flow.
     /// </remarks>
+    [JsonIgnore]
     public bool IsWash => string.Equals(As, "wash", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether this is set as a wordmark rather than a headline.</summary>
+    [JsonIgnore]
+    public bool IsSmall => string.Equals(As, "small", StringComparison.OrdinalIgnoreCase);
 
     public static CardBlock Of(string kind, string value) => new() { Kind = kind, Value = value };
 
@@ -209,7 +247,8 @@ public sealed class CardBlock
         colour.Skip(1).All(char.IsAsciiHexDigit);
 
     /// <summary>The longest a tip address may be.</summary>
-    private const int LongestTip = 200;
+    /// <summary>The longest address a card may carry, in a tip jar or inside a sentence.</summary>
+    public const int LongestTip = 200;
 
     /// <summary>
     /// Is this a tip address we are willing to put in front of a reader?
@@ -230,7 +269,25 @@ public sealed class CardBlock
     /// authority over who may be paid, which is the thing this network exists to not be.
     /// </para>
     /// </summary>
-    public static bool IsUsableTip(string? address)
+    public static bool IsUsableTip(string? address) => IsUsableWeb(address);
+
+    /// <summary>
+    /// An address on the open web that a reader may safely be offered.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Https and nothing else. Not because http is rare, but because every other scheme a written
+    /// address could carry is a way to make the reader's browser do something on the author's behalf —
+    /// <c>javascript:</c> most obviously, but <c>data:</c>, <c>file:</c> and whatever the browser
+    /// happens to have registered are all worse than useless here. An address that does not pass this
+    /// is drawn as words with nothing to click.
+    /// </para>
+    /// <para>
+    /// A userinfo <c>@</c> is refused as well: it is the oldest way of making an address read as one
+    /// host while going to another, and no honest link on a card needs one.
+    /// </para>
+    /// </remarks>
+    public static bool IsUsableWeb(string? address)
     {
         if (string.IsNullOrWhiteSpace(address)) return false;
         if (address.Length > LongestTip) return false;
@@ -250,6 +307,15 @@ public sealed class CardBlock
 
         return address.All(c => !char.IsWhiteSpace(c) && !char.IsControl(c));
     }
+
+    /// <summary>Whether this is an address on the mesh rather than on the web.</summary>
+    /// <remarks>
+    /// Checked here, checked again in the script inside the page, and checked a third time by the
+    /// host before it acts. A card asks to be followed; it never follows anything itself.
+    /// </remarks>
+    public static bool IsMeshAddress(string? target) =>
+        target is { Length: > 0 and < 512 } &&
+        target.StartsWith("aether://", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The host a tip address points at, as a reader should see it.</summary>
     /// <remarks>

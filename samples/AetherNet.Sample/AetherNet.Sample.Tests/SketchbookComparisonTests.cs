@@ -47,98 +47,10 @@ public class SketchbookComparisonTests
         if (!File.Exists(path)) return null;
 
         var read = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path));
-        return read?.ToDictionary(p => Hash(p.Key), p => p.Value);
+        return read?.ToDictionary(p => Sketchbook.Hash(p.Key), p => p.Value);
     }
 
     /// <summary>A stand-in content hash: letters and digits, exactly as the real ones are.</summary>
-    private static string Hash(string name) =>
-        new([.. name.Where(char.IsAsciiLetterOrDigit)]);
-
-    /// <summary>The nine plates, in the order the page shows them.</summary>
-    private static readonly (string File, string Name, string Place)[] Places =
-    [
-        ("marina-bay-sands", "Marina Bay Sands", "Bayfront"),
-        ("gardens-by-the-bay", "Gardens by the Bay", "Supertree Grove"),
-        ("merlion", "The Merlion", "Merlion Park"),
-        ("buddha-tooth", "Buddha Tooth Relic Temple", "Chinatown"),
-        ("joo-chiat", "Joo Chiat Shophouses", "Katong"),
-        ("lau-pa-sat", "Lau Pa Sat", "Raffles Quay"),
-        ("marina-bay-skyline", "Marina Bay Skyline", "The Bay"),
-        ("singapore-river", "Singapore River", "Boat Quay"),
-        ("botanic-gardens", "Botanic Gardens", "Tanglin"),
-    ];
-
-    /// <summary>
-    /// The page, built the way a person builds one.
-    /// </summary>
-    /// <remarks>
-    /// Every block through <see cref="OwnCard.Add"/> — the same call the editor's buttons make — so
-    /// this cannot quietly rely on something the editor does not offer.
-    /// </remarks>
-    private static CardDocument Built()
-    {
-        var card = PageTemplate.Of("blank").Build(null);
-        card.Blocks.RemoveAll(b => b.Kind == CardBlock.Text);
-
-        card.Title = "Meng To";
-        OwnCard.SetLook(card, "editorial");
-        OwnCard.SetShader(card, "tide");
-
-        Put(card, CardBlock.Image, hash: Hash("bg-wash"), how: "wash");
-
-        Put(card, CardBlock.Eyebrow, "Designer / Creator / AI Educator / Founder @ Singapore", centred: true);
-
-        Put(card, CardBlock.Link, "Journal", to: "aether://MENGTO/journal", centred: true);
-        Put(card, CardBlock.Link, "About", to: "aether://MENGTO/about", centred: true);
-        Put(card, CardBlock.Link, "Contact", to: "aether://MENGTO/contact", centred: true);
-
-        Put(card, CardBlock.Image, "The sketchbook, open at Marina Bay", hash: Hash("bloom"), how: "wide");
-
-        Put(card, CardBlock.Heading, "About");
-        Put(card, CardBlock.Text,
-            "Meng To is a designer, creator and AI educator based in Singapore, founder of " +
-            "_Design+Code_, where for over a decade he has taught designers and developers to build " +
-            "real apps — from Sketch and Xcode through SwiftUI, and now the AI tools that let one " +
-            "person ship what used to take a team.");
-        Put(card, CardBlock.Text,
-            "His work lives on the seam between craft and code: teaching designers to build, and " +
-            "builders to see. This sketchbook is the other half of that — the city looked at slowly, " +
-            "*in ink and a little colour*: shophouse shutters, hawker tents, the bay at dusk.");
-
-        Put(card, CardBlock.Rule, "brush");
-        Put(card, CardBlock.Heading, "Plates");
-
-        Lines(card, CardBlock.Index, [.. Places.Select(p => $"{p.Name} = {p.Place}")]);
-
-        foreach (var (file, name, _) in Places)
-            Put(card, CardBlock.Image, name, hash: Hash(file));
-
-        Put(card, CardBlock.Rule, "scatter");
-        Put(card, CardBlock.Text, "Singapore · Sketchbook · _hello@mengto.com_", centred: true);
-
-        return OwnCard.Tidy(card);
-    }
-
-    private static void Put(
-        CardDocument card, string kind, string? value = null,
-        string? to = null, string? hash = null, string? how = null, bool centred = false)
-    {
-        Assert.True(OwnCard.Add(card, kind), $"the editor does not offer {kind}");
-
-        var block = card.Blocks[^1];
-        block.Value = value;
-        block.Target = to;
-        block.ContentHash = hash;
-        block.As = how;
-        if (centred) block.Align = "centre";
-    }
-
-    private static void Lines(CardDocument card, string kind, string[] lines)
-    {
-        Assert.True(OwnCard.Add(card, kind), $"the editor does not offer {kind}");
-        card.Blocks[^1].Items = [.. lines];
-    }
-
     // ── Built, weighed, written out ───────────────────────────────────────────
 
     [Fact]
@@ -146,13 +58,31 @@ public class SketchbookComparisonTests
     {
         if (Plates() is not { Count: > 0 } plates) return;
 
-        var card = Built();
+        var card = Sketchbook.Built();
         var page = CardExport.Standalone(
             card,
             hash => plates.GetValueOrDefault(hash),
             at: "aether://Y6TK9-EW9KK/sketchbook");
 
         File.WriteAllText(Path.Combine(Fixtures!, "sketchbook-card.html"), page);
+
+        // Exactly what the background picker puts in one of its tiles, so a background that does not
+        // paint can be looked at on its own rather than guessed at through a phone screenshot.
+        File.WriteAllText(
+            Path.Combine(Fixtures!, "backdrop.html"),
+            CardPage.Render(
+                new CardDocument
+                {
+                    Title = "Meng To",
+                    Blocks = [CardBlock.Of(CardBlock.Theme, "editorial"), CardBlock.Of(CardBlock.Theme, "tide")],
+                },
+                "Meng To", 0, downloadPath: null, fonts: PageAssets.Face, still: true, sample: true));
+
+        // The document on its own, so it can be put on a handset and opened by the app rather than
+        // looked at in a desktop browser. A page that only renders on a laptop has not been replicated.
+        File.WriteAllText(
+            Path.Combine(Fixtures!, "sketchbook.json"),
+            OwnCard.ForPublish(Sketchbook.Built()).ToJson());
 
         // What it weighs, next to what the original weighs, in the file this writes.
         var bytes = Encoding.UTF8.GetByteCount(page);
@@ -174,9 +104,9 @@ public class SketchbookComparisonTests
     {
         if (Plates() is not { Count: > 0 } plates) return;
 
-        var page = CardExport.Standalone(Built(), hash => plates.GetValueOrDefault(hash));
+        var page = CardExport.Standalone(Sketchbook.Built(), hash => plates.GetValueOrDefault(hash));
 
-        foreach (var (_, name, place) in Places)
+        foreach (var (_, name, place) in Sketchbook.Places)
         {
             Assert.Contains(name, page, StringComparison.Ordinal);
             Assert.Contains(place, page, StringComparison.Ordinal);
@@ -188,7 +118,7 @@ public class SketchbookComparisonTests
     {
         if (Plates() is not { Count: > 0 } plates) return;
 
-        var page = CardExport.Standalone(Built(), hash => plates.GetValueOrDefault(hash));
+        var page = CardExport.Standalone(Sketchbook.Built(), hash => plates.GetValueOrDefault(hash));
 
         Assert.Contains("class=\"gallery\"", page, StringComparison.Ordinal);
         Assert.Contains("class=\"wash\"", page, StringComparison.Ordinal);
@@ -206,7 +136,7 @@ public class SketchbookComparisonTests
     [Fact]
     public void The_card_itself_is_a_few_kilobytes()
     {
-        var json = OwnCard.ForPublish(Built()).ToJson();
+        var json = OwnCard.ForPublish(Sketchbook.Built()).ToJson();
 
         Assert.True(json.Length < 4096, $"{json.Length} bytes");
     }

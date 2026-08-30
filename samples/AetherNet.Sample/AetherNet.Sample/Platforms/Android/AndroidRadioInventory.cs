@@ -14,6 +14,12 @@ namespace AetherNet.Sample.Platforms.Android;
 /// to decide whether an app can run on a device. Nothing here is inferred from a model name or a
 /// version number, so a phone that says it has Wi-Fi Aware has it, and one that does not, does not.
 /// </para>
+///
+/// <para>
+/// This list must match what <c>AndroidRadioMesh</c> registers. It drifted: Wi-Fi was added as a
+/// transport and never appeared here, so the launch screen read "3 of 6 radios" while the radio
+/// actually carrying the traffic in front of the person was not on the list at all.
+/// </para>
 /// </summary>
 public sealed class AndroidRadioInventory : IRadioInventory
 {
@@ -29,6 +35,7 @@ public sealed class AndroidRadioInventory : IRadioInventory
     public IReadOnlyList<RadioCapability> Survey()
     {
         var wifiDirect = Has(PackageManager.FeatureWifiDirect);
+        var wifi = Has("android.hardware.wifi");
         var bluetooth = Has(PackageManager.FeatureBluetoothLe) || Has(PackageManager.FeatureBluetooth);
         var aware = Has("android.hardware.wifi.aware");
         var nfc = Has(PackageManager.FeatureNfc);
@@ -40,21 +47,31 @@ public sealed class AndroidRadioInventory : IRadioInventory
                 wifiDirect
                     ? "carries calls, video and files between phones with no network at all"
                     : "this phone cannot do device-to-device Wi-Fi",
-                Carrying: wifiDirect),
+                Carries: wifiDirect),
+
+            // The obvious one, and the one that was missing from this list entirely. Two phones on the
+            // same network — a house, a café, a hotspot — can already reach each other, and leaving it
+            // out meant the screen did not name the radio that was doing the work.
+            new("Wi-Fi", wifi,
+                wifi
+                    ? "carries over a network you are both already on, at whatever that network can do"
+                    : "no Wi-Fi radio in this device",
+                Carries: wifi),
 
             new("Mobile data", telephony,
                 telephony
                     ? "reaches people who are nowhere near you, through a phone in your Circle"
                     : "no cellular radio in this device",
-                Carrying: telephony),
+                Carries: telephony),
 
-            // Present on every phone here and deliberately not used. Measured at 11 kbps in one
-            // direction, which cannot carry a call at any codec — and while it was registered it kept
-            // taking traffic that Wi-Fi Direct could have carried properly.
+            // Back in the mesh, so the old line here — "too slow to carry a call, so nothing is sent
+            // over it" — is no longer true. It was taken out for carrying traffic Wi-Fi Direct should
+            // have had, which was a routing fault, not a Bluetooth fault, and the routing is fixed.
             new("Bluetooth", bluetooth,
                 bluetooth
-                    ? "present, but 11 kbps one way — too slow to carry a call, so nothing is sent over it"
-                    : "no Bluetooth radio in this device"),
+                    ? "reaches when there is no Wi-Fi at all — slow, so it carries only when it is the best there is"
+                    : "no Bluetooth radio in this device",
+                Carries: bluetooth),
 
             new("NFC", nfc,
                 nfc ? "adds someone by touching two phones together" : "no NFC in this device"),
@@ -65,7 +82,7 @@ public sealed class AndroidRadioInventory : IRadioInventory
                 aware
                     ? "finds people and carries traffic without forming a group at all"
                     : "not in this phone — it is the radio worth having on your next one",
-                Carrying: aware),
+                Carries: aware),
 
             // Huawei silicon driven by HarmonyOS APIs. Android's stack cannot speak it at all, so on
             // an Android phone there is no way even to detect it.

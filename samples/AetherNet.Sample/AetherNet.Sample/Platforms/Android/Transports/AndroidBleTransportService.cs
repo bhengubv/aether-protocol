@@ -25,7 +25,17 @@ namespace AetherNet.Sample.Platforms.Android.Transports;
 /// </summary>
 public sealed class AndroidBleTransportService : IRadio, IDisposable
 {
-    private readonly UUID ServiceUuid;
+    /// <summary>
+    /// What this radio advertises and scans for.
+    /// </summary>
+    /// <remarks>
+    /// Not readonly, because it is the meeting. One fixed id for the whole app means every phone
+    /// running AetherNet answers every other one within range — which is discovery, and discovery is
+    /// precisely what must not happen: a radio that will link to anybody is a radio that will carry
+    /// anybody's traffic. Advertising the meeting means only the person whose tag you were handed can
+    /// see this phone, and only they can be seen by it.
+    /// </remarks>
+    private UUID ServiceUuid;
     private readonly UUID RxUuid; // central → peripheral write
     private readonly UUID TxUuid; // peripheral → central notify
     private static readonly UUID CccdUuid = UUID.FromString("00002902-0000-1000-8000-00805f9b34fb")!;
@@ -183,11 +193,51 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
 
     // ── Bring-up: advertise (peripheral) + scan (central) ───────────────────────
 
+    /// <summary>
+    /// Come up to meet one particular person, rather than to meet anybody.
+    /// </summary>
+    /// <remarks>
+    /// The meeting becomes the service id — the thing a peripheral advertises and a central filters
+    /// its scan on, which is the whole of the matching in Bluetooth. Nothing else about the bring-up
+    /// changes; it simply stops answering strangers.
+    /// </remarks>
+    public void Link(AetherNet.Sample.Shared.Services.Meeting meeting)
+    {
+        var wanted = UUID.FromString(meeting.Uuid().ToString())!;
+        _told = true;
+
+        // Already advertising this one. Tearing the link down to rebuild it identically is how a
+        // healthy link ends up re-handshaking on a loop.
+        if (!wanted.Equals(ServiceUuid))
+        {
+            L($"meeting {meeting.PeerTag} — advertising for them alone");
+            ServiceUuid = wanted;
+
+            // The old service and the old scan filter are for somebody else now.
+            if (_linked || _gatt is not null || _peripheralPeer is not null)
+                ResetLink("meeting somebody else");
+        }
+
+        Link();
+    }
+
+    /// <summary>Whether this radio has been told who it is meeting.</summary>
+    private bool _told;
+
     public void Link()
     {
         // Registered even when the adapter is currently off, so the radio is picked up the moment the
         // person turns Bluetooth back on — and, more importantly, so we are told BEFORE it goes away.
         WatchAdapterState();
+
+        // Nobody named, nobody met.
+        //
+        // Coming up without a meeting means advertising one id for the whole app and answering any
+        // phone running it — which is discovery, the thing that must not happen. It also beat the
+        // meeting to it: BLE linked to a stranger within a second of launch, and the mesh then skipped
+        // it as "already linked" when the real meeting arrived. So the promiscuous door is shut, and
+        // this radio waits to be told.
+        if (!_told) { L("waiting to be told who to meet"); return; }
 
         if (_adapter is null || !_adapter.IsEnabled) { L("Bluetooth is off"); return; }
         if (LinkLooksAlive()) { L("already linked"); return; }

@@ -6,7 +6,6 @@
 @inject AetherStore Store
 @inject CallService Calls
 @inject NavigationManager Nav
-@inject WarmUpService Warm
 @inject ContactService Contacts
 @inject InviteLinks Invites
 @using Microsoft.AspNetCore.Components.Routing
@@ -88,16 +87,11 @@
         Chat.WhereIAm = Here();
         Nav.LocationChanged += OnMoved;
 
-        // Nothing is ready until it has been made ready, and making it ready in front of somebody who
-        // has just tapped something is what made this app feel like it hesitated. So every route lands
-        // on the warm-up first: it opens the databases, unseals the identity, publishes the pre-keys,
-        // brings the radios up and forms the Wi-Fi Direct group, then hands over to a phone that can
-        // do everything immediately. It runs once per launch, so this is not a redirect loop.
-        if (!Warm.IsWarm)
-        {
-            Nav.NavigateTo("warming", replace: true);
-            return;
-        }
+        // The warm-up gate was here, and being here was the bug: this layout has to be ACTIVATED
+        // before its OnInitialized can run, and activating it builds the database, chat, calls and
+        // video — the very work the warm-up screen exists to cover. The screen could not appear until
+        // the wait was over. It now lives above the router in Routes.razor, where nothing has to be
+        // constructed for it to decide.
 
         // Setup is not optional either: until the device is actually on AetherNet, every route lands
         // on the wizard. Nothing else in the app makes sense before that.

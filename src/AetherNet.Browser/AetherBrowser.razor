@@ -9,12 +9,30 @@
    should not be reading the other. *@
 <div class="browser">
     <div class="where @(_view == View.Edit ? "away" : null)">
-        <button class="seg @(_view == View.Browse ? "on" : null)" @onclick="() => Show(View.Browse)">Browse</button>
-        <button class="seg @(_view == View.Mine ? "on" : null)" @onclick="() => Show(View.Mine)">Mine</button>
-        <button class="seg @(_view == View.Deck ? "on" : null)" @onclick="() => Show(View.Deck)">
-            Deck@(Mesh.Deck.Count > 0 ? $" · {Mesh.Deck.Count}" : "")
+        @* A browser, and your own shelf. Cards you wrote and cards you were given were two tabs
+           because they are two lists in the code; to the person holding the phone they are the same
+           kind of thing — cards, on a shelf — and which of them you happened to write is a smaller
+           distinction than the one the tab bar was making. *@
+        <button class="seg @(_view == View.Browser ? "on" : null)"
+                @onclick="() => Show(View.Browser)">Browser</button>
+        <button class="seg @(_view == View.Library ? "on" : null)" @onclick="() => Show(View.Library)">
+            Library@(Shelved > 0 ? $" · {Shelved}" : "")
         </button>
     </div>
+
+    @if (_view == View.Library)
+    {
+        <div class="shelf">
+            <button class="tab @(_shelf == Shelf.Cards ? "on" : null)"
+                    @onclick="() => _shelf = Shelf.Cards">
+                My cards@(Mesh.Mine.All.Count > 0 ? $" · {Mesh.Mine.All.Count}" : "")
+            </button>
+            <button class="tab @(_shelf == Shelf.Decks ? "on" : null)"
+                    @onclick="() => _shelf = Shelf.Decks">
+                Decks@(Mesh.Deck.Count > 0 ? $" · {Mesh.Deck.Count}" : "")
+            </button>
+        </div>
+    }
 
 @if (_took is { Length: > 0 })
 {
@@ -27,12 +45,80 @@
        is somewhere you are inside this component rather than a route its host has to know about. *@
     <CardEditor Name="@_editing" Done="Edited" @key="@("edit:" + (_editing ?? "new"))" />
 }
-else if (_view == View.Deck)
+else if (_view == View.Library && _shelf == Shelf.Decks)
 {
-    @* Cards other people wrote, held here. A card is an object: it opens with no signal, with its
-       author asleep or gone, and it can be handed on to somebody who has never met them — who still
-       checks it against the author's own key, not against ours. *@
+    @* Cards other people wrote, held here — and the named sets somebody has gathered them into.
+
+       A deck is the thing people actually do with cards: put the ones that go together in an order,
+       call it something, and hand the whole lot over. Without it a card can only be given one at a
+       time, and "the plumber, the tiler and the sparks" is three conversations. *@
     <div class="mine">
+        @foreach (var deck in Mesh.Decks.All)
+        {
+            <div class="row">
+                <button class="rmain" @onclick="@(() => _opened = _opened == deck.Name ? null : deck.Name)">
+                    <span class="rtitle">@deck.Name</span>
+                    <span class="raddr">@deck.Cards.Count @(deck.Cards.Count == 1 ? "card" : "cards")</span>
+                </button>
+                <div class="hacts">
+                    <button class="hact" disabled="@(!Mesh.RadioLinked || _busy || deck.Cards.Count == 0)"
+                            @onclick="@(() => GiveDeck(deck.Name))">Give all</button>
+                </div>
+            </div>
+
+            @if (_opened == deck.Name)
+            {
+                <div class="opened">
+                    <div class="prow">
+                        <button class="tiny" @onclick="@(() => Order(deck.Name, -1))" aria-label="Move up">↑</button>
+                        <button class="tiny" @onclick="@(() => Order(deck.Name, 1))" aria-label="Move down">↓</button>
+                        <button class="tiny" @onclick="@(() => _renaming = _renaming == deck.Name ? null : deck.Name)">Rename</button>
+                        <button class="tiny drop" @onclick="@(() => DropDeck(deck.Name))">Put away</button>
+                    </div>
+
+                    @if (_renaming == deck.Name)
+                    {
+                        <input class="in" maxlength="@Decks.LongestName" placeholder="@deck.Name"
+                               value="@_deckName" @oninput="OnDeckName"
+                               @onkeydown="@(e => { if (e.Key == "Enter") Rename(deck.Name); })" />
+                        <div class="prow">
+                            <button class="tiny" @onclick="@(() => Rename(deck.Name))">Save</button>
+                        </div>
+                    }
+
+                    @if (deck.Cards.Count == 0)
+                    {
+                        <p class="lede">Nothing in it yet. Add cards from below.</p>
+                    }
+
+                    @foreach (var address in deck.Cards)
+                    {
+                        <div class="held">
+                            <button class="rmain" @onclick="@(() => Go(address))">
+                                <span class="rtitle">@Called(address)</span>
+                                <span class="raddr">@address.Replace("aether://", "")</span>
+                            </button>
+                            <div class="hacts">
+                                <button class="tiny" @onclick="@(() => OrderCard(deck.Name, address, -1))" aria-label="Move up">↑</button>
+                                <button class="tiny" @onclick="@(() => OrderCard(deck.Name, address, 1))" aria-label="Move down">↓</button>
+                                <button class="tiny drop" @onclick="@(() => TakeOut(deck.Name, address))">Take out</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+
+        @if (!Mesh.Decks.Full)
+        {
+            <div class="newdeck">
+                <input class="in" maxlength="@Decks.LongestName" placeholder="Name a deck — Trades, My street, The shop"
+                       value="@_making" @oninput="OnMaking"
+                       @onkeydown="@(e => { if (e.Key == "Enter") MakeDeck(); })" />
+                <button class="tiny" disabled="@(Decks.Clean(_making).Length == 0)" @onclick="MakeDeck">Make it</button>
+            </div>
+        }
+
         <p class="lede">Cards people gave you. They open with no signal and no author — and you can hand any of them on.</p>
 
         @if (Mesh.Deck.Count == 0)
@@ -52,6 +138,16 @@ else if (_view == View.Deck)
                     <span class="by">by @held.AuthorTag@(held.GotFrom is { Length: > 0 } f && f != held.AuthorTag ? $" · from {f}" : "")</span>
                 </button>
                 <div class="hacts">
+                    @if (Mesh.Decks.All.Count > 0)
+                    {
+                        <select class="in slim" value="" @onchange="@(e => Into(held.Address, e))">
+                            <option value="">Add to…</option>
+                            @foreach (var deck in Mesh.Decks.All)
+                            {
+                                <option value="@deck.Name">@deck.Name</option>
+                            }
+                        </select>
+                    }
                     <button class="hact" disabled="@(!Mesh.RadioLinked || _busy)" @onclick="@(() => Give(held.Address))">Give</button>
                     <button class="hact drop" @onclick="@(() => Drop(held.Address))">Let go</button>
                 </div>
@@ -59,7 +155,7 @@ else if (_view == View.Deck)
         }
     </div>
 }
-else if (_view == View.Mine)
+else if (_view == View.Library)
 {
     <div class="mine">
         <p class="lede">Your AetherTag is your domain. Every page below is a path under it, served off this phone — nobody issued it, so nobody can take it back.</p>
@@ -73,6 +169,8 @@ else if (_view == View.Mine)
                     <span class="rstate @(card.Live ? "live" : "draft")">@(card.Live ? "published" : "draft")</span>
                 </button>
                 <div class="hacts">
+                    <button class="tiny" @onclick="@(() => OrderPage(card.Name, -1))" aria-label="Move up">↑</button>
+                    <button class="tiny" @onclick="@(() => OrderPage(card.Name, 1))" aria-label="Move down">↓</button>
                     <button class="redit" @onclick="@(() => Edit(card.Name))">Edit</button>
                     @if (card.Live)
                     {
@@ -187,7 +285,16 @@ else
     /// is exactly the coupling that stops the same component being one tab here and a whole
     /// application somewhere else. Nothing in this library knows what a route is.
     /// </remarks>
-    private enum View { Browse, Mine, Deck, Edit }
+    /// <summary>Where somebody is: reading the mesh-web, or looking at their own shelf.</summary>
+    private enum View { Browser, Library, Edit }
+
+    /// <summary>Which half of the shelf — what you wrote, or what you were given.</summary>
+    private enum Shelf { Cards, Decks }
+
+    private Shelf _shelf = Shelf.Cards;
+
+    /// <summary>How much is on the shelf altogether, for the tab.</summary>
+    private int Shelved => Mesh.Mine.All.Count + Mesh.Deck.Count;
 
     private View _view;
     private string _took = "";
@@ -430,6 +537,116 @@ else
 
     private void Show(View view) { _view = view; _took = ""; }
 
+    // ─── The shelf ──────────────────────────────────────────────────────────────
+
+    /// <summary>Which deck is open, if any.</summary>
+    private string? _opened;
+
+    /// <summary>Which deck is being renamed, if any.</summary>
+    private string? _renaming;
+
+    /// <summary>What it is being renamed to.</summary>
+    private string _deckName = "";
+
+    /// <summary>What a new deck is to be called.</summary>
+    private string _making = "";
+
+    private void OnMaking(ChangeEventArgs e) => _making = e.Value?.ToString() ?? "";
+
+    private void OnDeckName(ChangeEventArgs e) => _deckName = e.Value?.ToString() ?? "";
+
+    private void MakeDeck()
+    {
+        if (Mesh.Decks.Make(_making) is { } made)
+        {
+            _opened = made.Name;
+            _making = "";
+            _took = $"“{made.Name}” is a deck now. Add cards to it from below.";
+        }
+    }
+
+    private void Rename(string was)
+    {
+        if (!Mesh.Decks.Rename(was, _deckName)) return;
+
+        _opened = Decks.Clean(_deckName);
+        _renaming = null;
+        _deckName = "";
+    }
+
+    private void DropDeck(string name)
+    {
+        if (!Mesh.Decks.Drop(name)) return;
+
+        _opened = null;
+        _took = "Deck put away. The cards are still yours.";
+    }
+
+    private void Order(string name, int by) => Mesh.Decks.Move(name, by);
+
+    private void OrderCard(string name, string address, int by) => Mesh.Decks.MoveCard(name, address, by);
+
+    private void OrderPage(string name, int by) => Mesh.Mine.Move(name, by);
+
+    private void TakeOut(string name, string address) => Mesh.Decks.Remove(name, address);
+
+    /// <summary>Put a card somebody gave you into one of your decks.</summary>
+    private void Into(string address, ChangeEventArgs e)
+    {
+        if (e.Value?.ToString() is not { Length: > 0 } deck) return;
+
+        _took = Mesh.Decks.Add(deck, address)
+            ? $"Added to “{deck}”."
+            : $"“{deck}” already has that one.";
+    }
+
+    /// <summary>What a card in a deck is called, from whichever list is holding it.</summary>
+    /// <remarks>
+    /// A deck keeps addresses, so the words come from the card itself — and a deck may name a card
+    /// this phone has since let go of, which is simply one fewer card in the deck rather than
+    /// something to tidy up.
+    /// </remarks>
+    private string Called(string address)
+    {
+        if (Mesh.Deck.Get(address) is { } held)
+            return held.Title is { Length: > 0 } t ? t : held.Name;
+
+        var mine = address.Split('/').LastOrDefault() ?? address;
+        if (Mesh.Mine.Get(mine) is { } page)
+            return string.IsNullOrWhiteSpace(page.Doc.Title) ? page.Name : page.Doc.Title;
+
+        return mine;
+    }
+
+    /// <summary>
+    /// Hand a whole deck over, in its order.
+    /// </summary>
+    /// <remarks>
+    /// It says how many went, not that it worked. A deck half-given looks exactly like a deck given,
+    /// and somebody who walked away with four of six cards has no way to find out which two.
+    /// </remarks>
+    private async Task GiveDeck(string name)
+    {
+        if (_busy) return;
+
+        _busy = true;
+        _took = "";
+
+        try
+        {
+            var wanted = Mesh.Decks.Get(name)?.Cards.Count ?? 0;
+            var given = await Mesh.GiveDeckAsync(name);
+
+            _took = given == wanted
+                ? $"Handed over {given} {(given == 1 ? "card" : "cards")} from “{name}”."
+                : $"Only {given} of {wanted} went. Stay next to them and try again.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
     /// <summary>Open the editor on a page, or on a new one.</summary>
     private void Edit(string? name)
     {
@@ -438,11 +655,12 @@ else
         _took = "";
     }
 
-    /// <summary>The editor is finished. Back to the person's own pages.</summary>
+    /// <summary>The editor is finished. Back to the shelf, at the cards they wrote.</summary>
     private void Edited()
     {
         _editing = null;
-        _view = View.Mine;
+        _view = View.Library;
+        _shelf = Shelf.Cards;
     }
 
     /// <summary>
@@ -478,7 +696,8 @@ else
 
         if (_page is { Ok: true })
         {
-            _view = View.Deck;
+            _view = View.Library;
+            _shelf = Shelf.Decks;
             _took = "Somebody handed you a card. It is yours now.";
         }
 
@@ -496,10 +715,11 @@ else
         // browser pointed at a stranger.
         _view = Start switch
         {
-            "mine" => View.Mine,
-            "deck" => View.Deck,
-            _ => View.Browse,
+            "mine" or "deck" => View.Library,
+            _ => View.Browser,
         };
+
+        _shelf = Start == "deck" ? Shelf.Decks : Shelf.Cards;
 
         await Mesh.EnsureReadyAsync();
 

@@ -77,6 +77,17 @@ public sealed class MyPages
     private readonly List<WebCard> _pages = [];
     private bool _loaded;
 
+    /// <summary>
+    /// What each page said when it last went up, so a real edit can be told from a save.
+    /// </summary>
+    /// <remarks>
+    /// The editor saves on every keystroke, so "has this changed" cannot be answered by whether Save
+    /// was called. It also cannot be answered by comparing the page to the one in this list, because
+    /// they are the same object — <see cref="Get"/> hands out the stored page, and the editor edits it
+    /// in place. So the words are kept separately, as of the last time this page was published.
+    /// </remarks>
+    private readonly Dictionary<string, string> _standing = new(StringComparer.Ordinal);
+
     public MyPages(ICardStore store) => _store = store ?? throw new ArgumentNullException(nameof(store));
 
     /// <summary>Raised when a page is written, published or taken down.</summary>
@@ -123,13 +134,29 @@ public sealed class MyPages
         Load();
 
         var at = _pages.FindIndex(p => p.Name == page.Name);
+
+        // Only a change takes a page off the air.
+        //
+        // This cleared Live on every save, and the editor saves on every keystroke — so opening a
+        // published page and touching nothing at all un-published it. The address stopped answering,
+        // the page vanished from the bookmark row, and the only sign was that something somebody had
+        // already published quietly became a draft again while they were looking at it.
+        //
+        // Live means "the copy standing on the mesh is this copy". It survives a save that changed
+        // nothing, and a real edit makes it false — which is the honest reading, because at that
+        // moment what is standing out there is genuinely not what is on the phone.
+        var same = _standing.TryGetValue(page.Name, out var stood) && stood == Written(page);
+
         if (at >= 0) _pages[at] = page;
         else if (_pages.Count < MostPages) _pages.Add(page);
         else return;
 
-        page.Live = false;
+        page.Live = same && page.Live;
         Flush();
     }
+
+    /// <summary>What a page says, for telling a real edit from a save that changed nothing.</summary>
+    private static string Written(WebCard page) => (page.Doc ?? new CardDocument()).ToJson();
 
     /// <summary>Mark a page as now standing on the mesh at this version.</summary>
     public void WentLive(string? name, long version)
@@ -138,6 +165,10 @@ public sealed class MyPages
 
         page.Version = version;
         page.Live = true;
+
+        // What is standing out there is now these words. Anything else is an edit.
+        _standing[page.Name] = Written(page);
+
         Flush();
     }
 
@@ -240,6 +271,11 @@ public sealed class MyPages
 
                 page.Doc = OwnCard.Tidy(page.Doc ?? new CardDocument());
                 _pages.Add(page);
+
+                // Taken as standing: this is what was flushed, alongside the Live flag that was
+                // flushed with it. Without this, every page would look edited on the first save after
+                // a restart and would take itself off the air — the same bug, one launch later.
+                _standing[page.Name] = Written(page);
             }
         }
         catch (JsonException)

@@ -1,3 +1,4 @@
+@using System.Text
 @implements IDisposable
 @inject MyPages Mine
 @inject MeshWebService Mesh
@@ -17,8 +18,88 @@
             }
         </div>
         <span class="count">@(Steps.IndexOf(_step) + 1) of @Steps.Count</span>
+
+        @* Always here, at every step. Somebody wondering how a page is doing what it is doing should
+           not have to finish what they are doing to find out. *@
+        <button class="under @(_under ? "on" : null)" @onclick="() => _under = !_under"
+                title="How this page is made">&lt;/&gt;</button>
     </header>
 
+    @if (_under)
+    {
+        @* How this page is made.
+
+           MySpace taught a generation HTML and CSS and never once called it a lesson: you saw a page
+           you liked, looked at how it was made, copied it, changed the colours, broke it, fixed it.
+           Wanting the aesthetic was the whole curriculum. This is that — four layers, and a person can
+           stop at any of them, and each one is the real thing rather than a description of it. *@
+        var src = CardSource.Of(_doc);
+
+        <section class="under-panel">
+            <div class="under-h">
+                <h2>How this page is made</h2>
+                <button class="tiny" @onclick="() => _under = false">Close</button>
+            </div>
+
+            <p class="under-say">
+                Nothing here is a description of the page. It <em>is</em> the page — change any of it
+                and the page changes, because a card is the data and the design, and nothing else.
+            </p>
+
+            <h3 class="under-t">1 · It is a list of pieces</h3>
+            <p class="under-b">
+                @src.Pieces.Count pieces, in the order a reader meets them. Not a wall of formatting —
+                each one knows what kind of thing it is, which is why the same page can be drawn on a
+                phone, on the web, and by a program that has never heard of any of this.
+            </p>
+            <ol class="under-list">
+                @foreach (var piece in src.Pieces)
+                {
+                    <li><span class="under-k">@piece.Kind</span><span class="under-v">@piece.Said</span></li>
+                }
+            </ol>
+
+            <h3 class="under-t">2 · The look is @src.Tokens.Count values</h3>
+            <p class="under-b">
+                “@src.LookName” is a name, and a name teaches nothing. This is what it actually is.
+                Change one of these and every page wearing this look changes with it — that is what a
+                design system is, and you are looking at one.
+            </p>
+            <dl class="under-tok">
+                @foreach (var token in src.Tokens)
+                {
+                    <div>
+                        <dt>@token.Name</dt>
+                        <dd class="mono">@token.Value</dd>
+                        <dd class="under-s">@token.Says</dd>
+                    </div>
+                }
+            </dl>
+
+            @if (src.Field is { Length: > 0 })
+            {
+                <h3 class="under-t">3 · The background is a function</h3>
+                <p class="under-b">
+                    “@src.BackName” is not a picture. It is one function, run once for every pixel on
+                    the page: give it a point, it gives back a number, and the number becomes a shade.
+                    That is what a shader is, and this is the whole of it.
+                </p>
+                <pre class="under-code">@src.Field</pre>
+            }
+
+            <h3 class="under-t">4 · And you own the whole thing</h3>
+            <p class="under-b">
+                The entire page is @src.Bytes bytes of text, plus @src.Pictures
+                @(src.Pictures == 1 ? "picture" : "pictures"). No server, no account, no build. This is
+                the file — it is on this phone, you can hand it to somebody, and nobody can take it
+                back.
+            </p>
+            <pre class="under-code">@src.Json</pre>
+        </section>
+    }
+
+    else
+    {
     <div class="head">
         <h1 class="h">@Title</h1>
         <p class="sub">@Sub</p>
@@ -128,7 +209,7 @@
                     var block = _doc.Blocks[index];
                     if (!OwnCard.IsEditable(block)) { continue; }
 
-                    <section class="panel @(_open == index ? "open" : null)">
+                    <section class="panel @(_open == index ? "open" : null)" @key="block">
                         <button class="phead" @onclick="() => Toggle(index)">
                             <span class="ptext">
                                 <span class="plabel">@OwnCard.Label(block.Kind)</span>
@@ -147,7 +228,7 @@
                                         @for (var j = 0; j < (block.Items?.Count ?? 0); j++)
                                         {
                                             var item = j;
-                                            <input class="in" maxlength="@OwnCard.LongestValue"
+                                            <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
                                                    placeholder="@OwnCard.Placeholder(block.Kind)"
                                                    value="@block.Items![item]" @oninput="e => OnItem(index, item, e)" />
                                         }
@@ -156,6 +237,19 @@
                                         {
                                             <p class="hint">Put an = between the name and where it belongs. They come out numbered.</p>
                                         }
+                                        break;
+
+                                    case CardBlock.Title:
+                                        <input class="in" maxlength="@OwnCard.LongestTitle"
+                                               placeholder="@OwnCard.Placeholder(block.Kind)"
+                                               value="@block.Value" @oninput="e => OnName(index, e)" />
+                                        <div class="asrow">
+                                            <button class="tiny @(block.IsSmall ? null : "on")"
+                                                    @onclick="() => OnAs(index, null)">A headline</button>
+                                            <button class="tiny @(block.IsSmall ? "on" : null)"
+                                                    @onclick="() => OnAs(index, Small)">A wordmark</button>
+                                        </div>
+                                        <p class="hint">Move it with the arrows — a page can open with a picture and put its name underneath.</p>
                                         break;
 
                                     case CardBlock.Rule:
@@ -172,20 +266,69 @@
                                         break;
 
                                     case CardBlock.Text:
-                                        <textarea class="in area" rows="4" maxlength="@OwnCard.LongestValue"
-                                                  placeholder="@OwnCard.Placeholder(block.Kind)"
-                                                  @oninput="e => OnValue(index, e)">@block.Value</textarea>
+                                    case CardBlock.Quote:
+                                        @* Formatting you can see while you write it. The card still
+                                           stores plain words — see CardMarks — so this is a view of
+                                           the writing rather than a second way of storing it. *@
+                                        <div class="in area rtf" contenteditable="true" role="textbox"
+                                             aria-multiline="true" aria-label="@OwnCard.Label(block.Kind)"
+                                             data-w="@index" data-text="@block.Value"></div>
+
+                                        @* Under the words, not over them. Android puts its own
+                                           Cut / Copy bar above whatever you have selected, and above
+                                           the field is exactly where that lands — on the phone it
+                                           covered Underline and Link completely, and the only way to
+                                           find that out was to select a word with a finger. *@
+                                        <div class="rtbar">
+                                            <button class="rtb" title="Bold" @onmousedown:preventDefault
+                                                    @onclick="() => Mark(index, Bold)"><b>B</b></button>
+                                            <button class="rtb" title="Italic" @onmousedown:preventDefault
+                                                    @onclick="() => Mark(index, Italic)"><i>I</i></button>
+                                            <button class="rtb" title="Underline" @onmousedown:preventDefault
+                                                    @onclick="() => Mark(index, Under)"><u>U</u></button>
+                                            <button class="rtb wide @(_linking == index ? "on" : null)"
+                                                    title="Link" @onmousedown:preventDefault
+                                                    @onclick="() => Linking(index)">Link</button>
+                                        </div>
+
+                                        @if (_linking == index)
+                                        {
+                                            <div class="linkto">
+                                                <input class="in" maxlength="@CardBlock.LongestTip"
+                                                       placeholder="https://… or one of your pages"
+                                                       value="@_linkTo" @oninput="OnLinkTo" />
+
+                                                @if (Mine.All.Any(p => p.Name != _name))
+                                                {
+                                                    <select class="in" @onchange="OnLinkPick">
+                                                        <option value="">One of your pages…</option>
+                                                        @foreach (var other in Mine.All.Where(p => p.Name != _name))
+                                                        {
+                                                            <option value="@Mesh.Address(other.Name)">@other.Name</option>
+                                                        }
+                                                    </select>
+                                                }
+
+                                                <div class="prow">
+                                                    <button class="tiny" @onmousedown:preventDefault
+                                                            @onclick="() => Link(index)">Add link</button>
+                                                    <button class="tiny" @onmousedown:preventDefault
+                                                            @onclick="() => Mark(index, AsLink)">Remove link</button>
+                                                </div>
+                                                <p class="hint">Select the words first, then add the link.</p>
+                                            </div>
+                                        }
                                         break;
 
                                     case CardBlock.KeyValue:
-                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
                                                placeholder="@OwnCard.Placeholder(block.Kind)"
                                                value="@block.Value" @oninput="e => OnValue(index, e)" />
                                         <p class="hint">Put an = between the label and what it says.</p>
                                         break;
 
                                     case CardBlock.Link:
-                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
                                                placeholder="@OwnCard.Placeholder(block.Kind)"
                                                value="@block.Value" @oninput="e => OnValue(index, e)" />
                                         <select class="in" @onchange="e => OnTarget(index, e)">
@@ -226,7 +369,7 @@
                                             </label>
                                         </div>
 
-                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
                                                placeholder="@OwnCard.Placeholder(block.Kind)"
                                                value="@block.Value" @oninput="e => OnValue(index, e)" />
 
@@ -254,7 +397,7 @@
                                         break;
 
                                     case CardBlock.Tip:
-                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
                                                placeholder="@OwnCard.Placeholder(block.Kind)"
                                                value="@block.Value" @oninput="e => OnValue(index, e)" />
                                         <input class="in" maxlength="200" inputmode="url" spellcheck="false"
@@ -275,7 +418,7 @@
                                         break;
 
                                     default:
-                                        <input class="in" maxlength="@OwnCard.LongestValue"
+                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
                                                placeholder="@OwnCard.Placeholder(block.Kind)"
                                                value="@block.Value" @oninput="e => OnValue(index, e)" />
                                         break;
@@ -350,8 +493,9 @@
                 break;
         }
     </div>
+    }
 
-    <footer class="foot">
+    <footer class="foot @(_under ? "away" : null)">
         @if (Steps.IndexOf(_step) > 0)
         {
             <button class="ghost wide" @onclick="Back">Back</button>
@@ -520,9 +664,20 @@
     /// </remarks>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_picker is not { } input) return;
-
         _me ??= DotNetObjectReference.Create(this);
+
+        try
+        {
+            // Cheap when there is nothing new: a field that is already wired is skipped, and its
+            // contents are never redrawn underneath somebody's caret.
+            await JS.InvokeVoidAsync("aetherWrite.wire", _me, nameof(Wrote));
+        }
+        catch (Exception)
+        {
+            // No writing surface on this head. Prose is still typed and still saved.
+        }
+
+        if (_picker is not { } input) return;
 
         try
         {
@@ -678,7 +833,7 @@
 
         return CardPage.Render(
             shown, shown.Title, 0, downloadPath: null,
-            fontBase: PageAssets.WebFontBase, still: true);
+            fontBase: PageAssets.WebFontBase, still: true, sample: true);
     }
 
     /// <summary>
@@ -701,7 +856,7 @@
 
     private void OnTitle(ChangeEventArgs e)
     {
-        _doc.Title = e.Value?.ToString() ?? "";
+        OwnCard.SetTitle(_doc, e.Value?.ToString());
         Save();
     }
 
@@ -738,6 +893,9 @@
         Save();
     }
 
+    /// <summary>A name set as a wordmark rather than a headline.</summary>
+    private const string Small = "small";
+
     /// <summary>A picture shown whole rather than cropped into the masthead.</summary>
     private const string Wide = "wide";
 
@@ -757,6 +915,130 @@
         if (index < 0 || index >= _doc.Blocks.Count) return;
         _doc.Blocks[index].As = how;
         Save();
+    }
+
+    /// <summary>
+    /// The name, typed in the block rather than in the basics.
+    /// </summary>
+    /// <remarks>
+    /// Both places set the same thing. The page's name is metadata — a deck, an address bar and a
+    /// file name all use it — and the block is what a reader sees, so they may never disagree.
+    /// </remarks>
+    private void OnName(int index, ChangeEventArgs e)
+    {
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+
+        var said = e.Value?.ToString();
+        _doc.Blocks[index].Value = said;
+        _doc.Title = said ?? "";
+        Save();
+    }
+
+    /// <summary>Whether the page is opened up to show how it is made.</summary>
+    private bool _under;
+
+    /// <summary>The four things the toolbar does, named because a lambda cannot hold a literal.</summary>
+    private const string Bold = "bold";
+
+    private const string Italic = "italic";
+
+    private const string Under = "underline";
+
+    private const string AsLink = "link";
+
+    /// <summary>Which block, if any, is having a link put on it.</summary>
+    private int? _linking;
+
+    /// <summary>Where that link is going, as typed or as picked.</summary>
+    private string _linkTo = "";
+
+    private void Linking(int index)
+    {
+        _linking = _linking == index ? null : index;
+        _linkTo = "";
+    }
+
+    private void OnLinkTo(ChangeEventArgs e) => _linkTo = e.Value?.ToString() ?? "";
+
+    private void OnLinkPick(ChangeEventArgs e)
+    {
+        if (e.Value?.ToString() is { Length: > 0 } picked) _linkTo = picked;
+    }
+
+    /// <summary>
+    /// Bold, italic or underline on whatever the writer has selected.
+    /// </summary>
+    /// <remarks>
+    /// The work happens in the field, and the words come back through <see cref="Wrote"/> like any
+    /// other keystroke — so there is one path into the document rather than two, and a mark applied
+    /// by a button is indistinguishable from a mark somebody typed.
+    /// </remarks>
+    private async Task Mark(int index, string how)
+    {
+        try
+        {
+            await JS.InvokeAsync<bool>("aetherWrite.mark", index.ToString(), how, null);
+        }
+        catch (Exception)
+        {
+            // No writing surface on this head. The field is still a field and the words still save.
+        }
+    }
+
+    /// <summary>
+    /// Put a link on the selected words.
+    /// </summary>
+    /// <remarks>
+    /// Checked here as well as when the page is drawn. The renderer refuses anything that is not a
+    /// mesh address or an https one — but a person who pastes something else deserves to find that
+    /// out while they are writing, not by looking at the page afterwards and wondering.
+    /// </remarks>
+    private async Task Link(int index)
+    {
+        var to = _linkTo.Trim();
+        if (to.Length == 0) return;
+
+        if (!CardBlock.IsMeshAddress(to) && !CardBlock.IsUsableWeb(to))
+        {
+            _linkTo = to.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                ? "https://" + to["http://".Length..]
+                : to.Contains('.') && !to.Contains(' ') ? "https://" + to : to;
+
+            if (!CardBlock.IsUsableWeb(_linkTo)) return;
+            to = _linkTo;
+        }
+
+        try
+        {
+            await JS.InvokeAsync<bool>("aetherWrite.mark", index.ToString(), AsLink, to);
+            _linking = null;
+            _linkTo = "";
+        }
+        catch (Exception)
+        {
+            // Same as above: without the surface there is nothing to attach a link to.
+        }
+    }
+
+    /// <summary>
+    /// The writer typed, and this is what the card now says.
+    /// </summary>
+    /// <remarks>
+    /// Plain words, always. What crossed the bridge is text — the field's formatting was turned back
+    /// into the card's own marks on the other side — so nothing here has to trust or clean markup,
+    /// which is the property that makes a rich field safe to have at all.
+    /// </remarks>
+    [JSInvokable]
+    public void Wrote(string which, string said)
+    {
+        if (!int.TryParse(which, out var index)) return;
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+
+        var most = OwnCard.Longest(_doc.Blocks[index].Kind);
+        _doc.Blocks[index].Value = said.Length > most ? said[..most] : said;
+
+        Save();
+        StateHasChanged();
     }
 
     private void OnValue(int index, ChangeEventArgs e)
@@ -989,6 +1271,32 @@
                 ? block.Value is { Length: > 0 } what ? what.Trim() : "A picture"
                 : "None chosen";
 
-        return string.IsNullOrWhiteSpace(block.Value) ? "Empty" : block.Value.Trim();
+        return string.IsNullOrWhiteSpace(block.Value) ? "Empty" : Plainly(block.Value.Trim());
+    }
+
+    /// <summary>The words of a piece of writing, without the marks around them.</summary>
+    /// <remarks>
+    /// A summary is a glance, and a glance at <c>**a car**d</c> is a glance at something that looks
+    /// broken. The marks are how a card stores emphasis; nobody has to look at them.
+    /// </remarks>
+    private static string Plainly(string said)
+    {
+        var plain = new StringBuilder(said.Length);
+
+        for (var i = 0; i < said.Length; i++)
+        {
+            // [the words](where they go) reads as the words.
+            if (said[i] == ']' && i + 1 < said.Length && said[i + 1] == '(')
+            {
+                var ends = said.IndexOf(')', i + 2);
+                if (ends > 0) { i = ends; continue; }
+            }
+
+            if (said[i] is '*' or '_' or '[') continue;
+
+            plain.Append(said[i]);
+        }
+
+        return plain.ToString();
     }
 }

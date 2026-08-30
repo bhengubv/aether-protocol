@@ -30,106 +30,36 @@ namespace AetherNet.Sample.Tests;
 /// </summary>
 public class SketchbookStandardTests
 {
-    /// <summary>
-    /// The page, built the way a person builds one.
-    /// </summary>
-    /// <remarks>
-    /// Blank template, then blocks added one at a time and filled in — the same calls the editor's
-    /// buttons make. If a kind here ever leaves <see cref="OwnCard.Writable"/>, this stops compiling
-    /// into a page and the test says so.
-    /// </remarks>
-    private static CardDocument Built()
-    {
-        var card = PageTemplate.Of("blank").Build(null);
-        card.Blocks.RemoveAll(b => b.Kind == CardBlock.Text);
-
-        card.Title = "Meng To";
-        OwnCard.SetLook(card, "editorial");
-        OwnCard.SetShader(card, "tide");
-
-        Write(card, CardBlock.Eyebrow, "Designer / Creator / AI Educator / Founder @ Singapore", centred: true);
-
-        Write(card, CardBlock.Link, "Journal", to: "aether://MENGTO/journal");
-        Write(card, CardBlock.Link, "About", to: "aether://MENGTO/about");
-        Write(card, CardBlock.Link, "Contact", to: "aether://MENGTO/contact");
-
-        Write(card, CardBlock.Image, "The sketchbook, open at Marina Bay", hash: "spread01", wide: true);
-
-        Write(card, CardBlock.Heading, "About");
-        Write(card, CardBlock.Text,
-            "Meng To is a designer, creator and AI educator based in Singapore, founder of " +
-            "_Design+Code_, where for over a decade he has taught designers and developers to " +
-            "build real apps.");
-        Write(card, CardBlock.Text,
-            "This sketchbook is the other half of that — the city looked at slowly, *in ink and a " +
-            "little colour*: shophouse shutters, hawker tents, the bay at dusk.");
-
-        Write(card, CardBlock.Rule, "brush");
-
-        Write(card, CardBlock.Heading, "Plates");
-        Lines(card, CardBlock.Index,
-            "Marina Bay Sands = Bayfront",
-            "Gardens by the Bay = Supertree Grove",
-            "The Merlion = Merlion Park",
-            "Buddha Tooth Relic Temple = Chinatown",
-            "Joo Chiat Shophouses = Katong",
-            "Lau Pa Sat = Raffles Quay",
-            "Marina Bay Skyline = The Bay",
-            "Singapore River = Boat Quay",
-            "Botanic Gardens = Tanglin");
-
-        // Nine plates, added the way somebody adds pictures — one after another. Consecutive pictures
-        // become a gallery; nobody has to know that.
-        foreach (var plate in new[]
-                 { "Marina Bay Sands", "Gardens by the Bay", "The Merlion", "Buddha Tooth Relic Temple",
-                   "Joo Chiat Shophouses", "Lau Pa Sat", "Marina Bay Skyline", "Singapore River",
-                   "Botanic Gardens" })
-            Write(card, CardBlock.Image, plate, hash: "plate" + plate.Length + plate[..2].ToLowerInvariant());
-
-        Write(card, CardBlock.Rule, "scatter");
-        Write(card, CardBlock.Text, "Singapore · Sketchbook · _hello@mengto.com_", centred: true);
-
-        return OwnCard.Tidy(card);
-    }
-
-    /// <summary>Add a block of this kind and fill it in — exactly what the editor's buttons do.</summary>
-    private static void Write(
-        CardDocument card, string kind, string? value = null,
-        string? to = null, string? hash = null, bool centred = false, bool wide = false)
-    {
-        Assert.True(OwnCard.Add(card, kind), $"the editor does not offer {kind}");
-
-        var block = card.Blocks[^1];
-        block.Value = value;
-        block.Target = to;
-        block.ContentHash = hash;
-        if (centred) block.Align = "centre";
-        if (wide) block.As = "wide";
-    }
-
-    private static void Lines(CardDocument card, string kind, params string[] lines)
-    {
-        Assert.True(OwnCard.Add(card, kind), $"the editor does not offer {kind}");
-        card.Blocks[^1].Items = [.. lines];
-    }
-
     private static string Draw() =>
         CardPage.Render(
-            Built(), "Meng To", 0, downloadPath: null,
+            Sketchbook.Built(), "Meng To", 0, downloadPath: null,
             assetPath: _ => "data:image/jpeg;base64,AAAA", fonts: PageAssets.Face);
 
     // ── Everything on that page, element by element ───────────────────────────
 
+    /// <summary>
+    /// The top of the page reads in the order its author wrote it: wordmark, navigation, then the
+    /// line saying who this is.
+    /// </summary>
+    /// <remarks>
+    /// Which is not the order a renderer would choose, and that is the point. This one used to lift
+    /// the title to the top of every page and the label above it — so a page could not open with a
+    /// picture, could not put its navigation over its name, and could not do any of the things a
+    /// designed page does. Three of the author's decisions, all of them made for them.
+    /// </remarks>
     [Fact]
-    public void The_role_line_sits_centred_above_the_name()
+    public void The_top_of_the_page_is_in_the_authors_order()
     {
         var html = Draw();
 
+        // The heading in the page, not the one in the head — the browser tab carries the name too.
+        var name = html.IndexOf("<h1", StringComparison.Ordinal);
+        var nav = html.IndexOf("<nav", StringComparison.Ordinal);
         var brow = html.IndexOf("AI Educator", StringComparison.Ordinal);
-        var title = html.IndexOf("<h1", StringComparison.Ordinal);
 
-        Assert.True(brow > 0 && brow < title, "the role line is not above the name");
-        Assert.Contains("class=\"eyebrow mid\"", html, StringComparison.Ordinal);
+        Assert.True(name > 0 && name < nav, "the name is not first");
+        Assert.True(nav < brow, "the navigation is not above the role line");
+        Assert.Contains("class=\"mid wordmark\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>Journal / About / Contact, as a row rather than a stack of buttons.</summary>
@@ -138,7 +68,8 @@ public class SketchbookStandardTests
     {
         var html = Draw();
 
-        Assert.Contains("class=\"row\"", html, StringComparison.Ordinal);
+        // A row, wherever the author put it on the page — the alignment is theirs to choose.
+        Assert.Contains("<nav class=\"row", html, StringComparison.Ordinal);
         Assert.Contains("Journal", html, StringComparison.Ordinal);
         Assert.Contains("Contact", html, StringComparison.Ordinal);
     }
@@ -182,14 +113,23 @@ public class SketchbookStandardTests
         Assert.Contains(CardOrnament.Of("brush").Draw[..40], html, StringComparison.Ordinal);
     }
 
-    /// <summary>A phrase stressed inside a sentence, which is most of what a page's voice is.</summary>
+    /// <summary>
+    /// A phrase linked from inside a sentence, which is what the page actually does.
+    /// </summary>
+    /// <remarks>
+    /// All three of the emphasised phrases on that page turn out to be links — the studio, the medium,
+    /// the address. A card used to have no way to say that, so they were written as emphasis and the
+    /// page was nearly right for a reason nobody would have found by looking at it.
+    /// </remarks>
     [Fact]
-    public void A_phrase_inside_a_sentence_can_be_stressed()
+    public void A_phrase_inside_a_sentence_can_be_a_link()
     {
         var html = Draw();
 
-        Assert.Contains("<u>Design+Code</u>", html, StringComparison.Ordinal);
-        Assert.Contains("<em>in ink and a little colour</em>", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"https://designcode.io\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Design+Code</a>", html, StringComparison.Ordinal);
+        Assert.Contains("<em>in ink and a little colour</em></a>", html, StringComparison.Ordinal);
+        Assert.Contains(">hello@mengto.com</a>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -222,7 +162,7 @@ public class SketchbookStandardTests
     [Fact]
     public void Every_block_on_it_is_one_somebody_can_add()
     {
-        foreach (var kind in Built().Blocks.Select(b => b.Kind).Distinct().Where(k => k != CardBlock.Theme))
+        foreach (var kind in Sketchbook.Built().Blocks.Select(b => b.Kind).Distinct().Where(k => k != CardBlock.Theme))
             Assert.Contains(kind, OwnCard.Writable);
     }
 
@@ -230,7 +170,7 @@ public class SketchbookStandardTests
     [Fact]
     public void It_fits_inside_what_a_card_may_hold()
     {
-        var card = Built();
+        var card = Sketchbook.Built();
 
         Assert.True(card.Blocks.Count <= OwnCard.MostBlocks,
             $"{card.Blocks.Count} blocks, and a card holds {OwnCard.MostBlocks}");
@@ -242,7 +182,7 @@ public class SketchbookStandardTests
     [Fact]
     public void The_whole_page_survives_being_published()
     {
-        var sent = OwnCard.ForPublish(Built());
+        var sent = OwnCard.ForPublish(Sketchbook.Built());
 
         foreach (var kind in new[]
                  { CardBlock.Eyebrow, CardBlock.Link, CardBlock.Image, CardBlock.Heading,

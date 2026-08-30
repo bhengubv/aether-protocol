@@ -25,6 +25,8 @@ public sealed class InMemoryCardStore : ICardStore
 
     private string? _pages;
 
+    private string? _decks;
+
     /// <summary>The name this store reports as its owner's. Settable, because a test may want one.</summary>
     public string? OwnerName { get; set; }
 
@@ -36,6 +38,16 @@ public sealed class InMemoryCardStore : ICardStore
     public void SetPages(string json)
     {
         lock (_gate) _pages = json;
+    }
+
+    public string? GetDecks()
+    {
+        lock (_gate) return _decks;
+    }
+
+    public void SetDecks(string json)
+    {
+        lock (_gate) _decks = json;
     }
 
     public string? GetOwnerName() => OwnerName;

@@ -15,6 +15,27 @@
     /* Browse or Mine. Two jobs, one tab, and never both on screen. */
     .where { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--surface-2, #f4f7fa); border: 1px solid var(--line, rgba(127,140,158,.28)); }
     .seg { flex: 1 1 0; padding: 9px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.88rem; font-weight: 700; cursor: pointer; }
+
+/* The two halves of the shelf. Quieter than the tab row above them — this is a choice inside a place,
+   not a choice of place, and giving both the same weight makes neither read as the one you are in. */
+.shelf { display: flex; gap: 8px; margin: 0 0 12px; }
+.tab { flex: 0 0 auto; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.84rem; font-weight: 600; cursor: pointer; }
+.tab.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); color: var(--brand, #2196F3); }
+
+/* A deck opened up: its cards, indented under it, with the handles to order them. */
+.opened { display: flex; flex-direction: column; gap: 8px; margin: -4px 0 10px 14px; padding-left: 12px; border-left: 2px solid var(--line-card, #9ecbf7); }
+/* Scoped styles do not cross components, so the fields on the shelf need their own — the editor's
+   .in belongs to the editor. Every token falls back, same as everywhere else here. */
+.in { width: 100%; padding: 10px 12px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: var(--surface-2, #f4f7fa); color: var(--ink, #16232f); font-size: 0.9rem; font-family: inherit; }
+.tiny { min-width: 34px; height: 32px; padding: 0 10px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.78rem; cursor: pointer; }
+.tiny.drop { color: var(--warn, #c0392b); border-color: color-mix(in srgb, var(--warn, #c0392b) 40%, transparent); }
+.prow { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 2px; }
+
+.newdeck { display: flex; gap: 8px; align-items: center; margin: 4px 0 14px; }
+.newdeck .in { flex: 1 1 auto; min-width: 0; }
+.in.slim { width: auto; max-width: 128px; padding: 7px 9px; font-size: 0.78rem; }
+
+
     .seg.on { background: var(--surface, #ffffff); color: var(--brand, #2196F3); box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.08)); }
     .where.away { display: none; }
 

@@ -86,7 +86,11 @@
             </div>
 
             <div class="boot-name">Aether</div>
-            <div class="boot-sub">no towers · no accounts · nobody in the middle</div>
+            <!-- "no towers" was the one claim here the app itself contradicts: the very next screen
+                 lists Mobile data among the radios that carry, and mobile data is a tower. The point
+                 was never that no tower is ever touched — it is that nothing depends on one, which is
+                 what "no network needed" says without being disproved two seconds later. -->
+            <div class="boot-sub">no accounts · nobody in the middle · no network needed</div>
         </div>
     </div>
 
@@ -95,7 +99,9 @@
            underneath the user when Blazor takes over. */
         .boot { --b-bg: #eaeef3; --b-ink: #16232f; --b-dim: #8a97a6; --b-brand: #2196F3; }
         @media (prefers-color-scheme: dark) {
-            .boot { --b-bg: #0f1720; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
+            /* app.css's --bg exactly. It was #0f1720, two shades off, so the app changed colour
+               underneath the person at the moment Blazor took over. */
+            .boot { --b-bg: #0d1620; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
         }
 
         .boot {
@@ -136,7 +142,7 @@
             opacity: 0; animation: rise .6s ease-out .55s forwards;
         }
         .boot-sub {
-            font-size: .82rem; color: var(--b-dim);
+            font-size: .82rem; color: var(--b-dim); text-align: center; padding: 0 24px;
             opacity: 0; animation: rise .6s ease-out .8s forwards;
         }
         @keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
@@ -195,6 +201,9 @@
 
     <!-- Choosing a photograph and shrinking it to something a radio can carry. -->
     <script src="_content/AetherNet.Browser/js/aether-photo.js"></script>
+
+    <!-- Writing with the formatting visible — see wwwroot/js/aether-write.js. -->
+    <script src="_content/AetherNet.Browser/js/aether-write.js"></script>
 
     <!-- The host half of the card protocol: a rendered card asks to be followed, and says how tall
          it is. Both are checked here as well as inside the page. -->

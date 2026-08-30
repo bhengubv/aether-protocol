@@ -30,6 +30,9 @@ public sealed class FastRadioService : IDisposable
     private readonly AetherStore _store;
     private readonly IIdentityService _me;
     private readonly IWifiDirectGroup _group;
+
+    /// <summary>Every radio on the phone, so a meeting reaches all of them and not just one.</summary>
+    private readonly IRadioMesh? _mesh;
     private readonly ContactService? _contacts;
     private readonly ILogger<FastRadioService> _log;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -54,8 +57,9 @@ public sealed class FastRadioService : IDisposable
     /// </param>
     public FastRadioService(AetherStore store, IIdentityService me, IWifiDirectGroup group,
         ContactService? contacts = null, ILogger<FastRadioService>? logger = null,
-        Action? onIdle = null)
+        Action? onIdle = null, IRadioMesh? mesh = null)
     {
+        _mesh = mesh;
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _group = group ?? throw new ArgumentNullException(nameof(group));
@@ -134,7 +138,17 @@ public sealed class FastRadioService : IDisposable
             //
             // Adding somebody is a decision to associate with them. Their half of it is a fact about
             // the conversation, not a precondition for switching a radio on.
-            if (contact.PublicKey is not { Length: > 0 }) continue;
+            //
+            // And their key is not one either — which is the same circle again, one layer down. Who
+            // hosts is decided by comparing two tags, and the host builds the group out of its OWN
+            // key, which it always has. Requiring the contact's key HERE meant a phone that had been
+            // given a tag and nothing else never even reached the question, so the lower-tagged phone
+            // never hosted, so the group that was the only way to learn the key never formed.
+            //
+            // Measured on this pair: both added by typed tag, both showed "waiting for them", and
+            // neither radio started a single P2P operation — the framework logs were empty, because
+            // nothing had asked them for anything.
+            if (contact.Tag is not { Length: > 0 }) continue;
             if (lowest is null || string.CompareOrdinal(contact.Tag, lowest.Tag) < 0) lowest = contact;
         }
         return lowest;
@@ -265,12 +279,36 @@ public sealed class FastRadioService : IDisposable
             var iHost = GroupRole.HostsTheGroup(_me.AetherTag, peer.Tag);
             var hostKey = iHost ? _me.PublicKey : peer.PublicKey;
 
-            var credentials = GroupCredentials.ForHost(hostKey);
+            // Two ways to the same door, and both phones have to choose the same one.
+            //
+            // The stronger door is derived from the host's key: nobody who has not been given that key
+            // can compute it. The other is derived from the two tags, which both phones certainly hold
+            // the moment one has added the other — and it is what makes a typed tag work at all, since
+            // a tag is a hash of a key and cannot be turned back into one. Without it a phone holding
+            // only a tag had nowhere to go, and waited for a key that could only arrive over the link
+            // it was trying to build. See Meeting.
+            //
+            // WHICH door has to be answered the same way on both handsets, and "do I have their key"
+            // is not that question — the host has its own key and the joiner does not, so each would
+            // answer for itself and they would stand at different doors. Measured: one hosting
+            // DIRECT-612K452N1 while the other knocked at DIRECT-S2YY2QM37.
+            //
+            // So the question is whether the two of them have exchanged keys AT ALL, which flips on
+            // both phones at the same moment: their key is here, and they have added us back, which
+            // they could only have done by reaching us.
+            var settled = peer.PublicKey is { Length: > 0 } && peer.AddedByThem;
+
+            var credentials = settled
+                ? GroupCredentials.ForHost(hostKey)
+                : GroupCredentials.ForMeeting(Meeting.With(_me.AetherTag, peer.Tag));
+
             if (!WifiDirectCredentials.IsUsable(credentials))
             {
-                T($"no public key for {peer.Tag} yet — cannot work out the group without it");
+                T($"cannot work out where to meet {peer.Tag}");
                 return;
             }
+
+            var firstTime = !settled;
 
             // Ask the radio, do not trust what we remember. A join that was accepted and then failed
             // to form would otherwise be recorded as done and never tried again.
@@ -280,9 +318,19 @@ public sealed class FastRadioService : IDisposable
 
             _currentGroup = null;
 
+            // Every other radio is told the same thing at the same time, in terms it can use. Wi-Fi
+            // puts the rendezvous on a multicast group, LoRa will put it in an address; none of them
+            // waits on Wi-Fi Direct, and Wi-Fi Direct waits on none of them.
+            // Every radio is told the same thing at the same time, in terms it can use. Wi-Fi puts
+            // the rendezvous on a multicast group, LoRa will put it in an address; none of them waits
+            // on Wi-Fi Direct, and Wi-Fi Direct waits on none of them.
+            if (Meeting.With(_me.AetherTag, peer.Tag) is { } meeting) _mesh?.Link(meeting);
+
             if (iHost)
             {
-                T($"hosting {credentials.NetworkName} for the Circle");
+                T(firstTime
+                    ? $"hosting {credentials!.NetworkName} — where {peer.Tag} will look for us the first time"
+                    : $"hosting {credentials!.NetworkName} for the Circle");
                 var hosted = await _group.HostAsync(credentials, cancellationToken).ConfigureAwait(false);
                 _currentGroup = hosted is null ? null : credentials.NetworkName;
                 T(hosted is null

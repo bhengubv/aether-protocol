@@ -26,6 +26,10 @@ public sealed class NullRadioMesh : IRadioMesh
     public void IdentifyPeer(string aetherTag) { }
     public void SelectRadio(string name) { }
     public void Link() { }
+
+    /// <inheritdoc />
+    /// <remarks>There are no radios here, so there is nowhere to meet anybody.</remarks>
+    public void Link(Meeting meeting) { }
     public Task SendTestAsync(string text) => Task.CompletedTask;
     public Task<bool> SendPacketAsync(byte[] packetBytes) => Task.FromResult(false);
     public event Action<byte[]>? PacketReceived { add { } remove { } }

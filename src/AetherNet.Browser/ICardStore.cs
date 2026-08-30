@@ -32,6 +32,16 @@ public interface ICardStore
     /// <summary>Replace the whole set of pages this device's owner wrote.</summary>
     void SetPages(string json);
 
+    /// <summary>The decks this device's owner has gathered, as JSON, or null if they have none.</summary>
+    /// <remarks>
+    /// One blob, for the same reason as the pages: a person has a handful of decks and a schema would
+    /// need migrating every time a deck grew a field. See <see cref="Decks"/>.
+    /// </remarks>
+    string? GetDecks();
+
+    /// <summary>Replace the whole set of decks.</summary>
+    void SetDecks(string json);
+
     /// <summary>The name its owner goes by, if they have given one.</summary>
     string? GetOwnerName();
 

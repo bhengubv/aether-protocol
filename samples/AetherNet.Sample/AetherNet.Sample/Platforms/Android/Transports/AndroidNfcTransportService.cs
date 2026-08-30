@@ -45,6 +45,17 @@ public sealed class AndroidNfcTransportService : IRadio, IDisposable
     public event Action<string, byte[]>? DataReceived;
     public event Action<string>? Status;
 
+    /// <summary>
+    /// Come up to meet somebody — which, on NFC, is the same as coming up.
+    /// </summary>
+    /// <remarks>
+    /// The one radio with nothing to do with a rendezvous. Every other has the problem of two phones
+    /// finding each other across a space where anyone might be listening; NFC has two phones held
+    /// against each other, and a person deciding to do that IS the meeting. Deriving an address for it
+    /// would be ceremony over a physical act.
+    /// </remarks>
+    public void Link(AetherNet.Sample.Shared.Services.Meeting meeting) => Link();
+
     public void Link()
     {
         if (_nfc is null) { Status?.Invoke("no NFC hardware on this phone"); return; }

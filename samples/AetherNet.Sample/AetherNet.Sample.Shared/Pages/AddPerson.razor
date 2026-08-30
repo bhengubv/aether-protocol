@@ -20,7 +20,9 @@
     </section>
 
     <section class="entry">
-        <div class="glabel">Add by name</div>
+        @* Not "name". The field takes an AetherTag and nothing else — there is no name to look
+           anybody up by, which is the point of the sentence at the top of this screen. *@
+        <div class="glabel">Add by AetherTag</div>
         <input class="tagbox" @bind="_theirTag" @bind:event="oninput" @onkeydown="OnKey"
                placeholder="KXJB7-MN2P4" spellcheck="false" autocapitalize="characters" />
         <button class="primary block" disabled="@(_busy || string.IsNullOrWhiteSpace(_theirTag))" @onclick="Add">Add them</button>

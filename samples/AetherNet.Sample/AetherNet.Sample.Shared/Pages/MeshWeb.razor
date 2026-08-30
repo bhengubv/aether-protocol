@@ -4,6 +4,9 @@
 @implements IDisposable
 @inject ChatService Chat
 @inject NavigationManager Nav
+@inject MeshWebService Mesh
+@inject MyPages Mine
+@inject IServiceProvider Services
 
 <PageTitle>Aether — AetherNet</PageTitle>
 
@@ -23,6 +26,28 @@
     /// <summary>A card somebody handed us in a conversation, if that is why we are here.</summary>
     private string? Opening =>
         Chat.TakeArriving() is { Kind: Handoff.Kind.Card } handed ? handed.Target : null;
+
+    /// <summary>
+    /// Put the example page on the phone the first time this tab is opened.
+    /// </summary>
+    /// <remarks>
+    /// A card somebody handed you is the thing worth opening up — see <see cref="HandedCard"/>. It
+    /// seeds only when the fixture is present, so a plain checkout starts with nothing extra.
+    /// </remarks>
+    protected override async Task OnInitializedAsync()
+    {
+        if (Services.GetService(typeof(HandedCard.OpenPackaged)) is not HandedCard.OpenPackaged open)
+            return;
+
+        try
+        {
+            await HandedCard.SeedAsync(Mesh, Mine, open);
+        }
+        catch (Exception)
+        {
+            // No fixture on this head. Everything else works exactly the same.
+        }
+    }
 
     protected override void OnInitialized() =>
         // Touch phones with somebody and they land where you are standing. The browser tells us what

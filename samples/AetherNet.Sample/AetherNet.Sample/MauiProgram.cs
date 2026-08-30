@@ -180,6 +180,11 @@ public static class MauiProgram
         builder.Services.AddSingleton<IMeshLink, RadioMeshLink>();
         builder.Services.AddAetherBrowser();
 
+        // Reading a file that shipped inside the APK. Used to put the example card on the phone the
+        // first time the AetherNet tab is opened — see HandedCard.
+        builder.Services.AddSingleton<HandedCard.OpenPackaged>(
+            _ => async named => await FileSystem.OpenAppPackageFileAsync(named));
+
         // The real over-the-air radio mesh — a native radio inside THIS one app.
 #if ANDROID
         builder.Services.AddSingleton<IRadioMesh, AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh>();
@@ -196,7 +201,10 @@ public static class MauiProgram
             // Putting the radio away releases the foreground service with it, so the notification
             // does not outlive the link it was taken for.
             onIdle: () => (sp.GetService<IRadioMesh>()
-                as AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh)?.ReleaseIfIdle()));
+                as AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh)?.ReleaseIfIdle(),
+            // Every radio, not just the one that happened to know what an AetherTag is. Who you are
+            // meeting is worked out once, above all of them, and handed down — see Meeting.
+            mesh: sp.GetService<IRadioMesh>()));
 
         // Hosting a group is specific to one radio and means nothing to the other, so it is exposed as
         // the capability rather than the radio.

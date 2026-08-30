@@ -77,16 +77,20 @@ public sealed record PageTemplate(
     public CardDocument Build(string? owner)
     {
         var name = MyName.Clean(owner);
+        var titled = Key switch
+        {
+            "me" or "links" => name,
+            "example" => "A card on AetherNet",
+            _ => "",
+        };
+
         var card = new CardDocument
         {
-            Title = Key switch
-            {
-                "me" or "links" => name,
-                "example" => "A card on AetherNet",
-                _ => "",
-            },
             Blocks = [CardBlock.Of(CardBlock.Theme, Look), .. Shape()],
         };
+
+        // As a block, so it can be moved and resized like anything else on the page.
+        OwnCard.SetTitle(card, titled);
 
         return OwnCard.Tidy(card);
     }

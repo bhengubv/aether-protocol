@@ -1,11 +1,6 @@
-@page "/warming"
-@layout EmptyLayout
-@using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @implements IDisposable
 @inject WarmUpService Warm
-@inject AetherStore Store
-@inject NavigationManager Nav
 
 @*
     The app getting ready, in front of you rather than behind your back.
@@ -64,8 +59,8 @@
        lighting up already says where we are. *@
     <div class="warm-line">@Now</div>
 
-    @* The radio survey, shown as a list rather than one line at a time. A person seeing three of
-       seven found learns where the ceiling is — and that it is their device's, not ours. *@
+    @* The radio survey, shown as a list rather than one line at a time. A person seeing four of
+       eight found learns where the ceiling is — and that it is their device's, not ours. *@
     @if (Warm.Found.Count > 0)
     {
         <div class="warm-radios">
@@ -75,13 +70,21 @@
                 <div class="warm-radio @(radio.Present ? "has" : "hasnt")">
                     <span class="wr-mark">@(radio.Present ? "✓" : "—")</span>
                     <span class="wr-name">@radio.Name</span>
-                    <span class="wr-note">@(radio.Present && radio.Carrying ? "carrying" : radio.Present ? "present" : "not on this device")</span>
+                    @* "carries", not "carrying": every radio comes up at once and the widest one
+                       through does the work, so no list drawn once can say which is moving traffic. *@
+                    <span class="wr-note">@(radio.Present && radio.Carries ? "carries" : radio.Present ? "present" : "not on this device")</span>
                 </div>
             }
         </div>
     }
 
-    <div class="warm-count">@Done of @Warm.Steps.Count ready</div>
+@*  There was a "@Done of 10 ready" counter here.
+
+    It counted warm-up steps, and warm-up steps are not on the screen: a person watching saw eight
+    radios listed and a number counting to ten, so the one figure they were tracking was the one
+    thing they could not name. The mesh already is the progress — a node lights per step, and you can
+    see how many are left — and the line above says which step by name. The count above the radio
+    list stays, because that one counts something you are looking at.  *@
 </div>
 
 @code {
@@ -90,6 +93,15 @@
     /// <summary>Where each capability sits. The centre is you; everything else radiates from it.</summary>
     private sealed record Node(string Key, int X, int Y);
 
+    /// <remarks>
+    /// Every key here must be a key in <see cref="WarmUpService.Steps"/>. This one drifted: the node at
+    /// (36,152) was keyed "bluetooth", and no step has been called that for some time, so it sat dark
+    /// through every launch. A node that can never light is worse than no node — it reads as something
+    /// that failed. It is the radio bring-up step, which is keyed "radiosup".
+    ///
+    /// The radio survey has no node of its own and does not need one: its whole display is the list
+    /// underneath the mesh.
+    /// </remarks>
     private static readonly Node[] Nodes =
     [
         new("identity",   130, 130),
@@ -98,7 +110,7 @@
         new("chat",       224, 152),
         new("notes",      172, 216),
         new("calls",       88, 216),
-        new("bluetooth",   36, 152),
+        new("radiosup",    36, 152),
         new("wifidirect",  54,  74),
         new("internet",   130, 232),
     ];
@@ -115,8 +127,6 @@
         WarmState.Failed => "failed",
         _ => "",
     };
-
-    private int Done => Warm.Steps.Count(s => s.State is WarmState.Ready or WarmState.Absent);
 
     /// <summary>The step being worked on, or the last thing that had something to say.</summary>
     private string Now
@@ -138,22 +148,14 @@
         Warm.Changed += OnChanged;
         _cts = new CancellationTokenSource();
 
+        // Nothing to navigate to at the end. This is not a route any more: Routes renders it
+        // INSTEAD of the router while the app is cold, so the handover is Routes noticing that the
+        // warm-up finished. The one decision that came with it — a phone that has never been set up
+        // belongs on the wizard — MainLayout was already making, and still does.
         await Warm.WarmAsync(_cts.Token);
-
-        // Let the finished mesh be seen for a moment. This is the ONLY deliberate pause in the whole
-        // screen, and it exists so the last node lighting up does not vanish in the same frame.
-        await Task.Delay(700);
-        Leave();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
-
-    /// <summary>
-    /// On to the app. A phone that has never been set up goes to the wizard instead — warming first is
-    /// still right, because the wizard immediately asks the radios what they can do.
-    /// </summary>
-    private void Leave() => Nav.NavigateTo(
-        Store.GetFlag(SetupKeys.Complete) ? "" : "welcome", replace: true);
 
     public void Dispose()
     {
@@ -164,7 +166,7 @@
 }
 
 <style>
-    /* Sized so seven lines fit the shortest phone we ship to without scrolling — the list is the
+    /* Sized so eight lines fit the shortest phone we ship to without scrolling — the list is the
        point, and a list you have to scroll is a list nobody reads. */
     .warm-radios {
         display: flex; flex-direction: column; gap: 2px;
@@ -228,7 +230,6 @@
         margin-top: 30px; font-size: 1.9rem; font-weight: 830; letter-spacing: -0.03em; color: var(--ink);
     }
     .warm-line { color: var(--ink-2); font-size: .92rem; text-align: center; padding: 0 28px; min-height: 1.3em; }
-    .warm-count { color: var(--ink-3); font-size: .78rem; margin-top: 6px; font-variant-numeric: tabular-nums; }
 
     /* Someone who has asked for less movement gets the same information, still. */
     @@media (prefers-reduced-motion: reduce) {

@@ -53,6 +53,7 @@ public static class AetherBrowserServiceCollectionExtensions
 
         services.TryAddSingleton<MyPages>();
         services.TryAddSingleton<Deck>();
+        services.TryAddSingleton<Decks>();
         services.TryAddSingleton<MeshWebService>();
 
         return services;

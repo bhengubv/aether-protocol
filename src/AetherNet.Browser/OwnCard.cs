@@ -42,7 +42,32 @@ public static class OwnCard
     public const int MostBlocks = 48;
 
     /// <summary>The longest a single line of a card may be.</summary>
+    /// <remarks>
+    /// A line, not a piece of writing: a label, a heading, a row of a list, the words on a link. These
+    /// are the page's furniture and a long one is a mistake rather than a paragraph.
+    /// </remarks>
     public const int LongestValue = 280;
+
+    /// <summary>The longest a piece of writing may be.</summary>
+    /// <remarks>
+    /// <para>
+    /// Prose had the same limit as a label, and 280 characters is a tweet. Somebody writing the
+    /// paragraph that says what they do had their sentence cut in the middle and nothing told them —
+    /// which is not a page that competes with a website, it is a page that looks like it was written
+    /// by somebody who ran out of room.
+    /// </para>
+    /// <para>
+    /// Still a limit, because a card is carried across a radio and held on somebody else's phone. But
+    /// this is where the cost is worth counting properly: a long paragraph is about a kilobyte, and
+    /// the pictures on the same page are a thousand times that. Forty-eight blocks at this length is
+    /// under sixty kilobytes — a couple of seconds over Wi-Fi Direct, and less than one photograph.
+    /// </para>
+    /// </remarks>
+    public const int LongestProse = 1200;
+
+    /// <summary>How long this kind of block may be.</summary>
+    public static int Longest(string? kind) =>
+        kind is CardBlock.Text or CardBlock.Quote ? LongestProse : LongestValue;
 
     /// <summary>The kinds somebody can add by hand, in the order the editor offers them.</summary>
     /// <remarks>
@@ -59,7 +84,7 @@ public static class OwnCard
     /// </remarks>
     public static readonly string[] Writable =
     [
-        CardBlock.Eyebrow, CardBlock.Heading, CardBlock.Text, CardBlock.Quote,
+        CardBlock.Title, CardBlock.Eyebrow, CardBlock.Heading, CardBlock.Text, CardBlock.Quote,
         CardBlock.List, CardBlock.Index, CardBlock.KeyValue, CardBlock.Image,
         CardBlock.Rule, CardBlock.Link, CardBlock.Tip,
     ];
@@ -74,6 +99,7 @@ public static class OwnCard
     /// <summary>What each kind is called on the button that adds it.</summary>
     public static string Label(string kind) => kind switch
     {
+        CardBlock.Title => "Name",
         CardBlock.Eyebrow => "Label",
         CardBlock.Heading => "Heading",
         CardBlock.Text => "Words",
@@ -98,6 +124,7 @@ public static class OwnCard
     /// </remarks>
     public static string Placeholder(string kind) => kind switch
     {
+        CardBlock.Title => "Kagiso Plumbing",
         CardBlock.Eyebrow => "Plumber · Kagiso · since 2016",
         CardBlock.Heading => "Hours",
         CardBlock.Text => "A few words about what you do",
@@ -169,8 +196,9 @@ public static class OwnCard
                 backed = true;
             }
 
-            if (block.Value is { Length: > LongestValue })
-                block.Value = block.Value[..LongestValue];
+            var most = Longest(block.Kind);
+            if (block.Value is { Length: int said } && said > most)
+                block.Value = block.Value![..most];
 
             // Empty lines are kept here, not swept up. This runs on every keystroke of the editor, and
             // a list that loses its blank rows the moment somebody pauses is a list they cannot type
@@ -205,6 +233,30 @@ public static class OwnCard
         card.Blocks ??= [];
         card.Blocks.RemoveAll(b => b.Kind == CardBlock.Theme && CardLook.IsLook(b.Value));
         card.Blocks.Insert(0, CardBlock.Of(CardBlock.Theme, look.Trim().ToLowerInvariant()));
+    }
+
+    /// <summary>
+    /// Keep the page's name and its title block saying the same thing.
+    /// </summary>
+    /// <remarks>
+    /// The name is metadata — it is what a deck, an address bar and a file name use — and the block is
+    /// what a reader sees. They are the same words, so typing in one place sets both, and a card that
+    /// has never had a title block gets one the first time somebody names it.
+    /// </remarks>
+    public static void SetTitle(CardDocument card, string? name)
+    {
+        card.Title = name ?? "";
+        card.Blocks ??= [];
+
+        if (card.Blocks.FirstOrDefault(b => b.Kind == CardBlock.Title) is { } titled)
+        {
+            titled.Value = name;
+            return;
+        }
+
+        // A new title goes after the look and the background, and before everything a reader reads.
+        var at = card.Blocks.FindLastIndex(b => b.Kind == CardBlock.Theme) + 1;
+        card.Blocks.Insert(at, CardBlock.Of(CardBlock.Title, name ?? ""));
     }
 
     /// <summary>Which look this card is wearing.</summary>
@@ -287,6 +339,68 @@ public static class OwnCard
 
     /// <summary>Whether this block is one a person edits, rather than one the app manages.</summary>
     public static bool IsEditable(CardBlock block) => Writable.Contains(block.Kind);
+
+    /// <summary>
+    /// Make one like this.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The gesture the whole thing is for.</b> A generation learned HTML and CSS off MySpace and
+    /// nobody taught them: they saw a profile they liked, looked at how it was made, copied it and
+    /// changed it until it was theirs. Cards already travel from phone to phone — so the trading is
+    /// not delivery, it is the lesson, and this is the part of it that was missing.
+    /// </para>
+    /// <para>
+    /// <b>Structure and design travel; the person does not.</b> The look, the background, the order of
+    /// the blocks, the shape of every list — all of it comes across, because that is the thing worth
+    /// learning and the thing somebody wants when they say "one like this". The words come across too,
+    /// as something to type over rather than a blank page to face; a template that says nothing is a
+    /// page most people abandon.
+    /// </para>
+    /// <para>
+    /// <b>What does not come across is theirs.</b> Photographs stay with their author — the frame
+    /// arrives empty, so the page still reads as a page with a picture in it and the picture is yours
+    /// to put there. A tip jar arrives empty for a harder reason: a remix that quietly carried
+    /// somebody else's payment address would send a stranger's money to them, and it would look
+    /// exactly like a page working properly.
+    /// </para>
+    /// </remarks>
+    public static CardDocument Remix(CardDocument? card, string? named = null)
+    {
+        var made = new CardDocument { Title = named ?? "" };
+        var blocks = new List<CardBlock>(MostBlocks);
+
+        foreach (var block in card?.Blocks ?? [])
+        {
+            if (blocks.Count >= MostBlocks) break;
+
+            blocks.Add(new CardBlock
+            {
+                Kind = block.Kind,
+                Value = block.Kind == CardBlock.Title ? named ?? "" : block.Value,
+                Items = block.Items is { Count: > 0 } items ? [.. items] : null,
+                Align = block.Align,
+                As = block.As,
+
+                // Three things that are theirs and not yours: their photograph, their tip jar, and
+                // their pages. A nav row whose words still say Journal / About / Contact is exactly
+                // what somebody wants copied — but pointed at aether://THEM, it quietly sends your
+                // readers to them, and it looks like a page working properly. The words stay; where
+                // they go is yours to say. An address on the open web comes across, because that is a
+                // reference rather than a destination they own.
+                ContentHash = null,
+                Target = block.Kind == CardBlock.Tip || CardBlock.IsMeshAddress(block.Target)
+                    ? null
+                    : block.Target,
+            });
+        }
+
+        made.Blocks = blocks;
+
+        if (named is { Length: > 0 }) SetTitle(made, named);
+
+        return Tidy(made);
+    }
 
     /// <summary>
     /// The document as it should go on the mesh: everything unfilled left behind.

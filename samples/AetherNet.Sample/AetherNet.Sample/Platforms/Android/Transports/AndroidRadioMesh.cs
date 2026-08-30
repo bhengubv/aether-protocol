@@ -18,6 +18,17 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
 {
     private readonly object _gate = new();
     private readonly List<string> _log = new();
+
+    /// <summary>
+    /// The same commentary, written where somebody debugging can read it.
+    /// </summary>
+    /// <remarks>
+    /// The radio log used to live only inside the app: a list a screen could show, and nothing else.
+    /// So a radio that never started and a radio that started and said so looked identical from
+    /// outside — which cost an evening, twice, chasing a Wi-Fi transport that may have been running
+    /// the whole time. A log that cannot be read when the app is misbehaving is not a log.
+    /// </remarks>
+    private readonly ILogger<AndroidRadioMesh> _out;
     private readonly Dictionary<string, IRadio> _radios = new(StringComparer.Ordinal);
     private readonly List<IRadio> _order = new();
     private readonly string _localUhid;
@@ -36,6 +47,9 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
 
     private IRadio _selected;
 
+    /// <summary>The Wi-Fi already on the phone, kept so a meeting can be handed to it.</summary>
+    private AetherNet.Transport.Wifi.WifiTransportService? _wifi;
+
     public AndroidRadioMesh(IIdentityService me, ILogger<AndroidRadioMesh> logger,
         AetherNet.Sample.Shared.Services.CircleDirectory? circle = null,
         AetherNet.Sample.Shared.Services.ProxyDirectory? proxies = null)
@@ -53,6 +67,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         var routingKey = me.RoutingKey;
         _routingKey = routingKey;
         _circle = circle;
+        _out = logger;
 
         Register(new AndroidWifiDirectTransportService(global::Android.App.Application.Context!, _localUhid, logger, routingKey, circle));
         // Bluetooth is gone, and so is the NearLink stand-in that was Bluetooth wearing a different
@@ -63,11 +78,49 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // Two radios, and they are independent. Wi-Fi Direct is the one every phone has and the only
         // one measured to carry real traffic. Internet is what you fall back to when nobody is in
         // range, and it is a phone in your Circle relaying, not a service.
+        // Bluetooth is back.
+        //
+        // It was taken out because it kept carrying traffic Wi-Fi Direct should have: the mesh sent
+        // over whichever radio reported a link, so an 11 kbps radio took messages, receipts and voice
+        // notes while the fast one sat idle, and a 91 KB note crawled for a minute. Deleting it fixed
+        // that and cost the one thing it was good at — being the radio that works when there is no
+        // Wi-Fi of any kind, which for a mesh is most of the time.
+        //
+        // The reason is gone. RadioChoice now sends over the widest LINKED radio measured, so BLE only
+        // carries when it is genuinely the best there is — which is exactly when it should. And it now
+        // advertises the meeting rather than one fixed id for the whole app, so it answers the person
+        // whose tag you were handed and nobody else.
+        Register(new AndroidBleTransportService("BLE",
+            "61657468-6572-0001-0000-000000000001", "61657468-6572-0003-0000-000000000001",
+            "61657468-6572-0002-0000-000000000001", _localUhid, logger, routingKey: routingKey));
+
         Register(new AndroidWifiAwareTransportService(() => WireAddress.For(routingKey), logger));
         // The second leg. Last in the ladder on purpose: it costs the person data and puts their
         // traffic through somebody else's phone, so it is what you use when the alternative is nothing
         // at all — which, for a network meant to hold up when you walk out of range, is most of the time.
         Register(new AndroidInternetTransportService(global::Android.App.Application.Context!, _localUhid, logger, proxies));
+        // The Wi-Fi the phone is already on.
+        //
+        // Wi-Fi Direct builds a network out of nothing, which is the right answer in a field and a
+        // slow, fragile one in a kitchen where both handsets are three metres from the same access
+        // point. Two phones sat on one network for an afternoon unable to reach each other while a
+        // perfectly good link went unused — refusing to use it is not principle, it is waste.
+        //
+        // Below Wi-Fi Direct in the ladder on purpose: the router sees that two devices on it are
+        // talking, how much and when. It never sees what — that is sealed above every radio equally —
+        // so the difference is metadata and a dependency on somebody else's box. Worth having as one
+        // way out among several rather than as the only one.
+        _wifi = new AetherNet.Transport.Wifi.WifiTransportService(_localUhid);
+
+        // Its own voice, or it has none.
+        //
+        // TransportRadio wraps a transport and raises ITS status, never the transport's — so
+        // everything this radio said about itself went nowhere, and a radio that had not run looked
+        // exactly like a radio that had. Silence from a layer is the wiring, not the code.
+        _wifi.Status += s => Emit($"[Wi-Fi] {s}");
+
+        Register(new TransportRadio(_wifi, _localUhid));
+
         Register(new AndroidNfcTransportService(_localUhid, logger));
         Register(new AndroidLoRaTransportService(_localUhid, logger));
         // Wi-Fi Direct is the radio this mesh is built on, and the default says so.
@@ -241,7 +294,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     /// otherwise whichever one does. The preference is a preference, not a restriction — a phone that
     /// can still be reached over another radio is still reachable.
     /// </summary>
-    private IRadio Active => _selected.IsLinked ? _selected : _order.FirstOrDefault(r => r.IsLinked) ?? _selected;
+    private IRadio Active => Candidates().FirstOrDefault() ?? _selected;
 
     /// <summary>
     /// How hard the carrying radio is working, 0 to 1. Media sizes itself from this.
@@ -339,7 +392,10 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     {
         if (!_radios.TryGetValue(name, out var r)) return;
         _selected = r;
-        if (r.IsAvailable && !r.IsLinked) { Emit($"[{r.Name}] preferred — bringing it up"); r.Link(); }
+        // A preference about which radio is brought up, and nothing about where traffic goes — the
+        // widest linked radio carries either way. Choosing one used to move a call onto it, which is
+        // how a voice call ended up on eleven kilobits because somebody tapped a chip.
+        if (r.IsAvailable && !r.IsLinked) { Emit($"[{r.Name}] bringing it up"); r.Link(); }
         RaiseChanged();
     }
 
@@ -373,6 +429,44 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
 
             Emit(ReferenceEquals(r, _selected) ? $"[{r.Name}] linking…" : $"[{r.Name}] also listening");
             try { r.Link(); } catch (Exception ex) { Emit($"[{r.Name}] could not listen: {ex.Message}"); }
+        }
+    }
+
+    /// <summary>
+    /// Bring every radio up to meet one particular person.
+    /// </summary>
+    /// <remarks>
+    /// All of them at once, quietly, and none of them waiting on another. Which one ends up carrying
+    /// the traffic is not decided here and is not decided by the person — see <see cref="Widest"/>.
+    /// A radio that has not been taught about meetings still comes up; it simply comes up for
+    /// everybody rather than for somebody.
+    /// </remarks>
+    public void Link(AetherNet.Sample.Shared.Services.Meeting meeting)
+    {
+        AetherLinkService.Start();
+
+        Emit($"meeting {meeting.PeerTag} — {(meeting.IStart ? "we open" : "they open")}");
+
+        // Wi-Fi needs the rendezvous itself rather than a hint: it puts it on a multicast group and a
+        // port that only the two of them can compute.
+        if (_wifi is not null)
+            _ = Task.Run(async () =>
+            {
+                try { await _wifi.MeetAsync(meeting.Rendezvous, meeting.IStart); }
+                catch (Exception ex) { Emit($"[Wi-Fi] could not meet: {ex.Message}"); }
+            });
+        else Emit("[Wi-Fi] no radio");
+
+        foreach (var r in _order)
+        {
+            if (!r.IsAvailable) continue;
+
+            // Linked is not a reason to skip it. A radio that came up before the meeting arrived is
+            // holding a link to whoever answered first, which is exactly the link that should be
+            // replaced — and the radios that are already meeting the right person recognise their own
+            // meeting and do nothing.
+            try { r.Link(meeting); }
+            catch (Exception ex) { Emit($"[{r.Name}] could not listen: {ex.Message}"); }
         }
     }
 
@@ -450,31 +544,52 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     }
 
     /// <summary>
-    /// The radios worth trying, best first: the chosen one, then anything else holding a link.
+    /// The radios worth trying, best first.
     ///
     /// <para>
-    /// The person's choice wins. Picking a radio is an instruction, not a hint — and it used to be a
-    /// hint: this returned the WIDEST linked radio first regardless, so choosing BLE while Wi-Fi Direct
-    /// was up changed the label on the screen and not one byte of what actually happened.
+    /// Nobody is asked. The person picked a contact, not a transport — every radio tries at once and
+    /// whichever got through and is widest carries, silently, handing over when a better one appears.
+    /// See <see cref="RadioChoice"/> for the rule and for why it is best-through rather than
+    /// first-through.
     /// </para>
     ///
     /// <para>
-    /// Everything else linked still follows, widest first, so a call in progress does not drop dead the
-    /// moment the chosen radio does.
+    /// The preferred radio used to come first outright, which meant a person could put a voice call on
+    /// eleven kilobits by tapping a chip on a screen. It is now a preference about which radio is
+    /// brought up, and no part of where traffic goes.
+    /// </para>
+    ///
+    /// <para>
+    /// Everything else linked still follows, so a send that fails on the best radio drops to the next
+    /// rather than failing outright.
     /// </para>
     /// </summary>
     private IEnumerable<IRadio> Candidates()
     {
-        if (_selected.IsLinked) yield return _selected;
+        var speeds = _order.Select(r =>
+            new RadioSpeed(r.Name, r.IsLinked, r.Quality.ThroughputBps(), r.MaxBandwidthBps));
 
-        foreach (var r in _order
-                     .Where(r => r.IsLinked && !ReferenceEquals(r, _selected))
-                     .OrderByDescending(r => r.MaxBandwidthBps))
-            yield return r;
+        var order = RadioChoice.Order(speeds, _carrying);
 
-        // Nothing linked at all — still hand it to the chosen radio, which reports the failure honestly.
-        if (!_selected.IsLinked) yield return _selected;
+        if (order.Count == 0)
+        {
+            // Nothing linked at all. Still hand it to a radio, which reports the failure honestly
+            // rather than the mesh inventing one.
+            yield return _selected;
+            yield break;
+        }
+
+        // Remembered so the next decision knows what is already carrying, and does not move the
+        // traffic off it for a rounding difference — see RadioChoice.Wider.
+        _carrying = order[0].Name;
+
+        foreach (var named in order)
+            if (_radios.TryGetValue(named.Name, out var r))
+                yield return r;
     }
+
+    /// <summary>Which radio is carrying, so a near-tie does not bounce the traffic between two.</summary>
+    private string? _carrying;
 
     /// <summary>
     /// The widest linked radio, or the ordinary choice if none is wider.
@@ -510,6 +625,8 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
 
     private void Emit(string line)
     {
+        _out.LogInformation("[mesh] {Line}", line);
+
         lock (_gate)
         {
             _log.Add(line);

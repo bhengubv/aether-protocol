@@ -43,6 +43,8 @@ public sealed class MeshWebService
     private readonly IContentStore _contentStore;
     private readonly MyPages _mine;
     private readonly Deck _deck;
+
+    private readonly Decks _decks;
     private readonly SemaphoreSlim _initGate = new(1, 1);
     private volatile bool _ready;
 
@@ -86,7 +88,8 @@ public sealed class MeshWebService
         IMeshLink? link = null,
         ILoggerFactory? loggerFactory = null,
         MyPages? mine = null,
-        Deck? deck = null)
+        Deck? deck = null,
+        Decks? decks = null)
     {
         // Cards are signed by the device, so the node signs them. This service never sees the key.
         _node = node ?? throw new ArgumentNullException(nameof(node));
@@ -100,6 +103,7 @@ public sealed class MeshWebService
         var scratch = new InMemoryCardStore();
         _mine = mine ?? new MyPages(scratch);
         _deck = deck ?? new Deck(scratch);
+        _decks = decks ?? new Decks(scratch);
     }
 
     public event Action? Changed;
@@ -142,6 +146,9 @@ public sealed class MeshWebService
     /// a cache with ambitions rather than an object somebody owns.
     /// </remarks>
     public Deck Deck => _deck;
+
+    /// <summary>The named sets this phone has gathered.</summary>
+    public Decks Decks => _decks;
 
     // ─── Setup ──────────────────────────────────────────────────────────────────
 
@@ -289,6 +296,40 @@ public sealed class MeshWebService
     /// </para>
     /// </remarks>
     /// <returns>False when there is nothing to give or nobody to give it to.</returns>
+    /// <summary>
+    /// Hand over a whole deck, in the order its owner put it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Card by card, because that is what a deck is — there is no such thing on the wire as a set,
+    /// and inventing one would mean a second kind of thing for every reader to understand and for
+    /// every other language's SDK to implement. What the far side gets is the cards, and it gets them
+    /// in this order because that is the order they are sent in.
+    /// </para>
+    /// <para>
+    /// It stops at the first one that will not go, rather than carrying on and reporting success. A
+    /// deck half-given looks exactly like a deck given, and somebody who walked away with four of six
+    /// cards has no way to find out which two are missing.
+    /// </para>
+    /// </remarks>
+    /// <returns>How many were handed over.</returns>
+    public async Task<int> GiveDeckAsync(string? name, CancellationToken cancellationToken = default)
+    {
+        await EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
+
+        if (_decks.Get(name) is not { } deck) return 0;
+
+        var given = 0;
+
+        foreach (var address in deck.Cards)
+        {
+            if (!await GiveAsync(address, cancellationToken).ConfigureAwait(false)) break;
+            given++;
+        }
+
+        return given;
+    }
+
     public async Task<bool> GiveAsync(string? address, CancellationToken cancellationToken = default)
     {
         await EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
@@ -387,6 +428,79 @@ public sealed class MeshWebService
             await _content.AnnounceAsync(picture, cancellationToken).ConfigureAwait(false);
 
         return picture.RootHash;
+    }
+
+    /// <summary>
+    /// Take in a card that came from somewhere else.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A card names its pictures by content hash, and a hash only exists once the bytes are on this
+    /// device. So a document that arrives with its pictures alongside — from a file, from a hand-off,
+    /// from a remix — has to have them stored here first and its names rewritten to what they hashed
+    /// to. Otherwise the page renders as text with captions where the pictures should be, and nothing
+    /// anywhere reports a failure.
+    /// </para>
+    /// <para>
+    /// The names in <paramref name="pictures"/> are whatever the document currently calls them. They
+    /// are not hashes and are not treated as any: every picture is hashed here, by this device, from
+    /// the bytes it actually received.
+    /// </para>
+    /// </remarks>
+    /// <param name="card">The document, as it arrived.</param>
+    /// <param name="pictures">
+    ///   The pictures it refers to, as <c>data:</c> URIs, keyed by the name the document uses.
+    /// </param>
+    /// <returns>The same page with its pictures stored and named properly, or null if there was none.</returns>
+    public async Task<CardDocument?> TakeInAsync(
+        CardDocument? card,
+        IReadOnlyDictionary<string, string>? pictures = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (card is null) return null;
+
+        await EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
+
+        var named = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (name, uri) in pictures ?? new Dictionary<string, string>())
+        {
+            if (Bytes(uri) is not var (bytes, mime) || bytes.Length == 0) continue;
+
+            if (await KeepPictureAsync(bytes, mime, cancellationToken).ConfigureAwait(false)
+                is { Length: > 0 } hash)
+                named[name] = hash;
+        }
+
+        foreach (var block in card.Blocks ?? [])
+            if (block.ContentHash is { Length: > 0 } was && named.TryGetValue(was, out var now))
+                block.ContentHash = now;
+
+        return card;
+    }
+
+    /// <summary>A <c>data:</c> URI as the bytes it stands for, and what it says they are.</summary>
+    private static (byte[] Bytes, string Mime)? Bytes(string? uri)
+    {
+        if (uri is not { Length: > 0 }) return null;
+        if (!uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) return null;
+
+        var comma = uri.IndexOf(',');
+        if (comma < 0) return null;
+
+        var head = uri[5..comma];
+        if (!head.EndsWith(";base64", StringComparison.OrdinalIgnoreCase)) return null;
+
+        try
+        {
+            return (Convert.FromBase64String(uri[(comma + 1)..]), head[..^";base64".Length]);
+        }
+        catch (FormatException)
+        {
+            // Somebody else's bytes, and they are not what they said they were. The page loses a
+            // picture; it does not lose the page.
+            return null;
+        }
     }
 
     // ─── Publishing what you wrote ───────────────────────────────────────────────

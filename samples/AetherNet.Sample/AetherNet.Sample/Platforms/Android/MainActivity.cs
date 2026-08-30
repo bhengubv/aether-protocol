@@ -1,6 +1,7 @@
 using Android.App;
 using Android.Content;
 using Android.Content.PM;
+using Android.Graphics.Drawables;
 using Android.OS;
 using Android.Views;
 using AetherNet.Sample.Shared.Services;
@@ -46,8 +47,34 @@ public class MainActivity : MauiAppCompatActivity
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        PaintTheWindowOurColour();
         KeepContentAboveTheKeyboard();
         Capture(Intent);
+    }
+
+    /// <summary>The app's own ground, so the launch is one colour from tap to first screen.</summary>
+    /// <remarks>
+    /// <para>
+    /// Android's splash window closes as soon as the activity has a frame, which is a second or more
+    /// before the WebView has painted anything. What fills that second is the theme's window
+    /// background, and MAUI's theme inherits it from Material — measured at #1B1B1B on this phone.
+    /// So the first thing anybody saw was a blank grey screen belonging to the platform, then the app
+    /// appearing on a different colour underneath it.
+    /// </para>
+    /// <para>
+    /// Set here rather than in a style because overriding <c>Maui.MainTheme.NoActionBar</c> by name
+    /// means restating every item MAUI puts in it, and any one of them going stale is a bug nobody
+    /// would look for. This runs after MAUI has chosen its theme, so it is the last word.
+    /// </para>
+    /// </remarks>
+    private void PaintTheWindowOurColour()
+    {
+        // The same two values as --bg in app.css and the boot screen in index.html. Three places, one
+        // colour: a launch that changes shade twice looks like something failing and reloading.
+        var night = (Resources?.Configuration?.UiMode & global::Android.Content.Res.UiMode.NightMask)
+            == global::Android.Content.Res.UiMode.NightYes;
+        Window?.SetBackgroundDrawable(new ColorDrawable(
+            global::Android.Graphics.Color.ParseColor(night ? "#0d1620" : "#eaeef3")));
     }
 
     /// <summary>

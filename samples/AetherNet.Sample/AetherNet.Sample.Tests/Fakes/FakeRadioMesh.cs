@@ -78,6 +78,16 @@ public sealed class FakeRadioMesh : IRadioMesh
         Changed?.Invoke();
     }
 
+    /// <summary>Who this mesh was last told to meet, so a test can say what the radios were asked.</summary>
+    public Meeting? Meeting { get; private set; }
+
+    /// <inheritdoc />
+    public void Link(Meeting meeting)
+    {
+        Meeting = meeting;
+        Link();
+    }
+
     public void Unlink()
     {
         IsLinked = false;

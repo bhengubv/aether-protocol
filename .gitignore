@@ -97,3 +97,10 @@ artifacts/packages/
 ## (task queue, CONTINUITY.md, PARALLEL_AGENT_RULES.md, progress logs)
 ## progress/*.log are agent runtime logs — gitignore those only
 .loki/progress/*.log
+
+# The sketchbook demo fixture. Somebody else's artwork and somebody else's words, shrunk for a
+# handset so the renderer can be measured against the page it is copying. Fine on the bench, not
+# ours to redistribute — so the demo seeds itself only when these are present.
+samples/AetherNet.Sample/AetherNet.Sample/Resources/Raw/sketchbook.json
+samples/AetherNet.Sample/AetherNet.Sample/Resources/Raw/sketchbook-plates.json
+samples/AetherNet.Sample/.fixtures/

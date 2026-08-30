@@ -1,6 +1,43 @@
-﻿<Router AppAssembly="typeof(Layout.MainLayout).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-    <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-</Router>
+@using AetherNet.Sample.Shared.Pages
+@using AetherNet.Sample.Shared.Services
+@implements IDisposable
+@inject WarmUpService Warm
+
+@*  The warm-up is not a page, and this is where that stops being a lie.
+
+    It used to be a route. Every launch landed on "/", which is Home, which is drawn inside MainLayout
+    — so before anything could decide the app was cold, Blazor had to activate that layout, and
+    activating it constructs everything it injects: the database, chat, calls, contacts, video. Only
+    then did MainLayout's own gate run and redirect to the warm-up screen.
+
+    Which is backwards. That construction IS the work the warm-up screen exists to stand in front of,
+    so the screen could not appear until the wait it covers for was already over. What a person saw
+    was the boot animation vanish and a second or more of empty app-coloured screen.
+
+    So the state comes above the router: while the app is cold there is no routing at all, and no
+    layout to activate. It also closes the case a start-path could not — an aether:// link from a QR
+    scan or an NFC tap enters cold on some other route, and would have hit exactly the same wall.  *@
+@*  Imported by name above rather than written as <Pages.Warming />. Razor resolves a tag to a
+    component only if the name is in scope, and when it is not it emits the tag as literal HTML
+    instead — no error, no warning, a clean build and a blank screen. That cost a deploy.  *@
+@if (!Warm.IsWarm)
+{
+    <Warming />
+}
+else
+{
+    <Router AppAssembly="typeof(Layout.MainLayout).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+        <Found Context="routeData">
+            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+    </Router>
+}
+
+@code {
+    protected override void OnInitialized() => Warm.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Warm.Changed -= OnChanged;
+}

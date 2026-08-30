@@ -83,6 +83,38 @@ public static class GroupCredentials
         return new WifiDirectCredentials(name, passphrase);
     }
 
+    /// <summary>
+    /// The group two phones meet in the first time, before either holds the other's key.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A tag is a hash of a key, so it cannot be turned back into one — which meant a phone given only
+    /// a tag could never work out the group and never met anybody. It sat saying "waiting for them"
+    /// with the other person's tag plainly in its contact list, and no radio ever started an
+    /// operation. The way in was to scan a QR code, which needs two people, two phones and a camera:
+    /// the thing a mesh exists to avoid needing.
+    /// </para>
+    /// <para>
+    /// So the first meeting is derived from what both phones certainly have — each other's tags. See
+    /// <see cref="Meeting"/> for why that is not doing the work of a secret. What crosses it is the
+    /// public key, checked against the tag it claims to belong to, and after that both sides derive
+    /// from the key instead: <see cref="ForHost(byte[])"/>, which nobody can compute without having
+    /// been given it.
+    /// </para>
+    /// </remarks>
+    public static WifiDirectCredentials? ForMeeting(Meeting? meeting)
+    {
+        if (meeting is not { } meet) return null;
+
+        // Nine characters after the mandatory prefix, and fifteen for the passphrase — the same shape
+        // ForHost produces, so a group looks the same whichever way it was worked out.
+        var name = RequiredPrefix + meet.Where(9);
+        var passphrase = meet.Rendezvous[9..24];
+
+        var credentials = new WifiDirectCredentials(name, passphrase);
+        return WifiDirectCredentials.IsUsable(credentials) ? credentials : null;
+    }
+
     /// <summary>Bytes as Crockford base32, five bits at a time.</summary>
     private static string Encode(ReadOnlySpan<byte> bytes)
     {

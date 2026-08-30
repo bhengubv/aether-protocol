@@ -63,6 +63,10 @@ public static class CardPage
     ///   available. For a page leaving this device: the reader has no internet, so a linked font never
     ///   arrives — it is embedded or it is absent, and the look falls back to the handset's own faces.
     /// </param>
+    /// <param name="sample">
+    ///   Whether this is a chooser's tile rather than a page somebody is reading. A tile shows its
+    ///   background at strength, because that is the thing being chosen.
+    /// </param>
     /// <param name="still">
     ///   Draw the masthead once instead of letting it drift. For a thumbnail: a look-picker shows five
     ///   cards at once, and five animating GL contexts on a handset is a page that competes with real
@@ -82,7 +86,8 @@ public static class CardPage
         Func<string, string?>? assetPath = null,
         Func<string, byte[]?>? fonts = null,
         string? fontBase = null,
-        bool still = false)
+        bool still = false,
+        bool sample = false)
     {
         // "Someone next to you" belongs to the moment somebody is being handed a phone. On a page
         // that was browsed to it is a stranger's name replaced with a description of where they are
@@ -116,7 +121,7 @@ public static class CardPage
             .Append("base-uri 'none'; form-action 'none'\">");
         page.Append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
         page.Append("<title>").Append(name.Length > 0 ? name : "A page on AetherNet").Append("</title>");
-        page.Append("<style>").Append(Faces(look, fonts, fontBase)).Append(Style(accent, look)).Append("</style>");
+        page.Append("<style>").Append(Faces(look, fonts, fontBase)).Append(Style(accent, look, sample)).Append("</style>");
         page.Append("</head><body>");
 
         // The ground, if this page has one.
@@ -151,20 +156,14 @@ public static class CardPage
         // An eyebrow belongs above the title, wherever its author put it — it qualifies the title
         // rather than sitting in the flow, and a page that printed it halfway down would be a page
         // whose author had to know that.
-        var brow = card?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Eyebrow);
-
-        // The label and the title are one unit. Centring the label and leaving the name hard left
-        // reads as a mistake, so the title takes the label's alignment — one decision, not two.
-        var mid = brow?.IsCentred == true ? " class=\"mid\"" : "";
-
-        if (brow is not null && Text(brow.Value) is { Length: > 0 } said)
-            page.Append("<p class=\"eyebrow").Append(brow.IsCentred ? " mid" : "").Append("\">")
-                .Append(said).Append("</p>");
-
-        // No heading at all rather than an invented one. A page whose author has not named it yet is
-        // shorter; it is not a page belonging to somebody called nothing.
-        if (name.Length > 0)
-            page.Append("<h1").Append(mid).Append(">").Append(name).Append("</h1>");
+        // Nothing is hoisted. The label and the name are blocks, drawn where their author put them,
+        // and a page can therefore open with a picture, put its navigation above its name, or do any
+        // of the things a designed page does. Hoisting them was the renderer deciding the layout.
+        //
+        // A card written before the name was a block has no title block, so its name is drawn first —
+        // which is exactly where it used to be.
+        if (card?.Blocks?.Any(b => b.Kind == CardBlock.Title) != true && name.Length > 0)
+            page.Append("<h1>").Append(name).Append("</h1>");
 
         Blocks(page, card, assetPath, offering);
 
@@ -268,7 +267,7 @@ public static class CardPage
                 continue;
             }
 
-            if (Run(blocks, at, CardBlock.Link) is > 1 and var links && !offering)
+            if (Links(blocks, at) is > 1 and var links && !offering)
             {
                 Row(page, blocks, at, links);
                 at += links - 1;
@@ -277,17 +276,22 @@ public static class CardPage
 
             switch (block.Kind)
             {
+                case CardBlock.Title when Text(block.Value) is { Length: > 0 } t1:
+                    page.Append("<h1").Append(Dress(block)).Append(">").Append(t1).Append("</h1>");
+                    break;
+
+                case CardBlock.Eyebrow when Text(block.Value) is { Length: > 0 } brow:
+                    page.Append("<p class=\"eyebrow").Append(block.IsCentred ? " mid" : "").Append("\">")
+                        .Append(brow).Append("</p>");
+                    break;
+
                 case CardBlock.Heading when Text(block.Value) is { Length: > 0 } h:
                     page.Append("<h2").Append(Set(block)).Append(">").Append(h).Append("</h2>");
                     break;
 
-                // Drawn above the title, not here — see Render. Skipping it means an author can put
-                // it wherever they like in the document and it still lands where it belongs.
-                case CardBlock.Eyebrow:
-                    break;
-
                 case CardBlock.Quote when Text(block.Value) is { Length: > 0 } q:
-                    page.Append("<blockquote").Append(Set(block)).Append(">").Append(q).Append("</blockquote>");
+                    page.Append("<blockquote").Append(Set(block)).Append(">")
+                        .Append(Marks(q, offering)).Append("</blockquote>");
                     break;
 
                 // A break with a mark in it. The value names one from the catalogue; a break that
@@ -323,15 +327,21 @@ public static class CardPage
                     page.Append("</div>");
                     break;
 
+                // Somebody writing prose presses Return, and what they meant by it is the only
+                // question worth answering: once is a new line, twice is a new paragraph. Both are
+                // drawn here rather than asking the author to make a second block every time they
+                // finish a thought — the block is the piece of writing, not the sentence.
                 case CardBlock.Text when Text(block.Value) is { Length: > 0 } t:
-                    page.Append("<p class=\"say\"").Append(Set(block)).Append(">")
-                        .Append(Marks(t)).Append("</p>");
+                    foreach (var said in Paragraphs(t))
+                        page.Append("<p class=\"say\"").Append(Set(block)).Append(">")
+                            .Append(Marks(said, offering).Replace("\n", "<br>")).Append("</p>");
                     break;
 
                 case CardBlock.List when block.Items is { Count: > 0 } items:
                     page.Append("<ul>");
                     foreach (var item in items)
-                        if (Text(item) is { Length: > 0 } li) page.Append("<li>").Append(li).Append("</li>");
+                        if (Text(item) is { Length: > 0 } li)
+                            page.Append("<li>").Append(Marks(li, offering)).Append("</li>");
                     page.Append("</ul>");
                     break;
 
@@ -380,7 +390,8 @@ public static class CardPage
                         .Append("\" alt=\"").Append(Text(block.Value) ?? "").Append("\">");
 
                     if (Text(block.Value) is { Length: > 0 } caption)
-                        page.Append("<figcaption>").Append(caption).Append("</figcaption>");
+                        page.Append("<figcaption").Append(Set(block)).Append('>')
+                            .Append(caption).Append("</figcaption>");
 
                     page.Append("</figure>");
                     break;
@@ -393,6 +404,30 @@ public static class CardPage
     {
         var n = 0;
         while (at + n < blocks.Count && blocks[at + n].Kind == kind) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// A run of links that belong in one row together.
+    /// </summary>
+    /// <remarks>
+    /// A row is words or it is marks, never a mixture — one link wearing a mark among four that do
+    /// not is a page with something wrong with it. So the run ends where that changes, and a page
+    /// that has a worded navigation followed by a row of small marks gets both, which is what every
+    /// page with a row of small marks under its navigation actually is. Grouping them all together
+    /// and giving up made the whole thing words.
+    /// </remarks>
+    private static int Links(IReadOnlyList<CardBlock> blocks, int at)
+    {
+        if (at >= blocks.Count || blocks[at].Kind != CardBlock.Link) return 0;
+
+        var marked = CardIcon.IsIcon(blocks[at].As);
+        var n = 0;
+
+        while (at + n < blocks.Count
+               && blocks[at + n].Kind == CardBlock.Link
+               && CardIcon.IsIcon(blocks[at + n].As) == marked) n++;
+
         return n;
     }
 
@@ -451,25 +486,64 @@ public static class CardPage
     /// </remarks>
     private static void Row(StringBuilder page, IReadOnlyList<CardBlock> blocks, int at, int count)
     {
-        page.Append(blocks[at].IsCentred ? "<nav class=\"row mid\">" : "<nav class=\"row\">");
+        // A row of marks or a row of words, never a mixture. One link wearing a mark among four that
+        // do not is a page with something wrong with it, so the row falls back to words — which is
+        // never wrong, only quieter.
+        var marks = true;
+        for (var i = at; i < at + count; i++)
+            if (!CardIcon.IsIcon(blocks[i].As)) { marks = false; break; }
+
+        var kind = marks ? "icons" : "row";
+        page.Append(blocks[at].IsCentred ? $"<nav class=\"{kind} mid\">" : $"<nav class=\"{kind}\">");
 
         for (var i = at; i < at + count; i++)
         {
             var link = blocks[i];
             if (Text(link.Value) is not { Length: > 0 } label) continue;
 
+            // The words are what a mark is called: the title a pointer shows, and the only thing a
+            // screen reader has to go on. A row of marks with nothing said about them is a row of
+            // shapes, and the reader is left guessing which one is the shop.
+            var drawn = marks && CardIcon.Of(link.As) is { } icon ? icon.Svg() : label;
+            var named = marks ? $" title=\"{label}\" aria-label=\"{label}\"" : "";
+            var css = marks ? "mark" : "rowlnk";
+
             if (IsMeshAddress(link.Target))
-                page.Append("<button type=\"button\" class=\"rowlnk\" data-aether-to=\"")
-                    .Append(Attr(link.Target)).Append("\">").Append(label).Append("</button>");
+                page.Append("<button type=\"button\" class=\"").Append(css)
+                    .Append("\" data-aether-to=\"").Append(Attr(link.Target)).Append('"')
+                    .Append(named).Append('>').Append(drawn).Append("</button>");
+            else if (marks && CardBlock.IsUsableWeb(link.Target))
+                page.Append("<a class=\"").Append(css).Append("\" href=\"").Append(Attr(link.Target))
+                    .Append("\" rel=\"noopener noreferrer nofollow\" target=\"_blank\"")
+                    .Append(named).Append('>').Append(drawn).Append("</a>");
             else
-                page.Append("<span class=\"rowlnk\">").Append(label).Append("</span>");
+                page.Append("<span class=\"").Append(css).Append('"').Append(named).Append('>')
+                    .Append(drawn).Append("</span>");
         }
 
         page.Append("</nav>");
     }
 
+    /// <summary>The paragraphs in a piece of writing — a blank line between each.</summary>
+    private static IEnumerable<string> Paragraphs(string said)
+    {
+        foreach (var part in said.Split("\n\n", StringSplitOptions.RemoveEmptyEntries))
+            if (part.Trim('\n', ' ', '\t') is { Length: > 0 } clean)
+                yield return clean;
+    }
+
     /// <summary>The class attribute a block's alignment asks for, or nothing.</summary>
     private static string Set(CardBlock block) => block.IsCentred ? " class=\"mid\"" : "";
+
+    /// <summary>The classes a title asks for — where it sits, and how loud it is.</summary>
+    private static string Dress(CardBlock block)
+    {
+        var classes = string.Concat(
+            block.IsCentred ? " mid" : "",
+            block.IsSmall ? " wordmark" : "");
+
+        return classes.Length > 0 ? $" class=\"{classes.Trim()}\"" : "";
+    }
 
     /// <summary>
     /// Emphasis inside a sentence.
@@ -487,28 +561,16 @@ public static class CardPage
     /// and the card stays as inert as it was.
     /// </para>
     /// </remarks>
-    private static string Marks(string escaped)
-    {
-        var made = new StringBuilder(escaped.Length + 16);
-        var open = new Dictionary<char, bool> { ['*'] = false, ['_'] = false };
-
-        foreach (var c in escaped)
-        {
-            if (c is '*' or '_')
-            {
-                var tag = c == '*' ? "em" : "u";
-                made.Append(open[c] ? "</" : "<").Append(tag).Append('>');
-                open[c] = !open[c];
-                continue;
-            }
-
-            made.Append(c);
-        }
-
-        // An unclosed mark is somebody using an asterisk as an asterisk. Closing it silently would
-        // stress the rest of the paragraph, so anything left open is simply undone.
-        return open.Any(o => o.Value) ? escaped : made.ToString();
-    }
+    /// <summary>
+    /// The words of a block, with its emphasis and its links drawn.
+    /// </summary>
+    /// <remarks>
+    /// Escaped first and marked second, always. A card is a document rather than a page, so the only
+    /// markup that can ever come out of one is markup this renderer wrote — see <see cref="CardMarks"/>
+    /// for the vocabulary, and for why an address somebody wrote is never taken at its word.
+    /// </remarks>
+    private static string Marks(string escaped, bool offering = false) =>
+        CardMarks.Marked(escaped) ? CardMarks.Draw(escaped, offering) : escaped;
 
     /// <summary>
     /// Carry the look's typefaces inside the page.
@@ -568,7 +630,7 @@ public static class CardPage
     /// phone already has one.
     /// </para>
     /// </remarks>
-    private static string Style(string? accent, CardLook look)
+    private static string Style(string? accent, CardLook look, bool sample)
     {
         // A card may name its own accent. It has already been through IsUsableAccent, so what lands
         // here is six hexadecimal digits — the one thing an author gets to change about the look they
@@ -588,12 +650,25 @@ public static class CardPage
 
             // The wash. Behind everything, fixed, and clipped to the page rather than tiled — it is a
             // painted margin, not a wallpaper.
-            ".wash{position:fixed;inset:0;z-index:-1;pointer-events:none;border:0;" +
+            // The size is stated, not inferred from the insets.
+            //
+            // A <canvas> with inset:0 stretches to fill. The <img> that replaces it once the frame is
+            // frozen does not: a replaced element with auto width resolves to its *intrinsic* size, so
+            // the wash became a 75x38 thumbnail in the top-left corner and every card with a painted
+            // background had been rendering without one — on the phone and on the desktop, silently,
+            // because a wash that is not there looks exactly like a wash that is very quiet.
+            ".wash{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;" +
+            "z-index:-1;pointer-events:none;border:0;" +
             "background-repeat:no-repeat;background-position:center top;background-size:cover}" +
 
             // A painted surface under a whole page has to be far quieter than one inside a band —
             // it is the paper, and paper does not compete with what is printed on it.
-            ".wash.gl{opacity:.14}" +
+            // A wash is a wash: barely there, so what you read is the writing.
+            //
+            // Except in a chooser, where barely-there means all fourteen backgrounds are the same
+            // cream rectangle and somebody is being asked to pick between things that look identical.
+            // A tile is a sample of the background, so it shows the background.
+            (sample ? ".wash.gl{opacity:.62}" : ".wash.gl{opacity:.14}") +
             "body{margin:0;background:var(--paper);color:var(--ink);" +
             "font-family:var(--body);font-weight:var(--weight);font-size:var(--size);" +
             "line-height:var(--leading);-webkit-font-smoothing:antialiased;" +
@@ -611,14 +686,32 @@ public static class CardPage
             // Wraps rather than overflows. A long name set large runs past the measure on a narrow
             // phone and the last letter is simply gone — which reads as a bug in the page rather than
             // as a title that needed two lines.
-            "h1{margin:0;font-family:var(--display);font-size:clamp(32px,8.4vw,64px);line-height:1.04;" +
-            "letter-spacing:-.02em;font-weight:400;text-wrap:balance;overflow-wrap:break-word}" +
+            "h1{margin:0 0 18px;font-family:var(--display);font-size:clamp(32px,8.4vw,64px);" +
+            "line-height:1.04;letter-spacing:-.02em;font-weight:400;text-wrap:balance;" +
+            "overflow-wrap:break-word}" +
+
+            // A wordmark rather than a headline. The difference between a masthead and a signature,
+            // and the reason a page can put its name quietly at the top and lead with the work.
+            "h1.wordmark{font-size:clamp(21px,4vw,26px);letter-spacing:.01em;margin-bottom:10px}" +
 
             "h2{margin:46px 0 14px;font-size:12px;letter-spacing:.22em;text-transform:uppercase;" +
             "color:var(--ink-2);font-weight:400}" +
 
             ".say{margin:0 0 22px;max-width:100%}" +
             ".say+.say{margin-top:-4px}" +
+
+            // A link inside a sentence.
+            //
+            // On the open web it is an anchor and on the mesh it is a button that asks the host, and
+            // those are two different elements — so everything a button brings with it is taken back
+            // off, down to the font. A reader must not be able to tell which one they are looking at,
+            // because the whole claim is that these are the same page.
+            ".mk{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;" +
+            "text-align:inherit;letter-spacing:inherit;line-height:inherit;cursor:pointer;" +
+            "text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2.5px;" +
+            "text-decoration-color:var(--ink-2)}" +
+            ".mk:hover{text-decoration-color:var(--accent)}" +
+            ".mk:active{color:var(--accent)}" +
 
             // A pulled quote earns the space around it by being the only thing there.
             "blockquote{margin:34px 0;padding:0;font-family:var(--display);" +
@@ -652,6 +745,22 @@ public static class CardPage
             "text-transform:uppercase;color:var(--ink-3);text-align:right;overflow:hidden;" +
             "text-overflow:ellipsis;white-space:nowrap}" +
 
+            // On a handset the row stacks instead of clipping twice.
+            //
+            // A name and a place side by side is right on a page and wrong on a phone: at 393px
+            // "Gardens by the Bay — Supertree Grove" became "Gardens b… SUPERTREE GRO…", so the row
+            // was two ellipses and told the reader nothing at all. Both halves get a whole line, the
+            // place stays under its name, and nothing is cut. The rule ends where a row genuinely
+            // fits — this is the shape of the content, not a phone-sized copy of the design.
+            "@media(max-width:26rem){" +
+            ".plate-row{flex-wrap:wrap;align-items:baseline;gap:0 12px;padding:13px 4px}" +
+            ".plate-t{flex:1 1 auto;white-space:normal;text-overflow:clip;text-wrap:balance}" +
+            // The basis takes the indent off, or the row is its own width plus the indent and the last
+            // characters go under the edge of the page. Caught by measuring, not by looking.
+            ".plate-p{flex:1 0 calc(100% - 2.2em - 12px);max-width:100%;" +
+            "margin-left:calc(2.2em + 12px);padding-top:3px;" +
+            "text-align:left;white-space:normal}}" +
+
 
 
             // A picture with something written under it is a figure. The caption is small, quiet and
@@ -683,7 +792,18 @@ public static class CardPage
 
             // A picture that is the subject rather than the backdrop: out to the edges, at its own
             // shape, uncropped.
-            "figure.wide{width:100vw;max-width:100vw;margin:22px calc(50% - 50vw) 26px}" +
+            // A picture shown whole runs to the edges of the page — its own edges, not the window's.
+            //
+            // This was a viewport-width bleed, and the card clips its own overflow, so the picture was
+            // quietly cut off on the left and the caption under it lost its first thirteen characters:
+            // "Marina Bay Skyline" was drawn as "yline". Nothing reported anything, because as far as
+            // the browser was concerned the page asked for exactly that.
+            //
+            // The negative margin is the card's own padding, so the figure lands on the padding edge
+            // — which is where clipping stops — and it does not matter how wide the window is. A card
+            // is drawn inside a frame of somebody else's choosing; a card that measures itself against
+            // the window is measuring the wrong thing.
+            "figure.wide{width:auto;margin:22px -22px 26px}" +
             ".card > figure.wide:first-child{margin-top:-56px}" +
             "figure.wide img{border-radius:0}" +
             "figure.wide figcaption{padding:0 22px}" +
@@ -692,6 +812,24 @@ public static class CardPage
             "figure img{width:100%;height:auto;display:block;border-radius:2px}" +
             "figcaption{margin-top:9px;font-size:12.5px;letter-spacing:.02em;color:var(--ink-3);" +
             "line-height:1.5}" +
+
+            // A plate under a picture is a label, not a sentence.
+            //
+            // Centred, spaced and set in small capitals — the way a caption is set under a plate in a
+            // printed book, and the way the page this is measured against sets it. It is the author's
+            // call, taken by centring the picture: a centred picture wants a centred label under it,
+            // and a picture set left wants a caption that reads as an aside.
+            "figcaption.mid{margin-top:15px;font-size:12px;letter-spacing:.22em;" +
+            "text-transform:uppercase;color:var(--ink-2)}" +
+
+            // A row of marks. Small, evenly spaced, and the same weight as the words above them —
+            // a signature at the foot of a page rather than a toolbar bolted to it.
+            ".icons{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 26px;align-items:center}" +
+            ".icons.mid{justify-content:center}" +
+            ".mark{display:inline-flex;width:21px;height:21px;padding:0;margin:0;border:0;" +
+            "background:none;color:var(--ink-2);cursor:pointer;text-decoration:none}" +
+            ".mark svg{width:100%;height:100%;display:block}" +
+            ".mark:hover,.mark:active{color:var(--accent)}" +
 
             ".lnk{display:block;width:100%;text-align:left;margin:0 0 10px;padding:15px 17px;" +
             "background:var(--tint);border:0;border-radius:3px;font:inherit;font-size:15px;" +
@@ -765,7 +903,5 @@ public static class CardPage
     /// plain text and goes nowhere — the card still renders, the link simply does not work, which is
     /// the safe way round.
     /// </remarks>
-    private static bool IsMeshAddress(string? target) =>
-        target is { Length: > 0 and < 512 } &&
-        target.StartsWith("aether://", StringComparison.OrdinalIgnoreCase);
+    private static bool IsMeshAddress(string? target) => CardBlock.IsMeshAddress(target);
 }

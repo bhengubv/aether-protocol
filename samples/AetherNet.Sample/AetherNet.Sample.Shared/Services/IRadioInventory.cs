@@ -12,18 +12,20 @@ namespace AetherNet.Sample.Shared.Services;
 ///   person who is told "not available" learns nothing, and a person told "needs HarmonyOS hardware"
 ///   knows exactly what they would have to buy.
 /// </param>
-/// <param name="Carrying">
-///   Whether AetherNet actually routes traffic over it today. Present and unused is a real state and
-///   worth saying out loud — Bluetooth is in every phone here and is far too slow to carry a call.
+/// <param name="Carries">
+///   Whether AetherNet will send over it. Not whether it is sending right now: every radio is brought
+///   up at once and the widest one that got through carries, so which of them is working at any moment
+///   changes without anybody being told. Present and never used is still a real state — NFC hands over
+///   a tag on contact and carries nothing afterwards.
 /// </param>
-public sealed record RadioCapability(string Name, bool Present, string Detail, bool Carrying = false);
+public sealed record RadioCapability(string Name, bool Present, string Detail, bool Carries = false);
 
 /// <summary>
 /// What this device can do, measured against everything AetherNet can use.
 ///
 /// <para>
-/// The point is to put the ceiling where it belongs. A phone with three of seven radios is not a
-/// broken app — it is a phone with three radios, and the person holding it deserves to know that
+/// The point is to put the ceiling where it belongs. A phone with four of eight radios is not a
+/// broken app — it is a phone with four radios, and the person holding it deserves to know that
 /// before they conclude the software is at fault. It also tells them what a better device would buy
 /// them, which is the only honest way to sell one.
 /// </para>

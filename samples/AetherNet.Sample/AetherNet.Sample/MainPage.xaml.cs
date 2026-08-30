@@ -11,6 +11,18 @@ public partial class MainPage : ContentPage
         blazorWebView.HandlerChanged += OnWebViewHandlerChanged;
     }
 
+    /// <summary>The app's own ground, so nothing grey is ever on screen.</summary>
+    /// <remarks>
+    /// A WebView paints its own background for the second or so before the first frame of the page
+    /// exists, and under a dark theme Android renders that blank as a near-black grey of its own
+    /// choosing — measured at #1B1B1B on merlin. That grey was the first thing anybody saw on every
+    /// launch, and this page's own background was no help: it was bound to a resource named
+    /// PageBackgroundColor that is not defined anywhere, so it fell through to the same default.
+    /// </remarks>
+    private static readonly Color Ground = Application.Current?.RequestedTheme == AppTheme.Dark
+        ? Color.FromArgb("#0d1620")
+        : Color.FromArgb("#eaeef3");
+
     /// <summary>
     /// Give the page inside the WebView what a video call needs.
     /// </summary>
@@ -24,7 +36,14 @@ public partial class MainPage : ContentPage
     {
 #if ANDROID
         if (blazorWebView.Handler?.PlatformView is global::Android.Webkit.WebView native)
+        {
             Platforms.Android.WebViewMediaPermissions.Attach(native);
+
+            // Before the page paints, this is what is on screen. Same colour as index.html's boot
+            // screen, so the app appears rather than replacing a grey rectangle.
+            native.SetBackgroundColor(global::Android.Graphics.Color.ParseColor(
+                Ground.ToArgbHex(includeAlpha: false)));
+        }
 #endif
     }
 }

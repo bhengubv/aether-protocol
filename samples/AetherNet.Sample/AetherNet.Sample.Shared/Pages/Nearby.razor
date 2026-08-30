@@ -3,94 +3,52 @@
 @using AetherNet.Sample.Shared.Services
 @implements IDisposable
 @inject ContactService Contacts
+@inject IIdentityService Me
 @inject IRadioMesh Radio
-@inject IRadioSetup Setup
 @inject NavigationManager Nav
 
-<PageTitle>Aether — nearby</PageTitle>
+<PageTitle>Aether — people</PageTitle>
 
+@* People, and nothing about radios.
+
+   BBM never asked which radio. You got somebody's PIN, you typed it, and it worked — everything hard
+   happened out of sight. This screen used to open with "Connect over: Wi-Fi Direct / Wi-Fi Aware /
+   Internet / NFC / LoRa", a paragraph about mid-range chipsets, and a button asking the person to
+   connect a phone near them. That is the plumbing, handed to somebody who asked for a conversation.
+
+   So: every radio tries at once, all the time, and the widest one that got through carries. Nobody
+   picks, nobody is told which, and nobody taps anything to make it happen. What is left on screen is
+   who you know and whether they can hear you. *@
 <div class="nearby">
-    <h1 class="scr-title">Nearby</h1>
-
-    @if (Radio.IsLinked && Radio.PeerTag is { } peer)
-    {
-        <div class="linked-now">
-            <span class="near-dot"></span>
-            <span><span class="mono">@peer</span> is connected to this phone over @Radio.LinkRadio</span>
-        </div>
-    }
+    <div class="mine">
+        <span class="mine-label">You are</span>
+        <span class="mine-tag">@Me.AetherTag</span>
+        <span class="mine-say">Read it out, or show them the code — that is how somebody adds you.</span>
+    </div>
 
     <div class="people">
         @foreach (var p in _people)
         {
             <button class="prow" @onclick="@(() => Nav.NavigateTo($"chat/{p.Tag}"))">
                 <span class="av" style="background:@TagPalette.For(p.Tag)">
-                    @TagPalette.Initial(p.Tag)@if (p.IsMutual) { <span class="near"></span> }
+                    @TagPalette.Initial(p.Tag)@if (Here(p)) { <span class="near"></span> }
                 </span>
                 <span class="pmid">
                     <span class="pname">@p.Tag</span>
-                    <span class="pstat">@State(p)</span>
+                    <span class="pstat @(Here(p) ? "on" : null)">@State(p)</span>
                 </span>
                 <span class="msg">Message</span>
             </button>
         }
         @if (_people.Count == 0)
         {
-            <div class="none">Nobody added yet.</div>
+            <div class="none">Nobody yet. Add someone and they appear here.</div>
         }
     </div>
 
     <button class="connect" @onclick='() => Nav.NavigateTo("add")'>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Add someone by their AetherTag</span>
     </button>
-
-    @if (Radio.Radios.Count > 0)
-    {
-        <div class="radios">
-            <div class="radios-label">Connect over</div>
-            <div class="chips">
-                @* A radio that is merely switched off is still worth tapping — that is where you go
-                   to switch it on. Disabling every unavailable chip made the one thing a person could
-                   actually do unreachable. A radio the phone doesn't physically have stays dead. *@
-                @foreach (var r in Radio.Radios)
-                {
-                    <button class="chip @(r.Name == Radio.SelectedRadio ? "on" : null) @(r.Available ? null : "off")"
-                            disabled="@(!r.Available && !r.Fixable)" title="@r.Reason"
-                            @onclick="@(() => Pick(r))">@r.Name</button>
-                }
-            </div>
-            @{ var off = Radio.Radios.Where(r => !r.Available && r.Reason is not null).ToArray(); }
-            @if (off.Length > 0)
-            {
-                <div class="why">
-                    @foreach (var r in off)
-                    {
-                        <div>
-                            <span class="why-name">@r.Name</span> — @r.Reason
-                            @if (r.Fixable)
-                            {
-                                <span class="fixit">tap to fix</span>
-                            }
-                        </div>
-                    }
-                </div>
-            }
-        </div>
-    }
-
-    @if (Radio.IsSupported)
-    {
-        <button class="connect @(Radio.IsLinked ? "linked" : null)" disabled="@Radio.IsLinked" @onclick="Radio.Link">
-            @if (Radio.IsLinked)
-            {
-                <text>● Connected to a phone near you</text>
-            }
-            else
-            {
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Connect a phone near you</span>
-            }
-        </button>
-    }
 </div>
 
 @code {
@@ -105,82 +63,60 @@
 
     private void OnChanged() => _ = InvokeAsync(() => { _people = Contacts.Contacts; StateHasChanged(); });
 
-    /// <summary>
-    /// Pick a radio — or, if it can't run yet, go and ask for whatever it is missing.
-    ///
-    /// <para>
-    /// Wi-Fi Direct needs permission to look for phones nearby, and without it Android refuses every
-    /// request with a bare "internal error". Selecting it in that state does nothing at all, so the
-    /// tap has to lead somewhere: the same permission prompt the wizard uses.
-    /// </para>
-    /// </summary>
-    private async Task Pick(RadioInfo radio)
-    {
-        if (radio.Available)
-        {
-            Radio.SelectRadio(radio.Name);
-        }
-        else
-        {
-            await Setup.RequestAsync(radio.Name);
-            if (Radio.Radios.FirstOrDefault(r => r.Name == radio.Name) is { Available: true })
-                Radio.SelectRadio(radio.Name);
-        }
-        StateHasChanged();
-    }
+    /// <summary>Whether this person can hear us at this moment, over any radio at all.</summary>
+    private bool Here(ContactRecord c) => Radio.IsLinked && Radio.PeerTag == c.Tag;
 
     /// <summary>
-    /// Where this person stands with you — whether you have each other, which is a different question
-    /// from whether a radio can reach them right now.
-    ///
-    /// <para>
-    /// This row used to say "connected" for anyone mutual. That is the same word the rest of the app
-    /// uses for a live link, so a phone with no radio link at all read as connected here while the
-    /// conversation with that very person read "not connected" — both correct, and together they cost
-    /// an hour of chasing a contradiction that did not exist. Reachability is said once, in the banner
-    /// above, and this line no longer competes with it.
-    /// </para>
+    /// Where this person stands, in the words somebody would use.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// "Waiting for them" was the app's own internal state on a person's screen: it meant an add had
+    /// been sent and no reply had come, which is a fact about a protocol, not about a person. And it
+    /// was permanent — the reply could only arrive over a link that could not form — so the words a
+    /// person read were both jargon and untrue.
+    /// </para>
+    /// <para>
+    /// Nothing here mentions a radio. Which one carried is the system's business and changes without
+    /// warning; whether somebody can hear you is the only part that is yours.
+    /// </para>
+    /// </remarks>
     private string State(ContactRecord c) =>
-        Radio.IsLinked && Radio.PeerTag == c.Tag ? $"on the air over {Radio.LinkRadio}"
-        : c.IsMutual ? "you have each other"
-        : c.IsIncoming ? "wants to connect"
-        : "waiting for them";
+        Here(c) ? "available"
+        : c.IsMutual ? "not in range"
+        : c.IsIncoming ? "wants to add you"
+        : "invite sent";
 
     public void Dispose() { Contacts.Changed -= OnChanged; Radio.Changed -= OnChanged; }
 }
 
 <style>
     .nearby { max-width: 720px; margin: 0 auto; }
-    .scr-title { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); padding: 4px 4px 12px; }
+
+    /* Your own tag, first thing. Swapping PINs is how this starts, and it cannot start if you have to
+       go looking for yours. */
+    .mine { display: flex; flex-direction: column; gap: 2px; padding: 6px 4px 18px; }
+    .mine-label { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+    .mine-tag { font-family: var(--mono); font-size: 1.6rem; font-weight: 750; letter-spacing: 0.02em; color: var(--ink); }
+    .mine-say { font-size: 0.82rem; color: var(--ink-3); line-height: 1.45; }
 
     .people { display: flex; flex-direction: column; }
     .prow { appearance: none; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 13px; padding: 11px 6px; border-bottom: 1px solid var(--line); text-align: left; }
     .prow:active { background: var(--surface-2); }
 
     .av { position: relative; flex: 0 0 auto; width: 50px; height: 50px; border-radius: 50%; background: var(--brand-deep); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.2rem; }
-    .pname { font-family: var(--mono); }
-    .none { color: var(--ink-3); font-style: italic; padding: 18px 6px; }
-    .linked-now { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--brand); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; color: var(--ink-2); font-size: 0.88rem; }
-    .linked-now .mono { font-family: var(--mono); font-weight: 700; color: var(--ink); }
-    .near-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px var(--brand-tint); flex: 0 0 auto; }
-    .radios { margin: 14px 0 4px; }
-    .radios-label { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; margin-bottom: 8px; }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .chip { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-weight: 650; font-size: 0.82rem; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
-    .chip.on { border-color: var(--brand); color: var(--brand); background: var(--brand-tint); }
-    /* Dimmed, but still a button when it can be fixed — this is the way to switch the radio on. */
-    .chip.off { opacity: .55; border-style: dashed; }
-    .chip:disabled { opacity: .35; cursor: default; border-style: solid; }
-    .fixit { color: var(--brand); font-weight: 700; white-space: nowrap; }
-    .why { margin-top: 10px; padding-left: 4px; display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; color: var(--ink-3); line-height: 1.4; }
-    .why-name { font-weight: 700; color: var(--ink-2); }
     .near { position: absolute; right: -1px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); border: 3px solid var(--bg); }
 
     .pmid { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .pname { font-weight: 680; font-size: 1.02rem; color: var(--ink); }
-    .pstat { font-size: 0.8rem; color: var(--brand); font-weight: 600; }
+    .pname { font-family: var(--mono); font-weight: 680; font-size: 1.02rem; color: var(--ink); }
+
+    /* Quiet unless they are actually there. A row that shouts in blue whatever it says teaches
+       somebody to stop reading it. */
+    .pstat { font-size: 0.8rem; color: var(--ink-3); font-weight: 600; }
+    .pstat.on { color: var(--brand); }
+
     .msg { flex: 0 0 auto; font-size: 0.82rem; font-weight: 700; color: var(--brand); background: var(--brand-tint); padding: 7px 13px; border-radius: 999px; }
+    .none { color: var(--ink-3); font-style: italic; padding: 18px 6px; }
 
     .connect {
         width: 100%; margin-top: 18px; appearance: none; cursor: pointer;
@@ -188,7 +124,6 @@
         background: transparent; border: 1.5px dashed var(--line); color: var(--ink-2);
         border-radius: 14px; padding: 15px; font-weight: 650; font-size: 0.95rem;
     }
-    .connect:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+    .connect:hover { border-color: var(--brand); color: var(--brand); }
     .connect svg { width: 20px; height: 20px; }
-    .connect.linked { color: var(--brand); border-style: solid; border-color: var(--brand); }
 </style>

@@ -89,27 +89,92 @@ public class CardTypographyTests
     // ── The eyebrow ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// A label belongs above the title, wherever its author put it in the document.
+    /// Everything is drawn where its author put it, including the name and the label.
     /// </summary>
     /// <remarks>
-    /// It qualifies the title rather than sitting in the flow. Rendering it in document order would
-    /// mean an author had to know to place it first — which is exactly the kind of thing a person
-    /// writing on a handset should never have to know.
+    /// The label and the name used to be lifted to the top of every page whatever the author did with
+    /// them. It meant a page could not open with a picture, could not put its navigation above its
+    /// name, and could not be a page rather than a form — the renderer was deciding the layout and
+    /// calling it a document.
     /// </remarks>
     [Fact]
-    public void A_label_is_drawn_above_the_title_wherever_it_was_written()
+    public void Blocks_are_drawn_in_the_order_they_were_written()
     {
-        var html = Render(Card(
-            CardBlock.Of(CardBlock.Text, "Some words that come first in the document."),
-            CardBlock.Of(CardBlock.Eyebrow, "Plumber · Kagiso · since 2016")));
+        var card = new CardDocument
+        {
+            Blocks =
+            [
+                CardBlock.Of(CardBlock.Text, "Words that come first."),
+                CardBlock.Of(CardBlock.Eyebrow, "Plumber · Kagiso · since 2016"),
+                CardBlock.Of(CardBlock.Title, "Kagiso Plumbing"),
+            ],
+        };
 
+        var html = CardPage.Render(card, card.Title, 0, downloadPath: null);
+
+        var words = html.IndexOf("Words that come first", StringComparison.Ordinal);
         var brow = html.IndexOf("Plumber", StringComparison.Ordinal);
-        var title = html.IndexOf("<h1>", StringComparison.Ordinal);
-        var words = html.IndexOf("Some words", StringComparison.Ordinal);
+        var name = html.IndexOf("Kagiso Plumbing", StringComparison.Ordinal);
 
-        Assert.True(brow > 0 && title > 0 && words > 0);
-        Assert.True(brow < title, "the label came after the title");
-        Assert.True(title < words, "the title came after the prose");
+        Assert.True(words < brow, "the words were moved below the label");
+        Assert.True(brow < name, "the label was moved below the name");
+    }
+
+    /// <summary>
+    /// A card written before the name was a block still shows its name first.
+    /// </summary>
+    /// <remarks>
+    /// The name is metadata as well as a block. A page that has only the metadata — everything written
+    /// before this change — must not lose its heading, so it is drawn where it always was.
+    /// </remarks>
+    [Fact]
+    public void A_card_with_only_a_name_still_shows_it()
+    {
+        var html = Render(Card(CardBlock.Of(CardBlock.Text, "We come out on a Sunday.")));
+
+        var name = html.IndexOf("Kagiso Plumbing", StringComparison.Ordinal);
+        var words = html.IndexOf("We come out", StringComparison.Ordinal);
+
+        Assert.True(name > 0 && name < words, "the name is not first");
+    }
+
+    /// <summary>And a name can be a wordmark instead of a headline.</summary>
+    [Fact]
+    public void A_name_can_be_set_quietly()
+    {
+        var card = new CardDocument
+        {
+            Blocks = [new CardBlock { Kind = CardBlock.Title, Value = "Meng To", As = "small" }],
+        };
+
+        Assert.Contains("wordmark", CardPage.Render(card, "Meng To", 0, downloadPath: null),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Nothing on a card is measured against the window.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A card is drawn inside a frame somebody else chose the size of — an iframe in this app, a
+    /// column on a web page, a phone held sideways. <c>vw</c> is the width of the window, which is
+    /// none of those, so a card that uses it is measuring something it cannot see.
+    /// </para>
+    /// <para>
+    /// It bit exactly once and was invisible when it did: a picture set to bleed to <c>100vw</c> was
+    /// clipped by the card's own overflow, losing its left edge and all but the last five characters
+    /// of its caption. The type scale keeps its clamps — those are font sizes with real floors and
+    /// ceilings, and a headline that grows with the window is the point of them.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Nothing_is_sized_to_the_window()
+    {
+        var html = Render(Card(new CardBlock { Kind = CardBlock.Image, ContentHash = "abc123", As = "wide" }));
+
+        foreach (var rule in html.Split(['{', '}', ';']))
+            if (rule.Contains("vw", StringComparison.Ordinal) && !rule.Contains("clamp(", StringComparison.Ordinal))
+                Assert.Fail($"a card measured itself against the window: {rule.Trim()}");
     }
 
     [Fact]

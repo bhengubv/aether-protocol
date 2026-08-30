@@ -103,6 +103,29 @@ internal interface IRadio
     void Link();
 
     /// <summary>
+    /// Bring the radio up to meet one particular person.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every radio had invented its own answer to the same three questions — who starts, how do we
+    /// find each other, which channel do we agree on. Wi-Fi Direct compared AetherTags and derived a
+    /// group from a public key. BLE picked its roles from what the silicon could do and never looked
+    /// at a tag at all. Three answers to one question, none of them shared, and the only tag-aware one
+    /// bolted to a single radio — so a phone without that radio could not meet anybody.
+    /// </para>
+    /// <para>
+    /// The question is answered once, above every radio, and handed down. What a radio does with it is
+    /// its own business: Wi-Fi Direct makes it a group name, Wi-Fi a multicast rendezvous and a port,
+    /// LoRa an address inside a shared channel, NFC ignores it because the tap is the meeting.
+    /// </para>
+    /// <para>
+    /// The default is the old behaviour, so a radio that has not been taught this yet still comes up
+    /// and still carries traffic — it simply comes up for everybody rather than for somebody.
+    /// </para>
+    /// </remarks>
+    void Link(AetherNet.Sample.Shared.Services.Meeting meeting) => Link();
+
+    /// <summary>
     /// Send raw bytes to the linked peer.
     ///
     /// <para>
