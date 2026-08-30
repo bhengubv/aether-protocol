@@ -120,16 +120,16 @@
         /* Three states, the same three app.css has: light is the base, the phone's dark overrides it
            unless an explicit light choice says otherwise, and a stamped data-theme beats both. Without
            the third, somebody who chose Light on a dark phone got a dark boot screen and a light app. */
-        .boot { --b-bg: #eaeef3; --b-ink: #16232f; --b-dim: #8a97a6; --b-brand: #2196F3; }
+        .boot { --b-bg: #ffffff; --b-ink: #2196F3; --b-dim: #2196F3; --b-brand: #2196F3; }
 
         @media (prefers-color-scheme: dark) {
             /* app.css's --bg exactly. It was #0f1720, two shades off, so the app changed colour
                underneath the person at the moment Blazor took over. */
-            :root:not([data-theme="light"]) .boot { --b-bg: #000000; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
+            :root:not([data-theme="light"]) .boot { --b-bg: #000000; --b-ink: #ffffff; --b-dim: #ffffff; }
         }
 
-        :root[data-theme="light"] .boot { --b-bg: #eaeef3; --b-ink: #16232f; --b-dim: #8a97a6; }
-        :root[data-theme="dark"]  .boot { --b-bg: #000000; --b-ink: #eaf1f8; --b-dim: #7c8b9c; }
+        :root[data-theme="light"] .boot { --b-bg: #ffffff; --b-ink: #2196F3; --b-dim: #2196F3; }
+        :root[data-theme="dark"]  .boot { --b-bg: #000000; --b-ink: #ffffff; --b-dim: #ffffff; }
 
         .boot {
             position: fixed; inset: 0; background: var(--b-bg); overflow: hidden;

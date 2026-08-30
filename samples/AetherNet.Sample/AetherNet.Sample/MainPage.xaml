@@ -4,7 +4,7 @@
              xmlns:local="clr-namespace:AetherNet.Sample"
              xmlns:shared="clr-namespace:AetherNet.Sample.Shared;assembly=AetherNet.Sample.Shared"
              x:Class="AetherNet.Sample.MainPage"
-             BackgroundColor="{AppThemeBinding Light=#eaeef3, Dark=#000000}">
+             BackgroundColor="{AppThemeBinding Light=#ffffff, Dark=#000000}">
 
     <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
         <BlazorWebView.RootComponents>

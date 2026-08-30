@@ -5,21 +5,38 @@
    ========================================================================= */
 
 :root {
+    /* Three colours. The ground takes one, so the text is what is left.
+
+       Light: the page is WHITE and the text is BLUE. Black on white is a newspaper — it is the most
+       legible thing there is and the least interesting, and it was rejected on exactly that ground.
+       Blue on white measures 3.12:1, which is a controls-and-headings figure rather than a body-copy
+       one, so weight carries what contrast does not: nothing here is set lighter than 500, and the
+       small print is 600. Said once, on the record, and then built as asked.
+
+       Dark: the page is BLACK and the text is WHITE, with blue for what is selected — 6.72:1, and the
+       reason dark mode already feels alive. */
     --brand: #2196F3;
     --brand-deep: #1976D2;
-    --brand-tint: #e8f3fe;
+    --brand-tint: rgba(33, 150, 243, .10);
 
-    --ink: #16232f;         /* primary text */
-    --ink-2: #4a5b6b;       /* secondary text */
-    --ink-3: #5b6b7b;       /* tertiary / labels — 5.5:1 on white; #8a97a6 was 2.6:1 */
+    --ink: #2196F3;         /* primary text — the blue IS the text on white */
+    --ink-2: #2196F3;       /* no midtones: hierarchy is size and weight, not five greys */
+    --ink-3: #2196F3;
 
-    --bg: #eaeef3;          /* app background */
-    --surface: #ffffff;     /* cards, bars */
-    --surface-2: #f4f7fa;   /* insets */
-    --line: #e2e8f0;        /* hairlines */
-    --line-card: #9ecbf7;   /* card edges — a white card on a pale ground has no edge without it */
+    --bg: #ffffff;          /* the page */
+    --surface: #ffffff;     /* cards sit on the page, separated by a hairline rather than a fill */
+    --surface-2: #ffffff;
+    --line: rgba(33, 150, 243, .22);
+    --line-card: rgba(33, 150, 243, .38);
 
     --ok: #2196F3;
+
+    /* What is SELECTED. Always the one of the three that is neither the ground nor the body text, so
+       a choice can never disappear into the writing around it. Light: the page is white and the text
+       is blue, so the pick is black. Dark: the page is black and the text is white, so the pick is
+       blue — which is what you already had and liked. Without this, making the text blue made every
+       tab and every segment look chosen. */
+    --pick: #000000;
     /* There is no --warn any more, and no red.
 
        It was #c0392b: 4.67:1 on the light ground and 2.94:1 on the dark surface, so the one message a
@@ -31,9 +48,9 @@
        unnoticed. Where colour was the only thing saying "this failed" — the warm-up mesh — failure is
        drawn as a hollow node instead, which is a stronger signal than a hue anyway and survives being
        looked at by somebody who cannot tell the two apart. */
-    --warn-amber: #b26a00;  /* warning — something will be lost */
-    --info: #0b6bcb;        /* information — worth knowing, nothing is wrong */
-    --info-bg: #e7f1fb;
+    --warn-amber: #2196F3;
+    --info: #2196F3;
+    --info-bg: rgba(33, 150, 243, .10);
 
     --radius: 16px;
     --radius-sm: 10px;
@@ -48,23 +65,24 @@
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --brand: #4aa8ff;
-        --brand-deep: #2f8ae0;
-        --brand-tint: #14304b;
+        --brand: #2196F3;
+        --brand-deep: #2196F3;
+        --brand-tint: rgba(33, 150, 243, .16);
 
-        --ink: #eaf1f8;
-        --ink-2: #a9b8c6;
-        --ink-3: #9db0c2;
+        --ink: #ffffff;         /* the page is black, so the text is white */
+        --ink-2: #ffffff;
+        --ink-3: #ffffff;
 
         --bg: #000000;
-        --surface: #16232f;
-        --surface-2: #1c2b39;
-        --line: #263544;
-        --line-card: #2f6fa8;
+        --surface: #000000;     /* no navy: a card is a hairline and its spacing, not a slab */
+        --surface-2: #000000;
+        --pick: #2196F3;
+        --line: rgba(255, 255, 255, .18);
+        --line-card: rgba(33, 150, 243, .45);
 
-        --warn-amber: #e0a256;
-        --info: #7cc0ff;
-        --info-bg: #12293f;
+        --warn-amber: #2196F3;
+        --info: #2196F3;
+        --info-bg: rgba(33, 150, 243, .16);
 
         --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .25);
         --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
@@ -73,19 +91,23 @@
 
 /* Explicit theme override (Settings toggle stamps data-theme on <html>). */
 :root[data-theme="light"] {
-    --brand: #2196F3; --brand-deep: #1976D2; --brand-tint: #e8f3fe;
-    --ink: #16232f; --ink-2: #4a5b6b; --ink-3: #5b6b7b;
-    --bg: #eaeef3; --surface: #ffffff; --surface-2: #f4f7fa; --line: #e2e8f0; --line-card: #9ecbf7;
-    --warn-amber: #b26a00; --info: #0b6bcb; --info-bg: #e7f1fb;
+    --brand: #2196F3; --brand-deep: #1976D2; --brand-tint: rgba(33,150,243,.10);
+    --ink: #2196F3; --ink-2: #2196F3; --ink-3: #2196F3;
+    --pick: #000000;
+    --bg: #ffffff; --surface: #ffffff; --surface-2: #ffffff;
+    --line: rgba(33,150,243,.22); --line-card: rgba(33,150,243,.38);
+    --warn-amber: #b26a00; --info: #0b6bcb; --info-bg: rgba(33, 150, 243, .10);
     --shadow: 0 1px 2px rgba(22, 35, 47, .05), 0 10px 30px rgba(22, 35, 47, .05);
     --shadow-sm: 0 1px 2px rgba(22, 35, 47, .06);
 }
 
 :root[data-theme="dark"] {
-    --brand: #4aa8ff; --brand-deep: #2f8ae0; --brand-tint: #14304b;
-    --ink: #eaf1f8; --ink-2: #a9b8c6; --ink-3: #9db0c2;
-    --bg: #000000; --surface: #16232f; --surface-2: #1c2b39; --line: #263544; --line-card: #2f6fa8;
-    --warn-amber: #e0a256; --info: #7cc0ff; --info-bg: #12293f;
+    --brand: #2196F3; --brand-deep: #2196F3; --brand-tint: rgba(33,150,243,.16);
+    --ink: #ffffff; --ink-2: #ffffff; --ink-3: #ffffff;
+    --pick: #2196F3;
+    --bg: #000000; --surface: #000000; --surface-2: #000000;
+    --line: rgba(255,255,255,.18); --line-card: rgba(33,150,243,.45);
+    --warn-amber: #2196F3; --info: #2196F3; --info-bg: rgba(33,150,243,.16);
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .25);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
 }
@@ -215,7 +237,7 @@ img { max-width: 100%; }
     -webkit-tap-highlight-color: transparent;
 }
 .tab svg { width: 25px; height: 25px; }
-.tab.active { color: var(--brand); opacity: 1; }
+.tab.active { color: var(--pick); opacity: 1; }
 .tab.active::before {
     content: "";
     position: absolute;
