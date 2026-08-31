@@ -162,6 +162,18 @@ public sealed class CardBlock
     /// </remarks>
     public const string Style = "style";
 
+    /// <summary>
+    /// The author's own stylesheet, written by hand.
+    /// </summary>
+    /// <remarks>
+    /// Sliders are not coding. This is the block that makes a card something a person can take apart
+    /// and learn from — real CSS, written by the author, carried in the card and applied by the
+    /// renderer after <see cref="CardCss.Safe"/> has confined it to the card's own subtree and removed
+    /// anything that makes a request. See <c>CardCss</c> for what that leaves, which is nearly
+    /// everything.
+    /// </remarks>
+    public const string Css = "css";
+
     [JsonPropertyName("k")] public string Kind { get; set; } = Text;
     [JsonPropertyName("t")] public string? Value { get; set; }
     [JsonPropertyName("items")] public List<string>? Items { get; set; }

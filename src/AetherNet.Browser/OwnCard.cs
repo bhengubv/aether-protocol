@@ -236,6 +236,84 @@ public static class OwnCard
     }
 
     /// <summary>
+    /// Turn one dial on the look this card is wearing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Written as a line in a single style block rather than a block each, so a card that has been
+    /// tuned is one block bigger however many dials were turned. Setting a dial back to nothing takes
+    /// the line out, and taking the last line out takes the block out — a card that was tuned and then
+    /// untuned goes back to being byte-identical to one that never was.
+    /// </para>
+    /// <para>
+    /// Nothing is validated here. <see cref="CardLook.Tuned"/> is what decides whether a value is
+    /// allowed, and it has to, because a card arriving over the radio never passed through this
+    /// method. Checking in both places means one of them eventually gets it wrong; the reader is the
+    /// one that must not.
+    /// </para>
+    /// </remarks>
+    public static void SetDial(CardDocument card, string name, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        card.Blocks ??= [];
+        var style = card.Blocks.FirstOrDefault(b => b.Kind == CardBlock.Style);
+        if (style is null)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            style = new CardBlock { Kind = CardBlock.Style, Items = [] };
+
+            // After the look it modifies, so reading the card top to bottom reads in the order the
+            // decisions were made.
+            var after = card.Blocks.FindIndex(b => b.Kind == CardBlock.Theme);
+            card.Blocks.Insert(after < 0 ? 0 : after + 1, style);
+        }
+
+        var key = name.Trim().ToLowerInvariant();
+        style.Items ??= [];
+        style.Items.RemoveAll(line =>
+            line.Split('=', 2)[0].Trim().Equals(key, StringComparison.OrdinalIgnoreCase));
+
+        if (!string.IsNullOrWhiteSpace(value))
+            style.Items.Add($"{key} = {value.Trim()}");
+
+        if (style.Items.Count == 0) card.Blocks.Remove(style);
+    }
+
+    /// <summary>
+    /// The author's own stylesheet, kept exactly as they typed it.
+    /// </summary>
+    /// <remarks>
+    /// Stored raw and made safe at render time, never on the way in. Two reasons, and the second is
+    /// the one that matters: somebody whose <c>url()</c> vanished from under their cursor as they
+    /// typed it has been taught nothing and will assume the editor is broken — they keep their text
+    /// and are told what will not travel. And a card arriving over the radio never passed through
+    /// this method at all, so the reader's renderer has to be the thing that decides. Sanitising here
+    /// as well would mean two places to keep right, and the wrong one would rot.
+    /// </remarks>
+    public static void SetCss(CardDocument card, string? written)
+    {
+        card.Blocks ??= [];
+        card.Blocks.RemoveAll(b => b.Kind == CardBlock.Css);
+
+        if (string.IsNullOrWhiteSpace(written)) return;
+
+        var at = card.Blocks.FindIndex(b => b.Kind == CardBlock.Style);
+        if (at < 0) at = card.Blocks.FindIndex(b => b.Kind == CardBlock.Theme);
+        card.Blocks.Insert(at < 0 ? 0 : at + 1,
+            new CardBlock { Kind = CardBlock.Css, Value = written });
+    }
+
+    /// <summary>What this card has turned, by name — empty where it is wearing the look's own value.</summary>
+    public static string Dial(CardDocument? card, string name)
+    {
+        var line = card?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Style)?.Items?
+            .FirstOrDefault(l => l.Split('=', 2)[0].Trim().Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        return line?.Split('=', 2) is { Length: 2 } said ? said[1].Trim() : "";
+    }
+
+    /// <summary>
     /// Keep the page's name and its title block saying the same thing.
     /// </summary>
     /// <remarks>

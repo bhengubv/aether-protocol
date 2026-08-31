@@ -122,6 +122,12 @@ public static class CardPage
         page.Append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
         page.Append("<title>").Append(name.Length > 0 ? name : "A page on AetherNet").Append("</title>");
         page.Append("<style>").Append(Faces(look, fonts, fontBase)).Append(Style(accent, look, sample)).Append("</style>");
+
+        // The author's own stylesheet, after ours so their rule wins on their own page — which is the
+        // whole point of letting them write one. Confined to the card's subtree and stripped of
+        // anything that fetches before it gets here; see CardCss.
+        var own = CardCss.Safe(card?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Css)?.Value);
+        if (own.Length > 0) page.Append("<style>").Append(own).Append("</style>");
         page.Append("</head><body>");
 
         // The ground, if this page has one.
@@ -145,7 +151,7 @@ public static class CardPage
                 .Append("></canvas>");
         }
 
-        page.Append("<main class=\"card\">");
+        page.Append("<main class=\"card card-own\">");
 
         // The eyebrow explains how the page got here, which is only true when it is being handed
         // over. On AetherNet the reader browsed to it, and telling them it was shared with them is a

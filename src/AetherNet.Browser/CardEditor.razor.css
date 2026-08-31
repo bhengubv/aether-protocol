@@ -201,3 +201,60 @@
 .asrow { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
 .asrow .tiny { padding: 0 12px; height: 34px; }
 .asrow .tiny.on { border-color: var(--brand, #2196F3); color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+
+/* ── The dials ─────────────────────────────────────────────────────────────
+
+   Under the looks, not instead of them. Choosing a finished look stays the
+   first move and the right one for most people; these are for the person who
+   wants to know why it looks like that — and the naming is the teaching, so a
+   row reads "Text size 17px" rather than "font-size". */
+.dials { display: flex; flex-direction: column; gap: 14px; margin-top: 26px;
+         padding-top: 22px; border-top: 1px solid var(--line-card, rgba(127,140,158,.28)); }
+
+.dial-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.dial-h { font-size: 0.86rem; font-weight: 700; }
+.dial-reset { appearance: none; border: 1px solid currentColor; background: transparent;
+              color: inherit; font: inherit; font-size: 0.76rem; font-weight: 650;
+              padding: 5px 11px; border-radius: 999px; cursor: pointer; }
+.dial-reset:disabled { opacity: .35; cursor: default; }
+
+.dial { display: flex; flex-direction: column; gap: 6px; }
+.dial-n { font-size: 0.78rem; font-weight: 650; letter-spacing: .02em; }
+
+/* The number, in the row that sets it. Reading "leading 1.75" beside the slider
+   that moves it is most of how somebody learns the word. */
+.dial-n em { font-style: normal; font-weight: 750; opacity: .75; margin-left: 6px;
+             font-variant-numeric: tabular-nums; }
+
+.dial select, .dial input[type="range"], .dial input[type="color"] {
+    width: 100%; font: inherit; font-size: 0.86rem;
+}
+.dial select { padding: 9px 10px; border-radius: var(--radius-sm, 10px);
+               border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent;
+               color: inherit; }
+.dial input[type="color"] { height: 40px; padding: 0; border: 1px solid var(--line, rgba(127,140,158,.28));
+                            border-radius: var(--radius-sm, 10px); background: transparent; cursor: pointer; }
+.dial input[type="range"] { accent-color: currentColor; }
+
+/* ── The stylesheet ────────────────────────────────────────────────────────
+
+   Folded away, because most people should pick a look and write. Open it and
+   you are writing CSS — which is the mechanism this whole app is copying, and
+   the one thing a slider can never be. */
+.code { margin-top: 22px; padding-top: 18px;
+        border-top: 1px solid var(--line-card, rgba(127,140,158,.28)); }
+.code summary { list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.code summary::-webkit-details-marker { display: none; }
+.code-t { font-size: 0.86rem; font-weight: 700; }
+.code-b { font-size: 0.78rem; line-height: 1.45; opacity: .8; }
+
+.sheet {
+    width: 100%; box-sizing: border-box; margin-top: 12px; padding: 12px 13px;
+    font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.82rem; line-height: 1.6; tab-size: 2;
+    border: 1px solid var(--line, rgba(127,140,158,.28));
+    border-radius: var(--radius-sm, 10px);
+    background: transparent; color: inherit; resize: vertical;
+    /* A stylesheet is written in lines. Wrapping one mid-selector is how it stops being readable. */
+    white-space: pre; overflow-x: auto;
+}
