@@ -144,6 +144,24 @@ public sealed class CardBlock
     /// </summary>
     public const string Theme = "theme";
 
+    /// <summary>
+    /// The dials this card turned on the look it asked for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One block, holding lines of <c>name = value</c> — display, body, paper, ink, paperdark,
+    /// inkdark, accent, weight, size, leading, measure. Every one of them is a value the renderer
+    /// already understands, so a card that turns them is still drawn by our renderer and is still
+    /// inert: no CSS, no script, nothing that can fetch or execute. See <c>CardLook.Tuned</c>.
+    /// </para>
+    /// <para>
+    /// It is a block rather than a field on the document so it travels, versions and is ignored by an
+    /// older renderer exactly like every other block — a card from a newer app loses its tuning and
+    /// keeps its words, which is the rule the whole model is built on.
+    /// </para>
+    /// </remarks>
+    public const string Style = "style";
+
     [JsonPropertyName("k")] public string Kind { get; set; } = Text;
     [JsonPropertyName("t")] public string? Value { get; set; }
     [JsonPropertyName("items")] public List<string>? Items { get; set; }

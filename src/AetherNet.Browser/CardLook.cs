@@ -163,8 +163,90 @@ public sealed record CardLook(
             .FirstOrDefault(b => b.Kind == CardBlock.Theme && IsLook(b.Value))?
             .Value;
 
-        return Of(asked);
+        return Tuned(Of(asked), card);
     }
+
+    /// <summary>
+    /// The look a card asked for, with whatever that card changed about it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why a card may carry values and not just a name.</b> A look is a finished set of decisions
+    /// and choosing one is the right first move — most people should take a look and write. But
+    /// MySpace was not a list of five themes: a generation learned typography and colour because the
+    /// page they had just been handed could be opened up and changed, one value at a time, and the
+    /// change was theirs. A picker with five entries cannot teach that. A page whose type, measure,
+    /// ground and ink are all editable can.
+    /// </para>
+    /// <para>
+    /// <b>Values, never code.</b> A card is opened on a stranger's phone, so it cannot carry CSS or
+    /// script — that is the hole the JSON model exists to close, and it is not being reopened. What
+    /// travels is the same handful of numbers and colours this record already carries; the renderer
+    /// still draws every card, so a card cannot fetch, execute, or escape its own page. The author
+    /// gets the dials. Nobody gets the machine.
+    /// </para>
+    /// <para>
+    /// Anything unset falls through to the named look, so a card that changed one thing is one line
+    /// bigger and a card that changed nothing is unchanged.
+    /// </para>
+    /// </remarks>
+    public static CardLook Tuned(CardLook look, CardDocument? card)
+    {
+        var set = card?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Style);
+        if (set?.Items is not { Count: > 0 } dials) return look;
+
+        foreach (var dial in dials)
+        {
+            var cut = dial.IndexOf('=');
+            if (cut <= 0) continue;
+
+            var name = dial[..cut].Trim().ToLowerInvariant();
+            var said = dial[(cut + 1)..].Trim();
+            if (said.Length == 0) continue;
+
+            look = name switch
+            {
+                "display" when Typeface.IsOffered(said) => look with { Display = Typeface.Stack(said) },
+                "body" when Typeface.IsOffered(said) => look with { Body = Typeface.Stack(said) },
+                "paper" when IsColour(said) => look with { Paper = said },
+                "ink" when IsColour(said) => look with { Ink = said },
+                "paperdark" when IsColour(said) => look with { PaperDark = said },
+                "inkdark" when IsColour(said) => look with { InkDark = said },
+                "accent" when IsColour(said) => look with { Accent = said },
+                "weight" when Num(said, 100, 900) is { } w => look with { BodyWeight = (int)w },
+                "size" when Num(said, 12, 28) is { } z => look with { BodySize = z },
+                "leading" when Num(said, 1.0, 2.4) is { } l => look with { Leading = l },
+                "measure" when Num(said, 16, 60) is { } m => look with { Measure = m },
+                _ => look,
+            };
+        }
+
+        return look;
+    }
+
+    /// <summary>
+    /// A colour a card is allowed to name: a plain hex value and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Not a CSS colour. "red" would work, and so would <c>url(...)</c>, <c>expression(...)</c> and
+    /// every other thing a colour field has ever been used to smuggle. Six or eight hex digits after
+    /// a hash is the whole grammar.
+    /// </remarks>
+    public static bool IsColour(string? said) =>
+        said is { Length: 4 or 7 or 9 } && said[0] == '#'
+        && said[1..].All(char.IsAsciiHexDigit);
+
+    /// <summary>A number a card is allowed to name, inside the range the design survives.</summary>
+    /// <remarks>
+    /// Clamped rather than refused where it can be: somebody dragging a slider to the end should get
+    /// the end, not a page that silently kept the old value. Outside all reason it is refused, which
+    /// is what stops a measure of 900rem or a weight of 40000 arriving from another implementation.
+    /// </remarks>
+    private static double? Num(string said, double low, double high) =>
+        double.TryParse(said, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var v)
+            ? Math.Clamp(v, low, high)
+            : null;
 
     /// <summary>
     /// The typefaces this look needs carried with the page, by family name.
