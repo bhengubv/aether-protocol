@@ -202,59 +202,60 @@
 .asrow .tiny { padding: 0 12px; height: 34px; }
 .asrow .tiny.on { border-color: var(--brand, #2196F3); color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
 
-/* ── The dials ─────────────────────────────────────────────────────────────
+/* ── The editor ───────────────────────────────────────────────────────────
 
-   Under the looks, not instead of them. Choosing a finished look stays the
-   first move and the right one for most people; these are for the person who
-   wants to know why it looks like that — and the naming is the teaching, so a
-   row reads "Text size 17px" rather than "font-size". */
-.dials { display: flex; flex-direction: column; gap: 14px; margin-top: 26px;
-         padding-top: 22px; border-top: 1px solid var(--line-card, rgba(127,140,158,.28)); }
+   Two layers in one box: the coloured text underneath, and a transparent
+   textarea on top holding the caret and the selection. They must agree about
+   every pixel of type — same face, same size, same leading, same padding — or
+   the caret drifts away from the letter it is sitting after, which is the one
+   bug that makes a code editor unusable. */
+.studio { display: flex; flex-direction: column; gap: 10px; margin-top: 22px;
+          padding-top: 18px; border-top: 1px solid var(--line-card, rgba(127,140,158,.28));
+          /* Clear of the Next bar, which is fixed. Without this the bottom of the preview - the part
+             that shows what the measure and the leading actually did - sits under it. */
+          padding-bottom: 96px; }
 
-.dial-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.dial-h { font-size: 0.86rem; font-weight: 700; }
-.dial-reset { appearance: none; border: 1px solid currentColor; background: transparent;
-              color: inherit; font: inherit; font-size: 0.76rem; font-weight: 650;
-              padding: 5px 11px; border-radius: 999px; cursor: pointer; }
-.dial-reset:disabled { opacity: .35; cursor: default; }
+.studio-h { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.studio-t { font-size: 0.86rem; font-weight: 700; }
+.studio-b { font-size: 0.78rem; line-height: 1.45; opacity: .8; }
 
-.dial { display: flex; flex-direction: column; gap: 6px; }
-.dial-n { font-size: 0.78rem; font-weight: 650; letter-spacing: .02em; }
+.pen { position: relative; border: 1px solid var(--line, rgba(127,140,158,.28));
+       border-radius: var(--radius-sm, 10px); overflow: hidden;
+       background: color-mix(in srgb, currentColor 4%, transparent); }
 
-/* The number, in the row that sets it. Reading "leading 1.75" beside the slider
-   that moves it is most of how somebody learns the word. */
-.dial-n em { font-style: normal; font-weight: 750; opacity: .75; margin-left: 6px;
-             font-variant-numeric: tabular-nums; }
-
-.dial select, .dial input[type="range"], .dial input[type="color"] {
-    width: 100%; font: inherit; font-size: 0.86rem;
-}
-.dial select { padding: 9px 10px; border-radius: var(--radius-sm, 10px);
-               border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent;
-               color: inherit; }
-.dial input[type="color"] { height: 40px; padding: 0; border: 1px solid var(--line, rgba(127,140,158,.28));
-                            border-radius: var(--radius-sm, 10px); background: transparent; cursor: pointer; }
-.dial input[type="range"] { accent-color: currentColor; }
-
-/* ── The stylesheet ────────────────────────────────────────────────────────
-
-   Folded away, because most people should pick a look and write. Open it and
-   you are writing CSS — which is the mechanism this whole app is copying, and
-   the one thing a slider can never be. */
-.code { margin-top: 22px; padding-top: 18px;
-        border-top: 1px solid var(--line-card, rgba(127,140,158,.28)); }
-.code summary { list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
-.code summary::-webkit-details-marker { display: none; }
-.code-t { font-size: 0.86rem; font-weight: 700; }
-.code-b { font-size: 0.78rem; line-height: 1.45; opacity: .8; }
-
-.sheet {
-    width: 100%; box-sizing: border-box; margin-top: 12px; padding: 12px 13px;
+.pen .ink, .pen .raw {
+    margin: 0; padding: 12px 13px; border: 0; min-height: 210px; max-height: 46vh;
     font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-    font-size: 0.82rem; line-height: 1.6; tab-size: 2;
-    border: 1px solid var(--line, rgba(127,140,158,.28));
-    border-radius: var(--radius-sm, 10px);
-    background: transparent; color: inherit; resize: vertical;
-    /* A stylesheet is written in lines. Wrapping one mid-selector is how it stops being readable. */
-    white-space: pre; overflow-x: auto;
+    font-size: 0.82rem; line-height: 1.65; tab-size: 2;
+    white-space: pre; overflow: auto; overflow-wrap: normal; word-break: normal;
 }
+
+.pen .ink { position: absolute; inset: 0; pointer-events: none; }
+
+/* The caret is real; the letters are not. color:transparent leaves the caret
+   visible through caret-color, which is the whole reason this works. */
+.pen .raw { position: relative; width: 100%; box-sizing: border-box; display: block;
+            background: transparent; color: transparent; caret-color: currentColor;
+            resize: vertical; outline: none; }
+/* The textarea's own colour is transparent — that is how the caret shows through to the coloured
+   text underneath — and a placeholder inherits it, so "currentColor" here meant an invisible
+   placeholder and an empty white box with no hint of what to type. It takes a colour of its own. */
+.pen .raw::placeholder { color: var(--ink-3, #5b6b7b); }
+.pen:focus-within { border-color: currentColor; }
+
+/* Four colours and no more. A card's palette is three; a stylesheet needs to
+   tell a value from a name from a note, and that is what these do. */
+.c-note { opacity: .45; font-style: italic; }
+.c-said { opacity: .95; font-weight: 600; }
+.c-at   { font-weight: 750; }
+.c-key  { font-weight: 650; }
+.c-num  { font-weight: 650; opacity: .9; }
+.c-hue  { font-weight: 700; text-decoration: underline; text-decoration-style: dotted; }
+.c-mark { opacity: .5; }
+
+.told { margin: 0; font-size: 0.78rem; line-height: 1.45; font-weight: 600; }
+
+/* The page, drawn by the real renderer. Tall enough to be a page rather than a
+   strip — you cannot judge a measure or a leading in 90 pixels. */
+.seen { width: 100%; height: 46vh; border: 1px solid var(--line-card, rgba(127,140,158,.28));
+        border-radius: var(--radius-sm, 10px); background: #fff; }

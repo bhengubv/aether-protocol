@@ -142,123 +142,55 @@
                     }
                 </div>
 
-                @*  The dials, under the looks.
+                @*  The editor.
 
-                    A picker of five is a choice; it is not an education. What taught a generation
-                    typography was opening the page somebody handed you and changing ONE value —
-                    seeing that this is a serif at seventeen pixels with the lines this far apart and
-                    the column this wide, and that moving any of them changes how it reads.
+                    Sliders are not coding. A panel of dials is a settings screen, and a settings
+                    screen has never taught anybody anything — MySpace taught a generation because the
+                    page was theirs to break: you saw one you liked, looked at how it was made, copied
+                    it, changed a line, broke it, fixed it.
 
-                    So the look stays the first move, and everything it decided is shown underneath
-                    it, set to what it chose, and editable. Turn nothing and the card is unchanged.  *@
-                <div class="dials">
-                    <div class="dial-head">
-                        <span class="dial-h">The look is @DialCount values. Here they are.</span>
-                        <button class="dial-reset" disabled="@(!IsTuned)" @onclick="ClearDials">
-                            Back to @_look.Name
-                        </button>
+                    So this is a stylesheet and the page it makes, side by side. You type, and the
+                    thing you are typing about redraws. Everything is allowed except the two things
+                    that reach off the card — a request, and a selector pointing outside its own page
+                    — and both are refused at RENDER as well as here, because a card arriving over the
+                    radio never passed through this screen at all.  *@
+                <div class="studio">
+                    <div class="studio-h">
+                        <span class="studio-t">Your stylesheet</span>
+                        <span class="studio-b">
+                            Your rules come last, so they win. Every selector is kept inside your own
+                            card — @CardCss.Root is added for you — and anything that would fetch is
+                            refused.
+                        </span>
                     </div>
 
-                    <label class="dial">
-                        <span class="dial-n">Title face</span>
-                        <select value="@Dial("display")" @onchange="@(e => Turn("display", e))">
-                            <option value="">@_look.Name's own</option>
-                            @foreach (var (name, blurb) in Typeface.All)
-                            {
-                                <option value="@name">@blurb</option>
-                            }
-                        </select>
-                    </label>
-
-                    <label class="dial">
-                        <span class="dial-n">Text face</span>
-                        <select value="@Dial("body")" @onchange="@(e => Turn("body", e))">
-                            <option value="">@_look.Name's own</option>
-                            @foreach (var (name, blurb) in Typeface.All)
-                            {
-                                <option value="@name">@blurb</option>
-                            }
-                        </select>
-                    </label>
-
-                    @* Shown as what they are — a number with a unit and a reason — because "17px,
-                       leading 1.75, measure 32rem" is the sentence a designer says, and reading it
-                       here is how somebody learns to say it. *@
-                    <label class="dial">
-                        <span class="dial-n">Text size <em>@Now("size", Inv(_look.BodySize, "0"))px</em></span>
-                        <input type="range" min="12" max="28" step="1"
-                               value="@Now("size", Inv(_look.BodySize, "0"))"
-                               @oninput="@(e => Turn("size", e))" />
-                    </label>
-
-                    <label class="dial">
-                        <span class="dial-n">Weight <em>@Now("weight", Inv(_look.BodyWeight, "0"))</em></span>
-                        <input type="range" min="200" max="800" step="100"
-                               value="@Now("weight", Inv(_look.BodyWeight, "0"))"
-                               @oninput="@(e => Turn("weight", e))" />
-                    </label>
-
-                    <label class="dial">
-                        <span class="dial-n">Line spacing <em>@Now("leading", Inv(_look.Leading, "0.00"))</em></span>
-                        <input type="range" min="1" max="2.4" step="0.05"
-                               value="@Now("leading", Inv(_look.Leading, "0.00"))"
-                               @oninput="@(e => Turn("leading", e))" />
-                    </label>
-
-                    <label class="dial">
-                        <span class="dial-n">Column width <em>@Now("measure", Inv(_look.Measure, "0"))rem</em></span>
-                        <input type="range" min="16" max="60" step="1"
-                               value="@Now("measure", Inv(_look.Measure, "0"))"
-                               @oninput="@(e => Turn("measure", e))" />
-                    </label>
-
-                    <label class="dial">
-                        <span class="dial-n">Paper</span>
-                        <input type="color" value="@Now("paper", _look.Paper)"
-                               @oninput="@(e => Turn("paper", e))" />
-                    </label>
-
-                    <label class="dial">
-                        <span class="dial-n">Ink</span>
-                        <input type="color" value="@Now("ink", _look.Ink)"
-                               @oninput="@(e => Turn("ink", e))" />
-                    </label>
-
-                    <label class="dial">
-                        <span class="dial-n">Accent</span>
-                        <input type="color" value="@Now("accent", _look.Accent)"
-                               @oninput="@(e => Turn("accent", e))" />
-                    </label>
-                </div>
-
-                @*  And then the actual thing.
-
-                    Sliders are not coding. The dials above are a settings panel — useful, and not
-                    what taught anybody anything. This is where somebody writes CSS, breaks their
-                    page, and fixes it, which is the entire mechanism this app is copying.
-
-                    Everything is allowed except the two things that reach off the card: a request,
-                    and a selector pointing outside its own page. Both are refused on the way in AND
-                    on the way out, because a card arriving over the radio never passed through here.  *@
-                <details class="code" open="@_coding">
-                    <summary @onclick:preventDefault @onclick="() => _coding = !_coding">
-                        <span class="code-t">Write the CSS yourself</span>
-                        <span class="code-b">
-                            Real stylesheet, your rules last so they win. Every selector is kept inside
-                            your own card, and anything that would fetch is refused — @CardCss.Root is
-                            added for you.
-                        </span>
-                    </summary>
-
-                    <textarea class="sheet" spellcheck="false" rows="10"
-                              placeholder="h1 { letter-spacing: -.04em }&#10;p { column-count: 2 }&#10;@@media (max-width: 500px) { h1 { font-size: 28px } }"
-                              @bind="Sheet" @bind:event="oninput"></textarea>
+                    @*  A real editing surface, not a text box: the written text is drawn underneath,
+                        coloured, and the textarea sits on top of it holding nothing but the caret and
+                        the selection. No library — a card renders with no network, so an editor that
+                        needs a CDN is an editor that does not work where this app is used.  *@
+                    <div class="pen" data-aether-code>
+                        <pre class="ink" aria-hidden="true"></pre>
+                        <textarea class="raw" spellcheck="false" autocapitalize="off"
+                                  autocomplete="off" autocorrect="off" wrap="off"
+                                  placeholder="h1 { letter-spacing: -.04em }&#10;p { column-count: 2 }&#10;@@media (max-width: 520px) { h1 { font-size: 28px } }"
+                                  @bind="Sheet" @bind:event="oninput"></textarea>
+                    </div>
 
                     @if (SheetNote is { Length: > 0 } note)
                     {
-                        <p class="hint bad">@note</p>
+                        <p class="told">@note</p>
                     }
-                </details>
+
+                    <div class="studio-h">
+                        <span class="studio-t">What it looks like</span>
+                    </div>
+
+                    @*  The real renderer, on the real card, with the stylesheet applied — so what is
+                        on screen here is what a stranger's phone will draw, not an approximation of
+                        it. *@
+                    <iframe class="seen" tabindex="-1" title="Your page"
+                            srcdoc="@Seen()"></iframe>
+                </div>
                 break;
 
             case Step.Back:
@@ -919,45 +851,18 @@
         Draw();
     }
 
-    // ── The dials ─────────────────────────────────────────────────────────────
-
-    /// <summary>Every value the chosen look decided, so the panel can say how many it is.</summary>
-    private const int DialCount = 9;
-
-    /// <summary>What this card has turned for <paramref name="name"/>, or nothing.</summary>
-    private string Dial(string name) => OwnCard.Dial(_doc, name);
-
     /// <summary>
-    /// A number written the way a browser reads one — with a point, whatever the phone's language is.
+    /// The card as a reader's phone will draw it, stylesheet and all.
     /// </summary>
     /// <remarks>
-    /// The value attribute of a range input is parsed by the browser, not by .NET, and it only ever
-    /// reads a point. This phone is set to South Africa, so leading came out "1,74" and the slider was
-    /// handed a number it could not parse — visible the moment it ran on the handset and invisible on
-    /// a laptop in en-US.
+    /// The real renderer on the real document, not a mock-up of one — so a rule that will not travel
+    /// does not appear to work here and then vanish on somebody else's phone. It is the same call
+    /// <see cref="Draw"/> makes; this one just goes straight into the frame beside the editor.
     /// </remarks>
-    private static string Inv(double v, string how) =>
-        v.ToString(how, System.Globalization.CultureInfo.InvariantCulture);
-
-    /// <summary>What is in force — what the card turned, or what the look chose.</summary>
-    /// <remarks>
-    /// A control showing an empty box when the page plainly has a size is a control nobody trusts. It
-    /// shows the value that is actually being drawn, and the difference between "the look's" and
-    /// "mine" is carried by the reset button rather than by an empty field.
-    /// </remarks>
-    private string Now(string name, string mine) => Dial(name) is { Length: > 0 } set ? set : mine;
-
-    /// <summary>Whether anything on this card has been turned away from its look.</summary>
-    private bool IsTuned => _doc?.Blocks?.Any(b => b.Kind == CardBlock.Style) == true;
-
-    private void Turn(string name, ChangeEventArgs e)
-    {
-        OwnCard.SetDial(_doc, name, e.Value?.ToString());
-        _look = CardLook.FromCard(_doc);
-        if (!Fresh || _page is not null) Save(); else Draw();
-    }
-
-    private bool _coding;
+    private string Seen() =>
+        CardPage.Render(
+            OwnCard.ForPublish(_doc), _doc.Title, 0,
+            downloadPath: null, assetPath: Picture, fontBase: PageAssets.WebFontBase);
 
     /// <summary>The author's own stylesheet, as they typed it.</summary>
     /// <remarks>
@@ -994,14 +899,6 @@
                   + "your page and when. Pictures go in as blocks instead."
                 : "";
         }
-    }
-
-    /// <summary>Put every dial back and leave the card as the look made it.</summary>
-    private void ClearDials()
-    {
-        _doc.Blocks?.RemoveAll(b => b.Kind == CardBlock.Style);
-        _look = CardLook.FromCard(_doc);
-        if (!Fresh || _page is not null) Save(); else Draw();
     }
 
     private void ChooseLook(CardLook look)
