@@ -12,6 +12,9 @@
 (function () {
     'use strict';
 
+    // Who to hand the text to, remembered so a pen that appears later is wired the same way.
+    var owner = null, penned = null;
+
     // Comments first and as one token, or the colours leak out of them.
     var RULES = [
         [/\/\*[\s\S]*?(\*\/|$)/g, 'c-note'],
@@ -58,11 +61,52 @@
         var ink = pen.querySelector('.ink');
         if (!raw || !ink) return;
 
+        // The text starts here rather than in a value= attribute.
+        //
+        // While Blazor owned that attribute it also re-wrote it: a save re-renders, the render
+        // carries whatever the last processed input event held, and every character typed since is
+        // overwritten. On a desktop the gap is too small to see. On a P30 a stylesheet came out cut
+        // off mid-property, and the author is never told. So the field is seeded once and is the
+        // browser's from then on; C# reads it on input and never writes it back.
+        var seed = pen.getAttribute('data-seed');
+        if (seed !== null && raw.value === '') { raw.value = seed; }
+
         function draw() { ink.innerHTML = paint(raw.value); }
         function follow() { ink.scrollTop = raw.scrollTop; ink.scrollLeft = raw.scrollLeft; }
 
-        raw.addEventListener('input', draw);
+        // The text goes to C# from here, not through a bound value.
+        //
+        // A bound textarea is a two-way street and the other direction is the problem: a save
+        // re-renders, the render carries whatever the last processed event held, and everything typed
+        // since is overwritten. aether-write.js already learned this for prose — the field's contents
+        // belong to the person typing in them. So the field is the browser's, and C# is told what is
+        // in it once the typing stops. Once per pause rather than once per character also keeps a
+        // P30 from writing the whole page to disk sixty times in a sentence.
+        var pending = null;
+
+        function tell(settled) {
+            if (!owner || !penned) return;
+            owner.invokeMethodAsync(penned, raw.value, settled);
+        }
+
+        function soon() {
+            if (pending) { clearTimeout(pending); }
+            pending = setTimeout(function () { pending = null; tell(false); }, 400);
+        }
+
+        raw.addEventListener('input', function () { draw(); soon(); });
         raw.addEventListener('scroll', follow);
+
+        // Leaving the field is what redraws the page beside it.
+        //
+        // Redrawing on every pause cost the author their typing: the preview is an iframe, a new
+        // srcdoc reloads it, and on Android that reload takes the focus out of this box. Every 400ms
+        // the caret left, and everything typed after went nowhere — which is why a stylesheet kept
+        // arriving cut off. So the text is made safe on a pause and the picture waits for a breath.
+        raw.addEventListener('blur', function () {
+            if (pending) { clearTimeout(pending); pending = null; }
+            tell(true);
+        });
 
         // Tab indents rather than leaving the field. On a phone this matters less; on anything with a
         // keyboard, a code box that loses focus to Tab is not a code box.
@@ -80,7 +124,11 @@
 
     function sweep() { document.querySelectorAll('[data-aether-code]').forEach(wire); }
 
-    window.aetherCode = sweep;
+    window.aetherCode = {
+        sweep: sweep,
+        /** Remember who to tell, then wire whatever is already on screen. */
+        wire: function (who, what) { owner = who; penned = what; sweep(); },
+    };
     document.addEventListener('DOMContentLoaded', sweep);
 
     // Blazor puts the editor on screen after this file has run, and takes it away again on every

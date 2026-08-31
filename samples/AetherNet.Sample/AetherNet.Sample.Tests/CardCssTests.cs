@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using System.Linq;
 using AetherNet.Browser;
 using Xunit;
 
@@ -226,5 +227,48 @@ public class CardCssPageTests
         OwnCard.SetCss(card, "   ");
 
         Assert.DoesNotContain(card.Blocks, b => b.Kind == CardBlock.Css);
+    }
+
+    /// <summary>
+    /// A stylesheet is not a label, and must not be cut to the length of one.
+    /// </summary>
+    /// <remarks>
+    /// It was. <c>Tidy</c> measured every block against the 280-character line limit, so a real
+    /// stylesheet lost everything past the seventh rule — including the brace that closed it, which
+    /// made the editor report that the braces did not balance and refuse to carry any of it. The
+    /// author is then looking at their own correct CSS being called broken. Found on a phone, where
+    /// the page is actually written.
+    /// </remarks>
+    [Fact]
+    public void A_stylesheet_is_not_cut_to_the_length_of_a_label()
+    {
+        var written = string.Join("\n", Enumerable.Range(0, 40)
+            .Select(i => $"h{i % 6 + 1} {{ letter-spacing: 0.0{i}em; line-height: 1.{i}; }}"));
+
+        Assert.True(written.Length > OwnCard.LongestValue, "the sample must exceed a label's length");
+
+        var card = PageTemplate.Of("blank").Build(null);
+        OwnCard.SetCss(card, written);
+        var tidied = OwnCard.Tidy(card);
+
+        var kept = tidied.Blocks.Single(b => b.Kind == CardBlock.Css).Value;
+
+        Assert.Equal(written, kept);
+        Assert.Equal(kept!.Count(c => c == '{'), kept.Count(c => c == '}'));
+        Assert.NotEmpty(CardCss.Safe(kept));
+    }
+
+    /// <summary>What a stylesheet may not do is grow without a bound at all.</summary>
+    [Fact]
+    public void A_stylesheet_still_stops_somewhere()
+    {
+        var written = new string('a', CardCss.Most + 500);
+
+        var card = PageTemplate.Of("blank").Build(null);
+        OwnCard.SetCss(card, written);
+
+        var kept = OwnCard.Tidy(card).Blocks.Single(b => b.Kind == CardBlock.Css).Value;
+
+        Assert.Equal(CardCss.Most, kept!.Length);
     }
 }

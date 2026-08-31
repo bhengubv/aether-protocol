@@ -66,8 +66,20 @@ public static class OwnCard
     public const int LongestProse = 1200;
 
     /// <summary>How long this kind of block may be.</summary>
-    public static int Longest(string? kind) =>
-        kind is CardBlock.Text or CardBlock.Quote ? LongestProse : LongestValue;
+    /// <remarks>
+    /// A stylesheet is measured by <see cref="CardCss.Most"/>, not by the line limit. It fell through
+    /// to <see cref="LongestValue"/> and was cut at 280 characters — the same mistake this file had
+    /// already made once for prose, and with the same result: the author writes a page of CSS, the
+    /// braces stop balancing because the closing one was thrown away, and the editor tells them their
+    /// stylesheet will not travel without either of them knowing why. Silent truncation of somebody's
+    /// work is the failure to design out; a limit that is checked and said out loud is not.
+    /// </remarks>
+    public static int Longest(string? kind) => kind switch
+    {
+        CardBlock.Css => CardCss.Most,
+        CardBlock.Text or CardBlock.Quote => LongestProse,
+        _ => LongestValue,
+    };
 
     /// <summary>The kinds somebody can add by hand, in the order the editor offers them.</summary>
     /// <remarks>

@@ -168,17 +168,21 @@
                         coloured, and the textarea sits on top of it holding nothing but the caret and
                         the selection. No library — a card renders with no network, so an editor that
                         needs a CDN is an editor that does not work where this app is used.  *@
-                    <div class="pen" data-aether-code>
+                    <div class="pen" data-aether-code data-seed="@Sheet">
                         <pre class="ink" aria-hidden="true"></pre>
                         <textarea class="raw" spellcheck="false" autocapitalize="off"
                                   autocomplete="off" autocorrect="off" wrap="off"
-                                  placeholder="h1 { letter-spacing: -.04em }&#10;p { column-count: 2 }&#10;@@media (max-width: 520px) { h1 { font-size: 28px } }"
-                                  @bind="Sheet" @bind:event="oninput"></textarea>
+                                  placeholder="@PenHint"></textarea>
                     </div>
 
                     @if (SheetNote is { Length: > 0 } note)
                     {
                         <p class="told">@note</p>
+                    }
+
+                    @if (_penSaid is { Length: > 0 } said)
+                    {
+                        <p class="told">@said</p>
                     }
 
                     <div class="studio-h wide">
@@ -190,7 +194,7 @@
                         on screen here is what a stranger's phone will draw, not an approximation of
                         it. *@
                     <iframe class="seen" tabindex="-1" title="Your page"
-                            srcdoc="@Seen()"></iframe>
+                            srcdoc="@_preview"></iframe>
                 </div>
 
                 @if (_whole)
@@ -205,7 +209,7 @@
                             <span class="whole-t">@(_doc.Title is { Length: > 0 } t ? t : "Your page")</span>
                             <button class="whole-x" @onclick="() => _whole = false">Back to writing</button>
                         </div>
-                        <iframe class="whole-in" title="Your page" srcdoc="@Seen()"></iframe>
+                        <iframe class="whole-in" title="Your page" srcdoc="@_preview"></iframe>
                     </div>
                 }
 
@@ -745,6 +749,15 @@
             // No writing surface on this head. Prose is still typed and still saved.
         }
 
+        try
+        {
+            await JS.InvokeVoidAsync("aetherCode.wire", _me, nameof(Penned));
+        }
+        catch (Exception why)
+        {
+            _penSaid = "The stylesheet editor is not wired — " + why.Message;
+        }
+
         if (_picker is not { } input) return;
 
         try
@@ -872,18 +885,16 @@
     /// <summary>Whether the page is being looked at whole rather than beside the editor.</summary>
     private bool _whole;
 
-    /// <summary>
-    /// The card as a reader's phone will draw it, stylesheet and all.
-    /// </summary>
+    /// <summary>What the editor offers as a first line, when nothing has been written yet.</summary>
     /// <remarks>
-    /// The real renderer on the real document, not a mock-up of one — so a rule that will not travel
-    /// does not appear to work here and then vanish on somebody else's phone. It is the same call
-    /// <see cref="Draw"/> makes; this one just goes straight into the frame beside the editor.
+    /// Held here rather than in the attribute because Razor escapes the ampersand of an entity
+    /// written inline, so a <c>&amp;#10;</c> put there to break the line arrived on the phone as
+    /// those five characters, printed.
     /// </remarks>
-    private string Seen() =>
-        CardPage.Render(
-            OwnCard.ForPublish(_doc), _doc.Title, 0,
-            downloadPath: null, assetPath: Picture, fontBase: PageAssets.WebFontBase);
+    private const string PenHint =
+        "h1 { letter-spacing: -.04em }\n"
+        + "p { column-count: 2 }\n"
+        + "@media (max-width: 520px) { h1 { font-size: 28px } }";
 
     /// <summary>The author's own stylesheet, as they typed it.</summary>
     /// <remarks>
@@ -894,12 +905,48 @@
     private string Sheet
     {
         get => _doc?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Css)?.Value ?? "";
-        set
-        {
-            OwnCard.SetCss(_doc, value);
-            if (!Fresh || _page is not null) Save(); else Draw();
-        }
     }
+
+    /// <summary>
+    /// The stylesheet, handed over by the editor once the typing has stopped.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It arrives this way round because the other way round loses text. While the field was bound,
+    /// every keystroke wrote the whole page to the database and re-rendered the preview into two
+    /// iframes; the render then put its own value back into the field, and anything typed in between
+    /// was gone. What reached the database was a stylesheet cut off mid-property, with every rule
+    /// after it missing and nothing said. A desktop browser is quick enough to hide the gap. A P30 is
+    /// not, which is the only reason it was found.
+    /// </para>
+    /// <para>
+    /// So the field belongs to the browser — the same rule aether-write.js already keeps for prose —
+    /// and this is told what is in it, once, after a pause.
+    /// </para>
+    /// </remarks>
+    [JSInvokable]
+    public void Penned(string? css, bool settled)
+    {
+        try
+        {
+            OwnCard.SetCss(_doc, css ?? "");
+            if (!Fresh || _page is not null) Save(); else Draw();
+            _penSaid = (css ?? "").Length == 0 ? "" : $"Kept — {Sheet.Length} characters.";
+        }
+        catch (Exception why)
+        {
+            // An author who has just typed a page of CSS is owed the truth about whether it is
+            // anywhere. Silence here reads exactly like success.
+            _penSaid = "Not saved — " + why.Message;
+        }
+
+        // Only once they have put the pen down. A render swaps the preview's srcdoc, the iframe
+        // reloads, and the reload takes the caret out of the box they are typing in.
+        if (settled) StateHasChanged();
+    }
+
+    /// <summary>Whether the stylesheet is safely down, in the author's words rather than a log.</summary>
+    private string _penSaid = "";
 
     /// <summary>What of their stylesheet will not be carried, said plainly.</summary>
     private string SheetNote
