@@ -86,11 +86,11 @@
     /* Bookmarks — a thin, horizontally-scrolling row. */
     .tabs { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding: 0 2px 1px; }
     .tabs::-webkit-scrollbar { display: none; }
-    .bm { flex: 0 0 auto; border: 1px solid var(--line, rgba(127,140,158,.28)); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); color: var(--ink-2, #5b6b7b); font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 0.8rem; font-weight: 600; padding: 6px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
-    .bm.on { border-color: var(--surface); color: var(--surface); background: var(--on-surface); }
-    .bm.peer { border-color: var(--surface); color: var(--surface); background: var(--on-surface); }
+    .bm { flex: 0 0 auto; border: 1px solid var(--line-card); background: transparent; color: var(--brand); font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 0.8rem; font-weight: 600; padding: 6px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+    .bm.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .bm.peer { border-color: var(--brand); color: var(--brand); background: transparent; }
     .bm.saved { color: var(--ink-2, #5b6b7b); }
-    .bm.saved.on { border-color: var(--surface); color: var(--surface); background: var(--on-surface); }
+    .bm.saved.on { background: var(--brand); border-color: var(--brand); color: #fff; }
 
     /* The card, drawn by its own renderer, owning its whole surface.
 
