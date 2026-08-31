@@ -11,13 +11,7 @@
 <div class="wiz">
     <header class="top">
         <button class="back" @onclick="Leave" aria-label="Close">✕</button>
-        <div class="rail">
-            @foreach (var step in Steps)
-            {
-                <span class="pip @(step < _step ? "done" : step == _step ? "now" : null)"></span>
-            }
-        </div>
-        <span class="count">@(Steps.IndexOf(_step) + 1) of @Steps.Count</span>
+        <span class="count addr">aether://@Mesh.LocalTag/@_name</span>
 
         @* Always here, at every step. Somebody wondering how a page is doing what it is doing should
            not have to finish what they are doing to find out. *@
@@ -100,489 +94,92 @@
 
     else
     {
-    <div class="head">
-        <h1 class="h">@Title</h1>
-        <p class="sub">@Sub</p>
-    </div>
-
     <div class="body">
-        @switch (_step)
+        @*  One surface, because a page is a thing you write.
+
+            This was four steps and a form: pick a kind, pick a look, pick a background, then a panel
+            per block with a labelled blank in it. Two real pages went a hundred versions through that
+            and neither of them ever got written — while the one card in the library that looks like
+            anything was authored in C#, in a test file, by the person who built the form. A tool its
+            own author goes around is not a tool.
+
+            So: the page, the stylesheet, and the page as it will arrive on somebody else's phone.
+            The blocks have not gone anywhere — they are still exactly what travels — they have
+            stopped being the thing you type into.  *@
+        <div class="studio">
+            <div class="studio-h">
+                <span class="studio-t">Your page</span>
+                <span class="studio-b">
+                    A line at a time. <code>#</code> a title, <code>##</code> a heading,
+                    <code>-</code> a list, <code>name = value</code> a row,
+                    <code>&gt;</code> a quotation, <code>---</code> a line across.
+                    <code>**bold**</code> and <code>[words](where)</code> inside a sentence.
+                </span>
+            </div>
+
+            <div class="pen tall" data-aether-code data-lang="page" data-seed="@Written">
+                <pre class="ink" aria-hidden="true"></pre>
+                <textarea class="raw" spellcheck="false" autocapitalize="sentences"
+                          autocomplete="off" autocorrect="off" wrap="off"
+                          placeholder="@PageHint"></textarea>
+            </div>
+
+            @if (_penSaid is { Length: > 0 } kept)
+            {
+                <p class="told">@kept</p>
+            }
+
+            <div class="studio-h">
+                <span class="studio-t">Your stylesheet</span>
+                <span class="studio-b">
+                    Your rules come last, so they win. Every selector is kept inside your own
+                    card — @CardCss.Root is added for you — and anything that would fetch is refused.
+                </span>
+            </div>
+
+            <div class="pen" data-aether-code data-lang="css" data-seed="@Sheet">
+                <pre class="ink" aria-hidden="true"></pre>
+                <textarea class="raw" spellcheck="false" autocapitalize="off"
+                          autocomplete="off" autocorrect="off" wrap="off"
+                          placeholder="@PenHint"></textarea>
+            </div>
+
+            @if (SheetNote is { Length: > 0 } note)
+            {
+                <p class="told">@note</p>
+            }
+
+            <div class="studio-h wide">
+                <span class="studio-t">What it looks like</span>
+                <button class="whole" @onclick="() => _whole = true">See the whole page</button>
+            </div>
+
+            <iframe class="seen" tabindex="-1" title="Your page" srcdoc="@_preview"></iframe>
+        </div>
+
+        @if (_whole)
         {
-            case Step.Kind:
-                <div class="picks">
-                    @foreach (var template in PageTemplate.All)
-                    {
-                        <button class="pick @(template.Key == _template.Key ? "on" : null)"
-                                @onclick="() => ChooseKind(template)">
-                            <span class="pick-n">@template.Name</span>
-                            <span class="pick-b">@template.Blurb</span>
-                        </button>
-                    }
+            <div class="whole-page">
+                <div class="whole-bar">
+                    <span class="whole-t">@(_doc.Title is { Length: > 0 } t ? t : "Your page")</span>
+                    <button class="whole-x" @onclick="() => _whole = false">Back to writing</button>
                 </div>
-                break;
-
-            case Step.Look:
-                @* Shown, not named. "Studio" is a word; a picture of Studio is a decision somebody can
-                   actually make — and it is drawn by the same renderer a reader's phone will use, so
-                   what they pick is what arrives. *@
-                <div class="looks">
-                    @foreach (var look in CardLook.All)
-                    {
-                        <button class="look @(look.Key == _look.Key ? "on" : null)"
-                                @onclick="() => ChooseLook(look)">
-                            <span class="shot">
-                                <iframe class="mini" tabindex="-1" title="@look.Name"
-                                        srcdoc="@Sample(look)"></iframe>
-                            </span>
-                            <span class="look-t">
-                                <span class="look-n">@look.Name</span>
-                                <span class="look-b">@look.Blurb</span>
-                            </span>
-                        </button>
-                    }
-                </div>
-
-                @*  The editor.
-
-                    Sliders are not coding. A panel of dials is a settings screen, and a settings
-                    screen has never taught anybody anything — MySpace taught a generation because the
-                    page was theirs to break: you saw one you liked, looked at how it was made, copied
-                    it, changed a line, broke it, fixed it.
-
-                    So this is a stylesheet and the page it makes, side by side. You type, and the
-                    thing you are typing about redraws. Everything is allowed except the two things
-                    that reach off the card — a request, and a selector pointing outside its own page
-                    — and both are refused at RENDER as well as here, because a card arriving over the
-                    radio never passed through this screen at all.  *@
-                <div class="studio">
-                    <div class="studio-h">
-                        <span class="studio-t">Your stylesheet</span>
-                        <span class="studio-b">
-                            Your rules come last, so they win. Every selector is kept inside your own
-                            card — @CardCss.Root is added for you — and anything that would fetch is
-                            refused.
-                        </span>
-                    </div>
-
-                    @*  A real editing surface, not a text box: the written text is drawn underneath,
-                        coloured, and the textarea sits on top of it holding nothing but the caret and
-                        the selection. No library — a card renders with no network, so an editor that
-                        needs a CDN is an editor that does not work where this app is used.  *@
-                    <div class="pen" data-aether-code data-seed="@Sheet">
-                        <pre class="ink" aria-hidden="true"></pre>
-                        <textarea class="raw" spellcheck="false" autocapitalize="off"
-                                  autocomplete="off" autocorrect="off" wrap="off"
-                                  placeholder="@PenHint"></textarea>
-                    </div>
-
-                    @if (SheetNote is { Length: > 0 } note)
-                    {
-                        <p class="told">@note</p>
-                    }
-
-                    @if (_penSaid is { Length: > 0 } said)
-                    {
-                        <p class="told">@said</p>
-                    }
-
-                    <div class="studio-h wide">
-                        <span class="studio-t">What it looks like</span>
-                        <button class="whole" @onclick="() => _whole = true">See the whole page</button>
-                    </div>
-
-                    @*  The real renderer, on the real card, with the stylesheet applied — so what is
-                        on screen here is what a stranger's phone will draw, not an approximation of
-                        it. *@
-                    <iframe class="seen" tabindex="-1" title="Your page"
-                            srcdoc="@_preview"></iframe>
-                </div>
-
-                @if (_whole)
-                {
-                    @*  The page at the size somebody will actually hold it, over everything else.
-
-                        A preview in a 46vh window is a swatch: you cannot judge a measure, a leading
-                        or where a page breaks by looking at a third of it. This is the same renderer
-                        and the same document, given the whole screen.  *@
-                    <div class="whole-page">
-                        <div class="whole-bar">
-                            <span class="whole-t">@(_doc.Title is { Length: > 0 } t ? t : "Your page")</span>
-                            <button class="whole-x" @onclick="() => _whole = false">Back to writing</button>
-                        </div>
-                        <iframe class="whole-in" title="Your page" srcdoc="@_preview"></iframe>
-                    </div>
-                }
-
-                break;
-
-            case Step.Back:
-                @* Shown, not named. A grid, because choosing between fourteen is a different act from
-                   choosing between five — you scan a catalogue, you do not read it. *@
-                <div class="backs">
-                    @foreach (var back in CardShader.All)
-                    {
-                        <button class="back-pick @(back.Key == _shader.Key ? "on" : null)"
-                                @onclick="() => ChooseShader(back)">
-                            <span class="back-shot">
-                                <iframe class="back-mini" tabindex="-1" title="@back.Name"
-                                        srcdoc="@Backdrop(back)"></iframe>
-                            </span>
-                            <span class="back-n">@back.Name</span>
-                            <span class="back-b">@back.Blurb</span>
-                        </button>
-                    }
-                </div>
-                break;
-
-            case Step.Write:
-                <section class="panel open">
-                    <div class="phead">
-                        <span class="plabel">The basics</span>
-                    </div>
-                    <div class="pbody">
-                        <label class="field">
-                            <span class="flabel">Title</span>
-                            <input class="in" maxlength="60" placeholder="@TitleHint"
-                                   value="@_doc.Title" @oninput="OnTitle" />
-                            @if (string.IsNullOrWhiteSpace(_doc.Title))
-                            {
-                                <p class="hint">A page needs this — it is the first thing anybody reads.</p>
-                            }
-                        </label>
-
-                        <label class="field">
-                            <span class="flabel">Address</span>
-                            @if (_live)
-                            {
-                                <div class="addr fixed">
-                                    <span class="tag">@Mesh.LocalTag/</span><span class="nm">@_name</span>
-                                </div>
-                                <p class="hint">Published — the address stays put now, so anyone who wrote it down still finds you.</p>
-                            }
-                            else
-                            {
-                                <div class="addr">
-                                    <span class="tag">@Mesh.LocalTag/</span>
-                                    <input class="in bare" maxlength="@MyPages.LongestName" placeholder="me"
-                                           value="@_name" @oninput="OnName" />
-                                </div>
-                                <p class="hint">Lowercase, no spaces. This is what someone types to reach the page.</p>
-                            }
-                        </label>
-                    </div>
-                </section>
-
-                @* One panel open at a time. Every field visible at once is what turned this into a
-                   scroll; a page is a handful of small decisions, so it is shown as a handful of
-                   small decisions. *@
-                @for (var i = 0; i < _doc.Blocks.Count; i++)
-                {
-                    var index = i;
-                    var block = _doc.Blocks[index];
-                    if (!OwnCard.IsEditable(block)) { continue; }
-
-                    <section class="panel @(_open == index ? "open" : null)" @key="block">
-                        <button class="phead" @onclick="() => Toggle(index)">
-                            <span class="ptext">
-                                <span class="plabel">@OwnCard.Label(block.Kind)</span>
-                                <span class="psay">@Summary(block)</span>
-                            </span>
-                            <span class="chev">@(_open == index ? "▾" : "▸")</span>
-                        </button>
-
-                        @if (_open == index)
-                        {
-                            <div class="pbody">
-                                @switch (block.Kind)
-                                {
-                                    case CardBlock.Index:
-                                    case CardBlock.List:
-                                        @for (var j = 0; j < (block.Items?.Count ?? 0); j++)
-                                        {
-                                            var item = j;
-                                            <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
-                                                   placeholder="@OwnCard.Placeholder(block.Kind)"
-                                                   value="@block.Items![item]" @oninput="e => OnItem(index, item, e)" />
-                                        }
-                                        <button class="ghost" @onclick="() => AddItem(index)">Add a line</button>
-                                        @if (block.Kind == CardBlock.Index)
-                                        {
-                                            <p class="hint">Put an = between the name and where it belongs. They come out numbered.</p>
-                                        }
-                                        break;
-
-                                    case CardBlock.Title:
-                                        <input class="in" maxlength="@OwnCard.LongestTitle"
-                                               placeholder="@OwnCard.Placeholder(block.Kind)"
-                                               value="@block.Value" @oninput="e => OnName(index, e)" />
-                                        <div class="asrow">
-                                            <button class="tiny @(block.IsSmall ? null : "on")"
-                                                    @onclick="() => OnAs(index, null)">A headline</button>
-                                            <button class="tiny @(block.IsSmall ? "on" : null)"
-                                                    @onclick="() => OnAs(index, Small)">A wordmark</button>
-                                        </div>
-                                        <p class="hint">Move it with the arrows — a page can open with a picture and put its name underneath.</p>
-                                        break;
-
-                                    case CardBlock.Rule:
-                                        <div class="orns">
-                                            @foreach (var orn in CardOrnament.All)
-                                            {
-                                                <button class="orn-pick @(CardOrnament.Of(block.Value).Key == orn.Key ? "on" : null)"
-                                                        @onclick="() => OnValueSet(index, orn.Key)">
-                                                    <span class="orn-draw">@((MarkupString)orn.Svg())</span>
-                                                    <span class="orn-n">@orn.Name</span>
-                                                </button>
-                                            }
-                                        </div>
-                                        break;
-
-                                    case CardBlock.Text:
-                                    case CardBlock.Quote:
-                                        @* Formatting you can see while you write it. The card still
-                                           stores plain words — see CardMarks — so this is a view of
-                                           the writing rather than a second way of storing it. *@
-                                        <div class="in area rtf" contenteditable="true" role="textbox"
-                                             aria-multiline="true" aria-label="@OwnCard.Label(block.Kind)"
-                                             data-w="@index" data-text="@block.Value"></div>
-
-                                        @* Under the words, not over them. Android puts its own
-                                           Cut / Copy bar above whatever you have selected, and above
-                                           the field is exactly where that lands — on the phone it
-                                           covered Underline and Link completely, and the only way to
-                                           find that out was to select a word with a finger. *@
-                                        <div class="rtbar">
-                                            <button class="rtb" title="Bold" @onmousedown:preventDefault
-                                                    @onclick="() => Mark(index, Bold)"><b>B</b></button>
-                                            <button class="rtb" title="Italic" @onmousedown:preventDefault
-                                                    @onclick="() => Mark(index, Italic)"><i>I</i></button>
-                                            <button class="rtb" title="Underline" @onmousedown:preventDefault
-                                                    @onclick="() => Mark(index, Under)"><u>U</u></button>
-                                            <button class="rtb wide @(_linking == index ? "on" : null)"
-                                                    title="Link" @onmousedown:preventDefault
-                                                    @onclick="() => Linking(index)">Link</button>
-                                        </div>
-
-                                        @if (_linking == index)
-                                        {
-                                            <div class="linkto">
-                                                <input class="in" maxlength="@CardBlock.LongestTip"
-                                                       placeholder="https://… or one of your pages"
-                                                       value="@_linkTo" @oninput="OnLinkTo" />
-
-                                                @if (Mine.All.Any(p => p.Name != _name))
-                                                {
-                                                    <select class="in" @onchange="OnLinkPick">
-                                                        <option value="">One of your pages…</option>
-                                                        @foreach (var other in Mine.All.Where(p => p.Name != _name))
-                                                        {
-                                                            <option value="@Mesh.Address(other.Name)">@other.Name</option>
-                                                        }
-                                                    </select>
-                                                }
-
-                                                <div class="prow">
-                                                    <button class="tiny" @onmousedown:preventDefault
-                                                            @onclick="() => Link(index)">Add link</button>
-                                                    <button class="tiny" @onmousedown:preventDefault
-                                                            @onclick="() => Mark(index, AsLink)">Remove link</button>
-                                                </div>
-                                                <p class="hint">Select the words first, then add the link.</p>
-                                            </div>
-                                        }
-                                        break;
-
-                                    case CardBlock.KeyValue:
-                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
-                                               placeholder="@OwnCard.Placeholder(block.Kind)"
-                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
-                                        <p class="hint">Put an = between the label and what it says.</p>
-                                        break;
-
-                                    case CardBlock.Link:
-                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
-                                               placeholder="@OwnCard.Placeholder(block.Kind)"
-                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
-                                        <select class="in" @onchange="e => OnTarget(index, e)">
-                                            <option value="">Which of your pages?</option>
-                                            @foreach (var other in Mine.All.Where(p => p.Name != _name))
-                                            {
-                                                <option value="@Mesh.Address(other.Name)"
-                                                        selected="@(block.Target == Mesh.Address(other.Name))">
-                                                    @other.Name
-                                                </option>
-                                            }
-                                        </select>
-                                        @if (Mine.All.Count(p => p.Name != _name) == 0)
-                                        {
-                                            <p class="hint">You have no other pages yet. Make one and this can point at it.</p>
-                                        }
-                                        break;
-
-                                    @* A real file input rather than one summoned from script: a
-                                       chooser opens only from a genuine tap, and a click synthesised
-                                       after an await has lost the gesture that would allow it — the
-                                       chooser then silently never appears. *@
-                                    case CardBlock.Image:
-                                        <div class="pic">
-                                            @if (Shown(block) is { Length: > 0 } shown)
-                                            {
-                                                <img class="pic-art" src="@shown" alt="@block.Value" />
-                                            }
-                                            else
-                                            {
-                                                <div class="pic-none">No picture yet</div>
-                                            }
-
-                                            <label class="pick @(_busyPic ? "waiting" : null)">
-                                                @(_busyPic ? "Working…" : Shown(block) is null ? "Choose a picture" : "Choose another")
-                                                <input type="file" accept="image/*" class="hidden"
-                                                       @ref="_picker" />
-                                            </label>
-                                        </div>
-
-                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
-                                               placeholder="@OwnCard.Placeholder(block.Kind)"
-                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
-
-                                        <div class="asrow">
-                                            <button class="tiny @(block.As is null ? "on" : null)"
-                                                    @onclick="() => OnAs(index, null)">In the page</button>
-                                            <button class="tiny @(block.IsWide ? "on" : null)"
-                                                    @onclick="() => OnAs(index, Wide)">Whole, edge to edge</button>
-                                            <button class="tiny @(block.IsWash ? "on" : null)"
-                                                    @onclick="() => OnAs(index, Wash)">Behind everything</button>
-                                        </div>
-
-                                        @if (_picNote is { Length: > 0 } && _picking == index)
-                                        {
-                                            <p class="hint bad">@_picNote</p>
-                                        }
-                                        else if (_weights.TryGetValue(block.ContentHash ?? "", out var weight))
-                                        {
-                                            <p class="hint">@PagePhoto.Size(weight) · @PagePhoto.OverSlowLink(weight)</p>
-                                        }
-                                        else
-                                        {
-                                            <p class="hint">Shrunk on this phone before it goes anywhere. Nothing of the original file travels — no location, no camera, no date.</p>
-                                        }
-                                        break;
-
-                                    case CardBlock.Tip:
-                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
-                                               placeholder="@OwnCard.Placeholder(block.Kind)"
-                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
-                                        <input class="in" maxlength="200" inputmode="url" spellcheck="false"
-                                               placeholder="https://buymeacoffee.com/you"
-                                               value="@block.Target" @oninput="e => OnTarget(index, e)" />
-                                        @if (CardBlock.IsUsableTip(block.Target))
-                                        {
-                                            <p class="hint good">Money goes to @CardBlock.TipHost(block.Target).</p>
-                                        }
-                                        else if (!string.IsNullOrWhiteSpace(block.Target))
-                                        {
-                                            <p class="hint bad">Has to be an https address. This one is not one we'll show.</p>
-                                        }
-                                        else
-                                        {
-                                            <p class="hint">Buy Me a Coffee, Ko-fi, your own page — whoever you already use.</p>
-                                        }
-                                        break;
-
-                                    default:
-                                        <input class="in" maxlength="@OwnCard.Longest(block.Kind)"
-                                               placeholder="@OwnCard.Placeholder(block.Kind)"
-                                               value="@block.Value" @oninput="e => OnValue(index, e)" />
-                                        break;
-                                }
-
-                                @if (block.Kind is CardBlock.Eyebrow or CardBlock.Heading
-                                        or CardBlock.Text or CardBlock.Quote)
-                                {
-                                    <div class="alignrow">
-                                        <button class="tiny @(block.IsCentred ? null : "on")"
-                                                @onclick="() => OnAlign(index, null)">Left</button>
-                                        <button class="tiny @(block.IsCentred ? "on" : null)"
-                                                @onclick="() => OnAlign(index, Centre)">Centred</button>
-                                    </div>
-                                }
-
-                                <div class="prow">
-                                    <button class="tiny" @onclick="() => Move(index, -1)" aria-label="Move up">↑</button>
-                                    <button class="tiny" @onclick="() => Move(index, 1)" aria-label="Move down">↓</button>
-                                    <button class="tiny drop" @onclick="() => Drop(index)" aria-label="Remove">Remove</button>
-                                </div>
-                            </div>
-                        }
-                    </section>
-                }
-
-                @* Taking a page down is the other half of putting one up. Without it the only way out
-                   of a page somebody regrets is to leave it standing under their own tag. *@
-                @if (_page is not null)
-                {
-                    <section class="adds">
-                        <span class="plabel">This page</span>
-                        <button class="ghost drop" @onclick="Down">Take it down</button>
-                        <p class="hint">
-                            Removes it from this phone, so nobody can reach it here any more. A copy on
-                            somebody else's phone is theirs — it stays.
-                        </p>
-                    </section>
-                }
-
-                <section class="adds">
-                    <span class="plabel">Add</span>
-                    <div class="addrow">
-                        @foreach (var kind in OwnCard.Writable)
-                        {
-                            <button class="ghost" disabled="@Full" @onclick="() => Add(kind)">@OwnCard.Label(kind)</button>
-                        }
-                    </div>
-                    @if (Full)
-                    {
-                        <p class="hint">That is as long as a page gets. It stays something a person reads.</p>
-                    }
-                </section>
-                break;
-
-            case Step.Publish:
-                <div class="done">
-                    <div class="shot big">
-                        <iframe class="full" title="Your page" srcdoc="@_preview"></iframe>
-                    </div>
-
-                    <div class="where">
-                        <span class="wlabel">It will answer at</span>
-                        <span class="waddr">aether://@Mesh.LocalTag/@_name</span>
-                    </div>
-
-                    @if (_said is { Length: > 0 })
-                    {
-                        <p class="said">@_said</p>
-                    }
-                </div>
-                break;
+                <iframe class="whole-in" title="Your page" srcdoc="@_preview"></iframe>
+            </div>
         }
     </div>
+
+
     }
-
     <footer class="foot @(_under ? "away" : null)">
-        @if (Steps.IndexOf(_step) > 0)
+        @if (_said is { Length: > 0 })
         {
-            <button class="ghost wide" @onclick="Back">Back</button>
+            <p class="said">@_said</p>
         }
 
-        @if (_step == Step.Publish)
-        {
-            <button class="go" disabled="@(_busy || !CanPublish)" @onclick="Publish">
-                @(_busy ? "Publishing…" : _live ? "Publish changes" : "Publish")
-            </button>
-        }
-        else
-        {
-            <button class="go" disabled="@(!CanGo)" @onclick="Next">Next</button>
-        }
+        <button class="go" disabled="@(_busy || !CanPublish)" @onclick="Publish">
+            @(_busy ? "Publishing…" : _live ? "Publish changes" : "Publish")
+        </button>
     </footer>
 </div>
 
@@ -885,6 +482,21 @@
     /// <summary>Whether the page is being looked at whole rather than beside the editor.</summary>
     private bool _whole;
 
+    /// <summary>The page as its author writes it — the document the blocks come from.</summary>
+    private string Written => CardText.From(_doc);
+
+    /// <summary>What an empty page offers, so the vocabulary is shown rather than described.</summary>
+    private const string PageHint = @"# Your name
+
+What you do, in a sentence.
+
+## What I make
+- one thing
+- another
+
+Where = Kagiso
+Reach me = [hello](aether://YOURTAG/me)";
+
     /// <summary>What the editor offers as a first line, when nothing has been written yet.</summary>
     /// <remarks>
     /// Held here rather than in the attribute because Razor escapes the ampersand of an entity
@@ -925,24 +537,58 @@
     /// </para>
     /// </remarks>
     [JSInvokable]
-    public void Penned(string? css, bool settled)
+    public void Penned(string? which, string? text, bool settled)
     {
         try
         {
-            OwnCard.SetCss(_doc, css ?? "");
+            if (which == "page")
+            {
+                // The document is the truth; the blocks are what it compiles to.
+                _doc = CardText.Read(text, _doc);
+                NameIt();
+            }
+            else
+            {
+                OwnCard.SetCss(_doc, text ?? "");
+            }
+
             if (!Fresh || _page is not null) Save(); else Draw();
-            _penSaid = (css ?? "").Length == 0 ? "" : $"Kept — {Sheet.Length} characters.";
+            _penSaid = "";
         }
         catch (Exception why)
         {
-            // An author who has just typed a page of CSS is owed the truth about whether it is
-            // anywhere. Silence here reads exactly like success.
+            // Somebody who has just written a page is owed the truth about whether it is anywhere.
+            // Silence here reads exactly like success.
             _penSaid = "Not saved — " + why.Message;
         }
 
         // Only once they have put the pen down. A render swaps the preview's srcdoc, the iframe
-        // reloads, and the reload takes the caret out of the box they are typing in.
+        // reloads, and the reload takes the caret out of whichever box they are typing in.
         if (settled) StateHasChanged();
+    }
+
+    /// <summary>
+    /// A page's address follows its title, rather than being a second thing to fill in.
+    /// </summary>
+    /// <remarks>
+    /// The address was a field beside the title, which is one more blank between somebody and their
+    /// page for no gain — nobody wants a path that disagrees with the heading. It is derived once,
+    /// while the page is still a draft, and then left alone: once published the address is out in the
+    /// world on somebody's screen or written down, and retitling must not move it.
+    /// </remarks>
+    private void NameIt()
+    {
+        if (_live || _name.Length > 0 || _doc.Title is not { Length: > 0 } said) return;
+
+        var slug = new StringBuilder();
+
+        foreach (var c in said.ToLowerInvariant())
+        {
+            if (char.IsAsciiLetterOrDigit(c)) slug.Append(c);
+            else if (slug.Length > 0 && slug[^1] != '-') slug.Append('-');
+        }
+
+        _name = Mine.Free(slug.ToString().Trim('-') is { Length: > 0 } made ? made : "page");
     }
 
     /// <summary>Whether the stylesheet is safely down, in the author's words rather than a log.</summary>

@@ -15,6 +15,19 @@
     // Who to hand the text to, remembered so a pen that appears later is wired the same way.
     var owner = null, penned = null;
 
+    // The page's own vocabulary. Line-led, so each rule is anchored to the start of a line.
+    var PAGE = [
+        [/^###.*/gm, 'c-key'],
+        [/^##.*/gm, 'c-at'],
+        [/^#.*/gm, 'c-at'],
+        [/^%[a-z]+.*/gm, 'c-note'],
+        [/^(?:-{3,}|>|!!|=>|-|\d+\.)/gm, 'c-mark'],
+        [/!?\[[^\]]*\]\([^)]*\)/g, 'c-said'],
+        [/\*\*[^*]+\*\*|_[^_]+_/g, 'c-num'],
+        [/^[^=]+=/gm, 'c-key'],
+        [/::[a-z]+/g, 'c-mark'],
+    ];
+
     // Comments first and as one token, or the colours leak out of them.
     var RULES = [
         [/\/\*[\s\S]*?(\*\/|$)/g, 'c-note'],
@@ -31,9 +44,9 @@
     }
 
     // One pass, longest-match-wins by position, so a colour inside a comment stays a comment.
-    function paint(src) {
+    function paint(src, rules) {
         var marks = [];
-        RULES.forEach(function (rule) {
+        (rules || RULES).forEach(function (rule) {
             var re = new RegExp(rule[0].source, rule[0].flags), m;
             while ((m = re.exec(src)) !== null) {
                 if (m[0].length === 0) { re.lastIndex++; continue; }
@@ -71,7 +84,10 @@
         var seed = pen.getAttribute('data-seed');
         if (seed !== null && raw.value === '') { raw.value = seed; }
 
-        function draw() { ink.innerHTML = paint(raw.value); }
+        var rules = pen.getAttribute('data-lang') === 'page' ? PAGE : RULES;
+        var which = pen.getAttribute('data-lang') || 'css';
+
+        function draw() { ink.innerHTML = paint(raw.value, rules); }
         function follow() { ink.scrollTop = raw.scrollTop; ink.scrollLeft = raw.scrollLeft; }
 
         // The text goes to C# from here, not through a bound value.
@@ -86,7 +102,7 @@
 
         function tell(settled) {
             if (!owner || !penned) return;
-            owner.invokeMethodAsync(penned, raw.value, settled);
+            owner.invokeMethodAsync(penned, which, raw.value, settled);
         }
 
         function soon() {
