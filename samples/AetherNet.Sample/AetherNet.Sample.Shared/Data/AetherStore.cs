@@ -348,11 +348,14 @@ public sealed class AetherStore : IDisposable
     /// </summary>
     private void AddColumnIfMissing(string table, string column, string type)
     {
-        using var check = _conn.CreateCommand();
-        check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = @c;";
-        check.Parameters.AddWithValue("@c", column);
-        if (Convert.ToInt64(check.ExecuteScalar()) > 0) return;
-        Exec($"ALTER TABLE {table} ADD COLUMN {column} {type};");
+        lock (_gate)
+        {
+            using var check = _conn.CreateCommand();
+            check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = @c;";
+            check.Parameters.AddWithValue("@c", column);
+            if (Convert.ToInt64(check.ExecuteScalar()) > 0) return;
+            Exec($"ALTER TABLE {table} ADD COLUMN {column} {type};");
+        }
     }
 
     // ── Identity ────────────────────────────────────────────────────────────────
@@ -1069,78 +1072,99 @@ public sealed class AetherStore : IDisposable
     /// </remarks>
     public void HoldCard(HeldCard card)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"
-            INSERT INTO held_cards
-                (address, author_tag, author_key, name, title, version, root_hash, signature, descriptor, got_ms, got_from)
-            VALUES ($address, $tag, $key, $name, $title, $version, $root, $sig, $desc, $got, $from)
-            ON CONFLICT(address) DO UPDATE SET
-                title      = excluded.title,
-                version    = excluded.version,
-                root_hash  = excluded.root_hash,
-                signature  = excluded.signature,
-                descriptor = excluded.descriptor,
-                got_ms     = excluded.got_ms,
-                got_from   = excluded.got_from
-            WHERE excluded.version > held_cards.version;";
-        cmd.Parameters.AddWithValue("$address", card.Address);
-        cmd.Parameters.AddWithValue("$tag", card.AuthorTag);
-        cmd.Parameters.AddWithValue("$key", card.AuthorKey);
-        cmd.Parameters.AddWithValue("$name", card.Name);
-        cmd.Parameters.AddWithValue("$title", card.Title);
-        cmd.Parameters.AddWithValue("$version", card.Version);
-        cmd.Parameters.AddWithValue("$root", card.RootHash);
-        cmd.Parameters.AddWithValue("$sig", card.Signature);
-        cmd.Parameters.AddWithValue("$desc", card.Descriptor);
-        cmd.Parameters.AddWithValue("$got", card.GotMs);
-        cmd.Parameters.AddWithValue("$from", card.GotFrom);
-        cmd.ExecuteNonQuery();
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO held_cards
+                    (address, author_tag, author_key, name, title, version, root_hash, signature, descriptor, got_ms, got_from)
+                VALUES ($address, $tag, $key, $name, $title, $version, $root, $sig, $desc, $got, $from)
+                ON CONFLICT(address) DO UPDATE SET
+                    title      = excluded.title,
+                    version    = excluded.version,
+                    root_hash  = excluded.root_hash,
+                    signature  = excluded.signature,
+                    descriptor = excluded.descriptor,
+                    got_ms     = excluded.got_ms,
+                    got_from   = excluded.got_from
+                WHERE excluded.version > held_cards.version;";
+            cmd.Parameters.AddWithValue("$address", card.Address);
+            cmd.Parameters.AddWithValue("$tag", card.AuthorTag);
+            cmd.Parameters.AddWithValue("$key", card.AuthorKey);
+            cmd.Parameters.AddWithValue("$name", card.Name);
+            cmd.Parameters.AddWithValue("$title", card.Title);
+            cmd.Parameters.AddWithValue("$version", card.Version);
+            cmd.Parameters.AddWithValue("$root", card.RootHash);
+            cmd.Parameters.AddWithValue("$sig", card.Signature);
+            cmd.Parameters.AddWithValue("$desc", card.Descriptor);
+            cmd.Parameters.AddWithValue("$got", card.GotMs);
+            cmd.Parameters.AddWithValue("$from", card.GotFrom);
+            cmd.ExecuteNonQuery();
+        }
     }
 
     /// <summary>Every card this phone holds, newest first.</summary>
+    /// <remarks>
+    /// Under the same lock as everything else here. These four held-card methods were the only ones
+    /// touching the shared connection without it, and a card arriving over the radio while the
+    /// library was on screen put two threads inside one <c>SqliteConnection</c> at once. Its internal
+    /// list of open commands is not thread-safe, so disposing one threw
+    /// <c>IndexOutOfRangeException</c> from <c>RemoveCommand</c>, the exception reached the top, and
+    /// the whole page died with "Something went wrong". It reads as a random crash; it is two threads
+    /// and one connection. Only a phone with its radios actually running shows it.
+    /// </remarks>
     public IReadOnlyList<HeldCard> GetHeldCards()
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"
-            SELECT address, author_tag, author_key, name, title, version, root_hash, signature, descriptor, got_ms, got_from
-            FROM held_cards ORDER BY got_ms DESC;";
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT address, author_tag, author_key, name, title, version, root_hash, signature, descriptor, got_ms, got_from
+                FROM held_cards ORDER BY got_ms DESC;";
 
-        var held = new List<HeldCard>();
-        using var reader = cmd.ExecuteReader();
+            var held = new List<HeldCard>();
+            using var reader = cmd.ExecuteReader();
 
-        while (reader.Read())
-            held.Add(new HeldCard(
-                Address: reader.GetString(0),
-                AuthorTag: reader.GetString(1),
-                AuthorKey: (byte[])reader[2],
-                Name: reader.GetString(3),
-                Title: reader.GetString(4),
-                Version: reader.GetInt64(5),
-                RootHash: reader.GetString(6),
-                Signature: (byte[])reader[7],
-                Descriptor: reader.GetString(8),
-                GotMs: reader.GetInt64(9),
-                GotFrom: reader.GetString(10)));
+            while (reader.Read())
+                held.Add(new HeldCard(
+                    Address: reader.GetString(0),
+                    AuthorTag: reader.GetString(1),
+                    AuthorKey: (byte[])reader[2],
+                    Name: reader.GetString(3),
+                    Title: reader.GetString(4),
+                    Version: reader.GetInt64(5),
+                    RootHash: reader.GetString(6),
+                    Signature: (byte[])reader[7],
+                    Descriptor: reader.GetString(8),
+                    GotMs: reader.GetInt64(9),
+                    GotFrom: reader.GetString(10)));
 
-        return held;
+            return held;
+        }
     }
 
     /// <summary>Whether this phone holds a card at this address.</summary>
     public bool HoldsCard(string address)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT 1 FROM held_cards WHERE address = $address LIMIT 1;";
-        cmd.Parameters.AddWithValue("$address", address);
-        return cmd.ExecuteScalar() is not null;
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT 1 FROM held_cards WHERE address = $address LIMIT 1;";
+            cmd.Parameters.AddWithValue("$address", address);
+            return cmd.ExecuteScalar() is not null;
+        }
     }
 
     /// <summary>Let a card go. It stays on every other phone that holds it.</summary>
     public bool DropCard(string address)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM held_cards WHERE address = $address;";
-        cmd.Parameters.AddWithValue("$address", address);
-        return cmd.ExecuteNonQuery() > 0;
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM held_cards WHERE address = $address;";
+            cmd.Parameters.AddWithValue("$address", address);
+            return cmd.ExecuteNonQuery() > 0;
+        }
     }
 
     public string? GetSetting(string key)
@@ -1192,9 +1216,12 @@ public sealed class AetherStore : IDisposable
 
     private void Exec(string sql)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.ExecuteNonQuery();
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.ExecuteNonQuery();
+        }
     }
 
     public void Dispose() => _conn.Dispose();
