@@ -196,10 +196,24 @@ public sealed class MeshWebService
                 _mine.Save(new WebCard
                 {
                     Name = MyPages.Home,
-                    // Their tag stands in until they have typed a name. It is the one thing that is
-                    // true about a device on its first launch, and a front door with a blank heading
-                    // reads as broken rather than as new.
-                    Doc = PageTemplate.Of("me").Build(MyName.OrTag(_mine.OwnerName, _localTag)),
+                    // The FINISHED template, not the "me" shape.
+                    //
+                    // "me" supplies headings and the labels of facts and deliberately answers none of
+                    // them, because a template that answers for you is a template most people publish
+                    // unedited — that rule is worth keeping and is tested. But the consequence was that
+                    // the one card every phone hosts by default rendered as a title, one label and a
+                    // lot of white, sitting a single tap from a finished card in the same list. It read
+                    // as broken rather than as new, which is the opposite of what the comment here used
+                    // to claim.
+                    //
+                    // "example" is the one template allowed to arrive filled in, because every claim on
+                    // it is true about this network rather than invented about a person: publish it
+                    // untouched and you have published something honest. It is also the better first
+                    // lesson — a made thing to change a line at a time beats a blank form with good
+                    // labels, which is the whole argument for handing cards around in the first place.
+                    //
+                    // Their tag still titles it: the one thing true about a device on its first launch.
+                    Doc = Front(MyName.OrTag(_mine.OwnerName, _localTag)),
                 });
 
             // Everything already standing on the mesh gets said again, because a directory binding
@@ -1044,5 +1058,20 @@ public sealed class MeshWebService
     {
         public static MeshPage Fail(string address, string error) =>
             new(false, address, null, null, null, null, 0, 0, 0, false, false, error);
+    }
+
+    /// <summary>
+    /// The card a phone hosts before anybody has written anything.
+    /// </summary>
+    /// <remarks>
+    /// The finished template, titled with whoever this is. "example" names itself "A card on
+    /// AetherNet", which is right on the button that offers it and wrong on somebody's front door —
+    /// the title of your own page is your name.
+    /// </remarks>
+    private static CardDocument Front(string who)
+    {
+        var doc = PageTemplate.Of("example").Build(who);
+        OwnCard.SetTitle(doc, who);
+        return doc;
     }
 }
