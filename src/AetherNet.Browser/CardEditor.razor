@@ -181,8 +181,9 @@
                         <p class="told">@note</p>
                     }
 
-                    <div class="studio-h">
+                    <div class="studio-h wide">
                         <span class="studio-t">What it looks like</span>
+                        <button class="whole" @onclick="() => _whole = true">See the whole page</button>
                     </div>
 
                     @*  The real renderer, on the real card, with the stylesheet applied — so what is
@@ -191,6 +192,23 @@
                     <iframe class="seen" tabindex="-1" title="Your page"
                             srcdoc="@Seen()"></iframe>
                 </div>
+
+                @if (_whole)
+                {
+                    @*  The page at the size somebody will actually hold it, over everything else.
+
+                        A preview in a 46vh window is a swatch: you cannot judge a measure, a leading
+                        or where a page breaks by looking at a third of it. This is the same renderer
+                        and the same document, given the whole screen.  *@
+                    <div class="whole-page">
+                        <div class="whole-bar">
+                            <span class="whole-t">@(_doc.Title is { Length: > 0 } t ? t : "Your page")</span>
+                            <button class="whole-x" @onclick="() => _whole = false">Back to writing</button>
+                        </div>
+                        <iframe class="whole-in" title="Your page" srcdoc="@Seen()"></iframe>
+                    </div>
+                }
+
                 break;
 
             case Step.Back:
@@ -850,6 +868,9 @@
         _open = -1;
         Draw();
     }
+
+    /// <summary>Whether the page is being looked at whole rather than beside the editor.</summary>
+    private bool _whole;
 
     /// <summary>
     /// The card as a reader's phone will draw it, stylesheet and all.

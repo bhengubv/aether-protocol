@@ -243,15 +243,43 @@
 .pen .raw::placeholder { color: var(--ink-3, #5b6b7b); }
 .pen:focus-within { border-color: currentColor; }
 
-/* Four colours and no more. A card's palette is three; a stylesheet needs to
-   tell a value from a name from a note, and that is what these do. */
-.c-note { opacity: .45; font-style: italic; }
-.c-said { opacity: .95; font-weight: 600; }
-.c-at   { font-weight: 750; }
-.c-key  { font-weight: 650; }
-.c-num  { font-weight: 650; opacity: .9; }
-.c-hue  { font-weight: 700; text-decoration: underline; text-decoration-style: dotted; }
-.c-mark { opacity: .5; }
+/* Told apart without a second colour.
+
+   The palette is three, so syntax cannot be a rainbow — and the first version
+   varied only weight, at 0.82rem, which on a phone is no difference at all. So
+   the differences are the ones that survive being small: italic, real weight
+   steps, and letter-spacing on the at-rules. */
+.pen .ink { font-weight: 450; }
+.c-note { opacity: .5; font-style: italic; font-weight: 400; }
+.c-said { font-weight: 700; }
+.c-at   { font-weight: 800; letter-spacing: .04em; }
+.c-key  { font-weight: 700; }
+.c-num  { font-weight: 700; }
+.c-hue  { font-weight: 800; text-decoration: underline; text-decoration-thickness: 1px;
+          text-underline-offset: 3px; }
+.c-mark { opacity: .42; font-weight: 400; }
+
+.studio-h.wide { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
+.whole { appearance: none; border: 1px solid currentColor; background: transparent; color: inherit;
+         font: inherit; font-size: 0.76rem; font-weight: 700; padding: 6px 12px;
+         border-radius: 999px; cursor: pointer; white-space: nowrap; }
+
+/* ── The page, whole ───────────────────────────────────────────────────────
+
+   A preview in a 46vh window is a swatch. You cannot judge a measure, a
+   leading, or where a page breaks by looking at a third of it — so it gets the
+   whole screen, at the size somebody will actually hold it. */
+.whole-page { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
+              background: var(--bg); }
+.whole-bar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+             gap: 12px; padding: max(env(safe-area-inset-top), 10px) 14px 10px;
+             background: var(--bar); color: var(--on-bar); }
+.whole-t { font-weight: 750; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis;
+           white-space: nowrap; }
+.whole-x { appearance: none; border: 1px solid currentColor; background: transparent; color: inherit;
+           font: inherit; font-size: 0.78rem; font-weight: 700; padding: 6px 12px;
+           border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.whole-in { flex: 1 1 auto; width: 100%; border: 0; background: #fff; }
 
 .told { margin: 0; font-size: 0.78rem; line-height: 1.45; font-weight: 600; }
 
