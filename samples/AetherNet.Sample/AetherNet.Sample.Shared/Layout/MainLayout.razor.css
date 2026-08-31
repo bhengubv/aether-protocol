@@ -13,10 +13,13 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    /* Clear the Android status bar: WebView draws edge-to-edge and reports no safe-area inset,
-       so fall back to a sensible status-bar height. */
-    height: calc(var(--bar-h) + max(env(safe-area-inset-top), 28px));
-    padding: max(env(safe-area-inset-top), 28px) 16px 0;
+    /* Clear the Android status bar when there is one to clear.
+       The fallback was 28px, chosen for a WebView drawing edge-to-edge under the system bar. Neither
+       phone here does that — the status bar sits above the WebView and env() correctly reports zero —
+       so those 28 pixels were empty blue on every screen, on top of a 54px bar. 46 + 10 is 56, which
+       is the standard bar height, and the inset still wins wherever it is real. */
+    height: calc(var(--bar-h) + max(env(safe-area-inset-top), 10px));
+    padding: max(env(safe-area-inset-top), 10px) 16px 0;
     background: var(--bar); color: var(--on-bar); --ink: var(--on-bar); --ink-2: var(--on-bar); --ink-3: var(--on-bar);
     border-bottom: 1px solid var(--line);
 }
@@ -76,8 +79,10 @@
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: conic-gradient(from 210deg, var(--brand), var(--brand-deep), var(--brand));
-    box-shadow: inset 0 0 0 4px var(--surface), 0 0 0 1px var(--brand);
+    /* The mark takes the bar's own colours. It was a blue gradient ringed in var(--surface), which
+       is the card colour — so on a blue bar it was blue on blue and effectively not there. */
+    background: var(--on-bar);
+    box-shadow: inset 0 0 0 4px var(--bar), 0 0 0 1.5px var(--on-bar);
 }
 
 .me {

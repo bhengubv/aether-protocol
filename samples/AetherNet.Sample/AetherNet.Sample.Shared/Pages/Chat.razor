@@ -516,7 +516,7 @@
     /* One bubble shape. Both fills are quiet — a thread is read for minutes at a time, so neither
        side is a saturated block of colour. Theirs is the page's inset; yours is a muted brand
        wash. The tail corner is the only thing that flips. */
-    .bub { max-width: 100%; padding: 10px 14px 10px 21px; border-radius: 18px; border-bottom-left-radius: 5px; font-size: 0.96rem; line-height: 1.38; background: var(--surface-2); color: var(--ink); border: none; }
+    .bub { max-width: 100%; padding: 10px 14px 10px 21px; border-radius: 18px; border-bottom-left-radius: 5px; font-size: 0.96rem; line-height: 1.38; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); color: var(--ink); border: none; }
     .bub.mine { padding: 10px 14px; background: var(--brand-tint); border-bottom-left-radius: 18px; border-bottom-right-radius: 5px; }
     .tick { font-size: 0.68rem; color: var(--ink-3); padding-bottom: 2px; }
     /* A failure has to be seen, so it is the one place the app leaves the brand palette. */
@@ -535,7 +535,7 @@
     .cv-note {
         flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
         display: flex; align-items: center; justify-content: center;
-        background: var(--surface-2); color: var(--ink-2); touch-action: none; user-select: none;
+        background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); color: var(--ink-2); touch-action: none; user-select: none;
     }
     .cv-note svg { width: 20px; height: 20px; }
     .cv-note:disabled { opacity: 0.45; cursor: not-allowed; }
