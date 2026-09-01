@@ -403,11 +403,14 @@
 .tools::-webkit-scrollbar { display: none; }
 .tool-gap { flex: 0 0 auto; width: 1px; margin: 4px 4px; background: currentColor; opacity: .18; }
 
-.tool { flex: 0 0 auto; display: inline-flex; align-items: center; appearance: none;
+/*  Every control clears the 44px touch minimum. They were ~30px — comfortable for a cursor, a miss
+    for a thumb, and 21 of 21 failed it. */
+.tool { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+        min-height: 44px; appearance: none;
         border: 1px solid currentColor; background: transparent; color: inherit; font: inherit;
-        font-size: .74rem; font-weight: 700; padding: 7px 12px; border-radius: 999px;
+        font-size: .8rem; font-weight: 700; padding: 0 14px; border-radius: 999px;
         cursor: pointer; white-space: nowrap; }
-.tool.ico { min-width: 36px; justify-content: center; padding: 7px 10px; }
+.tool.ico { min-width: 44px; padding: 0 11px; }
 .tool:active { background: var(--brand-tint, rgba(33,150,243,.12)); }
 
 .penbar { display: flex; gap: 8px; margin-top: -8px; margin-bottom: 2px; }

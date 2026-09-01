@@ -116,6 +116,19 @@
     the metrics of a second layer, because there is no second layer — what you are looking at is the
     document, not a description of one.  */
 
+/*  The writing you are reading back is black, not blue.
+
+    Measured on the phone, blue body text on white is 3.12:1 — under the 4.5:1 that AA asks for text
+    you actually read, which the ui-ux-design skill anticipates: "use blue-on-white and blue-on-black
+    where pure black/white text feels harsh" means the blue is for accent and selection, and the body
+    is ink. So the paragraphs are black and the blue is spent where it earns its contrast: headings,
+    the accent marks, the things you can act on. This is more readable, not less. */
+.paper { color: #111; }
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .paper { color: #f2f2f2; }
+}
+
 .paper {
     outline: none;
     min-height: 300px;
@@ -127,12 +140,14 @@
 
 .paper > * { margin: 0 0 .8em; }
 
-.paper h1 { font-size: clamp(1.7rem, 8.6vw, 2.6rem); line-height: 1.02; letter-spacing: -.03em;
+.paper h1 { color: var(--brand, #2196F3);
+            font-size: clamp(1.7rem, 8.6vw, 2.6rem); line-height: 1.02; letter-spacing: -.03em;
             font-weight: 820; margin: .1em 0 .4em; }
 .paper h2 { font-size: clamp(1.14rem, 5.4vw, 1.5rem); line-height: 1.2; letter-spacing: -.015em;
             font-weight: 800; margin: 1.3em 0 .35em; }
-.paper h3 { font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; font-weight: 800;
-            opacity: .55; margin: 1.7em 0 .55em; }
+.paper h3 { color: var(--brand, #2196F3);
+            font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; font-weight: 800;
+            opacity: 1; margin: 1.7em 0 .55em; }
 
 .paper blockquote { margin: 1em 0; padding-left: .9em; border-left: 2px solid currentColor; opacity: .82; }
 .paper ul, .paper ol { padding-left: 1.15em; margin: .2em 0 .9em; }
