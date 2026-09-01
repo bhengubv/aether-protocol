@@ -23,6 +23,9 @@ public sealed class AetherStoreCardStore : ICardStore
     /// <summary>Where the owner's decks live in settings.</summary>
     public const string DecksKey = "my_decks";
 
+    /// <summary>Where the addresses this device is still trying to reach live in settings.</summary>
+    public const string WantedKey = "my_wanted";
+
     /// <summary>Where the owner's name lives. Theirs, and this app's to keep — not the browser's.</summary>
     public const string NameKey = "my_name";
 
@@ -46,6 +49,10 @@ public sealed class AetherStoreCardStore : ICardStore
     public string? GetDecks() => _store.GetSetting(DecksKey);
 
     public void SetDecks(string json) => _store.SetSetting(DecksKey, json);
+
+    public string? GetWanted() => _store.GetSetting(WantedKey);
+
+    public void SetWanted(string json) => _store.SetSetting(WantedKey, json);
 
     public string? GetOwnerName() => _store.GetSetting(NameKey);
 

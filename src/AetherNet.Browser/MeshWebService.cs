@@ -45,6 +45,7 @@ public sealed class MeshWebService
     private readonly Deck _deck;
 
     private readonly Decks _decks;
+    private readonly Wanted _wanted;
     private readonly SemaphoreSlim _initGate = new(1, 1);
     private volatile bool _ready;
 
@@ -89,7 +90,8 @@ public sealed class MeshWebService
         ILoggerFactory? loggerFactory = null,
         MyPages? mine = null,
         Deck? deck = null,
-        Decks? decks = null)
+        Decks? decks = null,
+        Wanted? wanted = null)
     {
         // Cards are signed by the device, so the node signs them. This service never sees the key.
         _node = node ?? throw new ArgumentNullException(nameof(node));
@@ -104,6 +106,7 @@ public sealed class MeshWebService
         _mine = mine ?? new MyPages(scratch);
         _deck = deck ?? new Deck(scratch);
         _decks = decks ?? new Decks(scratch);
+        _wanted = wanted ?? new Wanted(scratch);
     }
 
     public event Action? Changed;
@@ -149,6 +152,9 @@ public sealed class MeshWebService
 
     /// <summary>The named sets this phone has gathered.</summary>
     public Decks Decks => _decks;
+
+    /// <summary>Addresses this device is still trying to reach. See <see cref="Wanted"/>.</summary>
+    public Wanted Wanted => _wanted;
 
     // ─── Setup ──────────────────────────────────────────────────────────────────
 

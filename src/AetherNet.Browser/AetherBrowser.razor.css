@@ -150,6 +150,18 @@
     .err .mono { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); color: var(--ink, #16232f); }
     .muted { color: var(--ink-3, #8a97a6); font-style: italic; padding: 24px 6px; }
 
+    /* Keeping a missed address, on the error card (which flips to the brand surface). */
+    .keep { display: inline-block; margin-top: 14px; padding: 10px 16px; border-radius: 999px;
+            border: 0; background: var(--on-surface, #fff); color: var(--surface, #2196F3);
+            font: inherit; font-weight: 750; font-size: .85rem; cursor: pointer; }
+    .keep-b { display: block; margin-top: 8px; font-size: .78rem; opacity: .8; }
+    .kept { display: block; margin-top: 14px; font-size: .82rem; font-weight: 700; opacity: .9; }
+
+    /* The waiting-for list: quieter than a page you host, because it is a card you do not have yet. */
+    .waiting-h { margin-top: 26px; }
+    .row.waiting { opacity: .82; }
+    .row.waiting .raddr { font-style: italic; }
+
 /*  The offer, under every card you read.
 
     It is deliberately the loudest thing on the page after the card itself, because it is the whole

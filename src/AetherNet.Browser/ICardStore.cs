@@ -42,6 +42,19 @@ public interface ICardStore
     /// <summary>Replace the whole set of decks.</summary>
     void SetDecks(string json);
 
+    /// <summary>Addresses this device wants but has not been able to reach yet, as one JSON blob.</summary>
+    /// <remarks>
+    /// The bridge across distance. Somebody far away hands you their address — over a message, a
+    /// poster, a spoken tag — but their phone is not in range and there is no relay yet, so the card
+    /// cannot be fetched in that moment. Keeping the address means the reach is not lost: it is tried
+    /// again the next time the two of you are near, and, once the relay layer exists, on its own. An
+    /// address that is reached becomes a held card and leaves this list. See <see cref="Wanted"/>.
+    /// </remarks>
+    string? GetWanted();
+
+    /// <summary>Replace the whole set of wanted addresses.</summary>
+    void SetWanted(string json);
+
     /// <summary>The name its owner goes by, if they have given one.</summary>
     string? GetOwnerName();
 

@@ -174,10 +174,34 @@ else if (_view == View.Library)
                     <button class="redit" @onclick="@(() => Edit(card.Name))">Edit</button>
                     @if (card.Live)
                     {
+                        @*  Reach at a distance: the address is text, so copying it hands your card to
+                            anyone you can send text to — no server, no radio, no room in common. They
+                            paste it here and open it. "Give" is still the in-the-room way. *@
+                        <button class="hact" @onclick="@(() => Share(Mesh.Address(card.Name)))">Copy link</button>
                         <button class="hact" disabled="@(!Mesh.RadioLinked || _busy)" @onclick="@(() => Give(Mesh.Address(card.Name)))">Give</button>
                     }
                 </div>
             </div>
+        }
+
+        @if (Mesh.Wanted.All.Count > 0)
+        {
+            @*  The cards you were promised and do not have yet. Each is an address somebody handed you
+                that could not be reached at the time; opening one tries again. When it comes, it moves
+                to your held cards on its own. *@
+            <p class="lede waiting-h">Waiting for</p>
+            @foreach (var address in Mesh.Wanted.All)
+            {
+                <div class="row waiting">
+                    <button class="rmain" @onclick="@(() => Go(address))">
+                        <span class="rtitle">@TrimScheme(address)</span>
+                        <span class="raddr">not reached yet — tap to try again</span>
+                    </button>
+                    <div class="hacts">
+                        <button class="tiny drop" @onclick="@(() => Forget(address))">Forget</button>
+                    </div>
+                </div>
+            }
         }
 
         <button class="new" disabled="@Mesh.Mine.Full" @onclick="@(() => Edit(null))">
@@ -277,7 +301,26 @@ else
         }
         else if (_page is { Ok: false } f)
         {
-            <div class="err">Couldn't reach <span class="mono">@f.Address</span><br />@f.Error</div>
+            @*  A miss is not the end of the address.
+
+                Somebody handed you this — over a message, a poster, a spoken tag — but their phone is
+                not in range and there is no relay yet, so the card cannot come right now. Keeping the
+                address is the whole of reach at a distance: it is tried again the next time you are
+                near them, and, once the relay layer lands, on its own. Without this the address is
+                lost the moment the fetch fails, and "a device is a server" has no way to be visited
+                from more than a room away. *@
+            <div class="err">
+                Couldn't reach <span class="mono">@f.Address</span><br />@f.Error
+                @if (!Mesh.Wanted.Holds(f.Address))
+                {
+                    <button class="keep" @onclick="@(() => Keep(f.Address))">Keep this address</button>
+                    <span class="keep-b">We'll try again when you're near them.</span>
+                }
+                else
+                {
+                    <span class="kept">Kept — we'll try again when you're near them.</span>
+                }
+            </div>
         }
         else
         {
@@ -718,6 +761,38 @@ else
         _took = "Let go. It is still on every other phone that holds it.";
     }
 
+    /// <summary>Keep an address that could not be reached, to try again later.</summary>
+    private void Keep(string address)
+    {
+        if (Mesh.Wanted.Add(address))
+            _took = "Kept. We'll try again when you're near them.";
+    }
+
+    /// <summary>Stop waiting on an address.</summary>
+    private void Forget(string address) => Mesh.Wanted.Remove(address);
+
+    /// <summary>
+    /// Put an address on the clipboard so it can be handed to someone who is not in the room.
+    /// </summary>
+    /// <remarks>
+    /// The other half of reach, and the easy half: an address is text, so it goes wherever text goes —
+    /// a message, an email, written on a wall. There is no server in this; the string itself is the
+    /// front door, and whoever receives it opens it here.
+    /// </remarks>
+    private async Task Share(string address)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", address);
+            _took = $"Copied {address} — paste it anywhere to hand it over.";
+        }
+        catch (Exception)
+        {
+            // No clipboard on this head; the address is on screen to copy by hand.
+            _took = address;
+        }
+    }
+
     /// <summary>
     /// Somebody handed us one.
     /// </summary>
@@ -791,6 +866,11 @@ else
             _address = TrimScheme(address);
             _tall = 520;
             Draw();
+
+            // Reached at last — so it is no longer merely wanted. An address that resolves has become
+            // a held card, and keeping it in both places would show the same thing as "have" and
+            // "still waiting for" at once.
+            if (_page is { Ok: true }) Mesh.Wanted.Remove(address);
 
             if (OnReading.HasDelegate) await OnReading.InvokeAsync(address);
         }
