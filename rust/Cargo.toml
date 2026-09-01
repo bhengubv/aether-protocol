@@ -31,7 +31,7 @@ ed25519-dalek = "2.1"
 # Legacy P-256 (secp256r1) ECDSA verify for the Ed25519 migration fallback (spec §7.5).
 p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
-aes-gcm = "=0.11.0-rc.4"
+aes-gcm = "=0.11.0"
 # AES-128-ECB single-block for the BLE "ah" RPA hash (security::ble_privacy).
 # Same RustCrypto rc family as aes-gcm 0.11.0-rc.4 (which depends on aes 0.9.x),
 # so Cargo resolves to one shared `aes`/`cipher` version — no duplicate tree.
