@@ -13,7 +13,7 @@ plugins {
     // Required by kotlinx-benchmark for JVM bench source sets — the
     // plugin uses the allopen plugin to relax the `final` restriction
     // on @State-annotated bench classes (JMH instantiates them).
-    kotlin("plugin.allopen") version "2.2.0"
+    kotlin("plugin.allopen") version "2.4.0"
 }
 
 group = "dev.aethernet"
