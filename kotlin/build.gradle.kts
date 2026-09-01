@@ -46,7 +46,7 @@ dependencies {
     // bcpkix removed — X25519 now uses JDK-native crypto; bcprov stays for Ed25519
 
     // Coroutines for async operations
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
 
     // WebRTC — real, internet-capable P2P data-channel transport (JVM wrapper around
     // libwebrtc; Apache-2.0). Mirrors SIPSorcery (C#) and pion (Go) in the transport family.
