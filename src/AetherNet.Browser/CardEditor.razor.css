@@ -20,34 +20,21 @@
 .wiz { display: flex; flex-direction: column; gap: 14px; width: 100%; min-width: 0; max-width: 720px; margin: 0 auto; }
 
     /* Where you are, always. A wizard whose end is invisible is a form. */
-    .top { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 12px; margin: -16px -16px 0; padding: 14px 16px 12px; background: var(--bg, #eaeef3); }
-    .back { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.9rem; cursor: pointer; }
-    .rail { flex: 1 1 auto; display: flex; gap: 5px; }
-    .pip { flex: 1 1 0; height: 4px; border-radius: 2px; background: var(--line, rgba(127,140,158,.28)); }
-    .pip.done { background: var(--brand, #2196F3); opacity: .55; }
-    .pip.now { background: var(--brand, #2196F3); }
+    /* One row, and the address is the point of it — so it gets the room and the two controls get the
+       same shape and the same weight instead of being three unrelated objects in a line. */
+    .top { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; margin: -16px -16px 0; padding: 12px 14px 10px; background: var(--bg, #eaeef3); }
+    .back { width: 32px; height: 32px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.9rem; cursor: pointer; }
     .count { flex: 0 0 auto; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; color: var(--ink-3, #8a97a6); font-variant-numeric: tabular-nums; }
-
-    .head { display: flex; flex-direction: column; gap: 5px; padding: 0 2px; }
-    .h { margin: 0; font-size: 1.65rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink, #16232f); text-wrap: balance; }
-    .sub { margin: 0; font-size: 0.92rem; line-height: 1.5; color: var(--ink-2, #5b6b7b); max-width: 46ch; }
+    .count.addr { flex: 1 1 auto; min-width: 0; text-align: center; font-size: 0.78rem; letter-spacing: 0;
+                  font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
+                  color: var(--brand, #2196F3); white-space: nowrap; overflow: hidden;
+                  text-overflow: ellipsis; padding: 0 2px; }
 
     .body { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 42vh; padding-bottom: 78px; }
 
     /* Step 1 — what kind of page. */
-    .picks { display: flex; flex-direction: column; gap: 8px; }
-    .pick { text-align: left; display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); cursor: pointer; }
-    .pick.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
-    .pick-n { font-size: 1.02rem; font-weight: 750; color: var(--ink, #16232f); }
-    .pick-b { font-size: 0.82rem; line-height: 1.45; color: var(--ink-2, #5b6b7b); }
 
     /* Step 2 — the looks, each drawn rather than named. */
-    .looks { display: flex; flex-direction: column; gap: 10px; }
-    .look { display: flex; align-items: stretch; gap: 14px; text-align: left; padding: 12px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); cursor: pointer; }
-    .look.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
-    .look-t { display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0; }
-    .look-n { font-size: 1.05rem; font-weight: 780; color: var(--ink, #16232f); }
-    .look-b { font-size: 0.82rem; line-height: 1.45; color: var(--ink-2, #5b6b7b); }
 
     /* A real page, shrunk. The iframe is laid out at reading width and scaled down, so the thumbnail
        is the same document a reader gets rather than a drawing of one. */
@@ -57,7 +44,6 @@
     .full { width: 100%; height: 100%; border: 0; }
 
     /* The background catalogue. A grid, because fourteen is a thing you scan. */
-    .backs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
     .back-pick { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 8px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); cursor: pointer; }
     .back-pick.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
     .back-shot { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; border: 1px solid var(--line, rgba(127,140,158,.28)); background: #111; }
@@ -132,6 +118,11 @@
 
     .foot.away { display: none; }
 
+    /* The page used to run under the bar and stop mid-letter. It fades out instead. */
+    .foot::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 26px;
+                    background: linear-gradient(to top, var(--bg, #eaeef3), transparent);
+                    pointer-events: none; }
+
     .prow { display: flex; gap: 6px; padding-top: 3px; }
     .tiny { min-width: 34px; height: 34px; padding: 0 11px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.82rem; cursor: pointer; }
     .tiny.drop { color: var(--brand-deep); margin-left: auto; }
@@ -145,9 +136,7 @@
     .pick.waiting { opacity: .55; }
     .hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
-    .adds { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 0; }
-    .addrow { display: flex; flex-wrap: wrap; gap: 6px; }
-    .ghost { appearance: none; background: transparent; border: 1px solid var(--line, rgba(127,140,158,.28)); color: var(--ink-2, #5b6b7b); font-weight: 700; font-size: 0.84rem; padding: 10px 14px; border-radius: var(--radius-sm, 10px); cursor: pointer; }
+    .adds { display: flex; flex-directi--ink-2, #5b6b7b); font-weight: 700; font-size: 0.84rem; padding: 10px 14px; border-radius: var(--radius-sm, 10px); cursor: pointer; }
     .ghost:disabled { opacity: .4; cursor: default; }
     .ghost.wide { flex: 0 0 auto; padding: 14px 22px; }
 
@@ -228,8 +217,12 @@
 
 /*  Told apart at a glance, so that scrolled to a boundary you know which box you are in. The page is
     the work and carries the weight; the stylesheet is the trim and steps back. */
-.pen.prose { background: color-mix(in srgb, currentColor 7%, transparent);
-             border-color: color-mix(in srgb, currentColor 34%, transparent); }
+/* No border on the page you are writing. A box with a line round it is a field somebody fills in;
+   what this wants to feel like is paper with the light on it. The stylesheet keeps its outline,
+   because a stylesheet genuinely is a field. */
+.pen.prose { background: color-mix(in srgb, currentColor 6%, transparent); border-color: transparent; }
+.pen.prose .ink, .pen.prose .raw { padding: 18px 17px; }
+.pen.prose:focus-within { border-color: color-mix(in srgb, currentColor 30%, transparent); }
 .pen:not(.prose) { background: transparent; }
 
 /*  One scroller on the screen, not three.

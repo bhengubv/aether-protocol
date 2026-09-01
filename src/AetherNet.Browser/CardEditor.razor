@@ -114,10 +114,17 @@
         <div class="studio">
             <div class="studio-h">
                 <span class="studio-t">Your page</span>
-                <span class="studio-b">
-                    Just write. <code>#</code> a title, <code>##</code> a heading, <code>-</code> a
-                    list, <code>name = value</code> a row.
-                </span>
+                @*  Only while the page is empty. A person who has already written three paragraphs
+                    does not need to be told what a hash does, and a tool that keeps explaining
+                    itself over the top of your work reads as a tutorial rather than a place to
+                    write.  *@
+                @if (Written.Length == 0)
+                {
+                    <span class="studio-b">
+                        Just write. <code>#</code> a title, <code>##</code> a heading,
+                        <code>-</code> a list, <code>name = value</code> a row.
+                    </span>
+                }
             </div>
 
             <div class="pen prose" data-aether-code data-lang="page" data-seed="@Written">
@@ -155,9 +162,12 @@
 
             <div class="studio-h">
                 <span class="studio-t">Your stylesheet</span>
-                <span class="studio-b">
-                    Optional. Your rules come last, so they win — and they only ever reach your own card.
-                </span>
+                @if (Sheet.Length == 0)
+                {
+                    <span class="studio-b">
+                        Optional. Your rules come last, so they win — and they only ever reach your own card.
+                    </span>
+                }
             </div>
 
             <div class="pen" data-aether-code data-lang="css" data-seed="@Sheet">

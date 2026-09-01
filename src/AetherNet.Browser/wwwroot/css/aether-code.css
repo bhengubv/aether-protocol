@@ -6,24 +6,49 @@
     not carry a component's scope attribute; a scoped rule for them matches nothing at all. That is
     exactly what happened — the rules sat in CardEditor.razor.css and were never once applied.
 
-    The palette is three colours, so syntax cannot be a rainbow. The differences are the ones that
-    survive being small on a phone: real weight steps, italic, and letter-spacing.  */
+    The palette is three colours, so syntax cannot be a rainbow — and it cannot be weight or size
+    either, because the caret lives in a second layer that has neither. What is left is opacity and a
+    band of colour behind a line, and it turns out that is enough.  */
 
-/* Told apart without a second colour.
+/*  Told apart without moving a single letter.
 
-   The palette is three, so syntax cannot be a rainbow — and the first version
-   varied only weight, at 0.82rem, which on a phone is no difference at all. So
-   the differences are the ones that survive being small: italic, real weight
-   steps, and letter-spacing on the at-rules. */
-.pen .ink { font-weight: 450; }
-.c-note { opacity: .5; font-style: italic; font-weight: 400; }
-.c-said { font-weight: 700; }
-.c-at   { font-weight: 800; letter-spacing: .04em; }
-.c-key  { font-weight: 700; }
-.c-num  { font-weight: 700; }
-.c-hue  { font-weight: 800; text-decoration: underline; text-decoration-thickness: 1px;
-          text-underline-offset: 3px; }
-.c-mark { opacity: .42; font-weight: 400; }
+    The pen is two layers: coloured text underneath, a transparent textarea on top holding the caret.
+    That only works while both layers have identical metrics — and the first version told tokens apart
+    by weight, which is exactly what breaks it. Measured on the phone: a bold heading came out 155px
+    in the coloured layer against 143px in the textarea, so the caret walked 13px away from the letters
+    by the end of the line.
+
+    So nothing here changes weight, size, spacing or slant. Hierarchy comes from the two properties
+    that cost no width at all: opacity, and a band of colour behind the line. A heading is the line
+    with the light behind it; the marks that make it a heading step back out of the way. */
+
+/* The two layers must agree exactly. 450 here against the textarea's 400 was one pixel of drift per
+   heading — small, but it is the same mistake as the thirteen, and it compounds along a long line. */
+.pen .ink, .pen .raw { font-weight: 450; }
+
+/* Everything a person typed to mean "this is a heading" rather than to be read. */
+.c-mark { opacity: .3; }
+.c-note { opacity: .42; }
+
+.pen.prose .c-h1,
+.pen.prose .c-h2,
+.pen.prose .c-h3 { border-radius: 3px; }
+
+.pen.prose .c-h1 { background: rgba(33, 150, 243, .17); }
+.pen.prose .c-h2 { background: rgba(33, 150, 243, .11); }
+/* A section heading must never be quieter than the paragraphs under it. */
+.pen.prose .c-h3 { background: rgba(33, 150, 243, .09); }
+
+.pen.prose .c-said { background: rgba(33, 150, 243, .09); border-radius: 3px; }
+.pen.prose .c-num  { background: rgba(33, 150, 243, .09); border-radius: 3px; }
+.pen.prose .c-key  { opacity: .55; }
+
+/* The stylesheet is code and reads as code: the parts that are not values recede. */
+.pen:not(.prose) .c-said { opacity: .8; }
+.pen:not(.prose) .c-at   { opacity: .55; }
+.pen:not(.prose) .c-key  { opacity: 1; }
+.pen:not(.prose) .c-num  { opacity: .8; }
+.pen:not(.prose) .c-hue  { background: rgba(33, 150, 243, .14); border-radius: 3px; }
 
 /* The page is written; the stylesheet is coded. They are not the same instrument.
 
@@ -47,8 +72,6 @@
 
 /* Structure you can see at a glance, still without a second colour: the words carry the weight and
    the marks that make them a heading step back out of the way. */
-.pen.prose .c-at   { font-weight: 800; font-size: 1.05em; letter-spacing: -.01em; }
-.pen.prose .c-key  { font-weight: 700; letter-spacing: 0; }
 .pen.prose .c-said { font-weight: 600; }
 .pen.prose .c-num  { font-weight: 700; font-style: italic; }
 .pen.prose .c-mark { opacity: .35; }

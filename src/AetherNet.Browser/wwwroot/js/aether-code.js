@@ -17,16 +17,18 @@
 
     // The page's own vocabulary. Line-led, so each rule is anchored to the start of a line.
     var PAGE = [
-        //  Every one of these stays on its line.
+        //  The sigil and the words it marks are two different tokens.
         //
-        //  A character class matches a newline, so [^=]+ ran from the top of the document to the
-        //  first equals sign anywhere below it and painted the whole page as one token. "." does not
-        //  match a newline, which is the property wanted here, so it is what the greedy parts use.
-        [/^###.*/gm, 'c-key'],
-        [/^##.*/gm, 'c-at'],
-        [/^#.*/gm, 'c-at'],
+        //  Matching a whole heading line as one token means the "##" is painted exactly like the
+        //  words, so it shouts as loudly as the thing it is labelling. Split, the mark can step back
+        //  and the line can take the light instead. "." never matches a newline, which is what keeps
+        //  every one of these on its own line.
+        [/^-{3,}.*/gm, 'c-mark'],
+        [/^(?:#{1,3}|>|!!|=>|-|\d+\.)\s/gm, 'c-mark'],
+        [/(?<=^#\s).+/gm, 'c-h1'],
+        [/(?<=^##\s).+/gm, 'c-h2'],
+        [/(?<=^###\s).+/gm, 'c-h3'],
         [/^%[a-z]+.*/gm, 'c-note'],
-        [/^(?:-{3,}|>|!!|=>|-|\d+\.)/gm, 'c-mark'],
         [/!?\[.*?\]\(.*?\)/g, 'c-said'],
         [/\*\*.+?\*\*|_.+?_/g, 'c-num'],
         [/^.+?=/gm, 'c-key'],
