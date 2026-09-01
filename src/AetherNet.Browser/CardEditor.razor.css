@@ -264,7 +264,9 @@
     /*  Publish is confident, not enormous. A full-width filled slab was the loudest thing on a screen
         whose job is the making, not the committing — so it becomes a pill that sits to one side and
         lets the page be the biggest thing. */
-    .go { flex: 0 0 auto; padding: 13px 26px; border: 0; border-radius: 999px; background: var(--brand, #2196F3); color: #fff; font-size: .95rem; font-weight: 750; cursor: pointer; }
+    /* Publish stays the app's blue — it is Aether's action, the one honest "this is the tool"
+       element, and it must never be cream-on-cream because a look happened to be pale. */
+.go { flex: 0 0 auto; padding: 13px 26px; border: 0; border-radius: 999px; background: var(--brand, #2196F3); color: #fff; font-size: .95rem; font-weight: 750; cursor: pointer; }
     .go:disabled { opacity: .4; cursor: default; }
 
 /* The break's catalogue of marks. Drawn at the size they are used, in the app's own ink. */
@@ -405,19 +407,53 @@
          text-transform: uppercase; opacity: .5; }
 
 /*  The two that open something, told apart from the ones that change a line. */
-.tool.lead { background: var(--surface, #2196F3); color: var(--on-surface, #fff); border-color: transparent; }
+/* Look and Photo lead in the card's accent, not the app's blue. */
+/*  The insert sheet. Slides up from the bottom — the phone convention for "here are more things" —
+    and every option is named and shown, so nothing is a word you have to already understand. */
+.sheet { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end;
+         background: rgba(0,0,0,.32); }
+.sheet-in { width: 100%; background: var(--bg, #fff); border-radius: 22px 22px 0 0;
+            padding: 10px 16px calc(20px + env(safe-area-inset-bottom)); animation: sheet-up 240ms cubic-bezier(0.32,0.72,0,1); }
+.sheet-grip { width: 38px; height: 4px; border-radius: 2px; background: var(--line, rgba(127,140,158,.4));
+              margin: 4px auto 14px; }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+
+.add-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.add { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 6px;
+       border: 1px solid var(--line, rgba(127,140,158,.28)); border-radius: 14px;
+       background: transparent; color: var(--ink, #16232f); font: inherit; cursor: pointer;
+       transition: transform 140ms cubic-bezier(0.23,1,0.32,1), background 140ms ease; }
+.add:active { transform: scale(0.95); background: var(--brand-tint, rgba(33,150,243,.1)); }
+.add-eg { height: 30px; display: grid; place-items: center; font-size: .82rem; opacity: .7; }
+.add-eg.h { font-size: 1.15rem; font-weight: 820; opacity: 1; }
+.add-eg.e { font-size: .6rem; letter-spacing: .18em; font-weight: 800; }
+.add-eg.q { font-size: 1.6rem; font-weight: 800; line-height: 0; }
+.add-eg.t { width: 26px; height: 26px; border-radius: 50%; background: var(--brand,#2196F3); color:#fff; font-weight:800; opacity:1; }
+.add-n { font-size: .72rem; font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+    .sheet-in { animation: none; }
+    .add:active { transform: none; }
+}
+
+/*  The one prominent button. "+" Add is the primary because inserting is the thing you do most, and
+    it leads in the card's accent. */
+.tool-plus { font-size: 1.1rem; font-weight: 800; margin-right: 1px; }
+
+.tool.lead { background: var(--accent, var(--surface, #2196F3)); color: var(--paper, #fff); border-color: transparent; }
 
 /*  The toolbar. It scrolls sideways rather than wrapping, because a toolbar that changes height as
     you scroll the page is a toolbar that moves the writing under your thumb. */
 .tools { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
 .tools::-webkit-scrollbar { display: none; }
-.tool-gap { flex: 0 0 auto; width: 1px; margin: 4px 4px; background: currentColor; opacity: .18; }
+.tool-gap { flex: 0 0 auto; width: 1px; margin: 6px 4px; background: var(--rule, currentColor); opacity: .6; }
 
 /*  Every control clears the 44px touch minimum. They were ~30px — comfortable for a cursor, a miss
     for a thumb, and 21 of 21 failed it. */
 .tool { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
         min-height: 44px; appearance: none;
-        border: 1px solid currentColor; background: transparent; color: inherit; font: inherit;
+        border: 1px solid var(--rule, color-mix(in srgb, currentColor 22%, transparent));
+        background: transparent; color: inherit; font: inherit;
         font-size: .8rem; font-weight: 700; padding: 0 14px; border-radius: 999px;
         cursor: pointer; white-space: nowrap; }
 .tool.ico { min-width: 44px; padding: 0 11px; }

@@ -235,6 +235,73 @@
         try { doc.execCommand('styleWithCSS', false, false); } catch (e) { /* older engines */ }
     }
 
+    // ── The selection bubble ─────────────────────────────────────────────────────
+    //
+    // A permanent ribbon of word-buttons is the un-intuitive part of every editor: you have to know
+    // that "Heading" acts on the line the cursor is in, and nothing on screen says so. Notes, Docs,
+    // Instagram captions all teach the same gesture instead — select a word and a small bar appears
+    // right there, over what you selected. So do we.
+    var bubble = null;
+
+    function makeBubble() {
+        var b = el('DIV');
+        b.className = 'sel-bubble';
+        b.setAttribute('contenteditable', 'false');
+        // Words, not glyphs. A glyph is the least universal thing on a screen: an arrow reads as
+        // nothing, a link icon renders as a broken box on half the phones this ships to, and none of
+        // it can be localised. A word can — every language has one for bold — and a screen reader can
+        // read it. B/I/U keep their single letters because those ARE the words for them on every
+        // formatting bar a person has ever seen; the rest say what they do.
+        //
+        // [command, face, name] — the face is what you see, the name is what a screen reader and a
+        // long-press both say, and what a translator will one day replace.
+        [
+            ['bold', 'B', 'Bold'],
+            ['italic', 'I', 'Italic'],
+            ['underline', 'U', 'Underline'],
+            ['link', 'Link', 'Add a link']
+        ].forEach(function (m) {
+            var btn = el('BUTTON');
+            btn.type = 'button';
+            btn.className = 'sel-b';
+            btn.textContent = m[1];
+            btn.setAttribute('aria-label', m[2]);
+            btn.setAttribute('title', m[2]);
+            btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+            btn.addEventListener('click', function () {
+                if (m[0] === 'link') { if (owner) owner.invokeMethodAsync('Linking'); }
+                else { doc.execCommand(m[0], false, null); var h = host(); if (h) tell(h, true); }
+            });
+            b.appendChild(btn);
+        });
+        doc.body.appendChild(b);
+        return b;
+    }
+
+    function placeBubble() {
+        var sel = doc.getSelection();
+        if (!sel || sel.isCollapsed || !sel.rangeCount) { if (bubble) bubble.classList.remove('on'); return; }
+
+        var host0 = host();
+        if (!host0 || !host0.contains(sel.anchorNode)) { if (bubble) bubble.classList.remove('on'); return; }
+
+        var r = sel.getRangeAt(0).getBoundingClientRect();
+        if (!r.width && !r.height) { if (bubble) bubble.classList.remove('on'); return; }
+
+        if (!bubble) bubble = makeBubble();
+        bubble.classList.add('on');
+        // Above the selection, clamped to the screen, pointing down at what it acts on.
+        var bw = bubble.offsetWidth || 160, bh = bubble.offsetHeight || 40;
+        var x = r.left + r.width / 2 - bw / 2;
+        x = Math.max(8, Math.min(x, doc.documentElement.clientWidth - bw - 8));
+        var y = r.top - bh - 8;
+        if (y < 8) y = r.bottom + 8;                 // no room above — go below
+        bubble.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+    }
+
+    doc.addEventListener('selectionchange', placeBubble);
+    global.addEventListener('scroll', function () { if (bubble) bubble.classList.remove('on'); }, true);
+
     function sweep() { [].slice.call(doc.querySelectorAll('[data-aether-page]')).forEach(wire); }
 
     global.aetherPage = {

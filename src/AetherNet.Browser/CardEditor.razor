@@ -122,57 +122,56 @@
             So: the page, the stylesheet, and the page as it will arrive on somebody else's phone.
             The blocks have not gone anywhere — they are still exactly what travels — they have
             stopped being the thing you type into.  *@
-        <div class="studio">
+        @*  The whole editing area wears the card's look, not just the paper inside it. The toolbar was
+            Aether's own blue floating over a cream page — two apps touching at a hard line. On the
+            look, the controls take the card's ink and sit on its ground, so the tools belong to the
+            page instead of hovering above it. *@
+        <style>@((MarkupString)CardLook.FromCard(_doc).On(".studio[data-look]"))</style>
+        <div class="studio" data-look="@CardLook.FromCard(_doc).Key">
             @if (Blank)
             {
                 <p class="blank-hint">Start with your name. The buttons make a heading, a list, a photograph.</p>
             }
 
-            @*  The toolbar acts on the selection, which is the third part of what a rich text editor
-                is. mousedown is prevented on every button: a button that takes the focus destroys
-                the selection it was about to act on, which is the oldest bug in this kind of tool. *@
-            <div class="tools" role="toolbar">
-                @*  A word is not a look.
+            @*  One row a newcomer can read.
 
-                    These were two rows of names — Night, Halftone, Ribbon, Void — and a name teaches
-                    nobody anything. The wizard drew every one of them as a real card and that was the
-                    right idea; what is behind this button is your own page, rendered in each, so
-                    picking one is looking rather than guessing.  *@
-                <button class="tool lead" @onmousedown:preventDefault="true" @onclick="@(() => _looking = true)">Look</button>
-                <label class="tool lead" title="A picture">
+                The permanent ribbon of word-buttons was the un-intuitive part: you had to already
+                know "Heading" acted on the line the cursor was in. So the marks (bold, italic, a link)
+                moved to a bubble that appears at the selection — the gesture Notes and Docs and every
+                caption box already teach — and the block kinds moved behind a "+", where they can be
+                named and shown rather than guessed at. What is left on the bar is the two things that
+                are neither: choosing a look, and adding a photograph. *@
+            <div class="tools" role="toolbar">
+                <button class="tool lead" @onmousedown:preventDefault="true" @onclick="@(() => _adding = true)">
+                    <span class="tool-plus">+</span> Add
+                </button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => _looking = true)">Look</button>
+                <label class="tool" title="A picture">
                     @(_busyPic ? "…" : "Photo")
                     <input type="file" accept="image/*" @ref="_picker" hidden />
                 </label>
-
-                <span class="tool-gap"></span>
-
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("title"))">Title</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("heading"))">Heading</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("eyebrow"))">Label</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("text"))">Text</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("list"))">List</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("index"))">Numbered</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("quote"))">Quote</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("kv"))">Row</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("tip"))">Tip</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="Linking">Link</button>
             </div>
 
-            <div class="tools" role="toolbar">
-                <button class="tool ico" title="Bold" @onmousedown:preventDefault="true" @onclick="@(() => Mark("bold"))"><b>B</b></button>
-                <button class="tool ico" title="Italic" @onmousedown:preventDefault="true" @onclick="@(() => Mark("italic"))"><i>I</i></button>
-                <button class="tool ico" title="Underline" @onmousedown:preventDefault="true" @onclick="@(() => Mark("underline"))"><u>U</u></button>
-
-                <span class="tool-gap"></span>
-
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Set("centre", null))">Centre</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Set("as", "wide"))">Wide</button>
-                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Set("as", "small"))">Small</button>
-
-                <span class="tool-gap"></span>
-
-                <button class="tool ico" title="A line across" @onmousedown:preventDefault="true" @onclick="Rule">&#8212;</button>
-            </div>
+            @if (_adding)
+            {
+                @*  The insert sheet. Every kind, named and shown, acting on the line the caret is in —
+                    so nothing here is a word you have to already understand. *@
+                <div class="sheet" @onclick="@(() => _adding = false)">
+                    <div class="sheet-in" @onclick:stopPropagation="true">
+                        <div class="sheet-grip"></div>
+                        <div class="add-grid">
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("heading"))"><span class="add-eg h">Heading</span><span class="add-n">Heading</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("eyebrow"))"><span class="add-eg e">LABEL</span><span class="add-n">Small label</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("list"))"><span class="add-eg">• • •</span><span class="add-n">List</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("index"))"><span class="add-eg">1 2 3</span><span class="add-n">Numbered</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("quote"))"><span class="add-eg q">&#8220;&#8221;</span><span class="add-n">Quote</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("kv"))"><span class="add-eg">A&#8202;&#8202;B</span><span class="add-n">Row</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("tip"))"><span class="add-eg t">!</span><span class="add-n">Tip</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="AddedRule"><span class="add-eg">&#8212;</span><span class="add-n">Line</span></button>
+                        </div>
+                    </div>
+                </div>
+            }
 
             @if (_looking)
             {
@@ -227,12 +226,7 @@
 
             @*  The document. This is the input and the output at once — a heading is an h2 and it is
                 simply big, because what you are editing is the page rather than a description of it. *@
-            @*  The paper wears the card's own look while you write on it. Without this the WYSIWYG
-                showed the shape of the page — heading, list, rule — and none of its character: you
-                edited in blue Helvetica the page you were dressing in cream serif next door. Now the
-                surface is the card. *@
-            <style>@((MarkupString)CardLook.FromCard(_doc).On(".paper[data-look]"))</style>
-            <div class="paper" data-look="@CardLook.FromCard(_doc).Key" data-aether-page data-seed="@Paper" contenteditable="true"
+            <div class="paper" data-aether-page data-seed="@Paper" contenteditable="true"
                  spellcheck="true" autocapitalize="sentences" role="textbox" aria-multiline="true"></div>
 
             @if (_penSaid is { Length: > 0 } kept)
@@ -709,10 +703,27 @@
         if (settled) StateHasChanged();
     }
 
+    /// <summary>Whether the insert sheet is open.</summary>
+    private bool _adding;
+
     /// <summary>Turn the block the caret is in into another kind.</summary>
     private async Task Block(string kind)
     {
         try { await JS.InvokeVoidAsync("aetherPage.block", kind); } catch (Exception) { }
+    }
+
+    /// <summary>Insert a kind from the sheet, then close it.</summary>
+    private async Task Added(string kind)
+    {
+        await Block(kind);
+        _adding = false;
+    }
+
+    /// <summary>Insert a line across the page from the sheet, then close it.</summary>
+    private async Task AddedRule()
+    {
+        await Rule();
+        _adding = false;
     }
 
     /// <summary>Bold, italic or underline, on whatever is selected.</summary>
@@ -767,7 +778,8 @@
     private string _linkWhere = "";
 
     /// <summary>Make this block a link, and ask where it goes.</summary>
-    private async Task Linking()
+    [JSInvokable]
+    public async Task Linking()
     {
         await Block("link");
         _linkOpen = true;
