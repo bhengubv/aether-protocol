@@ -17,14 +17,19 @@
 
     // The page's own vocabulary. Line-led, so each rule is anchored to the start of a line.
     var PAGE = [
+        //  Every one of these stays on its line.
+        //
+        //  A character class matches a newline, so [^=]+ ran from the top of the document to the
+        //  first equals sign anywhere below it and painted the whole page as one token. "." does not
+        //  match a newline, which is the property wanted here, so it is what the greedy parts use.
         [/^###.*/gm, 'c-key'],
         [/^##.*/gm, 'c-at'],
         [/^#.*/gm, 'c-at'],
         [/^%[a-z]+.*/gm, 'c-note'],
         [/^(?:-{3,}|>|!!|=>|-|\d+\.)/gm, 'c-mark'],
-        [/!?\[[^\]]*\]\([^)]*\)/g, 'c-said'],
-        [/\*\*[^*]+\*\*|_[^_]+_/g, 'c-num'],
-        [/^[^=]+=/gm, 'c-key'],
+        [/!?\[.*?\]\(.*?\)/g, 'c-said'],
+        [/\*\*.+?\*\*|_.+?_/g, 'c-num'],
+        [/^.+?=/gm, 'c-key'],
         [/::[a-z]+/g, 'c-mark'],
     ];
 

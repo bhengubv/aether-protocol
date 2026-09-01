@@ -122,10 +122,12 @@
                 </span>
             </div>
 
-            <div class="pen tall" data-aether-code data-lang="page" data-seed="@Written">
+            <div class="pen prose" data-aether-code data-lang="page" data-seed="@Written">
                 <pre class="ink" aria-hidden="true"></pre>
-                <textarea class="raw" spellcheck="false" autocapitalize="sentences"
-                          autocomplete="off" autocorrect="off" wrap="off"
+                @*  Soft, unlike the stylesheet beside it. A sentence that runs off the right edge is
+                    a sentence you cannot read while writing it.  *@
+                <textarea class="raw" spellcheck="true" autocapitalize="sentences"
+                          autocomplete="off" autocorrect="off" wrap="soft"
                           placeholder="@PageHint"></textarea>
             </div>
 

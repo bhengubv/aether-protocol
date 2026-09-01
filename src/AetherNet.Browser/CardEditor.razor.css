@@ -217,7 +217,10 @@
 
 .studio-h { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
 .studio-t { font-size: 0.86rem; font-weight: 700; }
-.studio-b { font-size: 0.78rem; line-height: 1.45; opacity: .8; }
+/* Quieter than the thing it is explaining. At .8 the instructions carried the same weight as the
+   sentence being written, and in a three-colour palette both are the same blue — so the only way to
+   tell the page from the help about the page was to read them. */
+.studio-b { font-size: 0.74rem; line-height: 1.45; opacity: .58; }
 
 .pen { position: relative; border: 1px solid var(--line, rgba(127,140,158,.28));
        border-radius: var(--radius-sm, 10px); overflow: hidden;
@@ -243,21 +246,13 @@
 .pen .raw::placeholder { color: var(--ink-3, #5b6b7b); }
 .pen:focus-within { border-color: currentColor; }
 
-/* Told apart without a second colour.
+/* The pen's token colouring lives in wwwroot/css/aether-code.css, not here.
 
-   The palette is three, so syntax cannot be a rainbow — and the first version
-   varied only weight, at 0.82rem, which on a phone is no difference at all. So
-   the differences are the ones that survive being small: italic, real weight
-   steps, and letter-spacing on the at-rules. */
-.pen .ink { font-weight: 450; }
-.c-note { opacity: .5; font-style: italic; font-weight: 400; }
-.c-said { font-weight: 700; }
-.c-at   { font-weight: 800; letter-spacing: .04em; }
-.c-key  { font-weight: 700; }
-.c-num  { font-weight: 700; }
-.c-hue  { font-weight: 800; text-decoration: underline; text-decoration-thickness: 1px;
-          text-underline-offset: 3px; }
-.c-mark { opacity: .42; font-weight: 400; }
+   It has to. This file is scoped, so Blazor rewrites ".c-at" to ".c-at[b-t5i0f0otvb]" and adds that
+   attribute to the elements it rendered — but the spans are made by aether-code.js at runtime and
+   carry nothing but a class. Every rule in here matched no span, and the colouring had never once
+   worked, in either pen, since the day it was written. It looked like a design that had not landed
+   rather than a stylesheet that was never consulted. */
 
 .studio-h.wide { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
 .whole { appearance: none; border: 1px solid currentColor; background: transparent; color: inherit;

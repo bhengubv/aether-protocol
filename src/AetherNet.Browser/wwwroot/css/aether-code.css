@@ -1,0 +1,53 @@
+/* SPDX-License-Identifier: MIT */
+
+/*  The pen's colouring.
+
+    Global on purpose. These spans are made by aether-code.js after Blazor has rendered, so they do
+    not carry a component's scope attribute; a scoped rule for them matches nothing at all. That is
+    exactly what happened — the rules sat in CardEditor.razor.css and were never once applied.
+
+    The palette is three colours, so syntax cannot be a rainbow. The differences are the ones that
+    survive being small on a phone: real weight steps, italic, and letter-spacing.  */
+
+/* Told apart without a second colour.
+
+   The palette is three, so syntax cannot be a rainbow — and the first version
+   varied only weight, at 0.82rem, which on a phone is no difference at all. So
+   the differences are the ones that survive being small: italic, real weight
+   steps, and letter-spacing on the at-rules. */
+.pen .ink { font-weight: 450; }
+.c-note { opacity: .5; font-style: italic; font-weight: 400; }
+.c-said { font-weight: 700; }
+.c-at   { font-weight: 800; letter-spacing: .04em; }
+.c-key  { font-weight: 700; }
+.c-num  { font-weight: 700; }
+.c-hue  { font-weight: 800; text-decoration: underline; text-decoration-thickness: 1px;
+          text-underline-offset: 3px; }
+.c-mark { opacity: .42; font-weight: 400; }
+
+/* The page is written; the stylesheet is coded. They are not the same instrument.
+
+   Both pens started identical: monospace, 0.82rem, white-space:pre and wrap="off". That is right for
+   CSS, where a line is a line and running off the edge is the author's business. It is wrong for
+   prose — every sentence ran past the right edge and had to be scrolled sideways to read, which is
+   not a thing anybody does while writing. And a paragraph set in Menlo reads as output, not as
+   something you are making.
+
+   So the document gets a reading face, a readable size, and wrapping. The ink layer and the textarea
+   must keep identical metrics or the caret drifts away from the letters, so every rule here applies
+   to both. */
+.pen.prose .ink, .pen.prose .raw {
+    font-family: var(--sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+    font-size: 0.95rem; line-height: 1.6;
+    white-space: pre-wrap; overflow-wrap: break-word; word-break: normal;
+    min-height: 320px; max-height: 56vh;
+}
+
+/* Structure you can see at a glance, still without a second colour: the words carry the weight and
+   the marks that make them a heading step back out of the way. */
+.pen.prose .c-at   { font-weight: 800; font-size: 1.05em; letter-spacing: -.01em; }
+.pen.prose .c-key  { font-weight: 700; letter-spacing: 0; }
+.pen.prose .c-said { font-weight: 600; }
+.pen.prose .c-num  { font-weight: 700; font-style: italic; }
+.pen.prose .c-mark { opacity: .35; }
+.pen.prose .c-note { opacity: .45; }
