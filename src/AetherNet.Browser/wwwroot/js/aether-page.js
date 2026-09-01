@@ -26,7 +26,7 @@
     var AS = {
         title: 'H1', heading: 'H2', eyebrow: 'H3', text: 'P',
         quote: 'BLOCKQUOTE', list: 'UL', index: 'OL', rule: 'HR', image: 'FIGURE',
-        kv: 'P', link: 'P',
+        kv: 'P', link: 'P', tip: 'P',
     };
 
     var FROM = {
@@ -69,6 +69,8 @@
         }
 
         if (kind === 'link') node.setAttribute('data-to', block.to || '');
+        if (block.a) node.setAttribute('data-a', block.a);
+        if (block.as) node.setAttribute('data-as', block.as);
 
         node.innerHTML = global.aetherWrite.dress(block.t || '', 0);
         return node;
@@ -146,7 +148,13 @@
             if (kind === 'image') {
                 var img = node.querySelector('img');
                 var cap = node.querySelector('figcaption');
-                if (img) out.push({ k: 'image', t: cap ? cap.textContent : '', hash: img.getAttribute('data-hash') || '' });
+                if (img) out.push({
+                    k: 'image',
+                    t: cap ? cap.textContent : '',
+                    hash: img.getAttribute('data-hash') || '',
+                    as: node.getAttribute('data-as') || null,
+                    a: node.getAttribute('data-a') || null,
+                });
                 return;
             }
 
@@ -155,6 +163,8 @@
 
             var block = { k: kind, t: said };
             if (kind === 'link') block.to = node.getAttribute('data-to') || '';
+            if (node.getAttribute('data-a')) block.a = node.getAttribute('data-a');
+            if (node.getAttribute('data-as')) block.as = node.getAttribute('data-as');
             out.push(block);
         });
 
@@ -182,7 +192,7 @@
         sel.addRange(range);
     }
 
-    var pending = null;
+    var pending = null, lastLink = null;
 
     function tell(host, settled) {
         if (!owner || !wrote) return;
@@ -246,6 +256,7 @@
             });
 
             field.replaceChild(made, at);
+            if (kind === 'link') lastLink = made;
             caretTo(made.querySelector('li') || made, true);
             if (was !== kind) { tidy(field); tell(field, true); }
             return true;
@@ -290,6 +301,46 @@
             caretTo(after, false);
             tell(field, true);
             return true;
+        },
+
+        /**
+         * Turn a setting on the block the caret is in on or off.
+         *
+         * Centred, wide, small — four of them exist in the card model and none of them had any
+         * control at all once the wizard went. Pressing the same one twice takes it off again.
+         */
+        set: function (what, value) {
+            var field = host();
+            var at = field && here(field);
+            if (!at) return false;
+
+            var attr = (what === 'centre') ? 'data-a' : 'data-as';
+            var want = (what === 'centre') ? 'centre' : value;
+
+            if (at.getAttribute(attr) === want) at.removeAttribute(attr);
+            else at.setAttribute(attr, want);
+
+            tell(field, true);
+            return true;
+        },
+
+        /** Where a link block goes. Set after the fact, because the address field takes the focus. */
+        link: function (to) {
+            var field = host();
+            var at = lastLink && lastLink.parentNode ? lastLink : (field && here(field));
+            if (!at) return false;
+
+            at.setAttribute('data-k', 'link');
+            at.setAttribute('data-to', to || '');
+            tell(field, true);
+            return true;
+        },
+
+        /** Where the link the caret is in currently goes. */
+        linkTo: function () {
+            var field = host();
+            var at = field && here(field);
+            return at && at.getAttribute('data-k') === 'link' ? (at.getAttribute('data-to') || '') : '';
         },
 
         /** Which kind the caret is sitting in, so the toolbar can say so. */

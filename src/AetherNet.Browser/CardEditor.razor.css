@@ -291,6 +291,20 @@
 .studio-h.wide { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
 /* The one button the document still needs, in the same pill as "See the whole page" — because it
    belongs to the page being written, not to the chrome around it. */
+/*  The look, and the ground under it. First control on the screen, because it is the one that
+    decides whether the page feels like anybody's. */
+.looks { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 8px; scrollbar-width: none; }
+.looks::-webkit-scrollbar { display: none; }
+
+.chip { flex: 0 0 auto; appearance: none; border: 1px solid currentColor; background: transparent;
+        color: inherit; font: inherit; font-size: .74rem; font-weight: 700; padding: 7px 13px;
+        border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.chip.small { font-size: .68rem; padding: 6px 11px; opacity: .7; }
+.chip.on { background: var(--surface, #2196F3); color: var(--on-surface, #fff); border-color: transparent; opacity: 1; }
+
+.linkrow { display: flex; gap: 6px; align-items: center; padding: 0 0 10px; }
+.linkrow .in { flex: 1 1 auto; min-width: 0; }
+
 /*  The toolbar. It scrolls sideways rather than wrapping, because a toolbar that changes height as
     you scroll the page is a toolbar that moves the writing under your thumb. */
 .tools { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }

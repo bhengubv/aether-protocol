@@ -135,3 +135,18 @@
 
 /* An empty page says what to do with itself, once. */
 .paper > p:only-child:empty::before { content: "Your name"; opacity: .3; }
+
+
+/*  How a block is set, shown where it is set. These four have existed in the card model all along
+    and had no control and no appearance in any editor since the wizard went. */
+.paper [data-a="centre"] { text-align: center; }
+.paper [data-as="small"] { font-size: .78em; opacity: .75; }
+.paper [data-as="wide"] { margin-left: -4vw; margin-right: -4vw; }
+.paper figure[data-as="wide"] img { border-radius: 0; max-height: 380px; }
+
+/*  And the kinds that share a tag need telling apart while you are writing them. */
+.paper [data-k="kv"] { display: flex; justify-content: space-between; gap: 1em;
+                       border-bottom: 1px solid currentColor; padding-bottom: .35em; }
+.paper [data-k="tip"] { padding-left: .9em; border-left: 3px solid currentColor; opacity: .9; }
+.paper [data-k="link"] { display: inline-block; border: 1px solid currentColor;
+                         border-radius: 999px; padding: .5em 1.1em; font-weight: 700; }

@@ -123,39 +123,71 @@
                 }
             </div>
 
+            @*  The look. This is the control that decides whether a page feels like yours, and it
+                had no UI at all: the wizard's picker went with the wizard, the "%theme" line went
+                with the source view, and what was left could not change its own appearance. *@
+            <div class="looks" role="group" aria-label="Look">
+                @foreach (var look in CardLook.All)
+                {
+                    <button class="chip @(look.Key == CardLook.FromCard(_doc).Key ? "on" : null)"
+                            @onmousedown:preventDefault="true" @onclick="@(() => ChooseLook(look))">@look.Name</button>
+                }
+            </div>
+
+            <div class="looks" role="group" aria-label="Background">
+                @foreach (var back in CardShader.All)
+                {
+                    <button class="chip small @(back.Key == _shader.Key ? "on" : null)"
+                            @onmousedown:preventDefault="true" @onclick="@(() => ChooseShader(back))">@back.Name</button>
+                }
+            </div>
+
             @*  The toolbar acts on the selection, which is the third part of what a rich text editor
                 is. mousedown is prevented on every button: a button that takes the focus destroys
                 the selection it was about to act on, which is the oldest bug in this kind of tool. *@
             <div class="tools" role="toolbar">
-                <button class="tool" title="Title" @onmousedown:preventDefault="true"
-                        @onclick="@(() => Block("title"))">Title</button>
-                <button class="tool" title="Heading" @onmousedown:preventDefault="true"
-                        @onclick="@(() => Block("heading"))">Heading</button>
-                <button class="tool" title="Small label" @onmousedown:preventDefault="true"
-                        @onclick="@(() => Block("eyebrow"))">Label</button>
-                <button class="tool" title="Paragraph" @onmousedown:preventDefault="true"
-                        @onclick="@(() => Block("text"))">Text</button>
-                <button class="tool" title="List" @onmousedown:preventDefault="true"
-                        @onclick="@(() => Block("list"))">List</button>
-                <button class="tool" title="Quotation" @onmousedown:preventDefault="true"
-                        @onclick="@(() => Block("quote"))">Quote</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("title"))">Title</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("heading"))">Heading</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("eyebrow"))">Label</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("text"))">Text</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("list"))">List</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("index"))">Numbered</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("quote"))">Quote</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("kv"))">Row</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("tip"))">Tip</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="Linking">Link</button>
+            </div>
+
+            <div class="tools" role="toolbar">
+                <button class="tool ico" title="Bold" @onmousedown:preventDefault="true" @onclick="@(() => Mark("bold"))"><b>B</b></button>
+                <button class="tool ico" title="Italic" @onmousedown:preventDefault="true" @onclick="@(() => Mark("italic"))"><i>I</i></button>
+                <button class="tool ico" title="Underline" @onmousedown:preventDefault="true" @onclick="@(() => Mark("underline"))"><u>U</u></button>
 
                 <span class="tool-gap"></span>
 
-                <button class="tool ico" title="Bold" @onmousedown:preventDefault="true"
-                        @onclick="@(() => Mark("bold"))"><b>B</b></button>
-                <button class="tool ico" title="Italic" @onmousedown:preventDefault="true"
-                        @onclick="@(() => Mark("italic"))"><i>I</i></button>
-                <button class="tool ico" title="Underline" @onmousedown:preventDefault="true"
-                        @onclick="@(() => Mark("underline"))"><u>U</u></button>
-                <button class="tool ico" title="A line across" @onmousedown:preventDefault="true"
-                        @onclick="Rule">&#8212;</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Set("centre", null))">Centre</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Set("as", "wide"))">Wide</button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Set("as", "small"))">Small</button>
 
+                <span class="tool-gap"></span>
+
+                <button class="tool ico" title="A line across" @onmousedown:preventDefault="true" @onclick="Rule">&#8212;</button>
                 <label class="tool ico" title="A picture">
                     @(_busyPic ? "…" : "Photo")
                     <input type="file" accept="image/*" @ref="_picker" hidden />
                 </label>
             </div>
+
+            @if (_linkOpen)
+            {
+                @*  Set after the fact, because a text field takes the focus and the caret with it —
+                    so the editor remembers which block the Link button just made. *@
+                <div class="linkrow">
+                    <input class="in" placeholder="aether://TAG/page  or  https://…"
+                           value="@_linkWhere" @oninput="OnLinkWhere" />
+                    <button class="tool" @onclick="@(() => _linkOpen = false)">Done</button>
+                </div>
+            }
 
             @*  The document. This is the input and the output at once — a heading is an h2 and it is
                 simply big, because what you are editing is the page rather than a description of it. *@
@@ -572,7 +604,9 @@
         [property: System.Text.Json.Serialization.JsonPropertyName("items")] List<string>? Items = null,
         [property: System.Text.Json.Serialization.JsonPropertyName("hash")] string? Hash = null,
         [property: System.Text.Json.Serialization.JsonPropertyName("src")] string? Src = null,
-        [property: System.Text.Json.Serialization.JsonPropertyName("to")] string? To = null);
+        [property: System.Text.Json.Serialization.JsonPropertyName("to")] string? To = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("a")] string? A = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("as")] string? As = null);
 
     /// <summary>The page handed to the editor to draw and be typed into.</summary>
     /// <remarks>
@@ -586,7 +620,9 @@
             Items: b.Items is null ? null : [.. b.Items],
             Hash: b.ContentHash,
             Src: b.ContentHash is { Length: > 0 } h ? Picture(h) : null,
-            To: b.Target)));
+            To: b.Target,
+            A: b.Align,
+            As: b.As)));
 
     /// <summary>Whether the page has anything on it yet.</summary>
     private bool Blank => !(_doc.Blocks ?? []).Any(Wordy);
@@ -690,6 +726,8 @@ Reach me = [hello](aether://YOURTAG/me)";
                     Items = piece.Items is { Count: > 0 } items ? [.. items] : null,
                     ContentHash = piece.Hash is { Length: > 0 } hash ? hash : null,
                     Target = piece.To is { Length: > 0 } to ? to : null,
+                    Align = piece.A is { Length: > 0 } a ? a : null,
+                    As = piece.As is { Length: > 0 } how ? how : null,
                 });
             }
 
@@ -721,6 +759,33 @@ Reach me = [hello](aether://YOURTAG/me)";
     private async Task Mark(string name)
     {
         try { await JS.InvokeVoidAsync("aetherPage.mark", name); } catch (Exception) { }
+    }
+
+    /// <summary>Whether the address field for a link is open, and what is in it.</summary>
+    private bool _linkOpen;
+    private string _linkWhere = "";
+
+    /// <summary>Make this block a link, and ask where it goes.</summary>
+    private async Task Linking()
+    {
+        await Block("link");
+        _linkOpen = true;
+
+        try { _linkWhere = await JS.InvokeAsync<string>("aetherPage.linkTo"); }
+        catch (Exception) { _linkWhere = ""; }
+    }
+
+    /// <summary>Where that link goes.</summary>
+    private async Task OnLinkWhere(ChangeEventArgs e)
+    {
+        _linkWhere = e.Value?.ToString() ?? "";
+        try { await JS.InvokeVoidAsync("aetherPage.link", _linkWhere); } catch (Exception) { }
+    }
+
+    /// <summary>Centred, wide, small — the settings the card model has always had.</summary>
+    private async Task Set(string what, string? value)
+    {
+        try { await JS.InvokeVoidAsync("aetherPage.set", what, value); } catch (Exception) { }
     }
 
     /// <summary>A line across the page.</summary>
