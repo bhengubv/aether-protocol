@@ -4,10 +4,15 @@
 @inject MeshWebService Mesh
 @inject IJSRuntime JS
 
-@* Four steps, and never more than one decision on screen at a time.
-   A page written as one long form is a page most people abandon halfway down, and an abandoned page
-   is a node with nothing on it — which is the only failure mode that actually matters here. Steps
-   give the work a beginning, a visible middle and an end you can reach. *@
+@* The page, the stylesheet, and the page as somebody else's phone will draw it.
+
+   This was four steps and a form, on the theory that one decision at a time is easier than a long
+   page. It is, and it is also how nothing gets written: the two real pages on this device went a
+   hundred versions through those steps without ever being filled in, while the one card that looks
+   like anything was authored in C# in a test file. The abandonment the steps were meant to prevent
+   is exactly what they caused.
+
+   A document does not have steps. You open it and you write. *@
 <div class="wiz">
     <header class="top">
         <button class="back" @onclick="Leave" aria-label="Close">✕</button>
@@ -175,6 +180,16 @@
         @if (_said is { Length: > 0 })
         {
             <p class="said">@_said</p>
+        }
+
+        @*  Taking a page down lived in the wizard, and went out with it — which left no way at all to
+            get rid of one. It is back, and it asks first: this is the one button here that cannot be
+            undone, on a screen held in one hand.  *@
+        @if (_page is not null)
+        {
+            <button class="ghost wide @(_sure ? "sure" : null)" @onclick="Downing">
+                @(_sure ? "Tap again to delete" : "Take it down")
+            </button>
         }
 
         <button class="go" disabled="@(_busy || !CanPublish)" @onclick="Publish">
@@ -461,6 +476,16 @@
 
     private Task Leave() => Done.InvokeAsync();
 
+    /// <summary>Whether the delete has been asked for once already.</summary>
+    private bool _sure;
+
+    /// <summary>Take this page off the device — on the second tap, not the first.</summary>
+    private async Task Downing()
+    {
+        if (!_sure) { _sure = true; return; }
+        await Down();
+    }
+
     /// <summary>Take this page off the device.</summary>
     private async Task Down()
     {
@@ -541,6 +566,8 @@ Reach me = [hello](aether://YOURTAG/me)";
     {
         try
         {
+            _sure = false;
+
             if (which == "page")
             {
                 // The document is the truth; the blocks are what it compiles to.

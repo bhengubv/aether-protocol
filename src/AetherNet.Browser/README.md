@@ -99,7 +99,8 @@ Everything else — the model, the renderer, the editor, the deck, the wire — 
 | | |
 |---|---|
 | `AetherBrowser.razor` | Browse · Mine · Deck, and the editor. The whole surface. |
-| `CardEditor.razor` | Four steps: what kind of page, which look, write it, publish. |
+| `CardEditor.razor` | One surface: the page, its stylesheet, the preview, publish. |
+| `CardText` | A card as a document and back, losslessly. The blocks fall out of what you wrote. |
 | `CardDocument` / `CardBlock` | The document. Versioned, typed blocks, forward-compatible. |
 | `CardPage` | The renderer. One document in, one inert page out. |
 | `CardLook` | Finished designs — type, colour and scale together, not a palette. |
