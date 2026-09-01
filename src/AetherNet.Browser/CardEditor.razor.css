@@ -1,3 +1,83 @@
+/*  Motion.
+    
+    There was none. Not one transition and not one duration in this file, which is why pressing a
+    button in here felt like nothing happened — the interface never acknowledged the tap. Everything
+    below is the smallest amount of motion that makes a screen feel like it is listening.
+
+    The built-in easings are too weak to read at these speeds, so the curves are explicit. Nothing
+    animates for longer than 300ms, nothing animates a property that costs layout, and everything
+    stops entirely for anyone who has asked for less movement. */
+/*  A press has to be felt. Scale is the whole of it: it costs no layout, it reads instantly, and it
+    is the difference between a control and a picture of one. */
+.tool,
+.chip,
+.gal-one,
+.go,
+.down,
+.whole,
+.whole-x,
+.back,
+.under,
+.pic {
+    transition: transform 160ms var(--ease-out),
+                background-color 160ms var(--ease-out),
+                border-color 160ms var(--ease-out),
+                opacity 160ms var(--ease-out);
+}
+
+.tool:active,
+.chip:active,
+.gal-one:active,
+.go:active:not(:disabled),
+.down:active,
+.whole:active,
+.whole-x:active,
+.back:active,
+.under:active,
+.pic:active { transform: scale(0.97); }
+
+/*  The sheet comes from nothing at the moment, which is the one thing nothing in the real world
+    does. It is a modal rather than a popover, so it scales from its own centre. */
+.whole-page {
+    transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+}
+
+@starting-style {
+    .whole-page { opacity: 0; transform: scale(0.97); }
+}
+
+/*  The looks arrive one after another rather than all at once. Short delays — a long stagger is just
+    a slow screen wearing a nice coat. */
+.gal-one {
+    opacity: 0;
+    animation: gal-in 260ms var(--ease-out) forwards;
+}
+
+.gal-one:nth-child(1) { animation-delay: 0ms; }
+.gal-one:nth-child(2) { animation-delay: 40ms; }
+.gal-one:nth-child(3) { animation-delay: 80ms; }
+.gal-one:nth-child(4) { animation-delay: 120ms; }
+.gal-one:nth-child(5) { animation-delay: 160ms; }
+.gal-one:nth-child(n+6) { animation-delay: 200ms; }
+
+@keyframes gal-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+/*  Fewer and gentler, not none: what survives is what helps you understand the screen. */
+@media (prefers-reduced-motion: reduce) {
+    .tool, .chip, .gal-one, .go, .down, .whole, .whole-x, .back, .under, .pic, .whole-page {
+        transition-duration: 120ms;
+        transition-property: opacity, background-color, border-color;
+    }
+
+    .tool:active, .chip:active, .gal-one:active, .go:active, .down:active,
+    .whole:active, .whole-x:active, .back:active, .under:active, .pic:active { transform: none; }
+
+    .gal-one { opacity: 1; animation: none; }
+}
+
 /* The card editor.
 
    Scoped, so the class names in here belong to this component and to nothing else.

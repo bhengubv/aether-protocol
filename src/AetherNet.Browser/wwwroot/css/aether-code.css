@@ -1,5 +1,16 @@
 /* SPDX-License-Identifier: MIT */
 
+/*  Easing, defined where it can be seen.
+
+    These lived in the editor's scoped stylesheet, where Blazor rewrites :root to :root[b-t5i0f0otvb]
+    and it matches nothing at all. The variables were never defined, so every declaration using them
+    was invalid and thrown away — which is why the whole motion pass computed as "all 0s ease" and
+    changed nothing. Third time a scoped sheet has quietly served nothing tonight. */
+:root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
 /*  The pen's colouring.
 
     Global on purpose. These spans are made by aether-code.js after Blazor has rendered, so they do
