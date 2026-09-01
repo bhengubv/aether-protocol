@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-using AetherNet.Sample.Shared.Services;
+using AetherNet.Transport.Services;
 using Xunit;
 
-namespace AetherNet.Sample.Tests;
+namespace AetherNet.Transport.Tests;
 
 /// <summary>
 /// Which radio carries, decided without asking anybody.

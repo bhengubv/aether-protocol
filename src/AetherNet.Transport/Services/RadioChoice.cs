@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Transport.Services;
 
 /// <summary>
 /// One radio, as far as choosing between them goes.

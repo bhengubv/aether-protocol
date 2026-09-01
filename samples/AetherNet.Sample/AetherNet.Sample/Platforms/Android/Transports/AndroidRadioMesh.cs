@@ -4,6 +4,7 @@ using AetherNet.Identity;
 using AetherNet.Protocol;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Security.Services;
+using AetherNet.Transport.Services;
 using Microsoft.Extensions.Logging;
 using System.Text;
 

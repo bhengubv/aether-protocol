@@ -47,6 +47,7 @@
     <Project Path="tests/AetherNet.Core.Tests/AetherNet.Core.Tests.csproj" />
     <Project Path="tests/AetherNet.Space.Tests/AetherNet.Space.Tests.csproj" />
     <Project Path="tests/AetherNet.Forge.Tests/AetherNet.Forge.Tests.csproj" />
+    <Project Path="tests/AetherNet.Transport.Tests/AetherNet.Transport.Tests.csproj" />
     <Project Path="tests/AetherNet.Transport.WebRtc.Tests/AetherNet.Transport.WebRtc.Tests.csproj" />
     <Project Path="tests/AetherNet.Vault.Tests/AetherNet.Vault.Tests.csproj" />
     <Project Path="tests/AetherNet.Market.Tests/AetherNet.Market.Tests.csproj" />
