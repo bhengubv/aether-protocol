@@ -9,7 +9,7 @@ shrinks toward empty.
 `DECIDE` (needs an owner call first) · `DONE`.
 **Size:** S / M / L / XL (ledger scale).
 
-**Progress:** 2 shipped · 5 fixes · 5 prove · ~30 build · 3 decisions open.
+**Progress:** 7 shipped (Reach, concurrency test, Phase A ×5) · 5 prove · ~30 build · 3 decisions open.
 
 Constraints in force on every item: `aether://` only · Android + Circle OS · one APK · no GMS · FOSS
 only · substrate-first, economy-last · .NET 10 · `[skip ci]` · P30 is the benchmark · code in
@@ -33,13 +33,13 @@ only · substrate-first, economy-last · .NET 10 · `[skip ci]` · P30 is the be
 
 ---
 
-## Phase A — Fix batch  ·  no deps  ·  ship now
+## Phase A — Fix batch  ·  no deps  ·  ✅ shipped `b036352`
 
-- [ ] **A1 · Autosave a draft before Publish** — fresh page routes keystrokes to `Draw()` not `Save()`; first write is Publish, so a tab-away loses it. `CardEditor.razor` (gate `:645/:695`, `Save` `:1045`), reuse `MyPages.Save` `WebCard.cs:126`. · **S · TODO**
-- [ ] **A2 · Delete the dead scoped rule** — `AetherBrowser.razor.css:128` can't cross the card iframe. · **S · TODO**
-- [ ] **A3 · Distinguish my pages from held cards** in the breadcrumb — a held card titled "me" collides with own `Home="me"`. `AetherBrowser.razor:235-248`, `WebCard.cs:59`. · **S · TODO**
-- [ ] **A4 · Avatar palette onto the three colours** — `TagPalette.cs:19-31` has 10 off-palette hexes; update `TagPaletteTests.cs`. · **S · TODO**
-- [ ] **A5 · Surface the stylesheet pen** — it renders after the writing surface under "Optional", below the fold. `CardEditor.razor:237-252`. · **S · TODO**
+- [x] **A1 · Autosave a draft before Publish** — `Save()` now self-guards (redraws when nameless) and every caller saves unconditionally. **Verified on P30**: a card typed but never published persists as a DRAFT and survives a force-stop + relaunch (SQLite `live=false`). `CardEditor.razor`. · **S · DONE**
+- [x] **A2 · Delete the dead scoped rule** — removed from `AetherBrowser.razor.css`; build clean. · **S · DONE**
+- [x] **A3 · Distinguish my pages from held cards** — breadcrumb now shows the author's tag beside a held card (`<span class="bm-by">`). Build-verified; live check awaits a held "me" card from a 2nd device (Phase B). `AetherBrowser.razor`. · **S · DONE (code)**
+- [x] **A4 · Avatar palette onto the three colours** — eight computed shades of `#2196F3`; new hue-lock test asserts channel ratios. 16/16 deterministic. `TagPalette.cs` + `TagPaletteTests.cs`. · **S · DONE**
+- [x] **A5 · Surface the stylesheet pen** — `Style` button on the top toolbar jumps to the CSS field ("Make it yours — CSS"). **Verified on P30**: `Style` present in the editor toolbar. `CardEditor.razor` + `aether-code.js`. · **S · DONE**
 
 ## Phase B — Prove what's built  ·  needs a 3rd handset  ·  runs alongside A
 
