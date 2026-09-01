@@ -129,23 +129,31 @@
     :root:not([data-theme="light"]) .paper { color: #f2f2f2; }
 }
 
+/*  When the paper carries a look, it becomes that look: its ground, its ink, its display face. The
+    fallbacks are the app's own, so a surface with no look still reads. */
 .paper {
     outline: none;
     min-height: 300px;
-    padding: 2px 0 22px;
+    margin: 0 -16px;
+    padding: 22px 16px 30px;
+    border-radius: 16px;
+    background: var(--paper, transparent);
+    color: var(--ink, #111);
+    font-family: var(--body, inherit);
     font-size: clamp(1rem, 4.3vw, 1.12rem);
-    line-height: 1.6;
-    caret-color: var(--brand, #2196F3);
+    line-height: var(--leading, 1.6);
+    caret-color: var(--accent, #2196F3);
 }
+.paper[data-look] { color: var(--ink); }
 
 .paper > * { margin: 0 0 .8em; }
 
-.paper h1 { color: var(--brand, #2196F3);
+.paper h1 { color: var(--ink, #2196F3); font-family: var(--display, inherit);
             font-size: clamp(1.7rem, 8.6vw, 2.6rem); line-height: 1.02; letter-spacing: -.03em;
             font-weight: 820; margin: .1em 0 .4em; }
-.paper h2 { font-size: clamp(1.14rem, 5.4vw, 1.5rem); line-height: 1.2; letter-spacing: -.015em;
+.paper h2 { font-family: var(--display, inherit); font-size: clamp(1.14rem, 5.4vw, 1.5rem); line-height: 1.2; letter-spacing: -.015em;
             font-weight: 800; margin: 1.3em 0 .35em; }
-.paper h3 { color: var(--brand, #2196F3);
+.paper h3 { color: var(--accent, #2196F3);
             font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; font-weight: 800;
             opacity: 1; margin: 1.7em 0 .55em; }
 
@@ -153,7 +161,7 @@
 .paper ul, .paper ol { padding-left: 1.15em; margin: .2em 0 .9em; }
 .paper li { margin-bottom: .28em; }
 
-.paper hr { border: 0; height: 1px; background: currentColor; opacity: .32; margin: 1.5em 0; }
+.paper hr { border: 0; height: 1px; background: var(--rule, currentColor); opacity: 1; margin: 1.5em 0; }
 
 .paper figure { margin: 1.1em 0; }
 .paper figure img { display: block; width: 100%; max-height: 320px; object-fit: cover; border-radius: 12px; }

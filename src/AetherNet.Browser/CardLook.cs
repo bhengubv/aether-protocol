@@ -281,6 +281,15 @@ public sealed record CardLook(
     /// defined only inside a media query is the classic unreadable page.
     /// </para>
     /// </remarks>
+    /// <summary>The same palette and type, on one selector, for a surface that wears this look inline.</summary>
+    /// <remarks>
+    /// The writing surface has to become the card while you write in it — same paper, same ink, same
+    /// display face — or the WYSIWYG is a lie by omission: it shows the shape of the page and none of
+    /// its character. This is the variables on the element itself rather than the root, so an editor
+    /// can put them on the paper it is editing.
+    /// </remarks>
+    public string On(string selector) => selector + "{" + Palette(Paper, Ink) + Type() + "}";
+
     public string Tokens()
     {
         var light = Palette(Paper, Ink);
