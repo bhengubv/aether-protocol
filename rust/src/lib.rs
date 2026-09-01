@@ -21,6 +21,7 @@ pub mod heartbeat;
 pub mod incentive;
 pub mod market;
 pub mod media;
+pub mod meeting;
 pub mod models;
 pub mod prekey;
 pub mod presence;
