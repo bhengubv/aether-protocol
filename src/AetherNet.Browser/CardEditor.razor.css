@@ -255,6 +255,15 @@
    rather than a stylesheet that was never consulted. */
 
 .studio-h.wide { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
+/* The one button the document still needs, in the same pill as "See the whole page" — because it
+   belongs to the page being written, not to the chrome around it. */
+.penbar { display: flex; gap: 8px; }
+.pic { display: inline-flex; align-items: center; appearance: none;
+       border: 1px solid currentColor; background: transparent; color: inherit;
+       font: inherit; font-size: 0.76rem; font-weight: 700; padding: 6px 12px;
+       border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.pic.busy { opacity: .55; pointer-events: none; }
+
 .whole { appearance: none; border: 1px solid currentColor; background: transparent; color: inherit;
          font: inherit; font-size: 0.76rem; font-weight: 700; padding: 6px 12px;
          border-radius: 999px; cursor: pointer; white-space: nowrap; }

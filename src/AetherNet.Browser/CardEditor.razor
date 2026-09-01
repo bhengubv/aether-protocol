@@ -131,6 +131,25 @@
                           placeholder="@PageHint"></textarea>
             </div>
 
+            @*  The one thing on this screen that is still a button.
+
+                Everything else about a page can be typed, because everything else about a page is
+                words. A picture cannot be: its address is a content hash, and nobody knows one by
+                heart. So the picture is chosen, kept, hashed, and its line is written into the
+                document at the caret — after which it is text like every other line, and can be
+                moved, captioned or deleted by editing it.  *@
+            <div class="penbar">
+                <label class="ghost pic @(_busyPic ? "busy" : null)">
+                    @(_busyPic ? "Keeping…" : "Add a picture")
+                    <input type="file" accept="image/*" @ref="_picker" hidden />
+                </label>
+            </div>
+
+            @if (_picNote is { Length: > 0 } trouble)
+            {
+                <p class="told">@trouble</p>
+            }
+
             @if (_penSaid is { Length: > 0 } kept)
             {
                 <p class="told">@kept</p>
@@ -411,6 +430,12 @@
 
         try
         {
+            if (_doc.Blocks.Count(b => b.Kind == CardBlock.Image) >= PagePhoto.MostPerPage)
+            {
+                _picNote = $"a page carries {PagePhoto.MostPerPage} pictures, and this one is full";
+                return;
+            }
+
             var bytes = Convert.FromBase64String(got.Base64);
 
             if (!PagePhoto.IsUsable(got.Mime, bytes))
@@ -428,11 +453,7 @@
             _pics[hash] = $"data:{got.Mime};base64,{got.Base64}";
             _weights[hash] = bytes.LongLength;
 
-            if (_picking >= 0 && _picking < _doc.Blocks.Count)
-            {
-                _doc.Blocks[_picking].ContentHash = hash;
-                Save();
-            }
+            await JS.InvokeVoidAsync("aetherCode.insert", "page", $"![]({hash})");
         }
         catch (FormatException)
         {

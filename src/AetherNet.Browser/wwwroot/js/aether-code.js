@@ -149,6 +149,34 @@
         sweep: sweep,
         /** Remember who to tell, then wire whatever is already on screen. */
         wire: function (who, what) { owner = who; penned = what; sweep(); },
+
+        /**
+         * Put text into a pen at the caret, as though it had been typed there.
+         *
+         * A picture cannot be typed — its address is a content hash nobody knows by heart — so the
+         * one thing the page still needs a button for is choosing one. This is how what the button
+         * produced gets into the document: at the caret, on its own line, and then through the same
+         * input event as every other keystroke, so it saves by the same path.
+         */
+        insert: function (lang, text) {
+            var pen = document.querySelector('[data-aether-code][data-lang="' + lang + '"]');
+            var raw = pen && pen.querySelector('.raw');
+            if (!raw) { return false; }
+
+            var nl = String.fromCharCode(10);
+            var a = raw.selectionStart, b = raw.selectionEnd;
+            if (a === null || a === undefined) { a = b = raw.value.length; }
+
+            var before = raw.value.slice(0, a), after = raw.value.slice(b);
+            var lead = (before.length === 0 || before.slice(-1) === nl) ? '' : nl;
+            var tail = (after.length === 0 || after.slice(0, 1) === nl) ? '' : nl;
+
+            raw.value = before + lead + text + tail + after;
+            raw.selectionStart = raw.selectionEnd = (before + lead + text).length;
+            raw.focus();
+            raw.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+        },
     };
     document.addEventListener('DOMContentLoaded', sweep);
 
