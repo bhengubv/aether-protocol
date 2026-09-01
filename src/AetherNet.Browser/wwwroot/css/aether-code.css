@@ -34,10 +34,27 @@
 .pen.prose .c-h2,
 .pen.prose .c-h3 { border-radius: 3px; }
 
-.pen.prose .c-h1 { background: rgba(33, 150, 243, .17); }
-.pen.prose .c-h2 { background: rgba(33, 150, 243, .11); }
-/* A section heading must never be quieter than the paragraphs under it. */
-.pen.prose .c-h3 { background: rgba(33, 150, 243, .09); }
+/*  A heading is a field, in the palette's own words: "a card is a blue FIELD, not a white box with
+    blue writing on it". A pale wash behind the words said something else entirely — in every text
+    editor ever made a light band behind a line means it is selected, so the headings read as an
+    accident rather than as structure.
+
+    Three depths of the one colour, which is all a three-colour palette allows and turns out to be
+    all it needs. Background and colour are also the two properties that move nothing, so the caret
+    underneath stays exactly where the letters are.  */
+/*  The field is widened with a shadow rather than padding. Padding on an inline span pushes its own
+    text sideways, and the caret in the layer above does not move with it - which is the drift this
+    whole approach exists to avoid, reintroduced for the sake of a few pixels of breathing room. */
+.pen.prose .c-h1,
+.pen.prose .c-h2,
+.pen.prose .c-h3 { color: var(--on-surface, #fff); }
+
+.pen.prose .c-h1 { background: var(--surface, #2196F3);
+                   box-shadow: .3em 0 0 var(--surface, #2196F3), -.3em 0 0 var(--surface, #2196F3); }
+.pen.prose .c-h2 { background: rgba(33, 150, 243, .82);
+                   box-shadow: .3em 0 0 rgba(33, 150, 243, .82), -.3em 0 0 rgba(33, 150, 243, .82); }
+.pen.prose .c-h3 { background: rgba(33, 150, 243, .58);
+                   box-shadow: .3em 0 0 rgba(33, 150, 243, .58), -.3em 0 0 rgba(33, 150, 243, .58); }
 
 .pen.prose .c-said { background: rgba(33, 150, 243, .09); border-radius: 3px; }
 .pen.prose .c-num  { background: rgba(33, 150, 243, .09); border-radius: 3px; }

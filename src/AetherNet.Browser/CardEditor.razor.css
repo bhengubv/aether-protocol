@@ -25,10 +25,17 @@
     .top { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; margin: -16px -16px 0; padding: 12px 14px 10px; background: var(--bg, #eaeef3); }
     .back { width: 32px; height: 32px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.9rem; cursor: pointer; }
     .count { flex: 0 0 auto; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; color: var(--ink-3, #8a97a6); font-variant-numeric: tabular-nums; }
-    .count.addr { flex: 1 1 auto; min-width: 0; text-align: center; font-size: 0.78rem; letter-spacing: 0;
-                  font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
-                  color: var(--brand, #2196F3); white-space: nowrap; overflow: hidden;
-                  text-overflow: ellipsis; padding: 0 2px; }
+    /* A card is a blue field, says the palette, and this is the page's own address — the one thing on
+       this screen that says which page you are in. So it is a field, not a hairline outline. */
+    .count.addr { flex: 1 1 auto; min-width: 0; text-align: center; font-size: 0.76rem; letter-spacing: 0;
+                  font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace); font-weight: 600;
+                  background: var(--surface, #2196F3); color: var(--on-surface, #fff);
+                  padding: 8px 14px; border-radius: 999px;
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* And the two controls beside it stop competing with it. */
+    .back, .under { border-color: transparent; opacity: .55; }
+    .back:active, .under:active, .under.on { opacity: 1; }
 
     .body { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 42vh; padding-bottom: 78px; }
 
@@ -198,14 +205,17 @@
    every pixel of type — same face, same size, same leading, same padding — or
    the caret drifts away from the letter it is sitting after, which is the one
    bug that makes a code editor unusable. */
-.studio { display: flex; flex-direction: column; gap: 8px; margin-top: 16px;
+.studio { display: flex; flex-direction: column; gap: 6px; margin-top: 4px;
           padding-top: 18px; border-top: 1px solid var(--line-card, rgba(127,140,158,.28));
           /* Clear of the Next bar, which is fixed. Without this the bottom of the preview - the part
              that shows what the measure and the leading actually did - sits under it. */
           padding-bottom: 96px; }
 
-.studio-h { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
-.studio-t { font-size: 0.86rem; font-weight: 700; }
+.studio-h { display: flex; flex-direction: column; gap: 4px; margin-top: 26px; }
+/* The same eyebrow a card uses for its own sections, so the tool and the thing it makes are
+   evidently one design rather than two. */
+.studio-t { font-size: 0.66rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
+            opacity: .5; }
 /* Quieter than the thing it is explaining. At .8 the instructions carried the same weight as the
    sentence being written, and in a three-colour palette both are the same blue — so the only way to
    tell the page from the help about the page was to read them. */
@@ -217,12 +227,26 @@
 
 /*  Told apart at a glance, so that scrolled to a boundary you know which box you are in. The page is
     the work and carries the weight; the stylesheet is the trim and steps back. */
-/* No border on the page you are writing. A box with a line round it is a field somebody fills in;
-   what this wants to feel like is paper with the light on it. The stylesheet keeps its outline,
-   because a stylesheet genuinely is a field. */
-.pen.prose { background: color-mix(in srgb, currentColor 6%, transparent); border-color: transparent; }
-.pen.prose .ink, .pen.prose .raw { padding: 18px 17px; }
-.pen.prose:focus-within { border-color: color-mix(in srgb, currentColor 30%, transparent); }
+/*  The page being written is not in a box at all.
+
+    A tinted panel with a border is a field on a form, and a tint of the ink over the page is the one
+    thing this palette explicitly refuses — no midtones, it says: hierarchy is size and weight. So the
+    document sits directly on the page at a size you would actually write at, and the only thing
+    marking it is the label above it. What is left on screen is a person's words and nothing else,
+    which is the whole claim the app is making.  */
+.pen.prose { background: transparent; border: 0; border-radius: 0; }
+.pen.prose .ink, .pen.prose .raw {
+    padding: 2px 0 18px;
+    font-size: clamp(1.02rem, 4.4vw, 1.16rem);
+    line-height: 1.62;
+    min-height: 300px;
+}
+.pen.prose:focus-within { border: 0; }
+
+/*  The stylesheet is a tool and looks like one — subordinate, contained, quieter than the page. */
+.pen:not(.prose) { background: var(--brand-tint, rgba(33,150,243,.10)); border-color: transparent;
+                   border-radius: var(--radius, 14px); }
+.pen:not(.prose) .ink, .pen:not(.prose) .raw { padding: 15px 15px; }
 .pen:not(.prose) { background: transparent; }
 
 /*  One scroller on the screen, not three.
@@ -267,7 +291,7 @@
 .studio-h.wide { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
 /* The one button the document still needs, in the same pill as "See the whole page" — because it
    belongs to the page being written, not to the chrome around it. */
-.penbar { display: flex; gap: 8px; margin-top: -2px; margin-bottom: 10px; }
+.penbar { display: flex; gap: 8px; margin-top: -8px; margin-bottom: 2px; }
 .pic { display: inline-flex; align-items: center; appearance: none;
        border: 1px solid currentColor; background: transparent; color: inherit;
        font: inherit; font-size: 0.76rem; font-weight: 700; padding: 6px 12px;

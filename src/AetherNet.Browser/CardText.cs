@@ -89,7 +89,12 @@ public static class CardText
             var line = Line(block);
             if (line is null) continue;
 
-            if (said.Length > 0) said.Append('\n');
+            // A blank line between blocks, because this is read as much as it is parsed. Joined
+            // with one newline the page came back as a wall - every paragraph, heading and list
+            // butted against the next - and the blank lines somebody typed to give their own
+            // writing room were quietly lost the moment they reopened it. The parser does not
+            // need them; the person does.
+            if (said.Length > 0) said.Append("\n\n");
             said.Append(line);
         }
 
