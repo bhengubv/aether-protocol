@@ -172,6 +172,14 @@
         /** Remember who to tell, then wire whatever is already on screen. */
         wire: function (who, what) { owner = who; penned = what; sweep(); },
 
+        /** Bring the stylesheet pen into view and put the caret in it. */
+        reveal: function () {
+            var raw = document.querySelector('[data-aether-code][data-lang="css"] .raw');
+            if (!raw) { return; }
+            raw.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            raw.focus();
+        },
+
         /**
          * Put text into a pen at the caret, as though it had been typed there.
          *

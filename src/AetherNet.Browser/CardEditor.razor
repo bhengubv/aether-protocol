@@ -150,6 +150,11 @@
                     @(_busyPic ? "…" : "Photo")
                     <input type="file" accept="image/*" @ref="_picker" hidden />
                 </label>
+                @*  Style is the make-it-look-like-nobody-else's feature — raw CSS on your own card,
+                    the thing MySpace taught a generation. It was rendered below the writing surface
+                    under the word "Optional", where nobody found it. It gets a place on the top row
+                    and jumps you to the pen. *@
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="RevealStyle">Style</button>
             </div>
 
             @if (_adding)
@@ -234,12 +239,13 @@
                 <p class="told">@kept</p>
             }
 
-            <div class="studio-h">
-                <span class="studio-t">Your stylesheet</span>
+            <div class="studio-h" id="stylesheet">
+                <span class="studio-t">Make it yours — CSS</span>
                 @if (Sheet.Length == 0)
                 {
                     <span class="studio-b">
-                        Optional. Your rules come last, so they win — and they only ever reach your own card.
+                        Write your own rules and the page looks like nobody else's. Yours come last, so
+                        they win — and they only ever touch your own card.
                     </span>
                 }
             </div>
@@ -642,7 +648,7 @@
         try
         {
             OwnCard.SetCss(_doc, text ?? "");
-            if (!Fresh || _page is not null) Save(); else Draw();
+            Save();
             _penSaid = "";
         }
         catch (Exception why)
@@ -692,7 +698,7 @@
             _doc = made;
             NameIt();
 
-            if (!Fresh || _page is not null) Save(); else Draw();
+            Save();
             _penSaid = "";
         }
         catch (Exception why)
@@ -801,6 +807,12 @@
         try { await JS.InvokeVoidAsync("aetherPage.set", what, value); } catch (Exception) { }
     }
 
+    /// <summary>Bring the stylesheet pen into view and put the caret in it.</summary>
+    private async Task RevealStyle()
+    {
+        try { await JS.InvokeVoidAsync("aetherCode.reveal"); } catch (Exception) { }
+    }
+
     /// <summary>A line across the page.</summary>
     private async Task Rule()
     {
@@ -881,14 +893,14 @@
     private void ChooseLook(CardLook look)
     {
         OwnCard.SetLook(_doc, look.Key);
-        if (!Fresh || _page is not null) Save(); else Draw();
+        Save();
     }
 
     private void ChooseShader(CardShader shader)
     {
         OwnCard.SetShader(_doc, shader.Key);
         _shader = shader;
-        if (!Fresh || _page is not null) Save(); else Draw();
+        Save();
     }
 
 
@@ -1044,7 +1056,10 @@
     /// </remarks>
     private void Save()
     {
-        if (_name.Length == 0) return;
+        // No name yet means nothing to persist — but the preview must still redraw, because this is
+        // the only path a keystroke takes. Returning without a Draw here is what left a fresh page's
+        // preview frozen while its callers had to guard the Save with an else-Draw of their own.
+        if (_name.Length == 0) { Draw(); return; }
 
         // A page comes into existence when it is given a name a reader would see — not when somebody
         // taps through a look. Tapping through used to leave a nameless draft behind on every pass,

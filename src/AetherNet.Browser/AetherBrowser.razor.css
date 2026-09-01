@@ -91,6 +91,9 @@
     .bm.peer { border-color: var(--brand); color: var(--brand); background: transparent; }
     .bm.saved { color: var(--ink-2, #5b6b7b); }
     .bm.saved.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+    /* Whose card it is — quiet, so the title still reads first but the owner is never in doubt. */
+    .bm-by { opacity: .5; font-size: 0.72rem; }
+    .bm.on .bm-by { opacity: .8; }
 
     /* The card, drawn by its own renderer, owning its whole surface.
 
@@ -123,9 +126,6 @@
     /* Over a photograph the mark is a label on somebody's picture rather than the picture itself, so
        it stands down — and it gets a scrim, because a white letter on an unknown photograph is a
        white letter on white about a third of the time. */
-
-    /* The plate is the top of the card, so the title needs no space above it. */
-    .doc > .card-title:first-child { padding-top: 22px; }
 
     /* A hairline under the title separates "who this is" from "what they're saying". */
 

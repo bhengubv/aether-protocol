@@ -237,9 +237,13 @@ else
         {
             <button class="bm @(_address == $"{Mesh.LocalTag}/{name}" ? "on" : null)" @onclick="@(() => Go(Mesh.Address(name)))">@name</button>
         }
+        @*  A held card carries whose it is. Its title is the author's to choose, so it can be anything
+            — including "me", which is every device's own front page. Without the author's tag beside
+            it, somebody else's "me" sits in the row looking exactly like your own. A card is
+            author-tag-then-name; showing the tag is what makes the two never the same thing. *@
         @foreach (var card in Mesh.Deck.All)
         {
-            <button class="bm saved @(_address == TrimScheme(card.Address) ? "on" : null)" @onclick="@(() => Go(card.Address))">🔖 @(card.Title is { Length: > 0 } t ? t : card.Name)</button>
+            <button class="bm saved @(_address == TrimScheme(card.Address) ? "on" : null)" @onclick="@(() => Go(card.Address))">🔖 @(card.Title is { Length: > 0 } t ? t : card.Name) <span class="bm-by">@card.AuthorTag</span></button>
         }
         @if (Mesh.PeerSiteAddress is { } peer && !Mesh.Deck.Holds(peer))
         {

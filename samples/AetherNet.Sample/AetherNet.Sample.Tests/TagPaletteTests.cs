@@ -49,4 +49,29 @@ public class TagPaletteTests
     [InlineData(null)]
     public void Initial_falls_back_when_there_is_no_tag(string? tag) =>
         Assert.Equal("?", TagPalette.Initial(tag));
+
+    // ── On the palette ────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("DY5CF-84G9T")]
+    [InlineData("BH8CZ-B09CA")]
+    [InlineData("JPJMX-GR3N7")]
+    [InlineData("KXJB7-MN2P4")]
+    [InlineData("ZZZZZ-ZZZZZ")]
+    public void Every_avatar_is_a_shade_of_the_one_blue_and_no_second_hue(string tag)
+    {
+        // The brand blue is (33, 150, 243). A shade of it is that colour scaled toward black, so the
+        // channel *ratios* are unchanged — only the lightness moves. Anything with a different ratio
+        // (a teal, a slate, an indigo) is a second hue and is exactly what this locks out.
+        var hex = TagPalette.For(tag);
+        var r = Convert.ToInt32(hex.Substring(1, 2), 16);
+        var g = Convert.ToInt32(hex.Substring(3, 2), 16);
+        var b = Convert.ToInt32(hex.Substring(5, 2), 16);
+
+        Assert.True(b > 0, $"{hex} has no blue in it");
+
+        // Compare each channel's share of blue against the brand's, within rounding tolerance.
+        Assert.InRange(r / (double)b, 33 / 243.0 - 0.04, 33 / 243.0 + 0.04);
+        Assert.InRange(g / (double)b, 150 / 243.0 - 0.04, 150 / 243.0 + 0.04);
+    }
 }
