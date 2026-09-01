@@ -115,10 +115,8 @@
             <div class="studio-h">
                 <span class="studio-t">Your page</span>
                 <span class="studio-b">
-                    A line at a time. <code>#</code> a title, <code>##</code> a heading,
-                    <code>-</code> a list, <code>name = value</code> a row,
-                    <code>&gt;</code> a quotation, <code>---</code> a line across.
-                    <code>**bold**</code> and <code>[words](where)</code> inside a sentence.
+                    Just write. <code>#</code> a title, <code>##</code> a heading, <code>-</code> a
+                    list, <code>name = value</code> a row.
                 </span>
             </div>
 
@@ -158,8 +156,7 @@
             <div class="studio-h">
                 <span class="studio-t">Your stylesheet</span>
                 <span class="studio-b">
-                    Your rules come last, so they win. Every selector is kept inside your own
-                    card — @CardCss.Root is added for you — and anything that would fetch is refused.
+                    Optional. Your rules come last, so they win — and they only ever reach your own card.
                 </span>
             </div>
 
@@ -181,6 +178,19 @@
             </div>
 
             <iframe class="seen" tabindex="-1" title="Your page" srcdoc="@_preview"></iframe>
+
+            @*  Taking a page down went out with the wizard, leaving no way to get rid of one at all.
+                It is back — but at the far end of the page, small, and asking twice. It is the only
+                thing here that cannot be undone, and it had been sitting at full weight under the
+                thumb beside the button people actually mean to press.  *@
+            @if (_page is not null)
+            {
+                <div class="downrow">
+                    <button class="down @(_sure ? "sure" : null)" @onclick="Downing">
+                        @(_sure ? "Tap again to delete this page" : "Take it down")
+                    </button>
+                </div>
+            }
         </div>
 
         @if (_whole)
@@ -201,16 +211,6 @@
         @if (_said is { Length: > 0 })
         {
             <p class="said">@_said</p>
-        }
-
-        @*  Taking a page down lived in the wizard, and went out with it — which left no way at all to
-            get rid of one. It is back, and it asks first: this is the one button here that cannot be
-            undone, on a screen held in one hand.  *@
-        @if (_page is not null)
-        {
-            <button class="ghost wide @(_sure ? "sure" : null)" @onclick="Downing">
-                @(_sure ? "Tap again to delete" : "Take it down")
-            </button>
         }
 
         <button class="go" disabled="@(_busy || !CanPublish)" @onclick="Publish">

@@ -40,7 +40,9 @@
     font-family: var(--sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
     font-size: 0.95rem; line-height: 1.6;
     white-space: pre-wrap; overflow-wrap: break-word; word-break: normal;
-    min-height: 320px; max-height: 56vh;
+    /* No cap and no scroll of its own: aether-code.js grows it to hold the text, and the page
+       scrolls once. A capped box inside a scrolling page is a drag that might move either. */
+    min-height: 260px;
 }
 
 /* Structure you can see at a glance, still without a second colour: the words carry the weight and

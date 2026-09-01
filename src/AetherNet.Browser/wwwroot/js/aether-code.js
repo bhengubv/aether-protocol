@@ -92,7 +92,17 @@
         var rules = pen.getAttribute('data-lang') === 'page' ? PAGE : RULES;
         var which = pen.getAttribute('data-lang') || 'css';
 
-        function draw() { ink.innerHTML = paint(raw.value, rules); }
+        //  The field is as tall as its text.
+        //
+        //  It used to be a fixed box that scrolled inside a page that also scrolled, which on a phone
+        //  means a drag near the edge is a guess. Growing it costs one reflow per keystroke and gives
+        //  the screen a single scroll, which is the one people already know how to use.
+        function fit() {
+            raw.style.height = 'auto';
+            raw.style.height = raw.scrollHeight + 'px';
+        }
+
+        function draw() { ink.innerHTML = paint(raw.value, rules); fit(); }
         function follow() { ink.scrollTop = raw.scrollTop; ink.scrollLeft = raw.scrollLeft; }
 
         // The text goes to C# from here, not through a bound value.
@@ -141,6 +151,16 @@
         });
 
         draw();
+
+        //  Measure again once the page has settled.
+        //
+        //  The first fit runs while the document face is still the fallback, and a sans face that
+        //  arrives afterwards is a different height — so the prose pen came out short and scrolled
+        //  inside itself anyway, which is the whole thing this was meant to stop. Cheap to repeat,
+        //  and the only reliable moment is after the fonts say they are ready.
+        requestAnimationFrame(fit);
+        if (document.fonts && document.fonts.ready) { document.fonts.ready.then(fit); }
+        window.addEventListener('resize', fit);
     }
 
     function sweep() { document.querySelectorAll('[data-aether-code]').forEach(wire); }

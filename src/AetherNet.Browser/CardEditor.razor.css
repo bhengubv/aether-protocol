@@ -209,13 +209,13 @@
    every pixel of type — same face, same size, same leading, same padding — or
    the caret drifts away from the letter it is sitting after, which is the one
    bug that makes a code editor unusable. */
-.studio { display: flex; flex-direction: column; gap: 10px; margin-top: 22px;
+.studio { display: flex; flex-direction: column; gap: 8px; margin-top: 16px;
           padding-top: 18px; border-top: 1px solid var(--line-card, rgba(127,140,158,.28));
           /* Clear of the Next bar, which is fixed. Without this the bottom of the preview - the part
              that shows what the measure and the leading actually did - sits under it. */
           padding-bottom: 96px; }
 
-.studio-h { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.studio-h { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
 .studio-t { font-size: 0.86rem; font-weight: 700; }
 /* Quieter than the thing it is explaining. At .8 the instructions carried the same weight as the
    sentence being written, and in a three-colour palette both are the same blue — so the only way to
@@ -226,11 +226,28 @@
        border-radius: var(--radius-sm, 10px); overflow: hidden;
        background: color-mix(in srgb, currentColor 4%, transparent); }
 
+/*  Told apart at a glance, so that scrolled to a boundary you know which box you are in. The page is
+    the work and carries the weight; the stylesheet is the trim and steps back. */
+.pen.prose { background: color-mix(in srgb, currentColor 7%, transparent);
+             border-color: color-mix(in srgb, currentColor 34%, transparent); }
+.pen:not(.prose) { background: transparent; }
+
+/*  One scroller on the screen, not three.
+
+    Both pens were max-height boxes with their own overflow, inside a page that also scrolls. On a
+    phone that is the pattern to avoid: near a boundary a drag is a coin flip between moving the
+    field and moving the page, and a line clipped through the middle of its letters reads as broken
+    rather than as continued. So the pens have no scroll of their own — they grow to hold what is in
+    them (aether-code.js sets the height) and the page scrolls, once.
+
+    Wrapping is on for both. It was off for the stylesheet on the theory that in CSS a line is a
+    line, which is true of rules and false of comments — and a comment is the part of a stylesheet
+    made of sentences. It was the part running off the right edge.  */
 .pen .ink, .pen .raw {
-    margin: 0; padding: 12px 13px; border: 0; min-height: 210px; max-height: 46vh;
+    margin: 0; padding: 13px 14px; border: 0; min-height: 132px;
     font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-    font-size: 0.82rem; line-height: 1.65; tab-size: 2;
-    white-space: pre; overflow: auto; overflow-wrap: normal; word-break: normal;
+    font-size: 0.82rem; line-height: 1.7; tab-size: 2;
+    white-space: pre-wrap; overflow: hidden; overflow-wrap: break-word; word-break: normal;
 }
 
 .pen .ink { position: absolute; inset: 0; pointer-events: none; }
@@ -239,7 +256,7 @@
    visible through caret-color, which is the whole reason this works. */
 .pen .raw { position: relative; width: 100%; box-sizing: border-box; display: block;
             background: transparent; color: transparent; caret-color: currentColor;
-            resize: vertical; outline: none; }
+            resize: none; outline: none; overflow: hidden; }
 /* The textarea's own colour is transparent — that is how the caret shows through to the coloured
    text underneath — and a placeholder inherits it, so "currentColor" here meant an invisible
    placeholder and an empty white box with no hint of what to type. It takes a colour of its own. */
@@ -257,7 +274,7 @@
 .studio-h.wide { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
 /* The one button the document still needs, in the same pill as "See the whole page" — because it
    belongs to the page being written, not to the chrome around it. */
-.penbar { display: flex; gap: 8px; }
+.penbar { display: flex; gap: 8px; margin-top: -2px; margin-bottom: 10px; }
 .pic { display: inline-flex; align-items: center; appearance: none;
        border: 1px solid currentColor; background: transparent; color: inherit;
        font: inherit; font-size: 0.76rem; font-weight: 700; padding: 6px 12px;
@@ -286,6 +303,14 @@
 .whole-in { flex: 1 1 auto; width: 100%; border: 0; background: #fff; }
 
 .told { margin: 0; font-size: 0.78rem; line-height: 1.45; font-weight: 600; }
+
+/*  Destructive, and therefore quiet and out of the way — not a full-weight button sitting under the
+    thumb, next to the one people mean to press. */
+.downrow { display: flex; justify-content: center; margin-top: 26px; }
+.down { appearance: none; background: none; border: 0; padding: 8px 12px;
+        font: inherit; font-size: 0.76rem; font-weight: 600; opacity: .5;
+        text-decoration: underline; text-underline-offset: 3px; cursor: pointer; color: inherit; }
+.down.sure { opacity: 1; font-weight: 800; text-decoration: none; }
 
 /* The page, drawn by the real renderer. Tall enough to be a page rather than a
    strip — you cannot judge a measure or a leading in 90 pixels. */
