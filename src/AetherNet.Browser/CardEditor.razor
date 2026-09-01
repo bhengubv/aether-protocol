@@ -123,29 +123,24 @@
                 }
             </div>
 
-            @*  The look. This is the control that decides whether a page feels like yours, and it
-                had no UI at all: the wizard's picker went with the wizard, the "%theme" line went
-                with the source view, and what was left could not change its own appearance. *@
-            <div class="looks" role="group" aria-label="Look">
-                @foreach (var look in CardLook.All)
-                {
-                    <button class="chip @(look.Key == CardLook.FromCard(_doc).Key ? "on" : null)"
-                            @onmousedown:preventDefault="true" @onclick="@(() => ChooseLook(look))">@look.Name</button>
-                }
-            </div>
-
-            <div class="looks" role="group" aria-label="Background">
-                @foreach (var back in CardShader.All)
-                {
-                    <button class="chip small @(back.Key == _shader.Key ? "on" : null)"
-                            @onmousedown:preventDefault="true" @onclick="@(() => ChooseShader(back))">@back.Name</button>
-                }
-            </div>
-
             @*  The toolbar acts on the selection, which is the third part of what a rich text editor
                 is. mousedown is prevented on every button: a button that takes the focus destroys
                 the selection it was about to act on, which is the oldest bug in this kind of tool. *@
             <div class="tools" role="toolbar">
+                @*  A word is not a look.
+
+                    These were two rows of names — Night, Halftone, Ribbon, Void — and a name teaches
+                    nobody anything. The wizard drew every one of them as a real card and that was the
+                    right idea; what is behind this button is your own page, rendered in each, so
+                    picking one is looking rather than guessing.  *@
+                <button class="tool lead" @onmousedown:preventDefault="true" @onclick="@(() => _looking = true)">Look</button>
+                <label class="tool lead" title="A picture">
+                    @(_busyPic ? "…" : "Photo")
+                    <input type="file" accept="image/*" @ref="_picker" hidden />
+                </label>
+
+                <span class="tool-gap"></span>
+
                 <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("title"))">Title</button>
                 <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("heading"))">Heading</button>
                 <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => Block("eyebrow"))">Label</button>
@@ -172,11 +167,47 @@
                 <span class="tool-gap"></span>
 
                 <button class="tool ico" title="A line across" @onmousedown:preventDefault="true" @onclick="Rule">&#8212;</button>
-                <label class="tool ico" title="A picture">
-                    @(_busyPic ? "…" : "Photo")
-                    <input type="file" accept="image/*" @ref="_picker" hidden />
-                </label>
             </div>
+
+            @if (_looking)
+            {
+                <div class="whole-page">
+                    <div class="whole-bar">
+                        <span class="whole-t">Pick a look</span>
+                        <button class="whole-x" @onclick="@(() => _looking = false)">Done</button>
+                    </div>
+
+                    <div class="gal-in">
+                        <div class="gal">
+                            @foreach (var look in CardLook.All)
+                            {
+                                <button class="gal-one @(look.Key == CardLook.FromCard(_doc).Key ? "on" : null)"
+                                        @onclick="@(() => ChooseLook(look))">
+                                    <span class="gal-shot">
+                                        <iframe class="gal-mini" tabindex="-1" title="@look.Name" srcdoc="@Thumb(look)"></iframe>
+                                    </span>
+                                    <span class="gal-n">@look.Name</span>
+                                </button>
+                            }
+                        </div>
+
+                        <p class="gal-h">Background</p>
+
+                        <div class="gal">
+                            @foreach (var back in CardShader.All)
+                            {
+                                <button class="gal-one @(back.Key == _shader.Key ? "on" : null)"
+                                        @onclick="@(() => ChooseShader(back))">
+                                    <span class="gal-shot">
+                                        <iframe class="gal-mini" tabindex="-1" title="@back.Name" srcdoc="@Thumb(back)"></iframe>
+                                    </span>
+                                    <span class="gal-n">@back.Name</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
 
             @if (_linkOpen)
             {
@@ -679,6 +710,37 @@
     {
         try { await JS.InvokeVoidAsync("aetherPage.mark", name); } catch (Exception) { }
     }
+
+    /// <summary>Whether the look gallery is open.</summary>
+    private bool _looking;
+
+    /// <summary>This page, wearing a look that has not been chosen yet.</summary>
+    /// <remarks>
+    /// The author's own words rather than a mock-up, because a thumbnail of somebody else's content
+    /// answers a different question. Rendered by the same renderer a reader's phone uses, so what is
+    /// picked is what arrives.
+    /// </remarks>
+    private string Thumb(CardLook look)
+    {
+        var shown = Copy();
+        OwnCard.SetLook(shown, look.Key);
+        return Drawn(shown);
+    }
+
+    /// <summary>The same, for a background.</summary>
+    private string Thumb(CardShader back)
+    {
+        var shown = Copy();
+        OwnCard.SetShader(shown, back.Key);
+        return Drawn(shown);
+    }
+
+    private CardDocument Copy() =>
+        new() { Version = _doc.Version, Title = _doc.Title, Blocks = [.. _doc.Blocks ?? []] };
+
+    private string Drawn(CardDocument card) =>
+        CardPage.Render(OwnCard.ForPublish(card), card.Title, 0,
+            downloadPath: null, assetPath: Picture, fontBase: PageAssets.WebFontBase);
 
     /// <summary>Whether the address field for a link is open, and what is in it.</summary>
     private bool _linkOpen;

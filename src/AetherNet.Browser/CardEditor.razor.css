@@ -291,19 +291,31 @@
 .studio-h.wide { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
 /* The one button the document still needs, in the same pill as "See the whole page" — because it
    belongs to the page being written, not to the chrome around it. */
-/*  The look, and the ground under it. First control on the screen, because it is the one that
-    decides whether the page feels like anybody's. */
-.looks { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 8px; scrollbar-width: none; }
-.looks::-webkit-scrollbar { display: none; }
+/*  The gallery. Real pages, drawn small.
 
-.chip { flex: 0 0 auto; appearance: none; border: 1px solid currentColor; background: transparent;
-        color: inherit; font: inherit; font-size: .74rem; font-weight: 700; padding: 7px 13px;
-        border-radius: 999px; cursor: pointer; white-space: nowrap; }
-.chip.small { font-size: .68rem; padding: 6px 11px; opacity: .7; }
-.chip.on { background: var(--surface, #2196F3); color: var(--on-surface, #fff); border-color: transparent; opacity: 1; }
+    A name is not a look. "Halftone" and "Void" and "Ribbon" told nobody anything, and the one moment
+    that sells this — tap it and watch your own page become something else — was hidden behind
+    vocabulary. Each of these is the author's page through the same renderer a reader gets. */
+.gal-in { flex: 1 1 auto; overflow: auto; padding: 12px 14px 28px; }
 
-.linkrow { display: flex; gap: 6px; align-items: center; padding: 0 0 10px; }
-.linkrow .in { flex: 1 1 auto; min-width: 0; }
+.gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+
+.gal-one { display: flex; flex-direction: column; gap: 6px; padding: 6px; text-align: left;
+           border: 1px solid var(--line-card, rgba(127,140,158,.28)); border-radius: 12px;
+           background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.gal-one.on { border-color: var(--brand, #2196F3); border-width: 2px; padding: 5px; }
+
+.gal-shot { display: block; position: relative; width: 100%; aspect-ratio: 3 / 4;
+            border-radius: 8px; overflow: hidden; background: #fff; }
+.gal-mini { position: absolute; top: 0; left: 0; width: 380px; height: 507px; border: 0;
+            transform: scale(0.33); transform-origin: top left; pointer-events: none; }
+
+.gal-n { font-size: .74rem; font-weight: 700; padding-left: 2px; }
+.gal-h { margin: 22px 0 8px; font-size: .66rem; font-weight: 800; letter-spacing: .2em;
+         text-transform: uppercase; opacity: .5; }
+
+/*  The two that open something, told apart from the ones that change a line. */
+.tool.lead { background: var(--surface, #2196F3); color: var(--on-surface, #fff); border-color: transparent; }
 
 /*  The toolbar. It scrolls sideways rather than wrapping, because a toolbar that changes height as
     you scroll the page is a toolbar that moves the writing under your thumb. */
