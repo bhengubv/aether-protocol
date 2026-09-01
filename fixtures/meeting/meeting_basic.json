@@ -1,0 +1,131 @@
+{
+  "note": "Canonical rendezvous-derivation parity vectors from the C# reference (AetherNet.Rendezvous.Meeting). Order the two tags by ordinal comparison into (first, second); rendezvous = CrockfordBase32( HKDF-SHA256( ikm=UTF8(first \u002B \u0027\\n\u0027 \u002B second), salt=empty, info=UTF8(\u0027aether-meeting-v1\u0027), L=16 ) )[..25]. i_start = the ordinally-lower tag hosts (this phone starts when its own tag is the lower one). uuid = SHA256(UTF8(\u0027aether-meeting-v1-uuid\\n\u0027 \u002B rendezvous))[..16] with byte[7]=(b\u00260x0F)|0x40 and byte[8]=(b\u00260x3F)|0x80, read as a .NET Guid (uuid is Guid.ToByteArray() \u2014 bytes 0..3, 4..5, 6..7 are little-endian). address[n] = SHA256(UTF8(\u0027aether-meeting-v1-addr\\n\u0027 \u002B rendezvous)) read big-endian u32, masked to the low n bits. Every language port MUST reproduce rendezvous, i_start, uuid and every address byte-for-byte.",
+  "info": "aether-meeting-v1",
+  "alphabet": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+  "length": 25,
+  "address_bits": [
+    8,
+    16,
+    24,
+    32
+  ],
+  "cases": [
+    {
+      "name": "basic_ascii",
+      "my_tag": "BH8CZ-B09CA",
+      "their_tag": "DY5CF-84G9T",
+      "rendezvous": "K0CZJ3EVMJBPA4SJAC407Q36B",
+      "i_start": true,
+      "uuid": "e7090a5badab914b82e3d38a457bb4ad",
+      "uuid_string": "5b0a09e7-abad-4b91-82e3-d38a457bb4ad",
+      "address": {
+        "8": 106,
+        "16": 48490,
+        "24": 9878890,
+        "32": 3717643626
+      }
+    },
+    {
+      "name": "basic_ascii_swapped",
+      "my_tag": "DY5CF-84G9T",
+      "their_tag": "BH8CZ-B09CA",
+      "rendezvous": "K0CZJ3EVMJBPA4SJAC407Q36B",
+      "i_start": false,
+      "uuid": "e7090a5badab914b82e3d38a457bb4ad",
+      "uuid_string": "5b0a09e7-abad-4b91-82e3-d38a457bb4ad",
+      "address": {
+        "8": 106,
+        "16": 48490,
+        "24": 9878890,
+        "32": 3717643626
+      }
+    },
+    {
+      "name": "digit_before_letter",
+      "my_tag": "9ZZZZ-ZZZZZ",
+      "their_tag": "A0000-00000",
+      "rendezvous": "VD1MT4AVC2QR6HNPPHPEQRZ12",
+      "i_start": true,
+      "uuid": "a6d47f2332b1b448a901ef8b0eff5c64",
+      "uuid_string": "237fd4a6-b132-48b4-a901-ef8b0eff5c64",
+      "address": {
+        "8": 92,
+        "16": 16476,
+        "24": 4079708,
+        "32": 1849573468
+      }
+    },
+    {
+      "name": "unicode_utf8",
+      "my_tag": "caf\u00E9-\u03A9",
+      "their_tag": "na\u00EFve-\uD83D\uDF01",
+      "rendezvous": "FRCW0SJ53GNVW591JHATF48NM",
+      "i_start": true,
+      "uuid": "80f21c39a9814948b5c806a6681d6e9b",
+      "uuid_string": "391cf280-81a9-4849-b5c8-06a6681d6e9b",
+      "address": {
+        "8": 251,
+        "16": 58107,
+        "24": 6742779,
+        "32": 2523325179
+      }
+    },
+    {
+      "name": "long_tags",
+      "my_tag": "this-is-a-deliberately-long-tag-000",
+      "their_tag": "this-is-a-deliberately-long-tag-001",
+      "rendezvous": "RMPNNVRA83JD6MMYQ6F5TQJS5",
+      "i_start": true,
+      "uuid": "11a09ebb815ef2478673f6eb621b9f60",
+      "uuid_string": "bb9ea011-5e81-47f2-8673-f6eb621b9f60",
+      "address": {
+        "8": 68,
+        "16": 22340,
+        "24": 16078660,
+        "32": 3119863620
+      }
+    },
+    {
+      "name": "numeric_adjacent",
+      "my_tag": "00000-00000",
+      "their_tag": "00000-00001",
+      "rendezvous": "QJ43774K2TMN432S4B7VP3YPR",
+      "i_start": true,
+      "uuid": "da1a9ed04b79334c911af5bbb132621e",
+      "uuid_string": "d09e1ada-794b-4c33-911a-f5bbb132621e",
+      "address": {
+        "8": 171,
+        "16": 171,
+        "24": 131243,
+        "32": 4227989675
+      }
+    }
+  ],
+  "rejects": [
+    {
+      "name": "identical",
+      "my_tag": "Q7WER-TY123",
+      "their_tag": "Q7WER-TY123"
+    },
+    {
+      "name": "case_variant",
+      "my_tag": "ABCDE-FGHIJ",
+      "their_tag": "ABCDE-fghij"
+    },
+    {
+      "name": "empty_their",
+      "my_tag": "BH8CZ-B09CA",
+      "their_tag": ""
+    },
+    {
+      "name": "whitespace_my",
+      "my_tag": "   ",
+      "their_tag": "DY5CF-84G9T"
+    },
+    {
+      "name": "null_their",
+      "my_tag": "BH8CZ-B09CA",
+      "their_tag": null
+    }
+  ]
+}
