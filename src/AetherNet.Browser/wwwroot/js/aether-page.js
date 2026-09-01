@@ -253,24 +253,39 @@
         // read it. B/I/U keep their single letters because those ARE the words for them on every
         // formatting bar a person has ever seen; the rest say what they do.
         //
-        // [command, face, name] — the face is what you see, the name is what a screen reader and a
-        // long-press both say, and what a translator will one day replace.
-        [
-            ['bold', 'B', 'Bold'],
-            ['italic', 'I', 'Italic'],
-            ['underline', 'U', 'Underline'],
-            ['link', 'Link', 'Add a link']
-        ].forEach(function (m) {
+        // [kind, command, face, name] — the face is what you see, the name is what a screen reader
+        // and a long-press both say, and what a translator will one day replace.
+        //
+        // Two groups. The marks act on the words you selected; the settings act on the block those
+        // words are in — centre it, make it wide, make it small. The settings used to be four buttons
+        // on the permanent ribbon with nothing to say they acted on "the current block"; here they
+        // are on the bubble that is already pointing at that block, which is the whole point.
+        var spec = [
+            ['mark', 'bold', 'B', 'Bold'],
+            ['mark', 'italic', 'I', 'Italic'],
+            ['mark', 'underline', 'U', 'Underline'],
+            ['link', 'link', 'Link', 'Add a link'],
+            ['gap'],
+            ['centre', 'centre', 'Centre', 'Centre this'],
+            ['as', 'wide', 'Wide', 'Make it wide'],
+            ['as', 'small', 'Small', 'Make it small']
+        ];
+
+        spec.forEach(function (m) {
+            if (m[0] === 'gap') { var g = el('SPAN'); g.className = 'sel-gap'; b.appendChild(g); return; }
+
             var btn = el('BUTTON');
             btn.type = 'button';
-            btn.className = 'sel-b';
-            btn.textContent = m[1];
-            btn.setAttribute('aria-label', m[2]);
-            btn.setAttribute('title', m[2]);
+            btn.className = 'sel-b' + (m[0] === 'mark' || m[0] === 'link' ? '' : ' sel-set');
+            btn.textContent = m[2];
+            btn.setAttribute('aria-label', m[3]);
+            btn.setAttribute('title', m[3]);
             btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
             btn.addEventListener('click', function () {
                 if (m[0] === 'link') { if (owner) owner.invokeMethodAsync('Linking'); }
-                else { doc.execCommand(m[0], false, null); var h = host(); if (h) tell(h, true); }
+                else if (m[0] === 'centre') { global.aetherPage.set('centre', null); }
+                else if (m[0] === 'as') { global.aetherPage.set('as', m[1]); }
+                else { doc.execCommand(m[1], false, null); var h = host(); if (h) tell(h, true); }
             });
             b.appendChild(btn);
         });

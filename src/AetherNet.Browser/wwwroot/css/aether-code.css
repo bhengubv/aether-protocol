@@ -198,6 +198,8 @@
 .sel-bubble {
     position: fixed; top: 0; left: 0; z-index: 40;
     display: flex; gap: 2px; padding: 4px;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto; scrollbar-width: none;
     background: #1a1a1a; border-radius: 12px;
     box-shadow: 0 6px 22px rgba(0,0,0,.28);
     opacity: 0; pointer-events: none;
@@ -214,6 +216,11 @@
 .sel-b:nth-child(2) { font-style: italic; }
 .sel-b:nth-child(3) { text-decoration: underline; }
 .sel-b:active { transform: scale(0.9); background: rgba(255,255,255,.16); }
+.sel-bubble::-webkit-scrollbar { display: none; }
+
+/* The block settings are the second tier — the same bar, quieter, so bold reads louder than wide. */
+.sel-b.sel-set { font-size: .82rem; font-weight: 600; color: rgba(255,255,255,.72); }
+.sel-gap { flex: 0 0 auto; width: 1px; margin: 6px 5px; background: rgba(255,255,255,.22); }
 
 @media (prefers-reduced-motion: reduce) {
     .sel-bubble { transition-property: opacity; }
