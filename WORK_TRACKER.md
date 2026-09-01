@@ -9,7 +9,7 @@ shrinks toward empty.
 `DECIDE` (needs an owner call first) · `DONE`.
 **Size:** S / M / L / XL (ledger scale).
 
-**Progress:** 7 shipped (Reach, concurrency test, Phase A ×5) · 5 prove · ~30 build · 3 decisions open.
+**Progress:** 10 shipped (Reach, concurrency test, Phase A ×5, D1–D3) · 5 prove · ~27 build · 3 decisions open.
 
 Constraints in force on every item: `aether://` only · Android + Circle OS · one APK · no GMS · FOSS
 only · substrate-first, economy-last · .NET 10 · `[skip ci]` · P30 is the benchmark · code in
@@ -53,12 +53,12 @@ only · substrate-first, economy-last · .NET 10 · `[skip ci]` · P30 is the be
 
 - [ ] **C1 · AI-assisted card design** — B! proposes blocks with you; additive, never auto-generates, never invents a fact. Seam: `IAetherAiProvider` (`src/AetherNet.Core/Extensibility/`). · **M · TODO**
 
-## Phase D — Promote rendezvous into the protocol  ·  the divergence that matters
+## Phase D — Promote rendezvous into the protocol  ·  the divergence that matters  ·  D1–D3 shipped
 
-- [ ] **D1 · Move `Meeting` + `GroupRole` into `src/AetherNet.Core`** — HKDF-SHA256, `info="aether-meeting-v1"`. From `samples/…/Services/Meeting.cs`. · **M · TODO**
-- [ ] **D2 · Move `RadioChoice` into `src/AetherNet.Transport`** — widest-measured-wins, hysteresis 1.25×. From `samples/…/Services/RadioChoice.cs`. · **M · TODO**
-- [ ] **D3 · Byte-parity fixtures for the derivation** — `fixtures/webrtc/` pattern, Go oracle, per-language `FixtureTests`. · **M · TODO**
-- [ ] **D4 · Port `Meeting` + `RadioChoice` + role-handover to the 7 other languages** against those fixtures. · **L · TODO**
+- [x] **D1 · Move `Meeting` + `GroupRole` into `src/AetherNet.Core`** — now `AetherNet.Rendezvous` (HKDF-SHA256, `info="aether-meeting-v1"`, verbatim). Shipped `16ec480`; 58 derivation/role tests pass unchanged, Android head builds. · **M · DONE**
+- [x] **D2 · Move `RadioChoice` into `src/AetherNet.Transport`** — now `AetherNet.Transport.Services` (widest-measured-wins, 1.25× hysteresis). New `tests/AetherNet.Transport.Tests` (9/9) registered in the slnx. Shipped `49b892a`. · **M · DONE**
+- [x] **D3 · Byte-parity fixtures for the derivation** — `fixtures/meeting/meeting_basic.json` from the C# reference + `MeetingFixtureGenerator` (generate+self-check, same pattern as `CrossLangFixtureGenerator`); Go isn't on PATH and C# is the source-of-truth per the repo's own convention. Adversarial cases + a `rejects` list. Shipped `d613165`. · **M · DONE**
+- [ ] **D4 · Port `Meeting` + `RadioChoice` + role-handover to the 7 other languages** against `fixtures/meeting/`. ⚠️ **needs the other toolchains** — Go not on PATH here, node absent, Swift/C on the Mac (`195.82.45.44`); ports go one-at-a-time, build+test+commit each. · **L · TODO (multi-env)**
 
 ## Phase E — Finish ERID on the data plane  ·  #1 CRITICAL  ·  BLOCKED: two-node delivery test
 
