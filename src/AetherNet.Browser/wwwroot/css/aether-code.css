@@ -93,3 +93,45 @@
 .pen.prose .c-num  { font-weight: 700; font-style: italic; }
 .pen.prose .c-mark { opacity: .35; }
 .pen.prose .c-note { opacity: .45; }
+
+
+/*  ── The page being written ────────────────────────────────────────────────────
+
+    Global, and it has to be: every element in here is made by aether-page.js at runtime, so it
+    carries no component scope attribute and a scoped rule would match none of it. That is the same
+    trap the token colouring sat in for months.
+
+    This is a rich text editor, so a heading is an h2 and it is simply big. Nothing here has to match
+    the metrics of a second layer, because there is no second layer — what you are looking at is the
+    document, not a description of one.  */
+
+.paper {
+    outline: none;
+    min-height: 300px;
+    padding: 2px 0 22px;
+    font-size: clamp(1rem, 4.3vw, 1.12rem);
+    line-height: 1.6;
+    caret-color: var(--brand, #2196F3);
+}
+
+.paper > * { margin: 0 0 .8em; }
+
+.paper h1 { font-size: clamp(1.7rem, 8.6vw, 2.6rem); line-height: 1.02; letter-spacing: -.03em;
+            font-weight: 820; margin: .1em 0 .4em; }
+.paper h2 { font-size: clamp(1.14rem, 5.4vw, 1.5rem); line-height: 1.2; letter-spacing: -.015em;
+            font-weight: 800; margin: 1.3em 0 .35em; }
+.paper h3 { font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; font-weight: 800;
+            opacity: .55; margin: 1.7em 0 .55em; }
+
+.paper blockquote { margin: 1em 0; padding-left: .9em; border-left: 2px solid currentColor; opacity: .82; }
+.paper ul, .paper ol { padding-left: 1.15em; margin: .2em 0 .9em; }
+.paper li { margin-bottom: .28em; }
+
+.paper hr { border: 0; height: 1px; background: currentColor; opacity: .32; margin: 1.5em 0; }
+
+.paper figure { margin: 1.1em 0; }
+.paper figure img { display: block; width: 100%; max-height: 320px; object-fit: cover; border-radius: 12px; }
+.paper figcaption { font-size: .78rem; opacity: .6; padding-top: .45em; }
+
+/* An empty page says what to do with itself, once. */
+.paper > p:only-child:empty::before { content: "Your name"; opacity: .3; }

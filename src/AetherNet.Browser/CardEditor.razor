@@ -114,46 +114,53 @@
         <div class="studio">
             <div class="studio-h">
                 <span class="studio-t">Your page</span>
-                @*  Only while the page is empty. A person who has already written three paragraphs
-                    does not need to be told what a hash does, and a tool that keeps explaining
-                    itself over the top of your work reads as a tutorial rather than a place to
-                    write.  *@
-                @if (Written.Length == 0)
+                @*  Only on a blank page. There is no syntax to explain any more — the buttons above
+                    say what they do and the page shows what you did — so this is an invitation and
+                    not an instruction, and it leaves the moment there is anything to read.  *@
+                @if (Blank)
                 {
-                    <span class="studio-b">
-                        Just write. <code>#</code> a title, <code>##</code> a heading,
-                        <code>-</code> a list, <code>name = value</code> a row.
-                    </span>
+                    <span class="studio-b">Start with your name. The buttons make a heading, a list, a photograph.</span>
                 }
             </div>
 
-            <div class="pen prose" data-aether-code data-lang="page" data-seed="@Written">
-                <pre class="ink" aria-hidden="true"></pre>
-                @*  Soft, unlike the stylesheet beside it. A sentence that runs off the right edge is
-                    a sentence you cannot read while writing it.  *@
-                <textarea class="raw" spellcheck="true" autocapitalize="sentences"
-                          autocomplete="off" autocorrect="off" wrap="soft"
-                          placeholder="@PageHint"></textarea>
-            </div>
+            @*  The toolbar acts on the selection, which is the third part of what a rich text editor
+                is. mousedown is prevented on every button: a button that takes the focus destroys
+                the selection it was about to act on, which is the oldest bug in this kind of tool. *@
+            <div class="tools" role="toolbar">
+                <button class="tool" title="Title" @onmousedown:preventDefault="true"
+                        @onclick="@(() => Block("title"))">Title</button>
+                <button class="tool" title="Heading" @onmousedown:preventDefault="true"
+                        @onclick="@(() => Block("heading"))">Heading</button>
+                <button class="tool" title="Small label" @onmousedown:preventDefault="true"
+                        @onclick="@(() => Block("eyebrow"))">Label</button>
+                <button class="tool" title="Paragraph" @onmousedown:preventDefault="true"
+                        @onclick="@(() => Block("text"))">Text</button>
+                <button class="tool" title="List" @onmousedown:preventDefault="true"
+                        @onclick="@(() => Block("list"))">List</button>
+                <button class="tool" title="Quotation" @onmousedown:preventDefault="true"
+                        @onclick="@(() => Block("quote"))">Quote</button>
 
-            @*  The one thing on this screen that is still a button.
+                <span class="tool-gap"></span>
 
-                Everything else about a page can be typed, because everything else about a page is
-                words. A picture cannot be: its address is a content hash, and nobody knows one by
-                heart. So the picture is chosen, kept, hashed, and its line is written into the
-                document at the caret — after which it is text like every other line, and can be
-                moved, captioned or deleted by editing it.  *@
-            <div class="penbar">
-                <label class="ghost pic @(_busyPic ? "busy" : null)">
-                    @(_busyPic ? "Keeping…" : "Add a picture")
+                <button class="tool ico" title="Bold" @onmousedown:preventDefault="true"
+                        @onclick="@(() => Mark("bold"))"><b>B</b></button>
+                <button class="tool ico" title="Italic" @onmousedown:preventDefault="true"
+                        @onclick="@(() => Mark("italic"))"><i>I</i></button>
+                <button class="tool ico" title="Underline" @onmousedown:preventDefault="true"
+                        @onclick="@(() => Mark("underline"))"><u>U</u></button>
+                <button class="tool ico" title="A line across" @onmousedown:preventDefault="true"
+                        @onclick="Rule">&#8212;</button>
+
+                <label class="tool ico" title="A picture">
+                    @(_busyPic ? "…" : "Photo")
                     <input type="file" accept="image/*" @ref="_picker" hidden />
                 </label>
             </div>
 
-            @if (_picNote is { Length: > 0 } trouble)
-            {
-                <p class="told">@trouble</p>
-            }
+            @*  The document. This is the input and the output at once — a heading is an h2 and it is
+                simply big, because what you are editing is the page rather than a description of it. *@
+            <div class="paper" data-aether-page data-seed="@Paper" contenteditable="true"
+                 spellcheck="true" autocapitalize="sentences" role="textbox" aria-multiline="true"></div>
 
             @if (_penSaid is { Length: > 0 } kept)
             {
@@ -406,6 +413,7 @@
 
         try
         {
+            await JS.InvokeVoidAsync("aetherPage.wire", _me, nameof(Paged));
             await JS.InvokeVoidAsync("aetherCode.wire", _me, nameof(Penned));
         }
         catch (Exception why)
@@ -475,7 +483,7 @@
             _pics[hash] = $"data:{got.Mime};base64,{got.Base64}";
             _weights[hash] = bytes.LongLength;
 
-            await JS.InvokeVoidAsync("aetherCode.insert", "page", $"![]({hash})");
+            await JS.InvokeVoidAsync("aetherPage.picture", hash, _pics[hash]);
         }
         catch (FormatException)
         {
@@ -552,8 +560,40 @@
     /// <summary>Whether the page is being looked at whole rather than beside the editor.</summary>
     private bool _whole;
 
-    /// <summary>The page as its author writes it — the document the blocks come from.</summary>
-    private string Written => CardText.From(_doc);
+    /// <summary>One block, as the editor on the other side of the seam speaks about it.</summary>
+    /// <remarks>
+    /// Deliberately the card's own shape and nothing else. The last editor invented a text format to
+    /// carry the page across, which meant a second grammar to write, parse and get wrong; this hands
+    /// over the blocks themselves, because the blocks are what the document is.
+    /// </remarks>
+    public sealed record Piece(
+        [property: System.Text.Json.Serialization.JsonPropertyName("k")] string K,
+        [property: System.Text.Json.Serialization.JsonPropertyName("t")] string? T = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("items")] List<string>? Items = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("hash")] string? Hash = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("src")] string? Src = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("to")] string? To = null);
+
+    /// <summary>The page handed to the editor to draw and be typed into.</summary>
+    /// <remarks>
+    /// The look is not in here. A theme, the dials and the stylesheet are not words on the page, so
+    /// they never reach the writing surface and are put back untouched when it answers.
+    /// </remarks>
+    private string Paper => System.Text.Json.JsonSerializer.Serialize(
+        (_doc.Blocks ?? []).Where(Wordy).Select(b => new Piece(
+            K: b.Kind,
+            T: b.Value,
+            Items: b.Items is null ? null : [.. b.Items],
+            Hash: b.ContentHash,
+            Src: b.ContentHash is { Length: > 0 } h ? Picture(h) : null,
+            To: b.Target)));
+
+    /// <summary>Whether the page has anything on it yet.</summary>
+    private bool Blank => !(_doc.Blocks ?? []).Any(Wordy);
+
+    /// <summary>Whether a block is part of the words rather than part of the look.</summary>
+    private static bool Wordy(CardBlock block) =>
+        block.Kind is not (CardBlock.Theme or CardBlock.Style or CardBlock.Css);
 
     /// <summary>What an empty page offers, so the vocabulary is shown rather than described.</summary>
     private const string PageHint = @"# Your name
@@ -611,32 +651,82 @@ Reach me = [hello](aether://YOURTAG/me)";
     {
         try
         {
-            _sure = false;
+            OwnCard.SetCss(_doc, text ?? "");
+            if (!Fresh || _page is not null) Save(); else Draw();
+            _penSaid = "";
+        }
+        catch (Exception why)
+        {
+            _penSaid = "Not saved — " + why.Message;
+        }
 
-            if (which == "page")
+        if (settled) StateHasChanged();
+    }
+
+    /// <summary>
+    /// The page, as the person has just left it.
+    /// </summary>
+    /// <remarks>
+    /// Blocks in, blocks out. The look travels around the outside of this — theme, dials and
+    /// stylesheet were never on the writing surface, so they are taken off the document being edited
+    /// and put back on the one that comes home.
+    /// </remarks>
+    [JSInvokable]
+    public void Paged(List<Piece>? pieces, bool settled)
+    {
+        try
+        {
+            var look = (_doc.Blocks ?? []).Where(b => !Wordy(b)).ToList();
+            var made = new CardDocument();
+
+            foreach (var piece in pieces ?? [])
             {
-                // The document is the truth; the blocks are what it compiles to.
-                _doc = CardText.Read(text, _doc);
-                NameIt();
+                if (piece.K == CardBlock.Image && piece.Hash is not { Length: > 0 }) continue;
+
+                made.Blocks.Add(new CardBlock
+                {
+                    Kind = piece.K,
+                    Value = piece.T is { Length: > 0 } said ? said : null,
+                    Items = piece.Items is { Count: > 0 } items ? [.. items] : null,
+                    ContentHash = piece.Hash is { Length: > 0 } hash ? hash : null,
+                    Target = piece.To is { Length: > 0 } to ? to : null,
+                });
             }
-            else
-            {
-                OwnCard.SetCss(_doc, text ?? "");
-            }
+
+            // The look goes back where the renderer expects it: in front of the words.
+            made.Blocks.InsertRange(0, look);
+            made.Title = made.Blocks.FirstOrDefault(b => b.Kind == CardBlock.Title)?.Value ?? "";
+
+            _doc = made;
+            NameIt();
 
             if (!Fresh || _page is not null) Save(); else Draw();
             _penSaid = "";
         }
         catch (Exception why)
         {
-            // Somebody who has just written a page is owed the truth about whether it is anywhere.
-            // Silence here reads exactly like success.
             _penSaid = "Not saved — " + why.Message;
         }
 
-        // Only once they have put the pen down. A render swaps the preview's srcdoc, the iframe
-        // reloads, and the reload takes the caret out of whichever box they are typing in.
         if (settled) StateHasChanged();
+    }
+
+    /// <summary>Turn the block the caret is in into another kind.</summary>
+    private async Task Block(string kind)
+    {
+        try { await JS.InvokeVoidAsync("aetherPage.block", kind); } catch (Exception) { }
+    }
+
+    /// <summary>Bold, italic or underline, on whatever is selected.</summary>
+    private async Task Mark(string name)
+    {
+        try { await JS.InvokeVoidAsync("aetherPage.mark", name); } catch (Exception) { }
+    }
+
+    /// <summary>A line across the page.</summary>
+    private async Task Rule()
+    {
+        try { await JS.InvokeVoidAsync("aetherPage.rule"); } catch (Exception) { }
     }
 
     /// <summary>The look off another card, and nothing else off it.</summary>

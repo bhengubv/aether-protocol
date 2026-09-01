@@ -162,6 +162,12 @@
     }
 
     global.aetherWrite = {
+        /*  Shared with the page editor next door, which needs exactly these two and must not own a
+            second copy of them. Marks are a vocabulary — the moment there are two implementations of
+            it, a card written in one place stops being a card read in the other. */
+        dress: dress,
+        say: say,
+
         /**
          * Wire every writing field on the page that is not wired already.
          *

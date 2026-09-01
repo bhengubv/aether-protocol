@@ -291,6 +291,19 @@
 .studio-h.wide { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
 /* The one button the document still needs, in the same pill as "See the whole page" — because it
    belongs to the page being written, not to the chrome around it. */
+/*  The toolbar. It scrolls sideways rather than wrapping, because a toolbar that changes height as
+    you scroll the page is a toolbar that moves the writing under your thumb. */
+.tools { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.tools::-webkit-scrollbar { display: none; }
+.tool-gap { flex: 0 0 auto; width: 1px; margin: 4px 4px; background: currentColor; opacity: .18; }
+
+.tool { flex: 0 0 auto; display: inline-flex; align-items: center; appearance: none;
+        border: 1px solid currentColor; background: transparent; color: inherit; font: inherit;
+        font-size: .74rem; font-weight: 700; padding: 7px 12px; border-radius: 999px;
+        cursor: pointer; white-space: nowrap; }
+.tool.ico { min-width: 36px; justify-content: center; padding: 7px 10px; }
+.tool:active { background: var(--brand-tint, rgba(33,150,243,.12)); }
+
 .penbar { display: flex; gap: 8px; margin-top: -8px; margin-bottom: 2px; }
 .pic { display: inline-flex; align-items: center; appearance: none;
        border: 1px solid currentColor; background: transparent; color: inherit;
