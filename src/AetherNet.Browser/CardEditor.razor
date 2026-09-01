@@ -292,27 +292,20 @@
     /// </remarks>
     [Parameter] public CardDocument? Seed { get; set; }
 
-    private enum Step { Kind, Look, Back, Write, Publish }
 
-    private List<Step> Steps = [];
-    private Step _step = Step.Look;
 
     private WebCard? _page;
     private CardDocument _doc = new();
-    private PageTemplate _template = PageTemplate.All[0];
-    private CardLook _look = CardLook.Of(null);
     private CardShader _shader = CardShader.Of(null);
     private string _name = "";
     private bool _live;
 
-    private int _open = -1;
     private string _preview = "";
     private string _said = "";
     private bool _busy;
 
     private ElementReference? _picker;
     private DotNetObjectReference<CardEditor>? _me;
-    private int _picking = -1;
     private bool _busyPic;
     private string _picNote = "";
 
@@ -326,40 +319,10 @@
 
     private string? Shown(CardBlock block) =>
         block.ContentHash is { Length: > 0 } hash && _pics.TryGetValue(hash, out var uri) ? uri : null;
-    private bool Full => _doc.Blocks.Count >= OwnCard.MostBlocks;
 
-    private string Title => _step switch
-    {
-        Step.Kind => "What is this page?",
-        Step.Look => "Pick a look",
-        Step.Back => "Pick a background",
-        Step.Write => "Write it",
-        _ => "Ready",
-    };
 
-    private string Sub => _step switch
-    {
-        Step.Kind => "It starts you off with the right shape. You can change anything after.",
-        Step.Look => "Every one of these is finished. You are choosing a design, not making one.",
-        Step.Back => "All of them take your colour. Pick the one that feels like the page.",
-        Step.Write => "Fill in what you want. Anything you leave blank simply does not appear.",
-        _ => "This is your page as somebody else's phone will draw it.",
-    };
 
-    private string TitleHint => _template.Key switch
-    {
-        "business" => "Urban Plumbers",
-        "notice" => "Water off Thursday",
-        _ => "Your name",
-    };
 
-    // A page needs a name a reader sees and an address a reader types. Everything else on it is
-    // optional — somebody with a title and nothing else has a short page, not a broken one.
-    private bool CanGo => _step switch
-    {
-        Step.Write => Named,
-        _ => true,
-    };
 
     private bool CanPublish => Named;
 
@@ -369,10 +332,7 @@
     {
         if (Fresh)
         {
-            Steps = [Step.Kind, Step.Look, Step.Back, Step.Write, Step.Publish];
-            _step = Step.Kind;
-            _template = PageTemplate.All[0];
-            _doc = Seed is not null ? Wearing(Seed) : _template.Build(Mine.OwnerName);
+            _doc = Seed is not null ? Wearing(Seed) : PageTemplate.All[0].Build(Mine.OwnerName);
             // Left empty on purpose: NameIt derives the address from the title the moment there is
             // one. Pre-filling it from the template meant a page called "Sarah" answered at /me-2,
             // because the address had already been decided before anybody wrote anything.
@@ -380,8 +340,6 @@
         }
         else
         {
-            Steps = [Step.Look, Step.Back, Step.Write, Step.Publish];
-            _step = Step.Look;
             _page = Mine.Get(Name);
 
             if (_page is null)
@@ -394,8 +352,6 @@
             _name = _page.Name;
             _live = _page.Live;
         }
-
-        _look = CardLook.FromCard(_doc);
         _shader = CardShader.FromCard(_doc);
         Draw();
 
@@ -436,7 +392,6 @@
         {
             // Cheap when there is nothing new: a field that is already wired is skipped, and its
             // contents are never redrawn underneath somebody's caret.
-            await JS.InvokeVoidAsync("aetherWrite.wire", _me, nameof(Wrote));
         }
         catch (Exception)
         {
@@ -542,22 +497,7 @@
 
     public void Dispose() => _me?.Dispose();
 
-    // ─── Steps ──────────────────────────────────────────────────────────────────
 
-    private void Next()
-    {
-        var at = Steps.IndexOf(_step);
-        if (at < 0 || at + 1 >= Steps.Count) return;
-
-        _step = Steps[at + 1];
-        if (_step == Step.Publish) Draw();
-    }
-
-    private void Back()
-    {
-        var at = Steps.IndexOf(_step);
-        if (at > 0) _step = Steps[at - 1];
-    }
 
     private Task Leave() => Done.InvokeAsync();
 
@@ -578,16 +518,6 @@
         await Done.InvokeAsync();
     }
 
-    private void ChooseKind(PageTemplate template)
-    {
-        _template = template;
-        _doc = template.Build(Mine.OwnerName);
-        _look = CardLook.FromCard(_doc);
-        _shader = CardShader.FromCard(_doc);
-        _name = Mine.Free(template.Suggests);
-        _open = -1;
-        Draw();
-    }
 
     /// <summary>Whether the page is being looked at whole rather than beside the editor.</summary>
     private bool _whole;
@@ -631,17 +561,6 @@
     private static bool Wordy(CardBlock block) =>
         block.Kind is not (CardBlock.Theme or CardBlock.Style or CardBlock.Css);
 
-    /// <summary>What an empty page offers, so the vocabulary is shown rather than described.</summary>
-    private const string PageHint = @"# Your name
-
-What you do, in a sentence.
-
-## What I make
-- one thing
-- another
-
-Where = Kagiso
-Reach me = [hello](aether://YOURTAG/me)";
 
     /// <summary>What the editor offers as a first line, when nothing has been written yet.</summary>
     /// <remarks>
@@ -868,7 +787,6 @@ Reach me = [hello](aether://YOURTAG/me)";
     private void ChooseLook(CardLook look)
     {
         OwnCard.SetLook(_doc, look.Key);
-        _look = CardLook.FromCard(_doc);
         if (!Fresh || _page is not null) Save(); else Draw();
     }
 
@@ -879,50 +797,10 @@ Reach me = [hello](aether://YOURTAG/me)";
         if (!Fresh || _page is not null) Save(); else Draw();
     }
 
-    /// <summary>
-    /// This background on this page, drawn small.
-    /// </summary>
-    /// <remarks>
-    /// The real renderer with the real catalogue entry — their look, their colour, their title. A
-    /// swatch would be quicker and would answer a different question: what somebody wants to know is
-    /// what their own page looks like wearing this, not what the background looks like on its own.
-    /// </remarks>
-    private string Backdrop(CardShader shader)
-    {
-        var shown = new CardDocument
-        {
-            Title = _doc.Title.Length > 0 ? _doc.Title : (Mine.OwnerName ?? "Your page"),
-            Blocks = [CardBlock.Of(CardBlock.Theme, _look.Key), CardBlock.Of(CardBlock.Theme, shader.Key)],
-        };
 
-        return CardPage.Render(
-            shown, shown.Title, 0, downloadPath: null,
-            fontBase: PageAssets.WebFontBase, still: true, sample: true);
-    }
-
-    /// <summary>
-    /// Open one panel, close the rest — and remember which one a picture would belong to.
-    /// </summary>
-    /// <remarks>
-    /// The open panel is the only one whose file input is rendered, so opening a panel is what makes
-    /// it the destination. Deciding this from a click handler on the input instead re-rendered the
-    /// page mid-tap, replaced the element, and cancelled the gesture that was about to open the
-    /// chooser — a button that visibly did nothing.
-    /// </remarks>
-    private void Toggle(int index)
-    {
-        _open = _open == index ? -1 : index;
-        _picking = _open;
-        _picNote = "";
-    }
 
     // ─── Fields ─────────────────────────────────────────────────────────────────
 
-    private void OnTitle(ChangeEventArgs e)
-    {
-        OwnCard.SetTitle(_doc, e.Value?.ToString());
-        Save();
-    }
 
     private void OnName(ChangeEventArgs e)
     {
@@ -938,24 +816,10 @@ Reach me = [hello](aether://YOURTAG/me)";
         if (_name.Length > 0) Save();
     }
 
-    /// <summary>Set a block's value directly, from a picker rather than a field.</summary>
-    private void OnValueSet(int index, string value)
-    {
-        if (index < 0 || index >= _doc.Blocks.Count) return;
-        _doc.Blocks[index].Value = value;
-        Save();
-    }
 
     /// <summary>The only alignment a block may ask for besides its default.</summary>
     private const string Centre = "centre";
 
-    /// <summary>Left or centred. Two values, because a third is a design nobody asked for.</summary>
-    private void OnAlign(int index, string? how)
-    {
-        if (index < 0 || index >= _doc.Blocks.Count) return;
-        _doc.Blocks[index].Align = how;
-        Save();
-    }
 
     /// <summary>A name set as a wordmark rather than a headline.</summary>
     private const string Small = "small";
@@ -963,23 +827,7 @@ Reach me = [hello](aether://YOURTAG/me)";
     /// <summary>A picture shown whole rather than cropped into the masthead.</summary>
     private const string Wide = "wide";
 
-    /// <summary>A picture used as the page's ground rather than placed on it.</summary>
-    private const string Wash = "wash";
 
-    /// <summary>
-    /// How a picture sits: in the flow, whole across the page, or behind everything.
-    /// </summary>
-    /// <remarks>
-    /// Three named places rather than a set of switches. Somebody choosing between three finished
-    /// answers gets one of three good pages; the same person given size, position and repeat gets a
-    /// hundred bad ones.
-    /// </remarks>
-    private void OnAs(int index, string? how)
-    {
-        if (index < 0 || index >= _doc.Blocks.Count) return;
-        _doc.Blocks[index].As = how;
-        Save();
-    }
 
     /// <summary>
     /// The name, typed in the block rather than in the basics.
@@ -1006,28 +854,15 @@ Reach me = [hello](aether://YOURTAG/me)";
 
     private const string Italic = "italic";
 
-    private const string Under = "underline";
 
     private const string AsLink = "link";
 
-    /// <summary>Which block, if any, is having a link put on it.</summary>
-    private int? _linking;
 
     /// <summary>Where that link is going, as typed or as picked.</summary>
     private string _linkTo = "";
 
-    private void Linking(int index)
-    {
-        _linking = _linking == index ? null : index;
-        _linkTo = "";
-    }
 
-    private void OnLinkTo(ChangeEventArgs e) => _linkTo = e.Value?.ToString() ?? "";
 
-    private void OnLinkPick(ChangeEventArgs e)
-    {
-        if (e.Value?.ToString() is { Length: > 0 } picked) _linkTo = picked;
-    }
 
     /// <summary>
     /// Bold, italic or underline on whatever the writer has selected.
@@ -1075,7 +910,6 @@ Reach me = [hello](aether://YOURTAG/me)";
         try
         {
             await JS.InvokeAsync<bool>("aetherWrite.mark", index.ToString(), AsLink, to);
-            _linking = null;
             _linkTo = "";
         }
         catch (Exception)
@@ -1084,57 +918,10 @@ Reach me = [hello](aether://YOURTAG/me)";
         }
     }
 
-    /// <summary>
-    /// The writer typed, and this is what the card now says.
-    /// </summary>
-    /// <remarks>
-    /// Plain words, always. What crossed the bridge is text — the field's formatting was turned back
-    /// into the card's own marks on the other side — so nothing here has to trust or clean markup,
-    /// which is the property that makes a rich field safe to have at all.
-    /// </remarks>
-    [JSInvokable]
-    public void Wrote(string which, string said)
-    {
-        if (!int.TryParse(which, out var index)) return;
-        if (index < 0 || index >= _doc.Blocks.Count) return;
 
-        var most = OwnCard.Longest(_doc.Blocks[index].Kind);
-        _doc.Blocks[index].Value = said.Length > most ? said[..most] : said;
 
-        Save();
-        StateHasChanged();
-    }
 
-    private void OnValue(int index, ChangeEventArgs e)
-    {
-        if (index < 0 || index >= _doc.Blocks.Count) return;
-        _doc.Blocks[index].Value = e.Value?.ToString();
-        Save();
-    }
 
-    private void OnTarget(int index, ChangeEventArgs e)
-    {
-        if (index < 0 || index >= _doc.Blocks.Count) return;
-        _doc.Blocks[index].Target = e.Value?.ToString();
-        Save();
-    }
-
-    private void OnItem(int index, int item, ChangeEventArgs e)
-    {
-        if (index < 0 || index >= _doc.Blocks.Count) return;
-        if (_doc.Blocks[index].Items is not { } items) return;
-        if (item < 0 || item >= items.Count) return;
-
-        items[item] = e.Value?.ToString() ?? "";
-        Save();
-    }
-
-    private void AddItem(int index)
-    {
-        if (index < 0 || index >= _doc.Blocks.Count) return;
-        (_doc.Blocks[index].Items ??= []).Add("");
-        Save();
-    }
 
     private void Add(string kind)
     {
@@ -1145,24 +932,10 @@ Reach me = [hello](aether://YOURTAG/me)";
         }
 
         OwnCard.Add(_doc, kind);
-        _open = _doc.Blocks.Count - 1;
-        _picking = _open;
         Save();
     }
 
-    private void Move(int index, int by)
-    {
-        OwnCard.Move(_doc, index, by);
-        if (_open == index) _open = Math.Clamp(index + by, 0, _doc.Blocks.Count - 1);
-        Save();
-    }
 
-    private void Drop(int index)
-    {
-        OwnCard.Remove(_doc, index);
-        _open = -1;
-        Save();
-    }
 
     // ─── Keeping it ─────────────────────────────────────────────────────────────
 
@@ -1212,30 +985,6 @@ Reach me = [hello](aether://YOURTAG/me)";
     /// <summary>A picture this editor already holds, as something the preview can draw.</summary>
     private string? Picture(string hash) => _pics.GetValueOrDefault(hash);
 
-    /// <summary>
-    /// The same page in a different look, drawn small.
-    /// </summary>
-    /// <remarks>
-    /// Their own title and their own words where they have written any, because a look is a decision
-    /// about <i>their</i> page — a thumbnail of somebody else's content answers a different question.
-    /// </remarks>
-    private string Sample(CardLook look)
-    {
-        var shown = new CardDocument
-        {
-            Title = _doc.Title.Length > 0 ? _doc.Title : (Mine.OwnerName ?? "Your page"),
-            Blocks =
-            [
-                CardBlock.Of(CardBlock.Theme, look.Key),
-                CardBlock.Of(CardBlock.Theme, _shader.Key),
-                .. Shown(),
-            ],
-        };
-
-        return CardPage.Render(
-            shown, shown.Title, 0, downloadPath: null,
-            fontBase: PageAssets.WebFontBase, still: true);
-    }
 
     /// <summary>
     /// Enough of a page for a thumbnail to be worth looking at.
@@ -1306,61 +1055,5 @@ Reach me = [hello](aether://YOURTAG/me)";
 
     // ─── Reading a block at a glance ────────────────────────────────────────────
 
-    /// <summary>What a closed panel says about itself.</summary>
-    /// <remarks>
-    /// A row of panels labelled only by kind — "Words", "Words", "Detail" — is a filing cabinet with
-    /// no labels on the drawers. The content is the label.
-    /// </remarks>
-    private static string Summary(CardBlock block)
-    {
-        if (block.Kind == CardBlock.List)
-        {
-            var lines = (block.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i)).ToArray();
-            return lines.Length == 0 ? "Empty" : string.Join(" · ", lines.Take(2));
-        }
 
-        if (block.Kind == CardBlock.Tip)
-            return CardBlock.IsUsableTip(block.Target) ? CardBlock.TipHost(block.Target) : "Not set";
-
-        if (block.Kind == CardBlock.Rule) return "A break";
-
-        if (block.Kind == CardBlock.Index)
-        {
-            var plates = (block.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i)).ToArray();
-            return plates.Length == 0 ? "Empty" : $"{plates.Length} lines";
-        }
-
-        if (block.Kind == CardBlock.Image)
-            return CardBlock.IsUsableAssetHash(block.ContentHash)
-                ? block.Value is { Length: > 0 } what ? what.Trim() : "A picture"
-                : "None chosen";
-
-        return string.IsNullOrWhiteSpace(block.Value) ? "Empty" : Plainly(block.Value.Trim());
-    }
-
-    /// <summary>The words of a piece of writing, without the marks around them.</summary>
-    /// <remarks>
-    /// A summary is a glance, and a glance at <c>**a car**d</c> is a glance at something that looks
-    /// broken. The marks are how a card stores emphasis; nobody has to look at them.
-    /// </remarks>
-    private static string Plainly(string said)
-    {
-        var plain = new StringBuilder(said.Length);
-
-        for (var i = 0; i < said.Length; i++)
-        {
-            // [the words](where they go) reads as the words.
-            if (said[i] == ']' && i + 1 < said.Length && said[i + 1] == '(')
-            {
-                var ends = said.IndexOf(')', i + 2);
-                if (ends > 0) { i = ends; continue; }
-            }
-
-            if (said[i] is '*' or '_' or '[') continue;
-
-            plain.Append(said[i]);
-        }
-
-        return plain.ToString();
-    }
 }
