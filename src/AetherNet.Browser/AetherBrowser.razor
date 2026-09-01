@@ -43,7 +43,7 @@
 {
     @* The editor, hosted rather than navigated to. The browser owns its own views, so writing a page
        is somewhere you are inside this component rather than a route its host has to know about. *@
-    <CardEditor Name="@_editing" Done="Edited" @key="@("edit:" + (_editing ?? "new"))" />
+    <CardEditor Name="@_editing" Seed="@_seed" Done="Edited" @key="@("edit:" + (_editing ?? "new"))" />
 }
 else if (_view == View.Library && _shelf == Shelf.Decks)
 {
@@ -240,6 +240,21 @@ else
             <iframe class="page" title="@(p.Card?.Title ?? p.Name)" srcdoc="@_html"
                     style="@($"height:{_tall}px")" @ref="_frame" @key="p.Address"></iframe>
 
+            @*  The way anybody ever learned this.
+
+                Nobody wrote CSS on MySpace. They saw a page they liked, took the code, changed a
+                line, broke it, fixed it — and that is the whole loop this app has been missing. A
+                blank stylesheet box marked "optional" is a canvas handed to somebody who wanted a
+                costume. So every card you are looking at offers its look, and you write your own
+                words into it.  *@
+            @if (Wearable(p))
+            {
+                <button class="likethis" @onclick="@(() => Borrow(p))">
+                    <span class="lt-n">Make one like this</span>
+                    <span class="lt-b">Takes the look. You write the words.</span>
+                </button>
+            }
+
             <div class="siteinfo">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
                 @if (p.Own)
@@ -299,6 +314,9 @@ else
     private View _view;
     private string _took = "";
     private string? _editing;
+
+    /// <summary>A card whose look is being borrowed for a new page.</summary>
+    private CardDocument? _seed;
     private string _html = "";
     private int _tall = 520;
     private DotNetObjectReference<AetherBrowser>? _me;
@@ -647,9 +665,26 @@ else
         }
     }
 
+    /// <summary>Whether this card has a look worth taking.</summary>
+    /// <remarks>
+    /// A card with no stylesheet and the default look has nothing to lend, and offering to copy
+    /// nothing teaches nobody anything.
+    /// </remarks>
+    private static bool Wearable(MeshWebService.MeshPage page) =>
+        page.Card?.Blocks?.Any(b => b.Kind is CardBlock.Css or CardBlock.Style
+                                    || (b.Kind == CardBlock.Theme && b.Value is { Length: > 0 })) == true;
+
+    /// <summary>Start a page of your own wearing this one's look.</summary>
+    private void Borrow(MeshWebService.MeshPage page)
+    {
+        _seed = page.Card;
+        Edit(null);
+    }
+
     /// <summary>Open the editor on a page, or on a new one.</summary>
     private void Edit(string? name)
     {
+        if (name is not null) _seed = null;
         _editing = name;
         _view = View.Edit;
         _took = "";
@@ -659,6 +694,7 @@ else
     private void Edited()
     {
         _editing = null;
+        _seed = null;
         _view = View.Library;
         _shelf = Shelf.Cards;
     }

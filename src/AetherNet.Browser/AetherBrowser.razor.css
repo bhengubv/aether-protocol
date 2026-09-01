@@ -149,3 +149,28 @@
     .err { color: var(--ink-2, #5b6b7b); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line, rgba(127,140,158,.28)); border-radius: 14px; padding: 18px; line-height: 1.5; }
     .err .mono { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); color: var(--ink, #16232f); }
     .muted { color: var(--ink-3, #8a97a6); font-style: italic; padding: 24px 6px; }
+
+/*  The offer, under every card you read.
+
+    It is deliberately the loudest thing on the page after the card itself, because it is the whole
+    invitation: you are looking at something somebody made, and you can have it. A quiet text link
+    here would be the same mistake as a stylesheet box marked "optional" - correct, present, and
+    invisible to anybody who was not already looking for it. */
+.likethis {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    margin-top: 12px;
+    padding: 13px 16px;
+    border: 0;
+    border-radius: var(--radius, 14px);
+    background: var(--brand, #2196F3);
+    color: #fff;
+    cursor: pointer;
+}
+
+.lt-n { font-size: 1rem; font-weight: 780; }
+.lt-b { font-size: 0.8rem; line-height: 1.4; opacity: .85; }
+.likethis:active { filter: brightness(.94); }

@@ -16,7 +16,7 @@
 <div class="wiz">
     <header class="top">
         <button class="back" @onclick="Leave" aria-label="Close">✕</button>
-        <span class="count addr">aether://@Mesh.LocalTag/@_name</span>
+        <span class="count addr">aether://@Mesh.LocalTag/@(_name.Length > 0 ? _name : "…")</span>
 
         @* Always here, at every step. Somebody wondering how a page is doing what it is doing should
            not have to finish what they are doing to find out. *@
@@ -244,6 +244,15 @@
     /// </remarks>
     [Parameter] public EventCallback Done { get; set; }
 
+    /// <summary>A card to take the look from, when this page is being started from somebody else's.</summary>
+    /// <remarks>
+    /// The look only — the theme, the dials and the stylesheet. Never the words. Copying a person's
+    /// sentences onto a page published under your own tag is putting things in your mouth that
+    /// somebody else wrote, and a page that arrives already saying things is the empty-template
+    /// problem wearing better clothes. You get their costume and write your own lines.
+    /// </remarks>
+    [Parameter] public CardDocument? Seed { get; set; }
+
     private enum Step { Kind, Look, Back, Write, Publish }
 
     private List<Step> Steps = [];
@@ -324,8 +333,11 @@
             Steps = [Step.Kind, Step.Look, Step.Back, Step.Write, Step.Publish];
             _step = Step.Kind;
             _template = PageTemplate.All[0];
-            _doc = _template.Build(Mine.OwnerName);
-            _name = Mine.Free(_template.Suggests);
+            _doc = Seed is not null ? Wearing(Seed) : _template.Build(Mine.OwnerName);
+            // Left empty on purpose: NameIt derives the address from the title the moment there is
+            // one. Pre-filling it from the template meant a page called "Sarah" answered at /me-2,
+            // because the address had already been decided before anybody wrote anything.
+            _name = "";
         }
         else
         {
@@ -625,6 +637,29 @@ Reach me = [hello](aether://YOURTAG/me)";
         // Only once they have put the pen down. A render swaps the preview's srcdoc, the iframe
         // reloads, and the reload takes the caret out of whichever box they are typing in.
         if (settled) StateHasChanged();
+    }
+
+    /// <summary>The look off another card, and nothing else off it.</summary>
+    private static CardDocument Wearing(CardDocument from)
+    {
+        var mine = new CardDocument();
+
+        foreach (var block in from.Blocks ?? [])
+        {
+            if (block.Kind is not (CardBlock.Theme or CardBlock.Style)) continue;
+
+            mine.Blocks.Add(new CardBlock
+            {
+                Kind = block.Kind,
+                Value = block.Value,
+                Items = block.Items is null ? null : [.. block.Items],
+            });
+        }
+
+        if (from.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Css)?.Value is { Length: > 0 } css)
+            OwnCard.SetCss(mine, css);
+
+        return mine;
     }
 
     /// <summary>
