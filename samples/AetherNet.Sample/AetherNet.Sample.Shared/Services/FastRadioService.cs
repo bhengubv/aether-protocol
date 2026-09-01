@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using AetherNet.Identity;
+using AetherNet.Rendezvous;
 using AetherNet.Sample.Shared.Data;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

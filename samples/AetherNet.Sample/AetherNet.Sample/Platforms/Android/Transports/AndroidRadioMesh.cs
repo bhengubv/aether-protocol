@@ -441,7 +441,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     /// A radio that has not been taught about meetings still comes up; it simply comes up for
     /// everybody rather than for somebody.
     /// </remarks>
-    public void Link(AetherNet.Sample.Shared.Services.Meeting meeting)
+    public void Link(AetherNet.Rendezvous.Meeting meeting)
     {
         AetherLinkService.Start();
 

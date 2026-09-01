@@ -201,7 +201,7 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     /// its scan on, which is the whole of the matching in Bluetooth. Nothing else about the bring-up
     /// changes; it simply stops answering strangers.
     /// </remarks>
-    public void Link(AetherNet.Sample.Shared.Services.Meeting meeting)
+    public void Link(AetherNet.Rendezvous.Meeting meeting)
     {
         var wanted = UUID.FromString(meeting.Uuid().ToString())!;
         _told = true;

@@ -123,7 +123,7 @@ internal interface IRadio
     /// and still carries traffic — it simply comes up for everybody rather than for somebody.
     /// </para>
     /// </remarks>
-    void Link(AetherNet.Sample.Shared.Services.Meeting meeting) => Link();
+    void Link(AetherNet.Rendezvous.Meeting meeting) => Link();
 
     /// <summary>
     /// Send raw bytes to the linked peer.

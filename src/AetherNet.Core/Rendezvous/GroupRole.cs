@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Rendezvous;
 
 /// <summary>
 /// Which of two phones creates the Wi-Fi Direct group, and which one joins it.

@@ -75,7 +75,7 @@ public sealed class AndroidLoRaTransportService : IRadio, IDisposable
     /// channel: both phones derive the same one, each ignores everything not addressed to it, and
     /// nothing is discovered.
     /// </remarks>
-    public void Link(AetherNet.Sample.Shared.Services.Meeting meeting)
+    public void Link(AetherNet.Rendezvous.Meeting meeting)
     {
         _address = meeting.Address(AddressBits);
         Status?.Invoke($"meeting {meeting.PeerTag} at {_address:X4}");

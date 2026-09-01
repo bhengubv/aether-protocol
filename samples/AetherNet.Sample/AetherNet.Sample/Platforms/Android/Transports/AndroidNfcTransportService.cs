@@ -54,7 +54,7 @@ public sealed class AndroidNfcTransportService : IRadio, IDisposable
     /// against each other, and a person deciding to do that IS the meeting. Deriving an address for it
     /// would be ceremony over a physical act.
     /// </remarks>
-    public void Link(AetherNet.Sample.Shared.Services.Meeting meeting) => Link();
+    public void Link(AetherNet.Rendezvous.Meeting meeting) => Link();
 
     public void Link()
     {

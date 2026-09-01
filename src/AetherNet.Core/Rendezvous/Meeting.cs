@@ -3,7 +3,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Rendezvous;
 
 /// <summary>
 /// Two phones agreeing where to meet, before either radio has done anything.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using AetherNet.Sample.Shared.Data;
+using AetherNet.Rendezvous;
 using AetherNet.Sample.Shared.Services;
 using Xunit;
 

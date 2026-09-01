@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Rendezvous;
+
 namespace AetherNet.Sample.Shared.Services;
 
 /// <summary>

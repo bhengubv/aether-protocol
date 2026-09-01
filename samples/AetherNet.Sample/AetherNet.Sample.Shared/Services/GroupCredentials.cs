@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Rendezvous;
 using System.Security.Cryptography;
 using System.Text;
 
