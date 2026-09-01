@@ -89,7 +89,7 @@ dependencies {
     // org.json — manual JSON parse for the Soong-compatible wire types. On AOSP
     // this is provided by the platform (framework bootclasspath), so the Soong
     // Android.bp needs NO static_lib for it; only the Gradle/JVM build declares it.
-    implementation("org.json:json:20240303")
+    implementation("org.json:json:20260522")
 
     // Kotlin stdlib
     implementation(kotlin("stdlib"))
