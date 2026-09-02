@@ -65,7 +65,7 @@ only · substrate-first, economy-last · .NET 10 · `[skip ci]` · P30 is the be
 Primitive, in-session exchange (`AddErid()`, `EridDirectory`, `EridExchangeCoordinator`), and BLE rotation already exist.
 
 - [x] **E1 · Route tables keyed on ERID, TTL ≤ epoch** — `EridRouteResolver` resolves a received ERID → the stable long-term UHID so a route survives rotation instead of vanishing each window; `RouteEntry.RefreshBoundedBy` + `EphemeralRoutingId.EpochEndUnixSeconds` cap the route at the epoch boundary; wired into `RoutingService` as an opt-in resolver (pass-through by default, so today's UHID wire is unchanged). 87 routing/ERID tests green. Full activation is the E2 cutover. · **L · DONE (opt-in; activation gated on E2)**
-- [ ] **E2 · Remove stable `SourceUhid`/`DestinationUhid` from the header** behind the negotiated `erid-routing` capability. `PacketSerializer.cs:84-94`, `MeshPacket.cs:209/212`. E1 makes this a header swap, not a rewrite — the receive side already resolves ERIDs. · **M · BLOCKED (two-node delivery test — needs a 2nd phone)**
+- [x] **E2 · stable UHID off the wire, rotating ERID on** — `EridHeaderCodec` (Core, 5 tests) is the mechanism; the live wiring is in `ChatService.Wrap` (outbound swap) / `OnPacket` (inbound resolve) via `CircleDirectory` (`MyAddress`/`AddressFor`/`Recognise`), gated on holding the peer's routing key (the de-facto `erid-routing` capability — the key only arrives sealed inside the session, so an un-upgraded peer never triggers it and the key-share itself stays on the stable tag). **Verified on P30↔merlin over Wi-Fi Direct**: the wire source read `PV3ZVV012H2ANFS8` (a 16-char rotating ERID, not the tag), resolved back to the stable tag on receipt, delivery intact both ways. · **M · DONE (verified on hardware)**
 - [x] **E3 · reputation/incentive on long-term identity, never the wire ERID** — the stores already key on UHID; the resolver now resolves the accountable/route source to the stable UHID before any reputation, rate-limiter, or route-table key, so an ERID can never leak into an identity ledger. · **M · DONE**
 
 ## Phase F — Mesh-web renderer surface (§2)  ·  builds on `CardPage.cs`  ·  DECIDE first (inert vs executable cards)
@@ -120,7 +120,7 @@ Map correction: every H **primitive** already exists and most are fixture-proven
 
 ## Gates & open decisions
 
-- [ ] **GATE · Two-node delivery test** — unblocks E2 (ERID header swap).
+- [x] **GATE · Two-node delivery test** — PASSED on P30↔merlin over Wi-Fi Direct: an E2E-encrypted message crossed and its ack came back (`delivered`), a Signal session formed, and routing keys exchanged. Unblocked E2, which is now done and hardware-verified.
 - [ ] **GATE · Two-node hole-punch test** — unblocks all of Phase G (relay).
 - [ ] **DECIDE · Recovery mechanism** (BIP39 / Vault K-of-N / both) — gates H2, H3.
 - [ ] **DECIDE · Email/mobile placement** (on-device vs opt-in salted-hash directory) — gates H.

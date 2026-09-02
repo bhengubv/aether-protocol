@@ -592,6 +592,19 @@ public sealed class ChatService
         Encoding.UTF8.GetBytes(marker).CopyTo(payload, 0);
         body.CopyTo(payload, marker.Length);
 
+        // E2 — the ERID header swap. Once we hold this contact's routing key we can address them by their
+        // rotating ERID instead of their stable, trackable tag, and put our own ERID as the source. The
+        // key only arrives inside their session (the CircleMarker share below), so an un-upgraded peer
+        // never triggers this, and the share itself must keep the stable tag or it could never be
+        // resolved. AddressFor is null until the key is known — then bootstrap traffic stays on tags.
+        var source = _me.AetherTag;
+        var dest = peerTag;
+        if (_circle is not null && marker != CircleMarker && _circle.AddressFor(peerTag) is { } peerErid)
+        {
+            source = _circle.MyAddress();
+            dest = peerErid;
+        }
+
         return PacketSerializer.Serialize(new MeshPacket
         {
             // The type is what everything downstream sorts on — the send lane here, and a relay or
@@ -599,8 +612,8 @@ public sealed class ChatService
             // marker buried in the ciphertext made every packet look identical from the outside, which
             // is why a phone call and a file transfer shared one queue.
             Type = TypeFor(marker),
-            SourceUhid = _me.AetherTag,
-            DestinationUhid = peerTag,
+            SourceUhid = source,
+            DestinationUhid = dest,
             Ttl = 1,
             Payload = payload,
         });
@@ -881,16 +894,22 @@ public sealed class ChatService
         var payload = packet.Payload;
         if (payload is null || payload.Length <= Marker.Length) return;
 
+        // E2 — resolve the source off the wire. If it is a contact's rotating ERID, turn it back into
+        // their stable tag so the ratchet keyed on that tag decrypts it; a stable tag (an un-upgraded
+        // sender, or the routing-key share which must stay on tags) passes through unchanged. Everything
+        // below keys on the identity, not the wire address, so this is the one place it needs resolving.
+        var senderTag = _circle?.Recognise(packet.SourceUhid) ?? packet.SourceUhid;
+
         switch (Encoding.UTF8.GetString(payload, 0, Marker.Length))
         {
-            case Marker: _ = ReceiveAsync(packet.SourceUhid, payload); break;
-            case AckMarker: _ = ReceiveAckAsync(packet.SourceUhid, payload); break;
-            case GroupMarker: _ = ReceiveGroupAsync(packet.SourceUhid, payload); break;
-            case PingMarker: _ = ReceivePingAsync(packet.SourceUhid, payload); break;
-            case CircleMarker: _ = ReceiveCircleAsync(packet.SourceUhid, payload); break;
-            case ProxyMarker: _ = ReceiveProxyAsync(packet.SourceUhid, payload); break;
-            case Handoff.WantMarker: _ = ReceiveHandoffWantAsync(packet.SourceUhid, payload); break;
-            case Handoff.Marker: _ = ReceiveHandoffAsync(packet.SourceUhid, payload); break;
+            case Marker: _ = ReceiveAsync(senderTag, payload); break;
+            case AckMarker: _ = ReceiveAckAsync(senderTag, payload); break;
+            case GroupMarker: _ = ReceiveGroupAsync(senderTag, payload); break;
+            case PingMarker: _ = ReceivePingAsync(senderTag, payload); break;
+            case CircleMarker: _ = ReceiveCircleAsync(senderTag, payload); break;
+            case ProxyMarker: _ = ReceiveProxyAsync(senderTag, payload); break;
+            case Handoff.WantMarker: _ = ReceiveHandoffWantAsync(senderTag, payload); break;
+            case Handoff.Marker: _ = ReceiveHandoffAsync(senderTag, payload); break;
         }
     }
 

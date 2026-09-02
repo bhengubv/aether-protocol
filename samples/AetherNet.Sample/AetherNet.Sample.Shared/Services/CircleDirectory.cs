@@ -55,6 +55,16 @@ public sealed class CircleDirectory
     public string MyAddress(DateTimeOffset? now = null) =>
         WireAddress.For(_me.RoutingKey, now);
 
+    /// <summary>
+    /// A contact's current rotating address — the address to put on a packet's destination when
+    /// addressing them by ERID instead of their stable tag. Null when we do not hold their key (so the
+    /// caller keeps the stable tag). Derived the same way they beacon it, so it matches on their side.
+    /// </summary>
+    public string? AddressFor(string? peerTag, DateTimeOffset? now = null) =>
+        string.IsNullOrEmpty(peerTag)
+            ? null
+            : _directory.EridForPeer(peerTag, (now ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds());
+
     /// <summary>How many contacts have let this phone recognise them.</summary>
     public int KnownCount => _directory.KnownPeerCount;
 
