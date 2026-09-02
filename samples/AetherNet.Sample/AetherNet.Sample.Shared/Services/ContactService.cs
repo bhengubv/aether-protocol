@@ -32,14 +32,16 @@ public sealed class ContactService
     private readonly IIdentityService _me;
     private readonly IRadioMesh? _radio;
     private readonly CircleDirectory? _circle;
+    private readonly PetnameRegistry? _petnames;
 
     public ContactService(AetherStore store, IIdentityService me, IRadioMesh? radio = null,
-        CircleDirectory? circle = null)
+        CircleDirectory? circle = null, PetnameRegistry? petnames = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _radio = radio;
         _circle = circle;
+        _petnames = petnames;
 
         if (_radio is not null)
         {
@@ -217,6 +219,12 @@ public sealed class ContactService
         if (string.Equals(tag, _me.AetherTag, StringComparison.OrdinalIgnoreCase)) return false; // that's you
 
         _store.UpsertContact(tag, key, byMe: true, byThem: false, via, displayName);
+
+        // A name you give a contact is your petname for their tag — pin it into the registry so it gains
+        // the memorable-name layer (resolve by name, and gossip it as a suggestion) on top of the contact
+        // row. Pinning is authoritative and survives a restart via AetherStorePetnameStore.
+        if (!string.IsNullOrWhiteSpace(displayName)) _petnames?.Pin(tag, displayName);
+
         Changed?.Invoke();
 
         // Adding almost always happens during first-run setup, before any link exists — so this very

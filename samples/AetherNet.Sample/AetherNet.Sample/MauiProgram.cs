@@ -48,6 +48,12 @@ public static class MauiProgram
             new AetherNet.Identity.NodeIdentity(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
         builder.Services.AddSingleton<IIdentityService, IdentityService>();
 
+        // Memorable names for tags, persisted in this device's own SQLite settings.
+        builder.Services.AddSingleton<AetherNet.Identity.IPetnameStore>(sp =>
+            new AetherStorePetnameStore(sp.GetRequiredService<AetherStore>()));
+        builder.Services.AddSingleton(sp =>
+            new AetherNet.Identity.PetnameRegistry(sp.GetRequiredService<AetherNet.Identity.IPetnameStore>()));
+
         // The people this device knows, and the add/be-added handshake.
         builder.Services.AddSingleton<ContactService>();
         builder.Services.AddSingleton<InviteLinks>();

@@ -25,6 +25,11 @@
         <div class="glabel">Add by AetherTag</div>
         <input class="tagbox" @bind="_theirTag" @bind:event="oninput" @onkeydown="OnKey"
                placeholder="KXJB7-MN2P4" spellcheck="false" autocapitalize="characters" />
+        @* A local nickname — yours, on this phone, never sent. It does NOT make anybody findable by
+           name (the tag above is still the only way to reach them); it just gives you something to call
+           them. Optional, and it pins a petname so you can say the name instead of the tag. *@
+        <input class="tagbox" @bind="_theirName" @bind:event="oninput" @onkeydown="OnKey"
+               placeholder="Call them… (optional)" spellcheck="false" />
         <button class="primary block" disabled="@(_busy || string.IsNullOrWhiteSpace(_theirTag))" @onclick="Add">Add them</button>
         @if (_error is { } err)
         {
@@ -64,6 +69,7 @@
 
 @code {
     private string _theirTag = "";
+    private string _theirName = "";
     private string? _error;
     private string? _added;
     private bool _busy;
@@ -94,10 +100,12 @@
         _added = null;
         try
         {
-            if (await Contacts.AddAsync(_theirTag, via: "typed"))
+            if (await Contacts.AddAsync(_theirTag, via: "typed",
+                    displayName: string.IsNullOrWhiteSpace(_theirName) ? null : _theirName.Trim()))
             {
                 _added = _theirTag.Trim().ToUpperInvariant();
                 _theirTag = "";
+                _theirName = "";
                 Refresh();
             }
             else
