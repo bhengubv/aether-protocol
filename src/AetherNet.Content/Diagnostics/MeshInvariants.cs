@@ -173,16 +173,11 @@ public static class MeshInvariants
         long hostPositionMs,
         IEnumerable<long> followerPositionsAfterRttCompensationMs,
         long toleranceMs = 100)
-    {
-        ArgumentNullException.ThrowIfNull(followerPositionsAfterRttCompensationMs);
-        if (toleranceMs < 0)
-            throw new ArgumentOutOfRangeException(nameof(toleranceMs), "Tolerance must be non-negative.");
-        foreach (var p in followerPositionsAfterRttCompensationMs)
-        {
-            if (Math.Abs(p - hostPositionMs) > toleranceMs) return false;
-        }
-        return true;
-    }
+        // Moved to AetherNet.Core (AetherNet.Diagnostics.MeshInvariants) so that the Streaming layer —
+        // which references Core but not Content — can call it at its follower-drift seam. Forwarded here
+        // for backward compatibility.
+        => AetherNet.Diagnostics.MeshInvariants.WatchTogetherBoundedLatency(
+            hostPositionMs, followerPositionsAfterRttCompensationMs, toleranceMs);
 
     // ─── (New, v1.3.0) Outbox backpressure ──────────────────────────────
 
@@ -202,13 +197,8 @@ public static class MeshInvariants
     /// <param name="currentQueueDepth">Current outbox queue depth (in items, bytes — caller-defined unit).</param>
     /// <param name="maxQueueDepth">Configured cap; the predicate fails as soon as depth exceeds this.</param>
     public static bool OutboxBounded(int currentQueueDepth, int maxQueueDepth)
-    {
-        if (maxQueueDepth < 0)
-            throw new ArgumentOutOfRangeException(nameof(maxQueueDepth), "Cap must be non-negative.");
-        if (currentQueueDepth < 0)
-            throw new ArgumentOutOfRangeException(nameof(currentQueueDepth), "Depth cannot be negative.");
-        return currentQueueDepth <= maxQueueDepth;
-    }
+        // Moved to AetherNet.Core (AetherNet.Diagnostics.MeshInvariants); forwarded for compatibility.
+        => AetherNet.Diagnostics.MeshInvariants.OutboxBounded(currentQueueDepth, maxQueueDepth);
 
     // ─── (New, v1.3.0) Byzantine routing quorum ─────────────────────────
 
@@ -237,31 +227,6 @@ public static class MeshInvariants
         IEnumerable<T> votes,
         out T? agreedValue,
         int faultTolerance = -1)
-    {
-        ArgumentNullException.ThrowIfNull(votes);
-        var voteList = votes.ToList();
-        if (voteList.Count == 0)
-        {
-            agreedValue = default;
-            return false;
-        }
-
-        var n = voteList.Count;
-        var f = faultTolerance >= 0 ? faultTolerance : n / 3;
-        if (f >= n)
-        {
-            // f cannot meet or exceed N — no possible quorum.
-            agreedValue = default;
-            return false;
-        }
-        var threshold = n - f;
-
-        var winner = voteList
-            .GroupBy(v => v, EqualityComparer<T>.Default)
-            .OrderByDescending(g => g.Count())
-            .First();
-
-        agreedValue = winner.Key;
-        return winner.Count() >= threshold;
-    }
+        // Moved to AetherNet.Core (AetherNet.Diagnostics.MeshInvariants); forwarded for compatibility.
+        => AetherNet.Diagnostics.MeshInvariants.ByzantineQuorumReached(votes, out agreedValue, faultTolerance);
 }

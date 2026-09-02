@@ -3,6 +3,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using AetherNet.Constants;
+using AetherNet.Diagnostics;
 using AetherNet.Extensibility;
 using AetherNet.Protocol;
 using AetherNet.Routing;
@@ -358,6 +359,17 @@ public sealed class WatchTogetherService : IWatchTogetherService
         var compensated = command.Kind == WatchSyncType.Play
             ? command.PositionMs + (long)(elapsed * command.PlaybackSpeed)
             : command.PositionMs;
+
+        // Runtime quality monitor (formal/watch-together-timed): an established, playing follower whose
+        // position has drifted beyond tolerance from the host's authoritative position is out of sync;
+        // flag it before we snap to the host. The predicate keeps this check and the formal model coupled.
+        if (session.IsPlaying &&
+            !MeshInvariants.WatchTogetherBoundedLatency(compensated, [session.PositionMs]))
+        {
+            _logger.LogWarning(
+                "Watch-together follower drift {DriftMs}ms exceeds tolerance for session {SessionId}; re-syncing to host {HostMs}ms",
+                Math.Abs(session.PositionMs - compensated), command.SessionId, compensated);
+        }
 
         session.PositionMs = compensated;
         session.PlaybackSpeed = command.PlaybackSpeed;

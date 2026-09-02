@@ -101,7 +101,7 @@ Identity/keystore/tag are real; accounts absent; biometric unlock deliberately u
 
 ## Phase J — Wire the runtime invariants
 
-- [ ] **J1 · Wire `WatchTogetherBoundedLatency` / `OutboxBounded` / `ByzantineQuorumReached`** into runtime monitors — predicates exist in `src/AetherNet.Content/Diagnostics/MeshInvariants.cs`, zero callers. · **S each · TODO**
+- [x] **J1 · Wire the runtime invariants** — relocated the 3 pure predicates to `AetherNet.Core` (`AetherNet.Diagnostics.MeshInvariants`; Content forwards for compat) so low layers can reach them. `OutboxBounded` → `MessagingOutboxHealthCheck`; `WatchTogetherBoundedLatency` → `WatchTogetherService` follower-drift monitor. `ByzantineQuorumReached` has no core aggregation seam (routing uses single-source-signed RREPs) — now reachable for downstream trust-gate consumers rather than faking a caller. 21 tests green, DI graph builds. · **S · DONE**
 
 ## Phase K+ — Later layers  ·  map, not sprint  ·  economy-last
 

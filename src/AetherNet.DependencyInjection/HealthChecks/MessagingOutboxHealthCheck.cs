@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using AetherNet.Diagnostics;
 using AetherNet.Messaging;
 using AetherNet.Messaging.Models;
 using Microsoft.Extensions.DependencyInjection;
@@ -69,14 +70,19 @@ public sealed class MessagingOutboxHealthCheck : IHealthCheck
             ["degradedThreshold"] = _options.DegradedOutboxSize,
         };
 
-        if (pending > _options.DegradedOutboxSize && previousDepth >= 0 && pending > previousDepth)
+        // The degraded/unhealthy decision is the formal outbox-backpressure invariant: healthy iff the
+        // queue is within its cap. Wired to MeshInvariants so the runtime monitor and the Petri-net
+        // model (formal/outbox-backpressure) can't drift apart.
+        var withinCap = MeshInvariants.OutboxBounded(pending, _options.DegradedOutboxSize);
+
+        if (!withinCap && previousDepth >= 0 && pending > previousDepth)
         {
             return HealthCheckResult.Unhealthy(
                 $"Messaging outbox growing: {previousDepth} -> {pending} (threshold {_options.DegradedOutboxSize}) — delivery is stuck.",
                 data: data);
         }
 
-        if (pending > _options.DegradedOutboxSize)
+        if (!withinCap)
         {
             return HealthCheckResult.Degraded(
                 $"Messaging outbox at {pending} (threshold {_options.DegradedOutboxSize}) — investigate delivery.",
