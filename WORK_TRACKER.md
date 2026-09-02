@@ -68,11 +68,13 @@ Primitive, in-session exchange (`AddErid()`, `EridDirectory`, `EridExchangeCoord
 - [ ] **E2 · Remove stable `SourceUhid`/`DestinationUhid` from the header** behind the negotiated `erid-routing` capability. `PacketSerializer.cs:84-94`, `MeshPacket.cs:209/212`. E1 makes this a header swap, not a rewrite — the receive side already resolves ERIDs. · **M · BLOCKED (two-node delivery test — needs a 2nd phone)**
 - [x] **E3 · reputation/incentive on long-term identity, never the wire ERID** — the stores already key on UHID; the resolver now resolves the accountable/route source to the stable UHID before any reputation, rate-limiter, or route-table key, so an ERID can never leak into an identity ledger. · **M · DONE**
 
-## Phase F — Mesh-web renderer surface (§2)  ·  builds on `CardPage.cs`
+## Phase F — Mesh-web renderer surface (§2)  ·  builds on `CardPage.cs`  ·  DECIDE first (inert vs executable cards)
 
-- [ ] **F1 · JS sandbox + `mesh.*` bridge** (fetch/publish/pay/sign/identity) — none exists; builds on the two first-party inline scripts already in `CardPage.cs`. · **XL · TODO**
-- [ ] **F2 · Per-site derived identity** — a card sees a per-site key, not the master tag. · **M · TODO**
-- [ ] **F3 · Inline `<aether-pay>` / `<aether-vouch>` tags.** · **M / S · TODO**
+The render substrate is ~70% there (iframe `srcdoc` under CSP `default-src 'none'`, a working card↔host `postMessage` seam with `[JSInvokable]` dispatch, first-party inline-script delivery). But F1/F3 require **author code to run inside a card**, which contradicts the repeated, deliberate "a card is a document, never a program" design and the standing "a card must stay inert on a stranger's phone" rule. The card iframe is same-origin with **no `sandbox`**, so any author-reachable capability needs sandbox hardening (a cross-origin `sandbox="allow-scripts"` frame) FIRST. That is a first-party security decision, not mine to flip.
+
+- [ ] **F1 · JS sandbox + `mesh.*` bridge** (fetch/publish/pay/sign/identity) — ⚠️ **DECIDE:** do cards run author code at all? If yes, sandbox-harden the frame, then add request/response correlation to the `aether-card.js` ⇄ `aetherCardHost` channel + a `window.mesh` shim. Smallest safe first slice = a read-only `mesh.identity()` returning the F2 pseudonym. · **XL · DECIDE-gated (conflicts with inert-card rule)**
+- [x] **F2 · Per-site derived identity** — built: `AetherNet.Identity.SiteIdentity` + `SiteIdentityDerivation.ForSiteAsync(identity, siteTag)` — a per-site pseudonym (tag-shaped) + secret from `INodeIdentity.DeriveKeyAsync("aether-site-identity-v1:"+tag)`. Stable per site, unlinkable across sites, never reveals the master tag. 7 tests. The card-facing *exposure* of it is F1. · **M · DONE (primitive; exposure is F1)**
+- [ ] **F3 · Inline `<aether-pay>` / `<aether-vouch>` tags** — backends exist unwired to Browser (`AetherNet.Tipping.TippingService`, `AetherNet.Market.IPoVService`); the tags themselves need F1's bridge + the security decision. · **M / S · DECIDE-gated (needs F1)**
 
 ## Phase G — Reach at true distance (relay §3a)  ·  BLOCKED: two-node hole-punch test
 
