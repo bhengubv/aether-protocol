@@ -1,0 +1,104 @@
+@page "/diag"
+@using AetherNet.Identity
+@using AetherNet.Rendezvous
+@using AetherNet.Security.Identity
+@using AetherNet.Sample.Shared.Services
+@inject IIdentityService Me
+@inject INodeIdentity Node
+
+@* A developer diagnostics surface for exercising protocol primitives across two real devices. Not a
+   shipping feature — it is driven over the devtools bridge to test the two-node primitives with each
+   phone's real keystore identity. *@
+<div style="padding:16px; font-family:var(--mono, monospace); color:var(--ink); display:flex; flex-direction:column; gap:14px;">
+    <div>My tag: <b id="mytag">@Me.AetherTag</b></div>
+
+    <fieldset>
+        <legend>Rendezvous (D1) — both phones derive the same point</legend>
+        <input id="peerTag" @bind="_peerTag" placeholder="their tag" style="width:100%" />
+        <button id="deriveBtn" @onclick="Derive">Derive</button>
+        <div>rendezvous: <b id="rv">@_rv</b></div>
+        <div>i_start: <b id="istart">@_iStart</b></div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Ownership (H3) — prove you hold your tag</legend>
+        <button id="issueBtn" @onclick="Issue">Issue challenge (verifier)</button>
+        <div>challenge: <b id="challengeOut">@_challengeOut</b></div>
+        <input id="challengeIn" @bind="_challengeIn" placeholder="challenge json" style="width:100%" />
+        <button id="proveBtn" @onclick="Prove">Prove (holder)</button>
+        <div>proof: <b id="proofOut">@_proofOut</b></div>
+        <input id="proofIn" @bind="_proofIn" placeholder="proof json" style="width:100%" />
+        <input id="expectTag" @bind="_expectTag" placeholder="expected tag" style="width:100%" />
+        <button id="verifyBtn" @onclick="Verify">Verify (verifier)</button>
+        <div>result: <b id="verifyOut">@_verifyOut</b></div>
+    </fieldset>
+</div>
+
+@code {
+    private string _peerTag = "", _rv = "", _iStart = "";
+    private string _challengeOut = "", _challengeIn = "", _proofOut = "", _proofIn = "", _expectTag = "", _verifyOut = "";
+
+    // Held so the verifier checks a proof against the exact challenge it issued (stateless-caller model).
+    private OwnershipChallenge? _issued;
+
+    private void Derive()
+    {
+        var m = Meeting.With(Me.AetherTag, _peerTag.Trim());
+        if (m is { } meeting) { _rv = meeting.Rendezvous; _iStart = meeting.IStart.ToString().ToLowerInvariant(); }
+        else { _rv = "(none)"; _iStart = ""; }
+    }
+
+    private void Issue()
+    {
+        _issued = OwnershipChallenge.Issue("diag", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        _challengeOut = Enc(_issued);
+    }
+
+    private async Task Prove()
+    {
+        var challenge = DecChallenge(_challengeIn.Trim());
+        if (challenge is null) { _proofOut = "(bad challenge)"; return; }
+        var proof = await OwnershipValidator.ProveAsync(Node, challenge);
+        _proofOut = Enc(proof);
+    }
+
+    private void Verify()
+    {
+        var proof = DecProof(_proofIn.Trim());
+        if (_issued is null || proof is null || !AetherNetTag.TryParse(_expectTag.Trim(), out var tag))
+        { _verifyOut = "(bad input)"; return; }
+        var ok = OwnershipValidator.Verify(_issued, proof, tag, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        _verifyOut = ok ? "VALID — owns the tag" : "INVALID";
+    }
+
+    // ── tiny hex/JSON codec so the challenge/proof can be shuttled between the two phones ──
+    private static string Hex(byte[] b) => Convert.ToHexString(b);
+    private static byte[] Unhex(string s) => Convert.FromHexString(s);
+
+    private static string Enc(OwnershipChallenge c) =>
+        $"{{\"n\":\"{Hex(c.Nonce)}\",\"t\":{c.IssuedAtMs},\"p\":\"{c.Purpose}\"}}";
+    private static string Enc(OwnershipProof p) =>
+        $"{{\"n\":\"{Hex(p.Nonce)}\",\"k\":\"{Hex(p.PublicKey)}\",\"s\":\"{Hex(p.Signature)}\"}}";
+
+    private static OwnershipChallenge? DecChallenge(string s)
+    {
+        try
+        {
+            using var d = System.Text.Json.JsonDocument.Parse(s);
+            var r = d.RootElement;
+            return new OwnershipChallenge(Unhex(r.GetProperty("n").GetString()!), r.GetProperty("t").GetInt64(), r.GetProperty("p").GetString()!);
+        }
+        catch { return null; }
+    }
+
+    private static OwnershipProof? DecProof(string s)
+    {
+        try
+        {
+            using var d = System.Text.Json.JsonDocument.Parse(s);
+            var r = d.RootElement;
+            return new OwnershipProof(Unhex(r.GetProperty("n").GetString()!), Unhex(r.GetProperty("k").GetString()!), Unhex(r.GetProperty("s").GetString()!));
+        }
+        catch { return null; }
+    }
+}
