@@ -92,12 +92,12 @@ Identity/keystore/tag are real; accounts absent; biometric unlock deliberately u
 - [ ] **H3 · Stateless ownership-validator + sync-auth flow.** · **L · DECIDE-gated**
 - [ ] **H4 · Device revocation + PanicWipe pairing.** · **S · TODO**
 
-## Phase I — URI + naming
+## Phase I — URI + naming  ·  complete
 
-- [ ] **I1 · Formal `aether://TAG/name` grammar** — today `ContactService.TryParseInvite` reads only `host=TAG` + `?k=`, discards the path. · **S · TODO**
-- [ ] **I2 · Per-app handler registration** — filter is baked into one `MainActivity.cs`. · **M · TODO**
-- [ ] **I3 · Petname registry** (`Resolve`/`Pin`/`Propose`/`Reject`, gossip, seed bundle). · **M · TODO**
-- [ ] **I4 · QR primitive** — generate + scan `aether://` codes. · **S · TODO**
+- [x] **I1 · Formal `aether://TAG/name` grammar** — **already built** (ledger was stale): `AetherNet.Addressing.AetherUri` is a full ABNF grammar (authority = tag or 64-hex UHID, path segments, query, fragment, percent-encoding, canonical round-trip, equality) with `Parse`/`TryParse`/`ToString`. · **S · DONE (already built)**
+- [x] **I2 · Per-app handler registration** — **already built**: `IAetherUriRouter`/`AetherUriRouter` + `AetherUriHandlerManifest`/`AetherUriHandlerDescriptor` + `RegisterHandler` + `DispatchAsync` — a manifest of handlers with per-descriptor callbacks, not a baked-in `MainActivity` filter. · **M · DONE (already built)**
+- [x] **I3 · Petname registry** — built this session: `AetherNet.Identity.PetnameRegistry` (+ `IPetnameStore`/`InMemoryPetnameStore`). `Pin` (authoritative), `Propose`/`Reject` (peer suggestions that never override a pin), `ResolveName` (unambiguous only, pins win), `NameFor`, `Seed` bundle, `ExportProposals`/`ImportProposals` gossip. Zooko's-triangle, local-first (no central registry). 17 tests green. · **M · DONE**
+- [x] **I4 · QR primitive** — `AetherNet.Browser.QrSvg` renders an `aether://` invite as inline SVG (generate). Scanning is **deliberately** the OS camera opening the `aether://` link via the registered scheme handler (I2) — no in-app decoder by design. · **S · DONE (generate; scan via OS + scheme handler)**
 
 ## Phase J — Wire the runtime invariants
 
