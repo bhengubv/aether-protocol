@@ -162,7 +162,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
             // Ours, or somebody's we carry? A packet addressed to a contact who is not us goes back
             // out on whichever radio can reach them, one hop shorter, and is NOT delivered upstairs —
             // this node is a router for it, not a reader.
-            if (!Carry(bytes)) PacketReceived?.Invoke(bytes);
+            if (!Carry(bytes)) PacketReceived?.Invoke(RevealIdentity(bytes));
         };
     }
 
@@ -520,6 +520,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     /// </summary>
     public async Task<bool> SendPacketAsync(byte[] packetBytes, SendLane lane)
     {
+        packetBytes = HideIdentity(packetBytes);
         foreach (var r in Candidates())
         {
             var ok = await r.SendAsync(packetBytes, lane).ConfigureAwait(false);
@@ -542,6 +543,57 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     {
         try { return PacketPriority.Lane(PacketSerializer.Deserialize(packetBytes).Type); }
         catch { return SendLane.Interactive; }
+    }
+
+    /// <summary>
+    /// E2 — take the stable, trackable UHID off the wire. On any lane (voice, attachments, group calls,
+    /// as well as chat) rewrite the source and destination to rotating ERIDs, once we hold the peer's
+    /// routing key and the packet is not identity bootstrap. Chat already does this at its own,
+    /// cross-platform seam; this catches every other lane that leaves this phone. A packet that already
+    /// carries ERIDs (chat's), a broadcast, a bootstrap type, or a peer whose key we do not hold passes
+    /// through untouched.
+    /// </summary>
+    private byte[] HideIdentity(byte[] bytes)
+    {
+        if (_circle is null) return bytes;
+
+        MeshPacket packet;
+        try { packet = PacketSerializer.Deserialize(bytes); }
+        catch { return bytes; }
+
+        // These carry identity before any key is known and MUST keep the stable tag, or the routing-key
+        // exchange (and thus recognition) could never bootstrap.
+        if (packet.Type is PacketType.Hello or PacketType.HelloAck or PacketType.EridAnnounce
+            or PacketType.PreKeyRequest or PacketType.PreKeyResponse)
+            return bytes;
+
+        if (string.IsNullOrEmpty(packet.DestinationUhid)) return bytes;      // broadcast — cannot ERID to one peer
+        if (_circle.AddressFor(packet.DestinationUhid) is not { } peerErid) return bytes; // key unknown, or already an ERID
+
+        packet.SourceUhid = _circle.MyAddress();
+        packet.DestinationUhid = peerErid;
+        return PacketSerializer.Serialize(packet);
+    }
+
+    /// <summary>
+    /// The receive-side inverse of <see cref="HideIdentity"/>: resolve a delivered packet's source ERID
+    /// back to the sender's stable tag so the ratchet keyed on that tag can decrypt it. Runs only on the
+    /// deliver-here path (after the relay decision, which works on the raw wire address); a stable tag or
+    /// an address we cannot resolve passes through unchanged.
+    /// </summary>
+    private byte[] RevealIdentity(byte[] bytes)
+    {
+        if (_circle is null) return bytes;
+
+        MeshPacket packet;
+        try { packet = PacketSerializer.Deserialize(bytes); }
+        catch { return bytes; }
+
+        var source = _circle.Recognise(packet.SourceUhid);
+        if (source is null) return bytes;
+
+        packet.SourceUhid = source;
+        return PacketSerializer.Serialize(packet);
     }
 
     /// <summary>
