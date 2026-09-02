@@ -150,6 +150,16 @@
 
 * { box-sizing: border-box; }
 
+/* Placeholder legibility. The WebView's default placeholder is a fixed mid-grey (#757575) that ignores
+   the field's own colour — illegible, and muddy-looking, on any coloured fill (e.g. a blue tag box in
+   light mode). Derive it from the field's text colour instead, so a placeholder is always a faded
+   version of what the typed text will be — legible on a white field and on a blue one alike. */
+input::placeholder,
+textarea::placeholder {
+    color: currentColor;
+    opacity: 0.55;
+}
+
 html, body {
     margin: 0;
     padding: 0;
