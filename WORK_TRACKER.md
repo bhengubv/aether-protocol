@@ -64,9 +64,9 @@ only · substrate-first, economy-last · .NET 10 · `[skip ci]` · P30 is the be
 
 Primitive, in-session exchange (`AddErid()`, `EridDirectory`, `EridExchangeCoordinator`), and BLE rotation already exist.
 
-- [ ] **E1 · Route tables keyed on ERID**, TTL ≤ epoch length. · **L · TODO**
-- [ ] **E2 · Remove stable `SourceUhid`/`DestinationUhid` from the header** behind the negotiated `erid-routing` capability. `PacketSerializer.cs:84-94`, `MeshPacket.cs:209/212`. · **M · BLOCKED (delivery test)**
-- [ ] **E3 · Keep reputation/incentive state on long-term identity**, never the wire ERID. · **M · TODO**
+- [x] **E1 · Route tables keyed on ERID, TTL ≤ epoch** — `EridRouteResolver` resolves a received ERID → the stable long-term UHID so a route survives rotation instead of vanishing each window; `RouteEntry.RefreshBoundedBy` + `EphemeralRoutingId.EpochEndUnixSeconds` cap the route at the epoch boundary; wired into `RoutingService` as an opt-in resolver (pass-through by default, so today's UHID wire is unchanged). 87 routing/ERID tests green. Full activation is the E2 cutover. · **L · DONE (opt-in; activation gated on E2)**
+- [ ] **E2 · Remove stable `SourceUhid`/`DestinationUhid` from the header** behind the negotiated `erid-routing` capability. `PacketSerializer.cs:84-94`, `MeshPacket.cs:209/212`. E1 makes this a header swap, not a rewrite — the receive side already resolves ERIDs. · **M · BLOCKED (two-node delivery test — needs a 2nd phone)**
+- [x] **E3 · reputation/incentive on long-term identity, never the wire ERID** — the stores already key on UHID; the resolver now resolves the accountable/route source to the stable UHID before any reputation, rate-limiter, or route-table key, so an ERID can never leak into an identity ledger. · **M · DONE**
 
 ## Phase F — Mesh-web renderer surface (§2)  ·  builds on `CardPage.cs`
 

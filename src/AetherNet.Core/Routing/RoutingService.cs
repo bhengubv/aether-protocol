@@ -33,6 +33,12 @@ public sealed class RoutingService : IRoutingService
     private readonly ILogger<RoutingService> _logger;
     private readonly IAetherNetTelemetry? _telemetry;
 
+    // Resolves a received wire address (an ERID, once erid-routing is negotiated) to the stable
+    // long-term UHID that the route table and reputation/incentive ledgers key on, and reports the
+    // epoch boundary at which a route learned from that ERID must expire. Pass-through by default: with
+    // no EridDirectory it returns addresses unchanged, so routing behaves exactly as it did before.
+    private readonly EridRouteResolver _routeResolver;
+
     private readonly ConcurrentDictionary<string, RouteEntry> _routeCache = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<RouteEntry>> _pending = new(StringComparer.Ordinal);
     // Value = Environment.TickCount64 expiry (ms). TTL-based so stale entries can be
@@ -53,7 +59,8 @@ public sealed class RoutingService : IRoutingService
         IAetherNetIncentiveProvider? incentives = null,
         INodeReputationService? reputation = null,
         ILogger<RoutingService>? logger = null,
-        IAetherNetTelemetry? telemetry = null)
+        IAetherNetTelemetry? telemetry = null,
+        EridRouteResolver? routeResolver = null)
     {
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
         _store = store ?? new InMemoryRouteStore();
@@ -66,6 +73,7 @@ public sealed class RoutingService : IRoutingService
         _reputation = reputation;
         _logger = logger ?? NullLogger<RoutingService>.Instance;
         _telemetry = telemetry;
+        _routeResolver = routeResolver ?? new EridRouteResolver();
     }
 
     public async Task<RouteEntry?> FindRouteAsync(string destinationUhid, CancellationToken cancellationToken = default)
@@ -140,9 +148,12 @@ public sealed class RoutingService : IRoutingService
         // node can forge to a victim's identity to drain its budget or frame it toward
         // excommunication. Fall back to SourceUhid only when no host supplies the neighbour
         // (e.g. a direct unit test); a real host passes the authenticated transport peer.
-        var accountableUhid = string.IsNullOrEmpty(linkLayerSenderUhid)
-            ? routeRequest.SourceUhid
-            : linkLayerSenderUhid;
+        // Resolve to the STABLE long-term identity before keying reputation or the rate limiter on it,
+        // so an ERID-rotating flooder cannot reset its accountability every epoch (E3). Pass-through for
+        // a plain UHID or an authenticated transport peer.
+        var accountableUhid = _routeResolver.Resolve(
+            string.IsNullOrEmpty(linkLayerSenderUhid) ? routeRequest.SourceUhid : linkLayerSenderUhid)
+            .StableUhid;
 
         // Relay flood cap: a legit node discovers a route a handful of times then caches it, so
         // anything above the cap is a flood. Drop it before it touches dedup state or is
@@ -178,15 +189,19 @@ public sealed class RoutingService : IRoutingService
             return;
 
         var hopCount = Math.Max(1, ProtocolConstants.DefaultTtl - routeRequest.Ttl + 1);
+        // Key the reverse route on the STABLE identity the wire source resolves to, so the route
+        // survives ERID rotation instead of vanishing every window (E1). Cap its lifetime at the epoch
+        // boundary when it was learned from an ERID — that wire address stops being valid then.
+        var reverseSource = _routeResolver.Resolve(routeRequest.SourceUhid);
         var reverse = new RouteEntry
         {
-            DestinationUhid = routeRequest.SourceUhid,
-            NextHopUhid = routeRequest.SourceUhid,
+            DestinationUhid = reverseSource.StableUhid,
+            NextHopUhid = reverseSource.StableUhid,
             HopCount = hopCount,
             LatencyMs = 0,
             QualityScore = RouteEntry.ComputeQuality(hopCount, 0, 0.5),
-            ExpiresAt = DateTime.UtcNow.AddSeconds(ProtocolConstants.RouteExpirySeconds),
         };
+        reverse.RefreshBoundedBy(ProtocolConstants.RouteExpirySeconds, reverseSource.EpochExpiryUtc ?? DateTime.MaxValue);
         _routeCache[reverse.DestinationUhid] = reverse;
         await _store.SaveAsync(reverse, cancellationToken).ConfigureAwait(false);
 
@@ -233,15 +248,18 @@ public sealed class RoutingService : IRoutingService
             return;
 
         var hopCount = Math.Max(1, ProtocolConstants.DefaultTtl - routeReply.Ttl + 1);
+        // Same as the reverse route: key on the stable identity (E1) and bound the lifetime by the epoch
+        // when the reply's source was an ERID.
+        var forwardSource = _routeResolver.Resolve(routeReply.SourceUhid);
         var forward = new RouteEntry
         {
-            DestinationUhid = routeReply.SourceUhid,
-            NextHopUhid = routeReply.SourceUhid,
+            DestinationUhid = forwardSource.StableUhid,
+            NextHopUhid = forwardSource.StableUhid,
             HopCount = hopCount,
             LatencyMs = 0,
             QualityScore = RouteEntry.ComputeQuality(hopCount, 0, 0.5),
-            ExpiresAt = DateTime.UtcNow.AddSeconds(ProtocolConstants.RouteExpirySeconds),
         };
+        forward.RefreshBoundedBy(ProtocolConstants.RouteExpirySeconds, forwardSource.EpochExpiryUtc ?? DateTime.MaxValue);
         _routeCache[forward.DestinationUhid] = forward;
         await _store.SaveAsync(forward, cancellationToken).ConfigureAwait(false);
         AetherNetTelemetry.RouteRepliesReceived.Add(1);

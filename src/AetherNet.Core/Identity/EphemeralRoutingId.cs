@@ -85,6 +85,20 @@ public static class EphemeralRoutingId
         return unixSeconds / epochSeconds;
     }
 
+    /// <summary>
+    /// The Unix time (seconds) at which the epoch containing <paramref name="unixSeconds"/> ends — the
+    /// instant the ERID rotates. A route learned from an ERID-addressed packet must not be trusted past
+    /// this point: after it, the peer answers to a different, uncorrelated wire address, so a route
+    /// keyed on the old ERID would forward into the void. E1 caps route expiry at this boundary.
+    /// </summary>
+    public static long EpochEndUnixSeconds(long unixSeconds, int epochSeconds = DefaultEpochSeconds)
+    {
+        if (epochSeconds <= 0)
+            throw new ArgumentOutOfRangeException(nameof(epochSeconds), "epochSeconds must be positive.");
+        if (unixSeconds < 0) unixSeconds = 0;
+        return (EpochFor(unixSeconds, epochSeconds) + 1) * (long)epochSeconds;
+    }
+
     /// <summary>Derives the ERID for the epoch that contains <paramref name="unixSeconds"/>.</summary>
     public static string Derive(byte[] routingKey, long unixSeconds,
                                 int epochSeconds = DefaultEpochSeconds, int length = DefaultLength)

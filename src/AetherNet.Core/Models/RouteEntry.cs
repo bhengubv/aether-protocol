@@ -41,6 +41,20 @@ public sealed class RouteEntry
     }
 
     /// <summary>
+    /// Refreshes expiry to <paramref name="expirySeconds"/> from now, but never past
+    /// <paramref name="notAfterUtc"/>. Used when a route is learned from an ERID-addressed packet: the
+    /// route must not outlive the epoch in which that rotating wire address is valid (see
+    /// <see cref="AetherNet.Identity.EphemeralRoutingId.EpochEndUnixSeconds"/>). After the epoch turns,
+    /// the peer answers to a different, uncorrelated ERID, so a route held past the boundary would
+    /// forward toward an address nobody is listening on.
+    /// </summary>
+    public void RefreshBoundedBy(int expirySeconds, DateTime notAfterUtc)
+    {
+        var byExpiry = DateTime.UtcNow.AddSeconds(expirySeconds);
+        ExpiresAt = byExpiry < notAfterUtc ? byExpiry : notAfterUtc;
+    }
+
+    /// <summary>
     /// Computes quality score based on hop count, latency, and peer reliability.
     /// </summary>
     public static double ComputeQuality(int hopCount, double latencyMs, double peerReliability)
