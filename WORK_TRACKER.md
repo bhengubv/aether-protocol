@@ -9,7 +9,7 @@ shrinks toward empty.
 `DECIDE` (needs an owner call first) · `DONE`.
 **Size:** S / M / L / XL (ledger scale).
 
-**Progress:** All solo-buildable C# done — Phase A ×5, D1–D3, D4 ports ×4 (Py/Go/Rust/TS), J1, E1, E3, I1–I4, F2, H3, H4 (+ ledger corrections: recovery, PanicWipe, DeviceLink, AetherUri/router/QR were already built). **Remaining is not solo-buildable:** hardware-gated (E2, G1–G4, B1–B5, K1 — need a 2nd/3rd phone), decision-gated (F1/F3, H1-online, H2, K5, + recovery/email/family DECIDE), non-C#/non-solo (K2 CircleOS, K6 hardware, K7 central-money, K8 web), and the explicitly-deferred K3/K4 ("map, not sprint").
+**Progress:** All solo-buildable C# done — Phase A ×5, D1–D3, D4 ports ×4 (Py/Go/Rust/TS), J1, E1, E3, I1–I4, F2, H3, H4 (+ ledger corrections: recovery, PanicWipe, DeviceLink, AetherUri/router/QR were already built). **Remaining is not solo-buildable:** hardware-gated (G1–G4, B1/B2/B4/B5, K1 — need a 2nd/3rd phone; B3 done, E2 verified), decision-gated (F1/F3, H1-online, H2, K5, + recovery/email/family DECIDE), non-C#/non-solo (K2 CircleOS, K6 hardware, K7 central-money, K8 web), and the explicitly-deferred K3/K4 ("map, not sprint").
 
 Constraints in force on every item: `aether://` only · Android + Circle OS · one APK · no GMS · FOSS
 only · substrate-first, economy-last · .NET 10 · `[skip ci]` · P30 is the benchmark · code in
@@ -21,6 +21,7 @@ only · substrate-first, economy-last · .NET 10 · `[skip ci]` · P30 is the be
 
 - [x] **Reach** — copy-link + keep-an-unreachable-address ("Waiting for"). `src/AetherNet.Browser/Wanted.cs`, proven on P30.
 - [x] **Deterministic concurrency test** — scoped to the corruption class; 5/5 with lock, 3/3 without. `AetherStoreConcurrencyTests.cs`.
+- [x] **Lab showcase** — a "Lab" tab + hub in the sample app surfacing 22 built-but-unshowcased protocol capabilities as self-contained demo pages, each driving the real `src/` service in-process (radio simulated). **All 7 pillars driven on P30** (`AetherNetTag.Verify` MATCH+forgery-REJECT, BitTorrent info-hash + BEP-52 merkle, streaming segment delivery, `TipPacket` type-24 settle, geohash flood, Reed-Solomon vault, BIP39 recovery). Android + web heads compile; 1435 Sample tests green. `samples/…/Pages/Lab/`, shipped `d3076e0`. **Showcase only** — surfaces the *done* primitives; does not close the open C1/F1/F3/H1/H2/H4 integration items.
 
 ## Ledger corrections found while tracking (so nobody re-does settled work)
 
@@ -44,8 +45,8 @@ only · substrate-first, economy-last · .NET 10 · `[skip ci]` · P30 is the be
 ## Phase B — Prove what's built  ·  needs a 3rd handset  ·  runs alongside A
 
 - [ ] **B1 · Gateway egress** — one phone as internet egress; the "switch on relaying" nobody has pressed. · **S · PROVE**
-- [ ] **B2 · Three-device relay** — `MeshRelay` has never carried for a third node. · **M · PROVE**
-- [ ] **B3 · Clean `-t:Install`** — everything went out over `adb install -r`. · **S · PROVE**
+- [ ] **B2 · Three-device relay** — `MeshRelay` has never carried for a third node. **3rd handset now connected this session** (REDMI12 over WLD; its IP+port both rotate, connect via `scan_and_connect.ps1`); the relay run still needs all three up simultaneously + P30 unlocked. · **M · PROVE**
+- [x] **B3 · Clean `-t:Install`** — **PROVEN on P30 this session**: the Lab build installed via `dotnet build -t:Install -f net10.0-android -p:AdbTarget="-s UTKDU19919000815"` (clean install, `lastUpdateTime` verified), not `adb install -r`. · **S · DONE**
 - [ ] **B4 · Background-radio-cost soak** — a phone left running a day. · **M · PROVE**
 - [ ] **B5 · Role handover in the field** — proven in `RoleFollowsTheRadioTests`, never fired on a device that truly can't host or advertise. · **S · PROVE**
 
