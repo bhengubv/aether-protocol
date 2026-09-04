@@ -16,7 +16,8 @@
     <div class="profile">
         <span class="pav">@Initial</span>
         <div class="pinfo">
-            <span class="pname">You</span>
+            <input class="pname pname-edit" @bind="_name" @bind:event="oninput" @onchange="SaveName"
+                   placeholder="Your name" maxlength="40" aria-label="Your display name" />
             <button class="ptag" @onclick="CopyTag">@(_copied ? "Copied ✓" : Me.AetherTag)</button>
         </div>
     </div>
@@ -130,6 +131,7 @@
     {
         Proxies.Changed += OnChanged;
         _theme = Store.GetSetting(SetupKeys.Theme) ?? "system";
+        _name = Store.GetAccount().DisplayName;
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
@@ -165,7 +167,21 @@
     /// </remarks>
     private string _theme = "system";
 
-    private string Initial => string.IsNullOrEmpty(Me.AetherTag) ? "?" : Me.AetherTag[..1];
+    /// <summary>Your chosen display name — loaded from the account, persisted on change. Local only.</summary>
+    private string? _name;
+
+    /// <summary>The avatar glyph: the initial of your name if you have set one, else of your tag.</summary>
+    private string Initial
+    {
+        get
+        {
+            var source = !string.IsNullOrWhiteSpace(_name) ? _name!.Trim() : Me.AetherTag;
+            return string.IsNullOrEmpty(source) ? "?" : source[..1].ToUpperInvariant();
+        }
+    }
+
+    /// <summary>Persist the chosen name and its initial avatar. Never sent anywhere — the tag is the identity.</summary>
+    private void SaveName() => Store.SaveAccount(_name?.Trim() ?? string.Empty, Initial);
 
     private async Task CopyTag()
     {
@@ -193,6 +209,9 @@
     .pav { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--brand), var(--brand-deep)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 2rem; }
     .pinfo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
     .pname { font-size: 1.5rem; font-weight: 800; color: var(--ink); }
+    .pname-edit { appearance: none; border: none; background: transparent; padding: 0; width: 100%; min-width: 0; font-family: inherit; }
+    .pname-edit::placeholder { color: var(--ink-3); opacity: .65; font-weight: 700; }
+    .pname-edit:focus { outline: none; }
     .ptag { appearance: none; border: none; background: transparent; cursor: pointer; text-align: left; padding: 0; font-family: var(--mono); font-size: 0.95rem; font-weight: 700; letter-spacing: 1px; color: var(--brand); }
 
     .group { display: flex; flex-direction: column; gap: 10px; }

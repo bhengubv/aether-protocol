@@ -66,6 +66,24 @@ public sealed record ContactRecord(
 }
 
 /// <summary>
+/// This device's own account — the local profile the person presents as.
+///
+/// <para>
+/// Local-first: the display name and avatar are yours to set and are never broadcast; the AetherTag
+/// stays the identity. Persisted on the single identity row so a name set once survives a relaunch —
+/// the profile used to be a hard-coded "You" held only in the page.
+/// </para>
+/// </summary>
+/// <param name="DisplayName">What you call yourself here. Empty means you have not set one.</param>
+/// <param name="Avatar">A one-glyph avatar (an initial or emoji); empty derives from the name/tag.</param>
+/// <param name="RecoveryBackedUpMs">When you last confirmed your recovery phrase is written down; 0 = never.</param>
+public sealed record Account(string DisplayName, string Avatar, long RecoveryBackedUpMs)
+{
+    /// <summary>You have confirmed your recovery phrase is safe somewhere off this device.</summary>
+    public bool RecoveryBackedUp => RecoveryBackedUpMs > 0;
+}
+
+/// <summary>
 /// A group conversation: a chat with more than one person in it.
 /// </summary>
 /// <param name="Id">
@@ -299,6 +317,14 @@ public sealed class AetherStore : IDisposable
         AddColumnIfMissing("messages", "att_hash", "TEXT");
         AddColumnIfMissing("messages", "att_type", "TEXT");
         AddColumnIfMissing("messages", "att_bytes", "INTEGER");
+
+        // The account object beyond the raw keypair — a chosen display name + avatar, and whether the
+        // recovery phrase has been backed up. Columns on the single identity row (migration-safe, so a
+        // phone already in the field keeps its identity) — the profile used to be hard-coded and
+        // in-memory only, so a name lasted exactly as long as the page.
+        AddColumnIfMissing("identity", "display_name", "TEXT");
+        AddColumnIfMissing("identity", "avatar", "TEXT");
+        AddColumnIfMissing("identity", "recovery_backed_up_ms", "INTEGER");
         Exec("CREATE INDEX IF NOT EXISTS ix_contacts_last_seen ON contacts(last_seen_ms);");
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_peer ON messages(peer_tag, sent_ms);");
         Exec("CREATE INDEX IF NOT EXISTS ix_messages_state ON messages(state);");
@@ -389,6 +415,50 @@ public sealed class AetherStore : IDisposable
             cmd.Parameters.AddWithValue("@tag", tag);
             cmd.Parameters.AddWithValue("@key", publicKey);
             cmd.Parameters.AddWithValue("@ms", Now());
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// This device's own account — display name, avatar, recovery-backed-up state. Returns a default
+    /// (empty) account before anything is set, or on a first run before the identity row is written.
+    /// </summary>
+    public Account GetAccount()
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT display_name, avatar, recovery_backed_up_ms FROM identity WHERE id = 1;";
+            using var r = cmd.ExecuteReader();
+            if (!r.Read()) return new Account(string.Empty, string.Empty, 0);
+            return new Account(
+                r.IsDBNull(0) ? string.Empty : r.GetString(0),
+                r.IsDBNull(1) ? string.Empty : r.GetString(1),
+                r.IsDBNull(2) ? 0 : r.GetInt64(2));
+        }
+    }
+
+    /// <summary>Set the local display name + avatar. A no-op until the identity row exists (first run).</summary>
+    public void SaveAccount(string displayName, string avatar)
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "UPDATE identity SET display_name = @name, avatar = @avatar WHERE id = 1;";
+            cmd.Parameters.AddWithValue("@name", displayName ?? string.Empty);
+            cmd.Parameters.AddWithValue("@avatar", avatar ?? string.Empty);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Record that the recovery phrase has (or has not) been backed up.</summary>
+    public void SetRecoveryBackedUp(bool backedUp)
+    {
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "UPDATE identity SET recovery_backed_up_ms = @ms WHERE id = 1;";
+            cmd.Parameters.AddWithValue("@ms", backedUp ? Now() : 0L);
             cmd.ExecuteNonQuery();
         }
     }
