@@ -1,0 +1,185 @@
+@page "/lab/recovery"
+@using AetherNet.Identity
+@using AetherNet.Security.Backup
+@using AetherNet.Security.Services
+@using AetherNet.Security.Models
+
+@* The identity is the words. Nothing else holds it.
+
+   An AetherNet identity is an Ed25519 key pair whose private key is a 32-byte seed — exactly 256 bits,
+   which map cleanly onto a 24-word BIP-39 phrase. You write down twenty-four ordinary words, and from
+   those words alone the identity is rebuilt on any device. No server, no account, no custodian holds a
+   copy; if the words are the only backup, the words are the only thing that can restore you. And the
+   checksum means a mistyped word is rejected outright rather than quietly rebuilding a different
+   identity — a wrong tag is worse than an error.
+
+   Below is the real IdentityBackup / Bip39Mnemonic — the same standard phrase any conformant BIP-39
+   wallet would produce, and the same bytes every AetherNet SDK reproduces. *@
+
+<div class="rec">
+    <header class="rec-head">
+        <a class="rec-back" href="lab">← Lab</a>
+        <h1>Recovery phrase</h1>
+        <p>Turn an identity into 24 words, then rebuild the very same tag from those words on a fresh
+           device — with no custodian anywhere in between.</p>
+    </header>
+
+    <section class="rec-dev card">
+        <div class="rec-dev-top">
+            <span class="rec-dev-name">This device</span>
+            <button class="rec-regen" @onclick="Generate">↻ new identity</button>
+        </div>
+        <div class="rec-dev-tag">@_tagA</div>
+        <div class="rec-dev-note">its private key is a 32-byte Ed25519 seed — the whole identity</div>
+    </section>
+
+    <section class="rec-phrase">
+        <div class="rec-phrase-label">Write these down — they <b>are</b> the identity</div>
+        <div class="rec-words">
+            @for (var i = 0; i < _words.Length; i++)
+            {
+                <span class="rec-word"><span class="rec-word-n">@(i + 1)</span>@_words[i]</span>
+            }
+        </div>
+    </section>
+
+    <section class="rec-restore">
+        <div class="rec-restore-label">A new device — type the words in (or edit one to see it caught)</div>
+        <textarea class="rec-area" rows="3" value="@_entered" @oninput="OnEntered"></textarea>
+        <div class="rec-restore-btns">
+            <span class="rec-valid @(_valid ? "ok" : "bad")">@(_valid ? "✓ well-formed phrase" : "✗ not a valid phrase")</span>
+            <span class="rec-spacer"></span>
+            <button class="btn ghost" @onclick="CorruptOne">Mistype a word</button>
+            <button class="btn ghost" @onclick="ResetPhrase">Reset</button>
+            <button class="btn" @onclick="Recover" disabled="@string.IsNullOrWhiteSpace(_entered)">Recover identity</button>
+        </div>
+    </section>
+
+    @if (_result is not null)
+    {
+        <section class="rec-out @(_match ? "good" : "warn")">
+            <div class="rec-out-head">@_result</div>
+            @if (_tagB is not null)
+            {
+                <div class="rec-out-tags">
+                    <span>original <b>@_tagA</b></span>
+                    <span>rebuilt <b>@_tagB</b></span>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+<style>
+    .rec { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+    .rec-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .rec-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .rec-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; line-height: 1.5; color: var(--ink); opacity: .72; }
+
+    .rec-dev { padding: 14px 16px; display: flex; flex-direction: column; gap: 5px; }
+    .rec-dev-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .rec-dev-name { font-size: 12px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--ink); opacity: .8; }
+    .rec-regen { appearance: none; border: none; background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; color: var(--ink); opacity: .8; }
+    .rec-dev-tag { font-family: var(--mono); font-size: clamp(20px, 6vw, 28px); font-weight: 800; letter-spacing: 2px; color: var(--ink); word-break: break-all; }
+    .rec-dev-note { font-size: 12.5px; font-weight: 500; color: var(--ink); opacity: .82; }
+
+    .rec-phrase { display: flex; flex-direction: column; gap: 8px; }
+    .rec-phrase-label { font-size: 12px; font-weight: 700; color: var(--ink); opacity: .75; }
+    .rec-words { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+    .rec-word { display: flex; align-items: baseline; gap: 7px; font-family: var(--mono); font-size: 13.5px; font-weight: 650;
+        color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; min-width: 0; word-break: break-all; }
+    .rec-word-n { flex: none; font-size: 10px; font-weight: 800; color: var(--ink); opacity: .45; min-width: 16px; }
+
+    .rec-restore { display: flex; flex-direction: column; gap: 8px; }
+    .rec-restore-label { font-size: 12px; font-weight: 700; color: var(--ink); opacity: .75; }
+    .rec-area { width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 13.5px; line-height: 1.6; color: var(--ink);
+        background: transparent; border: 1.5px solid var(--line); border-radius: 12px; padding: 11px 13px; resize: vertical; }
+    .rec-area:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
+    .rec-restore-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .rec-valid { font-size: 12px; font-weight: 700; }
+    .rec-valid.ok { color: var(--brand); }
+    .rec-valid.bad { color: var(--ink); opacity: .55; }
+    .rec-spacer { flex: 1 1 auto; }
+
+    .rec-out { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .rec-out.good { border-color: var(--brand); }
+    .rec-out-head { font-size: 14px; font-weight: 750; line-height: 1.45; color: var(--ink); }
+    .rec-out-tags { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 13px; color: var(--ink); opacity: .8; }
+    .rec-out-tags b { font-weight: 800; opacity: 1; }
+</style>
+
+@code {
+    private byte[] _priv = Array.Empty<byte>();
+    private string _tagA = "…";
+    private string _phrase = "";
+    private string[] _words = Array.Empty<string>();
+
+    private string _entered = "";
+    private bool _valid;
+
+    private string? _result, _tagB;
+    private bool _match;
+
+    protected override void OnInitialized() => Generate();
+
+    private void Generate()
+    {
+        var (priv, pub) = Ed25519SigningService.GenerateKeyPair();
+        _priv = priv;
+        _tagA = AetherNetTag.FromPublicKey(pub).Value;
+
+        // The identity → its 24 words. This is the entire backup.
+        _phrase = IdentityBackup.ToRecoveryPhrase(_priv);
+        _words = _phrase.Split(' ');
+
+        ResetPhrase();
+        _result = null;
+        _tagB = null;
+    }
+
+    private void ResetPhrase()
+    {
+        _entered = _phrase;
+        _valid = Bip39Mnemonic.IsValid(_entered);
+        _result = null;
+        _tagB = null;
+    }
+
+    // A plausible transcription slip: one letter off in one word. The checksum will not forgive it.
+    private void CorruptOne()
+    {
+        var w = _phrase.Split(' ');
+        var last = w[^1];
+        var ch = last[^1] == 'z' ? 'a' : (char)(last[^1] + 1);
+        w[^1] = last[..^1] + ch;
+        _entered = string.Join(' ', w);
+        _valid = Bip39Mnemonic.IsValid(_entered);
+    }
+
+    private void OnEntered(ChangeEventArgs e)
+    {
+        _entered = e.Value?.ToString() ?? "";
+        _valid = Bip39Mnemonic.IsValid(_entered);
+    }
+
+    private void Recover()
+    {
+        _valid = Bip39Mnemonic.IsValid(_entered);
+        try
+        {
+            // The whole restore: 24 words back into a full key pair on a device that stored nothing.
+            KeyPair kp = IdentityBackup.FromRecoveryPhrase(_entered);
+            _tagB = AetherNetTag.FromPublicKey(kp.PublicKey).Value;
+            _match = string.Equals(_tagA, _tagB, StringComparison.Ordinal);
+            _result = _match
+                ? "Same tag. No server and no custodian were involved — the words alone rebuilt the identity."
+                : "The phrase was valid but encodes a different identity — a different tag entirely.";
+        }
+        catch (FormatException ex)
+        {
+            _tagB = null;
+            _match = false;
+            _result = $"Rejected: {ex.Message} A wrong word is caught, not silently turned into someone else.";
+        }
+    }
+}

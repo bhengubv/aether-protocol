@@ -1,0 +1,239 @@
+@page "/lab/devices"
+@using AetherNet.Identity
+@using AetherNet.Security.Services
+@using AetherNet.Security.Sync
+
+@* Adding a device, and taking one away, with no directory to ask.
+
+   A user links a new device by having their long-term identity key sign the new device's public key;
+   every other device and contact verifies that signature and admits the newcomer to the "self" set. To
+   eject one — lost, seized, retired — the same identity key signs a revocation, gossiped out, and each
+   peer that verifies it drops the device and refuses any session keyed to it. No central directory, no
+   server: a forwarder cannot admit or revoke a device it does not hold the identity key for. And because
+   the records are deterministic, every device that sees the same link and revocation — in any order —
+   converges on the same answer.
+
+   Below is the real DeviceLinkCodec, DeviceRevocationCodec / RevocationSet, and SyncReconciler. *@
+
+<div class="dev">
+    <header class="dev-head">
+        <a class="dev-back" href="lab">← Lab</a>
+        <h1>Devices &amp; revocation</h1>
+        <p>Link a second device with a signed membership record, then gossip a revocation and watch a
+           peer shut it out — all verified locally, with nothing central to consult.</p>
+    </header>
+
+    <section class="dev-id card">
+        <div class="dev-id-label">Your identity — the long-term key that signs membership</div>
+        <div class="dev-id-tag">@_userTag</div>
+    </section>
+
+    <section class="dev-devices">
+        @foreach (var d in _devices)
+        {
+            <div class="dev-chip @d.State">
+                <span class="dev-chip-name">@d.Name</span>
+                <span class="dev-chip-state">@StateLabel(d.State)</span>
+            </div>
+        }
+    </section>
+
+    <section class="dev-step">
+        <div class="dev-step-h">1 · Link a second device</div>
+        <div class="dev-step-btns">
+            <button class="btn" @onclick="Link" disabled="@(_bState != DeviceState.Unlinked)">Link "phone-B"</button>
+            <button class="btn ghost" @onclick="ForgeLink">Forge a link (attacker's key)</button>
+        </div>
+        @if (_linkInfo is not null)
+        {
+            <div class="dev-res ok">@_linkInfo</div>
+        }
+        @if (_forgeLinkInfo is not null)
+        {
+            <div class="dev-res">@_forgeLinkInfo</div>
+        }
+    </section>
+
+    <section class="dev-step">
+        <div class="dev-step-h">2 · Revoke it, and gossip that to a contact</div>
+        <div class="dev-step-btns">
+            <button class="btn" @onclick="Revoke" disabled="@(_bState != DeviceState.Linked)">Revoke "phone-B" (lost)</button>
+            <button class="btn ghost" @onclick="ForgeRevoke">Forge a revocation</button>
+        </div>
+        @if (_revInfo is not null)
+        {
+            <div class="dev-res ok">@_revInfo</div>
+        }
+        @if (_forgeRevInfo is not null)
+        {
+            <div class="dev-res">@_forgeRevInfo</div>
+        }
+    </section>
+
+    <section class="dev-step">
+        <div class="dev-step-h">3 · Everyone converges, whatever the gossip order</div>
+        <div class="dev-step-btns">
+            <button class="btn" @onclick="Reconcile">Reconcile link + revocation</button>
+        </div>
+        @if (_reconInfo is not null)
+        {
+            <div class="dev-res ok">@_reconInfo</div>
+        }
+    </section>
+
+    <section class="dev-reset">
+        <button class="btn ghost" @onclick="Reset">Reset demo</button>
+    </section>
+</div>
+
+<style>
+    .dev { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+    .dev-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .dev-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .dev-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; line-height: 1.5; color: var(--ink); opacity: .72; }
+
+    .dev-id { padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+    .dev-id-label { font-size: 12px; font-weight: 700; color: var(--ink); opacity: .85; }
+    .dev-id-tag { font-family: var(--mono); font-size: clamp(20px, 6vw, 28px); font-weight: 800; letter-spacing: 2px; color: var(--ink); word-break: break-all; }
+
+    .dev-devices { display: flex; flex-wrap: wrap; gap: 8px; }
+    .dev-chip { display: flex; flex-direction: column; gap: 2px; border: 1.5px solid var(--line-card); border-radius: 12px; padding: 10px 14px; min-width: 120px; }
+    .dev-chip-name { font-family: var(--mono); font-size: 13px; font-weight: 800; color: var(--ink); }
+    .dev-chip-state { font-size: 11px; font-weight: 700; color: var(--ink); opacity: .6; }
+    .dev-chip.Linked { border-color: var(--brand); }
+    .dev-chip.Linked .dev-chip-state { color: var(--brand); opacity: 1; }
+    .dev-chip.Revoked { opacity: .5; border-style: dashed; }
+
+    .dev-step { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 13px 15px; display: flex; flex-direction: column; gap: 9px; }
+    .dev-step-h { font-size: 13px; font-weight: 800; color: var(--ink); }
+    .dev-step-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+    .dev-res { font-size: 12.5px; font-weight: 600; line-height: 1.5; color: var(--ink); opacity: .78; word-break: break-word; }
+    .dev-res.ok { opacity: .92; }
+
+    .dev-reset { display: flex; }
+</style>
+
+@code {
+    private byte[] _idPriv = Array.Empty<byte>();
+    private byte[] _idPub = Array.Empty<byte>();
+    private string _userTag = "…";
+
+    private byte[] _bPub = Array.Empty<byte>();
+    private DeviceLink? _link;
+    private RevocationSet _peerRevs = default!;   // a contact's view — no directory, just verified records
+
+    private long _linkedAtMs, _revokedAtMs;
+
+    private enum DeviceState { Unlinked, Linked, Revoked }
+    private DeviceState _bState = DeviceState.Unlinked;
+
+    private string? _linkInfo, _forgeLinkInfo, _revInfo, _forgeRevInfo, _reconInfo;
+
+    private sealed record DeviceView(string Name, DeviceState State);
+    private IEnumerable<DeviceView> _devices = Array.Empty<DeviceView>();
+
+    protected override void OnInitialized() => Reset();
+
+    private void Reset()
+    {
+        var (idPriv, idPub) = Ed25519SigningService.GenerateKeyPair();
+        _idPriv = idPriv; _idPub = idPub;
+        _userTag = AetherNetTag.FromPublicKey(idPub).Value;
+
+        var (_, bPub) = Ed25519SigningService.GenerateKeyPair();
+        _bPub = bPub;
+
+        // The contact only trusts what THIS identity key signed — that is all a RevocationSet admits.
+        _peerRevs = new RevocationSet(_idPub);
+
+        _bState = DeviceState.Unlinked;
+        _link = null;
+        _linkInfo = _forgeLinkInfo = _revInfo = _forgeRevInfo = _reconInfo = null;
+        RefreshDevices();
+    }
+
+    private void RefreshDevices() => _devices = new[]
+    {
+        new DeviceView("phone-A", DeviceState.Linked),   // the device you are on — the primary
+        new DeviceView("phone-B", _bState),
+    };
+
+    private void Link()
+    {
+        _linkedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        // The user's identity key signs phone-B's public key.
+        _link = DeviceLinkCodec.Create("phone-B", _bPub, _linkedAtMs, _idPriv);
+
+        // A different device verifies that signature before admitting the newcomer.
+        var admitted = DeviceLinkCodec.Verify(_link, _idPub);
+        var bytes = DeviceLinkCodec.Serialize(_link).Length;
+        _bState = admitted ? DeviceState.Linked : DeviceState.Unlinked;
+        _linkInfo = admitted
+            ? $"Signed & serialized ({bytes} bytes, sig {Hex(_link.Signature)}…). Another device verifies it against your identity key: admitted to the self set."
+            : "Verification failed.";
+        RefreshDevices();
+    }
+
+    private void ForgeLink()
+    {
+        // An attacker signs phone-B's key with their OWN identity key, hoping to add a device.
+        var (forgePriv, _) = Ed25519SigningService.GenerateKeyPair();
+        var forged = DeviceLinkCodec.Create("phone-B", _bPub, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), forgePriv);
+        var admitted = DeviceLinkCodec.Verify(forged, _idPub);
+        _forgeLinkInfo = admitted
+            ? "Forged link verified (BAD!)"
+            : "A link signed by any other key is rejected — only your identity key can admit a device.";
+    }
+
+    private void Revoke()
+    {
+        if (_link is null) return;
+        _revokedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        // The same identity key signs a revocation of phone-B.
+        var rev = DeviceRevocationCodec.Create("phone-B", _bPub, _revokedAtMs, "lost", _idPriv);
+
+        // Gossip it to the contact, who verifies the signature itself and drops the device.
+        var accepted = _peerRevs.Ingest(rev);
+        var revoked = _peerRevs.IsRevoked(_bPub);
+        _bState = revoked ? DeviceState.Revoked : _bState;
+        _revInfo = accepted && revoked
+            ? $"Contact ingested the revocation (verified locally) — phone-B is now revoked ({_peerRevs.Count} in its set). Any session keyed to it is refused."
+            : "Revocation not accepted.";
+        RefreshDevices();
+    }
+
+    private void ForgeRevoke()
+    {
+        // A forwarder tries to revoke phone-B with a key that is not the identity key.
+        var (attackerPriv, _) = Ed25519SigningService.GenerateKeyPair();
+        var forged = DeviceRevocationCodec.Create("phone-B", _bPub, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "spite", attackerPriv);
+        var accepted = _peerRevs.Ingest(forged);
+        _forgeRevInfo = accepted
+            ? "Forged revocation accepted (BAD!)"
+            : "A revocation signed by anyone but you is ignored — a forwarder can't revoke someone else's device.";
+    }
+
+    private void Reconcile()
+    {
+        // Membership as last-write-wins sync records for one item: a link, then a later revocation.
+        var t1 = _linkedAtMs != 0 ? _linkedAtMs : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 1000;
+        var t2 = _revokedAtMs != 0 ? _revokedAtMs : t1 + 1000;
+        var linkRec = new SyncRecord(Guid.NewGuid(), "phone-A", SyncOp.Upsert, "device:phone-B", 1, t1, Array.Empty<byte>());
+        var revRec = new SyncRecord(Guid.NewGuid(), "phone-A", SyncOp.Delete, "device:phone-B", 2, t2, Array.Empty<byte>());
+
+        var forward = SyncReconciler.Winner(new[] { linkRec, revRec }).Op;
+        var backward = SyncReconciler.Winner(new[] { revRec, linkRec }).Op;
+        _reconInfo = forward == backward
+            ? $"Fed in either order, the winner is the same record — {forward} — so every device converges on \"phone-B revoked\" with no coordinator."
+            : "Divergent — should never happen.";
+    }
+
+    private static string StateLabel(DeviceState s) => s switch
+    {
+        DeviceState.Linked => "in the self set",
+        DeviceState.Revoked => "revoked",
+        _ => "not linked",
+    };
+
+    private static string Hex(byte[] b) => Convert.ToHexString(b.AsSpan(0, 8));
+}

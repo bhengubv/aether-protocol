@@ -1,0 +1,126 @@
+@page "/lab/dtn"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* Delay-tolerant store-and-forward, driven live. Leave a message for someone who is offline and it
+   cannot be delivered — so it waits in the store. Run a delivery scan and the epidemic strategy hands
+   it to a carrier that is nearer the recipient (a longer shared geohash prefix). When the recipient
+   reappears the carrier delivers it directly and a signed delivery receipt flows back to you. A second
+   bundle is left to expire, so the TTL sweep has something to reap. The radio is simulated; the custody
+   handshake, target selection and receipt are the real DtnService. *@
+
+<div class="dtn">
+    <header class="dtn-head">
+        <a class="dtn-back" href="lab">← Lab</a>
+        <h1>Store-and-forward</h1>
+        <p>Leave a message for someone offline; a carrier holds it and delivers when they return.</p>
+    </header>
+
+    <section class="dtn-lanes">
+        @foreach (var n in _demo.View)
+        {
+            <div class="dtn-node @(n.Online ? null : "off")">
+                <div class="dtn-node-top">
+                    <span class="dtn-pip"></span>
+                    <span class="dtn-node-name">@n.Name</span>
+                    <span class="dtn-node-state">@(n.Online ? "online" : "offline")</span>
+                </div>
+                <div class="dtn-holds">
+                    @if (n.Held.Count == 0)
+                    {
+                        <span class="dtn-empty">—</span>
+                    }
+                    else
+                    {
+                        @foreach (var b in n.Held)
+                        {
+                            <div class="dtn-bundle">
+                                <span class="dtn-b-id tag-mono">@b.Id8</span>
+                                <span class="dtn-b-status">@b.Status</span>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="dtn-compose">
+        <input class="field-input" @bind="_message" @bind:event="oninput" placeholder="A message for Zanele…" />
+        <div class="dtn-actions">
+            <button class="btn ink" @onclick="Leave" disabled="@(_busy || _demo.HasMessage || string.IsNullOrWhiteSpace(_message))">Leave the message</button>
+            <button class="btn ghost" @onclick="Replicate" disabled="@(_busy || !_demo.HasMessage || _demo.RecipientOnline)">Replicate via carrier</button>
+            <button class="btn ghost" @onclick="Return" disabled="@(_busy || _demo.RecipientOnline)">Zanele returns</button>
+            <button class="btn ghost" @onclick="Expire" disabled="@_busy">Expiry sweep</button>
+        </div>
+    </section>
+
+    <section class="dtn-log">
+        @foreach (var line in _demo.Log())
+        {
+            <div class="dtn-line @(line.Strong ? "strong" : null)">@line.Text</div>
+        }
+    </section>
+</div>
+
+@code {
+    private DtnLabDemo _demo = null!;
+    private bool _busy;
+    private string _message = "The bridge is out — take the east path instead.";
+
+    protected override void OnInitialized()
+    {
+        _demo = new DtnLabDemo();
+        _demo.Changed += OnChanged;
+        _demo.Start();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task Leave()     => await Guard(() => _demo.LeaveMessageAsync(_message));
+    private async Task Replicate() => await Guard(_demo.ReplicateAsync);
+    private async Task Return()    => await Guard(_demo.RecipientReturnsAsync);
+    private async Task Expire()    => await Guard(_demo.ExpireDemoAsync);
+
+    private async Task Guard(Func<Task> act)
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await act(); }
+        finally { _busy = false; }
+    }
+
+    public void Dispose()
+    {
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
+    }
+}
+
+<style>
+    .dtn { padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; margin: 0 auto; }
+    .dtn-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .dtn-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .dtn-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .72; line-height: 1.5; }
+
+    .dtn-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    .dtn-node { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 96px; }
+    .dtn-node.off { opacity: .55; border-style: dashed; }
+    .dtn-node-top { display: flex; align-items: center; gap: 8px; }
+    .dtn-pip { width: 11px; height: 11px; border-radius: 50%; background: var(--brand); flex: none; }
+    .dtn-node.off .dtn-pip { background: transparent; border: 2px solid var(--line); }
+    .dtn-node-name { font-size: 15px; font-weight: 800; color: var(--ink); }
+    .dtn-node-state { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--ink); opacity: .55; }
+    .dtn-holds { display: flex; flex-direction: column; gap: 6px; }
+    .dtn-empty { font-size: 20px; color: var(--ink); opacity: .3; }
+    .dtn-bundle { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 9px; padding: 6px 9px; }
+    .dtn-b-id { font-size: 12px; font-weight: 700; color: var(--ink); }
+    .dtn-b-status { font-size: 11px; font-weight: 700; color: var(--ink); opacity: .68; text-transform: lowercase; }
+
+    .dtn-compose { display: flex; flex-direction: column; gap: 10px; }
+    .dtn-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .dtn-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .dtn-line { color: var(--ink); opacity: .82; line-height: 1.5; }
+    .dtn-line.strong { opacity: 1; font-weight: 700; }
+</style>

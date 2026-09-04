@@ -1,0 +1,157 @@
+@page "/lab/group-video"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* A host running a group call and admitting people to it. Alice opens the call and invites Bob, Charlie
+   and Dara; each is let in over the real GroupVideoService signaling wire. Watch the roster fill, and the
+   moment the fourth person is on, the service decides on its own to stop everyone-sends-to-everyone and
+   pick a relay — full-mesh to SFU, the call-control decision a phone makes when a room gets too big for
+   every link to carry every stream. The 1:1 leg below is the sibling VideoCallService negotiating a codec.
+   Only the radio is simulated. *@
+
+<div class="gv">
+    <header class="gv-head">
+        <a class="gv-back" href="lab">← Lab</a>
+        <h1>Group video</h1>
+        <p>A host admits participants over the call-control plane; topology adapts as the room grows.</p>
+    </header>
+
+    <section class="gv-call">
+        <div class="gv-call-top">
+            <span class="gv-topo @(_group.IsSfu ? "sfu" : null)">@(_group.IsSfu ? "SFU" : "Full mesh")</span>
+            <span class="gv-count">@_group.ActiveCount / @Demo.SfuThreshold on the call</span>
+            @if (_group.IsSfu && _group.RelayName is not null)
+            {
+                <span class="gv-relay">@_group.RelayName relays</span>
+            }
+        </div>
+
+        @if (_group.Participants.Count == 0)
+        {
+            <div class="gv-empty-call">No call yet. Open one, then admit the invitees one by one.</div>
+        }
+        else
+        {
+            <div class="gv-roster">
+                @foreach (var p in _group.Participants)
+                {
+                    <div class="gv-chip" style="border-color:@p.Color">
+                        <span class="gv-chip-dot" style="background:@p.Color"></span>
+                        <span class="gv-chip-name">@p.Name</span>
+                        <span class="gv-chip-q">@p.Resolution @p.Codec</span>
+                        @if (p.IsHost) { <span class="gv-badge">host</span> }
+                        @if (p.IsRelay) { <span class="gv-badge relay">relay</span> }
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="gv-controls">
+        <button class="btn ink" disabled="@Demo.CallOpen" @onclick="() => RunAsync(Demo.OpenCallAsync)">Open call</button>
+        <button class="btn ink" disabled="@(!Demo.CallOpen || !Demo.HasPending)" @onclick="() => RunAsync(Demo.AdmitNextAsync)">
+            @AdmitLabel
+        </button>
+        <button class="btn" @onclick="() => Run(Demo.ClearLog)">Clear</button>
+    </section>
+
+    <section class="gv-1to1">
+        <div class="gv-1to1-head">
+            <span class="gv-1to1-title">1:1 leg — VideoCallService</span>
+            @if (_call is not null)
+            {
+                <span class="gv-1to1-state">@_call.State@(CallConnected ? $" · {_call.VideoCodec}/{_call.AudioCodec} · {_call.Resolution} · {_call.Fps}fps" : "")</span>
+            }
+        </div>
+        <div class="gv-controls">
+            <button class="btn" disabled="@CallConnected" @onclick="() => RunAsync(Demo.RingBobAsync)">Ring Bob (1:1)</button>
+            <button class="btn" disabled="@CallEndedOrNull" @onclick="() => RunAsync(Demo.HangupAsync)">Hang up</button>
+        </div>
+    </section>
+
+    <section class="gv-log">
+        @foreach (var line in _log)
+        {
+            <div class="gv-line">
+                <span class="gv-who" style="color:@line.Color">@line.Who</span>
+                <span class="gv-text">@line.Text</span>
+            </div>
+        }
+        @if (_log.Count == 0)
+        {
+            <div class="gv-line gv-empty">Quiet. Open a call and start admitting people.</div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly GroupVideoDemo Demo = new();
+    private GroupVideoDemo.GroupView _group = new(false, "FullMesh", null, 0, Array.Empty<GroupVideoDemo.ParticipantView>());
+    private GroupVideoDemo.CallView? _call;
+    private IReadOnlyList<GroupVideoDemo.LogLine> _log = Array.Empty<GroupVideoDemo.LogLine>();
+
+    protected override void OnInitialized()
+    {
+        Demo.Changed += OnChanged;
+        Demo.Start();
+        Refresh();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+
+    private void Refresh()
+    {
+        _group = Demo.Group();
+        _call = Demo.OneToOne();
+        _log = Demo.Snapshot();
+    }
+
+    private bool CallConnected => _call is not null && _call.State == "Connected";
+    private bool CallEndedOrNull => _call is null || _call.State == "Ended";
+    private string AdmitLabel => Demo.NextInvitee is null ? "All admitted" : $"Admit {Demo.NextInvitee}";
+
+    private void Run(Action act) => act();
+    private async Task RunAsync(Func<Task> act) => await act();
+
+    public void Dispose()
+    {
+        Demo.Changed -= OnChanged;
+        Demo.Dispose();
+    }
+}
+
+<style>
+    .gv { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+    .gv-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .gv-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .gv-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .7; }
+
+    .gv-call { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .gv-call-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .gv-topo { font-size: 12px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--ink); border: 1.5px solid var(--line); border-radius: 20px; padding: 3px 12px; }
+    .gv-topo.sfu { color: #fff; background: #1976D2; border-color: #1976D2; }
+    .gv-count { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--ink); }
+    .gv-relay { font-family: var(--mono); font-size: 12px; font-weight: 700; color: #2196F3; margin-left: auto; }
+    .gv-empty-call { font-size: 13px; color: var(--ink); opacity: .55; font-style: italic; }
+
+    .gv-roster { display: flex; flex-wrap: wrap; gap: 8px; }
+    .gv-chip { display: flex; align-items: center; gap: 7px; border: 2px solid var(--line-card); border-radius: 999px; padding: 6px 12px; }
+    .gv-chip-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+    .gv-chip-name { font-size: 14px; font-weight: 800; color: var(--ink); }
+    .gv-chip-q { font-family: var(--mono); font-size: 11px; color: var(--ink); opacity: .6; }
+    .gv-badge { font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ink); opacity: .6; }
+    .gv-badge.relay { color: #2196F3; opacity: 1; }
+
+    .gv-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+    .gv-1to1 { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .gv-1to1-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .gv-1to1-title { font-size: 14px; font-weight: 800; color: var(--ink); }
+    .gv-1to1-state { font-family: var(--mono); font-size: 12px; font-weight: 700; color: #1976D2; }
+
+    .gv-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .gv-line { display: flex; gap: 8px; line-height: 1.5; }
+    .gv-who { font-weight: 800; flex: none; min-width: 52px; }
+    .gv-text { color: var(--ink); opacity: .85; }
+    .gv-empty { color: var(--ink); opacity: .5; font-style: italic; }
+</style>

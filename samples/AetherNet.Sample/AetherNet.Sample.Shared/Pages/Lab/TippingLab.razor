@@ -1,0 +1,247 @@
+@page "/lab/tipping"
+@using AetherNet.Sample.Shared.Services.Lab
+@using AetherNet.Tipping.Models
+@implements IDisposable
+
+@* A demonstration surface for the tipping / creator-rewards path: the real mesh TipPacket
+   (MeshTipService), the on-device SDPKT-settled client (TippingService + AetherRewardService), and
+   the tipper's earned QoS preference (TipperQoSService) — all in-process. The protocol carries the
+   intent to credit; settlement here is drawn in play chips, because a demo must move no money. *@
+
+<PageTitle>Lab — Tipping</PageTitle>
+
+<div class="tp">
+    <header class="tp-head">
+        <a class="tp-back" href="lab">← Lab</a>
+        <span class="tp-kicker">Economy · demo</span>
+        <h1 class="tp-title">Tipping &amp; creator rewards</h1>
+        <p class="tp-sub">Pay a relay for carrying your traffic. A tip is never a gate — a
+            non-tipper always gets service — and a steady tipper earns a small routing preference.
+            <b>Every rand here is a demo rand.</b></p>
+    </header>
+
+    <section class="tp-group">
+        <div class="tp-glabel">Send a tip over the mesh</div>
+        <div class="tp-card tp-pad">
+            <p class="tp-ex"><span class="mono">MeshTipService</span> puts a real, Ed25519-signed
+                <span class="mono">TipPacket</span> (type 24) on a two-node mesh; @_demo.RecipientPetname
+                verifies it and its wallet seam settles — in play money.</p>
+
+            <div class="tp-amt">
+                <label class="tp-lil">Amount (ZAR)
+                    <input class="tp-fi" type="number" min="0.10" max="50" step="0.10" @bind="_amount" /></label>
+                <button class="tp-btn" @onclick="SendMesh">Send over mesh →</button>
+            </div>
+
+            @if (_demo.LastPacket is { } p)
+            {
+                <div class="tp-packet">
+                    <span class="tp-chip">TipPacket · type @((int)p.Type)</span>
+                    <span class="mono">envelope sig @p.Signature.Length B</span>
+                    <span class="mono">→ @_demo.RecipientPetname</span>
+                </div>
+            }
+
+            @if (_demo.Settlements.Count > 0)
+            {
+                <div class="tp-ledger">
+                    <div class="tp-ledger-h">@(_demo.RecipientPetname)'s wallet · simulated</div>
+                    @foreach (var s in Enumerable.Reverse(_demo.Settlements))
+                    {
+                        <div class="tp-lentry">
+                            <span class="tp-lamt">+R@(s.AmountZar.ToString("0.00"))</span>
+                            <span class="tp-lfrom mono">from @Petname(s.FromUhid)</span>
+                            <span class="tp-lsim">play money</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="tp-group">
+        <div class="tp-glabel">On-device queue &amp; reward accrual</div>
+        <div class="tp-card tp-pad">
+            <p class="tp-ex"><span class="mono">TippingService</span> checks the amount against the
+                regulated policy, queues it so it survives offline, and accrues your XP via
+                <span class="mono">AetherRewardService</span>. Settlement batches to the backend later
+                — offline here on purpose.</p>
+
+            <div class="tp-amt">
+                <label class="tp-lil">Amount (ZAR)
+                    <input class="tp-fi" type="number" min="0.10" max="50" step="0.10" @bind="_amount" /></label>
+                <button class="tp-btn" @onclick="QueueTip">Queue a tip</button>
+            </div>
+
+            @if (_demo.Policy is { } pol)
+            {
+                <div class="tp-policy">Policy band: R@(pol.MinAmount.ToString("0.00"))–R@(pol.MaxAmount.ToString("0.00")),
+                    daily cap R@(pol.DailyCapPerTipper.ToString("0.00")).</div>
+            }
+
+            <div class="tp-stats">
+                <div class="tp-stat"><span class="tp-sv">@_demo.PendingTips</span><span class="tp-sl">tips queued</span></div>
+                <div class="tp-stat"><span class="tp-sv">R@(_demo.DailyTotal.ToString("0.00"))</span><span class="tp-sl">tipped today</span></div>
+                <div class="tp-stat"><span class="tp-sv">@_demo.PendingRewards</span><span class="tp-sl">XP pending</span></div>
+            </div>
+
+            @if (_demo.LastTipAccepted == false)
+            {
+                <div class="tp-note">Last tip was refused — outside policy or over the cap. Service is
+                    unaffected; a tip is never an access gate.</div>
+            }
+        </div>
+    </section>
+
+    <section class="tp-group">
+        <div class="tp-glabel">Tipper QoS — the earned preference</div>
+        <div class="tp-card tp-pad">
+            <p class="tp-ex"><span class="mono">TipperQoSService</span> maps your consistency standing to
+                a routing-quality boost. Drag your standing and apply — the service recomputes the
+                tier and the boost it grants.</p>
+
+            <div class="tp-slide">
+                <input type="range" min="0" max="100" step="1" @bind="_consistency" @bind:event="oninput" />
+                <div class="tp-slide-row">
+                    <span class="mono">consistency @_consistency / 100</span>
+                    <button class="tp-btn" @onclick="ApplyConsistency">Apply</button>
+                </div>
+            </div>
+
+            <div class="tp-ladder">
+                @foreach (var rung in Ladder)
+                {
+                    <div class="tp-rung @(rung.Tier == _demo.Tier ? "on" : null)">
+                        <span class="tp-rt">@rung.Tier</span>
+                        <span class="tp-rr">@rung.Range</span>
+                        <span class="tp-rb">+@rung.Boost</span>
+                    </div>
+                }
+            </div>
+
+            <div class="tp-qnow">Now: <b>@_demo.Tier</b> tier, routing-quality boost <b>+@_demo.Boost</b>.</div>
+        </div>
+    </section>
+
+    <section class="tp-group">
+        <div class="tp-glabel">Wire log</div>
+        <div class="tp-log">
+            @foreach (var l in Enumerable.Reverse(_demo.Snapshot()))
+            {
+                <div class="tp-ll @(l.Emphasis ? "em" : null)">@l.Text</div>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    private readonly TippingLabDemo _demo = new();
+    private decimal _amount = 0.50m;
+    private int _consistency = 60;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _demo.Changed += OnChanged;
+        await _demo.StartAsync();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private Task SendMesh() => _demo.SendMeshTipAsync(_amount);
+    private Task QueueTip() => _demo.TipOnDeviceAsync(_amount);
+    private Task ApplyConsistency() => _demo.SetConsistencyAsync((short)_consistency);
+
+    private sealed record Rung(QoSTier Tier, string Range, int Boost);
+
+    private static readonly Rung[] Ladder =
+    {
+        new(QoSTier.Standard, "0–24", 0),
+        new(QoSTier.Bronze, "25–49", 5),
+        new(QoSTier.Silver, "50–74", 10),
+        new(QoSTier.Gold, "75–100", 20),
+    };
+
+    private static string Petname(string uhid)
+    {
+        var parts = uhid.Split(':');
+        return parts.Length >= 2 && parts[1].Length > 0
+            ? char.ToUpperInvariant(parts[1][0]) + parts[1][1..]
+            : uhid;
+    }
+
+    public void Dispose()
+    {
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
+    }
+}
+
+<style>
+    .tp { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; padding-bottom: 24px; }
+    /* app.css's global .mono only opts text into selection; the monospace face is applied here,
+       scoped to this page so it never reaches a .mono element in the persistent layout. */
+    .tp .mono { font-family: var(--mono); }
+
+    .tp-head { display: flex; flex-direction: column; gap: 4px; padding: 4px 4px 0; }
+    .tp-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; margin-bottom: 4px; }
+    .tp-kicker { font-size: 0.66rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-3); }
+    .tp-title { font-size: 1.7rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); }
+    .tp-sub { font-size: 0.9rem; line-height: 1.5; color: var(--ink-2); max-width: 62ch; }
+
+    .tp-group { display: flex; flex-direction: column; gap: 10px; }
+    .tp-glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
+
+    .tp-card { background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line-card); border-radius: 16px; box-shadow: var(--shadow-sm); }
+    .tp-pad { padding: 15px 16px; display: flex; flex-direction: column; gap: 13px; }
+    .tp-ex { font-size: 0.87rem; line-height: 1.55; color: var(--ink-2); }
+
+    .tp-amt { display: flex; align-items: flex-end; gap: 11px; }
+    .tp-lil { display: flex; flex-direction: column; gap: 5px; font-size: 0.72rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--ink-2); flex: 1 1 auto; min-width: 0; }
+    .tp-fi { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 11px; padding: 12px 13px; font-size: 0.95rem; font-family: var(--sans); }
+    .tp-fi:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
+
+    .tp-btn { appearance: none; border: none; background: var(--brand); color: #fff; font-family: var(--sans); font-weight: 680; font-size: 0.92rem; padding: 12px 16px; border-radius: 11px; cursor: pointer; flex: 0 0 auto; }
+    .tp-btn:hover:not(:disabled) { background: var(--brand-deep); }
+    .tp-btn:active:not(:disabled) { filter: brightness(.95); }
+    .tp-btn:disabled { opacity: .4; cursor: default; }
+
+    .tp-packet { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.76rem; color: var(--ink-3); }
+    .tp-packet .mono { color: var(--ink-3); }
+    .tp-chip { background: var(--brand-tint); color: var(--brand); font-weight: 750; padding: 4px 10px; border-radius: 999px; font-size: 0.74rem; }
+
+    .tp-ledger { border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; display: flex; flex-direction: column; gap: 8px; }
+    .tp-ledger-h { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+    .tp-lentry { display: flex; align-items: baseline; gap: 10px; }
+    .tp-lamt { font-weight: 800; color: var(--brand); font-size: 0.98rem; }
+    .tp-lfrom { font-size: 0.82rem; color: var(--ink-2); }
+    .tp-lsim { margin-left: auto; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-3); border: 1px dashed var(--ink-3); border-radius: 999px; padding: 2px 8px; }
+
+    .tp-policy { font-size: 0.82rem; color: var(--ink-2); }
+    .tp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .tp-stat { border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .tp-sv { font-size: 1.3rem; font-weight: 820; color: var(--ink); }
+    .tp-sl { font-size: 0.68rem; font-weight: 650; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-3); text-align: center; }
+    .tp-note { font-size: 0.82rem; line-height: 1.5; color: var(--ink-2); border-left: 3px solid var(--brand); padding: 4px 0 4px 11px; }
+
+    .tp-slide { display: flex; flex-direction: column; gap: 9px; }
+    .tp-slide input[type=range] { width: 100%; accent-color: var(--brand); }
+    .tp-slide-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .tp-slide-row .mono { font-size: 0.85rem; font-weight: 700; color: var(--ink); }
+
+    .tp-ladder { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .tp-rung { border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .tp-rung.on { background: var(--brand); border-color: var(--brand); }
+    .tp-rung.on .tp-rt, .tp-rung.on .tp-rr, .tp-rung.on .tp-rb { color: #fff; }
+    .tp-rt { font-size: 0.8rem; font-weight: 800; color: var(--ink); }
+    .tp-rr { font-size: 0.66rem; color: var(--ink-3); font-family: var(--mono); }
+    .tp-rb { font-size: 0.74rem; font-weight: 750; color: var(--brand); }
+    .tp-qnow { font-size: 0.9rem; color: var(--ink-2); }
+
+    .tp-log { font-family: var(--mono); font-size: 0.78rem; line-height: 1.5; color: var(--ink-2); display: flex; flex-direction: column; gap: 3px; max-height: 240px; overflow: hidden; padding-left: 4px; }
+    .tp-ll { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tp-ll.em { color: var(--ink); font-weight: 700; }
+
+    @@media (max-width: 460px) {
+        .tp-ladder { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>

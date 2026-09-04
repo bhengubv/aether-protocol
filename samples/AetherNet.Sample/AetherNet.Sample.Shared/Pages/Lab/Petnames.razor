@@ -1,0 +1,221 @@
+@page "/lab/petnames"
+@using AetherNet.Identity
+@using AetherNet.Security.Services
+
+@* Memorable names, owned locally, answerable to no registry.
+
+   An AetherTag is globally unique and unforgeable but not memorable; a petname is memorable but means
+   something only to the person who chose it. That is Zooko's triangle, resolved the local-first way:
+   the binding lives on your device and is YOUR choice, so there is no central name registry anyone can
+   seize, censor, or squat. A name you PIN is authoritative here and nothing overrides it; a name a peer
+   PROPOSES is a suggestion you keep, promote, or reject. Names gossip between devices as proposals —
+   never able to overwrite a name you have already chosen.
+
+   Everything below is the real PetnameRegistry — two of them, "you" and "a peer", talking through
+   ExportProposals / ImportProposals with no server in the middle. *@
+
+<div class="pet">
+    <header class="pet-head">
+        <a class="pet-back" href="lab">← Lab</a>
+        <h1>Petname registry</h1>
+        <p>Pin the names you trust, weigh the ones peers propose, and gossip them between two devices —
+           with no central directory and no name a stranger can take from you.</p>
+    </header>
+
+    <section class="pet-form">
+        <div class="pet-form-row">
+            <select class="pet-select" @bind="_formTag">
+                @foreach (var t in _people)
+                {
+                    <option value="@t">@t</option>
+                }
+            </select>
+            <input class="pet-input" @bind="_formName" @bind:event="oninput" placeholder="a name to give it" />
+        </div>
+        <div class="pet-form-row">
+            <button class="btn" @onclick="Pin" disabled="@string.IsNullOrWhiteSpace(_formName)">Pin (my choice)</button>
+            <button class="btn ghost" @onclick="ProposeAsPeer" disabled="@string.IsNullOrWhiteSpace(_formName)">Propose (as a peer)</button>
+        </div>
+        @if (_note is not null)
+        {
+            <div class="pet-note">@_note</div>
+        }
+    </section>
+
+    <section class="pet-two">
+        <div class="pet-col">
+            <div class="pet-col-h">You</div>
+            @foreach (var p in _me.All.OrderBy(x => x.Name))
+            {
+                <div class="pet-bind">
+                    <div class="pet-bind-l">
+                        <span class="pet-bind-name">@p.Name</span>
+                        <span class="pet-bind-tag">@p.Tag</span>
+                    </div>
+                    <span class="pet-badge @(IsPin(p) ? "pin" : "prop")">@Badge(p)</span>
+                    <button class="pet-x" title="Reject" @onclick="() => Reject(p.Tag)">✕</button>
+                </div>
+            }
+            @if (_me.All.Count == 0)
+            {
+                <div class="pet-empty">No names yet.</div>
+            }
+        </div>
+
+        <div class="pet-col">
+            <div class="pet-col-h">A peer</div>
+            @foreach (var p in _peer.All.OrderBy(x => x.Name))
+            {
+                <div class="pet-bind">
+                    <div class="pet-bind-l">
+                        <span class="pet-bind-name">@p.Name</span>
+                        <span class="pet-bind-tag">@p.Tag</span>
+                    </div>
+                    <span class="pet-badge @(IsPin(p) ? "pin" : "prop")">@Badge(p)</span>
+                </div>
+            }
+            @if (_peer.All.Count == 0)
+            {
+                <div class="pet-empty">Nothing here yet.</div>
+            }
+        </div>
+    </section>
+
+    <section class="pet-resolve">
+        <div class="pet-resolve-row">
+            <input class="pet-input" @bind="_resolveName" @bind:event="oninput" placeholder="resolve a name → tag" />
+            <button class="btn ghost" @onclick="Resolve" disabled="@string.IsNullOrWhiteSpace(_resolveName)">Resolve</button>
+        </div>
+        @if (_resolveOut is not null)
+        {
+            <div class="pet-note">@_resolveOut</div>
+        }
+    </section>
+
+    <section class="pet-gossip">
+        <button class="btn" @onclick="Gossip">Gossip your pins → the peer</button>
+        @if (_gossipOut is not null)
+        {
+            <div class="pet-note">@_gossipOut</div>
+        }
+        <p class="pet-foot">Your pins travel as proposals. The peer already pinned a name for one of the
+            same tags, and keeps it — an incoming proposal never overrides a name someone has chosen. That
+            is the whole rule: pins beat proposals, everywhere.</p>
+    </section>
+</div>
+
+<style>
+    .pet { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+    .pet-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .pet-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .pet-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; line-height: 1.5; color: var(--ink); opacity: .72; }
+
+    .pet-form { display: flex; flex-direction: column; gap: 8px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 13px 14px; }
+    .pet-form-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pet-select, .pet-input { flex: 1 1 160px; min-width: 0; font: inherit; font-size: 14px; color: var(--ink);
+        background: transparent; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+    .pet-select { font-family: var(--mono); }
+    .pet-input::placeholder { color: var(--ink); opacity: .4; }
+    .pet-note { font-size: 12.5px; font-weight: 650; color: var(--ink); opacity: .85; line-height: 1.45; }
+
+    .pet-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .pet-col { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 13px; display: flex; flex-direction: column; gap: 8px; }
+    .pet-col-h { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+    .pet-bind { display: flex; align-items: center; gap: 8px; }
+    .pet-bind-l { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .pet-bind-name { font-size: 14px; font-weight: 750; color: var(--ink); word-break: break-word; }
+    .pet-bind-tag { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--ink); opacity: .55; word-break: break-all; }
+    .pet-badge { flex: none; font-size: 10px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; padding: 2px 7px; border-radius: 20px; border: 1px solid var(--line); color: var(--ink); opacity: .7; white-space: nowrap; }
+    .pet-badge.pin { color: var(--brand); border-color: var(--brand); opacity: 1; }
+    .pet-x { flex: none; appearance: none; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 800; color: var(--ink); opacity: .5; padding: 2px 4px; }
+    .pet-x:hover { opacity: 1; }
+    .pet-empty { color: var(--ink); opacity: .5; font-style: italic; font-size: 13px; }
+
+    .pet-resolve, .pet-gossip { display: flex; flex-direction: column; gap: 8px; }
+    .pet-resolve-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pet-foot { margin: 2px 0 0; font-size: 12.5px; font-weight: 500; line-height: 1.5; color: var(--ink); opacity: .7; }
+</style>
+
+@code {
+    private readonly PetnameRegistry _me = new();
+    private readonly PetnameRegistry _peer = new();
+
+    private string[] _people = Array.Empty<string>();
+    private string _myTag = "", _peerTag = "";
+
+    private string _formTag = "", _formName = "";
+    private string _resolveName = "", _resolveOut = null!;
+    private string? _note, _gossipOut;
+
+    protected override void OnInitialized()
+    {
+        // Four real tags to name, plus identities for "me" and "the peer" (a proposal carries who made it).
+        _people = Enumerable.Range(0, 4).Select(_ => RandomTag()).ToArray();
+        _myTag = RandomTag();
+        _peerTag = RandomTag();
+        _formTag = _people[0];
+
+        // A little starting state: two names I have pinned, and one a peer has proposed to me.
+        _me.Pin(_people[0], "Nomsa");
+        _me.Pin(_people[1], "Sipho");
+        _me.Propose(_people[2], "Thabo", _peerTag);
+
+        // The peer already has its OWN name pinned for people[0] — the collision that proves pins win
+        // over anything gossiped in.
+        _peer.Pin(_people[0], "Mama");
+    }
+
+    private void Pin()
+    {
+        var ok = _me.Pin(_formTag, _formName);
+        _note = ok ? $"Pinned “{_formName.Trim()}”. Yours now — nothing overrides it."
+                   : "Refused — not a valid tag, or the name is blank/too long.";
+        _formName = "";
+    }
+
+    private void ProposeAsPeer()
+    {
+        var ok = _me.Propose(_formTag, _formName, _peerTag);
+        _note = ok ? $"Proposal “{_formName.Trim()}” stored — a suggestion, kept until you pin or reject it."
+                   : "Refused — a proposal can't override a name you have already pinned. Your choice stands.";
+        _formName = "";
+    }
+
+    private void Reject(string tag)
+    {
+        _me.Reject(tag);
+        _note = "Dropped that binding.";
+    }
+
+    private void Resolve()
+    {
+        var tag = _me.ResolveName(_resolveName);
+        _resolveOut = tag is null
+            ? $"“{_resolveName.Trim()}” → no unambiguous match (unknown, or two bindings share it)."
+            : $"“{_resolveName.Trim()}” → {tag}";
+    }
+
+    private void Gossip()
+    {
+        // Offer my pins as proposals; the peer decides what to keep. Its own pin for the shared tag is
+        // untouched, because ImportProposals routes each entry through Propose.
+        var bundle = _me.ExportProposals(_myTag);
+        var stored = _peer.ImportProposals(bundle);
+        var kept = _peer.NameFor(_people[0]);
+        _gossipOut = $"Offered {bundle.Count} name(s); the peer stored {stored} as proposals and kept its own “{kept}” for the shared tag.";
+    }
+
+    private static bool IsPin(Petname p) => p.Source is PetnameSource.Pinned or PetnameSource.Seed;
+    private static string Badge(Petname p) => p.Source switch
+    {
+        PetnameSource.Pinned => "pinned",
+        PetnameSource.Seed => "seed",
+        _ => "proposed",
+    };
+
+    private static string RandomTag()
+    {
+        var (_, pub) = Ed25519SigningService.GenerateKeyPair();
+        return AetherNetTag.FromPublicKey(pub).Value;
+    }
+}

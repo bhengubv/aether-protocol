@@ -1,0 +1,202 @@
+@page "/lab/forge"
+@using AetherNet.Sample.Shared.Services.Lab
+@using AetherNet.Forge.Models
+@implements IDisposable
+
+@* The Forge mesh package cache — a mesh-local mirror of a package registry (npm, pip, cargo, go,
+   nuget, git). Node A publishes an artifact once; the cache entry gossips to node B over the mesh on
+   a real ForgeAnnounce packet, so B can serve later pulls locally, off mobile data. The download
+   counter and the bytes-saved figure are the real IForgeService aggregates; the announce is the real
+   ForgeAnnounceService over an in-process transport. *@
+
+<div class="frg">
+    <header class="frg-head">
+        <a class="frg-back" href="lab">← Lab</a>
+        <h1>Mesh package cache</h1>
+        <p>A publishes; the entry gossips to B over the mesh; B serves it locally. Cache, look up, and watch new entries propagate.</p>
+    </header>
+
+    @* ── Actions ───────────────────────────────────────────────────────────── *@
+    <section class="frg-card">
+        <div class="frg-eyebrow">Publish on A → gossip to B</div>
+        <div class="frg-form">
+            <input class="field-input" @bind="_pkg" placeholder="package id (e.g. npm:react@@18.2.0)" />
+            <label class="frg-size">size
+                <select class="field-input" @bind="_sizeKb">
+                    <option value="4">4 KB</option>
+                    <option value="8">8 KB</option>
+                    <option value="16">16 KB</option>
+                </select>
+            </label>
+            <button class="btn ink" @onclick="Publish">Publish on A</button>
+            <button class="btn ghost" @onclick="Seed">Seed a sample set</button>
+        </div>
+    </section>
+
+    @* ── Two caches ────────────────────────────────────────────────────────── *@
+    <section class="frg-two">
+        @foreach (var node in Nodes())
+        {
+            <div class="frg-card frg-half">
+                <div class="frg-node-top"><span class="frg-dot @(node.Slate ? "b" : null)"></span><span class="frg-node-name">@node.Name</span></div>
+                <div class="frg-stats">
+                    @if (node.Stats is { } s)
+                    {
+                        <div class="frg-grid">
+                            <div><span class="frg-k">packages</span><span class="frg-v">@s.CatalogueSize</span></div>
+                            <div><span class="frg-k">bytes saved</span><span class="frg-v">@s.TotalBytesSaved.ToString("N0")</span></div>
+                        </div>
+                        <div class="frg-top">
+                            @foreach (var p in s.TopPackages)
+                            {
+                                <div class="frg-pkg">
+                                    <span class="frg-pkg-id">@p.PackageId</span>
+                                    <span class="frg-pkg-dl">@p.DownloadCount×</span>
+                                    @if (node.Gossiped is not null && node.Gossiped.Contains(p.PackageId))
+                                    {
+                                        <span class="frg-via">via mesh</span>
+                                    }
+                                </div>
+                            }
+                            @if (s.TopPackages.Count == 0)
+                            {
+                                <div class="frg-empty">empty</div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="frg-empty">—</div>
+                    }
+                </div>
+            </div>
+        }
+    </section>
+
+    @* ── Look up / serve on B ──────────────────────────────────────────────── *@
+    <section class="frg-card">
+        <div class="frg-eyebrow">Pull from B — the mesh mirror</div>
+        <div class="frg-form">
+            <input class="field-input" @bind="_lookupPkg" placeholder="package id to look up on B" />
+            <button class="btn" @onclick="Lookup">Look up on B</button>
+            <button class="btn ghost" @onclick="Serve">Serve 3×</button>
+        </div>
+        @if (_lookupDone)
+        {
+            <div class="frg-lookup @(_lookupResult is null ? "miss" : "hit")">
+                @if (_lookupResult is { } e)
+                {
+                    <span>B has <b>@e.PackageId</b> — @e.SizeBytes.ToString("N0") B, served @e.DownloadCount×. It never published it; the mesh brought it.</span>
+                }
+                else
+                {
+                    <span>B has no entry for “@_lookupPkg” yet — publish it on A first.</span>
+                }
+            </div>
+        }
+    </section>
+
+    @* ── Wire log ────────────────────────────────────────────────────────────── *@
+    <section class="frg-log">
+        @foreach (var line in _demo.Log)
+        {
+            <div class="frg-line"><span class="frg-who">@line.Who</span><span class="frg-text">@line.Text</span></div>
+        }
+        @if (_demo.Log.Count == 0)
+        {
+            <div class="frg-line frg-empty">Bringing the two nodes up…</div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly ForgeDemo _demo = new();
+
+    private string _pkg = "npm:lodash@4.17.21";
+    private int _sizeKb = 8;
+    private string _lookupPkg = "npm:react@18.2.0";
+    private bool _lookupDone;
+    private ForgeEntry? _lookupResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _demo.Changed += OnChanged;
+        _demo.Init();
+        // Auto-populate so the caches and stats have something to show on arrival; guarded so a
+        // first-render hiccup never takes the page down — the "Seed a sample set" button is still there.
+        try { await _demo.SeedSampleAsync(); }
+        catch { /* the page renders fine empty; the user can seed manually */ }
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task Publish() => await _demo.PublishOnAAsync(_pkg, _sizeKb);
+    private async Task Seed() => await _demo.SeedSampleAsync();
+
+    private async Task Lookup()
+    {
+        _lookupResult = await _demo.LookupOnBAsync(_lookupPkg);
+        _lookupDone = true;
+    }
+
+    private async Task Serve()
+    {
+        await _demo.FetchOnBAsync(_lookupPkg, 3);
+        _lookupResult = await _demo.LookupOnBAsync(_lookupPkg);
+        _lookupDone = true;
+    }
+
+    // The two cache panels share one layout; B carries its gossip-learned set so mesh-delivered
+    // entries can be tagged "via mesh".
+    private (string Name, ForgeStats? Stats, IReadOnlyCollection<string>? Gossiped, bool Slate)[] Nodes() => new[]
+    {
+        ("Node A — publisher", _demo.StatsA, (IReadOnlyCollection<string>?)null, false),
+        ("Node B — mirror", _demo.StatsB, (IReadOnlyCollection<string>?)_demo.LearnedByGossip, true),
+    };
+
+    public void Dispose() { _demo.Changed -= OnChanged; _demo.Dispose(); }
+}
+
+<style>
+    .frg { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; margin: 0 auto; }
+    .frg-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .frg-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .frg-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .72; line-height: 1.45; }
+
+    .frg-card { border: 1.5px solid var(--line-card); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .frg-eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink); opacity: .6; }
+
+    .frg-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .frg-form .field-input { flex: 1 1 180px; min-width: 0; }
+    .frg-size { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--ink); opacity: .6; flex: none; }
+    .frg-size .field-input { flex: none; width: auto; }
+
+    .frg-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .frg-half { margin: 0; }
+    .frg-node-top { display: flex; align-items: center; gap: 8px; }
+    .frg-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); }
+    .frg-dot.b { background: #2c3e50; }
+    .frg-node-name { font-size: 14px; font-weight: 800; color: var(--ink); }
+
+    .frg-stats { display: flex; flex-direction: column; gap: 10px; }
+    .frg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .frg-k { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+    .frg-v { font-size: 20px; font-weight: 800; color: var(--ink); }
+    .frg-top { display: flex; flex-direction: column; gap: 5px; }
+    .frg-pkg { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+    .frg-pkg-id { font-family: var(--mono); font-weight: 700; color: var(--ink); word-break: break-all; }
+    .frg-pkg-dl { font-weight: 700; color: var(--brand); flex: none; }
+    .frg-via { font-size: 10px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #fff; background: #2c3e50; border-radius: 999px; padding: 1px 7px; flex: none; }
+    .frg-empty { color: var(--ink); opacity: .5; font-style: italic; font-size: 13px; }
+
+    .frg-lookup { font-size: 13.5px; line-height: 1.45; padding: 10px 12px; border-radius: 10px; }
+    .frg-lookup.hit { color: #fff; background: var(--brand); }
+    .frg-lookup.miss { color: var(--ink); border: 1.5px solid var(--line); }
+    .frg-lookup b { font-family: var(--mono); }
+
+    .frg-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .frg-line { display: flex; gap: 8px; line-height: 1.5; }
+    .frg-who { font-weight: 800; color: var(--brand); flex: none; min-width: 56px; }
+    .frg-text { color: var(--ink); opacity: .85; word-break: break-word; }
+    .frg-empty { color: var(--ink); opacity: .5; font-style: italic; }
+</style>

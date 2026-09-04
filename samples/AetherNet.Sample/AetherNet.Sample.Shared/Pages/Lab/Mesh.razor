@@ -1,0 +1,137 @@
+@page "/lab/mesh"
+@using AetherNet.Sample.Shared.Services
+@implements IDisposable
+@inject AetherDemoService Demo
+
+@* Three phones in a room, in-process. Alice, Bob and Charlie are real Ed25519 identities on the real
+   channel and video-call-control services over an in-process byte transport — the same code the eight
+   SDKs port, only the radio is simulated. Everything you press below is the protocol, not a script of
+   it: the tag really verifies, the forged tag really gets rejected, one publish really floods to every
+   subscriber, and the call-control handshake really rings, accepts and hangs up. *@
+
+<div class="mesh">
+    <header class="mesh-head">
+        <a class="mesh-back" href="lab">← Lab</a>
+        <h1>Three-node mesh</h1>
+        <p>A live AetherNet standing up in this page. Every node detects the others and can relay for them.</p>
+    </header>
+
+    <section class="mesh-nodes">
+        @foreach (var n in _nodes)
+        {
+            <div class="mesh-node" style="border-color:@n.Color">
+                <div class="mesh-node-top">
+                    <span class="mesh-dot" style="background:@n.Color"></span>
+                    <span class="mesh-name">@n.Name</span>
+                    @if (n.IsRelay)
+                    {
+                        <span class="mesh-relay">relay</span>
+                    }
+                </div>
+                <div class="mesh-tag tag-mono">@n.Tag</div>
+                <div class="mesh-peers">
+                    @if (n.Peers.Count == 0)
+                    {
+                        <span class="mesh-peers-none">no peers yet</span>
+                    }
+                    else
+                    {
+                        <span>sees @string.Join(", ", n.Peers)</span>
+                    }
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="mesh-controls">
+        <button class="btn ink" @onclick="() => Run(() => Demo.VerifyAetherTag())">Add Alice by tag → verify</button>
+        <button class="btn ink" @onclick="() => RunAsync(() => Demo.OneToOneVideoAsync())">1:1 video call</button>
+        <button class="btn ink" @onclick="() => RunAsync(() => Demo.GroupVideoAsync())">3-way group call</button>
+        <button class="btn" @onclick="() => Run(() => Demo.ClearLog())">Clear</button>
+    </section>
+
+    <section class="mesh-publish">
+        <input class="mesh-input" @bind="_message" @bind:event="oninput"
+               placeholder="Say something to the neighbourhood…" @onkeydown="OnKey" />
+        <button class="btn ink" @onclick="Publish" disabled="@string.IsNullOrWhiteSpace(_message)">Flood the channel</button>
+    </section>
+
+    <section class="mesh-log">
+        @foreach (var line in _log)
+        {
+            <div class="mesh-line">
+                <span class="mesh-who" style="color:@line.Color">@line.Who</span>
+                <span class="mesh-text">@line.Text</span>
+            </div>
+        }
+        @if (_log.Count == 0)
+        {
+            <div class="mesh-line mesh-empty">The wire is quiet. Press a button and watch it carry.</div>
+        }
+    </section>
+</div>
+
+<style>
+    .mesh { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 18px; }
+    .mesh-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .mesh-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .mesh-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .7; }
+    .mesh-nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .mesh-node { border: 2px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .mesh-node-top { display: flex; align-items: center; gap: 8px; }
+    .mesh-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .mesh-name { font-size: 16px; font-weight: 800; color: var(--ink); }
+    .mesh-relay { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--ink); opacity: .55; border: 1px solid var(--line); border-radius: 20px; padding: 1px 7px; }
+    .mesh-tag { font-size: 12px; color: var(--ink); opacity: .8; word-break: break-all; }
+    .mesh-peers { font-size: 12px; font-weight: 600; color: var(--ink); opacity: .65; }
+    .mesh-peers-none { opacity: .5; }
+    .mesh-controls, .mesh-publish { display: flex; flex-wrap: wrap; gap: 8px; }
+    .mesh-publish { align-items: center; }
+    .mesh-input { flex: 1 1 200px; min-width: 0; font: inherit; font-size: 14px; color: var(--ink); background: transparent; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+    .mesh-input::placeholder { color: var(--ink); opacity: .4; }
+    .mesh-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .mesh-line { display: flex; gap: 8px; line-height: 1.5; }
+    .mesh-who { font-weight: 800; flex: none; min-width: 52px; }
+    .mesh-text { color: var(--ink); opacity: .85; }
+    .mesh-empty { color: var(--ink); opacity: .5; font-style: italic; }
+</style>
+
+@code {
+    private IReadOnlyList<AetherDemoService.NodeView> _nodes = Array.Empty<AetherDemoService.NodeView>();
+    private IReadOnlyList<AetherDemoService.LogLine> _log = Array.Empty<AetherDemoService.LogLine>();
+    private string _message = "";
+
+    protected override void OnInitialized()
+    {
+        Demo.Changed += OnChanged;
+        Demo.Start();       // idempotent — one mesh per session
+        Refresh();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+
+    private void Refresh()
+    {
+        _nodes = Demo.Nodes();
+        _log = Demo.Snapshot();
+    }
+
+    private void Run(Action act) { act(); }
+
+    private async Task RunAsync(Func<Task> act) => await act();
+
+    private async Task Publish()
+    {
+        if (string.IsNullOrWhiteSpace(_message)) return;
+        var msg = _message;
+        _message = "";
+        await Demo.PublishGroupTextAsync(msg);
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Publish();
+    }
+
+    public void Dispose() => Demo.Changed -= OnChanged;
+}

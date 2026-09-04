@@ -1,0 +1,206 @@
+@page "/lab/vicinity"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* A demonstration surface for Proof-of-Vicinity — the anti-Sybil trust that lets an offline market
+   tell one real neighbour from a thousand invented ones. Two halves: the real two-key exchange
+   between two in-process nodes (PoVTokenExchangeService over PacketType.PoVTokenExchange), and the
+   defences around it — a tampered token failing its signature, and a defection docking a voucher's
+   own standing. Real Ed25519 throughout; the score is a local identity signal and never touches
+   money. *@
+
+<PageTitle>Lab — Proof-of-Vicinity</PageTitle>
+
+<div class="vy">
+    <header class="vy-head">
+        <a class="vy-back" href="lab">← Lab</a>
+        <span class="vy-kicker">Economy · demo</span>
+        <h1 class="vy-title">Proof-of-Vicinity</h1>
+        <p class="vy-sub">Trust you cannot fake alone: two phones that are physically together
+            countersign a token, and a profile earns standing by how many <b>distinct</b> people have
+            stood next to it. Real <span class="mono">PoVTokenExchangeService</span> + Ed25519.</p>
+    </header>
+
+    <section class="vy-group">
+        <div class="vy-glabel">Two phones vouch over the mesh</div>
+        <div class="vy-card vy-pad">
+            <p class="vy-ex">Each node holds its own identity key. A witness signs a vicinity token and
+                sends it over a real <span class="mono">PoVTokenExchange</span> packet; the subject
+                verifies the witness and counter-signs. One distinct witness, one point of score.</p>
+
+            <div class="vy-who">
+                <span class="vy-who-l">Profile</span>
+                <span class="vy-who-tag mono">@_demo.SubjectUhid</span>
+            </div>
+
+            <div class="vy-score">
+                <div class="vy-score-top">
+                    <span>@_demo.MeshScore.UniqueWitnesses distinct witness(es)</span>
+                    <span class="vy-score-w">weighted @_demo.MeshScore.WeightedScore.ToString("0.00")</span>
+                </div>
+                <div class="vy-bar"><span style="width:@(Pct(_demo.MeshScore.WeightedScore))"></span></div>
+            </div>
+
+            <button class="vy-btn block" @onclick="Vouch" disabled="@(_demo.WitnessesRemaining == 0)">
+                @(_demo.WitnessesRemaining == 0 ? "Both neighbours have vouched" : "A neighbour vouches in person")
+            </button>
+
+            @if (_demo.LastAcceptedOnMesh is { } t)
+            {
+                <div class="vy-tok">
+                    <div class="vy-tok-h">token accepted</div>
+                    <div class="vy-tok-row"><span>@Petname(t.WitnessUhid)</span><span class="vy-arr">→</span><span>@Petname(t.SubjectUhid)</span></div>
+                    <div class="vy-tok-meta">
+                        <span class="vy-chip">@t.TransportUsed</span>
+                        <span class="mono">witness @t.WitnessSignature.Length B</span>
+                        <span class="mono">countersig @t.SubjectSignature.Length B</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="vy-group">
+        <div class="vy-glabel">What a forged or withdrawn vouch does</div>
+        <div class="vy-card vy-pad">
+            <p class="vy-ex">The same signatures that make a real vouch un-forgeable make a fake one
+                fail, and a vouch is a stake: back a peer who defects, and you lose some of your own
+                standing.</p>
+
+            <div class="vy-who">
+                <span class="vy-who-l">Profile</span>
+                <span class="vy-who-tag mono">@_demo.DefenceSubjectPetname</span>
+            </div>
+
+            <div class="vy-score">
+                <div class="vy-score-top">
+                    <span>@_demo.DefenceScore.UniqueWitnesses distinct witness(es)</span>
+                    <span class="vy-score-w">weighted @_demo.DefenceScore.WeightedScore.ToString("0.00")</span>
+                </div>
+                <div class="vy-bar"><span style="width:@(Pct(_demo.DefenceScore.WeightedScore))"></span></div>
+            </div>
+
+            @if (_demo.PristineVerify is not null || _demo.TamperedVerify is not null)
+            {
+                <div class="vy-verdicts">
+                    @if (_demo.PristineVerify is { } pv)
+                    {
+                        <span class="vy-vd @(pv ? "ok" : "no")">real token: @(pv ? "VALID" : "REJECTED")</span>
+                    }
+                    @if (_demo.TamperedVerify is { } tv)
+                    {
+                        <span class="vy-vd @(tv ? "ok" : "no")">tampered token: @(tv ? "VALID (BAD!)" : "REJECTED")</span>
+                    }
+                </div>
+            }
+
+            <div class="vy-acts">
+                <button class="vy-btn" @onclick="AddVouch">A neighbour vouches</button>
+                <button class="vy-btn ghost" @onclick="Tamper" disabled="@(!_demo.HasSampleToken)">Tamper the token</button>
+                <button class="vy-btn ghost" @onclick="Defect" disabled="@(_demo.DefenceScore.WeightedScore <= 0)">Report a defection (−20%)</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="vy-group">
+        <div class="vy-glabel">Wire log</div>
+        <div class="vy-log">
+            @foreach (var l in Enumerable.Reverse(_demo.Snapshot()))
+            {
+                <div class="vy-ll @(l.Emphasis ? "em" : null)">@l.Text</div>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    private readonly VicinityLabDemo _demo = new();
+
+    protected override void OnInitialized()
+    {
+        _demo.Changed += OnChanged;
+        _demo.Start();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private Task Vouch() => _demo.VouchOverMeshAsync();
+    private Task AddVouch() => _demo.AddVouchAsync();
+    private Task Tamper() => _demo.TamperAsync();
+    private Task Defect() => _demo.ReportDefectionAsync();
+
+    private static string Pct(double weighted) => $"{Math.Clamp(weighted, 0, 1) * 100:0}%";
+
+    private static string Petname(string uhid)
+    {
+        var parts = uhid.Split(':');
+        return parts.Length >= 2 && parts[1].Length > 0
+            ? char.ToUpperInvariant(parts[1][0]) + parts[1][1..]
+            : uhid;
+    }
+
+    public void Dispose()
+    {
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
+    }
+}
+
+<style>
+    .vy { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; padding-bottom: 24px; }
+    /* app.css's global .mono only opts text into selection; the monospace face is applied here,
+       scoped to this page so it never reaches a .mono element in the persistent layout. */
+    .vy .mono { font-family: var(--mono); }
+
+    .vy-head { display: flex; flex-direction: column; gap: 4px; padding: 4px 4px 0; }
+    .vy-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; margin-bottom: 4px; }
+    .vy-kicker { font-size: 0.66rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-3); }
+    .vy-title { font-size: 1.7rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); }
+    .vy-sub { font-size: 0.9rem; line-height: 1.5; color: var(--ink-2); max-width: 62ch; }
+
+    .vy-group { display: flex; flex-direction: column; gap: 10px; }
+    .vy-glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
+
+    .vy-card { background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line-card); border-radius: 16px; box-shadow: var(--shadow-sm); }
+    .vy-pad { padding: 15px 16px; display: flex; flex-direction: column; gap: 13px; }
+    .vy-ex { font-size: 0.87rem; line-height: 1.55; color: var(--ink-2); }
+
+    .vy-who { display: flex; align-items: baseline; gap: 10px; }
+    .vy-who-l { font-size: 0.68rem; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--ink-3); }
+    .vy-who-tag { font-size: 1.05rem; font-weight: 750; color: var(--ink); letter-spacing: .3px; }
+
+    .vy-score { display: flex; flex-direction: column; gap: 7px; }
+    .vy-score-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 0.9rem; font-weight: 700; color: var(--ink); }
+    .vy-score-w { font-size: 0.82rem; font-weight: 650; color: var(--ink-2); }
+    .vy-bar { height: 10px; border-radius: 999px; background: var(--brand-tint); overflow: hidden; }
+    .vy-bar > span { display: block; height: 100%; background: var(--brand); border-radius: 999px; transition: width .3s ease; }
+
+    .vy-btn { appearance: none; border: none; background: var(--brand); color: #fff; font-family: var(--sans); font-weight: 680; font-size: 0.92rem; padding: 12px 16px; border-radius: 11px; cursor: pointer; }
+    .vy-btn:hover:not(:disabled) { background: var(--brand-deep); }
+    .vy-btn:active:not(:disabled) { filter: brightness(.95); }
+    .vy-btn:disabled { opacity: .4; cursor: default; }
+    .vy-btn.block { display: block; width: 100%; }
+    .vy-btn.ghost { background: transparent; color: var(--brand); border: 1.5px solid var(--line); font-weight: 650; }
+    .vy-btn.ghost:hover:not(:disabled) { background: var(--brand-tint); border-color: var(--brand); }
+    .vy-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .vy-tok { border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; display: flex; flex-direction: column; gap: 8px; }
+    .vy-tok-h { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+    .vy-tok-row { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-weight: 700; font-size: 0.95rem; color: var(--ink); }
+    .vy-tok-row .vy-arr { color: var(--brand); }
+    .vy-tok-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.74rem; color: var(--ink-3); }
+    .vy-tok-meta .mono { color: var(--ink-3); }
+
+    .vy-chip { background: var(--brand-tint); color: var(--brand); font-weight: 750; padding: 3px 9px; border-radius: 999px; font-size: 0.74rem; }
+
+    .vy-verdicts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .vy-vd { font-size: 0.76rem; font-weight: 750; padding: 5px 11px; border-radius: 999px; }
+    .vy-vd.ok { background: var(--brand); color: #fff; }
+    /* No red in this palette — a rejection is drawn as a hollow, struck-through chip, which survives
+       being looked at by someone who cannot separate two hues anyway. */
+    .vy-vd.no { background: transparent; color: var(--ink-3); border: 1.5px dashed var(--ink-3); text-decoration: line-through; }
+
+    .vy-log { font-family: var(--mono); font-size: 0.78rem; line-height: 1.5; color: var(--ink-2); display: flex; flex-direction: column; gap: 3px; max-height: 240px; overflow: hidden; padding-left: 4px; }
+    .vy-ll { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vy-ll.em { color: var(--ink); font-weight: 700; }
+</style>

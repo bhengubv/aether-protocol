@@ -1,0 +1,275 @@
+@page "/lab/map"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* An offline neighbourhood map with no server in it. Two people hold the same storefront; the demo cuts
+   the link, lets each edit while the other can't be reached, then heals the partition and merges. The
+   two replicas land on identical state — because the map is a field-level CRDT, not a shared document.
+   Edits to different attributes both survive; a real clash on the same attribute resolves to the higher
+   Hybrid Logical Clock, the same winner on both phones. Below that: the two authority modes the model
+   carries, and a geohash proximity query. All of it is the real aether-map code — only the network is
+   in this page. *@
+
+<div class="mp">
+    <header class="mp-head">
+        <a class="mp-back" href="lab">← Lab</a>
+        <h1>Collaborative map</h1>
+        <p>Two people edit one place offline. When they meet, the CRDT merges their edits — no server, nothing lost.</p>
+    </header>
+
+    <section class="mp-section">
+        <div class="mp-eyebrow">Partition &amp; converge</div>
+        <div class="mp-status @(_demo.Merged ? "merged" : "split")">
+            @if (_demo.Merged)
+            {
+                <span>Synced — both replicas are identical.</span>
+            }
+            else
+            {
+                <span>Partitioned — Thabo and Lerato can't reach each other.</span>
+            }
+        </div>
+
+        <div class="mp-replicas">
+            @foreach (var rep in new[] { (Name: "Thabo", Thabo: true), (Name: "Lerato", Thabo: false) })
+            {
+                var v = _demo.Replica(rep.Thabo);
+                <div class="mp-rep @(rep.Thabo ? "a" : "b") @(_demo.Merged ? "merged" : null)">
+                    <div class="mp-rep-top">
+                        <span class="mp-rep-dot"></span>
+                        <span class="mp-rep-name">@rep.Name</span>
+                        <span class="mp-rep-cell">@v.LocationCell</span>
+                    </div>
+                    @foreach (var a in v.Attributes)
+                    {
+                        <div class="mp-attr">
+                            <span class="mp-attr-k">@a.Key</span>
+                            <span class="mp-attr-v">@a.Value</span>
+                            <span class="mp-attr-c">@ShortClock(a.Clock)</span>
+                        </div>
+                    }
+                    @if (v.Tags.Count > 0)
+                    {
+                        <div class="mp-tags">
+                            @foreach (var t in v.Tags)
+                            {
+                                <span class="mp-tag">@t</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (_demo.HoursConflict is { } hc)
+        {
+            <div class="mp-clash">
+                <div class="mp-clash-title">Same field, two edits — “hours”</div>
+                <div class="mp-clash-rows">
+                    <div class="mp-clash-row @(!hc.WinnerIsLerato && _demo.Merged ? "win" : null)">
+                        <span class="mp-clash-who">Thabo</span><span class="mp-clash-val">@hc.ValueT</span><span class="mp-clash-clk">@ShortClock(hc.ClockT)</span>
+                    </div>
+                    <div class="mp-clash-row @(hc.WinnerIsLerato && _demo.Merged ? "win" : null)">
+                        <span class="mp-clash-who">Lerato</span><span class="mp-clash-val">@hc.ValueL</span><span class="mp-clash-clk">@ShortClock(hc.ClockL)</span>
+                    </div>
+                </div>
+                <div class="mp-clash-note">
+                    @(_demo.Merged
+                        ? $"Resolved to the higher HLC — {(hc.WinnerIsLerato ? "Lerato" : "Thabo")} wins, deterministically, on both devices."
+                        : "Both still hold their own value. On merge the higher Hybrid Logical Clock wins.")
+                </div>
+            </div>
+        }
+
+        <div class="mp-controls">
+            <button class="btn ink" disabled="@(_demo.ThaboEdited || _demo.Merged)" @onclick="() => _demo.EditAsThabo()">Thabo edits (offline)</button>
+            <button class="btn ink" disabled="@(_demo.LeratoEdited || _demo.Merged)" @onclick="() => _demo.EditAsLerato()">Lerato edits (offline)</button>
+            <button class="btn" disabled="@(_demo.Merged || (!_demo.ThaboEdited && !_demo.LeratoEdited))" @onclick="() => _demo.Merge()">Sync &amp; merge</button>
+            <button class="btn ghost" @onclick="ResetAll">Reset</button>
+        </div>
+    </section>
+
+    <section class="mp-section">
+        <div class="mp-eyebrow">Owner-authoritative vs observed-consensus</div>
+        <div class="mp-auth">
+            <div class="mp-auth-card">
+                <div class="mp-auth-mode">Owner-authoritative</div>
+                <div class="mp-auth-what">Kopano Spaza · storefront</div>
+                <div class="mp-auth-key">owner key <span class="mp-mono">@_demo.OwnerKeyShort…</span></div>
+                <p class="mp-auth-note">The owner key is part of the feature's genesis identity. A replica that claims a different owner can't be merged in — the join refuses it before any field changes.</p>
+                <button class="btn ghost" @onclick="Impostor">Impostor tries to merge</button>
+                @if (_impostorTried)
+                {
+                    <div class="mp-auth-result @(_impostorRejected ? "ok" : "bad")">
+                        @(_impostorRejected ? "Rejected — a stranger can't rewrite the shop." : "Accepted (unexpected).")
+                    </div>
+                }
+            </div>
+            <div class="mp-auth-card">
+                <div class="mp-auth-mode">Observed-consensus</div>
+                <div class="mp-auth-what">Kerb ramp · sidewalk feature</div>
+                @{ var ob = _demo.Observed; }
+                <div class="mp-obs-row">
+                    <span class="mp-obs-field">ramp present</span>
+                    <span class="mp-badge @(ob.Confirmed ? "on" : null)">@(ob.Confirmed ? "confirmed" : $"{ob.Witnesses}/{ob.Threshold}")</span>
+                </div>
+                <div class="mp-obs-dots">
+                    @for (var i = 0; i < Math.Max(ob.Threshold, ob.Witnesses); i++)
+                    {
+                        <span class="mp-obs-dot @(i < ob.Witnesses ? "on" : null)"></span>
+                    }
+                </div>
+                @if (ob.Attestors.Count > 0)
+                {
+                    <div class="mp-obs-who">attested by @string.Join(", ", ob.Attestors)</div>
+                }
+                <p class="mp-auth-note">Confidence is the count of <b>distinct</b> witnesses (a grow-only set), so one device can't inflate it by attesting twice. Sentiment is a separate anonymous tally: <b>@ob.Sentiment</b>.</p>
+                <div class="mp-obs-btns">
+                    <button class="btn ghost" @onclick="() => _demo.ConfirmRamp()">A neighbour confirms</button>
+                    <button class="btn ghost" @onclick="() => _demo.ReconfirmRamp()">Same one re-confirms</button>
+                    <button class="btn ghost" @onclick="() => _demo.Upvote()">▲</button>
+                    <button class="btn ghost" @onclick="() => _demo.Downvote()">▼</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="mp-section">
+        <div class="mp-eyebrow">Proximity — cell + 8 neighbours</div>
+        <p class="mp-prox-note">Tap a cell to query around it. A geohash proximity query returns features in that cell and the eight touching it — the tinted ring — over a real geohash-indexed store.</p>
+        <div class="mp-prox">
+            @foreach (var c in _demo.ProximityCells())
+            {
+                <button class="mp-cell @(c.InRing ? "ring" : null) @(c.IsCenter ? "center" : null)" @onclick="() => Move(c.Row, c.Col)" title="@c.Cell">
+                    @if (c.Poi is { } name)
+                    {
+                        <span class="mp-pdot @(c.Matched ? "hit" : null)"></span>
+                        <span class="mp-plabel">@name</span>
+                    }
+                </button>
+            }
+        </div>
+    </section>
+
+    <section class="mp-log">
+        @foreach (var line in _demo.Log)
+        {
+            <div class="mp-line">@line</div>
+        }
+    </section>
+</div>
+
+@code {
+    private MapDemo _demo = default!;
+    private bool _impostorTried, _impostorRejected;
+
+    protected override void OnInitialized()
+    {
+        _demo = new MapDemo();
+        _demo.Changed += OnChanged;
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task Move(int r, int c) => await _demo.MoveQueryAsync(r, c);
+
+    private void Impostor()
+    {
+        _impostorRejected = _demo.TryImpostorMerge();
+        _impostorTried = true;
+    }
+
+    private void ResetAll()
+    {
+        _impostorTried = false;
+        _demo.Reset();
+    }
+
+    private static string ShortClock(string hlc)
+    {
+        var p = hlc.Split(':');
+        return p.Length == 3 ? $"{p[2]}·{p[1]}" : hlc; // node · counter (physical ms dropped for legibility)
+    }
+
+    public void Dispose() => _demo.Changed -= OnChanged;
+}
+
+<style>
+    .mp { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 20px; max-width: 620px; margin: 0 auto; }
+    .mp-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .mp-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .mp-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .72; line-height: 1.45; }
+
+    .mp-section { display: flex; flex-direction: column; gap: 12px; }
+    .mp-eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+
+    .mp-status { font-size: 13px; font-weight: 700; padding: 8px 12px; border-radius: 10px; border: 1.5px solid var(--line); color: var(--ink); }
+    .mp-status.split { opacity: .7; border-style: dashed; }
+    .mp-status.merged { color: var(--brand); border-color: var(--brand); background: var(--brand-tint); opacity: 1; }
+
+    .mp-replicas { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+    .mp-rep { border: 2px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
+    .mp-rep.a { border-color: var(--brand); }
+    .mp-rep.b { border-color: var(--brand-deep); }
+    .mp-rep.merged { background: var(--brand-tint); }
+    .mp-rep-top { display: flex; align-items: center; gap: 8px; }
+    .mp-rep-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .mp-rep.a .mp-rep-dot { background: var(--brand); }
+    .mp-rep.b .mp-rep-dot { background: var(--brand-deep); }
+    .mp-rep-name { font-size: 15px; font-weight: 800; color: var(--ink); }
+    .mp-rep-cell { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink); opacity: .6; }
+    .mp-attr { display: flex; align-items: baseline; gap: 8px; }
+    .mp-attr-k { font-size: 12px; font-weight: 700; color: var(--ink); opacity: .6; min-width: 46px; }
+    .mp-attr-v { font-size: 13.5px; font-weight: 600; color: var(--ink); flex: 1 1 auto; }
+    .mp-attr-c { font-family: var(--mono); font-size: 10.5px; color: var(--ink); opacity: .5; }
+    .mp-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .mp-tag { font-size: 11px; font-weight: 700; color: var(--brand); background: var(--brand-tint); padding: 3px 9px; border-radius: 999px; }
+
+    .mp-clash { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .mp-clash-title { font-size: 12px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ink); opacity: .6; }
+    .mp-clash-rows { display: flex; flex-direction: column; gap: 5px; }
+    .mp-clash-row { display: flex; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 8px; border: 1px solid transparent; }
+    .mp-clash-row.win { border-color: var(--brand); background: var(--brand-tint); }
+    .mp-clash-who { font-size: 12px; font-weight: 800; color: var(--ink); min-width: 52px; }
+    .mp-clash-val { font-size: 13px; font-weight: 600; color: var(--ink); flex: 1 1 auto; }
+    .mp-clash-clk { font-family: var(--mono); font-size: 11px; color: var(--ink); opacity: .55; }
+    .mp-clash-note { font-size: 12.5px; font-weight: 500; line-height: 1.4; color: var(--ink); opacity: .72; }
+
+    .mp-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+    .mp-controls .btn { padding: 10px 13px; font-size: 13.5px; }
+
+    .mp-auth { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; }
+    .mp-auth-card { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 13px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .mp-auth-mode { font-size: 12px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--brand); }
+    .mp-auth-what { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+    .mp-auth-key { font-size: 12px; font-weight: 600; color: var(--ink); opacity: .7; }
+    .mp-mono { font-family: var(--mono); }
+    .mp-auth-note { font-size: 12px; font-weight: 500; line-height: 1.42; color: var(--ink); opacity: .72; margin: 0; }
+    .mp-auth-card .btn { padding: 9px 12px; font-size: 13px; align-self: flex-start; }
+    .mp-auth-result { font-size: 12.5px; font-weight: 700; }
+    .mp-auth-result.ok { color: var(--brand); }
+    .mp-auth-result.bad { color: var(--ink); opacity: .7; }
+
+    .mp-obs-row { display: flex; align-items: center; gap: 8px; }
+    .mp-obs-field { font-size: 13px; font-weight: 600; color: var(--ink); }
+    .mp-badge { margin-left: auto; font-size: 11px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--ink); opacity: .6; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+    .mp-badge.on { color: var(--brand); border-color: var(--brand); background: var(--brand-tint); opacity: 1; }
+    .mp-obs-dots { display: flex; gap: 5px; }
+    .mp-obs-dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line); }
+    .mp-obs-dot.on { background: var(--brand); border-color: var(--brand); }
+    .mp-obs-who { font-size: 11.5px; font-weight: 600; color: var(--ink); opacity: .62; }
+    .mp-obs-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .mp-obs-btns .btn { padding: 8px 11px; font-size: 12.5px; }
+
+    .mp-prox-note { font-size: 12.5px; font-weight: 500; line-height: 1.42; color: var(--ink); opacity: .72; margin: 0; }
+    .mp-prox { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; max-width: 380px; }
+    .mp-cell { aspect-ratio: 1; border: 1.5px solid var(--line); border-radius: 8px; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 2px; transition: background .15s ease, border-color .15s ease; }
+    .mp-cell.ring { background: var(--brand-tint); border-color: rgba(33,150,243,.3); }
+    .mp-cell.center { border-color: var(--brand-deep); border-width: 2px; }
+    .mp-pdot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--ink); opacity: .5; }
+    .mp-pdot.hit { background: var(--brand); border-color: var(--brand); opacity: 1; }
+    .mp-plabel { font-size: 8.5px; font-weight: 700; line-height: 1; text-align: center; color: var(--ink); opacity: .7; }
+
+    .mp-log { display: flex; flex-direction: column; gap: 5px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12px; }
+    .mp-line { color: var(--ink); opacity: .78; line-height: 1.5; }
+</style>

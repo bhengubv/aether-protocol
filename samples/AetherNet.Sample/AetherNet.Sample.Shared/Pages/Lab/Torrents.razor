@@ -1,0 +1,191 @@
+@page "/lab/torrents"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* BitTorrent, from scratch, meeting the mesh. Everything here is the real AetherNet.BitTorrent stack:
+   the v1 info-hash is a genuine SHA-1 over the bencoded info dictionary (a stock client computes the
+   same one), the v2 root is a real SHA-256 merkle tree, the DHT node speaks real KRPC, and the gateway
+   re-hashes the same bytes into SHA-256 mesh chunks — a real re-chunk across two content-addressing
+   worlds, never a relabel. Nothing is simulated but the DHT's socket, which is loopback. *@
+
+<div class="tor">
+    <header class="tor-head">
+        <a class="tor-back" href="lab">← Lab</a>
+        <h1>BitTorrent + mesh gateway</h1>
+        <p>Build a real .torrent, read its magnet and info-hash, run a DHT node — then bridge it into SHA-256 mesh chunks and back.</p>
+    </header>
+
+    @* ── 1. Build a torrent ─────────────────────────────────────────────────── *@
+    <section class="tor-card">
+        <div class="tor-eyebrow">Build a .torrent from some bytes</div>
+        <div class="tor-form">
+            <input class="field-input" @bind="_name" placeholder="file name (e.g. field-notes.txt)" />
+            <textarea class="field-input tor-area" @bind="_body" rows="3" placeholder="Any bytes. This text becomes the file the torrent describes."></textarea>
+            <input class="field-input" @bind="_tracker" placeholder="tracker (optional, e.g. udp://tracker.example:6969)" />
+            <button class="btn ink" @onclick="Build">Build .torrent</button>
+        </div>
+
+        @if (_demo.Built is { } b)
+        {
+            <div class="tor-out">
+                <div class="tor-row"><span class="tor-k">v1 info-hash</span><span class="tor-v mono">@b.InfoHashV1</span></div>
+                <div class="tor-row"><span class="tor-k">magnet</span><span class="tor-v mono wrap">@b.Magnet</span></div>
+                <div class="tor-grid">
+                    <div><span class="tor-k">pieces</span><span class="tor-v">@b.PieceCount × @b.PieceLength B (SHA-1)</span></div>
+                    <div><span class="tor-k">.torrent</span><span class="tor-v">@b.SourceBytes B → @b.TorrentBytes B</span></div>
+                </div>
+                <div class="tor-row"><span class="tor-k">v2 merkle root</span><span class="tor-v mono wrap">@b.MerkleRootV2</span></div>
+                <div class="tor-row"><span class="tor-k">SHA-256(info)</span><span class="tor-v mono wrap">@b.InfoHashV2</span></div>
+            </div>
+        }
+    </section>
+
+    @* ── 2. Ingest into the mesh ────────────────────────────────────────────── *@
+    <section class="tor-card">
+        <div class="tor-eyebrow">Ingest into the mesh — SHA-256 chunks</div>
+        <p class="tor-note">The gateway re-hashes the torrent's bytes into content-addressed chunks so offline peers can pull and reassemble them over AetherNet's own protocol.</p>
+        <button class="btn" @onclick="Ingest" disabled="@(_demo.Built is null)">Ingest into mesh →</button>
+
+        @if (_demo.Ingest is { } g)
+        {
+            <div class="tor-out">
+                <div class="tor-grid">
+                    <div><span class="tor-k">mesh root</span><span class="tor-v mono">@Trunc(g.Root)</span></div>
+                    <div><span class="tor-k">chunks</span><span class="tor-v">@g.ChunkCount × @g.ChunkSize B</span></div>
+                </div>
+                <div class="tor-row">
+                    <span class="tor-k">round-trip</span>
+                    <span class="tor-v">@(g.Verified ? "reassembled from the store, every chunk verified — bytes match ✓" : "mismatch")</span>
+                </div>
+                <div class="tor-both">
+                    <span class="tor-pill">v1 · @Trunc(g.InfoHashV1)</span>
+                    <span class="tor-plus">+</span>
+                    <span class="tor-pill">mesh · @Trunc(g.MeshRootOverFile)</span>
+                    <span class="tor-both-say">one file, both content identities</span>
+                </div>
+            </div>
+        }
+    </section>
+
+    @* ── 3. Re-seed mesh content as a .torrent ──────────────────────────────── *@
+    <section class="tor-card">
+        <div class="tor-eyebrow">Re-seed mesh content back out as a .torrent</div>
+        <div class="tor-form">
+            <input class="field-input" @bind="_seedName" placeholder="content name (e.g. mesh-note.bin)" />
+            <input class="field-input" @bind="_seedBody" placeholder="content that lived on the mesh first" />
+            <button class="btn ghost" @onclick="ReSeed">Package as .torrent →</button>
+        </div>
+        @if (_demo.Export is { } e)
+        {
+            <div class="tor-out">
+                <div class="tor-row"><span class="tor-k">v1 info-hash</span><span class="tor-v mono">@e.InfoHashV1</span></div>
+                <div class="tor-grid">
+                    <div><span class="tor-k">pieces</span><span class="tor-v">@e.PieceCount</span></div>
+                    <div><span class="tor-k">announce</span><span class="tor-v mono">@e.Announce</span></div>
+                </div>
+            </div>
+        }
+    </section>
+
+    @* ── 4. DHT ─────────────────────────────────────────────────────────────── *@
+    <section class="tor-card">
+        <div class="tor-eyebrow">Mainline DHT (BEP-5)</div>
+        <div class="tor-btns">
+            <button class="btn ghost" @onclick="() => _demo.ShowRoutingTable()">Show a routing table</button>
+            <button class="btn ghost" @onclick="RunDht">Run two live nodes</button>
+        </div>
+        @if (_demo.Dht is { Contacts: > 0 } d)
+        {
+            <div class="tor-out">
+                <div class="tor-grid">
+                    <div><span class="tor-k">node id</span><span class="tor-v mono">@Trunc(d.SelfId)</span></div>
+                    <div><span class="tor-k">contacts</span><span class="tor-v">@d.Contacts across 160 k-buckets</span></div>
+                </div>
+                <div class="tor-k">closest to target @Trunc(d.Target) (XOR distance):</div>
+                <table class="tor-tbl">
+                    <thead><tr><th class="mono dim">node id</th><th class="mono dim">distance</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in d.Closest)
+                        {
+                            <tr><td class="mono">@Trunc(r.NodeId)</td><td class="mono dim">@Trunc(r.Distance)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    @* ── Wire log ────────────────────────────────────────────────────────────── *@
+    <section class="tor-log">
+        @foreach (var line in _demo.Log)
+        {
+            <div class="tor-line"><span class="tor-who">@line.Who</span><span class="tor-text">@line.Text</span></div>
+        }
+        @if (_demo.Log.Count == 0)
+        {
+            <div class="tor-line tor-empty">Build a torrent to begin. Each step drives the real BitTorrent stack.</div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly TorrentsDemo _demo = new();
+
+    private string _name = "field-notes.txt";
+    private string _body = "The mesh carries its own catalogue. This note is about to become a torrent, then a set of mesh chunks, then a torrent again.";
+    private string _tracker = "";
+    private string _seedName = "mesh-note.bin";
+    private string _seedBody = "content that lived on the mesh first";
+
+    protected override void OnInitialized() => _demo.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void Build() => _demo.BuildTorrent(_name, _body, _tracker);
+    private async Task Ingest() => await _demo.IngestIntoMeshAsync();
+    private void ReSeed() => _demo.ReSeedAsTorrent(_seedName, _seedBody);
+    private async Task RunDht() => await _demo.RunLiveDhtAsync();
+
+    private static string Trunc(string hex) => string.IsNullOrEmpty(hex) ? "—" : hex.Length <= 16 ? hex : hex[..16] + "…";
+
+    public void Dispose() => _demo.Changed -= OnChanged;
+}
+
+<style>
+    .tor { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; margin: 0 auto; }
+    .tor-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .tor-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .tor-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .72; line-height: 1.45; }
+
+    .tor-card { border: 1.5px solid var(--line-card); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .tor-eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink); opacity: .6; }
+    .tor-note { margin: 0; font-size: 13px; color: var(--ink); opacity: .7; line-height: 1.45; }
+
+    .tor-form { display: flex; flex-direction: column; gap: 8px; }
+    .tor-area { resize: vertical; font-family: inherit; }
+    .tor-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .tor-out { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+    .tor-row { display: flex; flex-direction: column; gap: 2px; }
+    .tor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    .tor-k { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+    .tor-v { font-size: 14px; font-weight: 600; color: var(--ink); }
+    .tor .mono { font-family: var(--mono); }
+    .tor .wrap { word-break: break-all; }
+    .tor .dim { opacity: .6; }
+
+    .tor-both { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .tor-pill { font-family: var(--mono); font-size: 12px; font-weight: 700; color: #fff; background: var(--brand); border-radius: 999px; padding: 4px 12px; }
+    .tor-plus { font-weight: 800; color: var(--ink); opacity: .5; }
+    .tor-both-say { font-size: 12.5px; font-style: italic; color: var(--ink); opacity: .65; }
+
+    .tor-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: fixed; }
+    .tor-tbl th { text-align: left; font-weight: 700; font-size: 11px; padding: 0 8px 4px 0; }
+    .tor-tbl td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); word-break: break-all; }
+
+    .tor-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .tor-line { display: flex; gap: 8px; line-height: 1.5; }
+    .tor-who { font-weight: 800; color: var(--brand); flex: none; min-width: 56px; }
+    .tor-text { color: var(--ink); opacity: .85; word-break: break-word; }
+    .tor-empty { color: var(--ink); opacity: .5; font-style: italic; }
+</style>

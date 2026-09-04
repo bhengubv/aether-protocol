@@ -1,0 +1,179 @@
+@page "/lab/vault"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* Erasure-coded distributed backup, driven live. The secret below is sharded by the real systematic
+   Cauchy-Reed-Solomon codec into ten data shards and four parity shards — any TEN of the fourteen
+   rebuild it. Tap peers to drop them and watch the file survive right down to the tenth shard, then
+   fall off the cliff at the ninth. Health and recovery are computed by the actual vault service; the
+   only fiction is that the fourteen "peers" live in one process. *@
+
+<div class="vault">
+    <header class="vault-head">
+        <a class="vault-back" href="lab">← Lab</a>
+        <h1>Erasure-coded backup</h1>
+        <p>Shard a secret across peers with real Reed-Solomon (K=@VaultLabDemo.K / M=@VaultLabDemo.M). Recover from any @VaultLabDemo.K, even as peers go dark.</p>
+    </header>
+
+    <section class="vault-secret">
+        <label class="vault-label">The secret to protect</label>
+        <textarea class="field-input vault-input" rows="2" @bind="_demo.Secret" @bind:event="oninput"></textarea>
+        <div class="vault-actions">
+            <button class="btn ink" @onclick="Backup" disabled="@_busy">@(_demo.HasBackup ? "Re-shard" : "Back it up")</button>
+            @if (_demo.HasBackup)
+            {
+                <button class="btn ghost" @onclick="Recover" disabled="@_busy">Recover now</button>
+                <button class="btn ghost" @onclick="ReReplicate" disabled="@(_busy || _demo.OnlineCount < VaultLabDemo.K)">Re-replicate</button>
+            }
+        </div>
+    </section>
+
+    @if (_demo.HasBackup && _demo.Health is { } h)
+    {
+        <section class="vault-health">
+            <div class="vault-metric">
+                <span class="vault-metric-n">@h.ReachableShards<span class="vault-metric-d">/@h.TotalShards</span></span>
+                <span class="vault-metric-l">shards reachable</span>
+            </div>
+            <div class="vault-metric">
+                <span class="vault-status @(h.IsRecoverable ? "on" : "off")">
+                    <span class="vault-disc"></span>@(h.IsRecoverable ? "recoverable" : "unrecoverable")
+                </span>
+                <span class="vault-metric-l">need any @VaultLabDemo.K of @VaultLabDemo.N</span>
+            </div>
+            <div class="vault-metric">
+                <span class="vault-metric-n">@((int)Math.Round(h.RedundancyScore * 100))<span class="vault-metric-d">%</span></span>
+                <span class="vault-metric-l">redundancy</span>
+            </div>
+        </section>
+
+        <section class="vault-grid">
+            @foreach (var s in _demo.Shards())
+            {
+                <button class="vault-cell @(s.Online ? "live" : "dark")" @onclick="() => Toggle(s.Index)" disabled="@_busy" title="@s.Peer · @s.Hash8">
+                    <span class="vault-cell-id">@(s.IsParity ? "P" : "D")@s.Index.ToString("00")</span>
+                    <span class="vault-cell-kind">@(s.IsParity ? "parity" : "data")</span>
+                    <span class="vault-cell-peer">@(s.Online ? s.Peer : "dark")</span>
+                </button>
+            }
+        </section>
+        <p class="vault-hint">Tap a shard to drop or restore its peer. Ten filled shards is the floor — the fourteenth through eleventh are pure headroom.</p>
+
+        @if (_demo.Recovered is { } rec)
+        {
+            <section class="vault-recovered">
+                <div class="vault-rec-label">Recovered @(_demo.IntegrityOk ? "· SHA-256 verified" : "· HASH MISMATCH")</div>
+                <div class="vault-rec-body">@rec</div>
+            </section>
+        }
+
+        <section class="vault-wire">
+            <div class="vault-wire-head">Find a shard over the wire · <span class="tag-mono">PacketType 42</span></div>
+            <p class="vault-wire-note">A node asks the mesh who holds a shard; the holder answers. This is the transport a real re-replication uses to locate a surviving copy — Peer-A archives even shards, Peer-B the odd.</p>
+            <div class="vault-wire-row">
+                <span>Locate shard</span>
+                <input class="field-input vault-num" type="number" min="0" max="13" @bind="_locate" />
+                <button class="btn" @onclick="Locate" disabled="@_busy">Ask the mesh</button>
+            </div>
+        </section>
+    }
+
+    <section class="vault-log">
+        @foreach (var line in _demo.Log())
+        {
+            <div class="vault-line @(line.Strong ? "strong" : null)">@line.Text</div>
+        }
+        @if (_demo.Log().Count == 0)
+        {
+            <div class="vault-line vault-empty">Write a secret and back it up. The shards, and the maths that saves them, appear here.</div>
+        }
+    </section>
+</div>
+
+@code {
+    private VaultLabDemo _demo = null!;
+    private bool _busy;
+    private int _locate = 7;
+
+    protected override void OnInitialized()
+    {
+        _demo = new VaultLabDemo();
+        _demo.Changed += OnChanged;
+        _demo.Start();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task Backup()   => await Guard(_demo.BackupAsync);
+    private async Task Recover()  => await Guard(_demo.RecoverAsync);
+    private async Task ReReplicate() => await Guard(_demo.ReReplicateAsync);
+    private async Task Toggle(int i) => await Guard(() => _demo.ToggleShardAsync(i));
+    private async Task Locate()   => await Guard(() => _demo.LocateShardAsync(_locate));
+
+    private async Task Guard(Func<Task> act)
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await act(); }
+        finally { _busy = false; }
+    }
+
+    public void Dispose()
+    {
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
+    }
+}
+
+<style>
+    .vault { padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 18px; max-width: 760px; margin: 0 auto; }
+    .vault-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .vault-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .vault-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .72; line-height: 1.5; }
+
+    .vault-secret { display: flex; flex-direction: column; gap: 10px; }
+    .vault-label { font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+    .vault-input { resize: none; }
+    .vault-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .vault-health { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .vault-metric { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+    .vault-metric-n { font-size: 26px; font-weight: 800; color: var(--ink); font-family: var(--mono); }
+    .vault-metric-d { font-size: 15px; font-weight: 700; opacity: .55; }
+    .vault-metric-l { font-size: 12px; font-weight: 600; color: var(--ink); opacity: .65; }
+    .vault-status { display: inline-flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; color: var(--ink); }
+    .vault-disc { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--brand); flex: none; }
+    .vault-status.on .vault-disc { background: var(--brand); }
+    .vault-status.off { opacity: .55; }
+    .vault-status.off .vault-disc { background: transparent; }
+
+    .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+    .vault-cell {
+        appearance: none; cursor: pointer; text-align: left;
+        display: flex; flex-direction: column; gap: 2px;
+        border-radius: 12px; padding: 10px 11px; min-height: 66px;
+        transition: transform .1s ease;
+    }
+    .vault-cell:active { transform: scale(.97); }
+    .vault-cell.live { background: var(--brand); border: 1.5px solid var(--brand); color: #fff; }
+    .vault-cell.dark { background: transparent; border: 1.5px dashed var(--line); color: var(--ink); opacity: .6; }
+    .vault-cell-id { font-family: var(--mono); font-weight: 800; font-size: 15px; }
+    .vault-cell-kind { font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; opacity: .8; }
+    .vault-cell-peer { font-size: 11px; font-weight: 600; opacity: .85; margin-top: 2px; }
+    .vault-hint { font-size: 12.5px; color: var(--ink); opacity: .62; margin: 0; line-height: 1.45; }
+
+    .vault-recovered { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .vault-rec-label { font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--ink); opacity: .6; }
+    .vault-rec-body { font-family: var(--mono); font-size: 13px; color: var(--ink); line-height: 1.5; word-break: break-word; }
+
+    .vault-wire { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .vault-wire-head { font-size: 14px; font-weight: 800; color: var(--ink); }
+    .vault-wire-note { margin: 0; font-size: 12.5px; color: var(--ink); opacity: .66; line-height: 1.45; }
+    .vault-wire-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 600; color: var(--ink); }
+    .vault-num { width: 84px; flex: none; }
+
+    .vault-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .vault-line { color: var(--ink); opacity: .82; line-height: 1.5; }
+    .vault-line.strong { opacity: 1; font-weight: 700; }
+    .vault-empty { font-style: italic; opacity: .5; }
+</style>

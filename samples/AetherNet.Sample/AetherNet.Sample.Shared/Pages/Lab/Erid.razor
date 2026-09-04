@@ -1,0 +1,203 @@
+@page "/lab/erid"
+@using AetherNet.Identity
+@using AetherNet.Security.Services
+
+@* The rotating wire address, watched a window at a time.
+
+   A node's UHID is stable for the life of the install and rides in cleartext on every packet, so a
+   passive observer who breaks nothing at all can follow it forever — and, because it is phone-derived,
+   test a guessed phone number against it. ERID replaces it with base32(HMAC(routingKey, epoch)): the
+   routingKey is SECRET (derived from the identity secret, never the public key), and the epoch is a
+   15-minute window, so the address a node presents changes every window and two windows do not
+   correlate. A peer who was told the routingKey inside an established session still recognises the
+   address; an outsider, who holds no key, cannot link this window's value to the last one.
+
+   Everything below is the real EphemeralRoutingId and EridDirectory — the same code the eight SDKs
+   port. Advance the clock and watch one node's address turn over while a friend keeps up and a
+   passer-by is left with noise. *@
+
+<div class="erid">
+    <header class="erid-head">
+        <a class="erid-back" href="lab">← Lab</a>
+        <h1>Rotating wire addresses</h1>
+        <p>One node's address on the wire, key-derived and rotating every 15-minute epoch. A peer who
+           holds its routing key still knows it; a passive observer cannot link one window to the next.</p>
+    </header>
+
+    <section class="erid-clock">
+        <div class="erid-clock-face">
+            <span class="erid-eyebrow">Epoch @_epoch · @WindowLabel</span>
+            <span class="erid-when">@Clock</span>
+        </div>
+        <div class="erid-clock-btns">
+            <button class="btn ghost" @onclick="Back">◄ Previous epoch</button>
+            <button class="btn" @onclick="Forward">Advance 15 min ►</button>
+        </div>
+    </section>
+
+    <section class="erid-now card">
+        <div class="erid-now-label">Nomsa's address on the wire this window</div>
+        <div class="erid-now-val">@AliceErid</div>
+        <div class="erid-now-note">rotates in @RotatesIn — after that she answers to a different, uncorrelated value</div>
+    </section>
+
+    <section class="erid-eyes">
+        <div class="erid-eye">
+            <div class="erid-eye-top">
+                <span class="erid-eye-name">Sipho — a friend</span>
+                <span class="erid-eye-tag">holds Nomsa's routing key</span>
+            </div>
+            <div class="erid-eye-line">
+                <span class="erid-eye-k">this epoch</span>
+                <span class="erid-eye-v">@AliceErid → <b>@(_resolveNow ?? "—")</b></span>
+            </div>
+            <div class="erid-eye-line">
+                <span class="erid-eye-k">last epoch</span>
+                <span class="erid-eye-v">@_prevErid → <b>@(_resolvePrev ?? "—")</b></span>
+            </div>
+            <div class="erid-eye-foot ok">Reverse-resolves the current and previous window back to Nomsa — the
+                grace across a rotation boundary. No central directory; he simply holds her key.</div>
+        </div>
+
+        <div class="erid-eye">
+            <div class="erid-eye-top">
+                <span class="erid-eye-name">A passer-by</span>
+                <span class="erid-eye-tag">holds nothing</span>
+            </div>
+            <div class="erid-eye-line">
+                <span class="erid-eye-k">this epoch</span>
+                <span class="erid-eye-v">@AliceErid → <b>?</b></span>
+            </div>
+            <div class="erid-eye-line">
+                <span class="erid-eye-k">last epoch</span>
+                <span class="erid-eye-v">@_prevErid → <b>?</b></span>
+            </div>
+            <div class="erid-eye-foot">Two opaque 80-bit strings. Nothing ties them to each other or to a
+                phone — following her across time, or confirming who she is, both fail here.</div>
+        </div>
+    </section>
+
+    <section class="erid-hist">
+        <div class="erid-hist-label">The last six windows of Nomsa's address — no thread runs through them</div>
+        <div class="erid-hist-rows">
+            @foreach (var h in History())
+            {
+                <div class="erid-hist-row @(h.IsNow ? "now" : null)">
+                    <span class="erid-hist-ep">epoch @h.Epoch</span>
+                    <span class="erid-hist-erid">@h.Erid</span>
+                    @if (h.IsNow)
+                    {
+                        <span class="erid-hist-tag">now</span>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+</div>
+
+<style>
+    .erid { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 18px; }
+    .erid-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .erid-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .erid-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; line-height: 1.5; color: var(--ink); opacity: .72; }
+
+    .erid-clock { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+        border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px 16px; }
+    .erid-clock-face { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .erid-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+    .erid-when { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--ink); }
+    .erid-clock-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .erid-now { padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+    .erid-now-label { font-size: 12px; font-weight: 700; letter-spacing: .3px; color: var(--ink); opacity: .85; }
+    .erid-now-val { font-family: var(--mono); font-size: clamp(22px, 7vw, 34px); font-weight: 800; letter-spacing: 2px; color: var(--ink); word-break: break-all; }
+    .erid-now-note { font-size: 12.5px; font-weight: 500; color: var(--ink); opacity: .8; }
+
+    .erid-eyes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+    .erid-eye { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px 15px; display: flex; flex-direction: column; gap: 9px; }
+    .erid-eye-top { display: flex; flex-direction: column; gap: 2px; }
+    .erid-eye-name { font-size: 15px; font-weight: 800; color: var(--ink); }
+    .erid-eye-tag { font-size: 12px; font-weight: 600; color: var(--ink); opacity: .6; }
+    .erid-eye-line { display: flex; flex-direction: column; gap: 1px; font-family: var(--mono); font-size: 12.5px; }
+    .erid-eye-k { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--ink); opacity: .5; }
+    .erid-eye-v { color: var(--ink); opacity: .9; word-break: break-all; }
+    .erid-eye-v b { font-weight: 800; opacity: 1; }
+    .erid-eye-foot { font-size: 12px; font-weight: 500; line-height: 1.45; color: var(--ink); opacity: .7; }
+    .erid-eye-foot.ok { opacity: .82; }
+
+    .erid-hist { display: flex; flex-direction: column; gap: 8px; }
+    .erid-hist-label { font-size: 12px; font-weight: 700; color: var(--ink); opacity: .75; }
+    .erid-hist-rows { display: flex; flex-direction: column; gap: 4px; }
+    .erid-hist-row { display: flex; align-items: baseline; gap: 10px; font-family: var(--mono); font-size: 13px;
+        padding: 7px 12px; border: 1px solid var(--line); border-radius: 10px; }
+    .erid-hist-row.now { border-color: var(--brand); }
+    .erid-hist-ep { flex: none; min-width: 74px; font-size: 11px; font-weight: 700; color: var(--ink); opacity: .55; }
+    .erid-hist-erid { flex: 1 1 auto; min-width: 0; color: var(--ink); letter-spacing: 1px; word-break: break-all; }
+    .erid-hist-tag { flex: none; font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--brand); }
+</style>
+
+@code {
+    // Two real identities. Nomsa presents the rotating address; Sipho was handed her secret routing key
+    // inside an established session (RememberPeer), which is the only thing that lets him keep up.
+    private EridDirectory _nomsa = default!;
+    private EridDirectory _sipho = default!;
+
+    private long _epoch;                 // the window we are looking at
+    private const int Epoch = EphemeralRoutingId.DefaultEpochSeconds; // 900s = 15 min
+
+    private string? _resolveNow, _resolvePrev, _prevErid;
+
+    // Anchor the demo clock to real "now", then let the buttons walk it forward and back a window at a time.
+    private long NowSeconds => _epoch * Epoch;
+    private long AliceEridSeconds => NowSeconds;
+
+    private string AliceErid => _nomsa.MyErid(AliceEridSeconds);
+    private string WindowLabel => $"{Fmt(NowSeconds)} – {Fmt(NowSeconds + Epoch)} UTC";
+    private string Clock => Fmt(NowSeconds) + " UTC";
+    private string RotatesIn => "15 min";
+
+    protected override void OnInitialized()
+    {
+        // Nomsa's routing key is derived from her identity SECRET — never her public key, or the whole
+        // rotation schedule would be computable by anyone watching.
+        var (nomsaSecret, _) = Ed25519SigningService.GenerateKeyPair();
+        var nomsaKey = EphemeralRoutingId.DeriveRoutingKey(nomsaSecret);
+        _nomsa = new EridDirectory(nomsaKey);
+
+        // Sipho has his own identity, and has learned Nomsa's routing key in-session.
+        var (siphoSecret, _) = Ed25519SigningService.GenerateKeyPair();
+        _sipho = new EridDirectory(EphemeralRoutingId.DeriveRoutingKey(siphoSecret));
+        _sipho.RememberPeer("Nomsa", nomsaKey);
+
+        _epoch = EphemeralRoutingId.EpochFor(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        Recompute();
+    }
+
+    private void Forward() { _epoch++; Recompute(); }
+    private void Back() { if (_epoch > 0) { _epoch--; Recompute(); } }
+
+    private void Recompute()
+    {
+        var now = NowSeconds;
+        var prev = now - Epoch;
+        _prevErid = _nomsa.MyErid(prev);
+        // Sipho reverse-resolves the wire value back to the peer behind it, at each window's own time.
+        _resolveNow = _sipho.ResolvePeer(_nomsa.MyErid(now), now);
+        _resolvePrev = _sipho.ResolvePeer(_prevErid, prev);
+    }
+
+    private sealed record Window(long Epoch, string Erid, bool IsNow);
+
+    private IEnumerable<Window> History()
+    {
+        for (var k = 0; k < 6; k++)
+        {
+            var e = _epoch - k;
+            if (e < 0) yield break;
+            yield return new Window(e, _nomsa.MyErid(e * Epoch), e == _epoch);
+        }
+    }
+
+    private static string Fmt(long unixSeconds) =>
+        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("HH:mm");
+}

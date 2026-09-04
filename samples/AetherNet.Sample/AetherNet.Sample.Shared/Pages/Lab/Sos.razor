@@ -1,0 +1,162 @@
+@page "/lab/sos"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* A life-safety SOS, driven live across five in-process phones. One broadcast floods the mesh; every
+   node re-broadcasts; the same packet reaching a node twice is dropped — and the counter shows exactly
+   how many refloods the dedup swallowed. Acknowledgements flow back so you learn your true reach. The
+   three-per-hour rate limit, the pure escalation policy, and a real dead-man's-switch check-in that
+   auto-widens when you don't mark safe are all here, running the actual service. *@
+
+<div class="sos">
+    <header class="sos-head">
+        <a class="sos-back" href="lab">← Lab</a>
+        <h1>SOS broadcast</h1>
+        <p>Flood a life-safety alert; watch dedup, rate-limit, escalation and reach — all real.</p>
+    </header>
+
+    <section class="sos-nodes">
+        @foreach (var n in _demo.Nodes())
+        {
+            <div class="sos-node @(n.Heard ? "heard" : null) @(n.IsOrigin ? "origin" : null)">
+                <span class="sos-pip"></span>
+                <span class="sos-node-name">@n.Name</span>
+                <span class="sos-node-role">@(n.IsOrigin ? "you" : n.Heard ? "heard it" : "in range")</span>
+            </div>
+        }
+    </section>
+
+    <section class="sos-compose">
+        <input class="field-input" @bind="_message" @bind:event="oninput" placeholder="What's wrong?" />
+        <div class="sos-actions">
+            <button class="btn ink" @onclick="Broadcast" disabled="@(_busy || string.IsNullOrWhiteSpace(_message))">Broadcast to everyone nearby</button>
+            <button class="btn ghost" @onclick="RateLimit" disabled="@_busy">Test the rate limit</button>
+            @if (!_demo.LiveActive)
+            {
+                <button class="btn ghost" @onclick="CheckIn" disabled="@_busy">Start a check-in</button>
+            }
+            else
+            {
+                <button class="btn" @onclick="MarkSafe" disabled="@_busy">Mark safe</button>
+            }
+        </div>
+    </section>
+
+    <section class="sos-panels">
+        <div class="sos-panel">
+            <div class="sos-panel-l">Reach</div>
+            <div class="sos-panel-n">@_demo.ReachCount</div>
+            <div class="sos-panel-s">@(_demo.ReachCount == 0 ? "no acknowledgements yet" : string.Join(", ", _demo.Responders))</div>
+        </div>
+        <div class="sos-panel">
+            <div class="sos-panel-l">Dedup</div>
+            <div class="sos-panel-n">@_demo.Suppressed</div>
+            <div class="sos-panel-s">refloods suppressed of @_demo.WireDeliveries wire deliveries (@_demo.DistinctReceptions distinct)</div>
+        </div>
+        @if (_demo.LiveActive || _demo.LiveStatus != "idle")
+        {
+            <div class="sos-panel wide">
+                <div class="sos-panel-l">Check-in lifecycle</div>
+                <div class="sos-panel-status">@_demo.LiveStatus</div>
+            </div>
+        }
+    </section>
+
+    <section class="sos-escalation">
+        <div class="sos-eyebrow">Escalation policy — the pure, unit-tested decisions</div>
+        <table class="sos-table">
+            <tbody>
+                @foreach (var row in _demo.EscalationTable)
+                {
+                    <tr>
+                        <td class="sos-t-scn">@row.Scenario</td>
+                        <td class="sos-t-dec">@row.Decision</td>
+                        <td class="sos-t-res"><span class="sos-yn @(row.Result ? "yes" : "no")">@(row.Result ? "yes" : "no")</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="sos-log">
+        @foreach (var line in _demo.Log())
+        {
+            <div class="sos-line @(line.Strong ? "strong" : null)">@line.Text</div>
+        }
+    </section>
+</div>
+
+@code {
+    private SosLabDemo _demo = null!;
+    private bool _busy;
+    private string _message = "Trapped near the river crossing — need help.";
+
+    protected override void OnInitialized()
+    {
+        _demo = new SosLabDemo();
+        _demo.Changed += OnChanged;
+        _demo.Start();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task Broadcast() => await Guard(() => _demo.BroadcastNearbyAsync(_message));
+    private async Task RateLimit() => await Guard(_demo.RateLimitAsync);
+    private async Task CheckIn()   => await Guard(_demo.StartCheckInAsync);
+    private async Task MarkSafe()  => await Guard(_demo.MarkSafeAsync);
+
+    private async Task Guard(Func<Task> act)
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await act(); }
+        finally { _busy = false; }
+    }
+
+    public void Dispose()
+    {
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
+    }
+}
+
+<style>
+    .sos { padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; margin: 0 auto; }
+    .sos-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .sos-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .sos-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .72; line-height: 1.5; }
+
+    .sos-nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .sos-node { border: 1.5px solid var(--line-card); border-radius: 12px; padding: 11px 12px; display: flex; flex-direction: column; gap: 4px; }
+    .sos-node.heard { border-color: var(--brand); background: var(--brand-tint); }
+    .sos-node.origin { border-style: solid; border-color: var(--brand); }
+    .sos-pip { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--brand); }
+    .sos-node.heard .sos-pip, .sos-node.origin .sos-pip { background: var(--brand); }
+    .sos-node-name { font-size: 15px; font-weight: 800; color: var(--ink); }
+    .sos-node-role { font-size: 11px; font-weight: 600; color: var(--ink); opacity: .62; }
+
+    .sos-compose { display: flex; flex-direction: column; gap: 10px; }
+    .sos-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .sos-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+    .sos-panel { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+    .sos-panel.wide { grid-column: 1 / -1; }
+    .sos-panel-l { font-size: 11px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+    .sos-panel-n { font-size: 28px; font-weight: 800; font-family: var(--mono); color: var(--ink); }
+    .sos-panel-s { font-size: 12px; font-weight: 500; color: var(--ink); opacity: .68; line-height: 1.4; }
+    .sos-panel-status { font-size: 14px; font-weight: 700; color: var(--ink); }
+
+    .sos-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink); opacity: .55; margin-bottom: 8px; }
+    .sos-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .sos-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); color: var(--ink); vertical-align: middle; }
+    .sos-t-scn { opacity: .82; }
+    .sos-t-dec { font-family: var(--mono); font-weight: 700; opacity: .7; width: 84px; }
+    .sos-t-res { width: 52px; text-align: right; }
+    .sos-yn { display: inline-block; font-weight: 800; font-size: 11px; letter-spacing: .5px; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; border: 1.5px solid var(--brand); }
+    .sos-yn.yes { background: var(--brand); color: #fff; }
+    .sos-yn.no { background: transparent; color: var(--ink); opacity: .55; }
+
+    .sos-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .sos-line { color: var(--ink); opacity: .82; line-height: 1.5; }
+    .sos-line.strong { opacity: 1; font-weight: 700; }
+</style>

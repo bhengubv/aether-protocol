@@ -53,6 +53,38 @@
     <ProjectReference Include="../../../src/AetherNet.Content.Sqlite/AetherNet.Content.Sqlite.csproj" />
     <!-- 1:1 voice: the call state machine, signalling schema and jitter buffer. -->
     <ProjectReference Include="../../../src/AetherNet.Voice/AetherNet.Voice.csproj" />
+    <!-- The Lab's "Content & files" demos drive these in-process. BitTorrent + its mesh gateway
+         (/lab/torrents), the FMHY catalogue (/lab/fmhy), and the Forge package cache (/lab/forge).
+         AetherNet.Content is already referenced above and backs /lab/files. -->
+    <ProjectReference Include="../../../src/AetherNet.BitTorrent/AetherNet.BitTorrent.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.BitTorrent.Gateway/AetherNet.BitTorrent.Gateway.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Fmhy/AetherNet.Fmhy.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Forge/AetherNet.Forge.csproj" />
+    <!-- The Lab's "Resilience & safety" screens drive these two Phase-2 extensions live in-process:
+         erasure-coded distributed backup (/lab/vault) and witness-co-signed Proof-of-Location
+         (/lab/location-proof). SOS and store-and-forward live in AetherNet.Core (already referenced). -->
+    <ProjectReference Include="../../../src/AetherNet.Vault/AetherNet.Vault.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Cartography/AetherNet.Cartography.csproj" />
+    <!-- The economy layer, surfaced by the /lab demo pages. Market carries the offline P2P
+         marketplace + escrow and the Proof-of-Vicinity anti-Sybil trust graph (it pulls in
+         AetherNet.Space and AetherNet.Vault transitively); Tipping carries the on-device
+         SDPKT-settled tipping trio (TippingService, AetherRewardService, TipperQoSService).
+         The mesh TipPacket and PoV exchange primitives themselves already live in the
+         AetherNet.Security / AetherNet.Core references above. -->
+    <ProjectReference Include="../../../src/AetherNet.Market/AetherNet.Market.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Tipping/AetherNet.Tipping.csproj" />
+    <!-- The Lab's "Civic & local-first" screens drive these two Phase-2 extensions live in-process:
+         geo-pinned community noticeboards (/lab/breadcrumbs) and the offline collaborative
+         neighbourhood-map CRDT (/lab/map). Referenced directly so the map's CRDT toolkit and geohash
+         are first-class here, not leaned on transitively. -->
+    <ProjectReference Include="../../../src/AetherNet.Space/AetherNet.Space.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Map/AetherNet.Map.csproj" />
+    <!-- The Lab's "Live & media" screens drive AetherNet.Streaming live in-process: segment-based
+         live broadcast with adaptive bitrate (/lab/broadcast), host-driven watch-together sync
+         (/lab/watch-together), and full-mesh→SFU group video call-control plus 1:1 video negotiation
+         (/lab/group-video). Push-to-talk audio and screen-share video (/lab/ptt-screenshare) ride the
+         shared media-frame codec in AetherNet.Core, which is already referenced above. -->
+    <ProjectReference Include="../../../src/AetherNet.Streaming/AetherNet.Streaming.csproj" />
   </ItemGroup>
 
 </Project>

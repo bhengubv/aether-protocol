@@ -226,8 +226,10 @@ a { color: var(--brand); text-decoration: none; }
 }
 .btn.ghost:hover:not(:disabled) { background: var(--brand-tint); border-color: var(--brand); }
 
-.btn.ink { background: var(--ink); }
-.btn.ink:hover:not(:disabled) { background: #0c161f; }
+/* --ink is the text colour: blue on white in light, WHITE on black in dark. So an ink-filled
+   button must take its label from --bg (the opposite), or the label vanishes in dark mode. */
+.btn.ink { background: var(--ink); color: var(--bg); }
+.btn.ink:hover:not(:disabled) { background: var(--brand-deep); color: #fff; }
 
 .tag-mono { font-family: var(--mono); font-weight: 700; letter-spacing: .5px; }
 

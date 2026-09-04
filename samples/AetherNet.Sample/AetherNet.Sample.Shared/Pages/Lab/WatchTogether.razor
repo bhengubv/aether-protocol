@@ -1,0 +1,176 @@
+@page "/lab/watch-together"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* Everyone watching the same thing, in step, with nobody in the middle. Alice hosts; Bob and Charlie
+   follow. Every command below is the real WatchTogetherService: the host's play/pause/seek/speed floods
+   to the followers, who apply it with the spec's RTT compensation. Bob is 40 ms down the link and Charlie
+   120 ms, so when the host plays you can watch each of them fast-forward past the mark to land where the
+   host is *now* — and snap to the exact frame on a seek. The radio is simulated; the sync is not. *@
+
+<div class="wt">
+    <header class="wt-head">
+        <a class="wt-back" href="lab">← Lab</a>
+        <h1>Watch together</h1>
+        <p>One host drives playback; followers stay in sync across their links, and react.</p>
+    </header>
+
+    <section class="wt-nodes">
+        @foreach (var n in _nodes)
+        {
+            <div class="wt-node" style="border-color:@n.Color">
+                <div class="wt-node-top">
+                    <span class="wt-dot" style="background:@n.Color"></span>
+                    <span class="wt-name">@n.Name</span>
+                    <span class="wt-role">@(n.IsHost ? "host" : $"{n.LatencyMs} ms")</span>
+                </div>
+                <div class="wt-clock">@Clock(n.PositionMs)</div>
+                <div class="wt-state">
+                    <span class="@(n.IsPlaying ? "wt-play" : "wt-pause")">@(n.IsPlaying ? "playing" : "paused")</span>
+                    <span class="wt-speed">×@(n.Speed.ToString("0.##"))</span>
+                    @if (!n.IsHost && n.Following && n.DeltaMs > 0)
+                    {
+                        <span class="wt-delta">+@n.DeltaMs ms</span>
+                    }
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="wt-controls">
+        <button class="btn ink" disabled="@_hosting" @onclick="() => RunAsync(Demo.HostAndFollowAsync)">Host &amp; follow</button>
+        <button class="btn ink" disabled="@(!_hosting)" @onclick="() => RunAsync(Demo.PlayAsync)">Play</button>
+        <button class="btn" disabled="@(!_hosting)" @onclick="() => RunAsync(Demo.PauseAsync)">Pause</button>
+        <button class="btn" disabled="@(!_hosting)" @onclick="() => RunAsync(Demo.SeekForwardAsync)">Seek +30s</button>
+    </section>
+
+    <section class="wt-controls">
+        <span class="wt-label">Speed</span>
+        @foreach (var s in _speeds)
+        {
+            <button class="btn wt-seg @(Demo.Speed == s ? "on" : null)" disabled="@(!_hosting)"
+                    @onclick="() => RunAsync(() => Demo.SetSpeedAsync(s))">×@(s.ToString("0.##"))</button>
+        }
+    </section>
+
+    <section class="wt-controls">
+        <span class="wt-label">React</span>
+        <button class="btn" disabled="@(!_hosting)" @onclick='() => RunAsync(() => Demo.ReactAsync("Bob", "👏"))'>Bob 👏</button>
+        <button class="btn" disabled="@(!_hosting)" @onclick='() => RunAsync(() => Demo.ReactAsync("Charlie", "⚽"))'>Charlie ⚽</button>
+    </section>
+
+    <section class="wt-chip">
+        <div class="wt-chip-head">
+            <span class="wt-chip-title">Chip in for the stream</span>
+            @if (Demo.HasPool)
+            {
+                <span class="wt-chip-amt @(Demo.PoolFunded ? "done" : null)">R@(Demo.PoolCollected.ToString("0")) / R@(Demo.PoolTarget.ToString("0"))@(Demo.PoolFunded ? " · funded" : "")</span>
+            }
+        </div>
+        @if (!Demo.HasPool)
+        {
+            <button class="btn" disabled="@(!_hosting)" @onclick="() => RunAsync(Demo.StartChipInAsync)">Open a chip-in (R150)</button>
+        }
+        else
+        {
+            <div class="wt-chip-bar"><div class="wt-chip-fill" style="width:@(Pct)%"></div></div>
+            <div class="wt-controls">
+                <button class="btn" disabled="@Demo.PoolFunded" @onclick='() => RunAsync(() => Demo.ContributeAsync("Bob", 50m))'>Bob +R50</button>
+                <button class="btn" disabled="@Demo.PoolFunded" @onclick='() => RunAsync(() => Demo.ContributeAsync("Charlie", 50m))'>Charlie +R50</button>
+            </div>
+        }
+    </section>
+
+    <section class="wt-log">
+        @foreach (var line in _log)
+        {
+            <div class="wt-line">
+                <span class="wt-who" style="color:@line.Color">@line.Who</span>
+                <span class="wt-text">@line.Text</span>
+            </div>
+        }
+        @if (_log.Count == 0)
+        {
+            <div class="wt-line wt-empty">Nobody's watching yet. Press Host &amp; follow, then drive playback.</div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly WatchTogetherDemo Demo = new();
+    private IReadOnlyList<WatchTogetherDemo.NodeView> _nodes = Array.Empty<WatchTogetherDemo.NodeView>();
+    private IReadOnlyList<WatchTogetherDemo.LogLine> _log = Array.Empty<WatchTogetherDemo.LogLine>();
+    private readonly double[] _speeds = { 1.0, 1.5, 2.0 };
+    private bool _hosting;
+
+    protected override void OnInitialized()
+    {
+        Demo.Changed += OnChanged;
+        Demo.Start();
+        Refresh();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+
+    private void Refresh()
+    {
+        _nodes = Demo.Nodes();
+        _log = Demo.Snapshot();
+        _hosting = Demo.IsHosting;
+    }
+
+    private int Pct => Demo.PoolTarget <= 0 ? 0 : (int)Math.Min(100, decimal.ToDouble(Demo.PoolCollected / Demo.PoolTarget * 100));
+
+    private async Task RunAsync(Func<Task> act) => await act();
+
+    private static string Clock(long ms)
+    {
+        if (ms < 0) ms = 0;
+        var t = TimeSpan.FromMilliseconds(ms);
+        return $"{(int)t.TotalMinutes:00}:{t.Seconds:00}";
+    }
+
+    public void Dispose()
+    {
+        Demo.Changed -= OnChanged;
+        Demo.Dispose();
+    }
+}
+
+<style>
+    .wt { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+    .wt-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .wt-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .wt-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .7; }
+
+    .wt-nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .wt-node { border: 2px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .wt-node-top { display: flex; align-items: center; gap: 8px; }
+    .wt-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .wt-name { font-size: 16px; font-weight: 800; color: var(--ink); }
+    .wt-role { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--ink); opacity: .55; border: 1px solid var(--line); border-radius: 20px; padding: 1px 7px; }
+    .wt-clock { font-family: var(--mono); font-size: 24px; font-weight: 800; letter-spacing: .5px; color: var(--ink); }
+    .wt-state { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .wt-play { font-weight: 800; color: #1976D2; }
+    .wt-pause { font-weight: 700; color: var(--ink); opacity: .55; }
+    .wt-speed { font-family: var(--mono); color: var(--ink); opacity: .7; }
+    .wt-delta { margin-left: auto; font-family: var(--mono); font-size: 11px; font-weight: 800; color: #2196F3; }
+
+    .wt-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .wt-label { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink); opacity: .5; }
+    .wt-seg.on { background: #2196F3; color: #fff; border-color: #2196F3; }
+
+    .wt-chip { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .wt-chip-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .wt-chip-title { font-size: 14px; font-weight: 800; color: var(--ink); }
+    .wt-chip-amt { font-family: var(--mono); font-size: 12.5px; font-weight: 700; color: var(--ink); opacity: .8; }
+    .wt-chip-amt.done { color: #1976D2; opacity: 1; }
+    .wt-chip-bar { height: 10px; border-radius: 999px; background: var(--line-card); overflow: hidden; }
+    .wt-chip-fill { height: 100%; background: #2196F3; border-radius: 999px; transition: width .25s ease; }
+
+    .wt-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .wt-line { display: flex; gap: 8px; line-height: 1.5; }
+    .wt-who { font-weight: 800; flex: none; min-width: 52px; }
+    .wt-text { color: var(--ink); opacity: .85; }
+    .wt-empty { color: var(--ink); opacity: .5; font-style: italic; }
+</style>

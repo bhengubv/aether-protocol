@@ -1,0 +1,166 @@
+@page "/lab/ptt-screenshare"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* Two kinds of media, one header. Alice pushes to talk and shares her screen to Bob; both the audio
+   frames and the screen frames go out over the real VoicePttService and ScreenShareService, and both
+   carry the exact same 29-byte header the voice and video calls use. The point is the panel below: when
+   a frame lands at Bob, you see that header decoded straight off the wire — the call id, the sequence,
+   the timestamp, the one flag byte. And Charlie, on the same mesh, receives nothing: a media frame is
+   addressed, not shouted. Only the radio is simulated. *@
+
+<div class="pt">
+    <header class="pt-head">
+        <a class="pt-back" href="lab">← Lab</a>
+        <h1>Push-to-talk &amp; screen-share</h1>
+        <p>Audio and screen frames over the shared media header, directed between nodes.</p>
+    </header>
+
+    <section class="pt-nodes">
+        @foreach (var n in _nodes)
+        {
+            <div class="pt-node" style="border-color:@n.Color">
+                <div class="pt-node-top">
+                    <span class="pt-dot" style="background:@n.Color"></span>
+                    <span class="pt-name">@n.Name</span>
+                    <span class="pt-role">@(n.IsSender ? "sender" : "peer")</span>
+                </div>
+                @if (n.IsSender)
+                {
+                    <div class="pt-node-stat">holds the mic &amp; the screen</div>
+                }
+                else
+                {
+                    <div class="pt-node-stat">@n.PttReceived audio · @n.ScreenReceived screen</div>
+                    @if (n.PttReceived == 0 && n.ScreenReceived == 0)
+                    {
+                        <div class="pt-node-sub">nothing addressed here yet</div>
+                    }
+                }
+            </div>
+        }
+    </section>
+
+    <section class="pt-controls">
+        <button class="btn ink" @onclick="() => RunAsync(Demo.PushToTalkAsync)">Push to talk → Bob</button>
+        <button class="btn ink" @onclick="() => RunAsync(Demo.ShareScreenAsync)">Share screen → Bob</button>
+        <button class="btn" @onclick="() => Run(Demo.ClearLog)">Clear</button>
+    </section>
+
+    <section class="pt-hdr">
+        <div class="pt-hdr-title">
+            The 29-byte media header
+            @if (_hdr is not null) { <span class="pt-hdr-kind">@_hdr.Kind · seq @_hdr.Sequence</span> }
+        </div>
+        @if (_hdr is null)
+        {
+            <div class="pt-hdr-empty">Send a frame — its header decodes here, field by field.</div>
+        }
+        else
+        {
+            <div class="pt-fields">
+                <div class="pt-field">
+                    <span class="pt-f-name">call_id</span><span class="pt-f-span">[0..15] · BE</span>
+                    <span class="pt-f-hex">@_hdr.CallIdHex</span><span class="pt-f-val">@_hdr.CallIdShort…</span>
+                </div>
+                <div class="pt-field">
+                    <span class="pt-f-name">sequence</span><span class="pt-f-span">[16..19] · u32 LE</span>
+                    <span class="pt-f-hex">@_hdr.SeqHex</span><span class="pt-f-val">@_hdr.Sequence</span>
+                </div>
+                <div class="pt-field">
+                    <span class="pt-f-name">timestamp_ms</span><span class="pt-f-span">[20..27] · i64 LE</span>
+                    <span class="pt-f-hex">@_hdr.TsHex</span><span class="pt-f-val">@_hdr.TimestampMs</span>
+                </div>
+                <div class="pt-field">
+                    <span class="pt-f-name">flag</span><span class="pt-f-span">[28] · u8</span>
+                    <span class="pt-f-hex">@_hdr.FlagHex</span><span class="pt-f-val">@_hdr.FlagLabel</span>
+                </div>
+                <div class="pt-field">
+                    <span class="pt-f-name">payload</span><span class="pt-f-span">[29..]</span>
+                    <span class="pt-f-hex">…</span><span class="pt-f-val">@_hdr.PayloadLen B</span>
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="pt-log">
+        @foreach (var line in _log)
+        {
+            <div class="pt-line">
+                <span class="pt-who" style="color:@line.Color">@line.Who</span>
+                <span class="pt-text">@line.Text</span>
+            </div>
+        }
+        @if (_log.Count == 0)
+        {
+            <div class="pt-line pt-empty">Nothing sent yet. Push to talk, or share the screen.</div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly PttScreenShareDemo Demo = new();
+    private IReadOnlyList<PttScreenShareDemo.NodeView> _nodes = Array.Empty<PttScreenShareDemo.NodeView>();
+    private IReadOnlyList<PttScreenShareDemo.LogLine> _log = Array.Empty<PttScreenShareDemo.LogLine>();
+    private PttScreenShareDemo.HeaderView? _hdr;
+
+    protected override void OnInitialized()
+    {
+        Demo.Changed += OnChanged;
+        Demo.Start();
+        Refresh();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+
+    private void Refresh()
+    {
+        _nodes = Demo.Nodes();
+        _log = Demo.Snapshot();
+        _hdr = Demo.LastHeader;
+    }
+
+    private void Run(Action act) => act();
+    private async Task RunAsync(Func<Task> act) => await act();
+
+    public void Dispose()
+    {
+        Demo.Changed -= OnChanged;
+        Demo.Dispose();
+    }
+}
+
+<style>
+    .pt { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+    .pt-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .pt-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .pt-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .7; }
+
+    .pt-nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .pt-node { border: 2px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .pt-node-top { display: flex; align-items: center; gap: 8px; }
+    .pt-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .pt-name { font-size: 16px; font-weight: 800; color: var(--ink); }
+    .pt-role { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--ink); opacity: .55; border: 1px solid var(--line); border-radius: 20px; padding: 1px 7px; }
+    .pt-node-stat { font-family: var(--mono); font-size: 12.5px; color: var(--ink); opacity: .85; }
+    .pt-node-sub { font-size: 12px; color: var(--ink); opacity: .5; font-style: italic; }
+
+    .pt-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .pt-hdr { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .pt-hdr-title { font-size: 14px; font-weight: 800; color: var(--ink); display: flex; align-items: baseline; gap: 10px; }
+    .pt-hdr-kind { font-family: var(--mono); font-size: 12px; font-weight: 700; color: #1976D2; }
+    .pt-hdr-empty { font-size: 13px; color: var(--ink); opacity: .55; font-style: italic; }
+    .pt-fields { display: flex; flex-direction: column; gap: 6px; }
+    .pt-field { display: grid; grid-template-columns: 108px 96px 1fr auto; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line-card); font-family: var(--mono); font-size: 12px; }
+    .pt-f-name { font-weight: 800; color: var(--ink); }
+    .pt-f-span { color: var(--ink); opacity: .5; font-size: 11px; }
+    .pt-f-hex { color: #1976D2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pt-f-val { color: var(--ink); font-weight: 700; text-align: right; }
+
+    .pt-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .pt-line { display: flex; gap: 8px; line-height: 1.5; }
+    .pt-who { font-weight: 800; flex: none; min-width: 52px; }
+    .pt-text { color: var(--ink); opacity: .85; }
+    .pt-empty { color: var(--ink); opacity: .5; font-style: italic; }
+</style>

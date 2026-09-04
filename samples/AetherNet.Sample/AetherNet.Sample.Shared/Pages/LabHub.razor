@@ -1,0 +1,109 @@
+@page "/lab"
+
+@* The Lab. Every capability the protocol carries that the four everyday tabs have no room for —
+   one screen each, and each screen drives the REAL service in-process, not a mock. Nothing here is
+   simulated except the radio: the crypto, the wire, the CRDTs, the erasure codes are the same code
+   the eight SDKs port. It sits behind its own tab so the everyday app stays about people, and the
+   whole substrate is still one tap away when you want to see what it can actually do.
+
+   Named LabHub (not Lab) so the type doesn't collide with the Pages/Lab/ folder's namespace. *@
+
+<div class="lab">
+    <header class="lab-head">
+        <h1>The Lab</h1>
+        <p>Every part of AetherNet, driven live in-process. Pick one — each runs the real service.</p>
+    </header>
+
+    @foreach (var group in Groups)
+    {
+        <section class="lab-group">
+            <div class="lab-eyebrow">@group.Eyebrow</div>
+            <div class="lab-grid">
+                @foreach (var demo in group.Demos)
+                {
+                    <NavLink class="lab-card" href="@demo.Route">
+                        <span class="lab-card-title">@demo.Title</span>
+                        <span class="lab-card-note">@demo.Note</span>
+                    </NavLink>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+<style>
+    .lab { padding: 18px 16px 32px; display: flex; flex-direction: column; gap: 26px; }
+    .lab-head h1 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.5px; color: var(--ink); }
+    .lab-head p { margin: 6px 0 0; font-size: 15px; font-weight: 500; color: var(--ink); opacity: .72; }
+    .lab-group { display: flex; flex-direction: column; gap: 12px; }
+    .lab-eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+    .lab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+    .lab-card {
+        display: flex; flex-direction: column; gap: 4px;
+        padding: 14px 16px; border-radius: 14px;
+        border: 1.5px solid var(--line-card);
+        text-decoration: none; color: var(--ink);
+        transition: transform .12s ease, border-color .12s ease;
+    }
+    .lab-card:hover, .lab-card:focus-visible { transform: translateY(-2px); border-color: var(--ink); outline: none; }
+    .lab-card-title { font-size: 16px; font-weight: 700; }
+    .lab-card-note { font-size: 13px; font-weight: 500; line-height: 1.35; opacity: .68; }
+</style>
+
+@code {
+    private sealed record Demo(string Route, string Title, string Note);
+    private sealed record Group(string Eyebrow, Demo[] Demos);
+
+    // The index is authored here so the hub stays honest even before a page exists — every route
+    // below is a real @@page in Pages/Lab. Grouped the way the capability inventory groups: what the
+    // substrate is FOR, not which module it lives in.
+    private static readonly Group[] Groups =
+    {
+        new("Start here", new[]
+        {
+            new Demo("/lab/mesh", "Three-node mesh", "A live 3-node AetherNet in-process: add-by-tag verify, channel flooding, group video control."),
+            new Demo("/diag", "Rendezvous & ownership", "Two devices derive the same meeting point; prove you hold your tag without revealing a key."),
+        }),
+        new("Content & files", new[]
+        {
+            new Demo("/lab/torrents", "BitTorrent + mesh gateway", "Build a torrent, magnet link, DHT node — then ingest it into SHA-256 mesh chunks."),
+            new Demo("/lab/files", "Mesh file distribution", "Publish a blob, chunk-shuffle it across peers, verify and reassemble."),
+            new Demo("/lab/fmhy", "FMHY catalogue", "Browse a mesh-propagated content catalogue; watch an entry reach an offline peer."),
+            new Demo("/lab/forge", "Mesh package cache", "A mesh-local mirror of a package registry — cache, look up, gossip new entries."),
+        }),
+        new("Live & media", new[]
+        {
+            new Demo("/lab/broadcast", "Live broadcast", "Publish a segment stream; subscribers receive it, adaptive bitrate reacting to the link."),
+            new Demo("/lab/watch-together", "Watch together", "One host drives play/pause/seek; followers stay in sync and react."),
+            new Demo("/lab/group-video", "Group video", "A host admits several participants over the call-control plane."),
+            new Demo("/lab/ptt-screenshare", "Push-to-talk & screen-share", "Audio and screen frames over the shared media header, between nodes."),
+        }),
+        new("Economy", new[]
+        {
+            new Demo("/lab/market", "Marketplace & escrow", "Post a nearby listing, run a two-sided escrow trade, raise a dispute."),
+            new Demo("/lab/vicinity", "Proof-of-Vicinity", "Nodes vouch for being near each other; a Sybil score climbs from real encounters."),
+            new Demo("/lab/tipping", "Tipping & rewards", "Send a tip over the mesh; watch the reward accrue (settlement simulated)."),
+        }),
+        new("Civic & local-first", new[]
+        {
+            new Demo("/lab/breadcrumbs", "Geo noticeboards", "Drop a note at a place; passing devices carry and re-host it. Emergency ignores the radius."),
+            new Demo("/lab/map", "Collaborative map", "Two people edit a map offline; the CRDT merges their partitioned edits without a server."),
+        }),
+        new("Resilience & safety", new[]
+        {
+            new Demo("/lab/vault", "Erasure-coded backup", "Shard a secret across peers (k=10/m=4); recover from any ten, even as peers drop."),
+            new Demo("/lab/location-proof", "Proof-of-Location", "Witnesses co-sign where you are; a quorum verifies it, self-vouching rejected."),
+            new Demo("/lab/sos", "SOS broadcast", "Flood a life-safety alert; dedup, rate-limit, escalate, track who it reached."),
+            new Demo("/lab/dtn", "Store-and-forward", "Leave a message for someone offline; a carrier holds it and delivers when they return."),
+        }),
+        new("Identity & privacy", new[]
+        {
+            new Demo("/lab/erid", "Rotating addresses", "Watch a node's wire address rotate each epoch — a friend still knows it, an observer can't."),
+            new Demo("/lab/site-identity", "Per-site identity", "One master tag becomes a different, unlinkable pseudonym on every card you visit."),
+            new Demo("/lab/petnames", "Petname registry", "Pin the names you trust; propose, reject, and gossip names without a central directory."),
+            new Demo("/lab/recovery", "Recovery phrase", "Twenty-four words are the identity — reconstruct the same tag on a new device."),
+            new Demo("/lab/panic", "Panic wipe", "A duress PIN turns the keys to noise; the device looks freshly installed. (Simulated.)"),
+            new Demo("/lab/devices", "Devices & revocation", "Link a second device by signed record; gossip a revocation and watch it get shut out."),
+        }),
+    };
+}

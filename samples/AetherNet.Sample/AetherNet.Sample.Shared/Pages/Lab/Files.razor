@@ -1,0 +1,176 @@
+@page "/lab/files"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* Chunked mesh file distribution, and a genuinely parallel multi-peer download. A blob is content-
+   addressed into a descriptor — SHA-256 per chunk, a SHA-256 root over the chunk hashes — then split
+   so Seeder A holds the even chunks and Seeder B the odd ones. A leecher runs the real segmented
+   downloader over the mesh: because neither seeder holds the whole file, a completed, verified
+   download is proof both peers were pulled from at once. Only the radio is simulated. *@
+
+<div class="fil">
+    <header class="fil-head">
+        <a class="fil-back" href="lab">← Lab</a>
+        <h1>Mesh file distribution</h1>
+        <p>Publish a blob, split it across two seeders, and watch a leecher pull both halves in parallel — verified chunk by chunk.</p>
+    </header>
+
+    @* ── 1. Publish ─────────────────────────────────────────────────────────── *@
+    <section class="fil-card">
+        <div class="fil-eyebrow">Publish — content-address a blob</div>
+        <div class="fil-controls">
+            <label class="fil-size">size
+                <select class="field-input" @bind="_sizeKb">
+                    <option value="8">8 KB</option>
+                    <option value="24">24 KB</option>
+                    <option value="48">48 KB</option>
+                </select>
+            </label>
+            <button class="btn ink" @onclick="() => _demo.Publish(_sizeKb)">Publish</button>
+        </div>
+
+        @if (_demo.Published is { } p)
+        {
+            <div class="fil-out">
+                <div class="fil-grid">
+                    <div><span class="fil-k">size</span><span class="fil-v">@p.TotalBytes.ToString("N0") B</span></div>
+                    <div><span class="fil-k">chunks</span><span class="fil-v">@p.ChunkCount × @p.ChunkSize B</span></div>
+                    <div><span class="fil-k">self-verifies</span><span class="fil-v">@(p.SelfVerifies ? "yes ✓" : "no")</span></div>
+                </div>
+                <div class="fil-row"><span class="fil-k">root (SHA-256 over chunk hashes)</span><span class="fil-v mono wrap">@p.Root</span></div>
+            </div>
+        }
+    </section>
+
+    @* ── 2. Multi-peer parallel download ────────────────────────────────────── *@
+    <section class="fil-card">
+        <div class="fil-eyebrow">Multi-peer parallel download</div>
+        <div class="fil-legend">
+            <span class="fil-chip"><span class="fil-sw a"></span>even → Seeder A</span>
+            <span class="fil-chip"><span class="fil-sw b"></span>odd → Seeder B</span>
+            <span class="fil-chip"><span class="fil-sw off"></span>not yet here</span>
+        </div>
+        <button class="btn" @onclick="RunDownload" disabled="@_demo.Running">@(_demo.Running ? "Pulling…" : "Run the download")</button>
+
+        @if (_demo.Published is { } pp)
+        {
+            var have = _demo.HaveSnapshot();
+            <div class="fil-bitmap">
+                @for (int i = 0; i < pp.ChunkCount; i++)
+                {
+                    var got = i < have.Length && have[i];
+                    var cls = !got ? "off" : _demo.HolderOf(i) == "A" ? "a" : "b";
+                    <span class="fil-cell @cls" title="chunk @i"></span>
+                }
+            </div>
+        }
+
+        @if (_demo.Report is { } r)
+        {
+            <div class="fil-out">
+                <div class="fil-verify @(r.Verified ? "ok" : "bad")">
+                    @(r.Verified ? "✓ reassembled — SHA-256 matches the original, every chunk verified on arrival" : "integrity check failed")
+                </div>
+                <div class="fil-grid">
+                    <div><span class="fil-k">from Seeder A</span><span class="fil-v">@r.FromSeederA even</span></div>
+                    <div><span class="fil-k">from Seeder B</span><span class="fil-v">@r.FromSeederB odd</span></div>
+                    <div><span class="fil-k">peak concurrency</span><span class="fil-v">@r.MaxParallelism</span></div>
+                    <div><span class="fil-k">work-steals</span><span class="fil-v">@r.SegmentSteals</span></div>
+                    <div><span class="fil-k">retries</span><span class="fil-v">@r.Retries</span></div>
+                    <div><span class="fil-k">elapsed</span><span class="fil-v">@r.ElapsedMs ms</span></div>
+                </div>
+            </div>
+        }
+    </section>
+
+    @* ── 3. Chunk-shuffle assignment ────────────────────────────────────────── *@
+    <section class="fil-card">
+        <div class="fil-eyebrow">Chunk-shuffle — how the peers avoid stepping on each other</div>
+        <p class="fil-note">The Self-Assembling Peer Interleaving session takes each peer's availability bitmap and hands out a random, non-overlapping subset — so two peers never fetch the same chunk in flight.</p>
+        <button class="btn ghost" @onclick="() => _demo.RunChunkShuffle()">Assign across two peers</button>
+
+        @if (_demo.Shuffle is { } s)
+        {
+            <div class="fil-out">
+                <div class="fil-row"><span class="fil-k">Seeder A gets</span><span class="fil-v mono">[@string.Join(", ", s.AssignedA)]</span></div>
+                <div class="fil-row"><span class="fil-k">Seeder B gets</span><span class="fil-v mono">[@string.Join(", ", s.AssignedB)]</span></div>
+                <div class="fil-v">@(s.Disjoint ? "disjoint ✓ — capped at MaxConcurrentChunkTransfers (4) in-flight per peer" : "overlap (unexpected)")</div>
+            </div>
+        }
+    </section>
+
+    @* ── Wire log ────────────────────────────────────────────────────────────── *@
+    <section class="fil-log">
+        @foreach (var line in _demo.Log)
+        {
+            <div class="fil-line"><span class="fil-who">@line.Who</span><span class="fil-text">@line.Text</span></div>
+        }
+        @if (_demo.Log.Count == 0)
+        {
+            <div class="fil-line fil-empty">Publish a blob, then run the download. Every byte moves over the real content protocol.</div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly FilesDemo _demo = new();
+    private int _sizeKb = 24;
+
+    protected override void OnInitialized()
+    {
+        _demo.Changed += OnChanged;
+        _demo.Publish(_sizeKb);
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task RunDownload() => await _demo.RunDownloadAsync();
+
+    public void Dispose() { _demo.Changed -= OnChanged; _demo.Dispose(); }
+}
+
+<style>
+    .fil { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; margin: 0 auto; }
+    .fil-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .fil-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .fil-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .72; line-height: 1.45; }
+
+    .fil-card { border: 1.5px solid var(--line-card); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .fil-eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink); opacity: .6; }
+    .fil-note { margin: 0; font-size: 13px; color: var(--ink); opacity: .7; line-height: 1.45; }
+
+    .fil-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .fil-size { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--ink); opacity: .6; }
+    .fil-size .field-input { width: auto; }
+
+    .fil-legend { display: flex; flex-wrap: wrap; gap: 12px; }
+    .fil-chip { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink); opacity: .8; }
+    .fil-sw { width: 12px; height: 12px; border-radius: 3px; }
+    .fil-sw.a { background: var(--brand); }
+    .fil-sw.b { background: #2c3e50; }
+    .fil-sw.off { border: 1.5px solid var(--line); }
+
+    .fil-bitmap { display: flex; flex-wrap: wrap; gap: 4px; }
+    .fil-cell { width: 16px; height: 16px; border-radius: 3px; transition: background .15s ease; }
+    .fil-cell.a { background: var(--brand); }
+    .fil-cell.b { background: #2c3e50; }
+    .fil-cell.off { border: 1.5px solid var(--line); }
+
+    .fil-out { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+    .fil-row { display: flex; flex-direction: column; gap: 2px; }
+    .fil-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+    .fil-k { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+    .fil-v { font-size: 14px; font-weight: 600; color: var(--ink); }
+    .fil .mono { font-family: var(--mono); }
+    .fil .wrap { word-break: break-all; }
+
+    .fil-verify { font-size: 13.5px; font-weight: 700; padding: 10px 12px; border-radius: 10px; }
+    .fil-verify.ok { color: #fff; background: var(--brand); }
+    .fil-verify.bad { color: #fff; background: #2c3e50; }
+
+    .fil-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .fil-line { display: flex; gap: 8px; line-height: 1.5; }
+    .fil-who { font-weight: 800; color: var(--brand); flex: none; min-width: 52px; }
+    .fil-text { color: var(--ink); opacity: .85; word-break: break-word; }
+    .fil-empty { color: var(--ink); opacity: .5; font-style: italic; }
+</style>

@@ -1,0 +1,151 @@
+@page "/lab/location-proof"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* Proof-of-Location, judged by the real verifier. Each witness you collect co-signs the same coarse
+   place and five-minute time bucket with a genuine Ed25519 key, and the subject countersigns the
+   identical bytes — neither can forge it alone. A quorum needs three distinct verified witnesses whose
+   reputation weights sum to at least 2.00. Fresh phones weigh nothing, strangers won't even resolve,
+   and a subject vouching for itself is thrown straight out. *@
+
+<div class="pol">
+    <header class="pol-head">
+        <a class="pol-back" href="lab">← Lab</a>
+        <h1>Proof-of-Location</h1>
+        <p>Witnesses co-sign where you are; a reputation-weighted quorum verifies it. Self-vouching and Sybils rejected.</p>
+    </header>
+
+    <section class="pol-verdict @(_demo.Verdict.IsValid ? "valid" : "invalid")">
+        <div class="pol-verdict-top">
+            <span class="pol-disc"></span>
+            <span class="pol-verdict-word">@(_demo.Verdict.IsValid ? "Location proven" : "Not proven")</span>
+        </div>
+        <div class="pol-verdict-metrics">
+            <span><b>@_demo.Verdict.DistinctWitnesses</b> / @_demo.MinWitnesses distinct witnesses</span>
+            <span><b>@_demo.Verdict.TotalWeight.ToString("0.00")</b> / @_demo.MinWeight.ToString("0.00") weight</span>
+        </div>
+        @if (!_demo.Verdict.IsValid && _demo.Verdict.Reason is { } reason)
+        {
+            <div class="pol-reason">@reason</div>
+        }
+    </section>
+
+    <section class="pol-encounter">
+        <span>Encounter: geohash <b class="tag-mono">@_demo.EncounterGeohash</b> · @_demo.EncounterPlace · time bucket <b class="tag-mono">@_demo.TimeBucket</b></span>
+    </section>
+
+    <section class="pol-witnesses">
+        <div class="pol-eyebrow">Nearby witnesses — tap to collect a co-signed attestation</div>
+        @foreach (var w in _demo.Rows)
+        {
+            <div class="pol-row @(w.Collected ? "in" : null)">
+                <button class="pol-pick" @onclick="() => _demo.Toggle(w.Name)">
+                    <span class="pol-check @(w.Collected ? "on" : null)"></span>
+                    <span class="pol-name">@w.Name</span>
+                </button>
+                <span class="pol-weight" title="reputation weight from your vantage">w=@w.Weight.ToString("0.0")</span>
+                <span class="pol-note">
+                    @if (!string.IsNullOrEmpty(w.Badge))
+                    {
+                        <b>@w.Badge</b><text> · </text>
+                    }
+                    @w.Note
+                </span>
+                @if (w.Known)
+                {
+                    <button class="pol-tamper @(w.Tampered ? "on" : null)" @onclick="() => _demo.ToggleTamper(w.Name)" title="flip a byte of this witness's signature">
+                        @(w.Tampered ? "tampered" : "tamper")
+                    </button>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="pol-self">
+        <button class="pol-selfbtn @(_demo.SelfVouch ? "on" : null)" @onclick="() => _demo.SetSelfVouch(!_demo.SelfVouch)">
+            <span class="pol-check @(_demo.SelfVouch ? "on" : null)"></span>
+            <span>Add a self-vouch (the subject witnesses itself)</span>
+        </button>
+        @if (_demo.SelfVouch)
+        {
+            <span class="pol-self-note">Included above — and dropped by the verifier: a node cannot witness itself, so it never counts.</span>
+        }
+    </section>
+
+    @if (!string.IsNullOrEmpty(_demo.SignableBodyHex))
+    {
+        <section class="pol-body">
+            <div class="pol-eyebrow">The canonical bytes both parties sign</div>
+            <div class="pol-body-hex tag-mono">@Trunc(_demo.SignableBodyHex)</div>
+        </section>
+    }
+
+    <section class="pol-log">
+        @foreach (var line in _demo.Log())
+        {
+            <div class="pol-line">@line.Text</div>
+        }
+    </section>
+</div>
+
+@code {
+    private PoLLabDemo _demo = null!;
+
+    protected override void OnInitialized()
+    {
+        _demo = new PoLLabDemo();
+        _demo.Changed += OnChanged;
+        _demo.Start();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private static string Trunc(string hex) => hex.Length <= 96 ? hex : hex[..96] + "…";
+
+    public void Dispose() => _demo.Changed -= OnChanged;
+}
+
+<style>
+    .pol { padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 16px; max-width: 720px; margin: 0 auto; }
+    .pol-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .pol-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .pol-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .72; line-height: 1.5; }
+
+    .pol-verdict { border: 2px solid var(--line-card); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .pol-verdict.valid { border-color: var(--brand); background: var(--brand-tint); }
+    .pol-verdict-top { display: flex; align-items: center; gap: 10px; }
+    .pol-disc { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--brand); flex: none; }
+    .pol-verdict.valid .pol-disc { background: var(--brand); }
+    .pol-verdict.invalid .pol-disc { background: transparent; }
+    .pol-verdict-word { font-size: 20px; font-weight: 800; color: var(--ink); }
+    .pol-verdict-metrics { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--ink); opacity: .82; }
+    .pol-verdict-metrics b { font-family: var(--mono); }
+    .pol-reason { font-size: 13px; font-weight: 600; color: var(--ink); opacity: .72; font-family: var(--mono); }
+
+    .pol-encounter { font-size: 12.5px; color: var(--ink); opacity: .72; line-height: 1.5; }
+
+    .pol-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink); opacity: .55; }
+    .pol-witnesses { display: flex; flex-direction: column; gap: 8px; }
+    .pol-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1.5px solid var(--line-card); border-radius: 12px; padding: 10px 12px; }
+    .pol-row.in { border-color: var(--brand); }
+    .pol-pick { appearance: none; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 9px; padding: 0; }
+    .pol-check { width: 16px; height: 16px; border-radius: 5px; border: 2px solid var(--brand); flex: none; }
+    .pol-check.on { background: var(--brand); }
+    .pol-name { font-size: 15px; font-weight: 700; color: var(--ink); }
+    .pol-weight { font-family: var(--mono); font-size: 12.5px; font-weight: 700; color: var(--ink); opacity: .7; }
+    .pol-note { flex: 1 1 160px; font-size: 12px; color: var(--ink); opacity: .68; }
+    .pol-note b { opacity: 1; }
+    .pol-tamper { appearance: none; cursor: pointer; background: transparent; border: 1.5px solid var(--line); color: var(--ink); border-radius: 999px; padding: 4px 12px; font-size: 11px; font-weight: 700; opacity: .8; }
+    .pol-tamper.on { background: var(--brand); border-color: var(--brand); color: #fff; opacity: 1; }
+
+    .pol-self { display: flex; flex-direction: column; gap: 6px; }
+    .pol-selfbtn { appearance: none; cursor: pointer; background: transparent; border: 1.5px dashed var(--line); border-radius: 12px; padding: 11px 12px; display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 14px; font-weight: 600; }
+    .pol-selfbtn.on { border-style: solid; border-color: var(--brand); }
+    .pol-self-note { font-size: 12px; color: var(--ink); opacity: .68; padding-left: 4px; line-height: 1.45; }
+
+    .pol-body { display: flex; flex-direction: column; gap: 6px; }
+    .pol-body-hex { font-size: 11px; color: var(--ink); opacity: .7; word-break: break-all; line-height: 1.5; }
+
+    .pol-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .pol-line { color: var(--ink); opacity: .82; line-height: 1.5; }
+</style>

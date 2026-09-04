@@ -1,0 +1,217 @@
+@page "/lab/panic"
+@using AetherNet.Security.Privacy
+
+@* The duress PIN that turns the keys to noise.
+
+   A seized phone is only as safe as what it still holds. The panic-wipe answer is a second PIN: enter
+   it under duress and the node's key material is destroyed in place — overwritten and zeroed — so the
+   device reveals nothing and looks like a fresh install. The PIN itself is never stored; only its
+   SHA-256 is kept, and an unlock is a constant-time compare against that hash. This page is the real
+   PanicWipe core — the hash, the verify, the secure-erase, and the manifest of every key-store entry a
+   wipe must destroy — the same deterministic core every SDK ports.
+
+   It is a SIMULATION. The key material below is random demo bytes; nothing on your real device is
+   touched, armed, or erased. *@
+
+<div class="pan">
+    <header class="pan-head">
+        <a class="pan-back" href="lab">← Lab</a>
+        <h1>Panic wipe</h1>
+        <p>Arm a duress PIN, then enter it — and watch the identity material get overwritten to noise,
+           with a manifest of everything a real wipe destroys. Simulated end to end.</p>
+    </header>
+
+    <div class="pan-sim">Simulated — random demo bytes only. Nothing on this device is armed or erased.</div>
+
+    <section class="pan-arm">
+        <div class="pan-sec-label">1 · Arm a duress PIN</div>
+        <div class="pan-row">
+            <input class="pan-input" type="text" inputmode="numeric" @bind="_duressPin" @bind:event="oninput" placeholder="a duress PIN, e.g. 911911" />
+            <button class="btn" @onclick="Arm" disabled="@string.IsNullOrWhiteSpace(_duressPin)">Set</button>
+        </div>
+        @if (_armed)
+        {
+            <div class="pan-hash">
+                <span class="pan-hash-k">stored as SHA-256 (the PIN itself is never written)</span>
+                <span class="pan-hash-v">@_hashHex</span>
+            </div>
+        }
+    </section>
+
+    <section class="pan-store">
+        <div class="pan-sec-label">2 · This node's key material @(_wiped ? "— erased" : "")</div>
+        <div class="pan-entries">
+            @foreach (var e in _store)
+            {
+                <div class="pan-entry @(e.Alive ? null : "dead")">
+                    <span class="pan-dot @(e.Alive ? "on" : "off")"></span>
+                    <span class="pan-entry-name">@e.Name</span>
+                    <span class="pan-entry-hex">@Preview(e)</span>
+                </div>
+            }
+        </div>
+        <div class="pan-more">+ up to @PanicWipe.MaxPreKeys one-time and @PanicWipe.MaxPreKeys signed pre-keys (@ExampleNames)</div>
+    </section>
+
+    <section class="pan-unlock">
+        <div class="pan-sec-label">3 · Unlock</div>
+        <div class="pan-row">
+            <input class="pan-input" type="text" inputmode="numeric" @bind="_unlockPin" @bind:event="oninput" placeholder="enter a PIN to unlock" />
+            <button class="btn" @onclick="Unlock" disabled="@(!_armed || string.IsNullOrWhiteSpace(_unlockPin) || _wiped)">Unlock</button>
+            <button class="btn ghost" @onclick="Reset">Reset demo</button>
+        </div>
+        <div class="pan-hint">Any PIN unlocks normally; only the armed duress PIN triggers the wipe.</div>
+    </section>
+
+    @if (_outcome is not null)
+    {
+        <section class="pan-out @(_wiped ? "wiped" : "normal")">
+            <div class="pan-out-head">@_outcome</div>
+            @if (_wiped)
+            {
+                <div class="pan-out-body">
+                    <div class="pan-manifest">Wipe manifest: <b>@_manifestCount</b> key-store entries destroyed
+                        — @PanicWipe.IdentityKeyNames.Count identity keys and @(PanicWipe.MaxPreKeys * 2) numbered pre-keys.</div>
+                    <div class="pan-erase">
+                        <div class="pan-erase-k">SecureErase on <span class="mono">@_erasedName</span> — overwritten with random, then zeroed:</div>
+                        <div class="pan-erase-row"><span>before</span><span class="mono">@_eraseBefore…</span></div>
+                        <div class="pan-erase-row"><span>after</span><span class="mono">@_eraseAfter…</span></div>
+                    </div>
+                    <div class="pan-fresh">The device now looks like a fresh install. Irreversible — there is nothing left to recover.</div>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+<style>
+    .pan { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+    .pan-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .pan-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .pan-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; line-height: 1.5; color: var(--ink); opacity: .72; }
+
+    .pan-sim { font-size: 12.5px; font-weight: 700; color: var(--on-surface); background: var(--brand);
+        border-radius: 12px; padding: 11px 14px; line-height: 1.4; }
+
+    .pan-sec-label { font-size: 12px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ink); opacity: .7; margin-bottom: 8px; }
+    .pan-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .pan-input { flex: 1 1 180px; min-width: 0; font: inherit; font-size: 14px; font-family: var(--mono); color: var(--ink);
+        background: transparent; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+    .pan-input::placeholder { color: var(--ink); opacity: .4; }
+
+    .pan-hash { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+    .pan-hash-k { font-size: 11px; font-weight: 650; color: var(--ink); opacity: .6; }
+    .pan-hash-v { font-family: var(--mono); font-size: 12px; color: var(--ink); opacity: .85; word-break: break-all; }
+
+    .pan-entries { display: flex; flex-direction: column; gap: 4px; }
+    .pan-entry { display: flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 12.5px;
+        border: 1px solid var(--line); border-radius: 9px; padding: 7px 11px; }
+    .pan-entry.dead { opacity: .5; }
+    .pan-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+    .pan-dot.on { background: var(--brand); }
+    .pan-dot.off { background: transparent; border: 1.5px solid var(--line); }
+    .pan-entry-name { flex: 1 1 auto; min-width: 0; color: var(--ink); word-break: break-all; }
+    .pan-entry-hex { flex: none; color: var(--ink); opacity: .6; }
+    .pan-more { margin-top: 8px; font-size: 12px; font-weight: 500; color: var(--ink); opacity: .65; word-break: break-word; }
+
+    .pan-hint { margin-top: 8px; font-size: 12px; font-weight: 500; color: var(--ink); opacity: .65; }
+
+    .pan-out { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .pan-out.wiped { border-color: var(--brand); }
+    .pan-out-head { font-size: 15px; font-weight: 800; color: var(--ink); }
+    .pan-out-body { display: flex; flex-direction: column; gap: 10px; }
+    .pan-manifest { font-size: 13px; font-weight: 550; line-height: 1.5; color: var(--ink); opacity: .85; }
+    .pan-manifest b { font-weight: 800; }
+    .pan-erase { display: flex; flex-direction: column; gap: 4px; }
+    .pan-erase-k { font-size: 12px; font-weight: 600; color: var(--ink); opacity: .8; }
+    .pan-erase-k .mono, .pan-erase-row .mono { font-family: var(--mono); }
+    .pan-erase-row { display: flex; gap: 12px; font-size: 12.5px; color: var(--ink); opacity: .85; }
+    .pan-erase-row span:first-child { flex: none; min-width: 52px; font-weight: 700; opacity: .7; }
+    .pan-erase-row .mono { word-break: break-all; }
+    .pan-fresh { font-size: 13px; font-weight: 650; line-height: 1.5; color: var(--ink); }
+</style>
+
+@code {
+    private string _duressPin = "";
+    private byte[]? _duressHash;
+    private string _hashHex = "";
+    private bool _armed;
+
+    private string _unlockPin = "";
+
+    private readonly List<Entry> _store = new();
+    private bool _wiped;
+    private string? _outcome;
+    private int _manifestCount;
+    private string _erasedName = "", _eraseBefore = "", _eraseAfter = "";
+
+    private sealed class Entry
+    {
+        public required string Name { get; init; }
+        public required byte[] Material { get; init; }
+        public bool Alive { get; set; } = true;
+    }
+
+    private string ExampleNames => $"{PanicWipe.PreKeyName(0)}, {PanicWipe.SignedPreKeyName(0)}, …";
+
+    protected override void OnInitialized() => Reset();
+
+    private void Reset()
+    {
+        _duressPin = ""; _duressHash = null; _hashHex = ""; _armed = false;
+        _unlockPin = ""; _wiped = false; _outcome = null;
+        _store.Clear();
+        // The real identity manifest, each entry filled with random demo bytes standing in for a key.
+        foreach (var name in PanicWipe.IdentityKeyNames)
+            _store.Add(new Entry { Name = name, Material = Rand(32) });
+    }
+
+    private void Arm()
+    {
+        if (string.IsNullOrWhiteSpace(_duressPin)) return;
+        // Kept only as its SHA-256 — the PIN never lands on disk.
+        _duressHash = PanicWipe.DuressPinHash(_duressPin);
+        _hashHex = Convert.ToHexString(_duressHash);
+        _armed = true;
+        _outcome = null;
+    }
+
+    private void Unlock()
+    {
+        if (_duressHash is null) return;
+        // Constant-time compare of the entered PIN against the stored duress hash.
+        if (PanicWipe.VerifyDuressPin(_unlockPin, _duressHash))
+            Wipe();
+        else
+            _outcome = "Unlocked normally. This was not the duress PIN, so the keys are intact.";
+    }
+
+    private void Wipe()
+    {
+        // Prove the erase on the first entry: snapshot it, erase it, snapshot again.
+        var first = _store[0];
+        _erasedName = first.Name;
+        _eraseBefore = Convert.ToHexString(first.Material.AsSpan(0, 8));
+
+        foreach (var e in _store)
+        {
+            // Real secure-erase: overwrite with random, then zero. Best-effort, defence in depth.
+            PanicWipe.SecureErase(e.Material);
+            e.Alive = false;
+        }
+
+        _eraseAfter = Convert.ToHexString(first.Material.AsSpan(0, 8));
+        _manifestCount = PanicWipe.IdentityKeyNames.Count + PanicWipe.MaxPreKeys * 2;
+        _wiped = true;
+        _outcome = "Duress PIN entered — the identity has been wiped.";
+    }
+
+    private string Preview(Entry e) => Convert.ToHexString(e.Material.AsSpan(0, 4));
+
+    private static byte[] Rand(int n)
+    {
+        var b = new byte[n];
+        Random.Shared.NextBytes(b);
+        return b;
+    }
+}

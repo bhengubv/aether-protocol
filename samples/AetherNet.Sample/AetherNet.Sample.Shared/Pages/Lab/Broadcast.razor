@@ -1,0 +1,173 @@
+@page "/lab/broadcast"
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
+
+@* One phone in a room goes live; the others tune in. Alice, Bob and Charlie are real Ed25519 nodes on
+   the real StreamingService over an in-process wire — the same code the eight SDKs port, only the radio
+   simulated. Nothing here is a mock of streaming: the announce really floods, a subscribe really
+   registers, a segment really reaches only the viewers who asked for it, and the bitrate ladder below is
+   the publisher's own AdaptiveBitrateController choosing a rung for the link you hand it. Drop the link
+   under the floor and watch it stop shipping broken segments rather than ship them. *@
+
+<div class="bc">
+    <header class="bc-head">
+        <a class="bc-back" href="lab">← Lab</a>
+        <h1>Live broadcast</h1>
+        <p>One publisher, real subscribers, and an adaptive bitrate ladder reacting to the link — in-process.</p>
+    </header>
+
+    <section class="bc-nodes">
+        @foreach (var n in _nodes)
+        {
+            <div class="bc-node" style="border-color:@n.Color">
+                <div class="bc-node-top">
+                    <span class="bc-dot" style="background:@n.Color"></span>
+                    <span class="bc-name">@n.Name</span>
+                    <span class="bc-role">@(n.IsPublisher ? "publisher" : "viewer")</span>
+                </div>
+                @if (n.IsPublisher)
+                {
+                    <div class="bc-node-stat">@(Demo.IsLive ? $"live · {Demo.SegmentsPushed} pushed" : "off air")</div>
+                    <div class="bc-node-sub">serving @Demo.SubscriberCount viewer(s)</div>
+                }
+                else
+                {
+                    <div class="bc-node-stat">
+                        @if (!n.Subscribed) { <span class="bc-muted">not subscribed</span> }
+                        else if (n.LastSeq < 0) { <span>subscribed · waiting</span> }
+                        else { <span>#@n.LastSeq · @n.SegmentsSeen received</span> }
+                    </div>
+                    <button class="bc-mini" disabled="@(!Demo.IsLive || n.Subscribed)"
+                            @onclick="() => RunAsync(() => Demo.SubscribeAsync(n.Name))">Subscribe</button>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="bc-controls">
+        <button class="btn ink" disabled="@Demo.IsLive" @onclick="() => RunAsync(Demo.GoLiveAsync)">Go live</button>
+        <button class="btn ink" disabled="@(!Demo.IsLive)" @onclick="() => RunAsync(Demo.PublishNextSegmentAsync)">Push a segment</button>
+        <button class="btn" disabled="@(!Demo.IsLive)" @onclick="() => RunAsync(Demo.EndAsync)">End</button>
+        <button class="btn" @onclick="() => Run(Demo.ClearLog)">Clear</button>
+    </section>
+
+    <section class="bc-abr">
+        <div class="bc-abr-head">
+            <span class="bc-abr-title">Adaptive bitrate — Profile B (live)</span>
+            <span class="bc-abr-link @(Demo.WillAbandon ? "warn" : null)">link @Demo.BandwidthKbps Kbps</span>
+        </div>
+
+        <input class="bc-range" type="range" min="50" max="12000" step="50"
+               value="@Demo.BandwidthKbps" @onchange="OnBandwidth" />
+
+        <div class="bc-ladder">
+            @foreach (var rung in Demo.Ladder)
+            {
+                var active = Demo.CurrentRung is not null && Demo.CurrentRung.Label == rung.Label;
+                <div class="bc-rung @(active ? "on" : null)">
+                    <span class="bc-rung-q">@rung.VideoQuality</span>
+                    <span class="bc-rung-l">@rung.Label</span>
+                    <span class="bc-rung-b">@(rung.AudioKbps + rung.VideoKbps) Kbps</span>
+                    @if (active) { <span class="bc-rung-pick">selected</span> }
+                </div>
+            }
+        </div>
+        <div class="bc-floor">
+            Floor is @Demo.FloorKbps Kbps. Below it the publisher emits a StreamAbandon instead of a degraded segment —
+            @(Demo.WillAbandon ? "the next push will abandon." : "you are above it.")
+        </div>
+    </section>
+
+    <section class="bc-log">
+        @foreach (var line in _log)
+        {
+            <div class="bc-line">
+                <span class="bc-who" style="color:@line.Color">@line.Who</span>
+                <span class="bc-text">@line.Text</span>
+            </div>
+        }
+        @if (_log.Count == 0)
+        {
+            <div class="bc-line bc-empty">Nothing on air yet. Press Go live, subscribe a viewer, then push a segment.</div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly BroadcastDemo Demo = new();
+    private IReadOnlyList<BroadcastDemo.NodeView> _nodes = Array.Empty<BroadcastDemo.NodeView>();
+    private IReadOnlyList<BroadcastDemo.LogLine> _log = Array.Empty<BroadcastDemo.LogLine>();
+
+    protected override void OnInitialized()
+    {
+        Demo.Changed += OnChanged;
+        Demo.Start();
+        Refresh();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+
+    private void Refresh()
+    {
+        _nodes = Demo.Nodes();
+        _log = Demo.Snapshot();
+    }
+
+    private void Run(Action act) => act();
+    private async Task RunAsync(Func<Task> act) => await act();
+
+    private void OnBandwidth(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var kbps))
+            Demo.SetBandwidth(kbps);
+    }
+
+    public void Dispose()
+    {
+        Demo.Changed -= OnChanged;
+        Demo.Dispose();
+    }
+}
+
+<style>
+    .bc { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 18px; }
+    .bc-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .bc-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .bc-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .7; }
+
+    .bc-nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    .bc-node { border: 2px solid var(--line-card); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; }
+    .bc-node-top { display: flex; align-items: center; gap: 8px; }
+    .bc-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .bc-name { font-size: 16px; font-weight: 800; color: var(--ink); }
+    .bc-role { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--ink); opacity: .55; border: 1px solid var(--line); border-radius: 20px; padding: 1px 7px; }
+    .bc-node-stat { font-family: var(--mono); font-size: 12.5px; color: var(--ink); opacity: .85; }
+    .bc-node-sub { font-size: 12px; color: var(--ink); opacity: .6; }
+    .bc-muted { opacity: .5; }
+    .bc-mini { align-self: flex-start; appearance: none; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; color: #fff; background: #2196F3; border: none; border-radius: 8px; padding: 5px 12px; }
+    .bc-mini:disabled { background: var(--line); color: var(--ink); opacity: .5; cursor: default; }
+
+    .bc-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .bc-abr { border: 1.5px solid var(--line-card); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .bc-abr-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .bc-abr-title { font-size: 14px; font-weight: 800; color: var(--ink); }
+    .bc-abr-link { font-family: var(--mono); font-size: 12.5px; font-weight: 700; color: #1976D2; }
+    .bc-abr-link.warn { color: #2c3e50; }
+    .bc-range { width: 100%; accent-color: #2196F3; }
+
+    .bc-ladder { display: flex; flex-direction: column; gap: 6px; }
+    .bc-rung { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; border: 1.5px solid var(--line-card); }
+    .bc-rung.on { border-color: #2196F3; background: rgba(33,150,243,.10); }
+    .bc-rung-q { font-weight: 800; font-size: 13px; color: var(--ink); min-width: 52px; }
+    .bc-rung-l { font-family: var(--mono); font-size: 12px; color: var(--ink); opacity: .7; min-width: 54px; }
+    .bc-rung-b { font-family: var(--mono); font-size: 12px; color: var(--ink); opacity: .85; }
+    .bc-rung-pick { margin-left: auto; font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: #1976D2; }
+    .bc-floor { font-size: 12.5px; line-height: 1.45; color: var(--ink); opacity: .68; }
+
+    .bc-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .bc-line { display: flex; gap: 8px; line-height: 1.5; }
+    .bc-who { font-weight: 800; flex: none; min-width: 52px; }
+    .bc-text { color: var(--ink); opacity: .85; }
+    .bc-empty { color: var(--ink); opacity: .5; font-style: italic; }
+</style>

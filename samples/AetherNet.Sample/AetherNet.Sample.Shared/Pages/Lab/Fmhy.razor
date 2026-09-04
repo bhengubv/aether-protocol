@@ -1,0 +1,170 @@
+@page "/lab/fmhy"
+@using AetherNet.Sample.Shared.Services.Lab
+@using AetherNet.Fmhy.Models
+@implements IDisposable
+
+@* The FMHY content catalogue, over the mesh. A bundled seed makes discovery work the instant the app
+   opens, with no network. When one peer syncs a fresh catalogue, the markdown itself travels one hop
+   to a peer that has no internet — which parses it and gains the whole directory, including a new
+   starred entry, without ever going online. The seed loader and the markdown parser are the shipping
+   code; the catalogue text here is neutral placeholder data. *@
+
+<div class="fmh">
+    <header class="fmh-head">
+        <a class="fmh-back" href="lab">← Lab</a>
+        <h1>FMHY catalogue</h1>
+        <p>Browse a mesh-propagated content directory — and watch a fresh entry reach a device that never went online.</p>
+    </header>
+
+    @* ── Mesh propagation ──────────────────────────────────────────────────── *@
+    <section class="fmh-card">
+        <div class="fmh-eyebrow">Propagate over the mesh</div>
+        <div class="fmh-peers">
+            <div class="fmh-peer">
+                <div class="fmh-peer-top"><span class="fmh-dot on"></span><span class="fmh-peer-name">Online peer</span></div>
+                <div class="fmh-peer-count">@_demo.OnlineCount <span>entries</span></div>
+                <div class="fmh-peer-sub">@(_demo.OnlineSyncedAt is null ? "seed only" : "synced " + _demo.OnlineSyncedAt.Value.ToString("HH:mm:ss"))</div>
+            </div>
+            <div class="fmh-arrow">→</div>
+            <div class="fmh-peer">
+                <div class="fmh-peer-top"><span class="fmh-dot off"></span><span class="fmh-peer-name">Offline peer</span></div>
+                <div class="fmh-peer-count">@_demo.OfflineCount <span>entries</span></div>
+                <div class="fmh-peer-sub">@(_demo.OfflineSyncedAt is null ? "no internet, ever" : "carried over the mesh")</div>
+            </div>
+        </div>
+        <div class="fmh-btns">
+            <button class="btn ink" @onclick="SyncOnline">Sync the online peer</button>
+            <button class="btn" @onclick="Propagate">Deliver to offline over mesh →</button>
+        </div>
+        @if (_demo.NewEntryReachedOffline is { } name)
+        {
+            <div class="fmh-reached">⭐ “@name” reached the offline peer — no internet touched.</div>
+        }
+    </section>
+
+    @* ── Browse ────────────────────────────────────────────────────────────── *@
+    <section class="fmh-card">
+        <div class="fmh-eyebrow">Browse the catalogue (@_demo.OnlineCount)</div>
+        <div class="fmh-cats">
+            <button class="fmh-cat @(string.IsNullOrEmpty(_demo.CategoryFilter) ? "on" : "")" @onclick="() => _demo.Filter(null)">All</button>
+            @foreach (var c in _demo.Categories)
+            {
+                <button class="fmh-cat @(_demo.CategoryFilter == c ? "on" : "")" @onclick="() => _demo.Filter(c)">@c</button>
+            }
+        </div>
+        <div class="fmh-list">
+            @foreach (var e in _demo.Entries)
+            {
+                <div class="fmh-entry">
+                    <div class="fmh-entry-top">
+                        @if (e.IsStarred) { <span class="fmh-star">⭐</span> }
+                        <span class="fmh-entry-name">@e.Name</span>
+                        <span class="fmh-entry-cat">@e.Category</span>
+                    </div>
+                    @if (e.Description is { } d) { <div class="fmh-entry-desc">@d</div> }
+                    @if (e.Mirrors.Length > 0) { <div class="fmh-entry-mir">@e.Mirrors.Length mirror(s)</div> }
+                </div>
+            }
+            @if (_demo.Entries.Count == 0)
+            {
+                <div class="fmh-empty">Nothing in this category.</div>
+            }
+        </div>
+    </section>
+
+    @* ── Starred + trackers ────────────────────────────────────────────────── *@
+    <section class="fmh-two">
+        <div class="fmh-card fmh-half">
+            <div class="fmh-eyebrow">Starred — highly recommended</div>
+            <div class="fmh-list">
+                @foreach (var e in _demo.Starred)
+                {
+                    <div class="fmh-entry"><div class="fmh-entry-top"><span class="fmh-star">⭐</span><span class="fmh-entry-name">@e.Name</span><span class="fmh-entry-cat">@e.Category</span></div></div>
+                }
+                @if (_demo.Starred.Count == 0) { <div class="fmh-empty">No starred entries yet.</div> }
+            </div>
+        </div>
+        <div class="fmh-card fmh-half">
+            <div class="fmh-eyebrow">Tracker sources for mesh sharing</div>
+            <div class="fmh-list">
+                @foreach (var t in _demo.Trackers)
+                {
+                    <div class="fmh-entry"><div class="fmh-entry-top"><span class="fmh-entry-name">@t.Name</span></div><div class="fmh-entry-desc">@t.Description</div></div>
+                }
+            </div>
+        </div>
+    </section>
+
+    @* ── Wire log ────────────────────────────────────────────────────────────── *@
+    <section class="fmh-log">
+        @foreach (var line in _demo.Log)
+        {
+            <div class="fmh-line"><span class="fmh-who">@line.Who</span><span class="fmh-text">@line.Text</span></div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly FmhyDemo _demo = new();
+
+    protected override void OnInitialized()
+    {
+        _demo.Changed += OnChanged;
+        _demo.LoadSeed();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task SyncOnline() => await _demo.SyncOnlineAsync();
+    private async Task Propagate() => await _demo.PropagateToOfflineAsync();
+
+    public void Dispose() { _demo.Changed -= OnChanged; _demo.Dispose(); }
+}
+
+<style>
+    .fmh { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; margin: 0 auto; }
+    .fmh-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .fmh-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .fmh-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: var(--ink); opacity: .72; line-height: 1.45; }
+
+    .fmh-card { border: 1.5px solid var(--line-card); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .fmh-eyebrow { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink); opacity: .6; }
+
+    .fmh-peers { display: flex; align-items: stretch; gap: 10px; }
+    .fmh-peer { flex: 1 1 0; border: 1.5px solid var(--line-card); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+    .fmh-peer-top { display: flex; align-items: center; gap: 8px; }
+    .fmh-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .fmh-dot.on { background: var(--brand); }
+    .fmh-dot.off { background: #2c3e50; }
+    .fmh-peer-name { font-size: 14px; font-weight: 800; color: var(--ink); }
+    .fmh-peer-count { font-size: 26px; font-weight: 800; color: var(--ink); }
+    .fmh-peer-count span { font-size: 12px; font-weight: 600; opacity: .6; }
+    .fmh-peer-sub { font-size: 12px; color: var(--ink); opacity: .6; }
+    .fmh-arrow { align-self: center; font-size: 22px; font-weight: 800; color: var(--brand); }
+
+    .fmh-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+    .fmh-reached { font-size: 13.5px; font-weight: 700; color: #fff; background: var(--brand); border-radius: 10px; padding: 10px 12px; }
+
+    .fmh-cats { display: flex; flex-wrap: wrap; gap: 6px; }
+    .fmh-cat { appearance: none; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--ink); background: transparent; border: 1.5px solid var(--line); border-radius: 999px; padding: 5px 12px; }
+    .fmh-cat.on { color: #fff; background: var(--brand); border-color: var(--brand); }
+
+    .fmh-list { display: flex; flex-direction: column; gap: 8px; }
+    .fmh-entry { border-bottom: 1px solid var(--line); padding-bottom: 8px; display: flex; flex-direction: column; gap: 2px; }
+    .fmh-entry:last-child { border-bottom: none; padding-bottom: 0; }
+    .fmh-entry-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .fmh-star { font-size: 12px; }
+    .fmh-entry-name { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+    .fmh-entry-cat { font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--brand); }
+    .fmh-entry-desc { font-size: 13px; color: var(--ink); opacity: .72; line-height: 1.4; }
+    .fmh-entry-mir { font-size: 11.5px; color: var(--ink); opacity: .55; }
+    .fmh-empty { color: var(--ink); opacity: .5; font-style: italic; font-size: 13px; }
+
+    .fmh-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .fmh-half { margin: 0; }
+
+    .fmh-log { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; }
+    .fmh-line { display: flex; gap: 8px; line-height: 1.5; }
+    .fmh-who { font-weight: 800; color: var(--brand); flex: none; min-width: 52px; }
+    .fmh-text { color: var(--ink); opacity: .85; word-break: break-word; }
+</style>

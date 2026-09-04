@@ -1,0 +1,393 @@
+@page "/lab/market"
+@using AetherNet.Market
+@using AetherNet.Market.Models
+@implements IDisposable
+
+@* A demonstration surface for AetherNet.Market — the offline P2P marketplace and its two-sided
+   escrow — driving the real InMemoryMarketService in-process. Nothing here reaches a server or a
+   store: a listing is a geo-pinned drop, browsing is a geohash prefix match, and a trade is a
+   little state machine both sides push forward together. It is the economy layer, kept plainly a
+   demo — the prices are rand, but no rand moves. *@
+
+<PageTitle>Lab — Marketplace</PageTitle>
+
+<div class="mk">
+    <header class="mk-head">
+        <a class="mk-back" href="lab">← Lab</a>
+        <span class="mk-kicker">Economy · demo</span>
+        <h1 class="mk-title">Marketplace &amp; escrow</h1>
+        <p class="mk-sub">Post a rand-priced, geo-pinned listing; browse what is near; then run a
+            two-sided escrow trade — the real <span class="mono">InMemoryMarketService</span>, no server.</p>
+    </header>
+
+    <section class="mk-group">
+        <div class="mk-glabel">Post a listing</div>
+        <div class="mk-card mk-pad mk-form">
+            <input class="mk-fi" @bind="_title" placeholder="Title — e.g. Second-hand bicycle" />
+            <input class="mk-fi" @bind="_desc" placeholder="Description" />
+            <div class="mk-row2">
+                <label class="mk-lil">Price (ZAR)
+                    <input class="mk-fi" type="number" min="0" step="1" @bind="_price" /></label>
+                <label class="mk-lil">Geohash
+                    <input class="mk-fi mono" @bind="_geohash" placeholder="ke7fqr" /></label>
+            </div>
+            <div class="mk-row2">
+                <label class="mk-lil">Category
+                    <select class="mk-fi" @bind="_category">
+                        @foreach (var c in Enum.GetValues<MarketCategory>())
+                        {
+                            <option value="@c">@c</option>
+                        }
+                    </select>
+                </label>
+                <div class="mk-lil mk-end">
+                    <button class="mk-btn block" @onclick="Post" disabled="@(!CanPost)">Post to the mesh</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="mk-group">
+        <div class="mk-glabel">Browse &amp; search</div>
+        <div class="mk-card mk-pad mk-form">
+            <div class="mk-row2">
+                <label class="mk-lil">Near geohash
+                    <input class="mk-fi mono" @bind="_center" placeholder="ke7fqr" /></label>
+                <label class="mk-lil">Radius (cells)
+                    <input class="mk-fi" type="number" min="1" max="6" @bind="_radius" /></label>
+            </div>
+            <button class="mk-btn ghost block" @onclick="BrowseNearby">Browse nearby</button>
+            <div class="mk-row2">
+                <label class="mk-lil">Search text
+                    <input class="mk-fi" @bind="_query" placeholder="bicycle, plumbing…" /></label>
+                <label class="mk-lil">In category
+                    <select class="mk-fi" @bind="_searchCategory">
+                        <option value="">Any</option>
+                        @foreach (var c in Enum.GetValues<MarketCategory>())
+                        {
+                            <option value="@c">@c</option>
+                        }
+                    </select>
+                </label>
+            </div>
+            <button class="mk-btn ghost block" @onclick="Search">Search</button>
+        </div>
+
+        <div class="mk-reslabel">@_resultLabel</div>
+        <div class="mk-listings">
+            @if (_results.Count == 0)
+            {
+                <div class="mk-none">Nothing here — post a listing, or widen the radius.</div>
+            }
+            @foreach (var l in _results)
+            {
+                <button class="mk-lst @(l.ListingId == _selected?.ListingId ? "on" : null)" @onclick="() => Select(l)">
+                    <span class="mk-lst-top">
+                        <span class="mk-lst-title">@l.Title</span>
+                        <span class="mk-lst-price">R@(l.PriceZAR.ToString("0"))</span>
+                    </span>
+                    <span class="mk-lst-desc">@l.Description</span>
+                    <span class="mk-lst-meta">
+                        <span class="mk-chip">@l.Category</span>
+                        <span class="mono mk-geo">@l.GeoHash</span>
+                        <span class="mk-seller mono">@Petname(l.SellerUhid)</span>
+                    </span>
+                </button>
+            }
+        </div>
+    </section>
+
+    <section class="mk-group">
+        <div class="mk-glabel">Escrow a trade</div>
+        @if (_selected is null)
+        {
+            <div class="mk-card mk-pad mk-none">Pick a listing above to trade for it.</div>
+        }
+        else
+        {
+            <div class="mk-card mk-pad">
+                <div class="mk-trade-for">
+                    Trading for <b>@_selected.Title</b> — R@(_selected.PriceZAR.ToString("0")),
+                    <span class="mono">@Petname(_selected.SellerUhid)</span> selling to <span class="mono">@Petname(_buyerUhid)</span>.
+                </div>
+
+                @if (_escrow is null)
+                {
+                    <button class="mk-btn block" @onclick="Initiate">Initiate trade (open escrow)</button>
+                }
+                else
+                {
+                    <div class="mk-stepper">
+                        @foreach (var step in Steps)
+                        {
+                            <span class="mk-step @StepClass(step)">@step.Label</span>
+                        }
+                    </div>
+                    <div class="mk-state">
+                        Escrow <span class="mono">@Short(_escrow.EscrowId)</span> — state:
+                        <b class="@(_escrow.State == TradeState.Disputed ? "bad" : null)">@_escrow.State</b>
+                    </div>
+                    <div class="mk-acts">
+                        <button class="mk-btn" @onclick="BuyerConfirm"
+                                disabled="@(_escrow.State is TradeState.Complete or TradeState.Disputed)">Buyer confirms</button>
+                        <button class="mk-btn" @onclick="SellerConfirm"
+                                disabled="@(_escrow.State is TradeState.Complete or TradeState.Disputed)">Seller confirms</button>
+                        <button class="mk-btn ghost" @onclick="Dispute"
+                                disabled="@(_escrow.State is TradeState.Complete or TradeState.Disputed)">Raise a dispute</button>
+                        <button class="mk-btn ghost" @onclick="ResetTrade">New escrow</button>
+                    </div>
+                    <p class="mk-hint">Both sides must confirm. Buyer first, then seller, settles it to
+                        <b>Complete</b>; either side can raise a <b>dispute</b> instead.</p>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="mk-group">
+        <div class="mk-glabel">Wire log</div>
+        <div class="mk-log">
+            @foreach (var line in Enumerable.Reverse(_log))
+            {
+                <div class="mk-ll">@line</div>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    // The real marketplace service — in-memory, real logic, no infrastructure.
+    private readonly InMemoryMarketService _market = new();
+
+    // Two fixed demo identities so a trade has a seller and a buyer.
+    private const string SellerUhid = "aether:themba:01";
+    private readonly string _buyerUhid = "aether:you:02";
+
+    // Post-a-listing form.
+    private string _title = "Second-hand bicycle";
+    private string _desc = "Well-kept mountain bike, small frame";
+    private decimal _price = 850;
+    private string _geohash = "ke7fqr";
+    private MarketCategory _category = MarketCategory.Goods;
+
+    // Browse / search.
+    private string _center = "ke7fqr";
+    private int _radius = 2;
+    private string _query = "";
+    private string _searchCategory = "";
+
+    private IReadOnlyList<MarketListing> _results = Array.Empty<MarketListing>();
+    private string _resultLabel = "All listings";
+
+    private MarketListing? _selected;
+    private TradeEscrow? _escrow;
+
+    private readonly List<string> _log = new();
+
+    private bool CanPost => !string.IsNullOrWhiteSpace(_title) && !string.IsNullOrWhiteSpace(_geohash) && _price > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _market.ListingReceived += OnListing;
+
+        // Seed a few neighbourhood listings so browsing and search have something to find.
+        await _market.CreateListingAsync(SellerUhid, "Second-hand bicycle",
+            "Well-kept mountain bike, small frame", 850m, "ke7fqr", MarketCategory.Goods);
+        await _market.CreateListingAsync("aether:lindiwe:03", "Weekend plumbing",
+            "Blocked drains, taps and geysers — same-day", 450m, "ke7fqx", MarketCategory.Services);
+        await _market.CreateListingAsync("aether:sbu:04", "Grade 10 maths tutoring",
+            "Two afternoons a week, your place or mine", 200m, "ke7fpp", MarketCategory.Labour);
+
+        await ShowAll();
+    }
+
+    private void OnListing(object? _, MarketListing l) =>
+        Log($"listing dropped: “{l.Title}” R{l.PriceZAR:0} @ {l.GeoHash} ({l.Category}) by {Petname(l.SellerUhid)}");
+
+    private async Task ShowAll()
+    {
+        // An empty search query matches every (non-expired) listing — the honest "everything the
+        // node holds", independent of any one geohash, so a freshly-posted listing always shows.
+        _results = await _market.SearchAsync("", null);
+        _resultLabel = $"All listings ({_results.Count})";
+        StateHasChanged();
+    }
+
+    private async Task Post()
+    {
+        if (!CanPost) return;
+        var listing = await _market.CreateListingAsync(SellerUhid, _title.Trim(), _desc.Trim(),
+            _price, _geohash.Trim(), _category);
+        _title = ""; _desc = "";
+        await ShowAll();
+        Select(listing);
+    }
+
+    private async Task BrowseNearby()
+    {
+        var center = _center.Trim();
+        var radius = Math.Clamp(_radius, 1, 6);
+        _results = await _market.BrowseNearbyAsync(center, radius);
+        var prefixLen = Math.Max(1, center.Length - radius + 1);
+        var prefix = center[..Math.Min(prefixLen, center.Length)];
+        _resultLabel = $"Near {center} (±{radius}) — prefix “{prefix}”: {_results.Count} found";
+        Log($"browse {center} ±{radius} → {_results.Count} listing(s) inside geohash prefix “{prefix}”");
+    }
+
+    private async Task Search()
+    {
+        MarketCategory? cat = string.IsNullOrEmpty(_searchCategory) ? null : Enum.Parse<MarketCategory>(_searchCategory);
+        _results = await _market.SearchAsync(_query.Trim(), cat);
+        _resultLabel = $"Search “{_query.Trim()}”{(cat is null ? "" : $" in {cat}")}: {_results.Count} found";
+        Log($"search “{_query.Trim()}”{(cat is null ? "" : $" ({cat})")} → {_results.Count} match(es)");
+    }
+
+    private void Select(MarketListing l)
+    {
+        _selected = l;
+        _escrow = null;
+        StateHasChanged();
+    }
+
+    private async Task Initiate()
+    {
+        if (_selected is null) return;
+        _escrow = await _market.InitiateTradeAsync(_selected, _buyerUhid);
+        Log($"escrow {Short(_escrow.EscrowId)} opened for “{_selected.Title}” → {_escrow.State}");
+    }
+
+    private async Task BuyerConfirm()
+    {
+        if (_escrow is null) return;
+        _escrow = await _market.ConfirmTradeAsync(_escrow, TradeRole.Buyer);
+        Log($"buyer confirmed → {_escrow.State}");
+    }
+
+    private async Task SellerConfirm()
+    {
+        if (_escrow is null) return;
+        _escrow = await _market.ConfirmTradeAsync(_escrow, TradeRole.Seller);
+        Log($"seller confirmed → {_escrow.State}");
+    }
+
+    private async Task Dispute()
+    {
+        if (_escrow is null) return;
+        await _market.DisputeAsync(_escrow, "item not as described");
+        Log($"dispute raised → {_escrow.State}");
+    }
+
+    private void ResetTrade()
+    {
+        _escrow = null;
+        StateHasChanged();
+    }
+
+    // ── the escrow stepper ──
+    private sealed record Step(string Label, TradeState Reached);
+
+    private static readonly Step[] Steps =
+    {
+        new("Initiated", TradeState.Initiated),
+        new("Buyer ✓", TradeState.BuyerConfirmed),
+        new("Seller ✓", TradeState.SellerConfirmed),
+        new("Complete", TradeState.Complete),
+    };
+
+    private string? StepClass(Step step)
+    {
+        if (_escrow is null) return null;
+        if (_escrow.State == TradeState.Disputed) return step.Reached == TradeState.Initiated ? "done" : null;
+        var order = new[] { TradeState.Initiated, TradeState.BuyerConfirmed, TradeState.SellerConfirmed, TradeState.Complete };
+        var current = Array.IndexOf(order, _escrow.State);
+        var mine = Array.IndexOf(order, step.Reached);
+        if (mine <= current) return mine == current ? "on" : "done";
+        return null;
+    }
+
+    private void Log(string text)
+    {
+        _log.Add(text);
+        if (_log.Count > 120) _log.RemoveRange(0, _log.Count - 120);
+        StateHasChanged();
+    }
+
+    private static string Short(Guid id) => id.ToString()[..8];
+
+    private static string Petname(string uhid)
+    {
+        var parts = uhid.Split(':');
+        return parts.Length >= 2 && parts[1].Length > 0
+            ? char.ToUpperInvariant(parts[1][0]) + parts[1][1..]
+            : uhid;
+    }
+
+    public void Dispose() => _market.ListingReceived -= OnListing;
+}
+
+<style>
+    .mk { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; padding-bottom: 24px; }
+    /* app.css's global .mono only opts text into selection; the monospace face is applied here,
+       scoped to this page so it never reaches a .mono element in the persistent layout. */
+    .mk .mono { font-family: var(--mono); }
+
+    .mk-head { display: flex; flex-direction: column; gap: 4px; padding: 4px 4px 0; }
+    .mk-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; margin-bottom: 4px; }
+    .mk-kicker { font-size: 0.66rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-3); }
+    .mk-title { font-size: 1.7rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); }
+    .mk-sub { font-size: 0.9rem; line-height: 1.5; color: var(--ink-2); max-width: 62ch; }
+
+    .mk-group { display: flex; flex-direction: column; gap: 10px; }
+    .mk-glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
+
+    .mk-card { background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line-card); border-radius: 16px; box-shadow: var(--shadow-sm); }
+    .mk-pad { padding: 15px 16px; }
+    .mk-form { display: flex; flex-direction: column; gap: 11px; }
+    .mk-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .mk-lil { display: flex; flex-direction: column; gap: 5px; font-size: 0.72rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--ink-2); min-width: 0; }
+    .mk-lil.mk-end { justify-content: flex-end; }
+
+    .mk-fi { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 11px; padding: 12px 13px; font-size: 0.95rem; font-family: var(--sans); }
+    .mk-fi.mono { font-family: var(--mono); font-weight: 700; letter-spacing: .5px; }
+    .mk-fi:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
+    select.mk-fi { appearance: none; }
+
+    .mk-btn { appearance: none; border: none; background: var(--brand); color: #fff; font-family: var(--sans); font-weight: 680; font-size: 0.92rem; padding: 12px 16px; border-radius: 11px; cursor: pointer; }
+    .mk-btn:hover:not(:disabled) { background: var(--brand-deep); }
+    .mk-btn:active:not(:disabled) { filter: brightness(.95); }
+    .mk-btn:disabled { opacity: .4; cursor: default; }
+    .mk-btn.block { display: block; width: 100%; }
+    .mk-btn.ghost { background: transparent; color: var(--brand); border: 1.5px solid var(--line); font-weight: 650; }
+    .mk-btn.ghost:hover:not(:disabled) { background: var(--brand-tint); border-color: var(--brand); }
+
+    .mk-reslabel { font-size: 0.78rem; font-weight: 700; color: var(--ink-2); padding-left: 4px; }
+    .mk-listings { display: flex; flex-direction: column; gap: 9px; }
+    .mk-lst { appearance: none; text-align: left; cursor: pointer; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1px solid var(--line); border-radius: 13px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .mk-lst.on { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-tint); }
+    .mk-lst-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .mk-lst-title { font-weight: 750; font-size: 1rem; color: var(--ink); }
+    .mk-lst-price { flex: 0 0 auto; font-weight: 800; font-size: 1rem; color: var(--brand); }
+    .mk-lst-desc { font-size: 0.86rem; color: var(--ink-2); }
+    .mk-lst-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.74rem; }
+    .mk-chip { background: var(--brand-tint); color: var(--brand); font-weight: 750; padding: 3px 9px; border-radius: 999px; }
+    .mk-geo { color: var(--ink-3); font-weight: 700; letter-spacing: .5px; }
+    .mk-seller { color: var(--ink-3); margin-left: auto; }
+
+    .mk-trade-for { font-size: 0.9rem; line-height: 1.5; color: var(--ink-2); margin-bottom: 12px; }
+    .mk-stepper { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 11px; }
+    .mk-step { font-size: 0.74rem; font-weight: 750; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-3); }
+    .mk-step.done { border-color: var(--brand); color: var(--brand); }
+    .mk-step.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .mk-state { font-size: 0.9rem; color: var(--ink-2); margin-bottom: 12px; }
+    .mk-state .bad { color: var(--brand-deep); }
+    .mk-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .mk-hint { font-size: 0.8rem; line-height: 1.5; color: var(--ink-3); margin-top: 11px; }
+
+    .mk-none { color: var(--ink-3); font-style: italic; font-size: 0.9rem; padding: 4px 2px; }
+
+    .mk-log { font-family: var(--mono); font-size: 0.78rem; line-height: 1.5; color: var(--ink-2); display: flex; flex-direction: column; gap: 3px; max-height: 220px; overflow: hidden; padding-left: 4px; }
+    .mk-ll { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    @@media (max-width: 460px) {
+        .mk-row2 { grid-template-columns: 1fr; }
+    }
+</style>
