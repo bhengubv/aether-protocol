@@ -92,6 +92,16 @@ public sealed class ResilientSecretVault : ISecretVault
         catch (Exception) { _durable.Set(name, secret); }
     }
 
+    /// <inheritdoc />
+    public void Remove(string name)
+    {
+        // Both stores, always. The same name can live in either — so a wipe that only cleared the one
+        // it happens to write today would leave the secret sitting in the other. Destruction has to be
+        // total or it is not destruction.
+        try { _preferred.Remove(name); } catch (Exception) { /* remove what we can from each */ }
+        try { _durable.Remove(name); } catch (Exception) { /* and carry on regardless */ }
+    }
+
     private bool HeldByDurable() => !Holds(_preferred, DefaultName) && Holds(_durable, DefaultName);
 
     /// <summary>

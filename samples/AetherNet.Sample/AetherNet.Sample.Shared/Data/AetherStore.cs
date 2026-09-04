@@ -463,6 +463,42 @@ public sealed class AetherStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// Erase everything this device has stored — the identity mirror, contacts, messages (plaintext,
+    /// on your own phone), sessions, groups, held cards, routing keys and settings. The local half of
+    /// a panic wipe: after this the database is as empty as a fresh install, so the app falls back to
+    /// the setup wizard. <c>VACUUM</c> rebuilds the file so deleted rows are not left in freed pages
+    /// for a recovery tool to lift. Irreversible.
+    /// </summary>
+    public void WipeAll()
+    {
+        lock (_gate)
+        {
+            using (var del = _conn.CreateCommand())
+            {
+                del.CommandText = """
+                    DELETE FROM identity;
+                    DELETE FROM contacts;
+                    DELETE FROM peer_routing_keys;
+                    DELETE FROM held_cards;
+                    DELETE FROM settings;
+                    DELETE FROM messages;
+                    DELETE FROM groups;
+                    DELETE FROM group_members;
+                    DELETE FROM owed_receipts;
+                    DELETE FROM signal_sessions;
+                    DELETE FROM calls;
+                    """;
+                del.ExecuteNonQuery();
+            }
+
+            // Reclaim the freed pages so the plaintext that was in them does not linger on disk.
+            using var vac = _conn.CreateCommand();
+            vac.CommandText = "VACUUM;";
+            vac.ExecuteNonQuery();
+        }
+    }
+
     // ── Signal sessions ─────────────────────────────────────────────────────────
 
     /// <summary>The stored ratchet state for this peer, or null if there is none.</summary>

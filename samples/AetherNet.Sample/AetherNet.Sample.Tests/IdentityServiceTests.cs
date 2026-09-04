@@ -30,6 +30,7 @@ public class IdentityServiceTests
         public bool Has(string name) => _secrets.ContainsKey(name);
         public void Set(string name, byte[] secret) => _secrets[name] = secret;
         public byte[]? Get(string name) => _secrets.TryGetValue(name, out var s) ? s : null;
+        public void Remove(string name) => _secrets.Remove(name);
     }
 
     /// <summary>

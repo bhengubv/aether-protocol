@@ -31,6 +31,10 @@ builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
     new AetherNet.Identity.NodeIdentity(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
 builder.Services.AddSingleton<IIdentityService, IdentityService>();
 
+// The panic-wipe trigger: a duress PIN, or a direct Wipe() call, erases the identity key
+// (via ISecretVault.Remove) and the whole local database (AetherStore.WipeAll).
+builder.Services.AddSingleton<PanicWipeService>();
+
 // Memorable names for tags, persisted in this device's own SQLite settings.
 builder.Services.AddSingleton<AetherNet.Identity.IPetnameStore>(sp =>
     new AetherStorePetnameStore(sp.GetRequiredService<AetherStore>()));

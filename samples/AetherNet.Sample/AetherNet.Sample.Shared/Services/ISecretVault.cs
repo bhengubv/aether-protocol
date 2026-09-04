@@ -32,6 +32,13 @@ public interface ISecretVault
     bool Has(string name);
 
     void Set(string name, byte[] secret);
+
+    /// <summary>
+    /// Destroy the secret stored under this name — the panic-wipe primitive. Best-effort and
+    /// idempotent: a name that was never stored is a no-op, and after this <see cref="Has"/> is false.
+    /// The app owns this: <c>PanicWipe</c> gives the manifest of key-store names, the vault removes them.
+    /// </summary>
+    void Remove(string name);
 }
 
 /// <summary>
@@ -117,6 +124,24 @@ public sealed class FileSecretVault : ISecretVault
         cipher.CopyTo(blob.AsSpan(NonceSize + TagSize));
 
         WriteAtomic(PathFor(name), blob);
+    }
+
+    /// <inheritdoc />
+    public void Remove(string name)
+    {
+        var path = PathFor(name);
+        if (!File.Exists(path)) return;
+
+        // Overwrite the sealed bytes before unlinking — defence in depth, so the ciphertext is not
+        // merely dereferenced and left on disk for a file-recovery tool to lift.
+        try
+        {
+            var len = (int)new FileInfo(path).Length;
+            if (len > 0) WriteAtomic(path, RandomNumberGenerator.GetBytes(len));
+        }
+        catch { /* best-effort scrub; the delete below is what matters */ }
+
+        try { File.Delete(path); } catch { /* the wipe carries on regardless of one stubborn file */ }
     }
 
     private string PathFor(string name) =>

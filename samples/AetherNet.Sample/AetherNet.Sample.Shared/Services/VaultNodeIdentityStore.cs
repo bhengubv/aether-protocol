@@ -60,4 +60,11 @@ public sealed class VaultNodeIdentityStore : INodeIdentityStore
 
     /// <summary>What earlier builds of this sample called it, when the app still minted its own.</summary>
     private const string LegacyKeyName = "aether.identity.ed25519";
+
+    /// <summary>
+    /// Every vault name this device's identity may be filed under — current and legacy. This is what a
+    /// panic wipe must destroy; using the protocol's canonical <c>PanicWipe.IdentityKeyNames</c> alone
+    /// would miss the actual key, because this app files it under its own name.
+    /// </summary>
+    public static IReadOnlyList<string> IdentityVaultNames { get; } = new[] { KeyName, LegacyKeyName };
 }

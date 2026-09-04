@@ -60,6 +60,9 @@ public sealed class AndroidKeystoreVault : ISecretVault
     /// <inheritdoc />
     public void Set(string name, byte[] secret) => _vault.Set(name, secret);
 
+    /// <inheritdoc />
+    public void Remove(string name) => _vault.Remove(name);
+
     /// <summary>
     /// The Keystore half on its own: a sealed blob on disk, opened by a key the OS will not export.
     /// </summary>
@@ -77,6 +80,17 @@ public sealed class AndroidKeystoreVault : ISecretVault
         public byte[]? Get(string name) => ReadSealed(directory, name);
 
         public void Set(string name, byte[] secret) => WriteSealed(directory, name, secret);
+
+        public void Remove(string name)
+        {
+            var path = PathFor(directory, name);
+            if (!File.Exists(path)) return;
+            // Overwrite the sealed blob before unlinking; the Keystore wrapping key stays (it seals
+            // nothing now) so other entries keep working — the identity blob itself is what's destroyed.
+            try { var len = (int)new FileInfo(path).Length; if (len > 0) File.WriteAllBytes(path, RandomNumberGenerator.GetBytes(len)); }
+            catch { /* best-effort scrub */ }
+            try { File.Delete(path); } catch { /* the wipe carries on */ }
+        }
     }
 
     private static byte[]? ReadSealed(string directory, string name)

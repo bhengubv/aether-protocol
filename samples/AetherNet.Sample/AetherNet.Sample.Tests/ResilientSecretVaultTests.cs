@@ -59,6 +59,8 @@ public class ResilientSecretVaultTests
             if (!Working || Locked) throw new SecretUnavailableException("The sealed key cannot be opened.");
             return secret;
         }
+
+        public void Remove(string name) => _secrets.Remove(name);
     }
 
     private static (ResilientSecretVault Vault, FlakyVault Hardware, ISecretVault File) Build()
@@ -78,6 +80,7 @@ public class ResilientSecretVaultTests
         public bool Has(string name) => _secrets.ContainsKey(name);
         public void Set(string name, byte[] secret) => _secrets[name] = secret;
         public byte[]? Get(string name) => _secrets.TryGetValue(name, out var s) ? s : null;
+        public void Remove(string name) => _secrets.Remove(name);
     }
 
     // ── The secret survives the store changing under it ───────────────────────
