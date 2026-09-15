@@ -134,6 +134,16 @@ public sealed class MeshInboundDispatcher
             // ForMe → fall through to local dispatch
         }
 
+        // 1.5) Normalise rotating wire addresses to stable identities before anything downstream keys on
+        // them. A resolver present means this node speaks ERID: the source may be a contact's current
+        // rotating address (resolve it to their stable tag so the ratchet, routing, and handlers key on
+        // the identity), and the destination may be one of our own rotating addresses (rewrite it to our
+        // stable UHID so the messaging layer's "is this for me?" check passes). Without a resolver the
+        // namespace is already flat and nothing here moves. A carried packet never reaches this point —
+        // it keeps its wire addresses so the next hop can resolve them in turn.
+        if (_resolver is not null)
+            NormalizeInbound(packet);
+
         // 2) Local dispatch. A registered handler wins for its type; otherwise the core routes apply.
         if (_handlers.TryGetValue(packet.Type, out var handler))
         {
@@ -172,5 +182,25 @@ public sealed class MeshInboundDispatcher
                 _logger.LogDebug("No handler for {Type} {Id} — register one via Register(PacketType, …)", packet.Type, packet.Id);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Turn a packet's rotating wire addresses into the stable identities the messaging layer, routing,
+    /// and registered handlers key on. Only an address the resolver actually recognises is rewritten, so
+    /// a packet already on stable tags — a peer that has not exchanged routing keys yet, a flat-namespace
+    /// host — passes through untouched.
+    /// </summary>
+    private void NormalizeInbound(MeshPacket packet)
+    {
+        var senderTag = _resolver!.Recognise(packet.SourceUhid);
+        if (senderTag is not null && !string.Equals(senderTag, packet.SourceUhid, StringComparison.Ordinal))
+            packet.SourceUhid = senderTag;
+
+        // Only the sender knows its own stable UHID, so a dest rewrite needs one wired; a dispatch-only
+        // host without a sender simply leaves the destination as the resolver saw it.
+        if (_sender is not null
+            && _resolver.IsLocal(packet.DestinationUhid)
+            && !string.Equals(packet.DestinationUhid, _sender.LocalUhid, StringComparison.Ordinal))
+            packet.DestinationUhid = _sender.LocalUhid;
     }
 }

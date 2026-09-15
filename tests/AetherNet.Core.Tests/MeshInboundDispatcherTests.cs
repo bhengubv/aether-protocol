@@ -265,4 +265,86 @@ public class MeshInboundDispatcherTests
         Assert.Empty(sender.Unicasts);
         Assert.Single(messaging.Handled);
     }
+
+    // ── ERID normalisation ───────────────────────────────────────────────────
+    //
+    // When a resolver is wired the node speaks rotating addresses: a packet delivered locally must reach
+    // the messaging/handler layer keyed on stable identities, not the ephemeral address the radio saw.
+
+    [Fact]
+    public async Task A_source_that_is_a_recognised_rotating_address_is_resolved_before_local_delivery()
+    {
+        var messaging = new RecordingMessaging();
+        var d = new MeshInboundDispatcher(new FakeMeshSender(Me), messaging,
+            resolver: new FakeResolver([Me], new() { ["ERID_ALICE"] = Alice }));
+
+        await d.DispatchAsync(Packet(PacketType.Data, source: "ERID_ALICE", dest: Me));
+
+        var handled = Assert.Single(messaging.Handled);
+        Assert.Equal(Alice, handled.SourceUhid); // resolved from the rotating address to the stable tag
+    }
+
+    [Fact]
+    public async Task Our_own_rotating_destination_is_rewritten_to_our_stable_uhid()
+    {
+        // The messaging layer's "is this for me?" check compares against the stable LocalUhid, so a packet
+        // addressed to one of our rotating ERIDs has to be rewritten or it would be dropped as not-ours.
+        var messaging = new RecordingMessaging();
+        var d = new MeshInboundDispatcher(new FakeMeshSender(Me), messaging,
+            resolver: new FakeResolver(["ERID_ME"], new() { ["ERID_ALICE"] = Alice }));
+
+        await d.DispatchAsync(Packet(PacketType.Data, source: "ERID_ALICE", dest: "ERID_ME"));
+
+        var handled = Assert.Single(messaging.Handled);
+        Assert.Equal(Alice, handled.SourceUhid);
+        Assert.Equal(Me, handled.DestinationUhid);
+    }
+
+    [Fact]
+    public async Task An_unrecognised_source_passes_through_untouched()
+    {
+        // A peer that has not shared a routing key yet still arrives on its stable tag — nothing to resolve.
+        var messaging = new RecordingMessaging();
+        var d = new MeshInboundDispatcher(new FakeMeshSender(Me), messaging,
+            resolver: new FakeResolver([Me], new() { ["ERID_ALICE"] = Alice }));
+
+        await d.DispatchAsync(Packet(PacketType.Data, source: Bob, dest: Me));
+
+        var handled = Assert.Single(messaging.Handled);
+        Assert.Equal(Bob, handled.SourceUhid);
+    }
+
+    [Fact]
+    public async Task A_registered_handler_also_sees_the_resolved_identity()
+    {
+        var got = new List<MeshPacket>();
+        var d = new MeshInboundDispatcher(new FakeMeshSender(Me),
+            resolver: new FakeResolver([Me], new() { ["ERID_ALICE"] = Alice }));
+        d.Register(PacketType.EridAnnounce, (p, _) => { got.Add(p); return Task.CompletedTask; });
+
+        await d.DispatchAsync(Packet(PacketType.EridAnnounce, source: "ERID_ALICE", dest: Me));
+
+        var p = Assert.Single(got);
+        Assert.Equal(Alice, p.SourceUhid);
+    }
+
+    [Fact]
+    public async Task A_carried_packet_keeps_its_rotating_addresses_and_routes_to_the_resolved_next_hop()
+    {
+        // The relay must not normalise what it forwards: the next hop needs the rotating destination to
+        // recognise the recipient in turn. Only the next-hop routing target is the resolved stable tag.
+        var sender = new FakeMeshSender(Me);
+        var messaging = new RecordingMessaging();
+        var d = new MeshInboundDispatcher(sender, messaging, relay: new MeshRelay(),
+            resolver: new FakeResolver([Me], new() { ["ERID_ALICE"] = Alice, ["ERID_BOB"] = Bob }));
+
+        await d.DispatchAsync(Packet(PacketType.Data, source: "ERID_ALICE", dest: "ERID_BOB", ttl: 5));
+
+        var (carried, nextHop) = Assert.Single(sender.Unicasts);
+        Assert.Equal(Bob, nextHop);                        // next hop resolved to the stable tag
+        Assert.Equal("ERID_BOB", carried.DestinationUhid); // wire address stays rotating
+        Assert.Equal("ERID_ALICE", carried.SourceUhid);
+        Assert.Equal(4, carried.Ttl);
+        Assert.Empty(messaging.Handled);
+    }
 }
