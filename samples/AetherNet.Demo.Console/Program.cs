@@ -450,31 +450,13 @@ var bobMessaging = new MessagingService(
 var bobInboxTcs = new TaskCompletionSource<MeshMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 bobMessaging.MessageReceived += (_, msg) => bobInboxTcs.TrySetResult(msg);
 
-Task DispatchToBob(MeshPacket pkt) => pkt.Type switch
-{
-    PacketType.Data => bobMessaging.HandleAsync(pkt),
-    PacketType.Ack => bobMessaging.HandleAsync(pkt),
-    PacketType.DtnBundle => bobDtn.HandleAsync(pkt),
-    PacketType.DtnCustodyAck => bobDtn.HandleAsync(pkt),
-    PacketType.DtnDeliveryReceipt => bobDtn.HandleAsync(pkt),
-    PacketType.RouteRequest => bobRouting.HandleRouteRequestAsync(pkt),
-    PacketType.RouteReply => bobRouting.HandleRouteReplyAsync(pkt),
-    _ => Task.CompletedTask,
-};
-Task DispatchToAlice(MeshPacket pkt) => pkt.Type switch
-{
-    PacketType.Data => aliceMessaging.HandleAsync(pkt),
-    PacketType.Ack => aliceMessaging.HandleAsync(pkt),
-    PacketType.DtnBundle => aliceDtn.HandleAsync(pkt),
-    PacketType.DtnCustodyAck => aliceDtn.HandleAsync(pkt),
-    PacketType.DtnDeliveryReceipt => aliceDtn.HandleAsync(pkt),
-    PacketType.RouteRequest => aliceRouting.HandleRouteRequestAsync(pkt),
-    PacketType.RouteReply => aliceRouting.HandleRouteReplyAsync(pkt),
-    _ => Task.CompletedTask,
-};
+// One inbound dispatcher per node — the library's last mile (deserialize → dispatch to
+// routing / DTN / messaging by packet type), replacing the hand-rolled DataReceived → switch glue.
+var aliceDispatcher = new MeshInboundDispatcher(aliceMeshSender, aliceMessaging, aliceRouting, aliceDtn);
+var bobDispatcher = new MeshInboundDispatcher(bobMeshSender, bobMessaging, bobRouting, bobDtn);
 
-msgBobTransport.DataReceived += (_src, bytes) => { _ = DispatchToBob(PacketSerializer.Deserialize(bytes)); };
-msgAliceTransport.DataReceived += (_src, bytes) => { _ = DispatchToAlice(PacketSerializer.Deserialize(bytes)); };
+msgBobTransport.DataReceived += (src, bytes) => { _ = bobDispatcher.OnBytesAsync(src, bytes); };
+msgAliceTransport.DataReceived += (src, bytes) => { _ = aliceDispatcher.OnBytesAsync(src, bytes); };
 
 PrintNode("Alice", ConsoleColor.Cyan, "MessagingService + RoutingService + DtnService wired.");
 PrintNode("Bob", ConsoleColor.Green, "MessagingService + RoutingService + DtnService wired.");
@@ -519,8 +501,8 @@ Console.WriteLine();
 PrintNode("Bob", ConsoleColor.Green, "Coming BACK ONLINE...");
 msgBobTransport = new InProcessTransportService(msgBobUhid, transportLogger);
 
-// Re-attach Bob's wire dispatcher to the new transport.
-msgBobTransport.DataReceived += (_src, bytes) => { _ = DispatchToBob(PacketSerializer.Deserialize(bytes)); };
+// Re-attach Bob's inbound dispatcher to the new transport.
+msgBobTransport.DataReceived += (src, bytes) => { _ = bobDispatcher.OnBytesAsync(src, bytes); };
 bobMeshSender.RebindTransport(msgBobTransport);
 
 PrintNode("Alice", ConsoleColor.Cyan, "Running DTN delivery scan...");
@@ -709,16 +691,21 @@ var aliceVid = new VideoCallControlService(gAliceSender);
 var bobVid = new VideoCallControlService(gBobSender);
 var charlieVid = new VideoCallControlService(gCharlieSender);
 
-// One inbound-wire dispatcher per node: route packets to the right service by type.
-Task Dispatch(MeshPacket p, IChannelMessageService chan, IVideoCallControlService vid) => p.Type switch
+// One inbound dispatcher per node — the channel + video services register as handlers for their
+// packet types; the dispatcher owns deserialize + type-routing, as in Step 9.
+MeshInboundDispatcher GroupDispatcher(IMeshSender sender, IChannelMessageService chan, IVideoCallControlService vid)
 {
-    PacketType.ChannelMessage => chan.HandleAsync(p),
-    PacketType.VideoCall => vid.HandleAsync(p),
-    _ => Task.CompletedTask,
-};
-gAliceT.DataReceived += (_s, b) => { _ = Dispatch(PacketSerializer.Deserialize(b), aliceChan, aliceVid); };
-gBobT.DataReceived += (_s, b) => { _ = Dispatch(PacketSerializer.Deserialize(b), bobChan, bobVid); };
-gCharlieT.DataReceived += (_s, b) => { _ = Dispatch(PacketSerializer.Deserialize(b), charlieChan, charlieVid); };
+    var d = new MeshInboundDispatcher(sender);
+    d.Register(PacketType.ChannelMessage, (p, _) => chan.HandleAsync(p));
+    d.Register(PacketType.VideoCall, (p, _) => vid.HandleAsync(p));
+    return d;
+}
+var aliceGroupDispatcher = GroupDispatcher(gAliceSender, aliceChan, aliceVid);
+var bobGroupDispatcher = GroupDispatcher(gBobSender, bobChan, bobVid);
+var charlieGroupDispatcher = GroupDispatcher(gCharlieSender, charlieChan, charlieVid);
+gAliceT.DataReceived += (s, b) => { _ = aliceGroupDispatcher.OnBytesAsync(s, b); };
+gBobT.DataReceived += (s, b) => { _ = bobGroupDispatcher.OnBytesAsync(s, b); };
+gCharlieT.DataReceived += (s, b) => { _ = charlieGroupDispatcher.OnBytesAsync(s, b); };
 
 const string watchChannel = "aether:chan:neighbourhood-watch";
 aliceChan.Subscribe(watchChannel); bobChan.Subscribe(watchChannel); charlieChan.Subscribe(watchChannel);

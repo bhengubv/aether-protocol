@@ -459,6 +459,32 @@ internal sealed class AetherNetProtocolBuilder : IAetherNetProtocolBuilder
         return this;
     }
 
+    /// <summary>
+    /// Registers the <see cref="MeshInboundDispatcher"/> — the inbound last mile (deserialize → relay →
+    /// dispatch) — resolving whatever messaging / routing / DTN services are present. A host wires its
+    /// transport's receive event to <see cref="MeshInboundDispatcher.OnBytesAsync"/> instead of
+    /// hand-rolling deserialize-and-switch. Relaying engages only when both a <see cref="MeshRelay"/> and
+    /// an <see cref="IWireAddressResolver"/> are registered: pass <paramref name="withRelay"/> to register
+    /// a default relay, and register an <see cref="IWireAddressResolver"/> yourself — it is what knows this
+    /// node's contacts and (rotating) addresses, so without one the node carries for nobody.
+    /// </summary>
+    public IAetherNetProtocolBuilder AddInboundDispatcher(bool withRelay = false)
+    {
+        if (withRelay)
+            Services.TryAddSingleton<MeshRelay>();
+
+        Services.TryAddSingleton(sp => new MeshInboundDispatcher(
+            sender: sp.GetService<IMeshSender>(),
+            messaging: sp.GetService<IMessagingService>(),
+            routing: sp.GetService<IRoutingService>(),
+            dtn: sp.GetService<IDtnService>(),
+            relay: sp.GetService<MeshRelay>(),
+            resolver: sp.GetService<IWireAddressResolver>(),
+            logger: sp.GetService<ILogger<MeshInboundDispatcher>>()));
+
+        return this;
+    }
+
     public IAetherNetProtocolBuilder AddInProcessTransport(string localUhid)
     {
         ArgumentException.ThrowIfNullOrEmpty(localUhid);
