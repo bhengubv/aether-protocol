@@ -2,6 +2,7 @@
 #if ANDROID
 using AetherNet.Identity;
 using AetherNet.Protocol;
+using AetherNet.Routing;                 // the carry-for-a-third-node MeshRelay is the library's now
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Security.Services;
 using AetherNet.Transport.Services;
