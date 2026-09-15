@@ -11,10 +11,18 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <!-- bUnit renders the Blazor components (Chat.razor et al.) from the referenced Shared assembly,
+         so the UI layer — the day-divider/timestamps, the send flow into the converged ChatService —
+         has component-level coverage, not just service-level. -->
+    <PackageReference Include="bunit" Version="1.40.0" />
   </ItemGroup>
 
   <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+    <!-- Test-only transitive deps of bUnit (AngleSharp DOM parser, SourceLink git task). Moderate
+         advisories, never shipped in the app — this is the test project. -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-23fw-v26w-5fgq" />
   </ItemGroup>
 
   <!--

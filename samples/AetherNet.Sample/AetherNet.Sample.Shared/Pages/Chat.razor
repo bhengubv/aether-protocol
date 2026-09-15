@@ -69,15 +69,25 @@
             <div class="cv-empty">Nothing here yet. Whatever you send is encrypted end-to-end and
                 goes straight to their phone.</div>
         }
+        @{ DateOnly? _prevDay = null; }
         @foreach (var m in _messages)
         {
+            var _day = DateOnly.FromDateTime(DateTimeOffset.FromUnixTimeMilliseconds(m.SentMs).ToLocalTime().DateTime);
+            if (_prevDay != _day)
+            {
+                <div class="daysep"><span>@DayLabel(m.SentMs)</span></div>
+                _prevDay = _day;
+            }
             <div class="brow @(m.Mine ? "mine" : null)">
                 @if (m.Mine)
                 {
                     <div class="bub mine">
                         @if (m.HasAttachment) { <NoteBubble Message="m" /> } else { @m.Body }
                     </div>
-                    <span class="tick @(m.State == ChatMessage.Failed ? "bad" : null)">@Tick(m.State)</span>
+                    <span class="meta">
+                        <span class="btime">@Stamp(m.SentMs)</span>
+                        <span class="tick @(m.State == ChatMessage.Failed ? "bad" : null)">@Tick(m.State)</span>
+                    </span>
                 }
                 else
                 {
@@ -92,6 +102,7 @@
                         <div class="bub" style="box-shadow: inset 7px 0 0 @TagPalette.For(who)">
                             @if (m.HasAttachment) { <NoteBubble Message="m" /> } else { @m.Body }
                         </div>
+                        <span class="btime them">@Stamp(m.SentMs)</span>
                     </div>
                 }
             </div>
@@ -447,6 +458,30 @@
         _                     => "🕘",  // still here, waiting for a secure session
     };
 
+    /// <summary>
+    /// When this message happened, on THIS phone's own clock. <c>SentMs</c> is stamped where the row was
+    /// written — the sender's send time on the sender, the receiver's arrival time on the receiver
+    /// (both <c>DateTimeOffset.UtcNow</c> at that moment). Rendered in the device's local zone, so on a
+    /// mesh with no shared time each phone reads its own wall clock — and the gap between the two is the
+    /// delivery, laid bare, skew and all.
+    /// </summary>
+    private static string Stamp(long ms) =>
+        DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("HH:mm");
+
+    /// <summary>
+    /// The divider that heads each day in the thread, so a bare "14:48" is never ambiguous about which
+    /// day it belongs to. Read from this phone's own clock, like the per-message stamp — "Today" and
+    /// "Yesterday" are relative to when you are looking, the rest name the day outright.
+    /// </summary>
+    private static string DayLabel(long ms)
+    {
+        var day = DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().Date;
+        var today = DateTimeOffset.Now.Date;
+        if (day == today) return "Today";
+        if (day == today.AddDays(-1)) return "Yesterday";
+        return (today - day).TotalDays < 7 ? day.ToString("dddd") : day.ToString("d MMM yyyy");
+    }
+
     public void Dispose()
     {
         // Stop answering for a screen that is no longer open, or a tap would hand over a conversation
@@ -518,9 +553,20 @@
        wash. The tail corner is the only thing that flips. */
     .bub { max-width: 100%; padding: 10px 14px 10px 21px; border-radius: 18px; border-bottom-left-radius: 5px; font-size: 0.96rem; line-height: 1.38; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); color: var(--ink); border: none; }
     .bub.mine { padding: 10px 14px; background: var(--brand-tint); border-bottom-left-radius: 18px; border-bottom-right-radius: 5px; }
-    .tick { font-size: 0.68rem; color: var(--ink-3); padding-bottom: 2px; }
+    .tick { font-size: 0.68rem; color: var(--ink-3); }
     /* A failure has to be seen, so it is the one place the app leaves the brand palette. */
     .tick.bad { color: #e5484d; font-weight: 850; font-size: 0.86rem; }
+
+    /* When each message happened, on THIS phone's own clock — inline with the tick on yours, under
+       the bubble on theirs. On a mesh with no shared time, the gap between the two phones' stamps is
+       the delivery itself. */
+    .meta { display: flex; align-items: center; gap: 4px; padding-bottom: 2px; }
+    .btime { font-size: 0.64rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+    .btime.them { padding: 2px 0 0 8px; }
+
+    /* A quiet divider heading each day, so a bare time reads against the right day at a glance. */
+    .daysep { align-self: center; margin: 6px 0 2px; }
+    .daysep span { font-size: 0.72rem; font-weight: 650; color: var(--ink-3); background: var(--surface-2); padding: 3px 12px; border-radius: 12px; }
 
     .cv-composer {
         flex: 0 0 auto; display: flex; align-items: center; gap: 9px;
