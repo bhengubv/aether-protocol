@@ -31,7 +31,7 @@ public class ProvenanceTests
 
         public Rig()
         {
-            Chat = new ChatService(Store, new FakeIdentity(Me), Signal, new FakePreKeyExchange(), Radio);
+            Chat = ConvergedChat.Build(Store, new FakeIdentity(Me), Signal, new FakePreKeyExchange(), Radio);
             Signal.OpenSessionWith(Them);
             Radio.Link();
         }
@@ -39,18 +39,28 @@ public class ProvenanceTests
         public void Dispose() => Store.Dispose();
     }
 
-    /// <summary>The last thing this device put on the wire, opened back up.</summary>
+    /// <summary>
+    /// The last group envelope this device put on the wire, opened back up. Group now rides the reliable
+    /// messaging core as sealed Data: the packet payload is the serialized <c>EncryptedPayload</c>, and
+    /// its (fake-)ciphertext is the framed plaintext the core sealed — a compression-flag byte, then the
+    /// one-byte app kind (0x02 = group), then the group-envelope JSON.
+    /// </summary>
     private static GroupEnvelope? LastGroupEnvelope(Rig rig)
     {
+        const byte KindGroup = 0x02;
         for (var i = rig.Radio.Sent.Count - 1; i >= 0; i--)
         {
             var packet = AetherNet.Protocol.PacketSerializer.Deserialize(rig.Radio.Sent[i]);
-            var payload = packet.Payload;
-            if (payload is null || payload.Length <= 9) continue;
-            if (System.Text.Encoding.UTF8.GetString(payload, 0, 9) != "AETHERGRP") continue;
+            if (packet.Type != AetherNet.Protocol.PacketType.Data) continue;
 
-            var sealedPayload = AetherNet.Messaging.EncryptedPayloadCodec.Deserialize(payload[9..]);
-            return GroupEnvelope.Parse(System.Text.Encoding.UTF8.GetString(sealedPayload.Ciphertext));
+            AetherNet.Security.Models.EncryptedPayload sealedPayload;
+            try { sealedPayload = AetherNet.Messaging.EncryptedPayloadCodec.Deserialize(packet.Payload); }
+            catch { continue; }
+
+            var framed = sealedPayload.Ciphertext;      // [compressionFlag][kind][json]
+            if (framed.Length < 2 || framed[1] != KindGroup) continue;
+
+            return GroupEnvelope.Parse(System.Text.Encoding.UTF8.GetString(framed, 2, framed.Length - 2));
         }
         return null;
     }

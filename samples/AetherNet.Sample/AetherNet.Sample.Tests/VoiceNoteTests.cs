@@ -140,8 +140,8 @@ public class VoiceNoteTests
             AttachmentsA = new AttachmentService(meA, SignalA, new InMemoryContentStore(), RadioA);
             AttachmentsB = new AttachmentService(meB, SignalB, ContentB, RadioB);
 
-            ChatA = new ChatService(StoreA, meA, SignalA, new FakePreKeyExchange(), RadioA, AttachmentsA);
-            ChatB = new ChatService(StoreB, meB, SignalB, new FakePreKeyExchange(), RadioB, AttachmentsB);
+            ChatA = ConvergedChat.Build(StoreA, meA, SignalA, new FakePreKeyExchange(), RadioA, AttachmentsA);
+            ChatB = ConvergedChat.Build(StoreB, meB, SignalB, new FakePreKeyExchange(), RadioB, AttachmentsB);
 
             RadioA.Peer = RadioB;
             RadioB.Peer = RadioA;
@@ -251,7 +251,7 @@ public class VoiceNoteTests
     public async Task A_host_with_no_transport_refuses_rather_than_pretending()
     {
         using var store = AetherStore.InMemory();
-        var chat = new ChatService(store, new FakeIdentity(Me), new FakeSignalProtocol(), new FakePreKeyExchange());
+        var chat = ConvergedChat.Build(store, new FakeIdentity(Me), new FakeSignalProtocol(), new FakePreKeyExchange());
 
         var sent = await chat.SendNoteAsync(Them, Clip(1_000), ChatMessage.VoiceNote, "note.ogg");
 
@@ -271,7 +271,7 @@ public class VoiceNoteTests
         var signal = new FakeSignalProtocol();
         var radio = new FakeRadioMesh(Me);
         using var attachments = new AttachmentService(me, signal, new InMemoryContentStore(), radio);
-        var chat = new ChatService(store, me, signal, new FakePreKeyExchange(), radio, attachments);
+        var chat = ConvergedChat.Build(store, me, signal, new FakePreKeyExchange(), radio, attachments);
 
         var sent = await chat.SendNoteAsync(Them, Clip(1_000), ChatMessage.VoiceNote, "note.ogg");
 

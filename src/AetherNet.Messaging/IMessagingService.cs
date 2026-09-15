@@ -29,6 +29,17 @@ public interface IMessagingService
     event EventHandler<string>? SessionRequired;
 
     /// <summary>
+    /// Raised (with the sender's UHID) when an inbound message addressed to us could not be decrypted —
+    /// there is no session, or the session's ratchet has diverged and the authentication tag will not
+    /// match. The messaging layer drops the payload either way (it never surfaces a failed decrypt as
+    /// plaintext); this event lets the host repair the session, which is the only thing that recovers a
+    /// conversation whose two ratchets have stopped agreeing. The failure is silent by nature — packets
+    /// keep arriving and keep failing — so without this signal a diverged session blocks its own repair
+    /// forever. Hosts debounce (a burst of unreadable payloads must repair once, not once per packet).
+    /// </summary>
+    event EventHandler<string>? DecryptFailed;
+
+    /// <summary>
     /// Encrypts (if a session exists), persists, and attempts to deliver a message.
     /// Returns true if the message was handed off to a transport, DTN, or backend relay.
     /// Returns false if the message was queued (no session yet, or no delivery path) — it

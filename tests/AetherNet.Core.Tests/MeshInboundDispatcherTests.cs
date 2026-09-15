@@ -32,6 +32,7 @@ public class MeshInboundDispatcherTests
         public event EventHandler<MeshMessage>? MessageReceived;
         public event EventHandler<DeliveryReceipt>? DeliveryConfirmed;
         public event EventHandler<string>? SessionRequired;
+        public event EventHandler<string>? DecryptFailed;
 #pragma warning restore CS0067
         public Task<bool> SendAsync(MeshMessage m, byte[] p, CancellationToken ct = default) => Task.FromResult(true);
         public Task HandleAsync(MeshPacket packet, CancellationToken ct = default) { Handled.Add(packet); return Task.CompletedTask; }

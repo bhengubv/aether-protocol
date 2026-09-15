@@ -37,7 +37,7 @@ public class PreKeyFreshnessTests
         public FakeRadioMesh Radio { get; } = new(Me);
         public ChatService Chat { get; }
 
-        public Rig() => Chat = new ChatService(Store, new FakeIdentity(Me), Signal, PreKeys, Radio);
+        public Rig() => Chat = ConvergedChat.Build(Store, new FakeIdentity(Me), Signal, PreKeys, Radio);
 
         public void Dispose() => Store.Dispose();
     }
@@ -94,7 +94,7 @@ public class PreKeyFreshnessTests
 
         public Pair()
         {
-            ChatB = new ChatService(StoreB, new FakeIdentity(Them), SignalB, PreKeysB, RadioB);
+            ChatB = ConvergedChat.Build(StoreB, new FakeIdentity(Them), SignalB, PreKeysB, RadioB);
             A.Radio.Peer = RadioB;
             RadioB.Peer = A.Radio;
             A.Signal.OpenSessionWith(Them);

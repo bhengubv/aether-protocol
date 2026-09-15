@@ -69,6 +69,35 @@ builder.Services.AddSingleton<IAppTheme, NullAppTheme>();
 builder.Services.AddSingleton<ProxyDirectory>();
 builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 builder.Services.AddSingleton<FastRadioService>();
+
+// The reliable messaging core — the same one the phone runs. This host has no radio, so RadioMeshSender
+// over NullRadioMesh means every send queues honestly rather than pretending. Chat and group are the
+// domain adapter on top; there is no inbound pump to wire because no packets ever arrive here.
+builder.Services.AddSingleton<AetherNet.Messaging.IMessageEnvelopeCipher>(sp =>
+    new AetherNet.Messaging.SignalMessageEnvelopeCipher(
+        sp.GetRequiredService<AetherNet.Security.Services.ISignalProtocolService>(),
+        sp.GetService<Microsoft.Extensions.Logging.ILogger<AetherNet.Messaging.SignalMessageEnvelopeCipher>>()));
+builder.Services.AddSingleton<AetherNet.Routing.IMeshSender>(sp =>
+    new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
+        sp.GetRequiredService<IRadioMesh>()));
+builder.Services.AddSingleton<AetherNet.Routing.IRoutingService, OneHopRoutingService>();
+builder.Services.AddSingleton<AetherNet.Routing.IWireAddressResolver>(sp =>
+    new CircleDirectoryWireResolver(sp.GetRequiredService<CircleDirectory>(),
+        sp.GetRequiredService<IIdentityService>()));
+builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
+    new AetherNet.Messaging.MessagingService(
+        sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
+        sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
+        cipher: sp.GetRequiredService<AetherNet.Messaging.IMessageEnvelopeCipher>(),
+        logger: sp.GetService<Microsoft.Extensions.Logging.ILogger<AetherNet.Messaging.MessagingService>>()));
+builder.Services.AddSingleton<AetherNet.Messaging.MeshInboundDispatcher>(sp =>
+    new AetherNet.Messaging.MeshInboundDispatcher(
+        sender: sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
+        messaging: sp.GetRequiredService<AetherNet.Messaging.IMessagingService>(),
+        routing: sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
+        resolver: sp.GetRequiredService<AetherNet.Routing.IWireAddressResolver>(),
+        logger: sp.GetService<Microsoft.Extensions.Logging.ILogger<AetherNet.Messaging.MeshInboundDispatcher>>()));
+
 builder.Services.AddSingleton<ChatService>();
 
 // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a

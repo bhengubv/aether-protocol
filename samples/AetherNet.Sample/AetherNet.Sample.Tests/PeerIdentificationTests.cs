@@ -151,8 +151,8 @@ public class PeerIdentificationTests
 
         public Pair()
         {
-            ChatA = new ChatService(StoreA, new FakeIdentity(MyTag), SignalA, new FakePreKeyExchange(), RadioA);
-            ChatB = new ChatService(StoreB, new FakeIdentity(Tag), SignalB, new FakePreKeyExchange(), RadioB);
+            ChatA = ConvergedChat.Build(StoreA, new FakeIdentity(MyTag), SignalA, new FakePreKeyExchange(), RadioA);
+            ChatB = ConvergedChat.Build(StoreB, new FakeIdentity(Tag), SignalB, new FakePreKeyExchange(), RadioB);
 
             RadioA.Peer = RadioB;
             RadioB.Peer = RadioA;

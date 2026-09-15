@@ -22,7 +22,7 @@ public class ChatServiceTests
 
         public Rig()
         {
-            Chat = new ChatService(Store, new FakeIdentity(Me), Signal, PreKeys, Radio);
+            Chat = ConvergedChat.Build(Store, new FakeIdentity(Me), Signal, PreKeys, Radio);
         }
 
         /// <summary>Bring the link and the session up, the way a completed handshake does.</summary>
@@ -134,7 +134,7 @@ public class ChatServiceTests
 
         public Pair()
         {
-            ChatB = new ChatService(StoreB, new FakeIdentity(Them), SignalB, PreKeysB, RadioB);
+            ChatB = ConvergedChat.Build(StoreB, new FakeIdentity(Them), SignalB, PreKeysB, RadioB);
 
             A.Radio.Peer = RadioB;
             RadioB.Peer = A.Radio;

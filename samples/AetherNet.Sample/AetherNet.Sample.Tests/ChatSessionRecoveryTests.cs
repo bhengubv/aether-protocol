@@ -54,8 +54,8 @@ public class ChatSessionRecoveryTests
             TagB = tagB;
             RadioA = new FakeRadioMesh(tagA);
             RadioB = new FakeRadioMesh(tagB);
-            ChatA = new ChatService(StoreA, new FakeIdentity(tagA), SignalA, PreKeysA, RadioA);
-            ChatB = new ChatService(StoreB, new FakeIdentity(tagB), SignalB, PreKeysB, RadioB);
+            ChatA = ConvergedChat.Build(StoreA, new FakeIdentity(tagA), SignalA, PreKeysA, RadioA);
+            ChatB = ConvergedChat.Build(StoreB, new FakeIdentity(tagB), SignalB, PreKeysB, RadioB);
 
             RadioA.Peer = RadioB;
             RadioB.Peer = RadioA;
@@ -116,7 +116,11 @@ public class ChatSessionRecoveryTests
         Assert.Empty(pair.SignalA.Dropped);
     }
 
-    [Fact]
+    // Retired by the messaging convergence: a delivery receipt is now an unencrypted JSON Ack handled by
+    // the reliable core (MessagingService), not an encrypted payload chat decrypts. So a receipt can no
+    // longer be "unreadable" — a diverged ratchet is detected on an unreadable DATA message instead
+    // (An_unreadable_message_throws_the_session_away), which still triggers the same repair.
+    [Fact(Skip = "Receipts are unencrypted Acks after the messaging convergence — a receipt cannot be unreadable.")]
     public async Task An_unreadable_receipt_throws_the_session_away()
     {
         using var pair = new Pair(Lower, Higher);

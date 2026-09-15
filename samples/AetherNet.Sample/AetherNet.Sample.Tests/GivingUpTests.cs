@@ -36,7 +36,7 @@ public class GivingUpTests
         public FakeRadioMesh Radio { get; } = new(Me);
         public ChatService Chat { get; }
 
-        public Rig() => Chat = new ChatService(Store, new FakeIdentity(Me), Signal, PreKeys, Radio);
+        public Rig() => Chat = ConvergedChat.Build(Store, new FakeIdentity(Me), Signal, PreKeys, Radio);
 
         public void Dispose() => Store.Dispose();
     }

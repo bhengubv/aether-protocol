@@ -339,6 +339,7 @@ public class HealthCheckTests
         public event EventHandler<AetherNet.Messaging.Models.MeshMessage>? MessageReceived;
         public event EventHandler<AetherNet.Messaging.Models.DeliveryReceipt>? DeliveryConfirmed;
         public event EventHandler<string>? SessionRequired;
+        public event EventHandler<string>? DecryptFailed;
 #pragma warning restore CS0067
 
         public Task<bool> SendAsync(AetherNet.Messaging.Models.MeshMessage message, byte[] plaintext, CancellationToken cancellationToken = default)

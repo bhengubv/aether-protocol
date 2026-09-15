@@ -49,6 +49,7 @@ public sealed class MessagingService : IMessagingService
     public event EventHandler<MeshMessage>? MessageReceived;
     public event EventHandler<DeliveryReceipt>? DeliveryConfirmed;
     public event EventHandler<string>? SessionRequired;
+    public event EventHandler<string>? DecryptFailed;
 
     public MessagingService(
         IMeshSender sender,
@@ -253,7 +254,11 @@ public sealed class MessagingService : IMessagingService
         var framedPlaintext = await _cipher.DecryptAsync(packet.SourceUhid, packet.Payload, cancellationToken).ConfigureAwait(false);
         if (framedPlaintext is null)
         {
+            // Could not open it — no session, or a diverged ratchet. The payload is dropped (never
+            // surfaced as plaintext), but the host is told so it can repair the session; a silent drop
+            // would leave a broken conversation blocking its own recovery.
             _logger.LogDebug("Data packet {Id} from {Source} dropped — no session or decrypt failed", packet.Id, packet.SourceUhid);
+            DecryptFailed?.Invoke(this, packet.SourceUhid);
             return;
         }
 

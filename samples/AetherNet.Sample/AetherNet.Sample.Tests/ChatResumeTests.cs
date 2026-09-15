@@ -47,7 +47,7 @@ public class ChatResumeTests
 
         public Rig()
         {
-            Chat = new ChatService(Store, new FakeIdentity(Me), Signal, PreKeys, Radio);
+            Chat = ConvergedChat.Build(Store, new FakeIdentity(Me), Signal, PreKeys, Radio);
         }
 
         public void Dispose() => Store.Dispose();

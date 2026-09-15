@@ -69,6 +69,15 @@ public sealed class CircleDirectory
     public int KnownCount => _directory.KnownPeerCount;
 
     /// <summary>
+    /// Is this wire address one of ours — the rotating address this phone is broadcasting right now, or
+    /// the one from the epoch just gone? Answered from our own routing key, the same way a contact would
+    /// answer it about themselves, so a packet a peer addressed to our ERID can be recognised as being
+    /// for us even though the address on it is not our stable tag.
+    /// </summary>
+    public bool IsMine(string? wireAddress) =>
+        !string.IsNullOrEmpty(wireAddress) && WireAddress.IsMine(wireAddress, _me.RoutingKey);
+
+    /// <summary>
     /// Whose address is this? Returns their AetherTag, or null when it belongs to nobody we know —
     /// which includes every stranger, and every contact who has not exchanged keys with us yet.
     /// </summary>

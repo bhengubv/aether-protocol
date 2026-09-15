@@ -79,11 +79,46 @@ public static class MauiProgram
             new AetherNet.PreKeys.PreKeyExchangeService(
                 new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
                     sp.GetRequiredService<IRadioMesh>())));
+
+        // The reliable messaging core, shared with every host of the protocol. Chat and group ride this
+        // now instead of a hand-rolled copy: sealing (Signal, over the app's one session store via the
+        // envelope cipher), the outbox, retries, delivery receipts and the queue-never-plaintext rule all
+        // live here once. The transport is the app's own radio; routing is one hop because the radio has
+        // exactly one link and a third node carries anything further (the relay). Rotating ERIDs are the
+        // resolver's job — inbound, the dispatcher turns them back into stable tags before the core keys
+        // the ratchet on them.
+        builder.Services.AddSingleton<AetherNet.Messaging.IMessageEnvelopeCipher>(sp =>
+            new AetherNet.Messaging.SignalMessageEnvelopeCipher(
+                sp.GetRequiredService<AetherNet.Security.Services.ISignalProtocolService>(),
+                sp.GetService<ILogger<AetherNet.Messaging.SignalMessageEnvelopeCipher>>()));
+        builder.Services.AddSingleton<AetherNet.Routing.IMeshSender>(sp =>
+            new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
+                sp.GetRequiredService<IRadioMesh>()));
+        builder.Services.AddSingleton<AetherNet.Routing.IRoutingService, OneHopRoutingService>();
+        builder.Services.AddSingleton<AetherNet.Routing.IWireAddressResolver>(sp =>
+            new CircleDirectoryWireResolver(sp.GetRequiredService<CircleDirectory>(),
+                sp.GetRequiredService<IIdentityService>()));
+        builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
+            new AetherNet.Messaging.MessagingService(
+                sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
+                sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
+                cipher: sp.GetRequiredService<AetherNet.Messaging.IMessageEnvelopeCipher>(),
+                logger: sp.GetService<ILogger<AetherNet.Messaging.MessagingService>>()));
+        builder.Services.AddSingleton<AetherNet.Messaging.MeshInboundDispatcher>(sp =>
+            new AetherNet.Messaging.MeshInboundDispatcher(
+                sender: sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
+                messaging: sp.GetRequiredService<AetherNet.Messaging.IMessagingService>(),
+                routing: sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
+                resolver: sp.GetRequiredService<AetherNet.Routing.IWireAddressResolver>(),
+                logger: sp.GetService<ILogger<AetherNet.Messaging.MeshInboundDispatcher>>()));
+
         builder.Services.AddSingleton<ChatService>(sp => new ChatService(
             sp.GetRequiredService<AetherStore>(),
             sp.GetRequiredService<IIdentityService>(),
             sp.GetRequiredService<AetherNet.Security.Services.ISignalProtocolService>(),
             sp.GetRequiredService<AetherNet.PreKeys.IPreKeyExchangeService>(),
+            sp.GetRequiredService<AetherNet.Messaging.IMessagingService>(),
+            sp.GetRequiredService<AetherNet.Messaging.MeshInboundDispatcher>(),
             sp.GetService<IRadioMesh>(),
             sp.GetService<AttachmentService>(),
             sp.GetService<CircleDirectory>(),
@@ -307,6 +342,19 @@ public static class MauiProgram
                 if (chat is not null)
                     chat.Trace += m => global::Android.Util.Log.Info("AetherChat", m);
 #endif
+            });
+
+            // The one inbound pump for the messaging plane: raw radio bytes → the library dispatcher →
+            // the reliable core (Data/Ack) and the app's registered kinds (ping, circle, proxy, handoff,
+            // pre-keys). Wired after chat is warmed, so ChatService has registered those handlers before
+            // the first packet can arrive. Constructing the dispatcher also constructs the messaging core;
+            // chat subscribed to its events when it was built above.
+            Warm("inbound", () =>
+            {
+                var dispatcher = app.Services.GetService<AetherNet.Messaging.MeshInboundDispatcher>();
+                var radio = app.Services.GetService<IRadioMesh>();
+                if (dispatcher is not null && radio is not null)
+                    radio.PacketReceived += bytes => _ = dispatcher.OnBytesAsync(radio.PeerTag, bytes);
             });
 
             Warm("calls", () =>
