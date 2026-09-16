@@ -112,6 +112,29 @@ public static class MauiProgram
                 resolver: sp.GetRequiredService<AetherNet.Routing.IWireAddressResolver>(),
                 logger: sp.GetService<ILogger<AetherNet.Messaging.MeshInboundDispatcher>>()));
 
+        // Capability negotiation, wired at last. Two phones exchange, on first contact, the protocol
+        // features AND the transports each can carry (Hello/HelloAck), and keep the intersection — the
+        // library already does this and was simply never switched on here. The advertised set is the
+        // library defaults plus THIS device's own carrying radios, surveyed from the hardware, so a
+        // phone with Wi-Fi Aware silicon says so and one without it does not. The radio choice then
+        // prefers a transport the peer can actually receive on rather than the one that merely measures
+        // widest on this handset. The Hello/HelloAck handlers and the link/negotiated wiring are hung
+        // on in the "negotiation" warm-up below, where the mesh and dispatcher already exist.
+        builder.Services.AddSingleton<AetherNet.Handshake.IHandshakeService>(sp =>
+        {
+            var caps = new HashSet<string>(
+                AetherNet.Handshake.HandshakeService.DefaultCapabilities, StringComparer.Ordinal);
+            foreach (var radio in sp.GetRequiredService<IRadioInventory>().Survey())
+                if (radio.Carries &&
+                    AetherNet.Transport.Services.TransportCapability.TagFor(radio.Name) is { } tag)
+                    caps.Add(tag);
+
+            return new AetherNet.Handshake.HandshakeService(
+                sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
+                sp.GetService<ILogger<AetherNet.Handshake.HandshakeService>>(),
+                ourCapabilities: caps);
+        });
+
         builder.Services.AddSingleton<ChatService>(sp => new ChatService(
             sp.GetRequiredService<AetherStore>(),
             sp.GetRequiredService<IIdentityService>(),
@@ -355,6 +378,45 @@ public static class MauiProgram
                 var radio = app.Services.GetService<IRadioMesh>();
                 if (dispatcher is not null && radio is not null)
                     radio.PacketReceived += bytes => _ = dispatcher.OnBytesAsync(radio.PeerTag, bytes);
+            });
+
+            // Capability negotiation on the wire. On first contact the two phones swap the transports
+            // each can carry and keep the intersection; the radio choice then prefers one the peer can
+            // also hear. Wired here rather than injected because the handshake depends on the sender that
+            // depends on the mesh — the mesh cannot depend back on it without a cycle — so this is the
+            // seam that closes the loop, exactly like the inbound pump above. After "inbound", so the
+            // dispatcher already routes and chat's own kinds are registered.
+            Warm("negotiation", () =>
+            {
+                var handshake = app.Services.GetService<AetherNet.Handshake.IHandshakeService>();
+                var dispatcher = app.Services.GetService<AetherNet.Messaging.MeshInboundDispatcher>();
+                var radio = app.Services.GetService<IRadioMesh>();
+                if (handshake is null || dispatcher is null || radio is null) return;
+
+                // Inbound Hello/HelloAck → negotiate. NormalizeInbound has already turned any rotating
+                // ERID source back into the stable tag, so what is recorded is keyed by who the peer is.
+                dispatcher.Register(AetherNet.Protocol.PacketType.Hello,
+                    (packet, ct) => handshake.HandleHelloAsync(packet, ct));
+                dispatcher.Register(AetherNet.Protocol.PacketType.HelloAck,
+                    (packet, ct) => handshake.HandleHelloAckAsync(packet, ct));
+
+                // First contact opens the handshake — say hello the instant a peer links.
+                radio.PeerLinked += peer => _ = handshake.InitiateAsync(peer);
+
+                // Negotiation done → hand the mesh the transports this peer shares (already the
+                // intersection), so RadioChoice can prefer one both ends carry.
+                handshake.PeerNegotiated += (_, caps) =>
+                {
+                    var transports = caps.Capabilities
+                        .Where(AetherNet.Transport.Services.TransportCapability.IsTransport)
+                        .ToHashSet(StringComparer.Ordinal);
+                    radio.NotePeerTransports(caps.PeerUhid, transports);
+                };
+
+#if ANDROID
+                handshake.PeerNegotiated += (_, caps) => global::Android.Util.Log.Info(
+                    "AetherNeg", $"negotiated with {caps.PeerUhid}: [{string.Join(", ", caps.Capabilities)}]");
+#endif
             });
 
             Warm("calls", () =>

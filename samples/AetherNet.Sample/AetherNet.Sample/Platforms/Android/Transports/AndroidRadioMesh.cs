@@ -150,7 +150,13 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         _radios[r.Name] = r;
         _order.Add(r);
         r.Status += s => Emit($"[{r.Name}] {s}");
-        r.PeerLinked += p => Emit($"[{r.Name}] ● linked with {p}");
+        r.PeerLinked += p =>
+        {
+            Emit($"[{r.Name}] ● linked with {p}");
+            // First contact — say hello so the two phones learn each other's transports before the
+            // conversation forces the question. Wired to InitiateAsync outside the mesh.
+            PeerLinked?.Invoke(p);
+        };
         r.DataReceived += (from, bytes) =>
         {
             try
@@ -347,6 +353,17 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     /// <summary>Wire address → the person it turned out to be, once that has been proven.</summary>
     private readonly Dictionary<string, string> _known = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// AetherTag → the transports that person can also carry, as the capability handshake negotiated
+    /// them. Already the intersection of the two phones' transports, so every tag is one both ends have.
+    /// </summary>
+    /// <remarks>
+    /// Fed from outside via <see cref="NotePeerTransports"/> — the handshake that produces this depends
+    /// on the sender that depends on this mesh, so it cannot be injected without a cycle. Read on the
+    /// send path by <see cref="EffectivePeerTransports"/> to prefer a radio the peer can actually hear.
+    /// </remarks>
+    private readonly Dictionary<string, IReadOnlySet<string>> _peerTransports = new(StringComparer.Ordinal);
+
     /// <inheritdoc />
     public void IdentifyPeer(string aetherTag)
     {
@@ -384,7 +401,65 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
 
     public event Action? Changed;
     public event Action<byte[]>? PacketReceived;
+    public event Action<string>? PeerLinked;
     public IReadOnlyList<string> Log { get { lock (_gate) { return _log.ToArray(); } } }
+
+    /// <inheritdoc />
+    public void NotePeerTransports(string peer, IReadOnlySet<string> transports)
+    {
+        if (string.IsNullOrEmpty(peer) || transports is null) return;
+
+        lock (_gate)
+        {
+            // Bounded like _known: wire identities rotate, the Circle is small, and nothing here is
+            // worth keeping across a restart — the next handshake re-establishes it in seconds.
+            if (_peerTransports.Count > 32) _peerTransports.Clear();
+            _peerTransports[peer] = transports;
+        }
+
+        Emit(transports.Count > 0
+            ? $"● {peer} also carries [{string.Join(", ", transports)}]"
+            : $"● {peer} shares no transport we advertised");
+    }
+
+    /// <summary>
+    /// The transports every currently-linked, identified peer can also carry — the intersection of what
+    /// the handshake negotiated with each of them, so a tag survives only if all of them have it.
+    /// </summary>
+    /// <remarks>
+    /// Null when nothing has been negotiated for anyone actually on the wire, which drops the choice
+    /// straight back to the peer-agnostic ranking it always used — a message never waits on a handshake
+    /// that has not finished.
+    /// </remarks>
+    private IReadOnlySet<string>? EffectivePeerTransports()
+    {
+        // Snapshot under the lock, then resolve identities without holding it — Recognise is somebody
+        // else's code and must never be called inside our gate.
+        Dictionary<string, IReadOnlySet<string>> negotiated;
+        lock (_gate)
+        {
+            if (_peerTransports.Count == 0) return null;
+            negotiated = new Dictionary<string, IReadOnlySet<string>>(_peerTransports, StringComparer.Ordinal);
+        }
+
+        HashSet<string>? shared = null;
+        foreach (var r in _order)
+        {
+            if (!r.IsLinked) continue;
+            foreach (var wire in r.Peers)
+            {
+                string? tag;
+                lock (_gate) { _known.TryGetValue(wire, out tag); }
+                tag ??= _circle?.Recognise(wire);
+                if (tag is null || !negotiated.TryGetValue(tag, out var theirs)) continue;
+
+                if (shared is null) shared = new HashSet<string>(theirs, StringComparer.Ordinal);
+                else shared.IntersectWith(theirs);
+            }
+        }
+
+        return shared is { Count: > 0 } ? shared : null;
+    }
 
     /// <summary>
     /// Choose the radio to prefer. It is a preference, not a switch — the others keep listening, and
@@ -621,9 +696,13 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
     private IEnumerable<IRadio> Candidates()
     {
         var speeds = _order.Select(r =>
-            new RadioSpeed(r.Name, r.IsLinked, r.Quality.ThroughputBps(), r.MaxBandwidthBps));
+            new RadioSpeed(r.Name, r.IsLinked, r.Quality.ThroughputBps(), r.MaxBandwidthBps)
+            {
+                // Tag each radio with its transport so the choice can prefer one the peer also carries.
+                Transport = TransportCapability.TagFor(r.Name),
+            });
 
-        var order = RadioChoice.Order(speeds, _carrying);
+        var order = RadioChoice.Order(speeds, _carrying, EffectivePeerTransports());
 
         if (order.Count == 0)
         {

@@ -95,6 +95,24 @@ public interface IRadioMesh
     /// </summary>
     void IdentifyPeer(string aetherTag);
 
+    /// <summary>
+    /// Tell the mesh which transports a peer can also carry, as negotiated by the capability handshake.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The set is already the intersection of the two phones' transports — every tag in it is one BOTH
+    /// ends have — so the mesh can prefer a radio the peer can actually receive on rather than the one
+    /// that merely measures widest here. A phone with Wi-Fi Aware talking to one without it must not sit
+    /// preferring Aware; this is what tells it not to.
+    /// </para>
+    /// <para>
+    /// Wired externally (from the handshake's <c>PeerNegotiated</c> event) rather than injected, so the
+    /// mesh does not depend on the handshake that depends on the sender that depends on the mesh. The
+    /// default is a no-op, for hosts with no radios to choose between.
+    /// </para>
+    /// </remarks>
+    void NotePeerTransports(string peer, IReadOnlySet<string> transports) { }
+
     /// <summary>Raised whenever the log or link state changes; the UI re-renders on it.</summary>
     event Action? Changed;
 
@@ -146,6 +164,16 @@ public interface IRadioMesh
 
     /// <summary>Raised with a raw, serialized <c>MeshPacket</c> that arrived over a radio.</summary>
     event Action<byte[]>? PacketReceived;
+
+    /// <summary>
+    /// Raised when a peer links, with the wire address (or AetherTag, once known) the radio saw.
+    /// </summary>
+    /// <remarks>
+    /// The moment to say hello. The capability handshake opens on first contact, and first contact is
+    /// exactly this — so the wiring hangs <c>InitiateAsync</c> off it rather than waiting for the first
+    /// message to force a negotiation that could have happened the instant the link came up.
+    /// </remarks>
+    event Action<string>? PeerLinked;
 
     /// <summary>Tear the radios down.</summary>
     void Stop();

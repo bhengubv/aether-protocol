@@ -146,4 +146,155 @@ public class RadioChoiceTests
 
         Assert.Equal("BLE", best!.Value.Name);
     }
+
+    // ── Capability-aware: prefer what the PEER can also carry ──────────────────
+
+    private static RadioSpeed TDirect(bool linked = true, long measured = 0) =>
+        Direct(linked, measured) with { Transport = TransportCapability.WifiDirect };
+
+    private static RadioSpeed TBle(bool linked = true, long measured = 0) =>
+        Ble(linked, measured) with { Transport = TransportCapability.Ble };
+
+    private static RadioSpeed TAware(bool linked = true, long measured = 0) =>
+        new("Wi-Fi Aware", linked, measured, 50_000_000) { Transport = TransportCapability.WifiAware };
+
+    private static IReadOnlySet<string> Carries(params string[] tags) =>
+        new HashSet<string>(tags, StringComparer.Ordinal);
+
+    /// <summary>
+    /// With nothing negotiated, the choice is exactly the peer-agnostic one.
+    /// </summary>
+    /// <remarks>
+    /// Two phones that have not finished the capability handshake must behave as the app always did, or
+    /// the first message of every conversation would wait on a negotiation that has not happened yet.
+    /// </remarks>
+    [Fact]
+    public void No_peer_transports_behaves_as_before()
+    {
+        IReadOnlySet<string>? none = null;
+
+        var withNull = RadioChoice.Order([TBle(), TDirect()], carrying: null, none);
+        var withEmpty = RadioChoice.Order([TBle(), TDirect()], carrying: null, Carries());
+        var plain = RadioChoice.Order([TBle(), TDirect()]);
+
+        Assert.Equal(plain.Select(r => r.Name), withNull.Select(r => r.Name));
+        Assert.Equal(plain.Select(r => r.Name), withEmpty.Select(r => r.Name));
+    }
+
+    /// <summary>
+    /// A radio measured faster locally yields to a slower one the peer can actually hear.
+    /// </summary>
+    /// <remarks>
+    /// This is the whole point. BLE at five megabits to a phone that only carries Wi-Fi Direct delivers
+    /// nothing — the peer has no BLE transport to receive it — so the slower Wi-Fi Direct link, which
+    /// both ends have, must lead however fast BLE looks from this side.
+    /// </remarks>
+    [Fact]
+    public void A_transport_the_peer_lacks_yields_to_one_it_has()
+    {
+        var best = RadioChoice.Best(
+            [TBle(measured: 5_000_000), TDirect(measured: 1_000)],
+            carrying: null,
+            Carries(TransportCapability.WifiDirect));
+
+        Assert.Equal("Wi-Fi Direct", best!.Value.Name);
+    }
+
+    /// <summary>
+    /// The SAME radios yield a different winner depending on what the peer can carry.
+    /// </summary>
+    /// <remarks>
+    /// Aware measured wider here, so between two Aware-capable phones it carries. Against a phone
+    /// without Aware, that same wider link is demoted below the Wi-Fi Direct both ends share — a link
+    /// the peer cannot hear does not win for being fast. The preference is the peer's capability, not
+    /// an opinion about which radio is nicer: throughput still decides within what both can carry.
+    /// </remarks>
+    [Fact]
+    public void The_mutual_best_depends_on_the_peer()
+    {
+        RadioSpeed[] radios = [TDirect(measured: 20_000_000), TAware(measured: 40_000_000)];
+
+        var awarePeer = RadioChoice.Best(radios, null,
+            Carries(TransportCapability.WifiDirect, TransportCapability.WifiAware));
+        var directOnlyPeer = RadioChoice.Best(radios, null,
+            Carries(TransportCapability.WifiDirect));
+
+        Assert.Equal("Wi-Fi Aware", awarePeer!.Value.Name);      // wider AND mutual → carries
+        Assert.Equal("Wi-Fi Direct", directOnlyPeer!.Value.Name); // wider but not mutual → demoted
+    }
+
+    /// <summary>
+    /// A transport the peer lacks is still offered — reachability over tidiness.
+    /// </summary>
+    /// <remarks>
+    /// If the only link that formed is one the peer "should not" prefer, it still carries: a link that
+    /// is all there is beats no link. The negotiated preference orders the radios, it never deletes one.
+    /// </remarks>
+    [Fact]
+    public void A_transport_the_peer_lacks_is_still_offered()
+    {
+        var order = RadioChoice.Order(
+            [TBle()],
+            carrying: null,
+            Carries(TransportCapability.WifiAware));
+
+        Assert.Equal(["BLE"], order.Select(r => r.Name));
+    }
+
+    /// <summary>
+    /// Moving UP onto a mutual transport is not held back by hysteresis.
+    /// </summary>
+    /// <remarks>
+    /// Hysteresis stops speed noise bouncing the traffic between two comparable radios. Climbing off a
+    /// transport the peer cannot hear onto one it can is not speed noise — it is the difference between
+    /// delivered and not — so it happens at once, even though BLE here measures far wider than the
+    /// Wi-Fi Direct link taking over.
+    /// </remarks>
+    [Fact]
+    public void Upgrading_onto_a_mutual_transport_ignores_hysteresis()
+    {
+        var best = RadioChoice.Best(
+            [TBle(measured: 10_000_000), TDirect(measured: 1_000)],
+            carrying: "BLE",
+            Carries(TransportCapability.WifiDirect));
+
+        Assert.Equal("Wi-Fi Direct", best!.Value.Name);
+    }
+
+    /// <summary>
+    /// Within the mutual group, hysteresis still keeps a near-tie from thrashing.
+    /// </summary>
+    [Fact]
+    public void Within_the_mutual_group_a_near_tie_holds()
+    {
+        RadioSpeed[] radios =
+        [
+            TDirect(measured: 30_000_000),
+            TAware(measured: 31_000_000),
+        ];
+        var peer = Carries(TransportCapability.WifiDirect, TransportCapability.WifiAware);
+
+        // Carrying Wi-Fi Direct, a barely-wider Aware does not steal it…
+        Assert.Equal("Wi-Fi Direct",
+            RadioChoice.Best(radios, "Wi-Fi Direct", peer)!.Value.Name);
+
+        // …but a clearly wider one does.
+        RadioSpeed[] clearlyWider = [TDirect(measured: 30_000_000), TAware(measured: 90_000_000)];
+        Assert.Equal("Wi-Fi Aware",
+            RadioChoice.Best(clearlyWider, "Wi-Fi Direct", peer)!.Value.Name);
+    }
+
+    /// <summary>The mutual leader leads and the rest follow it, never dropped.</summary>
+    [Fact]
+    public void Mutual_first_then_the_rest()
+    {
+        var order = RadioChoice.Order(
+            [TBle(measured: 5_000_000), TDirect(measured: 1_000), Lora()],
+            carrying: null,
+            Carries(TransportCapability.WifiDirect));
+
+        Assert.Equal("Wi-Fi Direct", order[0].Name);              // mutual leads despite being slowest
+        Assert.Contains(order, r => r.Name == "BLE");             // fallbacks remain
+        Assert.Contains(order, r => r.Name == "LoRa");
+    }
 }

@@ -67,6 +67,14 @@ public sealed class FakeRadioMesh : IRadioMesh
 
     public event Action? Changed;
     public event Action<byte[]>? PacketReceived;
+    public event Action<string>? PeerLinked;
+
+    /// <summary>Every (peer, transports) the mesh was told about, so a test can watch negotiation land.</summary>
+    public List<(string Peer, IReadOnlySet<string> Transports)> NotedTransports { get; } = [];
+
+    /// <inheritdoc />
+    public void NotePeerTransports(string peer, IReadOnlySet<string> transports)
+        => NotedTransports.Add((peer, transports));
 
     public void SelectRadio(string name) { }
     public void Stop() => Unlink();
@@ -77,6 +85,7 @@ public sealed class FakeRadioMesh : IRadioMesh
         IsLinked = true;
         _wireAddress = PeerLabel ?? Peer?.LocalTag;
         Changed?.Invoke();
+        if (_wireAddress is { } wire) PeerLinked?.Invoke(wire);
     }
 
     /// <summary>Who this mesh was last told to meet, so a test can say what the radios were asked.</summary>
