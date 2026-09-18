@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Node.Client</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>The consumer-side client for the Aether Node Service: the detect -> install -> bind lifecycle (NodeBinder), and the integrity-checked package sources (INodePackageSource, HttpNodePackageSource, SHA-256 fingerprint verification) an app uses to obtain and install the node when it is missing. Every install path verifies before it installs. See docs/aether-node-service.md.</Description>
+    <PackageTags>mesh;aether;node;bind;install;client</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Node/AetherNet.Node.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AetherNet.Node.Client.Tests" />
+  </ItemGroup>
+
+</Project>
