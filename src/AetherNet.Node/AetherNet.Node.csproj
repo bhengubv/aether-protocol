@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Node</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>The Aether Node Service bind contract: the platform-neutral surface (IAetherNodeClient), its DTOs, the per-app grant model, and a versioned handshake by which an app binds to the device's one AetherNet node — signing, addressing, messaging and presence — without embedding the stack or holding a key. Contract only; the reference host, client SDK and platform bindings are separate. See docs/aether-node-service.md.</Description>
+    <PackageTags>mesh;aether;node;identity;ipc;bind;service;one-device-one-node</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AetherNet.Node.Tests" />
+  </ItemGroup>
+
+</Project>

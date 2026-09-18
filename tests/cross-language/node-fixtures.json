@@ -1,0 +1,14 @@
+{
+  "note": "AetherNet Node Service — bind handshake wire vectors. Source of truth: src/AetherNet.Node/Handshake/AetherNodeHandshake.cs (C#). Every language SDK MUST reproduce these bytes exactly. Encoding: Hello = version:u8, capCount:u8, caps(len:u8, utf8)*; Ack = version:u8, tagLen:u8, tag utf8, capCount:u8, caps*, grant:u8. GrantState: Absent=0, AwaitingGrant=1, Bound=2, Revoked=3. See docs/aether-node-service.md.",
+  "protocolVersion": 1,
+  "hello": [
+    { "protocolVersion": 1, "capabilities": [], "hex": "0100" },
+    { "protocolVersion": 2, "capabilities": ["x"], "hex": "02010178" },
+    { "protocolVersion": 1, "capabilities": ["sign", "send"], "hex": "0102047369676e0473656e64" },
+    { "protocolVersion": 1, "capabilities": ["sign", "send", "inbox", "presence"], "hex": "0104047369676e0473656e6405696e626f780870726573656e6365" }
+  ],
+  "ack": [
+    { "protocolVersion": 1, "nodeTag": "ABCDE-FGHJK", "capabilities": ["sign"], "grant": "Bound", "hex": "010b41424344452d4647484a4b01047369676e02" },
+    { "protocolVersion": 1, "nodeTag": "", "capabilities": [], "grant": "AwaitingGrant", "hex": "01000001" }
+  ]
+}

@@ -1,6 +1,6 @@
 # The Aether Node Service
 
-**Status:** Draft — design accepted, not yet implemented
+**Status:** Draft — the bind contract (`AetherNet.Node`) has landed; the host, client SDK and platform binding are proposed
 **License:** MIT
 **Owner:** The Other Bhengu (Pty) Ltd t/a The Geek Network
 
@@ -48,7 +48,7 @@ obtain a second identity if you tried.
 | # | Principle | Consequence |
 |---|-----------|-------------|
 | 1 | One device, one node, one tag — *by construction* | Only the Node Service can mint. Consumer apps hold no key material and cannot create an identity. |
-| 2 | The key never leaves the service | Consumers get `Sign`, `DeriveKey`, the tag, and send/receive — never the 32-byte private key. The same closed surface as `INodeIdentity`. |
+| 2 | The key never leaves the service | Consumers get `Sign` (bytes in, signature out), the tag, and send/receive — never the private key, and never a derived key. A *subset* of `INodeIdentity`'s closed surface. |
 | 3 | User-authorized, never silent | Installing the node, and each app's access to it, is an explicit user grant. This is not mandatory middleware. |
 | 4 | Installable offline | A missing node can be installed peer-to-peer (Touch My Blood) — no store, no Google, no internet. |
 | 5 | Apps are thin clients | A consumer declares intent ("I need the mesh") and binds. All protocol logic stays in the service. |
@@ -120,14 +120,21 @@ across a process boundary. What crosses and what does not is the whole point.
 **Exposed** — the consumer may call:
 
 - **Identity** (read + use, never extract): the node's Aether Tag / UHID /
-  public key; `Sign(bytes)`; `DeriveKey(label)`. This is precisely
-  `INodeIdentity`'s closed surface — there is no `GetPrivateKey`, because the
-  interface never had one.
-- **Messaging**: send / receive addressed by Aether Tag (`IMessagingService`),
-  with the service owning the Signal session state so one pair keeps **one**
-  ratchet across every app that talks to that peer.
+  public key; `Sign(bytes)` — bytes in, signature out, the key stays. This is a
+  *subset* of `INodeIdentity`'s closed surface. `DeriveKeyAsync` is deliberately
+  **not** exposed: it returns purpose-bound key material (e.g. the ERID-routing
+  key), and a consumer holding it could compute the node's rotating wire address,
+  so any derived-key operation runs *inside* the node, never in a bound app.
+  There is no `GetPrivateKey` — the interface never had one.
+- **Messaging**: send / receive addressed by Aether Tag. `IMessagingService`
+  addresses by **UHID string** internally — the tag `Value`, or a rotating ERID
+  the node resolves via `IWireAddressResolver` — so the client passes tags and the
+  node resolves them; the service owns the Signal session state so one pair keeps
+  **one** ratchet across every app that talks to that peer.
 - **Presence / connectivity** (read-only): is the node linked, over which radio,
-  how many radios are up (`IRadioMesh` status). A report, not a picker.
+  how many radios are up — a `NodeLinkStatus` synthesized from the SDK's
+  `IMeshLink` / `MeshWebService` / `RadioChoice`. (There is no single `IRadioMesh`
+  in the SDK; that name is a sample-app type.) A report, not a picker.
 
 **Held inside the service** — never crosses the boundary:
 
@@ -150,21 +157,21 @@ again") rather than serving a key. A *distinct duress code* triggers the panic
 wipe (§8) instead of unlocking.
 
 ```csharp
-// Proposed — the platform-neutral surface a bound consumer sees.
-// Mirrors INodeIdentity (closed) + a messaging/presence slice. No key access.
+// The platform-neutral surface a bound consumer sees (src/AetherNet.Node/).
+// A subset of INodeIdentity + a messaging/presence slice: no key access, no
+// key-derivation, no recovery. Task (not ValueTask) and a callback interface
+// (not a C# event) so every member proxies across a process boundary.
 public interface IAetherNodeClient
 {
-    AetherNetTag Tag { get; }
-    ReadOnlyMemory<byte> PublicKey { get; }
+    Task<AetherNetTag> GetTagAsync(CancellationToken ct = default);
+    Task<byte[]> GetPublicKeyAsync(CancellationToken ct = default);
+    Task<byte[]> SignAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default);
 
-    ValueTask<byte[]> SignAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default);
-    ValueTask<byte[]> DeriveKeyAsync(string label, CancellationToken ct = default);
+    Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken ct = default);
+    Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit = 50, CancellationToken ct = default);
 
-    ValueTask SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken ct = default);
-    IAsyncEnumerable<InboundMessage> Inbound(CancellationToken ct = default);
-
-    NodeLinkStatus Link { get; }          // linked?, radio, radios-up — read-only
-    event Action LinkChanged;
+    Task<NodeLinkStatus> GetLinkAsync(CancellationToken ct = default);   // linked?, radio, radios-up
+    IDisposable Subscribe(IAetherNodeEvents listener);                   // inbound + link + grant changes
 }
 ```
 
@@ -239,22 +246,32 @@ Honest state today (2026-09-18).
   surface and the mint-once-adopt-forever store.
 - `INodeIdentityRecovery` / `NodeIdentityRecovery` — export / restore / adopt-seed
   portability.
-- `IRadioMesh`, `IMessagingService`, and the per-link transport negotiation — the
-  mesh the service would own.
+- `IMeshLink` / `MeshWebService` / `RadioChoice` (there is no SDK `IRadioMesh`),
+  `IMessagingService`, and the per-link transport negotiation — the mesh the
+  service would own.
 - The sample app hosts all of the above **in its own process** — today it is a
   consumer *and* the runtime fused into one app, which is exactly what this
   design unfuses.
 
+**Landed** (`AetherNet.Node` — contract only, `net9.0;net10.0`):
+
+- the cross-process **bind contract** — `IAetherNodeClient` / `IAetherNodeEvents`,
+  the DTOs (`NodeLinkStatus`, `InboundMessage`, `OutboundResult`), the per-app
+  **grant** model (`GrantState` / `AppGrant`), the typed **error contract**
+  (`AetherNodeErrorCode`, preserving *unavailable ≠ absent*), and a **versioned
+  handshake** (`AetherNodeHello` / `Ack` + capability negotiation), pinned
+  byte-identical by `tests/cross-language/node-fixtures.json` (28 tests green).
+
 **Proposed** (not yet built):
 
-- the cross-process **bind contract** (`IAetherNodeClient`) and its versioned
-  handshake;
-- the Android bound-`Service` / `ContentProvider` **host**;
-- the **client SDK** (detect / install / grant / bind);
-- the per-app **grant store** and revocation.
+- a reference **host** implementing `IAetherNodeClient` over the real SDK, in-process first;
+- the Android bound-`Service` (AIDL) **cross-process host** + client proxy;
+- the **client SDK** (detect / install / grant / bind) and the NFC-distribution wiring;
+- the per-app **grant store** persistence and the biometric / pattern / code gate;
+- the 8-language port of the contract + fixtures.
 
-No part of the cross-process surface is implemented yet. This document is the
-design it will be built against.
+The contract compiles and its tests pass; the host and client remain to be built
+against it.
 
 ---
 
