@@ -1290,21 +1290,25 @@ public sealed class CallService : IDisposable
             // the responder's side. Gating on HasSession therefore drops the one message that would
             // have created the session — and the call rings out while the offer sits discarded. The
             // chat path never had this check, which is why messages worked and calls did not.
-            string? why = null;
+            Exception? failure = null;
             opened = await EncryptedMeshSender
-                .UnsealAsync(packet, _signal, from, CancellationToken.None, r => why = r)
+                .UnsealAsync(packet, _signal, from, CancellationToken.None, ex => failure = ex)
                 .ConfigureAwait(false);
             if (opened is null)
             {
-                T($"call signalling from {from} dropped — {why ?? "the payload would not open"}" +
+                T($"call signalling from {from} dropped — " +
+                  $"{(failure is null ? "the payload would not open" : $"{failure.GetType().Name}: {failure.Message}")}" +
                   $" (session={_signal.HasSession(from)})");
 
-                // A tag mismatch with a session present means the two sides hold sessions that do not
-                // agree — both established one as initiator, so each seals under a root key the other
-                // has never seen. It is not recoverable by retrying; the dead session has to go and a
-                // new one be built from a fresh bundle. Chat has done this for months, which is the
-                // only reason sending a message first appeared to make calling work.
-                if (_chat is not null && why?.Contains("AuthenticationTagMismatch", StringComparison.Ordinal) == true)
+                // Two sessions that do not agree — an AuthenticationTagMismatch, both established as
+                // initiator so each seals under a root key the other never saw — and NO session at all,
+                // the first offer to reach a phone after a reinstall or a one-sided restart, are the same
+                // wound: a fresh session is the only cure and neither is fixed by retrying. Chat recovers
+                // from both (ChatService.IsBrokenSession), while this path matched only the first BY NAME
+                // and let "No session established" ring out into nothing — the exact silent failure this
+                // file exists to end. Borrow chat's judgement instead of keeping a narrower copy here —
+                // it is the only reason sending a message first ever appeared to make calling work.
+                if (_chat is not null && failure is not null && ChatService.IsBrokenSession(failure))
                 {
                     T($"repairing the session with {from} and trying the call again");
                     await _chat.RepairAsync(from).ConfigureAwait(false);

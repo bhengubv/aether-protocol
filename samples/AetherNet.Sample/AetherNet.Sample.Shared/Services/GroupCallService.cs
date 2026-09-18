@@ -54,6 +54,15 @@ public sealed class GroupCallService : IDisposable
     private readonly IVideoIo? _video;
     private readonly IRadioMesh? _radio;
     private readonly AetherStore? _store;
+
+    /// <summary>
+    /// Chat, only for its session repair — the same borrow <see cref="CallService"/> makes, and for the
+    /// same reason. A group invite is often the first thing a phone ever receives from a member, so it
+    /// hits the identical "no usable session" wall a message or a 1:1 call does; repairing it is chat's
+    /// job and must not be reimplemented here. Optional, because a host without chat (a test, the Web
+    /// head) can still run a call — it simply cannot heal a broken session by itself.
+    /// </summary>
+    private readonly ChatService? _chat;
     private readonly ILogger _log;
 
     private readonly ConcurrentDictionary<string, Participant> _participants = new(StringComparer.Ordinal);
@@ -100,7 +109,8 @@ public sealed class GroupCallService : IDisposable
         IVideoIo? video = null,
         IRadioMesh? radio = null,
         AetherStore? store = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        ChatService? chat = null)
     {
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
@@ -111,6 +121,7 @@ public sealed class GroupCallService : IDisposable
         if (_video is not null) _video.CaptureChanged += OnCaptureChanged;
         _radio = radio;
         _store = store;
+        _chat = chat;
         _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<GroupCallService>();
 
         if (_radio is not null) _radio.PacketReceived += OnPacket;
@@ -672,6 +683,17 @@ public sealed class GroupCallService : IDisposable
         catch (Exception ex)
         {
             _log.LogDebug(ex, "group call signal from {Peer} would not open", from);
+
+            // The same wound the 1:1 path had. A group invite is often the first thing a phone ever
+            // receives from a member, so "No session established" — or a diverged ratchet — is ordinary,
+            // not a fault, and left alone the invite rings out into nothing while every retry fails the
+            // same way. Chat owns the cure (ChatService.IsBrokenSession + RepairAsync); borrow it exactly
+            // as CallService does rather than dropping the signal in silence.
+            if (_chat is not null && ChatService.IsBrokenSession(ex))
+            {
+                T($"repairing the session with {from} so the group call can reach us");
+                await _chat.RepairAsync(from).ConfigureAwait(false);
+            }
             return;
         }
 

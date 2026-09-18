@@ -193,7 +193,7 @@ public sealed class EncryptedMeshSender : IMeshSender
         ISignalProtocolService signal,
         string peerTag,
         CancellationToken cancellationToken = default,
-        Action<string>? why = null)
+        Action<Exception>? onError = null)
     {
         if (packet.Payload is null || packet.Payload.Length == 0) return null;
 
@@ -215,10 +215,14 @@ public sealed class EncryptedMeshSender : IMeshSender
         }
         catch (Exception ex)
         {
-            // Say what went wrong. Swallowing this is why three separate theories about why calls
-            // would not connect all had to be tested on hardware — the failure was silent, so every
-            // explanation looked equally plausible.
-            why?.Invoke($"{ex.GetType().Name}: {ex.Message}");
+            // Hand back the exception itself, not a rendering of it. Swallowing this is why three
+            // separate theories about why calls would not connect all had to be tested on hardware —
+            // the failure was silent, so every explanation looked equally plausible. The caller needs
+            // the exception and not just its text because whether a fresh session would fix it is a
+            // judgement ChatService already owns (IsBrokenSession); re-parsing a message string to ask
+            // the same question is how "No session established" slipped past a check for the word
+            // "AuthenticationTagMismatch" and rang out into nothing.
+            onError?.Invoke(ex);
             return null;
         }
     }
