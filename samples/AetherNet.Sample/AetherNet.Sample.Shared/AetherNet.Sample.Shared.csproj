@@ -40,6 +40,11 @@
        both get the live protocol with no per-head re-wiring. -->
   <ItemGroup>
     <ProjectReference Include="../../../src/AetherNet.Core/AetherNet.Core.csproj" />
+    <!-- The Aether Node Service: the bind contract + its reference in-process host. This app is a
+         client of its own node — identity, messaging and presence reach the UI through IAetherNodeClient
+         (docs/aether-node-service.md), the same contract a separate app would bind to. -->
+    <ProjectReference Include="../../../src/AetherNet.Node/AetherNet.Node.csproj" />
+    <ProjectReference Include="../../../src/AetherNet.Node.Host/AetherNet.Node.Host.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Security/AetherNet.Security.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Transport/AetherNet.Transport.csproj" />

@@ -5,6 +5,7 @@ using AetherNet.Content.Sqlite;
 using AetherNet.Sample.Shared.Data;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Services;
+using AetherNet.Node.Host;
 
 namespace AetherNet.Sample;
 
@@ -287,6 +288,13 @@ public static class MauiProgram
 #else
         builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();
 #endif
+
+        // The Aether Node Service, in-process: this app is a client of its own node. Identity, messaging
+        // and presence reach the UI through IAetherNodeClient — the same contract a separate app would
+        // bind to (docs/aether-node-service.md). The seams adapt the real messaging core and the radios.
+        builder.Services.AddSingleton<INodeMessaging, SampleNodeMessaging>();
+        builder.Services.AddSingleton<INodeLinkSource, SampleNodeLinkSource>();
+        builder.Services.AddAetherNode();
 
         builder.Services.AddMauiBlazorWebView();
 

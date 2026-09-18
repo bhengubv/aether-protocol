@@ -5,6 +5,7 @@ using AetherNet.Sample.Web.Components;
 using AetherNet.Sample.Shared.Data;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Web.Services;
+using AetherNet.Node.Host;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -152,6 +153,12 @@ builder.Services.AddAetherBrowser();
 
 // Radios are physical; the Web host has none.
 builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();
+
+// The Aether Node Service, in-process — same as the phone head. The UI reaches identity, messaging and
+// presence through IAetherNodeClient; on this head presence is simply always offline (no radios).
+builder.Services.AddSingleton<INodeMessaging, SampleNodeMessaging>();
+builder.Services.AddSingleton<INodeLinkSource, SampleNodeLinkSource>();
+builder.Services.AddAetherNode();
 
 var app = builder.Build();
 

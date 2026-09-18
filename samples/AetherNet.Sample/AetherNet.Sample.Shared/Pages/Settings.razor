@@ -2,14 +2,16 @@
 @using System.Linq
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
+@using AetherNet.Node
 @inject IJSRuntime JS
 @inject ProxyDirectory Proxies
 @inject ChatService Chat
 @inject NavigationManager Nav
 @inject AetherStore Store
 @inject IAppTheme Shell
-@inject IRadioMesh Radio
+@inject IAetherNodeClient Node
 @implements IDisposable
+@implements IAetherNodeEvents
 
 @* How the app behaves — configuration, kept apart from who you are (that is Profile, the You tab). This
    is the home settings finally has: everything that governs the app rather than describes you lives here,
@@ -63,12 +65,12 @@
         <div class="glabel">Connectivity</div>
         <div class="about">
             <span class="about-body">
-                <span class="about-t">@(Radio.IsLinked ? $"Connected — over {Radio.LinkRadio}" : "Not connected")</span>
-                <span class="about-s">@(Radio.IsLinked
+                <span class="about-t">@(_link.Linked ? $"Connected — over {_link.Radio}" : "Not connected")</span>
+                <span class="about-s">@(_link.Linked
                     ? "messages go straight to the phone you're linked with"
                     : "messages wait here until someone you've added is nearby")</span>
             </span>
-            <span class="chev">@RadioReady</span>
+            <span class="chev">@($"{_link.Available}/{_link.Total}")</span>
         </div>
     </section>
 
@@ -160,8 +162,10 @@
     private bool _backedUp;
     private bool _armWipe;
 
-    /// <summary>How many of this device's radios are usable right now, e.g. "5/8".</summary>
-    private string RadioReady => $"{Radio.Radios.Count(r => r.Available)}/{Radio.Radios.Count}";
+    /// <summary>The device's link/presence, read through the node contract (IAetherNodeClient) rather
+    /// than the radio directly — the app dogfooding its own node's presence slice.</summary>
+    private NodeLinkStatus _link = NodeLinkStatus.Offline;
+    private IDisposable? _nodeSub;
 
     private string GatewayDetail => _shareNote
         ?? (Proxies.IsGateway ? "your Circle can reach each other through this phone"
@@ -172,20 +176,35 @@
         ? $"{Chat.AppShareSizeBytes / (1024 * 1024)} MB"
         : "the app itself";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Proxies.Changed += OnChanged;
-        Radio.Changed += OnChanged;
         _theme = Store.GetSetting(SetupKeys.Theme) ?? "system";
         _backedUp = Store.GetAccount().RecoveryBackedUp;
+
+        // Presence now comes through the node contract — the app is a client of its own node.
+        _nodeSub = Node.Subscribe(this);
+        try { _link = await Node.GetLinkAsync(); }
+        catch { _link = NodeLinkStatus.Offline; }
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
+    // IAetherNodeEvents — the node pushes link changes (and inbound/grant, unused here) to this page.
+    void IAetherNodeEvents.OnLinkChanged(NodeLinkStatus status)
+    {
+        _link = status;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    void IAetherNodeEvents.OnInbound(InboundMessage message) { }
+
+    void IAetherNodeEvents.OnGrantChanged(GrantState state) { }
+
     public void Dispose()
     {
         Proxies.Changed -= OnChanged;
-        Radio.Changed -= OnChanged;
+        _nodeSub?.Dispose();
     }
 
     /// <summary>
