@@ -1,9 +1,12 @@
 @page "/backup"
 @using AetherNet.Identity
+@using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @inject INodeIdentityRecovery Recovery
 @inject IIdentityService Me
 @inject IJSRuntime JS
+@inject AetherStore Store
+@inject NavigationManager Nav
 
 @* The one thing the app could not do before: let a person carry their identity off this phone. The tag
    is a function of one Ed25519 key; these 24 words ARE that key, in BIP-39 form, so writing them down is
@@ -35,6 +38,7 @@
         </ol>
         <button class="copy" @onclick="Copy">@(_copied ? "Copied ✓" : "Copy all 24 words")</button>
         <p class="hint">Write them in order and check them twice — one wrong or missing word restores nothing.</p>
+        <button class="primary block" @onclick="ConfirmSaved">I've written it down safely</button>
     }
 </div>
 
@@ -69,6 +73,13 @@
         if (_phrase is null) return;
         try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", string.Join(' ', _phrase)); } catch { }
         _copied = true;
+    }
+
+    /// <summary>Records that the phrase is written down, so Settings stops nagging and shows it as safe.</summary>
+    private void ConfirmSaved()
+    {
+        Store.SetRecoveryBackedUp(true);
+        Nav.NavigateTo("settings");
     }
 }
 

@@ -1,4 +1,5 @@
 @page "/settings"
+@using System.Linq
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @inject IJSRuntime JS
@@ -7,6 +8,7 @@
 @inject NavigationManager Nav
 @inject AetherStore Store
 @inject IAppTheme Shell
+@inject IRadioMesh Radio
 @implements IDisposable
 
 @* How the app behaves — configuration, kept apart from who you are (that is Profile, the You tab). This
@@ -25,9 +27,11 @@
         <button class="about" @onclick="@(() => Nav.NavigateTo("/backup"))">
             <span class="about-body">
                 <span class="about-t">Back up your identity</span>
-                <span class="about-s">24 words that restore you on a new phone — the only way back if you lose this one</span>
+                <span class="about-s">@(_backedUp
+                    ? "Backed up — your 24 words are written down"
+                    : "24 words that restore you on a new phone — the only way back if you lose this one")</span>
             </span>
-            <span class="chev">→</span>
+            <span class="chev">@(_backedUp ? "✓" : "→")</span>
         </button>
     </section>
 
@@ -51,6 +55,21 @@
             </span>
             <span class="chev">@(Proxies.IsGateway ? "on" : "off")</span>
         </button>
+    </section>
+
+    @* Read-only: whether this phone is reaching anyone right now and over which radio. NOT a picker —
+       nobody chooses a transport, the widest linked radio carries — this only says what is happening. *@
+    <section class="group">
+        <div class="glabel">Connectivity</div>
+        <div class="about">
+            <span class="about-body">
+                <span class="about-t">@(Radio.IsLinked ? $"Connected — over {Radio.LinkRadio}" : "Not connected")</span>
+                <span class="about-s">@(Radio.IsLinked
+                    ? "messages go straight to the phone you're linked with"
+                    : "messages wait here until someone you've added is nearby")</span>
+            </span>
+            <span class="chev">@RadioReady</span>
+        </div>
     </section>
 
     @* Handing somebody the app with no store in the middle. It goes to people you have already added,
@@ -117,11 +136,32 @@
             <span class="chev">↗</span>
         </a>
     </section>
+
+    @* The local half of a panic wipe, made reachable at last: AetherStore.WipeAll() erases every
+       contact, message, session and setting and VACUUMs the file, so the app returns to setup. Two taps
+       because one is an accident, and the warning is in the words — the palette stays three colours. *@
+    <section class="group">
+        <div class="glabel">Danger zone</div>
+        <button class="about" @onclick="EraseAll">
+            <span class="about-body">
+                <span class="about-t">@(_armWipe ? "Tap again to erase everything" : "Erase all data on this phone")</span>
+                <span class="about-s">@(_armWipe
+                    ? "this cannot be undone"
+                    : "every contact, message and setting — back to a fresh setup")</span>
+            </span>
+            <span class="chev">@(_armWipe ? "‼" : "⌫")</span>
+        </button>
+    </section>
 </div>
 
 @code {
     private bool _busy;
     private string? _shareNote;
+    private bool _backedUp;
+    private bool _armWipe;
+
+    /// <summary>How many of this device's radios are usable right now, e.g. "5/8".</summary>
+    private string RadioReady => $"{Radio.Radios.Count(r => r.Available)}/{Radio.Radios.Count}";
 
     private string GatewayDetail => _shareNote
         ?? (Proxies.IsGateway ? "your Circle can reach each other through this phone"
@@ -135,12 +175,30 @@
     protected override void OnInitialized()
     {
         Proxies.Changed += OnChanged;
+        Radio.Changed += OnChanged;
         _theme = Store.GetSetting(SetupKeys.Theme) ?? "system";
+        _backedUp = Store.GetAccount().RecoveryBackedUp;
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    public void Dispose() => Proxies.Changed -= OnChanged;
+    public void Dispose()
+    {
+        Proxies.Changed -= OnChanged;
+        Radio.Changed -= OnChanged;
+    }
+
+    /// <summary>
+    /// Erase everything this device holds and return it to setup. Two taps — the first only arms the
+    /// second — because a one-tap wipe is an accident waiting to happen.
+    /// </summary>
+    private void EraseAll()
+    {
+        if (!_armWipe) { _armWipe = true; return; }
+        Store.WipeAll();
+        // A device with no identity row lands on the setup wizard; force a reload so Routes re-decides.
+        Nav.NavigateTo("/", forceLoad: true);
+    }
 
     private async Task ToggleGateway()
     {
