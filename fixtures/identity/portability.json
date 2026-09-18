@@ -1,0 +1,35 @@
+{
+  "note": "Canonical AetherNet identity-portability vectors from the C# reference. Every language port MUST reproduce these byte-for-byte: seed (32-byte Ed25519) -\u003E public_key, tag, and 24-word BIP-39 recovery_phrase.",
+  "vectors": [
+    {
+      "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+      "tag": "AS3NN-9TMCD",
+      "recovery_phrase": "abandon amount liar amount expire adjust cage candy arch gather drum bullet absurd math era live bid rhythm alien crouch range attend journey unaware"
+    },
+    {
+      "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+      "public_key": "3b6a27bcceb6a42d62a3a8d02a6f0d73653215771de243a63ac048a18b59da29",
+      "tag": "2EF3J-G769D",
+      "recovery_phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
+    },
+    {
+      "seed": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "public_key": "76a1592044a6e4f511265bca73a604d90b0529d1df602be30a19a9257660d1f5",
+      "tag": "NY12J-P7JTX",
+      "recovery_phrase": "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote"
+    },
+    {
+      "seed": "1111111111111111111111111111111111111111111111111111111111111111",
+      "public_key": "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+      "tag": "22X6G-B4AT4",
+      "recovery_phrase": "baby mass dust captain baby mass dust captain baby mass dust captain baby mass dust captain baby mass dust captain baby mass dust cake"
+    },
+    {
+      "seed": "cd1da751079c6188a0c37dccf010a1b6363194843ec9ee1ef3311cf016c0f461",
+      "public_key": "8ac2d9d20a5258b455d08dd4fce517e2ab0cde170d7c30c86085d399284aa2ba",
+      "tag": "34XK0-AWJBZ",
+      "recovery_phrase": "snack unfold stairs august ship session loan hurry smooth letter chronic hockey glide ski axis summer unlock wasp slush delay accident gather spice clock"
+    }
+  ]
+}
