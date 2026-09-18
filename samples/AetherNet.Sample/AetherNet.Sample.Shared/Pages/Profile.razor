@@ -6,9 +6,9 @@
 @inject AetherStore Store
 @inject NavigationManager Nav
 
-@* Who you are on the mesh. How the app BEHAVES lives behind the gear, in Settings — one screen for
-   identity, another for configuration, because a profile card was never a place a settings surface
-   could grow, which is exactly why settings had nowhere to be. *@
+@* Who you are on the mesh. How the app BEHAVES is its own tab now, Settings — one screen for identity,
+   another for configuration, because a profile card was never a place a settings surface could grow,
+   which is exactly why settings had nowhere to be. *@
 
 <PageTitle>Aether — you</PageTitle>
 
@@ -20,9 +20,6 @@
                    placeholder="Add your name" maxlength="40" aria-label="Your display name" />
             <button class="ptag" @onclick="CopyTag">@(_copied ? "Copied ✓" : Me.AetherTag)</button>
         </div>
-        <button class="gear" @onclick='() => Nav.NavigateTo("settings")' aria-label="Settings">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
     </div>
 
     @* Your presence on AetherNet — pages this phone hosts, addressed by your tag. That is identity, so
