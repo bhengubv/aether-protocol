@@ -85,11 +85,21 @@ A consumer app that wants the mesh moves through:
    / package.)
 2. **Offer** — if not, the app explains and offers to enable AetherNet. Off by
    default; nothing happens without the user.
-3. **Authorize + install** — the user consents; the node APK is installed.
-   Offline, the APK is handed over peer-to-peer via Touch My Blood; where a
-   distribution is reachable, from the project release. Installing an APK is a
-   user action — the app requests, the user approves, the app never installs
-   silently.
+3. **Authorize + install** — the user consents; the node APK is installed. NFC
+   ("Touch My Blood") is the near-field *pointer*, not the payload — a tap is far
+   too narrow to carry a 54 MB APK, so it hands over an NDEF URI and the bytes
+   follow one of two ways:
+   - **From a reachable distribution** — the tapped URL serves the node APK, and
+     the OS image itself, from one endpoint. The reference Circle OS deployment
+     serves both at `nfc.circleos.co.za`; any distribution endpoint works, and
+     the fetch can ride the mesh through a gateway peer when there is no direct
+     internet.
+   - **Fully peer-to-peer** — when nothing is reachable at all, the tap bootstraps
+     a Wi-Fi Direct link and the two phones transfer the APK directly: no store,
+     no internet, no Google.
+
+   Installing an APK is always a user action — the app requests, the user
+   approves, the app never installs silently.
 4. **Grant** — on first bind the user authorizes *this app* to link by clearing
    a local-auth gate — **biometric, pattern, or code**. The grant is per-app and
    revocable, the way OpenKeychain grants an app access to a key.
