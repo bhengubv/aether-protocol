@@ -189,8 +189,11 @@
         _group is not null
             ? (Radio.IsLinked
                 ? $"{Messages.GroupMembers(Peer).Count} people · end-to-end encrypted"
-                : $"{Messages.GroupMembers(Peer).Count} people · not connected")
-        : !Connected ? (Radio.IsLinked ? $"connected to someone else — not {Peer}" : "not connected")
+                : $"{Messages.GroupMembers(Peer).Count} people · waiting to connect")
+        // Out-of-range is the normal state for a mesh, not a fault — so it reads as "we're trying",
+        // never "broken". Whether the radio happens to be linked to some OTHER peer is our business,
+        // not the reader's: to them, this person simply is not reached yet.
+        : !Connected ? "waiting to reach them"
         : _secure ? $"end-to-end encrypted over {Radio.LinkRadio}"
         : Contacts.Contacts.FirstOrDefault(c => c.Tag == Peer)?.IsMutual == true
             ? "setting up encryption…"

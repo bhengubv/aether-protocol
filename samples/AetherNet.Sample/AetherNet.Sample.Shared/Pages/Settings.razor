@@ -17,7 +17,7 @@
         <span class="pav">@Initial</span>
         <div class="pinfo">
             <input class="pname pname-edit" @bind="_name" @bind:event="oninput" @onchange="SaveName"
-                   placeholder="Your name" maxlength="40" aria-label="Your display name" />
+                   placeholder="Add your name" maxlength="40" aria-label="Your display name" />
             <button class="ptag" @onclick="CopyTag">@(_copied ? "Copied ✓" : Me.AetherTag)</button>
         </div>
     </div>

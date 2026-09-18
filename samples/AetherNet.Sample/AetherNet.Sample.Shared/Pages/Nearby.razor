@@ -83,7 +83,7 @@
     /// </remarks>
     private string State(ContactRecord c) =>
         Here(c) ? "available"
-        : c.IsMutual ? "not in range"
+        : c.IsMutual ? "not nearby right now"
         : c.IsIncoming ? "wants to add you"
         : "invite sent";
 

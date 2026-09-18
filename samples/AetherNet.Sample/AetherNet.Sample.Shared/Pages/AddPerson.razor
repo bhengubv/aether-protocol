@@ -29,7 +29,7 @@
            name (the tag above is still the only way to reach them); it just gives you something to call
            them. Optional, and it pins a petname so you can say the name instead of the tag. *@
         <input class="tagbox" @bind="_theirName" @bind:event="oninput" @onkeydown="OnKey"
-               placeholder="Call them… (optional)" spellcheck="false" />
+               placeholder="What to call them (optional)" spellcheck="false" />
         <button class="primary block" disabled="@(_busy || string.IsNullOrWhiteSpace(_theirTag))" @onclick="Add">Add them</button>
         @if (_error is { } err)
         {
