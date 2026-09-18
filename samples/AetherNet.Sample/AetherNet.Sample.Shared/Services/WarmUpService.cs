@@ -336,6 +336,16 @@ public sealed class WarmUpService
                 var radio = Get<IRadioMesh>();
                 if (radio is null || !radio.IsSupported) { Absent(step, "no radio on this device"); break; }
 
+                // AetherNet (the nearby-radio mesh) is a choice. Switched off, don't wake the physical
+                // radios or hold a foreground link — bring up ONLY the internet leg, so the app still
+                // reaches people over ordinary data and nobody is held hostage by proximity.
+                if (Get<AetherStore>()?.GetSetting(SetupKeys.AetherNet) == "0")
+                {
+                    radio.SelectRadio("Internet");
+                    step.Detail = "internet only — nearby radios off";
+                    break;
+                }
+
                 // Waking them is not the same as forming a link — this is the radios listening, and
                 // the steps after it are the links themselves.
                 radio.Link();
@@ -350,6 +360,13 @@ public sealed class WarmUpService
                 var fast = Get<FastRadioService>();
                 var mesh = Get<IRadioMesh>();
                 if (fast is null || mesh is not { IsSupported: true }) { Absent(step, "not on this device"); break; }
+
+                // Nothing to bring up when the mesh is off — Wi-Fi Direct is a nearby radio.
+                if (Get<AetherStore>()?.GetSetting(SetupKeys.AetherNet) == "0")
+                {
+                    Absent(step, "nearby radios are off");
+                    break;
+                }
 
                 // Nothing to discover and nothing to wait for a peer to say. The group is worked out
                 // from the contact list, so it can be brought up here, before anybody taps anything.

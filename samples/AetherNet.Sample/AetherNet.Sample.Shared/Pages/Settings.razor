@@ -59,6 +59,21 @@
         </button>
     </section>
 
+    @* AetherNet — the nearby-radio mesh — is a choice. Off, the app runs over the internet only and never
+       wakes the physical radios (no battery, no permission prompts); on, phones near you reach each other
+       with no towers and no accounts. Enabling it is authorizing the mesh on this device. It applies at
+       launch, so a change asks for a reopen rather than pretending the radios stopped mid-session. *@
+    <section class="group">
+        <div class="glabel">AetherNet</div>
+        <button class="about" @onclick="ToggleAetherNet">
+            <span class="about-body">
+                <span class="about-t">@(_aetherNet ? "AetherNet is on" : "AetherNet is off")</span>
+                <span class="about-s">@AetherNetDetail</span>
+            </span>
+            <span class="chev">@(_aetherNet ? "on" : "off")</span>
+        </button>
+    </section>
+
     @* Read-only: whether this phone is reaching anyone right now and over which radio. NOT a picker —
        nobody chooses a transport, the widest linked radio carries — this only says what is happening. *@
     <section class="group">
@@ -167,6 +182,20 @@
     private NodeLinkStatus _link = NodeLinkStatus.Offline;
     private IDisposable? _nodeSub;
 
+    /// <summary>Whether AetherNet (the nearby-radio mesh) is switched on. Default on — absent means on,
+    /// only an explicit "0" is off — so a device that pre-dates the setting keeps the mesh it had.</summary>
+    private bool _aetherNet;
+
+    /// <summary>The value the app actually launched with — the radios are gated at launch, so a change
+    /// only takes effect on the next open, and the card says so rather than lying.</summary>
+    private bool _aetherNetLaunched;
+
+    private string AetherNetDetail => _aetherNet != _aetherNetLaunched
+        ? "reopen Aether for this to take effect"
+        : _aetherNet
+            ? "nearby radios reach people around you — no towers, no accounts"
+            : "internet only — the nearby radios stay off until you switch this on";
+
     private string GatewayDetail => _shareNote
         ?? (Proxies.IsGateway ? "your Circle can reach each other through this phone"
             : Proxies.Best is { } via ? $"currently relaying through {via}"
@@ -181,6 +210,7 @@
         Proxies.Changed += OnChanged;
         _theme = Store.GetSetting(SetupKeys.Theme) ?? "system";
         _backedUp = Store.GetAccount().RecoveryBackedUp;
+        _aetherNet = _aetherNetLaunched = Store.GetSetting(SetupKeys.AetherNet) != "0";
 
         // Presence now comes through the node contract — the app is a client of its own node.
         _nodeSub = Node.Subscribe(this);
@@ -224,6 +254,17 @@
         _busy = true;
         try { await Chat.SetRelayingAsync(!Proxies.IsGateway); }
         finally { _busy = false; }
+    }
+
+    /// <summary>
+    /// Switch AetherNet (the nearby-radio mesh) on or off. Persisted immediately; the radios are brought
+    /// up at launch (see WarmUpService), so a change takes effect when Aether is next opened — the card
+    /// reflects that rather than pretending the radios stopped mid-session.
+    /// </summary>
+    private void ToggleAetherNet()
+    {
+        _aetherNet = !_aetherNet;
+        Store.SetFlag(SetupKeys.AetherNet, _aetherNet);
     }
 
     private async Task ShareWith(string tag)

@@ -19,4 +19,14 @@ public static class SetupKeys
     /// deliberate choice to follow the phone can be told from never having chosen.
     /// </remarks>
     public const string Theme = "appearance.theme";
+
+    /// <summary>
+    /// Whether AetherNet — the nearby-radio mesh — is switched on. Off means the app never wakes the
+    /// physical radios and runs over the internet only.
+    /// </summary>
+    /// <remarks>
+    /// Read as "on unless explicitly off" (absent or "1" =&gt; on; only "0" =&gt; off), so a device that
+    /// pre-dates this setting keeps the mesh it already had, and a first run defaults to on.
+    /// </remarks>
+    public const string AetherNet = "setup.aethernet";
 }

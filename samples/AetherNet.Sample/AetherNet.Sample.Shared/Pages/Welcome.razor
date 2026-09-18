@@ -35,6 +35,19 @@
                     was just made on this phone and never leaves it. Share it and people can reach you.</p>
             </div>
         }
+        else if (_step == Step.AetherNet)
+        {
+            <div class="pane">
+                <h1>Switch on AetherNet?</h1>
+                <p class="lede">AetherNet lets this phone reach the ones around it directly — no towers,
+                    no accounts, no company in the middle — over the radios it already has. Leave it off
+                    and Aether works over your normal internet instead. You can change this any time.</p>
+                <label class="toggle">
+                    <input type="checkbox" checked="@_aetherNet" @onchange="e => _aetherNet = (bool)(e.Value ?? false)" />
+                    <span>Use the radios near me (AetherNet)</span>
+                </label>
+            </div>
+        }
         else if (_step == Step.Radios)
         {
             <div class="pane">
@@ -114,7 +127,7 @@
 </div>
 
 @code {
-    private enum Step { Hello, You, Radios, Gateway, AddFirst }
+    private enum Step { Hello, You, AetherNet, Radios, Gateway, AddFirst }
 
     private static readonly Step[] AllSteps = Enum.GetValues<Step>();
 
@@ -122,6 +135,7 @@
     private IReadOnlyList<RadioStatus> _radios = Array.Empty<RadioStatus>();
     private bool _busy;
     private bool _gateway;
+    private bool _aetherNet = true;
     private string _theirTag = "";
     private string? _addError;
     private string? _added;
@@ -138,6 +152,7 @@
     protected override async Task OnInitializedAsync()
     {
         _gateway = Store.GetFlag(SetupKeys.GatewayEnabled);
+        _aetherNet = Store.GetSetting(SetupKeys.AetherNet) != "0";   // default on
         await RefreshRadios();
     }
 
@@ -185,6 +200,14 @@
     {
         // Re-check on the way into the radio step so the state is live, not stale from page load.
         if (_step == Step.You) await RefreshRadios();
+
+        if (_step == Step.AetherNet)
+        {
+            Store.SetFlag(SetupKeys.AetherNet, _aetherNet);
+            // With the mesh off there is nothing to switch on — skip the radio-permissions step.
+            _step = _aetherNet ? Step.Radios : Step.Gateway;
+            return;
+        }
 
         if (_step == Step.Gateway) Store.SetFlag(SetupKeys.GatewayEnabled, _gateway);
 
