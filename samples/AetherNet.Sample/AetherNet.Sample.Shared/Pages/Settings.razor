@@ -1,7 +1,6 @@
 @page "/settings"
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
-@inject IIdentityService Me
 @inject IJSRuntime JS
 @inject ProxyDirectory Proxies
 @inject ChatService Chat
@@ -10,17 +9,27 @@
 @inject IAppTheme Shell
 @implements IDisposable
 
-<PageTitle>Aether — you</PageTitle>
+@* How the app behaves — configuration, kept apart from who you are (that is Profile, the You tab). This
+   is the home settings finally has: everything that governs the app rather than describes you lives here,
+   and it has room to grow, which a profile card never did. *@
+
+<PageTitle>Aether — settings</PageTitle>
 
 <div class="you">
-    <div class="profile">
-        <span class="pav">@Initial</span>
-        <div class="pinfo">
-            <input class="pname pname-edit" @bind="_name" @bind:event="oninput" @onchange="SaveName"
-                   placeholder="Add your name" maxlength="40" aria-label="Your display name" />
-            <button class="ptag" @onclick="CopyTag">@(_copied ? "Copied ✓" : Me.AetherTag)</button>
-        </div>
-    </div>
+    <h1 class="scr-title">Settings</h1>
+
+    @* The gap the whole split was for: the identity had no way off the phone. Now it does — a recovery
+       phrase, derived from the key already here, never sent anywhere. *@
+    <section class="group">
+        <div class="glabel">Account &amp; identity</div>
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/backup"))">
+            <span class="about-body">
+                <span class="about-t">Back up your identity</span>
+                <span class="about-s">24 words that restore you on a new phone — the only way back if you lose this one</span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+    </section>
 
     <section class="group">
         <div class="glabel">Appearance</div>
@@ -47,25 +56,9 @@
     @* Handing somebody the app with no store in the middle. It goes to people you have already added,
        because a stranger you can hand a forty-megabyte package to is a stranger with your attention. *@
     <section class="group">
-        <div class="glabel">You</div>
-
-        @* Sits above sharing on purpose: the card is what a stranger reads at the moment they are
-           handed the app, so it is worth writing before you go looking for somebody to hand it to. *@
-        <button class="about" @onclick="@(() => Nav.NavigateTo("/meshweb?mine=1"))">
-            <span class="about-body">
-                <span class="about-t">Your pages</span>
-                <span class="about-s">what this phone puts on AetherNet — your tag is the domain</span>
-            </span>
-            <span class="chev">→</span>
-        </button>
-    </section>
-
-    <section class="group">
         <div class="glabel">Share Aether</div>
         @if (Chat.CanShareApp)
         {
-            @* The one that works on somebody who has nothing. Everything below it goes to people you
-               have already added, which is no use at all to the friend who is not on Aether yet. *@
             <button class="about" @onclick="@(() => Nav.NavigateTo("/share"))">
                 <span class="about-body">
                     <span class="about-t">Touch My Blood</span>
@@ -101,6 +94,19 @@
         }
     </section>
 
+    @* The protocol showcase, off the everyday tab bar and here instead: a deliberate detour into every
+       capability the substrate carries, not a permanent fifth of the bar. *@
+    <section class="group">
+        <div class="glabel">Developer</div>
+        <button class="about" @onclick="@(() => Nav.NavigateTo("lab"))">
+            <span class="about-body">
+                <span class="about-t">Lab</span>
+                <span class="about-s">every capability the protocol carries, driven live in-process</span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+    </section>
+
     <section class="group">
         <div class="glabel">About</div>
         <a class="about" href="https://github.com/bhengubv/aether-protocol" target="_blank" rel="noopener">
@@ -116,7 +122,6 @@
 @code {
     private bool _busy;
     private string? _shareNote;
-    private bool _copied;
 
     private string GatewayDetail => _shareNote
         ?? (Proxies.IsGateway ? "your Circle can reach each other through this phone"
@@ -131,7 +136,6 @@
     {
         Proxies.Changed += OnChanged;
         _theme = Store.GetSetting(SetupKeys.Theme) ?? "system";
-        _name = Store.GetAccount().DisplayName;
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
@@ -157,37 +161,8 @@
         finally { _busy = false; }
     }
 
-    /// <summary>
-    /// What the person chose, read back from the store rather than assumed.
-    /// </summary>
-    /// <remarks>
-    /// This was a field initialised to "system" and never loaded, so the buttons showed System on
-    /// every visit no matter what had been picked — and the choice itself lasted exactly as long as
-    /// the page did.
-    /// </remarks>
+    /// <summary>What the person chose, read back from the store rather than assumed.</summary>
     private string _theme = "system";
-
-    /// <summary>Your chosen display name — loaded from the account, persisted on change. Local only.</summary>
-    private string? _name;
-
-    /// <summary>The avatar glyph: the initial of your name if you have set one, else of your tag.</summary>
-    private string Initial
-    {
-        get
-        {
-            var source = !string.IsNullOrWhiteSpace(_name) ? _name!.Trim() : Me.AetherTag;
-            return string.IsNullOrEmpty(source) ? "?" : source[..1].ToUpperInvariant();
-        }
-    }
-
-    /// <summary>Persist the chosen name and its initial avatar. Never sent anywhere — the tag is the identity.</summary>
-    private void SaveName() => Store.SaveAccount(_name?.Trim() ?? string.Empty, Initial);
-
-    private async Task CopyTag()
-    {
-        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", Me.AetherTag); } catch { }
-        _copied = true;
-    }
 
     private async Task SetTheme(string theme)
     {
@@ -204,15 +179,6 @@
 
 <style>
     .you { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
-
-    .profile { display: flex; align-items: center; gap: 16px; padding: 12px 4px 4px; }
-    .pav { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--brand), var(--brand-deep)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 2rem; }
-    .pinfo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-    .pname { font-size: 1.5rem; font-weight: 800; color: var(--ink); }
-    .pname-edit { appearance: none; border: none; background: transparent; padding: 0; width: 100%; min-width: 0; font-family: inherit; }
-    .pname-edit::placeholder { color: var(--ink-3); opacity: .65; font-weight: 700; }
-    .pname-edit:focus { outline: none; }
-    .ptag { appearance: none; border: none; background: transparent; cursor: pointer; text-align: left; padding: 0; font-family: var(--mono); font-size: 0.95rem; font-weight: 700; letter-spacing: 1px; color: var(--brand); }
 
     .group { display: flex; flex-direction: column; gap: 10px; }
     .glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }

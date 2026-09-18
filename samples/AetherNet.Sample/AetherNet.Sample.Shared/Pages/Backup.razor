@@ -1,0 +1,97 @@
+@page "/backup"
+@using AetherNet.Identity
+@using AetherNet.Sample.Shared.Services
+@inject INodeIdentityRecovery Recovery
+@inject IIdentityService Me
+@inject IJSRuntime JS
+
+@* The one thing the app could not do before: let a person carry their identity off this phone. The tag
+   is a function of one Ed25519 key; these 24 words ARE that key, in BIP-39 form, so writing them down is
+   the difference between a lost phone and a lost identity. Nothing leaves the device — the phrase is
+   derived from the key already here (INodeIdentityRecovery), shown on demand, never sent. *@
+
+<PageTitle>Aether — back up your identity</PageTitle>
+
+<div class="backup">
+    <h1 class="scr-title">Back up your identity</h1>
+    <p class="lede">
+        You are <b>@Me.AetherTag</b>. These 24 words are the only way to be that person again on a new
+        phone. Write them down and keep them where only you can reach — anyone who has them is you, and
+        without them a lost phone is a lost identity. Aether never sends them anywhere.
+    </p>
+
+    @if (_phrase is null)
+    {
+        <button class="primary block" @onclick="Reveal" disabled="@_busy">Show my recovery phrase</button>
+        @if (_error is { } e) { <p class="warn">@e</p> }
+    }
+    else
+    {
+        <ol class="words">
+            @foreach (var w in _phrase)
+            {
+                <li><span class="w">@w</span></li>
+            }
+        </ol>
+        <button class="copy" @onclick="Copy">@(_copied ? "Copied ✓" : "Copy all 24 words")</button>
+        <p class="hint">Write them in order and check them twice — one wrong or missing word restores nothing.</p>
+    }
+</div>
+
+@code {
+    private string[]? _phrase;
+    private bool _busy;
+    private bool _copied;
+    private string? _error;
+
+    private async Task Reveal()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var phrase = await Recovery.ExportRecoveryPhraseAsync();
+            _phrase = phrase.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        }
+        catch (NodeIdentityUnavailableException)
+        {
+            _error = "This phone is locked — unlock it and try again.";
+        }
+        catch (InvalidOperationException)
+        {
+            _error = "This device has no identity to back up yet.";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Copy()
+    {
+        if (_phrase is null) return;
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", string.Join(' ', _phrase)); } catch { }
+        _copied = true;
+    }
+}
+
+<style>
+    .backup { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+    .words {
+        list-style: none; counter-reset: w; margin: 4px 0 0; padding: 0;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px;
+    }
+    .words li {
+        counter-increment: w; display: flex; align-items: baseline; gap: 10px;
+        border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px;
+    }
+    .words li::before {
+        content: counter(w); color: var(--ink-3); font-family: var(--mono); font-size: 0.8rem;
+        min-width: 1.4em; text-align: right; flex: none;
+    }
+    .words .w { font-weight: 700; color: var(--ink); font-size: 1rem; }
+
+    .copy {
+        appearance: none; background: transparent; border: 1px solid var(--line); border-radius: 12px;
+        color: var(--brand); font-weight: 700; font-size: 0.95rem; padding: 12px; cursor: pointer;
+    }
+    .hint { color: var(--ink-2); font-size: 0.85rem; text-align: center; margin: 0; }
+</style>

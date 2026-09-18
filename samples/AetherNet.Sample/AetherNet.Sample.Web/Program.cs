@@ -29,6 +29,9 @@ builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityStore>(sp =>
     new VaultNodeIdentityStore(sp.GetRequiredService<ISecretVault>()));
 builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
     new AetherNet.Identity.NodeIdentity(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
+// Identity portability over the SAME store, so the recovery phrase restores this device's exact tag.
+builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
+    new AetherNet.Identity.NodeIdentityRecovery(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
 builder.Services.AddSingleton<IIdentityService, IdentityService>();
 
 // The panic-wipe trigger: a duress PIN, or a direct Wipe() call, erases the identity key

@@ -46,6 +46,10 @@ public static class MauiProgram
             new VaultNodeIdentityStore(sp.GetRequiredService<ISecretVault>()));
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
             new AetherNet.Identity.NodeIdentity(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
+        // Identity portability over the SAME device store, so the recovery phrase restores the exact tag
+        // this device shows. Powers the "Back up your identity" card in Settings.
+        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
+            new AetherNet.Identity.NodeIdentityRecovery(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
         builder.Services.AddSingleton<IIdentityService, IdentityService>();
 
         // The panic-wipe trigger: a duress PIN, or a direct Wipe() call, erases the identity key
