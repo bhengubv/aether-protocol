@@ -28,7 +28,15 @@ public sealed class RadioMeshSender : IMeshSender
 
     public IReadOnlyList<PeerInfo> GetConnectedPeers() =>
         _radio is { IsLinked: true, PeerTag: { } peer }
-            ? new[] { new PeerInfo { Uhid = peer, TransportType = _radio.SelectedRadio } }
+            ? new[] { new PeerInfo
+                {
+                    Uhid = peer,
+                    TransportType = _radio.SelectedRadio,
+                    // Every AetherNet phone runs the store-and-forward stack, so a peer we can reach is a
+                    // peer that can carry a bundle onward. Advertising that is what lets the delay-tolerant
+                    // layer hand a message for an absent friend to whoever happens to be here now.
+                    Capabilities = NodeCapabilities.DtnCarrier,
+                } }
             : Array.Empty<PeerInfo>();
 
     // One physical link → one peer. Unicast and broadcast both mean "send to the peer".

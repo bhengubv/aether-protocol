@@ -46,6 +46,9 @@
     <ProjectReference Include="../../../src/AetherNet.Node/AetherNet.Node.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Node.Host/AetherNet.Node.Host.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
+    <!-- Persistent store-and-forward: the file-backed key/value store that holds delay-tolerant bundles
+         on disk, so a message left for an absent friend survives an app restart. -->
+    <ProjectReference Include="../../../src/AetherNet.Storage/AetherNet.Storage.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Security/AetherNet.Security.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Transport/AetherNet.Transport.csproj" />
     <!-- AetherView: the whole mesh-web as a library — model, renderer, editor, deck, wire. This app

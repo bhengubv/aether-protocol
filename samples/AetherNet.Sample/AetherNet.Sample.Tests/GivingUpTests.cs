@@ -204,6 +204,10 @@ public class GivingUpTests
     {
         using var rig = new Rig();
         rig.Signal.OpenSessionWith(Them);
+        // A good link is a link to THIS person, not just a lit-up radio. Reachability is what separates a
+        // real failure from a message the store-and-forward layer is carrying to someone who stepped away:
+        // silence from a peer you can actually reach is a failure; silence from one who is gone is not.
+        rig.Radio.PeerLabel = Them;
         rig.Radio.Link();
         await rig.Chat.SendAsync(Them, "into the void");
         var id = rig.Store.GetMessages(Them).Single().Id;
@@ -211,6 +215,35 @@ public class GivingUpTests
         await rig.Chat.GiveUpIfUnconfirmedAsync(id, Them);
 
         Assert.Equal(ChatMessage.Failed, rig.Store.GetMessages(Them).Single().State);
+    }
+
+    /// <summary>
+    /// The person you are writing to stepped away, and the phone is now linked to someone else — a
+    /// carrier. The message went out and was accepted by the store-and-forward layer, which will carry it
+    /// to them whenever they reappear, for as long as its TTL. A link that is not a link to THEM is not a
+    /// reason to call the message failed: away is not the same as undelivered, and a red mark would tell
+    /// the person to retype something that is genuinely on its way.
+    /// </summary>
+    [Fact]
+    public async Task A_message_to_a_peer_who_stepped_away_is_carried_not_failed()
+    {
+        const string carrier = "QWRT7-88H3K";
+
+        using var rig = new Rig();
+        rig.Signal.OpenSessionWith(Them);
+        rig.Radio.PeerLabel = Them;                 // reachable to Them at send time
+        rig.Radio.Link();
+        await rig.Chat.SendAsync(Them, "still coming");
+        var id = rig.Store.GetMessages(Them).Single().Id;
+
+        // Them walks off; the phone links to a carrier instead. Them is no longer reachable.
+        rig.Radio.Unlink();
+        rig.Radio.PeerLabel = carrier;
+        rig.Radio.Link();
+
+        await rig.Chat.GiveUpIfUnconfirmedAsync(id, Them);
+
+        Assert.NotEqual(ChatMessage.Failed, rig.Store.GetMessages(Them).Single().State);
     }
 
     [Fact]

@@ -793,6 +793,16 @@ public sealed class ChatService
             return;
         }
 
+        // Linked, but not to THIS recipient. The message was accepted by the delay-tolerant layer — a
+        // carrier is holding it for whenever the recipient reappears, for as long as its TTL (hours).
+        // Not reachable is not the same as not delivered, and a red mark here would tell the person to
+        // retype something that is genuinely on its way. It stays "sent" — handed to the mesh to carry.
+        if (_radio is not null && !_radio.IsReachable(peerTag))
+        {
+            T($"no receipt for {messageId[..8]} — recipient away, carried by store-and-forward, still owed");
+            return;
+        }
+
         _store.SetMessageStateUnlessDelivered(messageId, ChatMessage.Failed);
         T($"no receipt for {messageId[..8]} in {AckTimeout.TotalSeconds:0}s → failed");
         Changed?.Invoke();

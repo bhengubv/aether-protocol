@@ -106,11 +106,28 @@ public static class MauiProgram
         builder.Services.AddSingleton<AetherNet.Routing.IWireAddressResolver>(sp =>
             new CircleDirectoryWireResolver(sp.GetRequiredService<CircleDirectory>(),
                 sp.GetRequiredService<IIdentityService>()));
+        // Delay-tolerant store-and-forward, wired at last. A message to someone who is not reachable right
+        // now is handed to this layer as a sealed bundle rather than left stuck: it is stored on disk (so
+        // it survives an app restart), delivered directly when the recipient reappears within its TTL, and
+        // replicated to a connected peer who can carry it nearer. The bundle store is a plain file-backed
+        // key/value store under the app's data directory; the mesh sender is the same one radio. There is
+        // no central relay in this — the backend fallback is deliberately OFF, decentralisation first.
+        builder.Services.AddSingleton<AetherNet.Dtn.IDtnService>(sp =>
+            new AetherNet.Dtn.DtnService(
+                sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
+                new AetherNet.Storage.KeyValueDtnBundleStore(
+                    new AetherNet.Storage.FileSystemKeyValueStore(Path.Combine(dataDir, "dtn"))),
+                logger: sp.GetService<ILogger<AetherNet.Dtn.DtnService>>()));
+
         builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
             new AetherNet.Messaging.MessagingService(
                 sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
                 sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
                 cipher: sp.GetRequiredService<AetherNet.Messaging.IMessageEnvelopeCipher>(),
+                dtn: sp.GetRequiredService<AetherNet.Dtn.IDtnService>(),
+                // DTN fallback ON so an unreachable recipient's message is carried, not dropped; backend
+                // relay OFF because a central relay is exactly the chokepoint this network refuses.
+                options: new AetherNet.Messaging.MessagingOptions { EnableDtnFallback = true, EnableBackendRelay = false },
                 logger: sp.GetService<ILogger<AetherNet.Messaging.MessagingService>>()));
         builder.Services.AddSingleton<AetherNet.Messaging.MeshInboundDispatcher>(sp =>
             new AetherNet.Messaging.MeshInboundDispatcher(
@@ -118,6 +135,7 @@ public static class MauiProgram
                 messaging: sp.GetRequiredService<AetherNet.Messaging.IMessagingService>(),
                 routing: sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
                 resolver: sp.GetRequiredService<AetherNet.Routing.IWireAddressResolver>(),
+                dtn: sp.GetRequiredService<AetherNet.Dtn.IDtnService>(),
                 logger: sp.GetService<ILogger<AetherNet.Messaging.MeshInboundDispatcher>>()));
 
         // Capability negotiation, wired at last. Two phones exchange, on first contact, the protocol
@@ -172,6 +190,17 @@ public static class MauiProgram
             sp.GetRequiredService<IIdentityService>(),
             sp.GetService<IRadioMesh>(),
             sp.GetService<ILoggerFactory>()));
+
+        // The carry loop for delay-tolerant delivery. It re-attempts delivery + sweeps expired bundles on
+        // a gentle cadence and the instant a peer appears, and bridges a bundle delivered to us back into
+        // the reliable core to be decrypted and shown in chat. Primed at warm-up so a message left for us
+        // while we were away is picked up as soon as we are back on the mesh.
+        builder.Services.AddSingleton<DtnCarrierService>(sp => new DtnCarrierService(
+            sp.GetRequiredService<AetherNet.Dtn.IDtnService>(),
+            sp.GetRequiredService<AetherNet.Messaging.IMessagingService>(),
+            sp.GetRequiredService<IIdentityService>(),
+            sp.GetService<IRadioMesh>(),
+            sp.GetService<ILogger<DtnCarrierService>>()));
 
         // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
         // that question about a rotating address, and without an answer the only way to find out is
@@ -488,6 +517,11 @@ public static class MauiProgram
             // Constructing WatchService subscribes it to the radio, so a "watch together" invite arrives
             // even before its player is opened.
             Warm("watch", () => app.Services.GetService<WatchService>());
+
+            // Priming the DTN carrier starts the store-and-forward loop and subscribes it to the radio,
+            // so a message left for us while we were away is picked up the moment we are back — and one
+            // we are carrying for an absent friend moves on as soon as a peer appears.
+            Warm("carry", () => app.Services.GetService<DtnCarrierService>()?.Prime());
 
             // The Wi-Fi Direct radio finds its own peers and settles who hosts on its own, so there is
             // nothing here to start. Resolving the directory is the point: recognising a contact
