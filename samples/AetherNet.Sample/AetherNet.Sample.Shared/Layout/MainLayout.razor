@@ -2,6 +2,7 @@
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @using AetherNet.Voice.Models
+@using AetherNet.Streaming.Models
 @implements IDisposable
 @inject AetherStore Store
 @inject CallService Calls
@@ -13,6 +14,7 @@
 @inject ChatService Chat
 @inject IVideoIo Video
 @inject IJSRuntime JS
+@inject WatchService Watch
 
 <div class="app">
     <header class="appbar">
@@ -29,6 +31,19 @@
        enough to use. *@
     <CallOverlay />
     <GroupCallOverlay />
+
+    @* A watch-together invite can arrive wherever you are, like a call — so it lives in the shell, not
+       on one page. Join opens the synced player; Later dismisses it. *@
+    @if (_watchInvite is { } inv)
+    {
+        <div class="watch-invite">
+            <span class="wi-text">▶ Watch “@inv.Title” together</span>
+            <span class="wi-actions">
+                <button class="wi-join" @onclick="() => JoinWatch(inv)">Join</button>
+                <button class="wi-no" @onclick="() => _watchInvite = null">Later</button>
+            </span>
+        </div>
+    }
 
     <main class="viewport">
         @Body
@@ -73,6 +88,7 @@
     protected override void OnInitialized()
     {
         Calls.Changed += OnCallChanged;
+        Watch.Invited += OnWatchInvited;
 
         // Somebody scanned an invite. This is the only path that carries a public key, and until it
         // was wired the link was parsed, validated and thrown away — so a scan added nobody, and two
@@ -127,6 +143,22 @@
     }
 
     private void OnCallChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>Somebody nearby started watching and invited this phone — surface it wherever we are.</summary>
+    private WatchSession? _watchInvite;
+
+    private void OnWatchInvited(WatchSession s) => _ = InvokeAsync(() =>
+    {
+        _watchInvite = s;
+        StateHasChanged();
+    });
+
+    private async Task JoinWatch(WatchSession s)
+    {
+        _watchInvite = null;
+        await Watch.FollowAsync(s.Id);
+        Nav.NavigateTo("watch");
+    }
 
     /// <summary>
     /// Add whoever the invite names, wherever the person happens to be in the app.
@@ -183,9 +215,22 @@
     public void Dispose()
     {
         Calls.Changed -= OnCallChanged;
+        Watch.Invited -= OnWatchInvited;
         Invites.Arrived -= OnInvite;
         Tapped.Touched -= OnTouched;
         Chat.HandoffArrived -= OnHandedTo;
         Nav.LocationChanged -= OnMoved;
     }
 }
+
+<style>
+    /* A watch-together invite banner, pinned under the app bar wherever you are. */
+    .watch-invite { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 12px 16px; background: var(--brand); color: #fff; }
+    .watch-invite .wi-text { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .watch-invite .wi-actions { flex: 0 0 auto; display: flex; gap: 8px; }
+    .watch-invite button { appearance: none; border: none; border-radius: 999px; padding: 8px 16px;
+        font-weight: 750; cursor: pointer; }
+    .watch-invite .wi-join { background: #fff; color: var(--brand); }
+    .watch-invite .wi-no { background: rgba(255,255,255,.2); color: #fff; }
+</style>

@@ -166,6 +166,13 @@ public static class MauiProgram
             sp.GetService<IRadioMesh>(),
             sp.GetService<ILoggerFactory>()));
 
+        // Watch together on the real mesh — WatchService wraps the sync engine with the actual radio.
+        // Primed at warm-up so a watch invite is heard before its player is ever opened.
+        builder.Services.AddSingleton<WatchService>(sp => new WatchService(
+            sp.GetRequiredService<IIdentityService>(),
+            sp.GetService<IRadioMesh>(),
+            sp.GetService<ILoggerFactory>()));
+
         // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
         // that question about a rotating address, and without an answer the only way to find out is
         // to dial a stranger and see who picks up.
@@ -477,6 +484,10 @@ public static class MauiProgram
             // Priming the SOS service subscribes it to the radio, so an emergency broadcast from someone
             // nearby is heard even before its screen has ever been opened — the whole point of an alert.
             Warm("sos", () => app.Services.GetService<SosService>()?.Prime());
+
+            // Constructing WatchService subscribes it to the radio, so a "watch together" invite arrives
+            // even before its player is opened.
+            Warm("watch", () => app.Services.GetService<WatchService>());
 
             // The Wi-Fi Direct radio finds its own peers and settles who hosts on its own, so there is
             // nothing here to start. Resolving the directory is the point: recognising a contact

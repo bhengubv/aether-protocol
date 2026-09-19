@@ -1,6 +1,8 @@
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @inject AttachmentService Attachments
+@inject WatchService Watch
+@inject NavigationManager Nav
 @implements IDisposable
 
 @*
@@ -22,6 +24,9 @@
         @if (Message.IsVideoNote)
         {
             <video class="nplayer" controls playsinline preload="metadata" src="@_source"></video>
+            @* Both phones already hold these bytes (by hash), so they can play the very same video in
+               step — the "dish" the watch-together engine was hiding in the Lab. *@
+            <button class="nwatch" @onclick="WatchTogether">▶ Watch together</button>
         }
         else if (Message.IsVoiceNote)
         {
@@ -182,6 +187,15 @@
         };
     }
 
+    /// <summary>Start watching this video together — both ends already hold the bytes, so it only syncs.</summary>
+    private async Task WatchTogether()
+    {
+        if (string.IsNullOrEmpty(Message.AttachmentHash)) return;
+        var title = string.IsNullOrWhiteSpace(Message.Body) ? "Video" : Message.Body;
+        if (await Watch.HostAsync(Message.AttachmentHash, title) is not null)
+            Nav.NavigateTo("/watch");
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -211,4 +225,8 @@
     .nfill { display: block; height: 100%; background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; transition: width 0.25s linear; }
 
     .ncaption { font-size: 0.95rem; }
+
+    .nwatch { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+        border-radius: 10px; padding: 7px 12px; font-weight: 700; font-size: 0.82rem; cursor: pointer;
+        align-self: flex-start; }
 </style>
