@@ -294,10 +294,43 @@ public sealed class AttachmentService : IDisposable
         ArgumentException.ThrowIfNullOrEmpty(peerTag);
         ArgumentNullException.ThrowIfNull(bytes);
 
+        var descriptor = await StoreAsync(bytes, contentType, name, cancellationToken).ConfigureAwait(false);
+        await OfferAsync(peerTag, descriptor, cancellationToken).ConfigureAwait(false);
+        return descriptor;
+    }
+
+    /// <summary>
+    /// Store the bytes once, then offer them to several peers — a group note is one file with several
+    /// recipients, each of whom fetches the very same bytes by content hash. Storing once (the hash is
+    /// the same for everyone) and offering many times mirrors the group itself: several private chats
+    /// over one piece of content, never a shared key or a broadcast.
+    /// </summary>
+    public async Task<ContentDescriptor> SendToManyAsync(
+        IEnumerable<string> peerTags, byte[] bytes, string contentType, string name,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(peerTags);
+        ArgumentNullException.ThrowIfNull(bytes);
+
+        var descriptor = await StoreAsync(bytes, contentType, name, cancellationToken).ConfigureAwait(false);
+        foreach (var peerTag in peerTags)
+        {
+            if (string.IsNullOrWhiteSpace(peerTag)) continue;
+            await OfferAsync(peerTag, descriptor, cancellationToken).ConfigureAwait(false);
+        }
+        return descriptor;
+    }
+
+    /// <summary>
+    /// Keep our own copy of the content, chunked and ready to serve. The sender must be able to play
+    /// back what it sent even if the transfer never completes, and a chunk cannot be offered to anyone
+    /// unless it is stored. Content-addressed, so re-storing the same bytes is idempotent.
+    /// </summary>
+    private async Task<ContentDescriptor> StoreAsync(
+        byte[] bytes, string contentType, string name, CancellationToken cancellationToken)
+    {
         var descriptor = ContentDescriptor.FromBytes(name, bytes, contentType, ChunkBytes);
 
-        // Keep our own copy first. The sender must be able to play back what it sent even if the
-        // transfer never completes, and a chunk cannot be served to the peer unless it is stored.
         await _content.SaveDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
         for (var i = 0; i < descriptor.ChunkCount; i++)
         {
@@ -308,7 +341,6 @@ public sealed class AttachmentService : IDisposable
         }
 
         T($"attachment {Short(descriptor.RootHash)} — {descriptor.ChunkCount} chunk(s), {descriptor.TotalBytes}B");
-        await OfferAsync(peerTag, descriptor, cancellationToken).ConfigureAwait(false);
         return descriptor;
     }
 

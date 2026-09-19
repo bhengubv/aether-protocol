@@ -446,17 +446,14 @@
     {
         _noteProblem = null;
 
-        if (_group is not null)
-        {
-            _noteProblem = "Files go to one person at a time for now.";
-            StateHasChanged();
-            return;
-        }
-
         var picked = await Picker.PickAsync();
         if (picked is null) return;   // backed out of the chooser — nothing to say
 
-        var sent = await Messages.SendNoteAsync(Peer, picked.Bytes, picked.ContentType, picked.Name);
+        // A group is several 1:1 chats, and a shared file is one more of them: stored once, offered to
+        // every member. It goes out exactly the way a one-to-one file does.
+        var sent = _group is not null
+            ? await Messages.SendNoteToGroupAsync(_group.Id, picked.Bytes, picked.ContentType, picked.Name)
+            : await Messages.SendNoteAsync(Peer, picked.Bytes, picked.ContentType, picked.Name);
         if (!sent) _noteProblem = "Could not send that.";
 
         Refresh();
@@ -465,8 +462,8 @@
 
     /// <summary>
     /// One place where a finished recording becomes a message, so voice, video and the recorder's own
-    /// cap all behave identically. A group has no attachment path yet — the transfer is addressed to
-    /// one peer — and this says so rather than dropping the note without a word.
+    /// cap all behave identically — and, now, so a group note travels the same road as a one-to-one one:
+    /// stored once, offered to every member, named on the message by content hash.
     /// </summary>
     private async Task SendNote(RecordedNote? note, string tooShort)
     {
@@ -477,15 +474,9 @@
             return;
         }
 
-        if (_group is not null)
-        {
-            _noteProblem = "Notes go to one person at a time for now.";
-            StateHasChanged();
-            return;
-        }
-
-        var sent = await Messages.SendNoteAsync(
-            Peer, note.Bytes, note.ContentType, note.SuggestedName);
+        var sent = _group is not null
+            ? await Messages.SendNoteToGroupAsync(_group.Id, note.Bytes, note.ContentType, note.SuggestedName)
+            : await Messages.SendNoteAsync(Peer, note.Bytes, note.ContentType, note.SuggestedName);
 
         if (!sent) _noteProblem = "Could not send that note.";
 

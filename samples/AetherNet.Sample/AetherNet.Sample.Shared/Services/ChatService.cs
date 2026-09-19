@@ -882,6 +882,76 @@ public sealed class ChatService
         }
     }
 
+    /// <summary>
+    /// Send a note — a photo, a video, a file, a voice note — to a group.
+    /// <para>
+    /// A group is several 1:1 chats, and a group note is the same idea: the bytes are stored once and
+    /// offered to every member (each fetches the identical content by hash), and the message envelope
+    /// carries the note's header in front of the caption exactly as a one-to-one note does. There is no
+    /// group content store and no shared key — a member who leaves simply stops being offered the bytes.
+    /// </para>
+    /// <para>
+    /// Returns false only when there is nothing to send or this host cannot move attachments at all; a
+    /// note whose session is not up yet is stored pending and leaves when a member becomes reachable,
+    /// exactly like a typed group message.
+    /// </para>
+    /// </summary>
+    public async Task<bool> SendNoteToGroupAsync(
+        string groupId, byte[] bytes, string contentType, string name, string caption = "",
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(groupId) || bytes is null || bytes.Length == 0) return false;
+        if (_attachments is null)
+        {
+            _log.LogWarning("Cannot send a group note — this host has no attachment transport");
+            return false;
+        }
+        if (_store.GetGroup(groupId) is null) return false;
+
+        var members = _store.GetGroupMembers(groupId).Where(m => m != _me.AetherTag).ToList();
+
+        // Store once, offer to every member. The hash is the same for all of them, so the message we
+        // save names content this phone can actually serve to whoever asks.
+        var descriptor = await _attachments
+            .SendToManyAsync(members, bytes, contentType, name, cancellationToken)
+            .ConfigureAwait(false);
+
+        var message = new ChatMessage(
+            Id: Guid.NewGuid().ToString("N"),
+            PeerTag: groupId,
+            Body: AttachmentRef.Clean(caption).Trim(),
+            Mine: true,
+            State: ChatMessage.Pending,
+            SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            SenderTag: _me.AetherTag,
+            AttachmentHash: descriptor.RootHash,
+            AttachmentType: contentType,
+            AttachmentBytes: descriptor.TotalBytes);
+
+        _store.SaveMessage(message);
+        Changed?.Invoke();
+
+        // The envelope body is the one-to-one wire form — the note header, then the caption — so the far
+        // side decodes it with the same reader and the bubble fills in as the bytes land.
+        var wireBody = new AttachmentRef(descriptor.RootHash, contentType, descriptor.TotalBytes)
+            .Encode(message.Body);
+        var payload = GroupEnvelope.Message(groupId, message.Id, _me.AetherTag, wireBody, SignContribution);
+
+        var reached = false;
+        foreach (var m in members)
+        {
+            await EnsureSessionAsync(m, cancellationToken).ConfigureAwait(false);
+            if (await SendGroupToMemberAsync(m, payload, cancellationToken).ConfigureAwait(false)) reached = true;
+        }
+
+        if (reached)
+        {
+            _store.SetMessageState(message.Id, ChatMessage.Sent);
+            Changed?.Invoke();
+        }
+        return true;
+    }
+
     private async Task<bool> SendGroupToMemberAsync(string memberTag, string json, CancellationToken cancellationToken)
     {
         // A group is several private 1:1 chats, so a group copy is one more sealed unicast through the
@@ -932,16 +1002,24 @@ public sealed class ChatService
 
             if (e.Kind != "msg" || e.MessageId is null || e.Body is null) return;
 
+            // A group note names itself in front of the caption, exactly as a one-to-one note does;
+            // plain text decodes to itself with no attachment, so nothing about typed group messages
+            // changes. The bytes arrive separately and the bubble fills in as they land.
+            var (attachment, caption) = AttachmentRef.Decode(e.Body);
+
             // Keyed by the sender's message id, so the same message arriving twice — a retry, or a
             // relay from another member — updates the one we have instead of repeating their words.
             _store.SaveMessage(new ChatMessage(
                 Id: e.MessageId,
                 PeerTag: e.GroupId,
-                Body: e.Body,
+                Body: caption,
                 Mine: false,
                 State: ChatMessage.Received,
                 SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                SenderTag: e.Sender ?? senderTag));
+                SenderTag: e.Sender ?? senderTag,
+                AttachmentHash: attachment?.Hash,
+                AttachmentType: attachment?.ContentType,
+                AttachmentBytes: attachment?.Bytes ?? 0));
 
             Changed?.Invoke();
         }
