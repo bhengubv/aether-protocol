@@ -31,4 +31,12 @@ public interface IContentStore
 
     /// <summary>Enumerate every descriptor in the store.</summary>
     Task<IReadOnlyList<ContentDescriptor>> ListDescriptorsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Drop a content and all its chunks — the descriptor and every stored byte. Returns true if a
+    /// descriptor was actually removed. This is the eviction/erasure hook: a device carrying other
+    /// people's content needs it to reclaim space, and an ephemeral message needs it to truly delete
+    /// what it was carrying rather than merely stop pointing at it.
+    /// </summary>
+    Task<bool> RemoveAsync(string rootHash, CancellationToken cancellationToken = default);
 }

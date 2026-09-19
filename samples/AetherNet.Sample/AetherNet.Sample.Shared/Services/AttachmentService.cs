@@ -503,6 +503,13 @@ public sealed class AttachmentService : IDisposable
         Arrived?.Invoke(hash);
     }
 
+    /// <summary>
+    /// Delete a stored content outright — descriptor and every chunk. Used to burn an ephemeral note's
+    /// bytes once it is spent, so nothing is left on disk to recover. A no-op if the hash is unknown.
+    /// </summary>
+    public Task ForgetAsync(string hash, CancellationToken cancellationToken = default)
+        => string.IsNullOrEmpty(hash) ? Task.CompletedTask : _content.RemoveAsync(hash, cancellationToken);
+
     // ── Reading it back ───────────────────────────────────────────────────────
 
     /// <summary>

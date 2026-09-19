@@ -59,4 +59,11 @@ public sealed class InMemoryContentStore : IContentStore
         IReadOnlyList<ContentDescriptor> all = _descriptors.Values.ToArray();
         return Task.FromResult(all);
     }
+
+    public Task<bool> RemoveAsync(string rootHash, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(rootHash);
+        _chunks.TryRemove(rootHash, out _);
+        return Task.FromResult(_descriptors.TryRemove(rootHash, out _));
+    }
 }

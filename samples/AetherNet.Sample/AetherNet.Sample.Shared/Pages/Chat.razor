@@ -130,7 +130,8 @@
                 @if (m.Mine)
                 {
                     <div class="bub mine">
-                        @if (m.HasAttachment) { <NoteBubble Message="m" /> } else { @m.Body }
+                        @Payload(m)
+                        @if (m.IsEphemeral) { <span class="eph-badge">@EphIcon(m) @m.EphemeralLabel</span> }
                     </div>
                     <span class="meta">
                         <span class="btime">@Stamp(m.SentMs)</span>
@@ -148,7 +149,33 @@
                             <span class="who" style="color:@TagPalette.For(who)">@who</span>
                         }
                         <div class="bub" style="box-shadow: inset 7px 0 0 @TagPalette.For(who)">
-                            @if (m.HasAttachment) { <NoteBubble Message="m" /> } else { @m.Body }
+                            @if (m.IsEphemeral)
+                            {
+                                @if (m.EphemeralSpent)
+                                {
+                                    @* Burnt — the content is gone; only this tombstone remains. *@
+                                    <span class="eph-tomb">@EphIcon(m) @(m.EphemeralKind == ChatMessage.EphTimeout ? "Expired" : "Viewed")</span>
+                                }
+                                else if (_revealId == m.Id)
+                                {
+                                    @Payload(m)
+                                    <div class="eph-reveal">
+                                        <span class="eph-count">@RevealHint(m)</span>
+                                        <button class="eph-done" @onclick="CloseReveal">Done</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <button class="eph-gate" @onclick="() => Reveal(m)">
+                                        <span class="eph-eye">@EphIcon(m)</span>
+                                        <span class="eph-gtext"><span class="eph-glab">@m.EphemeralLabel</span><span class="eph-gsub">@GateSub(m)</span></span>
+                                    </button>
+                                }
+                            }
+                            else
+                            {
+                                @Payload(m)
+                            }
                         </div>
                         <span class="btime them">@Stamp(m.SentMs)</span>
                     </div>
@@ -165,6 +192,29 @@
        recorder ran on after the finger lifted. Watched on merlin 2026-08-20: a four-second hold left
        it recording at 0:12. Same shape as the call buttons dropping taps — an element that handles a
        gesture cannot be destroyed part-way through one. *@
+    @* Disappearing messages: the mode is chosen here and applies to the NEXT thing sent — text, photo,
+       file or note alike. It stays armed and visibly so, never a silent surprise; the banner says what
+       every message will do until you turn it off. *@
+    @if (_ephPickerOpen)
+    {
+        <div class="eph-picker">
+            <span class="eph-picker-lab">Disappearing messages</span>
+            <div class="eph-opts">
+                <button class="eph-opt @(_ephKind == ChatMessage.EphNone ? "on" : null)" @onclick="() => PickEph(ChatMessage.EphNone, 0)">Off</button>
+                <button class="eph-opt @(_ephKind == ChatMessage.EphOnce ? "on" : null)" @onclick="() => PickEph(ChatMessage.EphOnce, 0)">View once</button>
+                <button class="eph-opt @(_ephKind == ChatMessage.EphTwice ? "on" : null)" @onclick="() => PickEph(ChatMessage.EphTwice, 0)">View twice</button>
+                <button class="eph-opt @(_ephKind == ChatMessage.EphTimeout ? "on" : null)" @onclick="() => PickEph(ChatMessage.EphTimeout, 5 * 60 * 1000)">5 minutes</button>
+            </div>
+        </div>
+    }
+    else if (_ephKind != ChatMessage.EphNone)
+    {
+        <button class="eph-armed" @onclick="() => { _ephPickerOpen = true; }">
+            <span class="eph-armed-t">Disappears — @EphKindLabel()</span>
+            <span class="eph-armed-x">change</span>
+        </button>
+    }
+
     <div class="cv-composer @(Calls.IsMinimised ? "under-call" : null) @(_recording ? "recording" : null)">
         @if (_recording)
         {
@@ -174,6 +224,10 @@
         }
         else
         {
+            <button class="cv-note eph-toggle @(_ephKind != ChatMessage.EphNone ? "on" : null)"
+                    @onclick="ToggleEphPicker" title="Disappearing messages" aria-label="Disappearing messages">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 10v3l1.8 1.8"/><path d="M9 2h6M5.5 4.5l-1.6 1.6"/></svg>
+            </button>
             <input class="cv-input" @bind="_draft" @bind:event="oninput" @onkeydown="OnKey" placeholder="Message" />
         }
 
@@ -248,6 +302,16 @@
 
     /// <summary>Nudges the time-aware status forward while we are not yet reached.</summary>
     private System.Threading.Timer? _statusTick;
+
+    // ── Disappearing messages ──────────────────────────────────────────────────
+    /// <summary>The mode armed for the next thing sent, and its window if timed. Stays set — visibly — until changed.</summary>
+    private int _ephKind = ChatMessage.EphNone;
+    private long _ephWindowMs;
+    private bool _ephPickerOpen;
+    /// <summary>The received ephemeral message currently revealed (only one at a time), or null.</summary>
+    private string? _revealId;
+    /// <summary>Ticks once a second while a timeout is counting down, to update the countdown and burn it when the window closes.</summary>
+    private System.Threading.Timer? _ephTick;
 
     private ContactRecord? Contact => Contacts.Contacts.FirstOrDefault(c => c.Tag == Peer);
 
@@ -351,6 +415,10 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        // A different conversation — drop any reveal from the last one.
+        _revealId = null;
+        // Burn anything whose timeout elapsed while this chat was closed, before the thread is drawn.
+        await Messages.SweepEphemeralAsync(Peer);
         Refresh();
         // Start the Signal handshake as soon as the conversation opens, so the first message a person
         // types can leave immediately instead of sitting pending.
@@ -391,14 +459,112 @@
         _messages = Messages.Conversation(Peer);
         _secure = _group is not null || Messages.IsSecure(Peer);
         UpdateReach();
+        SyncEphTick();
+    }
+
+    // ── Disappearing messages: compose ─────────────────────────────────────────
+
+    private void ToggleEphPicker() => _ephPickerOpen = !_ephPickerOpen;
+
+    private void PickEph(int kind, long windowMs)
+    {
+        _ephKind = kind;
+        _ephWindowMs = windowMs;
+        _ephPickerOpen = false;
+    }
+
+    /// <summary>The armed mode in words, for the banner.</summary>
+    private string EphKindLabel() => _ephKind switch
+    {
+        ChatMessage.EphOnce => "view once",
+        ChatMessage.EphTwice => "view twice",
+        ChatMessage.EphTimeout => (_ephWindowMs / 60000) + " min",
+        _ => "off",
+    };
+
+    // ── Disappearing messages: view ────────────────────────────────────────────
+
+    /// <summary>The plain content of a message — a note's player, or its words. Shared by every path.</summary>
+    private RenderFragment Payload(ChatMessage m) => @<text>@if (m.HasAttachment) { <NoteBubble Message="m" /> } else { @m.Body }</text>;
+
+    /// <summary>A small glyph for the mode — an eye for counted views, a clock for a timeout.</summary>
+    private static string EphIcon(ChatMessage m) => m.EphemeralKind == ChatMessage.EphTimeout ? "⏱" : "👁";
+
+    /// <summary>The under-label on an unopened gate: how many opens are left, or how long once opened.</summary>
+    private static string GateSub(ChatMessage m) => m.EphemeralKind switch
+    {
+        ChatMessage.EphOnce => "tap to view once",
+        ChatMessage.EphTwice => m.EphemeralViews > 0 ? "1 view left · tap" : "tap to view (2×)",
+        ChatMessage.EphTimeout => "tap — then it counts down",
+        _ => "tap to view",
+    };
+
+    /// <summary>What the reveal footer says while open — a live countdown for a timeout, the views left otherwise.</summary>
+    private string RevealHint(ChatMessage m)
+    {
+        if (m.EphemeralKind == ChatMessage.EphTimeout)
+        {
+            var left = Math.Max(0, m.EphemeralExpiresAtMs - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            var secs = (int)Math.Ceiling(left / 1000.0);
+            return secs >= 60 ? $"{secs / 60}:{secs % 60:00} left" : $"{secs}s left";
+        }
+        return m.EphemeralViewsLeft > 0 ? $"{m.EphemeralViewsLeft} more view" : "gone when you close this";
+    }
+
+    private void Reveal(ChatMessage m)
+    {
+        // OpenEphemeral counts the view, starts a timeout's clock, and says whether to show it now.
+        if (Messages.OpenEphemeral(m.Id)) _revealId = m.Id;
+        Refresh();
+        StateHasChanged();
+    }
+
+    private async Task CloseReveal()
+    {
+        var id = _revealId;
+        _revealId = null;
+        if (id is not null) await Messages.BurnIfSpentAsync(id);   // a spent once/twice burns now
+        Refresh();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Run a one-second ticker exactly while it is needed — a reveal is open, or a timeout is counting
+    /// down somewhere in the thread. Each tick burns any elapsed timeout and redraws the countdown; when
+    /// nothing is counting, the ticker stops so an idle chat costs nothing.
+    /// </summary>
+    private void SyncEphTick()
+    {
+        var needed = _revealId is not null || _messages.Any(x => x.EphemeralTimerRunning);
+        if (needed && _ephTick is null)
+        {
+            _ephTick = new System.Threading.Timer(_ => _ = InvokeAsync(EphTickAsync), null,
+                TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        }
+        else if (!needed && _ephTick is not null)
+        {
+            _ephTick.Dispose();
+            _ephTick = null;
+        }
+    }
+
+    private async Task EphTickAsync()
+    {
+        // Burn any timeout whose window has closed — whether it is open on screen or sitting in the thread.
+        foreach (var m in _messages.Where(x => x.EphemeralKind == ChatMessage.EphTimeout && x.EphemeralTimerRunning).ToArray())
+            await Messages.BurnIfSpentAsync(m.Id);
+        if (_revealId is not null && Messages.Conversation(Peer).FirstOrDefault(x => x.Id == _revealId)?.EphemeralSpent != false)
+            _revealId = null;   // the thing we were showing has just burnt
+        Refresh();
+        StateHasChanged();
     }
 
     private async Task Send()
     {
         var text = _draft;
         _draft = "";
-        if (_group is not null) await Messages.SendToGroupAsync(Peer, text);
-        else await Messages.SendAsync(Peer, text);
+        if (_group is not null) await Messages.SendToGroupAsync(Peer, text, _ephKind, _ephWindowMs);
+        else await Messages.SendAsync(Peer, text, _ephKind, _ephWindowMs);
         Refresh();
     }
 
@@ -502,8 +668,8 @@
         // A group is several 1:1 chats, and a shared file is one more of them: stored once, offered to
         // every member. It goes out exactly the way a one-to-one file does.
         var sent = _group is not null
-            ? await Messages.SendNoteToGroupAsync(_group.Id, picked.Bytes, picked.ContentType, picked.Name)
-            : await Messages.SendNoteAsync(Peer, picked.Bytes, picked.ContentType, picked.Name);
+            ? await Messages.SendNoteToGroupAsync(_group.Id, picked.Bytes, picked.ContentType, picked.Name, "", _ephKind, _ephWindowMs)
+            : await Messages.SendNoteAsync(Peer, picked.Bytes, picked.ContentType, picked.Name, "", _ephKind, _ephWindowMs);
         if (!sent) _noteProblem = "Could not send that.";
 
         Refresh();
@@ -525,8 +691,8 @@
         }
 
         var sent = _group is not null
-            ? await Messages.SendNoteToGroupAsync(_group.Id, note.Bytes, note.ContentType, note.SuggestedName)
-            : await Messages.SendNoteAsync(Peer, note.Bytes, note.ContentType, note.SuggestedName);
+            ? await Messages.SendNoteToGroupAsync(_group.Id, note.Bytes, note.ContentType, note.SuggestedName, "", _ephKind, _ephWindowMs)
+            : await Messages.SendNoteAsync(Peer, note.Bytes, note.ContentType, note.SuggestedName, "", _ephKind, _ephWindowMs);
 
         if (!sent) _noteProblem = "Could not send that note.";
 
@@ -647,6 +813,7 @@
         Recorder.Ticked -= OnTicked;
         Recorder.Capped -= OnCapped;
         _statusTick?.Dispose();
+        _ephTick?.Dispose();
 
         // Leaving the conversation must not leave the microphone open. Nobody expects a note to keep
         // recording after they have navigated away, and one that did would be sent to whoever they
@@ -725,6 +892,34 @@
         flex: 0 0 auto; appearance: none; border: none; border-radius: 10px; padding: 10px 16px;
         font-weight: 750; font-size: 0.9rem; cursor: pointer; background: var(--brand); color: #fff;
     }
+
+    /* ── Disappearing messages ─────────────────────────────────────────────────
+       Never red: the SOS palette owns red; these use the brand blue and plain ink. */
+    .eph-badge { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 0.72rem; font-weight: 750; opacity: .82; }
+    .eph-gate { appearance: none; border: 1px dashed var(--line); background: transparent; cursor: pointer;
+        display: flex; align-items: center; gap: 11px; padding: 10px 14px; border-radius: 12px; text-align: left; color: var(--ink); }
+    .eph-eye { font-size: 1.25rem; flex: 0 0 auto; }
+    .eph-gtext { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .eph-glab { font-weight: 750; font-size: 0.92rem; }
+    .eph-gsub { font-size: 0.74rem; color: var(--ink-3); }
+    .eph-reveal { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+    .eph-count { font-size: 0.74rem; font-weight: 750; color: var(--brand); font-variant-numeric: tabular-nums; }
+    .eph-done { appearance: none; border: none; background: var(--brand); color: #fff; border-radius: 999px;
+        padding: 5px 15px; font-weight: 750; font-size: 0.78rem; cursor: pointer; flex: 0 0 auto; }
+    .eph-tomb { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; font-style: italic; color: var(--ink-3); }
+
+    .eph-armed { width: 100%; appearance: none; border: none; cursor: pointer; display: flex; align-items: center;
+        justify-content: space-between; gap: 10px; padding: 8px 16px; background: var(--brand-tint); color: var(--brand);
+        font-weight: 750; font-size: 0.82rem; }
+    .eph-armed-x { font-weight: 700; opacity: .85; text-decoration: underline; flex: 0 0 auto; }
+    .eph-picker { padding: 10px 12px; background: var(--surface); color: var(--on-surface);
+        --ink: var(--on-surface); --ink-3: var(--on-surface); border-top: 1px solid var(--line); }
+    .eph-picker-lab { display: block; font-size: 0.72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ink); opacity: .6; margin-bottom: 8px; }
+    .eph-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .eph-opt { appearance: none; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink);
+        border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 0.84rem; }
+    .eph-opt.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .eph-toggle.on { color: var(--brand); }
 
     .cv-name { font-family: var(--mono); font-weight: 700; font-size: 1rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* A group has a name someone chose, not a tag — so it reads as words, not as an address. */

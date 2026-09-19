@@ -197,8 +197,9 @@ public sealed class SqliteContentStore : IContentStore, IDisposable
     }
 
     /// <summary>
-    /// Drop a content and its chunks. Not part of <see cref="IContentStore"/> — the eviction hook a
-    /// device needs once it is carrying other people's cards and storage is finite.
+    /// Drop a content and its chunks — the eviction/erasure hook on <see cref="IContentStore"/>: a
+    /// device carrying other people's cards needs it to reclaim space, and an ephemeral message needs it
+    /// to truly delete what it carried.
     /// </summary>
     public Task<bool> RemoveAsync(string rootHash, CancellationToken cancellationToken = default)
     {

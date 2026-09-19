@@ -104,10 +104,26 @@ public sealed record GroupRecord(string Id, string Name, string AdminTag, long C
 /// extra information, but in a group the thread is the group and the author is someone in it — so
 /// the author has to be stored separately or a group conversation cannot say who is speaking.
 /// </param>
+/// <param name="EphemeralKind">
+/// 0 = an ordinary, permanent message. 1 = view once, 2 = view twice, 3 = view within a timeout. This
+/// rides the wire so the RECEIVER can enforce it; the three counting/timing fields below are local to
+/// each phone and never travel.
+/// </param>
+/// <param name="EphemeralWindowMs">For a timeout message (kind 3), how long the window is once opened — ≤5 min. Rides the wire.</param>
+/// <param name="EphemeralViews">How many times THIS phone has opened it. Local; never sent.</param>
+/// <param name="EphemeralStartedMs">When the timeout clock started (first open); 0 = not yet opened. Local.</param>
+/// <param name="EphemeralSpent">It has been used up — the content is gone and only a tombstone remains. Local.</param>
 public sealed record ChatMessage(
     string Id, string PeerTag, string Body, bool Mine, string State, long SentMs, string? SenderTag = null,
-    string? AttachmentHash = null, string? AttachmentType = null, long AttachmentBytes = 0)
+    string? AttachmentHash = null, string? AttachmentType = null, long AttachmentBytes = 0,
+    int EphemeralKind = 0, long EphemeralWindowMs = 0,
+    int EphemeralViews = 0, long EphemeralStartedMs = 0, bool EphemeralSpent = false)
 {
+    /// <summary>The ephemeral modes, as they ride the wire.</summary>
+    public const int EphNone = 0, EphOnce = 1, EphTwice = 2, EphTimeout = 3;
+
+    /// <summary>The longest a timeout window may be — five minutes, as the feature promises.</summary>
+    public const long EphemeralMaxWindowMs = 5 * 60 * 1000;
     /// <summary>
     /// This message carries something other than words — a voice note, a video note, a picture.
     ///
@@ -136,6 +152,34 @@ public sealed record ChatMessage(
     /// because the phone has no way to know how to draw it.
     /// </summary>
     public bool IsFile => HasAttachment && !IsVoiceNote && !IsVideoNote && !IsPhoto;
+
+    // ── Ephemeral ────────────────────────────────────────────────────────────────
+
+    /// <summary>This message is meant to be seen and then gone — view-once, view-twice, or timed.</summary>
+    public bool IsEphemeral => EphemeralKind != EphNone;
+
+    /// <summary>How many opens are allowed before it burns — for the counted modes. 0 means "no count, a clock governs it" (timeout).</summary>
+    public int EphemeralViewLimit => EphemeralKind switch { EphOnce => 1, EphTwice => 2, _ => 0 };
+
+    /// <summary>Opens still left on a counted message (once/twice); never negative.</summary>
+    public int EphemeralViewsLeft => EphemeralViewLimit == 0 ? 0 : Math.Max(0, EphemeralViewLimit - EphemeralViews);
+
+    /// <summary>A timeout message whose clock has started — the window is counting down.</summary>
+    public bool EphemeralTimerRunning => EphemeralKind == EphTimeout && EphemeralStartedMs > 0 && !EphemeralSpent;
+
+    /// <summary>When a running timeout window ends, in unix ms; 0 if not applicable.</summary>
+    public long EphemeralExpiresAtMs => EphemeralTimerRunning ? EphemeralStartedMs + EphemeralWindowMs : 0;
+
+    /// <summary>What to call this mode, in words a person uses.</summary>
+    public string EphemeralLabel => EphemeralKind switch
+    {
+        EphOnce => "View once",
+        EphTwice => "View twice",
+        EphTimeout => (EphemeralWindowMs / 60000) is var m && m >= 1
+            ? m + (m == 1 ? " min" : " mins")
+            : Math.Max(1, EphemeralWindowMs / 1000) + "s",
+        _ => "",
+    };
 
     /// <summary>
     /// A recorded clip of someone talking.
@@ -327,6 +371,15 @@ public sealed class AetherStore : IDisposable
         AddColumnIfMissing("messages", "att_hash", "TEXT");
         AddColumnIfMissing("messages", "att_type", "TEXT");
         AddColumnIfMissing("messages", "att_bytes", "INTEGER");
+
+        // Ephemeral messages — view-once / view-twice / view-before-timeout. The KIND and WINDOW ride the
+        // wire so the receiver enforces the same rule the sender chose; VIEWS, STARTED and SPENT are this
+        // phone's own tally of how far the message has been used and never leave the device.
+        AddColumnIfMissing("messages", "eph_kind", "INTEGER");
+        AddColumnIfMissing("messages", "eph_window_ms", "INTEGER");
+        AddColumnIfMissing("messages", "eph_views", "INTEGER");
+        AddColumnIfMissing("messages", "eph_started_ms", "INTEGER");
+        AddColumnIfMissing("messages", "eph_spent", "INTEGER");
 
         // The account object beyond the raw keypair — a chosen display name + avatar, and whether the
         // recovery phrase has been backed up. Columns on the single identity row (migration-safe, so a
@@ -835,7 +888,10 @@ public sealed class AetherStore : IDisposable
             // att_hash — the column this table actually has. It was written as attachment_hash, which
             // SQLite rejects at execute time rather than at build time, so every single incoming
             // attachment failed with "no such column" and the only sign was a warning in the log.
-            cmd.CommandText = "SELECT * FROM messages WHERE att_hash = @hash;";
+            cmd.CommandText = """
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes,
+                       eph_kind, eph_window_ms, eph_views, eph_started_ms, eph_spent FROM messages WHERE att_hash = @hash;
+                """;
             cmd.Parameters.AddWithValue("@hash", hash);
             using var reader = cmd.ExecuteReader();
 
@@ -852,7 +908,8 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes FROM messages
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes,
+                       eph_kind, eph_window_ms, eph_views, eph_started_ms, eph_spent FROM messages
                 WHERE peer_tag = @tag ORDER BY sent_ms DESC LIMIT @limit;
                 """;
             cmd.Parameters.AddWithValue("@tag", peerTag);
@@ -872,7 +929,8 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes FROM messages
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes,
+                       eph_kind, eph_window_ms, eph_views, eph_started_ms, eph_spent FROM messages
                 WHERE sent_ms = (SELECT MAX(sent_ms) FROM messages m2 WHERE m2.peer_tag = messages.peer_tag)
                 GROUP BY peer_tag ORDER BY sent_ms DESC;
                 """;
@@ -895,7 +953,8 @@ public sealed class AetherStore : IDisposable
         {
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = """
-                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes FROM messages
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes,
+                       eph_kind, eph_window_ms, eph_views, eph_started_ms, eph_spent FROM messages
                 WHERE peer_tag = @tag AND mine = 1 AND state <> 'delivered' ORDER BY sent_ms;
                 """;
             cmd.Parameters.AddWithValue("@tag", peerTag);
@@ -989,10 +1048,15 @@ public sealed class AetherStore : IDisposable
         lock (_gate)
         {
             using var cmd = _conn.CreateCommand();
+            // ON CONFLICT touches only state on purpose: a message re-arriving (a retry, a relay) must
+            // never reset this phone's own ephemeral tally — the views it has spent, the clock it has
+            // started — or a view-once could be reopened simply by the same packet landing twice.
             cmd.CommandText = """
                 INSERT INTO messages (id, peer_tag, body, mine, state, sent_ms, sender_tag,
-                                      att_hash, att_type, att_bytes)
-                VALUES (@id, @tag, @body, @mine, @state, @ms, @sender, @ahash, @atype, @abytes)
+                                      att_hash, att_type, att_bytes,
+                                      eph_kind, eph_window_ms, eph_views, eph_started_ms, eph_spent)
+                VALUES (@id, @tag, @body, @mine, @state, @ms, @sender, @ahash, @atype, @abytes,
+                        @ekind, @ewin, @eviews, @estarted, @espent)
                 ON CONFLICT(id) DO UPDATE SET state=@state;
                 """;
             cmd.Parameters.AddWithValue("@id", message.Id);
@@ -1005,6 +1069,11 @@ public sealed class AetherStore : IDisposable
             cmd.Parameters.AddWithValue("@ahash", (object?)message.AttachmentHash ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@atype", (object?)message.AttachmentType ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@abytes", message.AttachmentBytes);
+            cmd.Parameters.AddWithValue("@ekind", message.EphemeralKind);
+            cmd.Parameters.AddWithValue("@ewin", message.EphemeralWindowMs);
+            cmd.Parameters.AddWithValue("@eviews", message.EphemeralViews);
+            cmd.Parameters.AddWithValue("@estarted", message.EphemeralStartedMs);
+            cmd.Parameters.AddWithValue("@espent", message.EphemeralSpent ? 1 : 0);
             cmd.ExecuteNonQuery();
         }
     }
@@ -1055,6 +1124,61 @@ public sealed class AetherStore : IDisposable
         }
     }
 
+    /// <summary>One message by id, or null. Used by the ephemeral enforcer, which works a single message at a time.</summary>
+    public ChatMessage? GetMessage(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return null;
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, peer_tag, body, mine, state, sent_ms, sender_tag, att_hash, att_type, att_bytes,
+                       eph_kind, eph_window_ms, eph_views, eph_started_ms, eph_spent FROM messages WHERE id = @id;
+                """;
+            cmd.Parameters.AddWithValue("@id", id);
+            using var r = cmd.ExecuteReader();
+            return r.Read() ? ReadMessage(r) : null;
+        }
+    }
+
+    /// <summary>Write this phone's own tally for an ephemeral message — how many times opened, when the clock started, whether it is spent.</summary>
+    public void UpdateEphemeral(string id, int views, long startedMs, bool spent)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "UPDATE messages SET eph_views = @v, eph_started_ms = @s, eph_spent = @sp WHERE id = @id;";
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.Parameters.AddWithValue("@v", views);
+            cmd.Parameters.AddWithValue("@s", startedMs);
+            cmd.Parameters.AddWithValue("@sp", spent ? 1 : 0);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Burn an ephemeral message: the content is gone but a tombstone row stays so the thread can say
+    /// "viewed" rather than silently losing the bubble. The words and the attachment reference are
+    /// cleared here; the attachment BYTES are deleted separately (only when no live message still names
+    /// them), and the ephemeral kind is kept so the tombstone reads correctly.
+    /// </summary>
+    public void TombstoneMessage(string id)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        lock (_gate)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE messages
+                SET body = '', att_hash = NULL, att_type = NULL, att_bytes = 0, eph_spent = 1
+                WHERE id = @id;
+                """;
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
     public void SetMessageState(string id, string state)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
@@ -1078,7 +1202,12 @@ public sealed class AetherStore : IDisposable
         SenderTag: r.IsDBNull(6) ? null : r.GetString(6),
         AttachmentHash: r.IsDBNull(7) ? null : r.GetString(7),
         AttachmentType: r.IsDBNull(8) ? null : r.GetString(8),
-        AttachmentBytes: r.IsDBNull(9) ? 0 : r.GetInt64(9));
+        AttachmentBytes: r.IsDBNull(9) ? 0 : r.GetInt64(9),
+        EphemeralKind: r.IsDBNull(10) ? 0 : r.GetInt32(10),
+        EphemeralWindowMs: r.IsDBNull(11) ? 0 : r.GetInt64(11),
+        EphemeralViews: r.IsDBNull(12) ? 0 : r.GetInt32(12),
+        EphemeralStartedMs: r.IsDBNull(13) ? 0 : r.GetInt64(13),
+        EphemeralSpent: !r.IsDBNull(14) && r.GetInt32(14) != 0);
 
     // ── Groups ──────────────────────────────────────────────────────────────────
 

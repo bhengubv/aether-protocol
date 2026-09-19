@@ -459,18 +459,22 @@ public sealed class ChatService
     /// Send a message. It is stored locally either way; if there is no secure session yet it stays
     /// <b>pending</b> rather than going out unprotected, and leaves as soon as the session is up.
     /// </summary>
-    public async Task SendAsync(string peerTag, string text, CancellationToken cancellationToken = default)
+    public async Task SendAsync(string peerTag, string text,
+        int ephemeralKind = ChatMessage.EphNone, long ephemeralWindowMs = 0,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(peerTag) || string.IsNullOrWhiteSpace(text)) return;
 
         var message = new ChatMessage(
             Id: Guid.NewGuid().ToString("N"),
             PeerTag: peerTag,
-            // Strip the header marker out of anything typed, so a caption can never be read as one.
-            Body: AttachmentRef.Clean(text).Trim(),
+            // Strip BOTH header markers out of anything typed, so a caption can never be read as one.
+            Body: EphemeralRef.Clean(AttachmentRef.Clean(text)).Trim(),
             Mine: true,
             State: ChatMessage.Pending,
-            SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            EphemeralKind: ephemeralKind,
+            EphemeralWindowMs: ephemeralWindowMs);
 
         _store.SaveMessage(message);
         Changed?.Invoke();
@@ -556,6 +560,7 @@ public sealed class ChatService
     /// </summary>
     public async Task<bool> SendNoteAsync(
         string peerTag, byte[] bytes, string contentType, string name, string caption = "",
+        int ephemeralKind = ChatMessage.EphNone, long ephemeralWindowMs = 0,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(peerTag) || bytes is null || bytes.Length == 0) return false;
@@ -574,13 +579,15 @@ public sealed class ChatService
         var message = new ChatMessage(
             Id: Guid.NewGuid().ToString("N"),
             PeerTag: peerTag,
-            Body: AttachmentRef.Clean(caption).Trim(),
+            Body: EphemeralRef.Clean(AttachmentRef.Clean(caption)).Trim(),
             Mine: true,
             State: ChatMessage.Pending,
             SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             AttachmentHash: descriptor.RootHash,
             AttachmentType: contentType,
-            AttachmentBytes: descriptor.TotalBytes);
+            AttachmentBytes: descriptor.TotalBytes,
+            EphemeralKind: ephemeralKind,
+            EphemeralWindowMs: ephemeralWindowMs);
 
         _store.SaveMessage(message);
         Changed?.Invoke();
@@ -600,10 +607,21 @@ public sealed class ChatService
     /// text is untouched by this and cannot be broken by it.
     /// </para>
     /// </summary>
-    private static string OnTheWire(ChatMessage message) => message.HasAttachment
-        ? new AttachmentRef(message.AttachmentHash!, message.AttachmentType ?? "application/octet-stream", message.AttachmentBytes)
-            .Encode(message.Body)
-        : message.Body;
+    private static string OnTheWire(ChatMessage message)
+    {
+        // Innermost: the caption, with an attachment header in front if there is a note.
+        var body = message.HasAttachment
+            ? new AttachmentRef(message.AttachmentHash!, message.AttachmentType ?? "application/octet-stream", message.AttachmentBytes)
+                .Encode(message.Body)
+            : message.Body;
+
+        // Outermost: the ephemeral rule, so the receiver reads it first and enforces the limit the
+        // sender chose. A permanent message adds nothing and goes out byte-for-byte as it always did.
+        if (message.IsEphemeral)
+            body = new EphemeralRef(message.EphemeralKind, message.EphemeralWindowMs).Encode(body);
+
+        return body;
+    }
 
     private async Task TryDeliverAsync(ChatMessage message, CancellationToken cancellationToken)
     {
@@ -855,7 +873,9 @@ public sealed class ChatService
     /// simply stop being sent copies.
     /// </para>
     /// </summary>
-    public async Task SendToGroupAsync(string groupId, string text, CancellationToken cancellationToken = default)
+    public async Task SendToGroupAsync(string groupId, string text,
+        int ephemeralKind = ChatMessage.EphNone, long ephemeralWindowMs = 0,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(groupId) || string.IsNullOrWhiteSpace(text)) return;
         var group = _store.GetGroup(groupId);
@@ -864,17 +884,24 @@ public sealed class ChatService
         var message = new ChatMessage(
             Id: Guid.NewGuid().ToString("N"),
             PeerTag: groupId,
-            // Strip the header marker out of anything typed, so a caption can never be read as one.
-            Body: AttachmentRef.Clean(text).Trim(),
+            // Strip both header markers out of anything typed, so a caption can never be read as one.
+            Body: EphemeralRef.Clean(AttachmentRef.Clean(text)).Trim(),
             Mine: true,
             State: ChatMessage.Pending,
             SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            SenderTag: _me.AetherTag);
+            SenderTag: _me.AetherTag,
+            EphemeralKind: ephemeralKind,
+            EphemeralWindowMs: ephemeralWindowMs);
 
         _store.SaveMessage(message);
         Changed?.Invoke();
 
-        var payload = GroupEnvelope.Message(groupId, message.Id, _me.AetherTag, message.Body, SignContribution);
+        // The wire body carries the ephemeral rule (if any) in front of the words, so each member's phone
+        // enforces the same limit — a group is several 1:1 chats, and this is the same header on each.
+        var wireBody = message.IsEphemeral
+            ? new EphemeralRef(message.EphemeralKind, message.EphemeralWindowMs).Encode(message.Body)
+            : message.Body;
+        var payload = GroupEnvelope.Message(groupId, message.Id, _me.AetherTag, wireBody, SignContribution);
         var reached = false;
 
         foreach (var m in _store.GetGroupMembers(groupId).Where(m => m != _me.AetherTag))
@@ -908,6 +935,7 @@ public sealed class ChatService
     /// </summary>
     public async Task<bool> SendNoteToGroupAsync(
         string groupId, byte[] bytes, string contentType, string name, string caption = "",
+        int ephemeralKind = ChatMessage.EphNone, long ephemeralWindowMs = 0,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(groupId) || bytes is null || bytes.Length == 0) return false;
@@ -929,22 +957,27 @@ public sealed class ChatService
         var message = new ChatMessage(
             Id: Guid.NewGuid().ToString("N"),
             PeerTag: groupId,
-            Body: AttachmentRef.Clean(caption).Trim(),
+            Body: EphemeralRef.Clean(AttachmentRef.Clean(caption)).Trim(),
             Mine: true,
             State: ChatMessage.Pending,
             SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             SenderTag: _me.AetherTag,
             AttachmentHash: descriptor.RootHash,
             AttachmentType: contentType,
-            AttachmentBytes: descriptor.TotalBytes);
+            AttachmentBytes: descriptor.TotalBytes,
+            EphemeralKind: ephemeralKind,
+            EphemeralWindowMs: ephemeralWindowMs);
 
         _store.SaveMessage(message);
         Changed?.Invoke();
 
-        // The envelope body is the one-to-one wire form — the note header, then the caption — so the far
-        // side decodes it with the same reader and the bubble fills in as the bytes land.
+        // The envelope body is the one-to-one wire form — the ephemeral rule (if any), then the note
+        // header, then the caption — so the far side decodes it with the same reader and enforces the
+        // same limit, and the bubble fills in as the bytes land.
         var wireBody = new AttachmentRef(descriptor.RootHash, contentType, descriptor.TotalBytes)
             .Encode(message.Body);
+        if (message.IsEphemeral)
+            wireBody = new EphemeralRef(message.EphemeralKind, message.EphemeralWindowMs).Encode(wireBody);
         var payload = GroupEnvelope.Message(groupId, message.Id, _me.AetherTag, wireBody, SignContribution);
 
         var reached = false;
@@ -1012,10 +1045,11 @@ public sealed class ChatService
 
             if (e.Kind != "msg" || e.MessageId is null || e.Body is null) return;
 
-            // A group note names itself in front of the caption, exactly as a one-to-one note does;
-            // plain text decodes to itself with no attachment, so nothing about typed group messages
-            // changes. The bytes arrive separately and the bubble fills in as they land.
-            var (attachment, caption) = AttachmentRef.Decode(e.Body);
+            // Outermost first: the ephemeral rule (if any), then the attachment header on the remainder,
+            // then the caption. Plain text decodes to itself with neither, so ordinary group messages are
+            // untouched. The bytes arrive separately and the bubble fills in as they land.
+            var (ephemeral, afterEph) = EphemeralRef.Decode(e.Body);
+            var (attachment, caption) = AttachmentRef.Decode(afterEph);
 
             // Keyed by the sender's message id, so the same message arriving twice — a retry, or a
             // relay from another member — updates the one we have instead of repeating their words.
@@ -1029,7 +1063,9 @@ public sealed class ChatService
                 SenderTag: e.Sender ?? senderTag,
                 AttachmentHash: attachment?.Hash,
                 AttachmentType: attachment?.ContentType,
-                AttachmentBytes: attachment?.Bytes ?? 0));
+                AttachmentBytes: attachment?.Bytes ?? 0,
+                EphemeralKind: ephemeral?.Kind ?? ChatMessage.EphNone,
+                EphemeralWindowMs: ephemeral?.WindowMs ?? 0));
 
             Changed?.Invoke();
         }
@@ -1063,9 +1099,11 @@ public sealed class ChatService
         else
         {
             // The reliable core owns the message id now, so it no longer rides inside the body — the body
-            // is just what to show. A note names itself in front of the caption; plain text is only the
-            // caption. The bytes of a note arrive on their own and the bubble fills in as they land.
-            var (attachment, caption) = AttachmentRef.Decode(Encoding.UTF8.GetString(body));
+            // is just what to show. Outermost is the ephemeral rule (if any); then a note names itself in
+            // front of the caption; plain text is only the caption. The bytes of a note arrive on their
+            // own and the bubble fills in as they land.
+            var (ephemeral, afterEph) = EphemeralRef.Decode(Encoding.UTF8.GetString(body));
+            var (attachment, caption) = AttachmentRef.Decode(afterEph);
 
             // Keyed by the sender's own message id (the packet id the core preserved), so a retry updates
             // the one we have instead of showing the person's words twice.
@@ -1078,11 +1116,98 @@ public sealed class ChatService
                 SentMs: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 AttachmentHash: attachment?.Hash,
                 AttachmentType: attachment?.ContentType,
-                AttachmentBytes: attachment?.Bytes ?? 0));
+                AttachmentBytes: attachment?.Bytes ?? 0,
+                EphemeralKind: ephemeral?.Kind ?? ChatMessage.EphNone,
+                EphemeralWindowMs: ephemeral?.WindowMs ?? 0));
         }
 
         // Seeing their message means we can reach them — send anything we were holding.
         await FlushAsync(senderTag).ConfigureAwait(false);
+        Changed?.Invoke();
+    }
+
+    // ── Ephemeral enforcement ─────────────────────────────────────────────────────
+    //
+    // The rule (view-once / view-twice / timeout) rode the wire; enforcing it is this phone's job and
+    // applies only to messages we RECEIVED — the sender keeps their own copy. Opening one counts a view
+    // and starts a timeout's clock; a message that has been used up is burned: the row is tombstoned so
+    // the thread still reads "viewed", and the attachment bytes are deleted when nothing else needs them.
+
+    /// <summary>
+    /// Record that the person just opened an ephemeral message. Increments the view count, starts a
+    /// timeout's clock on first open, and returns whether the content should still be shown for THIS
+    /// open. It does not burn — that happens on close (<see cref="BurnIfSpentAsync"/>) so a view-once is
+    /// actually seen once, not flashed and gone.
+    /// </summary>
+    public bool OpenEphemeral(string messageId)
+    {
+        var m = _store.GetMessage(messageId);
+        if (m is null || !m.IsEphemeral || m.Mine || m.EphemeralSpent) return false;
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var started = m.EphemeralStartedMs == 0 ? now : m.EphemeralStartedMs;
+
+        // A timeout that already elapsed while the app was away must not open at all — burn it instead.
+        if (m.EphemeralKind == ChatMessage.EphTimeout && now - started >= m.EphemeralWindowMs)
+        {
+            _ = BurnAsync(m);
+            return false;
+        }
+
+        _store.UpdateEphemeral(messageId, m.EphemeralViews + 1, started, spent: false);
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// Called when a reveal closes, on a timer tick, and when a thread loads: burn the message if it is
+    /// used up — the counted modes once their opens are spent, a timeout once its window has passed.
+    /// </summary>
+    public async Task BurnIfSpentAsync(string messageId)
+    {
+        var m = _store.GetMessage(messageId);
+        if (m is null || !m.IsEphemeral || m.Mine || m.EphemeralSpent) return;
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var spent = m.EphemeralKind switch
+        {
+            ChatMessage.EphOnce or ChatMessage.EphTwice => m.EphemeralViews >= m.EphemeralViewLimit,
+            ChatMessage.EphTimeout => m.EphemeralStartedMs > 0 && now - m.EphemeralStartedMs >= m.EphemeralWindowMs,
+            _ => false,
+        };
+        if (spent) await BurnAsync(m).ConfigureAwait(false);
+    }
+
+    /// <summary>Sweep a whole conversation for ephemeral messages that are now spent — called when a chat opens.</summary>
+    public async Task SweepEphemeralAsync(string peerTag)
+    {
+        if (string.IsNullOrEmpty(peerTag)) return;
+        foreach (var m in _store.GetMessages(peerTag))
+            if (m.IsEphemeral && !m.Mine && !m.EphemeralSpent)
+                await BurnIfSpentAsync(m.Id).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Burn one message: tombstone the row, then delete the attachment bytes — but only if no other
+    /// LIVE message still names the same content (content is shared by hash, so one view-once must not
+    /// pull the bytes out from under another message that still holds them).
+    /// </summary>
+    private async Task BurnAsync(ChatMessage m)
+    {
+        var hash = m.AttachmentHash;
+        _store.TombstoneMessage(m.Id);
+
+        if (!string.IsNullOrEmpty(hash) && _attachments is not null)
+        {
+            var stillNeeded = _store.GetMessagesWithAttachment(hash!).Any(o => o.Id != m.Id && !o.EphemeralSpent);
+            if (!stillNeeded)
+            {
+                try { await _attachments.ForgetAsync(hash!).ConfigureAwait(false); }
+                catch (Exception ex) { _log.LogDebug(ex, "Could not delete burnt attachment {Hash}", hash); }
+            }
+        }
+
+        T($"ephemeral {m.Id[..Math.Min(8, m.Id.Length)]} burnt ({m.EphemeralLabel})");
         Changed?.Invoke();
     }
 
@@ -1451,7 +1576,7 @@ public sealed class ChatService
 
         T($"sharing the app with {peerTag} — {installer.Length / (1024 * 1024)} MB, no store involved");
         return await SendNoteAsync(peerTag, installer, AppPackageType, "Aether.apk",
-            "Aether — install this to join", cancellationToken).ConfigureAwait(false);
+            "Aether — install this to join", cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
