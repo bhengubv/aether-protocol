@@ -225,9 +225,93 @@ public sealed class WifiTransportService : ITransportService, IDisposable
 
     // ─── The side that dials ─────────────────────────────────────────────────────
 
-    /// <summary>Listen for the other phone saying where it is, then go there.</summary>
-    private void Listen(string rendezvous, int port) =>
+    /// <summary>Find the waiter — two ways at once — then go there.</summary>
+    /// <remarks>
+    /// <see cref="HearAsync"/> waits for the waiter's multicast announce: the clean way, when the
+    /// network passes multicast between its clients. Most do not — and that silence was the whole reason
+    /// two phones on the same Wi-Fi could not find each other and dropped to Bluetooth. So
+    /// <see cref="ScanAsync"/> runs beside it and finds the waiter by trying its one deterministic port
+    /// on every address on this network, over plain unicast, which routers do not block. Whichever
+    /// connects first wins; both stop the instant a peer is linked.
+    /// </remarks>
+    private void Listen(string rendezvous, int port)
+    {
         _ = Task.Run(() => HearAsync(rendezvous, port, _stopping.Token));
+        _ = Task.Run(() => ScanAsync(port, _stopping.Token));
+    }
+
+    /// <summary>How many addresses to probe at once — a /24 sweep, quick, without a connect storm.</summary>
+    private const int ScanAtOnce = 32;
+
+    /// <summary>How long to wait on one address before giving up on it — a closed port refuses far faster.</summary>
+    private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>How long between full sweeps, while nobody has turned up yet.</summary>
+    private static readonly TimeSpan ScanEvery = TimeSpan.FromSeconds(4);
+
+    /// <summary>
+    /// Find the waiter by trying its deterministic port on every address on this /24, over unicast.
+    /// </summary>
+    /// <remarks>
+    /// The fallback for a network that drops multicast between clients. Unicast is not blocked — a phone
+    /// can already reach the other by address — and the port both sides computed from the same rendezvous
+    /// is the only thing shared, so the one thing missing is the waiter's ADDRESS, and this simply tries
+    /// them all. A closed port refuses at once; only the waiter, listening on this exact port, accepts
+    /// and trades names, and the layer above opens nothing it cannot verify — so a wrong host cannot be
+    /// taken for the peer. Bounded to one /24, a short timeout each, a handful at a time, and it stops
+    /// the instant a peer links.
+    /// </remarks>
+    private async Task ScanAsync(int port, CancellationToken stopping)
+    {
+        if (LocalAddress() is not { } me) return;
+        var octets = me.GetAddressBytes();
+        if (octets.Length != 4) return;   // IPv4 only
+
+        Say("also looking across the network, in case it drops multicast");
+
+        while (!stopping.IsCancellationRequested && _peers.IsEmpty)
+        {
+            using var crowd = new SemaphoreSlim(ScanAtOnce);
+            var tries = new List<Task>();
+
+            for (var host = 1; host <= 254 && _peers.IsEmpty; host++)
+            {
+                if (host == octets[3]) continue;   // not this phone itself
+
+                var them = new IPAddress([octets[0], octets[1], octets[2], (byte)host]);
+                await crowd.WaitAsync(stopping).ConfigureAwait(false);
+                tries.Add(Task.Run(async () =>
+                {
+                    try { if (_peers.IsEmpty) await ProbeAsync(them, port, stopping).ConfigureAwait(false); }
+                    finally { crowd.Release(); }
+                }, stopping));
+            }
+
+            try { await Task.WhenAll(tries).ConfigureAwait(false); } catch { /* individual failures are ordinary */ }
+
+            if (!_peers.IsEmpty) return;   // linked — done sweeping
+            try { await Task.Delay(ScanEvery, stopping).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+        }
+    }
+
+    /// <summary>Try one address, briefly. A connect that lands hands off to the ordinary link loop.</summary>
+    private async Task ProbeAsync(IPAddress them, int port, CancellationToken stopping)
+    {
+        var client = new TcpClient();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+        timeout.CancelAfter(ScanTimeout);
+        try
+        {
+            await client.ConnectAsync(them, port, timeout.Token).ConfigureAwait(false);
+            Say($"found them at {them}:{port}");
+            _ = Task.Run(() => ServeAsync(client, stopping), stopping);   // ServeAsync owns and disposes it
+        }
+        catch
+        {
+            client.Dispose();   // no listener there, or it did not answer in time — the ordinary case
+        }
+    }
 
     private async Task HearAsync(string rendezvous, int port, CancellationToken stopping)
     {
