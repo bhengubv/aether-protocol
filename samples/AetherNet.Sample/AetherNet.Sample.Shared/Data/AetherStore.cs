@@ -127,6 +127,16 @@ public sealed record ChatMessage(
     /// <summary>Somebody talking, with a picture.</summary>
     public bool IsVideoNote => AttachmentType == VideoNote;
 
+    /// <summary>A picture someone shared — shown right there in the thread, not as a thing to open.</summary>
+    public bool IsPhoto => AttachmentType is { Length: > 0 } t
+        && t.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Anything else someone shared — a document, a zip, a song. Shown as something to open or save,
+    /// because the phone has no way to know how to draw it.
+    /// </summary>
+    public bool IsFile => HasAttachment && !IsVoiceNote && !IsVideoNote && !IsPhoto;
+
     /// <summary>
     /// A recorded clip of someone talking.
     ///

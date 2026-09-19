@@ -36,7 +36,7 @@ public sealed class ChatComponentTests : IDisposable
         var signal = new FakeSignalProtocol();
         var chat = ConvergedChat.Build(_store, me, signal, new FakePreKeyExchange(), _radio);
 
-        // The eight services Chat.razor @injects — the real ones where they construct cheaply from the
+        // The nine services Chat.razor @injects — the real ones where they construct cheaply from the
         // test fakes, so the component runs against genuine code, not hollow stand-ins. NavigationManager
         // and IJSRuntime are provided by bUnit's TestContext.
         _ctx.Services.AddSingleton(chat);
@@ -45,6 +45,7 @@ public sealed class ChatComponentTests : IDisposable
         _ctx.Services.AddSingleton(new GroupCallService(me, signal, new NullAudioIo()));
         _ctx.Services.AddSingleton<IRadioMesh>(_radio);
         _ctx.Services.AddSingleton<IMediaCapture>(new NullMediaCapture());
+        _ctx.Services.AddSingleton<IFilePicker>(new NullFilePicker());
     }
 
     public void Dispose()

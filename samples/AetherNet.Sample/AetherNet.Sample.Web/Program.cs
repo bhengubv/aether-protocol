@@ -135,6 +135,8 @@ builder.Services.AddSingleton<IVideoIo>(sp => new WebVideoIo(sp.GetService<IVide
 // And no microphone means no notes to record either. Playing one back works everywhere, though —
 // that is the browser's own media element, not a radio.
 builder.Services.AddSingleton<IMediaCapture, NullMediaCapture>();
+// No native file chooser on the web head yet — the button hides itself rather than doing nothing.
+builder.Services.AddSingleton<IFilePicker, NullFilePicker>();
 builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 builder.Services.AddSingleton<CallService>();
 builder.Services.AddSingleton<GroupCallService>();

@@ -206,6 +206,10 @@ public static class MauiProgram
         builder.Services.AddSingleton<IMediaCapture, NullMediaCapture>();
 #endif
 
+        // Sharing a photo or file already on the phone — the everyday counterpart to recording a note.
+        // MAUI's own file chooser works on every head this app runs on, so it needs no platform branch.
+        builder.Services.AddSingleton<IFilePicker, MauiFilePicker>();
+
         // 1:1 voice. The microphone is physical, so it only exists on the phone; everywhere else the
         // call service is constructible but honestly says it cannot place one.
 #if ANDROID
