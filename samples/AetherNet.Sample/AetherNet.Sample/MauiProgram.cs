@@ -211,6 +211,10 @@ public static class MauiProgram
         // Fully qualified: MAUI's global usings also declare an IFilePicker, so the bare name is ambiguous.
         builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.IFilePicker, MauiFilePicker>();
 
+        // Handing your AetherTag OUT to other apps — a link to send privately, a QR image to post
+        // publicly. MAUI's share sheet works on every head this app runs on.
+        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.ITagShare, MauiTagShare>();
+
         // 1:1 voice. The microphone is physical, so it only exists on the phone; everywhere else the
         // call service is constructible but honestly says it cannot place one.
 #if ANDROID
