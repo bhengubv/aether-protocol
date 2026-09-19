@@ -6,6 +6,8 @@ using AetherNet.Sample.Shared.Data;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Services;
 using AetherNet.Node.Host;
+using ZXing.Net.Maui;
+using ZXing.Net.Maui.Controls;
 
 namespace AetherNet.Sample;
 
@@ -16,6 +18,7 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
+            .UseBarcodeReader()   // ZXing.Net.Maui — managed decode + CameraX, no ML Kit (see the csproj note)
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -214,6 +217,10 @@ public static class MauiProgram
         // Handing your AetherTag OUT to other apps — a link to send privately, a QR image to post
         // publicly. MAUI's share sheet works on every head this app runs on.
         builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.ITagShare, MauiTagShare>();
+
+        // Scanning someone else's QR to add them — the consume side. Opens a native camera page over
+        // the Blazor UI, decodes with ZXing (no ML Kit), and hands the aether:// invite back.
+        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.IQrScanner, MauiQrScanner>();
 
         // 1:1 voice. The microphone is physical, so it only exists on the phone; everywhere else the
         // call service is constructible but honestly says it cannot place one.

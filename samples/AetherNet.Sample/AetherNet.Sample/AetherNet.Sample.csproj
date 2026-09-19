@@ -115,6 +115,10 @@
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+    <!-- QR scanning. ZXing's MANAGED decoder + CameraX (AndroidX) — no Google ML Kit / Play Services,
+         so it holds on a degoogled phone. The ML-Kit-based scanners (BarcodeScanner.Mobile,
+         BarcodeScanning.Native.Maui) are deliberately NOT used for that reason. -->
+    <PackageReference Include="ZXing.Net.Maui.Controls" Version="0.10.4" />
   </ItemGroup>
 
   <ItemGroup>

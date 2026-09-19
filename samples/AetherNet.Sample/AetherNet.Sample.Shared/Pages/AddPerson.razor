@@ -42,6 +42,11 @@
         <input class="tagbox" @bind="_theirName" @bind:event="oninput" @onkeydown="OnKey"
                placeholder="What to call them (optional)" spellcheck="false" />
         <button class="primary block" disabled="@(_busy || string.IsNullOrWhiteSpace(_theirTag))" @onclick="Add">Add them</button>
+        @if (_scanner is { CanScan: true })
+        {
+            @* The easy way in: point the camera at their code instead of typing a tag. *@
+            <button class="primary block" disabled="@_busy" @onclick="Scan">Scan their code</button>
+        }
         @if (_error is { } err)
         {
             <p class="warn">@err</p>
@@ -87,6 +92,7 @@
     private string _qrSvg = "";
     private byte[] _qrPng = Array.Empty<byte>();
     private ITagShare? _share;
+    private IQrScanner? _scanner;
     private IReadOnlyList<ContactRecord> _incoming = Array.Empty<ContactRecord>();
     private IReadOnlyList<ContactRecord> _mutual = Array.Empty<ContactRecord>();
 
@@ -96,9 +102,11 @@
         _qrSvg = QrSvg.Render(Contacts.MyInvite);
         _qrPng = QrSvg.Png(Contacts.MyInvite);
 
-        // Optional: only the phone heads register a share sheet — a plain web page has none, and asking
-        // for it there returns null rather than throwing, so the buttons simply do not appear.
+        // Optional: only the phone heads register a share sheet / camera scanner — a plain web page has
+        // neither, and asking for them there returns null rather than throwing, so the buttons that need
+        // them simply do not appear.
         _share = Services.GetService<ITagShare>();
+        _scanner = Services.GetService<IQrScanner>();
 
         Refresh();
     }
@@ -130,6 +138,36 @@
             else
             {
                 _error = "That doesn't look like an AetherTag. They look like KXJB7-MN2P4.";
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    /// <summary>Point the camera at their code, decode it, and add whoever it names.</summary>
+    private async Task Scan()
+    {
+        if (_scanner is null || _busy) return;
+        _busy = true;
+        _error = null;
+        _added = null;
+        try
+        {
+            var code = await _scanner.ScanAsync();
+            if (string.IsNullOrWhiteSpace(code)) return;   // backed out of the camera
+
+            // AddAsync takes the whole aether://…/add?k=… invite the QR carried, verifies the key
+            // derives the tag, and stores both — so a scan captures the public key a typed tag cannot.
+            if (await Contacts.AddAsync(code, via: "scan"))
+            {
+                var who = code.StartsWith("aether://", StringComparison.OrdinalIgnoreCase)
+                    ? code["aether://".Length..].Split('/', '?')[0]
+                    : code;
+                _added = who.ToUpperInvariant();
+                Refresh();
+            }
+            else
+            {
+                _error = "That QR wasn't an Aether code.";
             }
         }
         finally { _busy = false; }
