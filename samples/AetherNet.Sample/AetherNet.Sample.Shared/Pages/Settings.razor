@@ -22,6 +22,19 @@
 <div class="you">
     <h1 class="scr-title">Settings</h1>
 
+    @* Safety first, and near the top on purpose: an emergency broadcast that floods every Aether phone
+       in range with no towers and no account. Its own screen holds the confirm + reach + "mark safe". *@
+    <section class="group">
+        <div class="glabel">Safety</div>
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/sos"))">
+            <span class="about-body">
+                <span class="about-t">Emergency SOS</span>
+                <span class="about-s">Broadcast to every phone in range — no towers, no signal needed</span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+    </section>
+
     @* The gap the whole split was for: the identity had no way off the phone. Now it does — a recovery
        phrase, derived from the key already here, never sent anywhere. *@
     <section class="group">

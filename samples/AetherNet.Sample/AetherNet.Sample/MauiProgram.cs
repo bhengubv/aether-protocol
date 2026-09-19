@@ -159,6 +159,13 @@ public static class MauiProgram
             sp.GetService<FastRadioService>(),
             sp.GetService<ILoggerFactory>()));
 
+        // Emergency SOS on the real mesh — a reachable feature now, not just a Lab demo. Primed at
+        // warm-up (below) so it hears alerts before any screen is opened.
+        builder.Services.AddSingleton<SosService>(sp => new SosService(
+            sp.GetRequiredService<IIdentityService>(),
+            sp.GetService<IRadioMesh>(),
+            sp.GetService<ILoggerFactory>()));
+
         // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
         // that question about a rotating address, and without an answer the only way to find out is
         // to dial a stranger and see who picks up.
@@ -466,6 +473,10 @@ public static class MauiProgram
                     group.Trace += m => global::Android.Util.Log.Info("AetherGroupVoice", m);
 #endif
             });
+
+            // Priming the SOS service subscribes it to the radio, so an emergency broadcast from someone
+            // nearby is heard even before its screen has ever been opened — the whole point of an alert.
+            Warm("sos", () => app.Services.GetService<SosService>()?.Prime());
 
             // The Wi-Fi Direct radio finds its own peers and settles who hosts on its own, so there is
             // nothing here to start. Resolving the directory is the point: recognising a contact

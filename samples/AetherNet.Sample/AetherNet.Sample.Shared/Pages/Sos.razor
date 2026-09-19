@@ -1,0 +1,128 @@
+@page "/sos"
+@using AetherNet.Sample.Shared.Services
+@using AetherNet.Models
+@implements IDisposable
+@inject SosService Emergency
+@inject IIdentityService Me
+
+<PageTitle>Aether — SOS</PageTitle>
+
+<div class="sos">
+    <h1 class="scr-title">Emergency SOS</h1>
+    <p class="lede">Broadcasts to every Aether phone in range — no towers, no account. It reaches them even with no signal, and hops on from phone to phone.</p>
+
+    @* member renamed from Sos → Emergency: the page class is already named Sos. *@
+    @if (Mine is { } mine)
+    {
+        <section class="sos-live">
+            <div class="sos-live-word">Your SOS is live</div>
+            <div class="sos-live-reach">@mine.AcknowledgedBy.Count device(s) confirmed it</div>
+            @if (!string.IsNullOrWhiteSpace(mine.Message))
+            {
+                <div class="sos-live-msg">“@mine.Message”</div>
+            }
+            <button class="sos-safe" @onclick="() => MarkSafe(mine.Id)">I'm safe — stop it</button>
+        </section>
+    }
+    else if (_confirming)
+    {
+        <section class="sos-confirm">
+            <input class="sos-msg" @bind="_message" @bind:event="oninput"
+                   placeholder="Say what's wrong (optional)" spellcheck="true" />
+            <button class="sos-btn go" @onclick="Send" disabled="@_busy">Send SOS now</button>
+            <button class="sos-cancel" @onclick="Cancel" disabled="@_busy">Cancel</button>
+        </section>
+    }
+    else
+    {
+        <button class="sos-btn" @onclick="Arm" disabled="@(!Emergency.CanSend)">
+            <span class="sos-big">SOS</span>
+            <span class="sos-small">Tap, then confirm</span>
+        </button>
+        @if (!Emergency.CanSend)
+        {
+            <p class="warn">This build has no radio, so it can't send an SOS.</p>
+        }
+    }
+
+    @if (Incoming.Count > 0)
+    {
+        <section class="entry">
+            <div class="glabel">Someone nearby needs help</div>
+            @foreach (var a in Incoming)
+            {
+                <div class="sos-alert">
+                    <span class="sos-alert-who">@a.SenderUhid</span>
+                    <span class="sos-alert-msg">@(string.IsNullOrWhiteSpace(a.Message) ? "needs help" : a.Message)</span>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private string _message = "";
+    private bool _confirming;
+    private bool _busy;
+
+    private SosAlert? Mine =>
+        Emergency.Active.FirstOrDefault(a => string.Equals(a.SenderUhid, Me.AetherTag, StringComparison.Ordinal));
+
+    private IReadOnlyList<SosAlert> Incoming =>
+        Emergency.Active.Where(a => !string.Equals(a.SenderUhid, Me.AetherTag, StringComparison.Ordinal)).ToArray();
+
+    protected override void OnInitialized() => Emergency.Changed += OnChanged;
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void Arm() => _confirming = true;
+    private void Cancel() => _confirming = false;
+
+    private async Task Send()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            await Emergency.SendNearbyAsync(string.IsNullOrWhiteSpace(_message) ? null : _message.Trim());
+            _confirming = false;
+            _message = "";
+        }
+        finally { _busy = false; }
+    }
+
+    private Task MarkSafe(Guid id) => Emergency.MarkSafeAsync(id);
+
+    public void Dispose() => Emergency.Changed -= OnChanged;
+}
+
+<style>
+    .sos { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; padding-bottom: 40px; }
+
+    /* The one place a distinct danger colour is warranted — an emergency signal, not decoration. */
+    .sos-btn { appearance: none; border: none; cursor: pointer; width: 100%; border-radius: 20px;
+        background: #d7263d; color: #fff; padding: 40px 18px; display: flex; flex-direction: column;
+        align-items: center; gap: 6px; box-shadow: var(--shadow-sm); }
+    .sos-btn:disabled { opacity: .45; cursor: default; }
+    .sos-big { font-size: 3rem; font-weight: 880; letter-spacing: 6px; }
+    .sos-small { font-size: 0.9rem; opacity: .9; }
+    .sos-btn.go { padding: 20px 18px; font-size: 1.15rem; font-weight: 800; }
+
+    .sos-confirm { display: flex; flex-direction: column; gap: 10px; }
+    .sos-msg { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--surface);
+        color: var(--on-surface); border-radius: 12px; padding: 14px 16px; font-size: 1.05rem; }
+    .sos-cancel { appearance: none; background: transparent; border: 1.5px solid var(--line); color: var(--ink);
+        border-radius: 12px; padding: 12px; font-weight: 700; cursor: pointer; }
+
+    .sos-live { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+        border: 2px solid #d7263d; border-radius: 20px; padding: 24px; }
+    .sos-live-word { font-size: 1.4rem; font-weight: 850; color: #d7263d; }
+    .sos-live-reach { font-size: 1rem; color: var(--ink-2); }
+    .sos-live-msg { font-size: 1rem; color: var(--ink); }
+    .sos-safe { appearance: none; border: none; cursor: pointer; margin-top: 8px; width: 100%;
+        background: var(--brand); color: #fff; border-radius: 12px; padding: 14px; font-weight: 800; font-size: 1.05rem; }
+
+    .sos-alert { display: flex; flex-direction: column; gap: 2px; border: 1px solid #d7263d; border-radius: 12px;
+        padding: 12px 14px; }
+    .sos-alert-who { font-family: var(--mono); font-weight: 700; color: #d7263d; }
+    .sos-alert-msg { color: var(--ink); }
+</style>
