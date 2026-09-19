@@ -31,7 +31,7 @@
             }
         </span>
         <span class="cv-title">
-            <span class="cv-name @(_group is not null ? "grp-name" : null)">@(_group?.Name ?? Peer)</span>
+            <span class="cv-name @(_group is not null ? "grp-name" : null)">@(_group?.Name ?? Contacts.DisplayName(Peer))</span>
             <span class="cv-sub @(Connected && _secure ? "secure" : null) @(Connected ? null : "offline")">
                 @if (Connected && _secure)
                 {
@@ -72,6 +72,18 @@
     @if (_group is null && _menuOpen)
     {
         <div class="cv-menu">
+            @* Name this person: a private nickname over their tag, so the app can show "Mum" where it
+               would otherwise show an address. The tag is right there so you always know who you're
+               naming, and a blank name clears it back to the bare tag. *@
+            <div class="cv-nameset">
+                <span class="cvn-lab">Name this person <span class="cvn-tag">@Peer</span></span>
+                <span class="cvn-row">
+                    <input class="cvn-in" @bind="_nameDraft" @bind:event="oninput" maxlength="48"
+                           placeholder="e.g. Mum, Coffee house" aria-label="A name for this person" />
+                    <button class="cvn-save" @onclick="SaveName">Save</button>
+                </span>
+            </div>
+
             <button class="cv-forget @(_armForget ? "armed" : null)" @onclick="ForgetPerson">
                 <span class="cvf-body">
                     <span class="cvf-t">@(_armForget ? "Tap again to forget them" : "Forget this person")</span>
@@ -535,10 +547,22 @@
     private bool _menuOpen;
     private bool _armForget;
 
+    /// <summary>The name being typed for this person in the menu, seeded from any name already pinned.</summary>
+    private string _nameDraft = "";
+
     private void ToggleMenu()
     {
         _menuOpen = !_menuOpen;
         _armForget = false;   // a freshly opened menu is never already armed
+        if (_menuOpen) _nameDraft = Contacts.HasName(Peer) ? Contacts.DisplayName(Peer) : "";
+    }
+
+    /// <summary>Pin (or clear, if blank) the private name for this person, then close the menu.</summary>
+    private void SaveName()
+    {
+        Contacts.SetName(Peer, _nameDraft);
+        _menuOpen = false;
+        _armForget = false;
     }
 
     /// <summary>
@@ -671,6 +695,23 @@
     .cvf-s { font-size: 0.8rem; color: var(--ink); opacity: .68; line-height: 1.35; }
     .cvf-icon { flex: 0 0 auto; font-size: 1.2rem; color: var(--ink-2); }
     .cv-forget.armed .cvf-t, .cv-forget.armed .cvf-icon { color: var(--brand); }
+
+    /* Name this person: label + tag, then an input and Save. One surface (the menu's), so no second
+       colour pairing to flip between themes. */
+    .cv-nameset { display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 12px; }
+    .cvn-lab { font-size: 0.8rem; font-weight: 700; color: var(--ink); display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; }
+    .cvn-tag { font-family: var(--mono); font-size: 0.72rem; font-weight: 600; color: var(--ink); opacity: .55; }
+    .cvn-row { display: flex; gap: 8px; }
+    .cvn-in {
+        flex: 1 1 auto; min-width: 0; appearance: none; border: 1px solid var(--line); border-radius: 10px;
+        padding: 10px 12px; font-size: 0.95rem; background: transparent; color: var(--ink);
+    }
+    .cvn-in::placeholder { color: var(--ink); opacity: .5; }
+    .cvn-in:focus { outline: none; border-color: var(--brand); }
+    .cvn-save {
+        flex: 0 0 auto; appearance: none; border: none; border-radius: 10px; padding: 10px 16px;
+        font-weight: 750; font-size: 0.9rem; cursor: pointer; background: var(--brand); color: #fff;
+    }
 
     .cv-name { font-family: var(--mono); font-weight: 700; font-size: 1rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* A group has a name someone chose, not a tag — so it reads as words, not as an address. */

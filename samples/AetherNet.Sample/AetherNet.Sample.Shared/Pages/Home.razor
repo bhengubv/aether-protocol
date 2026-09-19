@@ -100,7 +100,8 @@
         var latest = Chat.Latest().ToDictionary(m => m.PeerTag, StringComparer.Ordinal);
 
         var people = Contacts.Contacts.Select(c => new Row(
-            Key: c.Tag, Title: c.Tag, IsGroup: false, Contact: c,
+            // Title is what you call them — a pinned petname if you gave one, the bare tag otherwise.
+            Key: c.Tag, Title: Contacts.DisplayName(c.Tag), IsGroup: false, Contact: c,
             Last: latest.TryGetValue(c.Tag, out var m) ? m : null, Fallback: c.LastSeenMs));
 
         var groups = Chat.Groups().Select(g => new Row(

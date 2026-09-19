@@ -34,7 +34,10 @@
                     @TagPalette.Initial(p.Tag)@if (Here(p)) { <span class="near"></span> }
                 </span>
                 <span class="pmid">
-                    <span class="pname">@p.Tag</span>
+                    <span class="pname">@Contacts.DisplayName(p.Tag)</span>
+                    @* When you've named someone, keep their tag in view underneath — the name is for you,
+                       the tag is who they actually are, and you may still want to read it out. *@
+                    @if (Contacts.HasName(p.Tag)) { <span class="ptag">@p.Tag</span> }
                     <span class="pstat @(Here(p) ? "on" : null)">@State(p)</span>
                 </span>
                 <span class="msg">Message</span>
@@ -108,7 +111,9 @@
     .near { position: absolute; right: -1px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; border: 3px solid var(--bg); }
 
     .pmid { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .pname { font-family: var(--mono); font-weight: 680; font-size: 1.02rem; color: var(--ink); }
+    .pname { font-weight: 680; font-size: 1.02rem; color: var(--ink); }
+    /* The tag under a name: the real identity, quiet and monospaced so it reads as an address. */
+    .ptag { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-3); letter-spacing: 0.02em; }
 
     /* Quiet unless they are actually there. A row that shouts in blue whatever it says teaches
        somebody to stop reading it. */

@@ -242,7 +242,37 @@ public sealed class ContactService
         // that capability with it. Leaving the key behind would keep answering their beacon for a
         // person this phone has just been told it does not know.
         _circle?.Forget(tag);
+        _petnames?.Reject(tag);   // forget the name too — nothing left pointing at someone you dropped
         if (_store.RemoveContact(tag)) Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// What to show for a person's tag: the petname you pinned if you have one, otherwise the tag
+    /// itself. Every screen that prints a person's identity should go through here, so a name you chose
+    /// shows the same everywhere — and clearing it brings the bare tag back everywhere at once.
+    /// </summary>
+    public string DisplayName(string? tag) =>
+        !string.IsNullOrEmpty(tag) && _petnames?.NameFor(tag) is { Length: > 0 } name
+            ? name
+            : (tag ?? string.Empty);
+
+    /// <summary>Whether this tag has a petname — so a screen can also show the tag beneath the name.</summary>
+    public bool HasName(string? tag) =>
+        !string.IsNullOrEmpty(tag) && !string.IsNullOrEmpty(_petnames?.NameFor(tag));
+
+    /// <summary>
+    /// Name — or rename — a person. A local, private choice that is never sent anywhere; a blank name
+    /// clears it back to the bare tag. Notifies listeners so every screen showing this person updates at
+    /// once. Returns false when nothing changed (a bad tag, or clearing a name that was not set).
+    /// </summary>
+    public bool SetName(string? tag, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(tag)) return false;
+        var ok = string.IsNullOrWhiteSpace(name)
+            ? (_petnames?.Reject(tag) ?? false)
+            : (_petnames?.Pin(tag, name.Trim()) ?? false);
+        if (ok) Changed?.Invoke();
+        return ok;
     }
 
     /// <summary>
