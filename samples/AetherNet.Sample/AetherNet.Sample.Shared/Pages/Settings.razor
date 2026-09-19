@@ -10,6 +10,7 @@
 @inject AetherStore Store
 @inject IAppTheme Shell
 @inject IAetherNodeClient Node
+@inject PanicWipeService Panic
 @implements IDisposable
 @implements IAetherNodeEvents
 
@@ -177,7 +178,7 @@
                 <span class="about-t">@(_armWipe ? "Tap again to erase everything" : "Erase all data on this phone")</span>
                 <span class="about-s">@(_armWipe
                     ? "this cannot be undone"
-                    : "every contact, message and setting — back to a fresh setup")</span>
+                    : "every contact, message, setting and your identity key — back to a fresh install")</span>
             </span>
             <span class="chev">@(_armWipe ? "‼" : "⌫")</span>
         </button>
@@ -257,7 +258,11 @@
     private void EraseAll()
     {
         if (!_armWipe) { _armWipe = true; return; }
-        Store.WipeAll();
+        // The real panic wipe, not just a database clear: this destroys the identity key in the vault
+        // AND every local row. Clearing the database alone (the old behaviour) left the one secret whose
+        // loss is the whole point — the identity private key — sitting in the keystore, so a wiped phone
+        // was still cryptographically you. Wipe() sweeps the key first, then the rest.
+        Panic.Wipe();
         // A device with no identity row lands on the setup wizard; force a reload so Routes re-decides.
         Nav.NavigateTo("/", forceLoad: true);
     }
