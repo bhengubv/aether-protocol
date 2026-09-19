@@ -143,6 +143,38 @@ public interface IRadioMesh
     /// </remarks>
     void Link(Meeting meeting);
 
+    /// <summary>
+    /// Reach one particular peer over the radios that meet peers pairwise — the network everyone is
+    /// already on — without disturbing the single Wi-Fi Direct group the Circle shares.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="Link(Meeting)"/> brings up the ONE peer the Circle elected to host the Wi-Fi Direct
+    /// group. This is the companion for everybody else: a phone can be on the same Wi-Fi as several of
+    /// its contacts at once, so it meets each of them there — not only the one the tags chose. Without
+    /// it, two phones in the same room could not reach each other whenever a third, absent contact
+    /// sorted lowest and became the only peer anyone tried to meet.
+    /// </para>
+    /// <para>
+    /// A no-op on a head with no pairwise radio: the web/relay build has none and reaches peers over the
+    /// internet leg instead, so meeting one on the local network is nothing it can do — the honest answer
+    /// there, unlike <see cref="Link(Meeting)"/> which had a real implementation a default was hiding.
+    /// </para>
+    /// </remarks>
+    void MeetPeer(Meeting meeting) { }
+
+    /// <summary>Whether this phone currently holds a link to that specific peer.</summary>
+    /// <remarks>
+    /// A phone can be linked to several peers at once — each pair meets on the shared network on its own
+    /// rendezvous — so "are we linked at all" (<see cref="IsLinked"/>) and "is THIS person reachable" are
+    /// different questions, and a chat header must ask the second. The default answers from the single
+    /// primary <see cref="PeerTag"/>, which is right for a head that only ever holds one link; a mesh
+    /// that holds many overrides it.
+    /// </remarks>
+    bool IsReachable(string aetherTag) =>
+        !string.IsNullOrEmpty(aetherTag) && IsLinked
+        && string.Equals(PeerTag, aetherTag, StringComparison.Ordinal);
+
     /// <summary>Send one real MeshPacket carrying <paramref name="text"/> to the linked peer.</summary>
     Task SendTestAsync(string text);
 

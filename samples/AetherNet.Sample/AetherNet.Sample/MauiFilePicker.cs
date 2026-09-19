@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 
 using AetherNet.Sample.Shared.Services;
-using Microsoft.Maui.Storage;
+
+// MAUI's implicit global usings pull in Microsoft.Maui.Storage, which ALSO declares an IFilePicker —
+// so the bare name is ambiguous. This alias pins it to ours; MAUI's static FilePicker is fully
+// qualified where it is used, so nothing here reaches for MAUI's interface at all.
+using IFilePicker = AetherNet.Sample.Shared.Services.IFilePicker;
 
 namespace AetherNet.Sample;
 
 /// <summary>
-/// Picks a file with the phone's own chooser — MAUI's cross-platform <see cref="FilePicker"/> beneath.
-/// Whatever the person taps comes back as bytes, a type and its own name, ready to send like any note.
+/// Picks a file with the phone's own chooser — MAUI's cross-platform FilePicker beneath. Whatever the
+/// person taps comes back as bytes, a type and its own name, ready to send like any note.
 /// </summary>
 public sealed class MauiFilePicker : IFilePicker
 {
@@ -25,7 +29,7 @@ public sealed class MauiFilePicker : IFilePicker
     {
         try
         {
-            var result = await FilePicker.Default.PickAsync().ConfigureAwait(false);
+            var result = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync().ConfigureAwait(false);
             if (result is null) return null;   // backed out of the chooser
 
             await using var stream = await result.OpenReadAsync().ConfigureAwait(false);

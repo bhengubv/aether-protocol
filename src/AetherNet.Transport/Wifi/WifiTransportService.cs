@@ -69,20 +69,41 @@ public sealed class WifiTransportService : ITransportService, IDisposable
     private readonly ConcurrentDictionary<string, TcpClient> _peers = new(StringComparer.Ordinal);
     private readonly CancellationTokenSource _stopping = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
-
-    private TcpListener? _listener;
-    private UdpClient? _announcer;
     private bool _disposed;
 
-    /// <summary>The meeting this is already keeping, so being asked again costs nothing.</summary>
+    /// <summary>
+    /// Every rendezvous this phone is keeping, one per peer it has been asked to meet.
+    /// </summary>
     /// <remarks>
-    /// <see cref="MeetAsync"/> is called on every pass of the radio bring-up — which repeats, on
-    /// purpose, because there is no moment either phone can point to and say "the other one is ready
-    /// now". Without this it opened a fresh socket and dialled again every time, so a link that was
-    /// perfectly healthy re-handshook on a loop: harmless to look at, and a stream of connects on
-    /// somebody's network for no reason.
+    /// This was a single <c>_keeping</c> string and one listener, so the phone could meet only ONE peer
+    /// on the network at a time — whichever the bring-up loop last named. Two phones on the same Wi-Fi
+    /// then could not reach each other whenever some third, absent contact happened to be the one chosen
+    /// to meet, and everything waited on a link that was never going to form. Each pair derives its own
+    /// rendezvous, so each gets its own entry: the waiter opens a listener for it, the dialer scans for
+    /// it, and being asked again for one already kept costs nothing.
     /// </remarks>
-    private string? _keeping;
+    private readonly ConcurrentDictionary<string, Meet> _meetings = new(StringComparer.Ordinal);
+
+    /// <summary>One rendezvous being kept — its own cancellation, listener, and whether it is linked.</summary>
+    private sealed class Meet : IDisposable
+    {
+        public required string Key { get; init; }
+
+        /// <summary>Linked to the transport's own stop, so cancelling either ends this meeting's work.</summary>
+        public required CancellationTokenSource Stop { get; init; }
+
+        public TcpListener? Listener;
+
+        /// <summary>True once the peer for this rendezvous is linked, so the dialer stops sweeping.</summary>
+        public volatile bool Connected;
+
+        public void Dispose()
+        {
+            try { Stop.Cancel(); } catch (Exception) { }
+            try { Listener?.Stop(); } catch (Exception) { }
+            try { Stop.Dispose(); } catch (Exception) { }
+        }
+    }
 
     /// <param name="localUhid">This node's wire address, sent so the far side knows who arrived.</param>
     public WifiTransportService(string localUhid) =>
@@ -129,6 +150,9 @@ public sealed class WifiTransportService : ITransportService, IDisposable
     public bool IsConnected(string peerUhid) =>
         _peers.TryGetValue(peerUhid, out var client) && client.Connected;
 
+    /// <inheritdoc />
+    public IReadOnlyCollection<string> ConnectedPeers => new List<string>(_peers.Keys);
+
     /// <summary>
     /// Meet somebody at a place you both worked out.
     /// </summary>
@@ -148,17 +172,23 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         try
         {
             // Already keeping this one. Asked again is the ordinary case, not an event.
-            if (string.Equals(_keeping, rendezvous, StringComparison.Ordinal)) return;
+            if (_meetings.ContainsKey(rendezvous)) return;
 
             Say($"asked to meet at {rendezvous[..6]}… — {(iStart ? "waiting" : "looking")}");
             if (LocalAddress() is not { } me) { Say("no network on this phone"); return; }
 
+            var meet = new Meet
+            {
+                Key = rendezvous,
+                Stop = CancellationTokenSource.CreateLinkedTokenSource(_stopping.Token),
+            };
+            if (!_meetings.TryAdd(rendezvous, meet)) { meet.Dispose(); return; }
+
+            var token = meet.Stop.Token;
             var port = PortFor(rendezvous);
 
-            if (iStart) Wait(me, rendezvous, port);
-            else Listen(rendezvous, port);
-
-            _keeping = rendezvous;
+            if (iStart) Wait(meet, me, rendezvous, port, token);
+            else Listen(meet, rendezvous, port, token);
         }
         finally
         {
@@ -166,29 +196,46 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         }
     }
 
+    /// <summary>Forget a rendezvous, so the next bring-up pass sets it up fresh rather than skipping it.</summary>
+    private void Drop(Meet meet)
+    {
+        _meetings.TryRemove(meet.Key, out _);
+        meet.Dispose();
+    }
+
     // ─── The side that waits ─────────────────────────────────────────────────────
 
     /// <summary>Open a socket, then say where it is until somebody turns up.</summary>
-    private void Wait(IPAddress me, string rendezvous, int port)
+    private void Wait(Meet meet, IPAddress me, string rendezvous, int port, CancellationToken token)
     {
-        if (_listener is not null) return;
+        try
+        {
+            meet.Listener = new TcpListener(IPAddress.Any, port);
+            meet.Listener.Start();
+        }
+        catch (Exception ex)
+        {
+            // Nothing to hand a peer if the socket will not open — forget this rendezvous so the next
+            // pass tries it cleanly rather than believing it is already kept.
+            Say($"could not wait on {port}: {ex.Message}");
+            Drop(meet);
+            return;
+        }
 
-        _listener = new TcpListener(IPAddress.Any, port);
-        _listener.Start();
         Say($"waiting on {me}:{port}");
-
-        _ = Task.Run(() => AcceptAsync(_listener, _stopping.Token));
-        _ = Task.Run(() => AnnounceAsync(me, rendezvous, port, _stopping.Token));
+        var listener = meet.Listener;
+        _ = Task.Run(() => AcceptAsync(meet, listener, token));
+        _ = Task.Run(() => AnnounceAsync(me, rendezvous, port, token));
     }
 
-    private async Task AcceptAsync(TcpListener listener, CancellationToken stopping)
+    private async Task AcceptAsync(Meet meet, TcpListener listener, CancellationToken stopping)
     {
         while (!stopping.IsCancellationRequested)
         {
             try
             {
                 var client = await listener.AcceptTcpClientAsync(stopping).ConfigureAwait(false);
-                _ = Task.Run(() => ServeAsync(client, stopping), stopping);
+                _ = Task.Run(() => ServeAsync(client, meet, stopping), stopping);
             }
             catch (OperationCanceledException) { return; }
             catch (Exception ex) { Say($"stopped accepting: {ex.Message}"); return; }
@@ -205,22 +252,24 @@ public sealed class WifiTransportService : ITransportService, IDisposable
     /// </remarks>
     private async Task AnnounceAsync(IPAddress me, string rendezvous, int port, CancellationToken stopping)
     {
+        UdpClient? announcer = null;
         try
         {
-            _announcer = new UdpClient(AddressFamily.InterNetwork);
-            _announcer.JoinMulticastGroup(IPAddress.Parse(Group), me);
+            announcer = new UdpClient(AddressFamily.InterNetwork);
+            announcer.JoinMulticastGroup(IPAddress.Parse(Group), me);
 
             var to = new IPEndPoint(IPAddress.Parse(Group), PortFor(rendezvous + "-say"));
             var said = Encoding.UTF8.GetBytes($"AETHERWIFI1 {rendezvous} {me} {port}");
 
             while (!stopping.IsCancellationRequested)
             {
-                await _announcer.SendAsync(said, said.Length, to).ConfigureAwait(false);
+                await announcer.SendAsync(said, said.Length, to).ConfigureAwait(false);
                 await Task.Delay(Beat, stopping).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Say($"could not announce: {ex.Message}"); }
+        finally { announcer?.Dispose(); }
     }
 
     // ─── The side that dials ─────────────────────────────────────────────────────
@@ -234,10 +283,10 @@ public sealed class WifiTransportService : ITransportService, IDisposable
     /// on every address on this network, over plain unicast, which routers do not block. Whichever
     /// connects first wins; both stop the instant a peer is linked.
     /// </remarks>
-    private void Listen(string rendezvous, int port)
+    private void Listen(Meet meet, string rendezvous, int port, CancellationToken token)
     {
-        _ = Task.Run(() => HearAsync(rendezvous, port, _stopping.Token));
-        _ = Task.Run(() => ScanAsync(port, _stopping.Token));
+        _ = Task.Run(() => HearAsync(meet, rendezvous, port, token));
+        _ = Task.Run(() => ScanAsync(meet, port, token));
     }
 
     /// <summary>How many addresses to probe at once — a /24 sweep, quick, without a connect storm.</summary>
@@ -261,7 +310,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
     /// taken for the peer. Bounded to one /24, a short timeout each, a handful at a time, and it stops
     /// the instant a peer links.
     /// </remarks>
-    private async Task ScanAsync(int port, CancellationToken stopping)
+    private async Task ScanAsync(Meet meet, int port, CancellationToken stopping)
     {
         if (LocalAddress() is not { } me) return;
         var octets = me.GetAddressBytes();
@@ -269,12 +318,12 @@ public sealed class WifiTransportService : ITransportService, IDisposable
 
         Say("also looking across the network, in case it drops multicast");
 
-        while (!stopping.IsCancellationRequested && _peers.IsEmpty)
+        while (!stopping.IsCancellationRequested && !meet.Connected)
         {
             using var crowd = new SemaphoreSlim(ScanAtOnce);
             var tries = new List<Task>();
 
-            for (var host = 1; host <= 254 && _peers.IsEmpty; host++)
+            for (var host = 1; host <= 254 && !meet.Connected; host++)
             {
                 if (host == octets[3]) continue;   // not this phone itself
 
@@ -282,21 +331,21 @@ public sealed class WifiTransportService : ITransportService, IDisposable
                 await crowd.WaitAsync(stopping).ConfigureAwait(false);
                 tries.Add(Task.Run(async () =>
                 {
-                    try { if (_peers.IsEmpty) await ProbeAsync(them, port, stopping).ConfigureAwait(false); }
+                    try { if (!meet.Connected) await ProbeAsync(meet, them, port, stopping).ConfigureAwait(false); }
                     finally { crowd.Release(); }
                 }, stopping));
             }
 
             try { await Task.WhenAll(tries).ConfigureAwait(false); } catch { /* individual failures are ordinary */ }
 
-            if (!_peers.IsEmpty) return;   // linked — done sweeping
+            if (meet.Connected) return;   // this peer linked — done sweeping for them
             try { await Task.Delay(ScanEvery, stopping).ConfigureAwait(false); }
             catch (OperationCanceledException) { return; }
         }
     }
 
     /// <summary>Try one address, briefly. A connect that lands hands off to the ordinary link loop.</summary>
-    private async Task ProbeAsync(IPAddress them, int port, CancellationToken stopping)
+    private async Task ProbeAsync(Meet meet, IPAddress them, int port, CancellationToken stopping)
     {
         var client = new TcpClient();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stopping);
@@ -305,7 +354,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         {
             await client.ConnectAsync(them, port, timeout.Token).ConfigureAwait(false);
             Say($"found them at {them}:{port}");
-            _ = Task.Run(() => ServeAsync(client, stopping), stopping);   // ServeAsync owns and disposes it
+            _ = Task.Run(() => ServeAsync(client, meet, stopping), stopping);   // ServeAsync owns and disposes it
         }
         catch
         {
@@ -313,7 +362,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         }
     }
 
-    private async Task HearAsync(string rendezvous, int port, CancellationToken stopping)
+    private async Task HearAsync(Meet meet, string rendezvous, int port, CancellationToken stopping)
     {
         UdpClient? ears = null;
         try
@@ -325,7 +374,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
 
             Say("listening for them on the network");
 
-            while (!stopping.IsCancellationRequested)
+            while (!stopping.IsCancellationRequested && !meet.Connected)
             {
                 var heard = await ears.ReceiveAsync(stopping).ConfigureAwait(false);
                 var words = Encoding.UTF8.GetString(heard.Buffer).Split(' ');
@@ -336,7 +385,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
                 if (!IPAddress.TryParse(words[2], out var them)) continue;
                 if (!int.TryParse(words[3], out var theirPort)) continue;
 
-                if (await DialAsync(them, theirPort, stopping).ConfigureAwait(false)) return;
+                if (await DialAsync(meet, them, theirPort, stopping).ConfigureAwait(false)) return;
             }
         }
         catch (OperationCanceledException) { }
@@ -344,7 +393,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         finally { ears?.Dispose(); }
     }
 
-    private async Task<bool> DialAsync(IPAddress them, int port, CancellationToken stopping)
+    private async Task<bool> DialAsync(Meet meet, IPAddress them, int port, CancellationToken stopping)
     {
         try
         {
@@ -352,7 +401,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
             await client.ConnectAsync(them, port, stopping).ConfigureAwait(false);
 
             Say($"connected to {them}:{port}");
-            _ = Task.Run(() => ServeAsync(client, stopping), stopping);
+            _ = Task.Run(() => ServeAsync(client, meet, stopping), stopping);
             return true;
         }
         catch (OperationCanceledException) { return false; }
@@ -373,7 +422,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
     /// sender for the layer above, which checks signatures against a key it already holds. Nothing
     /// here grants anybody anything.
     /// </remarks>
-    private async Task ServeAsync(TcpClient client, CancellationToken stopping)
+    private async Task ServeAsync(TcpClient client, Meet meet, CancellationToken stopping)
     {
         string? peer = null;
         try
@@ -389,6 +438,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
                 if (peer.Length == 0) return;
 
                 _peers[peer] = client;
+                meet.Connected = true;   // this rendezvous is met — the dialer can stop sweeping
                 Say($"linked with {peer}");
                 PeerLinked?.Invoke(peer);
 
@@ -405,9 +455,10 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         {
             if (peer is not null) _peers.TryRemove(peer, out _);
 
-            // The far side went away. Whatever this was keeping is over, so the next time the radio
-            // comes round it sets it up again rather than believing it is still there.
-            if (_peers.IsEmpty) _keeping = null;
+            // This pair's link is over. Forget the rendezvous so the next bring-up pass sets it up again
+            // rather than believing it is still kept — each pair is its own meeting, so dropping this one
+            // leaves every other peer's meeting untouched.
+            Drop(meet);
         }
     }
 
@@ -576,8 +627,9 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         foreach (var client in _peers.Values) try { client.Dispose(); } catch (Exception) { }
         _peers.Clear();
 
-        try { _listener?.Stop(); } catch (Exception) { }
-        _announcer?.Dispose();
+        foreach (var meet in _meetings.Values) meet.Dispose();
+        _meetings.Clear();
+
         _stopping.Dispose();
         _gate.Dispose();
     }

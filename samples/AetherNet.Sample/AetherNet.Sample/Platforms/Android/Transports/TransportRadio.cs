@@ -39,6 +39,15 @@ internal sealed class TransportRadio : IRadio, IDisposable
     private readonly Func<bool> _available;
     private readonly string? _unavailableReason;
     private string? _peer;
+
+    /// <summary>
+    /// Whether <see cref="_peer"/> was learned from the transport announcing a real connection
+    /// (<see cref="ITransportService.PeerLinked"/>) rather than from the first datagram heard. A tracked
+    /// peer's link is only live while the transport still says so, so it can drop the instant the socket
+    /// does; an untracked one keeps the old rule — heard once, linked until disposed — because a relay
+    /// has no connection to lose.
+    /// </summary>
+    private bool _tracked;
     private bool _disposed;
 
     /// <param name="transport">Any of the protocol's transports.</param>
@@ -57,6 +66,7 @@ internal sealed class TransportRadio : IRadio, IDisposable
         _unavailableReason = unavailableReason;
 
         _transport.DataReceived += OnData;
+        _transport.PeerLinked += OnPeerLinked;
     }
 
     public string Name => _transport.Name;
@@ -67,8 +77,28 @@ internal sealed class TransportRadio : IRadio, IDisposable
     /// <inheritdoc />
     public LinkQuality Quality { get; } = new();
 
-    public bool IsLinked => _peer is not null;
+    // Linked while there is a peer — and, when that peer came from a real connection the transport
+    // announced, only while the transport still holds it. That liveness is what lets the traffic move
+    // back off a Wi-Fi/LAN link the instant its socket drops, instead of RadioChoice preferring a fast
+    // radio that is no longer there. A relay peer (untracked) has no socket to lose, so it stays linked
+    // once heard, exactly as before.
+    public bool IsLinked => _peer is { } p && (!_tracked || _transport.IsConnected(p));
     public string? PeerTag => _peer;
+
+    /// <summary>
+    /// Everyone this radio is holding a link to. A connection-based transport (Wi-Fi/LAN) can keep
+    /// several at once, so surface all of them — not just the last one heard from — which is what lets
+    /// the mesh answer "is THIS person reachable" now that a phone can be linked to more than one.
+    /// </summary>
+    public IReadOnlyCollection<string> Peers
+    {
+        get
+        {
+            var many = _transport.ConnectedPeers;
+            if (many.Count > 0) return many;
+            return _peer is { } only ? new[] { only } : [];
+        }
+    }
 
     public event Action<string>? PeerLinked;
     public event Action<string, byte[]>? DataReceived;
@@ -84,6 +114,26 @@ internal sealed class TransportRadio : IRadio, IDisposable
             PeerLinked?.Invoke(from);
         }
         DataReceived?.Invoke(from, data);
+    }
+
+    /// <summary>
+    /// The transport says a connection to a peer is up, before any data has crossed it. This is the
+    /// link for a transport that has a handshake of its own — Wi-Fi/LAN, WebRTC — so the mesh can pick
+    /// it the moment it exists rather than waiting for data it would never send over a radio it does not
+    /// yet count as linked. Transports without a connection to announce never raise this.
+    /// </summary>
+    private void OnPeerLinked(string peer)
+    {
+        if (string.IsNullOrEmpty(peer)) return;
+
+        var first = _peer is null;
+        _peer = peer;
+        _tracked = true;
+        if (first)
+        {
+            Status?.Invoke($"linked with {peer}");
+            PeerLinked?.Invoke(peer);
+        }
     }
 
     public void Link()
@@ -131,6 +181,7 @@ internal sealed class TransportRadio : IRadio, IDisposable
         if (_disposed) return;
         _disposed = true;
         _transport.DataReceived -= OnData;
+        _transport.PeerLinked -= OnPeerLinked;
         _peer = null;
         (_transport as IDisposable)?.Dispose();
     }

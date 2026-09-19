@@ -119,7 +119,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // TransportRadio wraps a transport and raises ITS status, never the transport's — so
         // everything this radio said about itself went nowhere, and a radio that had not run looked
         // exactly like a radio that had. Silence from a layer is the wiring, not the code.
-        _wifi.Status += s => Emit($"[Wi-Fi] {s}");
+        _wifi.Status += s => { global::Android.Util.Log.Info("AetherWifiLan", s); Emit($"[Wi-Fi] {s}"); };
 
         Register(new TransportRadio(_wifi, _localUhid));
 
@@ -545,6 +545,47 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
             try { r.Link(meeting); }
             catch (Exception ex) { Emit($"[{r.Name}] could not listen: {ex.Message}"); }
         }
+    }
+
+    /// <inheritdoc />
+    public void MeetPeer(AetherNet.Rendezvous.Meeting meeting)
+    {
+        // Only the network leg meets peers pairwise. Wi-Fi Direct is the Circle's ONE shared group and
+        // is brought up by Link(meeting)/FastRadioService for the elected host — driving it per-peer here
+        // would have it thrash between groups. So this asks just the Wi-Fi/LAN transport to keep a
+        // rendezvous for THIS peer, alongside any others it is already keeping: many at once, one per
+        // contact, which is what lets two phones on the same network reach each other even when the tags
+        // elected some third, absent peer to host.
+        if (_wifi is null) return;
+        _ = Task.Run(async () =>
+        {
+            try { await _wifi.MeetAsync(meeting.Rendezvous, meeting.IStart); }
+            catch (Exception ex) { Emit($"[Wi-Fi] could not meet {meeting.PeerTag}: {ex.Message}"); }
+        });
+    }
+
+    /// <inheritdoc />
+    public bool IsReachable(string aetherTag)
+    {
+        if (string.IsNullOrEmpty(aetherTag)) return false;
+
+        // A phone can hold several links at once now, so this asks per peer rather than reading the one
+        // PeerTag. A Wi-Fi/LAN link names the peer by its tag directly; the rotating-address radios name
+        // a wire we turn back into a tag the same way PeerTag does.
+        foreach (var r in _order)
+        {
+            if (!r.IsLinked) continue;
+            foreach (var wire in r.Peers)
+            {
+                if (string.Equals(wire, aetherTag, StringComparison.Ordinal)) return true;
+
+                string? tag;
+                lock (_gate) { _known.TryGetValue(wire, out tag); }
+                tag ??= _circle?.Recognise(wire);
+                if (string.Equals(tag, aetherTag, StringComparison.Ordinal)) return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>

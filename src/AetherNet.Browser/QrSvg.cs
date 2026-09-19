@@ -126,6 +126,30 @@ public static class QrSvg
         return svg.ToString();
     }
 
+    /// <summary>
+    /// Render <paramref name="payload"/> as a PNG, for handing to another app as a picture rather than a
+    /// link — a post to advertise publicly, an image sent privately.
+    /// </summary>
+    /// <remarks>
+    /// Plain and dependency-free (QRCoder's own PNG writer, no System.Drawing, nothing from Google Play
+    /// Services). The branded look lives in <see cref="Render"/> for showing on-screen; a shared image is
+    /// about being scanned by whatever camera opens it, so this stays a straightforward dark-on-white
+    /// code. It encodes the same <c>aether://</c> invite, so scanning it lands the other phone in Aether
+    /// on "add you".
+    /// </remarks>
+    /// <param name="payload">What the code encodes — normally the <c>aether://…/add?k=…</c> invite.</param>
+    /// <param name="pixelsPerModule">How many pixels each module is; larger is a bigger, crisper image.</param>
+    public static byte[] Png(string payload, int pixelsPerModule = 12)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return Array.Empty<byte>();
+
+        using var generator = new QRCodeGenerator();
+        // M (~15% recoverable): plenty for a short invite with no centre mark to pay for, and it keeps
+        // the code low-density so it stays readable when a social app recompresses the image.
+        using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.M);
+        return new PngByteQRCode(data).GetGraphic(pixelsPerModule);
+    }
+
     /// <summary>Top-left origins of the three finder patterns, inside the 4-module quiet zone.</summary>
     private static (int X, int Y)[] FinderOrigins(int size) =>
         new[] { (4, 4), (size - 11, 4), (4, size - 11) };

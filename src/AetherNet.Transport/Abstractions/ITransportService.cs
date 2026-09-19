@@ -64,9 +64,40 @@ public interface ITransportService
     /// <returns>True if the peer is connected; false otherwise.</returns>
     bool IsConnected(string peerUhid);
 
+    /// <summary>The UHIDs of every peer currently connected on this transport.</summary>
+    /// <remarks>
+    /// Empty by default — for a transport whose "link" is just the source of an inbound datagram and
+    /// which keeps no connection to enumerate. A connection-based transport
+    /// (<see cref="AetherNet.Transport.Wifi.WifiTransportService"/>, WebRTC) returns everyone it is
+    /// currently holding a socket to, so the mesh can tell which specific peers are reachable — now that
+    /// a phone can be linked to more than one at once.
+    /// </remarks>
+    IReadOnlyCollection<string> ConnectedPeers => Array.Empty<string>();
+
     /// <summary>
     /// Raised when data is received from any peer over this transport.
     /// The first argument is the sender's UHID, the second is the raw data.
     /// </summary>
     event Action<string, byte[]>? DataReceived;
+
+    /// <summary>
+    /// Raised with a peer's UHID the moment a connection to them is up on this transport — before any
+    /// application data has crossed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The default is silence. A transport whose link only begins with its first inbound datagram — the
+    /// relays, BLE's GATT — never raises this, and a radio wrapping it still links on the first byte it
+    /// hears, exactly as before.
+    /// </para>
+    /// <para>
+    /// A transport with a real connection to announce — <see cref="AetherNet.Transport.Wifi.WifiTransportService"/>,
+    /// and the WebRTC and circuit-relay legs — raises it as soon as the handshake completes, so the mesh
+    /// can prefer that link the instant it exists. Without it the fast link was a deadlock: the send path
+    /// only ever uses a <em>linked</em> radio, and a connection-based transport only became "linked" once
+    /// the send path had already put data on it — which it never would, so a hundred-megabit Wi-Fi link
+    /// sat idle beside an eleven-kilobit Bluetooth one that carried everything.
+    /// </para>
+    /// </remarks>
+    event Action<string>? PeerLinked { add { } remove { } }
 }

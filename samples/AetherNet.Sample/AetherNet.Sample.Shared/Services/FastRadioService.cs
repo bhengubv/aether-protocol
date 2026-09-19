@@ -301,6 +301,18 @@ public sealed class FastRadioService : IDisposable
                 return;
             }
 
+            // The network everyone is already on is pairwise, so meet EVERY added peer over it — every
+            // pass, and regardless of what Wi-Fi Direct is doing below. Wi-Fi Direct can host only ONE
+            // group for the whole Circle, so on its own the phone only ever reached the one peer the tags
+            // elected to host; this is what lets two phones on the same Wi-Fi reach each other even when
+            // some third, absent contact sorts lowest and would otherwise be the only one met. Idempotent
+            // — the transport leaves a rendezvous it is already keeping alone. Kept ahead of the "already
+            // in the group" shortcut below, so it runs even once Wi-Fi Direct has settled.
+            if (_mesh is not null)
+                foreach (var c in _store.GetContacts())
+                    if (c.Tag is { Length: > 0 } && Meeting.With(_me.AetherTag, c.Tag) is { } m)
+                        _mesh.MeetPeer(m);
+
             // Everyone in the Circle derives from the same phone's key, so everyone lands on the same
             // group. Whether that phone is this one only changes whether we create it or join it.
             var iHost = GroupRole.HostsTheGroup(_me.AetherTag, peer.Tag);

@@ -191,21 +191,52 @@
     /// </summary>
     private bool Connected => _group is not null
         ? Radio.IsLinked                                   // a group only needs the mesh, not one peer
-        : Radio.IsLinked && Radio.PeerTag == Peer;
+        : Radio.IsReachable(Peer);                         // a phone can hold several links — ask per peer
 
+    /// <summary>How long we say "trying" before we say plainly that it is not getting through.</summary>
+    private static readonly TimeSpan ReachGrace = TimeSpan.FromSeconds(20);
+
+    /// <summary>When we first noticed this person was not reached, or null once they are.</summary>
+    private DateTimeOffset? _reachingSince;
+
+    /// <summary>Nudges the time-aware status forward while we are not yet reached.</summary>
+    private System.Threading.Timer? _statusTick;
+
+    private ContactRecord? Contact => Contacts.Contacts.FirstOrDefault(c => c.Tag == Peer);
+
+    /// <summary>Still worth calling it "trying" rather than "not getting through".</summary>
+    private bool Reaching => _reachingSince is not { } since || DateTimeOffset.UtcNow - since <= ReachGrace;
+
+    /// <summary>
+    /// The header, in a person's words. When this is NOT going through it says so honestly — added but
+    /// not reached reads as "trying…" and then a plain reason, never a mute "waiting" that hides a real
+    /// failure. WHY it failed (which radio refused, which peer the mesh sits on) is a developer's
+    /// concern and stays in the log; it is never put in front of the person here.
+    /// </summary>
     private string Status =>
         _group is not null
             ? (Radio.IsLinked
                 ? $"{Messages.GroupMembers(Peer).Count} people · end-to-end encrypted"
                 : $"{Messages.GroupMembers(Peer).Count} people · waiting to connect")
-        // Out-of-range is the normal state for a mesh, not a fault — so it reads as "we're trying",
-        // never "broken". Whether the radio happens to be linked to some OTHER peer is our business,
-        // not the reader's: to them, this person simply is not reached yet.
-        : !Connected ? "waiting to reach them"
-        : _secure ? $"end-to-end encrypted over {Radio.LinkRadio}"
-        : Contacts.Contacts.FirstOrDefault(c => c.Tag == Peer)?.IsMutual == true
-            ? "setting up encryption…"
-            : "waiting for them to add you back";
+        : _secure && Connected ? $"end-to-end encrypted over {Radio.LinkRadio}"
+        : Connected ? "setting up encryption…"
+        // Not reached — and the honest reason comes first. If they have not added you back, THAT is the
+        // block, not the radio; say the thing a person can actually act on.
+        : Contact?.IsMutual != true
+            ? (Contact?.IsIncoming == true ? "they added you — add them back to connect"
+                                           : "waiting for them to add you back")
+        // Added both ways, just not reached yet: "trying" while it is worth trying, then a plain reason
+        // rather than a spinner that never resolves.
+        : Reaching ? "trying to reach them…"
+        : "can’t reach them yet — they may be out of range or offline";
+
+    private void UpdateReach()
+    {
+        // Start the clock the first time we see this person is not reached; clear it the instant they
+        // are — so "trying…" turns into a plain reason only after trying has genuinely had a while.
+        if (Connected) _reachingSince = null;
+        else _reachingSince ??= DateTimeOffset.UtcNow;
+    }
 
     protected override void OnInitialized()
     {
@@ -229,6 +260,14 @@
             if (!string.IsNullOrEmpty(handed.Draft)) _draft = handed.Draft;
             _landOn = handed.At;
         }
+
+        Refresh();
+
+        // The status is time-aware (trying → can't-reach), so keep the header honest even when no radio
+        // event fires — a cheap repaint of one line every few seconds while we are not yet reached.
+        _statusTick = new System.Threading.Timer(
+            _ => InvokeAsync(() => { Refresh(); StateHasChanged(); }),
+            null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
     }
 
     /// <summary>Where they were in the thread, until it has been applied once.</summary>
@@ -301,6 +340,7 @@
         _group = Messages.Group(Peer);
         _messages = Messages.Conversation(Peer);
         _secure = _group is not null || Messages.IsSecure(Peer);
+        UpdateReach();
     }
 
     private async Task Send()
@@ -530,6 +570,7 @@
         Calls.Changed -= OnChanged;
         Recorder.Ticked -= OnTicked;
         Recorder.Capped -= OnCapped;
+        _statusTick?.Dispose();
 
         // Leaving the conversation must not leave the microphone open. Nobody expects a note to keep
         // recording after they have navigated away, and one that did would be sent to whoever they
