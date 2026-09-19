@@ -57,7 +57,32 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             </button>
         }
+
+        @* One person, one overflow: the place to end the relationship. Groups are left, not forgotten. *@
+        @if (_group is null)
+        {
+            <button class="cv-more @(_menuOpen ? "on" : null)" @onclick="ToggleMenu" aria-label="More options" title="More">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+            </button>
+        }
     </header>
+
+    @* Forgetting someone is two taps, exactly like the erase in Settings — armed, then done — and it is
+       never red: red is the alarm colour, kept for SOS alone. The wording carries the caution instead. *@
+    @if (_group is null && _menuOpen)
+    {
+        <div class="cv-menu">
+            <button class="cv-forget @(_armForget ? "armed" : null)" @onclick="ForgetPerson">
+                <span class="cvf-body">
+                    <span class="cvf-t">@(_armForget ? "Tap again to forget them" : "Forget this person")</span>
+                    <span class="cvf-s">@(_armForget
+                        ? "this phone stops recognising them; your messages stay with you"
+                        : "remove them from your people — you'll no longer see or hear them")</span>
+                </span>
+                <span class="cvf-icon">@(_armForget ? "‼" : "⌫")</span>
+            </button>
+        </div>
+    }
 
     @* The call has its own screen — CallOverlay — which covers this one while it is up, and a bar
        pinned to the bottom while it is put away. There used to be a third call bar here, above the
@@ -506,6 +531,29 @@
 
     private void Back() => Nav.NavigateTo("");
 
+    /// <summary>The header overflow menu (one-to-one only) and whether "forget" is armed for its second tap.</summary>
+    private bool _menuOpen;
+    private bool _armForget;
+
+    private void ToggleMenu()
+    {
+        _menuOpen = !_menuOpen;
+        _armForget = false;   // a freshly opened menu is never already armed
+    }
+
+    /// <summary>
+    /// Forget a person — two taps, like the erase in Settings. The first arms it; the second drops their
+    /// recognition key and contact record, so they leave both People and Chats and the radio stops
+    /// answering their rotating beacon. The conversation's own bytes stay on this phone, and nothing is
+    /// sent to them — forgetting is a local act.
+    /// </summary>
+    private void ForgetPerson()
+    {
+        if (!_armForget) { _armForget = true; return; }
+        Contacts.Remove(Peer);
+        Nav.NavigateTo("");
+    }
+
     /// <summary>
     /// Call everyone in the group. The service refuses and says why if nobody can be reached, so
     /// there is nothing to check here that it does not check better.
@@ -596,6 +644,33 @@
     }
     .callbtn svg { width: 23px; height: 23px; }
     .callbtn:disabled { color: var(--ink-3); opacity: .5; cursor: default; }
+
+    /* Overflow sits after the call button, in plain ink so it never competes with it. */
+    .cv-more {
+        flex: 0 0 auto; appearance: none; border: none; background: transparent;
+        color: var(--ink-2); cursor: pointer; padding: 6px; margin: -6px 0 -6px -2px; display: flex;
+    }
+    .cv-more svg { width: 22px; height: 22px; }
+    .cv-more.on { color: var(--ink); }
+
+    /* The menu drops in as its own bar under the header — no overlap, no positioning guesswork. */
+    .cv-menu {
+        flex: 0 0 auto; background: var(--surface); color: var(--on-surface);
+        --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface);
+        border-bottom: 1px solid var(--line); padding: 8px 10px;
+    }
+    .cv-forget {
+        width: 100%; appearance: none; cursor: pointer; text-align: left;
+        display: flex; align-items: center; gap: 12px;
+        background: transparent; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+    }
+    /* Armed reuses the brand tint the message pill uses — a deliberate blue, never the SOS red. */
+    .cv-forget.armed { background: var(--brand-tint); border-color: var(--brand); }
+    .cvf-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .cvf-t { font-weight: 750; font-size: 0.95rem; color: var(--ink); }
+    .cvf-s { font-size: 0.8rem; color: var(--ink); opacity: .68; line-height: 1.35; }
+    .cvf-icon { flex: 0 0 auto; font-size: 1.2rem; color: var(--ink-2); }
+    .cv-forget.armed .cvf-t, .cv-forget.armed .cvf-icon { color: var(--brand); }
 
     .cv-name { font-family: var(--mono); font-weight: 700; font-size: 1rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* A group has a name someone chose, not a tag — so it reads as words, not as an address. */
