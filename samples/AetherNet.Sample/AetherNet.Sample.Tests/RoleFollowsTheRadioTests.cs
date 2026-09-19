@@ -121,6 +121,90 @@ public class RoleFollowsTheRadioTests : IDisposable
         Assert.Equal(0, radio.HostAttempts);
     }
 
+    /// <summary>
+    /// A phone the tags chose to host, whose radio CAN host but only by dropping its own Wi-Fi, must
+    /// not host at all — it yields from the first pass, without even the one wasted attempt the
+    /// radio-refused case makes.
+    /// </summary>
+    /// <remarks>
+    /// This is the case the tags alone got wrong: the lower tag was a phone whose station sat on a DFS
+    /// channel, so owning the group would have dropped its internet and left a fragile link — while the
+    /// higher-tagged peer could have hosted without losing a thing. Measured on the P30 (station on
+    /// 5580MHz) against a Circle-OS Pixel.
+    /// </remarks>
+    [Fact]
+    public async Task A_host_that_would_lose_its_wifi_yields_without_even_trying()
+    {
+        var radio = new PickyGroup { CanHost = true, CanHostWithoutLosingWifi = false };
+        var me = new Someone(Lower);
+        _store.UpsertContact(Higher, publicKey: null, byMe: true, byThem: false, via: "typed");
+
+        var fast = new FastRadioService(_store, me, radio);
+
+        await fast.BringUpAsync();
+        await fast.BringUpAsync();
+
+        Assert.Equal(0, radio.HostAttempts);   // a wasted host would have dropped its Wi-Fi — never tried
+        Assert.True(radio.JoinAttempts > 0, "a phone that must not host went on hosting anyway");
+    }
+
+    /// <summary>
+    /// The common case is untouched: a phone that can host without losing its Wi-Fi hosts on the first
+    /// pass, exactly as before the capability check existed.
+    /// </summary>
+    [Fact]
+    public async Task A_host_that_keeps_its_wifi_hosts_as_before()
+    {
+        var radio = new PickyGroup { CanHostWithoutLosingWifi = true };
+        var me = new Someone(Lower);
+        _store.UpsertContact(Higher, publicKey: null, byMe: true, byThem: false, via: "typed");
+
+        var fast = new FastRadioService(_store, me, radio);
+
+        await fast.BringUpAsync();
+
+        Assert.True(radio.HostAttempts > 0, "the phone the tags chose, and could, did not host");
+        Assert.Equal(0, radio.JoinAttempts);
+    }
+
+    /// <summary>
+    /// The higher-tagged, Wi-Fi-keeping peer takes the role over when the phone the tags chose has
+    /// yielded and nobody is hosting — the far side of the same handover, from the joiner's view.
+    /// </summary>
+    [Fact]
+    public async Task The_wifi_keeping_peer_stands_in_when_the_chosen_host_yields()
+    {
+        // From the peer's side, a yielded host looks exactly like one that never turned up: its joins
+        // are refused, and after enough of them it hosts instead — and it CAN, so the group forms.
+        var radio = new PickyGroup { CanJoin = false, CanHostWithoutLosingWifi = true };
+        var me = new Someone(Higher);
+        _store.UpsertContact(Lower, publicKey: null, byMe: true, byThem: false, via: "typed");
+
+        var fast = new FastRadioService(_store, me, radio);
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            await fast.BringUpAsync();
+            Assert.Equal(0, radio.HostAttempts);
+        }
+
+        await fast.BringUpAsync();
+        Assert.True(radio.HostAttempts > 0, "nobody hosted: the chosen host yielded and the peer never took over");
+    }
+
+    /// <summary>The election rule with capability in it, stated so a change to it fails here too.</summary>
+    [Fact]
+    public void Capability_and_the_radio_both_get_a_veto_over_the_tags()
+    {
+        // proposedHost, canHostWithoutLosingWifi, radioRefused, standInReady
+        Assert.True(GroupRole.HostsTheGroup(true, true, false, false));    // chosen, able → hosts
+        Assert.False(GroupRole.HostsTheGroup(true, false, false, false));  // chosen, but would lose Wi-Fi → yields
+        Assert.False(GroupRole.HostsTheGroup(true, true, true, false));    // chosen, but radio refused → yields
+        Assert.True(GroupRole.HostsTheGroup(false, true, false, true));    // told to join, peer absent → stands in
+        Assert.False(GroupRole.HostsTheGroup(false, true, false, false));  // told to join, peer present → joins
+        Assert.False(GroupRole.HostsTheGroup(false, false, false, false)); // not chosen and unable → certainly not
+    }
+
     /// <summary>A phone with a tag and a key that goes with it.</summary>
     private sealed class Someone(string tag) : IIdentityService
     {
@@ -147,6 +231,12 @@ public class RoleFollowsTheRadioTests : IDisposable
         public bool CanHost { get; init; } = true;
 
         public bool CanJoin { get; init; } = true;
+
+        /// <summary>
+        /// A radio that CAN create a group but would drop its own Wi-Fi to do it — the DFS-channel
+        /// station case. Distinct from <see cref="CanHost"/>, which is a radio that refuses outright.
+        /// </summary>
+        public bool CanHostWithoutLosingWifi { get; init; } = true;
 
         public int HostAttempts { get; private set; }
 

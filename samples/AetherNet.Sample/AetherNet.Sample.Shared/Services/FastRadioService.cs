@@ -353,10 +353,18 @@ public sealed class FastRadioService : IDisposable
             // on Wi-Fi Direct, and Wi-Fi Direct waits on none of them.
             if (Meeting.With(_me.AetherTag, peer.Tag) is { } meeting) _mesh?.Link(meeting);
 
-            // Who the tags chose, and whether the radio agreed. A phone told to host that could not
-            // joins instead; a phone told to join that cannot get in hosts instead. See StandInAfter.
+            // Who the tags chose, then whether the radio can actually deliver it. A phone told to host
+            // that could not — its radio refused every channel, or hosting would cost it the Wi-Fi it is
+            // on — joins instead; a phone told to join that cannot get in hosts instead. See
+            // StandInAfter and IWifiDirectGroup.CanHostWithoutLosingWifi.
+            //
+            // The Wi-Fi cost is the case the tags alone got wrong: the lower tag can be the phone whose
+            // station sits on a DFS channel, so owning the group drops its internet and leaves a fragile
+            // link — while the higher-tagged peer could have hosted without losing a thing. Read fresh
+            // every pass, so a phone that moves off such a channel takes the role back on its own.
+            var canKeepWifi = _group.CanHostWithoutLosingWifi;
             var standingIn = !iHost && _joinsRefused >= StandInAfter;
-            var hosting = (iHost && !_cannotHost) || standingIn;
+            var hosting = GroupRole.HostsTheGroup(iHost, canKeepWifi, _cannotHost, standingIn);
 
             if (hosting)
             {
@@ -386,9 +394,11 @@ public sealed class FastRadioService : IDisposable
             }
             else
             {
-                T(_cannotHost
-                    ? $"this radio will not host, so {peer.Tag} has to — joining {credentials.NetworkName}"
-                    : $"{peer.Tag} hosts {credentials.NetworkName} — joining");
+                T(iHost && !canKeepWifi
+                    ? $"hosting here would drop this phone's own Wi-Fi — {peer.Tag} can host without that, so joining {credentials.NetworkName}"
+                    : _cannotHost
+                        ? $"this radio will not host, so {peer.Tag} has to — joining {credentials.NetworkName}"
+                        : $"{peer.Tag} hosts {credentials.NetworkName} — joining");
                 var joined = await _group.JoinAsync(credentials, cancellationToken).ConfigureAwait(false);
                 _currentGroup = joined ? credentials.NetworkName : null;
 

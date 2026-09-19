@@ -34,4 +34,33 @@ public static class GroupRole
         if (string.IsNullOrEmpty(myTag) || string.IsNullOrEmpty(theirTag)) return false;
         return string.CompareOrdinal(myTag, theirTag) < 0;
     }
+
+    /// <summary>
+    /// Does this phone host once the radio's <b>ability</b> to host has a say, not just the tags?
+    /// </summary>
+    /// <param name="proposedHost">
+    ///   What the tags alone chose — <see cref="HostsTheGroup(string,string)"/>.
+    /// </param>
+    /// <param name="canHostWithoutLosingWifi">
+    ///   Whether this phone can become group owner without dropping the Wi-Fi it is on. False on
+    ///   hardware that cannot run its station and a Wi-Fi Direct group at once while the station sits on
+    ///   a channel no group owner may use (a DFS/radar channel) — there, hosting costs the phone its own
+    ///   internet, so it is the wrong phone to host when a peer can do it without that cost.
+    /// </param>
+    /// <param name="radioRefused">
+    ///   Whether this phone was already told to host and its radio would not, at any channel.
+    /// </param>
+    /// <param name="standInReady">
+    ///   Whether this phone was told to <i>join</i> but the peer it was told to join has plainly not
+    ///   turned up, so it takes the role over.
+    /// </param>
+    /// <remarks>
+    /// Tag order only <i>proposes</i> a host. A proposed host that would lose its Wi-Fi to host, or whose
+    /// radio has refused, yields — it joins and lets the peer stand in. Convergence still rests on the
+    /// tags: the yielding phone never counts itself toward standing in, so exactly one phone ends up
+    /// hosting the group both derived from the same key.
+    /// </remarks>
+    public static bool HostsTheGroup(
+        bool proposedHost, bool canHostWithoutLosingWifi, bool radioRefused, bool standInReady)
+        => (proposedHost && canHostWithoutLosingWifi && !radioRefused) || standInReady;
 }

@@ -87,6 +87,25 @@ public interface IWifiDirectGroup
     bool IsSupported { get; }
 
     /// <summary>
+    /// Whether this phone can become the group owner <b>without giving up the Wi-Fi it is on</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A group owner cannot operate on a DFS/radar channel, so a phone whose own station sits on one can
+    /// only host by moving the group to another channel — and on hardware that cannot run station and
+    /// Wi-Fi Direct on two channels at once (older Huawei/EMUI is the one measured here), that drops the
+    /// station: the phone loses its own internet the instant it becomes owner, and the link it just built
+    /// is fragile. Such a phone is the wrong one to host when a peer on a hostable channel — or on no
+    /// Wi-Fi at all — can do it without that cost, so it yields and lets the peer host.
+    /// </para>
+    /// <para>
+    /// Defaults true: a host with no such limit, and the Web/desktop stand-ins, host freely. Only a
+    /// phone that can see it would pay this price answers false, and only then does the election move.
+    /// </para>
+    /// </remarks>
+    bool CanHostWithoutLosingWifi => true;
+
+    /// <summary>
     /// Become the group owner and return what someone else needs to join. Null if the group could not
     /// be created.
     /// </summary>

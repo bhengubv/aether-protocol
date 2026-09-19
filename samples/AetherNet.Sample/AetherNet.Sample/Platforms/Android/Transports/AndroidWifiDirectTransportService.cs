@@ -588,6 +588,27 @@ public sealed class AndroidWifiDirectTransportService
         frequencyMhz is (>= 2400 and <= 2500) or (>= 5000 and < 5260) or (> 5720 and <= 5900);
 
     /// <summary>
+    /// Whether this phone can own a group without giving up the Wi-Fi it is on.
+    /// </summary>
+    /// <remarks>
+    /// Off Wi-Fi (station channel 0) there is nothing to lose. On a channel a group owner may use, the
+    /// group follows the station onto it and both live on one radio — <see cref="StationFrequencyMhz"/>
+    /// and <see cref="WaitForStationAsync"/> are the whole of that. It is only when the station sits on a
+    /// channel no owner may use — a DFS/radar channel like the 5580MHz this pair was measured on — that
+    /// hosting has to move the group away and, on hardware without cross-band station+P2P concurrency,
+    /// drops the station with it. Then this is the wrong phone to host, and
+    /// <see cref="FastRadioService"/> hands the role to a peer that can keep its Wi-Fi.
+    /// </remarks>
+    public bool CanHostWithoutLosingWifi
+    {
+        get
+        {
+            var sta = StationFrequencyMhz();
+            return sta <= 0 || CanHostOn(sta);
+        }
+    }
+
+    /// <summary>
     /// Whether this Android lets the group be named. <c>createGroup(config)</c> arrived at API 29, and
     /// below it the framework picks — which puts that phone back to needing the credentials delivered.
     /// </summary>
