@@ -246,9 +246,14 @@ public sealed class CallService : IDisposable
 
     // ── Placing and answering ─────────────────────────────────────────────────
 
-    public async Task<bool> CallAsync(string peerTag, CancellationToken cancellationToken = default)
+    public async Task<bool> CallAsync(string peerTag, bool withVideo = false, CancellationToken cancellationToken = default)
     {
         if (Current is not null || string.IsNullOrEmpty(peerTag)) return false;
+
+        // Reset any intent left by a call that was placed as video but never connected, so it can never
+        // leak into a plain voice call placed afterwards. The real intent for THIS call is set below,
+        // once the guards have passed and we are actually about to place it.
+        _pendingVideo = false;
 
         // Ask for the microphone here, where the reason for asking is obvious, rather than during
         // setup where it is one more prompt in a queue nobody reads.
@@ -273,6 +278,10 @@ public sealed class CallService : IDisposable
         // brings up the wide pipe on its way out. Not fatal if it does not come up — the call still
         // rings, and if the far end can be reached at all the signalling gets there; only the audio
         // would struggle. CanCall has already refused the case where nothing wide could ever arrive.
+
+        // Remembered for the connect handler: a video call is a voice call that turns its camera on the
+        // instant the other side picks up.
+        _pendingVideo = withVideo;
 
         var voice = Voice();
         Current = await voice.PlaceAsync(peerTag, Offered, cancellationToken).ConfigureAwait(false);
@@ -461,6 +470,16 @@ public sealed class CallService : IDisposable
 
     /// <summary>Camera on, camera off. One byte, because that is all it says.</summary>
     private const byte CameraOn = 1;
+
+    /// <summary>
+    /// The call was placed as a video call — turn the camera on the moment it connects. Video can only
+    /// be enabled once <see cref="CallState.Connected"/>, which the caller reaches after the far side
+    /// answers, so the intent is held here and applied then.
+    /// </summary>
+    private bool _pendingVideo;
+
+    /// <summary>Whether this device has a camera at all — so the UI can offer a video call, or not bother.</summary>
+    public bool HasCamera => _video is { IsPresent: true };
 
     /// <summary>True while this phone is sending video.</summary>
     public bool VideoOn { get; private set; }
@@ -1370,6 +1389,15 @@ public sealed class CallService : IDisposable
 
         T($"connected to {PeerTag} — {session.Codec} at {session.SampleRateHz}Hz");
         Raise();
+
+        // Placed as a video call: now that we're connected — the one state SetVideoAsync accepts — turn
+        // the camera on. A refusal (no camera, busy, or a link too weak for video) leaves it a voice
+        // call exactly as it stands, which is the honest fallback rather than a failure.
+        if (_pendingVideo)
+        {
+            _pendingVideo = false;
+            await SetVideoAsync(true).ConfigureAwait(false);
+        }
     }
 
     private void OnCallEnded(object? sender, VoiceCallSession session)
@@ -1425,6 +1453,7 @@ public sealed class CallService : IDisposable
         _audio.StopRinging();     // answered, declined, or they gave up — either way, stop making noise
         _audio.ReleaseCall();     // and let the phone go back to being an ordinary phone
         Current = null;
+        _pendingVideo = false;    // a start-as-video intent belongs to this call and dies with it
         try { await _audio.StopAsync().ConfigureAwait(false); } catch { }
 
         // Close the queue and let the sender finish. Anything still waiting is stale speech from a
