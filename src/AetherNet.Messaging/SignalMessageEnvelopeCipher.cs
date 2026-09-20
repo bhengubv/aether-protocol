@@ -88,9 +88,14 @@ public sealed class SignalMessageEnvelopeCipher : IMessageEnvelopeCipher
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.Security.Cryptography.CryptographicException)
         {
-            // Session missing, MAC failure, or counter gap. We DROP — never
-            // surface a failed decrypt to the application as plaintext.
-            _logger.LogWarning(ex, "Signal decryption failed for ciphertext from {Sender}, dropping", senderUhid);
+            // Name the failure — the two kinds need different mental models when reading a log: a
+            // CryptographicException is a diverged ratchet (auth-tag mismatch) on an established session;
+            // an InvalidOperationException is simply no session yet. Both DROP — a failed decrypt is never
+            // surfaced to the application as plaintext — and both let the host repair.
+            var reason = ex is System.Security.Cryptography.CryptographicException
+                ? "the ratchet has diverged (authentication-tag mismatch on an established session)"
+                : "there is no session with them yet";
+            _logger.LogWarning(ex, "Signal decryption failed for a message from {Sender} — {Reason}; dropping it and letting the host repair", senderUhid, reason);
             return null;
         }
     }

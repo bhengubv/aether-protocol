@@ -257,7 +257,10 @@ public sealed class MessagingService : IMessagingService
             // Could not open it — no session, or a diverged ratchet. The payload is dropped (never
             // surfaced as plaintext), but the host is told so it can repair the session; a silent drop
             // would leave a broken conversation blocking its own recovery.
-            _logger.LogDebug("Data packet {Id} from {Source} dropped — no session or decrypt failed", packet.Id, packet.SourceUhid);
+            // Warning, not Debug: this is the single most common way a working link still fails to
+            // deliver, and at Debug it was invisible. The specific exception (no session vs a diverged
+            // ratchet's auth-tag mismatch) is logged by the cipher where it is actually caught.
+            _logger.LogWarning("Data packet {Id} from {Source} could not be decrypted — no session or the ratchet has diverged; dropping it and signalling the host to repair the session", packet.Id, packet.SourceUhid);
             DecryptFailed?.Invoke(this, packet.SourceUhid);
             return;
         }

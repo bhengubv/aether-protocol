@@ -195,7 +195,7 @@ public sealed class ChatService
         _messaging.MessageReceived += (_, m) => _ = OnMessageReceivedAsync(m);
         _messaging.DeliveryConfirmed += (_, receipt) => OnDeliveryConfirmed(receipt);
         _messaging.SessionRequired += (_, peer) => _ = EnsureSessionAsync(peer);
-        _messaging.DecryptFailed += (_, peer) => _ = RepairSessionAsync(peer);
+        _messaging.DecryptFailed += (_, peer) => _ = OnDecryptFailedAsync(peer);
 
         // The app's own kinds ride their own packet types; register each so the one inbound pump routes
         // it here instead of every service re-writing the same deserialize-and-switch.
@@ -365,7 +365,15 @@ public sealed class ChatService
     /// </summary>
     public event Action<string>? Trace;
 
-    private void T(string m) => Trace?.Invoke(m);
+    // Every trace goes to BOTH the in-app diagnostics panel (Trace) AND the platform log (_log →
+    // logcat in a debug build). The panel is for the person on the phone; the log is what a developer
+    // pulls after the fact and what the self-heal loop reads — a failure written only to the panel is a
+    // failure nobody off-device can see, which is exactly how the diverged-ratchet bug stayed invisible.
+    private void T(string m)
+    {
+        Trace?.Invoke(m);
+        _log.LogInformation("{Trace}", m);
+    }
 
     /// <summary>
     /// Sign a contribution with this device's identity key.
@@ -1701,12 +1709,37 @@ public sealed class ChatService
     /// <summary>Is this the failure that means the session is finished rather than the payload bad?</summary>
     public static bool IsBrokenSession(Exception ex) => LooksLikeABrokenSession(ex);
 
+    /// <summary>
+    /// A message that would not decrypt: the two ratchets have diverged, which is the single most common
+    /// reason a chat silently stops working. Say so loudly — this was invisible before, logged nowhere —
+    /// then repair. The core raises this rather than fixing it itself because it holds no pre-keys.
+    /// </summary>
+    private async Task OnDecryptFailedAsync(string peer)
+    {
+        _log.LogWarning("Decrypt failed from {Peer} — the ratchet has diverged; starting session repair", peer);
+        T($"could not read a message from {peer} — the secure session has diverged, repairing it");
+        try
+        {
+            await RepairSessionAsync(peer).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Session repair for {Peer} failed to start", peer);
+            T($"repair for {peer} could not start: {ex.GetType().Name} — {ex.Message}");
+        }
+    }
+
     private async Task RepairSessionAsync(string peerTag)
     {
         if (string.IsNullOrEmpty(peerTag)) return;
-        if (!_repair.ShouldRestart(peerTag, DateTime.UtcNow)) return;
+        if (!_repair.ShouldRestart(peerTag, DateTime.UtcNow))
+        {
+            _log.LogInformation("Session repair for {Peer} skipped — one is already in flight (within the cooldown)", peerTag);
+            return;
+        }
 
         _signal.DropSession(peerTag);
+        _log.LogWarning("Dropped the diverged session with {Peer}; refreshing our bundle and requesting theirs", peerTag);
         T($"no usable session with {peerTag} → dropping it and asking for a fresh bundle");
 
         // Publish a new bundle before asking for theirs. A bundle carries a ONE-TIME pre-key: the peer
