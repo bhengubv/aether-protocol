@@ -1,0 +1,138 @@
+@page "/cast/{Hash}"
+@using AetherNet.Sample.Shared.Services.Cast
+@inject CastService Cast
+@inject NavigationManager Nav
+
+<PageTitle>Aether — cast</PageTitle>
+
+<div class="cast">
+    <header class="cast-head">
+        <button class="cast-back" @onclick="Back" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="cast-title">Cast to a screen</span>
+    </header>
+
+    @if (_casting is { } t)
+    {
+        @* DLNA remote: the phone drives the TV. An Aether cast is driven from the /watch player instead. *@
+        <div class="cast-remote">
+            <div class="cr-icon">📺</div>
+            <div class="cr-on">Playing on <b>@t.Name</b></div>
+            <div class="cr-btns">
+                <button class="cr-btn" @onclick="() => Cast.PlayAsync(t)">▶ Play</button>
+                <button class="cr-btn" @onclick="() => Cast.PauseAsync(t)">⏸ Pause</button>
+                <button class="cr-btn cr-stop" @onclick="StopCast">■ Stop</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="cast-list">
+            @foreach (var target in _targets)
+            {
+                <button class="cast-row" @onclick="() => Pick(target)">
+                    <span class="cast-ic">@(target.Kind == CastKind.Dlna ? "📺" : "📱")</span>
+                    <span class="cast-nm">
+                        <span class="cast-name">@target.Name</span>
+                        <span class="cast-kind">@(target.Kind == CastKind.Dlna ? "TV on this network" : "Aether device")</span>
+                    </span>
+                    <span class="cast-go">Cast</span>
+                </button>
+            }
+        </div>
+
+        @if (_searching)
+        {
+            <div class="cast-note">Looking for screens…</div>
+        }
+        else if (_targets.Count == 0)
+        {
+            <div class="cast-empty">
+                No screens found. Make sure your TV is on the same Wi-Fi — or put Aether on it (an Android-TV
+                box or a dongle) and it joins your network of devices, ready to cast to like any other.
+            </div>
+        }
+
+        @if (_problem is not null) { <div class="cast-problem">@_problem</div> }
+    }
+</div>
+
+@code {
+    [Parameter] public string Hash { get; set; } = "";
+    [Parameter, SupplyParameterFromQuery] public string? Type { get; set; }
+    [Parameter, SupplyParameterFromQuery] public string? Title { get; set; }
+
+    private IReadOnlyList<CastTarget> _targets = Array.Empty<CastTarget>();
+    private bool _searching = true;
+    private CastTarget? _casting;
+    private string? _problem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Aether devices come back at once; the TV search takes a couple of seconds, so render the list
+        // as soon as it returns and drop the "looking…" line.
+        _targets = await Cast.FindTargetsAsync();
+        _searching = false;
+    }
+
+    private async Task Pick(CastTarget t)
+    {
+        _problem = null;
+        var ok = await Cast.CastAsync(t, Hash, Type ?? "video/mp4", Title ?? "Video");
+        if (!ok)
+        {
+            _problem = t.Kind == CastKind.Dlna
+                ? "That TV didn't accept it — check it's on the same Wi-Fi and awake."
+                : "Couldn't reach that device just now.";
+            return;
+        }
+
+        // An Aether cast becomes a Watch-Together session — its remote is the player. A TV cast stays
+        // here, where the phone is the remote.
+        if (t.Kind == CastKind.Aether) { Nav.NavigateTo("/watch"); return; }
+        _casting = t;
+    }
+
+    private async Task StopCast()
+    {
+        if (_casting is { } t) await Cast.StopAsync(t);
+        _casting = null;
+    }
+
+    private void Back()
+    {
+        if (_casting is { } t) _ = Cast.StopAsync(t);   // leaving the remote stops the TV
+        Nav.NavigateTo("");
+    }
+}
+
+<style>
+    .cast { position: fixed; inset: 0; background: var(--bg); color: var(--ink); z-index: 45; display: flex; flex-direction: column; }
+    .cast-head { flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+        padding: max(env(safe-area-inset-top), 28px) 16px 12px; border-bottom: 1px solid var(--line); }
+    .cast-back { appearance: none; border: none; background: transparent; color: var(--ink); cursor: pointer; padding: 4px; margin: -4px; display: flex; }
+    .cast-back svg { width: 26px; height: 26px; }
+    .cast-title { font-weight: 800; font-size: 1.1rem; }
+
+    .cast-list { display: flex; flex-direction: column; padding: 8px 0; }
+    .cast-row { appearance: none; border: none; background: transparent; cursor: pointer; text-align: left;
+        display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--ink); }
+    .cast-row:active { background: var(--surface-2); }
+    .cast-ic { font-size: 1.6rem; flex: 0 0 auto; }
+    .cast-nm { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .cast-name { font-weight: 700; font-size: 1rem; }
+    .cast-kind { font-size: 0.78rem; color: var(--ink-3); }
+    .cast-go { flex: 0 0 auto; font-size: 0.82rem; font-weight: 750; color: var(--brand); background: var(--brand-tint); padding: 7px 14px; border-radius: 999px; }
+
+    .cast-note, .cast-empty, .cast-problem { padding: 16px; color: var(--ink-3); font-size: 0.92rem; line-height: 1.5; }
+    .cast-empty { font-style: italic; }
+
+    .cast-remote { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; }
+    .cr-icon { font-size: 3.5rem; }
+    .cr-on { font-size: 1.05rem; color: var(--ink); }
+    .cr-btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .cr-btn { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+        border-radius: 12px; padding: 12px 20px; font-weight: 750; font-size: 0.95rem; cursor: pointer; }
+    .cr-btn.cr-stop { background: var(--brand); color: #fff; border-color: var(--brand); }
+</style>

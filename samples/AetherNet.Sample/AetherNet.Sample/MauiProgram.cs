@@ -191,6 +191,24 @@ public static class MauiProgram
             sp.GetService<IRadioMesh>(),
             sp.GetService<ILoggerFactory>()));
 
+        // Cast a video to a bigger screen. Two roads under one picker: a smart TV on the Wi-Fi driven over
+        // the open UPnP/DLNA standard (no Google Cast), or an Aether device over the mesh (which reuses the
+        // watch-together engine — and is how a TV that runs the Aether node service would appear too).
+        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.IMulticastHold,
+            AetherNet.Sample.Platforms.Android.AndroidMulticastHold>();
+        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.DlnaCastService>(sp =>
+            new AetherNet.Sample.Shared.Services.Cast.DlnaCastService(
+                sp.GetService<AttachmentService>(),
+                sp.GetService<AetherNet.Sample.Shared.Services.Cast.IMulticastHold>(),
+                sp.GetService<ILogger<AetherNet.Sample.Shared.Services.Cast.DlnaCastService>>()));
+        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.CastService>(sp =>
+            new AetherNet.Sample.Shared.Services.Cast.CastService(
+                sp.GetRequiredService<ContactService>(),
+                sp.GetRequiredService<WatchService>(),
+                sp.GetRequiredService<AetherNet.Sample.Shared.Services.Cast.DlnaCastService>(),
+                sp.GetService<IRadioMesh>(),
+                sp.GetService<ILogger<AetherNet.Sample.Shared.Services.Cast.CastService>>()));
+
         // The carry loop for delay-tolerant delivery. It re-attempts delivery + sweeps expired bundles on
         // a gentle cadence and the instant a peer appears, and bridges a bundle delivered to us back into
         // the reliable core to be decrypted and shown in chat. Primed at warm-up so a message left for us

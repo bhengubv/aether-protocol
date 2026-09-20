@@ -26,7 +26,11 @@
             <video class="nplayer" controls playsinline preload="metadata" src="@_source"></video>
             @* Both phones already hold these bytes (by hash), so they can play the very same video in
                step — the "dish" the watch-together engine was hiding in the Lab. *@
-            <button class="nwatch" @onclick="WatchTogether">▶ Watch together</button>
+            <div class="nrow">
+                <button class="nwatch" @onclick="WatchTogether">▶ Watch together</button>
+                @* Send it to a bigger screen — a TV on the Wi-Fi, or another Aether device. *@
+                <button class="nwatch" @onclick="CastTo">📺 Cast</button>
+            </div>
         }
         else if (Message.IsVoiceNote)
         {
@@ -196,6 +200,15 @@
             Nav.NavigateTo("/watch");
     }
 
+    /// <summary>Cast this video to a bigger screen — pick a TV on the Wi-Fi or an Aether device.</summary>
+    private void CastTo()
+    {
+        if (string.IsNullOrEmpty(Message.AttachmentHash)) return;
+        var title = string.IsNullOrWhiteSpace(Message.Body) ? "Video" : Message.Body;
+        var type = Message.AttachmentType ?? "video/mp4";
+        Nav.NavigateTo($"/cast/{Message.AttachmentHash}?type={Uri.EscapeDataString(type)}&title={Uri.EscapeDataString(title)}");
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -226,6 +239,7 @@
 
     .ncaption { font-size: 0.95rem; }
 
+    .nrow { display: flex; flex-wrap: wrap; gap: 6px; }
     .nwatch { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
         border-radius: 10px; padding: 7px 12px; font-weight: 700; font-size: 0.82rem; cursor: pointer;
         align-self: flex-start; }
