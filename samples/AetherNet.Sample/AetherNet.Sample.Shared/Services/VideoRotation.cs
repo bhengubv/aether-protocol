@@ -41,6 +41,24 @@ public static class VideoRotation
             : Normalise(sensor - display);
     }
 
+    /// <summary>
+    /// The rotation to bake into a RECORDED file (MediaRecorder.SetOrientationHint) so it plays the same
+    /// way up it was shot. This is a different question from <see cref="ForCapture"/>, which turns a live
+    /// frame for display: here the input is the DEVICE's physical orientation (from an
+    /// <c>OrientationEventListener</c>, 0 when the phone is flat), not the screen's rotation, and the
+    /// front camera is mirrored so its device angle is reversed — this is Android's own getJpegOrientation.
+    /// </summary>
+    /// <param name="sensorDegrees">The sensor's mounting angle, <c>CameraCharacteristics.SENSOR_ORIENTATION</c>.</param>
+    /// <param name="deviceDegrees">How far the phone is physically turned from upright: 0, 90, 180 or 270.</param>
+    /// <param name="front">The selfie camera, whose image is mirrored (its device angle runs the other way).</param>
+    public static int ForRecording(int sensorDegrees, int deviceDegrees, bool front)
+    {
+        var sensor = Normalise(sensorDegrees);
+        var device = Normalise(deviceDegrees);
+        if (front) device = Normalise(360 - device);   // mirror: reverse the device rotation
+        return Normalise(sensor + device);
+    }
+
     /// <summary>Fold any angle onto 0, 90, 180 or 270.</summary>
     /// <remarks>
     /// Negatives included. C#'s <c>%</c> keeps the sign of the left operand, so a naive

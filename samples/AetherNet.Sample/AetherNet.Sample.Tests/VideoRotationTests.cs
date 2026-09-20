@@ -56,6 +56,37 @@ public class VideoRotationTests
         Assert.NotEqual(front, back);
     }
 
+    // ── baking a recorded file (SetOrientationHint) ──────────────────────────
+
+    /// <summary>
+    /// A note recorded on the P30's selfie camera (sensor 270) held upright must be tagged 270 so a
+    /// player turns it back to portrait. This is exactly the note that was playing sideways, because the
+    /// recorder wrote no tag at all — and, once it did, used the SCREEN's rotation (which is 0 or 90 on a
+    /// phone flat on a desk) instead of the phone's true orientation.
+    /// </summary>
+    [Fact]
+    public void A_recording_held_upright_is_tagged_by_the_sensor()
+    {
+        Assert.Equal(270, VideoRotation.ForRecording(sensorDegrees: 270, deviceDegrees: 0, front: true));
+        Assert.Equal(90, VideoRotation.ForRecording(sensorDegrees: 90, deviceDegrees: 0, front: false));
+    }
+
+    /// <summary>
+    /// The recording formula reverses the DEVICE angle for the mirrored selfie camera — the opposite
+    /// sign from the back camera on the same physical turn. This is Android's own getJpegOrientation, and
+    /// it is a different computation from <see cref="VideoRotation.ForCapture"/> (which turns a live frame
+    /// for display and takes the screen rotation): reusing ForCapture here is what baked the wrong angle.
+    /// </summary>
+    [Fact]
+    public void A_recording_reverses_the_device_angle_for_the_front_camera()
+    {
+        var front = VideoRotation.ForRecording(sensorDegrees: 270, deviceDegrees: 90, front: true);
+        var back = VideoRotation.ForRecording(sensorDegrees: 270, deviceDegrees: 90, front: false);
+        Assert.Equal(180, front);   // 270 + (360-90) = 540 → 180
+        Assert.Equal(0, back);      // 270 + 90 = 360 → 0
+        Assert.NotEqual(front, back);
+    }
+
     // ── the sign trap ──────────────────────────────────────────────────────
 
     /// <summary>

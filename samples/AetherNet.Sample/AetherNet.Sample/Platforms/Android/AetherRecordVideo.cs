@@ -88,6 +88,8 @@ public sealed class AetherRecordVideo : Activity, TextureView.ISurfaceTextureLis
     private bool _finished;
     private int _sensorOrientation;        // the camera's mounting angle, read when it is opened
     private bool _frontCamera = true;      // a note is the selfie camera, whose picture is mirrored
+    private int _deviceOrientation;        // how the phone is actually held (accelerometer), 0 when flat
+    private global::Android.Views.OrientationEventListener? _orientation;
 
     /// <summary>
     /// Open the camera screen, wait for a note, and hand back where it landed.
@@ -158,6 +160,11 @@ public sealed class AetherRecordVideo : Activity, TextureView.ISurfaceTextureLis
         root.AddView(_button, buttonLayout);
 
         SetContentView(root);
+
+        // Track how the phone is actually being held, so the note is baked the same way up it is shot.
+        // Read from the accelerometer, not the screen: this recorder never rotates, but the phone does.
+        _orientation = new DeviceOrientation(this);
+        if (_orientation.CanDetectOrientation()) _orientation.Enable();
     }
 
     // ── The camera ────────────────────────────────────────────────────────────
@@ -328,16 +335,12 @@ public sealed class AetherRecordVideo : Activity, TextureView.ISurfaceTextureLis
             // Write the rotation INTO the file so it plays upright everywhere — in the chat and when cast to
             // another screen. A phone's camera sensor is mounted at an angle and hands MediaRecorder frames
             // lying on their side; without this hint the note is stored sideways and every compliant player
-            // shows it rotated. Same arithmetic the live-call path uses, pinned by VideoRotationTests.
-            var displayDegrees = (WindowManager?.DefaultDisplay?.Rotation) switch
-            {
-                global::Android.Views.SurfaceOrientation.Rotation90 => 90,
-                global::Android.Views.SurfaceOrientation.Rotation180 => 180,
-                global::Android.Views.SurfaceOrientation.Rotation270 => 270,
-                _ => 0,
-            };
+            // shows it rotated. The angle comes from the phone's TRUE orientation (the accelerometer, via
+            // OrientationEventListener — 0 when flat on a desk), NOT the screen rotation: a note recorder is
+            // orientation-locked, so the screen never turns even when the phone does, which baked the wrong
+            // angle. Arithmetic pinned by VideoRotationTests.
             recorder.SetOrientationHint(
-                AetherNet.Sample.Shared.Services.VideoRotation.ForCapture(_sensorOrientation, displayDegrees, _frontCamera));
+                AetherNet.Sample.Shared.Services.VideoRotation.ForRecording(_sensorOrientation, _deviceOrientation, _frontCamera));
 
             recorder.Prepare();
 
@@ -469,6 +472,9 @@ public sealed class AetherRecordVideo : Activity, TextureView.ISurfaceTextureLis
 
     private void Teardown()
     {
+        _orientation?.Disable();
+        _orientation = null;
+
         _ticker?.Dispose();
         _ticker = null;
 
@@ -480,5 +486,17 @@ public sealed class AetherRecordVideo : Activity, TextureView.ISurfaceTextureLis
 
         try { _camera?.Close(); } catch { /* already gone */ }
         _camera = null;
+    }
+
+    /// <summary>Follows the phone's real orientation so the recording is baked the matching way up.</summary>
+    private sealed class DeviceOrientation(AetherRecordVideo screen)
+        : global::Android.Views.OrientationEventListener(screen)
+    {
+        public override void OnOrientationChanged(int orientation)
+        {
+            // Flat on a desk reports "unknown" — keep the last good value (0 = portrait to begin with).
+            if (orientation == global::Android.Views.OrientationEventListener.OrientationUnknown) return;
+            screen._deviceOrientation = ((orientation + 45) / 90 * 90) % 360;
+        }
     }
 }
