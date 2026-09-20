@@ -235,6 +235,13 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
     /// <summary>How far this phone's camera sensor is rotated from the way the person is holding it.</summary>
     private volatile int _captureRotation;
 
+    /// <summary>The phone's TRUE orientation from the accelerometer (0 when flat), not the screen — the
+    /// screen is locked in a call, so it never turns even when the phone does. Feeds the capture rotation.</summary>
+    private volatile int _deviceOrientation;
+    private int _sensorRotation;              // the open camera's sensor mount angle, read at open
+    private bool _frontForRotation = true;    // whether the open camera is the selfie (mirrored)
+    private global::Android.Views.OrientationEventListener? _orientationWatch;
+
     /// <summary>
     /// How long to wait for the camera before calling it a failure.
     /// </summary>
@@ -420,6 +427,11 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             }).ConfigureAwait(false);
 
             if (!StartEncoder()) { await StopSendingAsync().ConfigureAwait(false); return false; }
+
+            // Watch the phone's real orientation before the camera opens, so the very first frame is
+            // already turned the right way and it keeps tracking if the phone turns during the call.
+            _orientationWatch ??= new OrientationWatch(this);
+            if (_orientationWatch.CanDetectOrientation()) _orientationWatch.Enable();
 
             var opened = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             _opening = opened;
@@ -781,18 +793,16 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
             var sensor = (manager.GetCameraCharacteristics(id)
                 .Get(CameraCharacteristics.SensorOrientation) as Java.Lang.Integer)?.IntValue() ?? 0;
 
-            var display = Platform.CurrentActivity?.WindowManager?.DefaultDisplay?.Rotation switch
-            {
-                SurfaceOrientation.Rotation90 => 90,
-                SurfaceOrientation.Rotation180 => 180,
-                SurfaceOrientation.Rotation270 => 270,
-                _ => 0,
-            };
-
-            _captureRotation = VideoRotation.ForCapture(sensor, display, front);
+            // Turn the picture by the phone's TRUE orientation (accelerometer, 0 when flat), the same way
+            // a recorded note is baked, NOT by the screen rotation: a call locks the screen, so it never
+            // turns even when the phone does, which is why the far end saw a sideways picture. The listener
+            // keeps _captureRotation current if the phone turns mid-call. Arithmetic pinned by VideoRotationTests.
+            _sensorRotation = sensor;
+            _frontForRotation = front;
+            _captureRotation = VideoRotation.ForRecording(sensor, _deviceOrientation, front);
 
             global::Android.Util.Log.Info("AetherVideo",
-                $"camera {id} sensor {sensor}°, display {display}° → picture needs {_captureRotation}°");
+                $"camera {id} sensor {sensor}°, device {_deviceOrientation}° → picture needs {_captureRotation}°");
         }
         catch (Exception ex)
         {
@@ -1356,6 +1366,9 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         MoveTo(CaptureState.Stopping);
         _opening?.TrySetResult(false);
 
+        // Stop the accelerometer watch — a listener left enabled per call is a sensor drain per call.
+        try { _orientationWatch?.Disable(); } catch { /* already gone */ }
+
         CameraCaptureSession? session;
         CameraDevice? camera;
         global::Android.OS.HandlerThread? thread;
@@ -1446,5 +1459,24 @@ public sealed class AndroidVideoIo : IVideoIo, IDisposable
         _disposed = true;
 
         try { StopAsync().GetAwaiter().GetResult(); } catch { /* tearing down */ }
+
+        try { _orientationWatch?.Disable(); _orientationWatch?.Dispose(); } catch { /* already gone */ }
+        _orientationWatch = null;
+    }
+
+    /// <summary>
+    /// Follows the phone's real orientation (accelerometer) so the far end sees the picture the right way
+    /// up regardless of how this phone is held — a call locks the screen, so the screen rotation cannot
+    /// answer this. Recomputes the capture rotation live, so it keeps up if the phone turns mid-call.
+    /// </summary>
+    private sealed class OrientationWatch(AndroidVideoIo io)
+        : global::Android.Views.OrientationEventListener(global::Android.App.Application.Context)
+    {
+        public override void OnOrientationChanged(int orientation)
+        {
+            if (orientation == global::Android.Views.OrientationEventListener.OrientationUnknown) return;
+            io._deviceOrientation = ((orientation + 45) / 90 * 90) % 360;
+            io._captureRotation = VideoRotation.ForRecording(io._sensorRotation, io._deviceOrientation, io._frontForRotation);
+        }
     }
 }
