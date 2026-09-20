@@ -32,6 +32,10 @@
     <CallOverlay />
     <GroupCallOverlay />
 
+    @* This phone is a castable screen — when something on the Wi-Fi casts to it, this covers the display
+       and plays it, wherever you are, like an incoming call. *@
+    <CastReceiver />
+
     @* A watch-together invite can arrive wherever you are, like a call — so it lives in the shell, not
        on one page. Join opens the synced player; Later dismisses it. *@
     @if (_watchInvite is { } inv)

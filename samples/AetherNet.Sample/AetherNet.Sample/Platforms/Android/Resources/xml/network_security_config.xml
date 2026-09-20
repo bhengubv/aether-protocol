@@ -1,18 +1,21 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!--
-  Cleartext to this device and nowhere else.
+  Cleartext policy.
 
-  Video frames do not go through the Blazor JavaScript bridge any more. They go over a WebSocket to a
-  server inside this very app, on the loopback interface, because the bridge is a single message
-  channel shared with every other interop call and with Blazor's own rendering — measured at about
-  four frames a second on a Redmi Note 9 before it saturated.
+  Casting is an open-LAN feature: UPnP/DLNA is plain HTTP over the local network — a device description at
+  http://<ip>/desc.xml, AVTransport SOAP control, and the media stream itself. Android's network security
+  config has no CIDR, so it cannot scope cleartext to "the local network only"; permitting those local
+  HTTP calls means permitting cleartext at the base level.
 
-  Android refuses cleartext by default from API 28, which is right, and the WebView enforced it:
-  net::ERR_CLEARTEXT_NOT_PERMITTED. This permits it for 127.0.0.1 alone. Nothing leaves the handset
-  over that connection — it does not touch a network interface at all — and every other destination
-  stays exactly as strict as it was.
+  That is acceptable here because everything that carries meaning — mesh messaging, calls, shared content —
+  is already sealed at the APP layer (the Signal ratchet) before it touches any transport. Cleartext
+  therefore exposes only what casting deliberately shares on your own Wi-Fi, never a conversation.
+
+  The loopback video path (a 127.0.0.1 WebSocket carrying call frames, kept off the Blazor bridge) is
+  unchanged and listed explicitly.
 -->
 <network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">127.0.0.1</domain>
         <domain includeSubdomains="false">localhost</domain>

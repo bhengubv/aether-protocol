@@ -1,0 +1,86 @@
+@using AetherNet.Sample.Shared.Services.Cast
+@implements IAsyncDisposable
+@inject UpnpRendererService Renderer
+@inject IJSRuntime JS
+
+@* This phone is a screen. When something on the Wi-Fi casts to it, this covers the display and plays the
+   video the caster served — they hold the remote. Shown wherever you are, like an incoming call. *@
+@if (_show)
+{
+    <div class="castrecv">
+        <div class="cr-top">
+            <span class="cr-title">📺 @_title</span>
+            <button class="cr-close" @onclick="StopHere" aria-label="Stop casting">Stop</button>
+        </div>
+        <video id="cast-recv" class="cr-video" controls autoplay playsinline></video>
+        <div class="cr-hint">Casting from another device on your Wi‑Fi — they control playback.</div>
+    </div>
+}
+
+@code {
+    private bool _show;
+    private string _title = "Casting";
+    private DotNetObjectReference<CastReceiver>? _self;
+    private IJSObjectReference? _mod;
+    private const string ModulePath = "./_content/AetherNet.Sample.Shared/js/aether-cast.js";
+
+    protected override void OnInitialized()
+    {
+        Renderer.PlayRequested += OnPlay;
+        Renderer.PauseRequested += OnPause;
+        Renderer.StopRequested += OnStop;
+        Renderer.SeekRequested += OnSeek;
+    }
+
+    private void OnPlay(string uri, string title) => _ = InvokeAsync(async () =>
+    {
+        _title = string.IsNullOrWhiteSpace(title) ? "Casting" : title;
+        _show = true;
+        StateHasChanged();                 // render the <video> first
+        try
+        {
+            _mod ??= await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+            _self ??= DotNetObjectReference.Create(this);
+            await _mod.InvokeVoidAsync("load", "cast-recv", uri, _self);
+        }
+        catch (Exception) { /* the WebView may still be warming — the <video> src/autoplay still covers it */ }
+    });
+
+    private void OnPause() => _ = InvokeAsync(async () => { if (_mod is not null) { try { await _mod.InvokeVoidAsync("pause", "cast-recv"); } catch { } } });
+    private void OnSeek(long ms) => _ = InvokeAsync(async () => { if (_mod is not null) { try { await _mod.InvokeVoidAsync("seek", "cast-recv", ms); } catch { } } });
+    private void OnStop() => _ = InvokeAsync(CloseAsync);
+
+    private Task StopHere() => CloseAsync();
+
+    private async Task CloseAsync()
+    {
+        if (_mod is not null) { try { await _mod.InvokeVoidAsync("stop", "cast-recv"); } catch { } }
+        _show = false;
+        Renderer.ReportEnded();
+        StateHasChanged();
+    }
+
+    [JSInvokable] public void OnProgress(long posMs, long durMs) => Renderer.ReportProgress(posMs, durMs);
+    [JSInvokable] public void OnEnded() => _ = InvokeAsync(CloseAsync);
+
+    public async ValueTask DisposeAsync()
+    {
+        Renderer.PlayRequested -= OnPlay;
+        Renderer.PauseRequested -= OnPause;
+        Renderer.StopRequested -= OnStop;
+        Renderer.SeekRequested -= OnSeek;
+        try { if (_mod is not null) await _mod.DisposeAsync(); } catch { }
+        _self?.Dispose();
+    }
+}
+
+<style>
+    .castrecv { position: fixed; inset: 0; z-index: 60; background: #000; color: #fff; display: flex; flex-direction: column; }
+    .cr-top { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: max(env(safe-area-inset-top), 28px) 16px 12px; }
+    .cr-title { font-weight: 800; font-size: 1.05rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cr-close { appearance: none; border: 1px solid rgba(255,255,255,.4); background: transparent; color: #fff;
+        border-radius: 10px; padding: 8px 16px; font-weight: 750; cursor: pointer; flex: 0 0 auto; }
+    .cr-video { flex: 1 1 auto; min-height: 0; width: 100%; object-fit: contain; background: #000; }
+    .cr-hint { flex: 0 0 auto; text-align: center; font-size: 0.8rem; opacity: .75; padding: 10px max(env(safe-area-inset-bottom), 16px); }
+</style>

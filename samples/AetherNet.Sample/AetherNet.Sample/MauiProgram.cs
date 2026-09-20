@@ -209,6 +209,14 @@ public static class MauiProgram
                 sp.GetService<IRadioMesh>(),
                 sp.GetService<ILogger<AetherNet.Sample.Shared.Services.Cast.CastService>>()));
 
+        // Aether AS a screen: a UPnP MediaRenderer so any caster on the Wi-Fi (another Aether phone, a PC,
+        // a TV's "play to") can send a video to THIS phone — no third-party renderer app, no Google. This
+        // is also the software a TV dongle running Aether would use to be a cast target.
+        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.UpnpRendererService>(sp =>
+            new AetherNet.Sample.Shared.Services.Cast.UpnpRendererService(
+                sp.GetService<AetherNet.Sample.Shared.Services.Cast.IMulticastHold>(),
+                sp.GetService<ILogger<AetherNet.Sample.Shared.Services.Cast.UpnpRendererService>>()));
+
         // The carry loop for delay-tolerant delivery. It re-attempts delivery + sweeps expired bundles on
         // a gentle cadence and the instant a peer appears, and bridges a bundle delivered to us back into
         // the reliable core to be decrypted and shown in chat. Primed at warm-up so a message left for us
@@ -549,6 +557,21 @@ public static class MauiProgram
                 if (dlna is not null)
                     dlna.Trace += m => global::Android.Util.Log.Info("AetherCast", m);
 #endif
+            });
+
+            // Start advertising this phone as a castable screen, so another device on the Wi-Fi can send to
+            // it. Named by device model (not the AetherTag) so the LAN never learns an identity.
+            Warm("renderer", () =>
+            {
+                var rend = app.Services.GetService<AetherNet.Sample.Shared.Services.Cast.UpnpRendererService>();
+                var me = app.Services.GetService<IIdentityService>();
+                if (rend is null || me is null) return;
+#if ANDROID
+                rend.Trace += m => global::Android.Util.Log.Info("AetherCast", m);
+#endif
+                var model = Microsoft.Maui.Devices.DeviceInfo.Current.Model;
+                var name = string.IsNullOrWhiteSpace(model) ? "Aether" : $"Aether — {model}";
+                rend.Start(me.AetherTag, name);
             });
 
             // The Wi-Fi Direct radio finds its own peers and settles who hosts on its own, so there is
