@@ -121,4 +121,59 @@ public class CastTests
         Assert.Contains("Tom &amp; Jerry &lt;fun&gt;", didl);
         Assert.DoesNotContain("<fun>", didl);
     }
+
+    [Fact]
+    public void The_status_queries_are_well_formed_soap_with_instance_zero()
+    {
+        var ti = DlnaProtocol.GetTransportInfo();
+        Assert.Contains("<u:GetTransportInfo xmlns:u=\"urn:schemas-upnp-org:service:AVTransport:1\">", ti);
+        Assert.Contains("<InstanceID>0</InstanceID>", ti);
+
+        var pi = DlnaProtocol.GetPositionInfo();
+        Assert.Contains("<u:GetPositionInfo xmlns:u=\"urn:schemas-upnp-org:service:AVTransport:1\">", pi);
+        Assert.Contains("<InstanceID>0</InstanceID>", pi);
+    }
+
+    [Fact]
+    public void The_transport_state_is_read_from_a_GetTransportInfo_response()
+    {
+        var xml = """
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>
+              <u:GetTransportInfoResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                <CurrentTransportState>PLAYING</CurrentTransportState>
+                <CurrentTransportStatus>OK</CurrentTransportStatus>
+                <CurrentSpeed>1</CurrentSpeed>
+              </u:GetTransportInfoResponse>
+            </s:Body></s:Envelope>
+            """;
+        Assert.Equal("PLAYING", DlnaProtocol.ReadTransportState(xml));
+        Assert.Null(DlnaProtocol.ReadTransportState("<garbage"));
+    }
+
+    [Fact]
+    public void The_position_and_duration_are_read_from_a_GetPositionInfo_response()
+    {
+        var xml = """
+            <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>
+              <u:GetPositionInfoResponse xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">
+                <Track>1</Track>
+                <TrackDuration>0:05:00</TrackDuration>
+                <RelTime>0:00:37</RelTime>
+              </u:GetPositionInfoResponse>
+            </s:Body></s:Envelope>
+            """;
+        var (pos, dur) = DlnaProtocol.ReadPosition(xml);
+        Assert.Equal(37_000, pos);
+        Assert.Equal(300_000, dur);
+    }
+
+    [Theory]
+    [InlineData("0:00:37", 37_000)]
+    [InlineData("01:30:05", (90 * 60 + 5) * 1000)]
+    [InlineData("0:00:05.000", 5_000)]   // some renderers carry a fraction of a second
+    [InlineData("NOT_IMPLEMENTED", 0)]
+    [InlineData("", 0)]
+    [InlineData(null, 0)]
+    public void A_upnp_clock_parses_to_milliseconds(string? clock, long expectedMs)
+        => Assert.Equal(expectedMs, DlnaProtocol.ParseClock(clock));
 }

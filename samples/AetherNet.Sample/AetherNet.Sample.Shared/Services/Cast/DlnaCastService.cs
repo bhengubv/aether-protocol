@@ -183,6 +183,25 @@ public sealed class DlnaCastService : IDisposable
         return ok;
     }
 
+    /// <summary>
+    /// Ask the screen what it is doing right now — state and position — so the caster's remote can show a
+    /// truthful "Buffering / Playing 0:37 / 5:00" instead of a blind guess. Null if the screen did not answer.
+    /// </summary>
+    public async Task<CastStatus?> StatusAsync(CastTarget t, CancellationToken ct = default)
+    {
+        if (t.ControlUrl is null) return null;
+
+        var stateXml = await PostReadAsync(t.ControlUrl, "GetTransportInfo", DlnaProtocol.GetTransportInfo(), ct).ConfigureAwait(false);
+        if (stateXml is null) return null;
+        var state = DlnaProtocol.ReadTransportState(stateXml) ?? "UNKNOWN";
+
+        long pos = 0, dur = 0;
+        var posXml = await PostReadAsync(t.ControlUrl, "GetPositionInfo", DlnaProtocol.GetPositionInfo(), ct).ConfigureAwait(false);
+        if (posXml is not null) (pos, dur) = DlnaProtocol.ReadPosition(posXml);
+
+        return new CastStatus(state, pos, dur);
+    }
+
     private Task<bool> Drive(CastTarget t, string action, string body, CancellationToken ct) =>
         t.ControlUrl is null ? Task.FromResult(false) : PostAsync(t.ControlUrl, action, body, ct);
 
@@ -204,6 +223,27 @@ public sealed class DlnaCastService : IDisposable
         {
             _log.LogDebug(ex, "Could not send {Action} to the TV", action);
             return false;
+        }
+    }
+
+    /// <summary>Like <see cref="PostAsync"/> but returns the SOAP response body (for the read actions), or null on failure.</summary>
+    private async Task<string?> PostReadAsync(string controlUrl, string action, string body, CancellationToken ct)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, controlUrl)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "text/xml"),
+            };
+            req.Headers.TryAddWithoutValidation("SOAPACTION", DlnaProtocol.SoapAction(action));
+            using var res = await _http.SendAsync(req, ct).ConfigureAwait(false);
+            if (!res.IsSuccessStatusCode) { _log.LogDebug("TV refused {Action}: {Status}", action, (int)res.StatusCode); return null; }
+            return await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _log.LogDebug(ex, "Could not read {Action} from the TV", action);
+            return null;
         }
     }
 

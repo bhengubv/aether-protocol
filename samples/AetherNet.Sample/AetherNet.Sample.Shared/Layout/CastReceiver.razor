@@ -1,4 +1,7 @@
 @using AetherNet.Sample.Shared.Services.Cast
+@using System.IO
+@using System.Net.Http
+@using Microsoft.JSInterop
 @implements IAsyncDisposable
 @inject UpnpRendererService Renderer
 @inject IJSRuntime JS
@@ -12,7 +15,32 @@
             <span class="cr-title">📺 @_title</span>
             <button class="cr-close" @onclick="StopHere" aria-label="Stop casting">Stop</button>
         </div>
-        <video id="cast-recv" class="cr-video" controls autoplay playsinline></video>
+        <div class="cr-stage">
+            <video id="cast-recv" class="cr-video" controls autoplay playsinline></video>
+            @if (_state == RecvState.Loading)
+            {
+                <div class="cr-overlay">
+                    @if (_bufferPct >= 0)
+                    {
+                        <div class="cr-bar"><div class="cr-bar-fill" style="width:@(_bufferPct)%"></div></div>
+                        <div class="cr-omsg">Buffering… @_bufferPct%</div>
+                    }
+                    else
+                    {
+                        <div class="cr-spinner" aria-hidden="true"></div>
+                        <div class="cr-omsg">Connecting…</div>
+                    }
+                </div>
+            }
+            else if (_state == RecvState.Error)
+            {
+                <div class="cr-overlay">
+                    <div class="cr-oicon" aria-hidden="true">⚠️</div>
+                    <div class="cr-omsg">@_errMsg</div>
+                    <button class="cr-retry" @onclick="Retry">Try again</button>
+                </div>
+            }
+        </div>
         <div class="cr-hint">Casting from another device on your Wi‑Fi — they control playback.</div>
     </div>
 }
@@ -20,9 +48,17 @@
 @code {
     private bool _show;
     private string _title = "Casting";
+    private enum RecvState { Loading, Playing, Error }
+    private RecvState _state = RecvState.Loading;
+    private string _errMsg = "";
+    private string _uri = "";
+    private int _bufferPct = -1;   // -1 = no bytes yet (show spinner), 0-100 = filling bar
     private DotNetObjectReference<CastReceiver>? _self;
     private IJSObjectReference? _mod;
     private const string ModulePath = "./_content/AetherNet.Sample.Shared/js/aether-cast.js";
+    // The bytes are fetched here, on the app's own network stack — the WebView cannot fetch the caster's
+    // http:// LAN URL from its https:// page (mixed content), but HttpClient can. Long timeout: a big clip.
+    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(2) };
 
     protected override void OnInitialized()
     {
@@ -35,16 +71,65 @@
     private void OnPlay(string uri, string title) => _ = InvokeAsync(async () =>
     {
         _title = string.IsNullOrWhiteSpace(title) ? "Casting" : title;
+        _uri = uri;
+        _state = RecvState.Loading;
+        _errMsg = "";
+        _bufferPct = -1;
         _show = true;
-        StateHasChanged();                 // render the <video> first
+        StateHasChanged();                 // render the <video> + spinner first
         try
         {
             _mod ??= await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
             _self ??= DotNetObjectReference.Create(this);
-            await _mod.InvokeVoidAsync("load", "cast-recv", uri, _self);
+            await StreamToPlayerAsync(uri);
         }
-        catch (Exception) { /* the WebView may still be warming — the <video> src/autoplay still covers it */ }
+        catch (Exception) { /* the WebView may still be warming — the error overlay covers it */ }
     });
+
+    // Fetch the cast bytes on the app's network stack (cleartext to the LAN is permitted here; the WebView's
+    // mixed-content rule does NOT apply to HttpClient), showing real download progress, then hand the <video>
+    // a same-origin blob. This is what makes the frame appear: an http:// URL set as the <video> src is
+    // blocked by the WebView as mixed content — MixedContentMode.AlwaysAllow does not override it for media
+    // (proven on device), so the bytes come through C# and reach the player as a blob no rule can touch.
+    private async Task StreamToPlayerAsync(string uri)
+    {
+        try
+        {
+            using var resp = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
+            resp.EnsureSuccessStatusCode();
+            var contentType = resp.Content.Headers.ContentType?.ToString() ?? "video/mp4";
+            var total = resp.Content.Headers.ContentLength ?? 0;
+
+            await using var body = await resp.Content.ReadAsStreamAsync();
+            var ms = new MemoryStream(total > 0 ? (int)total : 0);
+            var buffer = new byte[64 * 1024];
+            long got = 0;
+            int n;
+            while ((n = await body.ReadAsync(buffer)) > 0)
+            {
+                ms.Write(buffer, 0, n);
+                got += n;
+                if (total > 0)
+                {
+                    var pct = (int)Math.Clamp(got * 100 / total, 0, 100);
+                    await InvokeAsync(() => { if (_state == RecvState.Loading) { _bufferPct = pct; StateHasChanged(); } });
+                }
+            }
+
+            ms.Position = 0;
+            using var streamRef = new DotNetStreamReference(ms, leaveOpen: false);
+            if (_mod is not null) await _mod.InvokeVoidAsync("loadStream", "cast-recv", streamRef, contentType, _self);
+        }
+        catch (Exception)
+        {
+            await InvokeAsync(() =>
+            {
+                _state = RecvState.Error;
+                _errMsg = "Couldn't load the video from the caster.";
+                StateHasChanged();
+            });
+        }
+    }
 
     private void OnPause() => _ = InvokeAsync(async () => { if (_mod is not null) { try { await _mod.InvokeVoidAsync("pause", "cast-recv"); } catch { } } });
     private void OnSeek(long ms) => _ = InvokeAsync(async () => { if (_mod is not null) { try { await _mod.InvokeVoidAsync("seek", "cast-recv", ms); } catch { } } });
@@ -62,6 +147,44 @@
 
     [JSInvokable] public void OnProgress(long posMs, long durMs) => Renderer.ReportProgress(posMs, durMs);
     [JSInvokable] public void OnEnded() => _ = InvokeAsync(CloseAsync);
+
+    [JSInvokable] public void OnState(string state) => _ = InvokeAsync(() =>
+    {
+        // canplay/playing → the frame is up; anything else keeps the spinner.
+        var next = state is "playing" or "ready" ? RecvState.Playing : RecvState.Loading;
+        if (_state == RecvState.Error && next == RecvState.Loading) return;   // don't bounce off an error
+        _state = next;
+        StateHasChanged();
+    });
+
+    [JSInvokable] public void OnBuffer(int pct) => _ = InvokeAsync(() =>
+    {
+        if (_state != RecvState.Loading) return;   // only meaningful while the overlay is up
+        _bufferPct = pct;
+        StateHasChanged();
+    });
+
+    [JSInvokable] public void OnError(int code) => _ = InvokeAsync(() =>
+    {
+        _state = RecvState.Error;
+        _errMsg = code switch
+        {
+            2 => "Lost the connection to the caster.",
+            3 => "This device can't decode this video.",
+            4 => "Couldn't load the video from the caster.",
+            _ => "Couldn't play this video.",
+        };
+        StateHasChanged();
+    });
+
+    private async Task Retry()
+    {
+        if (string.IsNullOrEmpty(_uri)) return;
+        _state = RecvState.Loading; _errMsg = ""; _bufferPct = -1; StateHasChanged();
+        _mod ??= await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+        _self ??= DotNetObjectReference.Create(this);
+        await StreamToPlayerAsync(_uri);
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -81,6 +204,19 @@
     .cr-title { font-weight: 800; font-size: 1.05rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cr-close { appearance: none; border: 1px solid rgba(255,255,255,.4); background: transparent; color: #fff;
         border-radius: 10px; padding: 8px 16px; font-weight: 750; cursor: pointer; flex: 0 0 auto; }
+    .cr-stage { flex: 1 1 auto; min-height: 0; position: relative; display: flex; }
     .cr-video { flex: 1 1 auto; min-height: 0; width: 100%; object-fit: contain; background: #000; }
+    .cr-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: 14px; text-align: center; padding: 24px; background: rgba(0,0,0,.55); }
+    .cr-omsg { font-size: 0.95rem; opacity: .9; max-width: 22rem; }
+    .cr-oicon { font-size: 2.4rem; }
+    .cr-spinner { width: 42px; height: 42px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25);
+        border-top-color: #fff; animation: cr-spin 0.9s linear infinite; }
+    @@keyframes cr-spin { to { transform: rotate(360deg); } }
+    @@media (prefers-reduced-motion: reduce) { .cr-spinner { animation-duration: 2.4s; } }
+    .cr-bar { width: min(70%, 20rem); height: 6px; border-radius: 999px; background: rgba(255,255,255,.22); overflow: hidden; }
+    .cr-bar-fill { height: 100%; background: #fff; border-radius: 999px; transition: width .2s ease; }
+    .cr-retry { appearance: none; border: 1px solid rgba(255,255,255,.5); background: transparent; color: #fff;
+        border-radius: 10px; padding: 9px 18px; font-weight: 750; cursor: pointer; }
     .cr-hint { flex: 0 0 auto; text-align: center; font-size: 0.8rem; opacity: .75; padding: 10px max(env(safe-area-inset-bottom), 16px); }
 </style>

@@ -10,6 +10,28 @@ public partial class MainPage : ContentPage
         // moment to configure it — the handler lifecycle is MAUI's own seam for exactly that.
         blazorWebView.HandlerChanged += OnWebViewHandlerChanged;
 
+        // Casting a video plays an http:// LAN URL inside this https:// WebView, which Chromium blocks as
+        // mixed content. Allowing it must happen AFTER MAUI has finished configuring the WebView, or MAUI's
+        // own init resets the mode back to the default (never-allow) — HandlerChanged is too early.
+        // BlazorWebViewInitialized is the documented post-init hook, so the setting sticks. The receiver's
+        // video is the caster's own media server on the LAN, and everything meaningful is Signal-sealed at
+        // the app layer first, so this WebView — which only loads the local app plus trusted-LAN cast media
+        // — allows it. (Lambda, so the platform event-args type is inferred rather than named.)
+        blazorWebView.BlazorWebViewInitialized += (_, e) =>
+        {
+#if ANDROID
+            if (e.WebView?.Settings is { } s)
+            {
+                s.MixedContentMode = global::Android.Webkit.MixedContentHandling.AlwaysAllow;
+                global::Android.Util.Log.Info("AetherCast", $"WebView mixed-content mode = {s.MixedContentMode}");
+            }
+            else
+            {
+                global::Android.Util.Log.Info("AetherCast", "WebView Settings null at BlazorWebViewInitialized");
+            }
+#endif
+        };
+
         // Somebody can turn the phone dark while the app is open, and the page inside will follow —
         // its stylesheet is written against prefers-color-scheme. The ground behind it has to follow
         // too, or the next cold paint shows the old theme's colour through the new one.
@@ -99,4 +121,5 @@ public partial class MainPage : ContentPage
         }
 #endif
     }
+
 }

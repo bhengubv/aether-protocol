@@ -1,5 +1,6 @@
 @page "/cast/{Hash}"
 @using AetherNet.Sample.Shared.Services.Cast
+@implements IDisposable
 @inject CastService Cast
 @inject NavigationManager Nav
 
@@ -13,12 +14,25 @@
         <span class="cast-title">Cast to a screen</span>
     </header>
 
-    @if (_casting is { } t)
+    @if (_connectingTo is { } c)
+    {
+        <div class="cast-remote">
+            <div class="cr-spin" aria-hidden="true"></div>
+            <div class="cr-on">Connecting to <b>@c.Name</b>…</div>
+        </div>
+    }
+    else if (_casting is { } t)
     {
         @* DLNA remote: the phone drives the TV. An Aether cast is driven from the /watch player instead. *@
         <div class="cast-remote">
             <div class="cr-icon">📺</div>
-            <div class="cr-on">Playing on <b>@t.Name</b></div>
+            <div class="cr-on"><b>@t.Name</b></div>
+            <div class="cr-state">@StateLine</div>
+            @if (_status is { DurationMs: > 0 } st)
+            {
+                <div class="cr-scrub"><div class="cr-scrub-fill" style="width:@Pct(st)%"></div></div>
+                <div class="cr-time">@Clock(st.PositionMs) / @Clock(st.DurationMs)</div>
+            }
             <div class="cr-btns">
                 <button class="cr-btn" @onclick="() => Cast.PlayAsync(t)">▶ Play</button>
                 <button class="cr-btn" @onclick="() => Cast.PauseAsync(t)">⏸ Pause</button>
@@ -66,7 +80,10 @@
     private IReadOnlyList<CastTarget> _targets = Array.Empty<CastTarget>();
     private bool _searching = true;
     private CastTarget? _casting;
+    private CastTarget? _connectingTo;
     private string? _problem;
+    private CastStatus? _status;
+    private CancellationTokenSource? _pollCts;
 
     protected override async Task OnInitializedAsync()
     {
@@ -79,7 +96,12 @@
     private async Task Pick(CastTarget t)
     {
         _problem = null;
+        _connectingTo = t;
+        StateHasChanged();
+        await Task.Yield();   // let the "Connecting…" overlay paint before the SOAP round-trip
+
         var ok = await Cast.CastAsync(t, Hash, Type ?? "video/mp4", Title ?? "Video");
+        _connectingTo = null;
         if (!ok)
         {
             _problem = t.Kind == CastKind.Dlna
@@ -92,19 +114,75 @@
         // here, where the phone is the remote.
         if (t.Kind == CastKind.Aether) { Nav.NavigateTo("/watch"); return; }
         _casting = t;
+        _status = null;
+        StartPolling(t);
     }
 
     private async Task StopCast()
     {
+        StopPolling();
         if (_casting is { } t) await Cast.StopAsync(t);
         _casting = null;
     }
 
     private void Back()
     {
+        StopPolling();
         if (_casting is { } t) _ = Cast.StopAsync(t);   // leaving the remote stops the TV
         Nav.NavigateTo("");
     }
+
+    // Poll the screen ~once a second so the remote shows a truthful state and position. Works against a
+    // real DLNA TV and against Aether's own renderer — both answer GetTransportInfo / GetPositionInfo.
+    private void StartPolling(CastTarget t)
+    {
+        StopPolling();
+        var cts = new CancellationTokenSource();
+        _pollCts = cts;
+        _ = Task.Run(async () =>
+        {
+            while (!cts.IsCancellationRequested)
+            {
+                CastStatus? s = null;
+                try { s = await Cast.StatusAsync(t); } catch { /* a poll that fails just leaves the last state up */ }
+                if (cts.IsCancellationRequested) break;
+                _status = s;
+                await InvokeAsync(StateHasChanged);
+                try { await Task.Delay(1000, cts.Token); } catch (OperationCanceledException) { break; }
+            }
+        }, cts.Token);
+    }
+
+    private void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
+        _status = null;
+    }
+
+    private string StateLine => _status switch
+    {
+        null => "Connecting…",
+        { IsBuffering: true } => "Buffering…",
+        { IsPaused: true } => "Paused",
+        { IsStopped: true } => "Stopped",
+        { IsPlaying: true } => "Playing",
+        _ => "Playing",
+    };
+
+    private static int Pct(CastStatus s) =>
+        s.DurationMs <= 0 ? 0 : (int)Math.Clamp(s.PositionMs * 100 / s.DurationMs, 0, 100);
+
+    private static string Clock(long ms)
+    {
+        var t = TimeSpan.FromMilliseconds(Math.Max(0, ms));
+        return t.TotalHours >= 1
+            ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
+            : $"{t.Minutes}:{t.Seconds:00}";
+    }
+
+    public void Dispose() => StopPolling();
 }
 
 <style>
@@ -135,4 +213,14 @@
     .cr-btn { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
         border-radius: 12px; padding: 12px 20px; font-weight: 750; font-size: 0.95rem; cursor: pointer; }
     .cr-btn.cr-stop { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+    .cr-state { font-size: 0.9rem; font-weight: 700; color: var(--brand); }
+    .cr-scrub { width: min(80%, 22rem); height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+    .cr-scrub-fill { height: 100%; background: var(--brand); border-radius: 999px; transition: width .3s ease; }
+    .cr-time { font-variant-numeric: tabular-nums; color: var(--ink-3); font-size: 0.85rem; }
+
+    .cr-spin { width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--line);
+        border-top-color: var(--brand); animation: cast-spin 0.9s linear infinite; }
+    @@keyframes cast-spin { to { transform: rotate(360deg); } }
+    @@media (prefers-reduced-motion: reduce) { .cr-spin { animation-duration: 2.4s; } }
 </style>

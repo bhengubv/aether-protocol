@@ -80,4 +80,7 @@ public sealed class CastService
     public Task<bool> PauseAsync(CastTarget t) => _dlna.PauseAsync(t);
     public Task<bool> StopAsync(CastTarget t) => _dlna.StopAsync(t);
     public Task<bool> SeekAsync(CastTarget t, long positionMs) => _dlna.SeekAsync(t, positionMs);
+
+    /// <summary>What the screen is doing right now, for the remote's live state + position. Null if it didn't answer.</summary>
+    public Task<CastStatus?> StatusAsync(CastTarget t) => _dlna.StatusAsync(t);
 }

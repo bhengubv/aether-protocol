@@ -143,5 +143,55 @@ public static class DlnaProtocol
         return Envelope("Seek", $"<Unit>REL_TIME</Unit><Target>{hhmmss}</Target>");
     }
 
+    // ── Reading back what the screen is doing ──────────────────────────────────
+
+    /// <summary>Ask the renderer for its transport state (playing / paused / buffering / stopped).</summary>
+    public static string GetTransportInfo() => Envelope("GetTransportInfo", "");
+
+    /// <summary>Ask the renderer where it is and how long the media is.</summary>
+    public static string GetPositionInfo() => Envelope("GetPositionInfo", "");
+
+    /// <summary>
+    /// The transport state from a GetTransportInfo response — "PLAYING", "PAUSED_PLAYBACK",
+    /// "TRANSITIONING" (buffering), "STOPPED", "NO_MEDIA_PRESENT". Null when absent or malformed.
+    /// </summary>
+    public static string? ReadTransportState(string soapXml)
+    {
+        try
+        {
+            var v = XDocument.Parse(soapXml).Descendants()
+                .FirstOrDefault(e => e.Name.LocalName == "CurrentTransportState")?.Value;
+            return string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+        }
+        catch (System.Xml.XmlException) { return null; }
+    }
+
+    /// <summary>
+    /// Position and duration in milliseconds from a GetPositionInfo response (its RelTime and
+    /// TrackDuration). A field that is absent or "NOT_IMPLEMENTED" reads as 0.
+    /// </summary>
+    public static (long PositionMs, long DurationMs) ReadPosition(string soapXml)
+    {
+        try
+        {
+            var doc = XDocument.Parse(soapXml);
+            string? Get(string n) => doc.Descendants().FirstOrDefault(e => e.Name.LocalName == n)?.Value;
+            return (ParseClock(Get("RelTime")), ParseClock(Get("TrackDuration")));
+        }
+        catch (System.Xml.XmlException) { return (0, 0); }
+    }
+
+    /// <summary>Parse a UPnP wall-clock time ("H:MM:SS", seconds may carry a fraction) into milliseconds.</summary>
+    public static long ParseClock(string? hhmmss)
+    {
+        if (string.IsNullOrWhiteSpace(hhmmss)) return 0;
+        var parts = hhmmss.Trim().Split(':');
+        if (parts.Length != 3) return 0;
+        if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var h)) return 0;
+        if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var m)) return 0;
+        if (!int.TryParse(parts[2].Split('.')[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var s)) return 0;
+        return ((h * 3600L) + (m * 60L) + s) * 1000L;
+    }
+
     private static string Esc(string s) => SecurityElement.Escape(s) ?? s;
 }

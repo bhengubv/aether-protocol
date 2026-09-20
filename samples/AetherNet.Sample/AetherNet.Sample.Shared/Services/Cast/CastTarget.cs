@@ -22,3 +22,18 @@ public enum CastKind
 /// <param name="Id">AetherTag for a mesh device; the renderer's USN/UDN for a TV.</param>
 /// <param name="Name">What to show the person — a petname, or the TV's friendly name.</param>
 public sealed record CastTarget(string Id, string Name, CastKind Kind, string? ControlUrl = null);
+
+/// <summary>
+/// What a screen reports back while it plays — so the caster is not left guessing. Read from the
+/// renderer's own AVTransport (GetTransportInfo + GetPositionInfo), which every DLNA TV answers and
+/// Aether's own renderer answers too, so the sender's remote shows a truthful state and position.
+/// </summary>
+/// <param name="State">The renderer's transport state verbatim — PLAYING, PAUSED_PLAYBACK, TRANSITIONING, STOPPED, NO_MEDIA_PRESENT.</param>
+public sealed record CastStatus(string State, long PositionMs, long DurationMs)
+{
+    public bool IsPlaying => State.Equals("PLAYING", StringComparison.OrdinalIgnoreCase);
+    public bool IsPaused => State.Contains("PAUSED", StringComparison.OrdinalIgnoreCase);
+    public bool IsBuffering => State.Equals("TRANSITIONING", StringComparison.OrdinalIgnoreCase);
+    public bool IsStopped => State.Equals("STOPPED", StringComparison.OrdinalIgnoreCase)
+        || State.Equals("NO_MEDIA_PRESENT", StringComparison.OrdinalIgnoreCase);
+}
