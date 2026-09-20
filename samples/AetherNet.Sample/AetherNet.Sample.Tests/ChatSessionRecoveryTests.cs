@@ -198,4 +198,65 @@ public class ChatSessionRecoveryTests
 
         Assert.Equal(1, pair.SignalA.Dropped.Count(t => t == Higher));
     }
+
+    // ── The conversation works in BOTH directions again ───────────────────────
+
+    /// <summary>
+    /// The tests above prove the repairing side drops the dead session and asks for a fresh one. What
+    /// nobody checked is the thing that actually matters to two people: after a repair, does a message
+    /// each way reach the OTHER phone's store? This is exactly the on-device symptom — a link that carried
+    /// one direction (delivered, ✓✓) while the other's messages showed sent-but-never-arrived — so it is
+    /// worth pinning that recovery restores delivery both ways, not just on the side that noticed.
+    /// </summary>
+    [Fact]
+    public async Task After_a_repair_a_message_each_way_reaches_the_other_phone()
+    {
+        using var pair = new Pair(Lower, Higher).WithBrokenRatchetOnA();
+
+        // B speaks; A cannot open it and repairs. (A's break is its READ side; its sends were fine.)
+        await pair.BSpeaksAsync("before repair");
+        Assert.True(await Eventually(() => pair.SignalA.Dropped.Contains(Higher)));
+
+        // The fresh session comes up on A, as the peer's bundle arriving over the radio would bring it.
+        pair.SignalA.RatchetBroken = false;
+        pair.PreKeysA.RaiseBundleReceived(Higher);
+
+        await pair.ChatA.SendAsync(Higher, "A after repair");
+        await pair.ChatB.SendAsync(Lower, "B after repair");
+
+        Assert.True(
+            await Eventually(() => pair.StoreB.GetMessages(Lower).Any(m => !m.Mine && m.Body == "A after repair")),
+            "A→B never landed in B's store after the repair");
+        Assert.True(
+            await Eventually(() => pair.StoreA.GetMessages(Higher).Any(m => !m.Mine && m.Body == "B after repair")),
+            "B→A never landed in A's store after the repair — the exact one-directional failure seen on the phones");
+    }
+
+    /// <summary>
+    /// The existing backlog test checks that the SENDER's own copy stops being Pending. What matters to
+    /// the other person is stronger: a message written while the session was down — after the repair has
+    /// dropped the dead session but before the new one exists — must actually ARRIVE in their store once
+    /// the session is rebuilt, not silently vanish into the gap.
+    /// </summary>
+    [Fact]
+    public async Task A_message_written_while_the_session_is_down_reaches_the_peer_after_repair()
+    {
+        using var pair = new Pair(Lower, Higher).WithBrokenRatchetOnA();
+
+        // B speaks; A cannot read it and repairs, which drops A's session — so from here A has no session
+        // to send over at all.
+        await pair.BSpeaksAsync("trigger");
+        Assert.True(await Eventually(() => pair.SignalA.Dropped.Contains(Higher)));
+
+        // A writes into that gap. With no session it cannot go — it must be owed, never lost.
+        await pair.ChatA.SendAsync(Higher, "written during the gap");
+
+        // The peer's fresh bundle arrives; the session comes back and the owed message must now land in B's store.
+        pair.SignalA.RatchetBroken = false;
+        pair.PreKeysA.RaiseBundleReceived(Higher);
+
+        Assert.True(
+            await Eventually(() => pair.StoreB.GetMessages(Lower).Any(m => !m.Mine && m.Body == "written during the gap")),
+            "a message written while the session was down never reached the peer after the repair");
+    }
 }

@@ -112,4 +112,39 @@ public class SessionRepairTests
 
         Assert.True(repair.ShouldRestart(Higher, Start.AddSeconds(1)));
     }
+
+    // ── The one decision that video calls AND group calls borrow ──────────────
+    //
+    // Neither CallService nor GroupCallService keeps its own idea of "the session is broken" — both gate
+    // "repair it and try again" on ChatService.IsBrokenSession(ex) (CallService.cs:1330,
+    // GroupCallService.cs:692). If this predicate is wrong, a diverged ratchet on a call rings out into
+    // silence forever (false negative) or an ordinary dropped frame tears down a perfectly good session
+    // (false positive). It is the single point all three features rest on, and it had no test at all.
+
+    [Fact]
+    public void A_diverged_ratchet_reads_as_a_broken_session()
+        => Assert.True(ChatService.IsBrokenSession(new System.Security.Cryptography.CryptographicException(
+            "The computed authentication tag did not match the input authentication tag.")),
+            "a call over a diverged ratchet would never repair");
+
+    [Fact]
+    public void Having_no_session_yet_reads_as_a_broken_session()
+        => Assert.True(ChatService.IsBrokenSession(new InvalidOperationException("No session established with peer ZXFA-4d90b")),
+            "the first call to a phone after a reinstall would ring out with no attempt to build a session");
+
+    [Theory]
+    [InlineData(typeof(TimeoutException))]
+    [InlineData(typeof(System.IO.IOException))]
+    [InlineData(typeof(OperationCanceledException))]
+    public void An_ordinary_transient_failure_does_not_read_as_a_broken_session(Type exceptionType)
+    {
+        var ex = (Exception)Activator.CreateInstance(exceptionType)!;
+        Assert.False(ChatService.IsBrokenSession(ex),
+            "a transient failure must not tear down a working session — a call or group would repair for no reason");
+    }
+
+    [Fact]
+    public void An_invalid_operation_that_is_not_about_the_session_is_left_alone()
+        => Assert.False(ChatService.IsBrokenSession(new InvalidOperationException("the send queue is full")),
+            "only a session-related InvalidOperationException means the session is gone");
 }
