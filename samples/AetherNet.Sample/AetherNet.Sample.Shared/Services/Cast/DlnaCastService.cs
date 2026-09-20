@@ -37,6 +37,10 @@ public sealed class DlnaCastService : IDisposable
     // The one content currently offered to a TV, cached so a TV's Range requests don't re-read it each time.
     private volatile CachedMedia? _serving;
 
+    /// <summary>A human line for the log — wired to logcat so a failed TV search can be seen, not guessed at.</summary>
+    public event Action<string>? Trace;
+    private void T(string m) { try { Trace?.Invoke(m); } catch { /* a logger must never throw into the caller */ } }
+
     public DlnaCastService(AttachmentService? attachments = null, IMulticastHold? multicastHold = null, ILogger<DlnaCastService>? log = null)
     {
         _attachments = attachments;
@@ -61,8 +65,10 @@ public sealed class DlnaCastService : IDisposable
         if (lan is null || !IPAddress.TryParse(lan, out var lanIp))
         {
             _log.LogDebug("No home-Wi-Fi address — cannot search for TVs");
+            T("cast: no home Wi-Fi address (only Wi-Fi Direct) — no network a TV would be on");
             return Array.Empty<CastTarget>();
         }
+        T($"cast: searching for TVs via {lan}");
 
         // Android filters multicast to save power unless a MulticastLock is held — the reason a first
         // attempt found nothing. Held only for the search.
@@ -106,8 +112,12 @@ public sealed class DlnaCastService : IDisposable
                 catch (SocketException) { break; }
 
                 var headers = DlnaProtocol.ParseHeaders(Encoding.ASCII.GetString(res.Buffer));
+                headers.TryGetValue("ST", out var st);
                 if (headers.TryGetValue("LOCATION", out var loc) && !string.IsNullOrWhiteSpace(loc))
-                    locations.Add(loc.Trim());
+                {
+                    if (locations.Add(loc.Trim()))
+                        T($"cast: reply from {res.RemoteEndPoint.Address} — st={st} loc={loc.Trim()}");
+                }
             }
         }
         catch (SocketException ex) { _log.LogDebug(ex, "SSDP search could not open a socket"); }
@@ -130,6 +140,7 @@ public sealed class DlnaCastService : IDisposable
         }
 
         _log.LogDebug("DLNA discovery found {Count} renderer(s)", targets.Count);
+        T($"cast: heard {locations.Count} UPnP device(s), {targets.Count} that can play video");
         return targets;
     }
 

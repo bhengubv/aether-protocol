@@ -541,6 +541,16 @@ public static class MauiProgram
             // we are carrying for an absent friend moves on as soon as a peer appears.
             Warm("carry", () => app.Services.GetService<DtnCarrierService>()?.Prime());
 
+            // Cast discovery — put its trace on logcat so a failed TV search can be read, not guessed.
+            Warm("cast", () =>
+            {
+                var dlna = app.Services.GetService<AetherNet.Sample.Shared.Services.Cast.DlnaCastService>();
+#if ANDROID
+                if (dlna is not null)
+                    dlna.Trace += m => global::Android.Util.Log.Info("AetherCast", m);
+#endif
+            });
+
             // The Wi-Fi Direct radio finds its own peers and settles who hosts on its own, so there is
             // nothing here to start. Resolving the directory is the point: recognising a contact
             // behind a rotating address is what keeps the radio from dialling strangers, and it must
