@@ -86,6 +86,8 @@ public sealed class AetherRecordVideo : Activity, TextureView.ISurfaceTextureLis
     private int _maxSeconds = 60;
     private bool _recording;
     private bool _finished;
+    private int _sensorOrientation;        // the camera's mounting angle, read when it is opened
+    private bool _frontCamera = true;      // a note is the selfie camera, whose picture is mirrored
 
     /// <summary>
     /// Open the camera screen, wait for a note, and hand back where it landed.
@@ -183,6 +185,11 @@ public sealed class AetherRecordVideo : Activity, TextureView.ISurfaceTextureLis
                 Finish(null);
                 return;
             }
+
+            // Remember which way this camera is mounted, so the recording can be written the right way up.
+            var characteristics = manager.GetCameraCharacteristics(id);
+            _sensorOrientation = (characteristics.Get(CameraCharacteristics.SensorOrientation) as Java.Lang.Integer)?.IntValue() ?? 0;
+            _frontCamera = ((characteristics.Get(CameraCharacteristics.LensFacing) as Java.Lang.Integer)?.IntValue()) == (int)LensFacing.Front;
 
             manager.OpenCamera(id, new Opened(this), null);
         }
@@ -317,6 +324,21 @@ public sealed class AetherRecordVideo : Activity, TextureView.ISurfaceTextureLis
             // The cap is set on the recorder as well as watched on the clock. A recorder that stops
             // itself always leaves a valid file; a process killed mid-write does not.
             recorder.SetMaxDuration(_maxSeconds * 1000);
+
+            // Write the rotation INTO the file so it plays upright everywhere — in the chat and when cast to
+            // another screen. A phone's camera sensor is mounted at an angle and hands MediaRecorder frames
+            // lying on their side; without this hint the note is stored sideways and every compliant player
+            // shows it rotated. Same arithmetic the live-call path uses, pinned by VideoRotationTests.
+            var displayDegrees = (WindowManager?.DefaultDisplay?.Rotation) switch
+            {
+                global::Android.Views.SurfaceOrientation.Rotation90 => 90,
+                global::Android.Views.SurfaceOrientation.Rotation180 => 180,
+                global::Android.Views.SurfaceOrientation.Rotation270 => 270,
+                _ => 0,
+            };
+            recorder.SetOrientationHint(
+                AetherNet.Sample.Shared.Services.VideoRotation.ForCapture(_sensorOrientation, displayDegrees, _frontCamera));
+
             recorder.Prepare();
 
             texture.SetDefaultBufferSize(Width, Height);
