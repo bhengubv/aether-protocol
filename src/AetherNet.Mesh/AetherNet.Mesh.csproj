@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNet.Mesh</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Portable mesh implementation for the Aether protocol: the over-the-air radio-mesh abstraction (IRadioMesh), packet sender/router shims, wire framing and rotating-address wire resolution, link liveness/quality, send-lane prioritisation, the Circle recognition + proxy directories, and the per-call media cipher — all platform-neutral. Platform radios are supplied by a host (see AetherNet.Transport.Android).</Description>
+    <PackageTags>mesh;aether;radio;wifi-direct;ble;routing;framing;e2e-encryption</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
+    <ProjectReference Include="../AetherNet.Messaging/AetherNet.Messaging.csproj" />
+    <!-- RadioMeshLink implements AetherNet.Browser's IMeshLink. AetherNet.Browser is a Razor class
+         library targeting net10.0 only, so it is referenced only for the net10.0 build and
+         RadioMeshLink is compiled only there (guarded with #if NET10_0_OR_GREATER). -->
+    <ProjectReference Include="../AetherNet.Browser/AetherNet.Browser.csproj" Condition="'$(TargetFramework)' == 'net10.0'" />
+  </ItemGroup>
+
+</Project>

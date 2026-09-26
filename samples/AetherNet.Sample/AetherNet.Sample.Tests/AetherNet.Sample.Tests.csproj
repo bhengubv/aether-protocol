@@ -34,6 +34,9 @@
   -->
   <ItemGroup>
     <ProjectReference Include="..\AetherNet.Sample.Shared\AetherNet.Sample.Shared.csproj" />
+    <!-- The mesh implementation moved to src/AetherNet.Mesh (referenced transitively via Shared);
+         expose it project-wide so the tests resolve the relocated types. -->
+    <Using Include="AetherNet.Mesh" />
   </ItemGroup>
 
 </Project>

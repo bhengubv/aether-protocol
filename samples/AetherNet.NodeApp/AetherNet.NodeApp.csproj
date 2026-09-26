@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AetherNet.NodeApp</RootNamespace>
+
+    <!-- The node is its own installed app, with its own identity and package — distinct from any
+         consumer app (the AetherNet sample is com.bhengubv.aethernet). One device, one node. -->
+    <ApplicationId>com.bhengubv.aethernode</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/AetherNet.Node.Android/AetherNet.Node.Android.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Node.Host/AetherNet.Node.Host.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Security/AetherNet.Security.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Core/AetherNet.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The node mints and signs with the same NSec/libsodium the sample uses, so it needs the same real
+       Android libsodium.so — the libsodium NuGet ships no working Android native. Reuse the sample's own
+       arm64-v8a build (ISC-licensed; see that project's Platforms/Android/native/README.md) rather than
+       copying the binary. Without this, GetTag/Sign fail at runtime on the phone. -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <PackageReference Include="libsodium" Version="1.0.20.1" ExcludeAssets="native" />
+    <AndroidNativeLibrary Include="..\AetherNet.Sample\AetherNet.Sample\Platforms\Android\native\arm64-v8a\libsodium.so">
+      <Abi>arm64-v8a</Abi>
+    </AndroidNativeLibrary>
+  </ItemGroup>
+
+</Project>

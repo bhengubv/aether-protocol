@@ -84,10 +84,17 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <AndroidLinkMode>SdkOnly</AndroidLinkMode>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <RunAOTCompilation>true</RunAOTCompilation>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
     <DebugSymbols>false</DebugSymbols>
     <DebugType>none</DebugType>
+    <AndroidKeyStore>true</AndroidKeyStore>
+    <AndroidSigningKeyStore>$(USERPROFILE)\keystore\TheGeekAlias.keystore</AndroidSigningKeyStore>
+    <AndroidSigningKeyAlias>TheGeekAlias</AndroidSigningKeyAlias>
+    <AndroidSigningKeyPass>$(ANDROID_KEYSTORE_PASS)</AndroidSigningKeyPass>
+    <AndroidSigningStorePass>$(ANDROID_KEYSTORE_PASS)</AndroidSigningStorePass>
   </PropertyGroup>
 
   <ItemGroup>
@@ -123,6 +130,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AetherNet.Sample.Shared\AetherNet.Sample.Shared.csproj" />
+    <!-- The mesh implementation moved to src/AetherNet.Mesh (referenced transitively via Shared);
+         expose it project-wide so the head's own files resolve the relocated types. -->
+    <Using Include="AetherNet.Mesh" />
+  </ItemGroup>
+
+  <!-- The Android radio implementation moved to src/AetherNet.Transport.Android. Referenced (and its
+       namespace exposed) only for the Android head, since it is a net*-android class library. -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <ProjectReference Include="..\..\..\src\AetherNet.Transport.Android\AetherNet.Transport.Android.csproj" />
+    <Using Include="AetherNet.Transport.Android" />
   </ItemGroup>
 
   <!-- NSec's [DllImport("libsodium")] needs a real Android libsodium.so. The transitive

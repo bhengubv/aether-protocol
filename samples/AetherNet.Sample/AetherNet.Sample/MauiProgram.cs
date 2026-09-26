@@ -31,13 +31,17 @@ public static class MauiProgram
         // cleanly when the app is uninstalled.
         var dataDir = FileSystem.AppDataDirectory;
         builder.Services.AddSingleton(_ => new AetherStore(Path.Combine(dataDir, "aether.db")));
+        // CircleDirectory and ProxyDirectory take their persistence as a seam (AetherNet.Mesh); the
+        // device's AetherStore implements both, so they read/write the same on-device SQLite database.
+        builder.Services.AddSingleton<IPeerRoutingKeyStore>(sp => sp.GetRequiredService<AetherStore>());
+        builder.Services.AddSingleton<IProxyDirectoryStore>(sp => sp.GetRequiredService<AetherStore>());
         builder.Services.AddSingleton<IContentStore>(_ => new SqliteContentStore(Path.Combine(dataDir, "content.db")));
 
         // The identity key is sealed by the phone's secure hardware where there is any.
 #if ANDROID
         builder.Services.AddSingleton<ISecretVault>(_ =>
             new AetherNet.Sample.Platforms.Android.AndroidKeystoreVault(Path.Combine(dataDir, "vault")));
-        builder.Services.AddSingleton<IRadioSetup, AetherNet.Sample.Platforms.Android.AndroidRadioSetup>();
+        builder.Services.AddSingleton<IRadioSetup, AetherNet.Transport.Android.AndroidRadioSetup>();
 #else
         builder.Services.AddSingleton<ISecretVault>(_ => new FileSecretVault(Path.Combine(dataDir, "vault")));
         builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
@@ -237,7 +241,7 @@ public static class MauiProgram
         // is no directory to look this up in by design — the address arrives from a contact, inside
         // their session, or not at all.
         // What this device actually has, measured against everything AetherNet can use.
-        builder.Services.AddSingleton<IRadioInventory, AetherNet.Sample.Platforms.Android.AndroidRadioInventory>();
+        builder.Services.AddSingleton<IRadioInventory, AetherNet.Transport.Android.AndroidRadioInventory>();
         // What the person chose in Settings, applied to the shell as well as the page.
         builder.Services.AddSingleton<IAppTheme, AetherNet.Sample.Platforms.Android.AndroidAppTheme>();
         builder.Services.AddSingleton<ProxyDirectory>();
@@ -298,7 +302,7 @@ public static class MauiProgram
         // Wi-Fi Direct's group is created and handed over BLE rather than negotiated, so the radio
         // itself is the thing that hosts and joins.
         builder.Services.AddSingleton<IWifiDirectGroup>(sp =>
-            ((AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh)
+            ((AetherNet.Transport.Android.AndroidRadioMesh)
                 sp.GetRequiredService<IRadioMesh>()).WifiDirect);
 #else
         builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
@@ -347,7 +351,7 @@ public static class MauiProgram
 
         // The real over-the-air radio mesh — a native radio inside THIS one app.
 #if ANDROID
-        builder.Services.AddSingleton<IRadioMesh, AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh>();
+        builder.Services.AddSingleton<IRadioMesh, AetherNet.Transport.Android.AndroidRadioMesh>();
 
         // Brings the fast radio up from the contact list, before any message exists. It asks no radio
         // anything: both phones already hold the tags and the host's key, so both work out the same
@@ -361,7 +365,7 @@ public static class MauiProgram
             // Putting the radio away releases the foreground service with it, so the notification
             // does not outlive the link it was taken for.
             onIdle: () => (sp.GetService<IRadioMesh>()
-                as AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh)?.ReleaseIfIdle(),
+                as AetherNet.Transport.Android.AndroidRadioMesh)?.ReleaseIfIdle(),
             // Every radio, not just the one that happened to know what an AetherTag is. Who you are
             // meeting is worked out once, above all of them, and handed down — see Meeting.
             mesh: sp.GetService<IRadioMesh>()));
@@ -369,7 +373,7 @@ public static class MauiProgram
         // Hosting a group is specific to one radio and means nothing to the other, so it is exposed as
         // the capability rather than the radio.
         builder.Services.AddSingleton<IWifiDirectGroup>(sp =>
-            ((AetherNet.Sample.Platforms.Android.Transports.AndroidRadioMesh)sp.GetRequiredService<IRadioMesh>()).WifiDirect);
+            ((AetherNet.Transport.Android.AndroidRadioMesh)sp.GetRequiredService<IRadioMesh>()).WifiDirect);
 #else
         builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();
 #endif

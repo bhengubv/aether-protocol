@@ -21,6 +21,10 @@ builder.Services.AddSingleton<IFormFactor, FormFactor>();
 var dataDir = Path.Combine(AppContext.BaseDirectory, "aether-data");
 Directory.CreateDirectory(dataDir);
 builder.Services.AddSingleton(_ => new AetherStore(Path.Combine(dataDir, "aether.db")));
+// CircleDirectory and ProxyDirectory take their persistence as a seam (AetherNet.Mesh); the device's
+// AetherStore implements both, so they read/write the same on-device SQLite database.
+builder.Services.AddSingleton<IPeerRoutingKeyStore>(sp => sp.GetRequiredService<AetherStore>());
+builder.Services.AddSingleton<IProxyDirectoryStore>(sp => sp.GetRequiredService<AetherStore>());
 builder.Services.AddSingleton<IContentStore>(_ => new SqliteContentStore(Path.Combine(dataDir, "content.db")));
 builder.Services.AddSingleton<ISecretVault>(_ => new FileSecretVault(Path.Combine(dataDir, "vault")));
 

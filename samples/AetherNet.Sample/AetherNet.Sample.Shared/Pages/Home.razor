@@ -6,6 +6,7 @@
 @inject ChatService Chat
 @inject NavigationManager Nav
 @inject AetherStore Store
+@inject IRadioMesh Radio
 
 <PageTitle>Aether</PageTitle>
 
@@ -46,7 +47,10 @@
                         {
                             @TagPalette.Initial(p.Key)
                         }
-                        @if (p.Contact?.IsMutual == true)
+                        @* The presence dot means "reachable right now", so bind it to a live radio link —
+                           NOT IsMutual, which is a permanent "we added each other" fact and left the dot
+                           lit on every contact forever, reading as "everyone online" when nobody was. *@
+                        @if (Radio.IsReachable(p.Key))
                         {
                             <span class="near"></span>
                         }
@@ -89,6 +93,7 @@
     {
         Contacts.Changed += OnChanged;
         Chat.Changed += OnChanged;
+        Radio.Changed += OnChanged;   // a link coming up or dropping changes who is reachable — refresh the dots live
         Refresh();
     }
 
@@ -137,6 +142,7 @@
     {
         Contacts.Changed -= OnChanged;
         Chat.Changed -= OnChanged;
+        Radio.Changed -= OnChanged;
     }
 }
 

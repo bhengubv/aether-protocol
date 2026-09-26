@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-android;net10.0-android</TargetFrameworks>
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <RootNamespace>AetherNet.Transport.Android</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!-- AndroidRadioSetup uses MAUI Essentials (Permissions, Connectivity); bring them into this
+         plain Android class library without pulling in full MAUI (UseMaui). -->
+    <UseMauiEssentials>true</UseMauiEssentials>
+    <Description>Android radio transports for the Aether mesh: the native Wi-Fi Direct, BLE, Wi-Fi Aware, internet-relay, NFC and LoRa transports, the AndroidRadioMesh that routes across them, radio readiness/inventory and the link-holding foreground service. Fills the AetherNet.Mesh IRadioMesh/IRadioSetup/IRadioInventory seams on Android.</Description>
+    <PackageTags>mesh;aether;android;wifi-direct;ble;wifi-aware;nfc;lora;radio</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Mesh/AetherNet.Mesh.csproj" />
+    <ProjectReference Include="../AetherNet.Transport/AetherNet.Transport.csproj" />
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
+  </ItemGroup>
+
+</Project>

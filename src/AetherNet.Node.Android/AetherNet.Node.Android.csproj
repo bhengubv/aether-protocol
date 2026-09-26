@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-android;net10.0-android</TargetFrameworks>
+    <RootNamespace>AetherNet.Node.Android</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <Description>The Android binding for the Aether Node Service: an exported bound Service that hosts the one IAetherNodeClient and answers consumer apps over an Android binder — the system identifies the caller (Binder.CallingUid) so the per-app grant cannot be spoofed, and the private key never crosses. Ships the consumer-side connector, client proxy and package installer that implement AetherNet.Node.Client's platform seams. See docs/aether-node-service.md §7.</Description>
+    <PackageTags>mesh;aether;node;android;ipc;bind;service</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Node/AetherNet.Node.csproj" />
+    <ProjectReference Include="../AetherNet.Node.Host/AetherNet.Node.Host.csproj" />
+    <ProjectReference Include="../AetherNet.Node.Client/AetherNet.Node.Client.csproj" />
+    <ProjectReference Include="../AetherNet.Node.Ipc/AetherNet.Node.Ipc.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -7,6 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The mesh implementation moved to src/AetherNet.Mesh; expose it project-wide so the many
+         Services/*.cs and .razor consumers resolve the relocated types without a per-file using. -->
+    <Using Include="AetherNet.Mesh" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
     <!-- The device database: identity, contacts, settings (see Data/AetherStore.cs). -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
@@ -40,6 +46,8 @@
        both get the live protocol with no per-head re-wiring. -->
   <ItemGroup>
     <ProjectReference Include="../../../src/AetherNet.Core/AetherNet.Core.csproj" />
+    <!-- The portable mesh implementation, moved out of this sample's Services folder. -->
+    <ProjectReference Include="../../../src/AetherNet.Mesh/AetherNet.Mesh.csproj" />
     <!-- The Aether Node Service: the bind contract + its reference in-process host. This app is a
          client of its own node — identity, messaging and presence reach the UI through IAetherNodeClient
          (docs/aether-node-service.md), the same contract a separate app would bind to. -->

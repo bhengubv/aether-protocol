@@ -2,6 +2,7 @@
 
 using AetherNet.Browser;
 using Microsoft.Data.Sqlite;
+using AetherNet.Mesh;
 
 namespace AetherNet.Sample.Shared.Data;
 
@@ -232,7 +233,7 @@ public sealed record ChatMessage(
 /// Same shape as <c>AetherNet.Map.Sqlite</c> / <c>AetherNet.Content.Sqlite</c>: one long-lived
 /// connection behind a lock, WAL, busy-timeout — reliable single-writer on-device use.
 /// </summary>
-public sealed class AetherStore : IDisposable
+public sealed class AetherStore : IDisposable, IPeerRoutingKeyStore, IProxyDirectoryStore
 {
     private readonly SqliteConnection _conn;
     private readonly object _gate = new();
@@ -1444,6 +1445,13 @@ public sealed class AetherStore : IDisposable
     public bool GetFlag(string key) => GetSetting(key) == "1";
 
     public void SetFlag(string key, bool value) => SetSetting(key, value ? "1" : "0");
+
+    /// <summary>
+    /// The mesh proxy directory's view of the contacts — tag + mutual flag only. Projects the existing
+    /// <see cref="GetContacts"/> rows onto <see cref="ProxyContact"/>; introduces no new storage.
+    /// </summary>
+    IReadOnlyList<ProxyContact> IProxyDirectoryStore.GetContacts() =>
+        GetContacts().Select(c => new ProxyContact(c.Tag, c.IsMutual)).ToList();
 
     // ── Internals ───────────────────────────────────────────────────────────────
 
