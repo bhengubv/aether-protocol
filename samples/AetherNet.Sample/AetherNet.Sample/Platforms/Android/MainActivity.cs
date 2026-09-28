@@ -129,6 +129,10 @@ public class MainActivity : MauiAppCompatActivity
 
     private static void Capture(Intent? intent)
     {
+#if DEBUG
+        // The end-to-end test's hooks (scripts/e2e-chat.ps1). Not in a release build.
+        Platforms.Android.E2eHooks.Handle(intent);
+#endif
         if (CaptureTap(intent)) return;
 
         var data = intent?.DataString;
