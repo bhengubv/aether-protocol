@@ -206,6 +206,36 @@ public class IdentityServiceTests
             Build(new FakeNodeIdentityStore(), storeB).RoutingKey);
     }
 
+    /// <summary>A node an app connects to: it answers who the device is, but hands out no derived key.</summary>
+    private sealed class ConnectedNode : INodeIdentity
+    {
+        private readonly INodeIdentity _inner;
+        public ConnectedNode(INodeIdentity inner) => _inner = inner;
+        public ValueTask<AetherNetTag> GetOrMintAsync(CancellationToken cancellationToken = default) => _inner.GetOrMintAsync(cancellationToken);
+        public ValueTask<byte[]> GetPublicKeyAsync(CancellationToken cancellationToken = default) => _inner.GetPublicKeyAsync(cancellationToken);
+        public ValueTask<byte[]> SignAsync(byte[] data, CancellationToken cancellationToken = default) => _inner.SignAsync(data, cancellationToken);
+        public ValueTask<byte[]> DeriveKeyAsync(string purpose, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("a derived key never leaves the node");
+    }
+
+    /// <summary>
+    /// Aether connected to AetherNetService: the node holds the routing key, so the app never gets it. Who the
+    /// device is must still resolve — only asking for the routing key itself is refused.
+    /// </summary>
+    [Fact]
+    public void Identity_resolves_without_a_routing_key_when_the_node_keeps_it()
+    {
+        using var store = AetherStore.InMemory();
+        var device = new FakeNodeIdentityStore();
+        var expected = device.Node().GetOrMintAsync().AsTask().GetAwaiter().GetResult().Value;
+
+        var identity = new IdentityService(new ConnectedNode(device.Node()), new FakeVault(), store);
+
+        Assert.Equal(expected, identity.AetherTag);
+        Assert.NotEmpty(identity.PublicKey);
+        Assert.Throws<NotSupportedException>(() => identity.RoutingKey);
+    }
+
     // ── First run ─────────────────────────────────────────────────────────────
 
     [Fact]

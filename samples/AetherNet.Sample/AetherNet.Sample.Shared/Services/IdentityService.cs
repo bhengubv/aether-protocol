@@ -36,19 +36,26 @@ public sealed class IdentityService : IIdentityService
         {
             var tag = _node.GetOrMintAsync().AsTask().GetAwaiter().GetResult().Value;
             var publicKey = _node.GetPublicKeyAsync().AsTask().GetAwaiter().GetResult();
-            var routingKey = _node.DeriveKeyAsync(RoutingPurpose).AsTask().GetAwaiter().GetResult();
 
             // Keep the local mirror honest if it drifted (fresh database, restored backup, older build).
             var mirrored = store.GetIdentity();
             if (mirrored is null || mirrored.Value.Tag != tag) store.SaveIdentity(tag, publicKey);
 
-            return new Resolved(tag, publicKey, routingKey);
+            return new Resolved(tag, publicKey);
         }, LazyThreadSafetyMode.ExecutionAndPublication);
+
+        // Derived on first use, not with the identity. An app connected to AetherNetService never holds this
+        // key — a derived key never leaves the node — so the tag must resolve without it. Only a host that runs
+        // the radios itself ever asks for it.
+        _routingKey = new Lazy<byte[]>(
+            () => _node.DeriveKeyAsync(RoutingPurpose).AsTask().GetAwaiter().GetResult(),
+            LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     private readonly Lazy<Resolved> _identity;
+    private readonly Lazy<byte[]> _routingKey;
 
-    private readonly record struct Resolved(string Tag, byte[] PublicKey, byte[] RoutingKey);
+    private readonly record struct Resolved(string Tag, byte[] PublicKey);
 
     /// <summary>
     /// Unseal the identity off the UI thread, before anything asks for it.
@@ -61,7 +68,7 @@ public sealed class IdentityService : IIdentityService
 
     public string AetherTag => _identity.Value.Tag;
     public byte[] PublicKey => _identity.Value.PublicKey;
-    public byte[] RoutingKey => _identity.Value.RoutingKey;
+    public byte[] RoutingKey => _routingKey.Value;
     public bool IsNewIdentity { get; }
     public string ProtectionDescription { get; }
 

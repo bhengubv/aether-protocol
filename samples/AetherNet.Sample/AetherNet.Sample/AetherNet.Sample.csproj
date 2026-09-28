@@ -135,11 +135,11 @@
     <Using Include="AetherNet.Mesh" />
   </ItemGroup>
 
-  <!-- The Android radio implementation moved to src/AetherNet.Transport.Android. Referenced (and its
-       namespace exposed) only for the Android head, since it is a net*-android class library. -->
+  <!-- Aether is a thin client on Android: it runs no radios (so it does not reference
+       AetherNet.Transport.Android at all) and takes its identity from the separate AetherNetService app,
+       which it connects to through AetherNet.Node.Android. -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <ProjectReference Include="..\..\..\src\AetherNet.Transport.Android\AetherNet.Transport.Android.csproj" />
-    <Using Include="AetherNet.Transport.Android" />
+    <ProjectReference Include="..\..\..\src\AetherNet.Node.Android\AetherNet.Node.Android.csproj" />
   </ItemGroup>
 
   <!-- NSec's [DllImport("libsodium")] needs a real Android libsodium.so. The transitive

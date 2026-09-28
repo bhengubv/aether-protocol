@@ -39,7 +39,7 @@ public sealed class AndroidNodeConnector : INodeConnector
     public async Task<IAetherNodeClient?> TryBindAsync(CancellationToken cancellationToken = default)
     {
         var connection = new Connection();
-        if (!_context.BindService(BindIntent(), connection, Bind.AutoCreate))
+        if (!BindService(connection))
         {
             SafeUnbind(connection);
             return null;
@@ -70,6 +70,22 @@ public sealed class AndroidNodeConnector : INodeConnector
             return client;      // bound but e.g. locked (NodeUnavailable) — still a live binding
         }
     }
+
+    // Where the platform allows it (API 29+), the connection is delivered on a background thread. On the
+    // default main-thread delivery, a caller that blocks the main thread waiting for the connection waits
+    // forever: the connection it is waiting for can only arrive on the thread it is blocking.
+    private bool BindService(Connection connection)
+    {
+        if (OperatingSystem.IsAndroidVersionAtLeast(29))
+        {
+            return _context.BindService(BindIntent(), Bind.AutoCreate, ConnectionCallbacks.Value, connection);
+        }
+
+        return _context.BindService(BindIntent(), connection, Bind.AutoCreate);
+    }
+
+    private static readonly Lazy<Java.Util.Concurrent.IExecutor> ConnectionCallbacks =
+        new(() => Java.Util.Concurrent.Executors.NewSingleThreadExecutor()!);
 
     private Intent BindIntent()
     {

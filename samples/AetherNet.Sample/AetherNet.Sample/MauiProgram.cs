@@ -13,6 +13,9 @@ namespace AetherNet.Sample;
 
 public static class MauiProgram
 {
+    /// <summary>The separate AetherNetService app this app connects to for its identity (Android).</summary>
+    private const string AetherNetServicePackage = "com.bhengubv.aethernetservice";
+
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
@@ -41,15 +44,26 @@ public static class MauiProgram
 #if ANDROID
         builder.Services.AddSingleton<ISecretVault>(_ =>
             new AetherNet.Sample.Platforms.Android.AndroidKeystoreVault(Path.Combine(dataDir, "vault")));
-        builder.Services.AddSingleton<IRadioSetup, AetherNet.Transport.Android.AndroidRadioSetup>();
 #else
         builder.Services.AddSingleton<ISecretVault>(_ => new FileSecretVault(Path.Combine(dataDir, "vault")));
-        builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
 #endif
+        // Aether runs no radios of its own. On Android the radios belong to AetherNetService.
+        builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
 
-        // The device's node identity. This app does not mint one — it asks, and the node mints only if
-        // this device has never had an identity. One device is one node; an app that mints its own puts
-        // a second peer on the same handset.
+#if ANDROID
+        // The device's identity belongs to AetherNetService — a separate app, with no UI. Aether is a thin
+        // client: it never mints and never holds a key. It connects to the service and asks.
+        builder.Services.AddSingleton<AetherNet.Node.IAetherNodeClient>(_ =>
+            new AetherNet.Node.Android.BoundNodeClient(
+                new AetherNet.Node.Android.AndroidNodeConnector(
+                    global::Android.App.Application.Context, AetherNetServicePackage)));
+        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
+            new AetherNet.Node.Client.NodeClientIdentity(sp.GetRequiredService<AetherNet.Node.IAetherNodeClient>()));
+        // The recovery phrase never leaves the service, so backup is not something this app can do.
+        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery, AetherNet.Node.Client.NodeClientRecovery>();
+#else
+        // No AetherNetService to connect to on this head, so the node runs in-process. This app does not
+        // mint an identity — it asks, and the node mints only if this device has never had one.
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityStore>(sp =>
             new VaultNodeIdentityStore(sp.GetRequiredService<ISecretVault>()));
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
@@ -58,6 +72,7 @@ public static class MauiProgram
         // this device shows. Powers the "Back up your identity" card in Settings.
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
             new AetherNet.Identity.NodeIdentityRecovery(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
+#endif
         builder.Services.AddSingleton<IIdentityService, IdentityService>();
 
         // The panic-wipe trigger: a duress PIN, or a direct Wipe() call, erases the identity key
@@ -107,9 +122,16 @@ public static class MauiProgram
             new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
                 sp.GetRequiredService<IRadioMesh>()));
         builder.Services.AddSingleton<AetherNet.Routing.IRoutingService, OneHopRoutingService>();
+#if ANDROID
+        // No mesh of its own: recognising contacts behind rotating addresses needs the routing key, which
+        // lives in AetherNetService. So this app recognises nobody and relays for nobody.
+        builder.Services.AddSingleton<AetherNet.Routing.IWireAddressResolver>(sp =>
+            new NoMeshWireAddressResolver(sp.GetRequiredService<IIdentityService>()));
+#else
         builder.Services.AddSingleton<AetherNet.Routing.IWireAddressResolver>(sp =>
             new CircleDirectoryWireResolver(sp.GetRequiredService<CircleDirectory>(),
                 sp.GetRequiredService<IIdentityService>()));
+#endif
         // Delay-tolerant store-and-forward, wired at last. A message to someone who is not reachable right
         // now is handed to this layer as a sealed bundle rather than left stuck: it is stored on disk (so
         // it survives an app restart), delivered directly when the recipient reappears within its TTL, and
@@ -234,14 +256,16 @@ public static class MauiProgram
 
         // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
         // that question about a rotating address, and without an answer the only way to find out is
-        // to dial a stranger and see who picks up.
+        // to dial a stranger and see who picks up. On Android that is AetherNetService's job, not this app's.
+#if !ANDROID
         builder.Services.AddSingleton<CircleDirectory>();
+#endif
 
         // Which phone in the Circle is carrying traffic for the others, and where to reach it. There
         // is no directory to look this up in by design — the address arrives from a contact, inside
         // their session, or not at all.
         // What this device actually has, measured against everything AetherNet can use.
-        builder.Services.AddSingleton<IRadioInventory, AetherNet.Transport.Android.AndroidRadioInventory>();
+        builder.Services.AddSingleton<IRadioInventory, NullRadioInventory>();
         // What the person chose in Settings, applied to the shell as well as the page.
         builder.Services.AddSingleton<IAppTheme, AetherNet.Sample.Platforms.Android.AndroidAppTheme>();
         builder.Services.AddSingleton<ProxyDirectory>();
@@ -299,15 +323,11 @@ public static class MauiProgram
         // call service is constructible but honestly says it cannot place one.
 #if ANDROID
         builder.Services.AddSingleton<IAudioIo, AetherNet.Sample.Platforms.Android.AndroidAudioIo>();
-        // Wi-Fi Direct's group is created and handed over BLE rather than negotiated, so the radio
-        // itself is the thing that hosts and joins.
-        builder.Services.AddSingleton<IWifiDirectGroup>(sp =>
-            ((AetherNet.Transport.Android.AndroidRadioMesh)
-                sp.GetRequiredService<IRadioMesh>()).WifiDirect);
 #else
         builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
-        builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 #endif
+        // Wi-Fi Direct is a radio, and the radios belong to AetherNetService.
+        builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
 
         // Live video, for every head there is and every head there will be.
         //
@@ -349,41 +369,18 @@ public static class MauiProgram
         builder.Services.AddSingleton<HandedCard.OpenPackaged>(
             _ => async named => await FileSystem.OpenAppPackageFileAsync(named));
 
-        // The real over-the-air radio mesh — a native radio inside THIS one app.
-#if ANDROID
-        builder.Services.AddSingleton<IRadioMesh, AetherNet.Transport.Android.AndroidRadioMesh>();
-
-        // Brings the fast radio up from the contact list, before any message exists. It asks no radio
-        // anything: both phones already hold the tags and the host's key, so both work out the same
-        // group without a word passing between them.
-        builder.Services.AddSingleton<FastRadioService>(sp => new FastRadioService(
-            sp.GetRequiredService<AetherStore>(),
-            sp.GetRequiredService<IIdentityService>(),
-            sp.GetRequiredService<IWifiDirectGroup>(),
-            sp.GetService<ContactService>(),
-            sp.GetService<ILogger<FastRadioService>>(),
-            // Putting the radio away releases the foreground service with it, so the notification
-            // does not outlive the link it was taken for.
-            onIdle: () => (sp.GetService<IRadioMesh>()
-                as AetherNet.Transport.Android.AndroidRadioMesh)?.ReleaseIfIdle(),
-            // Every radio, not just the one that happened to know what an AetherTag is. Who you are
-            // meeting is worked out once, above all of them, and handed down — see Meeting.
-            mesh: sp.GetService<IRadioMesh>()));
-
-        // Hosting a group is specific to one radio and means nothing to the other, so it is exposed as
-        // the capability rather than the radio.
-        builder.Services.AddSingleton<IWifiDirectGroup>(sp =>
-            ((AetherNet.Transport.Android.AndroidRadioMesh)sp.GetRequiredService<IRadioMesh>()).WifiDirect);
-#else
+        // No radio mesh in this app. On Android the radios run in AetherNetService, which this app connects
+        // to; on other heads there are none. Anything that would have used a radio queues honestly.
         builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();
-#endif
+        builder.Services.AddSingleton<FastRadioService>();
 
-        // The Aether Node Service, in-process: this app is a client of its own node. Identity, messaging
-        // and presence reach the UI through IAetherNodeClient — the same contract a separate app would
-        // bind to (docs/aether-node-service.md). The seams adapt the real messaging core and the radios.
+#if !ANDROID
+        // No AetherNetService on this head, so the node runs in-process: identity, messaging and presence
+        // reach the UI through the same IAetherNodeClient contract (docs/aether-node-service.md).
         builder.Services.AddSingleton<INodeMessaging, SampleNodeMessaging>();
         builder.Services.AddSingleton<INodeLinkSource, SampleNodeLinkSource>();
         builder.Services.AddAetherNode();
+#endif
 
         builder.Services.AddMauiBlazorWebView();
 
