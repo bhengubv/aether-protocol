@@ -12,6 +12,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../AetherNet.Node/AetherNet.Node.csproj" />
+    <!-- NodeBackedMessaging answers an app's IMessagingService through the node, so an app keeps its own
+         messaging code while the node does the radios and the keys. -->
+    <ProjectReference Include="../AetherNet.Messaging/AetherNet.Messaging.csproj" />
   </ItemGroup>
 
   <ItemGroup>

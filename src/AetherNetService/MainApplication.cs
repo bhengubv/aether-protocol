@@ -126,9 +126,33 @@ public sealed class MainApplication : Application
                 dtn: sp.GetRequiredService<AetherNet.Dtn.IDtnService>(),
                 logger: sp.GetService<ILogger<MeshInboundDispatcher>>()));
 
-        // The node contract's own seams, now mesh-backed rather than null.
-        services.AddSingleton<INodeMessaging>(sp => new MeshNodeMessaging(sp.GetRequiredService<IMessagingService>()));
+        // Secure sessions: this node's pre-key bundle, asking a peer for theirs, building and repairing the session.
+        // The core cannot do this itself — it holds no pre-keys — so it asks, and the keeper answers.
+        services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
+            new AetherNet.PreKeys.PreKeyExchangeService(
+                new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag, sp.GetRequiredService<IRadioMesh>())));
+        services.AddSingleton<MeshSessionKeeper>(sp =>
+            new MeshSessionKeeper(
+                sp.GetRequiredService<IIdentityService>(),
+                sp.GetRequiredService<ISignalProtocolService>(),
+                sp.GetRequiredService<AetherNet.PreKeys.IPreKeyExchangeService>(),
+                sp.GetRequiredService<IMessagingService>(),
+                sp.GetService<ILogger<MeshSessionKeeper>>()));
+
+        // The node contract's own seams: messages held until a session and a path exist, presence from the radios,
+        // and the radios told whom to reach from the contacts an app hands over.
+        services.AddSingleton<INodeMessaging>(sp =>
+            new MeshNodeMessaging(
+                sp.GetRequiredService<IMessagingService>(),
+                sp.GetRequiredService<MeshSessionKeeper>(),
+                sp.GetRequiredService<IRadioMesh>(),
+                sp.GetService<ILogger<MeshNodeMessaging>>()));
         services.AddSingleton<INodeLinkSource>(sp => new MeshNodeLinkSource(sp.GetRequiredService<IRadioMesh>()));
+        services.AddSingleton<INodeMeeting>(sp =>
+            new RadioMeeting(
+                sp.GetRequiredService<IIdentityService>(),
+                sp.GetRequiredService<IRadioMesh>(),
+                sp.GetService<ILogger<RadioMeeting>>()));
 
         var provider = services.BuildServiceProvider();
         _services = provider;
@@ -141,14 +165,32 @@ public sealed class MainApplication : Application
         Node = new AetherNodeService(
             provider.GetRequiredService<INodeIdentity>(),
             provider.GetRequiredService<INodeMessaging>(),
-            provider.GetRequiredService<INodeLinkSource>());
+            provider.GetRequiredService<INodeLinkSource>(),
+            provider.GetRequiredService<INodeMeeting>());
         AetherNodeAndroidService.Configure(() => Node, new OpenGrantStore());
 
         // The one inbound pump for the messaging plane: raw radio bytes → the library dispatcher → the
-        // reliable core (which decrypts and raises MessageReceived) → the node's inbox seam.
+        // reliable core (which decrypts and raises MessageReceived) → the node's inbox seam. Pre-key requests
+        // and responses go to the session keeper; everything else routes as the core decides.
         var radio = provider.GetRequiredService<IRadioMesh>();
         var dispatcher = provider.GetRequiredService<MeshInboundDispatcher>();
+        var sessions = provider.GetRequiredService<MeshSessionKeeper>();
+        dispatcher.Register(AetherNet.Protocol.PacketType.PreKeyRequest, (packet, _) => sessions.HandlePreKeyAsync(packet));
+        dispatcher.Register(AetherNet.Protocol.PacketType.PreKeyResponse, (packet, _) => sessions.HandlePreKeyAsync(packet));
         radio.PacketReceived += bytes => _ = dispatcher.OnBytesAsync(radio.PeerTag, bytes);
+
+        // Publish this node's bundle now, so a peer's first request can be answered.
+        _ = System.Threading.Tasks.Task.Run(async () =>
+        {
+            try
+            {
+                await sessions.EnsureLocalBundleAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Error("AetherNetService", $"could not publish the pre-key bundle: {ex}");
+            }
+        });
 
         // Bring the radios up off the main thread — from here the node is hosting the mesh.
         _ = System.Threading.Tasks.Task.Run(() =>

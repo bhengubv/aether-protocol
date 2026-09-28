@@ -29,13 +29,17 @@ public class AetherNodeServiceTests
     private sealed class FakeMessaging : INodeMessaging
     {
         public List<(AetherNetTag To, byte[] Payload)> Sent { get; } = new();
+        public List<Guid> SentIds { get; } = new();
         public event Action<InboundMessage>? Inbound;
+        public event Action<Guid>? Delivered;
 
         public void RaiseInbound(InboundMessage message) => Inbound?.Invoke(message);
+        public void RaiseDelivered(Guid messageId) => Delivered?.Invoke(messageId);
 
-        public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+        public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId, CancellationToken cancellationToken = default)
         {
             Sent.Add((to, payload.ToArray()));
+            SentIds.Add(messageId);
             return Task.FromResult(OutboundResult.Queued);
         }
 
@@ -56,9 +60,17 @@ public class AetherNodeServiceTests
         public List<InboundMessage> Inbound { get; } = new();
         public List<NodeLinkStatus> Links { get; } = new();
         public List<GrantState> Grants { get; } = new();
+        public List<Guid> Delivered { get; } = new();
         public void OnInbound(InboundMessage message) => Inbound.Add(message);
         public void OnLinkChanged(NodeLinkStatus status) => Links.Add(status);
         public void OnGrantChanged(GrantState state) => Grants.Add(state);
+        public void OnDelivered(Guid messageId) => Delivered.Add(messageId);
+    }
+
+    private sealed class FakeMeeting : INodeMeeting
+    {
+        public List<IReadOnlyList<NodeContact>> Calls { get; } = new();
+        public void Meet(IReadOnlyList<NodeContact> contacts) => Calls.Add(contacts);
     }
 
     private static AetherNodeService NewService(out FakeIdentity id, out FakeMessaging msg, out FakeLink link)
@@ -132,5 +144,55 @@ public class AetherNodeServiceTests
         link.Set(NodeLinkStatus.Offline);
         Assert.Single(recorder.Inbound);
         Assert.Single(recorder.Links);
+    }
+
+    private static AetherNetTag ParseTag(string value)
+    {
+        Assert.True(AetherNetTag.TryParse(value, out var tag));
+        return tag;
+    }
+
+    [Fact]
+    public async Task Send_hands_the_apps_message_id_to_the_messaging_seam()
+    {
+        var svc = NewService(out _, out var msg, out _);
+        var id = System.Guid.NewGuid();
+
+        await svc.SendAsync(ParseTag("9BWNJ-QPXG8"), new byte[] { 7 }, id);
+
+        Assert.Equal(id, Assert.Single(msg.SentIds));
+    }
+
+    [Fact]
+    public void A_confirmed_delivery_reaches_a_subscriber_by_its_message_id()
+    {
+        var svc = NewService(out _, out var msg, out _);
+        var recorder = new Recorder();
+        using var subscription = svc.Subscribe(recorder);
+        var id = System.Guid.NewGuid();
+
+        msg.RaiseDelivered(id);
+
+        Assert.Equal(id, Assert.Single(recorder.Delivered));
+    }
+
+    [Fact]
+    public async Task Meet_hands_the_contacts_to_the_radios()
+    {
+        var meeting = new FakeMeeting();
+        var svc = new AetherNodeService(new FakeIdentity(), new FakeMessaging(), new FakeLink(), meeting);
+        var contacts = new[] { new NodeContact(ParseTag("9BWNJ-QPXG8"), new byte[] { 1 }, true) };
+
+        await svc.MeetAsync(contacts);
+
+        Assert.Same(contacts, Assert.Single(meeting.Calls));
+    }
+
+    [Fact]
+    public async Task Meet_is_a_quiet_no_op_on_a_host_with_no_radios()
+    {
+        var svc = NewService(out _, out _, out _);
+
+        await svc.MeetAsync(new[] { new NodeContact(ParseTag("9BWNJ-QPXG8"), null, false) });
     }
 }

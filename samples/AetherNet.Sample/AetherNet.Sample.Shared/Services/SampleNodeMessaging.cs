@@ -27,16 +27,22 @@ public sealed class SampleNodeMessaging : INodeMessaging, IDisposable
     {
         _messaging = messaging;
         _messaging.MessageReceived += OnReceived;
+        _messaging.DeliveryConfirmed += OnDeliveryConfirmed;
     }
 
     public event Action<InboundMessage>? Inbound;
 
-    public async Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+    public event Action<Guid>? Delivered;
+
+    public async Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId, CancellationToken cancellationToken = default)
     {
-        var message = new MeshMessage { RecipientUhid = to.Value, MessageType = "node" };
+        // The app's own id rides as the core's message id, so the core's delivery receipt names it.
+        var message = new MeshMessage { Id = messageId, RecipientUhid = to.Value, MessageType = "node" };
         var sent = await _messaging.SendAsync(message, payload.ToArray(), cancellationToken).ConfigureAwait(false);
         return sent ? OutboundResult.Sent : OutboundResult.Queued;
     }
+
+    private void OnDeliveryConfirmed(object? sender, DeliveryReceipt receipt) => Delivered?.Invoke(receipt.MessageId);
 
     public Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit, CancellationToken cancellationToken = default)
     {
@@ -72,5 +78,9 @@ public sealed class SampleNodeMessaging : INodeMessaging, IDisposable
         Inbound?.Invoke(inbound);
     }
 
-    public void Dispose() => _messaging.MessageReceived -= OnReceived;
+    public void Dispose()
+    {
+        _messaging.MessageReceived -= OnReceived;
+        _messaging.DeliveryConfirmed -= OnDeliveryConfirmed;
+    }
 }

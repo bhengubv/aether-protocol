@@ -34,8 +34,23 @@ public interface IAetherNodeClient
     Task<byte[]> SignAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default);
 
     /// <summary>Send a payload to another node, addressed by its AetherTag. The node resolves the wire
-    /// address and owns the Signal session, so one pair keeps one ratchet across every app.</summary>
-    Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default);
+    /// address and owns the Signal session, so one pair keeps one ratchet across every app. When there is no
+    /// session or no path yet the node holds the message and sends it when it can (<see cref="OutboundResult"/>
+    /// says which). <paramref name="messageId"/> is the app's own id for the message: the node reports it back
+    /// through <see cref="IAetherNodeEvents.OnDelivered"/> once the other side confirms receipt.</summary>
+    Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId, CancellationToken cancellationToken = default);
+
+    /// <summary>Send without tracking delivery — the message gets an id the caller never sees.</summary>
+    Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+        => SendAsync(to, payload, Guid.NewGuid(), cancellationToken);
+
+    /// <summary>
+    /// The people this app wants the node to keep reachable — the radios connect to them. Replaces the set the
+    /// app gave before. A node is a network cable: it keeps no address book of its own, so an app hands over
+    /// the contacts it has (one app today; a set per app when a second binds).
+    /// </summary>
+    Task MeetAsync(IReadOnlyList<NodeContact> contacts, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 
     /// <summary>The most recent inbound messages addressed to this device.</summary>
     Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit = 50, CancellationToken cancellationToken = default);
@@ -65,4 +80,7 @@ public interface IAetherNodeEvents
 
     /// <summary>This app's grant changed — granted, revoked, or reset to awaiting.</summary>
     void OnGrantChanged(GrantState state);
+
+    /// <summary>The other side confirmed receipt of a message this app sent, by the id it was sent with.</summary>
+    void OnDelivered(Guid messageId) { }
 }

@@ -46,9 +46,53 @@ public class NodeWireTests
     {
         var to = SampleTag(11);
         var payload = new byte[] { 1, 2, 3, 250, 0, 99 };
-        var (backTo, backPayload) = NodeWire.DecodeSendArgument(NodeWire.EncodeSendArgument(to, payload));
+        var (backTo, backPayload, backId) = NodeWire.DecodeSendArgument(NodeWire.EncodeSendArgument(to, payload));
         Assert.Equal(to, backTo);
         Assert.Equal(payload, backPayload);
+        Assert.Equal(Guid.Empty, backId);   // no id sent → the node assigns one
+    }
+
+    [Fact]
+    public void SendArgument_carries_the_apps_message_id()
+    {
+        var id = Guid.NewGuid();
+        var (_, _, backId) = NodeWire.DecodeSendArgument(NodeWire.EncodeSendArgument(SampleTag(12), new byte[] { 5 }, id));
+        Assert.Equal(id, backId);
+    }
+
+    [Fact]
+    public void Meet_round_trips_every_contact()
+    {
+        var contacts = new[]
+        {
+            new NodeContact(SampleTag(21), new byte[] { 9, 8, 7 }, true),
+            new NodeContact(SampleTag(22), null, false),
+        };
+
+        var back = NodeWire.DecodeMeet(NodeWire.EncodeMeet(contacts));
+
+        Assert.Equal(2, back.Count);
+        Assert.Equal(contacts[0].Tag, back[0].Tag);
+        Assert.Equal(contacts[0].PublicKey, back[0].PublicKey);
+        Assert.True(back[0].Mutual);
+        Assert.Equal(contacts[1].Tag, back[1].Tag);
+        Assert.Null(back[1].PublicKey);
+        Assert.False(back[1].Mutual);
+    }
+
+    [Fact]
+    public void Meet_of_nobody_is_an_empty_list()
+    {
+        Assert.Empty(NodeWire.DecodeMeet(NodeWire.EncodeMeet(Array.Empty<NodeContact>())));
+        Assert.Empty(NodeWire.DecodeMeet([]));
+    }
+
+    [Fact]
+    public void Delivered_round_trips_the_message_id()
+    {
+        var id = Guid.NewGuid();
+        Assert.Equal(id, NodeWire.DecodeDelivered(NodeWire.EncodeDelivered(id)));
+        Assert.Equal(Guid.Empty, NodeWire.DecodeDelivered([1, 2, 3]));
     }
 
     [Theory]

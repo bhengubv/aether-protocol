@@ -38,6 +38,9 @@ public enum NodeOp
     /// <summary>Request: stop receiving pushes.</summary>
     Unsubscribe = 8,
 
+    /// <summary>Request: the contacts this app wants kept reachable (replaces its set).</summary>
+    Meet = 9,
+
     /// <summary>Push: a message arrived.</summary>
     EventInbound = 100,
 
@@ -46,6 +49,9 @@ public enum NodeOp
 
     /// <summary>Push: this app's grant changed.</summary>
     EventGrant = 102,
+
+    /// <summary>Push: the other side confirmed a message this app sent.</summary>
+    EventDelivered = 103,
 }
 
 /// <summary>
@@ -104,17 +110,57 @@ public static class NodeWire
         return AetherNetTag.TryParse(Encoding.UTF8.GetString(bytes), out var tag) ? tag : default;
     }
 
-    // ── Send argument (tag + payload) ───────────────────────────────────────────
+    // ── Send argument (tag + payload + the app's message id) ─────────────────────
+    // An argument without an id (an older client) decodes to Guid.Empty; the node then assigns one.
 
     public static byte[] EncodeSendArgument(AetherNetTag to, ReadOnlyMemory<byte> payload)
-        => JsonBytes(new SendDto(to.Value ?? string.Empty, payload.ToArray()));
+        => EncodeSendArgument(to, payload, Guid.Empty);
 
-    public static (AetherNetTag To, byte[] Payload) DecodeSendArgument(byte[] bytes)
+    public static byte[] EncodeSendArgument(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId)
+        => JsonBytes(new SendDto(to.Value ?? string.Empty, payload.ToArray(), messageId));
+
+    public static (AetherNetTag To, byte[] Payload, Guid MessageId) DecodeSendArgument(byte[] bytes)
     {
         var dto = FromJson<SendDto>(bytes);
         var to = AetherNetTag.TryParse(dto.To, out var tag) ? tag : default;
-        return (to, dto.Payload ?? []);
+        return (to, dto.Payload ?? [], dto.Id);
     }
+
+    // ── Meet (the contacts to keep reachable) ────────────────────────────────────
+
+    public static byte[] EncodeMeet(IReadOnlyList<NodeContact> contacts)
+    {
+        var dtos = new ContactDto[contacts.Count];
+        for (var i = 0; i < dtos.Length; i++)
+        {
+            var c = contacts[i];
+            dtos[i] = new ContactDto(c.Tag.Value ?? string.Empty, c.PublicKey, c.Mutual);
+        }
+
+        return JsonBytes(dtos);
+    }
+
+    public static IReadOnlyList<NodeContact> DecodeMeet(byte[] bytes)
+    {
+        var dtos = bytes is { Length: > 0 } ? FromJson<ContactDto[]>(bytes) ?? [] : [];
+        var list = new List<NodeContact>(dtos.Length);
+        foreach (var d in dtos)
+        {
+            // A contact whose tag does not parse is nobody the radios could find; drop it rather than guess.
+            if (AetherNetTag.TryParse(d.Tag, out var tag))
+            {
+                list.Add(new NodeContact(tag, d.PublicKey, d.Mutual));
+            }
+        }
+
+        return list;
+    }
+
+    // ── Delivered (the app's message id, for the push) ───────────────────────────
+
+    public static byte[] EncodeDelivered(Guid messageId) => messageId.ToByteArray();
+
+    public static Guid DecodeDelivered(byte[] bytes) => bytes is { Length: 16 } ? new Guid(bytes) : Guid.Empty;
 
     // ── OutboundResult ──────────────────────────────────────────────────────────
 
@@ -209,7 +255,9 @@ public static class NodeWire
 
     private static T FromJson<T>(byte[] bytes) => JsonSerializer.Deserialize<T>(bytes, Json)!;
 
-    private sealed record SendDto(string To, byte[] Payload);
+    private sealed record SendDto(string To, byte[] Payload, Guid Id = default);
+
+    private sealed record ContactDto(string Tag, byte[]? PublicKey, bool Mutual);
 
     private sealed record OutboundDto(bool Accepted, string? Detail);
 

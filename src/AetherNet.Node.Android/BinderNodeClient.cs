@@ -20,13 +20,32 @@ internal sealed class BinderNodeClient : IAetherNodeClient, IDisposable
     private readonly Action? _onDispose;
     private readonly List<IAetherNodeEvents> _listeners = [];
     private readonly object _gate = new();
+    private readonly DeathWatch _death;
     private ClientEventBinder? _callback;
 
     public BinderNodeClient(IBinder service, Action? onDispose = null)
     {
         _service = service;
         _onDispose = onDispose;
+
+        // Hear about the node's process dying, so whoever holds this can connect again rather than keep a
+        // dead connection — and with it, silence where messages and receipts should be.
+        _death = new DeathWatch(this);
+        try
+        {
+            _service.LinkToDeath(_death, 0);
+        }
+        catch (RemoteException)
+        {
+            // Already gone; the first call will say so, and IsAlive is already false.
+        }
     }
+
+    /// <summary>Raised once, on a binder thread, when the node's process dies.</summary>
+    public event Action? Died;
+
+    /// <summary>Whether the node on the other end of this connection is still running.</summary>
+    public bool IsAlive => _service.IsBinderAlive;
 
     public Task<AetherNetTag> GetTagAsync(CancellationToken cancellationToken = default)
         => Call(NodeOp.GetTag, null, NodeWire.DecodeTag, cancellationToken);
@@ -40,10 +59,20 @@ internal sealed class BinderNodeClient : IAetherNodeClient, IDisposable
         return Call(NodeOp.Sign, p => p.WriteByteArray(bytes), static b => b, cancellationToken);
     }
 
-    public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+    public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId, CancellationToken cancellationToken = default)
     {
-        var arg = NodeWire.EncodeSendArgument(to, payload);
+        var arg = NodeWire.EncodeSendArgument(to, payload, messageId);
         return Call(NodeOp.Send, p => p.WriteByteArray(arg), NodeWire.DecodeOutbound, cancellationToken);
+    }
+
+    public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+        => SendAsync(to, payload, Guid.NewGuid(), cancellationToken);
+
+    public Task MeetAsync(IReadOnlyList<NodeContact> contacts, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contacts);
+        var arg = NodeWire.EncodeMeet(contacts);
+        return Call(NodeOp.Meet, p => p.WriteByteArray(arg), static _ => true, cancellationToken);
     }
 
     public Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit = 50, CancellationToken cancellationToken = default)
@@ -114,6 +143,7 @@ internal sealed class BinderNodeClient : IAetherNodeClient, IDisposable
                 case NodeOp.EventInbound: l.OnInbound(NodeWire.DecodeInbound(payload)); break;
                 case NodeOp.EventLink: l.OnLinkChanged(NodeWire.DecodeLink(payload)); break;
                 case NodeOp.EventGrant: l.OnGrantChanged(NodeWire.DecodeGrant(payload)); break;
+                case NodeOp.EventDelivered: l.OnDelivered(NodeWire.DecodeDelivered(payload)); break;
             }
         }
     }
@@ -130,7 +160,13 @@ internal sealed class BinderNodeClient : IAetherNodeClient, IDisposable
             }
         }
 
+        try { _service.UnlinkToDeath(_death, 0); } catch { /* already gone */ }
         _onDispose?.Invoke();
+    }
+
+    private sealed class DeathWatch(BinderNodeClient owner) : Java.Lang.Object, IBinderDeathRecipient
+    {
+        public void BinderDied() => owner.Died?.Invoke();
     }
 
     private sealed class Unsubscriber(BinderNodeClient owner, IAetherNodeEvents listener) : IDisposable
@@ -156,7 +192,7 @@ internal sealed class ClientEventBinder(Action<NodeOp, byte[]> onEvent) : Binder
     protected override bool OnTransact(int code, Parcel? data, Parcel? reply, int flags)
     {
         var op = (NodeOp)code;
-        if (op is NodeOp.EventInbound or NodeOp.EventLink or NodeOp.EventGrant)
+        if (op is NodeOp.EventInbound or NodeOp.EventLink or NodeOp.EventGrant or NodeOp.EventDelivered)
         {
             onEvent(op, data?.CreateByteArray() ?? []);
             return true;

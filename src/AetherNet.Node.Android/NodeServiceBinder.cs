@@ -37,7 +37,7 @@ internal sealed class NodeServiceBinder : Binder
     {
         var op = (NodeOp)code;
         if (op is not (NodeOp.GetTag or NodeOp.GetPublicKey or NodeOp.Sign or NodeOp.Send
-            or NodeOp.GetInbox or NodeOp.GetLink or NodeOp.Subscribe or NodeOp.Unsubscribe))
+            or NodeOp.GetInbox or NodeOp.GetLink or NodeOp.Subscribe or NodeOp.Unsubscribe or NodeOp.Meet))
         {
             return base.OnTransact(code, data, reply, flags);
         }
@@ -82,10 +82,20 @@ internal sealed class NodeServiceBinder : Binder
 
             case NodeOp.Send:
             {
-                var (to, payload) = NodeWire.DecodeSendArgument(data?.CreateByteArray() ?? []);
-                WriteOk(reply, NodeWire.EncodeOutbound(Block(_host.SendAsync(to, payload))));
+                var (to, payload, messageId) = NodeWire.DecodeSendArgument(data?.CreateByteArray() ?? []);
+                if (messageId == Guid.Empty)
+                {
+                    messageId = Guid.NewGuid();   // an older client that does not track delivery
+                }
+
+                WriteOk(reply, NodeWire.EncodeOutbound(Block(_host.SendAsync(to, payload, messageId))));
                 break;
             }
+
+            case NodeOp.Meet:
+                Block(_host.MeetAsync(NodeWire.DecodeMeet(data?.CreateByteArray() ?? [])));
+                WriteOk(reply, []);
+                break;
 
             case NodeOp.GetInbox:
                 WriteOk(reply, NodeWire.EncodeInbox(Block(_host.GetInboxAsync(data?.ReadInt() ?? 50))));
@@ -149,6 +159,8 @@ internal sealed class NodeServiceBinder : Binder
 
     private static T Block<T>(Task<T> task) => task.GetAwaiter().GetResult();
 
+    private static void Block(Task task) => task.GetAwaiter().GetResult();
+
     private static void WriteOk(Parcel? reply, byte[] result)
     {
         reply?.WriteInt(1);
@@ -174,6 +186,8 @@ internal sealed class NodeServiceBinder : Binder
         public void OnLinkChanged(NodeLinkStatus status) => Push(NodeOp.EventLink, NodeWire.EncodeLink(status));
 
         public void OnGrantChanged(GrantState state) => Push(NodeOp.EventGrant, NodeWire.EncodeGrant(state));
+
+        public void OnDelivered(Guid messageId) => Push(NodeOp.EventDelivered, NodeWire.EncodeDelivered(messageId));
 
         private void Push(NodeOp op, byte[] payload)
         {

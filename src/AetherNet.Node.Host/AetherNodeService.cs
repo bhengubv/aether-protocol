@@ -22,12 +22,15 @@ public sealed class AetherNodeService : IAetherNodeClient
     private readonly INodeIdentity _identity;
     private readonly INodeMessaging _messaging;
     private readonly INodeLinkSource _link;
+    private readonly INodeMeeting? _meeting;
 
-    public AetherNodeService(INodeIdentity identity, INodeMessaging messaging, INodeLinkSource link)
+    /// <param name="meeting">How the radios are told whom to reach; null on a host with no radios.</param>
+    public AetherNodeService(INodeIdentity identity, INodeMessaging messaging, INodeLinkSource link, INodeMeeting? meeting = null)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
         _messaging = messaging ?? throw new ArgumentNullException(nameof(messaging));
         _link = link ?? throw new ArgumentNullException(nameof(link));
+        _meeting = meeting;
     }
 
     /// <inheritdoc />
@@ -70,8 +73,20 @@ public sealed class AetherNodeService : IAetherNodeClient
     }
 
     /// <inheritdoc />
+    public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId, CancellationToken cancellationToken = default)
+        => _messaging.SendAsync(to, payload, messageId, cancellationToken);
+
+    /// <inheritdoc />
     public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
-        => _messaging.SendAsync(to, payload, cancellationToken);
+        => SendAsync(to, payload, Guid.NewGuid(), cancellationToken);
+
+    /// <inheritdoc />
+    public Task MeetAsync(IReadOnlyList<NodeContact> contacts, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(contacts);
+        _meeting?.Meet(contacts);
+        return Task.CompletedTask;
+    }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit = 50, CancellationToken cancellationToken = default)
@@ -104,16 +119,20 @@ public sealed class AetherNodeService : IAetherNodeClient
             _owner = owner;
             _listener = listener;
             _owner._messaging.Inbound += OnInbound;
+            _owner._messaging.Delivered += OnDelivered;
             _owner._link.Changed += OnLinkChanged;
         }
 
         private void OnInbound(InboundMessage message) => _listener.OnInbound(message);
+
+        private void OnDelivered(Guid messageId) => _listener.OnDelivered(messageId);
 
         private void OnLinkChanged() => _listener.OnLinkChanged(_owner._link.Current);
 
         public void Dispose()
         {
             _owner._messaging.Inbound -= OnInbound;
+            _owner._messaging.Delivered -= OnDelivered;
             _owner._link.Changed -= OnLinkChanged;
         }
     }

@@ -2,7 +2,7 @@
 
 using System.Collections.Concurrent;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Mesh;
 
 /// <summary>
 /// When to throw a secure session away and start again, and who does the starting.

@@ -20,7 +20,7 @@ public sealed class NullNodeMessaging : INodeMessaging
         remove { }
     }
 
-    public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+    public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId, CancellationToken cancellationToken = default)
         => Task.FromResult(OutboundResult.Refused("this node is not running the mesh yet"));
 
     public Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit, CancellationToken cancellationToken = default)

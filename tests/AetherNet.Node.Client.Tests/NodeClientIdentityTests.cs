@@ -52,7 +52,7 @@ public class NodeClientIdentityTests
             return Task.FromResult(new byte[] { 9, 9 });
         }
 
-        public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default) => Task.FromResult(OutboundResult.Queued);
+        public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId, CancellationToken cancellationToken = default) => Task.FromResult(OutboundResult.Queued);
         public Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit = 50, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<InboundMessage>>(System.Array.Empty<InboundMessage>());
         public Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default) => Task.FromResult(NodeLinkStatus.Offline);
         public IDisposable Subscribe(IAetherNodeEvents listener) => new Noop();

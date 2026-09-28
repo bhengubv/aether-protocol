@@ -87,6 +87,8 @@ public static class MauiProgram
 
         // The people this device knows, and the add/be-added handshake.
         builder.Services.AddSingleton<ContactService>();
+        // ...handed to the node, so its radios know whom to reach (a node with no radios ignores it).
+        builder.Services.AddSingleton<NodeContactSync>();
         builder.Services.AddSingleton<InviteLinks>();
         builder.Services.AddSingleton<Taps>();
 
@@ -145,6 +147,12 @@ public static class MauiProgram
                     new AetherNet.Storage.FileSystemKeyValueStore(Path.Combine(dataDir, "dtn"))),
                 logger: sp.GetService<ILogger<AetherNet.Dtn.DtnService>>()));
 
+#if ANDROID
+        // Aether's messaging goes through AetherNetService: the service seals, holds and delivers; chat keeps
+        // its conversations and receipts. The node reports delivery back under chat's own message ids.
+        builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
+            new AetherNet.Node.Client.NodeBackedMessaging(sp.GetRequiredService<AetherNet.Node.IAetherNodeClient>()));
+#else
         builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
             new AetherNet.Messaging.MessagingService(
                 sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
@@ -155,6 +163,7 @@ public static class MauiProgram
                 // relay OFF because a central relay is exactly the chokepoint this network refuses.
                 options: new AetherNet.Messaging.MessagingOptions { EnableDtnFallback = true, EnableBackendRelay = false },
                 logger: sp.GetService<ILogger<AetherNet.Messaging.MessagingService>>()));
+#endif
         builder.Services.AddSingleton<AetherNet.Messaging.MeshInboundDispatcher>(sp =>
             new AetherNet.Messaging.MeshInboundDispatcher(
                 sender: sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
@@ -414,6 +423,10 @@ public static class MauiProgram
             Warm("identity", () => app.Services.GetService<IIdentityService>());
             Warm("cards", () => app.Services.GetService<IContentStore>());
             Warm("contacts", () => app.Services.GetService<ContactService>());
+
+            // Tell the node who this app's contacts are, so its radios start reaching them — and again whenever
+            // the list changes. On Android this is what brings AetherNetService's radios to the right people.
+            Warm("node contacts", () => app.Services.GetService<NodeContactSync>()?.SyncInBackground());
 
             // Published where the Android activity can reach it. An activity is built by the system
             // rather than by the container, so a scanned invite has no other way in — and until this
