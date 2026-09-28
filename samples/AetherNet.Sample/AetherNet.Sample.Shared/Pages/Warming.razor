@@ -67,22 +67,23 @@
        lighting up already says where we are. *@
     <div class="warm-line">@Now</div>
 
-    @* The radio survey, shown as a list rather than one line at a time. A person seeing four of
-       eight found learns where the ceiling is — and that it is their device's, not ours. *@
+    @* The radio survey, shown as a list rather than one line at a time: the working radios first,
+       then the ones that are not working, each saying why. The tick and the count follow the same
+       line, so nothing at the bottom carries a tick. *@
     @if (Warm.Found.Count > 0)
     {
         <div class="warm-radios">
-            <div class="warm-radios-head">@Warm.Found.Count(r => r.Present) of @Warm.Found.Count radios on this device</div>
+            <div class="warm-radios-head">@Warm.Found.Count(r => r.Carries) of @Warm.Found.Count radios working</div>
             @foreach (var radio in Warm.Found)
             {
-                <div class="warm-radio @(radio.Present ? "has" : "hasnt")">
-                    <span class="wr-mark">@(radio.Present ? "✓" : "—")</span>
+                <div class="warm-radio @(radio.Carries ? "has" : "hasnt")">
+                    <span class="wr-mark">@(radio.Carries ? "✓" : "—")</span>
                     <span class="wr-name">@radio.Name</span>
                     @* "carries", not "carrying": every radio comes up at once and the widest one
                        through does the work, so no list drawn once can say which is moving traffic.
                        A radio that is not carrying says why, when there is a why — "not on this device"
                        was printed for Wi-Fi Direct on a phone that has it and lacked only a permission. *@
-                    <span class="wr-note">@(radio.Present && radio.Carries ? "carries" : radio.Detail is { Length: > 0 } why ? why : radio.Present ? "present" : "not on this device")</span>
+                    <span class="wr-note">@(radio.Carries ? "carries" : radio.Detail is { Length: > 0 } why ? why : radio.Present ? "present" : "not on this device")</span>
                 </div>
             }
         </div>

@@ -291,9 +291,13 @@ public sealed class WarmUpService
 
                 if (radios.Count == 0) { Absent(step, "no radios to survey on this host"); break; }
 
-                // A to Z, so a radio is where a person looks for it, not wherever the mesh happened to
-                // register it.
-                radios = radios.OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                // The working radios first, A to Z, then the ones that are not working, A to Z — what
+                // the phone can do is read first, and everything that needs attention sits together at
+                // the bottom. A to Z on its own mixed the two.
+                radios = radios
+                    .OrderByDescending(r => r.Carries)
+                    .ThenBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
 
                 // Walked one at a time so the list can be read as it fills, rather than appearing at
                 // once as a verdict.
@@ -309,8 +313,8 @@ public sealed class WarmUpService
                     await Task.Delay(RadioPause, cancellationToken).ConfigureAwait(false);
                 }
 
-                var have = radios.Count(r => r.Present);
-                step.Detail = $"{have} of {radios.Count} radios on this device";
+                var working = radios.Count(r => r.Carries);
+                step.Detail = $"{working} of {radios.Count} radios working";
                 break;
 
             case "identity":
