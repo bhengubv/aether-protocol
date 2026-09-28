@@ -24,15 +24,18 @@ namespace AetherNetService;
 /// standing up its own. The wiring below is the messaging plane the sample used to own, moved to where the
 /// mesh now belongs.
 /// </para>
+///
+/// <para>
+/// It has no UI — a screen is attack surface. It is a network cable: no gate of its own. Security is
+/// upstream, at the phone's lock (biometrics, pattern, PIN); no access to the phone, no access to the
+/// service. So every caller is admitted (<see cref="OpenGrantStore"/>).
+/// </para>
 /// </summary>
 [Application(Label = "AetherNetService", AllowBackup = false)]
 public sealed class MainApplication : Application
 {
-    /// <summary>The one grant store, shared by the bound service and the approval screen (durable).</summary>
-    public static IGrantStore Grants { get; private set; } = new InMemoryGrantStore();
-
-    /// <summary>The in-process host the exported service delegates to — now mesh-backed.</summary>
-    public static AetherNodeService? Node { get; private set; }
+    /// <summary>The in-process host the exported service delegates to — mesh-backed.</summary>
+    private static AetherNodeService? Node { get; set; }
 
     private ServiceProvider? _services;
 
@@ -45,7 +48,9 @@ public sealed class MainApplication : Application
         base.OnCreate();
 
         var dir = FilesDir!.AbsolutePath;
-        Grants = new FileGrantStore(dir);
+
+        // The radios' MAUI Essentials calls need the app context; with no screen, initialise at the app level.
+        Microsoft.Maui.ApplicationModel.Platform.Init(this);
 
         var services = new ServiceCollection();
         services.AddLogging(b =>
@@ -137,7 +142,7 @@ public sealed class MainApplication : Application
             provider.GetRequiredService<INodeIdentity>(),
             provider.GetRequiredService<INodeMessaging>(),
             provider.GetRequiredService<INodeLinkSource>());
-        AetherNodeAndroidService.Configure(() => Node, Grants);
+        AetherNodeAndroidService.Configure(() => Node, new OpenGrantStore());
 
         // The one inbound pump for the messaging plane: raw radio bytes → the library dispatcher → the
         // reliable core (which decrypts and raises MessageReceived) → the node's inbox seam.
