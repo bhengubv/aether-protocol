@@ -6,14 +6,14 @@ using Android.Views;
 using Android.Widget;
 using AetherNet.Node;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
 /// The node's one screen: it shows the device's AetherTag (proof the identity lives here, minted once) and
 /// the apps that have asked to link. Linking is the user's decision — an app only becomes <c>Bound</c> when
 /// the person taps Allow here. This is the "allow this app" gate; the app can never grant itself.
 /// </summary>
-[Activity(Label = "Aether Node", MainLauncher = true, Exported = true, Name = "com.bhengubv.aethernode.MainActivity")]
+[Activity(Label = "AetherNetService", MainLauncher = true, Exported = true, Name = "com.bhengubv.aethernetservice.MainActivity")]
 public sealed class MainActivity : Activity
 {
     private LinearLayout _root = null!;
@@ -28,7 +28,7 @@ public sealed class MainActivity : Activity
 
         // Approving a link is normally the user tapping Allow below. For headless testing the same decision
         // can be driven in with an intent extra:
-        //   adb shell am start -n com.bhengubv.aethernode/com.bhengubv.aethernode.MainActivity --es approve <package>
+        //   adb shell am start -n com.bhengubv.aethernetservice/com.bhengubv.aethernetservice.MainActivity --es approve <package>
         var approve = Intent?.GetStringExtra("approve");
         if (!string.IsNullOrEmpty(approve))
         {
@@ -41,7 +41,7 @@ public sealed class MainActivity : Activity
         _root = new LinearLayout(this) { Orientation = Orientation.Vertical };
         _root.SetPadding(48, 64, 48, 48);
 
-        var title = new TextView(this) { Text = "Aether Node" };
+        var title = new TextView(this) { Text = "AetherNetService" };
         title.SetTextSize(Android.Util.ComplexUnitType.Sp, 24f);
         _root.AddView(title);
 

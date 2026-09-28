@@ -11,10 +11,10 @@ using AetherNet.Node.Android;
 using AetherNet.Node.Host;
 using AetherNet.Security.Services;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
-/// The node app process. On start it mints (or loads) the device's one identity, brings up the real radio
+/// The AetherNetService process. On start it mints (or loads) the device's one identity, brings up the real radio
 /// mesh and the reliable messaging core over it, and wires the exported <see cref="AetherNodeAndroidService"/>
 /// so a consumer app that binds gets identity <b>and</b> send/inbox/presence backed by the node's own radios.
 ///
@@ -25,7 +25,7 @@ namespace AetherNet.NodeApp;
 /// mesh now belongs.
 /// </para>
 /// </summary>
-[Application(Label = "Aether Node", AllowBackup = false)]
+[Application(Label = "AetherNetService", AllowBackup = false)]
 public sealed class MainApplication : Application
 {
     /// <summary>The one grant store, shared by the bound service and the approval screen (durable).</summary>
@@ -154,7 +154,7 @@ public sealed class MainApplication : Application
             }
             catch (Exception ex)
             {
-                global::Android.Util.Log.Error("AetherNode", $"radio bring-up failed: {ex}");
+                global::Android.Util.Log.Error("AetherNetService", $"radio bring-up failed: {ex}");
             }
         });
     }

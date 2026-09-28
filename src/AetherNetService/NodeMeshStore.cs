@@ -3,7 +3,7 @@
 using System.Text.Json;
 using AetherNet.Mesh;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
 /// The node's own persistence for the two mesh directory seams: the peer routing keys it has learned inside

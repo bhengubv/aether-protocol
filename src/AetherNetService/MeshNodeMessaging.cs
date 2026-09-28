@@ -6,7 +6,7 @@ using AetherNet.Node.Host;
 using AetherNet.Messaging;
 using AetherNet.Messaging.Models;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
 /// The node's messaging seam over the real <see cref="IMessagingService"/> — the mesh-backed replacement for

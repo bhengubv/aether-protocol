@@ -3,7 +3,7 @@
 using System.Text;
 using AetherNet.Security.Services;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
 /// The node's Signal session persistence: one file per peer under a private <c>sessions</c> directory, so a

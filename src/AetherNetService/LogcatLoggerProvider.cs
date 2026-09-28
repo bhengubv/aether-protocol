@@ -2,7 +2,7 @@
 #if ANDROID
 using Microsoft.Extensions.Logging;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
 /// Routes <see cref="ILogger"/> output to logcat, so the node's own lines — radio bring-up, the messaging
@@ -21,7 +21,7 @@ internal sealed class LogcatLoggerProvider : ILoggerProvider
         private readonly string _tag;
 
         public LogcatLogger(string category)
-            => _tag = "AetherNode/" + (category.Split('.').LastOrDefault() ?? category);
+            => _tag = "AetherNetService/" + (category.Split('.').LastOrDefault() ?? category);
 
         public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
 

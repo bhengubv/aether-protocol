@@ -4,7 +4,7 @@ using System.Text.Json;
 using AetherNet.Node;
 using AetherNet.Node.Host;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
 /// Durable grants — which apps the user has allowed to link — kept in the node app's private files so an

@@ -6,11 +6,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>AetherNet.NodeApp</RootNamespace>
+    <RootNamespace>AetherNetService</RootNamespace>
 
-    <!-- The node is its own installed app, with its own identity and package — distinct from any
+    <!-- AetherNetService is its own installed app, with its own identity and package — distinct from any
          consumer app (the AetherNet sample is com.bhengubv.aethernet). One device, one node. -->
-    <ApplicationId>com.bhengubv.aethernode</ApplicationId>
+    <ApplicationId>com.bhengubv.aethernetservice</ApplicationId>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
@@ -19,20 +19,21 @@
          The node is not a MAUI app, but it hosts those radios, so it must carry Essentials — without full
          MAUI — and the package reference below, or the assembly is absent when the app is packaged. -->
     <UseMauiEssentials>true</UseMauiEssentials>
+    <AndroidManifest>Platforms\Android\AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/AetherNet.Node.Android/AetherNet.Node.Android.csproj" />
-    <ProjectReference Include="../../src/AetherNet.Node.Host/AetherNet.Node.Host.csproj" />
-    <ProjectReference Include="../../src/AetherNet.Security/AetherNet.Security.csproj" />
-    <ProjectReference Include="../../src/AetherNet.Core/AetherNet.Core.csproj" />
+    <ProjectReference Include="../AetherNet.Node.Android/AetherNet.Node.Android.csproj" />
+    <ProjectReference Include="../AetherNet.Node.Host/AetherNet.Node.Host.csproj" />
+    <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
+    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
     <!-- The mesh the node now hosts: the portable radio mesh + messaging core, and the Android radios that
          fill its transport seam. DTN and the routing/identity contracts come transitively through these
          (DtnService lives in AetherNet.Core; the storage backing it is AetherNet.Storage). -->
-    <ProjectReference Include="../../src/AetherNet.Mesh/AetherNet.Mesh.csproj" />
-    <ProjectReference Include="../../src/AetherNet.Transport.Android/AetherNet.Transport.Android.csproj" />
-    <ProjectReference Include="../../src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
-    <ProjectReference Include="../../src/AetherNet.Storage/AetherNet.Storage.csproj" />
+    <ProjectReference Include="../AetherNet.Mesh/AetherNet.Mesh.csproj" />
+    <ProjectReference Include="../AetherNet.Transport.Android/AetherNet.Transport.Android.csproj" />
+    <ProjectReference Include="../AetherNet.Messaging/AetherNet.Messaging.csproj" />
+    <ProjectReference Include="../AetherNet.Storage/AetherNet.Storage.csproj" />
   </ItemGroup>
 
   <!-- The node stands up its own DI container and logs to logcat, so it needs the DI + Logging packages the
@@ -51,7 +52,7 @@
        copying the binary. Without this, GetTag/Sign fail at runtime on the phone. -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <PackageReference Include="libsodium" Version="1.0.20.1" ExcludeAssets="native" />
-    <AndroidNativeLibrary Include="..\AetherNet.Sample\AetherNet.Sample\Platforms\Android\native\arm64-v8a\libsodium.so">
+    <AndroidNativeLibrary Include="..\..\samples\AetherNet.Sample\AetherNet.Sample\Platforms\Android\native\arm64-v8a\libsodium.so">
       <Abi>arm64-v8a</Abi>
     </AndroidNativeLibrary>
   </ItemGroup>

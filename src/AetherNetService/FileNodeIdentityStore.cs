@@ -2,7 +2,7 @@
 #if ANDROID
 using AetherNet.Identity;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
 /// First-cut storage for the node's one private key: the node app's own private files directory, which

@@ -4,7 +4,7 @@ using AetherNet.Mesh;
 using AetherNet.Node;        // NodeLinkStatus, RadioStatus
 using AetherNet.Node.Host;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
 /// Projects the node's <see cref="IRadioMesh"/> onto the node contract's <see cref="NodeLinkStatus"/> — the

@@ -3,7 +3,7 @@
 using AetherNet.Identity;
 using AetherNet.Mesh;
 
-namespace AetherNet.NodeApp;
+namespace AetherNetService;
 
 /// <summary>
 /// The node's own <see cref="IIdentityService"/>, over the identity this device holds locally
