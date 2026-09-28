@@ -291,6 +291,10 @@ public sealed class WarmUpService
 
                 if (radios.Count == 0) { Absent(step, "no radios to survey on this host"); break; }
 
+                // A to Z, so a radio is where a person looks for it, not wherever the mesh happened to
+                // register it.
+                radios = radios.OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+
                 // Walked one at a time so the list can be read as it fills, rather than appearing at
                 // once as a verdict.
                 Found.Clear();
