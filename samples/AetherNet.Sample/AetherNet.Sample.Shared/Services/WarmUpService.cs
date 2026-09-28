@@ -102,28 +102,23 @@ public sealed class WarmUpService
     /// <summary>True once every step has finished, however each of them went.</summary>
     public bool IsWarm { get; private set; }
 
-    /// <summary>True once the person has left the warm-up screen for the app.</summary>
+    /// <summary>
+    /// A moment at the end, so the finished mesh is seen rather than flashing past.
+    /// </summary>
     /// <remarks>
-    /// Theirs to leave. Finishing used to open the app on its own, 700 ms after the last step — before
-    /// anyone had read what the screen had to say.
+    /// It used to be a delay inside the screen, before it navigated away. The screen no longer
+    /// navigates — the app hands over the instant <see cref="IsWarm"/> goes true — so the pause has to
+    /// be on this side of that flag or there is nothing left to pause.
     /// </remarks>
-    public bool IsOpen { get; private set; }
-
-    /// <summary>Leave the warm-up screen for the app. Does nothing until every step has finished.</summary>
-    public void Open()
-    {
-        if (!IsWarm || IsOpen) return;
-        IsOpen = true;
-        Raise();
-    }
+    private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(700);
 
     /// <summary>
     /// The least time a step stays on screen, so each node is seen lighting before the next one starts.
     /// </summary>
     /// <remarks>
     /// Once the radio survey is done, the other nine steps finish in about half a second on a phone that
-    /// is already warm. Every node lit in the same few frames, so the screen looked like it had quit
-    /// halfway. A step that takes longer than this is not held at all.
+    /// is already warm. Every node lit in the same few frames and the app opened 700 ms later, so the
+    /// screen looked like it had quit halfway. A step that takes longer than this is not held at all.
     /// </remarks>
     private static readonly TimeSpan OnScreenAtLeast = TimeSpan.FromMilliseconds(400);
 
@@ -258,6 +253,9 @@ public sealed class WarmUpService
                 catch (OperationCanceledException) { }
             }
         }
+
+        try { await Task.Delay(Settle, cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
 
         IsWarm = true;
         Raise();

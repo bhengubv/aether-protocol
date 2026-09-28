@@ -23,9 +23,7 @@
 @*  Imported by name above rather than written as <Pages.Warming />. Razor resolves a tag to a
     component only if the name is in scope, and when it is not it emits the tag as literal HTML
     instead — no error, no warning, a clean build and a blank screen. That cost a deploy.  *@
-@*  Left when you tap, not when the warm-up finishes. It used to hand over by itself, 700 ms after
-    the last step, and took the screen away before anyone had read it.  *@
-@if (!Warm.IsOpen)
+@if (!Warm.IsWarm)
 {
     <Warming />
 }

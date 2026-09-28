@@ -12,20 +12,19 @@
 
     So the waiting moves here, where nothing has been asked for yet and there is something to watch.
     The animation is not decoration over a progress bar: the mesh IS the progress. Each capability
-    lights its own node as it comes up, the links draw between them, and when the picture is whole it
-    stays until you tap to go in. Two deliberate pauses and no more: the radio list fills at 120 ms a
-    line so it can be seen filling, and every step stays on screen for at least 400 ms so each node is
-    seen lighting before the next one starts. A step slower than that is on screen exactly as long as
-    its work takes.
+    lights its own node as it comes up, the links draw between them, and when the picture is whole the
+    app opens. Three deliberate pauses and no more: the radio list fills at 120 ms a line so it can be
+    seen filling, every step stays on screen for at least 400 ms so each node is seen lighting before
+    the next one starts, and the finished mesh is held for 700 ms so the last node does not vanish in
+    the frame it lit. A step slower than that is on screen exactly as long as its work takes.
 
     And the screen owns the waiting rather than being held by it. A step allowed to continue — the
     radios, whose duration is decided by whether somebody else's phone is switched on — gets six
-    seconds, then the screen stops waiting for it and the work carries on behind it. Wi-Fi Direct with
-    no peer to find used to hold this screen for the better part of a minute.
+    seconds, then the app opens and the work carries on behind it. Wi-Fi Direct with no peer to find
+    used to hold this screen for the better part of a minute.
 *@
 
-@* The whole screen is the way in once everything is up; a tap before then does nothing. *@
-<div class="warm @(Warm.IsWarm ? "ready" : null)" @onclick="Warm.Open">
+<div class="warm">
     <div class="warm-stage">
         <svg viewBox="0 0 260 260" fill="none" xmlns="http://www.w3.org/2000/svg">
             <!-- Links from the centre outward. Each lights when the capability at its far end is up,
@@ -149,7 +148,7 @@
             var busy = Warm.Steps.FirstOrDefault(s => s.State == WarmState.Working);
             if (busy is not null) return Line(busy);
 
-            if (Warm.IsWarm) return "Ready — tap to open";
+            if (Warm.IsWarm) return "Ready";
 
             // Between steps, while the one that just finished is held on screen: say how it went.
             var last = Warm.Steps.LastOrDefault(s => s.State != WarmState.Waiting);
@@ -166,9 +165,9 @@
         _cts = new CancellationTokenSource();
 
         // Nothing to navigate to at the end. This is not a route any more: Routes renders it
-        // INSTEAD of the router until you tap to open, so the handover is Routes noticing that tap.
-        // The one decision that came with it — a phone that has never been set up belongs on the
-        // wizard — MainLayout was already making, and still does.
+        // INSTEAD of the router while the app is cold, so the handover is Routes noticing that the
+        // warm-up finished. The one decision that came with it — a phone that has never been set up
+        // belongs on the wizard — MainLayout was already making, and still does.
         await Warm.WarmAsync(_cts.Token);
     }
 
@@ -221,7 +220,6 @@
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
         overflow: hidden;
     }
-    .warm.ready { cursor: pointer; }
 
     .warm-stage { width: min(66vw, 260px); aspect-ratio: 1; color: var(--brand); }
     .warm-stage svg { width: 100%; height: 100%; overflow: visible; }
