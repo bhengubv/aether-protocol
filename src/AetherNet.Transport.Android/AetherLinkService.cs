@@ -67,19 +67,25 @@ public sealed class AetherLinkService : Service
             (GetSystemService(NotificationService) as NotificationManager)?.CreateNotificationChannel(channel);
         }
 
-        var open = PendingIntent.GetActivity(
-            this, 0,
-            PackageManager?.GetLaunchIntentForPackage(PackageName!),
-            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-
-        return new NotificationCompat.Builder(this, ChannelId)
+        var builder = new NotificationCompat.Builder(this, ChannelId)
             .SetContentTitle("Aether is connected")
             .SetContentText("Holding a link to a phone near you.")
             .SetSmallIcon(global::Android.Resource.Drawable.StatSysDataBluetooth)
             .SetPriority((int)NotificationPriority.Low)
-            .SetOngoing(true)
-            .SetContentIntent(open)
-            .Build()!;
+            .SetOngoing(true);
+
+        // A tap opens the host's screen — when it has one. AetherNetService has no screen (a screen is attack
+        // surface), so there is no launch activity: the notification is then only Android's required notice
+        // that a background service is holding the radio, and opens nothing. Building a PendingIntent over the
+        // missing launch intent threw on the main thread and took the whole service down.
+        var launch = PackageManager?.GetLaunchIntentForPackage(PackageName!);
+        if (launch is not null)
+        {
+            builder.SetContentIntent(PendingIntent.GetActivity(
+                this, 0, launch, PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent));
+        }
+
+        return builder.Build()!;
     }
 }
 #endif
