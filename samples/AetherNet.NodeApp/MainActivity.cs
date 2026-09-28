@@ -23,6 +23,9 @@ public sealed class MainActivity : Activity
     {
         base.OnCreate(savedInstanceState);
 
+        // MAUI Essentials (which the radios' permission checks use) needs the current Activity registered.
+        Microsoft.Maui.ApplicationModel.Platform.Init(this, savedInstanceState);
+
         // Approving a link is normally the user tapping Allow below. For headless testing the same decision
         // can be driven in with an intent extra:
         //   adb shell am start -n com.bhengubv.aethernode/com.bhengubv.aethernode.MainActivity --es approve <package>
@@ -66,6 +69,14 @@ public sealed class MainActivity : Activity
         }
 
         RenderGrants();
+    }
+
+    // Forward the runtime-permission result to MAUI Essentials, so the radios' Permissions.RequestAsync
+    // completes when the user answers the dialog.
+    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Android.Content.PM.Permission[] grantResults)
+    {
+        Microsoft.Maui.ApplicationModel.Platform.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+        base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     private void RenderGrants()

@@ -15,6 +15,10 @@
     <ApplicationVersion>1</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
     <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+    <!-- AetherNet.Transport.Android's AndroidRadioSetup uses MAUI Essentials (Permissions, Connectivity).
+         The node is not a MAUI app, but it hosts those radios, so it must carry Essentials — without full
+         MAUI — and the package reference below, or the assembly is absent when the app is packaged. -->
+    <UseMauiEssentials>true</UseMauiEssentials>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +26,23 @@
     <ProjectReference Include="../../src/AetherNet.Node.Host/AetherNet.Node.Host.csproj" />
     <ProjectReference Include="../../src/AetherNet.Security/AetherNet.Security.csproj" />
     <ProjectReference Include="../../src/AetherNet.Core/AetherNet.Core.csproj" />
+    <!-- The mesh the node now hosts: the portable radio mesh + messaging core, and the Android radios that
+         fill its transport seam. DTN and the routing/identity contracts come transitively through these
+         (DtnService lives in AetherNet.Core; the storage backing it is AetherNet.Storage). -->
+    <ProjectReference Include="../../src/AetherNet.Mesh/AetherNet.Mesh.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Transport.Android/AetherNet.Transport.Android.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
+    <ProjectReference Include="../../src/AetherNet.Storage/AetherNet.Storage.csproj" />
+  </ItemGroup>
+
+  <!-- The node stands up its own DI container and logs to logcat, so it needs the DI + Logging packages the
+       sample gets for free from MAUI. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
+    <!-- UseMauiEssentials does not itself add the package (build warning MA002); the app must. Version
+         matches the installed MAUI workload for net10.0-android. -->
+    <PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.20" />
   </ItemGroup>
 
   <!-- The node mints and signs with the same NSec/libsodium the sample uses, so it needs the same real
