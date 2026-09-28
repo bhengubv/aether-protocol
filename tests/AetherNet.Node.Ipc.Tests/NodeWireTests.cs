@@ -126,6 +126,38 @@ public class NodeWireTests
     }
 
     [Fact]
+    public void Link_round_trips_why_a_radio_cannot_be_used()
+    {
+        var status = new NodeLinkStatus(false, null,
+        [
+            new RadioStatus("Wi-Fi Direct", false, false, 0) { Reason = "needs permission to find phones nearby", Fixable = true },
+            new RadioStatus("LoRa", false, false, 0) { Reason = "plug in a USB LoRa module" },
+            new RadioStatus("Bluetooth", true, false, 0),
+        ]);
+
+        var back = NodeWire.DecodeLink(NodeWire.EncodeLink(status));
+
+        Assert.Equal("needs permission to find phones nearby", back.Radios[0].Reason);
+        Assert.True(back.Radios[0].Fixable);
+        Assert.Equal("plug in a USB LoRa module", back.Radios[1].Reason);
+        Assert.False(back.Radios[1].Fixable);
+        Assert.Null(back.Radios[2].Reason);
+    }
+
+    [Fact]
+    public void Link_from_a_service_that_sends_no_reason_still_decodes()
+    {
+        var older = System.Text.Encoding.UTF8.GetBytes(
+            """{"linked":false,"radio":null,"radios":[{"name":"Wi-Fi Direct","available":false,"linked":false,"carriesBps":0}]}""");
+
+        var back = NodeWire.DecodeLink(older);
+
+        Assert.Equal("Wi-Fi Direct", back.Radios[0].Name);
+        Assert.Null(back.Radios[0].Reason);
+        Assert.False(back.Radios[0].Fixable);
+    }
+
+    [Fact]
     public void Offline_link_round_trips()
     {
         var back = NodeWire.DecodeLink(NodeWire.EncodeLink(NodeLinkStatus.Offline));

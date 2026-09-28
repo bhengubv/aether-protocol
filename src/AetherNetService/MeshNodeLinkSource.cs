@@ -32,7 +32,11 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
             foreach (var r in _radio.Radios)
             {
                 var linked = _radio.IsLinked && string.Equals(r.Name, carrying, StringComparison.Ordinal);
-                radios.Add(new AetherNet.Node.RadioStatus(r.Name, r.Available, linked, linked ? _radio.LinkBandwidthBps : 0));
+                radios.Add(new AetherNet.Node.RadioStatus(r.Name, r.Available, linked, linked ? _radio.LinkBandwidthBps : 0)
+                {
+                    Reason = r.Available ? null : r.Reason,
+                    Fixable = !r.Available && r.Fixable,
+                });
             }
             return new NodeLinkStatus(_radio.IsLinked, _radio.IsLinked ? carrying : null, radios);
         }
