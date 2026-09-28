@@ -12,18 +12,20 @@
 
     So the waiting moves here, where nothing has been asked for yet and there is something to watch.
     The animation is not decoration over a progress bar: the mesh IS the progress. Each capability
-    lights its own node as it comes up, the links draw between them, and when the picture is whole the
-    app opens. Two deliberate pauses and no more: the radio list fills at 120 ms a line so it can be
-    seen filling, and the finished mesh is held for 700 ms so the last node does not vanish in the
-    frame it lit. Everything else is on screen exactly as long as the work takes.
+    lights its own node as it comes up, the links draw between them, and when the picture is whole it
+    stays until you tap to go in. Two deliberate pauses and no more: the radio list fills at 120 ms a
+    line so it can be seen filling, and every step stays on screen for at least 400 ms so each node is
+    seen lighting before the next one starts. A step slower than that is on screen exactly as long as
+    its work takes.
 
     And the screen owns the waiting rather than being held by it. A step allowed to continue — the
     radios, whose duration is decided by whether somebody else's phone is switched on — gets six
-    seconds, then the app opens and the work carries on behind it. Wi-Fi Direct with no peer to find
-    used to hold this screen for the better part of a minute.
+    seconds, then the screen stops waiting for it and the work carries on behind it. Wi-Fi Direct with
+    no peer to find used to hold this screen for the better part of a minute.
 *@
 
-<div class="warm">
+@* The whole screen is the way in once everything is up; a tap before then does nothing. *@
+<div class="warm @(Warm.IsWarm ? "ready" : null)" @onclick="Warm.Open">
     <div class="warm-stage">
         <svg viewBox="0 0 260 260" fill="none" xmlns="http://www.w3.org/2000/svg">
             <!-- Links from the centre outward. Each lights when the capability at its far end is up,
@@ -77,8 +79,10 @@
                     <span class="wr-mark">@(radio.Present ? "✓" : "—")</span>
                     <span class="wr-name">@radio.Name</span>
                     @* "carries", not "carrying": every radio comes up at once and the widest one
-                       through does the work, so no list drawn once can say which is moving traffic. *@
-                    <span class="wr-note">@(radio.Present && radio.Carries ? "carries" : radio.Present ? "present" : "not on this device")</span>
+                       through does the work, so no list drawn once can say which is moving traffic.
+                       A radio that is not carrying says why, when there is a why — "not on this device"
+                       was printed for Wi-Fi Direct on a phone that has it and lacked only a permission. *@
+                    <span class="wr-note">@(radio.Present && radio.Carries ? "carries" : radio.Detail is { Length: > 0 } why ? why : radio.Present ? "present" : "not on this device")</span>
                 </div>
             }
         </div>
@@ -142,14 +146,18 @@
         get
         {
             var busy = Warm.Steps.FirstOrDefault(s => s.State == WarmState.Working);
-            if (busy is not null) return busy.Detail is { Length: > 0 } d ? $"{busy.Title} — {d}" : busy.Title;
+            if (busy is not null) return Line(busy);
 
-            if (Warm.IsWarm) return "Ready";
+            if (Warm.IsWarm) return "Ready — tap to open";
 
+            // Between steps, while the one that just finished is held on screen: say how it went.
             var last = Warm.Steps.LastOrDefault(s => s.State != WarmState.Waiting);
-            return last?.Title ?? "Starting up";
+            return last is null ? "Starting up" : Line(last);
         }
     }
+
+    private static string Line(WarmStep step) =>
+        step.Detail is { Length: > 0 } d ? $"{step.Title} — {d}" : step.Title;
 
     protected override async Task OnInitializedAsync()
     {
@@ -157,9 +165,9 @@
         _cts = new CancellationTokenSource();
 
         // Nothing to navigate to at the end. This is not a route any more: Routes renders it
-        // INSTEAD of the router while the app is cold, so the handover is Routes noticing that the
-        // warm-up finished. The one decision that came with it — a phone that has never been set up
-        // belongs on the wizard — MainLayout was already making, and still does.
+        // INSTEAD of the router until you tap to open, so the handover is Routes noticing that tap.
+        // The one decision that came with it — a phone that has never been set up belongs on the
+        // wizard — MainLayout was already making, and still does.
         await Warm.WarmAsync(_cts.Token);
     }
 
@@ -176,10 +184,14 @@
 <style>
     /* Sized so eight lines fit the shortest phone we ship to without scrolling — the list is the
        point, and a list you have to scroll is a list nobody reads. */
+    /* Laid out as a table: the names in a column of their own, so a note that runs to a sentence
+       wraps inside its own column instead of breaking "Wi-Fi Direct" across two lines. */
     .warm-radios {
-        display: flex; flex-direction: column; gap: 2px;
+        display: grid; grid-template-columns: auto auto 1fr; column-gap: 8px; row-gap: 2px;
+        align-items: baseline;
         margin: 10px auto 14px; width: 100%; max-width: 300px;
     }
+    .warm-radios-head { grid-column: 1 / -1; }
     /* Quiet is said with a token, never with opacity.
 
        These three rules reached for opacity, and opacity on a parent multiplies with opacity on a
@@ -193,11 +205,11 @@
         color: var(--ink-3); margin-bottom: 6px;
     }
     .warm-radio {
-        display: flex; align-items: baseline; gap: 8px;
+        display: contents;
         font-size: 0.78rem; line-height: 1.35;
     }
-    .warm-radio .wr-mark { width: 12px; flex: none; text-align: center; }
-    .warm-radio .wr-name { flex: 1 1 auto; }
+    .warm-radio .wr-mark { width: 12px; text-align: center; }
+    .warm-radio .wr-name { white-space: nowrap; }
     .warm-radio .wr-note { color: var(--ink-3); font-size: 0.72rem; }
     .warm-radio.has { color: var(--ink); }
     .warm-radio.has .wr-mark { color: var(--brand); }
@@ -208,6 +220,7 @@
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
         overflow: hidden;
     }
+    .warm.ready { cursor: pointer; }
 
     .warm-stage { width: min(66vw, 260px); aspect-ratio: 1; color: var(--brand); }
     .warm-stage svg { width: 100%; height: 100%; overflow: visible; }

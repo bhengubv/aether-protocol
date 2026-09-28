@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 
+using System.Diagnostics;
 using AetherNet.Browser;
+using AetherNet.Node;
 using AetherNet.Sample.Shared.Data;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -100,15 +102,30 @@ public sealed class WarmUpService
     /// <summary>True once every step has finished, however each of them went.</summary>
     public bool IsWarm { get; private set; }
 
+    /// <summary>True once the person has left the warm-up screen for the app.</summary>
+    /// <remarks>
+    /// Theirs to leave. Finishing used to open the app on its own, 700 ms after the last step — before
+    /// anyone had read what the screen had to say.
+    /// </remarks>
+    public bool IsOpen { get; private set; }
+
+    /// <summary>Leave the warm-up screen for the app. Does nothing until every step has finished.</summary>
+    public void Open()
+    {
+        if (!IsWarm || IsOpen) return;
+        IsOpen = true;
+        Raise();
+    }
+
     /// <summary>
-    /// A moment at the end, so the finished mesh is seen rather than flashing past.
+    /// The least time a step stays on screen, so each node is seen lighting before the next one starts.
     /// </summary>
     /// <remarks>
-    /// It used to be a delay inside the screen, before it navigated away. The screen no longer
-    /// navigates — the app hands over the instant <see cref="IsWarm"/> goes true — so the pause has to
-    /// be on this side of that flag or there is nothing left to pause.
+    /// Once the radio survey is done, the other nine steps finish in about half a second on a phone that
+    /// is already warm. Every node lit in the same few frames, so the screen looked like it had quit
+    /// halfway. A step that takes longer than this is not held at all.
     /// </remarks>
-    private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(700);
+    private static readonly TimeSpan OnScreenAtLeast = TimeSpan.FromMilliseconds(400);
 
     /// <summary>
     /// How long the screen waits for a step that is allowed to carry on without it.
@@ -181,6 +198,7 @@ public sealed class WarmUpService
                 break;
             }
 
+            var onScreen = Stopwatch.StartNew();
             step.State = WarmState.Working;
             Raise();
 
@@ -233,10 +251,13 @@ public sealed class WarmUpService
             _log.LogInformation("[warm] {Step} {State} {Detail}", step.Key, step.State, step.Detail ?? "");
 
             Raise();
-        }
 
-        try { await Task.Delay(Settle, cancellationToken).ConfigureAwait(false); }
-        catch (OperationCanceledException) { }
+            if (OnScreenAtLeast - onScreen.Elapsed is { Ticks: > 0 } left)
+            {
+                try { await Task.Delay(left, cancellationToken).ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+            }
+        }
 
         IsWarm = true;
         Raise();
@@ -250,7 +271,24 @@ public sealed class WarmUpService
             // does on a cold start, and it used to happen on whichever page first asked who you are.
             case "radios":
                 var inventory = Get<IRadioInventory>();
-                var radios = inventory?.Survey() ?? [];
+                IReadOnlyList<RadioCapability> radios = inventory?.Survey() ?? [];
+
+                // An app connected to AetherNetService runs no radios of its own — the service does. So the
+                // radios on this phone are the ones the node reports, not the (empty) set this app holds.
+                if (radios.Count == 0 && await NodeLinkAsync(cancellationToken).ConfigureAwait(false) is { Radios.Count: > 0 } nodeRadios)
+                {
+                    // In the phone when it works, and also when only a permission or a switch is stopping
+                    // it — Wi-Fi Direct with no permission is still Wi-Fi Direct. The reason is the node's
+                    // own words for what is in the way.
+                    radios = nodeRadios.Radios
+                        .Select(r => new RadioCapability(
+                            r.Name,
+                            Present: r.Available || r.Fixable,
+                            Detail: r.Available ? (r.Linked ? "linked" : "ready") : r.Reason ?? "",
+                            Carries: r.Available))
+                        .ToList();
+                }
+
                 if (radios.Count == 0) { Absent(step, "no radios to survey on this host"); break; }
 
                 // Walked one at a time so the list can be read as it fills, rather than appearing at
@@ -334,7 +372,19 @@ public sealed class WarmUpService
             // them is "the" radio: they all come up, and whichever turns out to be widest carries.
             case "radiosup":
                 var radio = Get<IRadioMesh>();
-                if (radio is null || !radio.IsSupported) { Absent(step, "no radio on this device"); break; }
+                if (radio is null || !radio.IsSupported)
+                {
+                    // No radios in this app — so they are AetherNetService's, and awake if it says so.
+                    if (await NodeLinkAsync(cancellationToken).ConfigureAwait(false) is { } link
+                        && link.Radios.Count(r => r.Available) is var awake and > 0)
+                    {
+                        step.Detail = link.Linked ? $"linked over {link.Radio}" : $"{awake} radios listening";
+                        break;
+                    }
+
+                    Absent(step, "no radio on this device");
+                    break;
+                }
 
                 // AetherNet (the nearby-radio mesh) is a choice. Switched off, don't wake the physical
                 // radios or hold a foreground link — bring up ONLY the internet leg, so the app still
@@ -359,7 +409,31 @@ public sealed class WarmUpService
             case "wifidirect":
                 var fast = Get<FastRadioService>();
                 var mesh = Get<IRadioMesh>();
-                if (fast is null || mesh is not { IsSupported: true }) { Absent(step, "not on this device"); break; }
+                if (fast is null || mesh is not { IsSupported: true })
+                {
+                    // Wi-Fi Direct is a radio, and an app connected to AetherNetService runs none: report the
+                    // service's Wi-Fi Direct radio instead.
+                    if (await NodeLinkAsync(cancellationToken).ConfigureAwait(false) is { } link
+                        && link.Radios.FirstOrDefault(r => r.Name.Contains("Direct", StringComparison.OrdinalIgnoreCase)) is { } direct)
+                    {
+                        if (direct.Available) { step.Detail = direct.Linked ? "linked" : "ready"; break; }
+
+                        // In the phone, with a permission or a switch in the way: a radio that did not
+                        // come up, not a radio that is not there.
+                        if (direct.Fixable)
+                        {
+                            step.State = WarmState.Failed;
+                            step.Detail = direct.Reason;
+                            break;
+                        }
+
+                        Absent(step, direct.Reason ?? "not on this device");
+                        break;
+                    }
+
+                    Absent(step, "not on this device");
+                    break;
+                }
 
                 // Nothing to bring up when the mesh is off — Wi-Fi Direct is a nearby radio.
                 if (Get<AetherStore>()?.GetSetting(SetupKeys.AetherNet) == "0")
@@ -413,6 +487,25 @@ public sealed class WarmUpService
         }
 
         return ready();
+    }
+
+    /// <summary>
+    /// The radios as the node reports them — for an app that runs none of its own, the ones that matter. Null
+    /// when there is no node or it cannot be reached, so the step falls back to saying the radio is absent.
+    /// </summary>
+    private async Task<NodeLinkStatus?> NodeLinkAsync(CancellationToken cancellationToken)
+    {
+        if (Get<IAetherNodeClient>() is not { } node) return null;
+
+        try
+        {
+            return await node.GetLinkAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (AetherNodeException ex)
+        {
+            _log.LogWarning(ex, "[warm] could not ask the node for its radios");
+            return null;
+        }
     }
 
     private static void Absent(WarmStep step, string why)
