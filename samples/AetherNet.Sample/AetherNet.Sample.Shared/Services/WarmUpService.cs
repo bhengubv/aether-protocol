@@ -368,6 +368,17 @@ public sealed class WarmUpService
             case "calls":
                 Get<CallService>();
                 Get<GroupCallService>();
+
+                // Calls ride this app's own radios. An app connected to AetherNetService has none — the
+                // service carries messages, not calls — so calls are off here and the chat's call buttons
+                // are greyed out. This used to say "voice only — no camera here", on a phone with a camera,
+                // about calls that could not be placed at all.
+                if (Get<IRadioMesh>() is not { IsSupported: true })
+                {
+                    Absent(step, "switched off for now");
+                    break;
+                }
+
                 var video = Get<IVideoIo>();
                 step.Detail = video is { IsPresent: true }
                     ? $"voice and video, up to {video.MaxConcurrentStreams} on screen"

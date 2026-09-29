@@ -103,9 +103,10 @@ public class NodeClientIdentityTests
     {
         var recovery = new NodeClientRecovery();
 
-        var export = await Assert.ThrowsAsync<InvalidOperationException>(async () => await recovery.ExportRecoveryPhraseAsync());
+        // Not InvalidOperationException: that is the contract's "no identity yet", and this device has one.
+        var export = await Assert.ThrowsAsync<NotSupportedException>(async () => await recovery.ExportRecoveryPhraseAsync());
         Assert.Equal(NodeClientRecovery.NotHere, export.Message);
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await recovery.RestoreFromPhraseAsync("any phrase"));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await recovery.AdoptSeedAsync(new byte[32]));
+        await Assert.ThrowsAsync<NotSupportedException>(async () => await recovery.RestoreFromPhraseAsync("any phrase"));
+        await Assert.ThrowsAsync<NotSupportedException>(async () => await recovery.AdoptSeedAsync(new byte[32]));
     }
 }

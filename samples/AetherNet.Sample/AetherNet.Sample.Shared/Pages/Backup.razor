@@ -61,6 +61,12 @@
         {
             _error = "This phone is locked — unlock it and try again.";
         }
+        catch (NotSupportedException)
+        {
+            // The identity is there — it is AetherNetService's to keep, not this app's. This used to fall
+            // through to "no identity to back up yet", on a phone that plainly had one.
+            _error = "Your identity is kept by AetherNetService, and backing it up from here isn't available yet.";
+        }
         catch (InvalidOperationException)
         {
             _error = "This device has no identity to back up yet.";

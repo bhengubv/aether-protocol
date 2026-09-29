@@ -965,7 +965,10 @@
         padding: 10px 12px calc(env(safe-area-inset-bottom) + 12px);
         background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border-top: 1px solid var(--line);
     }
-    .cv-input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 22px; padding: 12px 16px; font-size: 0.98rem; }
+    /* The field is a button-coloured pill inside the bar, so it takes the button pair (--surface-2 on
+       --on-surface-2) and resets the ink the bar overrode. It used to take the page's background with the
+       bar's ink: in Light that was white text and a white hint on a white field, so nothing typed showed. */
+    .cv-input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); border-radius: 22px; padding: 12px 16px; font-size: 0.98rem; }
     .cv-input:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }
 
     /* Recording buttons match the send button's footprint exactly, so the composer does not jump as

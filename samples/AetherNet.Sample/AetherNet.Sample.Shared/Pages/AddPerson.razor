@@ -5,6 +5,7 @@
 @implements IDisposable
 @inject IIdentityService Me
 @inject ContactService Contacts
+@inject IRadioMesh Radio
 @inject NavigationManager Nav
 @inject IServiceProvider Services
 
@@ -75,9 +76,15 @@
     {
         <section class="entry">
             <div class="glabel">On Aether with you</div>
+            @* The same words People uses. This said "● connected" for everyone added both ways, whether or
+               not they could be reached — beside a chat that said it could not reach them. *@
             @foreach (var c in _mutual)
             {
-                <div class="req"><span class="req-tag">@c.Tag</span><span class="live">● connected</span></div>
+                <div class="req">
+                    <span class="req-tag">@c.Tag</span>
+                    @if (Here(c)) { <span class="live">● available</span> }
+                    else { <span class="away">not nearby right now</span> }
+                </div>
             }
         </section>
     }
@@ -99,6 +106,7 @@
     protected override void OnInitialized()
     {
         Contacts.Changed += OnChanged;
+        Radio.Changed += OnChanged;
         _qrSvg = QrSvg.Render(Contacts.MyInvite);
         _qrPng = QrSvg.Png(Contacts.MyInvite);
 
@@ -112,6 +120,9 @@
     }
 
     private void OnChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+
+    /// <summary>Whether this person can hear us at this moment — the same test People uses.</summary>
+    private bool Here(ContactRecord c) => Radio.IsLinked && Radio.PeerTag == c.Tag;
 
     private void Refresh()
     {
@@ -202,7 +213,11 @@
         catch { /* backed out of the share sheet, or it is unavailable */ }
     }
 
-    public void Dispose() => Contacts.Changed -= OnChanged;
+    public void Dispose()
+    {
+        Contacts.Changed -= OnChanged;
+        Radio.Changed -= OnChanged;
+    }
 }
 
 <style>
@@ -231,6 +246,7 @@
     .req { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
     .req-tag { font-family: var(--mono); font-weight: 700; color: var(--ink); }
     .live { color: var(--brand); font-weight: 700; font-size: 0.82rem; }
+    .away { color: var(--ink-3); font-size: 0.82rem; }
 
     .warn { color: var(--brand-deep); font-size: 0.86rem; font-weight: 600; }
     .ok { color: var(--brand); font-size: 0.86rem; font-weight: 600; }

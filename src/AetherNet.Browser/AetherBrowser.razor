@@ -369,6 +369,9 @@ else
     private DotNetObjectReference<AetherBrowser>? _me;
     private ElementReference? _frame;
 
+    /// <summary>Which browser the card listener is answering, so this one can step down when it closes.</summary>
+    private readonly string _listenKey = Guid.NewGuid().ToString("N");
+
     /// <summary>Artwork the page needs, as data it can draw without fetching anything.</summary>
     private string? Picture(string hash) => _assets.GetValueOrDefault(hash);
 
@@ -547,7 +550,7 @@ else
             if (firstRender)
             {
                 _me ??= DotNetObjectReference.Create(this);
-                await JS.InvokeVoidAsync("aetherCardHost.listen", _me, nameof(Follow), nameof(Grew));
+                await JS.InvokeVoidAsync("aetherCardHost.listen", _me, nameof(Follow), nameof(Grew), _listenKey);
             }
 
             // And ask, rather than only waiting to be told. A message that never arrives looks
@@ -901,6 +904,16 @@ else
         Mesh.Mine.Changed -= OnChanged;
         Mesh.Deck.Changed -= OnChanged;
         Mesh.Offered -= OnOffered;
+
+        // And stop being the browser the cards talk to, or the next card message calls this closed page.
+        // Not awaited — Dispose cannot wait — and harmless if the JS side has already gone with the app.
+        _ = Unlisten();
         _me?.Dispose();
+    }
+
+    private async Task Unlisten()
+    {
+        try { await JS.InvokeVoidAsync("aetherCardHost.unlisten", _listenKey); }
+        catch (Exception) { }
     }
 }

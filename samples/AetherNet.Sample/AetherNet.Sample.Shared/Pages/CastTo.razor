@@ -100,7 +100,11 @@
         StateHasChanged();
         await Task.Yield();   // let the "Connecting…" overlay paint before the SOAP round-trip
 
-        var ok = await Cast.CastAsync(t, Hash, Type ?? "video/mp4", Title ?? "Video");
+        // A cast that fails is a message on this screen, never an exception out of it: one escaped here and
+        // put "Something went wrong" over the whole app, with a spinner still saying "Connecting…".
+        bool ok;
+        try { ok = await Cast.CastAsync(t, Hash, Type ?? "video/mp4", Title ?? "Video"); }
+        catch (Exception) { ok = false; }
         _connectingTo = null;
         if (!ok)
         {

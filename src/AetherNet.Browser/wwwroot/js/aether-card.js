@@ -23,6 +23,29 @@
             address.slice(0, 9).toLowerCase() === 'aether://';
     }
 
+    // Everything a card says to its host goes as TEXT behind this prefix, never as an object.
+    //
+    // The host is a BlazorWebView, and on Android its own bridge listens to every message the page's
+    // window receives and hands it to code that calls startsWith on it. An object there throws "e.startsWith
+    // is not a function" — sixteen times each time a card opened. Text it does not recognise, it ignores.
+    var PREFIX = 'aether-card:';
+
+    function tell(said) {
+        if (global.parent && global.parent !== global)
+            global.parent.postMessage(PREFIX + JSON.stringify(said), '*');
+    }
+
+    /** What a card said, or null for anything that is not a card speaking. */
+    function heard(data) {
+        if (typeof data !== 'string' || data.slice(0, PREFIX.length) !== PREFIX) return null;
+        try {
+            var said = JSON.parse(data.slice(PREFIX.length));
+            return said && typeof said === 'object' ? said : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
     global.document.addEventListener('click', function (event) {
         var target = event.target;
 
@@ -31,8 +54,8 @@
                 var address = target.getAttribute('data-aether-to');
                 event.preventDefault();
 
-                if (mesh(address) && global.parent && global.parent !== global)
-                    global.parent.postMessage({ aether: 'go', to: address }, '*');
+                if (mesh(address))
+                    tell({ aether: 'go', to: address });
 
                 return;
             }
@@ -53,7 +76,7 @@
             body.scrollHeight, body.offsetHeight,
             root.clientHeight, root.scrollHeight, root.offsetHeight);
 
-        global.parent.postMessage({ aether: 'tall', px: tall }, '*');
+        tell({ aether: 'tall', px: tall });
     }
 
     global.addEventListener('load', measure);
@@ -105,17 +128,22 @@
          * address, and "I am this tall". Being rendered does not make a stranger's document trusted,
          * so the host re-checks everything it is told.
          */
-        listen: function (owner, go, tall) {
-            if (global.__aetherCardHost) return;
-            global.__aetherCardHost = true;
+        listen: function (owner, go, tall, key) {
+            // Whichever browser is showing now is the one answered. The page is torn down and built
+            // again — to the Library and back — and the listener used to stay with the FIRST browser:
+            // once that one was gone, every card message called a closed page ("no tracked object"),
+            // and the page actually on screen was never told a thing.
+            host = { owner: owner, go: go, tall: tall, key: key };
+            if (listening) return;
+            listening = true;
 
             global.addEventListener('message', function (event) {
-                var said = event.data;
-                if (!said || said.aether === undefined) return;
+                var said = heard(event.data);
+                var to = host;
+                if (!said || !to) return;
 
-                if (said.aether === 'go' && typeof said.to === 'string' &&
-                    said.to.length < 512 && said.to.slice(0, 9).toLowerCase() === 'aether://') {
-                    owner.invokeMethodAsync(go, said.to);
+                if (said.aether === 'go' && mesh(said.to)) {
+                    call(to, to.go, said.to);
                     return;
                 }
 
@@ -123,9 +151,25 @@
                     isFinite(said.px) && said.px > 0) {
                     // Bounded. A page claiming to be a hundred thousand pixels tall is a page that
                     // makes the app unusable, and refusing costs nothing.
-                    owner.invokeMethodAsync(tall, Math.min(Math.round(said.px), 20000));
+                    call(to, to.tall, Math.min(Math.round(said.px), 20000));
                 }
             });
         },
+
+        /** The browser that is closing stops being answered — unless another has taken over since. */
+        unlisten: function (key) {
+            if (host && host.key === key) host = null;
+        },
     };
+
+    var host = null;
+    var listening = false;
+
+    // A page that closed between the message and the call answers with an error; that is the end of
+    // that page, not a fault, so it stops being called rather than failing again on every message.
+    function call(to, method, value) {
+        to.owner.invokeMethodAsync(method, value).catch(function () {
+            if (host === to) host = null;
+        });
+    }
 })(window);

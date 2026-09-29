@@ -56,6 +56,21 @@ public static class DlnaProtocol
         return headers;
     }
 
+    /// <summary>
+    /// Whether a device that answered the search is this phone itself — it answered from this phone's own
+    /// address, or describes itself there.
+    /// </summary>
+    /// <remarks>
+    /// Aether is a cast target as well as a caster (<see cref="UpnpRenderer"/>), so it hears its own search
+    /// and answers it. That put "Aether — MAR-LX1M", the phone doing the casting, in its own list of screens
+    /// to cast to.
+    /// </remarks>
+    public static bool IsThisPhone(string location, System.Net.IPAddress answeredFrom, System.Net.IPAddress thisPhone) =>
+        answeredFrom.Equals(thisPhone)
+        || (Uri.TryCreate(location, UriKind.Absolute, out var at)
+            && System.Net.IPAddress.TryParse(at.Host, out var host)
+            && host.Equals(thisPhone));
+
     /// <summary>The friendly name a person would recognise ("Living Room TV"), or a fallback.</summary>
     public static string FriendlyName(string deviceXml)
     {

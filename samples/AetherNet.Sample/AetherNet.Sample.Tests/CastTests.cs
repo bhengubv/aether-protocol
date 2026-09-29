@@ -78,6 +78,44 @@ public class CastTests
         Assert.Null(DlnaProtocol.AvTransportControlUrl(xml, "http://192.168.0.50:8200/desc.xml"));
     }
 
+    /// <summary>
+    /// A TV that cannot be reached is a "no", whatever the HTTP stack throws. On Android that can be a Java
+    /// socket exception rather than HttpRequestException, and it got out of the cast screen and put "Something
+    /// went wrong" over the whole app.
+    /// </summary>
+    [Fact]
+    public async Task A_TV_that_cannot_be_reached_is_a_no_not_a_crash()
+    {
+        var tv = new CastTarget("http://192.0.2.1:49153/description.xml", "TV", CastKind.Dlna, "http://192.0.2.1:49153/avt");
+        using var cast = new DlnaCastService(handler: new Failing(new System.IO.IOException("socket closed")));
+
+        Assert.False(await cast.PlayAsync(tv));
+        Assert.False(await cast.StopAsync(tv));
+        Assert.Null(await cast.StatusAsync(tv));
+    }
+
+    private sealed class Failing(Exception failure) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromException<HttpResponseMessage>(failure);
+    }
+
+    [Fact]
+    public void This_phone_is_not_a_screen_to_cast_to()
+    {
+        var me = System.Net.IPAddress.Parse("192.168.0.21");
+        var tv = System.Net.IPAddress.Parse("192.168.0.50");
+
+        // Our own renderer answering our own search, from our own address.
+        Assert.True(DlnaProtocol.IsThisPhone("http://192.168.0.21:49152/desc.xml", me, me));
+        // Or describing itself at our address even if the reply came some other way.
+        Assert.True(DlnaProtocol.IsThisPhone("http://192.168.0.21:49152/desc.xml", tv, me));
+        // A TV is a TV.
+        Assert.False(DlnaProtocol.IsThisPhone("http://192.168.0.50:8200/desc.xml", tv, me));
+        // And a location that cannot be read is judged by who answered.
+        Assert.False(DlnaProtocol.IsThisPhone("not a url", tv, me));
+    }
+
     [Fact]
     public void The_friendly_name_is_read_with_a_fallback()
     {

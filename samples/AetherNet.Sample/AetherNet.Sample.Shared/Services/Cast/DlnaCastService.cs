@@ -28,7 +28,7 @@ public sealed class DlnaCastService : IDisposable
     private readonly AttachmentService? _attachments;
     private readonly IMulticastHold _multicastHold;
     private readonly ILogger<DlnaCastService> _log;
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(6) };
+    private readonly HttpClient _http;
 
     private HttpListener? _media;
     private CancellationTokenSource? _mediaStop;
@@ -41,11 +41,15 @@ public sealed class DlnaCastService : IDisposable
     public event Action<string>? Trace;
     private void T(string m) { try { Trace?.Invoke(m); } catch { /* a logger must never throw into the caller */ } }
 
-    public DlnaCastService(AttachmentService? attachments = null, IMulticastHold? multicastHold = null, ILogger<DlnaCastService>? log = null)
+    /// <param name="handler">The HTTP stack to talk to TVs through; the platform's own when null. A test passes one that fails.</param>
+    public DlnaCastService(AttachmentService? attachments = null, IMulticastHold? multicastHold = null, ILogger<DlnaCastService>? log = null,
+        HttpMessageHandler? handler = null)
     {
         _attachments = attachments;
         _multicastHold = multicastHold ?? new NoMulticastHold();
         _log = log ?? NullLogger<DlnaCastService>.Instance;
+        _http = handler is null ? new HttpClient() : new HttpClient(handler);
+        _http.Timeout = TimeSpan.FromSeconds(6);
     }
 
     // ── Discovery ────────────────────────────────────────────────────────────────
@@ -115,6 +119,10 @@ public sealed class DlnaCastService : IDisposable
                 headers.TryGetValue("ST", out var st);
                 if (headers.TryGetValue("LOCATION", out var loc) && !string.IsNullOrWhiteSpace(loc))
                 {
+                    // This phone answers its own search; casting to yourself is not casting.
+                    if (DlnaProtocol.IsThisPhone(loc.Trim(), res.RemoteEndPoint.Address, lanIp))
+                        continue;
+
                     if (locations.Add(loc.Trim()))
                         T($"cast: reply from {res.RemoteEndPoint.Address} — st={st} loc={loc.Trim()}");
                 }
@@ -219,7 +227,11 @@ public sealed class DlnaCastService : IDisposable
                 _log.LogDebug("TV refused {Action}: {Status}", action, (int)res.StatusCode);
             return res.IsSuccessStatusCode;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        // Any failure to reach the TV, not just the two .NET ones: on Android the HTTP stack can surface a
+        // Java socket exception instead, and that one got past this filter, out of the cast screen and took
+        // the whole app down with "Something went wrong". A TV that did not answer is a TV that said no.
+        // Only the caller's own cancellation goes on up.
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             _log.LogDebug(ex, "Could not send {Action} to the TV", action);
             return false;
@@ -240,7 +252,8 @@ public sealed class DlnaCastService : IDisposable
             if (!res.IsSuccessStatusCode) { _log.LogDebug("TV refused {Action}: {Status}", action, (int)res.StatusCode); return null; }
             return await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        // Every failure, for the same reason as PostAsync.
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             _log.LogDebug(ex, "Could not read {Action} from the TV", action);
             return null;
