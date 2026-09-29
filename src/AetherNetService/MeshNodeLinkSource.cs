@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 #if ANDROID
 using AetherNet.Mesh;
-using AetherNet.Node;        // NodeLinkStatus, RadioStatus
-using AetherNet.Node.Host;
+using AetherNetNodeService;        // NodeLinkStatus, RadioStatus
+using AetherNetNodeService.Host;
 
 namespace AetherNetService;
 
@@ -28,11 +28,11 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
         get
         {
             var carrying = _radio.LinkRadio;
-            var radios = new List<AetherNet.Node.RadioStatus>();
+            var radios = new List<AetherNetNodeService.RadioStatus>();
             foreach (var r in _radio.Radios)
             {
                 var linked = _radio.IsLinked && string.Equals(r.Name, carrying, StringComparison.Ordinal);
-                radios.Add(new AetherNet.Node.RadioStatus(r.Name, r.Available, linked, linked ? _radio.LinkBandwidthBps : 0)
+                radios.Add(new AetherNetNodeService.RadioStatus(r.Name, r.Available, linked, linked ? _radio.LinkBandwidthBps : 0)
                 {
                     Reason = r.Available ? null : r.Reason,
                     Fixable = !r.Available && r.Fixable,

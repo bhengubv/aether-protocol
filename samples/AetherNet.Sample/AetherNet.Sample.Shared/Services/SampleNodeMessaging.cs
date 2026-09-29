@@ -3,8 +3,8 @@
 using AetherNet.Identity;
 using AetherNet.Messaging;
 using AetherNet.Messaging.Models;
-using AetherNet.Node;
-using AetherNet.Node.Host;
+using AetherNetNodeService;
+using AetherNetNodeService.Host;
 
 namespace AetherNet.Sample.Shared.Services;
 

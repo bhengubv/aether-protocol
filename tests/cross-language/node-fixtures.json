@@ -1,5 +1,5 @@
 {
-  "note": "AetherNet Node Service — bind handshake wire vectors. Source of truth: src/AetherNet.Node/Handshake/AetherNodeHandshake.cs (C#). Every language SDK MUST reproduce these bytes exactly. Encoding: Hello = version:u8, capCount:u8, caps(len:u8, utf8)*; Ack = version:u8, tagLen:u8, tag utf8, capCount:u8, caps*, grant:u8. GrantState: Absent=0, AwaitingGrant=1, Bound=2, Revoked=3. See docs/aether-node-service.md.",
+  "note": "AetherNet Node Service — bind handshake wire vectors. Source of truth: src/AetherNetNodeService/Handshake/AetherNodeHandshake.cs (C#). Every language SDK MUST reproduce these bytes exactly. Encoding: Hello = version:u8, capCount:u8, caps(len:u8, utf8)*; Ack = version:u8, tagLen:u8, tag utf8, capCount:u8, caps*, grant:u8. GrantState: Absent=0, AwaitingGrant=1, Bound=2, Revoked=3. See docs/aether-node-service.md.",
   "protocolVersion": 1,
   "hello": [
     { "protocolVersion": 1, "capabilities": [], "hex": "0100" },

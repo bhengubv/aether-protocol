@@ -2,7 +2,7 @@
 
 using System.Diagnostics;
 using AetherNet.Browser;
-using AetherNet.Node;
+using AetherNetNodeService;
 using AetherNet.Sample.Shared.Data;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

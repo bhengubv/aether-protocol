@@ -23,8 +23,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../AetherNet.Node.Android/AetherNet.Node.Android.csproj" />
-    <ProjectReference Include="../AetherNet.Node.Host/AetherNet.Node.Host.csproj" />
+    <ProjectReference Include="../AetherNetNodeService.Android/AetherNetNodeService.Android.csproj" />
+    <ProjectReference Include="../AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
     <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
     <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
     <!-- The mesh the node now hosts: the portable radio mesh + messaging core, and the Android radios that

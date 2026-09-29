@@ -5,7 +5,7 @@ using AetherNet.Sample.Web.Components;
 using AetherNet.Sample.Shared.Data;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Web.Services;
-using AetherNet.Node.Host;
+using AetherNetNodeService.Host;
 
 var builder = WebApplication.CreateBuilder(args);
 

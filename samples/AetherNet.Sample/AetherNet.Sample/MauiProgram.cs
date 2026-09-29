@@ -5,7 +5,7 @@ using AetherNet.Content.Sqlite;
 using AetherNet.Sample.Shared.Data;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Services;
-using AetherNet.Node.Host;
+using AetherNetNodeService.Host;
 using ZXing.Net.Maui;
 using ZXing.Net.Maui.Controls;
 
@@ -53,14 +53,14 @@ public static class MauiProgram
 #if ANDROID
         // The device's identity belongs to AetherNetService — a separate app, with no UI. Aether is a thin
         // client: it never mints and never holds a key. It connects to the service and asks.
-        builder.Services.AddSingleton<AetherNet.Node.IAetherNodeClient>(_ =>
-            new AetherNet.Node.Android.BoundNodeClient(
-                new AetherNet.Node.Android.AndroidNodeConnector(
+        builder.Services.AddSingleton<AetherNetNodeService.IAetherNodeClient>(_ =>
+            new AetherNetNodeService.Android.BoundNodeClient(
+                new AetherNetNodeService.Android.AndroidNodeConnector(
                     global::Android.App.Application.Context, AetherNetServicePackage)));
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
-            new AetherNet.Node.Client.NodeClientIdentity(sp.GetRequiredService<AetherNet.Node.IAetherNodeClient>()));
+            new AetherNetNodeService.Client.NodeClientIdentity(sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>()));
         // The recovery phrase never leaves the service, so backup is not something this app can do.
-        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery, AetherNet.Node.Client.NodeClientRecovery>();
+        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery, AetherNetNodeService.Client.NodeClientRecovery>();
 #else
         // No AetherNetService to connect to on this head, so the node runs in-process. This app does not
         // mint an identity — it asks, and the node mints only if this device has never had one.
@@ -151,7 +151,7 @@ public static class MauiProgram
         // Aether's messaging goes through AetherNetService: the service seals, holds and delivers; chat keeps
         // its conversations and receipts. The node reports delivery back under chat's own message ids.
         builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
-            new AetherNet.Node.Client.NodeBackedMessaging(sp.GetRequiredService<AetherNet.Node.IAetherNodeClient>()));
+            new AetherNetNodeService.Client.NodeBackedMessaging(sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>()));
 #else
         builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
             new AetherNet.Messaging.MessagingService(

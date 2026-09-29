@@ -2,8 +2,8 @@
 #if ANDROID
 using AetherNet.Identity;   // AetherNetTag
 using AetherNet.Mesh;
-using AetherNet.Node;
-using AetherNet.Node.Host;
+using AetherNetNodeService;
+using AetherNetNodeService.Host;
 using AetherNet.Messaging;
 using AetherNet.Messaging.Models;
 using Microsoft.Extensions.Logging;

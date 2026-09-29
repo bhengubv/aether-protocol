@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging;
 using AetherNet.Identity;
 using AetherNet.Mesh;
 using AetherNet.Messaging;
-using AetherNet.Node.Android;
-using AetherNet.Node.Host;
+using AetherNetNodeService.Android;
+using AetherNetNodeService.Host;
 using AetherNet.Security.Services;
 
 namespace AetherNetService;

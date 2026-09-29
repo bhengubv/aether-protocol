@@ -1,6 +1,6 @@
 # The Aether Node Service
 
-**Status:** Draft — the bind contract (`AetherNet.Node`) has landed; the host, client SDK and platform binding are proposed
+**Status:** Draft — the bind contract (`AetherNetNodeService`) has landed; the host, client SDK and platform binding are proposed
 **License:** MIT
 **Owner:** The Other Bhengu (Pty) Ltd t/a The Geek Network
 
@@ -157,7 +157,7 @@ again") rather than serving a key. A *distinct duress code* triggers the panic
 wipe (§8) instead of unlocking.
 
 ```csharp
-// The platform-neutral surface a bound consumer sees (src/AetherNet.Node/).
+// The platform-neutral surface a bound consumer sees (src/AetherNetNodeService/).
 // A subset of INodeIdentity + a messaging/presence slice: no key access, no
 // key-derivation, no recovery. Task (not ValueTask) and a callback interface
 // (not a C# event) so every member proxies across a process boundary.
@@ -253,7 +253,7 @@ Honest state today (2026-09-18).
   consumer *and* the runtime fused into one app, which is exactly what this
   design unfuses.
 
-**Landed** (`AetherNet.Node` — contract only, `net9.0;net10.0`):
+**Landed** (`AetherNetNodeService` — contract only, `net9.0;net10.0`):
 
 - the cross-process **bind contract** — `IAetherNodeClient` / `IAetherNodeEvents`,
   the DTOs (`NodeLinkStatus`, `InboundMessage`, `OutboundResult`), the per-app

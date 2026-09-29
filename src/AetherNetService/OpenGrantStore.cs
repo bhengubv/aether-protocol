@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 #if ANDROID
-using AetherNet.Node;
-using AetherNet.Node.Host;
+using AetherNetNodeService;
+using AetherNetNodeService.Host;
 
 namespace AetherNetService;
 

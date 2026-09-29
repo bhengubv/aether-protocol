@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-using AetherNet.Node;
-using AetherNet.Node.Host;
+using AetherNetNodeService;
+using AetherNetNodeService.Host;
 
 namespace AetherNet.Sample.Shared.Services;
 
@@ -28,11 +28,11 @@ public sealed class SampleNodeLinkSource : INodeLinkSource
         {
             var carrying = _radio.LinkRadio;
             // Fully qualified: the sample has its own RadioStatus in this namespace; this is the node's.
-            var radios = new List<AetherNet.Node.RadioStatus>();
+            var radios = new List<AetherNetNodeService.RadioStatus>();
             foreach (var r in _radio.Radios)
             {
                 var linked = _radio.IsLinked && string.Equals(r.Name, carrying, StringComparison.Ordinal);
-                radios.Add(new AetherNet.Node.RadioStatus(r.Name, r.Available, linked, linked ? _radio.LinkBandwidthBps : 0));
+                radios.Add(new AetherNetNodeService.RadioStatus(r.Name, r.Available, linked, linked ? _radio.LinkBandwidthBps : 0));
             }
             return new NodeLinkStatus(_radio.IsLinked, _radio.IsLinked ? carrying : null, radios);
         }
