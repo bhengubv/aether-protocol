@@ -22,16 +22,21 @@ namespace AetherNetNodeService.Android;
 /// <para>
 /// The node app wires the host once, at startup, via <see cref="Configure"/> — before any consumer can bind.
 /// </para>
+///
+/// <para>
+/// Abstract, and declared by nobody here. Only the app that hosts the service declares it — a one-line subclass
+/// carrying <c>[Service(Exported = true, Name = ServiceName)]</c> and <c>[IntentFilter([BindAction])]</c>. It used
+/// to carry those attributes itself, and since both apps use this library, Aether declared an exported service
+/// too: one that nobody had set up, so a bind to it would have crashed Aether.
+/// </para>
 /// </summary>
-[Service(Exported = true, Name = ServiceName)]
-[IntentFilter([BindAction])]
-public sealed class AetherNodeAndroidService : Service
+public abstract class AetherNodeAndroidService : Service
 {
     /// <summary>The service's stable class name, so consumers can address it explicitly.</summary>
-    public const string ServiceName = "com.bhengubv.aether.node.NodeService";
+    public const string ServiceName = "com.bhengubv.aethernet.service";
 
     /// <summary>The intent action a consumer binds with.</summary>
-    public const string BindAction = "com.bhengubv.aether.node.BIND";
+    public const string BindAction = "com.bhengubv.aethernet.service.BIND";
 
     private static Func<IAetherNodeClient>? _hostResolver;
     private static IGrantStore? _grants;
