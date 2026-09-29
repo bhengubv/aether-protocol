@@ -166,7 +166,9 @@ public sealed class MainApplication : Application
             provider.GetRequiredService<INodeIdentity>(),
             provider.GetRequiredService<INodeMessaging>(),
             provider.GetRequiredService<INodeLinkSource>(),
-            provider.GetRequiredService<INodeMeeting>());
+            provider.GetRequiredService<INodeMeeting>(),
+            // The 24 words come from the same store the identity lives in, so they are this identity's.
+            new NodeIdentityRecovery(provider.GetRequiredService<INodeIdentityStore>()));
         AetherNodeAndroidService.Configure(() => Node, new OpenGrantStore());
 
         // The one inbound pump for the messaging plane: raw radio bytes → the library dispatcher → the

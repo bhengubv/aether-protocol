@@ -23,14 +23,21 @@ public sealed class AetherNodeService : IAetherNodeClient
     private readonly INodeMessaging _messaging;
     private readonly INodeLinkSource _link;
     private readonly INodeMeeting? _meeting;
+    private readonly INodeIdentityRecovery? _recovery;
 
     /// <param name="meeting">How the radios are told whom to reach; null on a host with no radios.</param>
-    public AetherNodeService(INodeIdentity identity, INodeMessaging messaging, INodeLinkSource link, INodeMeeting? meeting = null)
+    /// <param name="recovery">
+    /// Where the recovery phrase comes from — the same store as <paramref name="identity"/>. Null on a host that
+    /// does not hand it out, which then answers every request for it with a refusal.
+    /// </param>
+    public AetherNodeService(INodeIdentity identity, INodeMessaging messaging, INodeLinkSource link, INodeMeeting? meeting = null,
+        INodeIdentityRecovery? recovery = null)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
         _messaging = messaging ?? throw new ArgumentNullException(nameof(messaging));
         _link = link ?? throw new ArgumentNullException(nameof(link));
         _meeting = meeting;
+        _recovery = recovery;
     }
 
     /// <inheritdoc />
@@ -95,6 +102,27 @@ public sealed class AetherNodeService : IAetherNodeClient
     /// <inheritdoc />
     public Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(_link.Current);
+
+    /// <inheritdoc />
+    public async Task<string> GetRecoveryPhraseAsync(CancellationToken cancellationToken = default)
+    {
+        if (_recovery is null)
+            throw new AetherNodeException(AetherNodeErrorCode.Internal, "this service does not hand out the recovery phrase");
+
+        try
+        {
+            return await _recovery.ExportRecoveryPhraseAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (NodeIdentityUnavailableException ex)
+        {
+            throw Locked(ex);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Nothing minted yet — said as "absent", which is the one case it truly is.
+            throw new AetherNodeException(AetherNodeErrorCode.IdentityAbsent, ex.Message, ex);
+        }
+    }
 
     /// <inheritdoc />
     public IDisposable Subscribe(IAetherNodeEvents listener)

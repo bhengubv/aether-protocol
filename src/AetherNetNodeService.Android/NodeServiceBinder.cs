@@ -37,7 +37,8 @@ internal sealed class NodeServiceBinder : Binder
     {
         var op = (NodeOp)code;
         if (op is not (NodeOp.GetTag or NodeOp.GetPublicKey or NodeOp.Sign or NodeOp.Send
-            or NodeOp.GetInbox or NodeOp.GetLink or NodeOp.Subscribe or NodeOp.Unsubscribe or NodeOp.Meet))
+            or NodeOp.GetInbox or NodeOp.GetLink or NodeOp.Subscribe or NodeOp.Unsubscribe or NodeOp.Meet
+            or NodeOp.GetRecoveryPhrase))
         {
             return base.OnTransact(code, data, reply, flags);
         }
@@ -103,6 +104,12 @@ internal sealed class NodeServiceBinder : Binder
 
             case NodeOp.GetLink:
                 WriteOk(reply, NodeWire.EncodeLink(Block(_host.GetLinkAsync())));
+                break;
+
+            // Handed to whichever app asks: the service keeps no gate of its own, the phone's lock is the
+            // gate, and the asking app confirms the owner with the phone before it asks.
+            case NodeOp.GetRecoveryPhrase:
+                WriteOk(reply, NodeWire.EncodePhrase(Block(_host.GetRecoveryPhraseAsync())));
                 break;
 
             case NodeOp.Subscribe:

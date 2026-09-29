@@ -81,6 +81,9 @@ internal sealed class BinderNodeClient : IAetherNodeClient, IDisposable
     public Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default)
         => Call(NodeOp.GetLink, null, NodeWire.DecodeLink, cancellationToken);
 
+    public Task<string> GetRecoveryPhraseAsync(CancellationToken cancellationToken = default)
+        => Call(NodeOp.GetRecoveryPhrase, null, NodeWire.DecodePhrase, cancellationToken);
+
     public IDisposable Subscribe(IAetherNodeEvents listener)
     {
         ArgumentNullException.ThrowIfNull(listener);

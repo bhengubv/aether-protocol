@@ -195,4 +195,45 @@ public class AetherNodeServiceTests
 
         await svc.MeetAsync(new[] { new NodeContact(ParseTag("9BWNJ-QPXG8"), null, false) });
     }
+
+    /// <summary>The recovery the service hands the phrase out of — one answer, or one way of failing.</summary>
+    private sealed class FakeRecovery : INodeIdentityRecovery
+    {
+        public Exception? Fails;
+
+        public ValueTask<string> ExportRecoveryPhraseAsync(CancellationToken cancellationToken = default)
+            => Fails is { } ex ? ValueTask.FromException<string>(ex) : ValueTask.FromResult("twenty four words");
+
+        public ValueTask<AetherNetTag> AdoptSeedAsync(byte[] seed, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public ValueTask<AetherNetTag> RestoreFromPhraseAsync(string recoveryPhrase, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private static AetherNodeService WithRecovery(FakeRecovery recovery)
+        => new(new FakeIdentity(), new FakeMessaging(), new FakeLink(), null, recovery);
+
+    [Fact]
+    public async Task The_recovery_phrase_comes_from_the_same_identity()
+    {
+        Assert.Equal("twenty four words", await WithRecovery(new FakeRecovery()).GetRecoveryPhraseAsync());
+    }
+
+    [Fact]
+    public async Task A_locked_identity_is_unavailable_and_a_missing_one_is_absent()
+    {
+        var locked = await Assert.ThrowsAsync<AetherNodeException>(() =>
+            WithRecovery(new FakeRecovery { Fails = new NodeIdentityUnavailableException("locked") }).GetRecoveryPhraseAsync());
+        var missing = await Assert.ThrowsAsync<AetherNodeException>(() =>
+            WithRecovery(new FakeRecovery { Fails = new InvalidOperationException("none") }).GetRecoveryPhraseAsync());
+
+        Assert.Equal(AetherNodeErrorCode.NodeUnavailable, locked.Code);
+        Assert.Equal(AetherNodeErrorCode.IdentityAbsent, missing.Code);
+    }
+
+    [Fact]
+    public async Task A_host_with_no_recovery_refuses_rather_than_guessing()
+    {
+        var svc = NewService(out _, out _, out _);
+
+        await Assert.ThrowsAsync<AetherNodeException>(() => svc.GetRecoveryPhraseAsync());
+    }
 }

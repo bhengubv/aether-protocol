@@ -91,6 +91,9 @@ public class MainActivity : MauiAppCompatActivity
 
         if (requestCode == Platforms.Android.WebViewFilePicker.RequestCode)
             Platforms.Android.WebViewFilePicker.Answer(resultCode, data);
+
+        // The owner check before showing the recovery words, on Android 7–9 (later versions answer by callback).
+        AetherNetNodeService.Android.AndroidOwnerCheck.OnActivityResult(requestCode, resultCode);
     }
 
     /// <summary>

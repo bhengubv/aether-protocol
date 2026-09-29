@@ -41,6 +41,9 @@ public enum NodeOp
     /// <summary>Request: the contacts this app wants kept reachable (replaces its set).</summary>
     Meet = 9,
 
+    /// <summary>Request: this device's 24-word recovery phrase, for a person to write down.</summary>
+    GetRecoveryPhrase = 10,
+
     /// <summary>Push: a message arrived.</summary>
     EventInbound = 100,
 
@@ -109,6 +112,14 @@ public static class NodeWire
 
         return AetherNetTag.TryParse(Encoding.UTF8.GetString(bytes), out var tag) ? tag : default;
     }
+
+    // ── Recovery phrase ─────────────────────────────────────────────────────────
+    // The 24 words, space-separated, UTF-8.
+
+    public static byte[] EncodePhrase(string phrase) => Encoding.UTF8.GetBytes(phrase ?? string.Empty);
+
+    public static string DecodePhrase(byte[]? bytes) =>
+        bytes is { Length: > 0 } ? Encoding.UTF8.GetString(bytes) : string.Empty;
 
     // ── Send argument (tag + payload + the app's message id) ─────────────────────
     // An argument without an id (an older client) decodes to Guid.Empty; the node then assigns one.

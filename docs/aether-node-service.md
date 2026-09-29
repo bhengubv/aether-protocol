@@ -13,8 +13,9 @@ Think of how DirectX, Android System WebView, or **OpenKeychain** ship — a
 component installed once that many apps depend on and call into. AetherNet ships
 the same way: one APK *is* the node; every messenger, market app, or tool on the
 device is a thin client that asks the node to sign, address, and send on its
-behalf. The private key is minted once, lives in one place, and never crosses
-into any consumer app.
+behalf. The private key is minted once and lives in one place. The one form in
+which it crosses into an app is the 24-word recovery phrase, and only for a person
+to write it down: the app asks for it after the phone has confirmed its owner (§5).
 
 ---
 
@@ -139,18 +140,26 @@ across a process boundary. What crosses and what does not is the whole point.
 **Held inside the service** — never crosses the boundary:
 
 - The 32-byte Ed25519 private key and its secret store.
-- Recovery / portability (`INodeIdentityRecovery`): export-phrase, restore,
-  adopt-seed — these touch key material and stay behind the user-auth wall,
-  performed *in the node app*, never by a consumer.
+- Restore and adopt-seed (`INodeIdentityRecovery`). Restoring from an app is not
+  built yet: the service mints on first start, and adopting over a live identity
+  is refused by design, so restore needs its own path.
 - Radio selection and transport negotiation.
+
+**The one exception — the recovery phrase.** AetherNetService has no screen, so
+it cannot show the 24 words itself. An app asks for them
+(`GetRecoveryPhraseAsync`), only after the phone's own fingerprint, PIN or pattern
+screen has confirmed its owner (`IOwnerCheck`; on Android `AndroidOwnerCheck`),
+shows them, and keeps nothing. A phone with no screen lock is refused.
 
 **Per-app authorization.** The service records which apps hold a grant; a grant
 is revocable; a revoked app falls back to *awaiting-grant*. Signing on behalf of
 an app is attributable to that app.
 
-**The user unlocks the node.** The private key is reachable only after the user
-clears a local-auth gate — **biometric, pattern, or code** — so linking an app,
-and every privileged operation (sign, export, adopt), happens *behind that gate*.
+**The phone's lock is the gate.** Security is upstream: AetherNetService keeps no
+gate and no screen of its own — no access to the phone, no access to the service.
+The phone's own **biometric, pattern, or code** is what stands in front of it, and
+for the one operation that hands out key material (the recovery phrase) the asking
+app puts that same check in front of the person first.
 The code already models the locked state: `INodeIdentityRecovery` throws
 `NodeIdentityUnavailableException` ("this phone is locked — unlock and try
 again") rather than serving a key. A *distinct duress code* triggers the panic
@@ -159,8 +168,9 @@ wipe (§8) instead of unlocking.
 ```csharp
 // The platform-neutral surface a bound consumer sees (src/AetherNetNodeService/).
 // A subset of INodeIdentity + a messaging/presence slice: no key access, no
-// key-derivation, no recovery. Task (not ValueTask) and a callback interface
-// (not a C# event) so every member proxies across a process boundary.
+// key-derivation; the recovery phrase only on request, after the phone confirms
+// its owner. Task (not ValueTask) and a callback interface (not a C# event) so
+// every member proxies across a process boundary.
 public interface IAetherNodeClient
 {
     Task<AetherNetTag> GetTagAsync(CancellationToken ct = default);
@@ -171,6 +181,7 @@ public interface IAetherNodeClient
     Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit = 50, CancellationToken ct = default);
 
     Task<NodeLinkStatus> GetLinkAsync(CancellationToken ct = default);   // linked?, radio, radios-up
+    Task<string> GetRecoveryPhraseAsync(CancellationToken ct = default); // the 24 words — owner confirmed first
     IDisposable Subscribe(IAetherNodeEvents listener);                   // inbound + link + grant changes
 }
 ```
@@ -183,9 +194,10 @@ public interface IAetherNodeClient
   there is one key and one minter. `aether://<tag>` names the *device*, not an app.
 - **Mint once.** The service mints on first run (or adopts a restored / handed-off
   seed); consumers never mint.
-- **Recovery in a single place.** Back-up phrase, restore, and silent
-  same-signature hand-off all happen in the node app over the one store — so a
-  restored device reproduces the exact tag every app already knew.
+- **Recovery in a single place.** The back-up phrase comes out of the one store in
+  the service (shown by the app that asked); restore and silent same-signature
+  hand-off stay in the service — so a restored device reproduces the exact tag
+  every app already knew.
 
 ---
 
@@ -222,13 +234,15 @@ of one fused app.
 
 ## 8. Security & privacy
 
-- The private key never crosses the bind boundary; a compromised consumer app
-  cannot exfiltrate the identity — only ask it to sign, within that app's grant.
+- The private key never crosses the bind boundary as a key. It does cross as the
+  24-word recovery phrase, to an app that asks. The service cannot see whether that
+  app confirmed the owner first — it has no screen to check with — so the
+  protection is the phone itself: only an app installed on the phone, on an
+  unlocked phone, can ask. That is the trade for a service with no UI.
 - Every app's access is an explicit, revocable user grant; installing the node is
   a user action.
-- The key lives behind a local-auth wall — biometric, pattern, or code. Nothing
-  signs, links, or exports until the user clears it; a separate duress code wipes
-  instead of unlocking.
+- The phone's lock is the wall — biometric, pattern, or code. A separate duress
+  code wipes instead of unlocking.
 - A duress / panic wipe centralizes too: erasing the one node's key and store
   revokes every app at once, because they only ever borrowed it.
 - A request arriving from a consumer is *data*: the service applies its own auth,

@@ -158,6 +158,18 @@ public class NodeWireTests
     }
 
     [Fact]
+    public void The_recovery_phrase_crosses_as_its_words()
+    {
+        const string words = "abandon ability able about above absent absorb abstract absurd abuse access accident";
+
+        Assert.Equal(words, NodeWire.DecodePhrase(NodeWire.EncodePhrase(words)));
+        Assert.Equal(string.Empty, NodeWire.DecodePhrase([]));
+
+        // The number is what crosses the binder, so an installed service and app must agree on it.
+        Assert.Equal(10, (int)NodeOp.GetRecoveryPhrase);
+    }
+
+    [Fact]
     public void Offline_link_round_trips()
     {
         var back = NodeWire.DecodeLink(NodeWire.EncodeLink(NodeLinkStatus.Offline));

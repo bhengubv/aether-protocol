@@ -59,8 +59,14 @@ public static class MauiProgram
                     global::Android.App.Application.Context, AetherNetServicePackage)));
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
             new AetherNetNodeService.Client.NodeClientIdentity(sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>()));
-        // The recovery phrase never leaves the service, so backup is not something this app can do.
-        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery, AetherNetNodeService.Client.NodeClientRecovery>();
+        // Backup: the phone confirms its owner (its own fingerprint, PIN or pattern screen), then this app asks
+        // the service for the 24 words and shows them. Restore is not available from here yet.
+        builder.Services.AddSingleton<AetherNetNodeService.Client.IOwnerCheck>(_ =>
+            new AetherNetNodeService.Android.AndroidOwnerCheck(() => Microsoft.Maui.ApplicationModel.Platform.CurrentActivity));
+        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
+            new AetherNetNodeService.Client.NodeClientRecovery(
+                sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>(),
+                sp.GetRequiredService<AetherNetNodeService.Client.IOwnerCheck>()));
 #else
         // No AetherNetService to connect to on this head, so the node runs in-process. This app does not
         // mint an identity — it asks, and the node mints only if this device has never had one.

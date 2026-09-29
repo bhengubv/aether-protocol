@@ -53,6 +53,8 @@
          (docs/aether-node-service.md), the same contract a separate app would bind to. -->
     <ProjectReference Include="../../../src/AetherNetNodeService/AetherNetNodeService.csproj" />
     <ProjectReference Include="../../../src/AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
+    <!-- The backup screen tells a declined owner check apart from a failure (OwnerNotConfirmedException). -->
+    <ProjectReference Include="../../../src/AetherNetNodeService.Client/AetherNetNodeService.Client.csproj" />
     <ProjectReference Include="../../../src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
     <!-- Persistent store-and-forward: the file-backed key/value store that holds delay-tolerant bundles
          on disk, so a message left for an absent friend survives an app restart. -->

@@ -11,7 +11,8 @@
 @* The one thing the app could not do before: let a person carry their identity off this phone. The tag
    is a function of one Ed25519 key; these 24 words ARE that key, in BIP-39 form, so writing them down is
    the difference between a lost phone and a lost identity. Nothing leaves the device — the phrase is
-   derived from the key already here (INodeIdentityRecovery), shown on demand, never sent. *@
+   derived from the key already here (INodeIdentityRecovery), shown on demand, never sent. Where the key
+   lives in AetherNetService, the phone confirms its owner first and the words are asked of the service. *@
 
 <PageTitle>Aether — back up your identity</PageTitle>
 
@@ -57,19 +58,35 @@
             var phrase = await Recovery.ExportRecoveryPhraseAsync();
             _phrase = phrase.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         }
+        catch (AetherNetNodeService.Client.OwnerNotConfirmedException ex)
+        {
+            // The phone's own fingerprint / PIN / pattern screen said no, so nothing was asked for or shown.
+            _error = ex.Outcome == AetherNetNodeService.Client.OwnerCheck.NoScreenLock
+                ? "Set a screen lock first — a PIN, pattern or fingerprint. The words are only shown to the phone's owner."
+                : "Not shown — confirm it's you to see them.";
+        }
         catch (NodeIdentityUnavailableException)
         {
             _error = "This phone is locked — unlock it and try again.";
         }
+        catch (AetherNetNodeService.AetherNodeException)
+        {
+            _error = "Can't reach AetherNetService right now — try again in a moment.";
+        }
         catch (NotSupportedException)
         {
-            // The identity is there — it is AetherNetService's to keep, not this app's. This used to fall
-            // through to "no identity to back up yet", on a phone that plainly had one.
+            // A host whose identity lives somewhere that does not hand the words out.
             _error = "Your identity is kept by AetherNetService, and backing it up from here isn't available yet.";
         }
         catch (InvalidOperationException)
         {
             _error = "This device has no identity to back up yet.";
+        }
+        catch (Exception)
+        {
+            // Anything else — the phone's check itself failing — is a message here, never the whole app
+            // going to "Something went wrong", which is what a missing permission did the first time.
+            _error = "Couldn't check it's you just now — try again.";
         }
         finally { _busy = false; }
     }

@@ -58,6 +58,9 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     public async Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default)
         => await (await ClientAsync().ConfigureAwait(false)).GetLinkAsync(cancellationToken).ConfigureAwait(false);
 
+    public async Task<string> GetRecoveryPhraseAsync(CancellationToken cancellationToken = default)
+        => await (await ClientAsync().ConfigureAwait(false)).GetRecoveryPhraseAsync(cancellationToken).ConfigureAwait(false);
+
     public IDisposable Subscribe(IAetherNodeEvents listener)
     {
         ArgumentNullException.ThrowIfNull(listener);

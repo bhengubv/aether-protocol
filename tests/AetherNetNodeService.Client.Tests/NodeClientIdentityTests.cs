@@ -8,7 +8,8 @@ namespace AetherNetNodeService.Client.Tests;
 /// <summary>
 /// An app connected to AetherNetService sees the device's identity through the node, and nothing more: it
 /// asks for the tag rather than minting, has bytes signed without holding the key, is told "not now" (never
-/// "absent") when the node can't be reached, and is refused any derived key or recovery phrase.
+/// "absent") when the node can't be reached, is refused any derived key, and gets the recovery phrase only
+/// after the phone itself has confirmed its owner.
 /// </summary>
 public class NodeClientIdentityTests
 {
@@ -57,6 +58,28 @@ public class NodeClientIdentityTests
         public Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default) => Task.FromResult(NodeLinkStatus.Offline);
         public IDisposable Subscribe(IAetherNodeEvents listener) => new Noop();
         private sealed class Noop : IDisposable { public void Dispose() { } }
+
+        public const string Words = "abandon ability able about above absent absorb abstract absurd abuse access accident account accuse achieve acid acoustic acquire across act action actor actress actual";
+        public int PhraseAsked;
+        public AetherNodeErrorCode? PhraseFails;
+
+        public Task<string> GetRecoveryPhraseAsync(CancellationToken cancellationToken = default)
+        {
+            PhraseAsked++;
+            if (PhraseFails is { } code) throw new AetherNodeException(code, "no");
+            return Task.FromResult(Words);
+        }
+    }
+
+    private sealed class FakeOwner(OwnerCheck answer) : IOwnerCheck
+    {
+        public string? AskedFor;
+
+        public Task<OwnerCheck> ConfirmAsync(string reason, CancellationToken cancellationToken = default)
+        {
+            AskedFor = reason;
+            return Task.FromResult(answer);
+        }
     }
 
     [Fact]
@@ -99,14 +122,49 @@ public class NodeClientIdentityTests
     }
 
     [Fact]
-    public async Task Backup_and_restore_say_plainly_they_are_not_here()
+    public async Task Backup_asks_the_phone_first_and_then_the_service()
     {
-        var recovery = new NodeClientRecovery();
+        var service = new FakeNode();
+        var owner = new FakeOwner(OwnerCheck.Confirmed);
+        var recovery = new NodeClientRecovery(service, owner);
 
-        // Not InvalidOperationException: that is the contract's "no identity yet", and this device has one.
-        var export = await Assert.ThrowsAsync<NotSupportedException>(async () => await recovery.ExportRecoveryPhraseAsync());
-        Assert.Equal(NodeClientRecovery.NotHere, export.Message);
-        await Assert.ThrowsAsync<NotSupportedException>(async () => await recovery.RestoreFromPhraseAsync("any phrase"));
+        Assert.Equal(FakeNode.Words, await recovery.ExportRecoveryPhraseAsync());
+        Assert.Equal(NodeClientRecovery.Reason, owner.AskedFor);
+        Assert.Equal(1, service.PhraseAsked);
+    }
+
+    [Theory]
+    [InlineData(OwnerCheck.NotConfirmed)]
+    [InlineData(OwnerCheck.NoScreenLock)]
+    public async Task Without_the_owner_confirmed_the_service_is_asked_nothing(OwnerCheck answer)
+    {
+        var service = new FakeNode();
+        var recovery = new NodeClientRecovery(service, new FakeOwner(answer));
+
+        var refused = await Assert.ThrowsAsync<OwnerNotConfirmedException>(async () => await recovery.ExportRecoveryPhraseAsync());
+
+        Assert.Equal(answer, refused.Outcome);
+        Assert.Equal(0, service.PhraseAsked);
+    }
+
+    [Fact]
+    public async Task A_locked_service_is_not_now_and_a_missing_identity_is_absent()
+    {
+        var locked = new NodeClientRecovery(new FakeNode { PhraseFails = AetherNodeErrorCode.NodeUnavailable }, new FakeOwner(OwnerCheck.Confirmed));
+        var empty = new NodeClientRecovery(new FakeNode { PhraseFails = AetherNodeErrorCode.IdentityAbsent }, new FakeOwner(OwnerCheck.Confirmed));
+
+        await Assert.ThrowsAsync<NodeIdentityUnavailableException>(async () => await locked.ExportRecoveryPhraseAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await empty.ExportRecoveryPhraseAsync());
+    }
+
+    [Fact]
+    public async Task Restore_says_plainly_it_is_not_here_yet()
+    {
+        var recovery = new NodeClientRecovery(new FakeNode(), new FakeOwner(OwnerCheck.Confirmed));
+
+        // Not InvalidOperationException: that is the contract's "no identity yet".
+        var restore = await Assert.ThrowsAsync<NotSupportedException>(async () => await recovery.RestoreFromPhraseAsync("any phrase"));
+        Assert.Equal(NodeClientRecovery.RestoreNotHere, restore.Message);
         await Assert.ThrowsAsync<NotSupportedException>(async () => await recovery.AdoptSeedAsync(new byte[32]));
     }
 }

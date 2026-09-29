@@ -10,9 +10,11 @@ namespace AetherNetNodeService;
 /// <para>
 /// This is the cross-process face of <see cref="INodeIdentity"/> plus a messaging and presence slice —
 /// a <b>subset</b>, deliberately. A bound app can ask the node to sign, to address and send, to read its
-/// inbox, and to report whether it is linked. It cannot obtain the private key, a derived key, or the
-/// recovery phrase: those never cross the boundary, so a compromised consumer can ask the node to act,
-/// never to hand over the identity. Every member is <see cref="Task"/>-based and callbacks arrive through
+/// inbox, and to report whether it is linked. It cannot obtain the private key or a derived key. The one
+/// thing that does cross is the recovery phrase, and only through <see cref="GetRecoveryPhraseAsync"/>: a
+/// person has to be able to write it down, and AetherNetService has no screen to show it on. Security is
+/// upstream — the phone's own lock — so the app asking confirms the owner with the phone before it asks.
+/// Every member is <see cref="Task"/>-based and callbacks arrive through
 /// <see cref="IAetherNodeEvents"/> rather than C# events, because delegates and <c>ValueTask</c> do not
 /// survive a process boundary — the same interface serves an in-process host and a remote AIDL binding.
 /// </para>
@@ -57,6 +59,22 @@ public interface IAetherNodeClient
 
     /// <summary>Whether the node is reaching anyone right now, and over which radios. A report, not a picker.</summary>
     Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// This device's identity as its 24-word recovery phrase, for a person to write down — the only way back
+    /// to the same AetherTag on a new phone.
+    /// </summary>
+    /// <remarks>
+    /// The one request that hands out key material. AetherNetService keeps no gate of its own; access is
+    /// gated upstream, by the phone. So the app asking must have the phone confirm its owner first — the
+    /// phone's own fingerprint, PIN or pattern — and must show the words and keep nothing.
+    /// </remarks>
+    /// <exception cref="AetherNodeException">
+    /// <see cref="AetherNodeErrorCode.NodeUnavailable"/> when the identity is there but locked;
+    /// <see cref="AetherNodeErrorCode.IdentityAbsent"/> when this device has none yet.
+    /// </exception>
+    Task<string> GetRecoveryPhraseAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This service does not hand out the recovery phrase.");
 
     /// <summary>
     /// Subscribe to inbound messages, link changes, and grant changes. Dispose the returned handle to stop.

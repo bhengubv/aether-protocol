@@ -28,6 +28,10 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- The phone's own fingerprint sheet before the recovery words are shown (AndroidOwnerCheck). Granted at
+         install, nothing to ask; without it Android refuses the sheet. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
     <!-- Wi-Fi Direct radio. NEARBY_WIFI_DEVICES (Android 13+) declares neverForLocation so we
          don't ask for location on modern phones; ACCESS_FINE_LOCATION is only needed for P2P
          discovery on Android 12 and older, hence maxSdkVersion. -->
