@@ -126,14 +126,15 @@ internal sealed class TransportRadio : IRadio, IDisposable
     {
         if (string.IsNullOrEmpty(peer)) return;
 
-        var first = _peer is null;
+        // Every connection the transport announces is a link — the first peer, a second one, or the same
+        // one back after the socket dropped — and the mesh is told each time. It used to be told only
+        // about the FIRST peer this radio ever saw: after that, a peer coming back was never announced,
+        // so a message held for them waited forever (P30 and Pixel on the same Wi-Fi, 2026-09-30: linked
+        // every minute, nothing ever sent).
         _peer = peer;
         _tracked = true;
-        if (first)
-        {
-            Status?.Invoke($"linked with {peer}");
-            PeerLinked?.Invoke(peer);
-        }
+        Status?.Invoke($"linked with {peer}");
+        PeerLinked?.Invoke(peer);
     }
 
     public void Link()
