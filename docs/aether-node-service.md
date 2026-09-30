@@ -1,6 +1,6 @@
 # The Aether Node Service
 
-**Status:** Draft — the bind contract (`AetherNetNodeService`) has landed; the host, client SDK and platform binding are proposed
+**Status:** Built — the contract, host, client SDK and Android binding exist, and AetherNetService runs on two phones with Aether as its thin client (§9 for what is verified and what is open)
 **License:** MIT
 **Owner:** The Other Bhengu (Pty) Ltd t/a The Geek Network
 
@@ -135,7 +135,13 @@ across a process boundary. What crosses and what does not is the whole point.
 - **Presence / connectivity** (read-only): is the node linked, over which radio,
   how many radios are up — a `NodeLinkStatus` synthesized from the SDK's
   `IMeshLink` / `MeshWebService` / `RadioChoice`. (There is no single `IRadioMesh`
-  in the SDK; that name is a sample-app type.) A report, not a picker.
+  in the SDK; that name is a sample-app type.) A report, not a picker. Each radio
+  says why it cannot be used, in plain words (`Reason`), whether the person can fix
+  that (`Fixable`), and whether what is missing is the permission the phone keeps
+  for the service (`NeedsPermission`) — see §7 for where that is granted.
+- **Whom to meet**: the app hands over its contacts (`MeetAsync`). The service keeps
+  no address book of its own; the people are the app's, and the radios only need to
+  know whom to keep reachable.
 
 **Held inside the service** — never crosses the boundary:
 
@@ -151,9 +157,10 @@ it cannot show the 24 words itself. An app asks for them
 screen has confirmed its owner (`IOwnerCheck`; on Android `AndroidOwnerCheck`),
 shows them, and keeps nothing. A phone with no screen lock is refused.
 
-**Per-app authorization.** The service records which apps hold a grant; a grant
-is revocable; a revoked app falls back to *awaiting-grant*. Signing on behalf of
-an app is attributable to that app.
+**Per-app authorization.** The contract carries a per-app grant model
+(`GrantState` / `AppGrant` / `IGrantStore`), but AetherNetService admits every app
+that binds to it (`OpenGrantStore`): it is a network cable with no gate of its own,
+and no screen to approve on. The phone's lock is the gate (below).
 
 **The phone's lock is the gate.** Security is upstream: AetherNetService keeps no
 gate and no screen of its own — no access to the phone, no access to the service.
@@ -177,14 +184,33 @@ public interface IAetherNodeClient
     Task<byte[]> GetPublicKeyAsync(CancellationToken ct = default);
     Task<byte[]> SignAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default);
 
-    Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, CancellationToken ct = default);
+    Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId, CancellationToken ct = default);
     Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit = 50, CancellationToken ct = default);
+    Task MeetAsync(IReadOnlyList<NodeContact> contacts, CancellationToken ct = default);   // whom to keep reachable
 
-    Task<NodeLinkStatus> GetLinkAsync(CancellationToken ct = default);   // linked?, radio, radios-up
+    Task<NodeLinkStatus> GetLinkAsync(CancellationToken ct = default);   // linked?, radio, each radio and why not
     Task<string> GetRecoveryPhraseAsync(CancellationToken ct = default); // the 24 words — owner confirmed first
-    IDisposable Subscribe(IAetherNodeEvents listener);                   // inbound + link + grant changes
+    IDisposable Subscribe(IAetherNodeEvents listener);                   // inbound + link + grant + delivered
 }
 ```
+
+**Staying connected.** The app does not have to notice the service going away. On
+Android, `BoundNodeClient` connects on first use and, when the service dies —
+killed for memory, crashed, or updated — connects again by itself:
+
+- a bind, and the first call on it, get 20 s; a binding Android declares dead
+  (`OnBindingDied`, sent when the service's app is replaced) or empty
+  (`OnNullBinding`) is dropped and tried again, instead of waited on forever;
+- while anything is listening it keeps trying, waiting 1 s, then 2, 4 … up to 30 s.
+  A service that dies soon after it is reached (within 30 s) is not restarted in a
+  tight loop — the wait keeps growing until a connection lasts;
+- every new connection takes every subscription with it and tells the new service
+  the contacts it was last given, so messages, delivery receipts and the radios'
+  meetings carry on;
+- while the service cannot be reached, calls fail as `NodeUnavailable` — never as
+  Android's `DeadObjectException`, and never as "absent", so an app is never tempted
+  to mint an identity of its own. Nothing a caller keeps (such as the device's tag)
+  may remember that failure: the next ask asks again.
 
 ---
 
@@ -203,9 +229,28 @@ public interface IAetherNodeClient
 
 ## 7. Platform mapping & scope boundary
 
-- **Android:** the Node Service is an installed app exposing a bound `Service`
-  (AIDL) or a `ContentProvider` as its bind surface; consumers bind with an
-  explicit intent and the user's per-app grant. Cross-app calls are Android IPC.
+- **Android:** the Node Service is **AetherNetService** — its own app,
+  `com.bhengubv.aethernetservice`, with no launcher and no screen. It exposes one
+  exported bound `Service`, `com.bhengubv.aethernet.service` (action
+  `com.bhengubv.aethernet.service.BIND`), declared only by AetherNetService; a
+  consumer declares none. Calls are Binder transactions carrying `NodeWire`
+  payloads (`AetherNetNodeService.Ipc`), not AIDL.
+  - A consumer targeting Android 11+ must declare the service in its manifest's
+    `<queries>` (`<package android:name="com.bhengubv.aethernetservice"/>` and the
+    `BIND` action), or Android hides it: the bind is refused as "BLOCKED" and the
+    consumer sees no service at all.
+  - The radios' runtime permission belongs to AetherNetService, and a service with
+    no screen can never show the phone's "Allow?" prompt; the phone keeps permissions
+    per app, so a consumer cannot grant it either. While a radio reports
+    `NeedsPermission`, the consumer offers the way to AetherNetService's own page in
+    the phone's settings (`IAetherNetServiceSettings`; on Android
+    `AndroidAetherNetServiceSettings`), where the person allows it once — "Nearby
+    devices" on Android 13+, "Nearby devices and Location" on 12, "Location" before.
+    Until then only the Wi-Fi the phone is already on carries traffic.
+  - A radio never touches its stack without that permission — it reports what it
+    needs and stays off. Leaving it to the stack to refuse was not safe: on Android 16
+    a Bluetooth GATT server opened without permission sometimes crashed the whole
+    service instead of throwing.
 - **Other platforms:** the same contract; the host mechanism differs (a desktop
   service over a named pipe; an iOS app-group + XPC where the sandbox permits).
   The contract is platform-neutral; the host is platform code.
@@ -239,8 +284,9 @@ of one fused app.
   app confirmed the owner first — it has no screen to check with — so the
   protection is the phone itself: only an app installed on the phone, on an
   unlocked phone, can ask. That is the trade for a service with no UI.
-- Every app's access is an explicit, revocable user grant; installing the node is
-  a user action.
+- Every app that can bind is admitted — there is no per-app approval step (§5).
+  What stands in front of the service is the phone itself: only an app installed on
+  it, on an unlocked phone, can reach it. Installing the node is a user action.
 - The phone's lock is the wall — biometric, pattern, or code. A separate duress
   code wipes instead of unlocking.
 - A duress / panic wipe centralizes too: erasing the one node's key and store
@@ -252,40 +298,59 @@ of one fused app.
 
 ## 9. Reference implementation status
 
-Honest state today (2026-09-18).
+Honest state today (2026-09-30).
 
-**Exists in-process** (the raw material this design rearranges):
+**Built** — the design is no longer a proposal; the runtime and the app are two
+installed processes:
 
-- `INodeIdentity` / `INodeIdentityStore` / `NodeIdentity` — the closed identity
-  surface and the mint-once-adopt-forever store.
-- `INodeIdentityRecovery` / `NodeIdentityRecovery` — export / restore / adopt-seed
-  portability.
-- `IMeshLink` / `MeshWebService` / `RadioChoice` (there is no SDK `IRadioMesh`),
-  `IMessagingService`, and the per-link transport negotiation — the mesh the
-  service would own.
-- The sample app hosts all of the above **in its own process** — today it is a
-  consumer *and* the runtime fused into one app, which is exactly what this
-  design unfuses.
+- `AetherNetNodeService` — the **bind contract** (`IAetherNodeClient` /
+  `IAetherNodeEvents`, the DTOs, the grant model, the typed error contract
+  preserving *unavailable ≠ absent*, the versioned handshake), pinned by
+  `tests/cross-language/node-fixtures.json`.
+- `AetherNetNodeService.Ipc` — `NodeWire`, the Binder payload codec. Fields added
+  later are optional, so an older service still decodes.
+- `AetherNetNodeService.Host` — `AetherNodeService`, the host over the real SDK
+  (identity, messaging, link, meeting, recovery), and `MeetingHost`, which picks the
+  contact the pair-by-pair radios point at: the lowest-sorting one who is actually
+  here.
+- `AetherNetNodeService.Android` — the bound service (`AetherNodeAndroidService`,
+  `NodeServiceBinder`), the consumer side (`BinderNodeClient`, `BoundNodeClient`,
+  `AndroidNodeConnector`), `AndroidOwnerCheck` and `AndroidAetherNetServiceSettings`.
+- `AetherNetNodeService.Client` — `NodeBinder` (detect → install → bind),
+  `NodeBackedMessaging`, `NodeClientIdentity`, `NodeClientRecovery`, `IOwnerCheck`,
+  `IAetherNetServiceSettings`.
+- `src/AetherNetService` — **AetherNetService**, the service app: no UI; it owns the
+  identity, the radios and the Signal sessions.
+- The sample app (**Aether**) is now a thin client of it.
 
-**Landed** (`AetherNetNodeService` — contract only, `net9.0;net10.0`):
+**Verified on two phones** (Huawei P30 lite, Android 10; a Pixel on Circle OS,
+Android 16), 2026-09-30:
 
-- the cross-process **bind contract** — `IAetherNodeClient` / `IAetherNodeEvents`,
-  the DTOs (`NodeLinkStatus`, `InboundMessage`, `OutboundResult`), the per-app
-  **grant** model (`GrantState` / `AppGrant`), the typed **error contract**
-  (`AetherNodeErrorCode`, preserving *unavailable ≠ absent*), and a **versioned
-  handshake** (`AetherNodeHello` / `Ack` + capability negotiation), pinned
-  byte-identical by `tests/cross-language/node-fixtures.json` (28 tests green).
+- chat through AetherNetService on each phone, both ways, over the Wi-Fi both are
+  on — received and confirmed delivered in about 3 s each way; 15 messages each way
+  at once, all 30 received once and confirmed delivered in 7 s;
+- an open Aether reconnects by itself when AetherNetService is updated underneath
+  it, and hands the new service its contacts — same Aether process before and after,
+  on both phones;
+- the Wi-Fi link stays up while something else on the network connects to the
+  meeting port and hangs up (an adb port scan, once a minute: 181 of 181 seconds up);
+- the phone's own fingerprint / PIN / pattern sheet comes up before the recovery
+  words, and cancelling it shows nothing (P30).
 
-**Proposed** (not yet built):
+**Built, not yet run on a phone:**
 
-- a reference **host** implementing `IAetherNodeClient` over the real SDK, in-process first;
-- the Android bound-`Service` (AIDL) **cross-process host** + client proxy;
-- the **client SDK** (detect / install / grant / bind) and the NFC-distribution wiring;
-- the per-app **grant store** persistence and the biometric / pattern / code gate;
-- the 8-language port of the contract + fixtures.
+- radios asking for their permission before touching their stacks (the fix for
+  AetherNetService dying on some cold starts on the Pixel);
+- Aether recovering when AetherNetService dies as it starts;
+- "Let AetherNet find phones nearby" in Aether's Settings (§7).
 
-The contract compiles and its tests pass; the host and client remain to be built
-against it.
+**Open:**
+
+- Bluetooth, Wi-Fi Direct and Wi-Fi Aware stay off until AetherNetService is given its
+  permission once (§7); until then two phones reach each other only on the same Wi-Fi.
+- Restoring from the 24 words through an app: the service mints on first start, and
+  adopting over a live identity is refused by design, so restore needs its own path.
+- The 8-language port of the contract and fixtures.
 
 ---
 

@@ -191,6 +191,14 @@ have real implementations (NFC/NearLink/LoRa: stubs upgraded to real on 2026-06-
 **RF bring-up: still open.** Needs at minimum 2 devices exchanging a live BLE
 or Wi-Fi Direct packet. Hardware lab task — out of scope for code-only sessions.
 
+**Two phones over Wi-Fi: done 2026-09-30.** A P30 (Android 10) and a Pixel on Circle
+OS (Android 16) exchanged live chat through AetherNetService over the Wi-Fi both were on
+(`WifiTransportService`) — received and confirmed delivered in about 3 s each way, and a
+15-each-way burst delivered 30 of 30 in 7 s (`scripts/e2e-chat.ps1`). BLE and Wi-Fi
+Direct stay off on both phones until AetherNetService is granted its permission once
+("Nearby devices", or "Location" on older Android) — see `docs/aether-node-service.md`
+§7 — so the live BLE / Wi-Fi Direct packet above is still to come.
+
 ### 12. NearLink (Aether Teal) — HarmonyOS ArkTS implementation
 
 **RESOLVED 2026-05-11.** `harmonyos/teal/` is a full HarmonyOS 5.0.1+ (API 13)

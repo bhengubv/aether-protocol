@@ -79,11 +79,60 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 - **Line-ending hygiene**: added `.editorconfig` + `.gitattributes` rules forcing LF on `.cs` and .NET
   project files (some sources carried malformed double-CR `\r\r\n` endings that inflate line counts and
   cause diff noise). Bulk renormalization of existing files is tracked separately.
+- **AetherNetService — Aether becomes a thin client.** The device's identity, its radios and the Signal
+  sessions live in **AetherNetService** (`src/AetherNetService`, package `com.bhengubv.aethernetservice`,
+  no UI). Aether binds to it over Binder (`BoundNodeClient` → `NodeServiceBinder`, payloads in
+  `NodeWire`) and keeps none of its own. Verified on a P30 and a Pixel (Circle OS): chat both ways over
+  Wi-Fi, received and confirmed delivered in about 3 s each way; 15 messages each way at once, all 30
+  delivered in 7 s. (`97cf0fc`, two-phone test `scripts/e2e-chat.ps1`)
+- **Recovery words through AetherNetService** — `GetRecoveryPhraseAsync`, asked only after the phone's own
+  fingerprint / PIN / pattern check (`IOwnerCheck`, `AndroidOwnerCheck`). Restore from an app is not built.
+  (`dd82c52`)
+- **Why a radio can't be used** — each `RadioStatus` carries `Reason` (plain words), `Fixable`, and
+  `NeedsPermission`; an older service that sends none of them still decodes. (`8f0d2e8`, `65f17ab`)
+- **"Let AetherNet find phones nearby"** — while AetherNet is switched on in Aether's Settings and a radio
+  waits on the permission, one line opens AetherNetService's page in the phone's settings
+  (`IAetherNetServiceSettings`, `AndroidAetherNetServiceSettings`): the service has no screen to ask from,
+  and the phone keeps permissions per app. (`65f17ab`)
+
+### Changed
+
+- **`AetherNet.Node*` is now `AetherNetNodeService*`** — folders, projects and namespaces. (`fff5c7f`)
+- **The bound service is `com.bhengubv.aethernet.service`**, declared only by AetherNetService; Aether
+  declares no service of its own. (`8bf83d3`)
+- **Which contact the radios meet** — `RadioMeeting` points Bluetooth and Wi-Fi Direct at the lowest-sorting
+  contact who is actually here (`MeetingHost.Choose`), and re-points them only when that changes, when that
+  contact is unreachable, or when a radio becomes usable. It used to re-point them every 30 s at whoever
+  sorted lowest, present or not. (`d59df4f`, `65f17ab`)
+
+### Fixed
+
+- **Aether could not see AetherNetService on Android 11+** — package visibility; Aether now declares it in
+  `<queries>`. (`ac18976`)
+- **A Wi-Fi link that came back was never announced** after the first peer, so held messages waited
+  forever. (`f34090e`)
+- **The Wi-Fi link dropped once a minute** — anything that connected to the meeting port and hung up (an
+  adb port scan on the dev PC) tore the meeting down with the working link in it; anyone on the same Wi-Fi
+  could. Callers that do not say who they are are now turned away and logged. Two sends at once could also
+  interleave their frames, and a frame the far side would refuse ended the link. (`d59df4f`)
+- **An open Aether could not reach AetherNetService after the service was updated** — a bind left
+  unanswered (`OnBindingDied` / `OnNullBinding` unhandled, no timeout) held every call; one failed retry
+  was the last; and a restarted service was never told whom to meet. Now: 20 s limits, retries backing off
+  to 30 s, subscriptions and contacts carried to every new connection. Verified on both phones. (`8d976c0`)
+- **AetherNetService crashed on some cold starts on Android 16** — a segmentation fault when Bluetooth
+  opened a GATT server with no permission. Every radio now checks its permission before touching its stack
+  (`RadioPermissions`). Not yet re-run on the phone. (`16e9544`)
+- **Aether never recovered from a service that died as it started** — the tag lookup cached its first
+  failure for good, dead-service calls surfaced as `DeadObjectException`, and a death notice arriving during
+  a retry was dropped. Not yet re-run on the phone. (`6e2255d`)
 
 ### Documentation
 
 - Brought `docs/PROTOCOL_SPEC.md` §2.5 (Packet Types) current — the table had stopped at `34`; added
   the already-shipped `35–43` and `50–57` types it was missing.
+- Brought `docs/aether-node-service.md` current: status, the contract (`MeetAsync`, why a radio can't be
+  used), staying connected, the Android mapping (component, `<queries>`, where the radios' permission is
+  granted), the open-admission grant stance, and an honest §9 of what is built, verified and open.
 
 ## [3.0.0] — 2026-07-18
 
