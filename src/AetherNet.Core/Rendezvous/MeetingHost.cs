@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-namespace AetherNetNodeService.Host;
+namespace AetherNet.Rendezvous;
 
 /// <summary>
 /// Which contact a phone points its pair-by-pair radios at — Bluetooth and Wi-Fi Direct, which meet one person at

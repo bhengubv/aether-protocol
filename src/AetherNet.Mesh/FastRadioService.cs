@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-using AetherNet.Identity;
 using AetherNet.Rendezvous;
-using AetherNet.Sample.Shared.Data;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Mesh;
 
 /// <summary>
 /// Brings the fast radio up, from the contact list alone.
@@ -25,20 +23,31 @@ namespace AetherNet.Sample.Shared.Services;
 /// either creates that group or joins it. It runs at start-up and whenever the contact list changes,
 /// which are the only two moments the answer can differ.
 /// </para>
+///
+/// <para>
+/// It runs wherever the Wi-Fi Direct radio is: in an app that runs its own radios, fed from that app's
+/// address book, and in AetherNetService, fed from the contacts a connected app hands over. It used to
+/// live in the app alone, so once the radios moved into AetherNetService nothing formed the group at all.
+/// </para>
 /// </summary>
 public sealed class FastRadioService : IDisposable
 {
-    private readonly AetherStore _store;
+    private readonly ICircleContacts _circle;
     private readonly IIdentityService _me;
     private readonly IWifiDirectGroup _group;
 
     /// <summary>Every radio on the phone, so a meeting reaches all of them and not just one.</summary>
     private readonly IRadioMesh? _mesh;
-    private readonly ContactService? _contacts;
+
+    /// <summary>Whether a contact is linked right now, on any radio — who is actually here.</summary>
+    private readonly Func<string, bool> _isHere;
     private readonly ILogger<FastRadioService> _log;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private string? _currentGroup;
+
+    /// <summary>The contact the group is formed with, kept while nobody is here — see <see cref="MeetingHost"/>.</summary>
+    private string? _hostTag;
     private bool _disposed;
     private int _keepingUp;
 
@@ -53,21 +62,26 @@ public sealed class FastRadioService : IDisposable
     /// </summary>
     private static readonly TimeSpan KeepUpEvery = TimeSpan.FromSeconds(8);
 
-    /// <param name="onIdle">
-    ///   Called when the radio is put away, so the host can release whatever it took to hold the link.
+    /// <param name="circle">Whom this phone has added.</param>
+    /// <param name="mesh">
+    ///   Every radio on the phone. When given, each pass also meets every contact on the shared Wi-Fi and points the
+    ///   other radios at the group's peer. AetherNetService leaves it out: its <c>RadioMeeting</c> does that already.
     /// </param>
-    public FastRadioService(AetherStore store, IIdentityService me, IWifiDirectGroup group,
-        ContactService? contacts = null, ILogger<FastRadioService>? logger = null,
-        Action? onIdle = null, IRadioMesh? mesh = null)
+    /// <param name="isReachable">
+    ///   Whether a contact is linked right now. Defaults to <paramref name="mesh"/>'s answer, and to nobody when there
+    ///   is no mesh.
+    /// </param>
+    public FastRadioService(ICircleContacts circle, IIdentityService me, IWifiDirectGroup group,
+        ILogger<FastRadioService>? logger = null, IRadioMesh? mesh = null, Func<string, bool>? isReachable = null)
     {
         _mesh = mesh;
-        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _circle = circle ?? throw new ArgumentNullException(nameof(circle));
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _group = group ?? throw new ArgumentNullException(nameof(group));
-        _contacts = contacts;
+        _isHere = isReachable ?? (mesh is not null ? mesh.IsReachable : static _ => false);
         _log = logger ?? NullLogger<FastRadioService>.Instance;
 
-        if (_contacts is not null) _contacts.Changed += OnContactsChanged;
+        _circle.Changed += OnContactsChanged;
 
         // A group that goes away has to come back, and the radio cannot decide that for itself — it
         // does not know who belongs in one. Waiting for somebody to open the app and tap something is
@@ -116,20 +130,30 @@ public sealed class FastRadioService : IDisposable
     }
 
     /// <summary>
-    /// Who hosts for this Circle: the lowest AetherTag among this phone and everybody it has added.
+    /// Who this phone forms the Circle's group with: the lowest-sorting contact who is actually here — see
+    /// <see cref="MeetingHost.Choose"/> — and whichever of the two sorts lower hosts it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Deliberately not pairwise. A phone can only be in one Wi-Fi Direct group at a time, so a
     /// per-pair answer would have a phone with two contacts trying to be in two groups. One host for
     /// the Circle means a third phone joining computes the same credentials the second one did, and
     /// they all end up in the same group.
+    /// </para>
+    /// <para>
+    /// It used to be the lowest-sorting contact whether or not they were anywhere near. On a P30 whose
+    /// contacts included an absent Redmi that sorted lowest, that meant a group for somebody not there,
+    /// while the Pixel beside it waited on a group nobody was forming (2026-09-30). The contacts actually
+    /// here come first now; with nobody here, the choice stays where it was.
+    /// </para>
     /// </remarks>
-    private ContactRecord? HostContact()
+    private CircleContact? HostContact()
     {
-        ContactRecord? lowest = null;
-        foreach (var contact in _store.GetContacts())
+        var contacts = _circle.Contacts;
+        var tags = new List<string>(contacts.Count);
+        foreach (var contact in contacts)
         {
-            // A key is all this needs, and demanding mutuality as well was circular. Becoming mutual
+            // A tag is all this needs, and demanding mutuality as well was circular. Becoming mutual
             // requires their add-request to arrive; their add-request travels over the radio; the
             // radio needs a group; the group needs a host chosen HERE. So two phones that had never
             // met sat forever, each one added by the other, each one refusing to form the group that
@@ -149,10 +173,16 @@ public sealed class FastRadioService : IDisposable
             // Measured on this pair: both added by typed tag, both showed "waiting for them", and
             // neither radio started a single P2P operation — the framework logs were empty, because
             // nothing had asked them for anything.
-            if (contact.Tag is not { Length: > 0 }) continue;
-            if (lowest is null || string.CompareOrdinal(contact.Tag, lowest.Tag) < 0) lowest = contact;
+            if (contact.Tag is { Length: > 0 }) tags.Add(contact.Tag);
         }
-        return lowest;
+
+        _hostTag = MeetingHost.Choose(tags, _isHere, _hostTag);
+        if (_hostTag is null) return null;
+
+        foreach (var contact in contacts)
+            if (string.Equals(contact.Tag, _hostTag, StringComparison.Ordinal)) return contact;
+
+        return null;
     }
 
     /// <summary>
@@ -309,7 +339,7 @@ public sealed class FastRadioService : IDisposable
             // — the transport leaves a rendezvous it is already keeping alone. Kept ahead of the "already
             // in the group" shortcut below, so it runs even once Wi-Fi Direct has settled.
             if (_mesh is not null)
-                foreach (var c in _store.GetContacts())
+                foreach (var c in _circle.Contacts)
                     if (c.Tag is { Length: > 0 } && Meeting.With(_me.AetherTag, c.Tag) is { } m)
                         _mesh.MeetPeer(m);
 
@@ -471,7 +501,7 @@ public sealed class FastRadioService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        if (_contacts is not null) _contacts.Changed -= OnContactsChanged;
+        _circle.Changed -= OnContactsChanged;
         _group.GroupLost -= OnGroupLost;
         _gate.Dispose();
     }

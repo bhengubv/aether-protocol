@@ -64,7 +64,7 @@ public class RoleFollowsTheRadioTests : IDisposable
         var me = new Someone(Lower);
         _store.UpsertContact(Higher, publicKey: null, byMe: true, byThem: false, via: "typed");
 
-        var fast = new FastRadioService(_store, me, radio);
+        var fast = new FastRadioService(new StoreCircleContacts(_store), me, radio);
 
         await fast.BringUpAsync();
         Assert.True(radio.HostAttempts > 0, "the phone the tags chose never even tried to host");
@@ -90,7 +90,7 @@ public class RoleFollowsTheRadioTests : IDisposable
         var me = new Someone(Higher);
         _store.UpsertContact(Lower, publicKey: null, byMe: true, byThem: false, via: "typed");
 
-        var fast = new FastRadioService(_store, me, radio);
+        var fast = new FastRadioService(new StoreCircleContacts(_store), me, radio);
 
         // Its turn to join, three times, before it is entitled to conclude anything.
         for (var attempt = 0; attempt < 3; attempt++)
@@ -113,7 +113,7 @@ public class RoleFollowsTheRadioTests : IDisposable
         var me = new Someone(Higher);
         _store.UpsertContact(Lower, publicKey: null, byMe: true, byThem: false, via: "typed");
 
-        var fast = new FastRadioService(_store, me, radio);
+        var fast = new FastRadioService(new StoreCircleContacts(_store), me, radio);
 
         for (var attempt = 0; attempt < 6; attempt++) await fast.BringUpAsync();
 
@@ -139,7 +139,7 @@ public class RoleFollowsTheRadioTests : IDisposable
         var me = new Someone(Lower);
         _store.UpsertContact(Higher, publicKey: null, byMe: true, byThem: false, via: "typed");
 
-        var fast = new FastRadioService(_store, me, radio);
+        var fast = new FastRadioService(new StoreCircleContacts(_store), me, radio);
 
         await fast.BringUpAsync();
         await fast.BringUpAsync();
@@ -159,7 +159,7 @@ public class RoleFollowsTheRadioTests : IDisposable
         var me = new Someone(Lower);
         _store.UpsertContact(Higher, publicKey: null, byMe: true, byThem: false, via: "typed");
 
-        var fast = new FastRadioService(_store, me, radio);
+        var fast = new FastRadioService(new StoreCircleContacts(_store), me, radio);
 
         await fast.BringUpAsync();
 
@@ -180,7 +180,7 @@ public class RoleFollowsTheRadioTests : IDisposable
         var me = new Someone(Higher);
         _store.UpsertContact(Lower, publicKey: null, byMe: true, byThem: false, via: "typed");
 
-        var fast = new FastRadioService(_store, me, radio);
+        var fast = new FastRadioService(new StoreCircleContacts(_store), me, radio);
 
         for (var attempt = 0; attempt < 3; attempt++)
         {

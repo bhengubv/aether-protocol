@@ -392,6 +392,7 @@ public static class MauiProgram
         // No radio mesh in this app. On Android the radios run in AetherNetService, which this app connects
         // to; on other heads there are none. Anything that would have used a radio queues honestly.
         builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();
+        builder.Services.AddSingleton<ICircleContacts, StoreCircleContacts>();
         builder.Services.AddSingleton<FastRadioService>();
 
 #if !ANDROID

@@ -148,11 +148,27 @@ public sealed class MainApplication : Application
                 sp.GetRequiredService<IRadioMesh>(),
                 sp.GetService<ILogger<MeshNodeMessaging>>()));
         services.AddSingleton<INodeLinkSource>(sp => new MeshNodeLinkSource(sp.GetRequiredService<IRadioMesh>()));
-        services.AddSingleton<INodeMeeting>(sp =>
+        services.AddSingleton(sp =>
             new RadioMeeting(
                 sp.GetRequiredService<IIdentityService>(),
                 sp.GetRequiredService<IRadioMesh>(),
                 sp.GetService<ILogger<RadioMeeting>>()));
+        services.AddSingleton<INodeMeeting>(sp => sp.GetRequiredService<RadioMeeting>());
+
+        // The fast radio: the Circle's Wi-Fi Direct group, worked out from the same contacts. It ran only in the app
+        // once, so when the radios moved in here nothing formed the group at all. RadioMeeting already meets every
+        // contact and points the other radios, so this is given no mesh to drive — only the question of who is here.
+        services.AddSingleton(sp =>
+        {
+            var radio = sp.GetRequiredService<IRadioMesh>();
+            return new FastRadioService(
+                sp.GetRequiredService<RadioMeeting>(),
+                sp.GetRequiredService<IIdentityService>(),
+                ((AetherNet.Transport.Android.AndroidRadioMesh)radio).WifiDirect,
+                sp.GetService<ILogger<FastRadioService>>(),
+                mesh: null,
+                isReachable: radio.IsReachable);
+        });
 
         var provider = services.BuildServiceProvider();
         _services = provider;
@@ -204,6 +220,17 @@ public sealed class MainApplication : Application
             catch (Exception ex)
             {
                 global::Android.Util.Log.Error("AetherNetService", $"radio bring-up failed: {ex}");
+            }
+
+            // And keep the Wi-Fi Direct group where it should be for as long as the service runs. Idle until the
+            // radio is allowed and there is somebody to form it with; it checks again every few seconds.
+            try
+            {
+                provider.GetRequiredService<FastRadioService>().KeepUp();
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Error("AetherNetService", $"fast radio did not start: {ex}");
             }
         });
     }

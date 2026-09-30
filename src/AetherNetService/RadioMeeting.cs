@@ -21,10 +21,11 @@ namespace AetherNetService;
 /// </para>
 ///
 /// <para>
-/// The fast radio — a Wi-Fi Direct group, for calls and video — is not formed here; chat rides Bluetooth and Wi-Fi.
+/// The fast radio — the Circle's Wi-Fi Direct group — is formed by <see cref="FastRadioService"/>, which reads the
+/// same contacts from here (<see cref="ICircleContacts"/>) and hears when they change.
 /// </para>
 /// </summary>
-internal sealed class RadioMeeting : INodeMeeting, IDisposable
+internal sealed class RadioMeeting : INodeMeeting, ICircleContacts, IDisposable
 {
     private static readonly TimeSpan Every = TimeSpan.FromSeconds(30);
 
@@ -71,7 +72,33 @@ internal sealed class RadioMeeting : INodeMeeting, IDisposable
 
         _log?.LogInformation("Keeping {Count} contact(s) reachable", _contacts.Count);
         Apply();
+        Changed?.Invoke();   // the fast radio works out its group from these too
     }
+
+    /// <inheritdoc />
+    public IReadOnlyList<CircleContact> Contacts
+    {
+        get
+        {
+            IReadOnlyList<NodeContact> contacts;
+            lock (_gate)
+            {
+                contacts = _contacts;
+            }
+
+            var list = new List<CircleContact>(contacts.Count);
+            foreach (var contact in contacts)
+            {
+                if (contact.Tag.Value is { Length: > 0 } tag)
+                    list.Add(new CircleContact(tag, contact.PublicKey, contact.Mutual));
+            }
+
+            return list;
+        }
+    }
+
+    /// <inheritdoc />
+    public event Action? Changed;
 
     private void Apply()
     {

@@ -59,10 +59,35 @@ public class FastRadioHostTests : IDisposable
         // Added by typing a tag: no key, which is every first contact anybody ever makes.
         _store.UpsertContact("Y6TK9-EW9KK", publicKey: null, byMe: true, byThem: false, via: "typed");
 
-        await new FastRadioService(_store, me, radio).BringUpAsync();
+        await new FastRadioService(new StoreCircleContacts(_store), me, radio).BringUpAsync();
 
         Assert.True(radio.Hosted, "the lower-tagged phone did not host");
         Assert.False(radio.Joined);
+    }
+
+    /// <summary>
+    /// The group is formed with the contact who is here, not with an absent one who happens to sort lower.
+    /// </summary>
+    /// <remarks>
+    /// The P30's contacts included an absent Redmi that sorted below the Pixel beside it. The group used to be
+    /// worked out with the Redmi — a group for somebody not there — while the Pixel waited on a group nobody was
+    /// forming (2026-09-30).
+    /// </remarks>
+    [Fact]
+    public async Task The_group_is_formed_with_somebody_here_not_an_absent_contact_who_sorts_lower()
+    {
+        var radio = new WatchedGroup();
+        var me = new Someone("9DMPE-YEWAE");
+
+        _store.UpsertContact("71P7B-TPERH", publicKey: null, byMe: true, byThem: false, via: "typed");   // lowest, not here
+        _store.UpsertContact("GK5GC-AZWAQ", publicKey: null, byMe: true, byThem: false, via: "typed");   // beside it
+
+        await new FastRadioService(new StoreCircleContacts(_store), me, radio,
+            isReachable: tag => tag == "GK5GC-AZWAQ").BringUpAsync();
+
+        // Of those two the P30 sorts lower, so it hosts — at the door both phones work out from their two tags.
+        Assert.True(radio.Hosted, "it did not form the group with the phone beside it");
+        Assert.Equal(GroupCredentials.ForMeeting(Meeting.With("9DMPE-YEWAE", "GK5GC-AZWAQ"))!.NetworkName, radio.Group);
     }
 
     /// <summary>
@@ -82,7 +107,7 @@ public class FastRadioHostTests : IDisposable
 
         _store.UpsertContact("7RB9G-97RTG", publicKey: null, byMe: true, byThem: false, via: "typed");
 
-        await new FastRadioService(_store, me, radio).BringUpAsync();
+        await new FastRadioService(new StoreCircleContacts(_store), me, radio).BringUpAsync();
 
         Assert.True(radio.Joined, "a phone holding only a tag still had nowhere to go");
         Assert.False(radio.Hosted);
@@ -100,13 +125,13 @@ public class FastRadioHostTests : IDisposable
     {
         var hosting = new WatchedGroup();
         _store.UpsertContact("Y6TK9-EW9KK", publicKey: null, byMe: true, byThem: false, via: "typed");
-        await new FastRadioService(_store, new Someone("7RB9G-97RTG"), hosting).BringUpAsync();
+        await new FastRadioService(new StoreCircleContacts(_store), new Someone("7RB9G-97RTG"), hosting).BringUpAsync();
 
         using var theirs = new AetherStore(_path + "-meet");
         theirs.UpsertContact("7RB9G-97RTG", publicKey: null, byMe: true, byThem: false, via: "typed");
 
         var joining = new WatchedGroup();
-        await new FastRadioService(theirs, new Someone("Y6TK9-EW9KK"), joining).BringUpAsync();
+        await new FastRadioService(new StoreCircleContacts(theirs), new Someone("Y6TK9-EW9KK"), joining).BringUpAsync();
 
         Assert.True(hosting.Hosted && joining.Joined);
         Assert.Equal(hosting.Group, joining.Group);
@@ -130,7 +155,7 @@ public class FastRadioHostTests : IDisposable
 
         _store.UpsertContact("7RB9G-97RTG", theirKey, byMe: true, byThem: true, via: "typed");
 
-        await new FastRadioService(_store, me, radio).BringUpAsync();
+        await new FastRadioService(new StoreCircleContacts(_store), me, radio).BringUpAsync();
 
         Assert.True(radio.Joined, "it had their key and still did not join");
         Assert.Equal(GroupCredentials.ForHost(theirKey)!.NetworkName, radio.Group);
@@ -152,7 +177,7 @@ public class FastRadioHostTests : IDisposable
 
         _store.UpsertContact("7RB9G-97RTG", theirKey, byMe: true, byThem: false, via: "typed");
 
-        await new FastRadioService(_store, new Someone("Y6TK9-EW9KK"), radio).BringUpAsync();
+        await new FastRadioService(new StoreCircleContacts(_store), new Someone("Y6TK9-EW9KK"), radio).BringUpAsync();
 
         Assert.Equal(
             GroupCredentials.ForMeeting(Meeting.With("Y6TK9-EW9KK", "7RB9G-97RTG"))!.NetworkName,
@@ -173,13 +198,13 @@ public class FastRadioHostTests : IDisposable
 
         var hosting = new WatchedGroup();
         _store.UpsertContact("Y6TK9-EW9KK", publicKey: null, byMe: true, byThem: false, via: "typed");
-        await new FastRadioService(_store, new Someone("7RB9G-97RTG", hostKey), hosting).BringUpAsync();
+        await new FastRadioService(new StoreCircleContacts(_store), new Someone("7RB9G-97RTG", hostKey), hosting).BringUpAsync();
 
         using var theirs = new AetherStore(_path + "-b");
         theirs.UpsertContact("7RB9G-97RTG", hostKey, byMe: true, byThem: false, via: "typed");
 
         var joining = new WatchedGroup();
-        await new FastRadioService(theirs, new Someone("Y6TK9-EW9KK"), joining).BringUpAsync();
+        await new FastRadioService(new StoreCircleContacts(theirs), new Someone("Y6TK9-EW9KK"), joining).BringUpAsync();
 
         Assert.True(hosting.Hosted && joining.Joined);
         Assert.Equal(hosting.Group, joining.Group);
@@ -191,7 +216,7 @@ public class FastRadioHostTests : IDisposable
     {
         var radio = new WatchedGroup();
 
-        await new FastRadioService(_store, new Someone("7RB9G-97RTG"), radio).BringUpAsync();
+        await new FastRadioService(new StoreCircleContacts(_store), new Someone("7RB9G-97RTG"), radio).BringUpAsync();
 
         Assert.False(radio.Hosted);
         Assert.False(radio.Joined);

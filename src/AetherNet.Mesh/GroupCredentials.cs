@@ -4,7 +4,7 @@ using AetherNet.Rendezvous;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace AetherNet.Sample.Shared.Services;
+namespace AetherNet.Mesh;
 
 /// <summary>
 /// The name and passphrase of a Circle's Wi-Fi Direct group, worked out rather than exchanged.

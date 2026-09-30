@@ -76,6 +76,7 @@ builder.Services.AddSingleton<IRadioInventory, NullRadioInventory>();
 builder.Services.AddSingleton<IAppTheme, NullAppTheme>();
 builder.Services.AddSingleton<ProxyDirectory>();
 builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
+builder.Services.AddSingleton<ICircleContacts, StoreCircleContacts>();
 builder.Services.AddSingleton<FastRadioService>();
 
 // The reliable messaging core — the same one the phone runs. This host has no radio, so RadioMeshSender

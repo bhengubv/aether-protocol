@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-using AetherNetNodeService.Host;
+using AetherNet.Rendezvous;
 using Xunit;
 
 namespace AetherNetNodeService.Host.Tests;
