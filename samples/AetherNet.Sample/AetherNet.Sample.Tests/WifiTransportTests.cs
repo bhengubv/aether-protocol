@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+using System.Buffers.Binary;
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using AetherNet.Rendezvous;
 using AetherNet.Sample.Shared.Services;
@@ -213,5 +218,124 @@ public class WifiTransportTests
 
         Assert.False(await alone.SendAsync(P30, "hello"u8.ToArray()));
         Assert.False(alone.IsConnected(P30));
+    }
+
+    // ── Keeping the link up ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Something else on the network trying the meeting port does not cut the link.
+    /// </summary>
+    /// <remarks>
+    /// The port is open to the whole network, and things try it: a port scan, or a debugging tool
+    /// sweeping for its own port. Found on the bench 2026-09-30: an adb reconnect script on the PC tried
+    /// every port on the P30 once a minute, and each time it touched this one the P30 tore the meeting
+    /// down — its working link to the Pixel with it.
+    /// </remarks>
+    [Fact]
+    public async Task A_stranger_knocking_on_the_meeting_port_does_not_cut_the_link()
+    {
+        var meet = Meeting.With(Merlin, P30)!.Value;
+
+        using var host = new WifiTransportService(Merlin);
+        using var joiner = new WifiTransportService(P30);
+
+        if (!host.IsAvailable) return;
+
+        var heard = new ConcurrentBag<string>();
+        host.DataReceived += (_, data) => heard.Add(Encoding.UTF8.GetString(data));
+
+        await host.MeetAsync(meet.Rendezvous, iStart: true);
+        await joiner.MeetAsync(meet.Rendezvous, iStart: false);
+        Assert.True(await UntilAsync(() => host.IsConnected(P30) && joiner.IsConnected(Merlin)));
+
+        // One that says something that is not a name — an adb handshake, as the script sent — and one
+        // that connects and hangs up without a word.
+        await KnockAsync(PortFor(meet.Rendezvous), "CNXN\0\0\0\u0001\0\0\u0010\0"u8.ToArray());
+        await KnockAsync(PortFor(meet.Rendezvous), []);
+        await Task.Delay(1000);
+
+        Assert.True(host.IsConnected(P30), "a stranger on the port cut the link on the side that waits");
+        Assert.True(joiner.IsConnected(Merlin), "a stranger on the port cut the link on the side that dials");
+
+        Assert.True(await joiner.SendAsync(Merlin, "still here"u8.ToArray()));
+        Assert.True(await UntilAsync(() => heard.Contains("still here")), "bytes stopped crossing after a stranger knocked");
+    }
+
+    /// <summary>
+    /// Many sends at once all arrive whole, and the link survives them.
+    /// </summary>
+    /// <remarks>
+    /// A frame goes out as a length and then its bytes. Two sends running together could put one's length
+    /// in front of the other's bytes, and the far side would read nonsense as a length and hang up.
+    /// </remarks>
+    [Fact]
+    public async Task Many_sends_at_once_arrive_whole()
+    {
+        var meet = Meeting.With(Merlin, P30)!.Value;
+
+        using var host = new WifiTransportService(Merlin);
+        using var joiner = new WifiTransportService(P30);
+
+        if (!host.IsAvailable) return;
+
+        var heard = new ConcurrentBag<string>();
+        host.DataReceived += (_, data) => heard.Add(Encoding.UTF8.GetString(data));
+
+        await host.MeetAsync(meet.Rendezvous, iStart: true);
+        await joiner.MeetAsync(meet.Rendezvous, iStart: false);
+        Assert.True(await UntilAsync(() => host.IsConnected(P30) && joiner.IsConnected(Merlin)));
+
+        var said = Enumerable.Range(0, 40).Select(i => $"{i}:{new string((char)('a' + i % 26), 2000 + i * 97)}").ToArray();
+        var sent = await Task.WhenAll(said.Select(s => Task.Run(() => joiner.SendAsync(Merlin, Encoding.UTF8.GetBytes(s)))));
+
+        Assert.All(sent, Assert.True);
+        Assert.True(await UntilAsync(() => heard.Count >= said.Length), $"only {heard.Count} of {said.Length} arrived");
+        Assert.Equal(said.Order(), heard.Order());
+        Assert.True(host.IsConnected(P30) && joiner.IsConnected(Merlin), "the link did not survive sends at once");
+    }
+
+    /// <summary>
+    /// A frame the far side would refuse is refused here instead, and the link stays up.
+    /// </summary>
+    /// <remarks>
+    /// The receiver takes nothing empty and nothing over its ceiling, and hangs up on either — so sending
+    /// one would end the link for everything else on it.
+    /// </remarks>
+    [Fact]
+    public async Task A_frame_the_far_side_would_refuse_is_not_sent()
+    {
+        var meet = Meeting.With(Merlin, P30)!.Value;
+
+        using var host = new WifiTransportService(Merlin);
+        using var joiner = new WifiTransportService(P30);
+
+        if (!host.IsAvailable) return;
+
+        await host.MeetAsync(meet.Rendezvous, iStart: true);
+        await joiner.MeetAsync(meet.Rendezvous, iStart: false);
+        Assert.True(await UntilAsync(() => host.IsConnected(P30) && joiner.IsConnected(Merlin)));
+
+        Assert.False(await joiner.SendAsync(Merlin, []));
+        Assert.False(await joiner.SendAsync(Merlin, new byte[4 * 1024 * 1024 + 1]));
+
+        await Task.Delay(500);
+        Assert.True(host.IsConnected(P30) && joiner.IsConnected(Merlin), "refusing a frame cut the link");
+        Assert.True(await joiner.SendAsync(Merlin, "ok"u8.ToArray()));
+    }
+
+    /// <summary>
+    /// Where the waiting side listens for a rendezvous: the same sum the transport does, pinned here because
+    /// two versions that disagree on it can never meet.
+    /// </summary>
+    private static int PortFor(string rendezvous) =>
+        40000 + (BinaryPrimitives.ReadUInt16BigEndian(SHA256.HashData(Encoding.UTF8.GetBytes(rendezvous))) % 20000);
+
+    /// <summary>Connect to the port, say <paramref name="say"/>, and leave — what a port scan does.</summary>
+    private static async Task KnockAsync(int port, byte[] say)
+    {
+        using var stranger = new TcpClient();
+        await stranger.ConnectAsync(IPAddress.Loopback, port);
+        if (say.Length > 0) await stranger.GetStream().WriteAsync(say);
+        await Task.Delay(200);
     }
 }

@@ -65,8 +65,19 @@ public sealed class WifiTransportService : ITransportService, IDisposable
     /// </remarks>
     private const int LargestFrame = 4 * 1024 * 1024;
 
+    /// <summary>How long whoever connects has to say who they are before they are turned away.</summary>
+    /// <remarks>
+    /// The meeting port is open to the whole network, so anything can connect to it — a port scan, a
+    /// debugging tool hunting for its own port, a device that simply tries everything. A peer says its
+    /// name the instant the socket opens; anything still silent after this is not one.
+    /// </remarks>
+    private static readonly TimeSpan HelloWithin = TimeSpan.FromSeconds(10);
+
+    /// <summary>The longest name a peer can give. A tag is a dozen characters; this is generous.</summary>
+    private const int LongestHello = 256;
+
     private readonly string _localUhid;
-    private readonly ConcurrentDictionary<string, TcpClient> _peers = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Link> _peers = new(StringComparer.Ordinal);
     private readonly CancellationTokenSource _stopping = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _disposed;
@@ -97,11 +108,49 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         /// <summary>True once the peer for this rendezvous is linked, so the dialer stops sweeping.</summary>
         public volatile bool Connected;
 
+        /// <summary>
+        /// 1 while one outbound connection for this rendezvous is being tried or is up. The dialer looks two
+        /// ways at once — the waiter's announcement and a sweep of the network — and both can land in the
+        /// same moment; this lets exactly one through, so a pair never ends up holding two connections.
+        /// </summary>
+        private int _dialling;
+
+        public bool TryDial() => Interlocked.CompareExchange(ref _dialling, 1, 0) == 0;
+
+        /// <summary>That connection was not the peer after all — let the next one through.</summary>
+        public void DialFailed() => Volatile.Write(ref _dialling, 0);
+
+        public bool Dialling => Volatile.Read(ref _dialling) == 1;
+
         public void Dispose()
         {
             try { Stop.Cancel(); } catch (Exception) { }
             try { Listener?.Stop(); } catch (Exception) { }
             try { Stop.Dispose(); } catch (Exception) { }
+        }
+    }
+
+    /// <summary>One live connection to a peer, and a gate so two sends never interleave on it.</summary>
+    /// <remarks>
+    /// A frame goes out as a length and then its bytes, in separate writes. Two sends at once could put one
+    /// frame's length in front of the other's bytes, and the far side would read nonsense as a length and
+    /// hang up — so sends on one connection take turns.
+    /// </remarks>
+    private sealed class Link(TcpClient client)
+    {
+        public TcpClient Client { get; } = client;
+
+        public SemaphoreSlim Sending { get; } = new(1, 1);
+
+        /// <summary>Why this side closed it, when it did — for the line that says the link ended.</summary>
+        public string? ClosedBecause { get; private set; }
+
+        public bool IsUp => Client.Connected;
+
+        public void Close(string why)
+        {
+            ClosedBecause ??= why;
+            try { Client.Dispose(); } catch (Exception) { }
         }
     }
 
@@ -148,7 +197,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
 
     /// <inheritdoc />
     public bool IsConnected(string peerUhid) =>
-        _peers.TryGetValue(peerUhid, out var client) && client.Connected;
+        _peers.TryGetValue(peerUhid, out var link) && link.IsUp;
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> ConnectedPeers => new List<string>(_peers.Keys);
@@ -235,7 +284,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
             try
             {
                 var client = await listener.AcceptTcpClientAsync(stopping).ConfigureAwait(false);
-                _ = Task.Run(() => ServeAsync(client, meet, stopping), stopping);
+                _ = Task.Run(() => ServeAsync(client, meet, outbound: false, stopping));   // ServeAsync owns and disposes it
             }
             catch (OperationCanceledException) { return; }
             catch (Exception ex) { Say($"stopped accepting: {ex.Message}"); return; }
@@ -323,7 +372,9 @@ public sealed class WifiTransportService : ITransportService, IDisposable
             using var crowd = new SemaphoreSlim(ScanAtOnce);
             var tries = new List<Task>();
 
-            for (var host = 1; host <= 254 && !meet.Connected; host++)
+            // Stops early while a connection is already being tried: it is either the peer, and the sweep is
+            // over, or it is not, and the next sweep picks up where this one left off.
+            for (var host = 1; host <= 254 && !meet.Connected && !meet.Dialling; host++)
             {
                 if (host == octets[3]) continue;   // not this phone itself
 
@@ -331,7 +382,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
                 await crowd.WaitAsync(stopping).ConfigureAwait(false);
                 tries.Add(Task.Run(async () =>
                 {
-                    try { if (!meet.Connected) await ProbeAsync(meet, them, port, stopping).ConfigureAwait(false); }
+                    try { if (!meet.Connected && !meet.Dialling) await ProbeAsync(meet, them, port, stopping).ConfigureAwait(false); }
                     finally { crowd.Release(); }
                 }, stopping));
             }
@@ -353,13 +404,18 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         try
         {
             await client.ConnectAsync(them, port, timeout.Token).ConfigureAwait(false);
-            Say($"found them at {them}:{port}");
-            _ = Task.Run(() => ServeAsync(client, meet, stopping), stopping);   // ServeAsync owns and disposes it
         }
         catch
         {
             client.Dispose();   // no listener there, or it did not answer in time — the ordinary case
+            return;
         }
+
+        // The announcement may have landed a connection in the same moment. One is all a pair needs.
+        if (!meet.TryDial()) { client.Dispose(); return; }
+
+        Say($"found them at {them}:{port}");
+        _ = Task.Run(() => ServeAsync(client, meet, outbound: true, stopping));   // ServeAsync owns and disposes it
     }
 
     private async Task HearAsync(Meet meet, string rendezvous, int port, CancellationToken stopping)
@@ -384,6 +440,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
                 if (!string.Equals(words[1], rendezvous, StringComparison.Ordinal)) continue;
                 if (!IPAddress.TryParse(words[2], out var them)) continue;
                 if (!int.TryParse(words[3], out var theirPort)) continue;
+                if (meet.Dialling) continue;   // the sweep already has a connection going
 
                 if (await DialAsync(meet, them, theirPort, stopping).ConfigureAwait(false)) return;
             }
@@ -395,18 +452,22 @@ public sealed class WifiTransportService : ITransportService, IDisposable
 
     private async Task<bool> DialAsync(Meet meet, IPAddress them, int port, CancellationToken stopping)
     {
+        var client = new TcpClient();
         try
         {
-            var client = new TcpClient();
             await client.ConnectAsync(them, port, stopping).ConfigureAwait(false);
 
+            // The sweep may have landed a connection in the same moment. One is all a pair needs.
+            if (!meet.TryDial()) { client.Dispose(); return false; }
+
             Say($"connected to {them}:{port}");
-            _ = Task.Run(() => ServeAsync(client, meet, stopping), stopping);
+            _ = Task.Run(() => ServeAsync(client, meet, outbound: true, stopping));   // ServeAsync owns and disposes it
             return true;
         }
-        catch (OperationCanceledException) { return false; }
+        catch (OperationCanceledException) { client.Dispose(); return false; }
         catch (Exception ex)
         {
+            client.Dispose();
             Say($"could not reach {them}: {ex.Message}");
             return false;
         }
@@ -418,67 +479,158 @@ public sealed class WifiTransportService : ITransportService, IDisposable
     /// Say who we are, learn who they are, then carry frames until the socket closes.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The address exchanged here is a claim about identity and is treated as one — it names the
     /// sender for the layer above, which checks signatures against a key it already holds. Nothing
     /// here grants anybody anything.
+    /// </para>
+    /// <para>
+    /// Only the connection that IS the link can end the meeting. Whatever else connects to the port and
+    /// leaves without a name is turned away and touches nothing. It used to take the meeting down with
+    /// it, and the meeting's working link too: a debugging tool on this network sweeping ports for its own
+    /// cut the P30's link to the Pixel once a minute, every minute, with nothing in the log to say why
+    /// (2026-09-30).
+    /// </para>
     /// </remarks>
-    private async Task ServeAsync(TcpClient client, Meet meet, CancellationToken stopping)
+    /// <param name="outbound">True when this side dialled, so a connection that is not the peer frees the dial.</param>
+    private async Task ServeAsync(TcpClient client, Meet meet, bool outbound, CancellationToken stopping)
     {
+        var from = Who(client);
         string? peer = null;
+        Link? link = null;
+        var ended = "they closed it";
         try
         {
             using (client)
             {
                 var stream = client.GetStream();
-                await WriteAsync(stream, Encoding.UTF8.GetBytes(_localUhid), stopping).ConfigureAwait(false);
 
-                if (await ReadAsync(stream, stopping).ConfigureAwait(false) is not { } hello) return;
+                peer = await HelloAsync(stream, stopping).ConfigureAwait(false);
+                if (peer is null)
+                {
+                    if (outbound) meet.DialFailed();
+                    Say($"turned away {from} — it did not say who it is");
+                    return;
+                }
 
-                peer = Encoding.UTF8.GetString(hello);
-                if (peer.Length == 0) return;
+                link = new Link(client);
+                var before = _peers.TryGetValue(peer, out var old) ? old : null;
+                _peers[peer] = link;
 
-                _peers[peer] = client;
+                // A newer connection from the same person means the older one is dead to them. Close it, rather
+                // than keep a socket nobody on the other end will ever read again.
+                if (before is not null && !ReferenceEquals(before, link)) before.Close("they connected again");
+
                 meet.Connected = true;   // this rendezvous is met — the dialer can stop sweeping
                 Say($"linked with {peer}");
                 PeerLinked?.Invoke(peer);
 
-                while (!stopping.IsCancellationRequested)
+                while (true)
                 {
                     if (await ReadAsync(stream, stopping).ConfigureAwait(false) is not { } frame) return;
                     DataReceived?.Invoke(peer, frame);
                 }
             }
         }
-        catch (OperationCanceledException) { }
-        catch (Exception ex) { Say($"link ended: {ex.Message}"); }
+        catch (OperationCanceledException) { ended = "stopped"; }
+        catch (Exception ex) { ended = ex.Message; }
         finally
         {
-            if (peer is not null) _peers.TryRemove(peer, out _);
+            // Only this connection's own entry: a newer connection from the same person may already have
+            // replaced it, and then the link is not over at all.
+            if (peer is not null && link is not null && _peers.TryRemove(KeyValuePair.Create(peer, link)))
+            {
+                Say($"link with {peer} ended — {link.ClosedBecause ?? ended}");
 
-            // This pair's link is over. Forget the rendezvous so the next bring-up pass sets it up again
-            // rather than believing it is still kept — each pair is its own meeting, so dropping this one
-            // leaves every other peer's meeting untouched.
-            Drop(meet);
+                // This pair's link is over. Forget the rendezvous so the next bring-up pass sets it up again
+                // rather than believing it is still kept — each pair is its own meeting, so dropping this one
+                // leaves every other peer's meeting untouched.
+                Drop(meet);
+            }
         }
+    }
+
+    /// <summary>
+    /// Say who we are and hear who they are. Null when whoever connected is not a peer: silent for
+    /// <see cref="HelloWithin"/>, gone before answering, or answering with something that is not a name.
+    /// </summary>
+    private async Task<string?> HelloAsync(Stream stream, CancellationToken stopping)
+    {
+        using var patience = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+        patience.CancelAfter(HelloWithin);
+        try
+        {
+            await WriteAsync(stream, Encoding.UTF8.GetBytes(_localUhid), patience.Token).ConfigureAwait(false);
+
+            var length = new byte[4];
+            if (!await FillAsync(stream, length, patience.Token).ConfigureAwait(false)) return null;
+
+            // An HTTP request, an adb handshake or a stray byte reads here as a length of millions.
+            var size = BinaryPrimitives.ReadInt32BigEndian(length);
+            if (size is <= 0 or > LongestHello) return null;
+
+            var said = new byte[size];
+            if (!await FillAsync(stream, said, patience.Token).ConfigureAwait(false)) return null;
+
+            var name = Encoding.UTF8.GetString(said);
+            foreach (var c in name)
+                if (char.IsControl(c)) return null;
+
+            return name;
+        }
+        catch (OperationCanceledException) when (!stopping.IsCancellationRequested)
+        {
+            return null;   // said nothing in time
+        }
+        catch (IOException)
+        {
+            return null;   // hung up before answering
+        }
+    }
+
+    /// <summary>The address a connection came from, for the log.</summary>
+    private static string Who(TcpClient client)
+    {
+        try { return (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "somebody"; }
+        catch (Exception) { return "somebody"; }
     }
 
     /// <inheritdoc />
     public async Task<bool> SendAsync(
         string peerUhid, byte[] data, CancellationToken cancellationToken = default)
     {
-        if (!_peers.TryGetValue(peerUhid, out var client) || !client.Connected) return false;
+        if (!_peers.TryGetValue(peerUhid, out var link) || !link.IsUp) return false;
+
+        // A frame the far side would refuse ends the link there; refusing it here leaves the link up and
+        // lets the layer above try another radio.
+        if (data is not { Length: > 0 and <= LargestFrame }) return false;
 
         try
         {
-            await WriteAsync(client.GetStream(), data, cancellationToken).ConfigureAwait(false);
+            await link.Sending.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+
+        try
+        {
+            await WriteAsync(link.Client.GetStream(), data, cancellationToken).ConfigureAwait(false);
             return true;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // The socket has gone. Saying so beats reporting success for bytes nobody will read — the
+            // The socket has gone, or a frame went out half-written and nothing after it would read right.
+            // Close it: the reading side then ends the link properly — forgets the peer and frees the
+            // meeting for the next pass. Saying so beats reporting success for bytes nobody will read — the
             // layer above uses this to decide whether anything is ringing at the far end.
-            _peers.TryRemove(peerUhid, out _);
+            link.Close($"a send failed: {ex.Message}");
             return false;
+        }
+        finally
+        {
+            link.Sending.Release();
         }
     }
 
@@ -504,14 +656,16 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>One frame, or null when the socket closed or the peer described one we will not take.</summary>
+    /// <summary>One frame, or null when the socket closed.</summary>
+    /// <exception cref="InvalidDataException">The peer described a frame this will not take.</exception>
     private static async Task<byte[]?> ReadAsync(Stream stream, CancellationToken cancellationToken)
     {
         var length = new byte[4];
         if (!await FillAsync(stream, length, cancellationToken).ConfigureAwait(false)) return null;
 
         var size = BinaryPrimitives.ReadInt32BigEndian(length);
-        if (size is <= 0 or > LargestFrame) return null;
+        if (size is <= 0 or > LargestFrame)
+            throw new InvalidDataException($"they sent a frame of {size} bytes, which is not one of ours");
 
         var data = new byte[size];
         return await FillAsync(stream, data, cancellationToken).ConfigureAwait(false) ? data : null;
@@ -624,7 +778,7 @@ public sealed class WifiTransportService : ITransportService, IDisposable
 
         _stopping.Cancel();
 
-        foreach (var client in _peers.Values) try { client.Dispose(); } catch (Exception) { }
+        foreach (var link in _peers.Values) link.Close("stopped");
         _peers.Clear();
 
         foreach (var meet in _meetings.Values) meet.Dispose();

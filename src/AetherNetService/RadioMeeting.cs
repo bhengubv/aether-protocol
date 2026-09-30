@@ -10,10 +10,15 @@ namespace AetherNetService;
 
 /// <summary>
 /// Tells AetherNetService's radios whom to keep reachable, from the contacts a connected app hands over. Every
-/// contact is met on the network both phones are already on (<see cref="IRadioMesh.MeetPeer"/>), and the radios
-/// link with the lowest-sorting contact — the same rule on both phones, so they agree on where to meet without a
-/// word passing between them. Re-asserted every half-minute: meeting is idempotent, and a radio that dropped a
-/// rendezvous picks it back up.
+/// contact is met on the network both phones are already on (<see cref="IRadioMesh.MeetPeer"/>), re-asserted every
+/// half-minute: meeting is idempotent, and a rendezvous that dropped is picked back up.
+///
+/// <para>
+/// The pair-by-pair radios meet one contact, chosen by <see cref="MeetingHost.Choose"/> — the lowest-sorting one who
+/// is actually here, the same rule on both phones. They are pointed again only when that choice changes or its
+/// contact is not reachable; re-pointing them every pass while a link was up is what kept pulling them toward an
+/// absent contact who happened to sort lowest.
+/// </para>
 ///
 /// <para>
 /// The fast radio — a Wi-Fi Direct group, for calls and video — is not formed here; chat rides Bluetooth and Wi-Fi.
@@ -28,7 +33,11 @@ internal sealed class RadioMeeting : INodeMeeting, IDisposable
     private readonly ILogger? _log;
     private readonly Timer _timer;
     private readonly object _gate = new();
+    private readonly object _applying = new();
     private IReadOnlyList<NodeContact> _contacts = Array.Empty<NodeContact>();
+
+    /// <summary>Whom the pair-by-pair radios point at now.</summary>
+    private string? _host;
 
     public RadioMeeting(IIdentityService me, IRadioMesh radio, ILogger<RadioMeeting>? log = null)
     {
@@ -59,35 +68,43 @@ internal sealed class RadioMeeting : INodeMeeting, IDisposable
 
         if (contacts.Count == 0) return;
 
-        try
+        // The timer and a new contact list can both arrive at once; one pass at a time keeps _host honest.
+        lock (_applying)
         {
-            var me = _me.AetherTag;
-            string? host = null;
-            foreach (var contact in contacts)
+            try
             {
-                var tag = contact.Tag.Value;
-                if (string.IsNullOrEmpty(tag)) continue;
-
-                if (Meeting.With(me, tag) is { } meeting)
+                var me = _me.AetherTag;
+                var tags = new List<string>(contacts.Count);
+                foreach (var contact in contacts)
                 {
-                    _radio.MeetPeer(meeting);
+                    var tag = contact.Tag.Value;
+                    if (string.IsNullOrEmpty(tag)) continue;
+                    tags.Add(tag);
+
+                    if (Meeting.With(me, tag) is { } meeting)
+                    {
+                        _radio.MeetPeer(meeting);
+                    }
                 }
 
-                if (host is null || string.CompareOrdinal(tag, host) < 0)
+                var host = MeetingHost.Choose(tags, _radio.IsReachable, _host);
+                if (host is null) return;
+
+                // Already with them: leave the radios alone.
+                if (host == _host && _radio.IsReachable(host)) return;
+
+                if (Meeting.With(me, host) is { } hostMeeting)
                 {
-                    host = tag;
+                    if (host != _host) _log?.LogInformation("Radios now meet {Host} (was {Before})", host, _host ?? "nobody");
+                    _host = host;
+                    _radio.Link(hostMeeting);
                 }
             }
-
-            if (host is not null && Meeting.With(me, host) is { } hostMeeting)
+            catch (Exception ex)
             {
-                _radio.Link(hostMeeting);
+                // On a timer thread with nobody to throw to; the next pass tries again.
+                _log?.LogWarning(ex, "Could not bring the radios to the contacts");
             }
-        }
-        catch (Exception ex)
-        {
-            // On a timer thread with nobody to throw to; the next pass tries again.
-            _log?.LogWarning(ex, "Could not bring the radios to the contacts");
         }
     }
 
