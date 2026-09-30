@@ -236,6 +236,48 @@ public class IdentityServiceTests
         Assert.Throws<NotSupportedException>(() => identity.RoutingKey);
     }
 
+    // ── A failed answer is not remembered ─────────────────────────────────────
+
+    /// <summary>A node that cannot say who the device is the first <paramref name="failures"/> times it is asked.</summary>
+    private sealed class FlakyNode(INodeIdentity inner, int failures) : INodeIdentity
+    {
+        private int _asked;
+
+        public int Asked => _asked;
+
+        public ValueTask<AetherNetTag> GetOrMintAsync(CancellationToken cancellationToken = default)
+            => Interlocked.Increment(ref _asked) <= failures
+                ? throw new NodeIdentityUnavailableException("AetherNetService went away")
+                : inner.GetOrMintAsync(cancellationToken);
+
+        public ValueTask<byte[]> GetPublicKeyAsync(CancellationToken cancellationToken = default) => inner.GetPublicKeyAsync(cancellationToken);
+        public ValueTask<byte[]> SignAsync(byte[] data, CancellationToken cancellationToken = default) => inner.SignAsync(data, cancellationToken);
+        public ValueTask<byte[]> DeriveKeyAsync(string purpose, CancellationToken cancellationToken = default) => inner.DeriveKeyAsync(purpose, cancellationToken);
+    }
+
+    /// <summary>
+    /// Asking again after the node could not answer asks the node again — it does not repeat the old failure.
+    /// </summary>
+    /// <remarks>
+    /// The identity sat behind a Lazy that kept its first exception. One failed answer while AetherNetService was
+    /// starting (Pixel, 2026-09-30) and every later ask threw that same exception without asking anybody, until
+    /// Aether was restarted.
+    /// </remarks>
+    [Fact]
+    public void A_failed_answer_is_asked_again_not_repeated()
+    {
+        using var store = AetherStore.InMemory();
+        var device = new FakeNodeIdentityStore();
+        var expected = device.Node().GetOrMintAsync().AsTask().GetAwaiter().GetResult().Value;
+        var node = new FlakyNode(device.Node(), failures: 1);
+
+        var identity = new IdentityService(node, new FakeVault(), store);
+
+        Assert.Throws<NodeIdentityUnavailableException>(() => identity.AetherTag);
+        Assert.Equal(expected, identity.AetherTag);
+        Assert.Equal(2, node.Asked);
+    }
+
     // ── First run ─────────────────────────────────────────────────────────────
 
     [Fact]

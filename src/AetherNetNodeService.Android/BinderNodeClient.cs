@@ -112,7 +112,16 @@ internal sealed class BinderNodeClient : IAetherNodeClient, IDisposable
         try
         {
             writeArgs?.Invoke(data);
-            _service.Transact((int)op, data, reply, 0);
+            try
+            {
+                _service.Transact((int)op, data, reply, 0);
+            }
+            catch (RemoteException ex)
+            {
+                // The service's process is gone — killed, crashed, being updated. Said in the terms every caller
+                // already handles, rather than as Android's DeadObjectException, which nothing above here catches.
+                throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, $"AetherNetService went away: {ex.Message}", ex);
+            }
 
             var ok = reply.ReadInt() == 1;
             if (ok)

@@ -32,6 +32,12 @@ public sealed class IdentityService : IIdentityService
         // thread are one thread, so a page that injects this froze the interface until the keystore
         // answered — and the app worked around it by racing a background warm-up rather than fixing
         // it. Behind a Lazy, resolving costs nothing and the warm-up below does the waiting.
+        //
+        // PublicationOnly, because it is the mode that keeps an answer but not a failure. The node can be briefly
+        // unreachable — AetherNetService starting, or being updated — and ExecutionAndPublication kept that first
+        // exception forever: every later ask threw it again without asking anybody, until the app was restarted
+        // (Pixel, 2026-09-30). The price is that two first asks at once may both reach the node, which is only a
+        // question asked twice.
         _identity = new Lazy<Resolved>(() =>
         {
             var tag = _node.GetOrMintAsync().AsTask().GetAwaiter().GetResult().Value;
@@ -42,14 +48,14 @@ public sealed class IdentityService : IIdentityService
             if (mirrored is null || mirrored.Value.Tag != tag) store.SaveIdentity(tag, publicKey);
 
             return new Resolved(tag, publicKey);
-        }, LazyThreadSafetyMode.ExecutionAndPublication);
+        }, LazyThreadSafetyMode.PublicationOnly);
 
         // Derived on first use, not with the identity. An app connected to AetherNetService never holds this
         // key — a derived key never leaves the node — so the tag must resolve without it. Only a host that runs
         // the radios itself ever asks for it.
         _routingKey = new Lazy<byte[]>(
             () => _node.DeriveKeyAsync(RoutingPurpose).AsTask().GetAwaiter().GetResult(),
-            LazyThreadSafetyMode.ExecutionAndPublication);
+            LazyThreadSafetyMode.PublicationOnly);
     }
 
     private readonly Lazy<Resolved> _identity;

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #if ANDROID
+using System.Diagnostics;
 using AetherNet.Identity;
 using AetherNetNodeService.Client;
 
@@ -37,6 +38,9 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     /// <summary>How long a new connection waits for the service to take the contacts before getting on without.</summary>
     private static readonly TimeSpan TellWithin = TimeSpan.FromSeconds(10);
 
+    /// <summary>How long a connection has to last for a later death to count as the service dying, not failing to start.</summary>
+    private static readonly TimeSpan StayedUp = TimeSpan.FromSeconds(30);
+
     private readonly INodeConnector _connector;
     private readonly object _gate = new();
     private readonly List<DeferredSubscription> _subscriptions = [];
@@ -49,6 +53,16 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     private IReadOnlyList<NodeContact>? _contacts;
 
     private bool _retrying;
+
+    /// <summary>The service died again while a retry loop was running: that loop goes round once more.</summary>
+    private bool _again;
+
+    /// <summary>The wait before the next try; it keeps growing while the service dies as it starts.</summary>
+    private TimeSpan _wait = FirstRetry;
+
+    /// <summary>When a connection last succeeded (a <see cref="Stopwatch"/> timestamp), or 0 before the first.</summary>
+    private long _reachedAt;
+
     private bool _disposed;
 
     public BoundNodeClient(INodeConnector connector)
@@ -169,6 +183,18 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
         AttachAll(client);
         await TellContactsAsync(client).ConfigureAwait(false);
 
+        // Died while it was being told whom to meet — a service dying as it starts. Not a connection.
+        if (client is BinderNodeClient { IsAlive: false } gone)
+        {
+            gone.Dispose();
+            throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, "AetherNetService went away as it connected");
+        }
+
+        lock (_gate)
+        {
+            _reachedAt = Stopwatch.GetTimestamp();
+        }
+
         return client;
     }
 
@@ -248,48 +274,85 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     /// half a minute — between tries.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// One try used to be all there was. While the service is being updated it is briefly not installed at all, so
     /// that try failed, and the app heard nothing more — no messages, no receipts — until it was restarted.
+    /// </para>
+    /// <para>
+    /// A death notice that arrives while a loop is already running is that loop's to deal with: it goes round again
+    /// rather than stopping on a connection that has just died. That notice used to be dropped, and after a service
+    /// died four times in a row as it started (Pixel, 2026-09-30) nothing was trying any more.
+    /// </para>
     /// </remarks>
     private async Task KeepTryingAsync()
     {
+        bool waitFirst;
         lock (_gate)
         {
-            if (_retrying || _disposed || _subscriptions.Count == 0) return;
-            _retrying = true;
-        }
-
-        try
-        {
-            var wait = FirstRetry;
-            for (var tries = 1; ; tries++)
+            if (_disposed || _subscriptions.Count == 0) return;
+            if (_retrying)
             {
-                try
-                {
-                    AttachAll(await ClientAsync().ConfigureAwait(false));
-                    if (tries > 1) global::Android.Util.Log.Info(LogTag, $"reached AetherNetService again after {tries} tries");
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    if (tries == 1) global::Android.Util.Log.Info(LogTag, $"AetherNetService not reachable yet ({ex.Message}) — trying again");
-                }
-
-                lock (_gate)
-                {
-                    if (_disposed || _subscriptions.Count == 0) return;
-                }
-
-                await Task.Delay(wait).ConfigureAwait(false);
-                wait = wait * 2 < LongestRetry ? wait * 2 : LongestRetry;
+                _again = true;   // the loop already running takes this death too
+                return;
             }
+
+            _retrying = true;
+            _again = false;
+
+            // A service that died soon after it was reached is dying as it starts, and reconnecting at once only starts
+            // it to die again — so the wait carries on growing. One that stayed up starts the waits over.
+            waitFirst = _reachedAt != 0 && Stopwatch.GetElapsedTime(_reachedAt) < StayedUp;
+            if (!waitFirst) _wait = FirstRetry;
         }
-        finally
+
+        for (var tries = 1; ; tries++)
         {
+            if (waitFirst || tries > 1)
+            {
+                await Task.Delay(NextWait()).ConfigureAwait(false);
+            }
+
+            var reached = false;
+            try
+            {
+                var client = await ClientAsync().ConfigureAwait(false);
+                if (client is BinderNodeClient { IsAlive: false })
+                {
+                    throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, "AetherNetService went away as it connected");
+                }
+
+                AttachAll(client);
+                reached = true;
+                if (tries > 1) global::Android.Util.Log.Info(LogTag, $"reached AetherNetService again after {tries} tries");
+            }
+            catch (Exception ex)
+            {
+                if (tries == 1) global::Android.Util.Log.Info(LogTag, $"AetherNetService not reachable yet ({ex.Message}) — trying again");
+            }
+
             lock (_gate)
             {
-                _retrying = false;
+                // Stop when nobody is left to reach it for, or when it is reached and nothing has died since — decided
+                // under the lock a death notice takes, so no notice can land between the decision and letting go.
+                if (_disposed || _subscriptions.Count == 0 || (reached && !_again))
+                {
+                    _retrying = false;
+                    return;
+                }
+
+                _again = false;
             }
+        }
+    }
+
+    /// <summary>The wait before the next try: it doubles each time, up to <see cref="LongestRetry"/>.</summary>
+    private TimeSpan NextWait()
+    {
+        lock (_gate)
+        {
+            var wait = _wait;
+            _wait = wait * 2 < LongestRetry ? wait * 2 : LongestRetry;
+            return wait;
         }
     }
 
