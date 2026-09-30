@@ -17,6 +17,15 @@ namespace AetherNetNodeService.Android;
 /// </summary>
 public sealed class AndroidNodeConnector : INodeConnector
 {
+    /// <summary>How long a bind, and the first call on it, get before they are abandoned and tried again.</summary>
+    /// <remarks>
+    /// Long enough for AetherNetService to start from cold on a cheap phone; short enough that an app never
+    /// waits on a bind that is not coming back. While the service is being updated Android can leave a bind with
+    /// no answer at all, and every call queued behind it waited with it — sends sat at "pending" until the app
+    /// was restarted (P30, 2026-09-30).
+    /// </remarks>
+    private static readonly TimeSpan BindWithin = TimeSpan.FromSeconds(20);
+
     private readonly Context _context;
     private readonly string? _nodePackage;
 
@@ -45,7 +54,21 @@ public sealed class AndroidNodeConnector : INodeConnector
             return null;
         }
 
-        var binder = await connection.Bound.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IBinder? binder;
+        try
+        {
+            binder = await connection.Bound.WaitAsync(BindWithin, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            binder = null;   // no answer — let go of it, so the next attempt starts a fresh bind
+        }
+        catch (System.OperationCanceledException)
+        {
+            SafeUnbind(connection);
+            throw;
+        }
+
         if (binder is null)
         {
             SafeUnbind(connection);
@@ -57,8 +80,13 @@ public sealed class AndroidNodeConnector : INodeConnector
         var client = new BinderNodeClient(binder, onDispose: () => SafeUnbind(connection));
         try
         {
-            _ = await client.GetTagAsync(cancellationToken).ConfigureAwait(false);
+            _ = await client.GetTagAsync(cancellationToken).WaitAsync(BindWithin, cancellationToken).ConfigureAwait(false);
             return client;   // installed, granted, unlocked
+        }
+        catch (TimeoutException)
+        {
+            client.Dispose();   // bound, but not answering — unbind and let the caller try again
+            return null;
         }
         catch (AetherNodeException ex) when (ex.Code is AetherNodeErrorCode.GrantRequired or AetherNodeErrorCode.GrantDenied)
         {
@@ -68,6 +96,18 @@ public sealed class AndroidNodeConnector : INodeConnector
         catch (AetherNodeException)
         {
             return client;      // bound but e.g. locked (NodeUnavailable) — still a live binding
+        }
+        catch (System.OperationCanceledException)
+        {
+            client.Dispose();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Died between the bind and the first call — what an update does. Let go of the binding rather than
+            // leak it, and say so in the terms every caller already handles.
+            client.Dispose();
+            throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, $"AetherNetService stopped answering: {ex.Message}", ex);
         }
     }
 
@@ -112,6 +152,14 @@ public sealed class AndroidNodeConnector : INodeConnector
         public void OnServiceConnected(ComponentName? name, IBinder? service) => _bound.TrySetResult(service);
 
         public void OnServiceDisconnected(ComponentName? name) => _bound.TrySetResult(null);
+
+        // The binding itself is dead: Android says so when the service's app is updated or reinstalled while a
+        // bind is open or on its way. Nothing will ever arrive on it again — the only way on is a new bind.
+        // Unanswered, the bind waited forever, and so did every call behind it.
+        public void OnBindingDied(ComponentName? name) => _bound.TrySetResult(null);
+
+        // The service answered with no interface at all.
+        public void OnNullBinding(ComponentName? name) => _bound.TrySetResult(null);
     }
 }
 #endif

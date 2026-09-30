@@ -18,17 +18,37 @@ namespace AetherNetNodeService.Android;
 /// </para>
 ///
 /// <para>
-/// If the service dies — killed for memory, crashed, updated — this connects again straight away and moves every
-/// subscription onto the new connection, so messages and delivery receipts keep arriving without the app having
-/// to notice anything happened.
+/// If the service dies — killed for memory, crashed, updated — this connects again straight away, and keeps trying
+/// while it cannot: an update leaves the service briefly not installed at all. Every new connection takes every
+/// subscription with it and tells the service whom to meet, so messages and delivery receipts keep arriving — and
+/// the radios keep meeting the right people — without the app having to notice anything happened.
 /// </para>
 /// </summary>
 public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
 {
+    private const string LogTag = "BoundNodeClient";
+
+    /// <summary>The first wait before trying again to reach a service that is not there; it doubles each time.</summary>
+    private static readonly TimeSpan FirstRetry = TimeSpan.FromSeconds(1);
+
+    /// <summary>The longest wait between tries.</summary>
+    private static readonly TimeSpan LongestRetry = TimeSpan.FromSeconds(30);
+
+    /// <summary>How long a new connection waits for the service to take the contacts before getting on without.</summary>
+    private static readonly TimeSpan TellWithin = TimeSpan.FromSeconds(10);
+
     private readonly INodeConnector _connector;
     private readonly object _gate = new();
     private readonly List<DeferredSubscription> _subscriptions = [];
     private Task<IAetherNodeClient>? _connecting;
+
+    /// <summary>
+    /// The contacts the app last handed over. The service keeps no address book of its own, so one that starts
+    /// again is told them here — otherwise it met nobody, and everything held for somebody stayed held.
+    /// </summary>
+    private IReadOnlyList<NodeContact>? _contacts;
+
+    private bool _retrying;
     private bool _disposed;
 
     public BoundNodeClient(INodeConnector connector)
@@ -50,7 +70,15 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
         => SendAsync(to, payload, Guid.NewGuid(), cancellationToken);
 
     public async Task MeetAsync(IReadOnlyList<NodeContact> contacts, CancellationToken cancellationToken = default)
-        => await (await ClientAsync().ConfigureAwait(false)).MeetAsync(contacts, cancellationToken).ConfigureAwait(false);
+    {
+        ArgumentNullException.ThrowIfNull(contacts);
+        lock (_gate)
+        {
+            _contacts = contacts;   // kept for the next connection, whenever that is
+        }
+
+        await (await ClientAsync().ConfigureAwait(false)).MeetAsync(contacts, cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit = 50, CancellationToken cancellationToken = default)
         => await (await ClientAsync().ConfigureAwait(false)).GetInboxAsync(limit, cancellationToken).ConfigureAwait(false);
@@ -102,7 +130,9 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
             if (_connecting is null || _connecting.IsFaulted || _connecting.IsCanceled
                 || (_connecting.IsCompletedSuccessfully && _connecting.Result is BinderNodeClient { IsAlive: false }))
             {
-                _connecting = ConnectAsync();
+                // Off this lock and off the caller's thread: connecting binds, subscribes and calls the service,
+                // none of which should happen while holding the lock every other call waits on.
+                _connecting = Task.Run(ConnectAsync);
             }
 
             return _connecting;
@@ -122,15 +152,65 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
         if (client is BinderNodeClient binder)
         {
             binder.Died += () => OnDied(binder);
+
+            // Died in the moment between binding and listening for its death — what an update can do. A connection
+            // that is already dead is a failed attempt, not a connection.
+            if (!binder.IsAlive)
+            {
+                binder.Dispose();
+                throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, "AetherNetService went away as it connected");
+            }
         }
+
+        // However this connection came about — a call, a subscription, the service coming back — it takes every
+        // listener along and tells the service whom to meet. Only a death notice used to move the listeners, so a
+        // connection made by an ordinary call left the app deaf; and a service that had started again was never
+        // told whom to meet, so nothing it held for anybody went out until the app was restarted.
+        AttachAll(client);
+        await TellContactsAsync(client).ConfigureAwait(false);
 
         return client;
     }
 
-    /// <summary>The service died. Drop the dead connection, connect again, and move every subscription over.</summary>
-    private void OnDied(BinderNodeClient dead)
+    private void AttachAll(IAetherNodeClient client)
     {
         DeferredSubscription[] subscriptions;
+        lock (_gate)
+        {
+            subscriptions = [.. _subscriptions];
+        }
+
+        foreach (var subscription in subscriptions)
+        {
+            subscription.Attach(client);
+        }
+    }
+
+    private async Task TellContactsAsync(IAetherNodeClient client)
+    {
+        IReadOnlyList<NodeContact>? contacts;
+        lock (_gate)
+        {
+            contacts = _contacts;
+        }
+
+        if (contacts is null) return;   // the app has not handed any over yet; it will
+
+        try
+        {
+            // Bounded: every call waits on this connection, and none of them should wait on the radios.
+            await client.MeetAsync(contacts).WaitAsync(TellWithin).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // The connection is good for everything else; the app's next contact change sends them again.
+            global::Android.Util.Log.Warn(LogTag, $"connected, but could not tell AetherNetService whom to meet: {ex.Message}");
+        }
+    }
+
+    /// <summary>The service died. Drop the dead connection and connect again.</summary>
+    private void OnDied(BinderNodeClient dead)
+    {
         lock (_gate)
         {
             if (_disposed) return;
@@ -138,30 +218,78 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
             {
                 _connecting = null;
             }
-
-            subscriptions = [.. _subscriptions];
         }
 
         try { dead.Dispose(); } catch { /* it is already gone */ }
 
-        // Reconnecting through the subscriptions starts the service again (the bind creates it) and puts every
-        // listener on the new connection. With no subscribers, the next call reconnects on its own.
-        foreach (var subscription in subscriptions)
-        {
-            _ = AttachAsync(subscription);
-        }
+        global::Android.Util.Log.Info(LogTag, "AetherNetService went away — connecting again");
+
+        // The bind starts the service again, and the new connection takes every listener with it. With nobody
+        // listening, the next call reconnects on its own.
+        _ = Task.Run(KeepTryingAsync);
     }
 
     private async Task AttachAsync(DeferredSubscription subscription)
     {
         try
         {
-            var client = await ClientAsync().ConfigureAwait(false);
-            subscription.Attach(client);
+            subscription.Attach(await ClientAsync().ConfigureAwait(false));
         }
-        catch (AetherNodeException)
+        catch (Exception)
         {
-            // Not connected, so no events for now. The next call — or the next death notice — tries again.
+            // Not reachable right now. Keep trying in the background; the connection that comes of it takes this
+            // listener along.
+            _ = Task.Run(KeepTryingAsync);
+        }
+    }
+
+    /// <summary>
+    /// Keep trying to reach the service while anything is listening, waiting a second, then two, then four — up to
+    /// half a minute — between tries.
+    /// </summary>
+    /// <remarks>
+    /// One try used to be all there was. While the service is being updated it is briefly not installed at all, so
+    /// that try failed, and the app heard nothing more — no messages, no receipts — until it was restarted.
+    /// </remarks>
+    private async Task KeepTryingAsync()
+    {
+        lock (_gate)
+        {
+            if (_retrying || _disposed || _subscriptions.Count == 0) return;
+            _retrying = true;
+        }
+
+        try
+        {
+            var wait = FirstRetry;
+            for (var tries = 1; ; tries++)
+            {
+                try
+                {
+                    AttachAll(await ClientAsync().ConfigureAwait(false));
+                    if (tries > 1) global::Android.Util.Log.Info(LogTag, $"reached AetherNetService again after {tries} tries");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    if (tries == 1) global::Android.Util.Log.Info(LogTag, $"AetherNetService not reachable yet ({ex.Message}) — trying again");
+                }
+
+                lock (_gate)
+                {
+                    if (_disposed || _subscriptions.Count == 0) return;
+                }
+
+                await Task.Delay(wait).ConfigureAwait(false);
+                wait = wait * 2 < LongestRetry ? wait * 2 : LongestRetry;
+            }
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _retrying = false;
+            }
         }
     }
 
@@ -190,8 +318,19 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
             lock (_gate)
             {
                 if (_disposed || ReferenceEquals(_client, client)) return;   // gone, or already on this connection
+
+                IDisposable inner;
+                try
+                {
+                    inner = client.Subscribe(listener);
+                }
+                catch (Exception)
+                {
+                    return;   // that connection died under us; its death notice brings the next one, and this along
+                }
+
                 previous = _inner;
-                _inner = client.Subscribe(listener);
+                _inner = inner;
                 _client = client;
             }
 
