@@ -188,16 +188,21 @@ have real implementations (NFC/NearLink/LoRa: stubs upgraded to real on 2026-06-
 - ✅ Aether Teal (NearLink): `harmonyos/teal/` full ArkTS SLE; `WinNearLinkBleTransportService` + `android/teal/AetherNetSleService` = real SSAP-over-BLE (see item 12)
 - ⚠️ Aether Red (LoRa): real RYLR serial driver (`LoRaSerialTransport`, all 8 — C#/Go/Rust/C/Python/TypeScript/Swift/Kotlin) + Meshtastic-over-BLE-LR bridge — radio swap when module present (see item 13)
 
-**RF bring-up: still open.** Needs at minimum 2 devices exchanging a live BLE
-or Wi-Fi Direct packet. Hardware lab task — out of scope for code-only sessions.
+**RF bring-up: done 2026-09-02 (Wi-Fi Direct).** Two phones exchanged a live Wi-Fi
+Direct packet: on a P30 and a Redmi (merlin), an end-to-end-encrypted message crossed and
+its delivery receipt came back, a Signal session formed and routing keys were exchanged
+(`c397f1a`, `d4bcbb6`; WORK_TRACKER "GATE · Two-node delivery test"). That was the
+single-app build, with the radios inside the app.
 
-**Two phones over Wi-Fi: done 2026-09-30.** A P30 (Android 10) and a Pixel on Circle
-OS (Android 16) exchanged live chat through AetherNetService over the Wi-Fi both were on
-(`WifiTransportService`) — received and confirmed delivered in about 3 s each way, and a
-15-each-way burst delivered 30 of 30 in 7 s (`scripts/e2e-chat.ps1`). BLE and Wi-Fi
-Direct stay off on both phones until AetherNetService is granted its permission once
-("Nearby devices", or "Location" on older Android) — see `docs/aether-node-service.md`
-§7 — so the live BLE / Wi-Fi Direct packet above is still to come.
+**Two phones through AetherNetService, over Wi-Fi: done 2026-09-30.** With the radios
+now in AetherNetService, a P30 (Android 10) and a Pixel on Circle OS (Android 16) exchanged
+live chat over the Wi-Fi both were on (`WifiTransportService`) — received and confirmed
+delivered in about 3 s each way, and a 15-each-way burst delivered 30 of 30 in 7 s
+(`scripts/e2e-chat.ps1`).
+
+**Still open:** the same over Wi-Fi Direct or BLE *through AetherNetService*. Both stay off
+until the service is granted its permission once on each phone ("Nearby devices", or
+"Location" on older Android — `docs/aether-node-service.md` §7).
 
 ### 12. NearLink (Aether Teal) — HarmonyOS ArkTS implementation
 
