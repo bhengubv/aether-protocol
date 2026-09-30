@@ -31,7 +31,9 @@ $ErrorActionPreference = 'Stop'
 $Aether = 'com.bhengubv.aethernet'
 $Service = 'com.bhengubv.aethernetservice'
 
-function Adb([string] $serial) { & $Adb -s $serial @args 2>&1 }
+# The phone is the first argument, not a named parameter: PowerShell matches a parameter by prefix, so logcat's
+# own -s was taken as this function's -serial and adb was handed the phone's id as its command.
+function Adb { $phone, $rest = $args; & $Adb -s $phone @rest 2>&1 }
 
 function Activity([string] $serial) {
     $line = Adb $serial shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER $Aether | Select-Object -Last 1

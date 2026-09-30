@@ -23,6 +23,15 @@
                 android:resource="@xml/share_paths" />
         </provider>
     </application>
+    <!-- Android 11 and later hide other apps unless an app says which ones it talks to. Aether talks to one:
+         AetherNetService, by its bind action. Without this Android reported it as not installed and blocked
+         the bind ("AppsFilter … BLOCKED") — invisible on the Android 10 P30, total on an Android 16 phone. -->
+    <queries>
+        <package android:name="com.bhengubv.aethernetservice" />
+        <intent>
+            <action android:name="com.bhengubv.aethernet.service.BIND" />
+        </intent>
+    </queries>
     <!-- Offering somebody the app ends at Android's own installer prompt; this is what lets us reach it. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
