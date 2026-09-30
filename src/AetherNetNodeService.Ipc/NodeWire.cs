@@ -192,7 +192,7 @@ public static class NodeWire
         for (var i = 0; i < radios.Length; i++)
         {
             var r = status.Radios[i];
-            radios[i] = new RadioDto(r.Name, r.Available, r.Linked, r.CarriesBps, r.Reason, r.Fixable);
+            radios[i] = new RadioDto(r.Name, r.Available, r.Linked, r.CarriesBps, r.Reason, r.Fixable, r.NeedsPermission);
         }
 
         return JsonBytes(new LinkDto(status.Linked, status.Radio, radios));
@@ -205,7 +205,12 @@ public static class NodeWire
         for (var i = 0; i < radios.Length; i++)
         {
             var r = dto.Radios![i];
-            radios[i] = new RadioStatus(r.Name, r.Available, r.Linked, r.CarriesBps) { Reason = r.Reason, Fixable = r.Fixable };
+            radios[i] = new RadioStatus(r.Name, r.Available, r.Linked, r.CarriesBps)
+            {
+                Reason = r.Reason,
+                Fixable = r.Fixable,
+                NeedsPermission = r.NeedsPermission,
+            };
         }
 
         return new NodeLinkStatus(dto.Linked, dto.Radio, radios);
@@ -272,8 +277,10 @@ public static class NodeWire
 
     private sealed record OutboundDto(bool Accepted, string? Detail);
 
-    // Reason and Fixable are optional so an older service, which never sends them, still decodes.
-    private sealed record RadioDto(string Name, bool Available, bool Linked, long CarriesBps, string? Reason = null, bool Fixable = false);
+    // Reason, Fixable and NeedsPermission are optional so an older service, which never sends them, still decodes.
+    private sealed record RadioDto(
+        string Name, bool Available, bool Linked, long CarriesBps,
+        string? Reason = null, bool Fixable = false, bool NeedsPermission = false);
 
     private sealed record LinkDto(bool Linked, string? Radio, RadioDto[]? Radios);
 

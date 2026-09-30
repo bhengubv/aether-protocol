@@ -57,4 +57,11 @@ public sealed record RadioStatus(string Name, bool Available, bool Linked, long 
     /// permission, a switch in Settings. False when it can be used, or when the hardware is not there.
     /// </summary>
     public bool Fixable { get; init; }
+
+    /// <summary>
+    /// True when what stops the radio is a permission the phone keeps for AetherNetService — granted only by the
+    /// person, on AetherNetService's page in the phone's settings, because the service has no screen to ask from.
+    /// A connected app offers the way there; a switched-off radio is fixable too, but not by that page.
+    /// </summary>
+    public bool NeedsPermission { get; init; }
 }

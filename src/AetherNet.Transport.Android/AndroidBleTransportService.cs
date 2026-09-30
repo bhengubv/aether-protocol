@@ -140,6 +140,10 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     /// <remarks>A switched-off adapter or a missing permission is a tap away; a phone with no Bluetooth in it is not.</remarks>
     public bool IsFixable => _unavailableReason is null && _adapter is not null && (!_adapter.IsEnabled || Blocker is not null);
 
+    /// <inheritdoc />
+    /// <remarks>Said whether Bluetooth is on or off: the leave is needed either way, and asking once is enough.</remarks>
+    public bool NeedsPermission => _unavailableReason is null && _adapter is not null && !RadioPermissions.Bluetooth;
+
     /// <summary>What Android needs before this radio may look for phones, or null when nothing is missing.</summary>
     private static string? Blocker =>
         !RadioPermissions.Bluetooth ? RadioPermissions.Missing

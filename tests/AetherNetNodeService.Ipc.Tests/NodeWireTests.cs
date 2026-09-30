@@ -155,6 +155,29 @@ public class NodeWireTests
         Assert.Equal("Wi-Fi Direct", back.Radios[0].Name);
         Assert.Null(back.Radios[0].Reason);
         Assert.False(back.Radios[0].Fixable);
+        Assert.False(back.Radios[0].NeedsPermission);
+    }
+
+    /// <summary>
+    /// A radio held back by a permission says so as its own fact, not as words for an app to match: a switched-off
+    /// radio is fixable too, but not on the page that grants permissions.
+    /// </summary>
+    [Fact]
+    public void Link_round_trips_which_radios_wait_on_a_permission()
+    {
+        var status = new NodeLinkStatus(false, null,
+        [
+            new RadioStatus("Wi-Fi Direct", false, false, 0) { Reason = "needs permission to find phones nearby", Fixable = true, NeedsPermission = true },
+            new RadioStatus("BLE", false, false, 0) { Reason = "Bluetooth is switched off", Fixable = true },
+            new RadioStatus("Wi-Fi", true, true, 100_000_000),
+        ]);
+
+        var back = NodeWire.DecodeLink(NodeWire.EncodeLink(status));
+
+        Assert.True(back.Radios[0].NeedsPermission);
+        Assert.False(back.Radios[1].NeedsPermission);
+        Assert.True(back.Radios[1].Fixable);
+        Assert.False(back.Radios[2].NeedsPermission);
     }
 
     [Fact]

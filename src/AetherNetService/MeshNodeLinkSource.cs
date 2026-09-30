@@ -36,6 +36,7 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
                 {
                     Reason = r.Available ? null : r.Reason,
                     Fixable = !r.Available && r.Fixable,
+                    NeedsPermission = r.NeedsPermission,
                 });
             }
             return new NodeLinkStatus(_radio.IsLinked, _radio.IsLinked ? carrying : null, radios);

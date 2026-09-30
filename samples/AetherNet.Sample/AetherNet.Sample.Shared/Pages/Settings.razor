@@ -3,7 +3,10 @@
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @using AetherNetNodeService
+@using AetherNetNodeService.Client
+@using Microsoft.Extensions.DependencyInjection
 @inject IJSRuntime JS
+@inject IServiceProvider Services
 @inject ProxyDirectory Proxies
 @inject ChatService Chat
 @inject NavigationManager Nav
@@ -86,6 +89,20 @@
             </span>
             <span class="chev">@(_aetherNet ? "on" : "off")</span>
         </button>
+
+        @* The radios' permission belongs to AetherNetService, which has no screen to ask from, and the phone keeps
+           permissions per app — switching AetherNet on here cannot grant it. So while a radio is waiting on it,
+           this offers the way to the service's own page in the phone's settings, where it is allowed once. *@
+        @if (_aetherNet && _serviceSettings is not null && WaitingOnPermission)
+        {
+            <button class="about" @onclick="OpenServiceSettings">
+                <span class="about-body">
+                    <span class="about-t">Let AetherNet find phones nearby</span>
+                    <span class="about-s">@PermissionDetail</span>
+                </span>
+                <span class="chev">→</span>
+            </button>
+        }
     </section>
 
     @* Read-only: whether this phone is reaching anyone right now and over which radio. NOT a picker —
@@ -210,6 +227,21 @@
             ? "nearby radios reach people around you — no towers, no accounts"
             : "internet only — the nearby radios stay off until you switch this on";
 
+    /// <summary>AetherNetService's page in the phone's settings — only on a phone where there is such a page.</summary>
+    private IAetherNetServiceSettings? _serviceSettings;
+
+    /// <summary>The phone would not open that page when asked.</summary>
+    private bool _settingsFailed;
+
+    /// <summary>Whether any radio is held back only by the permission AetherNetService has not been given.</summary>
+    private bool WaitingOnPermission => _link.Radios.Any(r => r.NeedsPermission);
+
+    private string PermissionDetail => _settingsFailed
+        ? "this phone would not open its settings — find AetherNetService under Settings → Apps"
+        : $"allow {_serviceSettings!.PermissionName} for AetherNetService — until you do, it only finds people on your Wi-Fi";
+
+    private void OpenServiceSettings() => _settingsFailed = !(_serviceSettings?.Open() ?? false);
+
     private string GatewayDetail => _shareNote
         ?? (Proxies.IsGateway ? "your Circle can reach each other through this phone"
             : Proxies.Best is { } via ? $"currently relaying through {via}"
@@ -225,6 +257,9 @@
         _theme = Store.GetSetting(SetupKeys.Theme) ?? "system";
         _backedUp = Store.GetAccount().RecoveryBackedUp;
         _aetherNet = _aetherNetLaunched = Store.GetSetting(SetupKeys.AetherNet) != "0";
+
+        // Only a head that talks to AetherNetService registers one; elsewhere there is no page to send anyone to.
+        _serviceSettings = Services.GetService<IAetherNetServiceSettings>();
 
         // Presence now comes through the node contract — the app is a client of its own node.
         _nodeSub = Node.Subscribe(this);

@@ -11,8 +11,10 @@ namespace AetherNet.Mesh;
 /// <summary>
 /// A radio as the picker sees it. <paramref name="Fixable"/> separates "you can switch this on" from
 /// "this phone does not have one" — both are unavailable, but only one is worth offering a tap for.
+/// <paramref name="NeedsPermission"/> narrows that to "the phone is waiting for you to allow it", which is
+/// granted on a different page from a switched-off radio.
 /// </summary>
-public sealed record RadioInfo(string Name, bool Available, string? Reason = null, bool Fixable = false);
+public sealed record RadioInfo(string Name, bool Available, string? Reason = null, bool Fixable = false, bool NeedsPermission = false);
 
 /// <summary>
 /// The app's over-the-air link across ALL of AetherNet's radios — Wi-Fi Direct, BLE, NFC,

@@ -39,6 +39,21 @@ internal sealed class RadioMeeting : INodeMeeting, IDisposable
     /// <summary>Whom the pair-by-pair radios point at now.</summary>
     private string? _host;
 
+    /// <summary>Which radios could be used on the last pass, so a change — a permission just granted — is seen.</summary>
+    private string _usable = "";
+
+    /// <summary>The radios usable right now, by name, in the mesh's order.</summary>
+    private string Usable()
+    {
+        var names = new List<string>();
+        foreach (var r in _radio.Radios)
+        {
+            if (r.Available) names.Add(r.Name);
+        }
+
+        return string.Join(",", names);
+    }
+
     public RadioMeeting(IIdentityService me, IRadioMesh radio, ILogger<RadioMeeting>? log = null)
     {
         _me = me ?? throw new ArgumentNullException(nameof(me));
@@ -90,8 +105,14 @@ internal sealed class RadioMeeting : INodeMeeting, IDisposable
                 var host = MeetingHost.Choose(tags, _radio.IsReachable, _host);
                 if (host is null) return;
 
-                // Already with them: leave the radios alone.
-                if (host == _host && _radio.IsReachable(host)) return;
+                var usable = Usable();
+                var usableChanged = !string.Equals(usable, _usable, StringComparison.Ordinal);
+                _usable = usable;
+
+                // Already with them, and no radio has come or gone since: leave the radios alone. A radio that has
+                // just become usable — its permission granted while the service ran — is pointed at them too, or
+                // it would sit idle until the host changed.
+                if (host == _host && _radio.IsReachable(host) && !usableChanged) return;
 
                 if (Meeting.With(me, host) is { } hostMeeting)
                 {

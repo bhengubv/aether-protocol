@@ -134,6 +134,12 @@ internal sealed class AndroidWifiAwareTransportService : IRadio, IDisposable
         Ctx.PackageManager?.HasSystemFeature(global::Android.Content.PM.PackageManager.FeatureWifiAware) == true &&
         !IsAvailable;
 
+    /// <inheritdoc />
+    public bool NeedsPermission =>
+        OperatingSystem.IsAndroidVersionAtLeast(26) &&
+        Ctx.PackageManager?.HasSystemFeature(global::Android.Content.PM.PackageManager.FeatureWifiAware) == true &&
+        !RadioPermissions.NearbyWifi;
+
     /// <summary>
     /// Deliberately declared BELOW Wi-Fi Direct until somebody measures it.
     ///

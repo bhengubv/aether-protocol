@@ -257,7 +257,7 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
 
     public string LocalTag { get; }
     public IReadOnlyList<RadioInfo> Radios =>
-        _order.Select(r => new RadioInfo(r.Name, r.IsAvailable, r.UnavailableReason, r.IsFixable)).ToArray();
+        _order.Select(r => new RadioInfo(r.Name, r.IsAvailable, r.UnavailableReason, r.IsFixable, r.NeedsPermission)).ToArray();
     public string SelectedRadio => _selected.Name;
 
     /// <inheritdoc />

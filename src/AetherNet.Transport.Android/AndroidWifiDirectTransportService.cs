@@ -178,6 +178,9 @@ public sealed class AndroidWifiDirectTransportService
     /// <remarks>The hardware being absent is final; a permission or a settings toggle is not.</remarks>
     public bool IsFixable => HasFeature && _manager is not null && Blocker is not null;
 
+    /// <inheritdoc />
+    public bool NeedsPermission => HasFeature && _manager is not null && !RadioPermissions.NearbyWifi;
+
     /// <summary>
     /// What is stopping this radio from working, in the words of someone holding the phone — or null
     /// when nothing is.

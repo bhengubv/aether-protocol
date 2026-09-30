@@ -63,6 +63,11 @@ public static class MauiProgram
         // the service for the 24 words and shows them. Restore is not available from here yet.
         builder.Services.AddSingleton<AetherNetNodeService.Client.IOwnerCheck>(_ =>
             new AetherNetNodeService.Android.AndroidOwnerCheck(() => Microsoft.Maui.ApplicationModel.Platform.CurrentActivity));
+        // AetherNetService has no screen to ask for the radios' permission from, so this app offers the way to its
+        // page in the phone's settings; the person allows it there, once.
+        builder.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(_ =>
+            new AetherNetNodeService.Android.AndroidAetherNetServiceSettings(
+                global::Android.App.Application.Context, AetherNetServicePackage));
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
             new AetherNetNodeService.Client.NodeClientRecovery(
                 sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>(),

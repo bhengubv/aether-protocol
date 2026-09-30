@@ -33,6 +33,12 @@ internal interface IRadio
     bool IsFixable => false;
 
     /// <summary>
+    /// Is a permission the phone keeps for this app what stands in the way — hardware present, leave missing? A
+    /// switched-off radio is fixable too, but on a different page, so this is said on its own.
+    /// </summary>
+    bool NeedsPermission => false;
+
+    /// <summary>
     /// Roughly what this radio can carry, in bits per second.
     ///
     /// <para>
