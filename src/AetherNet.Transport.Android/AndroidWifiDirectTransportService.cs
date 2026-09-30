@@ -186,37 +186,18 @@ public sealed class AndroidWifiDirectTransportService
     {
         get
         {
-            if (!HasPermission)
-                return "needs permission to find phones nearby";
+            if (!RadioPermissions.NearbyWifi)
+                return RadioPermissions.Missing;
 
             // Below API 33 the discovery stack returns nothing at all unless Location is switched on
             // — not an error, just silence, which is the hardest kind of failure to find.
             if (global::Android.OS.Build.VERSION.SdkInt < global::Android.OS.BuildVersionCodes.Tiramisu &&
-                !LocationServicesOn)
+                !RadioPermissions.LocationServicesOn)
                 return "Android needs Location switched on to find phones over Wi-Fi";
 
             return null;
         }
     }
-
-    /// <summary>
-    /// The permission Wi-Fi Direct discovery needs. Android 13 introduced <c>NEARBY_WIFI_DEVICES</c>
-    /// precisely so that finding a phone next to you stops meaning "may track where you are"; before
-    /// that the only way to ask was fine location.
-    /// </summary>
-    private static bool HasPermission =>
-        AndroidX.Core.Content.ContextCompat.CheckSelfPermission(
-            global::Android.App.Application.Context,
-            global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.Tiramisu
-                ? global::Android.Manifest.Permission.NearbyWifiDevices
-                : global::Android.Manifest.Permission.AccessFineLocation)
-        == global::Android.Content.PM.Permission.Granted;
-
-    private static bool LocationServicesOn =>
-        global::Android.App.Application.Context.GetSystemService(Context.LocationService)
-            is global::Android.Locations.LocationManager m &&
-        (m.IsProviderEnabled(global::Android.Locations.LocationManager.GpsProvider) ||
-         m.IsProviderEnabled(global::Android.Locations.LocationManager.NetworkProvider));
 
     private static bool HasFeature =>
         global::Android.App.Application.Context.PackageManager?

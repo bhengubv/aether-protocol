@@ -117,21 +117,36 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
     public string Name => _name;
 
     /// <summary>
-    /// Available whenever Bluetooth is on — a device can always scan/connect (central) even if it
-    /// can't advertise (some phones, e.g. the P30 Lite, lack BLE peripheral support). An instance
-    /// standing in for hardware the phone does not have is never available, whatever Bluetooth does.
+    /// Available whenever Bluetooth is on and Android lets this app look for phones — a device can always
+    /// scan/connect (central) even if it can't advertise (some phones, e.g. the P30 Lite, lack BLE peripheral
+    /// support). An instance standing in for hardware the phone does not have is never available, whatever
+    /// Bluetooth does.
     /// </summary>
-    public bool IsAvailable => _unavailableReason is null && _adapter is { IsEnabled: true };
+    /// <remarks>
+    /// The permission is asked for here, before anything touches the Bluetooth stack. It used to be left to the
+    /// stack to refuse: usually a SecurityException, caught; now and then, on a freshly started AetherNetService, a
+    /// segmentation fault that took the whole service down — four times in a row, until Android stopped restarting
+    /// it (Pixel, 2026-09-30). See <see cref="RadioPermissions"/>.
+    /// </remarks>
+    public bool IsAvailable => _unavailableReason is null && _adapter is { IsEnabled: true } && Blocker is null;
 
     /// <inheritdoc />
     public string? UnavailableReason => _unavailableReason
         ?? (_adapter is null ? "this phone has no Bluetooth"
             : !_adapter.IsEnabled ? "Bluetooth is switched off"
-            : null);
+            : Blocker);
 
     /// <inheritdoc />
-    /// <remarks>A switched-off adapter is a tap away; a phone with no Bluetooth in it is not.</remarks>
-    public bool IsFixable => _unavailableReason is null && _adapter is { IsEnabled: false };
+    /// <remarks>A switched-off adapter or a missing permission is a tap away; a phone with no Bluetooth in it is not.</remarks>
+    public bool IsFixable => _unavailableReason is null && _adapter is not null && (!_adapter.IsEnabled || Blocker is not null);
+
+    /// <summary>What Android needs before this radio may look for phones, or null when nothing is missing.</summary>
+    private static string? Blocker =>
+        !RadioPermissions.Bluetooth ? RadioPermissions.Missing
+        // Below Android 12 a BLE scan returns nothing unless Location is switched on — silence, not an error.
+        : !OperatingSystem.IsAndroidVersionAtLeast(31) && !RadioPermissions.LocationServicesOn
+            ? "Android needs Location switched on to find phones over Bluetooth"
+            : null;
 
     /// <summary>
     /// What this actually carries between two handsets, measured — not what the spec promises, and
@@ -240,6 +255,9 @@ public sealed class AndroidBleTransportService : IRadio, IDisposable
         if (!_told) { L("waiting to be told who to meet"); return; }
 
         if (_adapter is null || !_adapter.IsEnabled) { L("Bluetooth is off"); return; }
+
+        // Never into the Bluetooth stack without leave — see IsAvailable for what that cost.
+        if (Blocker is { } missing) { L(missing); return; }
         if (LinkLooksAlive()) { L("already linked"); return; }
 
         // Rebuild, and ignore the disconnects our own teardown provokes.

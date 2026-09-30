@@ -96,6 +96,9 @@ internal sealed class AndroidWifiAwareTransportService : IRadio, IDisposable
             if (Ctx.PackageManager?.HasSystemFeature(global::Android.Content.PM.PackageManager.FeatureWifiAware) != true)
                 return false;
 
+            // Finding phones over Aware needs the same leave as Wi-Fi Direct; without it, nothing to attach for.
+            if (!RadioPermissions.NearbyWifi) return false;
+
             var manager = (WifiAwareManager?)Ctx.GetSystemService(Context.WifiAwareService);
             return manager?.IsAvailable ?? false;
         }
@@ -110,6 +113,9 @@ internal sealed class AndroidWifiAwareTransportService : IRadio, IDisposable
 
             if (Ctx.PackageManager?.HasSystemFeature(global::Android.Content.PM.PackageManager.FeatureWifiAware) != true)
                 return "this phone does not have Wi-Fi Aware — most mid-range chipsets leave it out";
+
+            if (!RadioPermissions.NearbyWifi)
+                return RadioPermissions.Missing;
 
             var manager = (WifiAwareManager?)Ctx.GetSystemService(Context.WifiAwareService);
             if (manager?.IsAvailable != true)
