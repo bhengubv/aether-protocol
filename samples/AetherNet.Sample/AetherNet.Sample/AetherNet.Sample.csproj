@@ -91,7 +91,7 @@
     <DebugSymbols>false</DebugSymbols>
     <DebugType>none</DebugType>
     <AndroidKeyStore>true</AndroidKeyStore>
-    <AndroidSigningKeyStore>$(USERPROFILE)\keystore\TheGeekAlias.keystore</AndroidSigningKeyStore>
+    <AndroidSigningKeyStore>$(USERPROFILE)\AppData\Local\Xamarin\Mono for Android\Keystore\TheGeekAlias\TheGeekAlias.keystore</AndroidSigningKeyStore>
     <AndroidSigningKeyAlias>TheGeekAlias</AndroidSigningKeyAlias>
     <AndroidSigningKeyPass>$(ANDROID_KEYSTORE_PASS)</AndroidSigningKeyPass>
     <AndroidSigningStorePass>$(ANDROID_KEYSTORE_PASS)</AndroidSigningStorePass>

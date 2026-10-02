@@ -22,6 +22,19 @@
     <AndroidManifest>Platforms\Android\AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
 
+  <!-- A Release build is signed with The Geek Network's key, or it is not a release: with no signing set, the SDK
+       quietly signs with the debug key and the package installs, runs and can be shipped nowhere. An apk, as for
+       Aether — the phones this is for install from a file, and an aab Install uninstalls first, which would take
+       this device's identity with it. The password comes from ANDROID_KEYSTORE_PASS and is never written here. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidKeyStore>true</AndroidKeyStore>
+    <AndroidSigningKeyStore>$(USERPROFILE)\AppData\Local\Xamarin\Mono for Android\Keystore\TheGeekAlias\TheGeekAlias.keystore</AndroidSigningKeyStore>
+    <AndroidSigningKeyAlias>TheGeekAlias</AndroidSigningKeyAlias>
+    <AndroidSigningKeyPass>$(ANDROID_KEYSTORE_PASS)</AndroidSigningKeyPass>
+    <AndroidSigningStorePass>$(ANDROID_KEYSTORE_PASS)</AndroidSigningStorePass>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="../AetherNetNodeService.Android/AetherNetNodeService.Android.csproj" />
     <ProjectReference Include="../AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
