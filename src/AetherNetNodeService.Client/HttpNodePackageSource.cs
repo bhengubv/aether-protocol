@@ -3,9 +3,10 @@
 namespace AetherNetNodeService.Client;
 
 /// <summary>
-/// Fetches the node APK from a distribution endpoint over HTTP, then verifies the fingerprint. This is the
-/// in-app downloader for the "reachable distribution" path — the endpoint is configuration (e.g. the
-/// reference deployment's <c>nfc.circleos.co.za</c>), never hard-coded in the SDK.
+/// Fetches the node APK over HTTP, then verifies the fingerprint. The endpoint is configuration, never hard-coded
+/// in the SDK — the phone next to you serving it over its Wi-Fi Direct group, as Touch My Blood does, not a central
+/// server: every share is tens of megabytes, and one server carrying them all is the centre this network exists
+/// not to have.
 /// </summary>
 public sealed class HttpNodePackageSource : INodePackageSource
 {

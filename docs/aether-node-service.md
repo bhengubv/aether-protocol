@@ -88,16 +88,12 @@ A consumer app that wants the mesh moves through:
    default; nothing happens without the user.
 3. **Authorize + install** — the user consents; the node APK is installed. NFC
    ("Touch My Blood") is the near-field *pointer*, not the payload — a tap is far
-   too narrow to carry a 54 MB APK, so it hands over an NDEF URI and the bytes
-   follow one of two ways:
-   - **From a reachable distribution** — the tapped URL serves the node APK, and
-     the OS image itself, from one endpoint. The reference Circle OS deployment
-     serves both at `nfc.circleos.co.za`; any distribution endpoint works, and
-     the fetch can ride the mesh through a gateway peer when there is no direct
-     internet.
-   - **Fully peer-to-peer** — when nothing is reachable at all, the tap bootstraps
-     a Wi-Fi Direct link and the two phones transfer the APK directly: no store,
-     no internet, no Google.
+   too narrow to carry a 54 MB APK. It hands over the sending phone's Wi-Fi Direct
+   network and then a link on that network, and the two phones transfer the APK
+   directly: no store, no internet, no Google — and no server. A central download
+   server is deliberately not a path. Every share is tens of megabytes, so one
+   server carrying them all falls over on a busy day; and it would be the one
+   centre in a network built not to have one.
 
    Installing an APK is always a user action — the app requests, the user
    approves, the app never installs silently.
@@ -396,6 +392,9 @@ Android 16), 2026-09-30:
   memory), and once no app is bound to it nothing starts it again — the service asks
   to be restarted (`START_STICKY`), and EMUI does not. Aether now offers "Battery"
   and "App launch" for it; whether those keep it running there is not yet shown.
+- Touch My Blood hands over Aether only (`aether.apk`). The phone receiving it also
+  needs AetherNetService, and with no server it has to come from the sending phone
+  too.
 - Restoring from the 24 words through an app: the service mints on first start, and
   adopting over a live identity is refused by design, so restore needs its own path.
 - The 8-language port of the contract and fixtures.
