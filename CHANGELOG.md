@@ -112,6 +112,11 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
   contact who is actually here (`MeetingHost.Choose`), and re-points them only when that changes, when that
   contact is unreachable, or when a radio becomes usable. It used to re-point them every 30 s at whoever
   sorted lowest, present or not. (`d59df4f`, `65f17ab`)
+- **The AetherNet switch is AetherNetService's** — on a phone with AetherNetService, "AetherNet is on / off" in
+  Aether's Settings and setup now switches the service's nearby radios for every app on the phone
+  (`SetNearbyAsync`, op 11; the state is `NodeLinkStatus.NearbyOn`). Off, only the internet leg runs. The service
+  restarts to apply it — a radio once stopped cannot be started again in the same process — and connected apps
+  reconnect by themselves. It used to change nothing on such a phone: the service brought its radios up either way.
 - **A permission allowed on the phone brings its radio up without a restart** — the phone tells an app
   nothing when that happens, so AetherNetService looks again every 3 s while a permission is missing
   (`PermissionWatch`), brings up the radio it held back, and tells every connected app. It used to stay off

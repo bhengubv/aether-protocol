@@ -16,15 +16,20 @@ using RadioStatus = AetherNetNodeService.RadioStatus;   // what AetherNetService
 namespace AetherNet.Sample.Tests;
 
 /// <summary>
-/// AetherNetService's permissions, on Aether's Settings page.
+/// AetherNetService's settings and permissions, on Aether's Settings page.
 ///
 /// <para>
 /// AetherNetService has no screen of its own, so Aether's settings are where a person sees what it has been allowed —
 /// always, not only while something is missing. Each line opens the service's page in the phone's settings, the only
 /// place a permission can change: the phone keeps permissions per app, and one app cannot grant another's.
 /// </para>
+///
+/// <para>
+/// And the AetherNet switch is the service's: on a phone with AetherNetService it switches the nearby radios for every
+/// app there, and shows what the service says rather than what this app last wrote down.
+/// </para>
 /// </summary>
-public sealed class SettingsPermissionTests : IDisposable
+public sealed class SettingsAetherNetServiceTests : IDisposable
 {
     private const string Me = "KXJB7-MN2P4";
     private const string Line = "Let AetherNet find phones nearby";   // an older service's one line
@@ -34,7 +39,7 @@ public sealed class SettingsPermissionTests : IDisposable
     private readonly FakeNode _node = new();
     private readonly FakeServiceSettings _settings = new();
 
-    public SettingsPermissionTests()
+    public SettingsAetherNetServiceTests()
     {
         // The theme call is best-effort JS the page wraps in try/catch.
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -196,6 +201,68 @@ public sealed class SettingsPermissionTests : IDisposable
         Assert.Equal(1, _settings.Opened);
     }
 
+    // ── The AetherNet switch ────────────────────────────────────────────────────
+
+    /// <summary>The switch on the page, found by what it says.</summary>
+    private static AngleSharp.Dom.IElement Switch(IRenderedComponent<Settings> cut) =>
+        cut.FindAll("button.about").Single(b => b.QuerySelector(".about-t")?.TextContent.StartsWith("AetherNet is") == true);
+
+    [Fact]
+    public void On_a_phone_with_AetherNetService_the_switch_shows_what_the_service_says()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _store.SetFlag(SetupKeys.AetherNet, true);   // what this app last wrote down — not the answer
+        _node.Link = Holding(Nearby(true)) with { NearbyOn = false };
+
+        var sw = Switch(_ctx.RenderComponent<Settings>());
+
+        Assert.Equal("AetherNet is off", sw.QuerySelector(".about-t")!.TextContent);
+        Assert.Contains("internet only, for every app on this phone", sw.TextContent);
+    }
+
+    [Fact]
+    public void Turning_it_off_switches_the_service_and_shows_off_once_it_comes_back()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Nearby(true));
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Switch(cut).Click();
+
+        Assert.Equal(new[] { false }, _node.Switched);
+        cut.WaitForAssertion(() => Assert.Equal("AetherNet is off", Switch(cut).QuerySelector(".about-t")!.TextContent));
+        Assert.Equal("0", _store.GetSetting(SetupKeys.AetherNet));   // this app's own record agrees with the phone's
+    }
+
+    [Fact]
+    public void A_service_that_cannot_switch_says_so_and_nothing_changes()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Nearby(true));
+        _node.Refuses = true;
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Switch(cut).Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("cannot switch its radios — update it", Switch(cut).TextContent));
+        Assert.Equal("AetherNet is on", Switch(cut).QuerySelector(".about-t")!.TextContent);
+        Assert.NotEqual("0", _store.GetSetting(SetupKeys.AetherNet));
+    }
+
+    /// <summary>A head with no AetherNetService runs its own radios: the switch is this app's, applied at launch.</summary>
+    [Fact]
+    public void Without_AetherNetService_the_switch_is_this_apps_own_and_asks_for_a_reopen()
+    {
+        _node.Link = Holding(Nearby(true));
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Switch(cut).Click();
+
+        Assert.Empty(_node.Switched);
+        Assert.Equal("0", _store.GetSetting(SetupKeys.AetherNet));
+        Assert.Contains("reopen Aether for this to take effect", Switch(cut).TextContent);
+    }
+
     /// <summary>AetherNetService's settings page, counting how often it was opened.</summary>
     private sealed class FakeServiceSettings : IAetherNetServiceSettings
     {
@@ -226,6 +293,21 @@ public sealed class SettingsPermissionTests : IDisposable
         }
 
         public Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default) => Task.FromResult(Link);
+
+        /// <summary>What the switch was asked, in order.</summary>
+        public List<bool> Switched { get; } = [];
+
+        /// <summary>An AetherNetService with no switch to turn.</summary>
+        public bool Refuses { get; set; }
+
+        // The real service restarts to apply it and comes back with the new state; this one has it at once.
+        public Task SetNearbyAsync(bool on, CancellationToken cancellationToken = default)
+        {
+            if (Refuses) throw new AetherNodeException(AetherNodeErrorCode.Internal, "this service has no nearby radios to switch");
+            Switched.Add(on);
+            Link = Link with { NearbyOn = on };
+            return Task.CompletedTask;
+        }
 
         public IDisposable Subscribe(IAetherNodeEvents listener)
         {

@@ -76,18 +76,18 @@
         </button>
     </section>
 
-    @* AetherNet — the nearby-radio mesh — is a choice. Off, the app runs over the internet only and never
-       wakes the physical radios (no battery, no permission prompts); on, phones near you reach each other
-       with no towers and no accounts. Enabling it is authorizing the mesh on this device. It applies at
-       launch, so a change asks for a reopen rather than pretending the radios stopped mid-session. *@
+    @* AetherNet — the nearby-radio mesh — is a choice. Off, the phone runs over the internet only and never
+       wakes the physical radios; on, phones near you reach each other with no towers and no accounts. On a
+       phone with AetherNetService the radios are the service's, so the switch is too — for every app on the
+       phone, and it shows what the service says. Elsewhere it applies at launch, and asks for a reopen. *@
     <section class="group">
         <div class="glabel">AetherNet</div>
-        <button class="about" @onclick="ToggleAetherNet">
+        <button class="about" @onclick="ToggleAetherNet" disabled="@(_switchingTo is not null)">
             <span class="about-body">
-                <span class="about-t">@(_aetherNet ? "AetherNet is on" : "AetherNet is off")</span>
+                <span class="about-t">@(AetherNetOn ? "AetherNet is on" : "AetherNet is off")</span>
                 <span class="about-s">@AetherNetDetail</span>
             </span>
-            <span class="chev">@(_aetherNet ? "on" : "off")</span>
+            <span class="chev">@(AetherNetOn ? "on" : "off")</span>
         </button>
 
         @* AetherNetService's permissions, always on show. It has no screen of its own, so this is where a person sees
@@ -248,11 +248,33 @@
     /// only takes effect on the next open, and the card says so rather than lying.</summary>
     private bool _aetherNetLaunched;
 
-    private string AetherNetDetail => _aetherNet != _aetherNetLaunched
-        ? "reopen Aether for this to take effect"
-        : _aetherNet
-            ? "nearby radios reach people around you — no towers, no accounts"
-            : "internet only — the nearby radios stay off until you switch this on";
+    /// <summary>On a phone with AetherNetService the radios are the service's, and so is the switch.</summary>
+    private bool OnService => _serviceSettings is not null;
+
+    /// <summary>Whether AetherNet's nearby radios are on — AetherNetService's word, where there is one.</summary>
+    private bool AetherNetOn => OnService ? _link.NearbyOn : _aetherNet;
+
+    /// <summary>What the switch was turned to, while AetherNetService restarts to apply it; null when settled.</summary>
+    private bool? _switchingTo;
+
+    /// <summary>Why the last turn of the switch did not take, in words for the person.</summary>
+    private string? _switchProblem;
+
+    /// <summary>How long AetherNetService is given to come back with the new setting.</summary>
+    private static readonly TimeSpan SwitchWithin = TimeSpan.FromSeconds(30);
+
+    private string AetherNetDetail =>
+        _switchProblem
+        ?? (_switchingTo is { } to ? $"switching {(to ? "on" : "off")} — AetherNetService is restarting its radios"
+            : OnService
+                ? AetherNetOn
+                    ? "nearby radios reach people around you — no towers, no accounts"
+                    : "internet only, for every app on this phone — the nearby radios stay off until you switch this on"
+            : _aetherNet != _aetherNetLaunched
+                ? "reopen Aether for this to take effect"
+                : _aetherNet
+                    ? "nearby radios reach people around you — no towers, no accounts"
+                    : "internet only — the nearby radios stay off until you switch this on");
 
     /// <summary>AetherNetService's page in the phone's settings — only on a phone where there is such a page.</summary>
     private IAetherNetServiceSettings? _serviceSettings;
@@ -309,6 +331,7 @@
     void IAetherNodeEvents.OnLinkChanged(NodeLinkStatus status)
     {
         _link = status;
+        if (_switchingTo == status.NearbyOn) _switchingTo = null;   // the restarted service says it took
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -346,14 +369,72 @@
     }
 
     /// <summary>
-    /// Switch AetherNet (the nearby-radio mesh) on or off. Persisted immediately; the radios are brought
-    /// up at launch (see WarmUpService), so a change takes effect when Aether is next opened — the card
-    /// reflects that rather than pretending the radios stopped mid-session.
+    /// Switch AetherNet (the nearby-radio mesh) on or off. On a phone with AetherNetService the service does it, for
+    /// every app on the phone: it restarts to apply it, and the card says so until the service comes back saying it
+    /// took. Elsewhere it is this app's own setting, applied at launch (see WarmUpService), and the card says that.
     /// </summary>
-    private void ToggleAetherNet()
+    private async Task ToggleAetherNet()
     {
-        _aetherNet = !_aetherNet;
-        Store.SetFlag(SetupKeys.AetherNet, _aetherNet);
+        if (!OnService)
+        {
+            _aetherNet = !_aetherNet;
+            Store.SetFlag(SetupKeys.AetherNet, _aetherNet);
+            return;
+        }
+
+        if (_switchingTo is not null) return;
+        var to = !_link.NearbyOn;
+        _switchingTo = to;
+        _switchProblem = null;
+
+        try
+        {
+            await Node.SetNearbyAsync(to);
+
+            // AetherNetService restarts to apply it. Ask until the one that comes back says it took.
+            var until = DateTime.UtcNow + SwitchWithin;
+            while (_switchingTo is not null && DateTime.UtcNow < until)
+            {
+                try
+                {
+                    var link = await Node.GetLinkAsync();
+                    if (link.NearbyOn == to)
+                    {
+                        _link = link;
+                        break;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Still restarting — the next ask reaches the new one.
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+
+            if (_link.NearbyOn == to)
+            {
+                // This app's own record agrees with the phone's, for the steps that read it at launch.
+                _aetherNet = to;
+                Store.SetFlag(SetupKeys.AetherNet, to);
+            }
+            else
+            {
+                _switchProblem = "AetherNetService has not come back yet — look again in a moment";
+            }
+        }
+        catch (AetherNodeException ex) when (ex.Code == AetherNodeErrorCode.Internal)
+        {
+            _switchProblem = "this AetherNetService cannot switch its radios — update it, then try again";
+        }
+        catch (Exception)
+        {
+            _switchProblem = "AetherNetService did not answer — try again in a moment";
+        }
+        finally
+        {
+            _switchingTo = null;
+        }
     }
 
     private async Task ShareWith(string tag)

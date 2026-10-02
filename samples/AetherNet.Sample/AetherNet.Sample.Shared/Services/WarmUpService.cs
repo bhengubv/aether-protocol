@@ -392,11 +392,20 @@ public sealed class WarmUpService
                 if (radio is null || !radio.IsSupported)
                 {
                     // No radios in this app — so they are AetherNetService's, and awake if it says so.
-                    if (await NodeLinkAsync(cancellationToken).ConfigureAwait(false) is { } link
-                        && link.Radios.Count(r => r.Available) is var awake and > 0)
+                    if (await NodeLinkAsync(cancellationToken).ConfigureAwait(false) is { } link)
                     {
-                        step.Detail = link.Linked ? $"linked over {link.Radio}" : $"{awake} radios listening";
-                        break;
+                        // Switched off for the whole phone: the internet leg is all the service runs.
+                        if (!link.NearbyOn)
+                        {
+                            step.Detail = "internet only — nearby radios off";
+                            break;
+                        }
+
+                        if (link.Radios.Count(r => r.Available) is var awake and > 0)
+                        {
+                            step.Detail = link.Linked ? $"linked over {link.Radio}" : $"{awake} radios listening";
+                            break;
+                        }
                     }
 
                     Absent(step, "no radio on this device");
@@ -429,8 +438,15 @@ public sealed class WarmUpService
                 if (fast is null || mesh is not { IsSupported: true })
                 {
                     // Wi-Fi Direct is a radio, and an app connected to AetherNetService runs none: report the
-                    // service's Wi-Fi Direct radio instead.
-                    if (await NodeLinkAsync(cancellationToken).ConfigureAwait(false) is { } link
+                    // service's Wi-Fi Direct radio instead — or that the service's nearby radios are switched off.
+                    var serviceLink = await NodeLinkAsync(cancellationToken).ConfigureAwait(false);
+                    if (serviceLink is { NearbyOn: false })
+                    {
+                        Absent(step, "nearby radios are off");
+                        break;
+                    }
+
+                    if (serviceLink is { } link
                         && link.Radios.FirstOrDefault(r => r.Name.Contains("Direct", StringComparison.OrdinalIgnoreCase)) is { } direct)
                     {
                         if (direct.Available) { step.Detail = direct.Linked ? "linked" : "ready"; break; }

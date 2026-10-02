@@ -77,6 +77,19 @@ public interface IAetherNodeClient
         => throw new NotSupportedException("This service does not hand out the recovery phrase.");
 
     /// <summary>
+    /// Switch AetherNet's nearby radios — Bluetooth, Wi-Fi Direct, Wi-Fi Aware, the meeting on the Wi-Fi the phone is
+    /// on — on or off for this whole device. Off, only the internet leg runs: every app on the phone still reaches
+    /// people over ordinary data, and no nearby radio wakes. The state is <see cref="NodeLinkStatus.NearbyOn"/>.
+    /// </summary>
+    /// <remarks>
+    /// A setting of the device, like the network cable the service is: whichever app the person changes it in
+    /// changes it for all of them. AetherNetService applies it by restarting, so connected apps lose it for a moment
+    /// and reconnect by themselves.
+    /// </remarks>
+    Task SetNearbyAsync(bool on, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This service cannot switch its nearby radios.");
+
+    /// <summary>
     /// Subscribe to inbound messages, link changes, and grant changes. Dispose the returned handle to stop.
     /// A callback interface rather than a C# event so the subscription proxies across a process boundary.
     /// </summary>

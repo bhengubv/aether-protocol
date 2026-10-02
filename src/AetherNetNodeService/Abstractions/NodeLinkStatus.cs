@@ -43,6 +43,13 @@ public sealed record NodeLinkStatus(bool Linked, string? Radio, IReadOnlyList<Ra
     /// where a person sees them. Empty from a host with no such permissions, and from an older service.
     /// </summary>
     public IReadOnlyList<ServicePermission> Permissions { get; init; } = System.Array.Empty<ServicePermission>();
+
+    /// <summary>
+    /// Whether AetherNet's nearby radios are switched on for this device — the switch a connected app shows as
+    /// "AetherNet is on / off" (<see cref="IAetherNodeClient.SetNearbyAsync"/>). Off, only the internet leg runs. True
+    /// from a host that has no such switch, and from an older service, both of which always run their radios.
+    /// </summary>
+    public bool NearbyOn { get; init; } = true;
 }
 
 /// <summary>One permission the phone keeps for AetherNetService.</summary>

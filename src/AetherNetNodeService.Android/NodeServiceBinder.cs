@@ -38,7 +38,7 @@ internal sealed class NodeServiceBinder : Binder
         var op = (NodeOp)code;
         if (op is not (NodeOp.GetTag or NodeOp.GetPublicKey or NodeOp.Sign or NodeOp.Send
             or NodeOp.GetInbox or NodeOp.GetLink or NodeOp.Subscribe or NodeOp.Unsubscribe or NodeOp.Meet
-            or NodeOp.GetRecoveryPhrase))
+            or NodeOp.GetRecoveryPhrase or NodeOp.SetNearby))
         {
             return base.OnTransact(code, data, reply, flags);
         }
@@ -95,6 +95,12 @@ internal sealed class NodeServiceBinder : Binder
 
             case NodeOp.Meet:
                 Block(_host.MeetAsync(NodeWire.DecodeMeet(data?.CreateByteArray() ?? [])));
+                WriteOk(reply, []);
+                break;
+
+            // Any connected app may switch it: it is the device's switch, and the phone's lock is the gate.
+            case NodeOp.SetNearby:
+                Block(_host.SetNearbyAsync(NodeWire.DecodeFlag(data?.CreateByteArray())));
                 WriteOk(reply, []);
                 break;
 

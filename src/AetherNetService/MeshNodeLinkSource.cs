@@ -20,14 +20,17 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
 
     private readonly IRadioMesh _radio;
     private readonly ILogger? _logger;
+    private readonly INodeNearby? _nearby;
     private readonly PermissionWatch _permissions;
     private readonly Timer _look;
     private int _looking;
 
-    public MeshNodeLinkSource(IRadioMesh radio, ILogger<MeshNodeLinkSource>? logger = null)
+    /// <param name="nearby">The device's switch for its nearby radios; switched off, a permission allowed wakes none.</param>
+    public MeshNodeLinkSource(IRadioMesh radio, ILogger<MeshNodeLinkSource>? logger = null, INodeNearby? nearby = null)
     {
         _radio = radio ?? throw new ArgumentNullException(nameof(radio));
         _logger = logger;
+        _nearby = nearby;
         _radio.Changed += () => Changed?.Invoke();
 
         // The phone tells an app nothing when the person allows one of its permissions on the phone's own page. So
@@ -72,7 +75,7 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
                 var now = string.Join(", ", _permissions.Current.Select(p => $"{p.Name} {(p.Allowed ? "allowed" : "not allowed")}"));
                 _logger?.LogInformation("permissions changed: {Permissions}", now);
 
-                if (_permissions.NewlyAllowed)
+                if (_permissions.NewlyAllowed && _nearby is not { On: false })
                 {
                     _logger?.LogInformation("a permission was allowed — bringing up the radios it held back");
                     _radio.Link();

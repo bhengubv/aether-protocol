@@ -236,4 +236,60 @@ public class AetherNodeServiceTests
 
         await Assert.ThrowsAsync<AetherNodeException>(() => svc.GetRecoveryPhraseAsync());
     }
+
+    /// <summary>The device's switch for its nearby radios, counting what it was asked.</summary>
+    private sealed class FakeNearby : INodeNearby
+    {
+        public bool On { get; set; } = true;
+        public List<bool> Asked { get; } = new();
+
+        public void Set(bool on)
+        {
+            Asked.Add(on);
+            On = on;
+        }
+    }
+
+    private static AetherNodeService WithNearby(FakeNearby nearby, out FakeLink link)
+    {
+        link = new FakeLink();
+        return new AetherNodeService(new FakeIdentity(), new FakeMessaging(), link, null, null, nearby);
+    }
+
+    [Fact]
+    public async Task Switching_the_nearby_radios_goes_to_the_device_switch()
+    {
+        var nearby = new FakeNearby();
+        var svc = WithNearby(nearby, out _);
+
+        await svc.SetNearbyAsync(false);
+
+        Assert.Equal(new[] { false }, nearby.Asked);
+        Assert.False((await svc.GetLinkAsync()).NearbyOn);
+    }
+
+    /// <summary>Every connected app hears the switch as it stands, with the radios, in what is pushed to it.</summary>
+    [Fact]
+    public void A_pushed_link_carries_the_switch()
+    {
+        var nearby = new FakeNearby { On = false };
+        var svc = WithNearby(nearby, out var link);
+        var recorder = new Recorder();
+        using var subscription = svc.Subscribe(recorder);
+
+        link.Set(new NodeLinkStatus(false, null, [new RadioStatus("Internet", true, false, 0)]));
+
+        Assert.False(Assert.Single(recorder.Links).NearbyOn);
+    }
+
+    /// <summary>A host with no switch runs its radios: it says they are on, and will not pretend to switch them.</summary>
+    [Fact]
+    public async Task A_host_with_no_switch_reports_on_and_refuses_to_switch()
+    {
+        var svc = NewService(out _, out _, out _);
+
+        Assert.True((await svc.GetLinkAsync()).NearbyOn);
+        var refused = await Assert.ThrowsAsync<AetherNodeException>(() => svc.SetNearbyAsync(false));
+        Assert.Equal(AetherNodeErrorCode.Internal, refused.Code);
+    }
 }

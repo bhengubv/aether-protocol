@@ -145,6 +145,12 @@ across a process boundary. What crosses and what does not is the whole point.
 - **Whom to meet**: the app hands over its contacts (`MeetAsync`). The service keeps
   no address book of its own; the people are the app's, and the radios only need to
   know whom to keep reachable.
+- **The AetherNet switch**: any connected app can switch the nearby radios on or off
+  for the whole device (`SetNearbyAsync`; the state is `NodeLinkStatus.NearbyOn`).
+  Off, only the internet leg runs. It is the device's switch, like the cable the
+  service is, so it holds for every app; the service keeps it in a file beside the
+  identity and restarts to apply it, since a radio once stopped cannot start again in
+  the same process. Connected apps reconnect by themselves.
 
 **Held inside the service** — never crosses the boundary:
 
@@ -362,7 +368,9 @@ Android 16), 2026-09-30:
 - AetherNetService's permissions listed in Aether's Settings at all times (§7) —
   installed on the P30, not yet seen there;
 - a permission allowed on the phone bringing its radio up without a restart
-  (`PermissionWatch`).
+  (`PermissionWatch`);
+- the AetherNet switch in Aether's Settings and setup switching AetherNetService's
+  nearby radios for every app on the phone (`SetNearbyAsync`).
 
 **Open:**
 
@@ -372,10 +380,6 @@ Android 16), 2026-09-30:
   foreground service (four times in five minutes on 2026-10-02, with the phone short of
   memory), and once no app is bound to it nothing starts it again — the service asks
   to be restarted (`START_STICKY`), and EMUI does not.
-- Aether's "AetherNet is on / off" switch changes nothing on a phone with
-  AetherNetService: the service brings its radios up either way. Whether it should
-  switch the service's nearby radios off for every app, or only stop Aether using
-  them, is not decided.
 - Restoring from the 24 words through an app: the service mints on first start, and
   adopting over a live identity is refused by design, so restore needs its own path.
 - The 8-language port of the contract and fixtures.

@@ -103,6 +103,10 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     public async Task<string> GetRecoveryPhraseAsync(CancellationToken cancellationToken = default)
         => await (await ClientAsync().ConfigureAwait(false)).GetRecoveryPhraseAsync(cancellationToken).ConfigureAwait(false);
 
+    // AetherNetService restarts to apply it; this client reconnects by itself, as it does after an update.
+    public async Task SetNearbyAsync(bool on, CancellationToken cancellationToken = default)
+        => await (await ClientAsync().ConfigureAwait(false)).SetNearbyAsync(on, cancellationToken).ConfigureAwait(false);
+
     public IDisposable Subscribe(IAetherNodeEvents listener)
     {
         ArgumentNullException.ThrowIfNull(listener);

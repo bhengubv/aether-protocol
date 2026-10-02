@@ -2,11 +2,14 @@
 @layout EmptyLayout
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
 @inject IIdentityService Me
 @inject IRadioSetup Radios
 @inject ContactService Contacts
 @inject AetherStore Store
 @inject NavigationManager Nav
+@inject IServiceProvider Services
 
 <PageTitle>Aether — set up</PageTitle>
 
@@ -156,6 +159,26 @@
         await RefreshRadios();
     }
 
+    /// <summary>
+    /// On a phone with AetherNetService the nearby radios are the service's, for every app there, so the choice made
+    /// here goes to it — only when it changes something, because the service restarts to apply it. A head with no
+    /// such switch keeps the choice in its own store, already written.
+    /// </summary>
+    private async Task TellServiceAsync(bool on)
+    {
+        // Named in full: this page's RadioStatus is the mesh's, and the service's namespace has one too.
+        if (Services.GetService<AetherNetNodeService.IAetherNodeClient>() is not { } node) return;
+        try
+        {
+            if ((await node.GetLinkAsync()).NearbyOn != on) await node.SetNearbyAsync(on);
+        }
+        catch (Exception ex)
+        {
+            // No service here, or one with no switch: the store has the choice, and Settings shows the service's.
+            Services.GetService<ILogger<Welcome>>()?.LogInformation(ex, "AetherNetService did not take the AetherNet choice");
+        }
+    }
+
     private async Task RefreshRadios()
     {
         _radios = await Radios.CheckAsync();
@@ -204,6 +227,7 @@
         if (_step == Step.AetherNet)
         {
             Store.SetFlag(SetupKeys.AetherNet, _aetherNet);
+            _ = TellServiceAsync(_aetherNet);
             // With the mesh off there is nothing to switch on — skip the radio-permissions step.
             _step = _aetherNet ? Step.Radios : Step.Gateway;
             return;

@@ -149,13 +149,16 @@ public sealed class MainApplication : Application
                 sp.GetRequiredService<MeshSessionKeeper>(),
                 sp.GetRequiredService<IRadioMesh>(),
                 sp.GetService<ILogger<MeshNodeMessaging>>()));
+        // AetherNet's nearby radios on or off, for every app on the device — a file beside the identity.
+        services.AddSingleton<INodeNearby>(sp => new NearbySetting(dir, sp.GetService<ILogger<NearbySetting>>()));
         services.AddSingleton<INodeLinkSource>(sp => new MeshNodeLinkSource(
-            sp.GetRequiredService<IRadioMesh>(), sp.GetService<ILogger<MeshNodeLinkSource>>()));
+            sp.GetRequiredService<IRadioMesh>(), sp.GetService<ILogger<MeshNodeLinkSource>>(), sp.GetRequiredService<INodeNearby>()));
         services.AddSingleton(sp =>
             new RadioMeeting(
                 sp.GetRequiredService<IIdentityService>(),
                 sp.GetRequiredService<IRadioMesh>(),
-                sp.GetService<ILogger<RadioMeeting>>()));
+                sp.GetService<ILogger<RadioMeeting>>(),
+                sp.GetRequiredService<INodeNearby>()));
         services.AddSingleton<INodeMeeting>(sp => sp.GetRequiredService<RadioMeeting>());
 
         // The fast radio: the Circle's Wi-Fi Direct group, worked out from the same contacts. It ran only in the app
@@ -187,7 +190,8 @@ public sealed class MainApplication : Application
             provider.GetRequiredService<INodeLinkSource>(),
             provider.GetRequiredService<INodeMeeting>(),
             // The 24 words come from the same store the identity lives in, so they are this identity's.
-            new NodeIdentityRecovery(provider.GetRequiredService<INodeIdentityStore>()));
+            new NodeIdentityRecovery(provider.GetRequiredService<INodeIdentityStore>()),
+            provider.GetRequiredService<INodeNearby>());
         AetherNodeAndroidService.Configure(() => Node, new OpenGrantStore());
 
         // The one inbound pump for the messaging plane: raw radio bytes → the library dispatcher → the
@@ -214,8 +218,26 @@ public sealed class MainApplication : Application
         });
 
         // Bring the radios up off the main thread — from here the node is hosting the mesh.
+        var nearby = provider.GetRequiredService<INodeNearby>();
         _ = System.Threading.Tasks.Task.Run(() =>
         {
+            // AetherNet switched off: only the internet leg, as the person asked, and no Wi-Fi Direct group. The
+            // foreground service still holds the process — this is still the phone's way to everyone over data.
+            if (!nearby.On)
+            {
+                try
+                {
+                    AetherNet.Transport.Android.AetherLinkService.Start();
+                    radio.SelectRadio(AetherNet.Transport.Android.AndroidRadioSetup.Internet);
+                    global::Android.Util.Log.Info("AetherNetService", "AetherNet is switched off — internet only, no nearby radio");
+                }
+                catch (Exception ex)
+                {
+                    global::Android.Util.Log.Error("AetherNetService", $"internet bring-up failed: {ex}");
+                }
+                return;
+            }
+
             try
             {
                 radio.Link();

@@ -44,6 +44,9 @@ public enum NodeOp
     /// <summary>Request: this device's 24-word recovery phrase, for a person to write down.</summary>
     GetRecoveryPhrase = 10,
 
+    /// <summary>Request: switch AetherNet's nearby radios on or off for the whole device.</summary>
+    SetNearby = 11,
+
     /// <summary>Push: a message arrived.</summary>
     EventInbound = 100,
 
@@ -120,6 +123,13 @@ public static class NodeWire
 
     public static string DecodePhrase(byte[]? bytes) =>
         bytes is { Length: > 0 } ? Encoding.UTF8.GetString(bytes) : string.Empty;
+
+    // ── On / off ────────────────────────────────────────────────────────────────
+    // One byte: 1 on, 0 off. Nothing at all reads as on — the side nobody meant to switch off.
+
+    public static byte[] EncodeFlag(bool on) => [on ? (byte)1 : (byte)0];
+
+    public static bool DecodeFlag(byte[]? bytes) => bytes is not { Length: > 0 } || bytes[0] != 0;
 
     // ── Send argument (tag + payload + the app's message id) ─────────────────────
     // An argument without an id (an older client) decodes to Guid.Empty; the node then assigns one.
@@ -202,7 +212,7 @@ public static class NodeWire
             permissions[i] = new PermissionDto(p.Name, p.Allowed, p.For);
         }
 
-        return JsonBytes(new LinkDto(status.Linked, status.Radio, radios, permissions));
+        return JsonBytes(new LinkDto(status.Linked, status.Radio, radios, permissions, status.NearbyOn));
     }
 
     public static NodeLinkStatus DecodeLink(byte[] bytes)
@@ -227,7 +237,7 @@ public static class NodeWire
             permissions[i] = new ServicePermission(p.Name, p.Allowed, p.For);
         }
 
-        return new NodeLinkStatus(dto.Linked, dto.Radio, radios) { Permissions = permissions };
+        return new NodeLinkStatus(dto.Linked, dto.Radio, radios) { Permissions = permissions, NearbyOn = dto.NearbyOn };
     }
 
     // ── InboundMessage (single, for the push) ────────────────────────────────────
@@ -298,8 +308,10 @@ public static class NodeWire
 
     private sealed record PermissionDto(string Name, bool Allowed, string For);
 
-    // Permissions is optional for the same reason: an older service never sends it.
-    private sealed record LinkDto(bool Linked, string? Radio, RadioDto[]? Radios, PermissionDto[]? Permissions = null);
+    // Permissions and NearbyOn are optional for the same reason: an older service never sends them, and it always
+    // runs its nearby radios.
+    private sealed record LinkDto(
+        bool Linked, string? Radio, RadioDto[]? Radios, PermissionDto[]? Permissions = null, bool NearbyOn = true);
 
     private sealed record InboundDto(string From, byte[] Payload, string Kind, DateTimeOffset ReceivedAt, Guid Id);
 }

@@ -24,20 +24,33 @@ public sealed class AetherNodeService : IAetherNodeClient
     private readonly INodeLinkSource _link;
     private readonly INodeMeeting? _meeting;
     private readonly INodeIdentityRecovery? _recovery;
+    private readonly INodeNearby? _nearby;
 
     /// <param name="meeting">How the radios are told whom to reach; null on a host with no radios.</param>
     /// <param name="recovery">
     /// Where the recovery phrase comes from — the same store as <paramref name="identity"/>. Null on a host that
     /// does not hand it out, which then answers every request for it with a refusal.
     /// </param>
+    /// <param name="nearby">
+    /// The device's switch for its nearby radios. Null on a host with no such switch, which then reports them on and
+    /// refuses to switch them.
+    /// </param>
     public AetherNodeService(INodeIdentity identity, INodeMessaging messaging, INodeLinkSource link, INodeMeeting? meeting = null,
-        INodeIdentityRecovery? recovery = null)
+        INodeIdentityRecovery? recovery = null, INodeNearby? nearby = null)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
         _messaging = messaging ?? throw new ArgumentNullException(nameof(messaging));
         _link = link ?? throw new ArgumentNullException(nameof(link));
         _meeting = meeting;
         _recovery = recovery;
+        _nearby = nearby;
+    }
+
+    /// <summary>The link as the radios report it, with the device's nearby switch as it stands.</summary>
+    private NodeLinkStatus Report()
+    {
+        var link = _link.Current;
+        return _nearby is null ? link : link with { NearbyOn = _nearby.On };
     }
 
     /// <inheritdoc />
@@ -101,7 +114,17 @@ public sealed class AetherNodeService : IAetherNodeClient
 
     /// <inheritdoc />
     public Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult(_link.Current);
+        => Task.FromResult(Report());
+
+    /// <inheritdoc />
+    public Task SetNearbyAsync(bool on, CancellationToken cancellationToken = default)
+    {
+        if (_nearby is null)
+            throw new AetherNodeException(AetherNodeErrorCode.Internal, "this service has no nearby radios to switch");
+
+        _nearby.Set(on);
+        return Task.CompletedTask;
+    }
 
     /// <inheritdoc />
     public async Task<string> GetRecoveryPhraseAsync(CancellationToken cancellationToken = default)
@@ -155,7 +178,7 @@ public sealed class AetherNodeService : IAetherNodeClient
 
         private void OnDelivered(Guid messageId) => _listener.OnDelivered(messageId);
 
-        private void OnLinkChanged() => _listener.OnLinkChanged(_owner._link.Current);
+        private void OnLinkChanged() => _listener.OnLinkChanged(_owner.Report());
 
         public void Dispose()
         {

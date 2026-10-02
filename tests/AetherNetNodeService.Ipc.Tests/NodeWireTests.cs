@@ -209,6 +209,37 @@ public class NodeWireTests
     }
 
     [Fact]
+    public void Link_round_trips_whether_the_nearby_radios_are_switched_on()
+    {
+        var off = new NodeLinkStatus(false, null, [new RadioStatus("Internet", true, false, 0)]) { NearbyOn = false };
+
+        Assert.False(NodeWire.DecodeLink(NodeWire.EncodeLink(off)).NearbyOn);
+        Assert.True(NodeWire.DecodeLink(NodeWire.EncodeLink(off with { NearbyOn = true })).NearbyOn);
+    }
+
+    /// <summary>An older service never says, and it always runs its nearby radios.</summary>
+    [Fact]
+    public void Link_from_a_service_that_has_no_switch_reads_as_on()
+    {
+        var older = System.Text.Encoding.UTF8.GetBytes(
+            """{"linked":false,"radio":null,"radios":[{"name":"Wi-Fi Direct","available":true,"linked":false,"carriesBps":0}]}""");
+
+        Assert.True(NodeWire.DecodeLink(older).NearbyOn);
+    }
+
+    [Fact]
+    public void The_switch_crosses_as_one_byte_and_nothing_reads_as_on()
+    {
+        Assert.False(NodeWire.DecodeFlag(NodeWire.EncodeFlag(false)));
+        Assert.True(NodeWire.DecodeFlag(NodeWire.EncodeFlag(true)));
+        Assert.True(NodeWire.DecodeFlag(null));
+        Assert.True(NodeWire.DecodeFlag([]));
+
+        // The number is what crosses the binder, so an installed service and app must agree on it.
+        Assert.Equal(11, (int)NodeOp.SetNearby);
+    }
+
+    [Fact]
     public void The_recovery_phrase_crosses_as_its_words()
     {
         const string words = "abandon ability able about above absent absorb abstract absurd abuse access accident";

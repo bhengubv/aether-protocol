@@ -31,6 +31,7 @@ internal sealed class RadioMeeting : INodeMeeting, ICircleContacts, IDisposable
 
     private readonly IIdentityService _me;
     private readonly IRadioMesh _radio;
+    private readonly INodeNearby? _nearby;
     private readonly ILogger? _log;
     private readonly Timer _timer;
     private readonly object _gate = new();
@@ -55,10 +56,12 @@ internal sealed class RadioMeeting : INodeMeeting, ICircleContacts, IDisposable
         return string.Join(",", names);
     }
 
-    public RadioMeeting(IIdentityService me, IRadioMesh radio, ILogger<RadioMeeting>? log = null)
+    /// <param name="nearby">The device's switch for its nearby radios; switched off, only the internet leg is kept up.</param>
+    public RadioMeeting(IIdentityService me, IRadioMesh radio, ILogger<RadioMeeting>? log = null, INodeNearby? nearby = null)
     {
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _radio = radio ?? throw new ArgumentNullException(nameof(radio));
+        _nearby = nearby;
         _log = log;
         _timer = new Timer(_ => Apply(), null, Every, Every);
     }
@@ -106,6 +109,15 @@ internal sealed class RadioMeeting : INodeMeeting, ICircleContacts, IDisposable
         lock (_gate)
         {
             contacts = _contacts;
+        }
+
+        // AetherNet switched off: no nearby radio is woken for anyone. The internet leg is all there is, so it is the
+        // one kept up — brought up once a relay is known, if it was not when the service started.
+        if (_nearby is { On: false })
+        {
+            if (!_radio.IsLinked && _radio.Radios.Any(r => r.Name == AetherNet.Transport.Android.AndroidRadioSetup.Internet && r.Available))
+                _radio.SelectRadio(AetherNet.Transport.Android.AndroidRadioSetup.Internet);
+            return;
         }
 
         if (contacts.Count == 0) return;
