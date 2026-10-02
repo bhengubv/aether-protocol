@@ -19,8 +19,19 @@
          The node is not a MAUI app, but it hosts those radios, so it must carry Essentials — without full
          MAUI — and the package reference below, or the assembly is absent when the app is packaged. -->
     <UseMauiEssentials>true</UseMauiEssentials>
+    <!-- MAUI's asset generator, without the rest of MAUI, so the app icon below is built the way Aether's is. -->
+    <UseMauiAssets>true</UseMauiAssets>
     <AndroidManifest>Platforms\Android\AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
+
+  <!-- AetherNetService wears Aether's logo. The two drawings are Aether's own, used from where they live rather
+       than copied; the ground colour must stay the same as Aether's MauiIcon. With no launcher entry, the icon
+       shows wherever the phone names the app — App info, its permission page, the list of apps. -->
+  <ItemGroup>
+    <MauiIcon Include="..\..\samples\AetherNet.Sample\AetherNet.Sample\Resources\AppIcon\appicon.svg"
+              ForegroundFile="..\..\samples\AetherNet.Sample\AetherNet.Sample\Resources\AppIcon\appiconfg.svg"
+              Color="#16232f" />
+  </ItemGroup>
 
   <!-- A Release build is signed with The Geek Network's key, or it is not a release: with no signing set, the SDK
        quietly signs with the debug key and the package installs, runs and can be shipped nowhere. An apk, as for
@@ -59,6 +70,8 @@
     <!-- UseMauiEssentials does not itself add the package (build warning MA002); the app must. Version
          matches the installed MAUI workload for net10.0-android. -->
     <PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.20" />
+    <!-- The same for UseMauiAssets: the generator that turns Aether's drawings into the app icon. -->
+    <PackageReference Include="Microsoft.Maui.Resizetizer" Version="10.0.20" PrivateAssets="all" />
   </ItemGroup>
 
   <!-- The node mints and signs with the same NSec/libsodium the sample uses, so it needs the same real
