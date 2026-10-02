@@ -392,9 +392,10 @@ Android 16), 2026-09-30:
   memory), and once no app is bound to it nothing starts it again — the service asks
   to be restarted (`START_STICKY`), and EMUI does not. Aether now offers "Battery"
   and "App launch" for it; whether those keep it running there is not yet shown.
-- Touch My Blood hands over Aether only (`aether.apk`). The phone receiving it also
-  needs AetherNetService, and with no server it has to come from the sending phone
-  too.
+- Aether does not yet offer to download and install AetherNetService when it is
+  missing — it only fails. Touch My Blood hands over Aether alone, which is right;
+  Aether then has to ask the person to authorise fetching AetherNetService from
+  SleptOn and installing it (§4, steps 2–3).
 - Restoring from the 24 words through an app: the service mints on first start, and
   adopting over a live identity is refused by design, so restore needs its own path.
 - The 8-language port of the contract and fixtures.
