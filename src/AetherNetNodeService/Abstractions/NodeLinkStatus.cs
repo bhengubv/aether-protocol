@@ -66,6 +66,12 @@ public sealed record ServicePermission(string Name, bool Allowed, string For)
     /// launch. <see cref="Allowed"/> is then false, meaning only "not known to be".
     /// </summary>
     public bool Known { get; init; } = true;
+
+    /// <summary>
+    /// Where to find it, in the phone's own words, when its page cannot be opened directly — Huawei keeps App launch
+    /// for its own apps to open, so the way is through Battery. Null when the page opens straight to it.
+    /// </summary>
+    public string? How { get; init; }
 }
 
 /// <summary>Where on the phone one of AetherNetService's permissions is changed.</summary>

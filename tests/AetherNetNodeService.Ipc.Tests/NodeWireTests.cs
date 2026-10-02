@@ -217,7 +217,10 @@ public class NodeWireTests
             Permissions =
             [
                 new ServicePermission("Battery", false, "keep running") { Page = PermissionPage.Battery },
-                new ServicePermission("App launch", false, "start again") { Page = PermissionPage.AppLaunch, Known = false },
+                new ServicePermission("App launch", false, "start again")
+                {
+                    Page = PermissionPage.AppLaunch, Known = false, How = "in Battery, open App launch",
+                },
             ],
         };
 

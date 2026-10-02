@@ -209,7 +209,7 @@ public static class NodeWire
         for (var i = 0; i < permissions.Length; i++)
         {
             var p = status.Permissions[i];
-            permissions[i] = new PermissionDto(p.Name, p.Allowed, p.For, (int)p.Page, p.Known);
+            permissions[i] = new PermissionDto(p.Name, p.Allowed, p.For, (int)p.Page, p.Known, p.How);
         }
 
         return JsonBytes(new LinkDto(status.Linked, status.Radio, radios, permissions, status.NearbyOn));
@@ -239,6 +239,7 @@ public static class NodeWire
                 // A page this side does not know yet is opened as App info — always there, and one tap from the rest.
                 Page = Enum.IsDefined(typeof(PermissionPage), p.Page) ? (PermissionPage)p.Page : PermissionPage.AppInfo,
                 Known = p.Known,
+                How = p.How,
             };
         }
 
@@ -311,8 +312,9 @@ public static class NodeWire
         string Name, bool Available, bool Linked, long CarriesBps,
         string? Reason = null, bool Fixable = false, bool NeedsPermission = false);
 
-    // Page and Known are optional: a service that lists permissions but not these sent only App info pages, all known.
-    private sealed record PermissionDto(string Name, bool Allowed, string For, int Page = 0, bool Known = true);
+    // Page, Known and How are optional: a service that lists permissions but not these sent only App info pages, all
+    // known, each opened straight to it.
+    private sealed record PermissionDto(string Name, bool Allowed, string For, int Page = 0, bool Known = true, string? How = null);
 
     // Permissions and NearbyOn are optional for the same reason: an older service never sends them, and it always
     // runs its nearby radios.

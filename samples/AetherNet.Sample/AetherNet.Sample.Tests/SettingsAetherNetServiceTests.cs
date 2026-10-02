@@ -200,6 +200,22 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
         Assert.Equal("→", appLaunch.QuerySelector(".chev")!.TextContent);
     }
 
+    /// <summary>Where the phone keeps the page to itself, the service says the way there, and the line says it.</summary>
+    [Fact]
+    public void A_page_the_phone_keeps_to_itself_is_explained_in_the_phones_words()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(AppLaunch() with
+        {
+            How = "in Battery, open App launch and set AetherNetService to Manage manually, with all three switches on",
+        });
+
+        var line = Row(_ctx.RenderComponent<Settings>(), "App launch").QuerySelector(".about-s")!.TextContent;
+
+        Assert.Equal("the phone does not say — in Battery, open App launch and set AetherNetService to Manage manually, "
+            + "with all three switches on, so it can start again after the phone stops it", line);
+    }
+
     [Fact]
     public void Something_already_allowed_opens_App_info_where_it_can_be_seen()
     {

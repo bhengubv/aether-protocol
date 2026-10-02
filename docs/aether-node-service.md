@@ -366,21 +366,26 @@ Android 16), 2026-09-30:
   AetherNetService" and opened AetherNetService's App info page; once Location was
   allowed there, and the service restarted, 4 of its 7 radios were up instead of 2,
   and the line went away;
-- AetherNetService shows Aether's logo on its App info page.
+- AetherNetService shows Aether's logo on its App info page;
+- Aether's Settings list AetherNetService's permissions at all times — Location
+  allowed, Battery not, App launch not known;
+- the AetherNet switch: off, the service logged "nearby radios switched off —
+  restarting to apply it", was started again 80 ms later, and logged "internet only, no
+  nearby radio", and Aether showed "AetherNet is off — internet only, for every app on
+  this phone"; on again, Wi-Fi Direct was linking and Bluetooth listening 3 s later;
+- "Battery" brought up the phone's own "Ignore battery optimizations? Allow the app
+  AetherNetService to stay connected in the background?" over Aether;
+- "App launch" opened the phone's Battery page, with App launch on it — Huawei's own
+  App launch page refuses other apps on EMUI 10 (`signature|privileged`).
 
 **Built, not yet run on a phone:**
 
 - radios asking for their permission before touching their stacks (the fix for
   AetherNetService dying on some cold starts on the Pixel);
 - Aether recovering when AetherNetService dies as it starts;
-- AetherNetService's permissions listed in Aether's Settings at all times (§7) —
-  installed on the P30, not yet seen there;
 - a permission allowed on the phone bringing its radio up without a restart
   (`PermissionWatch`);
-- the AetherNet switch in Aether's Settings and setup switching AetherNetService's
-  nearby radios for every app on the phone (`SetNearbyAsync`);
-- "Battery" and, on Huawei, "App launch" in Aether's Settings — the phone's battery
-  prompt for AetherNetService, and Huawei's App launch page.
+- the AetherNet switch in the setup wizard.
 
 **Open:**
 

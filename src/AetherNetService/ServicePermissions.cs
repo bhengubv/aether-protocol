@@ -54,10 +54,13 @@ internal static class ServicePermissions
 
         if (Huawei)
         {
+            // Huawei lets only its own apps open App launch itself (the page needs a signature|privileged permission,
+            // P30 2026-10-03), so the way there is the Battery page, which any app may open.
             list.Add(new("App launch", false, "start again after the phone stops it")
             {
                 Page = PermissionPage.AppLaunch,
                 Known = false,
+                How = "in Battery, open App launch and set AetherNetService to Manage manually, with all three switches on",
             });
         }
 

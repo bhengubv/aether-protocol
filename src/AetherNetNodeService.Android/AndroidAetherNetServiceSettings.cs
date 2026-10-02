@@ -58,13 +58,15 @@ public sealed class AndroidAetherNetServiceSettings : IAetherNetServiceSettings
         _ => Open(),
     };
 
+    // Huawei's own page first, where the phone lets another app open it. On EMUI 10 it does not — the page needs a
+    // signature|privileged permission (P30, 2026-10-03) — so then the phone's Battery page, which links to it.
     private bool OpenAppLaunch()
     {
         foreach (var component in AppLaunchPages)
         {
             if (Start(new Intent().SetComponent(component))) return true;
         }
-        return false;
+        return Start(new Intent(Intent.ActionPowerUsageSummary));
     }
 
     /// <summary>Huawei's App launch page, newest name first (EMUI 9 and later, then 8, then older).</summary>

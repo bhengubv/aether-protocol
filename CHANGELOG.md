@@ -104,9 +104,13 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
   service, and on the P30 nothing started this one again. The list now has "Battery": Aether raises the phone's
   own "let it always run in the background?" prompt for AetherNetService, which only has to declare
   `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (the phone does not check which app raises it), so no screen is needed.
-  On Huawei and Honor phones it also has "App launch", which opens Huawei's page for whether the phone may start
-  AetherNetService again. The phone does not say how that one is set, so it shows as not known. New in the
-  contract: `ServicePermission.Page` and `.Known`, and `IAetherNetServiceSettings.Open(PermissionPage)`.
+  On Huawei and Honor phones it also has "App launch": whether the phone may start AetherNetService again. EMUI 10
+  keeps that page for its own apps (it needs a `signature|privileged` permission), so the row opens the phone's
+  Battery page, where App launch is the entry to tap, and says so in the phone's words (`ServicePermission.How`).
+  The phone does not say how App launch is set, so it shows as not known. New in the contract:
+  `ServicePermission.Page`, `.Known` and `.How`, and `IAetherNetServiceSettings.Open(PermissionPage)`. On the P30:
+  Battery brings up the phone's "Ignore battery optimizations? Allow the app AetherNetService to stay connected in
+  the background?" over Aether, and App launch opens Battery with App launch on it.
 - **AetherNetService wears Aether's logo** — built from Aether's own two drawings (`MauiIcon` through
   `UseMauiAssets`); it had no icon, so the phone showed its default puzzle piece. (`cce5dd8`)
 

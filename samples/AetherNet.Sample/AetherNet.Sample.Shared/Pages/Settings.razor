@@ -295,7 +295,9 @@
     private string PermissionLine(ServicePermission permission) => _settingsFailed
         ? NoSettingsPage
         : !permission.Known
-            ? $"the phone does not say — turn its switches on there so AetherNetService can {permission.For}"
+            ? permission.How is { Length: > 0 } how
+                ? $"the phone does not say — {how}, so it can {permission.For}"
+                : $"the phone does not say — turn its switches on there so AetherNetService can {permission.For}"
             : permission.Allowed
                 ? $"allowed — AetherNetService can {permission.For}"
                 : $"not allowed — allow it so AetherNetService can {permission.For}";
