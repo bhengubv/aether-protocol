@@ -25,7 +25,9 @@
   <!-- A Release build is signed with The Geek Network's key, or it is not a release: with no signing set, the SDK
        quietly signs with the debug key and the package installs, runs and can be shipped nowhere. An apk, as for
        Aether — the phones this is for install from a file, and an aab Install uninstalls first, which would take
-       this device's identity with it. The password comes from ANDROID_KEYSTORE_PASS and is never written here. -->
+       this device's identity with it. The password is never written here and never set machine-wide: Visual
+       Studio's Archive signs with the key it manages, a one-off command line passes it with -p: (or sets
+       ANDROID_KEYSTORE_PASS in that shell only), and CI reads it from its secret store. Debug never touches it. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidKeyStore>true</AndroidKeyStore>
