@@ -1,0 +1,135 @@
+@using AetherNetNodeService.Client
+@implements IDisposable
+
+@*  AetherNetService, asked for before anything else on a phone that does not have it.
+
+    Aether cannot work without it — who you are, the radios and the sessions are all the service's — and Touch My
+    Blood hands over Aether alone, which is right: Aether then asks. Not a route, for the reason the warm-up is not
+    one (see Routes): nothing behind it may start until the service is there to answer.
+
+    The steps are the SDK's (NodeInstallFlow); this only shows them and passes the person's yes along. *@
+
+<div class="wiz">
+    <div class="wiz-body">
+        <div class="pane">
+            <div class="mark"></div>
+
+            @if (Flow.Step != NodeInstallStep.Checking)
+            {
+                <h1>Aether needs AetherNetService</h1>
+                <p class="lede">
+                    AetherNetService is the part of Aether that holds who you are and reaches the people near you.
+                    It is a separate app from the same makers, and Aether does nothing without it.
+                </p>
+
+                @switch (Flow.Step)
+                {
+                    case NodeInstallStep.Offered:
+                        <p class="lede">Get it from @Flow.StoreName@(SizeText is { } size ? $" — {size}" : "").</p>
+                        break;
+
+                    case NodeInstallStep.NotInStore:
+                    case NodeInstallStep.Failed:
+                        <p class="warn">@Flow.Problem</p>
+                        break;
+
+                    case NodeInstallStep.Downloading:
+                        <p class="lede">Downloading — @Megabytes(Flow.Downloaded)@(Flow.Offer is { SizeBytes: > 0 } o ? $" of {Megabytes(o.SizeBytes)}" : "")</p>
+                        <div class="bar"><div class="fill" style="width:@Percent%"></div></div>
+                        break;
+
+                    case NodeInstallStep.Installing:
+                        <p class="lede">Finish the install on the screen your phone opened, then come back here.</p>
+                        break;
+                }
+            }
+        </div>
+    </div>
+
+    @if (Flow.Step != NodeInstallStep.Checking)
+    {
+        <div class="wiz-foot">
+            @switch (Flow.Step)
+            {
+                case NodeInstallStep.Offered:
+                    <button class="primary block" @onclick="Install">Download and install</button>
+                    <p class="fineprint">Your phone will ask you to confirm the install.</p>
+                    break;
+
+                case NodeInstallStep.Downloading:
+                    <button class="primary block" disabled>Downloading…</button>
+                    break;
+
+                case NodeInstallStep.Installing:
+                    <button class="primary block" @onclick="Recheck">I've installed it</button>
+                    break;
+
+                default:
+                    <button class="primary block" @onclick="TryAgain">Try again</button>
+                    break;
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The steps, from the SDK. Routes holds it and removes this screen once the service is installed.</summary>
+    [Parameter, EditorRequired] public NodeInstallFlow Flow { get; set; } = default!;
+
+    /// <summary>While the phone's installer is up, the service is looked for every two seconds — coming back to the
+    /// app should be enough, with nothing to press.</summary>
+    private System.Threading.Timer? _look;
+
+    private string? SizeText => Flow.Offer is { SizeBytes: > 0 } offer ? Megabytes(offer.SizeBytes) : null;
+
+    private int Percent => Flow.Offer is { SizeBytes: > 0 } offer
+        ? (int)Math.Clamp(Flow.Downloaded * 100 / offer.SizeBytes, 0, 100)
+        : 0;
+
+    private static string Megabytes(long bytes) => $"{bytes / 1048576.0:0.0} MB";
+
+    protected override void OnInitialized() => Flow.Changed += OnChanged;
+
+    private void OnChanged()
+    {
+        if (Flow.Step == NodeInstallStep.Installing) _look ??= new System.Threading.Timer(state => _ = Flow.RecheckAsync(), null, 2000, 2000);
+        else if (_look is not null) { _look.Dispose(); _look = null; }
+
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private Task Install() => Flow.InstallAsync();
+
+    private Task Recheck() => Flow.RecheckAsync();
+
+    // Nothing offered yet means the store was not reached or had nothing — ask it again; otherwise the download failed.
+    private Task TryAgain() => Flow.Offer is null ? Flow.CheckAsync() : Flow.InstallAsync();
+
+    public void Dispose()
+    {
+        Flow.Changed -= OnChanged;
+        _look?.Dispose();
+    }
+}
+
+<style>
+    .wiz { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); z-index: 60; }
+    .wiz-body { flex: 1 1 auto; overflow-y: auto; scrollbar-width: none; padding: max(env(safe-area-inset-top), 28px) 22px 8px; }
+    .wiz-body::-webkit-scrollbar { display: none; }
+    .wiz-foot { flex: 0 0 auto; padding: 12px 22px calc(env(safe-area-inset-bottom) + 18px); display: flex; flex-direction: column; gap: 14px; }
+
+    .pane { display: flex; flex-direction: column; gap: 14px; padding-top: 12px; max-width: 560px; margin: 0 auto; }
+    .pane h1 { font-size: 1.9rem; font-weight: 830; letter-spacing: -0.02em; color: var(--ink); }
+    .lede { font-size: 1rem; line-height: 1.55; color: var(--ink-2); }
+    .fineprint { font-size: 0.8rem; color: var(--ink-3); text-align: center; }
+    .warn { color: var(--brand-deep); font-size: 0.92rem; font-weight: 600; line-height: 1.45; }
+
+    .mark { width: 64px; height: 64px; border-radius: 50%; background: conic-gradient(from 210deg, var(--brand), var(--brand-deep), var(--brand)); box-shadow: inset 0 0 0 12px var(--bg), 0 0 0 2px var(--brand); margin: 24px auto 8px; }
+
+    .bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+    .fill { height: 100%; background: var(--brand); transition: width .3s ease; }
+
+    .primary { appearance: none; border: none; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); font-weight: 700; font-size: 1rem; padding: 15px 18px; border-radius: 14px; cursor: pointer; }
+    .primary:disabled { opacity: .45; cursor: default; }
+    .block { display: block; width: 100%; }
+</style>

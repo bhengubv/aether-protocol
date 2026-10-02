@@ -68,6 +68,20 @@ public static class MauiProgram
         builder.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(_ =>
             new AetherNetNodeService.Android.AndroidAetherNetServiceSettings(
                 global::Android.App.Application.Context, AetherNetServicePackage));
+        // And when the phone does not have AetherNetService at all — Touch My Blood hands over Aether alone — Aether asks
+        // for it before anything else: from SleptOn, checked to be AetherNetService signed like Aether, and given to the
+        // phone's own installer for the person to confirm.
+        builder.Services.AddSingleton(_ =>
+        {
+            var context = global::Android.App.Application.Context;
+            void Log(string line) => global::Android.Util.Log.Info("AetherInstall", line);
+            return new AetherNetNodeService.Client.NodeInstallFlow(
+                ServiceConnector(new AetherNetNodeService.Android.AndroidNodeConnector(context, AetherNetServicePackage)),
+                new AetherNetNodeService.Client.SleptOnPackageStore(new HttpClient(), AetherNetServicePackage, StoreApi()),
+                new AetherNetNodeService.Android.AndroidNodePackageVerifier(context, AetherNetServicePackage),
+                new AetherNetNodeService.Android.AndroidNodePackageInstaller(context, Log),
+                Log);
+        });
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
             new AetherNetNodeService.Client.NodeClientRecovery(
                 sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>(),
@@ -661,4 +675,46 @@ public static class MauiProgram
 #endif
         }
     }
+
+#if ANDROID
+    /// <summary>Where AetherNetService is looked for — SleptOn's own API, unless a Debug test points elsewhere.</summary>
+    private static Uri? StoreApi()
+    {
+#if DEBUG
+        // A test leaves the address of a stand-in for SleptOn in Aether's own storage (adb run-as), so the whole
+        // download and install can be run before AetherNetService is published. Debug builds only.
+        var file = Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "debug-store-api");
+        if (File.Exists(file) && Uri.TryCreate(File.ReadAllText(file).Trim(), UriKind.Absolute, out var api)) return api;
+#endif
+        return null;
+    }
+
+    /// <summary>
+    /// How Aether tells whether AetherNetService is on the phone. In a Debug build a test can have it offered once on a
+    /// phone that has it — the install then lands as an update, keeping the identity — by leaving a file in Aether's
+    /// storage. A Release build only ever offers it when it is not there.
+    /// </summary>
+    private static AetherNetNodeService.Client.INodeConnector ServiceConnector(AetherNetNodeService.Client.INodeConnector real)
+    {
+#if DEBUG
+        var file = Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "debug-offer-aethernetservice");
+        if (File.Exists(file)) return new OfferedOnce(real);
+#endif
+        return real;
+    }
+
+#if DEBUG
+    /// <summary>Says "not installed" the first time it is asked, and the truth after that.</summary>
+    private sealed class OfferedOnce(AetherNetNodeService.Client.INodeConnector real) : AetherNetNodeService.Client.INodeConnector
+    {
+        private int _asked;
+
+        public Task<bool> IsInstalledAsync(CancellationToken cancellationToken = default) =>
+            Interlocked.Exchange(ref _asked, 1) == 0 ? Task.FromResult(false) : real.IsInstalledAsync(cancellationToken);
+
+        public Task<AetherNetNodeService.IAetherNodeClient?> TryBindAsync(CancellationToken cancellationToken = default) =>
+            real.TryBindAsync(cancellationToken);
+    }
+#endif
+#endif
 }

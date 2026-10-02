@@ -1,10 +1,13 @@
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Pages
 @using AetherNet.Sample.Shared.Services
+@using AetherNetNodeService.Client
+@using Microsoft.Extensions.DependencyInjection
 @implements IDisposable
 @inject WarmUpService Warm
 @inject AetherStore Store
 @inject IJSRuntime JS
+@inject IServiceProvider Services
 
 @*  The warm-up is not a page, and this is where that stops being a lie.
 
@@ -23,7 +26,13 @@
 @*  Imported by name above rather than written as <Pages.Warming />. Razor resolves a tag to a
     component only if the name is in scope, and when it is not it emits the tag as literal HTML
     instead — no error, no warning, a clean build and a blank screen. That cost a deploy.  *@
-@if (!Warm.IsWarm)
+@*  And above the warm-up, AetherNetService: on a phone that has Aether alone, it is fetched first. Only where the
+    platform registers the steps (Android); elsewhere the node runs in-process and there is nothing to fetch.  *@
+@if (_install is { Step: not NodeInstallStep.Installed })
+{
+    <GetAetherNetService Flow="_install" />
+}
+else if (!Warm.IsWarm)
 {
     <Warming />
 }
@@ -55,9 +64,43 @@ else
         catch { }
     }
 
-    protected override void OnInitialized() => Warm.Changed += OnChanged;
+    /// <summary>Getting AetherNetService onto the phone, where the platform has that; null where it does not.</summary>
+    private NodeInstallFlow? _install;
+
+    protected override void OnInitialized()
+    {
+        Warm.Changed += OnChanged;
+
+        _install = Services.GetService<NodeInstallFlow>();
+        if (_install is null) return;
+
+        _install.Changed += OnChanged;
+        _ = LookAsync(_install);
+    }
+
+    /// <summary>
+    /// Is it there? Until that is answered nothing behind starts. A look that cannot be made is no reason to stop the
+    /// app: it carries on, and says what is wrong where it would have anyway.
+    /// </summary>
+    private async Task LookAsync(NodeInstallFlow install)
+    {
+        try
+        {
+            await install.CheckAsync();
+        }
+        catch (Exception)
+        {
+            install.Changed -= OnChanged;
+            _install = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    public void Dispose() => Warm.Changed -= OnChanged;
+    public void Dispose()
+    {
+        Warm.Changed -= OnChanged;
+        if (_install is not null) _install.Changed -= OnChanged;
+    }
 }
