@@ -40,7 +40,8 @@ public sealed class GetAetherNetServiceTests : IDisposable
         var size = $"{35_000_000 / 1048576.0:0.0} MB";
         Assert.Contains($"Get it from SleptOn — {size}.", cut.FindAll("p.lede").Select(p => p.TextContent));
         Assert.Equal("Download and install", cut.Find("button").TextContent);
-        Assert.Equal("Your phone will ask you to confirm the install.", cut.Find(".fineprint").TextContent);
+        Assert.Equal("Your phone will ask you to confirm the install — the first time, it also asks you to allow installs from Aether.",
+            cut.Find(".fineprint").TextContent);
     }
 
     [Fact]

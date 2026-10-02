@@ -46,15 +46,15 @@ public sealed class AndroidNodePackageVerifier : INodePackageVerifier
             File.WriteAllBytes(file, package);
 
             var pm = _context.PackageManager!;
-            var candidate = Info(pm, file);
+            var candidate = pm.GetPackageArchiveInfo(file, 0);
             if (candidate is null) return NodePackageVerdict.No("it is not an Android app");
             if (!string.Equals(candidate.PackageName, _servicePackage, StringComparison.Ordinal))
                 return NodePackageVerdict.No($"it is {candidate.PackageName}, not {_servicePackage}");
 
-            var theirs = Signers(candidate);
+            var theirs = SignersOf(flags => pm.GetPackageArchiveInfo(file, flags));
             if (theirs.Count == 0) return NodePackageVerdict.No("it is not signed");
 
-            var ours = Signers(Own(pm));
+            var ours = SignersOf(flags => pm.GetPackageInfo(_context.PackageName!, flags));
             return theirs.SetEquals(ours) ? NodePackageVerdict.Yes : NodePackageVerdict.No("it is signed by someone else");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Java.Lang.Exception)
@@ -68,20 +68,24 @@ public sealed class AndroidNodePackageVerifier : INodePackageVerifier
     }
 
 #pragma warning disable CA1422, CS0618 // the int-flag forms are the ones that exist on every Android this supports
-    private static PackageInfoFlags Flags =>
-        OperatingSystem.IsAndroidVersionAtLeast(28) ? PackageInfoFlags.SigningCertificates : PackageInfoFlags.Signatures;
-
-    private static PackageInfo? Info(PackageManager pm, string file) => pm.GetPackageArchiveInfo(file, Flags);
-
-    private PackageInfo Own(PackageManager pm) => pm.GetPackageInfo(_context.PackageName!, Flags)!;
-
-    /// <summary>The SHA-256 of each certificate that signs the package.</summary>
-    private static HashSet<string> Signers(PackageInfo info)
+    /// <summary>The SHA-256 of each certificate that signs a package, read with whichever flag this Android fills in.</summary>
+    /// <remarks>
+    /// Android 9 and 10 leave a package FILE's signing certificates unread when asked the newer way — the P30 called
+    /// the real AetherNetService "not signed" (2026-10-03). The older flag still reads them, so it is the fallback.
+    /// </remarks>
+    private static HashSet<string> SignersOf(Func<PackageInfoFlags, PackageInfo?> read)
     {
-        IEnumerable<Signature>? signatures = OperatingSystem.IsAndroidVersionAtLeast(28)
-            ? info.SigningInfo?.GetApkContentsSigners()
-            : info.Signatures;
+        if (OperatingSystem.IsAndroidVersionAtLeast(28))
+        {
+            var newer = Hashes(read(PackageInfoFlags.SigningCertificates)?.SigningInfo?.GetApkContentsSigners());
+            if (newer.Count > 0) return newer;
+        }
 
+        return Hashes(read(PackageInfoFlags.Signatures)?.Signatures);
+    }
+
+    private static HashSet<string> Hashes(IEnumerable<Signature>? signatures)
+    {
         var set = new HashSet<string>(StringComparer.Ordinal);
         foreach (var signature in signatures ?? [])
         {

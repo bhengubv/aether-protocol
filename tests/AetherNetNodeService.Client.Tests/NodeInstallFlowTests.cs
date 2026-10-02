@@ -26,6 +26,8 @@ public class NodeInstallFlowTests
         public Exception? FindFails;
         public Exception? DownloadFails;
         public byte[] Package = [1, 2, 3, 4];
+        public int ProgressSteps = 1;
+        public List<NodePackageOffer> Downloaded = [];
 
         public string Name => "SleptOn";
 
@@ -34,8 +36,9 @@ public class NodeInstallFlowTests
 
         public Task<byte[]> DownloadAsync(NodePackageOffer offer, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
         {
+            Downloaded.Add(offer);
             if (DownloadFails is { } ex) return Task.FromException<byte[]>(ex);
-            progress?.Report(Package.Length);
+            for (var step = 1; step <= ProgressSteps; step++) progress?.Report(Package.Length * step / ProgressSteps);
             return Task.FromResult(Package);
         }
     }
@@ -158,6 +161,43 @@ public class NodeInstallFlowTests
         await flow.InstallAsync();
         Assert.Equal(NodeInstallStep.Installing, flow.Step);
         Assert.Null(flow.Problem);
+    }
+
+    /// <summary>The store may have moved on to a newer release since the last look; a retry asks it again first.</summary>
+    [Fact]
+    public async Task A_retry_after_a_failure_asks_the_store_again()
+    {
+        _store.DownloadFails = new NodePackageException("SleptOn would not hand over AetherNetService (it answered 404)");
+        var flow = Flow();
+        await flow.CheckAsync();
+        await flow.InstallAsync();
+
+        var newer = Offer with { VersionName = "1.3", VersionCode = 4 };
+        _store.Has = newer;
+        _store.DownloadFails = null;
+        await flow.InstallAsync();
+
+        Assert.Equal(NodeInstallStep.Installing, flow.Step);
+        Assert.Same(newer, _store.Downloaded[^1]);
+    }
+
+    /// <summary>
+    /// Every chunk was a notice once — some seven hundred for one download, each a redraw — and the P30's screen fell a
+    /// minute behind. The count still moves; the notices are spaced.
+    /// </summary>
+    [Fact]
+    public async Task Progress_is_told_a_few_times_not_every_chunk()
+    {
+        _store.ProgressSteps = 700;
+        var flow = Flow();
+        await flow.CheckAsync();
+        var told = 0;
+        flow.Changed += () => told++;
+
+        await flow.InstallAsync();
+
+        Assert.InRange(told, 2, 10);   // Downloading, a first progress notice, Installing — not seven hundred
+        Assert.Equal(_store.Package.Length, flow.Downloaded);
     }
 
     [Fact]

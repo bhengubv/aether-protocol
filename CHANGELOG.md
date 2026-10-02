@@ -111,6 +111,15 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
   `ServicePermission.Page`, `.Known` and `.How`, and `IAetherNetServiceSettings.Open(PermissionPage)`. On the P30:
   Battery brings up the phone's "Ignore battery optimizations? Allow the app AetherNetService to stay connected in
   the background?" over Aether, and App launch opens Battery with App launch on it.
+- **Aether asks for AetherNetService when the phone does not have it** — Touch My Blood hands over Aether alone,
+  and the two are inseparable, so before anything else Aether says what AetherNetService is, where it comes from
+  and how big it is, and offers "Download and install". On yes it is found on SleptOn by package name, downloaded,
+  checked to be AetherNetService signed with the same key as Aether (a release's hash is not known ahead; the key
+  is), and handed to the phone's own installer through an install session, where the person confirms
+  (`NodeInstallFlow`, `SleptOnPackageStore`, `AndroidNodePackageVerifier`, `AndroidNodePackageInstaller`). On the
+  P30, against a stand-in for SleptOn: the wrong app was refused — "it is com.bhengubv.aethernet, not
+  com.bhengubv.aethernetservice" — and never reached the installer; the real one (38 MB) came down in 8 s, passed,
+  and the phone's installer opened, first asking to allow installs from Aether. (`904b368`)
 - **AetherNetService wears Aether's logo** — built from Aether's own two drawings (`MauiIcon` through
   `UseMauiAssets`); it had no icon, so the phone showed its default puzzle piece. (`cce5dd8`)
 

@@ -53,7 +53,9 @@
             {
                 case NodeInstallStep.Offered:
                     <button class="primary block" @onclick="Install">Download and install</button>
-                    <p class="fineprint">Your phone will ask you to confirm the install.</p>
+                    @* The first time, Android also stops at "not allowed to install unknown apps from this source" — it reads
+                       like a refusal, so it is said here first (P30, 2026-10-03). *@
+                    <p class="fineprint">Your phone will ask you to confirm the install — the first time, it also asks you to allow installs from Aether.</p>
                     break;
 
                 case NodeInstallStep.Downloading:

@@ -95,6 +95,14 @@ A consumer app that wants the mesh moves through:
    server carrying them all falls over on a busy day; and it would be the one
    centre in a network built not to have one.
 
+   Touch My Blood hands over the consumer app alone, which is right. The app then
+   asks for AetherNetService before anything else (`NodeInstallFlow`): it is found
+   on SleptOn, The Geek Network's store, by package name; downloaded; checked to be
+   AetherNetService signed with the same key as the app asking — a release's hash
+   is not known ahead, the key is (`AndroidNodePackageVerifier`); and handed to the
+   phone's own installer in an install session (`AndroidNodePackageInstaller`). A
+   live release therefore always includes publishing AetherNetService to SleptOn.
+
    Installing an APK is always a user action — the app requests, the user
    approves, the app never installs silently.
 4. **Grant** — on first bind the user authorizes *this app* to link by clearing
@@ -372,7 +380,12 @@ Android 16), 2026-09-30:
 - "Battery" brought up the phone's own "Ignore battery optimizations? Allow the app
   AetherNetService to stay connected in the background?" over Aether;
 - "App launch" opened the phone's Battery page, with App launch on it — Huawei's own
-  App launch page refuses other apps on EMUI 10 (`signature|privileged`).
+  App launch page refuses other apps on EMUI 10 (`signature|privileged`);
+- Aether asking for AetherNetService, against a stand-in for SleptOn on the dev PC
+  (Debug-only: offered once on a phone that has it, so the install lands as an
+  update): the wrong app was refused and never reached the installer; the real one
+  came down (38 MB, 8 s), passed the signing check, and the phone's installer
+  opened — first asking to allow installs from Aether.
 
 **Built, not yet run on a phone:**
 
@@ -392,10 +405,8 @@ Android 16), 2026-09-30:
   memory), and once no app is bound to it nothing starts it again — the service asks
   to be restarted (`START_STICKY`), and EMUI does not. Aether now offers "Battery"
   and "App launch" for it; whether those keep it running there is not yet shown.
-- Aether does not yet offer to download and install AetherNetService when it is
-  missing — it only fails. Touch My Blood hands over Aether alone, which is right;
-  Aether then has to ask the person to authorise fetching AetherNetService from
-  SleptOn and installing it (§4, steps 2–3).
+- AetherNetService is not on SleptOn yet, so Aether's request for it (§4) has only
+  run against a stand-in; and not yet on a phone that truly lacks the service.
 - Restoring from the 24 words through an app: the service mints on first start, and
   adopting over a live identity is refused by design, so restore needs its own path.
 - The 8-language port of the contract and fixtures.

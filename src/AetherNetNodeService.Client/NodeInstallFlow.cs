@@ -106,9 +106,21 @@ public sealed class NodeInstallFlow
     }
 
     /// <summary>The person said yes: download it, check it is the real one, and hand it to the phone's installer.</summary>
+    /// <remarks>
+    /// After a failure the store is asked again first: it may have moved on to a newer release since the last look,
+    /// and a retry of the old one would fail for that alone. If it cannot be asked, the last offer is tried.
+    /// </remarks>
     public async Task InstallAsync(CancellationToken cancellationToken = default)
     {
-        if (Offer is not { } offer || Step is NodeInstallStep.Downloading) return;
+        if (Step is NodeInstallStep.Downloading) return;
+
+        if (Step is NodeInstallStep.Failed)
+        {
+            try { Offer = await _store.FindAsync(cancellationToken).ConfigureAwait(false) ?? Offer; }
+            catch (NodePackageException) { /* the last offer is tried */ }
+        }
+
+        if (Offer is not { } offer) return;
 
         Problem = null;
         Downloaded = 0;
@@ -164,12 +176,27 @@ public sealed class NodeInstallFlow
         Changed?.Invoke();
     }
 
-    /// <summary>Progress, straight onto the flow — not through a captured context the page may not have.</summary>
+    /// <summary>The least time between two progress notices.</summary>
+    internal static readonly TimeSpan ProgressEvery = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    /// Progress, straight onto the flow — not through a captured context the page may not have — and at most four
+    /// times a second. Every chunk used to be a notice: some seven hundred for one download, each a redraw, and the P30's
+    /// screen fell a minute behind what was actually happening (2026-10-03).
+    /// </summary>
     private sealed class Reporter(NodeInstallFlow flow) : IProgress<long>
     {
+        private long _last;
+        private bool _told;
+
         public void Report(long value)
         {
             flow.Downloaded = value;
+            var now = Environment.TickCount64;
+            if (_told && now - _last < (long)ProgressEvery.TotalMilliseconds) return;
+
+            _told = true;
+            _last = now;
             flow.Changed?.Invoke();
         }
     }
