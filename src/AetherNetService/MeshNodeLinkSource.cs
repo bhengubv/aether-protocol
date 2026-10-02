@@ -3,22 +3,38 @@
 using AetherNet.Mesh;
 using AetherNetNodeService;        // NodeLinkStatus, RadioStatus
 using AetherNetNodeService.Host;
+using Microsoft.Extensions.Logging;
 
 namespace AetherNetService;
 
 /// <summary>
 /// Projects the node's <see cref="IRadioMesh"/> onto the node contract's <see cref="NodeLinkStatus"/> — the
 /// presence seam the host reads, replacing <c>OfflineNodeLinkSource</c>. A report of what is linked right now
-/// and over which radio, never a picker; the widest linked radio carries and this only says so.
+/// and over which radio, never a picker; the widest linked radio carries and this only says so. It carries
+/// AetherNetService's permissions too, so a connected app can show them.
 /// </summary>
 internal sealed class MeshNodeLinkSource : INodeLinkSource
 {
-    private readonly IRadioMesh _radio;
+    /// <summary>How often to look again while a permission is still missing.</summary>
+    private static readonly TimeSpan LookEvery = TimeSpan.FromSeconds(3);
 
-    public MeshNodeLinkSource(IRadioMesh radio)
+    private readonly IRadioMesh _radio;
+    private readonly ILogger? _logger;
+    private readonly PermissionWatch _permissions;
+    private readonly Timer _look;
+    private int _looking;
+
+    public MeshNodeLinkSource(IRadioMesh radio, ILogger<MeshNodeLinkSource>? logger = null)
     {
         _radio = radio ?? throw new ArgumentNullException(nameof(radio));
+        _logger = logger;
         _radio.Changed += () => Changed?.Invoke();
+
+        // The phone tells an app nothing when the person allows one of its permissions on the phone's own page. So
+        // while one is still missing, look again every few seconds: when it has been allowed, bring up the radio it
+        // was holding back — without a restart — and tell every connected app, whose settings then show it.
+        _permissions = new PermissionWatch(ServicePermissions.Now);
+        _look = new Timer(_ => Look(), null, LookEvery, LookEvery);
     }
 
     public event Action? Changed;
@@ -39,7 +55,45 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
                     NeedsPermission = r.NeedsPermission,
                 });
             }
-            return new NodeLinkStatus(_radio.IsLinked, _radio.IsLinked ? carrying : null, radios);
+            return new NodeLinkStatus(_radio.IsLinked, _radio.IsLinked ? carrying : null, radios)
+            {
+                Permissions = _permissions.Current,
+            };
+        }
+    }
+
+    private void Look()
+    {
+        if (Interlocked.Exchange(ref _looking, 1) == 1) return;   // the last look is still bringing a radio up
+        try
+        {
+            if (_permissions.Look())
+            {
+                var now = string.Join(", ", _permissions.Current.Select(p => $"{p.Name} {(p.Allowed ? "allowed" : "not allowed")}"));
+                _logger?.LogInformation("permissions changed: {Permissions}", now);
+
+                if (_permissions.NewlyAllowed)
+                {
+                    _logger?.LogInformation("a permission was allowed — bringing up the radios it held back");
+                    _radio.Link();
+                }
+
+                Changed?.Invoke();
+            }
+
+            if (!_permissions.Waiting)
+            {
+                _look.Change(Timeout.Infinite, Timeout.Infinite);
+                _logger?.LogInformation("every permission is allowed — no longer looking");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "looking at AetherNetService's permissions failed");
+        }
+        finally
+        {
+            Volatile.Write(ref _looking, 0);
         }
     }
 }

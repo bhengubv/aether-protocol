@@ -90,18 +90,45 @@
             <span class="chev">@(_aetherNet ? "on" : "off")</span>
         </button>
 
-        @* The radios' permission belongs to AetherNetService, which has no screen to ask from, and the phone keeps
-           permissions per app — switching AetherNet on here cannot grant it. So while a radio is waiting on it,
-           this offers the way to the service's own page in the phone's settings, where it is allowed once. *@
-        @if (_aetherNet && _serviceSettings is not null && WaitingOnPermission)
+        @* AetherNetService's permissions, always on show. It has no screen of its own, so this is where a person sees
+           what it has been allowed: the same list as its page in the phone's settings, which each line opens. Only
+           that page can change them — the phone keeps permissions per app, and one app cannot grant another's. *@
+        @if (_serviceSettings is not null)
         {
-            <button class="about" @onclick="OpenServiceSettings">
-                <span class="about-body">
-                    <span class="about-t">Let AetherNet find phones nearby</span>
-                    <span class="about-s">@PermissionDetail</span>
-                </span>
-                <span class="chev">→</span>
-            </button>
+            if (_link.Permissions.Count > 0)
+            {
+                foreach (var permission in _link.Permissions)
+                {
+                    <button class="about" @onclick="OpenServiceSettings">
+                        <span class="about-body">
+                            <span class="about-t">@permission.Name</span>
+                            <span class="about-s">@PermissionLine(permission)</span>
+                        </span>
+                        <span class="chev">@(permission.Allowed ? "✓" : "→")</span>
+                    </button>
+                }
+            }
+            else if (_aetherNet && WaitingOnPermission)
+            {
+                @* An older AetherNetService lists no permissions, only the radio one is holding back. *@
+                <button class="about" @onclick="OpenServiceSettings">
+                    <span class="about-body">
+                        <span class="about-t">Let AetherNet find phones nearby</span>
+                        <span class="about-s">@PermissionDetail</span>
+                    </span>
+                    <span class="chev">→</span>
+                </button>
+            }
+            else
+            {
+                <button class="about" @onclick="OpenServiceSettings">
+                    <span class="about-body">
+                        <span class="about-t">AetherNetService's permissions</span>
+                        <span class="about-s">@(_settingsFailed ? NoSettingsPage : "on its page in the phone's settings")</span>
+                    </span>
+                    <span class="chev">→</span>
+                </button>
+            }
         }
     </section>
 
@@ -236,9 +263,18 @@
     /// <summary>Whether any radio is held back only by the permission AetherNetService has not been given.</summary>
     private bool WaitingOnPermission => _link.Radios.Any(r => r.NeedsPermission);
 
+    private const string NoSettingsPage = "this phone would not open its settings — find AetherNetService under Settings → Apps";
+
     private string PermissionDetail => _settingsFailed
-        ? "this phone would not open its settings — find AetherNetService under Settings → Apps"
+        ? NoSettingsPage
         : $"allow {_serviceSettings!.PermissionName} for AetherNetService — until you do, it only finds people on your Wi-Fi";
+
+    /// <summary>One of AetherNetService's permissions as a line: whether it is allowed, and what it is for.</summary>
+    private string PermissionLine(ServicePermission permission) => _settingsFailed
+        ? NoSettingsPage
+        : permission.Allowed
+            ? $"allowed — AetherNetService can {permission.For}"
+            : $"not allowed — allow it so AetherNetService can {permission.For}";
 
     private void OpenServiceSettings() => _settingsFailed = !(_serviceSettings?.Open() ?? false);
 

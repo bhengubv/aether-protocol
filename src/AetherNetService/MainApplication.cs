@@ -149,7 +149,8 @@ public sealed class MainApplication : Application
                 sp.GetRequiredService<MeshSessionKeeper>(),
                 sp.GetRequiredService<IRadioMesh>(),
                 sp.GetService<ILogger<MeshNodeMessaging>>()));
-        services.AddSingleton<INodeLinkSource>(sp => new MeshNodeLinkSource(sp.GetRequiredService<IRadioMesh>()));
+        services.AddSingleton<INodeLinkSource>(sp => new MeshNodeLinkSource(
+            sp.GetRequiredService<IRadioMesh>(), sp.GetService<ILogger<MeshNodeLinkSource>>()));
         services.AddSingleton(sp =>
             new RadioMeeting(
                 sp.GetRequiredService<IIdentityService>(),

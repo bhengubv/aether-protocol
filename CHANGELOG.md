@@ -94,6 +94,14 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
   waits on the permission, one line opens AetherNetService's page in the phone's settings
   (`IAetherNetServiceSettings`, `AndroidAetherNetServiceSettings`): the service has no screen to ask from,
   and the phone keeps permissions per app. (`65f17ab`)
+- **AetherNetService's permissions, always on show in Aether's Settings** — `NodeLinkStatus.Permissions` lists
+  each one the phone keeps for the service (`ServicePermission`: its name as the phone shows it, whether it is
+  allowed, and what it is for), and Aether lists them under AetherNet whether or not anything is missing. Each
+  opens AetherNetService's page in the phone's settings, the only place a permission can change. The old line
+  went away once the radios were allowed, and took the only way to that page with it. An older service that
+  lists none still decodes, and Aether falls back to the one line.
+- **AetherNetService wears Aether's logo** — built from Aether's own two drawings (`MauiIcon` through
+  `UseMauiAssets`); it had no icon, so the phone showed its default puzzle piece. (`cce5dd8`)
 
 ### Changed
 
@@ -104,6 +112,16 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
   contact who is actually here (`MeetingHost.Choose`), and re-points them only when that changes, when that
   contact is unreachable, or when a radio becomes usable. It used to re-point them every 30 s at whoever
   sorted lowest, present or not. (`d59df4f`, `65f17ab`)
+- **A permission allowed on the phone brings its radio up without a restart** — the phone tells an app
+  nothing when that happens, so AetherNetService looks again every 3 s while a permission is missing
+  (`PermissionWatch`), brings up the radio it held back, and tells every connected app. It used to stay off
+  until the service restarted.
+- **Release builds sign with The Geek Network's key** — AetherNetService gains the signing block and Aether
+  points at the same keystore. The password is never written down or set machine-wide: Visual Studio's
+  Archive signs with the key it manages, and a one-off command line passes it with `-p:`. (`a75a608`, `0c712ea`)
+- **The two-phone test leaves other apps and their logs alone** — it no longer clears the phones' logs
+  (it reads from each phone's clock at the start), will not start Aether over another app, and checks the
+  permission each Android version needs. (`2b52cf0`)
 
 ### Fixed
 

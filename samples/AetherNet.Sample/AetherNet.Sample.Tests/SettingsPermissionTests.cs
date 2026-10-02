@@ -16,18 +16,18 @@ using RadioStatus = AetherNetNodeService.RadioStatus;   // what AetherNetService
 namespace AetherNet.Sample.Tests;
 
 /// <summary>
-/// The way to AetherNetService's permission, on Aether's Settings page.
+/// AetherNetService's permissions, on Aether's Settings page.
 ///
 /// <para>
-/// AetherNetService has no screen to ask from, and the phone keeps permissions per app — so switching AetherNet on
-/// here cannot grant the radios anything. While a radio is actually waiting on that permission, the page offers the
-/// service's own page in the phone's settings, and nothing otherwise.
+/// AetherNetService has no screen of its own, so Aether's settings are where a person sees what it has been allowed —
+/// always, not only while something is missing. Each line opens the service's page in the phone's settings, the only
+/// place a permission can change: the phone keeps permissions per app, and one app cannot grant another's.
 /// </para>
 /// </summary>
 public sealed class SettingsPermissionTests : IDisposable
 {
     private const string Me = "KXJB7-MN2P4";
-    private const string Line = "Let AetherNet find phones nearby";
+    private const string Line = "Let AetherNet find phones nearby";   // an older service's one line
 
     private readonly Bunit.TestContext _ctx = new();
     private readonly AetherStore _store = AetherStore.InMemory();
@@ -55,11 +55,121 @@ public sealed class SettingsPermissionTests : IDisposable
         _store.Dispose();
     }
 
+    private static ServicePermission Nearby(bool allowed) => new("Nearby devices", allowed, "find phones near you, over Wi-Fi and Bluetooth");
+
+    private static ServicePermission Notifications(bool allowed) => new("Notifications", allowed, "show that it is keeping you reachable");
+
+    /// <summary>What AetherNetService reports: a radio, and the permissions the phone keeps for it.</summary>
+    private static NodeLinkStatus Holding(params ServicePermission[] permissions) =>
+        new(false, null, [new RadioStatus("Wi-Fi", true, false, 0)]) { Permissions = permissions };
+
     private static RadioStatus Waiting(string name) =>
         new(name, false, false, 0) { Reason = "needs permission to find phones nearby", Fixable = true, NeedsPermission = true };
 
+    /// <summary>The line for one permission, found by its name.</summary>
+    private static AngleSharp.Dom.IElement Row(IRenderedComponent<Settings> cut, string name) =>
+        cut.FindAll("button.about").Single(b => b.QuerySelector(".about-t")?.TextContent == name);
+
     [Fact]
-    public void A_radio_waiting_on_the_permission_offers_the_way_to_it()
+    public void Every_permission_AetherNetService_holds_shows_whether_it_is_allowed()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Nearby(true), Notifications(false));
+
+        var cut = _ctx.RenderComponent<Settings>();
+
+        var nearby = Row(cut, "Nearby devices");
+        Assert.Equal("allowed — AetherNetService can find phones near you, over Wi-Fi and Bluetooth", nearby.QuerySelector(".about-s")!.TextContent);
+        Assert.Equal("✓", nearby.QuerySelector(".chev")!.TextContent);
+
+        var notifications = Row(cut, "Notifications");
+        Assert.Equal("not allowed — allow it so AetherNetService can show that it is keeping you reachable", notifications.QuerySelector(".about-s")!.TextContent);
+        Assert.Equal("→", notifications.QuerySelector(".chev")!.TextContent);
+    }
+
+    [Fact]
+    public void A_permission_opens_AetherNetService_page_in_the_phone_settings()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Nearby(false));
+
+        Row(_ctx.RenderComponent<Settings>(), "Nearby devices").Click();
+
+        Assert.Equal(1, _settings.Opened);
+    }
+
+    /// <summary>
+    /// The gap this closed: the old line went away once the radios were allowed, and took the only way to
+    /// AetherNetService's page with it.
+    /// </summary>
+    [Fact]
+    public void The_permissions_stay_on_show_once_everything_is_allowed()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Nearby(true), Notifications(true));
+
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Assert.StartsWith("allowed", Row(cut, "Notifications").QuerySelector(".about-s")!.TextContent);
+        Row(cut, "Nearby devices").Click();
+        Assert.Equal(1, _settings.Opened);
+    }
+
+    [Fact]
+    public void A_permission_allowed_on_the_phone_shows_as_soon_as_AetherNetService_says_so()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Nearby(false));
+        var cut = _ctx.RenderComponent<Settings>();
+        Assert.StartsWith("not allowed", Row(cut, "Nearby devices").QuerySelector(".about-s")!.TextContent);
+
+        // AetherNetService notices the change by itself — the phone does not tell it — and pushes it.
+        _node.Push(Holding(Nearby(true)));
+
+        cut.WaitForAssertion(() => Assert.StartsWith("allowed", Row(cut, "Nearby devices").QuerySelector(".about-s")!.TextContent));
+    }
+
+    /// <summary>They are AetherNetService's: switching AetherNet off here changes nothing the phone has allowed it.</summary>
+    [Fact]
+    public void The_permissions_show_whether_or_not_AetherNet_is_switched_on()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _store.SetFlag(SetupKeys.AetherNet, false);
+        _node.Link = Holding(Nearby(false));
+
+        Assert.StartsWith("not allowed", Row(_ctx.RenderComponent<Settings>(), "Nearby devices").QuerySelector(".about-s")!.TextContent);
+    }
+
+    /// <summary>A head with no AetherNetService — the web build, the desktop — has no page to send anyone to.</summary>
+    [Fact]
+    public void Nothing_is_shown_where_there_is_no_AetherNetService_page()
+    {
+        _node.Link = Holding(Nearby(false));
+
+        var markup = _ctx.RenderComponent<Settings>().Markup;
+
+        Assert.DoesNotContain("Nearby devices", markup);
+        Assert.DoesNotContain("AetherNetService's permissions", markup);
+        Assert.DoesNotContain(Line, markup);
+    }
+
+    [Fact]
+    public void A_phone_that_will_not_open_its_settings_says_where_to_look()
+    {
+        _settings.Opens = false;
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Nearby(false));
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Row(cut, "Nearby devices").Click();
+
+        Assert.Contains("find AetherNetService under Settings → Apps", cut.Markup);
+    }
+
+    // ── An older AetherNetService, which sends no list ──────────────────────────
+
+    [Fact]
+    public void An_older_service_with_a_radio_waiting_on_the_permission_still_offers_the_way_to_it()
     {
         _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
         _node.Link = new NodeLinkStatus(false, null, [Waiting("Wi-Fi Direct"), new RadioStatus("Wi-Fi", true, false, 0)]);
@@ -73,64 +183,17 @@ public sealed class SettingsPermissionTests : IDisposable
         Assert.Equal(1, _settings.Opened);
     }
 
-    /// <summary>A switched-off radio is fixable too — but not on the page that grants permissions.</summary>
     [Fact]
-    public void Nothing_is_offered_when_no_radio_is_waiting_on_it()
+    public void An_older_service_with_nothing_waiting_still_leaves_the_way_to_its_page()
     {
         _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
-        _node.Link = new NodeLinkStatus(false, null,
-        [
-            new RadioStatus("BLE", false, false, 0) { Reason = "Bluetooth is switched off", Fixable = true },
-            new RadioStatus("Wi-Fi", true, false, 0),
-        ]);
+        _node.Link = new NodeLinkStatus(false, null, [new RadioStatus("Wi-Fi", true, false, 0)]);
 
-        Assert.DoesNotContain(Line, _ctx.RenderComponent<Settings>().Markup);
-    }
-
-    [Fact]
-    public void Nothing_is_offered_while_AetherNet_is_switched_off()
-    {
-        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
-        _store.SetFlag(SetupKeys.AetherNet, false);
-        _node.Link = new NodeLinkStatus(false, null, [Waiting("Wi-Fi Direct")]);
-
-        Assert.DoesNotContain(Line, _ctx.RenderComponent<Settings>().Markup);
-    }
-
-    /// <summary>A head with no AetherNetService — the web build, the desktop — has no page to send anyone to.</summary>
-    [Fact]
-    public void Nothing_is_offered_where_there_is_no_AetherNetService_page()
-    {
-        _node.Link = new NodeLinkStatus(false, null, [Waiting("Wi-Fi Direct")]);
-
-        Assert.DoesNotContain(Line, _ctx.RenderComponent<Settings>().Markup);
-    }
-
-    [Fact]
-    public void The_line_goes_once_the_radios_have_the_permission()
-    {
-        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
-        _node.Link = new NodeLinkStatus(false, null, [Waiting("Wi-Fi Direct")]);
-        var cut = _ctx.RenderComponent<Settings>();
-        Assert.Contains(Line, cut.Markup);
-
-        // AetherNetService pushes the new state once the radio is up.
-        _node.Push(new NodeLinkStatus(false, null, [new RadioStatus("Wi-Fi Direct", true, false, 0)]));
-
-        cut.WaitForAssertion(() => Assert.DoesNotContain(Line, cut.Markup));
-    }
-
-    [Fact]
-    public void A_phone_that_will_not_open_its_settings_says_where_to_look()
-    {
-        _settings.Opens = false;
-        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
-        _node.Link = new NodeLinkStatus(false, null, [Waiting("Wi-Fi Direct")]);
         var cut = _ctx.RenderComponent<Settings>();
 
-        cut.FindAll("button.about").Single(b => b.TextContent.Contains(Line)).Click();
-
-        Assert.Contains("find AetherNetService under Settings → Apps", cut.Markup);
+        Assert.DoesNotContain(Line, cut.Markup);
+        cut.FindAll("button.about").Single(b => b.TextContent.Contains("AetherNetService's permissions")).Click();
+        Assert.Equal(1, _settings.Opened);
     }
 
     /// <summary>AetherNetService's settings page, counting how often it was opened.</summary>

@@ -180,6 +180,34 @@ public class NodeWireTests
         Assert.False(back.Radios[2].NeedsPermission);
     }
 
+    /// <summary>AetherNetService's permissions cross with the link, so a connected app can show them.</summary>
+    [Fact]
+    public void Link_round_trips_AetherNetService_permissions()
+    {
+        var status = new NodeLinkStatus(false, null, [new RadioStatus("Wi-Fi", true, false, 0)])
+        {
+            Permissions =
+            [
+                new ServicePermission("Nearby devices", true, "find phones near you, over Wi-Fi and Bluetooth"),
+                new ServicePermission("Notifications", false, "show that it is keeping you reachable"),
+            ],
+        };
+
+        var back = NodeWire.DecodeLink(NodeWire.EncodeLink(status));
+
+        Assert.Equal(status.Permissions, back.Permissions);
+    }
+
+    [Fact]
+    public void Link_from_a_service_that_lists_no_permissions_has_none()
+    {
+        var older = System.Text.Encoding.UTF8.GetBytes(
+            """{"linked":false,"radio":null,"radios":[{"name":"Wi-Fi Direct","available":false,"linked":false,"carriesBps":0}]}""");
+
+        Assert.Empty(NodeWire.DecodeLink(older).Permissions);
+        Assert.Empty(NodeWire.DecodeLink(NodeWire.EncodeLink(NodeLinkStatus.Offline)).Permissions);
+    }
+
     [Fact]
     public void The_recovery_phrase_crosses_as_its_words()
     {

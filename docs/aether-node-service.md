@@ -138,7 +138,10 @@ across a process boundary. What crosses and what does not is the whole point.
   in the SDK; that name is a sample-app type.) A report, not a picker. Each radio
   says why it cannot be used, in plain words (`Reason`), whether the person can fix
   that (`Fixable`), and whether what is missing is the permission the phone keeps
-  for the service (`NeedsPermission`) — see §7 for where that is granted.
+  for the service (`NeedsPermission`) — see §7 for where that is granted. The same
+  report lists those permissions (`Permissions`: each `ServicePermission` with its
+  name as the phone shows it, whether it is allowed, and what it is for), so an app
+  can show them; the service has no screen of its own to show them on.
 - **Whom to meet**: the app hands over its contacts (`MeetAsync`). The service keeps
   no address book of its own; the people are the app's, and the radios only need to
   know whom to keep reachable.
@@ -241,12 +244,18 @@ killed for memory, crashed, or updated — connects again by itself:
     consumer sees no service at all.
   - The radios' runtime permission belongs to AetherNetService, and a service with
     no screen can never show the phone's "Allow?" prompt; the phone keeps permissions
-    per app, so a consumer cannot grant it either. While a radio reports
-    `NeedsPermission`, the consumer offers the way to AetherNetService's own page in
-    the phone's settings (`IAetherNetServiceSettings`; on Android
+    per app, so a consumer cannot grant it either. The consumer shows the
+    service's permissions from `NodeLinkStatus.Permissions` — always, not only while
+    one is missing — and each opens AetherNetService's own page in the phone's
+    settings (`IAetherNetServiceSettings`; on Android
     `AndroidAetherNetServiceSettings`), where the person allows it once — "Nearby
-    devices" on Android 13+, "Nearby devices and Location" on 12, "Location" before.
-    Until then only the Wi-Fi the phone is already on carries traffic.
+    devices" on Android 13+, "Nearby devices and Location" on 12, "Location" before;
+    "Notifications" from 13. Until then only the Wi-Fi the phone is already on carries
+    traffic.
+  - The phone tells an app nothing when one of its permissions is allowed, so while
+    one is missing the service looks again every 3 s (`PermissionWatch`); when it is
+    allowed, the service brings up the radio it held back — no restart — and pushes
+    the new report to every connected app.
   - A radio never touches its stack without that permission — it reports what it
     needs and stays off. Leaving it to the stack to refuse was not safe: on Android 16
     a Bluetooth GATT server opened without permission sometimes crashed the whole
@@ -337,17 +346,36 @@ Android 16), 2026-09-30:
 - the phone's own fingerprint / PIN / pattern sheet comes up before the recovery
   words, and cancelling it shows nothing (P30).
 
+**Verified on the P30**, 2026-10-02:
+
+- "Let AetherNet find phones nearby" in Aether's Settings said "allow Location for
+  AetherNetService" and opened AetherNetService's App info page; once Location was
+  allowed there, and the service restarted, 4 of its 7 radios were up instead of 2,
+  and the line went away;
+- AetherNetService shows Aether's logo on its App info page.
+
 **Built, not yet run on a phone:**
 
 - radios asking for their permission before touching their stacks (the fix for
   AetherNetService dying on some cold starts on the Pixel);
 - Aether recovering when AetherNetService dies as it starts;
-- "Let AetherNet find phones nearby" in Aether's Settings (§7).
+- AetherNetService's permissions listed in Aether's Settings at all times (§7) —
+  installed on the P30, not yet seen there;
+- a permission allowed on the phone bringing its radio up without a restart
+  (`PermissionWatch`).
 
 **Open:**
 
 - Bluetooth, Wi-Fi Direct and Wi-Fi Aware stay off until AetherNetService is given its
   permission once (§7); until then two phones reach each other only on the same Wi-Fi.
+- On the P30, EMUI's low-memory killer stops AetherNetService even while it runs as a
+  foreground service (four times in five minutes on 2026-10-02, with the phone short of
+  memory), and once no app is bound to it nothing starts it again — the service asks
+  to be restarted (`START_STICKY`), and EMUI does not.
+- Aether's "AetherNet is on / off" switch changes nothing on a phone with
+  AetherNetService: the service brings its radios up either way. Whether it should
+  switch the service's nearby radios off for every app, or only stop Aether using
+  them, is not decided.
 - Restoring from the 24 words through an app: the service mints on first start, and
   adopting over a live identity is refused by design, so restore needs its own path.
 - The 8-language port of the contract and fixtures.

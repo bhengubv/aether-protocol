@@ -195,7 +195,14 @@ public static class NodeWire
             radios[i] = new RadioDto(r.Name, r.Available, r.Linked, r.CarriesBps, r.Reason, r.Fixable, r.NeedsPermission);
         }
 
-        return JsonBytes(new LinkDto(status.Linked, status.Radio, radios));
+        var permissions = new PermissionDto[status.Permissions.Count];
+        for (var i = 0; i < permissions.Length; i++)
+        {
+            var p = status.Permissions[i];
+            permissions[i] = new PermissionDto(p.Name, p.Allowed, p.For);
+        }
+
+        return JsonBytes(new LinkDto(status.Linked, status.Radio, radios, permissions));
     }
 
     public static NodeLinkStatus DecodeLink(byte[] bytes)
@@ -213,7 +220,14 @@ public static class NodeWire
             };
         }
 
-        return new NodeLinkStatus(dto.Linked, dto.Radio, radios);
+        var permissions = new ServicePermission[dto.Permissions?.Length ?? 0];
+        for (var i = 0; i < permissions.Length; i++)
+        {
+            var p = dto.Permissions![i];
+            permissions[i] = new ServicePermission(p.Name, p.Allowed, p.For);
+        }
+
+        return new NodeLinkStatus(dto.Linked, dto.Radio, radios) { Permissions = permissions };
     }
 
     // ── InboundMessage (single, for the push) ────────────────────────────────────
@@ -282,7 +296,10 @@ public static class NodeWire
         string Name, bool Available, bool Linked, long CarriesBps,
         string? Reason = null, bool Fixable = false, bool NeedsPermission = false);
 
-    private sealed record LinkDto(bool Linked, string? Radio, RadioDto[]? Radios);
+    private sealed record PermissionDto(string Name, bool Allowed, string For);
+
+    // Permissions is optional for the same reason: an older service never sends it.
+    private sealed record LinkDto(bool Linked, string? Radio, RadioDto[]? Radios, PermissionDto[]? Permissions = null);
 
     private sealed record InboundDto(string From, byte[] Payload, string Kind, DateTimeOffset ReceivedAt, Guid Id);
 }

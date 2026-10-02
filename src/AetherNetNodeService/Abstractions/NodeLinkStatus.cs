@@ -36,7 +36,20 @@ public sealed record NodeLinkStatus(bool Linked, string? Radio, IReadOnlyList<Ra
 
     /// <summary>How many radios this device has in total (available or not).</summary>
     public int Total => Radios.Count;
+
+    /// <summary>
+    /// The permissions the phone keeps for AetherNetService, and whether the person has allowed each — the same list
+    /// as AetherNetService's own page in the phone's settings. AetherNetService has no screen, so a connected app is
+    /// where a person sees them. Empty from a host with no such permissions, and from an older service.
+    /// </summary>
+    public IReadOnlyList<ServicePermission> Permissions { get; init; } = System.Array.Empty<ServicePermission>();
 }
+
+/// <summary>One permission the phone keeps for AetherNetService.</summary>
+/// <param name="Name">What the phone calls it on AetherNetService's page — "Nearby devices", "Location", "Notifications".</param>
+/// <param name="Allowed">Whether the person has allowed it.</param>
+/// <param name="For">What it lets AetherNetService do, in the words of someone holding the phone, to follow "it can".</param>
+public sealed record ServicePermission(string Name, bool Allowed, string For);
 
 /// <summary>One radio the device carries, and how it is doing right now.</summary>
 /// <param name="Name">Human label, e.g. "Wi-Fi Direct", "Bluetooth", "LoRa".</param>
