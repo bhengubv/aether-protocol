@@ -21,8 +21,11 @@ public sealed class PermissionWatch
     /// <summary>The permissions as of the last look.</summary>
     public IReadOnlyList<ServicePermission> Current { get; private set; }
 
-    /// <summary>Whether anything is still not allowed — the only reason to look again.</summary>
-    public bool Waiting => Current.Any(p => !p.Allowed);
+    /// <summary>
+    /// Whether anything is still not allowed — the only reason to look again. A permission the phone does not report
+    /// (<see cref="ServicePermission.Known"/> false) can never be seen to change, so it is no reason.
+    /// </summary>
+    public bool Waiting => Current.Any(p => p.Known && !p.Allowed);
 
     /// <summary>
     /// Whether the last look found a permission allowed that was not allowed before it — the moment to bring up

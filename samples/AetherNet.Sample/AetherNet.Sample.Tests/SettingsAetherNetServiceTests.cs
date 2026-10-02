@@ -171,6 +171,46 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
         Assert.Contains("find AetherNetService under Settings → Apps", cut.Markup);
     }
 
+    // ── What keeps it running ───────────────────────────────────────────────────
+
+    private static ServicePermission Battery(bool allowed) =>
+        new("Battery", allowed, "keep running in the background, free of the phone's battery limits") { Page = PermissionPage.Battery };
+
+    private static ServicePermission AppLaunch() =>
+        new("App launch", false, "start again after the phone stops it") { Page = PermissionPage.AppLaunch, Known = false };
+
+    /// <summary>
+    /// A phone short of memory stops even a foreground service. The battery prompt is the phone's own, raised from here
+    /// for AetherNetService; App launch is the phone maker's page, which says nothing back about how it is set.
+    /// </summary>
+    [Fact]
+    public void Battery_asks_the_phone_and_App_launch_opens_the_makers_page()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Nearby(true), Battery(false), AppLaunch());
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Row(cut, "Battery").Click();
+        Row(cut, "App launch").Click();
+
+        Assert.Equal(new[] { PermissionPage.Battery, PermissionPage.AppLaunch }, _settings.Pages);
+        var appLaunch = Row(cut, "App launch");
+        Assert.Equal("the phone does not say — turn its switches on there so AetherNetService can start again after the phone stops it",
+            appLaunch.QuerySelector(".about-s")!.TextContent);
+        Assert.Equal("→", appLaunch.QuerySelector(".chev")!.TextContent);
+    }
+
+    [Fact]
+    public void Something_already_allowed_opens_App_info_where_it_can_be_seen()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Battery(true));
+
+        Row(_ctx.RenderComponent<Settings>(), "Battery").Click();
+
+        Assert.Equal(new[] { PermissionPage.AppInfo }, _settings.Pages);
+    }
+
     // ── An older AetherNetService, which sends no list ──────────────────────────
 
     [Fact]
@@ -272,10 +312,19 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
 
         public string PermissionName => "Nearby devices";
 
+        /// <summary>Which pages were asked for, in order.</summary>
+        public List<PermissionPage> Pages { get; } = [];
+
         public bool Open()
         {
             Opened++;
             return Opens;
+        }
+
+        public bool Open(PermissionPage page)
+        {
+            Pages.Add(page);
+            return Open();
         }
     }
 

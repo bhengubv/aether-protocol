@@ -53,10 +53,39 @@ public sealed record NodeLinkStatus(bool Linked, string? Radio, IReadOnlyList<Ra
 }
 
 /// <summary>One permission the phone keeps for AetherNetService.</summary>
-/// <param name="Name">What the phone calls it on AetherNetService's page — "Nearby devices", "Location", "Notifications".</param>
+/// <param name="Name">What the phone calls it — "Nearby devices", "Location", "Notifications", "Battery", "App launch".</param>
 /// <param name="Allowed">Whether the person has allowed it.</param>
 /// <param name="For">What it lets AetherNetService do, in the words of someone holding the phone, to follow "it can".</param>
-public sealed record ServicePermission(string Name, bool Allowed, string For);
+public sealed record ServicePermission(string Name, bool Allowed, string For)
+{
+    /// <summary>Where on the phone the person changes it.</summary>
+    public PermissionPage Page { get; init; } = PermissionPage.AppInfo;
+
+    /// <summary>
+    /// False when the phone does not say whether it is allowed — a phone maker's own switch, such as Huawei's App
+    /// launch. <see cref="Allowed"/> is then false, meaning only "not known to be".
+    /// </summary>
+    public bool Known { get; init; } = true;
+}
+
+/// <summary>Where on the phone one of AetherNetService's permissions is changed.</summary>
+public enum PermissionPage
+{
+    /// <summary>AetherNetService's own page in the phone's settings (App info), where its runtime permissions are.</summary>
+    AppInfo = 0,
+
+    /// <summary>
+    /// The phone's own prompt to let AetherNetService run without its battery limits. Any app may raise it for
+    /// AetherNetService, which declares that it may ask — so it needs no screen of its own for this either.
+    /// </summary>
+    Battery = 1,
+
+    /// <summary>
+    /// The phone maker's page for which apps the phone may start again after stopping them — Huawei's App launch. A
+    /// phone short of memory stops even a foreground service, and without this nothing starts it again.
+    /// </summary>
+    AppLaunch = 2,
+}
 
 /// <summary>One radio the device carries, and how it is doing right now.</summary>
 /// <param name="Name">Human label, e.g. "Wi-Fi Direct", "Bluetooth", "LoRa".</param>

@@ -262,6 +262,14 @@ killed for memory, crashed, or updated — connects again by itself:
     one is missing the service looks again every 3 s (`PermissionWatch`); when it is
     allowed, the service brings up the radio it held back — no restart — and pushes
     the new report to every connected app.
+  - Two more keep the service running, and the list carries them with the page each
+    is changed on (`ServicePermission.Page`). "Battery": the consumer raises the
+    phone's own prompt to let AetherNetService always run in the background — the
+    phone only checks that AetherNetService declares
+    `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, not which app asks, so no screen is
+    needed. "App launch", on Huawei and Honor phones: the maker's page for whether the
+    phone may start AetherNetService again after stopping it. The phone does not say
+    how that is set (`Known` is false), so the consumer says so and opens the page.
   - A radio never touches its stack without that permission — it reports what it
     needs and stays off. Leaving it to the stack to refuse was not safe: on Android 16
     a Bluetooth GATT server opened without permission sometimes crashed the whole
@@ -370,7 +378,9 @@ Android 16), 2026-09-30:
 - a permission allowed on the phone bringing its radio up without a restart
   (`PermissionWatch`);
 - the AetherNet switch in Aether's Settings and setup switching AetherNetService's
-  nearby radios for every app on the phone (`SetNearbyAsync`).
+  nearby radios for every app on the phone (`SetNearbyAsync`);
+- "Battery" and, on Huawei, "App launch" in Aether's Settings — the phone's battery
+  prompt for AetherNetService, and Huawei's App launch page.
 
 **Open:**
 
@@ -379,7 +389,8 @@ Android 16), 2026-09-30:
 - On the P30, EMUI's low-memory killer stops AetherNetService even while it runs as a
   foreground service (four times in five minutes on 2026-10-02, with the phone short of
   memory), and once no app is bound to it nothing starts it again — the service asks
-  to be restarted (`START_STICKY`), and EMUI does not.
+  to be restarted (`START_STICKY`), and EMUI does not. Aether now offers "Battery"
+  and "App launch" for it; whether those keep it running there is not yet shown.
 - Restoring from the 24 words through an app: the service mints on first start, and
   adopting over a live identity is refused by design, so restore needs its own path.
 - The 8-language port of the contract and fixtures.

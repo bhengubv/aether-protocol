@@ -99,12 +99,12 @@
             {
                 foreach (var permission in _link.Permissions)
                 {
-                    <button class="about" @onclick="OpenServiceSettings">
+                    <button class="about" @onclick="() => OpenServicePage(permission)">
                         <span class="about-body">
                             <span class="about-t">@permission.Name</span>
                             <span class="about-s">@PermissionLine(permission)</span>
                         </span>
-                        <span class="chev">@(permission.Allowed ? "✓" : "→")</span>
+                        <span class="chev">@(permission.Known && permission.Allowed ? "✓" : "→")</span>
                     </button>
                 }
             }
@@ -294,9 +294,18 @@
     /// <summary>One of AetherNetService's permissions as a line: whether it is allowed, and what it is for.</summary>
     private string PermissionLine(ServicePermission permission) => _settingsFailed
         ? NoSettingsPage
-        : permission.Allowed
-            ? $"allowed — AetherNetService can {permission.For}"
-            : $"not allowed — allow it so AetherNetService can {permission.For}";
+        : !permission.Known
+            ? $"the phone does not say — turn its switches on there so AetherNetService can {permission.For}"
+            : permission.Allowed
+                ? $"allowed — AetherNetService can {permission.For}"
+                : $"not allowed — allow it so AetherNetService can {permission.For}";
+
+    /// <summary>
+    /// The page where that permission is changed: the phone's battery prompt, or its maker's App launch page, where it
+    /// has one, and AetherNetService's App info for the rest — and for anything already allowed, where it can be seen.
+    /// </summary>
+    private void OpenServicePage(ServicePermission permission) =>
+        _settingsFailed = !(_serviceSettings?.Open(permission.Known && permission.Allowed ? PermissionPage.AppInfo : permission.Page) ?? false);
 
     private void OpenServiceSettings() => _settingsFailed = !(_serviceSettings?.Open() ?? false);
 

@@ -100,6 +100,13 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
   opens AetherNetService's page in the phone's settings, the only place a permission can change. The old line
   went away once the radios were allowed, and took the only way to that page with it. An older service that
   lists none still decodes, and Aether falls back to the one line.
+- **What keeps AetherNetService running, in Aether's Settings** — a phone short of memory stops even a foreground
+  service, and on the P30 nothing started this one again. The list now has "Battery": Aether raises the phone's
+  own "let it always run in the background?" prompt for AetherNetService, which only has to declare
+  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (the phone does not check which app raises it), so no screen is needed.
+  On Huawei and Honor phones it also has "App launch", which opens Huawei's page for whether the phone may start
+  AetherNetService again. The phone does not say how that one is set, so it shows as not known. New in the
+  contract: `ServicePermission.Page` and `.Known`, and `IAetherNetServiceSettings.Open(PermissionPage)`.
 - **AetherNetService wears Aether's logo** — built from Aether's own two drawings (`MauiIcon` through
   `UseMauiAssets`); it had no icon, so the phone showed its default puzzle piece. (`cce5dd8`)
 

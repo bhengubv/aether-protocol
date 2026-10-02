@@ -208,6 +208,47 @@ public class NodeWireTests
         Assert.Empty(NodeWire.DecodeLink(NodeWire.EncodeLink(NodeLinkStatus.Offline)).Permissions);
     }
 
+    /// <summary>Where each is changed, and whether the phone says how it is set, cross with it.</summary>
+    [Fact]
+    public void A_permission_crosses_with_its_page_and_whether_the_phone_says()
+    {
+        var status = new NodeLinkStatus(false, null, [])
+        {
+            Permissions =
+            [
+                new ServicePermission("Battery", false, "keep running") { Page = PermissionPage.Battery },
+                new ServicePermission("App launch", false, "start again") { Page = PermissionPage.AppLaunch, Known = false },
+            ],
+        };
+
+        var back = NodeWire.DecodeLink(NodeWire.EncodeLink(status));
+
+        Assert.Equal(status.Permissions, back.Permissions);
+    }
+
+    /// <summary>A service that listed permissions before pages existed sent App info pages, every one known.</summary>
+    [Fact]
+    public void A_permission_with_no_page_is_App_info_and_known()
+    {
+        var older = System.Text.Encoding.UTF8.GetBytes(
+            """{"linked":false,"radio":null,"radios":[],"permissions":[{"name":"Location","allowed":true,"for":"find phones"}]}""");
+
+        var permission = Assert.Single(NodeWire.DecodeLink(older).Permissions);
+
+        Assert.Equal(PermissionPage.AppInfo, permission.Page);
+        Assert.True(permission.Known);
+    }
+
+    /// <summary>A page a newer service names and this side does not know is opened as App info, never dropped.</summary>
+    [Fact]
+    public void A_page_this_side_does_not_know_is_App_info()
+    {
+        var newer = System.Text.Encoding.UTF8.GetBytes(
+            """{"linked":false,"radio":null,"radios":[],"permissions":[{"name":"Something new","allowed":false,"for":"x","page":42}]}""");
+
+        Assert.Equal(PermissionPage.AppInfo, Assert.Single(NodeWire.DecodeLink(newer).Permissions).Page);
+    }
+
     [Fact]
     public void Link_round_trips_whether_the_nearby_radios_are_switched_on()
     {

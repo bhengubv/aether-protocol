@@ -31,6 +31,9 @@
         <intent>
             <action android:name="com.bhengubv.aethernet.service.BIND" />
         </intent>
+        <!-- Huawei's App launch page, opened for AetherNetService from Settings: a phone short of memory stops it,
+             and only this lets the phone start it again. -->
+        <package android:name="com.huawei.systemmanager" />
     </queries>
     <!-- Offering somebody the app ends at Android's own installer prompt; this is what lets us reach it. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

@@ -68,6 +68,19 @@ public class PermissionWatchTests
         Assert.False(watch.Waiting);
     }
 
+    /// <summary>One the phone does not report can never be seen to change, so it is no reason to keep looking.</summary>
+    [Fact]
+    public void A_permission_the_phone_does_not_report_is_no_reason_to_wait()
+    {
+        var watch = new PermissionWatch(() =>
+        [
+            Nearby(true),
+            new ServicePermission("App launch", false, "start again after the phone stops it") { Page = PermissionPage.AppLaunch, Known = false },
+        ]);
+
+        Assert.False(watch.Waiting);
+    }
+
     [Fact]
     public void A_host_with_no_permissions_never_waits()
     {

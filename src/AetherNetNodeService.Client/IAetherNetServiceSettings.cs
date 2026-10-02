@@ -21,4 +21,11 @@ public interface IAetherNetServiceSettings
 
     /// <summary>Open AetherNetService's page in the phone's settings. False when it could not be opened.</summary>
     bool Open();
+
+    /// <summary>
+    /// Open the page where one of AetherNetService's permissions is changed (<see cref="ServicePermission.Page"/>) —
+    /// its App info page, the phone's battery prompt for it, or the phone maker's App launch page. Falls back to
+    /// App info where the phone has no such page. False when nothing could be opened.
+    /// </summary>
+    bool Open(PermissionPage page) => Open();
 }
