@@ -13,7 +13,7 @@ namespace AetherNet.Sample;
 
 public static class MauiProgram
 {
-    /// <summary>The separate AetherNetService app this app connects to for its identity (Android).</summary>
+    /// <summary>The separate AetherNetService app this app connects to for its identity (Android's package).</summary>
     private const string AetherNetServicePackage = "com.bhengubv.aethernetservice";
 
     public static MauiApp CreateMauiApp()
@@ -50,15 +50,16 @@ public static class MauiProgram
         // Aether runs no radios of its own. On Android the radios belong to AetherNetService.
         builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
 
-#if ANDROID
+#if ANDROID || WINDOWS
         // The device's identity belongs to AetherNetService — a separate app, with no UI. Aether is a thin
-        // client: it never mints and never holds a key. It connects to the service and asks.
-        builder.Services.AddSingleton<AetherNetNodeService.IAetherNodeClient>(_ =>
-            new AetherNetNodeService.Android.BoundNodeClient(
-                new AetherNetNodeService.Android.AndroidNodeConnector(
-                    global::Android.App.Application.Context, AetherNetServicePackage)));
+        // client: it never mints and never holds a key. It connects to the service and asks: by binding on a
+        // phone, by AetherNetService's named pipe on a computer (NodeConnector).
+        builder.Services.AddSingleton<AetherNetNodeService.IAetherNodeClient>(sp =>
+            new AetherNetNodeService.Client.BoundNodeClient(NodeConnector(), ConnectionLog(sp)));
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
             new AetherNetNodeService.Client.NodeClientIdentity(sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>()));
+#endif
+#if ANDROID
         // Backup: the phone confirms its owner (its own fingerprint, PIN or pattern screen), then this app asks
         // the service for the 24 words and shows them. Restore is not available from here yet.
         builder.Services.AddSingleton<AetherNetNodeService.Client.IOwnerCheck>(_ =>
@@ -82,12 +83,19 @@ public static class MauiProgram
                 new AetherNetNodeService.Android.AndroidNodePackageInstaller(context, Log),
                 Log);
         });
+#elif WINDOWS
+        // Backup: Windows Hello confirms the person at the computer is the one signed in, then this app asks the
+        // service for the 24 words and shows them.
+        builder.Services.AddSingleton<AetherNetNodeService.Client.IOwnerCheck>(_ =>
+            new AetherNetNodeService.Windows.WindowsOwnerCheck(WindowHandle));
+#endif
+#if ANDROID || WINDOWS
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
             new AetherNetNodeService.Client.NodeClientRecovery(
                 sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>(),
                 sp.GetRequiredService<AetherNetNodeService.Client.IOwnerCheck>()));
 #else
-        // No AetherNetService to connect to on this head, so the node runs in-process. This app does not
+        // No AetherNetService to connect to on this head (iOS, Mac), so the node runs in-process. This app does not
         // mint an identity — it asks, and the node mints only if this device has never had one.
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityStore>(sp =>
             new VaultNodeIdentityStore(sp.GetRequiredService<ISecretVault>()));
@@ -149,7 +157,7 @@ public static class MauiProgram
             new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
                 sp.GetRequiredService<IRadioMesh>()));
         builder.Services.AddSingleton<AetherNet.Routing.IRoutingService, OneHopRoutingService>();
-#if ANDROID
+#if ANDROID || WINDOWS
         // No mesh of its own: recognising contacts behind rotating addresses needs the routing key, which
         // lives in AetherNetService. So this app recognises nobody and relays for nobody.
         builder.Services.AddSingleton<AetherNet.Routing.IWireAddressResolver>(sp =>
@@ -172,7 +180,7 @@ public static class MauiProgram
                     new AetherNet.Storage.FileSystemKeyValueStore(Path.Combine(dataDir, "dtn"))),
                 logger: sp.GetService<ILogger<AetherNet.Dtn.DtnService>>()));
 
-#if ANDROID
+#if ANDROID || WINDOWS
         // Aether's messaging goes through AetherNetService: the service seals, holds and delivers; chat keeps
         // its conversations and receipts. The node reports delivery back under chat's own message ids.
         builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
@@ -254,8 +262,14 @@ public static class MauiProgram
         // Cast a video to a bigger screen. Two roads under one picker: a smart TV on the Wi-Fi driven over
         // the open UPnP/DLNA standard (no Google Cast), or an Aether device over the mesh (which reuses the
         // watch-together engine — and is how a TV that runs the Aether node service would appear too).
+#if ANDROID
         builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.IMulticastHold,
             AetherNet.Sample.Platforms.Android.AndroidMulticastHold>();
+#else
+        // Only Android drops multicast to save battery; elsewhere there is nothing to hold.
+        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.IMulticastHold,
+            AetherNet.Sample.Shared.Services.Cast.NoMulticastHold>();
+#endif
         builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.DlnaCastService>(sp =>
             new AetherNet.Sample.Shared.Services.Cast.DlnaCastService(
                 sp.GetService<AttachmentService>(),
@@ -290,8 +304,8 @@ public static class MauiProgram
 
         // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
         // that question about a rotating address, and without an answer the only way to find out is
-        // to dial a stranger and see who picks up. On Android that is AetherNetService's job, not this app's.
-#if !ANDROID
+        // to dial a stranger and see who picks up. Where there is an AetherNetService that is its job, not this app's.
+#if !ANDROID && !WINDOWS
         builder.Services.AddSingleton<CircleDirectory>();
 #endif
 
@@ -301,18 +315,32 @@ public static class MauiProgram
         // What this device actually has, measured against everything AetherNet can use.
         builder.Services.AddSingleton<IRadioInventory, NullRadioInventory>();
         // What the person chose in Settings, applied to the shell as well as the page.
+#if ANDROID
         builder.Services.AddSingleton<IAppTheme, AetherNet.Sample.Platforms.Android.AndroidAppTheme>();
+#else
+        builder.Services.AddSingleton<IAppTheme, NullAppTheme>();
+#endif
         builder.Services.AddSingleton<ProxyDirectory>();
 
         // The app carries itself: a mesh that needs a store to spread has a single point of
         // failure standing in front of its very first step.
+#if ANDROID
         builder.Services.AddSingleton<IAppShareService, AetherNet.Sample.Platforms.Android.AndroidAppShareService>();
+#else
+        // Handing the app over is handing over an installable package — a phone's.
+        builder.Services.AddSingleton<IAppShareService, NoAppShare>();
+#endif
 
         // Touch My Blood: the phone becomes an NFC tag for as long as somebody is offering, and the
         // handout is the small web server that the tap points at. One singleton each — the tap is
         // armed and disarmed by the screen, and the handout expires on its own.
+#if ANDROID
         builder.Services.AddSingleton<ITapShare, AetherNet.Sample.Platforms.Android.AndroidTapShare>();
+#else
+        builder.Services.AddSingleton<ITapShare, NoTapShare>();
+#endif
         builder.Services.AddSingleton<AppHandout>();
+#if ANDROID
         builder.Services.AddSingleton<AetherNet.Sample.Platforms.Android.GatewayService>(sp =>
             new AetherNet.Sample.Platforms.Android.GatewayService(
                 sp.GetRequiredService<ProxyDirectory>(),
@@ -322,6 +350,7 @@ public static class MauiProgram
                 sp.GetService<ILogger<AetherNet.Sample.Platforms.Android.GatewayService>>()));
         builder.Services.AddSingleton<IRelayHost>(sp =>
             sp.GetRequiredService<AetherNet.Sample.Platforms.Android.GatewayService>());
+#endif
 
         // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
         // transfer resumes across a dropped link and works on a radio far too slow for a call.
@@ -409,8 +438,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<ICircleContacts, StoreCircleContacts>();
         builder.Services.AddSingleton<FastRadioService>();
 
-#if !ANDROID
-        // No AetherNetService on this head, so the node runs in-process: identity, messaging and presence
+#if !ANDROID && !WINDOWS
+        // No AetherNetService on this head (iOS, Mac), so the node runs in-process: identity, messaging and presence
         // reach the UI through the same IAetherNodeClient contract (docs/aether-node-service.md).
         builder.Services.AddSingleton<INodeMessaging, SampleNodeMessaging>();
         builder.Services.AddSingleton<INodeLinkSource, SampleNodeLinkSource>();
@@ -464,7 +493,9 @@ public static class MauiProgram
                 Taps.Current = app.Services.GetService<Taps>();
 
                 // A scan that launched the app cold delivered its link before any of this existed.
+#if ANDROID
                 invites?.Deliver(MainActivity.ConsumePendingLink());
+#endif
             });
 
             // Constructing these is what subscribes them to the radio, so a message can arrive, and a
@@ -675,6 +706,36 @@ public static class MauiProgram
 #endif
         }
     }
+
+#if ANDROID || WINDOWS
+    /// <summary>How this head reaches AetherNetService: a bind on a phone, its named pipe on a computer.</summary>
+    private static AetherNetNodeService.Client.INodeConnector NodeConnector() =>
+#if ANDROID
+        new AetherNetNodeService.Android.AndroidNodeConnector(global::Android.App.Application.Context, AetherNetServicePackage);
+#else
+        new AetherNetNodeService.Pipe.PipeNodeConnector(new AetherNetNodeService.Windows.WindowsNodeLauncher());
+#endif
+
+    /// <summary>
+    /// Where the connection says what happens to it — that AetherNetService went away, how many tries it took to reach it
+    /// again. On a phone that is always logcat, Release too: it is the first thing read when messages stop arriving.
+    /// </summary>
+    private static ILogger ConnectionLog(IServiceProvider services) =>
+#if ANDROID
+        new AetherNet.Sample.Platforms.Android.LogcatLoggerProvider().CreateLogger("BoundNodeClient");
+#else
+        services.GetRequiredService<ILoggerFactory>().CreateLogger("BoundNodeClient");
+#endif
+#endif
+
+#if WINDOWS
+    /// <summary>The handle of Aether's window, for Windows Hello to ask over; 0 while there is none.</summary>
+    private static nint WindowHandle()
+    {
+        var window = Application.Current?.Windows.FirstOrDefault()?.Handler?.PlatformView as Microsoft.UI.Xaml.Window;
+        return window is null ? 0 : WinRT.Interop.WindowNative.GetWindowHandle(window);
+    }
+#endif
 
 #if ANDROID
     /// <summary>Where AetherNetService is looked for — SleptOn's own API, unless a Debug test points elsewhere.</summary>

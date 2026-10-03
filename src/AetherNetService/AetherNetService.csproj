@@ -2,9 +2,10 @@
 
   <!-- AetherNetService is a MAUI app, built the way Aether is: one project, a head for each system. The service and
        the app that asks it must be the same split on every system — on Android the app binds to it, on Windows it
-       will reach it by a named pipe — and only that pipe differs. It has no pages: a screen is attack surface. -->
+       reaches it by a named pipe — and only that pipe differs. It has no pages: a screen is attack surface. -->
   <PropertyGroup>
     <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
@@ -20,6 +21,11 @@
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+
+    <!-- On Windows a program in a folder, as Aether is: no store package. Apps find it through its App Paths entry. -->
+    <WindowsPackageType>None</WindowsPackageType>
   </PropertyGroup>
 
   <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
@@ -50,18 +56,30 @@
     <AndroidSigningStorePass>$(ANDROID_KEYSTORE_PASS)</AndroidSigningStorePass>
   </PropertyGroup>
 
+  <!-- The node itself, the same on every system: the host, the identity and Signal, the portable radio mesh and the
+       messaging core. DTN and the routing/identity contracts come transitively through these (DtnService lives in
+       AetherNet.Core; the storage backing it is AetherNet.Storage). -->
   <ItemGroup>
-    <ProjectReference Include="../AetherNetNodeService.Android/AetherNetNodeService.Android.csproj" />
     <ProjectReference Include="../AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
     <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
     <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
-    <!-- The mesh the node now hosts: the portable radio mesh + messaging core, and the Android radios that
-         fill its transport seam. DTN and the routing/identity contracts come transitively through these
-         (DtnService lives in AetherNet.Core; the storage backing it is AetherNet.Storage). -->
     <ProjectReference Include="../AetherNet.Mesh/AetherNet.Mesh.csproj" />
-    <ProjectReference Include="../AetherNet.Transport.Android/AetherNet.Transport.Android.csproj" />
     <ProjectReference Include="../AetherNet.Messaging/AetherNet.Messaging.csproj" />
     <ProjectReference Include="../AetherNet.Storage/AetherNet.Storage.csproj" />
+  </ItemGroup>
+
+  <!-- What Android brings: the bound service apps bind to, and the radios that fill the mesh's transport seam. -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <ProjectReference Include="../AetherNetNodeService.Android/AetherNetNodeService.Android.csproj" />
+    <ProjectReference Include="../AetherNet.Transport.Android/AetherNet.Transport.Android.csproj" />
+  </ItemGroup>
+
+  <!-- What Windows brings: the named pipe apps connect by, the App Paths entry they find it through, and Windows'
+       own sealing of the key for the person signed in. -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <ProjectReference Include="../AetherNetNodeService.Pipe/AetherNetNodeService.Pipe.csproj" />
+    <ProjectReference Include="../AetherNetNodeService.Windows/AetherNetNodeService.Windows.csproj" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.2" />
   </ItemGroup>
 
   <!-- The same MAUI as Aether, at the same version. -->

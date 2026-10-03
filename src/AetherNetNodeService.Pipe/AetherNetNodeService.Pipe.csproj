@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>AetherNetNodeService.Pipe</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>The named-pipe binding for the Aether Node Service — what the Android binder is on a phone, on a computer: AetherNetService's end of the pipe (PipeNodeServer), the app's end (PipeNodeClient) and the connector that finds AetherNetService and starts it (PipeNodeConnector, WindowsNodeLauncher). The calls are the same NodeWire bytes the binder carries. Only processes of the signed-in user can open the pipe; .NET maps it to a Unix domain socket on macOS and Linux. See docs/aether-node-service.md §7.</Description>
+    <PackageTags>mesh;aether;node;ipc;pipe;windows;service</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNetNodeService/AetherNetNodeService.csproj" />
+    <ProjectReference Include="../AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
+    <ProjectReference Include="../AetherNetNodeService.Client/AetherNetNodeService.Client.csproj" />
+    <ProjectReference Include="../AetherNetNodeService.Ipc/AetherNetNodeService.Ipc.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AetherNetNodeService.Pipe.Tests" />
+  </ItemGroup>
+
+</Project>

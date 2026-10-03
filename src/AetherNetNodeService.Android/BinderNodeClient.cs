@@ -3,6 +3,7 @@
 using Android.OS;
 using AetherNet.Identity;
 using AetherNetNodeService;
+using AetherNetNodeService.Client;
 using AetherNetNodeService.Ipc;
 
 namespace AetherNetNodeService.Android;
@@ -14,7 +15,7 @@ namespace AetherNetNodeService.Android;
 /// blocking transaction runs on the thread pool so no caller thread is held; events arrive on a small
 /// callback binder handed to the service on <see cref="Subscribe"/>.
 /// </summary>
-internal sealed class BinderNodeClient : IAetherNodeClient, IDisposable
+internal sealed class BinderNodeClient : IAetherNodeClient, INodeConnection, IDisposable
 {
     private readonly IBinder _service;
     private readonly Action? _onDispose;

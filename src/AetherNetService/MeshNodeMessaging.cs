@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
 using AetherNet.Identity;   // AetherNetTag
 using AetherNet.Mesh;
 using AetherNetNodeService;
@@ -179,4 +178,3 @@ internal sealed class MeshNodeMessaging : INodeMessaging, IDisposable
 
     private sealed record Held(byte[] Payload, Guid Id);
 }
-#endif

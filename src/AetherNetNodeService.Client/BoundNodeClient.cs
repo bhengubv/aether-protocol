@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
 using System.Diagnostics;
 using AetherNet.Identity;
-using AetherNetNodeService.Client;
+using Microsoft.Extensions.Logging;
 
-namespace AetherNetNodeService.Android;
+namespace AetherNetNodeService.Client;
 
 /// <summary>
 /// An <see cref="IAetherNodeClient"/> that connects to AetherNetService on first use and keeps the connection —
-/// what a thin client app registers, so it never holds an identity or a radio of its own.
+/// what a thin client app registers, so it never holds an identity or a radio of its own. The same on every system:
+/// only the <see cref="INodeConnector"/> differs (a bind on a phone, a named pipe on a computer), and any connection
+/// that is an <see cref="INodeConnection"/> is watched, so this connects again when the service goes.
 ///
 /// <para>
 /// Nothing here blocks: every call awaits the connection, so resolving this from the container costs nothing on
@@ -27,8 +28,6 @@ namespace AetherNetNodeService.Android;
 /// </summary>
 public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
 {
-    private const string LogTag = "BoundNodeClient";
-
     /// <summary>The first wait before trying again to reach a service that is not there; it doubles each time.</summary>
     private static readonly TimeSpan FirstRetry = TimeSpan.FromSeconds(1);
 
@@ -42,6 +41,9 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     private static readonly TimeSpan StayedUp = TimeSpan.FromSeconds(30);
 
     private readonly INodeConnector _connector;
+    private readonly ILogger? _logger;
+    private readonly TimeSpan _firstRetry;
+    private readonly TimeSpan _longestRetry;
     private readonly object _gate = new();
     private readonly List<DeferredSubscription> _subscriptions = [];
     private Task<IAetherNodeClient>? _connecting;
@@ -58,15 +60,32 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     private bool _again;
 
     /// <summary>The wait before the next try; it keeps growing while the service dies as it starts.</summary>
-    private TimeSpan _wait = FirstRetry;
+    private TimeSpan _wait;
 
     /// <summary>When a connection last succeeded (a <see cref="Stopwatch"/> timestamp), or 0 before the first.</summary>
     private long _reachedAt;
 
     private bool _disposed;
 
-    public BoundNodeClient(INodeConnector connector)
-        => _connector = connector ?? throw new ArgumentNullException(nameof(connector));
+    /// <param name="connector">How this system reaches AetherNetService.</param>
+    /// <param name="logger">
+    /// Where it says what it is doing — that the service went away, how many tries it took to reach it again. Give it
+    /// one that reaches the system's own log (logcat on a phone).
+    /// </param>
+    public BoundNodeClient(INodeConnector connector, ILogger? logger = null)
+        : this(connector, logger, FirstRetry, LongestRetry)
+    {
+    }
+
+    /// <summary>With its own waits between tries — for tests, which cannot wait seconds.</summary>
+    internal BoundNodeClient(INodeConnector connector, ILogger? logger, TimeSpan firstRetry, TimeSpan longestRetry)
+    {
+        _connector = connector ?? throw new ArgumentNullException(nameof(connector));
+        _logger = logger;
+        _firstRetry = firstRetry;
+        _longestRetry = longestRetry;
+        _wait = firstRetry;
+    }
 
     public async Task<AetherNetTag> GetTagAsync(CancellationToken cancellationToken = default)
         => await (await ClientAsync().ConfigureAwait(false)).GetTagAsync(cancellationToken).ConfigureAwait(false);
@@ -146,7 +165,7 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
             }
 
             if (_connecting is null || _connecting.IsFaulted || _connecting.IsCanceled
-                || (_connecting.IsCompletedSuccessfully && _connecting.Result is BinderNodeClient { IsAlive: false }))
+                || (_connecting.IsCompletedSuccessfully && _connecting.Result is INodeConnection { IsAlive: false }))
             {
                 // Off this lock and off the caller's thread: connecting binds, subscribes and calls the service,
                 // none of which should happen while holding the lock every other call waits on.
@@ -161,21 +180,21 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     {
         if (!await _connector.IsInstalledAsync().ConfigureAwait(false))
         {
-            throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, "AetherNetService is not installed on this phone");
+            throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, "AetherNetService is not installed on this device");
         }
 
         var client = await _connector.TryBindAsync().ConfigureAwait(false)
             ?? throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, "AetherNetService did not accept the connection");
 
-        if (client is BinderNodeClient binder)
+        if (client is INodeConnection connection)
         {
-            binder.Died += () => OnDied(binder);
+            connection.Died += () => OnDied(client);
 
-            // Died in the moment between binding and listening for its death — what an update can do. A connection
+            // Died in the moment between connecting and listening for its death — what an update can do. A connection
             // that is already dead is a failed attempt, not a connection.
-            if (!binder.IsAlive)
+            if (!connection.IsAlive)
             {
-                binder.Dispose();
+                (client as IDisposable)?.Dispose();
                 throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, "AetherNetService went away as it connected");
             }
         }
@@ -188,9 +207,9 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
         await TellContactsAsync(client).ConfigureAwait(false);
 
         // Died while it was being told whom to meet — a service dying as it starts. Not a connection.
-        if (client is BinderNodeClient { IsAlive: false } gone)
+        if (client is INodeConnection { IsAlive: false })
         {
-            gone.Dispose();
+            (client as IDisposable)?.Dispose();
             throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, "AetherNetService went away as it connected");
         }
 
@@ -234,12 +253,12 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
         catch (Exception ex)
         {
             // The connection is good for everything else; the app's next contact change sends them again.
-            global::Android.Util.Log.Warn(LogTag, $"connected, but could not tell AetherNetService whom to meet: {ex.Message}");
+            _logger?.LogWarning("connected, but could not tell AetherNetService whom to meet: {Reason}", ex.Message);
         }
     }
 
     /// <summary>The service died. Drop the dead connection and connect again.</summary>
-    private void OnDied(BinderNodeClient dead)
+    private void OnDied(IAetherNodeClient dead)
     {
         lock (_gate)
         {
@@ -250,11 +269,11 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
             }
         }
 
-        try { dead.Dispose(); } catch { /* it is already gone */ }
+        try { (dead as IDisposable)?.Dispose(); } catch { /* it is already gone */ }
 
-        global::Android.Util.Log.Info(LogTag, "AetherNetService went away — connecting again");
+        _logger?.LogInformation("AetherNetService went away — connecting again");
 
-        // The bind starts the service again, and the new connection takes every listener with it. With nobody
+        // Connecting starts the service again, and the new connection takes every listener with it. With nobody
         // listening, the next call reconnects on its own.
         _ = Task.Run(KeepTryingAsync);
     }
@@ -306,7 +325,7 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
             // A service that died soon after it was reached is dying as it starts, and reconnecting at once only starts
             // it to die again — so the wait carries on growing. One that stayed up starts the waits over.
             waitFirst = _reachedAt != 0 && Stopwatch.GetElapsedTime(_reachedAt) < StayedUp;
-            if (!waitFirst) _wait = FirstRetry;
+            if (!waitFirst) _wait = _firstRetry;
         }
 
         for (var tries = 1; ; tries++)
@@ -320,18 +339,18 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
             try
             {
                 var client = await ClientAsync().ConfigureAwait(false);
-                if (client is BinderNodeClient { IsAlive: false })
+                if (client is INodeConnection { IsAlive: false })
                 {
                     throw new AetherNodeException(AetherNodeErrorCode.NodeUnavailable, "AetherNetService went away as it connected");
                 }
 
                 AttachAll(client);
                 reached = true;
-                if (tries > 1) global::Android.Util.Log.Info(LogTag, $"reached AetherNetService again after {tries} tries");
+                if (tries > 1) _logger?.LogInformation("reached AetherNetService again after {Tries} tries", tries);
             }
             catch (Exception ex)
             {
-                if (tries == 1) global::Android.Util.Log.Info(LogTag, $"AetherNetService not reachable yet ({ex.Message}) — trying again");
+                if (tries == 1) _logger?.LogInformation("AetherNetService not reachable yet ({Reason}) — trying again", ex.Message);
             }
 
             lock (_gate)
@@ -349,13 +368,13 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
         }
     }
 
-    /// <summary>The wait before the next try: it doubles each time, up to <see cref="LongestRetry"/>.</summary>
+    /// <summary>The wait before the next try: it doubles each time, up to the longest wait.</summary>
     private TimeSpan NextWait()
     {
         lock (_gate)
         {
             var wait = _wait;
-            _wait = wait * 2 < LongestRetry ? wait * 2 : LongestRetry;
+            _wait = wait * 2 < _longestRetry ? wait * 2 : _longestRetry;
             return wait;
         }
     }
@@ -420,4 +439,3 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
         }
     }
 }
-#endif

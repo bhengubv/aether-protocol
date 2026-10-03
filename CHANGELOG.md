@@ -12,6 +12,18 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ### Added
 
+- **AetherNetService on Windows — the same split as on a phone.** AetherNetService's Windows head runs with no
+  window and owns the computer's identity; Aether on Windows is now a thin client of it, as on Android, instead of
+  running the node itself. Apps reach it over a named pipe, one per person signed in
+  (`\\.\pipe\AetherNetService-<SID>`, `PipeOptions.CurrentUserOnly`), carrying the binder's own calls and `NodeWire`
+  bytes (`AetherNetNodeService.Pipe`: `PipeNodeServer`, `PipeNodeClient`, `PipeNodeConnector`). An app finds it through
+  the App Paths entry AetherNetService writes for itself and starts it when nothing answers
+  (`AetherNetNodeService.Windows`: `WindowsNodeLauncher`); the recovery words wait for Windows Hello
+  (`WindowsOwnerCheck`). The key is sealed by Windows for the person signed in (DPAPI) in
+  `%LOCALAPPDATA%\AetherNetService`, with the service's log beside it. Run on the dev PC: no window, about 100 MB,
+  minted its AetherTag on first start and answered over the pipe. No Windows radios yet — the node keeps identity,
+  sessions and messages, and reaches nobody until `AetherNet.Transport.Windows` is wired into a radio mesh.
+
 - **Signed, versioned, content-addressed cards** (`src/AetherNet.Cards/`) + **authenticated directory
   bindings** (`src/AetherNet.Content/`). A card binds a name to a content-addressed blob with an Ed25519
   signature. `DirectoryService` accepts a signed `NamePublish` only when the signature verifies over the
@@ -131,6 +143,11 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
   update, key file untouched, Aether reconnected by itself). It still has no page and no activity; the only component
   another app can reach is still the bind service. The package grows from 37.8 MB to 52.7 MB, MAUI's own libraries.
   At start it now logs whose node it is ("AetherNetService is up as …", and says so when it mints a new identity).
+  The node itself is one piece for every head (`NodeCore`); a head adds where the key is kept, its radios, its
+  permissions and its pipe.
+- **`BoundNodeClient` is in `AetherNetNodeService.Client`**, for every system: it connects through any
+  `INodeConnector` and connects again when a connection that is an `INodeConnection` (the binder's, the pipe's) says
+  the service went away. Its log goes to an `ILogger` — Aether still sends it to logcat on a phone, Release too.
 - **`AetherNet.Node*` is now `AetherNetNodeService*`** — folders, projects and namespaces. (`fff5c7f`)
 - **The bound service is `com.bhengubv.aethernet.service`**, declared only by AetherNetService; Aether
   declares no service of its own. (`8bf83d3`)

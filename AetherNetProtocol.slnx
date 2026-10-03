@@ -19,6 +19,8 @@
     <Project Path="src/AetherNetNodeService/AetherNetNodeService.csproj" />
     <Project Path="src/AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
     <Project Path="src/AetherNetNodeService.Client/AetherNetNodeService.Client.csproj" />
+    <Project Path="src/AetherNetNodeService.Pipe/AetherNetNodeService.Pipe.csproj" />
+    <Project Path="src/AetherNetNodeService.Windows/AetherNetNodeService.Windows.csproj" />
     <Project Path="src/AetherNet.Space/AetherNet.Space.csproj" />
     <Project Path="src/AetherNet.Forge/AetherNet.Forge.csproj" />
     <Project Path="src/AetherNet.Vault/AetherNet.Vault.csproj" />
@@ -50,6 +52,7 @@
     <Project Path="tests/AetherNetNodeService.Tests/AetherNetNodeService.Tests.csproj" />
     <Project Path="tests/AetherNetNodeService.Host.Tests/AetherNetNodeService.Host.Tests.csproj" />
     <Project Path="tests/AetherNetNodeService.Client.Tests/AetherNetNodeService.Client.Tests.csproj" />
+    <Project Path="tests/AetherNetNodeService.Pipe.Tests/AetherNetNodeService.Pipe.Tests.csproj" />
     <Project Path="tests/AetherNet.Space.Tests/AetherNet.Space.Tests.csproj" />
     <Project Path="tests/AetherNet.Forge.Tests/AetherNet.Forge.Tests.csproj" />
     <Project Path="tests/AetherNet.Transport.Tests/AetherNet.Transport.Tests.csproj" />

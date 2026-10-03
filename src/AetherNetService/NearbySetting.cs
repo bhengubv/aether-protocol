@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
 using AetherNetNodeService.Host;
 using Microsoft.Extensions.Logging;
 
@@ -43,7 +42,12 @@ internal sealed class NearbySetting : INodeNearby
         _ = Task.Run(async () =>
         {
             await Task.Delay(ReplyFirst).ConfigureAwait(false);
+#if ANDROID
             global::Android.OS.Process.KillProcess(global::Android.OS.Process.MyPid());
+#else
+            // The app still connected sees the pipe close and starts AetherNetService again, as a bind does on a phone.
+            Environment.Exit(0);
+#endif
         });
     }
 
@@ -60,4 +64,3 @@ internal sealed class NearbySetting : INodeNearby
         }
     }
 }
-#endif

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
 using AetherNetNodeService;
 using AetherNetNodeService.Host;
 
@@ -18,4 +17,3 @@ internal sealed class OpenGrantStore : IGrantStore
 
     public IReadOnlyList<AppGrant> All() => Array.Empty<AppGrant>();
 }
-#endif

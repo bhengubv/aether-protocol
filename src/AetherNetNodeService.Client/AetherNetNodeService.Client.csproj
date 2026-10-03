@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="AetherNetNodeService.Client.Tests" />
+    <InternalsVisibleTo Include="AetherNetNodeService.Pipe.Tests" />
   </ItemGroup>
 
 </Project>

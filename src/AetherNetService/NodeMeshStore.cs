@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
 using System.Text.Json;
 using AetherNet.Mesh;
 
@@ -71,4 +70,3 @@ internal sealed class NodeMeshStore : IPeerRoutingKeyStore, IProxyDirectoryStore
         catch { /* best effort; the in-memory copy stays authoritative for this run */ }
     }
 }
-#endif

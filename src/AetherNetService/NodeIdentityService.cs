@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
 using AetherNet.Identity;
 using AetherNet.Mesh;
 
@@ -47,4 +46,3 @@ internal sealed class NodeIdentityService : IIdentityService
 
     private readonly record struct Resolved(string Tag, byte[] PublicKey, byte[] RoutingKey);
 }
-#endif

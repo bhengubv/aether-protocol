@@ -282,9 +282,32 @@ killed for memory, crashed, or updated — connects again by itself:
     needs and stays off. Leaving it to the stack to refuse was not safe: on Android 16
     a Bluetooth GATT server opened without permission sometimes crashed the whole
     service instead of throwing.
-- **Other platforms:** the same contract; the host mechanism differs (a desktop
-  service over a named pipe; an iOS app-group + XPC where the sandbox permits).
-  The contract is platform-neutral; the host is platform code.
+- **Windows:** the same AetherNetService, its Windows head — no window, started by
+  the first app that needs it and running from then on. Apps reach it over a named
+  pipe (`AetherNetNodeService.Pipe`): `\\.\pipe\AetherNetService-<SID>`, one per
+  person signed in, which only that person's processes can open
+  (`PipeOptions.CurrentUserOnly`). The calls are the binder's: the same `NodeOp`
+  codes and the same `NodeWire` bytes, in frames of length, kind, call number and
+  body; an answer keeps its `AetherNodeErrorCode`.
+  - An app finds AetherNetService by its App Paths entry
+    (`HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths\AetherNetService.exe`),
+    which AetherNetService writes for itself each time it starts, and starts it when
+    nothing answers (`WindowsNodeLauncher`) — as a bind starts the service on a
+    phone. The app's client is the phone's `BoundNodeClient`, unchanged: when the
+    pipe closes it connects again, taking its listeners and contacts along.
+  - The key is `%LOCALAPPDATA%\AetherNetService\aether-node.key`, sealed by Windows
+    for the person signed in (DPAPI); its log is `aethernetservice.log` beside it.
+  - Before the recovery words, Windows Hello confirms the person at the computer
+    (`WindowsOwnerCheck`); with no Windows Hello set up there is nothing to confirm
+    with, and the words are not shown.
+  - No radios yet: the Windows radios (`AetherNet.Transport.Windows`) are not wired
+    into a radio mesh, so the node keeps the identity, the sessions and the messages
+    and reaches nobody until they are.
+- **Other platforms:** the same contract and the same split; the pipe differs (on
+  macOS and Linux .NET's named pipe is a Unix socket, so `AetherNetNodeService.Pipe`
+  carries over; an iOS app cannot host a service other apps connect to, so there the
+  node stays inside the app). The contract is platform-neutral; the host is platform
+  code.
 
 What **aether-protocol** ships (this repo):
 
@@ -345,14 +368,20 @@ installed processes:
   contact the pair-by-pair radios point at: the lowest-sorting one who is actually
   here.
 - `AetherNetNodeService.Android` — the bound service (`AetherNodeAndroidService`,
-  `NodeServiceBinder`), the consumer side (`BinderNodeClient`, `BoundNodeClient`,
+  `NodeServiceBinder`), the consumer side (`BinderNodeClient`,
   `AndroidNodeConnector`), `AndroidOwnerCheck` and `AndroidAetherNetServiceSettings`.
+- `AetherNetNodeService.Pipe` — the named pipe: `PipeNodeServer`, `PipeNodeClient`,
+  `PipeNodeConnector`.
+- `AetherNetNodeService.Windows` — `WindowsNodeLauncher` (App Paths) and
+  `WindowsOwnerCheck` (Windows Hello).
 - `AetherNetNodeService.Client` — `NodeBinder` (detect → install → bind),
+  `BoundNodeClient` (connect, and connect again, on any system), `INodeConnection`,
   `NodeBackedMessaging`, `NodeClientIdentity`, `NodeClientRecovery`, `IOwnerCheck`,
   `IAetherNetServiceSettings`.
-- `src/AetherNetService` — **AetherNetService**, the service app: no UI; it owns the
-  identity, the radios and the Signal sessions.
-- The sample app (**Aether**) is now a thin client of it.
+- `src/AetherNetService` — **AetherNetService**, the service app, a MAUI app with an
+  Android head and a Windows head: no UI; it owns the identity, the radios and the
+  Signal sessions (`NodeCore`, the same on both).
+- The sample app (**Aether**) is a thin client of it on Android and on Windows.
 
 **Verified on two phones** (Huawei P30 lite, Android 10; a Pixel on Circle OS,
 Android 16), 2026-09-30:

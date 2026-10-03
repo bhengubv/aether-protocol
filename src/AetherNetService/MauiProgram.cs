@@ -20,6 +20,9 @@ public static class MauiProgram
         builder.Logging.AddProvider(new LogcatLoggerProvider());
         // The identity stays where it has always been (files/aether-node.key), so a phone keeps its AetherTag.
         AndroidNode.AddServices(builder.Services, global::Android.App.Application.Context.FilesDir!.AbsolutePath);
+#elif WINDOWS
+        builder.Logging.AddProvider(new FileLoggerProvider(WindowsNode.Directory));
+        WindowsNode.AddServices(builder.Services, WindowsNode.Directory);
 #endif
 
         return builder.Build();

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
 using AetherNet.Mesh;
 using AetherNetNodeService;
 using AetherNetNodeService.Host;
@@ -32,6 +31,7 @@ internal sealed class RadioMeeting : INodeMeeting, ICircleContacts, IDisposable
     private readonly IIdentityService _me;
     private readonly IRadioMesh _radio;
     private readonly INodeNearby? _nearby;
+    private readonly string? _internet;
     private readonly ILogger? _log;
     private readonly Timer _timer;
     private readonly object _gate = new();
@@ -57,12 +57,15 @@ internal sealed class RadioMeeting : INodeMeeting, ICircleContacts, IDisposable
     }
 
     /// <param name="nearby">The device's switch for its nearby radios; switched off, only the internet leg is kept up.</param>
-    public RadioMeeting(IIdentityService me, IRadioMesh radio, ILogger<RadioMeeting>? log = null, INodeNearby? nearby = null)
+    /// <param name="internetRadio">The internet leg's name in this system's radios, or null where there is none.</param>
+    public RadioMeeting(
+        IIdentityService me, IRadioMesh radio, ILogger<RadioMeeting>? log = null, INodeNearby? nearby = null, string? internetRadio = null)
     {
         _me = me ?? throw new ArgumentNullException(nameof(me));
         _radio = radio ?? throw new ArgumentNullException(nameof(radio));
         _nearby = nearby;
         _log = log;
+        _internet = internetRadio;
         _timer = new Timer(_ => Apply(), null, Every, Every);
     }
 
@@ -115,8 +118,8 @@ internal sealed class RadioMeeting : INodeMeeting, ICircleContacts, IDisposable
         // one kept up — brought up once a relay is known, if it was not when the service started.
         if (_nearby is { On: false })
         {
-            if (!_radio.IsLinked && _radio.Radios.Any(r => r.Name == AetherNet.Transport.Android.AndroidRadioSetup.Internet && r.Available))
-                _radio.SelectRadio(AetherNet.Transport.Android.AndroidRadioSetup.Internet);
+            if (_internet is not null && !_radio.IsLinked && _radio.Radios.Any(r => r.Name == _internet && r.Available))
+                _radio.SelectRadio(_internet);
             return;
         }
 
@@ -170,4 +173,3 @@ internal sealed class RadioMeeting : INodeMeeting, ICircleContacts, IDisposable
 
     public void Dispose() => _timer.Dispose();
 }
-#endif

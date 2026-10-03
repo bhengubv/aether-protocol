@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <RootNamespace>AetherNetNodeService.Windows</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <Description>The Windows side of the Aether Node Service, beside the named pipe (AetherNetNodeService.Pipe): finding AetherNetService and starting it (WindowsNodeLauncher, through its App Paths entry), and confirming the computer's owner with Windows Hello before an app shows what only the owner should see (WindowsOwnerCheck). The counterpart of AetherNetNodeService.Android. See docs/aether-node-service.md §7.</Description>
+    <PackageTags>mesh;aether;node;windows;pipe;service</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNetNodeService.Client/AetherNetNodeService.Client.csproj" />
+    <ProjectReference Include="../AetherNetNodeService.Pipe/AetherNetNodeService.Pipe.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
 using System.Text;
 using AetherNet.Security.Services;
 
@@ -57,4 +56,3 @@ internal sealed class FileSignalSessionStore : ISignalSessionBlobStore
         return Task.FromResult<IReadOnlyList<string>>(peers);
     }
 }
-#endif

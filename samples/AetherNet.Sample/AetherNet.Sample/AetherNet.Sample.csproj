@@ -142,6 +142,13 @@
     <ProjectReference Include="..\..\..\src\AetherNetNodeService.Android\AetherNetNodeService.Android.csproj" />
   </ItemGroup>
 
+  <!-- And the same on Windows: Aether is a thin client of the Windows AetherNetService, which it reaches by its named
+       pipe (AetherNetNodeService.Pipe) and finds, or starts, through its App Paths entry (AetherNetNodeService.Windows). -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <ProjectReference Include="..\..\..\src\AetherNetNodeService.Pipe\AetherNetNodeService.Pipe.csproj" />
+    <ProjectReference Include="..\..\..\src\AetherNetNodeService.Windows\AetherNetNodeService.Windows.csproj" />
+  </ItemGroup>
+
   <!-- NSec's [DllImport("libsodium")] needs a real Android libsodium.so. The transitive
        libsodium NuGet ships no Android native, so the build otherwise bundles the Linux
        aarch64 build (which needs libpthread.so.0 — absent on Android) and all crypto fails

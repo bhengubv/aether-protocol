@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
 using AetherNet.Mesh;
 using AetherNetNodeService;        // NodeLinkStatus, RadioStatus
 using AetherNetNodeService.Host;
@@ -25,10 +24,16 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
     private readonly Timer _look;
     private int _looking;
 
+    /// <param name="permissions">What AetherNetService needs from this system, and whether each is allowed, now.</param>
     /// <param name="nearby">The device's switch for its nearby radios; switched off, a permission allowed wakes none.</param>
-    public MeshNodeLinkSource(IRadioMesh radio, ILogger<MeshNodeLinkSource>? logger = null, INodeNearby? nearby = null)
+    public MeshNodeLinkSource(
+        IRadioMesh radio,
+        Func<IReadOnlyList<ServicePermission>> permissions,
+        ILogger<MeshNodeLinkSource>? logger = null,
+        INodeNearby? nearby = null)
     {
         _radio = radio ?? throw new ArgumentNullException(nameof(radio));
+        ArgumentNullException.ThrowIfNull(permissions);
         _logger = logger;
         _nearby = nearby;
         _radio.Changed += () => Changed?.Invoke();
@@ -36,7 +41,7 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
         // The phone tells an app nothing when the person allows one of its permissions on the phone's own page. So
         // while one is still missing, look again every few seconds: when it has been allowed, bring up the radio it
         // was holding back — without a restart — and tell every connected app, whose settings then show it.
-        _permissions = new PermissionWatch(ServicePermissions.Now);
+        _permissions = new PermissionWatch(permissions);
         _look = new Timer(_ => Look(), null, LookEvery, LookEvery);
     }
 
@@ -100,4 +105,3 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
         }
     }
 }
-#endif
