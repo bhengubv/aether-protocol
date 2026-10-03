@@ -1,13 +1,14 @@
 # Aether Aware — plan
 
-**Status:** phases 1–2 built 2026-10-03 — `src/AetherNet.Aware` (C#), 198 tests passing; see its
-`FIELDWATCH-PARITY.md`. Phases 3–6 not started. Written 2026-10-03.
+**Status:** phases 1, 2 and 2b (Quiet help) built 2026-10-03 — `src/AetherNet.Aware` (C#), 225 tests passing; see
+its `FIELDWATCH-PARITY.md`. Phases 3–6 not started. Written 2026-10-03.
 **Source:** [github.com/offgridpete/fieldwatch](https://github.com/offgridpete/fieldwatch) — Fieldwatch, MIT, by Off Grid Pete LLC.
 
 ## What it is
 
 Aether Aware tells a person what their device's radios can hear around them — and warns them when something is
-following them. It only listens: it never transmits, joins, pairs or connects. It needs no account and no server.
+following them. Its listening only listens: it never transmits, joins, pairs or connects. It needs no account and no
+server. The one part that sends is Quiet help, and only when the person asks.
 
 What a person gets:
 
@@ -18,6 +19,8 @@ What a person gets:
 - **Around you** — the Wi-Fi access points and Bluetooth devices in range, named where they can be (cameras, glasses,
   earbuds, routers), filtered so it is not a wall of noise.
 - **Find it** — walk towards one device with a ticking sound that speeds up as it gets louder (like a Geiger counter).
+- **Quiet help** — ask the people you chose for help without a sound, and share your trail with them until you are
+  safe. See below.
 
 ## What Fieldwatch is, and what we take
 
@@ -61,6 +64,49 @@ The same split as everything else: AetherNetService owns the radios; Aether show
 - **Aether** — an Aware screen (Moving with you · Drones · Around you · Find it), and its switch and permission rows in
   Settings with what on and off each mean.
 
+## Quiet help and trails
+
+Added 2026-10-03 at the owner's request.
+
+**What a person gets**
+
+- **Ask for help quietly.** One discreet action, set up in advance by the person. Their phone makes no sound and shows
+  no alarm. The people they chose — their guardians — are told who needs help and where, and keep getting the
+  person's position as it changes (a trail of breadcrumbs) until the person says they are safe.
+- **Walk with me.** The same trail without the alarm: the person shares their way home with their guardians, and it
+  ends when they say they have arrived.
+- **Find them.** A guardian's phone that is close hears the person's phone directly over Bluetooth — no signal bars,
+  no internet — and Find it leads them in by how loud it is. When the person's phone has no position (indoors, in a
+  car), the guardian's phone notes where it was when it heard them.
+
+**How it works**
+
+- Each person has a help key. It goes only to the guardians they choose, inside AetherNet's encrypted contact
+  messages, and only by their own action. Changing guardians makes a new key, so someone removed reads nothing new.
+- While help or a walk is on, the phone sends a short help message — help, walk or safe; where, to about 2 m; how sure;
+  battery — two ways at once: as a Bluetooth advert to phones nearby, and over the mesh to each guardian (the mesh
+  SOS's existing "contacts" path).
+- The message is 23 bytes, sealed with the help key. Only guardians can read it. Its label changes every 15 minutes,
+  so nobody else can read it or tell one quarter-hour's messages from the next. It carries its own time, and an
+  older message heard later is ignored.
+- A guardian's phone recognises the people who chose it, reads their messages, and keeps the trail: the positions the
+  person's phone reported, and — when it had none — where the guardian's phone was when it heard them, and how loud.
+
+**Safeguards** — a trail of where someone is could be misused, so:
+
+- Only the person can start it, on their own phone. Nothing received starts it, and a guardian cannot.
+- Only the guardians the person chose can read it, and the person can see and change who they are.
+- Help stops only when the person says they are safe, as the mesh SOS does today. A walk stops when they arrive.
+- The person's phone stays quiet, but Aether shows them, discreetly, that sharing is on.
+- No other phone keeps the person's position: everyone else hears bytes they cannot read, and keeps nothing.
+- A guardian's phone forgets a trail 24 hours after it ends.
+
+**Limits**
+
+- Bluetooth reaches tens of metres. Beyond that it is the mesh, and the guardians' phones being in reach of it.
+- With no position on the person's phone, there are only the points where guardians heard them.
+- A phone that is off, flat or taken stops sending; guardians see when it was last heard.
+
 ## Decisions for you
 
 1. **Location for AetherNetService.** "Moving with you" needs the phone's position, and Android hides some Bluetooth
@@ -85,6 +131,16 @@ The same split as everything else: AetherNetService owns the radios; Aether show
    Fast Pair can use the Redmi Buds already paired to the dev PC. Drones need a drone broadcasting Remote ID (optional).
 7. **Telling your Circle** about a tag or a drone you have seen. *Recommend:* later, opt-in, never with location unless
    the person chooses to share it.
+8. **How the help message rides a Bluetooth advert.** It needs a Bluetooth service ID. (a) A registered 16-bit ID: the
+   23 bytes fit the standard advert every phone hears, but it costs a Bluetooth SIG fee — your call. (b) AetherNet's
+   own 128-bit ID in a Bluetooth 5 "extended" advert: free, but phones without Bluetooth 5 cannot send or hear it.
+   *Recommend:* (b) now, (a) later if you want every phone. The mesh path works either way. Whether the P30 and the
+   Pixel send and hear extended adverts is measured in phase 3.
+9. **The discreet trigger.** *Recommend:* the person picks one in setup — pressing the power button five times, or a
+   held press on Aether's notification; a second "duress" PIN later. Panik's shake and voice triggers can start the
+   same session.
+10. **The guardians' alert.** *Recommend:* loud and clear on the guardian's phone, because it is an emergency for them;
+    silent on the person's.
 
 ## Phases
 
@@ -98,13 +154,20 @@ Sizes as on the work tracker: S / M / L.
    *Correction:* an earlier draft said rotating addresses would not count as many devices. Fieldwatch keys a radio
    by its address, so each new address is a new row until the old one is forgotten (3 minutes without a signature,
    15 with one).
+   **2b. Quiet help in AetherNet.Aware (M).** The help key, the 23-byte message, the sending session and the
+   guardians' side (recognise, read, trail, Find it). *Done when:* its tests pass — another key reads nothing,
+   altered and older messages are refused, the trail grows and ends, and a trail is forgotten a day after it ends.
 3. **Listening in AetherNetService on Android (L).** First the Location measurement in decision 1, on the P30 and the
    Pixel. Then the listener: a Bluetooth scan for every advert (extended adverts too, and a filter list so Android keeps
    it running with the screen off), Wi-Fi results within Android's scan limits (at most every 30 s), GPS samples; the
-   contract calls and push; what was heard kept on the device and forgotten after a set time. *Done when:* on the P30
+   contract calls and push; what was heard kept on the device and forgotten after a set time. Quiet help: send the
+   help advert (decision 8) and the mesh message, recognise guardians' messages, and notify the guardian (decision
+   10). *Done when:* on the P30
    and the Pixel, Aware lists real access points and adverts; a tag carried on a walk shows "moving with you"; the
    mesh still works with Location allowed and denied.
-4. **Aether (M).** The Aware screen and the Settings rows, light and dark; the notification opens the screen.
+4. **Aether (M).** The Aware screen and the Settings rows, light and dark; the notification opens the screen. Quiet
+   help: choosing guardians, the trigger (decision 9), the discreet "sharing is on" mark, and the guardian's view —
+   the trail on a map and Find it.
    *Done when:* bUnit tests pass, and the screens are seen on the P30 in both themes.
 5. **Windows (M).** The passive Bluetooth watcher and the Wi-Fi list in the Windows service. *Done when:* unit tests and
    the build pass. Nothing is run on the dev PC unless you ask.

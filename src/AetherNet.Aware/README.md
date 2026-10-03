@@ -1,7 +1,8 @@
 # AetherNet.Aware
 
-What a device's radios can hear around it, and a finder tag that is moving with you. Listening only: nothing here
-transmits, joins, pairs or connects, and nothing leaves the device.
+What a device's radios can hear around it, a finder tag that is moving with you, and Quiet help. The listening only
+listens: it never transmits, joins, pairs or connects, and nothing it hears leaves the device. Quiet help is the one
+part that sends, and only when the person asks.
 
 Platform-neutral C#. The host that owns the radios (AetherNetService) feeds it Bluetooth adverts, Wi-Fi beacons and
 its own position; this library reads them, names them, and keeps what was heard. Ported from
@@ -22,6 +23,7 @@ its own position; this library reads them, names them, and keeps what was heard.
 | `Hunt` | "Find it": closer / further cues and a ticking interval from loudness |
 | `FilterEngine` | Which radios to show |
 | `FastPair` | Pairing-mode Fast Pair adverts vs. account-key background noise |
+| `HelpKey`, `HelpCodec`, `HelpSession`, `HelpWatch` | Quiet help: a person asks the guardians they chose for help without a sound and shares their trail until they are safe; the guardians' phones read it, keep the trail, and Find it leads them in |
 
 ## Use
 
@@ -45,6 +47,14 @@ var withYou = store.Devices
     .Where(d => CoTravel.WithYou(d, travel, now) && TrackerMatch.IsTracker(d, names))
     .ToList();
 ```
+
+## Quiet help
+
+The person's phone runs a `HelpSession` (help, or a walk) started by the person, and sends `NextMessage()` — 23 bytes
+sealed with their `HelpKey` — as a Bluetooth advert and over the mesh to each guardian. A guardian's `HelpWatch`
+knows the people who chose them (`Watch`), reads their messages (`Hear`), and keeps each one's trail and loudness
+until a day after the person is safe. Anyone else's phone cannot read the message and keeps nothing. The safeguards
+and what the service and Aether add are in `docs/aether-aware-plan.md`, "Quiet help and trails".
 
 ## Limits
 

@@ -4,9 +4,10 @@ What of Fieldwatch (<https://github.com/offgridpete/fieldwatch> at `cf6562d`) is
 why. The ruler is Fieldwatch's own unit tests, ported with the same inputs and answers to
 `tests/AetherNet.Aware.Tests`.
 
-**Measured 2026-10-03:** 198 tests, 198 passing (`dotnet test tests/AetherNet.Aware.Tests`, net10.0). 168 are ported
-from Fieldwatch's tests; 30 are ours, for ported code Fieldwatch has no test for. Two deliberate breaks (the
-"moving with you" distance allowance, and the AirTag-on-an-iPhone rule) each turned tests red before being undone.
+**Measured 2026-10-03:** 225 tests, 225 passing (`dotnet test tests/AetherNet.Aware.Tests`, net10.0). 168 are ported
+from Fieldwatch's tests; 30 are ours, for ported code Fieldwatch has no test for; 27 are for Quiet help, which is ours
+and not from Fieldwatch. Deliberate breaks — the "moving with you" distance allowance, the AirTag-on-an-iPhone rule,
+Quiet help's check on altered messages and its ignoring of older ones — each turned tests red before being undone.
 
 ## Code
 
