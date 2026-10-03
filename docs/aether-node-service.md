@@ -242,6 +242,10 @@ killed for memory, crashed, or updated — connects again by itself:
 
 ## 7. Platform mapping & scope boundary
 
+- **Every system:** AetherNetService is a MAUI app (`src/AetherNetService`), built
+  the way Aether is — one project, a head for each system — so the service and the
+  app that asks it are the same split everywhere. Only the pipe between them is the
+  system's own.
 - **Android:** the Node Service is **AetherNetService** — its own app,
   `com.bhengubv.aethernetservice`, with no launcher and no screen. It exposes one
   exported bound `Service`, `com.bhengubv.aethernet.service` (action

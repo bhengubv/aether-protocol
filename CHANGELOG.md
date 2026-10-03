@@ -125,6 +125,12 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ### Changed
 
+- **AetherNetService is a MAUI app**, built the way Aether is — one project, a head for each system — so the service
+  and the app that asks it can be the same split on every system, not on Android only. Android head first: same
+  package and the same `files/aether-node.key`, so a phone keeps its AetherTag (P30: still `9DMPE-YEWAE` after the
+  update, key file untouched, Aether reconnected by itself). It still has no page and no activity; the only component
+  another app can reach is still the bind service. The package grows from 37.8 MB to 52.7 MB, MAUI's own libraries.
+  At start it now logs whose node it is ("AetherNetService is up as …", and says so when it mints a new identity).
 - **`AetherNet.Node*` is now `AetherNetNodeService*`** — folders, projects and namespaces. (`fff5c7f`)
 - **The bound service is `com.bhengubv.aethernet.service`**, declared only by AetherNetService; Aether
   declares no service of its own. (`8bf83d3`)

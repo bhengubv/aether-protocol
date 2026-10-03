@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 #if ANDROID
-using Android.App;
-using Android.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using AetherNet.Identity;
@@ -14,8 +12,8 @@ using AetherNet.Security.Services;
 namespace AetherNetService;
 
 /// <summary>
-/// The AetherNetService process. On start it mints (or loads) the device's one identity, brings up the real radio
-/// mesh and the reliable messaging core over it, and wires the exported <see cref="AetherNodeAndroidService"/>
+/// AetherNetService on Android. As the process starts it mints (or loads) the device's one identity, brings up the real
+/// radio mesh and the reliable messaging core over it, and wires the exported <see cref="AetherNodeAndroidService"/>
 /// so a consumer app that binds gets identity <b>and</b> send/inbox/presence backed by the node's own radios.
 ///
 /// <para>
@@ -30,37 +28,20 @@ namespace AetherNetService;
 /// upstream, at the phone's lock (biometrics, pattern, PIN); no access to the phone, no access to the
 /// service. So every caller is admitted (<see cref="OpenGrantStore"/>).
 /// </para>
+///
+/// <para>
+/// What is here is what Android brings to the node — its radios, its bound service, its foreground service. The
+/// node itself is the same on every system; <see cref="MauiProgram"/> builds it, as Aether is built.
+/// </para>
 /// </summary>
-// Aether's logo, generated from Aether's own drawings (MauiIcon in the project file). Set here, not in the manifest:
-// this attribute wins over the manifest's <application> element.
-[Application(Label = "AetherNetService", Icon = "@mipmap/appicon", RoundIcon = "@mipmap/appicon_round", AllowBackup = false)]
-public sealed class MainApplication : Application
+internal static class AndroidNode
 {
     /// <summary>The in-process host the exported service delegates to — mesh-backed.</summary>
     private static AetherNodeService? Node { get; set; }
 
-    private ServiceProvider? _services;
-
-    public MainApplication(nint handle, JniHandleOwnership ownership) : base(handle, ownership)
+    /// <summary>Everything the node needs, over this phone's radios. <paramref name="dir"/> is where the identity lives.</summary>
+    public static void AddServices(IServiceCollection services, string dir)
     {
-    }
-
-    public override void OnCreate()
-    {
-        base.OnCreate();
-
-        var dir = FilesDir!.AbsolutePath;
-
-        // The radios' MAUI Essentials calls need the app context; with no screen, initialise at the app level.
-        Microsoft.Maui.ApplicationModel.Platform.Init(this);
-
-        var services = new ServiceCollection();
-        services.AddLogging(b =>
-        {
-            b.SetMinimumLevel(LogLevel.Information);
-            b.AddProvider(new LogcatLoggerProvider());
-        });
-
         // Identity — held locally, because the node IS the device's identity. (A consumer app binds this;
         // here it is the node's own.)
         services.AddSingleton<INodeIdentityStore>(new FileNodeIdentityStore(dir));
@@ -175,14 +156,19 @@ public sealed class MainApplication : Application
                 mesh: null,
                 isReachable: radio.IsReachable);
         });
+    }
 
-        var provider = services.BuildServiceProvider();
-        _services = provider;
-
+    /// <summary>Publish the node to the apps that bind, and bring the radios up — once MAUI has built the app.</summary>
+    public static void Start(IServiceProvider provider)
+    {
         // Unseal identity and construct the messaging plane, then publish the node so the first bind sees a
         // live, mesh-backed node — all fast, local work (no radio I/O). Radio bring-up is backgrounded below.
         var identity = provider.GetRequiredService<IIdentityService>();
-        _ = identity.AetherTag; // unseal once, here, rather than on a consumer's first call
+        // Unseal once, here, rather than on a consumer's first call — and say whose node this is. A tag is an address
+        // the person hands out; the key behind it never leaves this process.
+        var tag = identity.AetherTag;
+        provider.GetService<ILoggerFactory>()?.CreateLogger("AetherNetService")
+            .LogInformation("AetherNetService is up as {Tag}{Minted}", tag, identity.IsNewIdentity ? " — a new identity, minted now" : "");
 
         Node = new AetherNodeService(
             provider.GetRequiredService<INodeIdentity>(),

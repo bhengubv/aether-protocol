@@ -1,27 +1,29 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- AetherNetService is a MAUI app, built the way Aether is: one project, a head for each system. The service and
+       the app that asks it must be the same split on every system — on Android the app binds to it, on Windows it
+       will reach it by a named pipe — and only that pipe differs. It has no pages: a screen is attack surface. -->
   <PropertyGroup>
-    <TargetFramework>net10.0-android</TargetFramework>
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
     <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <RootNamespace>AetherNetService</RootNamespace>
 
     <!-- AetherNetService is its own installed app, with its own identity and package — distinct from any
-         consumer app (the AetherNet sample is com.bhengubv.aethernet). One device, one node. -->
+         consumer app (the AetherNet sample is com.bhengubv.aethernet). One device, one node. The package name
+         must never change: the phones that have it keep their AetherTag only while it is the same app. -->
     <ApplicationId>com.bhengubv.aethernetservice</ApplicationId>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
-    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
-    <!-- AetherNet.Transport.Android's AndroidRadioSetup uses MAUI Essentials (Permissions, Connectivity).
-         The node is not a MAUI app, but it hosts those radios, so it must carry Essentials — without full
-         MAUI — and the package reference below, or the assembly is absent when the app is packaged. -->
-    <UseMauiEssentials>true</UseMauiEssentials>
-    <!-- MAUI's asset generator, without the rest of MAUI, so the app icon below is built the way Aether's is. -->
-    <UseMauiAssets>true</UseMauiAssets>
-    <AndroidManifest>Platforms\Android\AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
 
   <!-- AetherNetService wears Aether's logo. The two drawings are Aether's own, used from where they live rather
@@ -62,16 +64,9 @@
     <ProjectReference Include="../AetherNet.Storage/AetherNet.Storage.csproj" />
   </ItemGroup>
 
-  <!-- The node stands up its own DI container and logs to logcat, so it needs the DI + Logging packages the
-       sample gets for free from MAUI. -->
+  <!-- The same MAUI as Aether, at the same version. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
-    <!-- UseMauiEssentials does not itself add the package (build warning MA002); the app must. Version
-         matches the installed MAUI workload for net10.0-android. -->
-    <PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.20" />
-    <!-- The same for UseMauiAssets: the generator that turns Aether's drawings into the app icon. -->
-    <PackageReference Include="Microsoft.Maui.Resizetizer" Version="10.0.20" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
   </ItemGroup>
 
   <!-- The node mints and signs with the same NSec/libsodium the sample uses, so it needs the same real

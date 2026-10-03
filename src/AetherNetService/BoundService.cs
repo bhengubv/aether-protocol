@@ -8,7 +8,7 @@ namespace AetherNetService;
 /// <summary>
 /// The service other apps bind to: <c>com.bhengubv.aethernet.service</c>. Declared here, in the one app that hosts
 /// it, and nowhere else — the behaviour is the library's <see cref="AetherNodeAndroidService"/>, set up by
-/// <see cref="MainApplication"/> at startup.
+/// <see cref="AndroidNode"/> as the app starts.
 /// </summary>
 [Service(Exported = true, Name = AetherNodeAndroidService.ServiceName)]
 [IntentFilter([AetherNodeAndroidService.BindAction])]
