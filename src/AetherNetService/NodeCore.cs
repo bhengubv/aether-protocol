@@ -107,8 +107,13 @@ internal static class NodeCore
                 sp.GetRequiredService<MeshSessionKeeper>(),
                 sp.GetRequiredService<IRadioMesh>(),
                 sp.GetService<ILogger<MeshNodeMessaging>>()));
-        // AetherNet's nearby radios on or off, for every app on the device — a file beside the identity.
+        // AetherNet's nearby radios on or off, for every app on the device — a file beside the identity. And each radio
+        // on or off, the same way: every one on until the person switches it off in an app. The radios read the same
+        // switches as they come up (IRadioSwitches), so a head registers its radio mesh and gets them for free.
         services.AddSingleton<INodeNearby>(sp => new NearbySetting(dir, sp.GetService<ILogger<NearbySetting>>()));
+        services.AddSingleton(sp => new RadioSwitches(dir, sp.GetService<ILogger<RadioSwitches>>()));
+        services.AddSingleton<INodeRadios>(sp => sp.GetRequiredService<RadioSwitches>());
+        services.AddSingleton<IRadioSwitches>(sp => sp.GetRequiredService<RadioSwitches>());
         services.AddSingleton<INodeLinkSource>(sp => new MeshNodeLinkSource(
             sp.GetRequiredService<IRadioMesh>(), permissions,
             sp.GetService<ILogger<MeshNodeLinkSource>>(), sp.GetRequiredService<INodeNearby>()));
@@ -143,7 +148,8 @@ internal static class NodeCore
             provider.GetRequiredService<INodeMeeting>(),
             // The 24 words come from the same store the identity lives in, so they are this identity's.
             new NodeIdentityRecovery(provider.GetRequiredService<INodeIdentityStore>()),
-            provider.GetRequiredService<INodeNearby>());
+            provider.GetRequiredService<INodeNearby>(),
+            provider.GetRequiredService<INodeRadios>());
 
         // The one inbound pump for the messaging plane: raw radio bytes → the library dispatcher → the
         // reliable core (which decrypts and raises MessageReceived) → the node's inbox seam. Pre-key requests

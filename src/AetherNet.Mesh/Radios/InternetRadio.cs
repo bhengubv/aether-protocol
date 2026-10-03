@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
-using AetherNet.Mesh;
 using AetherNet.Transport.Relay;
-using Android.Content;
-using Android.Net;
 using Microsoft.Extensions.Logging;
 
-namespace AetherNet.Transport.Android;
+namespace AetherNet.Mesh;
 
 /// <summary>
 /// The second leg: reaching somebody who is not in the room.
@@ -18,7 +14,7 @@ namespace AetherNet.Transport.Android;
 /// </para>
 ///
 /// <para>
-/// So this one goes the other way, through whatever internet the phone has. It reaches a proxy: a
+/// So this one goes the other way, through whatever internet the device has. It reaches a proxy: a
 /// phone in somebody's Circle that put its hand up and is running <see cref="RelayServer"/>. Not a
 /// service, not an operator, not an account — a peer, whose address arrived from a contact inside
 /// their session, and which stops being a proxy the moment they say so.
@@ -30,25 +26,36 @@ namespace AetherNet.Transport.Android;
 /// alternative is nothing at all — which, for a network meant to hold up at ninety-nine percent, is a
 /// case that has to be built rather than hoped about.
 /// </para>
+///
+/// <para>
+/// The same on every system; the system says only whether it has internet right now, and what to call itself.
+/// </para>
 /// </summary>
-internal sealed class AndroidInternetTransportService : IRadio, IDisposable
+public sealed class InternetRadio : IRadio, IDisposable
 {
-    private readonly Context _context;
     private readonly string _localUhid;
     private readonly ILogger _logger;
     private readonly ProxyDirectory? _proxies;
+    private readonly Func<bool> _hasNetwork;
+    private readonly string _device;
+    private readonly Action<string>? _trace;
 
     private HttpRelayTransportService? _client;
     private string? _connectedTo;
     private bool _disposed;
 
-    public AndroidInternetTransportService(Context context, string localUhid, ILogger logger,
-        ProxyDirectory? proxies = null)
+    /// <param name="hasNetwork">Whether this device can reach the internet right now.</param>
+    /// <param name="device">What to call this device in what it says ("phone", "computer").</param>
+    /// <param name="trace">Where else to say it — the system's own log.</param>
+    public InternetRadio(string localUhid, ILogger logger, ProxyDirectory? proxies, Func<bool> hasNetwork,
+        string device = "device", Action<string>? trace = null)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
         _localUhid = localUhid ?? throw new ArgumentNullException(nameof(localUhid));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _proxies = proxies;
+        _hasNetwork = hasNetwork ?? throw new ArgumentNullException(nameof(hasNetwork));
+        _device = device;
+        _trace = trace;
 
         if (_proxies is not null) _proxies.Changed += OnProxiesChanged;
     }
@@ -63,7 +70,7 @@ internal sealed class AndroidInternetTransportService : IRadio, IDisposable
 
     /// <inheritdoc />
     public string? UnavailableReason =>
-        !HasNetwork ? "no internet on this phone"
+        !HasNetwork ? $"no internet on this {_device}"
         : _proxies?.Best is null ? "nobody in your Circle is offering to relay yet"
         : null;
 
@@ -92,7 +99,7 @@ internal sealed class AndroidInternetTransportService : IRadio, IDisposable
 
     private void L(string message)
     {
-        global::Android.Util.Log.Info("AetherNet", message);
+        _trace?.Invoke(message);
         Status?.Invoke(message);
     }
 
@@ -102,11 +109,7 @@ internal sealed class AndroidInternetTransportService : IRadio, IDisposable
         {
             try
             {
-                if (_context.GetSystemService(Context.ConnectivityService) is not ConnectivityManager cm)
-                    return false;
-
-                var caps = cm.GetNetworkCapabilities(cm.ActiveNetwork);
-                return caps is not null && caps.HasCapability(NetCapability.Internet);
+                return _hasNetwork();
             }
             catch (Exception ex)
             {
@@ -120,7 +123,7 @@ internal sealed class AndroidInternetTransportService : IRadio, IDisposable
     {
         if (_disposed) return;
 
-        if (!HasNetwork) { L("no internet on this phone — nothing to reach a proxy through"); return; }
+        if (!HasNetwork) { L($"no internet on this {_device} — nothing to reach a proxy through"); return; }
 
         var proxy = _proxies?.Best;
         if (proxy is null) { L("nobody in your Circle is offering to relay yet"); return; }
@@ -205,4 +208,3 @@ internal sealed class AndroidInternetTransportService : IRadio, IDisposable
         Stop();
     }
 }
-#endif

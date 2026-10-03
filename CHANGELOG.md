@@ -12,6 +12,21 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ### Added
 
+- **Every radio has its own switch, under the one AetherNet switch.** Aether's Settings list AetherNetService's radios,
+  each with a switch and plain words for both states — what it does on, what is lost off — so a person decides knowing
+  both; the AetherNet switch above still turns every nearby radio off or on at once. Every radio is on until switched
+  off. A setting of the device, like the AetherNet switch: `IAetherNodeClient.SetRadioAsync`, `RadioStatus.On`,
+  `NodeOp.SetRadio = 12`, kept by AetherNetService in `radios-off` beside the identity and applied by restarting
+  (`INodeRadios`, `IRadioSwitches`); a switched-off radio stays down and says so, and Wi-Fi Direct off means no group.
+  Older services, which never say, read as every radio on. Aether manages AetherNetService's settings as well as its own
+  on every system: on a computer, its "page" is its folder (`WindowsAetherNetServiceSettings`).
+- **Windows radios.** AetherNetService on Windows runs the phone's radio mesh with the computer's radios
+  (`WindowsRadioMesh`): Wi-Fi Direct, Bluetooth, Wi-Fi Aware, the internet relay, the network the computer is on, and
+  tap-to-add — only LoRa and NearLink are not there. Wi-Fi Aware is listed with why it cannot come up (Windows gives
+  programs no Wi-Fi Aware); Bluetooth and tap-to-add say when Windows has Bluetooth off, and where to switch it on.
+  **The dev PC and the Pixel chatted over the Wi-Fi both are on**, through their AetherNetServices: each message arrived
+  and was confirmed delivered in under a second, both ways.
+
 - **AetherNetService on Windows — the same split as on a phone.** AetherNetService's Windows head runs with no
   window and owns the computer's identity; Aether on Windows is now a thin client of it, as on Android, instead of
   running the node itself. Apps reach it over a named pipe, one per person signed in
@@ -145,6 +160,9 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
   At start it now logs whose node it is ("AetherNetService is up as …", and says so when it mints a new identity).
   The node itself is one piece for every head (`NodeCore`); a head adds where the key is kept, its radios, its
   permissions and its pipe.
+- **The radio mesh is one piece for every system** (`RadioMesh`, `IRadio`, `TransportRadio`, `InternetRadio` — now in
+  `AetherNet.Mesh`); `AndroidRadioMesh` is the phone's radios on top of it, with its foreground service and logcat as
+  hooks. A radio that fails with no message (WinRT) is logged with what was thrown and its code.
 - **`BoundNodeClient` is in `AetherNetNodeService.Client`**, for every system: it connects through any
   `INodeConnector` and connects again when a connection that is an `INodeConnection` (the binder's, the pipe's) says
   the service went away. Its log goes to an `ILogger` — Aether still sends it to logcat on a phone, Release too.
@@ -172,6 +190,12 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
   permission each Android version needs. (`2b52cf0`)
 
 ### Fixed
+
+- **The Wi-Fi radio used the first network up, not the one the device is on.** On a computer with a Hyper-V switch
+  (172.23.x) and an unplugged cable that had given itself an address (169.254.x), it swept the wrong network for the
+  phone and listened for it on the wrong one, and never found it. It now prefers a network with a gateway, never takes a
+  self-given address, puts virtual adapters last, and sends and listens for its multicast on that network. A phone with
+  one Wi-Fi — or one that keeps its routing table from apps, as Android does — gets what it always got.
 
 - **Aether could not see AetherNetService on Android 11+** — package visibility; Aether now declares it in
   `<queries>`. (`ac18976`)

@@ -25,6 +25,7 @@ public sealed class AetherNodeService : IAetherNodeClient
     private readonly INodeMeeting? _meeting;
     private readonly INodeIdentityRecovery? _recovery;
     private readonly INodeNearby? _nearby;
+    private readonly INodeRadios? _radios;
 
     /// <param name="meeting">How the radios are told whom to reach; null on a host with no radios.</param>
     /// <param name="recovery">
@@ -35,8 +36,12 @@ public sealed class AetherNodeService : IAetherNodeClient
     /// The device's switch for its nearby radios. Null on a host with no such switch, which then reports them on and
     /// refuses to switch them.
     /// </param>
+    /// <param name="radios">
+    /// The device's switch for each radio. Null on a host without one, which then reports every radio on and refuses
+    /// to switch one.
+    /// </param>
     public AetherNodeService(INodeIdentity identity, INodeMessaging messaging, INodeLinkSource link, INodeMeeting? meeting = null,
-        INodeIdentityRecovery? recovery = null, INodeNearby? nearby = null)
+        INodeIdentityRecovery? recovery = null, INodeNearby? nearby = null, INodeRadios? radios = null)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
         _messaging = messaging ?? throw new ArgumentNullException(nameof(messaging));
@@ -44,13 +49,27 @@ public sealed class AetherNodeService : IAetherNodeClient
         _meeting = meeting;
         _recovery = recovery;
         _nearby = nearby;
+        _radios = radios;
     }
 
-    /// <summary>The link as the radios report it, with the device's nearby switch as it stands.</summary>
+    /// <summary>The link as the radios report it, with the device's switches as they stand.</summary>
     private NodeLinkStatus Report()
     {
         var link = _link.Current;
-        return _nearby is null ? link : link with { NearbyOn = _nearby.On };
+        if (_nearby is not null) link = link with { NearbyOn = _nearby.On };
+        if (_radios is not null)
+        {
+            var radios = new RadioStatus[link.Radios.Count];
+            for (var i = 0; i < radios.Length; i++)
+            {
+                var radio = link.Radios[i];
+                radios[i] = radio with { On = _radios.IsOn(radio.Name) };
+            }
+
+            link = link with { Radios = radios };
+        }
+
+        return link;
     }
 
     /// <inheritdoc />
@@ -123,6 +142,17 @@ public sealed class AetherNodeService : IAetherNodeClient
             throw new AetherNodeException(AetherNodeErrorCode.Internal, "this service has no nearby radios to switch");
 
         _nearby.Set(on);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(radio);
+        if (_radios is null)
+            throw new AetherNodeException(AetherNodeErrorCode.Internal, "this service cannot switch one radio at a time");
+
+        _radios.Set(radio, on);
         return Task.CompletedTask;
     }
 

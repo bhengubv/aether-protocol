@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using AetherNet.Identity;
 using AetherNet.Mesh;
+using AetherNet.Transport.Windows;
+using AetherNetNodeService.Host;
 using AetherNetNodeService.Pipe;
 using AetherNetNodeService.Windows;
 
@@ -14,8 +16,9 @@ namespace AetherNetService;
 /// the person signed in can open the pipe, and past that every caller is admitted (<see cref="OpenGrantStore"/>).
 ///
 /// <para>
-/// No radios yet: the Windows radios (<c>AetherNet.Transport.Windows</c>) are not wired into a radio mesh, so the node
-/// keeps the identity, the sessions and the messages, and reaches nobody until they are.
+/// The computer's radios are the phone's radio mesh with Windows' radios in it (<see cref="WindowsRadioMesh"/>):
+/// Wi-Fi Direct, Bluetooth, the internet relay, and the network the computer is on — every one on unless the person
+/// switched it off in an app.
 /// </para>
 /// </summary>
 internal static class WindowsNode
@@ -49,11 +52,11 @@ internal static class WindowsNode
         // The key, sealed by Windows for the person signed in.
         services.AddSingleton<INodeIdentityStore>(new ProtectedNodeIdentityStore(dir));
 
-        // No radios on Windows yet (see above).
-        services.AddSingleton<IRadioMesh, NullRadioMesh>();
+        // The computer's radios.
+        services.AddSingleton<IRadioMesh, WindowsRadioMesh>();
 
         // Windows asks nothing of an app run by the person signed in, so there are no permissions to show.
-        NodeCore.Add(services, dir, static () => [], internetRadio: null);
+        NodeCore.Add(services, dir, static () => [], internetRadio: "Internet");
     }
 
     /// <summary>Publish the node on the pipe — once MAUI has built the app.</summary>
@@ -65,6 +68,30 @@ internal static class WindowsNode
         var node = NodeCore.Start(provider);
         _pipe = new PipeNodeServer(() => node, new OpenGrantStore(), logger: logs?.CreateLogger<PipeNodeServer>());
         _pipe.Start();
+
+        // Bring the radios up off the launch thread — from here the computer is hosting the mesh. AetherNet switched off:
+        // only the internet leg, as the person asked.
+        var radio = provider.GetRequiredService<IRadioMesh>();
+        var nearby = provider.GetRequiredService<INodeNearby>();
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                if (nearby.On)
+                {
+                    radio.Link();
+                }
+                else
+                {
+                    radio.SelectRadio("Internet");
+                    log?.LogInformation("AetherNet is switched off — internet only, no nearby radio");
+                }
+            }
+            catch (Exception ex)
+            {
+                log?.LogError(ex, "radio bring-up failed");
+            }
+        });
 
         // Where Windows finds AetherNetService by name, so an app can start it. Written each start, as an installer would.
         try

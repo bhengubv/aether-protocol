@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../AetherNet.Transport/AetherNet.Transport.csproj" />
+    <!-- WindowsRadioMesh: the computer's radios in the same radio mesh a phone runs. -->
+    <ProjectReference Include="../AetherNet.Mesh/AetherNet.Mesh.csproj" />
     <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
     <ProjectReference Include="../AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
   </ItemGroup>

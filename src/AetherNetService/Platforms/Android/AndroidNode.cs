@@ -100,10 +100,14 @@ internal static class AndroidNode
             }
 
             // And keep the Wi-Fi Direct group where it should be for as long as the service runs. Idle until the
-            // radio is allowed and there is somebody to form it with; it checks again every few seconds.
+            // radio is allowed and there is somebody to form it with; it checks again every few seconds. Not at all
+            // when the person has switched Wi-Fi Direct off.
             try
             {
-                provider.GetRequiredService<FastRadioService>().KeepUp();
+                if (provider.GetRequiredService<IRadioSwitches>().IsOn("Wi-Fi Direct"))
+                    provider.GetRequiredService<FastRadioService>().KeepUp();
+                else
+                    global::Android.Util.Log.Info("AetherNetService", "Wi-Fi Direct is switched off — no group");
             }
             catch (Exception ex)
             {

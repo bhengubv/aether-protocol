@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #if ANDROID
+using AetherNet.Mesh;
 using Android.Nfc;
 using Microsoft.Extensions.Logging;
 using AndroidApp = Android.App.Application;

@@ -126,6 +126,10 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     public async Task SetNearbyAsync(bool on, CancellationToken cancellationToken = default)
         => await (await ClientAsync().ConfigureAwait(false)).SetNearbyAsync(on, cancellationToken).ConfigureAwait(false);
 
+    // The same for one radio.
+    public async Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
+        => await (await ClientAsync().ConfigureAwait(false)).SetRadioAsync(radio, on, cancellationToken).ConfigureAwait(false);
+
     public IDisposable Subscribe(IAetherNodeEvents listener)
     {
         ArgumentNullException.ThrowIfNull(listener);

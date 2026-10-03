@@ -67,6 +67,9 @@ public class PipeNodeTests
 
         await client.SetNearbyAsync(false);
         Assert.False(node.Nearby);
+
+        await client.SetRadioAsync("Wi-Fi Direct", false);
+        Assert.Equal(("Wi-Fi Direct", false), node.RadioSwitched);
     }
 
     [Fact]

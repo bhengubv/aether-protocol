@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
-using AetherNet.Mesh;
 using AetherNet.Transport.Abstractions;
 
-namespace AetherNet.Transport.Android;
+namespace AetherNet.Mesh;
 
 /// <summary>
 /// A transport that has to be told to start, as opposed to one that is ready as soon as it exists.
 /// </summary>
-internal interface IStartableTransport
+public interface IStartableTransport
 {
     void Connect();
 }
@@ -21,8 +19,8 @@ internal interface IStartableTransport
 /// <para>
 /// There were three transport abstractions stacked on each other: <c>ITransportService</c>, which the
 /// protocol defines and which HttpRelay, QuicRelay, CircuitRelay and InProcess already implement;
-/// <c>IRadio</c>, which this app invented and which is Android-internal; and <c>IRadioMesh</c>, which
-/// exists in the shared project because the shared project cannot see <c>IRadio</c>. The mesh only
+/// <c>IRadio</c>, which this app invented and which was Android-internal then; and <c>IRadioMesh</c>, which
+/// existed in the shared project because the shared project could not see <c>IRadio</c>. The mesh only
 /// routed the middle one, so none of the transports in <c>src/</c> could carry a byte of this app's
 /// traffic — which is why wiring the internet leg needed an entire new class rather than one line.
 /// </para>
@@ -32,11 +30,14 @@ internal interface IStartableTransport
 /// abstraction, and the mesh that routes across it.
 /// </para>
 /// </summary>
-internal sealed class TransportRadio : IRadio, IDisposable
+public sealed class TransportRadio : IRadio, IDisposable
 {
     private readonly ITransportService _transport;
     private readonly string _localUhid;
     private readonly Func<bool> _available;
+    private readonly string? _name;
+    private readonly Action? _start;
+    private readonly Func<string?>? _why;
     private readonly string? _unavailableReason;
     private string? _peer;
 
@@ -57,21 +58,37 @@ internal sealed class TransportRadio : IRadio, IDisposable
     ///   nobody to relay through is present but useless, and saying otherwise is how a radio ends up
     ///   taking traffic it cannot carry.
     /// </param>
+    /// <param name="name">
+    ///   What the mesh calls this radio, where the transport's own name is not one a peer would recognise ("BLE",
+    ///   "Wi-Fi Direct" — see <c>TransportCapability.TagFor</c>). Null keeps the transport's name.
+    /// </param>
+    /// <param name="start">
+    ///   How to bring the transport up, for one that starts with a call of its own (scanning, listening) rather than
+    ///   <see cref="IStartableTransport"/>. Null when it is ready as soon as it exists.
+    /// </param>
+    /// <param name="why">
+    ///   Why it cannot be used right now, asked each time, for a radio whose reason changes ("switched off" one minute,
+    ///   fine the next). Takes the place of <paramref name="unavailableReason"/> when it answers.
+    /// </param>
     public TransportRadio(ITransportService transport, string localUhid,
-        Func<bool>? available = null, string? unavailableReason = null)
+        Func<bool>? available = null, string? unavailableReason = null, string? name = null, Action? start = null,
+        Func<string?>? why = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _localUhid = localUhid ?? throw new ArgumentNullException(nameof(localUhid));
         _available = available ?? (() => true);
         _unavailableReason = unavailableReason;
+        _name = name;
+        _start = start;
+        _why = why;
 
         _transport.DataReceived += OnData;
         _transport.PeerLinked += OnPeerLinked;
     }
 
-    public string Name => _transport.Name;
+    public string Name => _name ?? _transport.Name;
     public bool IsAvailable => !_disposed && _transport.IsAvailable && _available();
-    public string? UnavailableReason => IsAvailable ? null : _unavailableReason;
+    public string? UnavailableReason => IsAvailable ? null : _why?.Invoke() ?? _unavailableReason;
     public long MaxBandwidthBps => _transport.MaxBandwidthBps;
 
     /// <inheritdoc />
@@ -140,12 +157,13 @@ internal sealed class TransportRadio : IRadio, IDisposable
     public void Link()
     {
         if (_disposed) return;
-        if (!IsAvailable) { Status?.Invoke(_unavailableReason ?? "not available"); return; }
+        if (!IsAvailable) { Status?.Invoke(UnavailableReason ?? "not available"); return; }
 
         // ITransportService has no Connect — the ones that need starting expose their own, and the
         // rest are ready the moment they exist. Reflection would be guessing; a named interface is
         // the transport saying so.
-        (_transport as IStartableTransport)?.Connect();
+        if (_start is not null) _start();
+        else (_transport as IStartableTransport)?.Connect();
         Status?.Invoke($"{Name} up");
     }
 
@@ -187,4 +205,3 @@ internal sealed class TransportRadio : IRadio, IDisposable
         (_transport as IDisposable)?.Dispose();
     }
 }
-#endif

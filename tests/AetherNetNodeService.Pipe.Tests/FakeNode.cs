@@ -45,6 +45,8 @@ internal sealed class FakeNode : IAetherNodeClient
 
     public bool? Nearby { get; private set; }
 
+    public (string Radio, bool On)? RadioSwitched { get; private set; }
+
     public int Listening
     {
         get
@@ -94,6 +96,12 @@ internal sealed class FakeNode : IAetherNodeClient
     public Task SetNearbyAsync(bool on, CancellationToken cancellationToken = default)
     {
         Nearby = on;
+        return Task.CompletedTask;
+    }
+
+    public Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
+    {
+        RadioSwitched = (radio, on);
         return Task.CompletedTask;
     }
 

@@ -88,6 +88,10 @@ public static class MauiProgram
         // service for the 24 words and shows them.
         builder.Services.AddSingleton<AetherNetNodeService.Client.IOwnerCheck>(_ =>
             new AetherNetNodeService.Windows.WindowsOwnerCheck(WindowHandle));
+        // AetherNetService's own settings, managed from Aether's: its switch and its radios come through the pipe, and
+        // the way to the service itself is its folder, where its identity and its log are kept.
+        builder.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(_ =>
+            new AetherNetNodeService.Windows.WindowsAetherNetServiceSettings());
 #endif
 #if ANDROID || WINDOWS
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
@@ -461,6 +465,11 @@ public static class MauiProgram
 #endif
 
         var app = builder.Build();
+
+#if WINDOWS && DEBUG
+        // The end-to-end chat test's hooks on a computer — a folder a test drops commands into (see E2eHooks).
+        AetherNet.Sample.Platforms.Windows.E2eHooks.Start(app.Services);
+#endif
 
         // Warm the device-backed singletons off the UI thread. In Blazor Hybrid the .NET dispatcher,
         // the WebView thread and the Android main thread are one thread, so a service CONSTRUCTOR that

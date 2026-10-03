@@ -90,6 +90,28 @@
             <span class="chev">@(AetherNetOn ? "on" : "off")</span>
         </button>
 
+        @* And each radio, one by one, under the one switch for all of them. Every radio is on until the person switches it
+           off, and each says both what it does on and what is lost off — their choice, made knowing both. The radios
+           are AetherNetService's, so like the switch above they are the same for every app on the device. *@
+        @if (OnService && _link.Radios.Count > 0)
+        {
+            @foreach (var radio in _link.Radios)
+            {
+                var words = RadioWords.For(radio.Name);
+                <button class="about radio" @onclick="() => ToggleRadio(radio)" disabled="@(_radioSwitching is not null)">
+                    <span class="about-body">
+                        <span class="about-t">@words.Name</span>
+                        <span class="about-s">@RadioLine(radio, words)</span>
+                    </span>
+                    <span class="chev">@(radio.On ? "on" : "off")</span>
+                </button>
+            }
+            @if (_radioProblem is { } problem)
+            {
+                <div class="about"><span class="about-body"><span class="about-s">@problem</span></span></div>
+            }
+        }
+
         @* AetherNetService's permissions, always on show. It has no screen of its own, so this is where a person sees
            what it has been allowed: the same list as its page in the phone's settings, which each line opens. Only
            that page can change them — the phone keeps permissions per app, and one app cannot grant another's. *@
@@ -123,8 +145,8 @@
             {
                 <button class="about" @onclick="OpenServiceSettings">
                     <span class="about-body">
-                        <span class="about-t">AetherNetService's permissions</span>
-                        <span class="about-s">@(_settingsFailed ? NoSettingsPage : "on its page in the phone's settings")</span>
+                        <span class="about-t">@_serviceSettings.WayThere</span>
+                        <span class="about-s">@(_settingsFailed ? NoSettingsPage : _serviceSettings.Where)</span>
                     </span>
                     <span class="chev">→</span>
                 </button>
@@ -251,6 +273,33 @@
     /// <summary>On a phone with AetherNetService the radios are the service's, and so is the switch.</summary>
     private bool OnService => _serviceSettings is not null;
 
+    /// <summary>What this device is called in what the page says.</summary>
+    private string Device => _serviceSettings?.Device ?? "phone";
+
+    /// <summary>The radio being switched, and to what, while AetherNetService restarts to apply it; null when settled.</summary>
+    private (string Radio, bool On)? _radioSwitching;
+
+    /// <summary>Why the last radio switch did not take, in words for the person.</summary>
+    private string? _radioProblem;
+
+    /// <summary>
+    /// One radio as a line: how it stands now, then what it does on and what is lost off — both, every time, so the
+    /// person can switch it knowing what follows.
+    /// </summary>
+    private string RadioLine(AetherNetNodeService.RadioStatus radio, RadioWords words)
+    {
+        if (_radioSwitching is { } switching && switching.Radio == radio.Name)
+            return $"switching {(switching.On ? "on" : "off")} — AetherNetService is restarting its radios";
+
+        var now = !radio.On ? "Switched off"
+            : words.Nearby && !AetherNetOn ? "Off while AetherNet is off"
+            : radio.Linked ? "On — carrying messages now"
+            : radio.Available ? "On"
+            : radio.Reason is { Length: > 0 } why ? $"On, but {why}"
+            : "On, but it cannot come up here";
+        return $"{now}. On, it {words.On}. Off, {words.Off}.";
+    }
+
     /// <summary>Whether AetherNet's nearby radios are on — AetherNetService's word, where there is one.</summary>
     private bool AetherNetOn => OnService ? _link.NearbyOn : _aetherNet;
 
@@ -269,7 +318,7 @@
             : OnService
                 ? AetherNetOn
                     ? "nearby radios reach people around you — no towers, no accounts"
-                    : "internet only, for every app on this phone — the nearby radios stay off until you switch this on"
+                    : $"internet only, for every app on this {Device} — the nearby radios stay off until you switch this on"
             : _aetherNet != _aetherNetLaunched
                 ? "reopen Aether for this to take effect"
                 : _aetherNet
@@ -343,6 +392,8 @@
     {
         _link = status;
         if (_switchingTo == status.NearbyOn) _switchingTo = null;   // the restarted service says it took
+        if (_radioSwitching is { } switching && status.Radios.Any(r => r.Name == switching.Radio && r.On == switching.On))
+            _radioSwitching = null;
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -445,6 +496,60 @@
         finally
         {
             _switchingTo = null;
+        }
+    }
+
+    /// <summary>
+    /// Switch one of AetherNetService's radios on or off, for every app on the device. The service restarts to apply
+    /// it, and the line says so until the service comes back saying it took.
+    /// </summary>
+    private async Task ToggleRadio(AetherNetNodeService.RadioStatus radio)
+    {
+        if (_radioSwitching is not null) return;
+        var to = !radio.On;
+        _radioSwitching = (radio.Name, to);
+        _radioProblem = null;
+
+        try
+        {
+            await Node.SetRadioAsync(radio.Name, to);
+
+            // AetherNetService restarts to apply it. Ask until the one that comes back says it took.
+            var until = DateTime.UtcNow + SwitchWithin;
+            while (_radioSwitching is not null && DateTime.UtcNow < until)
+            {
+                try
+                {
+                    var link = await Node.GetLinkAsync();
+                    if (link.Radios.Any(r => r.Name == radio.Name && r.On == to))
+                    {
+                        _link = link;
+                        break;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Still restarting — the next ask reaches the new one.
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+
+            if (!_link.Radios.Any(r => r.Name == radio.Name && r.On == to))
+                _radioProblem = "AetherNetService has not come back yet — look again in a moment";
+        }
+        catch (Exception ex) when (ex is NotSupportedException
+            || ex is AetherNodeException { Code: AetherNodeErrorCode.Internal })
+        {
+            _radioProblem = "this AetherNetService cannot switch one radio at a time — update it, then try again";
+        }
+        catch (Exception)
+        {
+            _radioProblem = "AetherNetService did not answer — try again in a moment";
+        }
+        finally
+        {
+            _radioSwitching = null;
         }
     }
 

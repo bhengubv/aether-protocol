@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
-#if ANDROID
-namespace AetherNet.Transport.Android;
+namespace AetherNet.Mesh;
 
 /// <summary>
-/// One physical radio inside the app (Wi-Fi Direct, BLE, NFC, NearLink, LoRa). Every radio
-/// exposes the same tiny surface so the UI can list them, link over the chosen one, and move
-/// bytes — all inside the single APK, no second package.
+/// One radio the device has (Wi-Fi Direct, BLE, the Wi-Fi it is on, NFC, NearLink, LoRa, the internet relay). Every
+/// radio exposes the same tiny surface so the mesh (<see cref="RadioMesh"/>) can list them, link over them and move
+/// bytes — the same on a phone and a computer; each system brings its own radios.
 /// </summary>
-internal interface IRadio
+public interface IRadio
 {
     /// <summary>Human-readable radio name shown in the picker.</summary>
     string Name { get; }
@@ -173,4 +172,3 @@ internal interface IRadio
     /// <summary>Raised with a human-readable status line for the radio log.</summary>
     event System.Action<string>? Status;
 }
-#endif

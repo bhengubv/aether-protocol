@@ -90,6 +90,17 @@ public interface IAetherNodeClient
         => throw new NotSupportedException("This service cannot switch its nearby radios.");
 
     /// <summary>
+    /// Switch one of the device's radios — by its name in <see cref="NodeLinkStatus.Radios"/> — on or off, for this
+    /// whole device. Every radio is on until the person switches it off; the state is <see cref="RadioStatus.On"/>.
+    /// </summary>
+    /// <remarks>
+    /// Like the nearby switch, a setting of the device: changed in one app, changed for all of them. AetherNetService
+    /// applies it by restarting, so connected apps lose it for a moment and reconnect by themselves.
+    /// </remarks>
+    Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This service cannot switch one radio at a time.");
+
+    /// <summary>
     /// Subscribe to inbound messages, link changes, and grant changes. Dispose the returned handle to stop.
     /// A callback interface rather than a C# event so the subscription proxies across a process boundary.
     /// </summary>

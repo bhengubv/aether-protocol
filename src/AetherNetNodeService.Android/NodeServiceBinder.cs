@@ -38,7 +38,7 @@ internal sealed class NodeServiceBinder : Binder
         var op = (NodeOp)code;
         if (op is not (NodeOp.GetTag or NodeOp.GetPublicKey or NodeOp.Sign or NodeOp.Send
             or NodeOp.GetInbox or NodeOp.GetLink or NodeOp.Subscribe or NodeOp.Unsubscribe or NodeOp.Meet
-            or NodeOp.GetRecoveryPhrase or NodeOp.SetNearby))
+            or NodeOp.GetRecoveryPhrase or NodeOp.SetNearby or NodeOp.SetRadio))
         {
             return base.OnTransact(code, data, reply, flags);
         }
@@ -103,6 +103,15 @@ internal sealed class NodeServiceBinder : Binder
                 Block(_host.SetNearbyAsync(NodeWire.DecodeFlag(data?.CreateByteArray())));
                 WriteOk(reply, []);
                 break;
+
+            // And so may it switch one radio: the same device setting, one radio at a time.
+            case NodeOp.SetRadio:
+            {
+                var (radio, on) = NodeWire.DecodeRadioSwitch(data?.CreateByteArray());
+                Block(_host.SetRadioAsync(radio, on));
+                WriteOk(reply, []);
+                break;
+            }
 
             case NodeOp.GetInbox:
                 WriteOk(reply, NodeWire.EncodeInbox(Block(_host.GetInboxAsync(data?.ReadInt() ?? 50))));

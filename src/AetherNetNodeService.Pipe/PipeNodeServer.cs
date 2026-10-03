@@ -225,6 +225,13 @@ public sealed class PipeNodeServer : IAsyncDisposable
                     await host.SetNearbyAsync(NodeWire.DecodeFlag(argument), cancellationToken).ConfigureAwait(false);
                     return [];
 
+                case NodeOp.SetRadio:
+                {
+                    var (radio, on) = NodeWire.DecodeRadioSwitch(argument);
+                    await host.SetRadioAsync(radio, on, cancellationToken).ConfigureAwait(false);
+                    return [];
+                }
+
                 case NodeOp.GetInbox:
                     return NodeWire.EncodeInbox(
                         await host.GetInboxAsync(PipeFrames.Number(argument, otherwise: 50), cancellationToken).ConfigureAwait(false));

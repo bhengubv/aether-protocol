@@ -319,6 +319,105 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
         Assert.Contains("reopen Aether for this to take effect", Switch(cut).TextContent);
     }
 
+    // ── Each radio, under the one switch ────────────────────────────────────────
+
+    /// <summary>What AetherNetService reports: its radios, each on or off.</summary>
+    private static NodeLinkStatus Radios(params RadioStatus[] radios) => new(false, null, radios);
+
+    [Fact]
+    public void Every_radio_has_its_own_switch_saying_what_on_and_off_each_mean()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Radios(new RadioStatus("BLE", true, false, 0), new RadioStatus("Wi-Fi Direct", true, false, 0) { On = false });
+
+        var cut = _ctx.RenderComponent<Settings>();
+
+        var bluetooth = Row(cut, "Bluetooth");
+        Assert.Equal("on", bluetooth.QuerySelector(".chev")!.TextContent);
+        var line = bluetooth.QuerySelector(".about-s")!.TextContent;
+        Assert.StartsWith("On. On, it finds devices near you", line);
+        Assert.Contains("Off, where there is no Wi-Fi, devices near you cannot reach you", line);
+
+        var wifiDirect = Row(cut, "Wi-Fi Direct");
+        Assert.Equal("off", wifiDirect.QuerySelector(".chev")!.TextContent);
+        Assert.StartsWith("Switched off.", wifiDirect.QuerySelector(".about-s")!.TextContent);
+
+        // And the one switch for all of them is still there, above them.
+        Assert.Equal("AetherNet is on", Switch(cut).QuerySelector(".about-t")!.TextContent);
+    }
+
+    [Fact]
+    public void Switching_a_radio_switches_it_in_the_service_for_every_app()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Radios(new RadioStatus("BLE", true, false, 0));
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Row(cut, "Bluetooth").Click();
+
+        Assert.Equal(new[] { ("BLE", false) }, _node.RadiosSwitched);
+        cut.WaitForAssertion(() => Assert.Equal("off", Row(cut, "Bluetooth").QuerySelector(".chev")!.TextContent));
+    }
+
+    [Fact]
+    public void A_radio_held_down_by_the_AetherNet_switch_says_so()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Radios(new RadioStatus("BLE", true, false, 0), new RadioStatus("Internet", true, false, 0)) with { NearbyOn = false };
+
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Assert.StartsWith("Off while AetherNet is off.", Row(cut, "Bluetooth").QuerySelector(".about-s")!.TextContent);
+        Assert.StartsWith("On.", Row(cut, "Internet relay").QuerySelector(".about-s")!.TextContent);   // not a nearby radio
+    }
+
+    [Fact]
+    public void A_service_that_cannot_switch_one_radio_says_so()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Radios(new RadioStatus("BLE", true, false, 0));
+        _node.Refuses = true;
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Row(cut, "Bluetooth").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("cannot switch one radio at a time — update it", cut.Markup));
+        Assert.Equal("on", Row(cut, "Bluetooth").QuerySelector(".chev")!.TextContent);
+    }
+
+    /// <summary>A head with no AetherNetService has no radios of the service's to switch.</summary>
+    [Fact]
+    public void Without_AetherNetService_there_are_no_radio_switches()
+    {
+        _node.Link = Radios(new RadioStatus("BLE", true, false, 0));
+
+        Assert.DoesNotContain("Bluetooth", _ctx.RenderComponent<Settings>().Markup);
+    }
+
+    /// <summary>On a computer the page says computer, and the way to the service is where it keeps its things.</summary>
+    [Fact]
+    public void On_a_computer_it_says_computer_and_where_the_service_keeps_its_things()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(new ComputerSettings());
+        _node.Link = Radios(new RadioStatus("Wi-Fi", true, false, 0)) with { NearbyOn = false };
+
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Assert.Contains("internet only, for every app on this computer", Switch(cut).TextContent);
+        var way = Row(cut, "Where AetherNetService keeps its things");
+        Assert.Equal("its identity and its log, in its folder", way.QuerySelector(".about-s")!.TextContent);
+    }
+
+    /// <summary>A computer's AetherNetService settings: no permissions, and a folder.</summary>
+    private sealed class ComputerSettings : IAetherNetServiceSettings
+    {
+        public string PermissionName => "nothing";
+        public bool Open() => true;
+        public string Device => "computer";
+        public string WayThere => "Where AetherNetService keeps its things";
+        public string Where => "its identity and its log, in its folder";
+    }
+
     /// <summary>AetherNetService's settings page, counting how often it was opened.</summary>
     private sealed class FakeServiceSettings : IAetherNetServiceSettings
     {
@@ -364,6 +463,18 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
 
         /// <summary>An AetherNetService with no switch to turn.</summary>
         public bool Refuses { get; set; }
+
+        /// <summary>What the radio switches were asked, in order.</summary>
+        public List<(string Radio, bool On)> RadiosSwitched { get; } = [];
+
+        // As with the AetherNet switch: the real service restarts and comes back with it; this one has it at once.
+        public Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
+        {
+            if (Refuses) throw new AetherNodeException(AetherNodeErrorCode.Internal, "this service cannot switch one radio at a time");
+            RadiosSwitched.Add((radio, on));
+            Link = Link with { Radios = Link.Radios.Select(r => r.Name == radio ? r with { On = on } : r).ToArray() };
+            return Task.CompletedTask;
+        }
 
         // The real service restarts to apply it and comes back with the new state; this one has it at once.
         public Task SetNearbyAsync(bool on, CancellationToken cancellationToken = default)

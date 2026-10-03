@@ -91,6 +91,12 @@ internal sealed class BinderNodeClient : IAetherNodeClient, INodeConnection, IDi
         return Call(NodeOp.SetNearby, p => p.WriteByteArray(arg), static _ => true, cancellationToken);
     }
 
+    public Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
+    {
+        var arg = NodeWire.EncodeRadioSwitch(radio, on);
+        return Call(NodeOp.SetRadio, p => p.WriteByteArray(arg), static _ => true, cancellationToken);
+    }
+
     public IDisposable Subscribe(IAetherNodeEvents listener)
     {
         ArgumentNullException.ThrowIfNull(listener);

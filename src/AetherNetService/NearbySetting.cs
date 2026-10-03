@@ -16,9 +16,6 @@ namespace AetherNetService;
 /// </remarks>
 internal sealed class NearbySetting : INodeNearby
 {
-    /// <summary>Long enough for the reply to reach the app that asked before the process goes.</summary>
-    private static readonly TimeSpan ReplyFirst = TimeSpan.FromMilliseconds(500);
-
     private readonly string _file;
     private readonly ILogger? _logger;
 
@@ -38,17 +35,7 @@ internal sealed class NearbySetting : INodeNearby
 
         File.WriteAllText(_file, on ? "1" : "0");
         _logger?.LogInformation("nearby radios switched {State} — restarting to apply it", on ? "on" : "off");
-
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(ReplyFirst).ConfigureAwait(false);
-#if ANDROID
-            global::Android.OS.Process.KillProcess(global::Android.OS.Process.MyPid());
-#else
-            // The app still connected sees the pipe close and starts AetherNetService again, as a bind does on a phone.
-            Environment.Exit(0);
-#endif
-        });
+        ServiceRestart.AfterTheReply();
     }
 
     // Absent, empty or unreadable is on: nobody meant to switch it off.

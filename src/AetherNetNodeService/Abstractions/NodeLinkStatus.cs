@@ -119,4 +119,11 @@ public sealed record RadioStatus(string Name, bool Available, bool Linked, long 
     /// A connected app offers the way there; a switched-off radio is fixable too, but not by that page.
     /// </summary>
     public bool NeedsPermission { get; init; }
+
+    /// <summary>
+    /// Whether the person has this radio switched on. Every radio is, until they switch it off
+    /// (<see cref="IAetherNodeClient.SetRadioAsync"/>); off, it stays down whatever else is true. An older service
+    /// does not say, and runs every radio, so absent means on.
+    /// </summary>
+    public bool On { get; init; } = true;
 }

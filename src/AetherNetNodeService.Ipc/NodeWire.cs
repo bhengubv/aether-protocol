@@ -47,6 +47,9 @@ public enum NodeOp
     /// <summary>Request: switch AetherNet's nearby radios on or off for the whole device.</summary>
     SetNearby = 11,
 
+    /// <summary>Request: switch one radio on or off for the whole device.</summary>
+    SetRadio = 12,
+
     /// <summary>Push: a message arrived.</summary>
     EventInbound = 100,
 
@@ -147,6 +150,16 @@ public static class NodeWire
         return (to, dto.Payload ?? [], dto.Id);
     }
 
+    // ── Radio switch (one radio on or off) ───────────────────────────────────────
+
+    public static byte[] EncodeRadioSwitch(string radio, bool on) => JsonBytes(new RadioSwitchDto(radio ?? string.Empty, on));
+
+    public static (string Radio, bool On) DecodeRadioSwitch(byte[]? bytes)
+    {
+        var dto = FromJson<RadioSwitchDto>(bytes ?? []);
+        return (dto.Radio ?? string.Empty, dto.On);
+    }
+
     // ── Meet (the contacts to keep reachable) ────────────────────────────────────
 
     public static byte[] EncodeMeet(IReadOnlyList<NodeContact> contacts)
@@ -202,7 +215,7 @@ public static class NodeWire
         for (var i = 0; i < radios.Length; i++)
         {
             var r = status.Radios[i];
-            radios[i] = new RadioDto(r.Name, r.Available, r.Linked, r.CarriesBps, r.Reason, r.Fixable, r.NeedsPermission);
+            radios[i] = new RadioDto(r.Name, r.Available, r.Linked, r.CarriesBps, r.Reason, r.Fixable, r.NeedsPermission, r.On);
         }
 
         var permissions = new PermissionDto[status.Permissions.Count];
@@ -227,6 +240,7 @@ public static class NodeWire
                 Reason = r.Reason,
                 Fixable = r.Fixable,
                 NeedsPermission = r.NeedsPermission,
+                On = r.On,
             };
         }
 
@@ -308,9 +322,12 @@ public static class NodeWire
     private sealed record OutboundDto(bool Accepted, string? Detail);
 
     // Reason, Fixable and NeedsPermission are optional so an older service, which never sends them, still decodes.
+    // On is optional: an older service never sends it, and it runs every radio.
     private sealed record RadioDto(
         string Name, bool Available, bool Linked, long CarriesBps,
-        string? Reason = null, bool Fixable = false, bool NeedsPermission = false);
+        string? Reason = null, bool Fixable = false, bool NeedsPermission = false, bool On = true);
+
+    private sealed record RadioSwitchDto(string Radio, bool On);
 
     // Page, Known and How are optional: a service that lists permissions but not these sent only App info pages, all
     // known, each opened straight to it.

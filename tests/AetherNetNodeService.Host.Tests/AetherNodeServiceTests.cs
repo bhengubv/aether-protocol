@@ -292,4 +292,69 @@ public class AetherNodeServiceTests
         var refused = await Assert.ThrowsAsync<AetherNodeException>(() => svc.SetNearbyAsync(false));
         Assert.Equal(AetherNodeErrorCode.Internal, refused.Code);
     }
+
+    // ── One radio at a time ─────────────────────────────────────────────────────
+
+    /// <summary>The device's switch for each radio, counting what it was asked.</summary>
+    private sealed class FakeRadios : INodeRadios
+    {
+        public HashSet<string> Off { get; } = new(StringComparer.Ordinal);
+        public List<(string Radio, bool On)> Asked { get; } = new();
+
+        public bool IsOn(string radio) => !Off.Contains(radio);
+
+        public void Set(string radio, bool on)
+        {
+            Asked.Add((radio, on));
+            if (on) Off.Remove(radio);
+            else Off.Add(radio);
+        }
+    }
+
+    private static AetherNodeService WithRadios(FakeRadios radios, out FakeLink link)
+    {
+        link = new FakeLink();
+        return new AetherNodeService(new FakeIdentity(), new FakeMessaging(), link, null, null, null, radios);
+    }
+
+    [Fact]
+    public async Task Switching_one_radio_goes_to_the_device_switch_and_shows_in_the_link()
+    {
+        var radios = new FakeRadios();
+        var svc = WithRadios(radios, out var link);
+        link.Set(new NodeLinkStatus(false, null, [new RadioStatus("BLE", true, false, 0), new RadioStatus("Wi-Fi", true, false, 0)]));
+
+        await svc.SetRadioAsync("BLE", false);
+
+        Assert.Equal(new[] { ("BLE", false) }, radios.Asked);
+        var now = await svc.GetLinkAsync();
+        Assert.False(now.Radios.Single(r => r.Name == "BLE").On);
+        Assert.True(now.Radios.Single(r => r.Name == "Wi-Fi").On);
+    }
+
+    /// <summary>Every connected app hears which radios are on in what is pushed to it, as with the AetherNet switch.</summary>
+    [Fact]
+    public void A_pushed_link_carries_each_radio_switch()
+    {
+        var radios = new FakeRadios();
+        radios.Off.Add("Wi-Fi Direct");
+        var svc = WithRadios(radios, out var link);
+        var recorder = new Recorder();
+        using var subscription = svc.Subscribe(recorder);
+
+        link.Set(new NodeLinkStatus(false, null, [new RadioStatus("Wi-Fi Direct", true, false, 0)]));
+
+        Assert.False(Assert.Single(Assert.Single(recorder.Links).Radios).On);
+    }
+
+    [Fact]
+    public async Task A_host_with_no_radio_switches_reports_every_radio_on_and_refuses_to_switch_one()
+    {
+        var svc = NewService(out _, out _, out var link);
+        link.Set(new NodeLinkStatus(false, null, [new RadioStatus("BLE", true, false, 0)]));
+
+        Assert.True(Assert.Single((await svc.GetLinkAsync()).Radios).On);
+        var refused = await Assert.ThrowsAsync<AetherNodeException>(() => svc.SetRadioAsync("BLE", false));
+        Assert.Equal(AetherNodeErrorCode.Internal, refused.Code);
+    }
 }

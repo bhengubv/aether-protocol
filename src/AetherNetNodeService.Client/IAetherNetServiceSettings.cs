@@ -3,8 +3,9 @@
 namespace AetherNetNodeService.Client;
 
 /// <summary>
-/// AetherNetService's own page in the phone's settings — where the person grants what the service's radios need to
-/// find phones nearby.
+/// AetherNetService's own settings, where the system keeps them — its page in the phone's settings, where the person
+/// grants what the service's radios need to find phones nearby; its folder on a computer. An app that has one of these
+/// is a client of AetherNetService, and its Settings manage the service's settings as well as its own.
 /// </summary>
 /// <remarks>
 /// AetherNetService has no screen, so it can never put up the phone's "Allow?" prompt itself; and the phone keeps a
@@ -28,4 +29,13 @@ public interface IAetherNetServiceSettings
     /// App info where the phone has no such page. False when nothing could be opened.
     /// </summary>
     bool Open(PermissionPage page) => Open();
+
+    /// <summary>What this device is called in what the app says — "phone", or "computer".</summary>
+    string Device => "phone";
+
+    /// <summary>The line that leads to AetherNetService's own settings, as its title.</summary>
+    string WayThere => "AetherNetService's permissions";
+
+    /// <summary>Where that is, in words — under <see cref="WayThere"/>.</summary>
+    string Where => "on its page in the phone's settings";
 }

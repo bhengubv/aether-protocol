@@ -306,6 +306,9 @@ public sealed class WifiTransportService : ITransportService, IDisposable
         {
             announcer = new UdpClient(AddressFamily.InterNetwork);
             announcer.JoinMulticastGroup(IPAddress.Parse(Group), me);
+            // And send from it: with more than one network (a computer's virtual switch, an unplugged cable that gave
+            // itself an address) the system's own pick for multicast is often not the one the peer is on.
+            announcer.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, me.GetAddressBytes());
 
             var to = new IPEndPoint(IPAddress.Parse(Group), PortFor(rendezvous + "-say"));
             var said = Encoding.UTF8.GetBytes($"AETHERWIFI1 {rendezvous} {me} {port}");
@@ -426,7 +429,10 @@ public sealed class WifiTransportService : ITransportService, IDisposable
             ears = new UdpClient(AddressFamily.InterNetwork) { ExclusiveAddressUse = false };
             ears.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             ears.Client.Bind(new IPEndPoint(IPAddress.Any, PortFor(rendezvous + "-say")));
-            ears.JoinMulticastGroup(IPAddress.Parse(Group));
+            // Joined on the network the device is on — joined on the system's default, a computer with a virtual switch
+            // listened there and never heard the phone on its Wi-Fi.
+            if (LocalAddress() is { } me) ears.JoinMulticastGroup(IPAddress.Parse(Group), me);
+            else ears.JoinMulticastGroup(IPAddress.Parse(Group));
 
             Say("listening for them on the network");
 
@@ -718,9 +724,19 @@ public sealed class WifiTransportService : ITransportService, IDisposable
     /// Android names those interfaces <c>p2p0</c> / <c>p2p-wlan0-…</c> and puts them on 192.168.49/24,
     /// so they are skipped by name and by range. Anything left is a real network this phone is on.
     /// </para>
+    /// <para>
+    /// A computer has more to skip. Taking the first network up found a Hyper-V switch (172.23.x) or an unplugged
+    /// cable that had given itself an address (169.254.x) before the Wi-Fi (PC, 2026-10-03) — so it swept the wrong
+    /// network for the phone, listened for it on the wrong one, and never found it. So: never a self-given 169.254
+    /// address; a network with a way out of it (a gateway) before one without; a virtual adapter last. Where the
+    /// system will not say what the gateway is — Android keeps the routing table from apps — that counts for nothing,
+    /// and the first real network wins, as it always did.
+    /// </para>
     /// </remarks>
     private static IPAddress? LocalAddress()
     {
+        IPAddress? best = null;
+        var bestScore = int.MinValue;
         try
         {
             foreach (var card in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
@@ -731,13 +747,24 @@ public sealed class WifiTransportService : ITransportService, IDisposable
 
                 if (card.Name.Contains("p2p", StringComparison.OrdinalIgnoreCase)) continue;
 
-                foreach (var address in card.GetIPProperties().UnicastAddresses)
+                var properties = card.GetIPProperties();
+                var score = (HasGateway(properties) ? 4 : 0) - (IsVirtual(card) ? 8 : 0);
+
+                foreach (var address in properties.UnicastAddresses)
                 {
                     if (address.Address.AddressFamily != AddressFamily.InterNetwork) continue;
                     if (IPAddress.IsLoopback(address.Address)) continue;
                     if (IsPeerToPeer(address.Address)) continue;
+                    if (IsSelfGiven(address.Address)) continue;
 
-                    return address.Address;
+                    // Ties keep the first, so a device with one real network gets exactly what it always got.
+                    if (score > bestScore)
+                    {
+                        best = address.Address;
+                        bestScore = score;
+                    }
+
+                    break;
                 }
             }
         }
@@ -746,7 +773,54 @@ public sealed class WifiTransportService : ITransportService, IDisposable
             // A phone that will not describe its own network is a phone with no usable one.
         }
 
-        return null;
+        return best;
+    }
+
+    /// <summary>Whether this network has a way out of it — the one the device is actually on usually does.</summary>
+    private static bool HasGateway(System.Net.NetworkInformation.IPInterfaceProperties properties)
+    {
+        try
+        {
+            foreach (var gateway in properties.GatewayAddresses)
+            {
+                if (gateway.Address.AddressFamily == AddressFamily.InterNetwork && !gateway.Address.Equals(IPAddress.Any))
+                    return true;
+            }
+        }
+        catch (Exception)
+        {
+            // Android keeps the routing table from apps; not knowing is not a reason to prefer anything.
+        }
+
+        return false;
+    }
+
+    /// <summary>A virtual machine's switch or a VPN's adapter — not the room the person is in.</summary>
+    private static bool IsVirtual(System.Net.NetworkInformation.NetworkInterface card)
+    {
+        try
+        {
+            if (card.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Tunnel) return true;
+            var description = card.Description ?? string.Empty;
+            return description.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase)
+                || description.Contains("Virtual", StringComparison.OrdinalIgnoreCase)
+                || description.Contains("VMware", StringComparison.OrdinalIgnoreCase)
+                || description.Contains("VirtualBox", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 169.254/16: the address a network card gives itself when nothing on its network answered — an unplugged
+    /// cable, a switch with no router. Nobody is reached there.
+    /// </summary>
+    private static bool IsSelfGiven(IPAddress address)
+    {
+        var octets = address.GetAddressBytes();
+        return octets is [169, 254, _, _];
     }
 
     /// <summary>Whether this address belongs to a Wi-Fi Direct group rather than a network.</summary>

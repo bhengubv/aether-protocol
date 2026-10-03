@@ -284,6 +284,41 @@ public class NodeWireTests
     }
 
     [Fact]
+    public void Link_round_trips_which_radios_are_switched_on()
+    {
+        var link = new NodeLinkStatus(false, null,
+        [
+            new RadioStatus("BLE", true, false, 0) { On = false },
+            new RadioStatus("Wi-Fi", true, true, 1000),
+        ]);
+
+        var back = NodeWire.DecodeLink(NodeWire.EncodeLink(link));
+
+        Assert.False(back.Radios[0].On);
+        Assert.True(back.Radios[1].On);
+    }
+
+    /// <summary>An older service never says, and it runs every radio.</summary>
+    [Fact]
+    public void A_radio_from_a_service_with_no_radio_switches_reads_as_on()
+    {
+        var older = System.Text.Encoding.UTF8.GetBytes(
+            """{"linked":false,"radio":null,"radios":[{"name":"BLE","available":true,"linked":false,"carriesBps":0}]}""");
+
+        Assert.True(Assert.Single(NodeWire.DecodeLink(older).Radios).On);
+    }
+
+    [Fact]
+    public void A_radio_switch_crosses_as_the_radio_and_the_way_it_is_switched()
+    {
+        Assert.Equal(("Wi-Fi Direct", false), NodeWire.DecodeRadioSwitch(NodeWire.EncodeRadioSwitch("Wi-Fi Direct", false)));
+        Assert.Equal(("BLE", true), NodeWire.DecodeRadioSwitch(NodeWire.EncodeRadioSwitch("BLE", true)));
+
+        // The number is what crosses the binder and the pipe, so an installed service and app must agree on it.
+        Assert.Equal(12, (int)NodeOp.SetRadio);
+    }
+
+    [Fact]
     public void The_recovery_phrase_crosses_as_its_words()
     {
         const string words = "abandon ability able about above absent absorb abstract absurd abuse access accident";

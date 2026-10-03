@@ -73,6 +73,9 @@ public sealed class PipeNodeClient : IAetherNodeClient, INodeConnection, IDispos
     public Task SetNearbyAsync(bool on, CancellationToken cancellationToken = default)
         => CallAsync(NodeOp.SetNearby, NodeWire.EncodeFlag(on), static _ => true, cancellationToken);
 
+    public Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
+        => CallAsync(NodeOp.SetRadio, NodeWire.EncodeRadioSwitch(radio, on), static _ => true, cancellationToken);
+
     public IDisposable Subscribe(IAetherNodeEvents listener)
     {
         ArgumentNullException.ThrowIfNull(listener);

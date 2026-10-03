@@ -300,9 +300,18 @@ killed for memory, crashed, or updated — connects again by itself:
   - Before the recovery words, Windows Hello confirms the person at the computer
     (`WindowsOwnerCheck`); with no Windows Hello set up there is nothing to confirm
     with, and the words are not shown.
-  - No radios yet: the Windows radios (`AetherNet.Transport.Windows`) are not wired
-    into a radio mesh, so the node keeps the identity, the sessions and the messages
-    and reaches nobody until they are.
+  - Its radios are the phone's radio mesh (`RadioMesh`) with the computer's own
+    (`WindowsRadioMesh`): Wi-Fi Direct, Bluetooth, Wi-Fi Aware (listed, with why it
+    cannot come up), the internet relay, the network the computer is on, and
+    tap-to-add — every one on until switched off. Only LoRa and NearLink are not
+    there.
+- **Switches, on every system:** the AetherNet switch (`SetNearbyAsync`) turns every
+  nearby radio off or on at once; each radio also has its own (`SetRadioAsync`,
+  `RadioStatus.On`). Both are settings of the device, kept by AetherNetService beside
+  the identity and applied by restarting it; connected apps reconnect by themselves.
+  Every radio is on until the person switches it off, and the app says, for each,
+  what it does on and what is lost off. The app the person uses manages the service's
+  settings as well as its own (`IAetherNetServiceSettings`).
 - **Other platforms:** the same contract and the same split; the pipe differs (on
   macOS and Linux .NET's named pipe is a Unix socket, so `AetherNetNodeService.Pipe`
   carries over; an iOS app cannot host a service other apps connect to, so there the

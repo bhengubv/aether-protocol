@@ -1,77 +1,28 @@
 // SPDX-License-Identifier: MIT
 #if ANDROID
-using AetherNet.Identity;
-using AetherNet.Protocol;
-using AetherNet.Routing;                 // the carry-for-a-third-node MeshRelay is the library's now
 using AetherNet.Mesh;
-using AetherNet.Security.Services;
-using AetherNet.Transport.Services;
+using Android.Content;
+using Android.Net;
 using Microsoft.Extensions.Logging;
-using System.Text;
 
 namespace AetherNet.Transport.Android;
 
 /// <summary>
-/// The real over-the-air mesh on Android, inside this one APK. Owns one Ed25519 identity and a
-/// set of native radios (Wi-Fi Direct, BLE, … — all <see cref="IRadio"/>). The UI picks a radio;
-/// this links over it and moves real <see cref="MeshPacket"/>s to the linked peer phone.
+/// The real over-the-air mesh on Android: the shared <see cref="RadioMesh"/>, with the phone's own radios — Wi-Fi
+/// Direct, Bluetooth, Wi-Fi Aware, the internet relay, the Wi-Fi the phone is on, NFC, LoRa — and the foreground
+/// service Android insists on while they are up.
 /// </summary>
-public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
+public sealed class AndroidRadioMesh : RadioMesh
 {
-    private readonly object _gate = new();
-    private readonly List<string> _log = new();
-
-    /// <summary>
-    /// The same commentary, written where somebody debugging can read it.
-    /// </summary>
-    /// <remarks>
-    /// The radio log used to live only inside the app: a list a screen could show, and nothing else.
-    /// So a radio that never started and a radio that started and said so looked identical from
-    /// outside — which cost an evening, twice, chasing a Wi-Fi transport that may have been running
-    /// the whole time. A log that cannot be read when the app is misbehaving is not a log.
-    /// </remarks>
-    private readonly ILogger<AndroidRadioMesh> _out;
-    private readonly Dictionary<string, IRadio> _radios = new(StringComparer.Ordinal);
-    private readonly List<IRadio> _order = new();
-    private readonly string _localUhid;
-    private readonly byte[] _routingKey;
-    private readonly AetherNet.Mesh.CircleDirectory? _circle;
-
-    /// <summary>
-    /// Carrying for the people this phone has added.
-    /// </summary>
-    /// <remarks>
-    /// The thing that makes this a mesh rather than a set of pairs. Two people who have added each
-    /// other are often out of range of each other; a third phone both of them added is not, and it
-    /// passes the note without ever being able to read it.
-    /// </remarks>
-    private readonly MeshRelay _relay = new();
-
-    private IRadio _selected;
-
-    /// <summary>The Wi-Fi already on the phone, kept so a meeting can be handed to it.</summary>
-    private AetherNet.Transport.Wifi.WifiTransportService? _wifi;
-
     public AndroidRadioMesh(IIdentityService me, ILogger<AndroidRadioMesh> logger,
-        AetherNet.Mesh.CircleDirectory? circle = null,
-        AetherNet.Mesh.ProxyDirectory? proxies = null)
+        CircleDirectory? circle = null,
+        ProxyDirectory? proxies = null,
+        IRadioSwitches? switches = null)
+        : base(me, logger, circle, switches)
     {
-        // The radio announces the SAME AetherTag the rest of the app uses. Generating one here would
-        // give the device a third identity — the peer you linked with would not be the peer you added,
-        // and it would change on every restart.
-        ArgumentNullException.ThrowIfNull(me);
-        LocalTag = me.AetherTag;
-        _localUhid = LocalTag;
+        var context = global::Android.App.Application.Context!;
 
-        // The wire address rotates off a key derived from the device's identity, asked for by purpose.
-        // The identity itself never reaches a radio — and deriving the address from the public tag
-        // instead would let anyone holding that tag compute every address this phone will ever use.
-        var routingKey = me.RoutingKey;
-        _routingKey = routingKey;
-        _circle = circle;
-        _out = logger;
-
-        Register(new AndroidWifiDirectTransportService(global::Android.App.Application.Context!, _localUhid, logger, routingKey, circle));
+        Register(new AndroidWifiDirectTransportService(context, LocalUhid, logger, RoutingKey, circle));
         // Bluetooth is gone, and so is the NearLink stand-in that was Bluetooth wearing a different
         // name. It measured 11 kbps in one direction — it cannot carry a call, a note or an APK — and
         // while it was registered it did real harm: the mesh picks whichever radio reports a link, so
@@ -94,37 +45,22 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // whose tag you were handed and nobody else.
         Register(new AndroidBleTransportService("BLE",
             "61657468-6572-0001-0000-000000000001", "61657468-6572-0003-0000-000000000001",
-            "61657468-6572-0002-0000-000000000001", _localUhid, logger, routingKey: routingKey));
+            "61657468-6572-0002-0000-000000000001", LocalUhid, logger, routingKey: RoutingKey));
 
-        Register(new AndroidWifiAwareTransportService(() => WireAddress.For(routingKey), logger));
+        Register(new AndroidWifiAwareTransportService(() => WireAddress.For(RoutingKey), logger));
         // The second leg. Last in the ladder on purpose: it costs the person data and puts their
         // traffic through somebody else's phone, so it is what you use when the alternative is nothing
         // at all — which, for a network meant to hold up when you walk out of range, is most of the time.
-        Register(new AndroidInternetTransportService(global::Android.App.Application.Context!, _localUhid, logger, proxies));
-        // The Wi-Fi the phone is already on.
-        //
-        // Wi-Fi Direct builds a network out of nothing, which is the right answer in a field and a
-        // slow, fragile one in a kitchen where both handsets are three metres from the same access
-        // point. Two phones sat on one network for an afternoon unable to reach each other while a
-        // perfectly good link went unused — refusing to use it is not principle, it is waste.
-        //
-        // Below Wi-Fi Direct in the ladder on purpose: the router sees that two devices on it are
-        // talking, how much and when. It never sees what — that is sealed above every radio equally —
-        // so the difference is metadata and a dependency on somebody else's box. Worth having as one
-        // way out among several rather than as the only one.
-        _wifi = new AetherNet.Transport.Wifi.WifiTransportService(_localUhid);
+        Register(new InternetRadio(LocalUhid, logger, proxies, () => HasInternet(context, logger), "phone",
+            m => global::Android.Util.Log.Info("AetherNet", m)));
+        // The Wi-Fi the phone is already on. Below Wi-Fi Direct in the ladder on purpose: the router sees
+        // that two devices on it are talking, how much and when. It never sees what — that is sealed above
+        // every radio equally — so the difference is metadata and a dependency on somebody else's box.
+        // Worth having as one way out among several rather than as the only one.
+        AddWifi(s => global::Android.Util.Log.Info("AetherWifiLan", s));
 
-        // Its own voice, or it has none.
-        //
-        // TransportRadio wraps a transport and raises ITS status, never the transport's — so
-        // everything this radio said about itself went nowhere, and a radio that had not run looked
-        // exactly like a radio that had. Silence from a layer is the wiring, not the code.
-        _wifi.Status += s => { global::Android.Util.Log.Info("AetherWifiLan", s); Emit($"[Wi-Fi] {s}"); };
-
-        Register(new TransportRadio(_wifi, _localUhid));
-
-        Register(new AndroidNfcTransportService(_localUhid, logger));
-        Register(new AndroidLoRaTransportService(_localUhid, logger));
+        Register(new AndroidNfcTransportService(LocalUhid, logger));
+        Register(new AndroidLoRaTransportService(LocalUhid, logger));
         // Wi-Fi Direct is the radio this mesh is built on, and the default says so.
         //
         // Every phone has it, and it is the only one measured to carry real traffic: 50 frames/sec
@@ -137,678 +73,42 @@ public sealed class AndroidRadioMesh : IRadioMesh, IDisposable
         // went over eleven kilobits while the fast radio sat idle, and a 91 KB voice note took over a
         // minute on a phone that can move it in under a second.
         //
-        // This is a preference, not a restriction — Widest() still sends over whichever radio is
-        // actually linked, so nothing breaks before the group forms, and everything moves across the
-        // moment it does.
-        _selected = _radios.TryGetValue("Wi-Fi Direct", out var wifiDirect) ? wifiDirect
-            : _radios.TryGetValue("BLE", out var ble) ? ble
-            : _order[0];
+        // This is a preference, not a restriction — the widest linked radio still carries, so nothing
+        // breaks before the group forms, and everything moves across the moment it does.
+        Prefer("Wi-Fi Direct", "BLE");
     }
-
-    private void Register(IRadio r)
-    {
-        _radios[r.Name] = r;
-        _order.Add(r);
-        r.Status += s => Emit($"[{r.Name}] {s}");
-        r.PeerLinked += p =>
-        {
-            Emit($"[{r.Name}] ● linked with {p}");
-            // First contact — say hello so the two phones learn each other's transports before the
-            // conversation forces the question. Wired to InitiateAsync outside the mesh.
-            PeerLinked?.Invoke(p);
-        };
-        r.DataReceived += (from, bytes) =>
-        {
-            try
-            {
-                var pkt = PacketSerializer.Deserialize(bytes);
-                Emit($"[{r.Name}] ◀ from {from}: \"{Encoding.UTF8.GetString(pkt.Payload)}\"");
-            }
-            catch { Emit($"[{r.Name}] ◀ {bytes.Length} bytes from {from}"); }
-
-            // Ours, or somebody's we carry? A packet addressed to a contact who is not us goes back
-            // out on whichever radio can reach them, one hop shorter, and is NOT delivered upstairs —
-            // this node is a router for it, not a reader.
-            if (!Carry(bytes)) PacketReceived?.Invoke(RevealIdentity(bytes));
-        };
-    }
-
-    /// <summary>
-    /// Pass a packet on if it belongs to two people this phone has added.
-    /// </summary>
-    /// <returns>True when it was carried, and therefore must not also be delivered here.</returns>
-    private bool Carry(byte[] bytes)
-    {
-        MeshPacket packet;
-        try { packet = PacketSerializer.Deserialize(bytes); }
-        catch { return false; }               // not a packet we understand — let the layer above look
-
-        // Only this class holds the routing key, and only the circle can put a name to a rotating
-        // address, so the two lookups the relay cannot do for itself are answered here.
-        var mine = WireAddress.IsMine(packet.DestinationUhid, _routingKey);
-        var from = _circle?.Recognise(packet.SourceUhid);
-        var to = _circle?.Recognise(packet.DestinationUhid);
-
-        var decision = _relay.Look(packet, mine, from, to);
-        if (!decision.ShouldCarry) return false;
-
-        var onward = PacketSerializer.Serialize(MeshRelay.OneHopShorter(packet));
-        _ = ForwardAsync(decision.To!, onward, PacketPriority.Lane(packet.Type), packet.Ttl - 1);
-        return true;
-    }
-
-    private async Task ForwardAsync(string toTag, byte[] onward, SendLane lane, int ttlLeft)
-    {
-        var sent = await SendToPeerAsync(toTag, onward, lane).ConfigureAwait(false);
-
-        // Said either way. A relay that silently fails looks exactly like a relay nobody is using,
-        // and the difference matters a great deal when somebody's message did not arrive.
-        Emit(sent
-            ? $"↻ carried {onward.Length}B for {toTag} — {ttlLeft} hops left"
-            : $"↻ could not reach {toTag} to carry {onward.Length}B");
-    }
-
-    /// <summary>
-    /// Send to one particular person, over whichever radio currently has a link to them.
-    /// </summary>
-    /// <remarks>
-    /// Addressed by AetherTag rather than by wire address on purpose: the address rotates every
-    /// fifteen minutes and the person does not, so a route held by address goes stale on the hour.
-    /// </remarks>
-    public async Task<bool> SendToPeerAsync(string aetherTag, byte[] packetBytes, SendLane lane)
-    {
-        if (string.IsNullOrEmpty(aetherTag)) return false;
-
-        foreach (var r in _order)
-        {
-            if (!r.IsLinked) continue;
-
-            foreach (var address in r.Peers)
-            {
-                if (!IsPerson(address, aetherTag)) continue;
-                if (await r.SendToAsync(address, packetBytes, lane).ConfigureAwait(false)) return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>Is this wire address that person, either proven in-session or derivable from their key?</summary>
-    private bool IsPerson(string address, string aetherTag)
-    {
-        lock (_gate)
-        {
-            if (_known.TryGetValue(address, out var known) && known == aetherTag) return true;
-        }
-
-        return string.Equals(_circle?.Recognise(address), aetherTag, StringComparison.Ordinal);
-    }
-
-    /// <summary>How many packets this phone has carried for other people.</summary>
-    public long Carried => _relay.Carried;
 
     /// <summary>
     /// The Wi-Fi Direct radio's group-hosting side, so the broker can create and join groups on it.
     /// Exposed as the capability rather than the radio, because hosting a group is specific to this
     /// one radio and means nothing to the others.
     /// </summary>
-    public AetherNet.Mesh.IWifiDirectGroup WifiDirect =>
-        (AetherNet.Mesh.IWifiDirectGroup)_radios["Wi-Fi Direct"];
+    public IWifiDirectGroup WifiDirect => (IWifiDirectGroup)Radio("Wi-Fi Direct");
 
-    public string LocalTag { get; }
-    public IReadOnlyList<RadioInfo> Radios =>
-        _order.Select(r => new RadioInfo(r.Name, r.IsAvailable, r.UnavailableReason, r.IsFixable, r.NeedsPermission)).ToArray();
-    public string SelectedRadio => _selected.Name;
+    // Take the foreground service before the radio, not after: Android only lets an app hold a
+    // connection off-screen while that service is running, and the user may leave the app the
+    // moment they have tapped Connect.
+    protected override void BringingUp() => AetherLinkService.Start();
 
-    /// <inheritdoc />
-    public string LinkRadio
+    protected override void NothingLinked() => AetherLinkService.Stop();
+
+    protected override void Handed(string line) => global::Android.Util.Log.Info("AetherBLE", line);
+
+    private static bool HasInternet(Context context, ILogger logger)
     {
-        get
+        try
         {
-            foreach (var r in Candidates())
-                if (r.IsLinked) return r.Name;
-            return _selected.Name;
+            if (context.GetSystemService(Context.ConnectivityService) is not ConnectivityManager cm)
+                return false;
+
+            var caps = cm.GetNetworkCapabilities(cm.ActiveNetwork);
+            return caps is not null && caps.HasCapability(NetCapability.Internet);
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Could not read connectivity");
+            return false;
         }
     }
-
-    /// <inheritdoc />
-    public long LinkBandwidthBps
-    {
-        get
-        {
-            // What the link has been MEASURED doing, and only then what it claims.
-            //
-            // Every advertised figure in this app has been wrong: BLE published 2 Mbps and delivered
-            // 11 kbps one way; Wi-Fi Direct still reports a flat 250 Mbps that nothing has checked.
-            // Sizing media to a number nobody verified is how 800 kbps of video went onto a link that
-            // was time-slicing against the phone's own access point.
-            //
-            // The measured figure is a FLOOR — what has crossed, not what could — so it is only used
-            // once enough has crossed to mean something. Before that the advertised number is all
-            // there is, and it is at least honest about being a guess.
-            foreach (var r in Candidates())
-            {
-                if (!r.IsLinked) continue;
-                var measured = r.Quality.ThroughputBps();
-                return measured > 0 ? measured : r.MaxBandwidthBps;
-            }
-            return 0;
-        }
-    }
-    public bool IsSupported => _selected.IsAvailable;
-
-    /// <summary>
-    /// The radio actually carrying traffic right now: your preferred one while it holds a link, and
-    /// otherwise whichever one does. The preference is a preference, not a restriction — a phone that
-    /// can still be reached over another radio is still reachable.
-    /// </summary>
-    private IRadio Active => Candidates().FirstOrDefault() ?? _selected;
-
-    /// <summary>
-    /// How hard the carrying radio is working, 0 to 1. Media sizes itself from this.
-    /// </summary>
-    public double LinkStrain
-    {
-        get
-        {
-            foreach (var r in Candidates())
-                if (r.IsLinked) return r.Quality.Strain();
-            return 0;
-        }
-    }
-
-    public bool IsLinked => _order.Any(r => r.IsLinked);
-
-    /// <summary>
-    /// Who is actually there: their AetherTag once a message from them has opened under it, and the
-    /// rotating wire address until then. The address is what the radio saw; the tag is who it turned
-    /// out to be.
-    /// </summary>
-    public string? PeerTag
-    {
-        get
-        {
-            // Ask the radios in the order traffic actually uses them, not the order the picker shows.
-            // The widest linked radio is the one a packet leaves on, and it is very often not the
-            // selected one: bring Wi-Fi Direct up alongside BLE and every byte moves to Wi-Fi Direct
-            // while the picker still says BLE.
-            foreach (var r in Candidates())
-            {
-                if (r.PeerTag is not { } wire) continue;
-                lock (_gate)
-                {
-                    if (_known.TryGetValue(wire, out var tag)) return tag;
-                }
-            }
-
-            // Nobody proven yet — report the wire address of the radio traffic would leave on, so what
-            // is shown is what is being used.
-            foreach (var r in Candidates())
-                if (r.PeerTag is { } wire) return wire;
-
-            return null;
-        }
-    }
-
-    /// <summary>Wire address → the person it turned out to be, once that has been proven.</summary>
-    private readonly Dictionary<string, string> _known = new(StringComparer.Ordinal);
-
-    /// <summary>
-    /// AetherTag → the transports that person can also carry, as the capability handshake negotiated
-    /// them. Already the intersection of the two phones' transports, so every tag is one both ends have.
-    /// </summary>
-    /// <remarks>
-    /// Fed from outside via <see cref="NotePeerTransports"/> — the handshake that produces this depends
-    /// on the sender that depends on this mesh, so it cannot be injected without a cycle. Read on the
-    /// send path by <see cref="EffectivePeerTransports"/> to prefer a radio the peer can actually hear.
-    /// </remarks>
-    private readonly Dictionary<string, IReadOnlySet<string>> _peerTransports = new(StringComparer.Ordinal);
-
-    /// <inheritdoc />
-    public void IdentifyPeer(string aetherTag)
-    {
-        if (string.IsNullOrEmpty(aetherTag)) return;
-
-        // One person, however many radios can see them — so record the tag against the wire address
-        // that EVERY linked radio currently has for them.
-        //
-        // This used to record only the selected radio's address, while sending picks the widest linked
-        // one. With two radios up those are different addresses, so the tag was learned for a link
-        // nothing was being sent on, and the link everything WAS being sent on stayed anonymous. A call
-        // placed over Wi-Fi Direct while BLE held the identity reached nobody, and neither phone had a
-        // word to say about why.
-        foreach (var r in _order)
-        {
-            if (!r.IsLinked || r.PeerTag is not { } wire || wire == aetherTag) continue;
-
-            bool learned = false;
-            lock (_gate)
-            {
-                if (!_known.TryGetValue(wire, out var already) || already != aetherTag)
-                {
-                    // Wire addresses rotate every epoch, so this would otherwise grow for as long as
-                    // the app runs. Nothing here is worth keeping: the live link re-identifies itself
-                    // on the next message that opens, which is seconds away on a live conversation.
-                    if (_known.Count > 32) _known.Clear();
-                    _known[wire] = aetherTag;
-                    learned = true;
-                }
-            }
-
-            if (learned) Emit($"[{r.Name}] ● {wire} is {aetherTag}");
-        }
-    }
-
-    public event Action? Changed;
-    public event Action<byte[]>? PacketReceived;
-    public event Action<string>? PeerLinked;
-    public IReadOnlyList<string> Log { get { lock (_gate) { return _log.ToArray(); } } }
-
-    /// <inheritdoc />
-    public void NotePeerTransports(string peer, IReadOnlySet<string> transports)
-    {
-        if (string.IsNullOrEmpty(peer) || transports is null) return;
-
-        lock (_gate)
-        {
-            // Bounded like _known: wire identities rotate, the Circle is small, and nothing here is
-            // worth keeping across a restart — the next handshake re-establishes it in seconds.
-            if (_peerTransports.Count > 32) _peerTransports.Clear();
-            _peerTransports[peer] = transports;
-        }
-
-        Emit(transports.Count > 0
-            ? $"● {peer} also carries [{string.Join(", ", transports)}]"
-            : $"● {peer} shares no transport we advertised");
-    }
-
-    /// <summary>
-    /// The transports every currently-linked, identified peer can also carry — the intersection of what
-    /// the handshake negotiated with each of them, so a tag survives only if all of them have it.
-    /// </summary>
-    /// <remarks>
-    /// Null when nothing has been negotiated for anyone actually on the wire, which drops the choice
-    /// straight back to the peer-agnostic ranking it always used — a message never waits on a handshake
-    /// that has not finished.
-    /// </remarks>
-    private IReadOnlySet<string>? EffectivePeerTransports()
-    {
-        // Snapshot under the lock, then resolve identities without holding it — Recognise is somebody
-        // else's code and must never be called inside our gate.
-        Dictionary<string, IReadOnlySet<string>> negotiated;
-        lock (_gate)
-        {
-            if (_peerTransports.Count == 0) return null;
-            negotiated = new Dictionary<string, IReadOnlySet<string>>(_peerTransports, StringComparer.Ordinal);
-        }
-
-        HashSet<string>? shared = null;
-        foreach (var r in _order)
-        {
-            if (!r.IsLinked) continue;
-            foreach (var wire in r.Peers)
-            {
-                string? tag;
-                lock (_gate) { _known.TryGetValue(wire, out tag); }
-                tag ??= _circle?.Recognise(wire);
-                if (tag is null || !negotiated.TryGetValue(tag, out var theirs)) continue;
-
-                if (shared is null) shared = new HashSet<string>(theirs, StringComparer.Ordinal);
-                else shared.IntersectWith(theirs);
-            }
-        }
-
-        return shared is { Count: > 0 } ? shared : null;
-    }
-
-    /// <summary>
-    /// Choose the radio to prefer. It is a preference, not a switch — the others keep listening, and
-    /// if this one has no link the mesh keeps using whatever does.
-    /// </summary>
-    public void SelectRadio(string name)
-    {
-        if (!_radios.TryGetValue(name, out var r)) return;
-        _selected = r;
-        // A preference about which radio is brought up, and nothing about where traffic goes — the
-        // widest linked radio carries either way. Choosing one used to move a call onto it, which is
-        // how a voice call ended up on eleven kilobits because somebody tapped a chip.
-        if (r.IsAvailable && !r.IsLinked) { Emit($"[{r.Name}] bringing it up"); r.Link(); }
-        RaiseChanged();
-    }
-
-    /// <summary>
-    /// Bring up the preferred radio, and put every other working radio into listening range too.
-    /// <para>
-    /// Radios fail in different ways — Bluetooth drops when the phone is busy, Wi-Fi Direct needs a
-    /// group to form, NFC needs a tap — so relying on exactly one is a single point of failure for a
-    /// network whose whole point is not having one. The others are only asked to listen, not to
-    /// transmit, which keeps the battery cost near zero while leaving every door open.
-    /// </para>
-    /// </summary>
-    public void Link()
-    {
-        // Take the foreground service before the radio, not after: Android only lets an app hold a
-        // connection off-screen while that service is running, and the user may leave the app the
-        // moment they have tapped Connect.
-        AetherLinkService.Start();
-
-        // Every radio brings ITSELF up. None of them needs another one's help, and none of them can
-        // take another one down.
-        //
-        // Wi-Fi Direct was excluded here and left to a broker that handed it credentials over BLE.
-        // That made the slowest radio in the app a prerequisite for the fastest: one BLE link that
-        // claimed to be up while refusing writes took calls, notes and the group with it. It now finds
-        // its own peers over DNS-SD and settles who hosts from the ids both sides advertise, so there
-        // is nothing left to broker and no race to avoid.
-        foreach (var r in _order)
-        {
-            if (!r.IsAvailable || r.IsLinked) continue;
-
-            Emit(ReferenceEquals(r, _selected) ? $"[{r.Name}] linking…" : $"[{r.Name}] also listening");
-            try { r.Link(); } catch (Exception ex) { Emit($"[{r.Name}] could not listen: {ex.Message}"); }
-        }
-    }
-
-    /// <summary>
-    /// Bring every radio up to meet one particular person.
-    /// </summary>
-    /// <remarks>
-    /// All of them at once, quietly, and none of them waiting on another. Which one ends up carrying
-    /// the traffic is not decided here and is not decided by the person — see <see cref="Widest"/>.
-    /// A radio that has not been taught about meetings still comes up; it simply comes up for
-    /// everybody rather than for somebody.
-    /// </remarks>
-    public void Link(AetherNet.Rendezvous.Meeting meeting)
-    {
-        AetherLinkService.Start();
-
-        Emit($"meeting {meeting.PeerTag} — {(meeting.IStart ? "we open" : "they open")}");
-
-        // Wi-Fi needs the rendezvous itself rather than a hint: it puts it on a multicast group and a
-        // port that only the two of them can compute.
-        if (_wifi is not null)
-            _ = Task.Run(async () =>
-            {
-                try { await _wifi.MeetAsync(meeting.Rendezvous, meeting.IStart); }
-                catch (Exception ex) { Emit($"[Wi-Fi] could not meet: {ex.Message}"); }
-            });
-        else Emit("[Wi-Fi] no radio");
-
-        foreach (var r in _order)
-        {
-            if (!r.IsAvailable) continue;
-
-            // Linked is not a reason to skip it. A radio that came up before the meeting arrived is
-            // holding a link to whoever answered first, which is exactly the link that should be
-            // replaced — and the radios that are already meeting the right person recognise their own
-            // meeting and do nothing.
-            try { r.Link(meeting); }
-            catch (Exception ex) { Emit($"[{r.Name}] could not listen: {ex.Message}"); }
-        }
-    }
-
-    /// <inheritdoc />
-    public void MeetPeer(AetherNet.Rendezvous.Meeting meeting)
-    {
-        // Only the network leg meets peers pairwise. Wi-Fi Direct is the Circle's ONE shared group and
-        // is brought up by Link(meeting)/FastRadioService for the elected host — driving it per-peer here
-        // would have it thrash between groups. So this asks just the Wi-Fi/LAN transport to keep a
-        // rendezvous for THIS peer, alongside any others it is already keeping: many at once, one per
-        // contact, which is what lets two phones on the same network reach each other even when the tags
-        // elected some third, absent peer to host.
-        if (_wifi is null) return;
-        _ = Task.Run(async () =>
-        {
-            try { await _wifi.MeetAsync(meeting.Rendezvous, meeting.IStart); }
-            catch (Exception ex) { Emit($"[Wi-Fi] could not meet {meeting.PeerTag}: {ex.Message}"); }
-        });
-    }
-
-    /// <inheritdoc />
-    public bool IsReachable(string aetherTag)
-    {
-        if (string.IsNullOrEmpty(aetherTag)) return false;
-
-        // A phone can hold several links at once now, so this asks per peer rather than reading the one
-        // PeerTag. A Wi-Fi/LAN link names the peer by its tag directly; the rotating-address radios name
-        // a wire we turn back into a tag the same way PeerTag does.
-        foreach (var r in _order)
-        {
-            if (!r.IsLinked) continue;
-            foreach (var wire in r.Peers)
-            {
-                if (string.Equals(wire, aetherTag, StringComparison.Ordinal)) return true;
-
-                string? tag;
-                lock (_gate) { _known.TryGetValue(wire, out tag); }
-                tag ??= _circle?.Recognise(wire);
-                if (string.Equals(tag, aetherTag, StringComparison.Ordinal)) return true;
-            }
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Give the foreground service back when nothing is linked.
-    /// </summary>
-    /// <remarks>
-    /// Android only lets an app hold a connection off-screen while a foreground service is running, so
-    /// it is needed exactly as long as there IS a connection and not a moment longer. It used to be
-    /// taken on the first Link() and never given back — a permanent notification the person cannot
-    /// dismiss, for radios that were often carrying nothing.
-    /// </remarks>
-    public void ReleaseIfIdle()
-    {
-        if (_order.Any(r => r.IsLinked)) return;
-        AetherLinkService.Stop();
-    }
-
-    public async Task SendTestAsync(string text)
-    {
-        if (_selected.PeerTag is null) { Emit($"[{_selected.Name}] no peer linked yet"); return; }
-        var pkt = new MeshPacket
-        {
-            Type = PacketType.Data,
-            // The header is readable before anything is decrypted, so it carries where-to-send, not
-            // who-we-are. The identity travels inside the session.
-            SourceUhid = WireAddress.For(_routingKey),
-            DestinationUhid = _selected.PeerTag,
-            Payload = Encoding.UTF8.GetBytes(text),
-            Ttl = 7,
-        };
-        var ok = await _selected.SendAsync(PacketSerializer.Serialize(pkt)).ConfigureAwait(false);
-        Emit(ok ? $"[{_selected.Name}] ▶ sent: \"{text}\"" : $"[{_selected.Name}] ▶ send failed");
-    }
-
-    /// <summary>
-    /// Push a raw packet to the peer, over whichever radio can carry it.
-    /// <para>
-    /// The preferred radio goes first; if it will not take the packet, every other linked radio is
-    /// tried before giving up. A message is only reported as unsent once nothing at all could carry
-    /// it. Arriving twice is harmless — the receiver keys messages by the sender's own id, so a
-    /// duplicate updates the message already there instead of showing the words again.
-    /// </para>
-    /// </summary>
-    public Task<bool> SendPacketAsync(byte[] packetBytes) =>
-        SendPacketAsync(packetBytes, LaneFor(packetBytes));
-
-    /// <summary>
-    /// Send in a named lane, so a phone call is never queued behind a file transfer.
-    /// </summary>
-    public async Task<bool> SendPacketAsync(byte[] packetBytes, SendLane lane)
-    {
-        packetBytes = HideIdentity(packetBytes);
-        foreach (var r in Candidates())
-        {
-            var ok = await r.SendAsync(packetBytes, lane).ConfigureAwait(false);
-            global::Android.Util.Log.Info("AetherBLE",
-                $"app→radio {packetBytes.Length}B {lane} on {r.Name} linked={r.IsLinked} sent={ok}");
-            if (ok) return true;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Read the lane off the packet itself, for callers that do not name one.
-    /// </summary>
-    /// <remarks>
-    /// Only possible now that packets carry their real type. While everything was
-    /// <see cref="PacketType.Data"/> with a string marker hidden inside the ciphertext, nothing out
-    /// here could tell speech from a file — which is precisely why they shared a queue.
-    /// </remarks>
-    private static SendLane LaneFor(byte[] packetBytes)
-    {
-        try { return PacketPriority.Lane(PacketSerializer.Deserialize(packetBytes).Type); }
-        catch { return SendLane.Interactive; }
-    }
-
-    /// <summary>
-    /// E2 — take the stable, trackable UHID off the wire. On any lane (voice, attachments, group calls,
-    /// as well as chat) rewrite the source and destination to rotating ERIDs, once we hold the peer's
-    /// routing key and the packet is not identity bootstrap. Chat already does this at its own,
-    /// cross-platform seam; this catches every other lane that leaves this phone. A packet that already
-    /// carries ERIDs (chat's), a broadcast, a bootstrap type, or a peer whose key we do not hold passes
-    /// through untouched.
-    /// </summary>
-    private byte[] HideIdentity(byte[] bytes)
-    {
-        if (_circle is null) return bytes;
-
-        MeshPacket packet;
-        try { packet = PacketSerializer.Deserialize(bytes); }
-        catch { return bytes; }
-
-        // These carry identity before any key is known and MUST keep the stable tag, or the routing-key
-        // exchange (and thus recognition) could never bootstrap.
-        if (packet.Type is PacketType.Hello or PacketType.HelloAck or PacketType.EridAnnounce
-            or PacketType.PreKeyRequest or PacketType.PreKeyResponse)
-            return bytes;
-
-        if (string.IsNullOrEmpty(packet.DestinationUhid)) return bytes;      // broadcast — cannot ERID to one peer
-        if (_circle.AddressFor(packet.DestinationUhid) is not { } peerErid) return bytes; // key unknown, or already an ERID
-
-        packet.SourceUhid = _circle.MyAddress();
-        packet.DestinationUhid = peerErid;
-        return PacketSerializer.Serialize(packet);
-    }
-
-    /// <summary>
-    /// The receive-side inverse of <see cref="HideIdentity"/>: resolve a delivered packet's source ERID
-    /// back to the sender's stable tag so the ratchet keyed on that tag can decrypt it. Runs only on the
-    /// deliver-here path (after the relay decision, which works on the raw wire address); a stable tag or
-    /// an address we cannot resolve passes through unchanged.
-    /// </summary>
-    private byte[] RevealIdentity(byte[] bytes)
-    {
-        if (_circle is null) return bytes;
-
-        MeshPacket packet;
-        try { packet = PacketSerializer.Deserialize(bytes); }
-        catch { return bytes; }
-
-        var source = _circle.Recognise(packet.SourceUhid);
-        if (source is null) return bytes;
-
-        packet.SourceUhid = source;
-        return PacketSerializer.Serialize(packet);
-    }
-
-    /// <summary>
-    /// The radios worth trying, best first.
-    ///
-    /// <para>
-    /// Nobody is asked. The person picked a contact, not a transport — every radio tries at once and
-    /// whichever got through and is widest carries, silently, handing over when a better one appears.
-    /// See <see cref="RadioChoice"/> for the rule and for why it is best-through rather than
-    /// first-through.
-    /// </para>
-    ///
-    /// <para>
-    /// The preferred radio used to come first outright, which meant a person could put a voice call on
-    /// eleven kilobits by tapping a chip on a screen. It is now a preference about which radio is
-    /// brought up, and no part of where traffic goes.
-    /// </para>
-    ///
-    /// <para>
-    /// Everything else linked still follows, so a send that fails on the best radio drops to the next
-    /// rather than failing outright.
-    /// </para>
-    /// </summary>
-    private IEnumerable<IRadio> Candidates()
-    {
-        var speeds = _order.Select(r =>
-            new RadioSpeed(r.Name, r.IsLinked, r.Quality.ThroughputBps(), r.MaxBandwidthBps)
-            {
-                // Tag each radio with its transport so the choice can prefer one the peer also carries.
-                Transport = TransportCapability.TagFor(r.Name),
-            });
-
-        var order = RadioChoice.Order(speeds, _carrying, EffectivePeerTransports());
-
-        if (order.Count == 0)
-        {
-            // Nothing linked at all. Still hand it to a radio, which reports the failure honestly
-            // rather than the mesh inventing one.
-            yield return _selected;
-            yield break;
-        }
-
-        // Remembered so the next decision knows what is already carrying, and does not move the
-        // traffic off it for a rounding difference — see RadioChoice.Wider.
-        _carrying = order[0].Name;
-
-        foreach (var named in order)
-            if (_radios.TryGetValue(named.Name, out var r))
-                yield return r;
-    }
-
-    /// <summary>Which radio is carrying, so a near-tie does not bounce the traffic between two.</summary>
-    private string? _carrying;
-
-    /// <summary>
-    /// The widest linked radio, or the ordinary choice if none is wider.
-    ///
-    /// <para>
-    /// A preferred radio is a preference about <b>reaching people</b>, not an instruction to force a
-    /// call down a link that cannot hold one. BLE measures about 5 kbps between these handsets and one
-    /// voice call wants roughly a hundred times that; sending media over it does not merely sound bad,
-    /// it saturates the link and starves the signalling sharing it. Watched on device 2026-08-18: the
-    /// callee answered and streamed happily, the caller sat on "Calling..." forever, because the answer
-    /// could not get past the audio it was answering.
-    /// </para>
-    /// </summary>
-    private IRadio Widest()
-    {
-        var best = Active;
-        foreach (var r in _order)
-            if (r.IsLinked && r.MaxBandwidthBps > best.MaxBandwidthBps) best = r;
-        return best;
-    }
-
-    public void Stop()
-    {
-        foreach (var r in _order) r.Stop();
-        Emit("stopped");
-    }
-
-    public void Dispose()
-    {
-        foreach (var r in _order)
-            if (r is IDisposable d) d.Dispose();
-    }
-
-    private void Emit(string line)
-    {
-        _out.LogInformation("[mesh] {Line}", line);
-
-        lock (_gate)
-        {
-            _log.Add(line);
-            if (_log.Count > 300) _log.RemoveAt(0);
-        }
-        RaiseChanged();
-    }
-
-    private void RaiseChanged() => Changed?.Invoke();
 }
 #endif

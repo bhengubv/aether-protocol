@@ -74,11 +74,12 @@
     <ProjectReference Include="../AetherNet.Transport.Android/AetherNet.Transport.Android.csproj" />
   </ItemGroup>
 
-  <!-- What Windows brings: the named pipe apps connect by, the App Paths entry they find it through, and Windows'
-       own sealing of the key for the person signed in. -->
+  <!-- What Windows brings: the named pipe apps connect by, the App Paths entry they find it through, Windows' own
+       sealing of the key for the person signed in, and the computer's radios. -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <ProjectReference Include="../AetherNetNodeService.Pipe/AetherNetNodeService.Pipe.csproj" />
     <ProjectReference Include="../AetherNetNodeService.Windows/AetherNetNodeService.Windows.csproj" />
+    <ProjectReference Include="../AetherNet.Transport.Windows/AetherNet.Transport.Windows.csproj" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.2" />
   </ItemGroup>
 
