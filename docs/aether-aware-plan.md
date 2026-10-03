@@ -1,6 +1,7 @@
 # Aether Aware — plan
 
-**Status:** plan only. Nothing is built. Written 2026-10-03.
+**Status:** phases 1–2 built 2026-10-03 — `src/AetherNet.Aware` (C#), 198 tests passing; see its
+`FIELDWATCH-PARITY.md`. Phases 3–6 not started. Written 2026-10-03.
 **Source:** [github.com/offgridpete/fieldwatch](https://github.com/offgridpete/fieldwatch) — Fieldwatch, MIT, by Off Grid Pete LLC.
 
 ## What it is
@@ -74,7 +75,9 @@ The same split as everything else: AetherNetService owns the radios; Aether show
    (strong / balanced / light) defaulting to balanced, because listening to everything costs battery.
 4. **Vendor names.** Fieldwatch's lookup tables carry IEEE and Bluetooth SIG lists under those bodies' own terms.
    *Recommend:* check those terms before shipping names; until then show classes ("a finder tag", "a drone",
-   "a camera") without vendor names.
+   "a camera") without vendor names. *Checked so far:* the IEEE says it claims no copyright in its OUI listing and
+   does not restrict its distribution (recorded in Debian's `ieee-data`), so the signature pack's address prefixes
+   ship. The Bluetooth SIG's terms are still to be checked.
 5. **Signature packs.** *Recommend:* the stock pack ships inside AetherNetService; updates come as a signed card from
    the makers' AetherTag over the mesh (`AetherNet.Cards`); a person can import/export a pack in Fieldwatch's file
    format; their own additions stay on the device.
@@ -91,7 +94,10 @@ Sizes as on the work tracker: S / M / L.
    filters and "moving with you", find-it ticks, pack loading — into C# tests with the same inputs and answers.
    *Done when:* they exist, compile, and fail for want of code.
 2. **AetherNet.Aware (L).** The C# port. *Done when:* every ported test passes; the aggregator has its own tests
-   (devices expire, rotating addresses do not count as many devices, a tag left behind stops being "with you").
+   (devices expire, a rotated address's old row is forgotten, a tag left behind stops being "with you").
+   *Correction:* an earlier draft said rotating addresses would not count as many devices. Fieldwatch keys a radio
+   by its address, so each new address is a new row until the old one is forgotten (3 minutes without a signature,
+   15 with one).
 3. **Listening in AetherNetService on Android (L).** First the Location measurement in decision 1, on the P30 and the
    Pixel. Then the listener: a Bluetooth scan for every advert (extended adverts too, and a filter list so Android keeps
    it running with the screen off), Wi-Fi results within Android's scan limits (at most every 30 s), GPS samples; the

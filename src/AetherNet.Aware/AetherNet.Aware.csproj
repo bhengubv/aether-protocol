@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AetherNet.Aware</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Aether Aware: what a device's radios can hear around it, and a finder tag moving with you. Reads Bluetooth adverts and Wi-Fi beacons, matches them against a signature pack, decodes drone Remote ID, tells when a tag has travelled with the person, and keeps what was heard. Listening only, platform-neutral; each host feeds it from its own radios. Ported from Fieldwatch (MIT, Off Grid Pete LLC).</Description>
+    <PackageTags>aether;aware;ble;wifi;tracker;airtag;remote-id;drone;signatures;offline</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Fieldwatch's stock signature pack (dist/fieldwatch-signatures-v2.json at cf6562d, catalog 90), unchanged. -->
+    <EmbeddedResource Include="Signatures/fieldwatch-signatures-v2.json" LogicalName="AetherNet.Aware.fieldwatch-signatures-v2.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The MIT notice travels with the package. -->
+    <None Include="NOTICE.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AetherNet.Aware.Tests" />
+  </ItemGroup>
+
+</Project>

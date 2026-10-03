@@ -17,3 +17,6 @@ rust/Cargo.lock text eol=lf
 *.props   text eol=lf
 *.targets text eol=lf
 *.slnx    text eol=lf
+
+# Fieldwatch's signature pack ships byte for byte (src/AetherNet.Aware/NOTICE.md): no line-ending conversion.
+src/AetherNet.Aware/Signatures/*.json -text

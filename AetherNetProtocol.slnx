@@ -10,6 +10,7 @@
     <Project Path="samples/AetherNet.WifiDirectRfTest/AetherNet.WifiDirectRfTest.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/AetherNet.Aware/AetherNet.Aware.csproj" />
     <Project Path="src/AetherNet.BitTorrent/AetherNet.BitTorrent.csproj" />
     <Project Path="src/AetherNet.BitTorrent.Gateway/AetherNet.BitTorrent.Gateway.csproj" />
     <Project Path="src/AetherNet.Cards/AetherNet.Cards.csproj" />
@@ -42,6 +43,7 @@
     <Project Path="src/AetherNet.Voice/AetherNet.Voice.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AetherNet.Aware.Tests/AetherNet.Aware.Tests.csproj" />
     <Project Path="tests/AetherNet.BitTorrent.Tests/AetherNet.BitTorrent.Tests.csproj" />
     <Project Path="tests/AetherNet.BitTorrent.Gateway.Tests/AetherNet.BitTorrent.Gateway.Tests.csproj" />
     <Project Path="tests/AetherNet.BitTorrent.Interop.Tests/AetherNet.BitTorrent.Interop.Tests.csproj" />
