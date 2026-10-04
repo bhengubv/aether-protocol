@@ -503,6 +503,24 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
     /// <summary>How many adverts arrived and could not be read. Counted, because nothing else would show it.</summary>
     private int _unreadable;
 
+    /// <summary>Whether this phone has ever handed over an access point. Until it has, silence needs explaining.</summary>
+    private bool _heardWifi;
+
+    /// <summary>Whether that explanation has been given. Once is telling; every thirty seconds is noise.</summary>
+    private bool _saidAboutWifi;
+
+    /// <summary>Say something about Wi-Fi once, however many times the reason comes round again.</summary>
+    private void SayOnce(string line)
+    {
+        if (_saidAboutWifi)
+        {
+            return;
+        }
+
+        _saidAboutWifi = true;
+        _log?.LogWarning("{Line}", line);
+    }
+
     /// <summary>What the signature pack called the things around this phone, so a log shows its work.</summary>
     private string Named()
     {
@@ -575,6 +593,7 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
             var results = wifi.ScanResults;
             if (results is { Count: > 0 })
             {
+                _heardWifi = true;
                 var batch = new List<Observation>(results.Count);
                 foreach (var result in results)
                 {
@@ -583,6 +602,18 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
 
                 _devices.IngestBatch(batch, _fleets);
             }
+            else if (!_heardWifi)
+            {
+                // An empty list, not a refusal: a phone that will not hand over the access points says so by giving
+                // none, and the log reads as a quiet room. It is not. The list of access points around you is a map
+                // of where you are, so a phone gives it only to an app that may use your location — and a service
+                // with no screen is always in the background, where "while using the app" counts for nothing.
+                SayOnce(
+                    "Aether Aware hears no access points, though Wi-Fi is on. A phone hands over the ones around you "
+                    + "only when it may use your location, and this service has no screen, so it is always in the "
+                    + "background — where allowing location \"while using the app\" counts for nothing. On the "
+                    + "service's own page, choose Allow all the time. Bluetooth is unaffected either way.");
+            }
 
             // Deprecated since Android 9 and throttled since 10, but it is still the only way an app asks; without
             // it the list only changes when something else on the phone scans.
@@ -590,7 +621,13 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
         }
         catch (Exception ex)
         {
-            _log?.LogDebug(ex, "Aether Aware: no Wi-Fi results");
+            // Never Debug. Silence here is indistinguishable from a quiet room, and that is how a dead half of a
+            // feature goes unnoticed for as long as nobody happens to read a debug log.
+            if (!_saidAboutWifi)
+            {
+                _saidAboutWifi = true;
+                _log?.LogWarning(ex, "Aether Aware could not read the access points around this phone");
+            }
         }
     }
 
