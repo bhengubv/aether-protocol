@@ -509,4 +509,40 @@ public sealed class QuietHelpTests : IDisposable
             // A temp directory the system will clean up anyway.
         }
     }
+
+    [Fact]
+    public void WhenNothingCanGoOnTheAirTheReasonIsSaidAndSoIsWhetherItCanBePutRight()
+    {
+        // A phone with the permission refused: the mesh still carries it, the room does not hear it.
+        var refused = new FakeRadio { CanBeAllowed = true };
+        refused.Able.Clear();
+        var help = Keep(new QuietHelp(Store(), new FakeMessaging(Thandi), refused, _clock));
+        help.SetGuardians([new HelpGuardian(Sipho, "Sipho")]);
+
+        var mine = help.Current.Mine;
+        Assert.Equal("this radio cannot", mine.NearbyWhy);
+        Assert.True(mine.NearbyFixable);
+
+        // Nothing is wrong with asking for help itself — that is the point of saying it apart.
+        Assert.Null(mine.Why);
+        Assert.True(help.Start(HelpKind.Help));
+
+        // A device that simply has no such radio says the same reason and offers no way there.
+        var never = new FakeRadio();
+        never.Able.Clear();
+        var desktop = Keep(new QuietHelp(Store(), new FakeMessaging(Thandi), never, _clock));
+        desktop.SetGuardians([new HelpGuardian(Sipho, "Sipho")]);
+        Assert.NotNull(desktop.Current.Mine.NearbyWhy);
+        Assert.False(desktop.Current.Mine.NearbyFixable);
+    }
+
+    [Fact]
+    public void WhenTheAirIsFineNothingIsSaidAboutIt()
+    {
+        var (help, _, _) = Node(Thandi);
+        help.SetGuardians([new HelpGuardian(Sipho, "Sipho")]);
+
+        Assert.Null(help.Current.Mine.NearbyWhy);
+        Assert.False(help.Current.Mine.NearbyFixable);
+    }
 }

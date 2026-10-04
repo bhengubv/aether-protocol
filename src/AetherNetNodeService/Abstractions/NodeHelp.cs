@@ -195,6 +195,21 @@ public sealed record HelpState
 
     /// <summary>Why it cannot be sent at all, when it cannot — no guardians chosen, no radio.</summary>
     public string? Why { get; init; }
+
+    /// <summary>
+    /// Why the phones standing next to this person cannot hear it, in words a person reads, when they cannot. Null
+    /// when they can. This is apart from <see cref="Why"/> because it is the lesser half gone: the guardians still
+    /// get it over AetherNet, and only the people in the room are missed. The service says it rather than the app
+    /// working it out, so every app says the same thing and none of them has to know what a radio needs.
+    /// </summary>
+    public string? NearbyWhy { get; init; }
+
+    /// <summary>
+    /// True when <see cref="NearbyWhy"/> is something the person can put right on this phone's own pages — a
+    /// permission to allow, a radio to switch on — rather than something about the phone itself. An app shows the way
+    /// there when this is true, because AetherNetService has no screen of its own to show it on.
+    /// </summary>
+    public bool NearbyFixable { get; init; }
 }
 
 /// <summary>Someone this device is a guardian for, and what it knows of their help or walk.</summary>

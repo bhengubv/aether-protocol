@@ -197,4 +197,27 @@ public class HelpWireTests
 
         public int GetHashCode(T value) => 0;
     }
+
+    [Fact]
+    public void TheReasonThePhonesNearbyCannotHearItCrossesTheLink()
+    {
+        var report = new HelpReport
+        {
+            Mine = new HelpState
+            {
+                NearbyWhy = "needs permission to find devices nearby",
+                NearbyFixable = true,
+            },
+        };
+
+        var back = NodeWire.DecodeHelpReport(NodeWire.EncodeHelpReport(report));
+
+        Assert.Equal("needs permission to find devices nearby", back.Mine.NearbyWhy);
+        Assert.True(back.Mine.NearbyFixable);
+
+        // And an older service, which says nothing about it, reads as nothing to say rather than as a fault.
+        var older = NodeWire.DecodeHelpReport(System.Text.Encoding.UTF8.GetBytes("""{"mine":{"on":false}}"""));
+        Assert.Null(older.Mine.NearbyWhy);
+        Assert.False(older.Mine.NearbyFixable);
+    }
 }

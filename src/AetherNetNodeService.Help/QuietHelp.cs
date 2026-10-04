@@ -433,6 +433,13 @@ public sealed class QuietHelp : INodeHelpSource, IDisposable
             adverts.Add(new HelpAdvertChoice(form, usable, usable && form == chosen, WhyNot(form)));
         }
 
+        // Nothing this phone's radio can send means nobody in the room hears it, however well the mesh does. Said
+        // plainly and once, here, so every app says it the same way.
+        var nearbyWhy = adverts.Any(a => a.Available)
+            ? null
+            : _radio.Why(HelpAdvertForm.AetherNet128Pair) ?? "this phone cannot put it on the air over Bluetooth";
+        var fixable = nearbyWhy is not null && _radio.CanBeAllowed;
+
         return new HelpState
         {
             On = session is not null && !over,
@@ -449,6 +456,8 @@ public sealed class QuietHelp : INodeHelpSource, IDisposable
             Guardians = _store.Guardians,
             Triggers = _store.Triggers,
             Adverts = adverts,
+            NearbyWhy = nearbyWhy,
+            NearbyFixable = fixable,
             Why = _why,
         };
     }

@@ -32,6 +32,14 @@ internal static class ServicePermissions
         {
             list.Add(new("Nearby devices", Granted(global::Android.Manifest.Permission.NearbyWifiDevices) && Bluetooth,
                 "find phones near you, over Wi-Fi and Bluetooth"));
+
+            // From 13 the mesh no longer needs this — finding phones nearby stopped meaning "may track where you
+            // are", which is why the radio permissions say neverForLocation. Aether Aware does need it: where you
+            // are is what goes out when you ask for help quietly, and noticing a tag that moves with you means
+            // comparing its trail against where this phone has been. Saying no leaves everything else working.
+            list.Add(new("Location", Granted(global::Android.Manifest.Permission.AccessFineLocation),
+                "send where you are when you ask for help quietly, and notice a tracker moving with you"));
+
             list.Add(new("Notifications", Granted(global::Android.Manifest.Permission.PostNotifications),
                 "show that it is keeping you reachable"));
         }

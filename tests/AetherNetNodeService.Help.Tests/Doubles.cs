@@ -97,6 +97,9 @@ internal sealed class FakeRadio : IHelpRadio
 
     public HashSet<HelpAdvertForm> Able { get; } = [HelpAdvertForm.AetherNet128, HelpAdvertForm.AetherNet128Pair];
 
+    /// <summary>What a phone says when a permission is missing: not able, but able if the person allows it.</summary>
+    public bool CanBeAllowed { get; set; }
+
     public bool Can(HelpAdvertForm form) => Able.Contains(form);
 
     public string? Why(HelpAdvertForm form) => Can(form) ? null : "this radio cannot";

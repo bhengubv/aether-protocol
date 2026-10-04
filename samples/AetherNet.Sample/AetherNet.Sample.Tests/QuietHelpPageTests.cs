@@ -303,4 +303,67 @@ public class QuietHelpPageTests : IDisposable
             }
         }
     }
+
+    [Fact]
+    public void TheScreenSaysWhyPhonesNearbyCannotHearAndOffersTheWayThere()
+    {
+        var settings = new FakeServiceSettings();
+        _ctx.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(settings);
+        _node.Report = new HelpReport
+        {
+            Mine = new HelpState
+            {
+                Guardians = [new HelpGuardian(Sipho, "Sipho")],
+                NearbyWhy = "needs permission to find devices nearby",
+                NearbyFixable = true,
+            },
+        };
+
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        // The reason, on this screen, not buried in Settings — and what it costs, in plain words.
+        Assert.Contains("Phones next to you cannot hear you yet", page.Markup);
+        Assert.Contains("needs permission to find devices nearby", page.Markup);
+        Assert.Contains("still works", page.Markup);
+
+        // One tap opens AetherNetService's own page, because only that page can grant its permissions.
+        page.FindAll("button.about").First(b => b.TextContent.Contains("Put it right")).Click();
+        Assert.Equal(PermissionPage.AppInfo, settings.Opened);
+    }
+
+    [Fact]
+    public void TheScreenSaysNothingAboutNearbyPhonesWhenTheyCanHear()
+    {
+        _ctx.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(new FakeServiceSettings());
+        _node.Report = new HelpReport { Mine = new HelpState { Guardians = [new HelpGuardian(Sipho, "Sipho")] } };
+
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        Assert.DoesNotContain("Phones next to you cannot hear you yet", page.Markup);
+        Assert.DoesNotContain("Put it right", page.Markup);
+    }
+
+    /// <summary>A phone whose settings page can be opened, remembering which page was asked for.</summary>
+    private sealed class FakeServiceSettings : AetherNetNodeService.Client.IAetherNetServiceSettings
+    {
+        public PermissionPage? Opened { get; private set; }
+
+        public string PermissionName => "nearby devices";
+
+        public string WayThere => "AetherNetService on this phone";
+
+        public string Device => "phone";
+
+        public bool Open()
+        {
+            Opened = PermissionPage.AppInfo;
+            return true;
+        }
+
+        public bool Open(PermissionPage page)
+        {
+            Opened = page;
+            return true;
+        }
+    }
 }

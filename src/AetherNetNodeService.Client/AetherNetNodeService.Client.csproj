@@ -15,6 +15,7 @@
     <!-- NodeBackedMessaging answers an app's IMessagingService through the node, so an app keeps its own
          messaging code while the node does the radios and the keys. -->
     <ProjectReference Include="../AetherNet.Messaging/AetherNet.Messaging.csproj" />
+    <ProjectReference Include="../AetherNet.Mesh/AetherNet.Mesh.csproj" />
   </ItemGroup>
 
   <ItemGroup>

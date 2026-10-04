@@ -18,6 +18,12 @@ public interface IHelpRadio
     string? Why(HelpAdvertForm form);
 
     /// <summary>
+    /// Whether what stops this radio is something the person can allow or switch on, on this device's own pages —
+    /// against something about the device, which no tapping will change. An app shows the way there when it is true.
+    /// </summary>
+    bool CanBeAllowed => false;
+
+    /// <summary>
     /// Put this help message on the air, replacing whatever was going out. Called again every few seconds with a
     /// fresh one for as long as the session runs.
     /// </summary>

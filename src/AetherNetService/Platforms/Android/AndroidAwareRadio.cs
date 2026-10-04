@@ -187,6 +187,13 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A permission to allow and a switched-off Bluetooth are both the person's to put right, on this phone's own
+    /// pages. A phone with no Bluetooth advertising at all is not, and an app should not send anyone looking for it.
+    /// </remarks>
+    public bool CanBeAllowed => !Allowed(AdvertisePermission) || _adapter?.IsEnabled == false;
+
+    /// <inheritdoc />
     public void Advertise(byte[] message, HelpAdvertForm form, ushort? registeredId = null)
     {
         ArgumentNullException.ThrowIfNull(message);

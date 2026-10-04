@@ -216,7 +216,7 @@ public static class NodeWire
             new HelpStateDto(
                 mine.On, (int)mine.Kind, mine.StartedAt, mine.SafeAt, mine.Lat, mine.Lon, mine.AccuracyM, mine.FixAt,
                 mine.BatteryPercent, mine.Nearby, mine.GuardiansReached, guardians, Triggers(mine.Triggers), adverts,
-                mine.Why),
+                mine.Why, mine.NearbyWhy, mine.NearbyFixable),
             watching));
     }
 
@@ -288,6 +288,8 @@ public static class NodeWire
                 Triggers = Triggers(mine.Triggers),
                 Adverts = adverts,
                 Why = mine.Why,
+                NearbyWhy = mine.NearbyWhy,
+                NearbyFixable = mine.NearbyFixable,
             },
             Watching = watching,
         };
@@ -583,7 +585,8 @@ public static class NodeWire
         bool On = false, int Kind = (int)HelpKind.Safe, DateTimeOffset? StartedAt = null, DateTimeOffset? SafeAt = null,
         double? Lat = null, double? Lon = null, int? AccuracyM = null, DateTimeOffset? FixAt = null,
         int? BatteryPercent = null, bool Nearby = false, int GuardiansReached = 0, GuardianDto[]? Guardians = null,
-        TriggersDto? Triggers = null, AdvertDto[]? Adverts = null, string? Why = null);
+        TriggersDto? Triggers = null, AdvertDto[]? Adverts = null, string? Why = null, string? NearbyWhy = null,
+        bool NearbyFixable = false);
 
     private sealed record WatchCaseDto(
         string Person, string Name, int Kind, int Alert, DateTimeOffset FirstHeardAt, DateTimeOffset LastHeardAt,

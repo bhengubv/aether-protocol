@@ -47,8 +47,14 @@ public static class MauiProgram
 #else
         builder.Services.AddSingleton<ISecretVault>(_ => new FileSecretVault(Path.Combine(dataDir, "vault")));
 #endif
-        // Aether runs no radios of its own. On Android the radios belong to AetherNetService.
-        builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
+        // Aether runs no radios of its own. On Android the radios belong to AetherNetService — so ask the node what
+        // it has, rather than this app, which has none. Asking itself told somebody holding a Pixel that radios only
+        // exist on a phone, and the setup wizard then never offered the permission its radios were waiting for.
+        builder.Services.AddSingleton<IRadioSetup>(sp =>
+            sp.GetService<AetherNetNodeService.IAetherNodeClient>() is { } node
+                ? new AetherNetNodeService.Client.NodeRadioSetup(
+                    node, sp.GetService<AetherNetNodeService.Client.IAetherNetServiceSettings>())
+                : new NullRadioSetup());
 
 #if ANDROID || WINDOWS
         // The device's identity belongs to AetherNetService — a separate app, with no UI. Aether is a thin

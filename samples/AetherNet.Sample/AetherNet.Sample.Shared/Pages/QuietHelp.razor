@@ -2,9 +2,12 @@
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Services
 @using AetherNetNodeService
+@using AetherNetNodeService.Client
+@using Microsoft.Extensions.DependencyInjection
 @implements IDisposable
 @inject QuietHelpService Help
 @inject AetherStore Store
+@inject IServiceProvider Services
 
 <PageTitle>Aether — Quiet help</PageTitle>
 
@@ -22,6 +25,41 @@
                 Quiet help needs AetherNetService on this device — the radios and the mesh it would travel over are
                 the service's. On a phone with the service, this screen does the rest.
             </span></span></div>
+        </section>
+    }
+
+    @* The half that can be missing without anything looking broken: the mesh takes the message either way, but
+       nobody in the room hears it. Said here, where a person asks for help, rather than only in Settings — somebody
+       who needs this screen will not go looking through settings pages for the reason. *@
+    @if (Mine.NearbyWhy is { Length: > 0 } nearbyWhy)
+    {
+        <section class="group">
+            <div class="glabel">Phones next to you cannot hear you yet</div>
+            <div class="about">
+                <span class="about-body">
+                    <span class="about-t">@nearbyWhy</span>
+                    <span class="about-s">
+                        Quiet help goes two ways at once. Over AetherNet it reaches the guardians you chose, wherever
+                        they are, and that still works. Over Bluetooth it reaches any phone standing near you, even
+                        someone you have never met — and that is the half that is off. Switched on, a stranger's phone
+                        can carry your call for help out of a place with no signal.
+                    </span>
+                </span>
+            </div>
+            @if (Mine.NearbyFixable && _serviceSettings is not null)
+            {
+                <button class="about" @onclick="OpenServicePage">
+                    <span class="about-body">
+                        <span class="about-t">Put it right</span>
+                        <span class="about-s">
+                            @(_settingsFailed
+                                ? "This phone would not open its settings — find AetherNetService under Settings, then Apps, and allow it there."
+                                : "Opens AetherNetService's own page on this phone. Allow what it asks for there, then come back — nothing else to do.")
+                        </span>
+                    </span>
+                    <span class="chev">→</span>
+                </button>
+            }
         </section>
     }
 
@@ -170,6 +208,14 @@
 
 @code {
     private bool _busy;
+    private IAetherNetServiceSettings? _serviceSettings;
+    private bool _settingsFailed;
+
+    /// <summary>
+    /// AetherNetService's own page in the phone's settings, where its permissions are. Only that page can change
+    /// them — a phone keeps permissions per app, and one app cannot grant another's.
+    /// </summary>
+    private void OpenServicePage() => _settingsFailed = !(_serviceSettings?.Open(PermissionPage.AppInfo) ?? false);
 
     private HelpState Mine => Help.Mine;
 
@@ -198,6 +244,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _serviceSettings = Services.GetService<IAetherNetServiceSettings>();
         Help.Changed += OnChanged;
         Help.Listen();
         Contacts = Store.GetContacts();
