@@ -94,6 +94,9 @@ public sealed class AndroidRadioMesh : RadioMesh
 
     protected override void Handed(string line) => global::Android.Util.Log.Info("AetherBLE", line);
 
+    /// <summary>How many times the phone would not say whether it has a network. Static, as the asking is.</summary>
+    private static int _unreadableNetwork;
+
     private static bool HasInternet(Context context, ILogger logger)
     {
         try
@@ -106,7 +109,13 @@ public sealed class AndroidRadioMesh : RadioMesh
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Could not read connectivity");
+            // As in InternetRadio, and for the same reason: a silent false is the same as no internet, for ever.
+            var failed = System.Threading.Interlocked.Increment(ref _unreadableNetwork);
+            if (failed == 1 || failed % 200 == 0)
+            {
+                logger.LogWarning(ex, "Could not read connectivity, so this device is treated as having none ({Count} so far)", failed);
+            }
+
             return false;
         }
     }

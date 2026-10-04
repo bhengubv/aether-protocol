@@ -16,6 +16,7 @@ public sealed class QuietHelpService : IDisposable
     private readonly ILogger? _log;
     private IDisposable? _listening;
     private bool _disposed;
+    private bool _saidAboutListening;
 
     /// <param name="node">
     /// The device's node. Null on a head with none — the web one — where Quiet help cannot run at all, because it
@@ -29,6 +30,12 @@ public sealed class QuietHelpService : IDisposable
 
     /// <summary>Whether this device has a node that could carry Quiet help.</summary>
     public bool Available => _node is not null;
+
+    /// <summary>
+    /// Whether the node's pushes are being heard. False means a screen only knows what it last asked for — it will
+    /// not go still for long, because every refresh tries again, but while it is false nothing arrives on its own.
+    /// </summary>
+    public bool Live => _listening is not null;
 
     /// <summary>Something a screen would redraw: a session started or ended, somebody moved, somebody is safe.</summary>
     public event Action? Changed;
@@ -61,7 +68,14 @@ public sealed class QuietHelpService : IDisposable
         }
         catch (Exception ex)
         {
-            _log?.LogDebug(ex, "could not listen for Quiet help");
+            // Nothing else retried this, and it is asked for once: a failure here meant a screen that never updated
+            // again — on the one feature where somebody is waiting to be told. Now every refresh tries again, so it
+            // heals itself, and the first failure is said plainly instead of whispered to a debug log.
+            if (!_saidAboutListening)
+            {
+                _saidAboutListening = true;
+                _log?.LogWarning(ex, "Quiet help is not hearing the node's own news yet — it will keep trying");
+            }
         }
     }
 
@@ -76,6 +90,10 @@ public sealed class QuietHelpService : IDisposable
             Changed?.Invoke();
             return;
         }
+
+        // Ask to be told again. It costs nothing when it is already listening, and it is what turns a subscription
+        // that failed once into one that simply starts late.
+        Listen();
 
         try
         {

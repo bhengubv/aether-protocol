@@ -174,7 +174,22 @@ public sealed class WatchService : IDisposable
     private async Task HandleAsync(MeshPacket packet)
     {
         try { await Watch().HandleAsync(packet).ConfigureAwait(false); }
-        catch (Exception ex) { _log.LogDebug(ex, "handling a watch packet"); }
+        catch (Exception ex) { Trouble(ex, "a watch packet could not be handled"); }
+    }
+
+    private int _unhandled;
+
+    /// <summary>
+    /// Say that a packet could not be handled the first time, and then rarely, with a count. One is a peer sending
+    /// nonsense and must not shout; every single one is this feature being deaf, and only the count tells them apart.
+    /// </summary>
+    private void Trouble(Exception ex, string what)
+    {
+        var failed = System.Threading.Interlocked.Increment(ref _unhandled);
+        if (failed == 1 || failed % 100 == 0)
+        {
+            _log.LogWarning(ex, "{What} ({Count} so far)", what, failed);
+        }
     }
 
     private void T(string message)

@@ -442,7 +442,9 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
         }
         catch (Exception ex)
         {
-            _log?.LogDebug(ex, "reading the battery");
+            // Not cosmetic: the battery goes out inside a cry for help, and is how a guardian judges how long the
+            // person stays findable. Missing, it simply is not in the message, and nothing says it should have been.
+            Trouble(ref _unreadableBattery, ex, "the battery could not be read");
         }
     }
 
@@ -502,6 +504,26 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
 
     /// <summary>How many adverts arrived and could not be read. Counted, because nothing else would show it.</summary>
     private int _unreadable;
+
+    /// <summary>How many positions arrived and could not be used. Counted, because a trail cannot report its own gaps.</summary>
+    private int _unusablePositions;
+
+    /// <summary>How many times the battery could not be read.</summary>
+    private int _unreadableBattery;
+
+    /// <summary>
+    /// Say that something went wrong the first time, and then rarely, with a count. A thing that fails once is
+    /// noise; a thing that fails every single time is a dead feature, and the count is what tells them apart. This
+    /// is the whole lesson of a day spent finding three of them hidden behind LogDebug.
+    /// </summary>
+    private void Trouble(ref int count, Exception ex, string what)
+    {
+        var failed = System.Threading.Interlocked.Increment(ref count);
+        if (failed == 1 || failed % 500 == 0)
+        {
+            _log?.LogWarning(ex, "Aether Aware: {What} ({Count} so far)", what, failed);
+        }
+    }
 
     /// <summary>Whether this phone has ever handed over an access point. Until it has, silence needs explaining.</summary>
     private bool _heardWifi;
@@ -848,11 +870,7 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
                 // threw here, and the phone cheerfully reported hearing nothing at all — no count, no warning, no
                 // sign anywhere that Aware was dead. The first one is said plainly; after that a count, so that a
                 // flood of them is still one line and not a flood.
-                var failed = System.Threading.Interlocked.Increment(ref owner._unreadable);
-                if (failed == 1 || failed % 500 == 0)
-                {
-                    owner._log?.LogWarning(ex, "Aether Aware could not read an advert ({Count} so far)", failed);
-                }
+                owner.Trouble(ref owner._unreadable, ex, "an advert could not be read");
             }
         }
 
@@ -884,7 +902,10 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
             }
             catch (Exception ex)
             {
-                owner._log?.LogDebug(ex, "a position could not be taken");
+                // The twin of the advert one above, and it was still here after that was fixed. Every position that
+                // throws leaves this phone not knowing where it is, "moving with you" with nothing to measure
+                // against, and a trail that is empty rather than wrong — which reads as nothing being there.
+                owner.Trouble(ref owner._unusablePositions, ex, "a position could not be taken");
             }
         }
 

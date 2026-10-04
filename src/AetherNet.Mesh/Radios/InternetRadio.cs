@@ -103,6 +103,8 @@ public sealed class InternetRadio : IRadio, IDisposable
         Status?.Invoke(message);
     }
 
+    private int _unreadableNetwork;
+
     private bool HasNetwork
     {
         get
@@ -113,7 +115,15 @@ public sealed class InternetRadio : IRadio, IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Could not read connectivity");
+                // False here is indistinguishable from having no internet, so a fault that happens every time keeps
+                // this radio down for good and the app says "not connected" with nobody able to find out why. Said
+                // the first time, and then rarely, because it is asked often.
+                var failed = System.Threading.Interlocked.Increment(ref _unreadableNetwork);
+                if (failed == 1 || failed % 200 == 0)
+                {
+                    _logger.LogWarning(ex, "Could not read connectivity, so this device is treated as having none ({Count} so far)", failed);
+                }
+
                 return false;
             }
         }

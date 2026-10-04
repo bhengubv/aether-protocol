@@ -294,7 +294,22 @@ public class QuietHelpPageTests : IDisposable
         public Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(NodeLinkStatus.Offline);
 
-        public IDisposable Subscribe(IAetherNodeEvents listener) => new Nothing();
+        /// <summary>How many times it refuses to be listened to before it allows it. A service not up yet.</summary>
+        public int RefuseListening { get; set; }
+
+        public int Subscriptions { get; private set; }
+
+        public IDisposable Subscribe(IAetherNodeEvents listener)
+        {
+            if (RefuseListening > 0)
+            {
+                RefuseListening--;
+                throw new InvalidOperationException("the service is not answering yet");
+            }
+
+            Subscriptions++;
+            return new Nothing();
+        }
 
         private sealed class Nothing : IDisposable
         {
@@ -365,5 +380,28 @@ public class QuietHelpPageTests : IDisposable
             Opened = page;
             return true;
         }
+    }
+
+    [Fact]
+    public async Task AScreenThatCouldNotListenTriesAgainRatherThanGoingStillForEver()
+    {
+        // Asked for once and nothing retried it: a service not up at that moment left the screen never updating
+        // again, on the one feature where somebody is waiting to be told.
+        _node.RefuseListening = 1;
+        var help = new QuietHelpService(_node);
+
+        help.Listen();
+        Assert.False(help.Live);
+        Assert.Equal(0, _node.Subscriptions);
+
+        // The next refresh asks again, and from then on the node's own news arrives.
+        await help.RefreshAsync();
+
+        Assert.True(help.Live);
+        Assert.Equal(1, _node.Subscriptions);
+
+        // And it does not keep subscribing once it is listening.
+        await help.RefreshAsync();
+        Assert.Equal(1, _node.Subscriptions);
     }
 }
