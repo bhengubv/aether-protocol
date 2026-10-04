@@ -16,6 +16,11 @@ builder.Services.AddRazorComponents()
 // Add device-specific services used by the AetherNet.Sample.Shared project
 builder.Services.AddSingleton<IFormFactor, FormFactor>();
 
+// Quiet help's screen, which on this head reports that it needs AetherNetService: there is no node here to carry it.
+builder.Services.AddSingleton(sp => new QuietHelpService(
+    sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
+    sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()));
+
 // Durable state for this host. The Web head is a demo surface, so it keeps its database beside the
 // app rather than in a phone's private storage.
 var dataDir = Path.Combine(AppContext.BaseDirectory, "aether-data");

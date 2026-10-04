@@ -251,6 +251,11 @@ public static class MauiProgram
 
         // Emergency SOS on the real mesh — a reachable feature now, not just a Lab demo. Primed at
         // warm-up (below) so it hears alerts before any screen is opened.
+        // Quiet help, as a screen sees it: a thin client over the node, which owns the session and the trail.
+        builder.Services.AddSingleton(sp => new QuietHelpService(
+            sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
+            sp.GetService<ILoggerFactory>()));
+
         builder.Services.AddSingleton<SosService>(sp => new SosService(
             sp.GetRequiredService<IIdentityService>(),
             sp.GetService<IRadioMesh>(),

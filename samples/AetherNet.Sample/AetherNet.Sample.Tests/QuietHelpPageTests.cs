@@ -1,0 +1,306 @@
+// SPDX-License-Identifier: MIT
+
+using AetherNet.Identity;
+using AetherNet.Sample.Shared.Data;
+using AetherNet.Sample.Shared.Pages;
+using AetherNet.Sample.Shared.Services;
+using AetherNetNodeService;
+using Bunit;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+
+namespace AetherNet.Sample.Tests;
+
+/// <summary>
+/// Quiet help's screen. A thin client: everything it shows comes from the node's one report, and every tap is one
+/// call back to the node — so these prove the screen says what the node said, and asks for what the person tapped.
+/// </summary>
+public class QuietHelpPageTests : IDisposable
+{
+    private static readonly AetherNetTag Sipho = AetherNetTag.FromPublicKey([2, .. new byte[31]]);
+    private static readonly AetherNetTag Thandi = AetherNetTag.FromPublicKey([1, .. new byte[31]]);
+
+    private readonly TestContext _ctx = new();
+    private readonly FakeNode _node = new();
+    private readonly string _db = Path.Combine(Path.GetTempPath(), "aether-qhelp-" + Guid.NewGuid().ToString("N") + ".db");
+    private readonly AetherStore _store;
+
+    public QuietHelpPageTests()
+    {
+        _store = new AetherStore(_db);
+        _ctx.Services.AddSingleton(_store);
+        _ctx.Services.AddSingleton<IAetherNodeClient>(_node);
+        _ctx.Services.AddSingleton(sp => new QuietHelpService(sp.GetService<IAetherNodeClient>()));
+    }
+
+    [Fact]
+    public void ItOffersBothWaysAndWillNotStartWithNobodyChosen()
+    {
+        _node.Report = new HelpReport { Mine = new HelpState { Why = "nobody chosen to ask yet" } };
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        Assert.Contains("Ask for help, quietly", page.Markup);
+        Assert.Contains("Walk with me", page.Markup);
+        Assert.Contains("nobody chosen to ask yet", page.Markup);
+        Assert.All(page.FindAll("button.qhelp-ask"), b => Assert.True(b.HasAttribute("disabled")));
+    }
+
+    [Fact]
+    public void WithSomebodyChosenTheTapAsksTheNode()
+    {
+        _node.Report = Running(on: false);
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        page.FindAll("button.about").First(b => b.TextContent.Contains("Ask for help")).Click();
+
+        Assert.Equal(HelpKind.Help, _node.Started);
+    }
+
+    [Fact]
+    public void ARunningSessionShowsItsReachAndTheWayToStopIt()
+    {
+        _node.Report = Running(on: true, reached: 2, guardians: 3, nearby: true, lat: -26.2041, accuracy: 9);
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        Assert.Contains("You asked for help", page.Markup);
+        Assert.Contains("2 of 3 taken by the mesh", page.Markup);
+        Assert.Contains("on the air for phones near you", page.Markup);
+        Assert.Contains("to about 9 m", page.Markup);
+
+        page.Find("button.qhelp-safe").Click();
+        Assert.True(_node.MarkedSafe);
+    }
+
+    [Fact]
+    public void WithNoPositionItSaysSoRatherThanLookingEmpty()
+    {
+        _node.Report = Running(on: true, reached: 1, guardians: 1);
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        Assert.Contains("No position yet", page.Markup);
+    }
+
+    [Fact]
+    public void SomebodyAskingThisPersonForHelpIsShownWithHowCloseTheySound()
+    {
+        _node.Report = new HelpReport
+        {
+            Mine = new HelpState(),
+            Watching =
+            [
+                new HelpWatchCase
+                {
+                    Person = Thandi,
+                    Name = "Thandi",
+                    Kind = HelpKind.Help,
+                    FirstHeardAt = DateTimeOffset.UtcNow,
+                    LastHeardAt = DateTimeOffset.UtcNow,
+                    LastNearbyAt = DateTimeOffset.UtcNow,
+                    Lat = -26.21,
+                    Lon = 28.05,
+                    AccuracyM = 12,
+                    BatteryPercent = 31,
+                    Find = HelpFindCue.Closer,
+                    Trail = [new HelpPoint(DateTimeOffset.UtcNow, -26.21, 28.05, 12, Reported: true)],
+                },
+            ],
+        };
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        Assert.Contains("Asking you for help", page.Markup);
+        Assert.Contains("Thandi — needs help", page.Markup);
+        Assert.Contains("to about 12 m", page.Markup);
+        Assert.Contains("battery 31%", page.Markup);
+        Assert.Contains("closer", page.Markup);
+    }
+
+    [Fact]
+    public void AContactGoesOffThenLoudThenQuietOnOneTapEach()
+    {
+        _store.UpsertContact(Sipho.Value!, null, byMe: true, byThem: true, via: "test", displayName: "Sipho");
+        _node.Report = new HelpReport { Mine = new HelpState() };
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        var row = page.FindAll("button.about").First(b => b.TextContent.Contains("Sipho"));
+        Assert.Contains("off", row.TextContent);
+        row.Click();
+
+        var chosen = Assert.Single(_node.Guardians);
+        Assert.Equal(Sipho.Value, chosen.Tag.Value);
+        Assert.Equal("Sipho", chosen.Name);
+        Assert.Equal(HelpAlert.Loud, chosen.Alert);
+
+        // The next tap lets them have it quietly, and the one after turns them off again.
+        page.FindAll("button.about").First(b => b.TextContent.Contains("Sipho")).Click();
+        Assert.Equal(HelpAlert.Quiet, Assert.Single(_node.Guardians).Alert);
+
+        page.FindAll("button.about").First(b => b.TextContent.Contains("Sipho")).Click();
+        Assert.Empty(_node.Guardians);
+    }
+
+    [Fact]
+    public void EveryTriggerSaysWhatOnAndOffMeanAndCanBeTurnedOff()
+    {
+        _node.Report = new HelpReport { Mine = new HelpState() };
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        Assert.Contains("The power button, five times", page.Markup);
+        Assert.Contains("Works with the screen locked", page.Markup);
+        Assert.Contains("Shaking the phone", page.Markup);
+        Assert.Contains("A second PIN", page.Markup);
+        Assert.Contains("Only your own PIN opens Aether", page.Markup);   // off by default, so the off words show
+
+        page.FindAll("button.about").First(b => b.TextContent.Contains("Shaking the phone")).Click();
+        Assert.NotNull(_node.Triggers);
+        Assert.False(_node.Triggers!.On(HelpTrigger.Shake));
+        Assert.True(_node.Triggers.On(HelpTrigger.PowerButton));
+    }
+
+    [Fact]
+    public void AnAdvertThisPhoneCannotSendSaysWhyAndCannotBeChosen()
+    {
+        _node.Report = new HelpReport
+        {
+            Mine = new HelpState
+            {
+                Adverts =
+                [
+                    new HelpAdvertChoice(HelpAdvertForm.Registered16, false, false, "needs a 16-bit Bluetooth service ID registered to us"),
+                    new HelpAdvertChoice(HelpAdvertForm.AetherNet128, true, true),
+                ],
+            },
+        };
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        Assert.Contains("needs a 16-bit Bluetooth service ID registered to us", page.Markup);
+        Assert.Contains("in use", page.Markup);
+        var standard = page.FindAll("button.about").First(b => b.TextContent.Contains("every phone can hear it"));
+        Assert.True(standard.HasAttribute("disabled"));
+        standard.Click();
+        Assert.Null(_node.Advert);   // not chosen, because this phone cannot send it
+    }
+
+    [Fact]
+    public void WithNoNodeTheScreenSaysItNeedsTheService()
+    {
+        using var ctx = new TestContext();
+        ctx.Services.AddSingleton(_store);
+        ctx.Services.AddSingleton(_ => new QuietHelpService(node: null));
+
+        var page = ctx.RenderComponent<QuietHelp>();
+        Assert.Contains("needs AetherNetService", page.Markup);
+        Assert.All(page.FindAll("button.qhelp-ask"), b => Assert.True(b.HasAttribute("disabled")));
+    }
+
+    private static HelpReport Running(
+        bool on, int reached = 0, int guardians = 1, bool nearby = false, double? lat = null, int? accuracy = null)
+    {
+        var chosen = new List<HelpGuardian>();
+        for (var i = 0; i < guardians; i++)
+        {
+            chosen.Add(new HelpGuardian(AetherNetTag.FromPublicKey([(byte)(20 + i), .. new byte[31]]), "G" + i));
+        }
+
+        return new HelpReport
+        {
+            Mine = new HelpState
+            {
+                On = on,
+                Kind = on ? HelpKind.Help : HelpKind.Safe,
+                StartedAt = on ? DateTimeOffset.UtcNow : null,
+                GuardiansReached = reached,
+                Nearby = nearby,
+                Lat = lat,
+                Lon = lat is null ? null : 28.0473,
+                AccuracyM = accuracy,
+                Guardians = chosen,
+            },
+        };
+    }
+
+    public void Dispose()
+    {
+        _ctx.Dispose();
+        _store.Dispose();
+        try
+        {
+            if (File.Exists(_db))
+            {
+                File.Delete(_db);
+            }
+        }
+        catch (IOException)
+        {
+        }
+    }
+
+    /// <summary>A node that answers Quiet help and remembers what the screen asked of it.</summary>
+    private sealed class FakeNode : IAetherNodeClient
+    {
+        public HelpReport Report { get; set; } = HelpReport.None;
+
+        public HelpKind? Started { get; private set; }
+
+        public bool MarkedSafe { get; private set; }
+
+        public IReadOnlyList<HelpGuardian> Guardians { get; private set; } = [];
+
+        public HelpTriggers? Triggers { get; private set; }
+
+        public HelpAdvertForm? Advert { get; private set; }
+
+        public Task<HelpReport> GetHelpAsync(CancellationToken cancellationToken = default) => Task.FromResult(Report);
+
+        public Task<bool> StartHelpAsync(HelpKind kind, CancellationToken cancellationToken = default)
+        {
+            Started = kind;
+            return Task.FromResult(true);
+        }
+
+        public Task MarkSafeAsync(CancellationToken cancellationToken = default)
+        {
+            MarkedSafe = true;
+            return Task.CompletedTask;
+        }
+
+        public Task SetHelpGuardiansAsync(IReadOnlyList<HelpGuardian> guardians, CancellationToken cancellationToken = default)
+        {
+            Guardians = guardians;
+            Report = Report with { Mine = Report.Mine with { Guardians = guardians } };
+            return Task.CompletedTask;
+        }
+
+        public Task SetHelpOptionsAsync(HelpTriggers triggers, HelpAdvertForm advert, CancellationToken cancellationToken = default)
+        {
+            Triggers = triggers;
+            Advert = advert;
+            Report = Report with { Mine = Report.Mine with { Triggers = triggers } };
+            return Task.CompletedTask;
+        }
+
+        public Task<AetherNetTag> GetTagAsync(CancellationToken cancellationToken = default) => Task.FromResult(Thandi);
+
+        public Task<byte[]> GetPublicKeyAsync(CancellationToken cancellationToken = default) => Task.FromResult(new byte[32]);
+
+        public Task<byte[]> SignAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
+            => Task.FromResult(new byte[64]);
+
+        public Task<OutboundResult> SendAsync(AetherNetTag to, ReadOnlyMemory<byte> payload, Guid messageId, CancellationToken cancellationToken = default)
+            => Task.FromResult(OutboundResult.Queued);
+
+        public Task<IReadOnlyList<InboundMessage>> GetInboxAsync(int limit = 50, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<InboundMessage>>([]);
+
+        public Task<NodeLinkStatus> GetLinkAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(NodeLinkStatus.Offline);
+
+        public IDisposable Subscribe(IAetherNodeEvents listener) => new Nothing();
+
+        private sealed class Nothing : IDisposable
+        {
+            public void Dispose()
+            {
+            }
+        }
+    }
+}

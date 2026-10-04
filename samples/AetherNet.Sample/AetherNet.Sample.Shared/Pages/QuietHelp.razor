@@ -1,0 +1,338 @@
+@page "/quiet-help"
+@using AetherNet.Sample.Shared.Data
+@using AetherNet.Sample.Shared.Services
+@using AetherNetNodeService
+@implements IDisposable
+@inject QuietHelpService Help
+@inject AetherStore Store
+
+<PageTitle>Aether — Quiet help</PageTitle>
+
+<div class="qhelp">
+    <h1 class="scr-title">Quiet help</h1>
+    <p class="lede">
+        Ask the people you choose for help without a sound, and let them follow where you are until you say you are
+        safe. Your phone stays quiet; theirs does not.
+    </p>
+
+    @if (!Help.Available)
+    {
+        <section class="group">
+            <div class="about"><span class="about-body"><span class="about-s">
+                Quiet help needs AetherNetService on this device — the radios and the mesh it would travel over are
+                the service's. On a phone with the service, this screen does the rest.
+            </span></span></div>
+        </section>
+    }
+
+    @* What is going out right now. Said as reach, not as a promise: a mesh is best-effort. *@
+    @if (Mine.On)
+    {
+        <section class="qhelp-live">
+            <div class="qhelp-live-word">@(Mine.Kind == HelpKind.Help ? "You asked for help" : "You are sharing your way")</div>
+            <div class="qhelp-live-reach">
+                @Mine.GuardiansReached of @Mine.Guardians.Count taken by the mesh@(Mine.Nearby ? ", and on the air for phones near you" : "")
+            </div>
+            @if (Mine.Lat is { } lat && Mine.Lon is { } lon)
+            {
+                <div class="qhelp-live-where">
+                    Sending where you are@(Mine.AccuracyM is { } metres ? $" — to about {metres} m" : "")
+                </div>
+            }
+            else
+            {
+                <div class="qhelp-live-where">No position yet — they get where their phones hear you</div>
+            }
+            <button class="qhelp-safe" @onclick="MarkSafe" disabled="@_busy">I am safe — stop it</button>
+        </section>
+    }
+    else
+    {
+        <section class="group">
+            <button class="about qhelp-ask" @onclick="() => Start(HelpKind.Help)" disabled="@(_busy || !CanAsk)">
+                <span class="about-body">
+                    <span class="about-t">Ask for help, quietly</span>
+                    <span class="about-s">Your guardians are told at once, and keep getting where you are.</span>
+                </span>
+                <span class="chev">→</span>
+            </button>
+            <button class="about" @onclick="() => Start(HelpKind.Walk)" disabled="@(_busy || !CanAsk)">
+                <span class="about-body">
+                    <span class="about-t">Walk with me</span>
+                    <span class="about-s">The same, without the alarm — they can see your way until you arrive.</span>
+                </span>
+                <span class="chev">→</span>
+            </button>
+            @if (Mine.Why is { Length: > 0 } why)
+            {
+                <div class="about"><span class="about-body"><span class="about-s">@why</span></span></div>
+            }
+        </section>
+    }
+
+    @* The people who chose you. Theirs is the emergency, so this is the loud half of the screen. *@
+    @if (Help.Watching.Count > 0)
+    {
+        <section class="group">
+            <div class="glabel">Asking you for help</div>
+            @foreach (var person in Help.Watching)
+            {
+                <div class="about qhelp-case">
+                    <span class="about-body">
+                        <span class="about-t">@person.Name @(person.IsSafe ? "— safe" : person.Kind == HelpKind.Walk ? "— on their way" : "— needs help")</span>
+                        <span class="about-s">@Line(person)</span>
+                    </span>
+                    <span class="chev">@Closeness(person)</span>
+                </div>
+            }
+        </section>
+    }
+
+    @* Who to ask. Changing this hands out a new key, so somebody taken off cannot read what comes next. *@
+    <section class="group">
+        <div class="glabel">Who to ask</div>
+        @if (Contacts.Count == 0)
+        {
+            <div class="about"><span class="about-body"><span class="about-s">
+                Add somebody to Aether first — Quiet help goes to the people you have, not to strangers.
+            </span></span></div>
+        }
+        @foreach (var contact in Contacts)
+        {
+            var chosen = Chosen(contact.Tag);
+            <button class="about" @onclick="() => ToggleGuardian(contact)" disabled="@_busy">
+                <span class="about-body">
+                    <span class="about-t">@Named(contact)</span>
+                    <span class="about-s">
+                        @(chosen is null
+                            ? "Not asked. On, they get your help message and your way."
+                            : chosen.Alert == HelpAlert.Loud
+                                ? "Asked, and their phone sounds. Tap to let them have it quietly."
+                                : "Asked, quietly — their phone shows it without a sound. Tap to turn them off.")
+                    </span>
+                </span>
+                <span class="chev">@(chosen is null ? "off" : chosen.Alert == HelpAlert.Loud ? "loud" : "quiet")</span>
+            </button>
+        }
+    </section>
+
+    @* How to start it. Everything on by default; each line says what on and off mean. *@
+    <section class="group">
+        <div class="glabel">How to start it</div>
+        @foreach (var trigger in Triggers)
+        {
+            var on = Mine.Triggers.On(trigger.Which);
+            <button class="about" @onclick="() => ToggleTrigger(trigger.Which, !on)" disabled="@_busy">
+                <span class="about-body">
+                    <span class="about-t">@trigger.Name</span>
+                    <span class="about-s">@(on ? trigger.On : trigger.Off)</span>
+                </span>
+                <span class="chev">@(on ? "on" : "off")</span>
+            </button>
+        }
+    </section>
+
+    @* And how it goes out over Bluetooth. A container this phone cannot use says so rather than failing quietly. *@
+    <section class="group">
+        <div class="glabel">On the air</div>
+        @foreach (var advert in Mine.Adverts)
+        {
+            <button class="about" @onclick="() => ChooseAdvert(advert)" disabled="@(_busy || !advert.Available)">
+                <span class="about-body">
+                    <span class="about-t">@AdvertName(advert.Form)</span>
+                    <span class="about-s">@(advert.Why is { Length: > 0 } why ? why : AdvertLine(advert.Form))</span>
+                </span>
+                <span class="chev">@(advert.Chosen ? "in use" : advert.Available ? "use" : "—")</span>
+            </button>
+        }
+        <div class="about"><span class="about-body"><span class="about-s">
+            Over the mesh it reaches your guardians wherever AetherNet can carry it. On the air it reaches any phone
+            standing near you that runs AetherNet — and only your guardians can read it either way.
+        </span></span></div>
+    </section>
+</div>
+
+<style>
+    .qhelp { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; padding-bottom: 40px; }
+
+    /* Quiet on this phone, so nothing shouts here. The one strong colour is for a session that is actually running,
+       and it is the same danger red the SOS screen uses — an emergency signal, not decoration. */
+    .qhelp-live { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+        border: 2px solid #d7263d; border-radius: 20px; padding: 24px; }
+    .qhelp-live-word { font-size: 1.3rem; font-weight: 850; color: #d7263d; }
+    .qhelp-live-reach { font-size: 1rem; color: var(--ink-2); }
+    .qhelp-live-where { font-size: 0.95rem; color: var(--ink-2); }
+    .qhelp-safe { appearance: none; border: none; cursor: pointer; margin-top: 8px; width: 100%;
+        background: var(--brand); color: #fff; border-radius: 12px; padding: 14px; font-weight: 800; font-size: 1.05rem; }
+
+    .qhelp-case { border-left: 3px solid #d7263d; }
+</style>
+
+@code {
+    private bool _busy;
+
+    private HelpState Mine => Help.Mine;
+
+    private IReadOnlyList<ContactRecord> Contacts { get; set; } = [];
+
+    private bool CanAsk => Help.Available && Mine.Guardians.Count > 0;
+
+    private static readonly (HelpTrigger Which, string Name, string On, string Off)[] Triggers =
+    [
+        (HelpTrigger.AppButton, "This screen",
+            "On. The two buttons above start it.",
+            "Off. You would have to use one of the other ways."),
+        (HelpTrigger.Notification, "A held press on AetherNet's notification",
+            "On. It is always there, so you need not find the app.",
+            "Off. The notification does nothing but say AetherNet is running."),
+        (HelpTrigger.PowerButton, "The power button, five times",
+            "On. Works with the screen locked and the phone in your hand.",
+            "Off. Pressing power only wakes the screen."),
+        (HelpTrigger.Shake, "Shaking the phone",
+            "On. Three hard shakes. Being carried does not count.",
+            "Off. Shaking does nothing."),
+        (HelpTrigger.DuressPin, "A second PIN",
+            "On. That PIN opens Aether as usual and asks for help at the same time.",
+            "Off. Only your own PIN opens Aether."),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Help.Changed += OnChanged;
+        Help.Listen();
+        Contacts = Store.GetContacts();
+        await Help.RefreshAsync();
+    }
+
+    private HelpGuardian? Chosen(string tag)
+    {
+        foreach (var guardian in Mine.Guardians)
+        {
+            if (string.Equals(guardian.Tag.Value, tag, StringComparison.OrdinalIgnoreCase))
+            {
+                return guardian;
+            }
+        }
+
+        return null;
+    }
+
+    private static string Named(ContactRecord contact)
+        => string.IsNullOrWhiteSpace(contact.DisplayName) ? contact.Tag : contact.DisplayName;
+
+    /// <summary>Off → loud → quiet → off: one tap moves a person through what they can be.</summary>
+    private async Task ToggleGuardian(ContactRecord contact)
+    {
+        if (!AetherNet.Identity.AetherNetTag.TryParse(contact.Tag, out var tag))
+        {
+            return;
+        }
+
+        var next = new List<HelpGuardian>();
+        var was = Chosen(contact.Tag);
+        foreach (var guardian in Mine.Guardians)
+        {
+            if (!string.Equals(guardian.Tag.Value, contact.Tag, StringComparison.OrdinalIgnoreCase))
+            {
+                next.Add(guardian);
+            }
+        }
+
+        if (was is null)
+        {
+            next.Add(new HelpGuardian(tag, Named(contact)));
+        }
+        else if (was.Alert == HelpAlert.Loud)
+        {
+            next.Add(was with { Name = Named(contact), Alert = HelpAlert.Quiet });
+        }
+
+        await Busy(() => Help.SetGuardiansAsync(next));
+    }
+
+    private Task ToggleTrigger(HelpTrigger trigger, bool on) => Busy(() => Help.SetTriggerAsync(trigger, on));
+
+    private Task ChooseAdvert(HelpAdvertChoice advert)
+        => advert.Available && !advert.Chosen
+            ? Busy(() => Help.SetOptionsAsync(Mine.Triggers, advert.Form))
+            : Task.CompletedTask;
+
+    private Task Start(HelpKind kind) => Busy(() => Help.StartAsync(kind));
+
+    private Task MarkSafe() => Busy(() => Help.MarkSafeAsync());
+
+    private async Task Busy(Func<Task> work)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await work();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string AdvertName(HelpAdvertForm form) => form switch
+    {
+        HelpAdvertForm.Registered16 => "The standard advert — every phone can hear it",
+        _ => "AetherNet's own — needs Bluetooth 5 at both ends",
+    };
+
+    private static string AdvertLine(HelpAdvertForm form) => form switch
+    {
+        HelpAdvertForm.Registered16 => "Fits the advert any phone can send, so the most phones near you hear it.",
+        _ => "Ours, free and needs nobody's permission. Older phones cannot send or hear it.",
+    };
+
+    private static string Line(HelpWatchCase person)
+    {
+        var parts = new List<string>(4);
+        if (person.Lat is not null && person.Lon is not null)
+        {
+            parts.Add(person.AccuracyM is { } metres ? $"to about {metres} m" : "position known");
+        }
+        else if (person.Trail.Count > 0)
+        {
+            parts.Add("heard near you");
+        }
+
+        if (person.Trail.Count > 1)
+        {
+            parts.Add($"{person.Trail.Count} points");
+        }
+
+        if (person.BatteryPercent is { } battery)
+        {
+            parts.Add($"battery {battery}%");
+        }
+
+        if (person.LastNearbyAt is null)
+        {
+            parts.Add("over the mesh");
+        }
+
+        return parts.Count == 0 ? "Nothing more yet" : string.Join(" · ", parts);
+    }
+
+    private static string Closeness(HelpWatchCase person) => person.Find switch
+    {
+        HelpFindCue.VeryClose => "here",
+        HelpFindCue.Closer => "closer",
+        HelpFindCue.Further => "further",
+        HelpFindCue.Same => "same",
+        HelpFindCue.Quiet => "quiet",
+        HelpFindCue.Gone => "gone",
+        _ => "…",
+    };
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Help.Changed -= OnChanged;
+}

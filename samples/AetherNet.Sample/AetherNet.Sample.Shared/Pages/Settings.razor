@@ -112,6 +112,19 @@
             }
         }
 
+        @* Quiet help sits here, under the radios it rides on: it is the one part of Aether that puts something on
+           the air on purpose, and only when the person asks. The screen itself says what each choice means. *@
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/quiet-help"))">
+            <span class="about-body">
+                <span class="about-t">Quiet help</span>
+                <span class="about-s">
+                    Ask the people you choose for help without a sound, and let them follow where you are until you
+                    say you are safe.
+                </span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+
         @* AetherNetService's permissions, always on show. It has no screen of its own, so this is where a person sees
            what it has been allowed: the same list as its page in the phone's settings, which each line opens. Only
            that page can change them — the phone keeps permissions per app, and one app cannot grant another's. *@
