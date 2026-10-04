@@ -318,3 +318,20 @@ img { max-width: 100%; }
 h1:focus, h1:focus-visible, [tabindex="-1"]:focus, [tabindex="-1"]:focus-visible {
     outline: none;
 }
+
+/* The card a setting, a permission or a choice is shown on. Settings and Profile each carried their own copy of
+   these, inside their own <style> — and a component's <style> goes with the component, so Quiet help, which uses
+   the same classes and had no copy, rendered as bare grey boxes with the text run together (seen on a Pixel 7a,
+   2026-10-04). They live here now, so a page that uses the classes gets them. The copies those two pages still
+   carry are these same rules and change nothing. */
+.group { display: flex; flex-direction: column; gap: 10px; }
+.glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
+.about { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line); border-radius: 14px; padding: 15px 17px; box-shadow: var(--shadow-sm); }
+.about-body { display: flex; flex-direction: column; gap: 2px; }
+.about-t { font-weight: 700; color: var(--ink); font-size: 0.98rem; }
+.about-s { font-size: 0.82rem; color: var(--ink-2); }
+.chev { color: var(--ink-3); font-size: 1.2rem; font-weight: 700; }
+
+/* A card that is a button is still a card: a plain one, full width, and it takes a tap. */
+button.about { appearance: none; cursor: pointer; width: 100%; text-align: left; font: inherit; }
+button.about:disabled { opacity: 0.55; cursor: default; }
