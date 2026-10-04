@@ -258,19 +258,19 @@ public sealed class QuietHelp : INodeHelpSource, IDisposable
             guardians = _store.Guardians;
         }
 
-        // On the air, for the phones standing near this person.
+        // On the air, for the phones standing near this person. The radio wraps the message in its own advert.
         var form = Chosen(_store.Advert);
         if (Usable(form))
         {
             try
             {
-                _radio.Advertise(Aware.HelpAdvert.Build(Form(form), message, _registeredAdvertId), form);
+                _radio.Advertise(message, form, _registeredAdvertId);
                 lock (_gate)
                 {
                     _nearby = true;
                 }
             }
-            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            catch (Exception ex)
             {
                 lock (_gate)
                 {
@@ -501,9 +501,6 @@ public sealed class QuietHelp : INodeHelpSource, IDisposable
         Aware.HelpKind.Walk => HelpKind.Walk,
         _ => HelpKind.Safe,
     };
-
-    private static Aware.HelpAdvertForm Form(HelpAdvertForm form)
-        => form == HelpAdvertForm.Registered16 ? Aware.HelpAdvertForm.Registered16 : Aware.HelpAdvertForm.AetherNet128;
 
     private static HelpFindCue Cue(Aware.HuntCue cue) => cue switch
     {

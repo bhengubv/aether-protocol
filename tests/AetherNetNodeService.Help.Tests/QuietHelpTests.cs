@@ -54,11 +54,12 @@ public sealed class QuietHelpTests : IDisposable
         Assert.Equal(8, mine.AccuracyM);
         Assert.Null(mine.Why);
 
-        // On the air: a real advert carrying a readable help message.
-        var (advert, form) = radio.Adverts[^1];
+        // On the air: the message itself, which the radio wraps in its own advert — and that advert is readable.
+        var (onAir, form, _) = radio.Adverts[^1];
         Assert.Equal(HelpAdvertForm.AetherNet128, form);
-        Assert.Equal(Aware.HelpAdvert.Size(Aware.HelpAdvertForm.AetherNet128), advert.Length);
-        Assert.NotNull(Aware.HelpAdvert.TryFind(advert));
+        Assert.Equal(Aware.HelpCodec.Length, onAir.Length);
+        Assert.Contains(messaging.Sent, s => s.Payload.SequenceEqual(onAir));
+        Assert.Equal(onAir, Aware.HelpAdvert.TryFind(radio.LastAdvert()));
 
         // And over the mesh: the key to each guardian, then the message to each guardian.
         Assert.Contains(messaging.Sent, s => s.To.Value == Sipho.Value && s.Payload[0] == QuietHelp.KeyShareMarker);
@@ -143,7 +144,7 @@ public sealed class QuietHelpTests : IDisposable
         _clock.Advance(TimeSpan.FromSeconds(10));
         her.UpdatePosition(Lat, Lon, _clock.NowMs, accuracyM: 5);
         await her.TickAsync();
-        hisRadio.Hear(herRadio.Adverts[^1].Advert, rssi: -55);
+        hisRadio.Hear(herRadio.LastAdvert(), rssi: -55);
 
         var seen = Assert.Single(his.Current.Watching);
         Assert.Equal(Lat, seen.Lat!.Value, 2e-5);
@@ -154,7 +155,7 @@ public sealed class QuietHelpTests : IDisposable
         foreach (var rssi in new[] { -50, -45, -40 })
         {
             _clock.Advance(TimeSpan.FromMilliseconds(900));
-            hisRadio.Hear(herRadio.Adverts[^1].Advert, rssi);
+            hisRadio.Hear(herRadio.LastAdvert(), rssi);
         }
 
         Assert.Equal(HelpFindCue.VeryClose, Assert.Single(his.Current.Watching).Find);
@@ -170,7 +171,7 @@ public sealed class QuietHelpTests : IDisposable
         her.Start(HelpKind.Help);
         await her.TickAsync();
 
-        hisRadio.Hear(herRadio.Adverts[^1].Advert, rssi: -60, whereIAm: new Aware.GpsSample(_clock.NowMs, Lat, Lon));
+        hisRadio.Hear(herRadio.LastAdvert(), rssi: -60, whereIAm: new Aware.GpsSample(_clock.NowMs, Lat, Lon));
 
         var seen = Assert.Single(his.Current.Watching);
         Assert.Null(seen.Lat);
@@ -271,10 +272,11 @@ public sealed class QuietHelpTests : IDisposable
         help.Start(HelpKind.Help);
         await help.TickAsync();
 
-        var (advert, form) = radio.Adverts[^1];
+        var (message, form, registeredId) = radio.Adverts[^1];
         Assert.Equal(HelpAdvertForm.Registered16, form);
-        Assert.Equal(30, advert.Length);
-        Assert.NotNull(Aware.HelpAdvert.TryFind(advert, registeredId: 0xFD6F));
+        Assert.Equal<ushort?>(0xFD6F, registeredId);
+        Assert.Equal(30, radio.LastAdvert().Length);   // the standard advert, which every phone can send
+        Assert.Equal(message, Aware.HelpAdvert.TryFind(radio.LastAdvert(), registeredId: 0xFD6F));
     }
 
     [Fact]

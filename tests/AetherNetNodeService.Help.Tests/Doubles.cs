@@ -91,7 +91,7 @@ internal sealed class FakeMessaging(AetherNetTag me, Bus? bus = null) : INodeMes
 /// <summary>A radio that can advertise, and remembers what it was asked to put on the air.</summary>
 internal sealed class FakeRadio : IHelpRadio
 {
-    public List<(byte[] Advert, HelpAdvertForm Form)> Adverts { get; } = [];
+    public List<(byte[] Message, HelpAdvertForm Form, ushort? RegisteredId)> Adverts { get; } = [];
 
     public int Stops { get; private set; }
 
@@ -101,7 +101,18 @@ internal sealed class FakeRadio : IHelpRadio
 
     public string? Why(HelpAdvertForm form) => Can(form) ? null : "this radio cannot";
 
-    public void Advertise(byte[] advert, HelpAdvertForm form) => Adverts.Add((advert, form));
+    public void Advertise(byte[] message, HelpAdvertForm form, ushort? registeredId = null)
+        => Adverts.Add((message, form, registeredId));
+
+    /// <summary>The advert a phone would actually put on the air for the last message it was given.</summary>
+    public byte[] LastAdvert()
+    {
+        var (message, form, registeredId) = Adverts[^1];
+        return Aware.HelpAdvert.Build(
+            form == HelpAdvertForm.Registered16 ? Aware.HelpAdvertForm.Registered16 : Aware.HelpAdvertForm.AetherNet128,
+            message,
+            registeredId);
+    }
 
     public void Stop() => Stops++;
 

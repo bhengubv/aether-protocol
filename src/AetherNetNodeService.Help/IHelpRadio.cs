@@ -18,10 +18,17 @@ public interface IHelpRadio
     string? Why(HelpAdvertForm form);
 
     /// <summary>
-    /// Start advertising these bytes, replacing whatever was going out. Called again every few seconds with a fresh
-    /// message for as long as the session runs.
+    /// Put this help message on the air, replacing whatever was going out. Called again every few seconds with a
+    /// fresh one for as long as the session runs.
     /// </summary>
-    void Advertise(byte[] advert, HelpAdvertForm form);
+    /// <param name="message">
+    /// The 23 bytes of <see cref="Aware.HelpCodec"/>. Not a finished advert: every platform composes its own from a
+    /// service id and a payload, so each wraps these bytes itself (<see cref="Aware.HelpAdvert"/> says how, and
+    /// builds the same bytes for a platform that wants them whole).
+    /// </param>
+    /// <param name="form">Which container to wrap it in.</param>
+    /// <param name="registeredId">The registered 16-bit service id, which only <see cref="HelpAdvertForm.Registered16"/> needs.</param>
+    void Advertise(byte[] message, HelpAdvertForm form, ushort? registeredId = null);
 
     /// <summary>Stop advertising. Called once the person is safe, and on shutdown.</summary>
     void Stop();
@@ -46,7 +53,7 @@ public sealed class NoHelpRadio(string? why = null) : IHelpRadio
 
     public string? Why(HelpAdvertForm form) => _why;
 
-    public void Advertise(byte[] advert, HelpAdvertForm form)
+    public void Advertise(byte[] message, HelpAdvertForm form, ushort? registeredId = null)
     {
     }
 

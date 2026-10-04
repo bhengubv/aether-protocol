@@ -5,6 +5,7 @@ using AetherNet.Identity;
 using AetherNet.Mesh;
 using AetherNet.Transport.Android;
 using AetherNetNodeService.Android;
+using AetherNetNodeService.Help;
 using AetherNetNodeService.Host;
 
 namespace AetherNetService;
@@ -33,6 +34,9 @@ namespace AetherNetService;
 /// </summary>
 internal static class AndroidNode
 {
+    /// <summary>What Aether Aware is called where the radios are switched, so a person can switch it off like one.</summary>
+    public const string AwareRadioName = "Aether Aware";
+
     /// <summary>Everything the node needs, over this phone's radios. <paramref name="dir"/> is where the identity lives.</summary>
     public static void AddServices(IServiceCollection services, string dir)
     {
@@ -43,6 +47,13 @@ internal static class AndroidNode
         services.AddSingleton<IRadioSetup, AndroidRadioSetup>();
         services.AddSingleton<IRadioInventory, AndroidRadioInventory>();
         services.AddSingleton<IRadioMesh, AndroidRadioMesh>();
+
+        // Aether Aware: one Bluetooth scan that takes every advert in the air, the Wi-Fi results, and this phone's
+        // own position — and the same radio puts Quiet help's message back on the air. Registered before the node so
+        // Quiet help finds it; switched like a radio, and on until the person switches it off.
+        services.AddSingleton(sp => new AndroidAwareRadio(
+            sp.GetService<ILoggerFactory>()?.CreateLogger("AetherAware")));
+        services.AddSingleton<IHelpRadio>(sp => sp.GetRequiredService<AndroidAwareRadio>());
 
         NodeCore.Add(services, dir, ServicePermissions.Now, AndroidRadioSetup.Internet);
 
@@ -97,6 +108,32 @@ internal static class AndroidNode
             catch (Exception ex)
             {
                 global::Android.Util.Log.Error("AetherNetService", $"radio bring-up failed: {ex}");
+            }
+
+            // Aether Aware listens beside the mesh: the same Bluetooth, a scan that takes everything rather than
+            // only AetherNet, so a finder tag moving with the person can be named. It also carries Quiet help, and
+            // feeds it this phone's position and battery.
+            try
+            {
+                if (provider.GetRequiredService<IRadioSwitches>().IsOn(AwareRadioName))
+                {
+                    var aware = provider.GetRequiredService<AndroidAwareRadio>();
+                    var help = provider.GetRequiredService<QuietHelp>();
+                    aware.Changed += () =>
+                    {
+                        if (aware.Here is { } here) help.UpdatePosition(here.Lat, here.Lon, here.At);
+                        if (aware.Battery is { } battery) help.UpdateBattery(battery);
+                    };
+                    aware.Start();
+                }
+                else
+                {
+                    global::Android.Util.Log.Info("AetherNetService", "Aether Aware is switched off — nothing is listened to");
+                }
+            }
+            catch (Exception ex)
+            {
+                global::Android.Util.Log.Error("AetherNetService", $"Aether Aware did not start: {ex}");
             }
 
             // And keep the Wi-Fi Direct group where it should be for as long as the service runs. Idle until the
