@@ -1,7 +1,11 @@
 # Aether Aware — plan
 
-**Status:** phases 1, 2 and 2b (Quiet help) built 2026-10-03 — `src/AetherNet.Aware` (C#), 225 tests passing; see
-its `FIELDWATCH-PARITY.md`. Phases 3–6 not started. Written 2026-10-03.
+**Status (2026-10-04):** Quiet help is built end to end except the radio itself — the product
+(`src/AetherNet.Aware`, 243 tests), the service (`src/AetherNetNodeService.Help` + the node contract's five calls
+and push, 19 + 39 + 42 tests), and Aether's screen (9 tests; the whole Aether suite passes at 1530). What is left of
+it is each system's `IHelpRadio` — actually putting the bytes on the air and handing heard adverts back — which comes
+with the Aware listener in phase 3, on a device. Phases 1–2 of Aware itself (the listening half) are built; phases
+3–6 are not. Written 2026-10-03.
 **Source:** [github.com/offgridpete/fieldwatch](https://github.com/offgridpete/fieldwatch) — Fieldwatch, MIT, by Off Grid Pete LLC.
 
 ## What it is
@@ -136,11 +140,22 @@ Added 2026-10-03 at the owner's request.
    own 128-bit ID in a Bluetooth 5 "extended" advert: free, but phones without Bluetooth 5 cannot send or hear it.
    *Recommend:* (b) now, (a) later if you want every phone. The mesh path works either way. Whether the P30 and the
    Pixel send and hear extended adverts is measured in phase 3.
+   *Built 2026-10-04: both.* `HelpAdvert` builds either container and a guardian reads both; (a) is 30 of the 31
+   bytes a standard advert holds and refuses to build until an ID is registered — the app shows it as unavailable
+   with that reason, and (b) is in use meanwhile. One ID registered is the only thing between (a) and working.
 9. **The discreet trigger.** *Recommend:* the person picks one in setup — pressing the power button five times, or a
    held press on Aether's notification; a second "duress" PIN later. Panik's shake and voice triggers can start the
    same session.
+   *Built 2026-10-04: all of them, the person's to choose.* The screen button, a held press on the notification, the
+   power button five times and three hard shakes are on by default; a second PIN is off (the phone PIN standard owns
+   that check, so this only says the person turned it on). `PowerButtonWatch` and `ShakeWatch` hold the counting with
+   the person's own thresholds, and an optional hold before it goes. Hooking them to the real power button and
+   accelerometer is phase 3, on a device. Voice would come from CircleAI rather than be built again here.
 10. **The guardians' alert.** *Recommend:* loud and clear on the guardian's phone, because it is an emergency for them;
     silent on the person's.
+    *Built 2026-10-04: loud by default, per guardian.* The person sets it when they choose somebody ("Ma — quiet,
+    she is in meetings"), it travels with the key, and that guardian's phone honours it. Theirs is the emergency, so
+    the default is loud; the person's own phone shows the session discreetly and never sounds.
 
 ## Phases
 
@@ -154,20 +169,30 @@ Sizes as on the work tracker: S / M / L.
    *Correction:* an earlier draft said rotating addresses would not count as many devices. Fieldwatch keys a radio
    by its address, so each new address is a new row until the old one is forgotten (3 minutes without a signature,
    15 with one).
-   **2b. Quiet help in AetherNet.Aware (M).** The help key, the 23-byte message, the sending session and the
-   guardians' side (recognise, read, trail, Find it). *Done when:* its tests pass — another key reads nothing,
-   altered and older messages are refused, the trail grows and ends, and a trail is forgotten a day after it ends.
+   **2b. Quiet help (M). DONE 2026-10-04.** The help key, the 23-byte message, both advert containers, the triggers,
+   the sending session and the guardians' side (recognise, read, trail, Find it) in the product; then
+   `AetherNetNodeService.Help` behind the node contract's `INodeHelpSource`, with five calls and a push on the binder
+   and the pipe; then Aether's screen. *Done when:* its tests pass — another key reads nothing, altered and older
+   messages are refused, the trail grows and ends, a trail is forgotten a day after it ends, and two nodes talking
+   through a fake mesh show a guardian who needs help and where. All of that passes. Five bugs the tests caught are
+   written up in the commits: a position the phone already had was lost; "safe" kept sending the cached help message;
+   two messages inside one 20 ms step read as a repeat; a message heard again over the air dropped where it was
+   heard; and the first shake of every gesture was dropped.
 3. **Listening in AetherNetService on Android (L).** First the Location measurement in decision 1, on the P30 and the
    Pixel. Then the listener: a Bluetooth scan for every advert (extended adverts too, and a filter list so Android keeps
    it running with the screen off), Wi-Fi results within Android's scan limits (at most every 30 s), GPS samples; the
-   contract calls and push; what was heard kept on the device and forgotten after a set time. Quiet help: send the
-   help advert (decision 8) and the mesh message, recognise guardians' messages, and notify the guardian (decision
-   10). *Done when:* on the P30
+   contract calls and push; what was heard kept on the device and forgotten after a set time. Quiet help: this is
+   where its `IHelpRadio` lands — put the advert on the air (decision 8), hand heard adverts back (the same scan the
+   listener already runs), feed in the phone's own position and battery, hook the power button and the accelerometer
+   (decision 9), and sound the guardian's notification (decision 10). Everything above it is built and tested; a
+   device with no `IHelpRadio` already carries Quiet help over the mesh alone. *Done when:* on the P30
    and the Pixel, Aware lists real access points and adverts; a tag carried on a walk shows "moving with you"; the
    mesh still works with Location allowed and denied.
 4. **Aether (M).** The Aware screen and the Settings rows, light and dark; the notification opens the screen. Quiet
-   help: choosing guardians, the trigger (decision 9), the discreet "sharing is on" mark, and the guardian's view —
-   the trail on a map and Find it.
+   help's own screen is built (`Pages/QuietHelp.razor`, 9 tests): asking, walking, marking safe, choosing guardians
+   and their alert, every trigger with what on and off mean, both containers with why one cannot be used, and the
+   people asking this person for help with how close they sound. What is left for this phase: seeing it on the P30 in
+   both themes, the trail on a map, and the notification opening it.
    *Done when:* bUnit tests pass, and the screens are seen on the P30 in both themes.
 5. **Windows (M).** The passive Bluetooth watcher and the Wi-Fi list in the Windows service. *Done when:* unit tests and
    the build pass. Nothing is run on the dev PC unless you ask.
