@@ -7,6 +7,7 @@ using AetherNet.Protocol;
 using AetherNet.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AetherNet.Core.Diagnostics;
 
 namespace AetherNet.Presence;
 
@@ -84,6 +85,9 @@ public interface IPresenceService
 /// <inheritdoc />
 public sealed class PresenceService : IPresenceService
 {
+    /// <summary>How many such payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _dropped;
+
     private static readonly JsonSerializerOptions JsonOptions = new();
 
     private readonly IMeshSender _sender;
@@ -160,7 +164,7 @@ public sealed class PresenceService : IPresenceService
         }
         catch (JsonException ex)
         {
-            _logger.LogDebug(ex, "Presence {Type} from {Source}: malformed payload — dropped", packet.Type, packet.SourceUhid);
+            _logger.Dropped(ref _dropped, ex, $"Presence {packet.Type}", packet.SourceUhid);
             return Task.FromResult(false);
         }
     }

@@ -8,6 +8,7 @@ using AetherNet.Protocol;
 using AetherNet.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AetherNet.Core.Diagnostics;
 
 namespace AetherNet.Profiles;
 
@@ -22,6 +23,9 @@ namespace AetherNet.Profiles;
 /// </summary>
 public sealed class ProfileService : IProfileService
 {
+    /// <summary>How many such payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _dropped;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
@@ -109,7 +113,7 @@ public sealed class ProfileService : IProfileService
         }
         catch (JsonException ex)
         {
-            _logger.LogDebug(ex, "ProfileSync from {Source}: malformed payload — dropped", packet.SourceUhid);
+            _logger.Dropped(ref _dropped, ex, "ProfileSync", packet.SourceUhid);
             return false;
         }
         if (body is null || string.IsNullOrEmpty(body.Uhid))

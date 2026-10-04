@@ -8,6 +8,7 @@ using AetherNet.Routing;
 using AetherNet.Vault.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AetherNet.Core.Diagnostics;
 
 namespace AetherNet.Vault;
 
@@ -44,6 +45,9 @@ public interface IVaultShardRequestService
 /// <inheritdoc />
 public sealed class VaultShardRequestService : IVaultShardRequestService
 {
+    /// <summary>How many such payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _dropped;
+
     private static readonly JsonSerializerOptions JsonOptions = new();
 
     private readonly IMeshSender _sender;
@@ -89,7 +93,7 @@ public sealed class VaultShardRequestService : IVaultShardRequestService
         }
         catch (JsonException ex)
         {
-            _logger.LogDebug(ex, "VaultShardRequest from {Source}: malformed payload — dropped", packet.SourceUhid);
+            _logger.Dropped(ref _dropped, ex, "VaultShardRequest", packet.SourceUhid);
             return Task.FromResult(false);
         }
         if (body is null || string.IsNullOrEmpty(body.ShardHash))

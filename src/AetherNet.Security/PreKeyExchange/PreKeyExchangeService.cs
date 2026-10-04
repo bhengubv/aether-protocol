@@ -8,6 +8,7 @@ using AetherNet.Routing;
 using AetherNet.Security.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AetherNet.Core.Diagnostics;
 
 namespace AetherNet.PreKeys;
 
@@ -19,6 +20,13 @@ namespace AetherNet.PreKeys;
 /// </summary>
 public sealed class PreKeyExchangeService : IPreKeyExchangeService
 {
+    /// <summary>How many Responses payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _droppedResponses;
+
+    /// <summary>How many Requests payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _droppedRequests;
+
+
     private static readonly JsonSerializerOptions JsonOptions = new();
 
     private readonly IMeshSender _sender;
@@ -84,7 +92,7 @@ public sealed class PreKeyExchangeService : IPreKeyExchangeService
         }
         catch (JsonException ex)
         {
-            _logger.LogDebug(ex, "PreKeyRequest from {Source}: malformed payload — dropped", packet.SourceUhid);
+            _logger.Dropped(ref _droppedRequests, ex, "PreKeyRequest", packet.SourceUhid);
             return false;
         }
         if (body is null)
@@ -122,7 +130,7 @@ public sealed class PreKeyExchangeService : IPreKeyExchangeService
         }
         catch (JsonException ex)
         {
-            _logger.LogDebug(ex, "PreKeyResponse from {Source}: malformed payload — dropped", packet.SourceUhid);
+            _logger.Dropped(ref _droppedResponses, ex, "PreKeyResponse", packet.SourceUhid);
             return false;
         }
         if (body is null || string.IsNullOrEmpty(body.Uhid))

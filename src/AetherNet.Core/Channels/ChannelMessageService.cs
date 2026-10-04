@@ -7,6 +7,7 @@ using AetherNet.Protocol;
 using AetherNet.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AetherNet.Core.Diagnostics;
 
 namespace AetherNet.Channels;
 
@@ -17,6 +18,9 @@ namespace AetherNet.Channels;
 /// </summary>
 public sealed class ChannelMessageService : IChannelMessageService
 {
+    /// <summary>How many such payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _dropped;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
@@ -93,7 +97,7 @@ public sealed class ChannelMessageService : IChannelMessageService
         }
         catch (JsonException ex)
         {
-            _logger.LogDebug(ex, "ChannelMessage from {Source}: malformed payload — dropped", packet.SourceUhid);
+            _logger.Dropped(ref _dropped, ex, "ChannelMessage", packet.SourceUhid);
             return false;
         }
         if (body is null || string.IsNullOrEmpty(body.ChannelId))

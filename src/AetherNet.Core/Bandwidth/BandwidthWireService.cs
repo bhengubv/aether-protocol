@@ -6,6 +6,7 @@ using AetherNet.Protocol;
 using AetherNet.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AetherNet.Core.Diagnostics;
 
 namespace AetherNet.Bandwidth;
 
@@ -116,6 +117,9 @@ public interface IBandwidthWireService
 /// <inheritdoc />
 public sealed class BandwidthWireService : IBandwidthWireService
 {
+    /// <summary>How many such payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _dropped;
+
     private readonly IMeshSender _sender;
     private readonly ILogger<BandwidthWireService> _logger;
 
@@ -202,7 +206,7 @@ public sealed class BandwidthWireService : IBandwidthWireService
         }
         catch (FormatException ex)
         {
-            _logger.LogDebug(ex, "Bandwidth {Type} from {Source}: malformed payload — dropped", packet.Type, packet.SourceUhid);
+            _logger.Dropped(ref _dropped, ex, $"Bandwidth {packet.Type}", packet.SourceUhid);
             return Task.FromResult(false);
         }
     }

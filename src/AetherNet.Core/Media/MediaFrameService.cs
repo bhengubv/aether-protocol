@@ -6,12 +6,14 @@ using AetherNet.Protocol;
 using AetherNet.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AetherNet.Core.Diagnostics;
 
 namespace AetherNet.Media;
 
 /// <summary>A push-to-talk audio frame (PacketType.VoicePtt = 15 body).</summary>
 public sealed class VoicePttFrame
 {
+
     public Guid CallId { get; set; }
     public uint Sequence { get; set; }
     public long TimestampMs { get; set; }
@@ -128,6 +130,9 @@ public interface IScreenShareService
 /// <inheritdoc />
 public sealed class VoicePttService : IVoicePttService
 {
+    /// <summary>How many Voice payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _droppedVoice;
+
     private readonly IMeshSender _sender;
     private readonly ILogger<VoicePttService> _logger;
     public event EventHandler<VoicePttFrameReceived>? FrameReceived;
@@ -159,7 +164,7 @@ public sealed class VoicePttService : IVoicePttService
         if (packet.Type != PacketType.VoicePtt) return Task.FromResult(false);
         VoicePttFrame frame;
         try { frame = MediaFrameCodec.DeserializeVoicePtt(packet.Payload); }
-        catch (FormatException ex) { _logger.LogDebug(ex, "VoicePtt from {Src}: malformed — dropped", packet.SourceUhid); return Task.FromResult(false); }
+        catch (FormatException ex) { _logger.Dropped(ref _droppedVoice, ex, "VoicePtt", packet.SourceUhid); return Task.FromResult(false); }
         FrameReceived?.Invoke(this, new VoicePttFrameReceived { Frame = frame, FromUhid = packet.SourceUhid });
         return Task.FromResult(true);
     }
@@ -168,6 +173,9 @@ public sealed class VoicePttService : IVoicePttService
 /// <inheritdoc />
 public sealed class ScreenShareService : IScreenShareService
 {
+    /// <summary>How many Screen payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _droppedScreen;
+
     private readonly IMeshSender _sender;
     private readonly ILogger<ScreenShareService> _logger;
     public event EventHandler<ScreenShareFrameReceived>? FrameReceived;
@@ -199,7 +207,7 @@ public sealed class ScreenShareService : IScreenShareService
         if (packet.Type != PacketType.ScreenShare) return Task.FromResult(false);
         ScreenShareFrame frame;
         try { frame = MediaFrameCodec.DeserializeScreenShare(packet.Payload); }
-        catch (FormatException ex) { _logger.LogDebug(ex, "ScreenShare from {Src}: malformed — dropped", packet.SourceUhid); return Task.FromResult(false); }
+        catch (FormatException ex) { _logger.Dropped(ref _droppedScreen, ex, "ScreenShare", packet.SourceUhid); return Task.FromResult(false); }
         FrameReceived?.Invoke(this, new ScreenShareFrameReceived { Frame = frame, FromUhid = packet.SourceUhid });
         return Task.FromResult(true);
     }

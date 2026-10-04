@@ -8,6 +8,7 @@ using AetherNet.Routing;
 using AetherNet.Space.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AetherNet.Core.Diagnostics;
 
 namespace AetherNet.Space;
 
@@ -72,6 +73,9 @@ public interface ISpaceBreadcrumbService
 /// <inheritdoc />
 public sealed class SpaceBreadcrumbService : ISpaceBreadcrumbService
 {
+    /// <summary>How many such payloads would not parse. Counted, so a trickle and a wall are told apart.</summary>
+    private int _dropped;
+
     private static readonly JsonSerializerOptions JsonOptions = new();
 
     private readonly IMeshSender _sender;
@@ -117,7 +121,7 @@ public sealed class SpaceBreadcrumbService : ISpaceBreadcrumbService
         }
         catch (JsonException ex)
         {
-            _logger.LogDebug(ex, "SpaceBreadcrumb from {Source}: malformed payload — dropped", packet.SourceUhid);
+            _logger.Dropped(ref _dropped, ex, "SpaceBreadcrumb", packet.SourceUhid);
             return Task.FromResult(false);
         }
         if (body is null || string.IsNullOrEmpty(body.ContentHash))
