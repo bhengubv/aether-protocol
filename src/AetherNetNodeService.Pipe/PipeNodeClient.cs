@@ -73,6 +73,27 @@ public sealed class PipeNodeClient : IAetherNodeClient, INodeConnection, IDispos
     public Task SetNearbyAsync(bool on, CancellationToken cancellationToken = default)
         => CallAsync(NodeOp.SetNearby, NodeWire.EncodeFlag(on), static _ => true, cancellationToken);
 
+    public Task<HelpReport> GetHelpAsync(CancellationToken cancellationToken = default)
+        => CallAsync(NodeOp.GetHelp, [], NodeWire.DecodeHelpReport, cancellationToken);
+
+    public Task<bool> StartHelpAsync(HelpKind kind, CancellationToken cancellationToken = default)
+        => CallAsync(NodeOp.StartHelp, NodeWire.EncodeHelpKind(kind), NodeWire.DecodeFlag, cancellationToken);
+
+    public Task MarkSafeAsync(CancellationToken cancellationToken = default)
+        => CallAsync(NodeOp.MarkSafe, [], static _ => true, cancellationToken);
+
+    public Task SetHelpGuardiansAsync(IReadOnlyList<HelpGuardian> guardians, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(guardians);
+        return CallAsync(NodeOp.SetHelpGuardians, NodeWire.EncodeHelpGuardians(guardians), static _ => true, cancellationToken);
+    }
+
+    public Task SetHelpOptionsAsync(HelpTriggers triggers, HelpAdvertForm advert, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(triggers);
+        return CallAsync(NodeOp.SetHelpOptions, NodeWire.EncodeHelpOptions(triggers, advert), static _ => true, cancellationToken);
+    }
+
     public Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
         => CallAsync(NodeOp.SetRadio, NodeWire.EncodeRadioSwitch(radio, on), static _ => true, cancellationToken);
 
@@ -185,6 +206,7 @@ public sealed class PipeNodeClient : IAetherNodeClient, INodeConnection, IDispos
                     case NodeOp.EventLink: listener.OnLinkChanged(NodeWire.DecodeLink(payload)); break;
                     case NodeOp.EventGrant: listener.OnGrantChanged(NodeWire.DecodeGrant(payload)); break;
                     case NodeOp.EventDelivered: listener.OnDelivered(NodeWire.DecodeDelivered(payload)); break;
+                    case NodeOp.EventHelp: listener.OnHelpChanged(NodeWire.DecodeHelpReport(payload)); break;
                 }
             }
             catch (Exception)

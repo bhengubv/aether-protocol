@@ -50,6 +50,21 @@ public enum NodeOp
     /// <summary>Request: switch one radio on or off for the whole device.</summary>
     SetRadio = 12,
 
+    /// <summary>Request: Quiet help as it stands — this person's session, and the people they watch over.</summary>
+    GetHelp = 13,
+
+    /// <summary>Request: start Quiet help, as the person's own action.</summary>
+    StartHelp = 14,
+
+    /// <summary>Request: the person says they are safe — the only thing that stops it.</summary>
+    MarkSafe = 15,
+
+    /// <summary>Request: the guardians this person chooses to ask for help.</summary>
+    SetHelpGuardians = 16,
+
+    /// <summary>Request: which triggers start Quiet help, and which Bluetooth container carries it.</summary>
+    SetHelpOptions = 17,
+
     /// <summary>Push: a message arrived.</summary>
     EventInbound = 100,
 
@@ -61,6 +76,9 @@ public enum NodeOp
 
     /// <summary>Push: the other side confirmed a message this app sent.</summary>
     EventDelivered = 103,
+
+    /// <summary>Push: Quiet help changed — a session started or ended, or somebody being watched over moved.</summary>
+    EventHelp = 104,
 }
 
 /// <summary>
@@ -158,6 +176,213 @@ public static class NodeWire
     {
         var dto = FromJson<RadioSwitchDto>(bytes ?? []);
         return (dto.Radio ?? string.Empty, dto.On);
+    }
+
+    // ── Quiet help ───────────────────────────────────────────────────────────────
+    // The report an app draws from, the kind it starts, the guardians it chooses, and the options it sets. Each
+    // crosses as compact JSON; enums cross as their numbers, and an unknown one decodes to the quiet end (Safe,
+    // Loud, Waiting) rather than an out-of-range value.
+
+    public static byte[] EncodeHelpReport(HelpReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        var mine = report.Mine;
+
+        var guardians = new GuardianDto[mine.Guardians.Count];
+        for (var i = 0; i < guardians.Length; i++)
+        {
+            var g = mine.Guardians[i];
+            guardians[i] = new GuardianDto(g.Tag.Value ?? string.Empty, g.Name, (int)g.Alert);
+        }
+
+        var adverts = new AdvertDto[mine.Adverts.Count];
+        for (var i = 0; i < adverts.Length; i++)
+        {
+            var a = mine.Adverts[i];
+            adverts[i] = new AdvertDto((int)a.Form, a.Available, a.Chosen, a.Why);
+        }
+
+        var watching = new WatchCaseDto[report.Watching.Count];
+        for (var i = 0; i < watching.Length; i++)
+        {
+            var c = report.Watching[i];
+            watching[i] = new WatchCaseDto(
+                c.Person.Value ?? string.Empty, c.Name, (int)c.Kind, (int)c.Alert, c.FirstHeardAt, c.LastHeardAt,
+                c.LastNearbyAt, c.Lat, c.Lon, c.AccuracyM, c.FixAt, c.BatteryPercent, c.SafeAt, (int)c.Find, c.Rssi,
+                Points(c.Trail));
+        }
+
+        return JsonBytes(new HelpReportDto(
+            new HelpStateDto(
+                mine.On, (int)mine.Kind, mine.StartedAt, mine.SafeAt, mine.Lat, mine.Lon, mine.AccuracyM, mine.FixAt,
+                mine.BatteryPercent, mine.Nearby, mine.GuardiansReached, guardians, Triggers(mine.Triggers), adverts,
+                mine.Why),
+            watching));
+    }
+
+    public static HelpReport DecodeHelpReport(byte[]? bytes)
+    {
+        if (bytes is not { Length: > 0 })
+        {
+            return HelpReport.None;
+        }
+
+        var dto = FromJson<HelpReportDto>(bytes);
+        var mine = dto.Mine ?? new HelpStateDto();
+
+        var guardians = new HelpGuardian[mine.Guardians?.Length ?? 0];
+        for (var i = 0; i < guardians.Length; i++)
+        {
+            var g = mine.Guardians![i];
+            guardians[i] = new HelpGuardian(Tag(g.Tag), g.Name ?? string.Empty, Alert(g.Alert));
+        }
+
+        var adverts = new HelpAdvertChoice[mine.Adverts?.Length ?? 0];
+        for (var i = 0; i < adverts.Length; i++)
+        {
+            var a = mine.Adverts![i];
+            adverts[i] = new HelpAdvertChoice(Advert(a.Form), a.Available, a.Chosen, a.Why);
+        }
+
+        var watching = new HelpWatchCase[dto.Watching?.Length ?? 0];
+        for (var i = 0; i < watching.Length; i++)
+        {
+            var c = dto.Watching![i];
+            watching[i] = new HelpWatchCase
+            {
+                Person = Tag(c.Person),
+                Name = c.Name ?? string.Empty,
+                Kind = Kind(c.Kind),
+                Alert = Alert(c.Alert),
+                FirstHeardAt = c.FirstHeardAt,
+                LastHeardAt = c.LastHeardAt,
+                LastNearbyAt = c.LastNearbyAt,
+                Lat = c.Lat,
+                Lon = c.Lon,
+                AccuracyM = c.AccuracyM,
+                FixAt = c.FixAt,
+                BatteryPercent = c.BatteryPercent,
+                SafeAt = c.SafeAt,
+                Find = Enum.IsDefined(typeof(HelpFindCue), c.Find) ? (HelpFindCue)c.Find : HelpFindCue.Waiting,
+                Rssi = c.Rssi,
+                Trail = Points(c.Trail),
+            };
+        }
+
+        return new HelpReport
+        {
+            Mine = new HelpState
+            {
+                On = mine.On,
+                Kind = Kind(mine.Kind),
+                StartedAt = mine.StartedAt,
+                SafeAt = mine.SafeAt,
+                Lat = mine.Lat,
+                Lon = mine.Lon,
+                AccuracyM = mine.AccuracyM,
+                FixAt = mine.FixAt,
+                BatteryPercent = mine.BatteryPercent,
+                Nearby = mine.Nearby,
+                GuardiansReached = mine.GuardiansReached,
+                Guardians = guardians,
+                Triggers = Triggers(mine.Triggers),
+                Adverts = adverts,
+                Why = mine.Why,
+            },
+            Watching = watching,
+        };
+    }
+
+    /// <summary>The kind the person is starting. One byte; anything unknown reads as Safe, which starts nothing.</summary>
+    public static byte[] EncodeHelpKind(HelpKind kind) => [(byte)kind];
+
+    public static HelpKind DecodeHelpKind(byte[]? bytes)
+        => bytes is { Length: > 0 } ? Kind(bytes[0]) : HelpKind.Safe;
+
+    public static byte[] EncodeHelpGuardians(IReadOnlyList<HelpGuardian> guardians)
+    {
+        ArgumentNullException.ThrowIfNull(guardians);
+        var dtos = new GuardianDto[guardians.Count];
+        for (var i = 0; i < dtos.Length; i++)
+        {
+            var g = guardians[i];
+            dtos[i] = new GuardianDto(g.Tag.Value ?? string.Empty, g.Name, (int)g.Alert);
+        }
+
+        return JsonBytes(dtos);
+    }
+
+    public static IReadOnlyList<HelpGuardian> DecodeHelpGuardians(byte[]? bytes)
+    {
+        var dtos = bytes is { Length: > 0 } ? FromJson<GuardianDto[]>(bytes) ?? [] : [];
+        var list = new List<HelpGuardian>(dtos.Length);
+        foreach (var d in dtos)
+        {
+            // A guardian whose tag does not parse is nobody the node could reach; drop them rather than guess.
+            if (AetherNetTag.TryParse(d.Tag, out var tag))
+            {
+                list.Add(new HelpGuardian(tag, d.Name ?? string.Empty, Alert(d.Alert)));
+            }
+        }
+
+        return list;
+    }
+
+    public static byte[] EncodeHelpOptions(HelpTriggers triggers, HelpAdvertForm advert)
+    {
+        ArgumentNullException.ThrowIfNull(triggers);
+        return JsonBytes(new HelpOptionsDto(Triggers(triggers), (int)advert));
+    }
+
+    public static (HelpTriggers Triggers, HelpAdvertForm Advert) DecodeHelpOptions(byte[]? bytes)
+    {
+        var dto = bytes is { Length: > 0 } ? FromJson<HelpOptionsDto>(bytes) : new HelpOptionsDto();
+        return (Triggers(dto.Triggers), Advert(dto.Advert));
+    }
+
+    private static HelpKind Kind(int raw) => Enum.IsDefined(typeof(HelpKind), raw) ? (HelpKind)raw : HelpKind.Safe;
+
+    private static HelpAlert Alert(int raw) => Enum.IsDefined(typeof(HelpAlert), raw) ? (HelpAlert)raw : HelpAlert.Loud;
+
+    private static HelpAdvertForm Advert(int raw)
+        => Enum.IsDefined(typeof(HelpAdvertForm), raw) ? (HelpAdvertForm)raw : HelpAdvertForm.AetherNet128;
+
+    private static AetherNetTag Tag(string? value)
+        => AetherNetTag.TryParse(value ?? string.Empty, out var tag) ? tag : default;
+
+    private static TriggersDto Triggers(HelpTriggers t)
+        => new((int)t.Enabled, t.PowerPresses, t.PowerWindowMs, t.ShakeThreshold, t.ShakeCount, t.ShakeWindowMs,
+            t.HoldSeconds);
+
+    private static HelpTriggers Triggers(TriggersDto? t)
+    {
+        t ??= new TriggersDto();
+        return new HelpTriggers((HelpTrigger)t.Enabled, t.PowerPresses, t.PowerWindowMs, t.ShakeThreshold,
+            t.ShakeCount, t.ShakeWindowMs, t.HoldSeconds);
+    }
+
+    private static PointDto[] Points(IReadOnlyList<HelpPoint> trail)
+    {
+        var dtos = new PointDto[trail.Count];
+        for (var i = 0; i < dtos.Length; i++)
+        {
+            var p = trail[i];
+            dtos[i] = new PointDto(p.At, p.Lat, p.Lon, p.AccuracyM, p.Reported, p.Rssi);
+        }
+
+        return dtos;
+    }
+
+    private static HelpPoint[] Points(PointDto[]? dtos)
+    {
+        var trail = new HelpPoint[dtos?.Length ?? 0];
+        for (var i = 0; i < trail.Length; i++)
+        {
+            var d = dtos![i];
+            trail[i] = new HelpPoint(d.At, d.Lat, d.Lon, d.AccuracyM, d.Reported, d.Rssi);
+        }
+
+        return trail;
     }
 
     // ── Meet (the contacts to keep reachable) ────────────────────────────────────
@@ -339,4 +564,32 @@ public static class NodeWire
         bool Linked, string? Radio, RadioDto[]? Radios, PermissionDto[]? Permissions = null, bool NearbyOn = true);
 
     private sealed record InboundDto(string From, byte[] Payload, string Kind, DateTimeOffset ReceivedAt, Guid Id);
+
+    private sealed record GuardianDto(string Tag, string Name, int Alert);
+
+    private sealed record AdvertDto(int Form, bool Available, bool Chosen, string? Why);
+
+    private sealed record PointDto(DateTimeOffset At, double Lat, double Lon, int? AccuracyM, bool Reported, int? Rssi);
+
+    // Every field optional, with the contract's own default, so a service or an app that knows less still decodes.
+    private sealed record TriggersDto(
+        int Enabled = (int)(HelpTrigger.AppButton | HelpTrigger.Notification | HelpTrigger.PowerButton | HelpTrigger.Shake),
+        int PowerPresses = 5, int PowerWindowMs = 3_000, double ShakeThreshold = 25.0, int ShakeCount = 3,
+        int ShakeWindowMs = 1_500, int HoldSeconds = 0);
+
+    private sealed record HelpOptionsDto(TriggersDto? Triggers = null, int Advert = (int)HelpAdvertForm.AetherNet128);
+
+    private sealed record HelpStateDto(
+        bool On = false, int Kind = (int)HelpKind.Safe, DateTimeOffset? StartedAt = null, DateTimeOffset? SafeAt = null,
+        double? Lat = null, double? Lon = null, int? AccuracyM = null, DateTimeOffset? FixAt = null,
+        int? BatteryPercent = null, bool Nearby = false, int GuardiansReached = 0, GuardianDto[]? Guardians = null,
+        TriggersDto? Triggers = null, AdvertDto[]? Adverts = null, string? Why = null);
+
+    private sealed record WatchCaseDto(
+        string Person, string Name, int Kind, int Alert, DateTimeOffset FirstHeardAt, DateTimeOffset LastHeardAt,
+        DateTimeOffset? LastNearbyAt = null, double? Lat = null, double? Lon = null, int? AccuracyM = null,
+        DateTimeOffset? FixAt = null, int? BatteryPercent = null, DateTimeOffset? SafeAt = null,
+        int Find = (int)HelpFindCue.Waiting, int? Rssi = null, PointDto[]? Trail = null);
+
+    private sealed record HelpReportDto(HelpStateDto? Mine = null, WatchCaseDto[]? Watching = null);
 }

@@ -38,7 +38,9 @@ internal sealed class NodeServiceBinder : Binder
         var op = (NodeOp)code;
         if (op is not (NodeOp.GetTag or NodeOp.GetPublicKey or NodeOp.Sign or NodeOp.Send
             or NodeOp.GetInbox or NodeOp.GetLink or NodeOp.Subscribe or NodeOp.Unsubscribe or NodeOp.Meet
-            or NodeOp.GetRecoveryPhrase or NodeOp.SetNearby or NodeOp.SetRadio))
+            or NodeOp.GetRecoveryPhrase or NodeOp.SetNearby or NodeOp.SetRadio
+            or NodeOp.GetHelp or NodeOp.StartHelp or NodeOp.MarkSafe or NodeOp.SetHelpGuardians
+            or NodeOp.SetHelpOptions))
         {
             return base.OnTransact(code, data, reply, flags);
         }
@@ -109,6 +111,34 @@ internal sealed class NodeServiceBinder : Binder
             {
                 var (radio, on) = NodeWire.DecodeRadioSwitch(data?.CreateByteArray());
                 Block(_host.SetRadioAsync(radio, on));
+                WriteOk(reply, []);
+                break;
+            }
+
+            // Quiet help. Starting one is the person's own action in whichever app they opened; the phone's lock
+            // is the gate, as it is for every other call.
+            case NodeOp.GetHelp:
+                WriteOk(reply, NodeWire.EncodeHelpReport(Block(_host.GetHelpAsync())));
+                break;
+
+            case NodeOp.StartHelp:
+                WriteOk(reply, NodeWire.EncodeFlag(Block(_host.StartHelpAsync(NodeWire.DecodeHelpKind(data?.CreateByteArray())))));
+                break;
+
+            case NodeOp.MarkSafe:
+                Block(_host.MarkSafeAsync());
+                WriteOk(reply, []);
+                break;
+
+            case NodeOp.SetHelpGuardians:
+                Block(_host.SetHelpGuardiansAsync(NodeWire.DecodeHelpGuardians(data?.CreateByteArray())));
+                WriteOk(reply, []);
+                break;
+
+            case NodeOp.SetHelpOptions:
+            {
+                var (triggers, advert) = NodeWire.DecodeHelpOptions(data?.CreateByteArray());
+                Block(_host.SetHelpOptionsAsync(triggers, advert));
                 WriteOk(reply, []);
                 break;
             }
@@ -210,6 +240,8 @@ internal sealed class NodeServiceBinder : Binder
         public void OnGrantChanged(GrantState state) => Push(NodeOp.EventGrant, NodeWire.EncodeGrant(state));
 
         public void OnDelivered(Guid messageId) => Push(NodeOp.EventDelivered, NodeWire.EncodeDelivered(messageId));
+
+        public void OnHelpChanged(HelpReport report) => Push(NodeOp.EventHelp, NodeWire.EncodeHelpReport(report));
 
         private void Push(NodeOp op, byte[] payload)
         {

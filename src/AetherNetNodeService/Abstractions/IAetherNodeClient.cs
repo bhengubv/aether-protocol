@@ -101,6 +101,46 @@ public interface IAetherNodeClient
         => throw new NotSupportedException("This service cannot switch one radio at a time.");
 
     /// <summary>
+    /// Quiet help as it stands: what this person is sending, what they chose, and the people they are a guardian
+    /// for who are asking for help now.
+    /// </summary>
+    Task<HelpReport> GetHelpAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(HelpReport.None);
+
+    /// <summary>
+    /// Start Quiet help on this device, as the person's own action: <see cref="HelpKind.Help"/> asks the guardians
+    /// they chose for help, <see cref="HelpKind.Walk"/> only shares the way. The phone stays quiet either way. False
+    /// when the node cannot send it — no guardians chosen yet, or no radio — and <see cref="HelpState.Why"/> says so.
+    /// </summary>
+    /// <remarks>
+    /// Only the person starts this, on their own phone. Nothing that arrives from the mesh or the air can, and a
+    /// guardian cannot start it for them.
+    /// </remarks>
+    Task<bool> StartHelpAsync(HelpKind kind, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This service does not carry Quiet help.");
+
+    /// <summary>
+    /// The person says they are safe, or has arrived. The only thing that stops a help session: the message says
+    /// "safe" for a minute so guardians nearby hear it, and then it is over.
+    /// </summary>
+    Task MarkSafeAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This service does not carry Quiet help.");
+
+    /// <summary>
+    /// The guardians this person chooses to ask for help, replacing the set they chose before. Changing the set makes
+    /// a new help key, so a guardian taken off reads nothing sent afterwards.
+    /// </summary>
+    Task SetHelpGuardiansAsync(IReadOnlyList<HelpGuardian> guardians, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This service does not carry Quiet help.");
+
+    /// <summary>
+    /// Which of their own actions start Quiet help, and which Bluetooth container carries it. A container this
+    /// device cannot use is refused, and <see cref="HelpState.Adverts"/> says why.
+    /// </summary>
+    Task SetHelpOptionsAsync(HelpTriggers triggers, HelpAdvertForm advert, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This service does not carry Quiet help.");
+
+    /// <summary>
     /// Subscribe to inbound messages, link changes, and grant changes. Dispose the returned handle to stop.
     /// A callback interface rather than a C# event so the subscription proxies across a process boundary.
     /// </summary>
@@ -125,4 +165,10 @@ public interface IAetherNodeEvents
 
     /// <summary>The other side confirmed receipt of a message this app sent, by the id it was sent with.</summary>
     void OnDelivered(Guid messageId) { }
+
+    /// <summary>
+    /// Quiet help changed: this person started or ended a session, or somebody they are a guardian for is asking for
+    /// help, has moved, or is safe.
+    /// </summary>
+    void OnHelpChanged(HelpReport report) { }
 }

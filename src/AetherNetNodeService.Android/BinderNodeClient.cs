@@ -91,6 +91,32 @@ internal sealed class BinderNodeClient : IAetherNodeClient, INodeConnection, IDi
         return Call(NodeOp.SetNearby, p => p.WriteByteArray(arg), static _ => true, cancellationToken);
     }
 
+    public Task<HelpReport> GetHelpAsync(CancellationToken cancellationToken = default)
+        => Call(NodeOp.GetHelp, null, NodeWire.DecodeHelpReport, cancellationToken);
+
+    public Task<bool> StartHelpAsync(HelpKind kind, CancellationToken cancellationToken = default)
+    {
+        var arg = NodeWire.EncodeHelpKind(kind);
+        return Call(NodeOp.StartHelp, p => p.WriteByteArray(arg), NodeWire.DecodeFlag, cancellationToken);
+    }
+
+    public Task MarkSafeAsync(CancellationToken cancellationToken = default)
+        => Call(NodeOp.MarkSafe, null, static _ => true, cancellationToken);
+
+    public Task SetHelpGuardiansAsync(IReadOnlyList<HelpGuardian> guardians, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(guardians);
+        var arg = NodeWire.EncodeHelpGuardians(guardians);
+        return Call(NodeOp.SetHelpGuardians, p => p.WriteByteArray(arg), static _ => true, cancellationToken);
+    }
+
+    public Task SetHelpOptionsAsync(HelpTriggers triggers, HelpAdvertForm advert, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(triggers);
+        var arg = NodeWire.EncodeHelpOptions(triggers, advert);
+        return Call(NodeOp.SetHelpOptions, p => p.WriteByteArray(arg), static _ => true, cancellationToken);
+    }
+
     public Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
     {
         var arg = NodeWire.EncodeRadioSwitch(radio, on);
@@ -169,6 +195,7 @@ internal sealed class BinderNodeClient : IAetherNodeClient, INodeConnection, IDi
                 case NodeOp.EventLink: l.OnLinkChanged(NodeWire.DecodeLink(payload)); break;
                 case NodeOp.EventGrant: l.OnGrantChanged(NodeWire.DecodeGrant(payload)); break;
                 case NodeOp.EventDelivered: l.OnDelivered(NodeWire.DecodeDelivered(payload)); break;
+                case NodeOp.EventHelp: l.OnHelpChanged(NodeWire.DecodeHelpReport(payload)); break;
             }
         }
     }
@@ -217,7 +244,8 @@ internal sealed class ClientEventBinder(Action<NodeOp, byte[]> onEvent) : Binder
     protected override bool OnTransact(int code, Parcel? data, Parcel? reply, int flags)
     {
         var op = (NodeOp)code;
-        if (op is NodeOp.EventInbound or NodeOp.EventLink or NodeOp.EventGrant or NodeOp.EventDelivered)
+        if (op is NodeOp.EventInbound or NodeOp.EventLink or NodeOp.EventGrant or NodeOp.EventDelivered
+            or NodeOp.EventHelp)
         {
             onEvent(op, data?.CreateByteArray() ?? []);
             return true;

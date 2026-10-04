@@ -130,6 +130,26 @@ public sealed class BoundNodeClient : IAetherNodeClient, IDisposable
     public async Task SetRadioAsync(string radio, bool on, CancellationToken cancellationToken = default)
         => await (await ClientAsync().ConfigureAwait(false)).SetRadioAsync(radio, on, cancellationToken).ConfigureAwait(false);
 
+    /// <inheritdoc />
+    public async Task<HelpReport> GetHelpAsync(CancellationToken cancellationToken = default)
+        => await (await ClientAsync().ConfigureAwait(false)).GetHelpAsync(cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task<bool> StartHelpAsync(HelpKind kind, CancellationToken cancellationToken = default)
+        => await (await ClientAsync().ConfigureAwait(false)).StartHelpAsync(kind, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task MarkSafeAsync(CancellationToken cancellationToken = default)
+        => await (await ClientAsync().ConfigureAwait(false)).MarkSafeAsync(cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task SetHelpGuardiansAsync(IReadOnlyList<HelpGuardian> guardians, CancellationToken cancellationToken = default)
+        => await (await ClientAsync().ConfigureAwait(false)).SetHelpGuardiansAsync(guardians, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task SetHelpOptionsAsync(HelpTriggers triggers, HelpAdvertForm advert, CancellationToken cancellationToken = default)
+        => await (await ClientAsync().ConfigureAwait(false)).SetHelpOptionsAsync(triggers, advert, cancellationToken).ConfigureAwait(false);
+
     public IDisposable Subscribe(IAetherNodeEvents listener)
     {
         ArgumentNullException.ThrowIfNull(listener);

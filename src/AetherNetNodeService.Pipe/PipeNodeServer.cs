@@ -232,6 +232,29 @@ public sealed class PipeNodeServer : IAsyncDisposable
                     return [];
                 }
 
+                // Quiet help, the same five calls the phone answers.
+                case NodeOp.GetHelp:
+                    return NodeWire.EncodeHelpReport(await host.GetHelpAsync(cancellationToken).ConfigureAwait(false));
+
+                case NodeOp.StartHelp:
+                    return NodeWire.EncodeFlag(
+                        await host.StartHelpAsync(NodeWire.DecodeHelpKind(argument), cancellationToken).ConfigureAwait(false));
+
+                case NodeOp.MarkSafe:
+                    await host.MarkSafeAsync(cancellationToken).ConfigureAwait(false);
+                    return [];
+
+                case NodeOp.SetHelpGuardians:
+                    await host.SetHelpGuardiansAsync(NodeWire.DecodeHelpGuardians(argument), cancellationToken).ConfigureAwait(false);
+                    return [];
+
+                case NodeOp.SetHelpOptions:
+                {
+                    var (triggers, advert) = NodeWire.DecodeHelpOptions(argument);
+                    await host.SetHelpOptionsAsync(triggers, advert, cancellationToken).ConfigureAwait(false);
+                    return [];
+                }
+
                 case NodeOp.GetInbox:
                     return NodeWire.EncodeInbox(
                         await host.GetInboxAsync(PipeFrames.Number(argument, otherwise: 50), cancellationToken).ConfigureAwait(false));
@@ -431,6 +454,8 @@ public sealed class PipeNodeServer : IAsyncDisposable
         public void OnGrantChanged(GrantState state) => Push(NodeOp.EventGrant, NodeWire.EncodeGrant(state));
 
         public void OnDelivered(Guid messageId) => Push(NodeOp.EventDelivered, NodeWire.EncodeDelivered(messageId));
+
+        public void OnHelpChanged(HelpReport report) => Push(NodeOp.EventHelp, NodeWire.EncodeHelpReport(report));
 
         private void Push(NodeOp op, byte[] payload) => Queue(new PipeFrame((byte)op, 0, payload));
 

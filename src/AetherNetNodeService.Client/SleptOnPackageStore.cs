@@ -31,16 +31,21 @@ public sealed class SleptOnPackageStore : INodePackageStore
     private readonly HttpClient _http;
     private readonly string _package;
     private readonly Uri _api;
+    private readonly string _platform;
 
     /// <param name="http">The client to call SleptOn with.</param>
     /// <param name="packageName">The package wanted — AetherNetService's.</param>
     /// <param name="api">SleptOn's API; <see cref="DefaultApi"/> unless a test points it elsewhere.</param>
-    public SleptOnPackageStore(HttpClient http, string packageName, Uri? api = null)
+    /// <param name="platform">
+    /// Which build is wanted — SleptOn keeps a release per platform ("android", "windows", …) under one package name.
+    /// </param>
+    public SleptOnPackageStore(HttpClient http, string packageName, Uri? api = null, string platform = "android")
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _package = string.IsNullOrWhiteSpace(packageName)
             ? throw new ArgumentException("The package wanted is needed.", nameof(packageName))
             : packageName;
+        _platform = string.IsNullOrWhiteSpace(platform) ? "android" : platform;
         var root = api ?? DefaultApi;
         _api = root.AbsoluteUri.EndsWith('/') ? root : new Uri(root.AbsoluteUri + "/");
     }
@@ -51,7 +56,8 @@ public sealed class SleptOnPackageStore : INodePackageStore
     /// <inheritdoc />
     public async Task<NodePackageOffer?> FindAsync(CancellationToken cancellationToken = default)
     {
-        var lookup = new Uri(_api, $"api/updates/check/{Uri.EscapeDataString(_package)}?currentVersionCode=0");
+        var lookup = new Uri(_api,
+            $"api/updates/check/{Uri.EscapeDataString(_package)}?currentVersionCode=0&platform={Uri.EscapeDataString(_platform)}");
         try
         {
             using var response = await _http.GetAsync(lookup, cancellationToken).ConfigureAwait(false);
