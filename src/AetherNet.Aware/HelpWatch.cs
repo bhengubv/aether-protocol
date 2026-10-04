@@ -2,6 +2,16 @@
 
 namespace AetherNet.Aware;
 
+/// <summary>How a guardian's phone tells its owner that someone needs help.</summary>
+public enum HelpAlertStyle
+{
+    /// <summary>Sound, vibrate and show it — it is an emergency for the guardian, so this is the default.</summary>
+    Loud,
+
+    /// <summary>Show it without a sound: a guardian who asked for quiet, or one who is in a meeting.</summary>
+    Quiet,
+}
+
 /// <summary>Where a point of a trail came from.</summary>
 public enum CrumbSource
 {
@@ -24,6 +34,9 @@ public sealed record HelpCase
 
     /// <summary>Help or Walk while it lasts; Safe once the person says so.</summary>
     public required HelpKind Kind { get; init; }
+
+    /// <summary>How this phone tells its owner — loud, or quietly. Loud unless this guardian chose otherwise.</summary>
+    public HelpAlertStyle Alert { get; init; } = HelpAlertStyle.Loud;
 
     public long FirstHeardAt { get; init; }
 
@@ -78,7 +91,7 @@ public sealed class HelpWatch
 
     private readonly TimeProvider _time;
     private readonly object _gate = new();
-    private readonly Dictionary<string, (string Name, HelpKey Key)> _people = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (string Name, HelpKey Key, HelpAlertStyle Alert)> _people = new(StringComparer.Ordinal);
     private readonly Dictionary<string, HelpCase> _cases = new(StringComparer.Ordinal);
 
     public HelpWatch(TimeProvider? timeProvider = null)
@@ -87,14 +100,14 @@ public sealed class HelpWatch
     }
 
     /// <summary>Someone chose this phone's owner as a guardian and shared their help key.</summary>
-    public void Watch(string personId, string name, HelpKey key)
+    public void Watch(string personId, string name, HelpKey key, HelpAlertStyle alert = HelpAlertStyle.Loud)
     {
         ArgumentException.ThrowIfNullOrEmpty(personId);
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(key);
         lock (_gate)
         {
-            _people[personId] = (name, key);
+            _people[personId] = (name, key, alert);
         }
     }
 
@@ -136,19 +149,29 @@ public sealed class HelpWatch
         lock (_gate)
         {
             var now = Now();
-            foreach (var (personId, (name, key)) in _people)
+            foreach (var (personId, (name, key, alert)) in _people)
             {
                 if (HelpCodec.TryRead(key, payload, now) is not { } reading)
                 {
                     continue;
                 }
                 var level = rssi is { } r && Rssi.Measured(r) ? r : (int?)null;
-                var updated = Merge(_cases.GetValueOrDefault(personId), personId, name, reading, now, level, whereIAm);
+                var updated = Merge(_cases.GetValueOrDefault(personId), personId, name, alert, reading, now, level, whereIAm);
                 _cases[personId] = updated;
                 return updated;
             }
             return null;
         }
+    }
+
+    /// <summary>
+    /// A help message inside an advert the radios already read, in either container (see <see cref="HelpAdvert"/>).
+    /// Null when the advert carries none, or carries one this phone cannot read.
+    /// </summary>
+    public HelpCase? Hear(RadioFacts facts, int? rssi = null, GpsSample? whereIAm = null, ushort? registeredId = null)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+        return HelpAdvert.TryFind(facts, registeredId) is { } message ? Hear(message, rssi, whereIAm) : null;
     }
 
     /// <summary>Forgets trails that ended, or went unheard, more than <see cref="KeepAfterEndMs"/> ago.</summary>
@@ -171,6 +194,7 @@ public sealed class HelpWatch
         HelpCase? existing,
         string personId,
         string name,
+        HelpAlertStyle alert,
         HelpReading reading,
         long now,
         int? rssi,
@@ -186,6 +210,7 @@ public sealed class HelpWatch
         {
             PersonId = personId,
             Name = name,
+            Alert = alert,
             Kind = message.Kind,
             FirstHeardAt = now,
             LastHeardAt = now,
@@ -196,6 +221,7 @@ public sealed class HelpWatch
         current = current with
         {
             Name = name,
+            Alert = alert,
             LastHeardAt = now,
             Loudness = rssi is { } level ? Capped([.. current.Loudness, new RssiSample(now, level)], LoudnessCap) : current.Loudness,
             LastNearbyAt = rssi is null ? current.LastNearbyAt : now,
