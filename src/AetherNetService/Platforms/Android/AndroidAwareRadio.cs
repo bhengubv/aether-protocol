@@ -386,15 +386,23 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
             }
 
             _fix = new Fix(this);
+
+            // Where the fixes are delivered, and it must be said. Asking for them builds a Handler on the calling
+            // thread, and Aware starts on an ordinary background thread, which has no Looper — so the overload
+            // without this throws "Can't create handler inside thread ... that has not called Looper.prepare()"
+            // and this phone has no position at all. It threw on every Android version, and the only sign was a
+            // line in the log nobody was reading, because the position simply stayed empty.
+            var where = Looper.MainLooper!;
+
             // The phone's own GPS, never a network lookup: no Google Play services here.
             if (_locations.IsProviderEnabled(LocationManager.GpsProvider))
             {
-                _locations.RequestLocationUpdates(LocationManager.GpsProvider, 2_000L, 8f, _fix);
+                _locations.RequestLocationUpdates(LocationManager.GpsProvider, 2_000L, 8f, _fix, where);
             }
 
             if (_locations.IsProviderEnabled(LocationManager.NetworkProvider))
             {
-                _locations.RequestLocationUpdates(LocationManager.NetworkProvider, 4_000L, 15f, _fix);
+                _locations.RequestLocationUpdates(LocationManager.NetworkProvider, 4_000L, 15f, _fix, where);
             }
         }
         catch (Exception ex)
@@ -491,6 +499,9 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
             _log?.LogWarning(ex, "Aether Aware stumbled while taking in what it heard");
         }
     }
+
+    /// <summary>How many adverts arrived and could not be read. Counted, because nothing else would show it.</summary>
+    private int _unreadable;
 
     /// <summary>What the signature pack called the things around this phone, so a log shows its work.</summary>
     private string Named()
@@ -796,7 +807,15 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
             }
             catch (Exception ex)
             {
-                owner._log?.LogDebug(ex, "an advert could not be read");
+                // Never Debug. This hid a total failure: 2,695 adverts arrived on a Pixel 7a, every one of them
+                // threw here, and the phone cheerfully reported hearing nothing at all — no count, no warning, no
+                // sign anywhere that Aware was dead. The first one is said plainly; after that a count, so that a
+                // flood of them is still one line and not a flood.
+                var failed = System.Threading.Interlocked.Increment(ref owner._unreadable);
+                if (failed == 1 || failed % 500 == 0)
+                {
+                    owner._log?.LogWarning(ex, "Aether Aware could not read an advert ({Count} so far)", failed);
+                }
             }
         }
 

@@ -59,7 +59,21 @@ public sealed class AetherLinkService : Service
 
     public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
     {
-        StartForeground(NotificationId, BuildNotification(), Kinds());
+        var notification = BuildNotification();
+        try
+        {
+            StartForeground(NotificationId, notification, Kinds());
+        }
+        catch (Java.Lang.SecurityException ex)
+        {
+            // Holding the link matters more than saying why we hold it. If the phone refuses the location kind for
+            // any reason of its own, keep the link and lose only the position — never die. Without this the service
+            // crash-looped on a Pixel 7a: Android restarted it, it threw again, and the backoff reached three hours.
+            global::Android.Util.Log.Warn(
+                "AetherNetService",
+                $"the phone would not let this be a location service, so it is not one: {ex.Message}");
+            StartForeground(NotificationId, notification, global::Android.Content.PM.ForegroundService.TypeConnectedDevice);
+        }
 
         // If Android kills us for memory it should bring us back — a mesh link that quietly stops
         // existing is worse than one that visibly restarts.
@@ -84,19 +98,27 @@ public sealed class AetherLinkService : Service
     }
 
     /// <summary>
-    /// Whether the person has allowed this phone's location at all. That is exactly what saying "location" here
-    /// needs — from Android 14 the phone refuses the kind outright without it, and throws. Whether a position then
-    /// actually arrives is a separate matter: from Android 12 a service started from the background is handed none
-    /// unless the app also holds ACCESS_BACKGROUND_LOCATION. Saying the kind costs nothing when it does not, and is
-    /// required for it to work when it does, so the test is the plain permission and not the other one.
+    /// Whether this service may call itself a location one. Allowing location is the first half; the second is that
+    /// from Android 14 the phone also demands the app be "in the eligible state" for a permission that is only meant
+    /// for an app somebody is looking at — and this service has no screen, so it never is. Allowing location only
+    /// "while using the app" therefore does not make it eligible, and claiming the kind anyway throws
+    /// <c>SecurityException: Starting FGS with type location</c> and takes the service down with it. "All the time"
+    /// is what makes it eligible. Before Android 14 nothing is enforced, and on Android 10 and 11 the kind is itself
+    /// what lets a service off-screen have a position, so there it is claimed on the plain permission alone.
     /// </summary>
     private bool Located
     {
         get
         {
             var granted = global::Android.Content.PM.Permission.Granted;
-            return CheckSelfPermission(global::Android.Manifest.Permission.AccessFineLocation) == granted
-                || CheckSelfPermission(global::Android.Manifest.Permission.AccessCoarseLocation) == granted;
+            if (CheckSelfPermission(global::Android.Manifest.Permission.AccessFineLocation) != granted
+                && CheckSelfPermission(global::Android.Manifest.Permission.AccessCoarseLocation) != granted)
+            {
+                return false;
+            }
+
+            return Build.VERSION.SdkInt < BuildVersionCodes.UpsideDownCake
+                || CheckSelfPermission(global::Android.Manifest.Permission.AccessBackgroundLocation) == granted;
         }
     }
 
