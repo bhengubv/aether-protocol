@@ -157,7 +157,9 @@ public class HelpWireTests
 
         var odd = System.Text.Encoding.UTF8.GetBytes("""{"advert":42}""");
         var (defaults, fallback) = NodeWire.DecodeHelpOptions(odd);
-        Assert.Equal(HelpAdvertForm.AetherNet128, fallback);
+
+        // Ours, in the two halves every phone can send and hear — the widest reach that costs nothing.
+        Assert.Equal(HelpAdvertForm.AetherNet128Pair, fallback);
         Assert.Equal(new HelpTriggers(), defaults);
     }
 

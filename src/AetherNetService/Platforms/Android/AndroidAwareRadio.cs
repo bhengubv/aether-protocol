@@ -197,14 +197,23 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
 
         // Android composes the advert itself: a SIG-base UUID goes out as 2 bytes, ours as 16. The 23-byte payload
         // is the same either way, which is why a guardian reads both.
-        var data = new AdvertiseData.Builder()!
-            .SetIncludeDeviceName(false)!
-            .SetIncludeTxPowerLevel(false)!
-            .AddServiceData(new ParcelUuid(UUID.FromString(uuid.ToString())!), message)!
-            .Build()!;
+        var data = Advert(uuid, form == HelpAdvertForm.AetherNet128Pair ? message[..HelpAdvert.FirstHalf] : message);
 
         StopAdvertising();
-        if (form == HelpAdvertForm.AetherNet128)
+        if (form == HelpAdvertForm.AetherNet128Pair)
+        {
+            // The rest goes in the scan response, which has its own 31 bytes. A listening phone asks for it as part
+            // of an ordinary scan and is handed both halves as one reading, so this fits a phone with no Bluetooth 5.
+            var rest = Advert(HelpAdvert.ServiceUuidRest, message[HelpAdvert.FirstHalf..]);
+            var settings = new AdvertiseSettings.Builder()!
+                .SetAdvertiseMode(AdvertiseMode.Balanced)!
+                .SetConnectable(false)!
+                .SetTxPowerLevel(AdvertiseTx.PowerHigh)!
+                .Build()!;
+            _legacy = new LegacyAdvert(this);
+            advertiser.StartAdvertising(settings, data, rest, _legacy);
+        }
+        else if (form == HelpAdvertForm.AetherNet128)
         {
             // Past the 31 bytes a standard advert holds, so it needs Bluetooth 5's longer one.
             var parameters = new AdvertisingSetParameters.Builder()!
@@ -228,6 +237,14 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
             advertiser.StartAdvertising(settings, data, _legacy);
         }
     }
+
+    /// <summary>One lot of service data under one id, with nothing else in it — every byte is needed.</summary>
+    private static AdvertiseData Advert(Guid uuid, byte[] data)
+        => new AdvertiseData.Builder()!
+            .SetIncludeDeviceName(false)!
+            .SetIncludeTxPowerLevel(false)!
+            .AddServiceData(new ParcelUuid(UUID.FromString(uuid.ToString())!), data)!
+            .Build()!;
 
     private void StopAdvertising()
     {
@@ -437,12 +454,40 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
                 _log?.LogInformation(
                     "Aether Aware hears {Total} ({Wifi} Wi-Fi, {Ble} Bluetooth), {Named} named, {WithYou} moving with me; walked {Walk:F0} m",
                     stats.DevicesSeen, stats.WifiNow, stats.BleNow, stats.NamedNow, withYou, _walk.LengthM);
+                if (Named() is { Length: > 0 } named)
+                {
+                    _log?.LogInformation("Aether Aware names: {Named}", named);
+                }
             }
         }
         catch (Exception ex)
         {
             _log?.LogWarning(ex, "Aether Aware stumbled while taking in what it heard");
         }
+    }
+
+    /// <summary>What the signature pack called the things around this phone, so a log shows its work.</summary>
+    private string Named()
+    {
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var fleet in _fleets)
+        {
+            names[fleet.Id] = fleet.Name;
+        }
+
+        var seen = new List<string>();
+        foreach (var device in _devices.Devices)
+        {
+            foreach (var id in device.FleetIds)
+            {
+                if (names.TryGetValue(id, out var name) && !seen.Contains(name))
+                {
+                    seen.Add(name);
+                }
+            }
+        }
+
+        return string.Join(", ", seen.Take(12));
     }
 
     /// <summary>The finder tags that have stayed with this phone while it moved.</summary>

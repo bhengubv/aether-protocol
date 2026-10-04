@@ -345,7 +345,7 @@ public static class NodeWire
     private static HelpAlert Alert(int raw) => Enum.IsDefined(typeof(HelpAlert), raw) ? (HelpAlert)raw : HelpAlert.Loud;
 
     private static HelpAdvertForm Advert(int raw)
-        => Enum.IsDefined(typeof(HelpAdvertForm), raw) ? (HelpAdvertForm)raw : HelpAdvertForm.AetherNet128;
+        => Enum.IsDefined(typeof(HelpAdvertForm), raw) ? (HelpAdvertForm)raw : HelpAdvertForm.AetherNet128Pair;
 
     private static AetherNetTag Tag(string? value)
         => AetherNetTag.TryParse(value ?? string.Empty, out var tag) ? tag : default;
@@ -577,7 +577,7 @@ public static class NodeWire
         int PowerPresses = 5, int PowerWindowMs = 3_000, double ShakeThreshold = 25.0, int ShakeCount = 3,
         int ShakeWindowMs = 1_500, int HoldSeconds = 0);
 
-    private sealed record HelpOptionsDto(TriggersDto? Triggers = null, int Advert = (int)HelpAdvertForm.AetherNet128);
+    private sealed record HelpOptionsDto(TriggersDto? Triggers = null, int Advert = (int)HelpAdvertForm.AetherNet128Pair);
 
     private sealed record HelpStateDto(
         bool On = false, int Kind = (int)HelpKind.Safe, DateTimeOffset? StartedAt = null, DateTimeOffset? SafeAt = null,

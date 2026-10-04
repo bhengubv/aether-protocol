@@ -95,7 +95,7 @@ internal sealed class FakeRadio : IHelpRadio
 
     public int Stops { get; private set; }
 
-    public HashSet<HelpAdvertForm> Able { get; } = [HelpAdvertForm.AetherNet128];
+    public HashSet<HelpAdvertForm> Able { get; } = [HelpAdvertForm.AetherNet128, HelpAdvertForm.AetherNet128Pair];
 
     public bool Can(HelpAdvertForm form) => Able.Contains(form);
 
@@ -109,7 +109,12 @@ internal sealed class FakeRadio : IHelpRadio
     {
         var (message, form, registeredId) = Adverts[^1];
         return Aware.HelpAdvert.Build(
-            form == HelpAdvertForm.Registered16 ? Aware.HelpAdvertForm.Registered16 : Aware.HelpAdvertForm.AetherNet128,
+            form switch
+            {
+                HelpAdvertForm.Registered16 => Aware.HelpAdvertForm.Registered16,
+                HelpAdvertForm.AetherNet128Pair => Aware.HelpAdvertForm.AetherNet128Pair,
+                _ => Aware.HelpAdvertForm.AetherNet128,
+            },
             message,
             registeredId);
     }

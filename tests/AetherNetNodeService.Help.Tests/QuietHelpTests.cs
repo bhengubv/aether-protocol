@@ -56,7 +56,7 @@ public sealed class QuietHelpTests : IDisposable
 
         // On the air: the message itself, which the radio wraps in its own advert — and that advert is readable.
         var (onAir, form, _) = radio.Adverts[^1];
-        Assert.Equal(HelpAdvertForm.AetherNet128, form);
+        Assert.Equal(HelpAdvertForm.AetherNet128Pair, form);
         Assert.Equal(Aware.HelpCodec.Length, onAir.Length);
         Assert.Contains(messaging.Sent, s => s.Payload.SequenceEqual(onAir));
         Assert.Equal(onAir, Aware.HelpAdvert.TryFind(radio.LastAdvert()));
@@ -253,7 +253,7 @@ public sealed class QuietHelpTests : IDisposable
         var standard = adverts.Single(a => a.Form == HelpAdvertForm.Registered16);
         Assert.False(standard.Available);
         Assert.Contains("registered", standard.Why, StringComparison.OrdinalIgnoreCase);
-        var ours = adverts.Single(a => a.Form == HelpAdvertForm.AetherNet128);
+        var ours = adverts.Single(a => a.Form == HelpAdvertForm.AetherNet128Pair);
         Assert.True(ours.Available);
         Assert.True(ours.Chosen);
         Assert.Null(ours.Why);
@@ -282,14 +282,51 @@ public sealed class QuietHelpTests : IDisposable
     [Fact]
     public async Task AContainerThisDeviceCannotUseIsNotTaken()
     {
-        var (help, _, radio) = Node(Thandi);   // can only do AetherNet128
+        var (help, _, radio) = Node(Thandi);   // cannot do the standard advert, having no registered id
         help.SetGuardians([new HelpGuardian(Sipho, "Sipho")]);
         help.SetOptions(new HelpTriggers(), HelpAdvertForm.Registered16);
 
-        Assert.True(help.Current.Mine.Adverts.Single(a => a.Form == HelpAdvertForm.AetherNet128).Chosen);
+        Assert.True(help.Current.Mine.Adverts.Single(a => a.Form == HelpAdvertForm.AetherNet128Pair).Chosen);
         help.Start(HelpKind.Help);
         await help.TickAsync();
-        Assert.Equal(HelpAdvertForm.AetherNet128, radio.Adverts[^1].Form);
+        Assert.Equal(HelpAdvertForm.AetherNet128Pair, radio.Adverts[^1].Form);
+    }
+
+    [Fact]
+    public async Task TwoHalvesAreSentWhenThereIsNoRegisteredIdAndTheLongAdvertWhenThatIsAllTheRadioHas()
+    {
+        // No registered id and a radio that can do either of ours: the two halves win, because every phone hears
+        // them while only a Bluetooth 5 phone hears the long one.
+        var (help, _, radio) = Node(Thandi);
+        help.SetGuardians([new HelpGuardian(Sipho, "Sipho")]);
+        help.Start(HelpKind.Help);
+        await help.TickAsync();
+        Assert.Equal(HelpAdvertForm.AetherNet128Pair, radio.Adverts[^1].Form);
+
+        // The message put back together out of the two halves is the message that went out.
+        Assert.Equal(radio.Adverts[^1].Message, Aware.HelpAdvert.TryFind(radio.LastAdvert()));
+        Assert.Equal(62, radio.LastAdvert().Length);   // 31 in the advert, 31 in the scan response
+
+        // A radio that can only manage the long advert still sends, and says so.
+        var older = new FakeRadio();
+        older.Able.Clear();
+        older.Able.Add(HelpAdvertForm.AetherNet128);
+        var onlyLong = Keep(new QuietHelp(Store(), new FakeMessaging(Thandi), older, _clock));
+        onlyLong.SetGuardians([new HelpGuardian(Sipho, "Sipho")]);
+        onlyLong.Start(HelpKind.Help);
+        await onlyLong.TickAsync();
+        Assert.Equal(HelpAdvertForm.AetherNet128, older.Adverts[^1].Form);
+        Assert.False(onlyLong.Current.Mine.Adverts.Single(a => a.Form == HelpAdvertForm.AetherNet128Pair).Available);
+
+        // And a radio that can do nothing says nothing is on the air, while the mesh still carries it.
+        var none = new FakeRadio();
+        none.Able.Clear();
+        var meshOnly = Keep(new QuietHelp(Store(), new FakeMessaging(Thandi), none, _clock));
+        meshOnly.SetGuardians([new HelpGuardian(Sipho, "Sipho")]);
+        meshOnly.Start(HelpKind.Help);
+        await meshOnly.TickAsync();
+        Assert.Empty(none.Adverts);
+        Assert.False(meshOnly.Current.Mine.Nearby);
     }
 
     [Fact]

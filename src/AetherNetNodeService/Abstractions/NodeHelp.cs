@@ -35,6 +35,29 @@ public enum HelpAdvertForm
 
     /// <summary>AetherNet's own 128-bit service ID, which needs Bluetooth 5 extended adverts.</summary>
     AetherNet128 = 1,
+
+    /// <summary>
+    /// AetherNet's own ID, sent in two halves — the advert and the scan response a listening phone asks for. No
+    /// registered ID, no Bluetooth 5, and every phone can send it and hear it, so this is what a phone uses unless
+    /// it has something better.
+    /// </summary>
+    AetherNet128Pair = 2,
+}
+
+/// <summary>
+/// The containers in the order they are preferred, best reach first. A registered ID would be one advert every phone
+/// can hear, so it leads; two halves need nothing registered and reach every phone as well, so they come next; the
+/// single long advert is last, because only a Bluetooth 5 phone can hear it.
+/// </summary>
+public static class HelpAdvertForms
+{
+    /// <summary>Best first. A device sends the first of these its radio can manage.</summary>
+    public static readonly HelpAdvertForm[] Preferred =
+    [
+        HelpAdvertForm.Registered16,
+        HelpAdvertForm.AetherNet128Pair,
+        HelpAdvertForm.AetherNet128,
+    ];
 }
 
 /// <summary>Which of a person's own actions start Quiet help. Nothing the phone receives ever does.</summary>

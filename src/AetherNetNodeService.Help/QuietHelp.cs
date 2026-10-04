@@ -397,7 +397,7 @@ public sealed class QuietHelp : INodeHelpSource, IDisposable
             return wanted;
         }
 
-        foreach (var form in Enum.GetValues<HelpAdvertForm>())
+        foreach (var form in HelpAdvertForms.Preferred)
         {
             if (Usable(form))
             {
@@ -425,9 +425,9 @@ public sealed class QuietHelp : INodeHelpSource, IDisposable
     {
         var session = _session;
         var over = session?.IsOver ?? true;
-        var adverts = new List<HelpAdvertChoice>(2);
+        var adverts = new List<HelpAdvertChoice>(HelpAdvertForms.Preferred.Length);
         var chosen = Chosen(_store.Advert);
-        foreach (var form in Enum.GetValues<HelpAdvertForm>())
+        foreach (var form in HelpAdvertForms.Preferred)
         {
             var usable = Usable(form);
             adverts.Add(new HelpAdvertChoice(form, usable, usable && form == chosen, WhyNot(form)));

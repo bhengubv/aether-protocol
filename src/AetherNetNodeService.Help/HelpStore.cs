@@ -99,7 +99,7 @@ public sealed class HelpStore
             {
                 return Enum.IsDefined(typeof(HelpAdvertForm), _saved.Advert)
                     ? (HelpAdvertForm)_saved.Advert
-                    : HelpAdvertForm.AetherNet128;
+                    : HelpAdvertForm.AetherNet128Pair;
             }
         }
     }
@@ -207,7 +207,7 @@ public sealed class HelpStore
         byte[]? Key = null,
         SavedGuardian[]? Guardians = null,
         SavedTriggers? Triggers = null,
-        int Advert = (int)HelpAdvertForm.AetherNet128);
+        int Advert = (int)HelpAdvertForm.AetherNet128Pair);
 
     private sealed record SavedGuardian(string Tag, string Name, int Alert);
 
