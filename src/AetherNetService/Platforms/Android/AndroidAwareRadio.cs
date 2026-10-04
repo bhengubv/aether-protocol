@@ -360,6 +360,25 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
     {
         try
         {
+            if (!Allowed(global::Android.Manifest.Permission.AccessFineLocation))
+            {
+                _log?.LogWarning(
+                    "Aether Aware does not know where this phone is: it needs permission to use your location. "
+                    + "Quiet help will still reach your guardians, but without where you are, and nothing can be "
+                    + "noticed as moving with you.");
+                return;
+            }
+
+            // Allowed is not enough off-screen. Without "all the time" Android hands this service no position at
+            // all, and says so once in its own log and never again — so say it here, where somebody will read it.
+            if (OperatingSystem.IsAndroidVersionAtLeast(31)
+                && !Allowed(global::Android.Manifest.Permission.AccessBackgroundLocation))
+            {
+                _log?.LogWarning(
+                    "Aether Aware will lose this phone's position whenever nothing is on screen: your location is "
+                    + "allowed, but not \"all the time\". On the service's own page, choose Allow all the time.");
+            }
+
             _locations = AndroidApp.Context.GetSystemService(Context.LocationService) as LocationManager;
             if (_locations is null)
             {
@@ -380,7 +399,7 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
         }
         catch (Exception ex)
         {
-            _log?.LogDebug(ex, "Aether Aware: no position on this phone");
+            _log?.LogWarning(ex, "Aether Aware: no position on this phone");
         }
     }
 

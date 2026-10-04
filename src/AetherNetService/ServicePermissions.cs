@@ -55,6 +55,21 @@ internal static class ServicePermissions
                 "find phones near you, over Wi-Fi and Bluetooth"));
         }
 
+        // Allowed is not the same as allowed off-screen, and off-screen is when help is wanted. From Android 10 a
+        // service with nothing on screen is handed no position without this; from 12 a foreground service started
+        // from the background — which this one always is, having no screen — is refused location outright unless it
+        // holds this. Android will not put it in a dialog, so the person chooses it on the service's own page.
+        if (OperatingSystem.IsAndroidVersionAtLeast(31))
+        {
+            list.Add(new(
+                "Location all the time",
+                Granted(global::Android.Manifest.Permission.AccessBackgroundLocation),
+                "know where you are with nothing on screen — which is when you need help")
+            {
+                How = "on the Location permission, choose Allow all the time",
+            });
+        }
+
         list.Add(new("Battery", Unrestricted, "keep running in the background, free of the phone's battery limits")
         {
             Page = PermissionPage.Battery,

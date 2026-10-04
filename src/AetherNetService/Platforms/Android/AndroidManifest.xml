@@ -20,6 +20,13 @@
          what is around them, and drones. Nothing here risks the mesh, because the mesh's own radios keep their flags
          and never ask for this. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- And "all the time", because the help is wanted with the phone in a pocket and nothing on screen. From
+         Android 12 a foreground service started while the app is in the background is refused location outright —
+         and AetherNetService, having no screen, is always in the background. Holding this is the exemption. Android
+         will not put it in a dialog: the person chooses "Allow all the time" on the service's own page, which is
+         where the app sends them. Refused, everything else still works and the position simply stays unknown. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
     <uses-feature android:name="android.hardware.wifi.aware" android:required="false" />
 
@@ -35,6 +42,7 @@
          (AetherLinkService), or Android cuts Bluetooth for a background app within minutes. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
