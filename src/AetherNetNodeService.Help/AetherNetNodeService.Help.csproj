@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AetherNetNodeService.Help</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Description>Quiet help inside AetherNetService: the person's own help or walk session, the guardians they chose, the key only those guardians hold, and what their phones know of someone asking for help. Puts AetherNet.Aware's Quiet help behind the node contract's INodeHelpSource, over the mesh and over whatever radio the host supplies.</Description>
+    <PackageTags>aether;help;sos;safety;guardians;mesh;ble</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNet.Aware/AetherNet.Aware.csproj" />
+    <ProjectReference Include="../AetherNetNodeService/AetherNetNodeService.csproj" />
+    <ProjectReference Include="../AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AetherNetNodeService.Help.Tests" />
+  </ItemGroup>
+
+</Project>

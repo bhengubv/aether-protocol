@@ -61,6 +61,7 @@
        AetherNet.Core; the storage backing it is AetherNet.Storage). -->
   <ItemGroup>
     <ProjectReference Include="../AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
+    <ProjectReference Include="../AetherNetNodeService.Help/AetherNetNodeService.Help.csproj" />
     <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
     <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
     <ProjectReference Include="../AetherNet.Mesh/AetherNet.Mesh.csproj" />

@@ -121,6 +121,27 @@ public sealed class HelpWatch
         }
     }
 
+    /// <summary>How many people this phone is a guardian for, whether or not any of them is asking for help.</summary>
+    public int WatchedCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _people.Count;
+            }
+        }
+    }
+
+    /// <summary>Whether this phone is already a guardian for them.</summary>
+    public bool IsWatching(string personId)
+    {
+        lock (_gate)
+        {
+            return _people.ContainsKey(personId);
+        }
+    }
+
     public IReadOnlyList<HelpCase> Cases
     {
         get
@@ -226,9 +247,21 @@ public sealed class HelpWatch
             Loudness = rssi is { } level ? Capped([.. current.Loudness, new RssiSample(now, level)], LoudnessCap) : current.Loudness,
             LastNearbyAt = rssi is null ? current.LastNearbyAt : now,
         };
-        if (existing is not null && reading.MadeAt <= existing.LastMessageAt)
+
+        // Where this phone was when it heard them counts too, even for a message it had already read over the mesh —
+        // for a guardian looking for someone, that is the one thing a repeat does tell them.
+        if (!message.HasPosition && whereIAm is not null && PayloadLocation.ValidCoord(whereIAm.Lat, whereIAm.Lon))
         {
-            // The same message again, or an older one heard late: nothing more to learn from it.
+            current = current with
+            {
+                Trail = AddCrumb(current.Trail, new HelpCrumb(now, whereIAm.Lat, whereIAm.Lon, null, CrumbSource.HeardNear, rssi)),
+            };
+        }
+
+        // Strictly older only: the time a message carries has 20 ms steps, so two made inside one step share it —
+        // and one of those two can be the person saying they are safe. Reading a true repeat again changes nothing.
+        if (existing is not null && reading.MadeAt < existing.LastMessageAt)
+        {
             return current;
         }
 
@@ -244,10 +277,6 @@ public sealed class HelpWatch
             accuracy = message.AccuracyM;
             fixAt = reading.MadeAt - ((message.FixAgeSeconds ?? 0) * 1000L);
             trail = AddCrumb(trail, new HelpCrumb(fixAt.Value, lat!.Value, lon!.Value, accuracy, CrumbSource.Reported));
-        }
-        else if (whereIAm is not null && PayloadLocation.ValidCoord(whereIAm.Lat, whereIAm.Lon))
-        {
-            trail = AddCrumb(trail, new HelpCrumb(now, whereIAm.Lat, whereIAm.Lon, null, CrumbSource.HeardNear, rssi));
         }
         return current with
         {

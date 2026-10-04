@@ -101,6 +101,9 @@ public sealed class HelpSession
         {
             _kind = HelpKind.Safe;
             _safeSince ??= Now();
+            // The message held for this 20 ms step still says Help; "safe" must not wait for the next one.
+            _last = null;
+            _lastStep = -1;
         }
     }
 

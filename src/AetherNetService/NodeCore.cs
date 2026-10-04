@@ -5,6 +5,7 @@ using AetherNet.Identity;
 using AetherNet.Mesh;
 using AetherNet.Messaging;
 using AetherNetNodeService;
+using AetherNetNodeService.Help;
 using AetherNetNodeService.Host;
 using AetherNet.Security.Services;
 
@@ -114,6 +115,16 @@ internal static class NodeCore
         services.AddSingleton(sp => new RadioSwitches(dir, sp.GetService<ILogger<RadioSwitches>>()));
         services.AddSingleton<INodeRadios>(sp => sp.GetRequiredService<RadioSwitches>());
         services.AddSingleton<IRadioSwitches>(sp => sp.GetRequiredService<RadioSwitches>());
+        // Quiet help: the person's own help or walk, the guardians they chose, and what this device knows of
+        // somebody who chose its owner as a guardian. It travels the mesh here; a head that can also put it on the
+        // air registers an IHelpRadio, and without one the mesh carries it alone.
+        services.AddSingleton(sp => new HelpStore(dir, sp.GetService<ILogger<HelpStore>>()));
+        services.AddSingleton(sp => new QuietHelp(
+            sp.GetRequiredService<HelpStore>(),
+            sp.GetRequiredService<INodeMessaging>(),
+            sp.GetService<IHelpRadio>(),
+            log: sp.GetService<ILogger<QuietHelp>>()));
+        services.AddSingleton<INodeHelpSource>(sp => sp.GetRequiredService<QuietHelp>());
         services.AddSingleton<INodeLinkSource>(sp => new MeshNodeLinkSource(
             sp.GetRequiredService<IRadioMesh>(), permissions,
             sp.GetService<ILogger<MeshNodeLinkSource>>(), sp.GetRequiredService<INodeNearby>()));
@@ -149,7 +160,8 @@ internal static class NodeCore
             // The 24 words come from the same store the identity lives in, so they are this identity's.
             new NodeIdentityRecovery(provider.GetRequiredService<INodeIdentityStore>()),
             provider.GetRequiredService<INodeNearby>(),
-            provider.GetRequiredService<INodeRadios>());
+            provider.GetRequiredService<INodeRadios>(),
+            provider.GetRequiredService<INodeHelpSource>());
 
         // The one inbound pump for the messaging plane: raw radio bytes → the library dispatcher → the
         // reliable core (which decrypts and raises MessageReceived) → the node's inbox seam. Pre-key requests
