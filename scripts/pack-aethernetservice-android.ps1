@@ -1,7 +1,7 @@
 param(
     [string] $Configuration = 'Release',
-    [string] $Version = '1.0',
-    [int] $Code = 1,
+    [string] $Version,
+    [int] $Code = 0,
     [switch] $AllowDebugSigned)
 # Builds what SleptOn carries for Android: the AetherNetService package.
 #
@@ -31,9 +31,27 @@ param(
 #   $env:ANDROID_KEYSTORE_PASS = '...'   # for this shell only, then close it
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+
+# THE VERSION IS READ FROM THE PROJECT, NOT DEFAULTED HERE. A literal default is one
+# fact with two owners: these scripts said 1.0/1 while AetherNetService.csproj had
+# moved to 1.1/2, so the reproducible command would have published a build BEHIND the
+# project and put a second distinct binary on the store under a code already used -
+# which is exactly what makes a phone unable to tell you what it is running.
+function Get-ProjectVersion([string] $csproj) {
+    $xml = [xml] (Get-Content -Raw $csproj)
+    $display = ($xml.Project.PropertyGroup.ApplicationDisplayVersion | Where-Object { $_ }) | Select-Object -First 1
+    $code = ($xml.Project.PropertyGroup.ApplicationVersion | Where-Object { $_ }) | Select-Object -First 1
+    if (-not $display -or -not $code) { throw "$csproj has no ApplicationDisplayVersion/ApplicationVersion to read" }
+    return @{ Version = [string] $display; Code = [int] $code }
+}
+
+$project = Join-Path $root 'src\AetherNetService\AetherNetService.csproj'
+$fromProject = Get-ProjectVersion $project
+if (-not $Version) { $Version = $fromProject.Version }
+if ($Code -le 0) { $Code = $fromProject.Code }
+"version $Version ($Code)$(if (-not $PSBoundParameters.ContainsKey('Version') -and -not $PSBoundParameters.ContainsKey('Code')) { ' - from the project' })"
 $out = Join-Path $root 'artifacts\android'
 $publish = Join-Path $out 'publish'
-$project = Join-Path $root 'src\AetherNetService\AetherNetService.csproj'
 
 New-Item -ItemType Directory -Force $out | Out-Null
 
@@ -92,6 +110,10 @@ elseif (-not $ourKey) {
 }
 
 "3/3 copying it out"
+# STALE ARTEFACTS ARE CLEARED FIRST. The name carries the version, so a run at a new
+# version leaves the old one sitting beside it - and "publish the apk in artifacts" then
+# has two answers, the wrong one being the older build somebody already shipped.
+Get-ChildItem $out -Filter 'AetherNetService-*.apk' -ErrorAction SilentlyContinue | Remove-Item -Force
 $named = Join-Path $out "AetherNetService-$Version.apk"
 Copy-Item $apk.FullName $named -Force
 "done: $named ($([math]::Round((Get-Item $named).Length / 1MB, 1)) MB)$(if ($debugSigned) { ' - DEBUG-SIGNED, test only' })"

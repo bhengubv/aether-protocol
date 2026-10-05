@@ -1,6 +1,6 @@
 # Versioning policy — aether-protocol
 
-## Current version: `3.0.0`
+## Current version: `3.1.0`
 
 The project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
@@ -38,7 +38,7 @@ dotnet pack -c Release -p:VersionSuffix=alpha.1
 ### Single-place version bump
 All 9 packable C# libraries share the version via `Directory.Build.props`:
 ```xml
-<VersionPrefix>3.0.0</VersionPrefix>
+<VersionPrefix>3.1.0</VersionPrefix>
 ```
 Bump it once; all packages move together.
 
