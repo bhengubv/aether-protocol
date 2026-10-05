@@ -17,6 +17,8 @@
     <!-- AetherNetService is its own installed app, with its own identity and package — distinct from any
          consumer app (the AetherNet sample is com.bhengubv.aethernet). One device, one node. The package name
          must never change: the phones that have it keep their AetherTag only while it is the same app. -->
+    <!-- An app, not a library: it ships as an APK and must never go to NuGet. -->
+    <IsPackable>false</IsPackable>
     <ApplicationId>com.bhengubv.aethernetservice</ApplicationId>
     <ApplicationDisplayVersion>1.1</ApplicationDisplayVersion>
     <ApplicationVersion>2</ApplicationVersion>
