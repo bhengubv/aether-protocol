@@ -56,6 +56,11 @@ internal static class AndroidNode
         services.AddSingleton<IHelpRadio>(sp => sp.GetRequiredService<AndroidAwareRadio>());
         services.AddSingleton<AetherNetNodeService.Host.INodeAwareSource>(sp => sp.GetRequiredService<AndroidAwareRadio>());
 
+        // The ways a person asks for help without opening anything: the power button, and shaking the phone.
+        services.AddSingleton(sp => new AndroidHelpTriggers(
+            sp.GetRequiredService<QuietHelp>(),
+            sp.GetService<ILoggerFactory>()?.CreateLogger("QuietHelpTriggers")));
+
         NodeCore.Add(services, dir, ServicePermissions.Now, AndroidRadioSetup.Internet);
 
         // The fast radio: the Circle's Wi-Fi Direct group, worked out from the same contacts. It ran only in the app
@@ -131,6 +136,10 @@ internal static class AndroidNode
                 {
                     global::Android.Util.Log.Info("AetherNetService", "Aether Aware is switched off — nothing is listened to");
                 }
+
+                // The ways a person asks for help without opening anything. These need no radio of their own —
+                // only the phone's own button and sensor — so they run whether Aware is switched on or not.
+                provider.GetRequiredService<AndroidHelpTriggers>().Start();
             }
             catch (Exception ex)
             {

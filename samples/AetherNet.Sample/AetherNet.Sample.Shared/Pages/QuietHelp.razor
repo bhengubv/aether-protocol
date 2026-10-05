@@ -329,12 +329,16 @@
     private static string AdvertName(HelpAdvertForm form) => form switch
     {
         HelpAdvertForm.Registered16 => "The standard advert — every phone can hear it",
+        HelpAdvertForm.AetherNet128Pair => "In two halves — every phone can hear it, and it costs nothing",
         _ => "AetherNet's own — needs Bluetooth 5 at both ends",
     };
 
     private static string AdvertLine(HelpAdvertForm form) => form switch
     {
         HelpAdvertForm.Registered16 => "Fits the advert any phone can send, so the most phones near you hear it.",
+        HelpAdvertForm.AetherNet128Pair =>
+            "Sent as two halves, which any phone can send and any phone asks for. The widest reach there is, and "
+            + "nothing had to be bought for it.",
         _ => "Ours, free and needs nobody's permission. Older phones cannot send or hear it.",
     };
 

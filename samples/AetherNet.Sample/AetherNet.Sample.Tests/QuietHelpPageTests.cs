@@ -404,4 +404,35 @@ public class QuietHelpPageTests : IDisposable
         await help.RefreshAsync();
         Assert.Equal(1, _node.Subscriptions);
     }
+
+    [Fact]
+    public void EveryContainerIsNamedForItselfAndNoneWearsAnothersWords()
+    {
+        // The two-half form shipped wearing the long advert's description — "needs Bluetooth 5 at both ends" — on a
+        // phone that has no Bluetooth 5 and was sending it perfectly well. A default case did that, so now each is
+        // named, and anything new is loud about being unnamed rather than quietly wrong.
+        _node.Report = new HelpReport
+        {
+            Mine = new HelpState
+            {
+                Guardians = [new HelpGuardian(Sipho, "Sipho")],
+                Adverts =
+                [
+                    new HelpAdvertChoice(HelpAdvertForm.Registered16, false, false, "needs a registered Bluetooth ID"),
+                    new HelpAdvertChoice(HelpAdvertForm.AetherNet128Pair, true, true),
+                    new HelpAdvertChoice(HelpAdvertForm.AetherNet128, false, false, "this phone's Bluetooth is too old"),
+                ],
+            },
+        };
+
+        var page = _ctx.RenderComponent<QuietHelp>();
+
+        Assert.Contains("In two halves", page.Markup);
+        Assert.Contains("every phone can hear it, and it costs nothing", page.Markup);
+
+        // And the one actually in use is not described as needing something this phone has not got.
+        var inUse = page.FindAll("button.about").First(b => b.TextContent.Contains("In two halves"));
+        Assert.Contains("in use", inUse.TextContent);
+        Assert.DoesNotContain("needs Bluetooth 5 at both ends", inUse.TextContent);
+    }
 }
