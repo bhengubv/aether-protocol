@@ -262,6 +262,11 @@ public static class MauiProgram
             sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
             sp.GetService<ILoggerFactory>()));
 
+        // Aether Aware, the same way: the node hears and names, this only shows what it was told.
+        builder.Services.AddSingleton(sp => new AwareService(
+            sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
+            sp.GetService<ILoggerFactory>()));
+
         builder.Services.AddSingleton<SosService>(sp => new SosService(
             sp.GetRequiredService<IIdentityService>(),
             sp.GetService<IRadioMesh>(),

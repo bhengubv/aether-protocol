@@ -65,6 +65,9 @@ public enum NodeOp
     /// <summary>Request: which triggers start Quiet help, and which Bluetooth container carries it.</summary>
     SetHelpOptions = 17,
 
+    /// <summary>Request: what Aether Aware hears around this device.</summary>
+    GetAware = 18,
+
     /// <summary>Push: a message arrived.</summary>
     EventInbound = 100,
 
@@ -79,6 +82,9 @@ public enum NodeOp
 
     /// <summary>Push: Quiet help changed — a session started or ended, or somebody being watched over moved.</summary>
     EventHelp = 104,
+
+    /// <summary>Push: what Aether Aware hears changed — something arrived, left, or is keeping up with the person.</summary>
+    EventAware = 105,
 }
 
 /// <summary>
@@ -218,6 +224,81 @@ public static class NodeWire
                 mine.BatteryPercent, mine.Nearby, mine.GuardiansReached, guardians, Triggers(mine.Triggers), adverts,
                 mine.Why, mine.NearbyWhy, mine.NearbyFixable),
             watching));
+    }
+
+    /// <summary>
+    /// What Aware hears, for a screen. The things go over whole: a report is a few dozen of them at most, each a
+    /// handful of short fields, and an app that had to ask again for each one would be a worse thing than the bytes.
+    /// </summary>
+    public static byte[] EncodeAwareReport(AwareReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        var things = new ThingDto[report.Things.Count];
+        for (var i = 0; i < things.Length; i++)
+        {
+            var t = report.Things[i];
+            things[i] = new ThingDto(
+                t.Id, t.Name, t.What, (int)t.Radio, (int)t.Closeness, t.MovingWithYou, t.FinderTag,
+                t.FirstHeard, t.LastHeard, t.Gone);
+        }
+
+        return JsonBytes(new AwareReportDto(
+            report.On, report.Why, report.Fixable, things, report.Heard, report.Named, report.MovingWithYou,
+            report.WalkedM, report.At));
+    }
+
+    /// <summary>
+    /// And back. A node that does not carry Aware sends nothing, which reads as nothing heard rather than as a
+    /// fault — the same rule every other unknown follows here.
+    /// </summary>
+    public static AwareReport DecodeAwareReport(byte[]? bytes)
+    {
+        if (bytes is not { Length: > 0 })
+        {
+            return AwareReport.None;
+        }
+
+        var dto = FromJson<AwareReportDto>(bytes);
+        if (dto is null)
+        {
+            return AwareReport.None;
+        }
+
+        var things = new List<AwareThing>(dto.Things?.Length ?? 0);
+        foreach (var t in dto.Things ?? [])
+        {
+            if (string.IsNullOrEmpty(t.Id))
+            {
+                continue;
+            }
+
+            things.Add(new AwareThing
+            {
+                Id = t.Id,
+                Name = string.IsNullOrEmpty(t.Name) ? t.Id : t.Name,
+                What = t.What,
+                Radio = Enum.IsDefined(typeof(AwareRadio), t.Radio) ? (AwareRadio)t.Radio : AwareRadio.Bluetooth,
+                Closeness = Enum.IsDefined(typeof(AwareCloseness), t.Closeness) ? (AwareCloseness)t.Closeness : AwareCloseness.Far,
+                MovingWithYou = t.MovingWithYou,
+                FinderTag = t.FinderTag,
+                FirstHeard = t.FirstHeard,
+                LastHeard = t.LastHeard,
+                Gone = t.Gone,
+            });
+        }
+
+        return new AwareReport
+        {
+            On = dto.On,
+            Why = dto.Why,
+            Fixable = dto.Fixable,
+            Things = things,
+            Heard = dto.Heard,
+            Named = dto.Named,
+            MovingWithYou = dto.MovingWithYou,
+            WalkedM = dto.WalkedM,
+            At = dto.At,
+        };
     }
 
     public static HelpReport DecodeHelpReport(byte[]? bytes)
@@ -570,6 +651,15 @@ public static class NodeWire
     private sealed record GuardianDto(string Tag, string Name, int Alert);
 
     private sealed record AdvertDto(int Form, bool Available, bool Chosen, string? Why);
+
+    private sealed record ThingDto(
+        string Id = "", string Name = "", string? What = null, int Radio = 0, int Closeness = 2,
+        bool MovingWithYou = false, bool FinderTag = false, DateTimeOffset FirstHeard = default,
+        DateTimeOffset LastHeard = default, bool Gone = false);
+
+    private sealed record AwareReportDto(
+        bool On = false, string? Why = null, bool Fixable = false, ThingDto[]? Things = null, int Heard = 0,
+        int Named = 0, int MovingWithYou = 0, double WalkedM = 0, DateTimeOffset? At = null);
 
     private sealed record PointDto(DateTimeOffset At, double Lat, double Lon, int? AccuracyM, bool Reported, int? Rssi);
 

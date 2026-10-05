@@ -114,6 +114,17 @@
 
         @* Quiet help sits here, under the radios it rides on: it is the one part of Aether that puts something on
            the air on purpose, and only when the person asks. The screen itself says what each choice means. *@
+        @* Aware sits with Quiet help, under the radios: both are about what the phone can hear around it. *@
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/aware"))">
+            <span class="about-body">
+                <span class="about-t">Aware</span>
+                <span class="about-s">
+                    What is around you, and whether any of it is keeping up with you. Nothing leaves this phone.
+                </span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+
         <button class="about" @onclick="@(() => Nav.NavigateTo("/quiet-help"))">
             <span class="about-body">
                 <span class="about-t">Quiet help</span>

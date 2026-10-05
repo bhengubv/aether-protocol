@@ -1,0 +1,224 @@
+@page "/aware"
+@using AetherNet.Sample.Shared.Services
+@using AetherNetNodeService
+@using AetherNetNodeService.Client
+@using Microsoft.Extensions.DependencyInjection
+@implements IDisposable
+@inject AwareService Listening
+@inject IServiceProvider Services
+
+<PageTitle>Aether — Aware</PageTitle>
+
+<div class="aware">
+    <h1 class="scr-title">Aware</h1>
+    <p class="lede">
+        What is around you right now, and whether any of it is keeping up with you. Nothing here leaves this phone:
+        it is only listening, the way your phone already listens for things to connect to.
+    </p>
+
+    @* The part worth interrupting somebody for. A tracker in a bag follows; a fridge does not. *@
+    @if (Listening.MovingWithYou is { Count: > 0 } following)
+    {
+        <section class="group">
+            <div class="glabel">Moving with you</div>
+            @foreach (var thing in following)
+            {
+                <div class="about aware-with">
+                    <span class="about-body">
+                        <span class="about-t">@thing.Name</span>
+                        <span class="about-s">
+                            @(Kind(thing) is { Length: > 0 } kind ? kind : "")kept up with you
+                            @Since(thing.FirstHeard). @Where(thing.Closeness)
+                        </span>
+                    </span>
+                    <span class="chev">@Step(thing.Closeness)</span>
+                </div>
+            }
+            <div class="about"><span class="about-body"><span class="about-s">
+                Something that stays with you as you walk is either yours or somebody's way of following you. Check
+                it against what you are carrying before you believe either.
+            </span></span></div>
+        </section>
+    }
+
+    @if (Report.Why is { Length: > 0 } why)
+    {
+        <section class="group">
+            <div class="glabel">Not listening</div>
+            <div class="about">
+                <span class="about-body">
+                    <span class="about-t">@why</span>
+                    <span class="about-s">
+                        On, Aware tells you what is around you and notices anything that follows you. Off, your phone
+                        hears nothing at all — the mesh and Quiet help carry on exactly as they are.
+                    </span>
+                </span>
+            </div>
+            @if (Report.Fixable && _serviceSettings is not null)
+            {
+                <button class="about" @onclick="OpenServicePage">
+                    <span class="about-body">
+                        <span class="about-t">Put it right</span>
+                        <span class="about-s">
+                            @(_settingsFailed
+                                ? "This phone would not open its settings — find AetherNetService under Settings, then Apps, and allow it there."
+                                : "Opens AetherNetService's own page on this phone. Allow what it asks for there, then come back.")
+                        </span>
+                    </span>
+                    <span class="chev">→</span>
+                </button>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="aware-count">
+            <div class="aware-count-n">@Report.Heard</div>
+            <div class="aware-count-w">
+                @(Report.Heard == 1 ? "thing around you" : "things around you")@(Report.Named > 0 ? $", {Report.Named} of them named" : "")
+            </div>
+            @if (Report.WalkedM >= 1)
+            {
+                <div class="aware-count-s">You have walked @Report.WalkedM.ToString("F0") m while listening.</div>
+            }
+        </section>
+    }
+
+    @if (Here.Count > 0)
+    {
+        <section class="group">
+            <div class="glabel">Around you</div>
+            @foreach (var thing in Here)
+            {
+                <div class="about">
+                    <span class="about-body">
+                        <span class="about-t">@thing.Name@(thing.FinderTag ? " — a finder tag" : "")</span>
+                        <span class="about-s">
+                            @Kind(thing)@Where(thing.Closeness) ·
+                            @(thing.Radio == AwareRadio.WiFi ? "Wi-Fi" : "Bluetooth")
+                        </span>
+                    </span>
+                    <span class="chev">@Step(thing.Closeness)</span>
+                </div>
+            }
+        </section>
+    }
+
+    @if (Gone.Count > 0)
+    {
+        <section class="group">
+            <div class="glabel">Just left</div>
+            @foreach (var thing in Gone)
+            {
+                <div class="about aware-gone">
+                    <span class="about-body">
+                        <span class="about-t">@thing.Name</span>
+                        <span class="about-s">last heard @Since(thing.LastHeard)</span>
+                    </span>
+                    <span class="chev">—</span>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+<style>
+    .aware { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; padding-bottom: 40px; }
+
+    .aware-count { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 8px 0 4px; }
+    .aware-count-n { font-size: 2.6rem; font-weight: 850; color: var(--brand); line-height: 1; }
+    .aware-count-w { font-size: 1rem; color: var(--ink-2); }
+    .aware-count-s { font-size: 0.85rem; color: var(--ink-3); }
+
+    /* The one thing on this screen that is ever worth a person's alarm. */
+    .aware-with { border-left: 3px solid #d7263d; }
+
+    .aware-gone { opacity: 0.6; }
+</style>
+
+@code {
+    private IAetherNetServiceSettings? _serviceSettings;
+    private bool _settingsFailed;
+
+    private AwareReport Report => Listening.Report;
+
+    /// <summary>What is here now, with anything that follows the person shown above instead.</summary>
+    private IReadOnlyList<AwareThing> Here
+    {
+        get
+        {
+            var here = new List<AwareThing>();
+            foreach (var thing in Report.Things)
+            {
+                if (!thing.Gone && !thing.MovingWithYou)
+                {
+                    here.Add(thing);
+                }
+            }
+
+            return here;
+        }
+    }
+
+    private IReadOnlyList<AwareThing> Gone
+    {
+        get
+        {
+            var gone = new List<AwareThing>();
+            foreach (var thing in Report.Things)
+            {
+                if (thing.Gone)
+                {
+                    gone.Add(thing);
+                }
+            }
+
+            return gone;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _serviceSettings = Services.GetService<IAetherNetServiceSettings>();
+        Listening.Changed += Redraw;
+        Listening.Listen();
+        await Listening.RefreshAsync();
+    }
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    private void OpenServicePage() => _settingsFailed = !(_serviceSettings?.Open(PermissionPage.AppInfo) ?? false);
+
+    /// <summary>What kind of thing it is, unless that is already the whole of its name.</summary>
+    private static string Kind(AwareThing thing)
+        => thing.What is { Length: > 0 } what && !string.Equals(what, thing.Name, StringComparison.Ordinal)
+            ? what + " · "
+            : "";
+
+    /// <summary>How close, in words. Three steps is as much as a radio's loudness can honestly carry.</summary>
+    private static string Where(AwareCloseness closeness) => closeness switch
+    {
+        AwareCloseness.Here => "in this room",
+        AwareCloseness.Near => "nearby",
+        _ => "somewhere about",
+    };
+
+    private static string Step(AwareCloseness closeness) => closeness switch
+    {
+        AwareCloseness.Here => "●●●",
+        AwareCloseness.Near => "●●",
+        _ => "●",
+    };
+
+    /// <summary>How long ago, roughly, because to the minute is more than anybody needs.</summary>
+    private static string Since(DateTimeOffset at)
+    {
+        var ago = DateTimeOffset.UtcNow - at;
+        return ago.TotalMinutes < 1 ? "just now"
+            : ago.TotalMinutes < 60 ? $"{(int)ago.TotalMinutes} min ago"
+            : ago.TotalHours < 24 ? $"{(int)ago.TotalHours} h ago"
+            : $"{(int)ago.TotalDays} days ago";
+    }
+
+    public void Dispose() => Listening.Changed -= Redraw;
+}

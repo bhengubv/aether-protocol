@@ -31,7 +31,7 @@ namespace AetherNetService;
 /// keeps a match-all filter in its filter list so Android goes on delivering results with the screen off.
 /// </para>
 /// </summary>
-internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
+internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.INodeAwareSource, IDisposable
 {
     /// <summary>Android allows an app four Wi-Fi scans in two minutes; ask for one every half minute and stay inside it.</summary>
     private const int WifiEverySeconds = 30;
@@ -566,6 +566,117 @@ internal sealed class AndroidAwareRadio : IHelpRadio, IDisposable
 
         return string.Join(", ", seen.Take(12));
     }
+
+    /// <summary>
+    /// What is around this phone, as a person is shown it. Worked out here rather than in an app, so that every app
+    /// is told the same thing and none of them has to know what a signature pack or a decibel is.
+    /// </summary>
+    public AwareReport Current
+    {
+        get
+        {
+            var listening = _scanCallback is not null;
+            var why = listening ? null : (Why(HelpAdvertForm.AetherNet128Pair) ?? "Aether Aware is not listening");
+            if (listening)
+            {
+                return Report(null, fixable: false);
+            }
+
+            return Report(why, CanBeAllowed);
+        }
+    }
+
+    private AwareReport Report(string? why, bool fixable)
+    {
+        var stats = _devices.Stats;
+        var withYou = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var tag in WithYou())
+        {
+            withYou.Add(tag.Key);
+        }
+
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var fleet in _fleets)
+        {
+            names[fleet.Id] = fleet.Name;
+        }
+
+        var things = new List<AwareThing>();
+        foreach (var device in _devices.Devices)
+        {
+            string? what = null;
+            foreach (var id in device.FleetIds)
+            {
+                if (names.TryGetValue(id, out var named))
+                {
+                    what = named;
+                    break;
+                }
+            }
+
+            things.Add(new AwareThing
+            {
+                Id = device.Key,
+                Name = Called(device, what),
+                What = what,
+                Radio = device.Kind == RadioKind.Wifi ? AwareRadio.WiFi : AwareRadio.Bluetooth,
+                Closeness = Close(device.Rssi),
+                MovingWithYou = withYou.Contains(device.Key),
+                FinderTag = TrackerMatch.IsTracker(device, names),
+                FirstHeard = DateTimeOffset.FromUnixTimeMilliseconds(device.FirstSeen),
+                LastHeard = DateTimeOffset.FromUnixTimeMilliseconds(device.LastSeen),
+                Gone = device.Gone,
+            });
+        }
+
+        // Loudest first, and whatever has gone to the bottom whatever it was: a person looks at what is here.
+        things.Sort((a, b) => a.Gone != b.Gone
+            ? a.Gone.CompareTo(b.Gone)
+            : a.Closeness != b.Closeness ? a.Closeness.CompareTo(b.Closeness) : b.LastHeard.CompareTo(a.LastHeard));
+
+        return new AwareReport
+        {
+            On = why is null,
+            Why = why,
+            Fixable = fixable,
+            Things = things,
+            Heard = stats.DevicesSeen,
+            Named = stats.NamedNow,
+            MovingWithYou = withYou.Count,
+            WalkedM = _walk.LengthM,
+            At = DateTimeOffset.UtcNow,
+        };
+    }
+
+    /// <summary>
+    /// What to call a thing: what it calls itself, else what the pack calls it, else "Unnamed" and the last of its
+    /// address — because a list of bare MAC addresses is a list a person cannot read, and a list of identical
+    /// "Unnamed" rows is one they cannot tell apart. The tail is four characters, which is enough for both.
+    /// </summary>
+    private static string Called(Sighting device, string? what)
+    {
+        if (!string.IsNullOrWhiteSpace(device.Name))
+        {
+            return device.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(what))
+        {
+            return what;
+        }
+
+        var mac = device.Mac ?? string.Empty;
+        var tail = mac.Replace(":", string.Empty, StringComparison.Ordinal);
+        return tail.Length >= 4 ? $"Unnamed · {tail[^4..]}" : "Unnamed";
+    }
+
+    /// <summary>
+    /// Loudness as three steps. A radio's decibels are a poor ruler — a wall, a pocket or a body moves them more
+    /// than a few paces do — so three is about as much as they can honestly carry.
+    /// </summary>
+    private static AwareCloseness Close(int rssi) => !Rssi.Measured(rssi)
+        ? AwareCloseness.Far
+        : rssi >= -60 ? AwareCloseness.Here : rssi >= -80 ? AwareCloseness.Near : AwareCloseness.Far;
 
     /// <summary>The finder tags that have stayed with this phone while it moved.</summary>
     public IReadOnlyList<Sighting> WithYou()

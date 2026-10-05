@@ -141,6 +141,14 @@ public interface IAetherNodeClient
         => throw new NotSupportedException("This service does not carry Quiet help.");
 
     /// <summary>
+    /// What Aether Aware has heard around this device — what is there, what it is called, and what has moved along
+    /// with the person. Empty from a node that does not carry Aware, or one that is not listening, and
+    /// <see cref="AwareReport.Why"/> then says which.
+    /// </summary>
+    Task<AwareReport> GetAwareAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(AwareReport.None);
+
+    /// <summary>
     /// Subscribe to inbound messages, link changes, and grant changes. Dispose the returned handle to stop.
     /// A callback interface rather than a C# event so the subscription proxies across a process boundary.
     /// </summary>
@@ -171,4 +179,7 @@ public interface IAetherNodeEvents
     /// help, has moved, or is safe.
     /// </summary>
     void OnHelpChanged(HelpReport report) { }
+
+    /// <summary>What Aether Aware hears has changed: something arrived, something left, something is keeping up.</summary>
+    void OnAwareChanged(AwareReport report) { }
 }

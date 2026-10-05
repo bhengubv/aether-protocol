@@ -236,6 +236,10 @@ public sealed class PipeNodeServer : IAsyncDisposable
                 case NodeOp.GetHelp:
                     return NodeWire.EncodeHelpReport(await host.GetHelpAsync(cancellationToken).ConfigureAwait(false));
 
+                // Aether Aware, which only reports.
+                case NodeOp.GetAware:
+                    return NodeWire.EncodeAwareReport(await host.GetAwareAsync(cancellationToken).ConfigureAwait(false));
+
                 case NodeOp.StartHelp:
                     return NodeWire.EncodeFlag(
                         await host.StartHelpAsync(NodeWire.DecodeHelpKind(argument), cancellationToken).ConfigureAwait(false));
@@ -454,6 +458,8 @@ public sealed class PipeNodeServer : IAsyncDisposable
         public void OnGrantChanged(GrantState state) => Push(NodeOp.EventGrant, NodeWire.EncodeGrant(state));
 
         public void OnDelivered(Guid messageId) => Push(NodeOp.EventDelivered, NodeWire.EncodeDelivered(messageId));
+
+        public void OnAwareChanged(AwareReport report) => Push(NodeOp.EventAware, NodeWire.EncodeAwareReport(report));
 
         public void OnHelpChanged(HelpReport report) => Push(NodeOp.EventHelp, NodeWire.EncodeHelpReport(report));
 

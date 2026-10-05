@@ -76,6 +76,9 @@ public sealed class PipeNodeClient : IAetherNodeClient, INodeConnection, IDispos
     public Task<HelpReport> GetHelpAsync(CancellationToken cancellationToken = default)
         => CallAsync(NodeOp.GetHelp, [], NodeWire.DecodeHelpReport, cancellationToken);
 
+    public Task<AwareReport> GetAwareAsync(CancellationToken cancellationToken = default)
+        => CallAsync(NodeOp.GetAware, [], NodeWire.DecodeAwareReport, cancellationToken);
+
     public Task<bool> StartHelpAsync(HelpKind kind, CancellationToken cancellationToken = default)
         => CallAsync(NodeOp.StartHelp, NodeWire.EncodeHelpKind(kind), NodeWire.DecodeFlag, cancellationToken);
 
@@ -206,6 +209,7 @@ public sealed class PipeNodeClient : IAetherNodeClient, INodeConnection, IDispos
                     case NodeOp.EventLink: listener.OnLinkChanged(NodeWire.DecodeLink(payload)); break;
                     case NodeOp.EventGrant: listener.OnGrantChanged(NodeWire.DecodeGrant(payload)); break;
                     case NodeOp.EventDelivered: listener.OnDelivered(NodeWire.DecodeDelivered(payload)); break;
+                    case NodeOp.EventAware: listener.OnAwareChanged(NodeWire.DecodeAwareReport(payload)); break;
                     case NodeOp.EventHelp: listener.OnHelpChanged(NodeWire.DecodeHelpReport(payload)); break;
                 }
             }

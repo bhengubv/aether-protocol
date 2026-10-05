@@ -27,6 +27,7 @@ public sealed class AetherNodeService : IAetherNodeClient
     private readonly INodeNearby? _nearby;
     private readonly INodeRadios? _radios;
     private readonly INodeHelpSource? _help;
+    private readonly INodeAwareSource? _aware;
 
     /// <param name="meeting">How the radios are told whom to reach; null on a host with no radios.</param>
     /// <param name="recovery">
@@ -41,12 +42,16 @@ public sealed class AetherNodeService : IAetherNodeClient
     /// The device's switch for each radio. Null on a host without one, which then reports every radio on and refuses
     /// to switch one.
     /// </param>
+    /// <param name="aware">
+    /// Aether Aware. Null on a host that does not carry it, which then reports nothing heard.
+    /// </param>
     /// <param name="help">
     /// Quiet help. Null on a host that does not carry it, which then reports none and refuses to start one.
     /// </param>
     public AetherNodeService(INodeIdentity identity, INodeMessaging messaging, INodeLinkSource link, INodeMeeting? meeting = null,
         INodeIdentityRecovery? recovery = null, INodeNearby? nearby = null, INodeRadios? radios = null,
-        INodeHelpSource? help = null)
+        INodeHelpSource? help = null,
+        INodeAwareSource? aware = null)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
         _messaging = messaging ?? throw new ArgumentNullException(nameof(messaging));
@@ -56,6 +61,7 @@ public sealed class AetherNodeService : IAetherNodeClient
         _nearby = nearby;
         _radios = radios;
         _help = help;
+        _aware = aware;
     }
 
     /// <summary>The link as the radios report it, with the device's switches as they stand.</summary>
@@ -167,6 +173,10 @@ public sealed class AetherNodeService : IAetherNodeClient
         => Task.FromResult(_help?.Current ?? HelpReport.None);
 
     /// <inheritdoc />
+    public Task<AwareReport> GetAwareAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(_aware?.Current ?? AwareReport.None);
+
+    /// <inheritdoc />
     public Task<bool> StartHelpAsync(HelpKind kind, CancellationToken cancellationToken = default)
     {
         if (_help is null)
@@ -254,6 +264,7 @@ public sealed class AetherNodeService : IAetherNodeClient
             _owner._messaging.Delivered += OnDelivered;
             _owner._link.Changed += OnLinkChanged;
             if (_owner._help is not null) _owner._help.Changed += OnHelpChanged;
+            if (_owner._aware is not null) _owner._aware.Changed += OnAwareChanged;
         }
 
         private void OnInbound(InboundMessage message) => _listener.OnInbound(message);
@@ -264,12 +275,15 @@ public sealed class AetherNodeService : IAetherNodeClient
 
         private void OnHelpChanged() => _listener.OnHelpChanged(_owner._help?.Current ?? HelpReport.None);
 
+        private void OnAwareChanged() => _listener.OnAwareChanged(_owner._aware?.Current ?? AwareReport.None);
+
         public void Dispose()
         {
             _owner._messaging.Inbound -= OnInbound;
             _owner._messaging.Delivered -= OnDelivered;
             _owner._link.Changed -= OnLinkChanged;
             if (_owner._help is not null) _owner._help.Changed -= OnHelpChanged;
+            if (_owner._aware is not null) _owner._aware.Changed -= OnAwareChanged;
         }
     }
 }

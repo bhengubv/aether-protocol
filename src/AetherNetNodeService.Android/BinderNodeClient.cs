@@ -94,6 +94,9 @@ internal sealed class BinderNodeClient : IAetherNodeClient, INodeConnection, IDi
     public Task<HelpReport> GetHelpAsync(CancellationToken cancellationToken = default)
         => Call(NodeOp.GetHelp, null, NodeWire.DecodeHelpReport, cancellationToken);
 
+    public Task<AwareReport> GetAwareAsync(CancellationToken cancellationToken = default)
+        => Call(NodeOp.GetAware, null, NodeWire.DecodeAwareReport, cancellationToken);
+
     public Task<bool> StartHelpAsync(HelpKind kind, CancellationToken cancellationToken = default)
     {
         var arg = NodeWire.EncodeHelpKind(kind);
@@ -195,6 +198,7 @@ internal sealed class BinderNodeClient : IAetherNodeClient, INodeConnection, IDi
                 case NodeOp.EventLink: l.OnLinkChanged(NodeWire.DecodeLink(payload)); break;
                 case NodeOp.EventGrant: l.OnGrantChanged(NodeWire.DecodeGrant(payload)); break;
                 case NodeOp.EventDelivered: l.OnDelivered(NodeWire.DecodeDelivered(payload)); break;
+                case NodeOp.EventAware: l.OnAwareChanged(NodeWire.DecodeAwareReport(payload)); break;
                 case NodeOp.EventHelp: l.OnHelpChanged(NodeWire.DecodeHelpReport(payload)); break;
             }
         }
@@ -245,7 +249,7 @@ internal sealed class ClientEventBinder(Action<NodeOp, byte[]> onEvent) : Binder
     {
         var op = (NodeOp)code;
         if (op is NodeOp.EventInbound or NodeOp.EventLink or NodeOp.EventGrant or NodeOp.EventDelivered
-            or NodeOp.EventHelp)
+            or NodeOp.EventHelp or NodeOp.EventAware)
         {
             onEvent(op, data?.CreateByteArray() ?? []);
             return true;

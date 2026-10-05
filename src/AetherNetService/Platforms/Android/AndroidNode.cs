@@ -54,6 +54,7 @@ internal static class AndroidNode
         services.AddSingleton(sp => new AndroidAwareRadio(
             sp.GetService<ILoggerFactory>()?.CreateLogger("AetherAware")));
         services.AddSingleton<IHelpRadio>(sp => sp.GetRequiredService<AndroidAwareRadio>());
+        services.AddSingleton<AetherNetNodeService.Host.INodeAwareSource>(sp => sp.GetRequiredService<AndroidAwareRadio>());
 
         NodeCore.Add(services, dir, ServicePermissions.Now, AndroidRadioSetup.Internet);
 

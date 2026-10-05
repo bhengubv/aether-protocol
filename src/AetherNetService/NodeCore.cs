@@ -161,7 +161,9 @@ internal static class NodeCore
             new NodeIdentityRecovery(provider.GetRequiredService<INodeIdentityStore>()),
             provider.GetRequiredService<INodeNearby>(),
             provider.GetRequiredService<INodeRadios>(),
-            provider.GetRequiredService<INodeHelpSource>());
+            provider.GetRequiredService<INodeHelpSource>(),
+            // Aether Aware, when this system has it. A host without it reports nothing heard rather than failing.
+            provider.GetService<AetherNetNodeService.Host.INodeAwareSource>());
 
         // The one inbound pump for the messaging plane: raw radio bytes → the library dispatcher → the
         // reliable core (which decrypts and raises MessageReceived) → the node's inbox seam. Pre-key requests

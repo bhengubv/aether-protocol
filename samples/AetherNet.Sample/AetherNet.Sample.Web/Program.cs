@@ -21,6 +21,11 @@ builder.Services.AddSingleton(sp => new QuietHelpService(
     sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
     sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()));
 
+// And Aware, which on this head has no radios to hear with and says so.
+builder.Services.AddSingleton(sp => new AwareService(
+    sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
+    sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()));
+
 // Durable state for this host. The Web head is a demo surface, so it keeps its database beside the
 // app rather than in a phone's private storage.
 var dataDir = Path.Combine(AppContext.BaseDirectory, "aether-data");

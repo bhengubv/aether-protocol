@@ -40,7 +40,7 @@ internal sealed class NodeServiceBinder : Binder
             or NodeOp.GetInbox or NodeOp.GetLink or NodeOp.Subscribe or NodeOp.Unsubscribe or NodeOp.Meet
             or NodeOp.GetRecoveryPhrase or NodeOp.SetNearby or NodeOp.SetRadio
             or NodeOp.GetHelp or NodeOp.StartHelp or NodeOp.MarkSafe or NodeOp.SetHelpGuardians
-            or NodeOp.SetHelpOptions))
+            or NodeOp.SetHelpOptions or NodeOp.GetAware))
         {
             return base.OnTransact(code, data, reply, flags);
         }
@@ -119,6 +119,11 @@ internal sealed class NodeServiceBinder : Binder
             // is the gate, as it is for every other call.
             case NodeOp.GetHelp:
                 WriteOk(reply, NodeWire.EncodeHelpReport(Block(_host.GetHelpAsync())));
+                break;
+
+            // Aether Aware only ever reports. There is nothing to set: it is switched like a radio, in the radio list.
+            case NodeOp.GetAware:
+                WriteOk(reply, NodeWire.EncodeAwareReport(Block(_host.GetAwareAsync())));
                 break;
 
             case NodeOp.StartHelp:
@@ -240,6 +245,8 @@ internal sealed class NodeServiceBinder : Binder
         public void OnGrantChanged(GrantState state) => Push(NodeOp.EventGrant, NodeWire.EncodeGrant(state));
 
         public void OnDelivered(Guid messageId) => Push(NodeOp.EventDelivered, NodeWire.EncodeDelivered(messageId));
+
+        public void OnAwareChanged(AwareReport report) => Push(NodeOp.EventAware, NodeWire.EncodeAwareReport(report));
 
         public void OnHelpChanged(HelpReport report) => Push(NodeOp.EventHelp, NodeWire.EncodeHelpReport(report));
 
