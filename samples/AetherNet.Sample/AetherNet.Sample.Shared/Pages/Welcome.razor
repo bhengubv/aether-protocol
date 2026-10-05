@@ -293,7 +293,15 @@
     .r-btn { align-self: flex-start; appearance: none; border: 1.5px solid var(--brand); background: transparent; color: var(--brand); font-weight: 650; font-size: 0.86rem; padding: 9px 16px; border-radius: 10px; cursor: pointer; }
 
     .toggle { display: flex; align-items: center; gap: 12px; background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line); border-radius: 14px; padding: 16px; color: var(--ink); font-weight: 600; }
-    .toggle input { width: 22px; height: 22px; accent-color: var(--brand); }
+    /* Drawn here, not left to the phone: on the card the text colour is white in the light theme, and a phone's own box
+       given that as its accent drew white on white. Outlined in the card's text colour, filled with it when on, the tick
+       in the card's own colour — so it shows on blue and on black alike. */
+    .toggle input { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 24px; height: 24px; margin: 0; border: 2px solid var(--on-surface); border-radius: 7px; background: transparent; display: grid; place-content: center; cursor: pointer; }
+    .toggle input::before { content: ""; width: 6px; height: 12px; margin-top: -2px; border: solid var(--surface); border-width: 0 3px 3px 0; transform: rotate(45deg) scale(0); transition: transform .12s ease; }
+    .toggle input:checked { background: var(--on-surface); }
+    .toggle input:checked::before { transform: rotate(45deg) scale(1); }
+    .toggle input:focus-visible { outline: 3px solid var(--on-surface); outline-offset: 2px; }
+    @@media (prefers-reduced-motion: reduce) { .toggle input::before { transition: none; } }
 
     .tagbox { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); color: var(--ink); border-radius: 12px; padding: 14px 16px; font-family: var(--mono); font-size: 1.05rem; letter-spacing: 1px; text-transform: uppercase; }
     .tagbox:focus { outline: 2px solid var(--brand-tint); border-color: var(--brand); }

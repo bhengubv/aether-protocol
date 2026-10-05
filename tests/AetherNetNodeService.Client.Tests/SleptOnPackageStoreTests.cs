@@ -54,7 +54,19 @@ public class SleptOnPackageStoreTests
         Assert.Equal("1.2", offer.VersionName);
         Assert.Equal(3, offer.VersionCode);
         Assert.Equal(34_000_000, offer.SizeBytes);
-        Assert.Equal($"https://api.slepton.test/api/updates/check/{Package}?currentVersionCode=0", Assert.Single(server.Asked).AbsoluteUri);
+        Assert.Equal($"https://api.slepton.test/api/updates/check/{Package}?currentVersionCode=0&platform=android", Assert.Single(server.Asked).AbsoluteUri);
+    }
+
+    /// <summary>SleptOn keeps one release per platform under one package name; a computer asks for its own build.</summary>
+    [Fact]
+    public async Task A_computer_asks_for_the_Windows_build()
+    {
+        var server = new FakeSleptOn(_ => Json(Found()));
+        var store = new SleptOnPackageStore(new HttpClient(server), Package, Api, platform: "windows");
+
+        await store.FindAsync();
+
+        Assert.EndsWith("&platform=windows", Assert.Single(server.Asked).AbsoluteUri);
     }
 
     /// <summary>

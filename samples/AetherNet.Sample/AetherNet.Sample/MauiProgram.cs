@@ -98,6 +98,20 @@ public static class MauiProgram
         // the way to the service itself is its folder, where its identity and its log are kept.
         builder.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(_ =>
             new AetherNetNodeService.Windows.WindowsAetherNetServiceSettings());
+        // And when the computer does not have AetherNetService, Aether asks for it before anything else, as on a phone:
+        // the Windows build from SleptOn, checked to be signed by Aether's makers, put in the person's own Programs folder,
+        // told to Windows (App Paths) and started.
+        builder.Services.AddSingleton(sp =>
+        {
+            var log = sp.GetService<ILoggerFactory>()?.CreateLogger("AetherInstall");
+            void Log(string line) => log?.LogInformation("{Line}", line);
+            return new AetherNetNodeService.Client.NodeInstallFlow(
+                ServiceConnector(new AetherNetNodeService.Pipe.PipeNodeConnector(new AetherNetNodeService.Windows.WindowsNodeLauncher())),
+                new AetherNetNodeService.Client.SleptOnPackageStore(new HttpClient(), AetherNetServicePackage, StoreApi(), platform: "windows"),
+                new AetherNetNodeService.Windows.WindowsNodePackageVerifier(allowUnsigned: IsDebugBuild),
+                new AetherNetNodeService.Windows.WindowsNodePackageInstaller(Log),
+                Log);
+        });
 #endif
 #if ANDROID || WINDOWS
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
@@ -762,29 +776,45 @@ public static class MauiProgram
     }
 #endif
 
+#if ANDROID || WINDOWS
+#if DEBUG
+    private const bool IsDebugBuild = true;
+#else
+    private const bool IsDebugBuild = false;
+#endif
+
+    /// <summary>
+    /// A file a Debug test may leave to steer Aether — never read by a Release build. On a phone in Aether's own storage
+    /// (adb run-as); on a computer in the test's own folder, beside the hooks' (E2eHooks).
+    /// </summary>
+    private static string DebugFile(string name) =>
 #if ANDROID
+        Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, name);
+#else
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AetherE2E", name);
+#endif
+
     /// <summary>Where AetherNetService is looked for — SleptOn's own API, unless a Debug test points elsewhere.</summary>
     private static Uri? StoreApi()
     {
 #if DEBUG
-        // A test leaves the address of a stand-in for SleptOn in Aether's own storage (adb run-as), so the whole
-        // download and install can be run before AetherNetService is published. Debug builds only.
-        var file = Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "debug-store-api");
+        // A test leaves the address of a stand-in for SleptOn in Aether's own storage (adb run-as on a phone, the app's
+        // data folder on a computer), so the whole download and install can be run before AetherNetService is published.
+        var file = DebugFile("debug-store-api");
         if (File.Exists(file) && Uri.TryCreate(File.ReadAllText(file).Trim(), UriKind.Absolute, out var api)) return api;
 #endif
         return null;
     }
 
     /// <summary>
-    /// How Aether tells whether AetherNetService is on the phone. In a Debug build a test can have it offered once on a
-    /// phone that has it — the install then lands as an update, keeping the identity — by leaving a file in Aether's
+    /// How Aether tells whether AetherNetService is on the device. In a Debug build a test can have it offered once on a
+    /// device that has it — the install then lands as an update, keeping the identity — by leaving a file in Aether's
     /// storage. A Release build only ever offers it when it is not there.
     /// </summary>
     private static AetherNetNodeService.Client.INodeConnector ServiceConnector(AetherNetNodeService.Client.INodeConnector real)
     {
 #if DEBUG
-        var file = Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "debug-offer-aethernetservice");
-        if (File.Exists(file)) return new OfferedOnce(real);
+        if (File.Exists(DebugFile("debug-offer-aethernetservice"))) return new OfferedOnce(real);
 #endif
         return real;
     }

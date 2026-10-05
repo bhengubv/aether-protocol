@@ -92,6 +92,10 @@ api/.manifest
 
 ## NuGet package output (Directory.Build.props → artifacts/packages/)
 artifacts/packages/
+## AetherNetService's Windows setup and what goes into it (scripts/pack-aethernetservice-windows.ps1)
+artifacts/windows/
+## AetherNetService's Android package and the publish it comes from (scripts/pack-aethernetservice-android.ps1)
+artifacts/android/
 
 ## Loki mode session state — committed so agents resume correctly across sessions
 ## (task queue, CONTINUITY.md, PARALLEL_AGENT_RULES.md, progress logs)

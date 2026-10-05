@@ -17,6 +17,7 @@ namespace AetherNet.Sample.Platforms.Windows;
 ///   whoami
 ///   add XXXXX-XXXXX
 ///   send XXXXX-XXXXX hello there
+///   install          (what "Download and install" on the Get AetherNetService screen does)
 /// </code>
 /// From the first command on, every chat message that arrives and every change of a sent message's state
 /// (pending → sent → delivered) is written once, as it happens.
@@ -85,6 +86,24 @@ internal static class E2eHooks
                     await services.GetRequiredService<ChatService>().SendAsync(parts[1], parts[2]).ConfigureAwait(false);
                     Say($"send tag={parts[1]} text={parts[2]}");
                     break;
+
+                // What a person's "Download and install" does on the Get AetherNetService screen: look, then install.
+                case "install":
+                {
+                    // The same flow Aether's own screen holds: it has usually looked already, and a second look could
+                    // answer differently (a Debug test's offered-once), so the step it is at is taken as it stands.
+                    var flow = services.GetRequiredService<AetherNetNodeService.Client.NodeInstallFlow>();
+                    flow.Changed += () => Say($"install step={flow.Step}{(flow.Problem is { } why ? $" problem={why}" : "")}");
+                    for (var waited = 0; flow.Step == AetherNetNodeService.Client.NodeInstallStep.Checking && waited < 100; waited++)
+                        await Task.Delay(200).ConfigureAwait(false);
+                    Say($"install found step={flow.Step}");
+                    if (flow.Step is AetherNetNodeService.Client.NodeInstallStep.Offered or AetherNetNodeService.Client.NodeInstallStep.Failed)
+                        await flow.InstallAsync().ConfigureAwait(false);
+                    if (flow.Step == AetherNetNodeService.Client.NodeInstallStep.Installing)
+                        await flow.RecheckAsync().ConfigureAwait(false);
+                    Say($"install done step={flow.Step}");
+                    break;
+                }
 
                 default:
                     Say($"unknown command {line}");

@@ -1,5 +1,7 @@
 @using AetherNetNodeService.Client
+@using Microsoft.Extensions.DependencyInjection
 @implements IDisposable
+@inject IServiceProvider Services
 
 @*  AetherNetService, asked for before anything else on a phone that does not have it.
 
@@ -39,7 +41,9 @@
                         break;
 
                     case NodeInstallStep.Installing:
-                        <p class="lede">Finish the install on the screen your phone opened, then come back here.</p>
+                        <p class="lede">@(OnComputer
+                            ? "Putting AetherNetService in place on this computer…"
+                            : "Finish the install on the screen your phone opened, then come back here.")</p>
                         break;
                 }
             }
@@ -55,7 +59,9 @@
                     <button class="primary block" @onclick="Install">Download and install</button>
                     @* The first time, Android also stops at "not allowed to install unknown apps from this source" — it reads
                        like a refusal, so it is said here first (P30, 2026-10-03). *@
-                    <p class="fineprint">Your phone will ask you to confirm the install — the first time, it also asks you to allow installs from Aether.</p>
+                    <p class="fineprint">@(OnComputer
+                        ? "It goes in your own Programs folder — nothing asks for an administrator — and starts at once."
+                        : "Your phone will ask you to confirm the install — the first time, it also asks you to allow installs from Aether.")</p>
                     break;
 
                 case NodeInstallStep.Downloading:
@@ -75,6 +81,9 @@
 </div>
 
 @code {
+    /// <summary>On a computer there is no installer screen to finish on: Aether puts AetherNetService in place itself.</summary>
+    private bool OnComputer => Services.GetService<IAetherNetServiceSettings>()?.Device == "computer";
+
     /// <summary>The steps, from the SDK. Routes holds it and removes this screen once the service is installed.</summary>
     [Parameter, EditorRequired] public NodeInstallFlow Flow { get; set; } = default!;
 

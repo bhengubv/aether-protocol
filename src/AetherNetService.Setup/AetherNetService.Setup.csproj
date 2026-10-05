@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- AetherNetService's setup for Windows: the one file SleptOn carries for a computer (its publisher takes a Windows
+       build as .exe or .msix). It puts AetherNetService in the person's own Programs folder, tells Windows where it is
+       and starts it — the same code Aether's own installer uses (WindowsServiceFolder). Built, with AetherNetService
+       inside it, by scripts/pack-aethernetservice-windows.ps1. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>AetherNetService-Setup</AssemblyName>
+    <RootNamespace>AetherNetService.Setup</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <IsPackable>false</IsPackable>
+
+    <!-- One file, needing nothing on the computer: .NET comes inside it. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AetherNetNodeService.Windows/AetherNetNodeService.Windows.csproj" />
+  </ItemGroup>
+
+  <!-- AetherNetService itself, zipped by the pack script and carried inside the setup. -->
+  <ItemGroup Condition="'$(ServiceZip)' != ''">
+    <EmbeddedResource Include="$(ServiceZip)" LogicalName="AetherNetService.zip" />
+  </ItemGroup>
+
+</Project>
