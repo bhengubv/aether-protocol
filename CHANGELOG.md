@@ -10,7 +10,46 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-10-06
+
+**Quiet help reaches the phones standing next to you — on any phone, for nothing — and Aether Aware has a
+screen.** A cry for help now goes out over Bluetooth from a handset with no Bluetooth 5 and no registered
+Bluetooth SIG id, because it is sent in two halves. Aware, which names what is around a person and notices
+what keeps up with them, is no longer only true in a log: it crosses the node contract and has a screen. Both
+of the ways somebody actually reaches for help in trouble — the power button and shaking the phone — are
+wired. And three features that had been silently dead were found and fixed, which turned into a sweep of every
+swallowed failure in the tree.
+
 ### Added
+
+- **Quiet help fits a standard Bluetooth advert, on any phone.** A help message is 23 bytes and a standard
+  advert holds 31, but AetherNet's own 128-bit service id eats 16 of them — so until now the message only
+  fitted Bluetooth 5's extended advert, and a phone without it reached guardians over the mesh and nobody in
+  the room. A standard advert has a **scan response** behind it with its own 31 bytes, and asking for it is
+  what an ordinary scan already does, so a listening phone is handed both halves as one reading: ten bytes in
+  the advert under `61657468-6572-0010-0000-…`, thirteen in the scan response under `…-0010-0001-…` — two ids,
+  because a reading holds one lot of service data per id and they would otherwise overwrite each other.
+  `HelpAdvertForm.AetherNet128Pair`, `HelpAdvert.BuildPair`, and reassembly by length: 23 bytes is the whole
+  message, 10 is a half awaiting its tail, and half a message reports nothing rather than something wrong.
+  **No Bluetooth 5, no registered id, no fee** — and it is the default. Containers are preferred by reach now.
+  Measured on a P30, which cannot send the extended advert and sends this one. The one limit: the second half
+  only reaches a scanner doing an active scan, which is what Android does by default.
+- **Aether Aware on the node contract, and a screen for it** — `AwareReport`, `AwareThing`, `AwareRadio`,
+  `AwareCloseness`, `INodeAwareSource`, `NodeOp.GetAware = 18` and `EventAware = 105`, over both the Android
+  binder and the Windows named pipe. The contract carries a dish, not a test tube: a name, what kind of thing
+  it is in plain words, which radio heard it, and how close in three steps — in this room, nearby, somewhere
+  about — because a radio's loudness is a poor ruler and three steps is about what it can honestly carry. No
+  addresses, no decibels, no vendor OUIs: that is how it is worked out, not what anybody wants to read. The
+  node does the hearing, the naming and the deciding what has followed, so every app is told the same thing
+  and none has to know what a signature pack is. The screen leads with what has kept up with the person and
+  says plainly that it is either theirs or somebody's way of following them, then what is around, then what
+  has just left. Aware only ever reports: it is switched on and off like any other radio, in the radio list.
+- **Asking for help without opening anything** (`AndroidHelpTriggers`) — the power button pressed several
+  times, and shaking the phone, both working with the screen locked and the app closed. Android gives no app
+  the power button, so what is counted is the screen going on and off, which is what that button does; the
+  shake is the accelerometer at the slowest rate that still catches one, listened to only while that trigger
+  is on. Both carry the hold the person chose, and a second trigger inside that hold calls the whole thing off
+  — which is what somebody does when their pocket has just asked for help on their behalf.
 
 - **Every radio has its own switch, under the one AetherNet switch.** Aether's Settings list AetherNetService's radios,
   each with a switch and plain words for both states — what it does on, what is lost off — so a person decides knowing
@@ -152,6 +191,22 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ### Changed
 
+- **Thirty-two NuGet packages become four.** Nobody chose thirty-two: every project was packable by default,
+  so the folder layout silently became the package layout, while a single `VersionPrefix` versioned them in
+  lockstep anyway. The only honest lines are the ones a dependency makes a consumer carry, and there were
+  three. `AetherNet` is the protocol in one reference; `AetherNet.Node` talks to AetherNetService;
+  `AetherNet.WebRtc` and `AetherNet.Sqlite` are separate because each brings weight — SIPSorcery, a native
+  SQLite per platform — that nothing else references. **No code moved**: a package can carry many assemblies,
+  so the projects are untouched and only the shape on NuGet differs, each bundle naming what it carries and
+  depending on `AetherNet` for the rest. The twenty existing per-assembly packages stay published at 3.0.0 and
+  simply stop getting new versions; nothing is removed.
+- **An app is not a library.** `AetherNetService` was packable and is the Android service APK — marked
+  `IsPackable=false`. And `PackageReadmeFile` is named only when the file exists: naming it without one failed
+  the entire repo's pack with NU5039, which is why ten projects had never been published at all.
+- Aether Aware asks for the phone's own location on Android 13 and up, where the cap had stopped it. The mesh
+  does not need it there — which is why its radio permissions keep `neverForLocation` — but "moving with you"
+  compares a radio's trail against where this phone has been. Somebody who says no keeps everything else.
+
 - **AetherNetService is a MAUI app**, built the way Aether is — one project, a head for each system — so the service
   and the app that asks it can be the same split on every system, not on Android only. Android head first: same
   package and the same `files/aether-node.key`, so a phone keeps its AetherTag (P30: still `9DMPE-YEWAE` after the
@@ -191,6 +246,37 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ### Fixed
 
+- **Aether Aware never knew where the phone was**, on every Android version since it was written.
+  `RequestLocationUpdates` builds a Handler on the calling thread and Aware starts on an ordinary background
+  thread, which has no Looper — so it threw every time and the position simply stayed empty. "Moving with you"
+  has never had anything to measure against. The overload that takes a Looper fixes it, and the P30 now
+  reports metres walked where it always read zero.
+- **The setup wizard told a Pixel it was not a phone.** Since the service split the app runs no radios of its
+  own, and it was still asking itself — so the radios step read "radios only exist on a phone" on a phone with
+  both, never offered the permission its radios were waiting for, and Aware stayed silent on every Android 12+
+  device. A whole feature dead, with one odd sentence as the only symptom. `NodeRadioSetup` asks the node
+  instead; a service that has not answered yet reports nothing rather than "no radios".
+- **Aware heard no Wi-Fi access points** on a phone that listed four to itself. A phone hands over the access
+  points around you only to an app that may use your location, and a service with no screen is always in the
+  background — and the refusal arrives as an **empty list**, not an error, so it never even reached the catch.
+- **A foreground service with no screen was refused location outright** from Android 12.
+  `AetherLinkService` now declares itself a location service as well as a connected-device one, and claims
+  that kind only when location is actually allowed: claiming it without the permission throws from Android 14
+  and takes the mesh link down with it. It falls back to connected-device alone if the phone refuses at all.
+- **Quiet help's screen rendered unstyled.** A page's `<style>` belongs to that page and goes with it on
+  navigation; two other pages each carried their own copy of the card rules and Quiet help carried none, so
+  its title, explanation and button label ran together in one grey paragraph — on the screen somebody reaches
+  when they are in trouble. The shared rules live in the stylesheet now. Every markup test passed throughout,
+  because a markup test never loads CSS.
+- **Silent failures, swept.** Three whole features were dead behind a `LogDebug`, each reporting a perfectly
+  plausible zero: 2,695 adverts arriving while the phone said it heard nothing, a position that threw on every
+  Android there has ever been, and an empty access-point list. A silent zero cannot be told apart from a quiet
+  room. The tree was audited — 89 catches logging an exception at Debug, 84 empty ones — and the ones whose
+  failure is total, invisible, and reported as a plausible value now **count**: the first is said plainly, then
+  every Nth, with a running total. That includes the thirteen "malformed payload — dropped" sites, where each
+  kind of packet counts apart, so the one that has gone deaf is named rather than lost among the rest. The fix
+  was never a louder log level — it was that nothing counted.
+
 - **The Wi-Fi radio used the first network up, not the one the device is on.** On a computer with a Hyper-V switch
   (172.23.x) and an unplugged cable that had given itself an address (169.254.x), it swept the wrong network for the
   phone and listened for it on the wrong one, and never found it. It now prefers a network with a gateway, never takes a
@@ -215,6 +301,23 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 - **Aether never recovered from a service that died as it started** — the tag lookup cached its first
   failure for good, dead-service calls surfaced as `DeadObjectException`, and a death notice arriving during
   a retry was dropped. Not yet re-run on the phone. (`6e2255d`)
+
+### Security
+
+- **SIPSorcery 10.0.10 → 10.0.17.** Two high-severity advisories, both fixed in 10.0.14: denial of service via
+  an out-of-bounds read parsing an SCTP SACK chunk (GHSA-jwjp-4649-v8jp), and a malformed UDP datagram killing
+  the TURN receive loop with no restart (GHSA-pfvm-w89x-94jw). This is the WebRTC transport, whose whole job is
+  taking packets from strangers.
+- **SQLitePCLRaw 2.1.11 → 3.0.5**, with **Microsoft.Data.Sqlite 9.0.0 → 10.0.12** — answering CVE-2025-6965 /
+  GHSA-2m69-gcr7-jv3q at last. The suppression recorded against it was correct when written: no patched bundle
+  existed, the bug needs attacker-controlled SQL to reach, and it was tracked to bump the moment one shipped.
+  One has. The app shipped the vulnerable native too, and is bumped with it.
+- **AngleSharp 1.8.3**, named directly over bUnit's transitive 1.2.0 (mXSS, fixed in 1.5.0) — a test project
+  is the one place a DOM parser is genuinely asked to parse markup. And **SourceLink 8.0.0 → 10.0.401**.
+- **Every `NuGetAuditSuppress` in the tree is gone**, and the solution audits clean without them. Four were
+  stale — for the advisory already answered — and between them they were shadowing two live ones that had
+  never been seen. The way through was to delete them all and let the audit speak, rather than reason about
+  which were still earned. A suppression that outlives its advisory is a place a real warning goes to die.
 
 ### Documentation
 
