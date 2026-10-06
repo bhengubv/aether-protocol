@@ -10,6 +10,26 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+## [3.1.1] — 2026-10-06
+
+**The signing entity on every package.** `<Authors>` read `The Other Bhengu (Pty) Ltd t/a The Geek
+Network`, which is the name of the ecosystem and not the legal entity. The entity is
+**The Other Bhengu (Pty) Ltd t/a The Geek**, as `CLAUDE.md` and `branding.md` have both specified all
+along — "The Geek Network" is explicitly noted there as a product name and *not* a legal entity.
+
+3.1.0 reached nuget.org carrying the wrong one, and a published version cannot be corrected in place:
+the registry will not hard-delete, so a new number is the only honest fix. Nothing else changed — no
+code, no API, no wire format. If you are on 3.1.0 there is no functional reason to move, only a
+correct attribution.
+
+### Fixed
+
+- The entity name in `Directory.Build.props`, and in the thirteen other places that carried it —
+  package metadata, the Kotlin, Rust, TypeScript, Python and ArkTS manifests, three package READMEs,
+  the IETF draft and the SARB submission. The ecosystem name "The Geek Network" is untouched wherever
+  it genuinely means the network.
+
+
 ## [3.1.0] — 2026-10-06
 
 **Quiet help reaches the phones standing next to you — on any phone, for nothing — and Aether Aware has a
