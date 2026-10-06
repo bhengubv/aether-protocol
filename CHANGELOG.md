@@ -28,6 +28,17 @@ correct attribution.
   package metadata, the Kotlin, Rust, TypeScript, Python and ArkTS manifests, three package READMEs,
   the IETF draft and the SARB submission. The ecosystem name "The Geek Network" is untouched wherever
   it genuinely means the network.
+- **Every one of the twenty old package ids moves to 3.1.1 as well.** Folding thirty-two packages into
+  four left the twenty folded-in ids sitting at 3.0.0, which is not a smaller surface — it is twenty
+  packages that quietly stopped. `AetherNet.Core 3.0.0` was still the newest `AetherNet.Core` anybody
+  could see, with nothing on its page saying where the code had gone, and a consumer bumping to 3.1.1
+  simply found no such version. Each id is now published at 3.1.1 as a **pointer**: no `lib/` of its
+  own, one dependency on the bundle that carries its assembly — `AetherNet`, or `AetherNet.WebRtc` for
+  the WebRTC transport — and a README saying so on the package page. So `PackageReference
+  Include="AetherNet.Core" Version="3.1.1"` restores and compiles exactly as it always did, the links
+  between the old ids resolve again, and because a pointer ships no assemblies, nothing is ever carried
+  twice. Verified by building and running a consumer that references three of the old ids and loads
+  types from each.
 
 
 ## [3.1.0] — 2026-10-06
@@ -218,8 +229,8 @@ swallowed failure in the tree.
   `AetherNet.WebRtc` and `AetherNet.Sqlite` are separate because each brings weight — SIPSorcery, a native
   SQLite per platform — that nothing else references. **No code moved**: a package can carry many assemblies,
   so the projects are untouched and only the shape on NuGet differs, each bundle naming what it carries and
-  depending on `AetherNet` for the rest. The twenty existing per-assembly packages stay published at 3.0.0 and
-  simply stop getting new versions; nothing is removed.
+  depending on `AetherNet` for the rest. The twenty existing per-assembly ids keep moving as **pointer
+  packages** — see 3.1.1 — so nobody is stranded and nothing is removed.
 - **An app is not a library.** `AetherNetService` was packable and is the Android service APK — marked
   `IsPackable=false`. And `PackageReadmeFile` is named only when the file exists: naming it without one failed
   the entire repo's pack with NU5039, which is why ten projects had never been published at all.

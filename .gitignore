@@ -92,6 +92,8 @@ api/.manifest
 
 ## NuGet package output (Directory.Build.props → artifacts/packages/)
 artifacts/packages/
+## ...and where Toolbox/Publish-NuGet.ps1 puts it instead, since it passes its own -o
+artifacts-nuget/
 ## AetherNetService's Windows setup and what goes into it (scripts/pack-aethernetservice-windows.ps1)
 artifacts/windows/
 ## AetherNetService's Android package and the publish it comes from (scripts/pack-aethernetservice-android.ps1)
