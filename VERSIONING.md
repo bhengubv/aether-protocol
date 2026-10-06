@@ -1,13 +1,15 @@
 # Versioning policy — aether-protocol
 
-## Last published version: `3.2.0`
+## Last published version: `3.3.0`
 
 > **This number is what is ON nuget.org, not what is in the tree.** Step 1 of a release
 > bumps `<VersionPrefix>` in `Directory.Build.props`, and the rest (changelog, tag,
 > publish) can be days later - so a bumped `Directory.Build.props` AHEAD of this line is
 > the normal mid-release state and is NOT a stale document. Verified 2026-10-06:
-> `Directory.Build.props`, the newest tag `v3.2.0`, the newest `CHANGELOG.md` section
-> `[3.2.0]` and nuget.org all agree on `3.2.0` - nothing in flight.
+> `Directory.Build.props`, the newest tag `v3.3.0`, the newest `CHANGELOG.md` section
+> `[3.3.0]` and nuget.org all agree on `3.3.0` - nothing in flight. nuget.org's index had
+> not caught up when this was written; a re-push answered `409 already exists`, which is
+> the proof that it landed.
 >
 > The old heading said "Current version", which is ambiguous between the two, and that
 > ambiguity cost real work: a correct `3.0.0` here was read as stale against a `3.1.0`
@@ -37,7 +39,7 @@ The project follows [Semantic Versioning 2.0.0](https://semver.org/).
 A pre-release is the same hand-run publish with a suffix on it - there is no CI to set it:
 ```bash
 dotnet pack packaging/AetherNet/AetherNet.csproj -c Release -p:VersionSuffix=alpha.1
-# Produces: AetherNet.3.2.0-alpha.1.nupkg
+# Produces: AetherNet.3.3.0-alpha.1.nupkg
 ```
 
 ### Stable release
@@ -73,18 +75,15 @@ dotnet pack packaging/AetherNet/AetherNet.csproj -c Release -p:VersionSuffix=alp
 
 ### Single-place version bump
 Everything shares the version via `Directory.Build.props`. **One** package is published
-from `packaging/`: **`AetherNet`**, and it carries the lot. **All 39** projects in `src/`
-set `<IsPackable>false</IsPackable>` and ship inside it. Asked of MSBuild rather than
-grepped, 2026-10-06: 39 projects, 39 `false`, 0 `true`.
+from `packaging/`: **`AetherNet`**, holding **one assembly**, `AetherNet.dll`, per target
+framework. It is compiled from the source of the 37 library projects in `src/`; **all 39**
+projects in `src/` set `<IsPackable>false</IsPackable>`. Asked of MSBuild rather than
+grepped, 2026-10-06: 39 projects, 39 `false`, 0 `true`. Nothing else is published beside it.
 
-Beside it sit **23 `*.Pointer` projects** — the ids that used to be packages, published at
-the same version with no `lib/` of their own and one dependency on `AetherNet`, so nothing
-already written stops resolving. They are a migration layer, not part of the shape; see
-`packaging/README.md` for why they are named `<Id>.Pointer` and why they are deliberately
-absent from the solution.
-
-The shape got here in two moves, and only the second was asked for: `38cd664`
-("Thirty-two packages become four") and `81bde6f` ("Thirty-two packages become one").
+The shape got here in three moves, and only the last was asked for: `38cd664`
+("Thirty-two packages become four"), `81bde6f` ("Thirty-two packages become one", which
+was still thirty-seven assemblies plus twenty-three pointer packages) and `63986e4`
+("One package, one assembly").
 
 > Two counts have been wrong here. The original said **9**, true of a much smaller repo. I
 > replaced it with **37**, from a `git grep` for `<IsPackable>false`, whose angle brackets
@@ -92,16 +91,16 @@ The shape got here in two moves, and only the second was asked for: `38cd664`
 > unverified number does not belong in a document. `dotnet msbuild -getProperty:IsPackable`
 > is the answer that cannot be wrong.
 
-On nuget.org there are **24** `AetherNet.*` ids owned by `bhengubv`, all at `3.2.0`
-(checked 2026-10-06): `AetherNet` plus the 23 pointers. A release moves all of them,
-because a pointer left behind is an id that silently stops - which is exactly what
-happened at 3.1.0, when folding the packages together stranded twenty ids at `3.0.0` with
-nothing on their pages saying where the code had gone.
+A release publishes **`AetherNet` and nothing else**. The twenty-three other `AetherNet.*`
+ids owned by `bhengubv` were pointer packages at 3.2.0 and are not published again: they
+stay on nuget.org at `3.2.0`, keep restoring, and resolve `AetherNet 3.2.0`. Anybody on one
+of them moves forward by referencing `AetherNet` directly. They cannot be removed - the
+key cannot unlist - so do not describe them as gone.
 
 ```xml
-<VersionPrefix>3.2.0</VersionPrefix>
+<VersionPrefix>3.3.0</VersionPrefix>
 ```
-Bump it once; everything moves together.
+Bump it once.
 
 ⚠️ **The publish key can push but not unlist, and `gh` cannot delete packages** - both
 return 403. Superseded versions therefore stay listed, and nuget.org has **no supported
