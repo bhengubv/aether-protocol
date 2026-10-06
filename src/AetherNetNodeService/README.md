@@ -16,4 +16,4 @@ This package is the **contract only** — `IAetherNodeClient`, its DTOs, and the
 
 The handshake wire format is pinned byte-identical across the eight language SDKs by `tests/cross-language/node-fixtures.json`.
 
-MIT © The Other Bhengu (Pty) Ltd t/a The Geek Network.
+MIT © The Other Bhengu (Pty) Ltd t/a The Geek.

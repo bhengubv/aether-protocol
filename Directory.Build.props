@@ -11,7 +11,7 @@
 
   <PropertyGroup>
     <!-- NuGet identity -->
-    <Authors>The Other Bhengu (Pty) Ltd t/a The Geek Network</Authors>
+    <Authors>The Other Bhengu (Pty) Ltd t/a The Geek</Authors>
     <Company>The Other Bhengu (Pty) Ltd</Company>
     <Copyright>Copyright © 2024–2026 The Other Bhengu (Pty) Ltd. MIT License.</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

@@ -2,7 +2,7 @@
 
 **Status:** Stable since AetherNet 1.4.0
 **License:** MIT
-**Owner:** The Other Bhengu (Pty) Ltd t/a The Geek Network
+**Owner:** The Other Bhengu (Pty) Ltd t/a The Geek
 
 The `aether://` URI scheme is the canonical, human-shareable way to address
 resources on the Aether mesh — content, profiles, live streams, watch-party

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "The Other Bhengu (Pty) Ltd t/a The Geek Network", email = "engineering@thegeeknetwork.dev"}
+    {name = "The Other Bhengu (Pty) Ltd t/a The Geek", email = "engineering@thegeeknetwork.dev"}
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

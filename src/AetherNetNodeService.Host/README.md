@@ -11,4 +11,4 @@ The reference **host** for the [Aether Node Service](https://github.com/bhengubv
 
 A locked node surfaces as `AetherNodeException(NodeUnavailable)` — never as an absent identity.
 
-MIT © The Other Bhengu (Pty) Ltd t/a The Geek Network.
+MIT © The Other Bhengu (Pty) Ltd t/a The Geek.

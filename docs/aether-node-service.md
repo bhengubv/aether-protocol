@@ -2,7 +2,7 @@
 
 **Status:** Built — the contract, host, client SDK and Android binding exist, and AetherNetService runs on two phones with Aether as its thin client (§9 for what is verified and what is open)
 **License:** MIT
-**Owner:** The Other Bhengu (Pty) Ltd t/a The Geek Network
+**Owner:** The Other Bhengu (Pty) Ltd t/a The Geek
 
 The **Aether Node Service** is AetherNet packaged the way a platform runtime is
 packaged: a single, standalone, user-installed service that owns the device's

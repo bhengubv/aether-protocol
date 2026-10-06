@@ -20,7 +20,7 @@ author:
   -
     ins: T. Bhengu
     name: Thandolwethu Bhengu
-    organization: The Other Bhengu (Pty) Ltd t/a The Geek Network
+    organization: The Other Bhengu (Pty) Ltd t/a The Geek
     email: tbengu@thegeek.co.za
     country: ZA
 

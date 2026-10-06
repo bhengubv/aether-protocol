@@ -1,6 +1,6 @@
 # SARB Exempt 17 — eKYC Submission
 
-**Submitter:** The Other Bhengu (Pty) Ltd t/a The Geek Network
+**Submitter:** The Other Bhengu (Pty) Ltd t/a The Geek
 **Subject:** Alternative eKYC mechanism for SDPKT mobile money service
 **Reference:** SARB Directive 1 of 2017 (Simplified Due Diligence)
 **Date:** *(to be set on submission)*

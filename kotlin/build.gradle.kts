@@ -211,7 +211,7 @@ publishing {
                 developers {
                     developer {
                         id.set("bhengubv")
-                        name.set("The Other Bhengu (Pty) Ltd t/a The Geek Network")
+                        name.set("The Other Bhengu (Pty) Ltd t/a The Geek")
                         email.set("engineering@thegeeknetwork.dev")
                     }
                 }

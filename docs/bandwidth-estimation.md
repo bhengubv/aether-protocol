@@ -1,7 +1,7 @@
 # AetherNet Bandwidth Measurement Framework (ABMF)
 
 **Status:** Stable since AetherNet 1.6.0  
-**Owner:** The Other Bhengu (Pty) Ltd t/a The Geek Network  
+**Owner:** The Other Bhengu (Pty) Ltd t/a The Geek  
 **Standards:** RFC 6298, RFC 5136, RFC 9002, BBRv3, RFC 8836/GCC
 
 ---

@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "description": "ArkTS (HarmonyOS) implementation of AetherNet tipping, vault (Reed-Solomon) and Proof-of-Vicinity — byte-compatible with the C# reference.",
   "main": "Index.ets",
-  "author": "The Other Bhengu (Pty) Ltd t/a The Geek Network <engineering@thegeeknetwork.dev>",
+  "author": "The Other Bhengu (Pty) Ltd t/a The Geek <engineering@thegeeknetwork.dev>",
   "license": "MIT",
   "types": "Index.ets",
   "dependencies": {

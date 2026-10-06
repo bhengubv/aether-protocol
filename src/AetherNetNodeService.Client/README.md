@@ -12,4 +12,4 @@ An app that wants the mesh uses this to move through the lifecycle **detect → 
 
 The Wi-Fi-Direct-peer and mesh-gateway sources are platform adapters (they need the radios and the content-addressed transfer); this package owns the contract, the verifier, and the internet path.
 
-MIT © The Other Bhengu (Pty) Ltd t/a The Geek Network.
+MIT © The Other Bhengu (Pty) Ltd t/a The Geek.
