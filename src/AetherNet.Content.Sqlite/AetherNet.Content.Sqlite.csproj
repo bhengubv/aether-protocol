@@ -14,9 +14,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../AetherNet.Content/AetherNet.Content.csproj" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <!-- Latest available SQLitePCLRaw; still pre-SQLite-3.50.2 (see audit-suppression note below). -->
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
   </ItemGroup>
 
