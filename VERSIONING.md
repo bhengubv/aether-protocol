@@ -1,6 +1,18 @@
 # Versioning policy — aether-protocol
 
-## Current version: `3.1.0`
+## Last published version: `3.0.0`
+
+> **This number is what is ON nuget.org, not what is in the tree.** Step 1 of a release
+> bumps `<VersionPrefix>` in `Directory.Build.props`, and steps 2-4 (changelog, tag,
+> publish) can be days later - so a bumped `Directory.Build.props` AHEAD of this line is
+> the normal mid-release state and is NOT a stale document. Verified 2026-10-05:
+> nuget.org's newest `AetherNet.Core` is `3.0.0`, the newest tag is `v3.0.0`, the newest
+> `CHANGELOG.md` section is `[3.0.0]`, and `Directory.Build.props` reads `3.1.0` - bumped,
+> not yet released.
+>
+> The old heading said "Current version", which is ambiguous between the two, and that
+> ambiguity cost real work: a correct `3.0.0` here was read as stale against a `3.1.0`
+> props file and "corrected" to `3.1.0`, asserting a release that had not happened.
 
 The project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
@@ -36,9 +48,13 @@ dotnet pack -c Release -p:VersionSuffix=alpha.1
 4. CI publishes `artifacts/packages/*.nupkg` to NuGet.org.
 
 ### Single-place version bump
-All 9 packable C# libraries share the version via `Directory.Build.props`:
+Every packable C# library shares the version via `Directory.Build.props` - **37** of the
+39 projects in `src/`, the two exceptions being the apps `AetherNetService` and
+`AetherNetService.Setup`, which set `<IsPackable>false</IsPackable>`. **18** are live on
+nuget.org at `3.0.0` (counted 2026-10-05); the rest pack but have not been pushed.
+The old text said "9", which was true of a much smaller repo:
 ```xml
-<VersionPrefix>3.1.0</VersionPrefix>
+<VersionPrefix>3.1.0</VersionPrefix>   <!-- in the tree today; 3.0.0 is the last published -->
 ```
 Bump it once; all packages move together.
 
