@@ -15,8 +15,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
     <!-- The device database: identity, contacts, settings (see Data/AetherStore.cs). -->
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <!-- QR generation only (MIT). Scanning is the phone's own camera app via the aether:// scheme —
          no camera permission, no scanning SDK, nothing from Google Play Services. -->
     <PackageReference Include="QRCoder" Version="1.6.0" />

@@ -15,20 +15,14 @@
   <ItemGroup>
     <ProjectReference Include="../AetherNet.Map/AetherNet.Map.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
-    <!-- Latest available SQLitePCLRaw; still pre-SQLite-3.50.2 (see audit-suppression note below). -->
+    <!-- SQLite >= 3.50.2, which is the patched engine CVE-2025-6965 was waiting on. -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
   </ItemGroup>
 
-  <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: a SQLite < 3.50.2 memory-safety bug reachable ONLY by
-       executing attacker-controlled SQL (a crafted query with an extreme number of aggregate terms).
-       SQLitePCLRaw has not yet shipped a bundle with the patched SQLite engine, so there is no version
-       to upgrade to (affected: all SQLitePCLRaw.lib.e_sqlite3 <= 2.1.11). This store executes only
-       internal, fully-parameterized SQL over local device data and never runs untrusted SQL, so the
-       vulnerable surface is not exposed. Suppressed with justification; TRACKED to bump once a patched
-       SQLitePCLRaw (SQLite >= 3.50.2) is published. -->
-  <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
-  </ItemGroup>
+  <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q was suppressed here for as long as SQLitePCLRaw shipped no bundle with a
+       patched SQLite: every lib.e_sqlite3 up to 2.1.11 was affected, and the bug needs attacker-controlled SQL to
+       reach, which this store never executes. The bundle has since shipped one. The suppression is gone with it,
+       because a suppression that outlives its advisory is a place a real warning goes to die. -->
 
 </Project>
