@@ -10,6 +10,51 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+## [3.3.0] — 2026-10-06
+
+**One package, one assembly.** `AetherNet` is now a single `AetherNet.dll` per target framework, not
+thirty-seven assemblies travelling in one package — and nothing else is published beside it.
+
+### Changed
+
+- **`AetherNet.dll` is the whole protocol.** The thirty-seven library projects in `src/` are compiled
+  into one assembly by including their source directly; `src/` itself is unchanged and still builds
+  project by project for the tests and the apps. Before it was done, every way the code could depend on
+  being split was checked: nothing loads an assembly by name, nothing scans its own assembly for types,
+  nothing hard-codes an assembly name, and every embedded resource already carried an explicit name.
+- **The public API is the same.** Compared member by member against 3.2.0's thirty-seven assemblies, on
+  all six target frameworks: every public type, method and field is present, under the same name and
+  namespace. The only difference is on Android, where the build generates an empty `Resource` class into
+  each library — three libraries had one each, one library has one (`AetherNet.Browser.Resource`).
+  Nothing could have used them; they have no members.
+- **No pointer packages.** The twenty-three ids that pointed at `AetherNet` at 3.2.0 are not published
+  again. They stay on nuget.org at 3.2.0 and keep restoring, but they resolve `AetherNet 3.2.0`, not
+  this. **To get 3.3.0, reference `AetherNet` directly** — namespaces are unchanged, so it is a one-line
+  change in the project file and none in code.
+- **Rebuild against it.** Code compiled against 3.2.0 bound to `AetherNet.Core.dll`, `AetherNet.Messaging.dll`
+  and the rest; those files no longer exist. A project that references `AetherNet` 3.3.0 and rebuilds needs
+  no change at all. A library compiled against 3.2.0 and used, unrebuilt, beside 3.3.0 will fail to find
+  its assemblies at runtime.
+- **One Windows floor for one assembly.** The node client declared Windows 10.0.17763 and the Windows
+  transport took its framework's 10.0.19041; one assembly carries one, so it is 10.0.17763, which
+  excludes nobody the node client served. The build raises no platform warning on any Windows target,
+  so nothing in the transport needs the newer version.
+
+### Fixed
+
+- **A name that only clashed once everything was one assembly.** `PeerSession` meant BitTorrent's own
+  `PeerWire.Handshake` and wrote `Handshake`; `AetherNet.Core` has a namespace `AetherNet.Handshake`.
+  While they were separate assemblies BitTorrent never saw Core, so they never met. In one assembly C#
+  resolves the name to the namespace first — an enclosing namespace's members are looked up before a
+  file's `using` directives — and nothing in a build file can change that order. One line now says
+  `PeerWire.Handshake`; behaviour is identical, and the BitTorrent suites (132 tests) pass.
+- **Licence notices travel with what they cover.** The package carries Aether Aware, ported from
+  Fieldwatch under MIT, and embeds the mesh browser's two typefaces, licensed under the SIL Open Font
+  License — and until now it shipped the code and the fonts without either notice. Both are in the
+  package under `licenses/`.
+
+---
+
 ## [3.2.0] — 2026-10-06
 
 **Thirty-two packages become one.** Not four. The request was for one package, and four was a judgement call

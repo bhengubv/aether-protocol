@@ -1,105 +1,143 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <!--
-    AetherNet — the whole protocol, in one reference. One package, not thirty-two and not four.
+    AetherNet: one package, one assembly. AetherNet.dll.
 
-    The thirty-two were never chosen: every project was packable by default, so the folder layout silently
-    became the package layout. Four was my choice and it was the wrong one. I split out the WebRTC transport,
-    the SQLite stores and the node client on the grounds that each made a consumer carry weight they might not
-    want — which is a real argument for exactly one of the three, and I never put the choice back to the person
-    who had asked for one package. So: one. The cost is named rather than hidden — referencing AetherNet brings
-    SIPSorcery and a native SQLite whether you use them or not — and the reach is the gain: an Android or Windows
-    consumer now gets the WebRTC transport and the SQLite stores, which the separate packages never offered them
-    at all, because those packages had no Android or Windows target.
+    src/ is untouched. Its thirty-seven library projects are compiled here as ONE assembly instead of
+    thirty-seven, by including their source files directly. No code was changed to do it, and none had to
+    be: before this was written, every way the code could depend on being split was checked. Nothing loads
+    an assembly by name, nothing scans its own assembly for types, nothing hard-codes an assembly name, and
+    the only assembly attribute in the source is an InternalsVisibleTo, which may appear more than once.
 
-    Every id that used to be a package still resolves: each is published at this version as a pointer carrying no
-    assemblies, depending on this package. See packaging/README.md.
+    Three settings below are deliberate and look odd without the reason:
+
+    * Microsoft.NET.Sdk.Razor. AetherNet.Browser is a Razor library; its components have to be compiled by
+      the Razor SDK, so the whole assembly is.
+
+    * RootNamespace is AetherNet.Browser. The components declare no @namespace, so they take RootNamespace,
+      and a file from outside this folder is placed at the root (AssignTargetPath gives it its file name).
+      This keeps them exactly where they were: AetherNet.Browser.AetherBrowser, AetherNet.Browser.CardEditor.
+      Nothing else here reads RootNamespace - every C# file declares its own namespace, and every embedded
+      resource has an explicit LogicalName.
+
+    * The resources keep their LogicalNames because the code reads them back by exactly those names.
+
+    The cost is what one package already cost at 3.2.0: SIPSorcery and a native SQLite come with it, and
+    BouncyCastle 2.7.0.
   -->
 
   <PropertyGroup>
     <TargetFrameworks>net9.0;net10.0;net9.0-android;net10.0-android;net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
     <IsPackable>true</IsPackable>
-    <Description>AetherNet — a serverless mesh protocol for phones, in one reference: messaging, every transport (Bluetooth, Wi-Fi Direct, LoRa, WebRTC), crypto, storage, Aether Aware, and the client for talking to AetherNetService.</Description>
+    <RootNamespace>AetherNet.Browser</RootNamespace>
+
+    <!-- Nothing is picked up from this folder by default: every file is named below, from src/. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultRazorComponentItems>false</EnableDefaultRazorComponentItems>
+
+    <!-- One XML documentation file for the one assembly. CS1591 is a public member with no comment, which is
+         a matter for src/, not a fault in a project that only compiles it. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <Description>AetherNet - a serverless mesh protocol for phones, in one package and one assembly: messaging, every transport (Bluetooth, Wi-Fi Direct, LoRa, WebRTC), crypto, storage, Aether Aware, the mesh browser, and the client for talking to AetherNetService.</Description>
     <PackageTags>mesh;p2p;offline;bluetooth;wifi-direct;webrtc;messaging;aethernet</PackageTags>
-
-    <!-- The assemblies of the referenced projects travel inside this package's lib/, so one reference brings the
-         lot. The projects are untouched; only the shape on NuGet changes.
-
-         The allow-list stays even now that there is one package: a project reference drags its own references
-         along, so without it this would also carry copies of the Microsoft.Extensions and SIPSorcery assemblies
-         that belong to those packages and must arrive as dependencies, not as files. -->
-    <CarriedNames>;AetherNet.Core;AetherNet.Security;AetherNet.Messaging;AetherNet.Transport;AetherNet.Transport.LoRa;AetherNet.Mesh;AetherNet.Storage;AetherNet.Content;AetherNet.Cards;AetherNet.Cartography;AetherNet.Map;AetherNet.Space;AetherNet.Forge;AetherNet.Market;AetherNet.Fmhy;AetherNet.Tipping;AetherNet.Vault;AetherNet.Voice;AetherNet.Streaming;AetherNet.BitTorrent;AetherNet.BitTorrent.Gateway;AetherNet.DependencyInjection;AetherNet.Transport.WebRtc;AetherNet.Content.Sqlite;AetherNet.Map.Sqlite;AetherNetNodeService;AetherNetNodeService.Client;AetherNetNodeService.Host;AetherNetNodeService.Ipc;AetherNetNodeService.Pipe;AetherNet.Aware;AetherNet.Browser;AetherNetNodeService.Help;AetherNet.Transport.Android;AetherNetNodeService.Android;AetherNet.Transport.Windows;AetherNetNodeService.Windows;</CarriedNames>
-    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CarryTheReferencedAssemblies</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
 
-  <Target Name="CarryTheReferencedAssemblies" DependsOnTargets="ResolveReferences">
-    <ItemGroup>
-      <_Carried Include="@(ReferenceCopyLocalPaths->WithMetadataValue('ReferenceSourceTarget','ProjectReference'))" />
-      <BuildOutputInPackage
-        Include="@(_Carried)"
-        Condition="$(CarriedNames.Contains(';%(Filename);'))" />
-    </ItemGroup>
-  </Target>
+  <!-- Platform floors. Both Android libraries ask for API 24. Of the two Windows ones, the node client asks for
+       10.0.17763.0 and the transport took its framework's 10.0.19041.0; one assembly carries one floor, and the
+       lower one excludes nobody the node client served. -->
+  <PropertyGroup Condition="$(TargetFramework.EndsWith('-android'))">
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <UseMauiEssentials>true</UseMauiEssentials>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.Contains('-windows'))">
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
 
+  <!-- The thirty that build for every target. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\AetherNet.Core\AetherNet.Core.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Security\AetherNet.Security.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Messaging\AetherNet.Messaging.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Transport\AetherNet.Transport.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Transport.LoRa\AetherNet.Transport.LoRa.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Mesh\AetherNet.Mesh.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Storage\AetherNet.Storage.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Content\AetherNet.Content.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Cards\AetherNet.Cards.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Cartography\AetherNet.Cartography.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Map\AetherNet.Map.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Space\AetherNet.Space.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Forge\AetherNet.Forge.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Market\AetherNet.Market.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Fmhy\AetherNet.Fmhy.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Tipping\AetherNet.Tipping.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Vault\AetherNet.Vault.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Voice\AetherNet.Voice.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Streaming\AetherNet.Streaming.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.BitTorrent\AetherNet.BitTorrent.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.BitTorrent.Gateway\AetherNet.BitTorrent.Gateway.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.DependencyInjection\AetherNet.DependencyInjection.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Transport.WebRtc\AetherNet.Transport.WebRtc.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Content.Sqlite\AetherNet.Content.Sqlite.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Map.Sqlite\AetherNet.Map.Sqlite.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNetNodeService\AetherNetNodeService.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNetNodeService.Client\AetherNetNodeService.Client.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNetNodeService.Host\AetherNetNodeService.Host.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNetNodeService.Ipc\AetherNetNodeService.Ipc.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNetNodeService.Pipe\AetherNetNodeService.Pipe.csproj" PrivateAssets="all" />
+    <Compile Include="../../src/AetherNet.Core/**/*.cs" Exclude="../../src/AetherNet.Core/obj/**;../../src/AetherNet.Core/bin/**" />
+    <Compile Include="../../src/AetherNet.Security/**/*.cs" Exclude="../../src/AetherNet.Security/obj/**;../../src/AetherNet.Security/bin/**" />
+    <Compile Include="../../src/AetherNet.Messaging/**/*.cs" Exclude="../../src/AetherNet.Messaging/obj/**;../../src/AetherNet.Messaging/bin/**" />
+    <Compile Include="../../src/AetherNet.Transport/**/*.cs" Exclude="../../src/AetherNet.Transport/obj/**;../../src/AetherNet.Transport/bin/**" />
+    <Compile Include="../../src/AetherNet.Transport.LoRa/**/*.cs" Exclude="../../src/AetherNet.Transport.LoRa/obj/**;../../src/AetherNet.Transport.LoRa/bin/**" />
+    <Compile Include="../../src/AetherNet.Mesh/**/*.cs" Exclude="../../src/AetherNet.Mesh/obj/**;../../src/AetherNet.Mesh/bin/**" />
+    <Compile Include="../../src/AetherNet.Storage/**/*.cs" Exclude="../../src/AetherNet.Storage/obj/**;../../src/AetherNet.Storage/bin/**" />
+    <Compile Include="../../src/AetherNet.Content/**/*.cs" Exclude="../../src/AetherNet.Content/obj/**;../../src/AetherNet.Content/bin/**" />
+    <Compile Include="../../src/AetherNet.Cards/**/*.cs" Exclude="../../src/AetherNet.Cards/obj/**;../../src/AetherNet.Cards/bin/**" />
+    <Compile Include="../../src/AetherNet.Cartography/**/*.cs" Exclude="../../src/AetherNet.Cartography/obj/**;../../src/AetherNet.Cartography/bin/**" />
+    <Compile Include="../../src/AetherNet.Map/**/*.cs" Exclude="../../src/AetherNet.Map/obj/**;../../src/AetherNet.Map/bin/**" />
+    <Compile Include="../../src/AetherNet.Space/**/*.cs" Exclude="../../src/AetherNet.Space/obj/**;../../src/AetherNet.Space/bin/**" />
+    <Compile Include="../../src/AetherNet.Forge/**/*.cs" Exclude="../../src/AetherNet.Forge/obj/**;../../src/AetherNet.Forge/bin/**" />
+    <Compile Include="../../src/AetherNet.Market/**/*.cs" Exclude="../../src/AetherNet.Market/obj/**;../../src/AetherNet.Market/bin/**" />
+    <Compile Include="../../src/AetherNet.Fmhy/**/*.cs" Exclude="../../src/AetherNet.Fmhy/obj/**;../../src/AetherNet.Fmhy/bin/**" />
+    <Compile Include="../../src/AetherNet.Tipping/**/*.cs" Exclude="../../src/AetherNet.Tipping/obj/**;../../src/AetherNet.Tipping/bin/**" />
+    <Compile Include="../../src/AetherNet.Vault/**/*.cs" Exclude="../../src/AetherNet.Vault/obj/**;../../src/AetherNet.Vault/bin/**" />
+    <Compile Include="../../src/AetherNet.Voice/**/*.cs" Exclude="../../src/AetherNet.Voice/obj/**;../../src/AetherNet.Voice/bin/**" />
+    <Compile Include="../../src/AetherNet.Streaming/**/*.cs" Exclude="../../src/AetherNet.Streaming/obj/**;../../src/AetherNet.Streaming/bin/**" />
+    <Compile Include="../../src/AetherNet.BitTorrent/**/*.cs" Exclude="../../src/AetherNet.BitTorrent/obj/**;../../src/AetherNet.BitTorrent/bin/**" />
+    <Compile Include="../../src/AetherNet.BitTorrent.Gateway/**/*.cs" Exclude="../../src/AetherNet.BitTorrent.Gateway/obj/**;../../src/AetherNet.BitTorrent.Gateway/bin/**" />
+    <Compile Include="../../src/AetherNet.DependencyInjection/**/*.cs" Exclude="../../src/AetherNet.DependencyInjection/obj/**;../../src/AetherNet.DependencyInjection/bin/**" />
+    <Compile Include="../../src/AetherNet.Transport.WebRtc/**/*.cs" Exclude="../../src/AetherNet.Transport.WebRtc/obj/**;../../src/AetherNet.Transport.WebRtc/bin/**" />
+    <Compile Include="../../src/AetherNet.Content.Sqlite/**/*.cs" Exclude="../../src/AetherNet.Content.Sqlite/obj/**;../../src/AetherNet.Content.Sqlite/bin/**" />
+    <Compile Include="../../src/AetherNet.Map.Sqlite/**/*.cs" Exclude="../../src/AetherNet.Map.Sqlite/obj/**;../../src/AetherNet.Map.Sqlite/bin/**" />
+    <Compile Include="../../src/AetherNetNodeService/**/*.cs" Exclude="../../src/AetherNetNodeService/obj/**;../../src/AetherNetNodeService/bin/**" />
+    <Compile Include="../../src/AetherNetNodeService.Client/**/*.cs" Exclude="../../src/AetherNetNodeService.Client/obj/**;../../src/AetherNetNodeService.Client/bin/**" />
+    <Compile Include="../../src/AetherNetNodeService.Host/**/*.cs" Exclude="../../src/AetherNetNodeService.Host/obj/**;../../src/AetherNetNodeService.Host/bin/**" />
+    <Compile Include="../../src/AetherNetNodeService.Ipc/**/*.cs" Exclude="../../src/AetherNetNodeService.Ipc/obj/**;../../src/AetherNetNodeService.Ipc/bin/**" />
+    <Compile Include="../../src/AetherNetNodeService.Pipe/**/*.cs" Exclude="../../src/AetherNetNodeService.Pipe/obj/**;../../src/AetherNetNodeService.Pipe/bin/**" />
+  </ItemGroup>
+
+  <!-- The three that need .NET 10: Aether Aware, the mesh browser, and Quiet help in the node. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' or $(TargetFramework.StartsWith('net10.0-'))">
+    <Compile Include="../../src/AetherNet.Aware/**/*.cs" Exclude="../../src/AetherNet.Aware/obj/**;../../src/AetherNet.Aware/bin/**" />
+    <Compile Include="../../src/AetherNet.Browser/**/*.cs" Exclude="../../src/AetherNet.Browser/obj/**;../../src/AetherNet.Browser/bin/**" />
+    <Compile Include="../../src/AetherNetNodeService.Help/**/*.cs" Exclude="../../src/AetherNetNodeService.Help/obj/**;../../src/AetherNetNodeService.Help/bin/**" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' or $(TargetFramework.StartsWith('net10.0-'))">
-    <ProjectReference Include="..\..\src\AetherNet.Aware\AetherNet.Aware.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNet.Browser\AetherNet.Browser.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNetNodeService.Help\AetherNetNodeService.Help.csproj" PrivateAssets="all" />
+    <RazorComponent Include="../../src/AetherNet.Browser/**/*.razor" Exclude="../../src/AetherNet.Browser/obj/**;../../src/AetherNet.Browser/bin/**" />
+    <EmbeddedResource Include="../../src/AetherNet.Aware/Signatures/fieldwatch-signatures-v2.json" LogicalName="AetherNet.Aware.fieldwatch-signatures-v2.json" />
+    <EmbeddedResource Include="../../src/AetherNet.Browser/wwwroot/js/aether-shader.js" LogicalName="aether-shader.js" />
+    <EmbeddedResource Include="../../src/AetherNet.Browser/wwwroot/js/aether-card.js" LogicalName="aether-card.js" />
+    <EmbeddedResource Include="../../src/AetherNet.Browser/wwwroot/fonts/instrument-serif.woff2" LogicalName="instrument-serif.woff2" />
+    <EmbeddedResource Include="../../src/AetherNet.Browser/wwwroot/fonts/newsreader.woff2" LogicalName="newsreader.woff2" />
   </ItemGroup>
+
+  <!-- The two that only exist on Android, and the two that only exist on Windows. -->
   <ItemGroup Condition="$(TargetFramework.EndsWith('-android'))">
-    <ProjectReference Include="..\..\src\AetherNet.Transport.Android\AetherNet.Transport.Android.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNetNodeService.Android\AetherNetNodeService.Android.csproj" PrivateAssets="all" />
+    <Compile Include="../../src/AetherNet.Transport.Android/**/*.cs" Exclude="../../src/AetherNet.Transport.Android/obj/**;../../src/AetherNet.Transport.Android/bin/**" />
+    <Compile Include="../../src/AetherNetNodeService.Android/**/*.cs" Exclude="../../src/AetherNetNodeService.Android/obj/**;../../src/AetherNetNodeService.Android/bin/**" />
   </ItemGroup>
   <ItemGroup Condition="$(TargetFramework.Contains('-windows'))">
-    <ProjectReference Include="..\..\src\AetherNet.Transport.Windows\AetherNet.Transport.Windows.csproj" PrivateAssets="all" />
-    <ProjectReference Include="..\..\src\AetherNetNodeService.Windows\AetherNetNodeService.Windows.csproj" PrivateAssets="all" />
+    <Compile Include="../../src/AetherNet.Transport.Windows/**/*.cs" Exclude="../../src/AetherNet.Transport.Windows/obj/**;../../src/AetherNet.Transport.Windows/bin/**" />
+    <Compile Include="../../src/AetherNetNodeService.Windows/**/*.cs" Exclude="../../src/AetherNetNodeService.Windows/obj/**;../../src/AetherNetNodeService.Windows/bin/**" />
   </ItemGroup>
+
+  <!-- Licence notices, which the package must carry because it carries what they cover: Aware is ported from
+       Fieldwatch (MIT), and the browser's two typefaces are embedded under the SIL Open Font License, which
+       requires its text to travel with the fonts. Until 3.3.0 the package shipped the code and the fonts
+       without either notice. -->
   <ItemGroup>
+    <None Include="../../src/AetherNet.Aware/NOTICE.md" Pack="true" PackagePath="licenses/AetherNet.Aware-NOTICE.md" />
+    <None Include="../../src/AetherNet.Browser/wwwroot/fonts/OFL-1.1.txt" Pack="true" PackagePath="licenses/OFL-1.1.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.12" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.12" />
     <PackageReference Include="NSec.Cryptography" Version="25.4.0" />
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
-    <PackageReference Include="System.IO.Ports" Version="9.0.0" />
     <PackageReference Include="SIPSorcery" Version="10.0.17" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
+    <PackageReference Include="System.IO.Ports" Version="9.0.0" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' or $(TargetFramework.StartsWith('net10.0-'))">
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />

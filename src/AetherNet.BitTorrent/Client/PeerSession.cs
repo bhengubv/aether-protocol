@@ -48,7 +48,7 @@ public sealed class PeerSession
     {
         try
         {
-            var ours = new Handshake(_infoHash, _peerId, Handshake.DefaultReserved());
+            var ours = new PeerWire.Handshake(_infoHash, _peerId, PeerWire.Handshake.DefaultReserved());
             await _conn.HandshakeAsync(ours, _initiator, ct).ConfigureAwait(false);
             await _conn.SendAsync(PeerMessage.Bitfield(_store.BuildBitfield().ToBytes()), ct).ConfigureAwait(false);
 
