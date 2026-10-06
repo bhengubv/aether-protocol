@@ -25,7 +25,7 @@
 
   <!-- AetherNet from the published package, the same as the service it installs: not from this repo's src/. -->
   <ItemGroup>
-    <PackageReference Include="AetherNet" Version="3.3.0" />
+    <PackageReference Include="AetherNet" Version="3.3.1" />
   </ItemGroup>
 
   <!-- AetherNetService itself, zipped by the pack script and carried inside the setup. -->

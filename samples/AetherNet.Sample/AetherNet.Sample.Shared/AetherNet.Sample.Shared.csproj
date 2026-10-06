@@ -38,68 +38,14 @@
        internal, fully-parameterized SQL over local device data. Same justification as
        AetherNet.Map.Sqlite / AetherNet.Content.Sqlite; TRACKED to bump when a patched bundle ships. -->
 
-  <!-- The AetherNet reference protocol (same four projects the console demo consumes).
-       The Shared RCL is referenced by both heads, so the MAUI app and the Web app
-       both get the live protocol with no per-head re-wiring. -->
+  <!-- AetherNet, from the published package: one reference, one assembly. Everything the sample drives - the mesh,
+       the node contract and its client, messaging, storage, the mesh browser and its cards, content and its SQLite
+       store, voice, BitTorrent and its gateway, the FMHY catalogue, Forge, Vault, Cartography, Market, Tipping,
+       Space, Map and Streaming - is inside it. The Shared RCL is referenced by both heads, so the MAUI app and the
+       Web app both get it with no per-head re-wiring. Built the way anybody else builds on AetherNet: from NuGet,
+       not from this repo's src/. The browser's scripts and typefaces arrive with it, at _content/AetherNet.Browser/. -->
   <ItemGroup>
-    <ProjectReference Include="../../../src/AetherNet.Core/AetherNet.Core.csproj" />
-    <!-- The portable mesh implementation, moved out of this sample's Services folder. -->
-    <ProjectReference Include="../../../src/AetherNet.Mesh/AetherNet.Mesh.csproj" />
-    <!-- The Aether Node Service: the bind contract + its reference in-process host. This app is a
-         client of its own node — identity, messaging and presence reach the UI through IAetherNodeClient
-         (docs/aether-node-service.md), the same contract a separate app would bind to. -->
-    <ProjectReference Include="../../../src/AetherNetNodeService/AetherNetNodeService.csproj" />
-    <ProjectReference Include="../../../src/AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
-    <!-- The backup screen tells a declined owner check apart from a failure (OwnerNotConfirmedException). -->
-    <ProjectReference Include="../../../src/AetherNetNodeService.Client/AetherNetNodeService.Client.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
-    <!-- Persistent store-and-forward: the file-backed key/value store that holds delay-tolerant bundles
-         on disk, so a message left for an absent friend survives an app restart. -->
-    <ProjectReference Include="../../../src/AetherNet.Storage/AetherNet.Storage.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.Security/AetherNet.Security.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.Transport/AetherNet.Transport.csproj" />
-    <!-- AetherView: the whole mesh-web as a library — model, renderer, editor, deck, wire. This app
-         merely hosts it, and fills its two seams (ICardStore, IMeshLink) with a phone's answers. -->
-    <ProjectReference Include="../../../src/AetherNet.Browser/AetherNet.Browser.csproj" />
-    <!-- The mesh-web: content-addressed Cards + the aether:// resolver (pulls in AetherNet.Content). -->
-    <ProjectReference Include="../../../src/AetherNet.Cards/AetherNet.Cards.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.Content/AetherNet.Content.csproj" />
-    <!-- Durable content store, so hosted and collected cards survive a restart. -->
-    <ProjectReference Include="../../../src/AetherNet.Content.Sqlite/AetherNet.Content.Sqlite.csproj" />
-    <!-- 1:1 voice: the call state machine, signalling schema and jitter buffer. -->
-    <ProjectReference Include="../../../src/AetherNet.Voice/AetherNet.Voice.csproj" />
-    <!-- The Lab's "Content & files" demos drive these in-process. BitTorrent + its mesh gateway
-         (/lab/torrents), the FMHY catalogue (/lab/fmhy), and the Forge package cache (/lab/forge).
-         AetherNet.Content is already referenced above and backs /lab/files. -->
-    <ProjectReference Include="../../../src/AetherNet.BitTorrent/AetherNet.BitTorrent.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.BitTorrent.Gateway/AetherNet.BitTorrent.Gateway.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.Fmhy/AetherNet.Fmhy.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.Forge/AetherNet.Forge.csproj" />
-    <!-- The Lab's "Resilience & safety" screens drive these two Phase-2 extensions live in-process:
-         erasure-coded distributed backup (/lab/vault) and witness-co-signed Proof-of-Location
-         (/lab/location-proof). SOS and store-and-forward live in AetherNet.Core (already referenced). -->
-    <ProjectReference Include="../../../src/AetherNet.Vault/AetherNet.Vault.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.Cartography/AetherNet.Cartography.csproj" />
-    <!-- The economy layer, surfaced by the /lab demo pages. Market carries the offline P2P
-         marketplace + escrow and the Proof-of-Vicinity anti-Sybil trust graph (it pulls in
-         AetherNet.Space and AetherNet.Vault transitively); Tipping carries the on-device
-         SDPKT-settled tipping trio (TippingService, AetherRewardService, TipperQoSService).
-         The mesh TipPacket and PoV exchange primitives themselves already live in the
-         AetherNet.Security / AetherNet.Core references above. -->
-    <ProjectReference Include="../../../src/AetherNet.Market/AetherNet.Market.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.Tipping/AetherNet.Tipping.csproj" />
-    <!-- The Lab's "Civic & local-first" screens drive these two Phase-2 extensions live in-process:
-         geo-pinned community noticeboards (/lab/breadcrumbs) and the offline collaborative
-         neighbourhood-map CRDT (/lab/map). Referenced directly so the map's CRDT toolkit and geohash
-         are first-class here, not leaned on transitively. -->
-    <ProjectReference Include="../../../src/AetherNet.Space/AetherNet.Space.csproj" />
-    <ProjectReference Include="../../../src/AetherNet.Map/AetherNet.Map.csproj" />
-    <!-- The Lab's "Live & media" screens drive AetherNet.Streaming live in-process: segment-based
-         live broadcast with adaptive bitrate (/lab/broadcast), host-driven watch-together sync
-         (/lab/watch-together), and full-mesh→SFU group video call-control plus 1:1 video negotiation
-         (/lab/group-video). Push-to-talk audio and screen-share video (/lab/ptt-screenshare) ride the
-         shared media-frame codec in AetherNet.Core, which is already referenced above. -->
-    <ProjectReference Include="../../../src/AetherNet.Streaming/AetherNet.Streaming.csproj" />
+    <PackageReference Include="AetherNet" Version="3.3.1" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
     <TargetFrameworks>net10.0-android</TargetFrameworks>
@@ -35,8 +35,8 @@
     <ApplicationId>com.bhengubv.aethernet</ApplicationId>
 
     <!-- Versions -->
-    <ApplicationDisplayVersion>1.2</ApplicationDisplayVersion>
-    <ApplicationVersion>3</ApplicationVersion>
+    <ApplicationDisplayVersion>1.3</ApplicationDisplayVersion>
+    <ApplicationVersion>4</ApplicationVersion>
 
     <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
     <WindowsPackageType>None</WindowsPackageType>
@@ -135,18 +135,11 @@
     <Using Include="AetherNet.Mesh" />
   </ItemGroup>
 
-  <!-- Aether is a thin client on Android: it runs no radios (so it does not reference
-       AetherNet.Transport.Android at all) and takes its identity from the separate AetherNetService app,
-       which it connects to through AetherNetNodeService.Android. -->
-  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <ProjectReference Include="..\..\..\src\AetherNetNodeService.Android\AetherNetNodeService.Android.csproj" />
-  </ItemGroup>
-
-  <!-- And the same on Windows: Aether is a thin client of the Windows AetherNetService, which it reaches by its named
-       pipe (AetherNetNodeService.Pipe) and finds, or starts, through its App Paths entry (AetherNetNodeService.Windows). -->
-  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
-    <ProjectReference Include="..\..\..\src\AetherNetNodeService.Pipe\AetherNetNodeService.Pipe.csproj" />
-    <ProjectReference Include="..\..\..\src\AetherNetNodeService.Windows\AetherNetNodeService.Windows.csproj" />
+  <!-- Aether is a thin client of AetherNetService: on Android it binds the separate service app, on Windows it reaches
+       the service's named pipe and finds or starts it through its App Paths entry. The node client for both lives in
+       the AetherNet package's Android and Windows builds, referenced here directly because this head uses it. -->
+  <ItemGroup>
+    <PackageReference Include="AetherNet" Version="3.3.1" />
   </ItemGroup>
 
   <!-- NSec's [DllImport("libsodium")] needs a real Android libsodium.so. The transitive

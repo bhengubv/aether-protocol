@@ -20,8 +20,8 @@
     <!-- An app, not a library: it ships as an APK and must never go to NuGet. -->
     <IsPackable>false</IsPackable>
     <ApplicationId>com.bhengubv.aethernetservice</ApplicationId>
-    <ApplicationDisplayVersion>1.2</ApplicationDisplayVersion>
-    <ApplicationVersion>3</ApplicationVersion>
+    <ApplicationDisplayVersion>1.3</ApplicationDisplayVersion>
+    <ApplicationVersion>4</ApplicationVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
@@ -63,7 +63,7 @@
        messaging core and storage - and, on Android and Windows, the platform pieces below as well. The service is
        built the way anybody else would build on AetherNet: from NuGet, not from this repo's src/. -->
   <ItemGroup>
-    <PackageReference Include="AetherNet" Version="3.3.0" />
+    <PackageReference Include="AetherNet" Version="3.3.1" />
   </ItemGroup>
 
   <!-- Windows' own sealing of the key for the person signed in. The named pipe, the App Paths entry and the

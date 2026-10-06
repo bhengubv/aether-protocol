@@ -60,7 +60,7 @@ public class AwarePageTests : IDisposable
             ],
         };
 
-        var page = _ctx.RenderComponent<Aware>();
+        var page = _ctx.RenderComponent<Shared.Pages.Aware>();
 
         // The alarming one, said first and in the words of somebody holding the phone.
         Assert.Contains("Moving with you", page.Markup);
@@ -91,7 +91,7 @@ public class AwarePageTests : IDisposable
             Fixable = true,
         };
 
-        var page = _ctx.RenderComponent<Aware>();
+        var page = _ctx.RenderComponent<Shared.Pages.Aware>();
 
         Assert.Contains("Not listening", page.Markup);
         Assert.Contains("it needs permission to find devices nearby", page.Markup);
@@ -116,7 +116,7 @@ public class AwarePageTests : IDisposable
             ],
         };
 
-        var page = _ctx.RenderComponent<Aware>();
+        var page = _ctx.RenderComponent<Shared.Pages.Aware>();
 
         Assert.DoesNotContain("Moving with you", page.Markup);
         Assert.Contains("A fridge", page.Markup);
@@ -132,7 +132,7 @@ public class AwarePageTests : IDisposable
         using var ctx = new TestContext();
         ctx.Services.AddSingleton(_ => new AwareService(null));
 
-        var page = ctx.RenderComponent<Aware>();
+        var page = ctx.RenderComponent<Shared.Pages.Aware>();
 
         Assert.Contains("needs AetherNetService", page.Markup);
         Assert.DoesNotContain("Around you", page.Markup);
