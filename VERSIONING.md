@@ -48,11 +48,23 @@ dotnet pack -c Release -p:VersionSuffix=alpha.1
 4. CI publishes `artifacts/packages/*.nupkg` to NuGet.org.
 
 ### Single-place version bump
-Every packable C# library shares the version via `Directory.Build.props` - **37** of the
-39 projects in `src/`, the two exceptions being the apps `AetherNetService` and
-`AetherNetService.Setup`, which set `<IsPackable>false</IsPackable>`. **18** are live on
-nuget.org at `3.0.0` (counted 2026-10-05); the rest pack but have not been pushed.
-The old text said "9", which was true of a much smaller repo:
+Everything shares the version via `Directory.Build.props`. **Four** projects are packable
+and they all live in `packaging/`: `AetherNet`, `AetherNet.Node`, `AetherNet.WebRtc`,
+`AetherNet.Sqlite`. **All 39** projects in `src/` set `<IsPackable>false</IsPackable>` and
+ship *inside* those bundles — `38cd664` ("Thirty-two packages become four") made that the
+shape, and each csproj carries the reason on the line above it. Asked of MSBuild rather
+than grepped, 2026-10-06.
+
+> Two counts have been wrong here. The original said **9**, true of a much smaller repo. I
+> replaced it with **37**, from a `git grep` for `<IsPackable>false`, whose angle brackets
+> the shell ate — so it found 2 of 39 and I believed it, one commit after being told why an
+> unverified number does not belong in a document. `dotnet msbuild -getProperty:IsPackable`
+> is the answer that cannot be wrong.
+
+On nuget.org, **18** `AetherNet.*` ids are live at `3.0.0` from the old thirty-two-package
+shape, and **none of the four bundle ids exists yet** (checked 2026-10-06; all four return
+404). So the next publish claims four new names and leaves those 18 at `3.0.0`, which is a
+decision about the shape on NuGet rather than a mechanical release step:
 ```xml
 <VersionPrefix>3.1.0</VersionPrefix>   <!-- in the tree today; 3.0.0 is the last published -->
 ```
