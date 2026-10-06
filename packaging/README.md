@@ -3,47 +3,59 @@
 Nothing in here holds any code. `src/` holds the code — about three dozen projects, every one of them
 `IsPackable=false` — and this folder decides what shape that code takes on NuGet.
 
-## The four bundles
+## One package
 
-`AetherNet`, `AetherNet.Node`, `AetherNet.WebRtc` and `AetherNet.Sqlite` are the packages we publish.
-Each one carries the assemblies of the `src/` projects it names, so a consumer writes one
-`PackageReference` instead of twenty.
+**`AetherNet` is the package.** It carries the assemblies of every `src/` project, so a consumer writes one
+`PackageReference` and has the protocol: messaging, every transport including WebRTC, crypto, storage, the
+SQLite-backed stores, Aether Aware, and the client for talking to AetherNetService.
 
-The split is by what a dependency makes somebody carry, not by how the code is laid out:
+It has been three shapes, and only the last one was asked for:
 
-| Package             | Why it is its own package                                                     |
-|---------------------|-------------------------------------------------------------------------------|
-| `AetherNet`         | The protocol. Weight every consumer carries anyway — crypto alone is referenced by eleven of these projects, so separating it saved nobody anything. |
-| `AetherNet.Node`    | Talking to AetherNetService rather than embedding the protocol. A different audience. |
-| `AetherNet.WebRtc`  | Brings SIPSorcery. Sending a message over Bluetooth should not cost you a media stack. |
-| `AetherNet.Sqlite`  | Brings a native SQLite per platform.                                           |
+- **Thirty-two.** Never chosen — every project was packable by default, so the folder layout silently became
+  the package layout, while one `VersionPrefix` versioned them in lockstep anyway.
+- **Four**, at 3.1.x. A judgement call about weight: WebRTC drags SIPSorcery, SQLite drags a native binary per
+  platform, the node client is a different audience. One of those three arguments was good. The request had
+  been for *one*, and the choice was never put back to the person who made it.
+- **One**, from 3.2.0.
 
-They carry assemblies through `BuildOutputInPackage`, and only the ones named in `CarriedNames` — a
-project reference drags its own references along, so without that allow-list the optional bundles would
-each ship a second copy of `AetherNet.Core`. The three optional bundles depend on `AetherNet` for the rest.
+What one package costs, stated rather than hidden: referencing `AetherNet` brings **SIPSorcery** and a
+**native SQLite** whether you use them or not, and it pins **BouncyCastle 2.7.0**, because SIPSorcery requires
+it and the tree was on 2.4.0.
 
-These four are in `AetherNetProtocol.slnx`.
+What it gains: the WebRTC transport and the SQLite stores now reach **Android and Windows**. The separate
+packages targeted `net9.0;net10.0` only, so a phone app could never get them from NuGet at all.
 
-## The twenty pointers
+Assemblies travel via `BuildOutputInPackage`, filtered by the `CarriedNames` allow-list. The allow-list stays
+even with one package: a project reference drags its own references along, so without it the package would also
+ship copies of the Microsoft.Extensions and SIPSorcery assemblies, which must arrive as *dependencies*, not as
+files.
 
-`*.Pointer` are the twenty ids that used to be packages of their own before the bundles existed.
-Folding them in would have left them at 3.0.0 — twenty packages that quietly stopped, with nothing on
-their pages saying where the code went, and a consumer bumping to the current version finding no such
-version. So each one is still published, under its real id, carrying **no `lib/`** and one dependency on
-the bundle that holds its assembly. Referencing `AetherNet.Core` restores and compiles exactly as it
-always did; nothing ships twice, because the pointer ships nothing.
+## The 23 pointers
+
+`*.Pointer` are the ids that used to be packages. Retiring an id is not the same as folding it in: left alone
+they freeze at their last version, their pages say nothing about where the code went, and a consumer bumping to
+the current version finds no such version. So each is still published, under its real id, carrying **no `lib/`**
+and one dependency on `AetherNet`. Referencing `AetherNet.Core` restores and compiles exactly as it always did;
+nothing ships twice, because the pointer ships nothing.
 
 Two things about them are deliberate and will look wrong otherwise:
 
-- **The project is named `<Id>.Pointer`, and `PackageId` puts the real id back.** NuGet names every
-  project in a restore graph by its `PackageId` and refuses a graph holding two projects called
-  `AetherNet.Core`. `src/AetherNet.Core` is already one of them.
-- **The bundle is a `PackageReference`, not a `ProjectReference`.** A project reference would pull
+- **The project is named `<Id>.Pointer`, and `PackageId` puts the real id back.** NuGet names every project in
+  a restore graph by its `PackageId` and refuses a graph holding two projects called `AetherNet.Core`.
+  `src/AetherNet.Core` is already one of them.
+- **`AetherNet` is a `PackageReference`, not a `ProjectReference`.** A project reference would pull
   `src/AetherNet.Core` into this project's graph and bring that same collision back.
 
-That second point is why **the pointers are not in the solution**: they reference a published package,
-and a plain `dotnet build` of the repo should not go and download the repo's own output. The publisher
-packs each `.csproj` directly, so they do not need to be.
+That second point is why **the pointers are not in the solution**: they reference a published package, and a
+plain `dotnet build` of the repo should not go and download the repo's own output. The publisher packs each
+`.csproj` directly, so they do not need to be.
+
+A pointer advertises the same frameworks as the package it stands in for, so a consumer lands on the asset that
+holds its assembly — which is why `AetherNet.Transport.Windows` is Windows-only and `AetherNet.Node` carries the
+platform targets it always had.
+
+They are a migration layer, not a design. Once consumers have moved, they can be deprecated and the answer to
+"how many packages" becomes one with nothing after it.
 
 ## Publishing
 
@@ -55,6 +67,11 @@ packs each `.csproj` directly, so they do not need to be.
 ```
 
 `-SourceDir packaging` is the part that matters: the script defaults to `src/`, where every project is
-unpackable, and would report "Nothing to push." It packs the bundles and the pointers together, and
-pushes with `--skip-duplicate`, so re-running is safe. GitHub Packages is the mirror and takes the same
-`.nupkg` files — see `VERSIONING.md`.
+unpackable, and would report "Nothing to push."
+
+⚠️ **`AetherNet` has to reach the feed before the pointers can pack**, because each pointer restores it as a
+package. On a version nuget.org has not indexed yet, set `$env:RestoreSources` for that shell only — the feed
+plus the local output folder — rather than committing a NuGet.config that points at a path on one machine.
+
+GitHub Packages is the mirror and takes the same `.nupkg` files; `gh` already holds `write:packages`, so it
+needs no new credential. See `VERSIONING.md`.

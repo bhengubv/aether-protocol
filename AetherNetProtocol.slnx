@@ -3,9 +3,6 @@
     <Project Path="bench/AetherNet.Benchmarks/AetherNet.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/packaging/">
-    <Project Path="packaging/AetherNet.Node/AetherNet.Node.csproj" />
-    <Project Path="packaging/AetherNet.Sqlite/AetherNet.Sqlite.csproj" />
-    <Project Path="packaging/AetherNet.WebRtc/AetherNet.WebRtc.csproj" />
     <Project Path="packaging/AetherNet/AetherNet.csproj" />
   </Folder>
   <Folder Name="/samples/">

@@ -1,14 +1,14 @@
-# AetherNet.Transport.Windows
+# AetherNet.Node
 
 **This package now ships inside [AetherNet](https://www.nuget.org/packages/AetherNet) — one package for all of
 AetherNet.**
 
 AetherNet used to publish one package per project: thirty-two of them, versioned in lockstep, so the split
 bought nothing a consumer could act on. At 3.1.x it became four, which was still three more than anybody
-asked for. From **3.2.0 it is one**, and `AetherNet.Transport.Windows`'s assembly travels inside it.
+asked for. From **3.2.0 it is one**, and `AetherNet.Node`'s assembly travels inside it.
 
 **You do not have to change anything.** This package carries no assemblies of its own; it depends on
-`AetherNet`, so restoring `AetherNet.Transport.Windows` gives you exactly the code it always did, at the current version.
+`AetherNet`, so restoring `AetherNet.Node` gives you exactly the code it always did, at the current version.
 
 To reference the one package directly instead:
 

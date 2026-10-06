@@ -10,6 +10,35 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+## [3.2.0] — 2026-10-06
+
+**Thirty-two packages become one.** Not four. The request was for one package, and four was a judgement call
+nobody asked for.
+
+### Changed
+
+- **`AetherNet` is the package.** It carries every assembly in the tree: messaging, every transport including
+  WebRTC, crypto, storage, the SQLite-backed stores, Aether Aware, and the client for talking to
+  AetherNetService. Thirty-two was never chosen — every project was packable by default, so the folder layout
+  silently became the package layout. Four, at 3.1.x, was chosen: WebRTC drags SIPSorcery, SQLite drags a native
+  binary per platform, the node client serves a different audience. Exactly one of those three arguments was
+  good, and the person who had asked for one package was never shown the choice. So: one.
+- **What that costs, named rather than hidden.** Referencing `AetherNet` now brings **SIPSorcery** and a
+  **native SQLite** whether you use them or not. It also pins **BouncyCastle 2.7.0**: SIPSorcery requires it,
+  the tree was on 2.4.0, and NuGet refuses the downgrade — so folding WebRTC in forces the newer one on
+  everybody. `AetherNet.Security`'s X25519 is the only thing in the tree that touches BouncyCastle, and its
+  1,427 fixtures — X3DH, the ratchet, the identity vectors — pass unchanged on 2.7.0.
+- **What it gains: reach.** The WebRTC transport and the SQLite stores now ship for **Android and Windows**.
+  `AetherNet.WebRtc` and `AetherNet.Sqlite` targeted `net9.0;net10.0` only, so a phone app could never get
+  either from NuGet at all — the split was not only unasked for, it was taking something away.
+- **All 23 former ids are published at 3.2.0 as pointers** — no `lib/`, one dependency on `AetherNet`, a README
+  on each page saying so. `AetherNet.Core`, `AetherNet.Node`, `AetherNet.WebRtc`, `AetherNet.Sqlite` and the
+  rest all restore and compile exactly as before. They are a migration layer, not a design: once consumers have
+  moved they can be deprecated, and the answer to "how many packages" becomes one with nothing after it.
+
+---
+
+
 ## [3.1.1] — 2026-10-06
 
 **The signing entity on every package.** `<Authors>` read `The Other Bhengu (Pty) Ltd t/a The Geek

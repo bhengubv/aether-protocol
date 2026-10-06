@@ -1,11 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    AetherNet itself, in one reference. The protocol is written as three dozen projects because that is how
-    code is kept honest, but nobody consuming it wanted three dozen package references — and they were
-    versioned in lockstep anyway, so the split bought nothing. Everything whose weight every consumer
-    carries regardless lives here: crypto alone is referenced by eleven of these projects, so separating
-    it saved nobody anything. What is genuinely optional sits in its own package instead.
+    AetherNet — the whole protocol, in one reference. One package, not thirty-two and not four.
+
+    The thirty-two were never chosen: every project was packable by default, so the folder layout silently
+    became the package layout. Four was my choice and it was the wrong one. I split out the WebRTC transport,
+    the SQLite stores and the node client on the grounds that each made a consumer carry weight they might not
+    want — which is a real argument for exactly one of the three, and I never put the choice back to the person
+    who had asked for one package. So: one. The cost is named rather than hidden — referencing AetherNet brings
+    SIPSorcery and a native SQLite whether you use them or not — and the reach is the gain: an Android or Windows
+    consumer now gets the WebRTC transport and the SQLite stores, which the separate packages never offered them
+    at all, because those packages had no Android or Windows target.
+
+    Every id that used to be a package still resolves: each is published at this version as a pointer carrying no
+    assemblies, depending on this package. See packaging/README.md.
   -->
 
   <PropertyGroup>
@@ -13,16 +21,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>true</IsPackable>
-    <Description>AetherNet — a serverless mesh protocol for phones: messaging, transports, crypto, storage and Aether Aware, in one reference.</Description>
-    <PackageTags>mesh;p2p;offline;bluetooth;wifi-direct;messaging;aethernet</PackageTags>
+    <Description>AetherNet — a serverless mesh protocol for phones, in one reference: messaging, every transport (Bluetooth, Wi-Fi Direct, LoRa, WebRTC), crypto, storage, Aether Aware, and the client for talking to AetherNetService.</Description>
+    <PackageTags>mesh;p2p;offline;bluetooth;wifi-direct;webrtc;messaging;aethernet</PackageTags>
 
-    <!-- The whole point: the assemblies of the referenced projects travel inside this package's lib/ folder, so one
-         reference brings the lot. The projects stay exactly as they are; only the shape on NuGet changes.
+    <!-- The assemblies of the referenced projects travel inside this package's lib/, so one reference brings the
+         lot. The projects are untouched; only the shape on NuGet changes.
 
-         Only the ones named here, though. A project reference drags its own references along, so without this an
-         optional bundle would carry a second copy of AetherNet.Core and a consumer who installed both would have
-         the same assembly twice. The optional ones depend on AetherNet instead, and carry only what is theirs. -->
-    <CarriedNames>;AetherNet.Core;AetherNet.Security;AetherNet.Messaging;AetherNet.Transport;AetherNet.Transport.LoRa;AetherNet.Mesh;AetherNet.Storage;AetherNet.Content;AetherNet.Cards;AetherNet.Cartography;AetherNet.Map;AetherNet.Space;AetherNet.Forge;AetherNet.Market;AetherNet.Fmhy;AetherNet.Tipping;AetherNet.Vault;AetherNet.Voice;AetherNet.Streaming;AetherNet.BitTorrent;AetherNet.BitTorrent.Gateway;AetherNet.DependencyInjection;AetherNet.Aware;AetherNet.Browser;AetherNet.Transport.Android;AetherNet.Transport.Windows;</CarriedNames>
+         The allow-list stays even now that there is one package: a project reference drags its own references
+         along, so without it this would also carry copies of the Microsoft.Extensions and SIPSorcery assemblies
+         that belong to those packages and must arrive as dependencies, not as files. -->
+    <CarriedNames>;AetherNet.Core;AetherNet.Security;AetherNet.Messaging;AetherNet.Transport;AetherNet.Transport.LoRa;AetherNet.Mesh;AetherNet.Storage;AetherNet.Content;AetherNet.Cards;AetherNet.Cartography;AetherNet.Map;AetherNet.Space;AetherNet.Forge;AetherNet.Market;AetherNet.Fmhy;AetherNet.Tipping;AetherNet.Vault;AetherNet.Voice;AetherNet.Streaming;AetherNet.BitTorrent;AetherNet.BitTorrent.Gateway;AetherNet.DependencyInjection;AetherNet.Transport.WebRtc;AetherNet.Content.Sqlite;AetherNet.Map.Sqlite;AetherNetNodeService;AetherNetNodeService.Client;AetherNetNodeService.Host;AetherNetNodeService.Ipc;AetherNetNodeService.Pipe;AetherNet.Aware;AetherNet.Browser;AetherNetNodeService.Help;AetherNet.Transport.Android;AetherNetNodeService.Android;AetherNet.Transport.Windows;AetherNetNodeService.Windows;</CarriedNames>
     <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CarryTheReferencedAssemblies</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
 
@@ -58,16 +66,27 @@
     <ProjectReference Include="..\..\src\AetherNet.BitTorrent\AetherNet.BitTorrent.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\..\src\AetherNet.BitTorrent.Gateway\AetherNet.BitTorrent.Gateway.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\..\src\AetherNet.DependencyInjection\AetherNet.DependencyInjection.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Transport.WebRtc\AetherNet.Transport.WebRtc.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Content.Sqlite\AetherNet.Content.Sqlite.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Map.Sqlite\AetherNet.Map.Sqlite.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNetNodeService\AetherNetNodeService.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNetNodeService.Client\AetherNetNodeService.Client.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNetNodeService.Host\AetherNetNodeService.Host.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNetNodeService.Ipc\AetherNetNodeService.Ipc.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNetNodeService.Pipe\AetherNetNodeService.Pipe.csproj" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' or $(TargetFramework.StartsWith('net10.0-'))">
     <ProjectReference Include="..\..\src\AetherNet.Aware\AetherNet.Aware.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\..\src\AetherNet.Browser\AetherNet.Browser.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNetNodeService.Help\AetherNetNodeService.Help.csproj" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup Condition="$(TargetFramework.EndsWith('-android'))">
     <ProjectReference Include="..\..\src\AetherNet.Transport.Android\AetherNet.Transport.Android.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNetNodeService.Android\AetherNetNodeService.Android.csproj" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup Condition="$(TargetFramework.Contains('-windows'))">
     <ProjectReference Include="..\..\src\AetherNet.Transport.Windows\AetherNet.Transport.Windows.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNetNodeService.Windows\AetherNetNodeService.Windows.csproj" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
@@ -76,8 +95,11 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.12" />
     <PackageReference Include="NSec.Cryptography" Version="25.4.0" />
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageReference Include="System.IO.Ports" Version="9.0.0" />
+    <PackageReference Include="SIPSorcery" Version="10.0.17" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' or $(TargetFramework.StartsWith('net10.0-'))">
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
