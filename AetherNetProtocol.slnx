@@ -2,6 +2,12 @@
   <Folder Name="/bench/">
     <Project Path="bench/AetherNet.Benchmarks/AetherNet.Benchmarks.csproj" />
   </Folder>
+  <Folder Name="/packaging/">
+    <Project Path="packaging/AetherNet.Node/AetherNet.Node.csproj" />
+    <Project Path="packaging/AetherNet.Sqlite/AetherNet.Sqlite.csproj" />
+    <Project Path="packaging/AetherNet.WebRtc/AetherNet.WebRtc.csproj" />
+    <Project Path="packaging/AetherNet/AetherNet.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/AetherNet.BleRfTest/AetherNet.BleRfTest.csproj" />
     <Project Path="samples/AetherNet.Demo.Console/AetherNet.Demo.Console.csproj" />
@@ -21,6 +27,7 @@
     <Project Path="src/AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
     <Project Path="src/AetherNetNodeService.Help/AetherNetNodeService.Help.csproj" />
     <Project Path="src/AetherNetNodeService.Client/AetherNetNodeService.Client.csproj" />
+    <Project Path="src/AetherNetNodeService.Ipc/AetherNetNodeService.Ipc.csproj" />
     <Project Path="src/AetherNetNodeService.Pipe/AetherNetNodeService.Pipe.csproj" />
     <Project Path="src/AetherNetNodeService.Windows/AetherNetNodeService.Windows.csproj" />
     <Project Path="src/AetherNetService.Setup/AetherNetService.Setup.csproj" />
@@ -33,6 +40,7 @@
     <Project Path="src/AetherNet.Map.Sqlite/AetherNet.Map.Sqlite.csproj" />
     <Project Path="src/AetherNet.Cartography/AetherNet.Cartography.csproj" />
     <Project Path="src/AetherNet.DependencyInjection/AetherNet.DependencyInjection.csproj" />
+    <Project Path="src/AetherNet.Mesh/AetherNet.Mesh.csproj" />
     <Project Path="src/AetherNet.Messaging/AetherNet.Messaging.csproj" />
     <Project Path="src/AetherNet.Security/AetherNet.Security.csproj" />
     <Project Path="src/AetherNet.Storage/AetherNet.Storage.csproj" />

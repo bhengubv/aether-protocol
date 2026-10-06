@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- Shipped inside one of the packaging/ bundles, not as a package of its own. -->
+    <IsPackable>false</IsPackable>
     <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
     <RootNamespace>AetherNet.DependencyInjection</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>

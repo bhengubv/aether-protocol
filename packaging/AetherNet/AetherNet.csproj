@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    AetherNet itself, in one reference. The protocol is written as three dozen projects because that is how
+    code is kept honest, but nobody consuming it wanted three dozen package references — and they were
+    versioned in lockstep anyway, so the split bought nothing. Everything whose weight every consumer
+    carries regardless lives here: crypto alone is referenced by eleven of these projects, so separating
+    it saved nobody anything. What is genuinely optional sits in its own package instead.
+  -->
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0;net9.0-android;net10.0-android;net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>true</IsPackable>
+    <Description>AetherNet — a serverless mesh protocol for phones: messaging, transports, crypto, storage and Aether Aware, in one reference.</Description>
+    <PackageTags>mesh;p2p;offline;bluetooth;wifi-direct;messaging;aethernet</PackageTags>
+
+    <!-- The whole point: the assemblies of the referenced projects travel inside this package's lib/ folder, so one
+         reference brings the lot. The projects stay exactly as they are; only the shape on NuGet changes.
+
+         Only the ones named here, though. A project reference drags its own references along, so without this an
+         optional bundle would carry a second copy of AetherNet.Core and a consumer who installed both would have
+         the same assembly twice. The optional ones depend on AetherNet instead, and carry only what is theirs. -->
+    <CarriedNames>;AetherNet.Core;AetherNet.Security;AetherNet.Messaging;AetherNet.Transport;AetherNet.Transport.LoRa;AetherNet.Mesh;AetherNet.Storage;AetherNet.Content;AetherNet.Cards;AetherNet.Cartography;AetherNet.Map;AetherNet.Space;AetherNet.Forge;AetherNet.Market;AetherNet.Fmhy;AetherNet.Tipping;AetherNet.Vault;AetherNet.Voice;AetherNet.Streaming;AetherNet.BitTorrent;AetherNet.BitTorrent.Gateway;AetherNet.DependencyInjection;AetherNet.Aware;AetherNet.Browser;AetherNet.Transport.Android;AetherNet.Transport.Windows;</CarriedNames>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CarryTheReferencedAssemblies</TargetsForTfmSpecificBuildOutput>
+  </PropertyGroup>
+
+  <Target Name="CarryTheReferencedAssemblies" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <_Carried Include="@(ReferenceCopyLocalPaths->WithMetadataValue('ReferenceSourceTarget','ProjectReference'))" />
+      <BuildOutputInPackage
+        Include="@(_Carried)"
+        Condition="$(CarriedNames.Contains(';%(Filename);'))" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AetherNet.Core\AetherNet.Core.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Security\AetherNet.Security.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Messaging\AetherNet.Messaging.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Transport\AetherNet.Transport.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Transport.LoRa\AetherNet.Transport.LoRa.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Mesh\AetherNet.Mesh.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Storage\AetherNet.Storage.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Content\AetherNet.Content.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Cards\AetherNet.Cards.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Cartography\AetherNet.Cartography.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Map\AetherNet.Map.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Space\AetherNet.Space.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Forge\AetherNet.Forge.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Market\AetherNet.Market.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Fmhy\AetherNet.Fmhy.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Tipping\AetherNet.Tipping.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Vault\AetherNet.Vault.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Voice\AetherNet.Voice.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Streaming\AetherNet.Streaming.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.BitTorrent\AetherNet.BitTorrent.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.BitTorrent.Gateway\AetherNet.BitTorrent.Gateway.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.DependencyInjection\AetherNet.DependencyInjection.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' or $(TargetFramework.StartsWith('net10.0-'))">
+    <ProjectReference Include="..\..\src\AetherNet.Aware\AetherNet.Aware.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Browser\AetherNet.Browser.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup Condition="$(TargetFramework.EndsWith('-android'))">
+    <ProjectReference Include="..\..\src\AetherNet.Transport.Android\AetherNet.Transport.Android.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup Condition="$(TargetFramework.Contains('-windows'))">
+    <ProjectReference Include="..\..\src\AetherNet.Transport.Windows\AetherNet.Transport.Windows.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.8" />
+    <PackageReference Include="NSec.Cryptography" Version="25.4.0" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
+    <PackageReference Include="System.IO.Ports" Version="9.0.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' or $(TargetFramework.StartsWith('net10.0-'))">
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
+</Project>

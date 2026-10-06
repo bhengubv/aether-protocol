@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SQLite-backed stores, which nothing else references. Its own package because SQLite arrives with a
+    native library per platform, and that is weight somebody should choose rather than inherit.
+  -->
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>true</IsPackable>
+    <Description>AetherNet.Sqlite — SQLite-backed content and map stores for AetherNet. Optional.</Description>
+    <PackageTags>aethernet;sqlite;storage;map</PackageTags>
+
+    <!-- The whole point: the assemblies of the referenced projects travel inside this package's lib/ folder, so one
+         reference brings the lot. The projects stay exactly as they are; only the shape on NuGet changes.
+
+         Only the ones named here, though. A project reference drags its own references along, so without this an
+         optional bundle would carry a second copy of AetherNet.Core and a consumer who installed both would have
+         the same assembly twice. The optional ones depend on AetherNet instead, and carry only what is theirs. -->
+    <CarriedNames>;AetherNet.Content.Sqlite;AetherNet.Map.Sqlite;</CarriedNames>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CarryTheReferencedAssemblies</TargetsForTfmSpecificBuildOutput>
+  </PropertyGroup>
+
+  <Target Name="CarryTheReferencedAssemblies" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <_Carried Include="@(ReferenceCopyLocalPaths->WithMetadataValue('ReferenceSourceTarget','ProjectReference'))" />
+      <BuildOutputInPackage
+        Include="@(_Carried)"
+        Condition="$(CarriedNames.Contains(';%(Filename);'))" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AetherNet\AetherNet.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AetherNet.Content.Sqlite\AetherNet.Content.Sqlite.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\AetherNet.Map.Sqlite\AetherNet.Map.Sqlite.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+</Project>

@@ -11,6 +11,8 @@
   -->
 
   <PropertyGroup>
+    <!-- Shipped inside one of the packaging/ bundles, not as a package of its own. -->
+    <IsPackable>false</IsPackable>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
