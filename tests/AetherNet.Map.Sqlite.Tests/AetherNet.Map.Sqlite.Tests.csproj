@@ -22,8 +22,5 @@
 
   <!-- Inherits the transitive SQLitePCLRaw CVE-2025-6965 exposure from AetherNet.Map.Sqlite;
        see that project's csproj for the full justification. -->
-  <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
-  </ItemGroup>
 
 </Project>

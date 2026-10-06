@@ -17,7 +17,7 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <!-- SQLite >= 3.50.2, which is the patched engine CVE-2025-6965 was waiting on. -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
   </ItemGroup>
 
   <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q was suppressed here for as long as SQLitePCLRaw shipped no bundle with a

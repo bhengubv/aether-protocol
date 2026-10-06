@@ -18,11 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
-    <!-- Test-only transitive deps of bUnit (AngleSharp DOM parser, SourceLink git task). Moderate
-         advisories, never shipped in the app — this is the test project. -->
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-23fw-v26w-5fgq" />
+    <!-- bUnit brings AngleSharp 1.2.0, which has an mXSS advisory fixed in 1.5.0. Named directly so the
+         fixed one wins: a test project is the one place a DOM parser is actually asked to parse markup,
+         and a suppression would have left it parsing with the hole in it. -->
+    <PackageReference Include="AngleSharp" Version="1.8.3" />
   </ItemGroup>
 
   <!--

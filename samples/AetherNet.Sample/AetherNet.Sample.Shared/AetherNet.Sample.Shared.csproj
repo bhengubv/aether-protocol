@@ -37,9 +37,6 @@
        attacker-controlled SQL. SQLitePCLRaw has not shipped a patched bundle yet. This app runs only
        internal, fully-parameterized SQL over local device data. Same justification as
        AetherNet.Map.Sqlite / AetherNet.Content.Sqlite; TRACKED to bump when a patched bundle ships. -->
-  <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
-  </ItemGroup>
 
   <!-- The AetherNet reference protocol (same four projects the console demo consumes).
        The Shared RCL is referenced by both heads, so the MAUI app and the Web app
