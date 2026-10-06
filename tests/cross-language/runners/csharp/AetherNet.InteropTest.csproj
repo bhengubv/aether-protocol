@@ -24,7 +24,7 @@
 
   <ItemGroup>
     <!-- Need BouncyCastle for X25519 agree (same as production code uses) -->
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
   </ItemGroup>
 
   <ItemGroup>
