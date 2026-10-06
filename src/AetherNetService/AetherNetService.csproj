@@ -58,31 +58,17 @@
     <AndroidSigningStorePass>$(ANDROID_KEYSTORE_PASS)</AndroidSigningStorePass>
   </PropertyGroup>
 
-  <!-- The node itself, the same on every system: the host, the identity and Signal, the portable radio mesh and the
-       messaging core. DTN and the routing/identity contracts come transitively through these (DtnService lives in
-       AetherNet.Core; the storage backing it is AetherNet.Storage). -->
+  <!-- The node itself, from the published AetherNet package: one reference, one assembly. It carries everything the
+       node uses on every system - the host, Quiet help, the identity and Signal, the portable radio mesh, the
+       messaging core and storage - and, on Android and Windows, the platform pieces below as well. The service is
+       built the way anybody else would build on AetherNet: from NuGet, not from this repo's src/. -->
   <ItemGroup>
-    <ProjectReference Include="../AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
-    <ProjectReference Include="../AetherNetNodeService.Help/AetherNetNodeService.Help.csproj" />
-    <ProjectReference Include="../AetherNet.Security/AetherNet.Security.csproj" />
-    <ProjectReference Include="../AetherNet.Core/AetherNet.Core.csproj" />
-    <ProjectReference Include="../AetherNet.Mesh/AetherNet.Mesh.csproj" />
-    <ProjectReference Include="../AetherNet.Messaging/AetherNet.Messaging.csproj" />
-    <ProjectReference Include="../AetherNet.Storage/AetherNet.Storage.csproj" />
+    <PackageReference Include="AetherNet" Version="3.3.0" />
   </ItemGroup>
 
-  <!-- What Android brings: the bound service apps bind to, and the radios that fill the mesh's transport seam. -->
-  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <ProjectReference Include="../AetherNetNodeService.Android/AetherNetNodeService.Android.csproj" />
-    <ProjectReference Include="../AetherNet.Transport.Android/AetherNet.Transport.Android.csproj" />
-  </ItemGroup>
-
-  <!-- What Windows brings: the named pipe apps connect by, the App Paths entry they find it through, Windows' own
-       sealing of the key for the person signed in, and the computer's radios. -->
+  <!-- Windows' own sealing of the key for the person signed in. The named pipe, the App Paths entry and the
+       computer's radios are inside the AetherNet package's Windows build. -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
-    <ProjectReference Include="../AetherNetNodeService.Pipe/AetherNetNodeService.Pipe.csproj" />
-    <ProjectReference Include="../AetherNetNodeService.Windows/AetherNetNodeService.Windows.csproj" />
-    <ProjectReference Include="../AetherNet.Transport.Windows/AetherNet.Transport.Windows.csproj" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.2" />
   </ItemGroup>
 

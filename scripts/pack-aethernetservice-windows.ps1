@@ -49,7 +49,7 @@ New-Item -ItemType Directory -Force $out | Out-Null
 # included, and they have no Windows runtime. The Windows head picks win-x64 itself.
 dotnet publish (Join-Path $root 'src\AetherNetService\AetherNetService.csproj') -f net10.0-windows10.0.19041.0 -c $Configuration `
     -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -p:WindowsPackageType=None `
-    -p:ApplicationDisplayVersion=$Version -p:ApplicationVersion=$Code -o $service --nologo -v q
+    -p:ApplicationDisplayVersion=$Version -p:ApplicationVersion=$Code -o $service --nologo
 if ($LASTEXITCODE -ne 0) { throw "AetherNetService did not publish" }
 
 "2/3 zipping it"
@@ -58,7 +58,7 @@ Compress-Archive -Path (Join-Path $service '*') -DestinationPath $zip
 
 "3/3 building the setup with it inside"
 dotnet publish (Join-Path $root 'src\AetherNetService.Setup\AetherNetService.Setup.csproj') -c $Configuration `
-    -p:ServiceZip=$zip -o $setupOut --nologo -v q
+    -p:ServiceZip=$zip -o $setupOut --nologo
 if ($LASTEXITCODE -ne 0) { throw "the setup did not build" }
 
 # STALE ARTEFACTS ARE CLEARED FIRST. The name carries the version, so a run at a new
