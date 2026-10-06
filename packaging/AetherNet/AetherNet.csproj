@@ -117,6 +117,21 @@
     <Compile Include="../../src/AetherNetNodeService.Windows/**/*.cs" Exclude="../../src/AetherNetNodeService.Windows/obj/**;../../src/AetherNetNodeService.Windows/bin/**" />
   </ItemGroup>
 
+  <!-- The browser's wwwroot, shipped as static web assets so a host app serves them. A page drawn inside an app
+       links its scripts and typefaces by URL, and until 3.3.1 the package carried them only embedded in the
+       assembly (for pages handed to a phone with no internet), so an app building on the package had nothing at
+       those URLs. They are served where they always were when the browser was a project of its own:
+       _content/AetherNet.Browser/, which is what the sample's pages ask for. Pack="false" because they travel as
+       static web assets, not as content files copied into the consumer's output. -->
+  <PropertyGroup>
+    <StaticWebAssetBasePath>_content/AetherNet.Browser</StaticWebAssetBasePath>
+  </PropertyGroup>
+  <!-- Not on the Android builds, where Content is not a build action (XA0101). The package's static web assets are
+       not per target framework, so an Android app building on the package receives them all the same. -->
+  <ItemGroup Condition="!$(TargetFramework.EndsWith('-android'))">
+    <Content Include="../../src/AetherNet.Browser/wwwroot/**" Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" Pack="false" />
+  </ItemGroup>
+
   <!-- Licence notices, which the package must carry because it carries what they cover: Aware is ported from
        Fieldwatch (MIT), and the browser's two typefaces are embedded under the SIL Open Font License, which
        requires its text to travel with the fonts. Until 3.3.0 the package shipped the code and the fonts

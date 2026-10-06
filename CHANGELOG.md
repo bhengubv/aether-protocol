@@ -10,6 +10,21 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+## [3.3.1] — 2026-10-07
+
+### Fixed
+
+- **The mesh browser's scripts and typefaces now ship with the package.** A page drawn inside an app links
+  them by URL — `_content/AetherNet.Browser/js/aether-shader.js`, the fonts, the photo and writing scripts —
+  and until now the package carried them only embedded in the assembly, for pages handed to a phone with no
+  internet. An app building on the package therefore had nothing at those URLs: the pages drew, unstyled and
+  without their scripts. This only went unnoticed because the sample built the browser from `src/`, where
+  the files were served from the project itself. All ten files now travel as static web assets, served at
+  the same `_content/AetherNet.Browser/` path they always had, so pages written against the project work
+  unchanged against the package. The public API is identical to 3.3.0 on all six targets.
+
+---
+
 ## [3.3.0] — 2026-10-06
 
 **One package, one assembly.** `AetherNet` is now a single `AetherNet.dll` per target framework, not
