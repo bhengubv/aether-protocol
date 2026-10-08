@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Exactly one directory, and it holds one thing: a copy of the app that a phone nearby just handed
+  over, waiting for the system installer to read it. A provider that exposed more than it had to would
+  be handing every app on the phone a window into this one's storage.
+-->
+<paths>
+    <cache-path name="shared" path="shared/" />
+</paths>

@@ -1,0 +1,216 @@
+// SPDX-License-Identifier: MIT
+//
+// A code editor, written here rather than installed.
+//
+// A card renders with no network — that is the whole product — so an editor that pulls a library
+// from a CDN is an editor that does not work in the place this app is for. This is the standard
+// two-layer trick and it is about sixty lines: a <pre> underneath holding the same text, coloured,
+// and a transparent <textarea> on top holding nothing but the caret, the selection and the
+// scrolling. The browser keeps doing what browsers are good at — text editing on a touchscreen,
+// which nobody should reimplement — and we only paint.
+
+(function () {
+    'use strict';
+
+    // Who to hand the text to, remembered so a pen that appears later is wired the same way.
+    var owner = null, penned = null;
+
+    // The page's own vocabulary. Line-led, so each rule is anchored to the start of a line.
+    var PAGE = [
+        //  The sigil and the words it marks are two different tokens.
+        //
+        //  Matching a whole heading line as one token means the "##" is painted exactly like the
+        //  words, so it shouts as loudly as the thing it is labelling. Split, the mark can step back
+        //  and the line can take the light instead. "." never matches a newline, which is what keeps
+        //  every one of these on its own line.
+        [/^-{3,}.*/gm, 'c-mark'],
+        [/^(?:#{1,3}|>|!!|=>|-|\d+\.)\s/gm, 'c-mark'],
+        [/(?<=^#\s).+/gm, 'c-h1'],
+        [/(?<=^##\s).+/gm, 'c-h2'],
+        [/(?<=^###\s).+/gm, 'c-h3'],
+        [/^%[a-z]+.*/gm, 'c-note'],
+        [/!?\[.*?\]\(.*?\)/g, 'c-said'],
+        [/\*\*.+?\*\*|_.+?_/g, 'c-num'],
+        [/^.+?=/gm, 'c-key'],
+        [/::[a-z]+/g, 'c-mark'],
+    ];
+
+    // Comments first and as one token, or the colours leak out of them.
+    var RULES = [
+        [/\/\*[\s\S]*?(\*\/|$)/g, 'c-note'],
+        [/(["'])(?:\.|(?!\1)[^\\r\n])*\1?/g, 'c-said'],
+        [/@[\w-]+/g, 'c-at'],
+        [/#[0-9a-fA-F]{3,8}\b/g, 'c-hue'],
+        [/\b-?\d*\.?\d+(px|rem|em|%|vh|vw|s|ms|deg|fr|ch)?\b/g, 'c-num'],
+        [/[\w-]+(?=\s*:)/g, 'c-key'],
+        [/[{}();,:]/g, 'c-mark'],
+    ];
+
+    function safe(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // One pass, longest-match-wins by position, so a colour inside a comment stays a comment.
+    function paint(src, rules) {
+        var marks = [];
+        (rules || RULES).forEach(function (rule) {
+            var re = new RegExp(rule[0].source, rule[0].flags), m;
+            while ((m = re.exec(src)) !== null) {
+                if (m[0].length === 0) { re.lastIndex++; continue; }
+                marks.push({ at: m.index, to: m.index + m[0].length, as: rule[1] });
+            }
+        });
+        marks.sort(function (a, b) { return a.at - b.at || b.to - a.to; });
+
+        var out = '', at = 0;
+        marks.forEach(function (mk) {
+            if (mk.at < at) return;                       // already inside something
+            out += safe(src.slice(at, mk.at));
+            out += '<span class="' + mk.as + '">' + safe(src.slice(mk.at, mk.to)) + '</span>';
+            at = mk.to;
+        });
+        // A trailing newline needs a character after it or the last line has no height.
+        return out + safe(src.slice(at)) + '\n';
+    }
+
+    function wire(pen) {
+        if (pen.dataset.aetherWired) return;
+        pen.dataset.aetherWired = '1';
+
+        var raw = pen.querySelector('.raw');
+        var ink = pen.querySelector('.ink');
+        if (!raw || !ink) return;
+
+        // The text starts here rather than in a value= attribute.
+        //
+        // While Blazor owned that attribute it also re-wrote it: a save re-renders, the render
+        // carries whatever the last processed input event held, and every character typed since is
+        // overwritten. On a desktop the gap is too small to see. On a P30 a stylesheet came out cut
+        // off mid-property, and the author is never told. So the field is seeded once and is the
+        // browser's from then on; C# reads it on input and never writes it back.
+        var seed = pen.getAttribute('data-seed');
+        if (seed !== null && raw.value === '') { raw.value = seed; }
+
+        var rules = pen.getAttribute('data-lang') === 'page' ? PAGE : RULES;
+        var which = pen.getAttribute('data-lang') || 'css';
+
+        //  The field is as tall as its text.
+        //
+        //  It used to be a fixed box that scrolled inside a page that also scrolled, which on a phone
+        //  means a drag near the edge is a guess. Growing it costs one reflow per keystroke and gives
+        //  the screen a single scroll, which is the one people already know how to use.
+        function fit() {
+            raw.style.height = 'auto';
+            raw.style.height = raw.scrollHeight + 'px';
+        }
+
+        function draw() { ink.innerHTML = paint(raw.value, rules); fit(); }
+        function follow() { ink.scrollTop = raw.scrollTop; ink.scrollLeft = raw.scrollLeft; }
+
+        // The text goes to C# from here, not through a bound value.
+        //
+        // A bound textarea is a two-way street and the other direction is the problem: a save
+        // re-renders, the render carries whatever the last processed event held, and everything typed
+        // since is overwritten. aether-write.js already learned this for prose — the field's contents
+        // belong to the person typing in them. So the field is the browser's, and C# is told what is
+        // in it once the typing stops. Once per pause rather than once per character also keeps a
+        // P30 from writing the whole page to disk sixty times in a sentence.
+        var pending = null;
+
+        function tell(settled) {
+            if (!owner || !penned) return;
+            owner.invokeMethodAsync(penned, which, raw.value, settled);
+        }
+
+        function soon() {
+            if (pending) { clearTimeout(pending); }
+            pending = setTimeout(function () { pending = null; tell(false); }, 400);
+        }
+
+        raw.addEventListener('input', function () { draw(); soon(); });
+        raw.addEventListener('scroll', follow);
+
+        // Leaving the field is what redraws the page beside it.
+        //
+        // Redrawing on every pause cost the author their typing: the preview is an iframe, a new
+        // srcdoc reloads it, and on Android that reload takes the focus out of this box. Every 400ms
+        // the caret left, and everything typed after went nowhere — which is why a stylesheet kept
+        // arriving cut off. So the text is made safe on a pause and the picture waits for a breath.
+        raw.addEventListener('blur', function () {
+            if (pending) { clearTimeout(pending); pending = null; }
+            tell(true);
+        });
+
+        // Tab indents rather than leaving the field. On a phone this matters less; on anything with a
+        // keyboard, a code box that loses focus to Tab is not a code box.
+        raw.addEventListener('keydown', function (e) {
+            if (e.key !== 'Tab') return;
+            e.preventDefault();
+            var a = raw.selectionStart, b = raw.selectionEnd;
+            raw.value = raw.value.slice(0, a) + '  ' + raw.value.slice(b);
+            raw.selectionStart = raw.selectionEnd = a + 2;
+            raw.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        draw();
+
+        //  Measure again once the page has settled.
+        //
+        //  The first fit runs while the document face is still the fallback, and a sans face that
+        //  arrives afterwards is a different height — so the prose pen came out short and scrolled
+        //  inside itself anyway, which is the whole thing this was meant to stop. Cheap to repeat,
+        //  and the only reliable moment is after the fonts say they are ready.
+        requestAnimationFrame(fit);
+        if (document.fonts && document.fonts.ready) { document.fonts.ready.then(fit); }
+        window.addEventListener('resize', fit);
+    }
+
+    function sweep() { document.querySelectorAll('[data-aether-code]').forEach(wire); }
+
+    window.aetherCode = {
+        sweep: sweep,
+        /** Remember who to tell, then wire whatever is already on screen. */
+        wire: function (who, what) { owner = who; penned = what; sweep(); },
+
+        /** Bring the stylesheet pen into view and put the caret in it. */
+        reveal: function () {
+            var raw = document.querySelector('[data-aether-code][data-lang="css"] .raw');
+            if (!raw) { return; }
+            raw.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            raw.focus();
+        },
+
+        /**
+         * Put text into a pen at the caret, as though it had been typed there.
+         *
+         * A picture cannot be typed — its address is a content hash nobody knows by heart — so the
+         * one thing the page still needs a button for is choosing one. This is how what the button
+         * produced gets into the document: at the caret, on its own line, and then through the same
+         * input event as every other keystroke, so it saves by the same path.
+         */
+        insert: function (lang, text) {
+            var pen = document.querySelector('[data-aether-code][data-lang="' + lang + '"]');
+            var raw = pen && pen.querySelector('.raw');
+            if (!raw) { return false; }
+
+            var nl = String.fromCharCode(10);
+            var a = raw.selectionStart, b = raw.selectionEnd;
+            if (a === null || a === undefined) { a = b = raw.value.length; }
+
+            var before = raw.value.slice(0, a), after = raw.value.slice(b);
+            var lead = (before.length === 0 || before.slice(-1) === nl) ? '' : nl;
+            var tail = (after.length === 0 || after.slice(0, 1) === nl) ? '' : nl;
+
+            raw.value = before + lead + text + tail + after;
+            raw.selectionStart = raw.selectionEnd = (before + lead + text).length;
+            raw.focus();
+            raw.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+        },
+    };
+    document.addEventListener('DOMContentLoaded', sweep);
+
+    // Blazor puts the editor on screen after this file has run, and takes it away again on every
+    // step change, so the page is watched rather than wired once.
+    new MutationObserver(sweep).observe(document.documentElement, { childList: true, subtree: true });
+})();

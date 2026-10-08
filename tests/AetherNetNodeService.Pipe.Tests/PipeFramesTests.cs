@@ -48,6 +48,33 @@ public class PipeFramesTests
     }
 
     [Fact]
+    public async Task A_call_numbered_above_254_comes_back_as_itself()
+    {
+        var body = new byte[4 + 2];
+        BinaryPrimitives.WriteInt32LittleEndian(body, 389);
+        body[4] = 7;
+        body[5] = 8;
+        using var stream = new MemoryStream();
+        await PipeFrames.WriteAsync(stream, new PipeFrame(PipeFrames.Wide, 12, body), CancellationToken.None);
+        stream.Position = 0;
+
+        var frame = await PipeFrames.ReadAsync(stream, CancellationToken.None);
+        var (op, argument) = PipeFrames.Call(frame!.Value);
+
+        Assert.Equal(389, op);
+        Assert.Equal(new byte[] { 7, 8 }, argument);
+    }
+
+    [Fact]
+    public void A_call_numbered_254_or_below_travels_as_it_always_has()
+    {
+        var (op, argument) = PipeFrames.Call(new PipeFrame(4, 1, [1, 2, 3]));
+
+        Assert.Equal(4, op);
+        Assert.Equal(new byte[] { 1, 2, 3 }, argument);
+    }
+
+    [Fact]
     public void An_answer_keeps_its_error_code_and_message()
     {
         var ex = Assert.Throws<AetherNodeException>(() =>

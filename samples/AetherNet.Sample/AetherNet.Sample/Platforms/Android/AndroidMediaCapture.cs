@@ -3,7 +3,6 @@
 using Android.Content;
 using Android.Media;
 using Android.OS;
-using AetherNet.Sample.Shared.Data;
 using AetherNet.Sample.Shared.Services;
 
 namespace AetherNet.Sample.Platforms.Android;
@@ -42,7 +41,7 @@ public sealed class AndroidMediaCapture : IMediaCapture, IDisposable
 
     private const int VoiceSampleRateHz = 16_000;
 
-    private readonly IAudioIo? _audio;
+    private readonly Func<bool>? _onCall;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private MediaRecorder? _recorder;
@@ -52,11 +51,14 @@ public sealed class AndroidMediaCapture : IMediaCapture, IDisposable
     private CancellationTokenSource? _cap;
     private bool _disposed;
 
-    /// <param name="audio">
-    /// The call's audio path, when there is one. Only ever asked whether a call is running — a note
-    /// and a call cannot share the microphone, and finding that out by recording silence is no good.
+    /// <param name="onCall">
+    /// Whether a call is running. Only ever asked that — a note and a call cannot share the microphone,
+    /// and finding that out by recording silence is no good. The call is AetherNetService's, so this is
+    /// what the service last said about it.
     /// </param>
-    public AndroidMediaCapture(IAudioIo? audio = null) => _audio = audio;
+    public AndroidMediaCapture(Func<bool>? onCall = null) => _onCall = onCall;
+
+    private bool OnCall => _onCall?.Invoke() == true;
 
     private static Context Ctx => global::Android.App.Application.Context;
 
@@ -67,7 +69,7 @@ public sealed class AndroidMediaCapture : IMediaCapture, IDisposable
         && (Ctx.PackageManager?.HasSystemFeature(global::Android.Content.PM.PackageManager.FeatureCameraAny) ?? false);
 
     public string? UnavailableReason =>
-        _audio is { IsRunning: true } ? "you are on a call"
+        OnCall ? "you are on a call"
         : !CanRecordVoice ? "this phone has no microphone"
         : null;
 
@@ -105,7 +107,7 @@ public sealed class AndroidMediaCapture : IMediaCapture, IDisposable
         // A call owns the microphone for its whole duration. Starting a note on top of one does not
         // fail loudly on Android — it produces an empty file, or takes the call's audio away, and
         // either way the person only finds out afterwards.
-        if (_audio is { IsRunning: true }) return false;
+        if (OnCall) return false;
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -226,7 +228,7 @@ public sealed class AndroidMediaCapture : IMediaCapture, IDisposable
 
             return new RecordedNote(
                 bytes,
-                CanWriteOpus ? ChatMessage.VoiceNote : ChatMessage.VoiceNoteAac,
+                CanWriteOpus ? RecordedNote.VoiceNote : RecordedNote.VoiceNoteAac,
                 elapsed);
         }
         catch (Exception ex)
@@ -254,7 +256,7 @@ public sealed class AndroidMediaCapture : IMediaCapture, IDisposable
     public async Task<RecordedNote?> RecordVideoAsync(CancellationToken cancellationToken = default)
     {
         if (_disposed || !CanRecordVideo) return null;
-        if (_audio is { IsRunning: true }) return null;
+        if (OnCall) return null;
 
         var captured = await AetherRecordVideo
             .CaptureAsync((int)MaxDuration.TotalSeconds, cancellationToken)
@@ -268,7 +270,7 @@ public sealed class AndroidMediaCapture : IMediaCapture, IDisposable
             if (duration < MinDuration) return null;
 
             var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-            return bytes.Length == 0 ? null : new RecordedNote(bytes, ChatMessage.VideoNote, duration);
+            return bytes.Length == 0 ? null : new RecordedNote(bytes, RecordedNote.VideoNote, duration);
         }
         catch (Exception ex)
         {

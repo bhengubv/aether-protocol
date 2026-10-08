@@ -1,3 +1,4 @@
+@using AetherNet.Sample.Shared.Cache
 @using AetherNet.Sample.Shared.Data
 @using AetherNet.Sample.Shared.Pages
 @using AetherNet.Sample.Shared.Services
@@ -6,6 +7,7 @@
 @implements IDisposable
 @inject WarmUpService Warm
 @inject AetherStore Store
+@inject IServiceCall Line
 @inject IJSRuntime JS
 @inject IServiceProvider Services
 
@@ -31,6 +33,18 @@
 @if (_install is { Step: not NodeInstallStep.Installed })
 {
     <GetAetherNetService Flow="_install" />
+}
+else if (!Line.IsConnected)
+{
+    @*  On the device, and not reached yet. Everything below asks AetherNetService what to show, so nothing below can
+        be drawn until it answers: said plainly, with the way to try again when it does not.  *@
+    <div role="status" style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; background: var(--bg); color: var(--ink); text-align: center;">
+        <p style="margin: 0; font-weight: 700;">@(_unreached ?? "Reaching AetherNetService…")</p>
+        @if (_unreached is not null)
+        {
+            <button class="about" @onclick="ReachAsync">Try again</button>
+        }
+    </div>
 }
 else if (!Warm.IsWarm)
 {
@@ -58,8 +72,17 @@ else
     /// </remarks>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (firstRender && Line.IsConnected) await ThemeAsync();
 
+        // Lost after it was reached — AetherNetService stopped, or the phone stopped it — and not tried since: reach
+        // it again. After a try that failed, the person says when to try again.
+        if (!Line.IsConnected && !_reaching && _unreached is null && _install is null or { Step: NodeInstallStep.Installed })
+            _ = ReachAsync();
+    }
+
+    // The choice is kept by AetherNetService, so it is read once the app has reached it.
+    private async Task ThemeAsync()
+    {
         try { await JS.InvokeVoidAsync("aetherTheme", Store.GetSetting(SetupKeys.Theme) ?? "system"); }
         catch { }
     }
@@ -67,14 +90,24 @@ else
     /// <summary>Getting AetherNetService onto the phone, where the platform has that; null where it does not.</summary>
     private NodeInstallFlow? _install;
 
+    /// <summary>Why AetherNetService could not be reached, the last time it was tried; null while trying.</summary>
+    private string? _unreached;
+
+    private bool _reaching;
+
     protected override void OnInitialized()
     {
         Warm.Changed += OnChanged;
+        Line.Connected += OnConnected;
 
         _install = Services.GetService<NodeInstallFlow>();
-        if (_install is null) return;
+        if (_install is null)
+        {
+            _ = ReachAsync();
+            return;
+        }
 
-        _install.Changed += OnChanged;
+        _install.Changed += OnInstallChanged;
         _ = LookAsync(_install);
     }
 
@@ -90,17 +123,54 @@ else
         }
         catch (Exception)
         {
-            install.Changed -= OnChanged;
+            install.Changed -= OnInstallChanged;
             _install = null;
-            await InvokeAsync(StateHasChanged);
+            await ReachAsync();
         }
     }
+
+    // On the device now, whether it was there already or was just installed: reach it.
+    private void OnInstallChanged()
+    {
+        if (_install is { Step: NodeInstallStep.Installed } && !Line.IsConnected) _ = ReachAsync();
+        OnChanged();
+    }
+
+    private async Task ReachAsync()
+    {
+        if (_reaching) return;
+        _reaching = true;
+        _unreached = null;
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+            await Line.ConnectAsync();
+        }
+        catch (Exception ex)
+        {
+            _unreached = $"AetherNetService did not answer: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            _reaching = false;
+        }
+    }
+
+    // Reached, the first time or again after AetherNetService came back: the person's look first, then the app.
+    private void OnConnected() => _ = InvokeAsync(async () =>
+    {
+        _unreached = null;
+        await ThemeAsync();
+        StateHasChanged();
+    });
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose()
     {
         Warm.Changed -= OnChanged;
-        if (_install is not null) _install.Changed -= OnChanged;
+        Line.Connected -= OnConnected;
+        if (_install is not null) _install.Changed -= OnInstallChanged;
     }
 }

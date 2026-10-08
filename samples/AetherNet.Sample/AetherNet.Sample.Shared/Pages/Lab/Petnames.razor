@@ -1,6 +1,6 @@
 @page "/lab/petnames"
-@using AetherNet.Identity
-@using AetherNet.Security.Services
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
 
 @* Memorable names, owned locally, answerable to no registry.
 
@@ -137,85 +137,39 @@
 </style>
 
 @code {
-    private readonly PetnameRegistry _me = new();
-    private readonly PetnameRegistry _peer = new();
+    // The demo runs in AetherNetService; this page shows it and passes on what the person does.
+    private PetnamesLabDemo _demo = null!;
 
-    private string[] _people = Array.Empty<string>();
-    private string _myTag = "", _peerTag = "";
-
-    private string _formTag = "", _formName = "";
-    private string _resolveName = "", _resolveOut = null!;
-    private string? _note, _gossipOut;
+    private PetnamesLabDemo.Registry _me => _demo.Me;
+    private PetnamesLabDemo.Registry _peer => _demo.Peer;
+    private IReadOnlyList<string> _people => _demo.People;
+    private string _formTag { get => _demo.FormTag; set => _demo.FormTag = value; }
+    private string _formName { get => _demo.FormName; set => _demo.FormName = value; }
+    private string _resolveName { get => _demo.ResolveName; set => _demo.ResolveName = value; }
+    private string _resolveOut => _demo.ResolveOut;
+    private string? _note => _demo.Note;
+    private string? _gossipOut => _demo.GossipOut;
 
     protected override void OnInitialized()
     {
-        // Four real tags to name, plus identities for "me" and "the peer" (a proposal carries who made it).
-        _people = Enumerable.Range(0, 4).Select(_ => RandomTag()).ToArray();
-        _myTag = RandomTag();
-        _peerTag = RandomTag();
-        _formTag = _people[0];
-
-        // A little starting state: two names I have pinned, and one a peer has proposed to me.
-        _me.Pin(_people[0], "Nomsa");
-        _me.Pin(_people[1], "Sipho");
-        _me.Propose(_people[2], "Thabo", _peerTag);
-
-        // The peer already has its OWN name pinned for people[0] — the collision that proves pins win
-        // over anything gossiped in.
-        _peer.Pin(_people[0], "Mama");
+        _demo = new PetnamesLabDemo();
+        _demo.Changed += OnChanged;
     }
 
-    private void Pin()
-    {
-        var ok = _me.Pin(_formTag, _formName);
-        _note = ok ? $"Pinned “{_formName.Trim()}”. Yours now — nothing overrides it."
-                   : "Refused — not a valid tag, or the name is blank/too long.";
-        _formName = "";
-    }
+    private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private void ProposeAsPeer()
-    {
-        var ok = _me.Propose(_formTag, _formName, _peerTag);
-        _note = ok ? $"Proposal “{_formName.Trim()}” stored — a suggestion, kept until you pin or reject it."
-                   : "Refused — a proposal can't override a name you have already pinned. Your choice stands.";
-        _formName = "";
-    }
+    private void Pin() => _demo.Pin();
+    private void ProposeAsPeer() => _demo.ProposeAsPeer();
+    private void Reject(string tag) => _demo.Reject(tag);
+    private void Resolve() => _demo.Resolve();
+    private void Gossip() => _demo.Gossip();
 
-    private void Reject(string tag)
-    {
-        _me.Reject(tag);
-        _note = "Dropped that binding.";
-    }
+    private static bool IsPin(PetnamesLabDemo.Binding p) => p.Pinned;
+    private static string Badge(PetnamesLabDemo.Binding p) => p.Badge;
 
-    private void Resolve()
+    public void Dispose()
     {
-        var tag = _me.ResolveName(_resolveName);
-        _resolveOut = tag is null
-            ? $"“{_resolveName.Trim()}” → no unambiguous match (unknown, or two bindings share it)."
-            : $"“{_resolveName.Trim()}” → {tag}";
-    }
-
-    private void Gossip()
-    {
-        // Offer my pins as proposals; the peer decides what to keep. Its own pin for the shared tag is
-        // untouched, because ImportProposals routes each entry through Propose.
-        var bundle = _me.ExportProposals(_myTag);
-        var stored = _peer.ImportProposals(bundle);
-        var kept = _peer.NameFor(_people[0]);
-        _gossipOut = $"Offered {bundle.Count} name(s); the peer stored {stored} as proposals and kept its own “{kept}” for the shared tag.";
-    }
-
-    private static bool IsPin(Petname p) => p.Source is PetnameSource.Pinned or PetnameSource.Seed;
-    private static string Badge(Petname p) => p.Source switch
-    {
-        PetnameSource.Pinned => "pinned",
-        PetnameSource.Seed => "seed",
-        _ => "proposed",
-    };
-
-    private static string RandomTag()
-    {
-        var (_, pub) = Ed25519SigningService.GenerateKeyPair();
-        return AetherNetTag.FromPublicKey(pub).Value;
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
     }
 }

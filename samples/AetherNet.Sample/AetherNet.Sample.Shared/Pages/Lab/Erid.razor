@@ -1,6 +1,6 @@
 @page "/lab/erid"
-@using AetherNet.Identity
-@using AetherNet.Security.Services
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
 
 @* The rotating wire address, watched a window at a time.
 
@@ -137,67 +137,33 @@
 </style>
 
 @code {
-    // Two real identities. Nomsa presents the rotating address; Sipho was handed her secret routing key
-    // inside an established session (RememberPeer), which is the only thing that lets him keep up.
-    private EridDirectory _nomsa = default!;
-    private EridDirectory _sipho = default!;
+    // The demo runs in AetherNetService; this page shows it and passes on what the person does.
+    private EridLabDemo _demo = null!;
 
-    private long _epoch;                 // the window we are looking at
-    private const int Epoch = EphemeralRoutingId.DefaultEpochSeconds; // 900s = 15 min
-
-    private string? _resolveNow, _resolvePrev, _prevErid;
-
-    // Anchor the demo clock to real "now", then let the buttons walk it forward and back a window at a time.
-    private long NowSeconds => _epoch * Epoch;
-    private long AliceEridSeconds => NowSeconds;
-
-    private string AliceErid => _nomsa.MyErid(AliceEridSeconds);
-    private string WindowLabel => $"{Fmt(NowSeconds)} – {Fmt(NowSeconds + Epoch)} UTC";
-    private string Clock => Fmt(NowSeconds) + " UTC";
-    private string RotatesIn => "15 min";
+    private long _epoch => _demo.EpochNow;
+    private string? _resolveNow => _demo.ResolveNow;
+    private string? _resolvePrev => _demo.ResolvePrev;
+    private string? _prevErid => _demo.PrevErid;
+    private string AliceErid => _demo.AliceErid;
+    private string WindowLabel => _demo.WindowLabel;
+    private string Clock => _demo.Clock;
+    private string RotatesIn => _demo.RotatesIn;
+    private IReadOnlyList<EridLabDemo.Window> History() => _demo.History;
 
     protected override void OnInitialized()
     {
-        // Nomsa's routing key is derived from her identity SECRET — never her public key, or the whole
-        // rotation schedule would be computable by anyone watching.
-        var (nomsaSecret, _) = Ed25519SigningService.GenerateKeyPair();
-        var nomsaKey = EphemeralRoutingId.DeriveRoutingKey(nomsaSecret);
-        _nomsa = new EridDirectory(nomsaKey);
-
-        // Sipho has his own identity, and has learned Nomsa's routing key in-session.
-        var (siphoSecret, _) = Ed25519SigningService.GenerateKeyPair();
-        _sipho = new EridDirectory(EphemeralRoutingId.DeriveRoutingKey(siphoSecret));
-        _sipho.RememberPeer("Nomsa", nomsaKey);
-
-        _epoch = EphemeralRoutingId.EpochFor(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-        Recompute();
+        _demo = new EridLabDemo();
+        _demo.Changed += OnChanged;
     }
 
-    private void Forward() { _epoch++; Recompute(); }
-    private void Back() { if (_epoch > 0) { _epoch--; Recompute(); } }
+    private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private void Recompute()
+    private void Forward() => _demo.Forward();
+    private void Back() => _demo.Back();
+
+    public void Dispose()
     {
-        var now = NowSeconds;
-        var prev = now - Epoch;
-        _prevErid = _nomsa.MyErid(prev);
-        // Sipho reverse-resolves the wire value back to the peer behind it, at each window's own time.
-        _resolveNow = _sipho.ResolvePeer(_nomsa.MyErid(now), now);
-        _resolvePrev = _sipho.ResolvePeer(_prevErid, prev);
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
     }
-
-    private sealed record Window(long Epoch, string Erid, bool IsNow);
-
-    private IEnumerable<Window> History()
-    {
-        for (var k = 0; k < 6; k++)
-        {
-            var e = _epoch - k;
-            if (e < 0) yield break;
-            yield return new Window(e, _nomsa.MyErid(e * Epoch), e == _epoch);
-        }
-    }
-
-    private static string Fmt(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("HH:mm");
 }

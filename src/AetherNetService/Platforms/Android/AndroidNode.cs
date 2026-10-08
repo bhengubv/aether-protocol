@@ -84,6 +84,8 @@ internal static class AndroidNode
     {
         var node = NodeCore.Start(provider);
         AetherNodeAndroidService.Configure(() => node, new OpenGrantStore());
+        // The services that moved here from the app, on their own list, on this node.
+        ServicesCore.Start(provider, node, global::Android.App.Application.Context.FilesDir!.AbsolutePath);
 
         // Bring the radios up off the main thread — from here the node is hosting the mesh.
         var radio = provider.GetRequiredService<IRadioMesh>();

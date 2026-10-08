@@ -289,6 +289,27 @@ public sealed class PipeNodeServer : IAsyncDisposable
         }
     }
 
+#if NET10_0_OR_GREATER
+    /// <summary>
+    /// Answer one request of the classes that joined from the Aether app, after the same grant check. Not under the
+    /// gate itself: the gate keeps the node to one call at a time, and these are not the node.
+    /// </summary>
+    private async Task<byte[]> AnswerClassesAsync(Connection caller, NodeOp op, byte[] argument, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            RequireGrant(caller.AppId);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        return await NodeAnswers.AnswerAsync(op, argument, cancellationToken).ConfigureAwait(false);
+    }
+#endif
+
     /// <summary>The calling app, checked against its grant — as the binder does. Throws when it may not call.</summary>
     private void RequireGrant(string appId)
     {
@@ -369,10 +390,44 @@ public sealed class PipeNodeServer : IAsyncDisposable
             {
                 while (await PipeFrames.ReadAsync(_pipe, cancellationToken).ConfigureAwait(false) is { } call)
                 {
+                    var (number, argument) = PipeFrames.Call(call);
+                    var op = (NodeOp)number;
+#if NET10_0_OR_GREATER
+                    // The classes that joined from the Aether app are answered beside the reading, not in turn: one can
+                    // wait on a person (a call being answered), and this app's next call must not wait behind it. Each
+                    // answer carries its call's number, so the order they finish in does not matter.
+                    if (NodeAnswers.Knows(op))
+                    {
+                        var id = call.Id;
+                        _ = Task.Run(async () =>
+                        {
+                            byte[] answered;
+                            try
+                            {
+                                answered = PipeFrames.Ok(await _server.AnswerClassesAsync(this, op, argument, cancellationToken).ConfigureAwait(false));
+                            }
+                            catch (AetherNodeException ex)
+                            {
+                                answered = PipeFrames.Error(ex.Code, ex.Message);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;
+                            }
+                            catch (Exception ex)
+                            {
+                                answered = PipeFrames.Error(AetherNodeErrorCode.Internal, ex.Message);
+                            }
+
+                            Queue(new PipeFrame(PipeFrames.Answer, id, answered));
+                        }, CancellationToken.None);
+                        continue;
+                    }
+#endif
                     byte[] answer;
                     try
                     {
-                        answer = PipeFrames.Ok(await _server.AnswerAsync(this, (NodeOp)call.Kind, call.Body, cancellationToken).ConfigureAwait(false));
+                        answer = PipeFrames.Ok(await _server.AnswerAsync(this, op, argument, cancellationToken).ConfigureAwait(false));
                     }
                     catch (AetherNodeException ex)
                     {
@@ -434,6 +489,11 @@ public sealed class PipeNodeServer : IAsyncDisposable
 
                 previous = _subscription;
                 _subscription = host.Subscribe(this);
+#if NET10_0_OR_GREATER
+                // And what the classes that joined from the app say changed. Once, however many times it is asked.
+                NodeAnswers.Told -= Push;
+                NodeAnswers.Told += Push;
+#endif
             }
 
             previous?.Dispose();
@@ -446,6 +506,9 @@ public sealed class PipeNodeServer : IAsyncDisposable
             {
                 subscription = _subscription;
                 _subscription = null;
+#if NET10_0_OR_GREATER
+                NodeAnswers.Told -= Push;
+#endif
             }
 
             subscription?.Dispose();

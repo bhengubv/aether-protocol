@@ -25,6 +25,9 @@ internal sealed class NodeServiceBinder : Binder
     private readonly int _ownUid = Process.MyUid();
     private readonly object _gate = new();
     private IDisposable? _subscription;
+#if NET10_0_OR_GREATER
+    private Action<NodeOp, byte[]>? _told;
+#endif
 
     public NodeServiceBinder(IAetherNodeClient host, IGrantStore grants, PackageManager packages)
     {
@@ -36,6 +39,32 @@ internal sealed class NodeServiceBinder : Binder
     protected override bool OnTransact(int code, Parcel? data, Parcel? reply, int flags)
     {
         var op = (NodeOp)code;
+#if NET10_0_OR_GREATER
+        // The requests of the classes that joined the node from the Aether app. Not under the node's gate: one can wait
+        // on a person (a call being answered), and the node's own requests must not wait behind it.
+        if (NodeAnswers.Knows(op))
+        {
+            try
+            {
+                lock (_gate)
+                {
+                    RequireGrant();
+                }
+
+                WriteOk(reply, Block(NodeAnswers.AnswerAsync(op, data?.CreateByteArray() ?? [])));
+            }
+            catch (AetherNodeException ex)
+            {
+                WriteError(reply, ex.Code, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                WriteError(reply, AetherNodeErrorCode.Internal, ex.Message);
+            }
+
+            return true;
+        }
+#endif
         if (op is not (NodeOp.GetTag or NodeOp.GetPublicKey or NodeOp.Sign or NodeOp.Send
             or NodeOp.GetInbox or NodeOp.GetLink or NodeOp.Subscribe or NodeOp.Unsubscribe or NodeOp.Meet
             or NodeOp.GetRecoveryPhrase or NodeOp.SetNearby or NodeOp.SetRadio
@@ -165,18 +194,47 @@ internal sealed class NodeServiceBinder : Binder
             case NodeOp.Subscribe:
             {
                 var sink = data?.ReadStrongBinder();
+                StopTelling();
                 _subscription?.Dispose();
-                _subscription = sink is null ? null : _host.Subscribe(new EventForwarder(sink));
+                _subscription = null;
+                if (sink is not null)
+                {
+                    var forwarder = new EventForwarder(sink);
+                    _subscription = _host.Subscribe(forwarder);
+                    Tell(forwarder);
+                }
+
                 WriteOk(reply, []);
                 break;
             }
 
             case NodeOp.Unsubscribe:
+                StopTelling();
                 _subscription?.Dispose();
                 _subscription = null;
                 WriteOk(reply, []);
                 break;
         }
+    }
+
+    /// <summary>What the classes that joined from the app say changed, to the same app the node's pushes go to.</summary>
+    private void Tell(EventForwarder forwarder)
+    {
+#if NET10_0_OR_GREATER
+        _told = forwarder.Push;
+        NodeAnswers.Told += _told;
+#endif
+    }
+
+    private void StopTelling()
+    {
+#if NET10_0_OR_GREATER
+        if (_told is not null)
+        {
+            NodeAnswers.Told -= _told;
+            _told = null;
+        }
+#endif
     }
 
     /// <summary>The calling app's package, checked against its grant. Throws when it may not bind.</summary>
@@ -250,7 +308,7 @@ internal sealed class NodeServiceBinder : Binder
 
         public void OnHelpChanged(HelpReport report) => Push(NodeOp.EventHelp, NodeWire.EncodeHelpReport(report));
 
-        private void Push(NodeOp op, byte[] payload)
+        public void Push(NodeOp op, byte[] payload)
         {
             var data = Parcel.Obtain();
             try

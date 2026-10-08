@@ -1,0 +1,1168 @@
+@using System.Text
+@implements IDisposable
+@inject MyPages Mine
+@inject MeshWebService Mesh
+@inject IJSRuntime JS
+
+@* The page, the stylesheet, and the page as somebody else's phone will draw it.
+
+   This was four steps and a form, on the theory that one decision at a time is easier than a long
+   page. It is, and it is also how nothing gets written: the two real pages on this device went a
+   hundred versions through those steps without ever being filled in, while the one card that looks
+   like anything was authored in C# in a test file. The abandonment the steps were meant to prevent
+   is exactly what they caused.
+
+   A document does not have steps. You open it and you write. *@
+<div class="wiz">
+    @*  A person's header, not a developer's.
+
+        This was a close cross, the raw aether:// address, and a </> glyph — the chrome of a code
+        tool, on a screen where somebody is making a page about themselves. The address still matters,
+        but it belongs small and underneath, not as the title of the screen; what leads is who this
+        is. The </> reveal moves to a quiet corner because it is for the curious, not the first thing. *@
+    <header class="top">
+        <button class="back" @onclick="Leave" aria-label="Close">‹</button>
+
+        <span class="me">
+            <span class="me-face">@Initial</span>
+            <span class="me-who">
+                <span class="me-name">@Heading</span>
+                <span class="me-addr">@Mesh.LocalTag/@(_name.Length > 0 ? _name : "…")</span>
+            </span>
+        </span>
+
+        <button class="under @(_under ? "on" : null)" @onclick="() => _under = !_under"
+                title="How this page is made">&lt;/&gt;</button>
+    </header>
+
+    @if (_under)
+    {
+        @* How this page is made.
+
+           MySpace taught a generation HTML and CSS and never once called it a lesson: you saw a page
+           you liked, looked at how it was made, copied it, changed the colours, broke it, fixed it.
+           Wanting the aesthetic was the whole curriculum. This is that — four layers, and a person can
+           stop at any of them, and each one is the real thing rather than a description of it. *@
+        var src = CardSource.Of(_doc);
+
+        <section class="under-panel">
+            <div class="under-h">
+                <h2>How this page is made</h2>
+                <button class="tiny" @onclick="() => _under = false">Close</button>
+            </div>
+
+            <p class="under-say">
+                Nothing here is a description of the page. It <em>is</em> the page — change any of it
+                and the page changes, because a card is the data and the design, and nothing else.
+            </p>
+
+            <h3 class="under-t">1 · It is a list of pieces</h3>
+            <p class="under-b">
+                @src.Pieces.Count pieces, in the order a reader meets them. Not a wall of formatting —
+                each one knows what kind of thing it is, which is why the same page can be drawn on a
+                phone, on the web, and by a program that has never heard of any of this.
+            </p>
+            <ol class="under-list">
+                @foreach (var piece in src.Pieces)
+                {
+                    <li><span class="under-k">@piece.Kind</span><span class="under-v">@piece.Said</span></li>
+                }
+            </ol>
+
+            <h3 class="under-t">2 · The look is @src.Tokens.Count values</h3>
+            <p class="under-b">
+                “@src.LookName” is a name, and a name teaches nothing. This is what it actually is.
+                Change one of these and every page wearing this look changes with it — that is what a
+                design system is, and you are looking at one.
+            </p>
+            <dl class="under-tok">
+                @foreach (var token in src.Tokens)
+                {
+                    <div>
+                        <dt>@token.Name</dt>
+                        <dd class="mono">@token.Value</dd>
+                        <dd class="under-s">@token.Says</dd>
+                    </div>
+                }
+            </dl>
+
+            @if (src.Field is { Length: > 0 })
+            {
+                <h3 class="under-t">3 · The background is a function</h3>
+                <p class="under-b">
+                    “@src.BackName” is not a picture. It is one function, run once for every pixel on
+                    the page: give it a point, it gives back a number, and the number becomes a shade.
+                    That is what a shader is, and this is the whole of it.
+                </p>
+                <pre class="under-code">@src.Field</pre>
+            }
+
+            <h3 class="under-t">4 · And you own the whole thing</h3>
+            <p class="under-b">
+                The entire page is @src.Bytes bytes of text, plus @src.Pictures
+                @(src.Pictures == 1 ? "picture" : "pictures"). No server, no account, no build. This is
+                the file — it is on this phone, you can hand it to somebody, and nobody can take it
+                back.
+            </p>
+            <pre class="under-code">@src.Json</pre>
+        </section>
+    }
+
+    else
+    {
+    <div class="body">
+        @*  One surface, because a page is a thing you write.
+
+            This was four steps and a form: pick a kind, pick a look, pick a background, then a panel
+            per block with a labelled blank in it. Two real pages went a hundred versions through that
+            and neither of them ever got written — while the one card in the library that looks like
+            anything was authored in C#, in a test file, by the person who built the form. A tool its
+            own author goes around is not a tool.
+
+            So: the page, the stylesheet, and the page as it will arrive on somebody else's phone.
+            The blocks have not gone anywhere — they are still exactly what travels — they have
+            stopped being the thing you type into.  *@
+        @*  The whole editing area wears the card's look, not just the paper inside it. The toolbar was
+            Aether's own blue floating over a cream page — two apps touching at a hard line. On the
+            look, the controls take the card's ink and sit on its ground, so the tools belong to the
+            page instead of hovering above it. *@
+        <style>@((MarkupString)CardLook.FromCard(_doc).On(".studio[data-look]"))</style>
+        <div class="studio" data-look="@CardLook.FromCard(_doc).Key">
+            @if (Blank)
+            {
+                <p class="blank-hint">Start with your name. The buttons make a heading, a list, a photograph.</p>
+            }
+
+            @*  One row a newcomer can read.
+
+                The permanent ribbon of word-buttons was the un-intuitive part: you had to already
+                know "Heading" acted on the line the cursor was in. So the marks (bold, italic, a link)
+                moved to a bubble that appears at the selection — the gesture Notes and Docs and every
+                caption box already teach — and the block kinds moved behind a "+", where they can be
+                named and shown rather than guessed at. What is left on the bar is the two things that
+                are neither: choosing a look, and adding a photograph. *@
+            <div class="tools" role="toolbar">
+                <button class="tool lead" @onmousedown:preventDefault="true" @onclick="@(() => _adding = true)">
+                    <span class="tool-plus">+</span> Add
+                </button>
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="@(() => _looking = true)">Look</button>
+                <label class="tool" title="A picture">
+                    @(_busyPic ? "…" : "Photo")
+                    <input type="file" accept="image/*" @ref="_picker" hidden />
+                </label>
+                @*  Style is the make-it-look-like-nobody-else's feature — raw CSS on your own card,
+                    the thing MySpace taught a generation. It was rendered below the writing surface
+                    under the word "Optional", where nobody found it. It gets a place on the top row
+                    and jumps you to the pen. *@
+                <button class="tool" @onmousedown:preventDefault="true" @onclick="RevealStyle">Style</button>
+            </div>
+
+            @if (_adding)
+            {
+                @*  The insert sheet. Every kind, named and shown, acting on the line the caret is in —
+                    so nothing here is a word you have to already understand. *@
+                <div class="sheet" @onclick="@(() => _adding = false)">
+                    <div class="sheet-in" @onclick:stopPropagation="true">
+                        <div class="sheet-grip"></div>
+                        <div class="add-grid">
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("heading"))"><span class="add-eg h">Heading</span><span class="add-n">Heading</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("eyebrow"))"><span class="add-eg e">LABEL</span><span class="add-n">Small label</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("list"))"><span class="add-eg">• • •</span><span class="add-n">List</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("index"))"><span class="add-eg">1 2 3</span><span class="add-n">Numbered</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("quote"))"><span class="add-eg q">&#8220;&#8221;</span><span class="add-n">Quote</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("kv"))"><span class="add-eg">A&#8202;&#8202;B</span><span class="add-n">Row</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="@(() => Added("tip"))"><span class="add-eg t">!</span><span class="add-n">Tip</span></button>
+                            <button class="add" @onmousedown:preventDefault="true" @onclick="AddedRule"><span class="add-eg">&#8212;</span><span class="add-n">Line</span></button>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (_looking)
+            {
+                <div class="whole-page">
+                    <div class="whole-bar">
+                        <span class="whole-t">Pick a look</span>
+                        <button class="whole-x" @onclick="@(() => _looking = false)">Done</button>
+                    </div>
+
+                    <div class="gal-in">
+                        <div class="gal">
+                            @foreach (var look in CardLook.All)
+                            {
+                                <button class="gal-one @(look.Key == CardLook.FromCard(_doc).Key ? "on" : null)"
+                                        @onclick="@(() => ChooseLook(look))">
+                                    <span class="gal-shot">
+                                        <iframe class="gal-mini" tabindex="-1" title="@look.Name" srcdoc="@Thumb(look)"></iframe>
+                                    </span>
+                                    <span class="gal-n">@look.Name</span>
+                                </button>
+                            }
+                        </div>
+
+                        <p class="gal-h">Background</p>
+
+                        <div class="gal">
+                            @foreach (var back in CardShader.All)
+                            {
+                                <button class="gal-one @(back.Key == _shader.Key ? "on" : null)"
+                                        @onclick="@(() => ChooseShader(back))">
+                                    <span class="gal-shot">
+                                        <iframe class="gal-mini" tabindex="-1" title="@back.Name" srcdoc="@Thumb(back)"></iframe>
+                                    </span>
+                                    <span class="gal-n">@back.Name</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (_linkOpen)
+            {
+                @*  Set after the fact, because a text field takes the focus and the caret with it —
+                    so the editor remembers which block the Link button just made. *@
+                <div class="linkrow">
+                    <input class="in" placeholder="aether://TAG/page  or  https://…"
+                           value="@_linkWhere" @oninput="OnLinkWhere" />
+                    <button class="tool" @onclick="@(() => _linkOpen = false)">Done</button>
+                </div>
+            }
+
+            @*  The document. This is the input and the output at once — a heading is an h2 and it is
+                simply big, because what you are editing is the page rather than a description of it. *@
+            <div class="paper" data-aether-page data-seed="@Paper" contenteditable="true"
+                 spellcheck="true" autocapitalize="sentences" role="textbox" aria-multiline="true"></div>
+
+            @if (_penSaid is { Length: > 0 } kept)
+            {
+                <p class="told">@kept</p>
+            }
+
+            <div class="studio-h" id="stylesheet">
+                <span class="studio-t">Make it yours — CSS</span>
+                @if (Sheet.Length == 0)
+                {
+                    <span class="studio-b">
+                        Write your own rules and the page looks like nobody else's. Yours come last, so
+                        they win — and they only ever touch your own card.
+                    </span>
+                }
+            </div>
+
+            <div class="pen" data-aether-code data-lang="css" data-seed="@Sheet">
+                <pre class="ink" aria-hidden="true"></pre>
+                <textarea class="raw" spellcheck="false" autocapitalize="off"
+                          autocomplete="off" autocorrect="off" wrap="off"
+                          placeholder="@PenHint"></textarea>
+            </div>
+
+            @if (SheetNote is { Length: > 0 } note)
+            {
+                <p class="told">@note</p>
+            }
+
+            <div class="studio-h wide">
+                <span class="studio-t">What it looks like</span>
+                <button class="whole" @onclick="() => _whole = true">See the whole page</button>
+            </div>
+
+            <iframe class="seen" tabindex="-1" title="Your page" srcdoc="@_preview"></iframe>
+
+            @*  Taking a page down went out with the wizard, leaving no way to get rid of one at all.
+                It is back — but at the far end of the page, small, and asking twice. It is the only
+                thing here that cannot be undone, and it had been sitting at full weight under the
+                thumb beside the button people actually mean to press.  *@
+            @if (_page is not null)
+            {
+                <div class="downrow">
+                    <button class="down @(_sure ? "sure" : null)" @onclick="Downing">
+                        @(_sure ? "Tap again to delete this page" : "Take it down")
+                    </button>
+                </div>
+            }
+        </div>
+
+        @if (_whole)
+        {
+            <div class="whole-page">
+                <div class="whole-bar">
+                    <span class="whole-t">@(_doc.Title is { Length: > 0 } t ? t : "Your page")</span>
+                    <button class="whole-x" @onclick="() => _whole = false">Back to writing</button>
+                </div>
+                <iframe class="whole-in" title="Your page" srcdoc="@_preview"></iframe>
+            </div>
+        }
+    </div>
+
+
+    }
+    <footer class="foot @(_under ? "away" : null)">
+        @if (_said is { Length: > 0 })
+        {
+            <p class="said">@_said</p>
+        }
+
+        <button class="go" disabled="@(_busy || !CanPublish)" @onclick="Publish">
+            @(_busy ? "Publishing…" : _live ? "Publish changes" : "Publish")
+        </button>
+    </footer>
+</div>
+
+@code {
+    /// <summary>The page to edit, or null / "new" to make one.</summary>
+    [Parameter] public string? Name { get; set; }
+
+    /// <summary>
+    /// Raised when the person is finished — published, cancelled, or took the page down.
+    /// </summary>
+    /// <remarks>
+    /// A callback rather than a navigation. The editor has no idea what is hosting it: one tab of a
+    /// sample app today, a system browser later, somebody else's app after that. Deciding where to go
+    /// next is the host's, and an editor that navigated would have to be told about routes it should
+    /// never have heard of.
+    /// </remarks>
+    [Parameter] public EventCallback Done { get; set; }
+
+    /// <summary>A card to take the look from, when this page is being started from somebody else's.</summary>
+    /// <remarks>
+    /// The look only — the theme, the dials and the stylesheet. Never the words. Copying a person's
+    /// sentences onto a page published under your own tag is putting things in your mouth that
+    /// somebody else wrote, and a page that arrives already saying things is the empty-template
+    /// problem wearing better clothes. You get their costume and write your own lines.
+    /// </remarks>
+    [Parameter] public CardDocument? Seed { get; set; }
+
+
+
+    private WebCard? _page;
+    private CardDocument _doc = new();
+    private CardShader _shader = CardShader.Of(null);
+    private string _name = "";
+    private bool _live;
+
+    private string _preview = "";
+    private string _said = "";
+    private bool _busy;
+
+    private ElementReference? _picker;
+    private DotNetObjectReference<CardEditor>? _me;
+    private bool _busyPic;
+    private string _picNote = "";
+
+    /// <summary>Pictures already resolved, by content hash, so a panel draws without waiting.</summary>
+    private readonly Dictionary<string, string> _pics = new(StringComparer.Ordinal);
+
+    /// <summary>And what each weighs, so the author sees the cost they are asking others to pay.</summary>
+    private readonly Dictionary<string, long> _weights = new(StringComparer.Ordinal);
+
+    private bool Fresh => string.IsNullOrWhiteSpace(Name) || Name == "new";
+
+    private string? Shown(CardBlock block) =>
+        block.ContentHash is { Length: > 0 } hash && _pics.TryGetValue(hash, out var uri) ? uri : null;
+
+
+
+
+
+    private bool CanPublish => Named;
+
+    private bool Named => _name.Length > 0 && !string.IsNullOrWhiteSpace(_doc.Title);
+
+    protected override void OnInitialized()
+    {
+        if (Fresh)
+        {
+            _doc = Seed is not null ? Wearing(Seed) : PageTemplate.All[0].Build(Mine.OwnerName);
+            // Left empty on purpose: NameIt derives the address from the title the moment there is
+            // one. Pre-filling it from the template meant a page called "Sarah" answered at /me-2,
+            // because the address had already been decided before anybody wrote anything.
+            _name = "";
+        }
+        else
+        {
+            _page = Mine.Get(Name);
+
+            if (_page is null)
+            {
+                _ = Done.InvokeAsync();
+                return;
+            }
+
+            _doc = _page.Doc;
+            _name = _page.Name;
+            _live = _page.Live;
+        }
+        _shader = CardShader.FromCard(_doc);
+        Draw();
+
+        // Whatever this page already names. Fetched rather than remembered, because the bytes live in
+        // the content store and the card only ever carries the hash.
+        _ = Load();
+    }
+
+    private async Task Load()
+    {
+        foreach (var hash in _doc.Blocks
+            .Where(b => b.Kind == CardBlock.Image && CardBlock.IsUsableAssetHash(b.ContentHash))
+            .Select(b => b.ContentHash!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray())
+        {
+            if (_pics.ContainsKey(hash)) continue;
+            if (await Mesh.AssetAsync(hash) is not { Length: > 0 } uri) continue;
+
+            _pics[hash] = uri;
+            Draw();
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Hand the newly-rendered file input to the picker script.
+    /// </summary>
+    /// <remarks>
+    /// After the render, because the element does not exist before it. The script refuses to attach
+    /// twice to the same input, so calling this on every render costs nothing.
+    /// </remarks>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _me ??= DotNetObjectReference.Create(this);
+
+        try
+        {
+            // Cheap when there is nothing new: a field that is already wired is skipped, and its
+            // contents are never redrawn underneath somebody's caret.
+        }
+        catch (Exception)
+        {
+            // No writing surface on this head. Prose is still typed and still saved.
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("aetherPage.wire", _me, nameof(Paged));
+            await JS.InvokeVoidAsync("aetherCode.wire", _me, nameof(Penned));
+        }
+        catch (Exception why)
+        {
+            _penSaid = "The stylesheet editor is not wired — " + why.Message;
+        }
+
+        if (_picker is not { } input) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("aetherPhoto.watch", input, _me, nameof(Picked));
+        }
+        catch (Exception)
+        {
+            // No picker on this head. The panel still shows whatever picture is already there.
+        }
+    }
+
+    /// <summary>
+    /// A picture came back from the browser, already redrawn and shrunk.
+    /// </summary>
+    /// <remarks>
+    /// Everything here is a claim until it is checked. The size, the type and the bytes all crossed a
+    /// JavaScript boundary, so <see cref="PagePhoto"/> looks at the bytes themselves rather than at
+    /// what they say they are — and the content store hashes them, which is what a card names.
+    /// </remarks>
+    [JSInvokable]
+    public async Task Picked(PickedPicture got)
+    {
+        _picNote = "";
+
+        if (got is null || !got.Ok || string.IsNullOrEmpty(got.Base64))
+        {
+            _picNote = got?.Why is { Length: > 0 } why
+                ? why + " — try a smaller one"
+                : "could not use that picture";
+            StateHasChanged();
+            return;
+        }
+
+        _busyPic = true;
+        StateHasChanged();
+
+        try
+        {
+            if (_doc.Blocks.Count(b => b.Kind == CardBlock.Image) >= PagePhoto.MostPerPage)
+            {
+                _picNote = $"a page carries {PagePhoto.MostPerPage} pictures, and this one is full";
+                return;
+            }
+
+            var bytes = Convert.FromBase64String(got.Base64);
+
+            if (!PagePhoto.IsUsable(got.Mime, bytes))
+            {
+                _picNote = $"that came to {PagePhoto.Size(bytes.Length)}, and a page carries {PagePhoto.Size(PagePhoto.MostBytes)}";
+                return;
+            }
+
+            if (await Mesh.KeepPictureAsync(bytes, got.Mime!) is not { Length: > 0 } hash)
+            {
+                _picNote = "could not keep that picture";
+                return;
+            }
+
+            _pics[hash] = $"data:{got.Mime};base64,{got.Base64}";
+            _weights[hash] = bytes.LongLength;
+
+            await JS.InvokeVoidAsync("aetherPage.picture", hash, _pics[hash]);
+        }
+        catch (FormatException)
+        {
+            _picNote = "could not read that picture";
+        }
+        finally
+        {
+            _busyPic = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>What the picker hands back.</summary>
+    public sealed class PickedPicture
+    {
+        public bool Ok { get; set; }
+        public string? Why { get; set; }
+        public string? Mime { get; set; }
+        public string? Base64 { get; set; }
+        public long Bytes { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+
+    public void Dispose() => _me?.Dispose();
+
+
+
+    private Task Leave() => Done.InvokeAsync();
+
+    /// <summary>Whether the delete has been asked for once already.</summary>
+    private bool _sure;
+
+    /// <summary>Take this page off the device — on the second tap, not the first.</summary>
+    private async Task Downing()
+    {
+        if (!_sure) { _sure = true; return; }
+        await Down();
+    }
+
+    /// <summary>Take this page off the device.</summary>
+    private async Task Down()
+    {
+        Mine.Remove(_name);
+        await Done.InvokeAsync();
+    }
+
+
+    /// <summary>Whether the page is being looked at whole rather than beside the editor.</summary>
+    private bool _whole;
+
+    /// <summary>One block, as the editor on the other side of the seam speaks about it.</summary>
+    /// <remarks>
+    /// Deliberately the card's own shape and nothing else. The last editor invented a text format to
+    /// carry the page across, which meant a second grammar to write, parse and get wrong; this hands
+    /// over the blocks themselves, because the blocks are what the document is.
+    /// </remarks>
+    public sealed record Piece(
+        [property: System.Text.Json.Serialization.JsonPropertyName("k")] string K,
+        [property: System.Text.Json.Serialization.JsonPropertyName("t")] string? T = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("items")] List<string>? Items = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("hash")] string? Hash = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("src")] string? Src = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("to")] string? To = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("a")] string? A = null,
+        [property: System.Text.Json.Serialization.JsonPropertyName("as")] string? As = null);
+
+    /// <summary>The page handed to the editor to draw and be typed into.</summary>
+    /// <remarks>
+    /// The look is not in here. A theme, the dials and the stylesheet are not words on the page, so
+    /// they never reach the writing surface and are put back untouched when it answers.
+    /// </remarks>
+    private string Paper => System.Text.Json.JsonSerializer.Serialize(
+        (_doc.Blocks ?? []).Where(Wordy).Select(b => new Piece(
+            K: b.Kind,
+            T: b.Value,
+            Items: b.Items is null ? null : [.. b.Items],
+            Hash: b.ContentHash,
+            Src: b.ContentHash is { Length: > 0 } h ? Picture(h) : null,
+            To: b.Target,
+            A: b.Align,
+            As: b.As)));
+
+    /// <summary>Whether the page has anything on it yet.</summary>
+    private bool Blank => !(_doc.Blocks ?? []).Any(Wordy);
+
+    /// <summary>Whether a block is part of the words rather than part of the look.</summary>
+    private static bool Wordy(CardBlock block) =>
+        block.Kind is not (CardBlock.Theme or CardBlock.Style or CardBlock.Css);
+
+
+    /// <summary>What the editor offers as a first line, when nothing has been written yet.</summary>
+    /// <remarks>
+    /// Held here rather than in the attribute because Razor escapes the ampersand of an entity
+    /// written inline, so a <c>&amp;#10;</c> put there to break the line arrived on the phone as
+    /// those five characters, printed.
+    /// </remarks>
+    private const string PenHint =
+        "h1 { letter-spacing: -.04em }\n"
+        + "p { column-count: 2 }\n"
+        + "@media (max-width: 520px) { h1 { font-size: 28px } }";
+
+    /// <summary>The author's own stylesheet, as they typed it.</summary>
+    /// <remarks>
+    /// Kept as written, not as sanitised. Somebody who typed a url() and had it silently deleted out
+    /// from under their cursor has been told nothing and cannot learn anything; they see their own
+    /// text, and a line underneath saying what will not travel and why.
+    /// </remarks>
+    private string Sheet
+    {
+        get => _doc?.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Css)?.Value ?? "";
+    }
+
+    /// <summary>
+    /// The stylesheet, handed over by the editor once the typing has stopped.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It arrives this way round because the other way round loses text. While the field was bound,
+    /// every keystroke wrote the whole page to the database and re-rendered the preview into two
+    /// iframes; the render then put its own value back into the field, and anything typed in between
+    /// was gone. What reached the database was a stylesheet cut off mid-property, with every rule
+    /// after it missing and nothing said. A desktop browser is quick enough to hide the gap. A P30 is
+    /// not, which is the only reason it was found.
+    /// </para>
+    /// <para>
+    /// So the field belongs to the browser — the same rule aether-write.js already keeps for prose —
+    /// and this is told what is in it, once, after a pause.
+    /// </para>
+    /// </remarks>
+    [JSInvokable]
+    public void Penned(string? which, string? text, bool settled)
+    {
+        try
+        {
+            OwnCard.SetCss(_doc, text ?? "");
+            Save();
+            _penSaid = "";
+        }
+        catch (Exception why)
+        {
+            _penSaid = "Not saved — " + why.Message;
+        }
+
+        if (settled) StateHasChanged();
+    }
+
+    /// <summary>
+    /// The page, as the person has just left it.
+    /// </summary>
+    /// <remarks>
+    /// Blocks in, blocks out. The look travels around the outside of this — theme, dials and
+    /// stylesheet were never on the writing surface, so they are taken off the document being edited
+    /// and put back on the one that comes home.
+    /// </remarks>
+    [JSInvokable]
+    public void Paged(List<Piece>? pieces, bool settled)
+    {
+        try
+        {
+            var look = (_doc.Blocks ?? []).Where(b => !Wordy(b)).ToList();
+            var made = new CardDocument();
+
+            foreach (var piece in pieces ?? [])
+            {
+                if (piece.K == CardBlock.Image && piece.Hash is not { Length: > 0 }) continue;
+
+                made.Blocks.Add(new CardBlock
+                {
+                    Kind = piece.K,
+                    Value = piece.T is { Length: > 0 } said ? said : null,
+                    Items = piece.Items is { Count: > 0 } items ? [.. items] : null,
+                    ContentHash = piece.Hash is { Length: > 0 } hash ? hash : null,
+                    Target = piece.To is { Length: > 0 } to ? to : null,
+                    Align = piece.A is { Length: > 0 } a ? a : null,
+                    As = piece.As is { Length: > 0 } how ? how : null,
+                });
+            }
+
+            // The look goes back where the renderer expects it: in front of the words.
+            made.Blocks.InsertRange(0, look);
+            made.Title = made.Blocks.FirstOrDefault(b => b.Kind == CardBlock.Title)?.Value ?? "";
+
+            _doc = made;
+            NameIt();
+
+            Save();
+            _penSaid = "";
+        }
+        catch (Exception why)
+        {
+            _penSaid = "Not saved — " + why.Message;
+        }
+
+        if (settled) StateHasChanged();
+    }
+
+    /// <summary>Whether the insert sheet is open.</summary>
+    private bool _adding;
+
+    /// <summary>Turn the block the caret is in into another kind.</summary>
+    private async Task Block(string kind)
+    {
+        try { await JS.InvokeVoidAsync("aetherPage.block", kind); } catch (Exception) { }
+    }
+
+    /// <summary>Insert a kind from the sheet, then close it.</summary>
+    private async Task Added(string kind)
+    {
+        await Block(kind);
+        _adding = false;
+    }
+
+    /// <summary>Insert a line across the page from the sheet, then close it.</summary>
+    private async Task AddedRule()
+    {
+        await Rule();
+        _adding = false;
+    }
+
+    /// <summary>Bold, italic or underline, on whatever is selected.</summary>
+    private async Task Mark(string name)
+    {
+        try { await JS.InvokeVoidAsync("aetherPage.mark", name); } catch (Exception) { }
+    }
+
+    /// <summary>What the header calls this page — its title, else the owner, else "Your page".</summary>
+    private string Heading =>
+        _doc.Title is { Length: > 0 } t ? t : Mine.OwnerName is { Length: > 0 } o ? o : "Your page";
+
+    /// <summary>One letter for the face in the header — theirs if they have a name, their tag if not.</summary>
+    private string Initial =>
+        (_doc.Title is { Length: > 0 } t ? t
+         : Mine.OwnerName is { Length: > 0 } o ? o
+         : Mesh.LocalTag ?? "?").Trim()[..1].ToUpperInvariant();
+
+    /// <summary>Whether the look gallery is open.</summary>
+    private bool _looking;
+
+    /// <summary>This page, wearing a look that has not been chosen yet.</summary>
+    /// <remarks>
+    /// The author's own words rather than a mock-up, because a thumbnail of somebody else's content
+    /// answers a different question. Rendered by the same renderer a reader's phone uses, so what is
+    /// picked is what arrives.
+    /// </remarks>
+    private string Thumb(CardLook look)
+    {
+        var shown = Copy();
+        OwnCard.SetLook(shown, look.Key);
+        return Drawn(shown);
+    }
+
+    /// <summary>The same, for a background.</summary>
+    private string Thumb(CardShader back)
+    {
+        var shown = Copy();
+        OwnCard.SetShader(shown, back.Key);
+        return Drawn(shown);
+    }
+
+    private CardDocument Copy() =>
+        new() { Version = _doc.Version, Title = _doc.Title, Blocks = [.. _doc.Blocks ?? []] };
+
+    private string Drawn(CardDocument card) =>
+        CardPage.Render(OwnCard.ForPublish(card), card.Title, 0,
+            downloadPath: null, assetPath: Picture, fontBase: PageAssets.WebFontBase);
+
+    /// <summary>Whether the address field for a link is open, and what is in it.</summary>
+    private bool _linkOpen;
+    private string _linkWhere = "";
+
+    /// <summary>Make this block a link, and ask where it goes.</summary>
+    [JSInvokable]
+    public async Task Linking()
+    {
+        await Block("link");
+        _linkOpen = true;
+
+        try { _linkWhere = await JS.InvokeAsync<string>("aetherPage.linkTo"); }
+        catch (Exception) { _linkWhere = ""; }
+    }
+
+    /// <summary>Where that link goes.</summary>
+    private async Task OnLinkWhere(ChangeEventArgs e)
+    {
+        _linkWhere = e.Value?.ToString() ?? "";
+        try { await JS.InvokeVoidAsync("aetherPage.link", _linkWhere); } catch (Exception) { }
+    }
+
+    /// <summary>Centred, wide, small — the settings the card model has always had.</summary>
+    private async Task Set(string what, string? value)
+    {
+        try { await JS.InvokeVoidAsync("aetherPage.set", what, value); } catch (Exception) { }
+    }
+
+    /// <summary>Bring the stylesheet pen into view and put the caret in it.</summary>
+    private async Task RevealStyle()
+    {
+        try { await JS.InvokeVoidAsync("aetherCode.reveal"); } catch (Exception) { }
+    }
+
+    /// <summary>A line across the page.</summary>
+    private async Task Rule()
+    {
+        try { await JS.InvokeVoidAsync("aetherPage.rule"); } catch (Exception) { }
+    }
+
+    /// <summary>The look off another card, and nothing else off it.</summary>
+    private static CardDocument Wearing(CardDocument from)
+    {
+        var mine = new CardDocument();
+
+        foreach (var block in from.Blocks ?? [])
+        {
+            if (block.Kind is not (CardBlock.Theme or CardBlock.Style)) continue;
+
+            mine.Blocks.Add(new CardBlock
+            {
+                Kind = block.Kind,
+                Value = block.Value,
+                Items = block.Items is null ? null : [.. block.Items],
+            });
+        }
+
+        if (from.Blocks?.FirstOrDefault(b => b.Kind == CardBlock.Css)?.Value is { Length: > 0 } css)
+            OwnCard.SetCss(mine, css);
+
+        return mine;
+    }
+
+    /// <summary>
+    /// A page's address follows its title, rather than being a second thing to fill in.
+    /// </summary>
+    /// <remarks>
+    /// The address was a field beside the title, which is one more blank between somebody and their
+    /// page for no gain — nobody wants a path that disagrees with the heading. It is derived once,
+    /// while the page is still a draft, and then left alone: once published the address is out in the
+    /// world on somebody's screen or written down, and retitling must not move it.
+    /// </remarks>
+    private void NameIt()
+    {
+        if (_live || _name.Length > 0 || _doc.Title is not { Length: > 0 } said) return;
+
+        var slug = new StringBuilder();
+
+        foreach (var c in said.ToLowerInvariant())
+        {
+            if (char.IsAsciiLetterOrDigit(c)) slug.Append(c);
+            else if (slug.Length > 0 && slug[^1] != '-') slug.Append('-');
+        }
+
+        _name = Mine.Free(slug.ToString().Trim('-') is { Length: > 0 } made ? made : "page");
+    }
+
+    /// <summary>Whether the stylesheet is safely down, in the author's words rather than a log.</summary>
+    private string _penSaid = "";
+
+    /// <summary>What of their stylesheet will not be carried, said plainly.</summary>
+    private string SheetNote
+    {
+        get
+        {
+            var written = Sheet;
+            if (written.Length == 0) return "";
+
+            var safe = CardCss.Safe(written);
+            if (safe.Length == 0 && written.Trim().Length > 0)
+                return "The braces do not balance, so none of this will travel yet.";
+
+            return written.Contains("url(", StringComparison.OrdinalIgnoreCase)
+                || written.Contains("@import", StringComparison.OrdinalIgnoreCase)
+                ? "A stylesheet cannot fetch: url() and @import are removed before this card is handed "
+                  + "to anybody. On a network where nobody is watched, one request would say who opened "
+                  + "your page and when. Pictures go in as blocks instead."
+                : "";
+        }
+    }
+
+    private void ChooseLook(CardLook look)
+    {
+        OwnCard.SetLook(_doc, look.Key);
+        Save();
+    }
+
+    private void ChooseShader(CardShader shader)
+    {
+        OwnCard.SetShader(_doc, shader.Key);
+        _shader = shader;
+        Save();
+    }
+
+
+
+    // ─── Fields ─────────────────────────────────────────────────────────────────
+
+
+    private void OnName(ChangeEventArgs e)
+    {
+        var wanted = MyPages.Clean(e.Value?.ToString());
+        if (wanted == _name) return;
+
+        // Renaming is moving: the old name would otherwise stay behind as a second page holding the
+        // same words.
+        if (_page is not null && !string.IsNullOrEmpty(_page.Name) && wanted.Length > 0)
+            Mine.Remove(_page.Name);
+
+        _name = wanted;
+        if (_name.Length > 0) Save();
+    }
+
+
+    /// <summary>The only alignment a block may ask for besides its default.</summary>
+    private const string Centre = "centre";
+
+
+    /// <summary>A name set as a wordmark rather than a headline.</summary>
+    private const string Small = "small";
+
+    /// <summary>A picture shown whole rather than cropped into the masthead.</summary>
+    private const string Wide = "wide";
+
+
+
+    /// <summary>
+    /// The name, typed in the block rather than in the basics.
+    /// </summary>
+    /// <remarks>
+    /// Both places set the same thing. The page's name is metadata — a deck, an address bar and a
+    /// file name all use it — and the block is what a reader sees, so they may never disagree.
+    /// </remarks>
+    private void OnName(int index, ChangeEventArgs e)
+    {
+        if (index < 0 || index >= _doc.Blocks.Count) return;
+
+        var said = e.Value?.ToString();
+        _doc.Blocks[index].Value = said;
+        _doc.Title = said ?? "";
+        Save();
+    }
+
+    /// <summary>Whether the page is opened up to show how it is made.</summary>
+    private bool _under;
+
+    /// <summary>The four things the toolbar does, named because a lambda cannot hold a literal.</summary>
+    private const string Bold = "bold";
+
+    private const string Italic = "italic";
+
+
+    private const string AsLink = "link";
+
+
+    /// <summary>Where that link is going, as typed or as picked.</summary>
+    private string _linkTo = "";
+
+
+
+
+    /// <summary>
+    /// Bold, italic or underline on whatever the writer has selected.
+    /// </summary>
+    /// <remarks>
+    /// The work happens in the field, and the words come back through <see cref="Wrote"/> like any
+    /// other keystroke — so there is one path into the document rather than two, and a mark applied
+    /// by a button is indistinguishable from a mark somebody typed.
+    /// </remarks>
+    private async Task Mark(int index, string how)
+    {
+        try
+        {
+            await JS.InvokeAsync<bool>("aetherWrite.mark", index.ToString(), how, null);
+        }
+        catch (Exception)
+        {
+            // No writing surface on this head. The field is still a field and the words still save.
+        }
+    }
+
+    /// <summary>
+    /// Put a link on the selected words.
+    /// </summary>
+    /// <remarks>
+    /// Checked here as well as when the page is drawn. The renderer refuses anything that is not a
+    /// mesh address or an https one — but a person who pastes something else deserves to find that
+    /// out while they are writing, not by looking at the page afterwards and wondering.
+    /// </remarks>
+    private async Task Link(int index)
+    {
+        var to = _linkTo.Trim();
+        if (to.Length == 0) return;
+
+        if (!CardBlock.IsMeshAddress(to) && !CardBlock.IsUsableWeb(to))
+        {
+            _linkTo = to.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                ? "https://" + to["http://".Length..]
+                : to.Contains('.') && !to.Contains(' ') ? "https://" + to : to;
+
+            if (!CardBlock.IsUsableWeb(_linkTo)) return;
+            to = _linkTo;
+        }
+
+        try
+        {
+            await JS.InvokeAsync<bool>("aetherWrite.mark", index.ToString(), AsLink, to);
+            _linkTo = "";
+        }
+        catch (Exception)
+        {
+            // Same as above: without the surface there is nothing to attach a link to.
+        }
+    }
+
+
+
+
+
+
+    private void Add(string kind)
+    {
+        if (kind == CardBlock.Image && _doc.Blocks.Count(b => b.Kind == CardBlock.Image) >= PagePhoto.MostPerPage)
+        {
+            _said = $"That is {PagePhoto.MostPerPage} pictures — as many as a page carries. Every one is another wait for whoever opens it on the slow radio.";
+            return;
+        }
+
+        OwnCard.Add(_doc, kind);
+        Save();
+    }
+
+
+
+    // ─── Keeping it ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Written on every keystroke, deliberately.
+    /// </summary>
+    /// <remarks>
+    /// There is no save button and nothing to lose. A page is a few hundred bytes of JSON into this
+    /// device's own database; writing it constantly costs nothing, and somebody closing the screen
+    /// having forgotten to press something costs them the page. Saving is not publishing — this only
+    /// moves the draft, and the copy other people can read is untouched until they say so.
+    /// </remarks>
+    private void Save()
+    {
+        // No name yet means nothing to persist — but the preview must still redraw, because this is
+        // the only path a keystroke takes. Returning without a Draw here is what left a fresh page's
+        // preview frozen while its callers had to guard the Save with an else-Draw of their own.
+        if (_name.Length == 0) { Draw(); return; }
+
+        // A page comes into existence when it is given a name a reader would see — not when somebody
+        // taps through a look. Tapping through used to leave a nameless draft behind on every pass,
+        // and drafts of nothing are what a person's list of pages fills up with.
+        if (_page is null && string.IsNullOrWhiteSpace(_doc.Title)) { Draw(); return; }
+
+        _page ??= new WebCard();
+        _page.Name = _name;
+        _page.Doc = _doc;
+
+        Mine.Save(_page);
+        _page = Mine.Get(_name) ?? _page;
+        _doc = _page.Doc;
+        _live = _page.Live;
+        Draw();
+    }
+
+    /// <summary>
+    /// The preview is the renderer a stranger's phone uses, and the document it will actually receive.
+    /// </summary>
+    /// <remarks>
+    /// Drawn from the published form, not from the draft. A template arrives as a shape with its
+    /// values blank, and showing those blanks here would tell the author their page has empty boxes on
+    /// it — which is the opposite of what a reader sees, and would send them off filling in fields
+    /// nobody was ever going to read.
+    /// </remarks>
+    private void Draw() =>
+        _preview = CardPage.Render(
+            OwnCard.ForPublish(_doc), _doc.Title, 0,
+            downloadPath: null, assetPath: Picture, fontBase: PageAssets.WebFontBase);
+
+    /// <summary>A picture this editor already holds, as something the preview can draw.</summary>
+    private string? Picture(string hash) => _pics.GetValueOrDefault(hash);
+
+
+    /// <summary>
+    /// Enough of a page for a thumbnail to be worth looking at.
+    /// </summary>
+    /// <remarks>
+    /// Their own words come first, because a look is a decision about <i>their</i> page. But a page
+    /// that is one heading long makes five identical thumbnails — the look is carried by body text
+    /// beside a heading beside a labelled fact, and with none of those on screen there is nothing to
+    /// choose between. So what they have written is topped up until there is a page to judge.
+    /// </remarks>
+    private IEnumerable<CardBlock> Shown()
+    {
+        var shown = OwnCard.ForPublish(_doc).Blocks
+            .Where(b => b.Kind is CardBlock.Text or CardBlock.Heading or CardBlock.KeyValue)
+            .Take(3)
+            .ToList();
+
+        foreach (var filler in Filler)
+        {
+            if (shown.Count >= 3) break;
+            if (shown.Any(b => b.Kind == filler.Kind)) continue;
+            shown.Add(filler);
+        }
+
+        return shown;
+    }
+
+    private static readonly CardBlock[] Filler =
+    [
+        CardBlock.Of(CardBlock.Text, "A few lines about what you do, in your own words."),
+        CardBlock.Of(CardBlock.Heading, "Where to find me"),
+        CardBlock.Of(CardBlock.KeyValue, "Open = Mon to Sat"),
+    ];
+
+    // ─── Publishing ─────────────────────────────────────────────────────────────
+
+    private async Task Publish()
+    {
+        if (_busy || _name.Length == 0) return;
+
+        _busy = true;
+        _said = "";
+        StateHasChanged();
+
+        try
+        {
+            Save();
+            var address = await Mesh.PublishAsync(_name);
+
+            if (address is null)
+            {
+                _said = "Could not put it on the mesh. Nothing was lost — try again.";
+                return;
+            }
+
+            _live = true;
+            await Done.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _said = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ─── Reading a block at a glance ────────────────────────────────────────────
+
+
+}

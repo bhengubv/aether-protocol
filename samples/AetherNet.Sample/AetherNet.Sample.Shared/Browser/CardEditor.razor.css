@@ -1,0 +1,507 @@
+/*  Motion.
+    
+    There was none. Not one transition and not one duration in this file, which is why pressing a
+    button in here felt like nothing happened — the interface never acknowledged the tap. Everything
+    below is the smallest amount of motion that makes a screen feel like it is listening.
+
+    The built-in easings are too weak to read at these speeds, so the curves are explicit. Nothing
+    animates for longer than 300ms, nothing animates a property that costs layout, and everything
+    stops entirely for anyone who has asked for less movement. */
+/*  A press has to be felt. Scale is the whole of it: it costs no layout, it reads instantly, and it
+    is the difference between a control and a picture of one. */
+.tool,
+.chip,
+.gal-one,
+.go,
+.down,
+.whole,
+.whole-x,
+.back,
+.under,
+.pic {
+    transition: transform 160ms var(--ease-out),
+                background-color 160ms var(--ease-out),
+                border-color 160ms var(--ease-out),
+                opacity 160ms var(--ease-out);
+}
+
+.tool:active,
+.chip:active,
+.gal-one:active,
+.go:active:not(:disabled),
+.down:active,
+.whole:active,
+.whole-x:active,
+.back:active,
+.under:active,
+.pic:active { transform: scale(0.97); }
+
+/*  The sheet comes from nothing at the moment, which is the one thing nothing in the real world
+    does. It is a modal rather than a popover, so it scales from its own centre. */
+.whole-page {
+    transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+}
+
+@starting-style {
+    .whole-page { opacity: 0; transform: scale(0.97); }
+}
+
+/*  The looks arrive one after another rather than all at once. Short delays — a long stagger is just
+    a slow screen wearing a nice coat. */
+.gal-one {
+    opacity: 0;
+    animation: gal-in 260ms var(--ease-out) forwards;
+}
+
+.gal-one:nth-child(1) { animation-delay: 0ms; }
+.gal-one:nth-child(2) { animation-delay: 40ms; }
+.gal-one:nth-child(3) { animation-delay: 80ms; }
+.gal-one:nth-child(4) { animation-delay: 120ms; }
+.gal-one:nth-child(5) { animation-delay: 160ms; }
+.gal-one:nth-child(n+6) { animation-delay: 200ms; }
+
+@keyframes gal-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+/*  Fewer and gentler, not none: what survives is what helps you understand the screen. */
+@media (prefers-reduced-motion: reduce) {
+    .tool, .chip, .gal-one, .go, .down, .whole, .whole-x, .back, .under, .pic, .whole-page {
+        transition-duration: 120ms;
+        transition-property: opacity, background-color, border-color;
+    }
+
+    .tool:active, .chip:active, .gal-one:active, .go:active, .down:active,
+    .whole:active, .whole-x:active, .back:active, .under:active, .pic:active { transform: none; }
+
+    .gal-one { opacity: 1; animation: none; }
+}
+
+/* The card editor.
+
+   Scoped, so the class names in here belong to this component and to nothing else.
+
+   These were plain <style> blocks. That was harmless while only one of them was ever on screen, and
+   the moment the browser hosted the editor the generic names collided — the browser's round omnibox
+   button ate the editor's Next. A host embedding this library would have hit the same thing against
+   its own stylesheet, which is the kind of collision that makes a component impossible to drop in.
+
+   Every token falls back, too: a host that has never heard of --brand still gets a working component
+   rather than a transparent one. */
+
+/* Fills what it is given and never asks for more.
+
+   Without the width and the min-width this is a flex item sized to its own content: a page whose
+   longest collapsed summary happens to be a long sentence pushed the whole wizard out to its 720px
+   maximum inside a 344px phone, and every panel, the heading and the progress bar went off the right
+   edge together. The summaries already ellipsis; they cannot until something in the chain is allowed
+   to shrink. */
+.wiz { display: flex; flex-direction: column; gap: 14px; width: 100%; min-width: 0; max-width: 720px; margin: 0 auto; }
+
+    /* Where you are, always. A wizard whose end is invisible is a form. */
+    /* One row, and the address is the point of it — so it gets the room and the two controls get the
+       same shape and the same weight instead of being three unrelated objects in a line. */
+    .top { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; margin: -16px -16px 0; padding: 12px 14px 10px; background: var(--bg, #eaeef3); }
+    .back { width: 32px; height: 32px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.9rem; cursor: pointer; }
+    .count { flex: 0 0 auto; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; color: var(--ink-3, #8a97a6); font-variant-numeric: tabular-nums; }
+    /* A card is a blue field, says the palette, and this is the page's own address — the one thing on
+       this screen that says which page you are in. So it is a field, not a hairline outline. */
+    /* A person leads the screen, not an address. */
+    .me { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 11px; }
+    .me-face { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+               display: grid; place-items: center; background: var(--surface, #2196F3);
+               color: var(--on-surface, #fff); font-size: 1.1rem; font-weight: 800; }
+    .me-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+    .me-name { font-size: 1.02rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink, #16232f);
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .me-addr { font-size: 0.68rem; font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
+               opacity: .5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .back { font-size: 1.4rem; }
+    .back, .under { border-color: transparent; opacity: .5; }
+    .back:active, .under:active, .under.on { opacity: 1; }
+
+    .body { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 42vh; padding-bottom: 78px; }
+
+    /* Step 1 — what kind of page. */
+
+    /* Step 2 — the looks, each drawn rather than named. */
+
+    /* A real page, shrunk. The iframe is laid out at reading width and scaled down, so the thumbnail
+       is the same document a reader gets rather than a drawing of one. */
+    .shot { flex: 0 0 auto; width: 132px; height: 135px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line, rgba(127,140,158,.28)); background: #fff; position: relative; }
+    .mini { position: absolute; top: 0; left: 0; width: 400px; height: 410px; border: 0; transform: scale(0.33); transform-origin: top left; pointer-events: none; }
+    .shot.big { width: 100%; height: 62vh; border-radius: 14px; }
+    .full { width: 100%; height: 100%; border: 0; }
+
+    /* The background catalogue. A grid, because fourteen is a thing you scan. */
+    .back-pick { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 8px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); cursor: pointer; }
+    .back-pick.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+    .back-shot { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; border: 1px solid var(--line, rgba(127,140,158,.28)); background: #111; }
+    .back-mini { position: absolute; top: 0; left: 0; width: 400px; height: 300px; border: 0; transform: scale(0.42); transform-origin: top left; pointer-events: none; }
+    .back-n { font-size: 0.92rem; font-weight: 750; color: var(--ink, #16232f); padding-top: 3px; }
+    .back-b { font-size: 0.72rem; line-height: 1.4; color: var(--ink-2, #5b6b7b); }
+
+    /* Step 3 — one panel at a time. */
+    .panel { min-width: 0; border: 1px solid var(--line-card, #9ecbf7); border-radius: var(--radius, 14px); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); overflow: hidden; }
+    .panel.open { border-color: var(--brand, #2196F3); }
+    .phead { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; background: transparent; border: 0; cursor: pointer; text-align: left; }
+    .ptext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .plabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3, #8a97a6); }
+    .psay { font-size: 0.9rem; color: var(--ink, #16232f); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chev { flex: 0 0 auto; color: var(--ink-3, #8a97a6); font-size: 0.8rem; }
+    .pbody { display: flex; flex-direction: column; gap: 9px; padding: 4px 15px 15px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .flabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3, #8a97a6); }
+    .in { width: 100%; padding: 12px 13px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); color: var(--ink, #16232f); font-size: 0.95rem; font-family: inherit; }
+    .in:focus-visible { outline: 2px solid var(--brand, #2196F3); outline-offset: 1px; }
+    .area { resize: vertical; line-height: 1.5; }
+
+    /* Writing, with the formatting visible.
+
+       It has to look like the textarea it replaced — same ground, same measure — because the moment a
+       writing field looks like a special surface, people start treating what they write in it as
+       special. The marks are real; the typefaces are the app's, because this is a field and not the
+       page, and pretending otherwise makes people fight the difference. */
+    .rtbar { display: flex; gap: 6px; margin-top: 8px; }
+    .rtb { min-width: 38px; height: 34px; padding: 0 10px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); color: var(--ink, #16232f); font: inherit; font-size: 0.9rem; line-height: 1; cursor: pointer; }
+    .rtb.wide { min-width: 0; font-size: 0.8rem; }
+    .rtb.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); color: var(--brand, #2196F3); }
+    .rtf { min-height: 96px; line-height: 1.5; text-align: left; white-space: pre-wrap; overflow-wrap: break-word; cursor: text; }
+    .rtf:focus { outline: 2px solid var(--brand, #2196F3); outline-offset: -1px; }
+    .rtf b { font-weight: 800; }
+    .rtf i { font-style: italic; }
+    .rtf u { text-decoration: underline; }
+    .rtf a { color: var(--brand, #2196F3); text-decoration: underline; }
+    .linkto { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+
+    .addr { display: flex; align-items: center; gap: 0; padding: 0 0 0 13px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
+    .addr .tag { font-size: 0.86rem; color: var(--ink-3, #8a97a6); white-space: nowrap; }
+    .addr .nm { font-size: 0.95rem; color: var(--ink, #16232f); padding: 12px 0; }
+    .addr .bare { border: 0; background: transparent; padding-left: 0; font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
+    .addr.fixed { padding-right: 13px; }
+
+    .hint { margin: 0; font-size: 0.76rem; line-height: 1.45; color: var(--ink-3, #8a97a6); }
+    .hint.good { color: var(--brand, #2196F3); font-weight: 600; }
+    .hint.bad { color: var(--brand-deep); font-weight: 600; }
+
+    /* How this page is made. Plain, dense and readable — this is the part somebody screenshots and
+       sends to a friend, so it has to look like something worth reading rather than a debug dump. */
+    .under { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace); font-size: 0.72rem; cursor: pointer; }
+    .under.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); color: var(--brand, #2196F3); }
+    .under-panel { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: var(--radius, 14px); border: 1px solid var(--brand, #2196F3); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); }
+    .under-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .under-h h2 { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--ink, #16232f); }
+    .under-say { margin: 0 0 6px; font-size: 0.86rem; line-height: 1.5; color: var(--ink-2, #5b6b7b); }
+    .under-t { margin: 16px 0 2px; font-size: 0.72rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--brand, #2196F3); }
+    .under-b { margin: 0 0 8px; font-size: 0.84rem; line-height: 1.55; color: var(--ink-2, #5b6b7b); }
+    .under-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+    .under-list li { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line, rgba(127,140,158,.28)); min-width: 0; }
+    .under-k { flex: 0 0 74px; font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace); font-size: 0.72rem; color: var(--brand, #2196F3); }
+    .under-v { flex: 1 1 auto; min-width: 0; font-size: 0.82rem; color: var(--ink, #16232f); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .under-tok { margin: 0; display: flex; flex-direction: column; }
+    .under-tok > div { display: grid; grid-template-columns: 84px 1fr; gap: 2px 10px; padding: 7px 0; border-bottom: 1px solid var(--line, rgba(127,140,158,.28)); min-width: 0; }
+    .under-tok dt { font-size: 0.78rem; font-weight: 700; color: var(--ink, #16232f); }
+    .under-tok dd { margin: 0; min-width: 0; font-size: 0.78rem; color: var(--ink, #16232f); overflow-wrap: anywhere; }
+    .under-tok dd.under-s { grid-column: 2; font-size: 0.72rem; line-height: 1.4; color: var(--ink-3, #8a97a6); }
+    .under-code { margin: 0; padding: 12px; border-radius: var(--radius-sm, 10px); background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); color: var(--ink, #16232f); font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace); font-size: 0.7rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 340px; overflow-y: auto; }
+
+    .foot.away { display: none; }
+
+    /* The page used to run under the bar and stop mid-letter. It fades out instead. */
+    .foot::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 26px;
+                    background: linear-gradient(to top, var(--bg, #eaeef3), transparent);
+                    pointer-events: none; }
+
+    .prow { display: flex; gap: 6px; padding-top: 3px; }
+    .tiny { min-width: 34px; height: 34px; padding: 0 11px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; color: var(--ink-2, #5b6b7b); font-size: 0.82rem; cursor: pointer; }
+    .tiny.drop { color: var(--brand-deep); margin-left: auto; }
+    .ghost.drop { color: var(--brand-deep); border-color: var(--brand-deep); align-self: flex-start; }
+
+    /* The picture, and the one control that changes it. */
+    .pic { display: flex; flex-direction: column; gap: 9px; }
+    .pic-art { width: 100%; border-radius: var(--radius-sm, 10px); display: block; aspect-ratio: 600 / 250; object-fit: cover; }
+    .pic-none { display: flex; align-items: center; justify-content: center; aspect-ratio: 600 / 250; border: 1px dashed var(--line-card, #9ecbf7); border-radius: var(--radius-sm, 10px); color: var(--ink-3, #8a97a6); font-size: 0.85rem; }
+    .pick { align-self: flex-start; padding: 11px 16px; border: 1px solid var(--brand, #2196F3); border-radius: var(--radius-sm, 10px); color: var(--brand, #2196F3); font-weight: 700; font-size: 0.88rem; cursor: pointer; }
+    .pick.waiting { opacity: .55; }
+    .hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+    .adds { display: flex; flex-directi--ink-2, #5b6b7b); font-weight: 700; font-size: 0.84rem; padding: 10px 14px; border-radius: var(--radius-sm, 10px); cursor: pointer; }
+    .ghost:disabled { opacity: .4; cursor: default; }
+    .ghost.wide { flex: 0 0 auto; padding: 14px 22px; }
+
+    /* Step 4 — the whole thing, and where it will live. */
+    .done { display: flex; flex-direction: column; gap: 12px; }
+    .where { display: flex; flex-direction: column; gap: 3px; padding: 12px 15px; border-radius: var(--radius, 14px); border: 1px solid var(--line-card, #9ecbf7); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); }
+    .wlabel { font-size: 0.66rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3, #8a97a6); }
+    .waddr { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 0.92rem; color: var(--brand, #2196F3); word-break: break-all; }
+    .said { margin: 0; padding: 12px 14px; border-radius: var(--radius-sm, 10px); background: var(--info-bg, rgba(31,111,180,.12)); color: var(--info, #1f6fb4); font-size: 0.88rem; line-height: 1.45; }
+
+    /* Next is never below the fold.
+       A step whose button has to be scrolled to is a step somebody stops on, and the whole reason
+       this is a wizard rather than a form is that people finish wizards. It rides just above the tab
+       bar — the viewport already reserves that space, so the offset is the height of the bar. */
+    /* Next is never below the fold.
+       Sticky was tried and does not hold here — the wizard is a flex column inside the shell's own
+       scroller, and on a tall step the button simply scrolled away. Fixed to the window, riding
+       directly above the tab bar, with the body padded so nothing hides underneath it. */
+    .foot {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: calc(var(--tab-h, 62px) + env(safe-area-inset-bottom));
+        z-index: 12;
+        display: flex;
+        gap: 8px;
+        padding: 11px 16px 13px;
+        justify-content: flex-end;
+        background: color-mix(in srgb, var(--bg, #eaeef3) 82%, transparent);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        border-top: 1px solid var(--line, rgba(127,140,158,.18));
+    }
+    /*  Publish is confident, not enormous. A full-width filled slab was the loudest thing on a screen
+        whose job is the making, not the committing — so it becomes a pill that sits to one side and
+        lets the page be the biggest thing. */
+    /* Publish stays the app's blue — it is Aether's action, the one honest "this is the tool"
+       element, and it must never be cream-on-cream because a look happened to be pale. */
+.go { flex: 0 0 auto; padding: 13px 26px; border: 0; border-radius: 999px; background: var(--brand, #2196F3); color: #fff; font-size: .95rem; font-weight: 750; cursor: pointer; }
+    .go:disabled { opacity: .4; cursor: default; }
+
+/* The break's catalogue of marks. Drawn at the size they are used, in the app's own ink. */
+.orns { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
+.orn-pick { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, rgba(127,140,158,.28)); background: transparent; cursor: pointer; color: var(--ink-2, #5b6b7b); }
+.orn-pick.on { border-color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); color: var(--brand, #2196F3); }
+.orn-draw { display: block; line-height: 0; }
+.orn-draw svg { display: block; width: 100%; height: 22px; }
+.orn-n { font-size: 0.76rem; font-weight: 650; }
+
+/* Left or centred. */
+.alignrow { display: flex; gap: 6px; padding-top: 2px; }
+.alignrow .tiny.on { border-color: var(--brand, #2196F3); color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+
+/* One decision, stated as a sentence rather than as a label and a switch. */
+.tick { display: flex; align-items: center; gap: 9px; font-size: 0.85rem; color: var(--ink-2, #5b6b7b); padding: 2px 0; }
+.tick input { width: 19px; height: 19px; accent-color: var(--brand, #2196F3); }
+
+/* Where a picture sits. Three finished answers, not a panel of controls. */
+.asrow { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+.asrow .tiny { padding: 0 12px; height: 34px; }
+.asrow .tiny.on { border-color: var(--brand, #2196F3); color: var(--brand, #2196F3); background: var(--brand-tint, rgba(33,150,243,.12)); }
+
+/* ── The editor ───────────────────────────────────────────────────────────
+
+   Two layers in one box: the coloured text underneath, and a transparent
+   textarea on top holding the caret and the selection. They must agree about
+   every pixel of type — same face, same size, same leading, same padding — or
+   the caret drifts away from the letter it is sitting after, which is the one
+   bug that makes a code editor unusable. */
+.studio { display: flex; flex-direction: column; gap: 6px; margin-top: 4px;
+          padding-top: 18px; border-top: 1px solid var(--line-card, rgba(127,140,158,.28));
+          /* Clear of the Next bar, which is fixed. Without this the bottom of the preview - the part
+             that shows what the measure and the leading actually did - sits under it. */
+          padding-bottom: 96px; }
+
+.studio-h { display: flex; flex-direction: column; gap: 4px; margin-top: 26px; }
+/* The same eyebrow a card uses for its own sections, so the tool and the thing it makes are
+   evidently one design rather than two. */
+.studio-t { font-size: 0.66rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
+            opacity: .5; }
+/* Quieter than the thing it is explaining. At .8 the instructions carried the same weight as the
+   sentence being written, and in a three-colour palette both are the same blue — so the only way to
+   tell the page from the help about the page was to read them. */
+.studio-b { font-size: 0.74rem; line-height: 1.45; opacity: .58; }
+
+.pen { position: relative; border: 1px solid var(--line, rgba(127,140,158,.28));
+       border-radius: var(--radius-sm, 10px); overflow: hidden;
+       background: color-mix(in srgb, currentColor 4%, transparent); }
+
+/*  Told apart at a glance, so that scrolled to a boundary you know which box you are in. The page is
+    the work and carries the weight; the stylesheet is the trim and steps back. */
+/*  The page being written is not in a box at all.
+
+    A tinted panel with a border is a field on a form, and a tint of the ink over the page is the one
+    thing this palette explicitly refuses — no midtones, it says: hierarchy is size and weight. So the
+    document sits directly on the page at a size you would actually write at, and the only thing
+    marking it is the label above it. What is left on screen is a person's words and nothing else,
+    which is the whole claim the app is making.  */
+.pen.prose { background: transparent; border: 0; border-radius: 0; }
+.pen.prose .ink, .pen.prose .raw {
+    padding: 2px 0 18px;
+    font-size: clamp(1.02rem, 4.4vw, 1.16rem);
+    line-height: 1.62;
+    min-height: 300px;
+}
+.pen.prose:focus-within { border: 0; }
+
+/*  The stylesheet is a tool and looks like one — subordinate, contained, quieter than the page. */
+.pen:not(.prose) { background: var(--brand-tint, rgba(33,150,243,.10)); border-color: transparent;
+                   border-radius: var(--radius, 14px); }
+.pen:not(.prose) .ink, .pen:not(.prose) .raw { padding: 15px 15px; }
+.pen:not(.prose) { background: transparent; }
+
+/*  One scroller on the screen, not three.
+
+    Both pens were max-height boxes with their own overflow, inside a page that also scrolls. On a
+    phone that is the pattern to avoid: near a boundary a drag is a coin flip between moving the
+    field and moving the page, and a line clipped through the middle of its letters reads as broken
+    rather than as continued. So the pens have no scroll of their own — they grow to hold what is in
+    them (aether-code.js sets the height) and the page scrolls, once.
+
+    Wrapping is on for both. It was off for the stylesheet on the theory that in CSS a line is a
+    line, which is true of rules and false of comments — and a comment is the part of a stylesheet
+    made of sentences. It was the part running off the right edge.  */
+.pen .ink, .pen .raw {
+    margin: 0; padding: 13px 14px; border: 0; min-height: 132px;
+    font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.82rem; line-height: 1.7; tab-size: 2;
+    white-space: pre-wrap; overflow: hidden; overflow-wrap: break-word; word-break: normal;
+}
+
+.pen .ink { position: absolute; inset: 0; pointer-events: none; }
+
+/* The caret is real; the letters are not. color:transparent leaves the caret
+   visible through caret-color, which is the whole reason this works. */
+.pen .raw { position: relative; width: 100%; box-sizing: border-box; display: block;
+            background: transparent; color: transparent; caret-color: currentColor;
+            resize: none; outline: none; overflow: hidden; }
+/* The textarea's own colour is transparent — that is how the caret shows through to the coloured
+   text underneath — and a placeholder inherits it, so "currentColor" here meant an invisible
+   placeholder and an empty white box with no hint of what to type. It takes a colour of its own. */
+.pen .raw::placeholder { color: var(--ink-3, #5b6b7b); }
+.pen:focus-within { border-color: currentColor; }
+
+/* The pen's token colouring lives in wwwroot/css/aether-code.css, not here.
+
+   It has to. This file is scoped, so Blazor rewrites ".c-at" to ".c-at[b-t5i0f0otvb]" and adds that
+   attribute to the elements it rendered — but the spans are made by aether-code.js at runtime and
+   carry nothing but a class. Every rule in here matched no span, and the colouring had never once
+   worked, in either pen, since the day it was written. It looked like a design that had not landed
+   rather than a stylesheet that was never consulted. */
+
+.studio-h.wide { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; }
+/* The one button the document still needs, in the same pill as "See the whole page" — because it
+   belongs to the page being written, not to the chrome around it. */
+/*  The gallery. Real pages, drawn small.
+
+    A name is not a look. "Halftone" and "Void" and "Ribbon" told nobody anything, and the one moment
+    that sells this — tap it and watch your own page become something else — was hidden behind
+    vocabulary. Each of these is the author's page through the same renderer a reader gets. */
+.gal-in { flex: 1 1 auto; overflow: auto; padding: 12px 14px 28px; }
+
+.gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+
+.gal-one { display: flex; flex-direction: column; gap: 6px; padding: 6px; text-align: left;
+           border: 1px solid var(--line-card, rgba(127,140,158,.28)); border-radius: 12px;
+           background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.gal-one.on { border-color: var(--brand, #2196F3); border-width: 2px; padding: 5px; }
+
+.gal-shot { display: block; position: relative; width: 100%; aspect-ratio: 3 / 4;
+            border-radius: 8px; overflow: hidden; background: #fff; }
+.gal-mini { position: absolute; top: 0; left: 0; width: 380px; height: 507px; border: 0;
+            transform: scale(0.33); transform-origin: top left; pointer-events: none; }
+
+.gal-n { font-size: .74rem; font-weight: 700; padding-left: 2px; }
+.gal-h { margin: 22px 0 8px; font-size: .66rem; font-weight: 800; letter-spacing: .2em;
+         text-transform: uppercase; opacity: .5; }
+
+/*  The two that open something, told apart from the ones that change a line. */
+/* Look and Photo lead in the card's accent, not the app's blue. */
+/*  The insert sheet. Slides up from the bottom — the phone convention for "here are more things" —
+    and every option is named and shown, so nothing is a word you have to already understand. */
+.sheet { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end;
+         background: rgba(0,0,0,.32); }
+.sheet-in { width: 100%; background: var(--bg, #fff); border-radius: 22px 22px 0 0;
+            padding: 10px 16px calc(20px + env(safe-area-inset-bottom)); animation: sheet-up 240ms cubic-bezier(0.32,0.72,0,1); }
+.sheet-grip { width: 38px; height: 4px; border-radius: 2px; background: var(--line, rgba(127,140,158,.4));
+              margin: 4px auto 14px; }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+
+.add-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.add { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 6px;
+       border: 1px solid var(--line, rgba(127,140,158,.28)); border-radius: 14px;
+       background: transparent; color: var(--ink, #16232f); font: inherit; cursor: pointer;
+       transition: transform 140ms cubic-bezier(0.23,1,0.32,1), background 140ms ease; }
+.add:active { transform: scale(0.95); background: var(--brand-tint, rgba(33,150,243,.1)); }
+.add-eg { height: 30px; display: grid; place-items: center; font-size: .82rem; opacity: .7; }
+.add-eg.h { font-size: 1.15rem; font-weight: 820; opacity: 1; }
+.add-eg.e { font-size: .6rem; letter-spacing: .18em; font-weight: 800; }
+.add-eg.q { font-size: 1.6rem; font-weight: 800; line-height: 0; }
+.add-eg.t { width: 26px; height: 26px; border-radius: 50%; background: var(--brand,#2196F3); color:#fff; font-weight:800; opacity:1; }
+.add-n { font-size: .72rem; font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+    .sheet-in { animation: none; }
+    .add:active { transform: none; }
+}
+
+/*  The one prominent button. "+" Add is the primary because inserting is the thing you do most, and
+    it leads in the card's accent. */
+.tool-plus { font-size: 1.1rem; font-weight: 800; margin-right: 1px; }
+
+.tool.lead { background: var(--accent, var(--surface, #2196F3)); color: var(--paper, #fff); border-color: transparent; }
+
+/*  The toolbar. It scrolls sideways rather than wrapping, because a toolbar that changes height as
+    you scroll the page is a toolbar that moves the writing under your thumb. */
+.tools { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.tools::-webkit-scrollbar { display: none; }
+.tool-gap { flex: 0 0 auto; width: 1px; margin: 6px 4px; background: var(--rule, currentColor); opacity: .6; }
+
+/*  Every control clears the 44px touch minimum. They were ~30px — comfortable for a cursor, a miss
+    for a thumb, and 21 of 21 failed it. */
+.tool { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+        min-height: 44px; appearance: none;
+        border: 1px solid var(--rule, color-mix(in srgb, currentColor 22%, transparent));
+        background: transparent; color: inherit; font: inherit;
+        font-size: .8rem; font-weight: 700; padding: 0 14px; border-radius: 999px;
+        cursor: pointer; white-space: nowrap; }
+.tool.ico { min-width: 44px; padding: 0 11px; }
+.tool:active { background: var(--brand-tint, rgba(33,150,243,.12)); }
+
+.penbar { display: flex; gap: 8px; margin-top: -8px; margin-bottom: 2px; }
+.pic { display: inline-flex; align-items: center; appearance: none;
+       border: 1px solid currentColor; background: transparent; color: inherit;
+       font: inherit; font-size: 0.76rem; font-weight: 700; padding: 6px 12px;
+       border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.pic.busy { opacity: .55; pointer-events: none; }
+
+.whole { appearance: none; border: 1px solid currentColor; background: transparent; color: inherit;
+         font: inherit; font-size: 0.76rem; font-weight: 700; padding: 6px 12px;
+         border-radius: 999px; cursor: pointer; white-space: nowrap; }
+
+/* ── The page, whole ───────────────────────────────────────────────────────
+
+   A preview in a 46vh window is a swatch. You cannot judge a measure, a
+   leading, or where a page breaks by looking at a third of it — so it gets the
+   whole screen, at the size somebody will actually hold it. */
+.whole-page { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
+              background: var(--bg); }
+.whole-bar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+             gap: 12px; padding: max(env(safe-area-inset-top), 10px) 14px 10px;
+             background: var(--bar); color: var(--on-bar); }
+.whole-t { font-weight: 750; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis;
+           white-space: nowrap; }
+.whole-x { appearance: none; border: 1px solid currentColor; background: transparent; color: inherit;
+           font: inherit; font-size: 0.78rem; font-weight: 700; padding: 6px 12px;
+           border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.whole-in { flex: 1 1 auto; width: 100%; border: 0; background: #fff; }
+
+.told { margin: 0; font-size: 0.78rem; line-height: 1.45; font-weight: 600; }
+
+/*  Destructive, and therefore quiet and out of the way — not a full-weight button sitting under the
+    thumb, next to the one people mean to press. */
+.downrow { display: flex; justify-content: center; margin-top: 26px; }
+.down { appearance: none; background: none; border: 0; padding: 8px 12px;
+        font: inherit; font-size: 0.76rem; font-weight: 600; opacity: .5;
+        text-decoration: underline; text-underline-offset: 3px; cursor: pointer; color: inherit; }
+.down.sure { opacity: 1; font-weight: 800; text-decoration: none; }
+
+/* The page, drawn by the real renderer. Tall enough to be a page rather than a
+   strip — you cannot judge a measure or a leading in 90 pixels. */
+.seen { width: 100%; height: 46vh; border: 1px solid var(--line-card, rgba(127,140,158,.28));
+        border-radius: var(--radius-sm, 10px); background: #fff; }
+
+
+/*  A blank page's one line of help, quiet, gone the moment anything is written. */
+.blank-hint { margin: 4px 2px 0; font-size: .8rem; opacity: .5; }

@@ -20,4 +20,16 @@
     <ProjectReference Include="../AetherNetNodeService.Ipc/AetherNetNodeService.Ipc.csproj" />
   </ItemGroup>
 
+  <!-- The classes that joined from the Aether app. .NET 10 only, as Host's are: they stand on the services that
+       joined Host, which are .NET 10 only. MAUI Essentials and AndroidX as the app had them (through MAUI). -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <UseMauiEssentials>true</UseMauiEssentials>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-android'">
+    <Compile Remove="AetherCallService.cs;AetherDeviceAdmin.cs;AetherIncomingCall.cs;AetherProximityLock.cs;AndroidAppShareService.cs;AndroidAudioIo.cs;AndroidKeystoreVault.cs;AndroidMulticastHold.cs;AndroidVideoIo.cs;GatewayService.cs;LogcatLoggerProvider.cs;ProvisioningModeActivity.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <PackageReference Include="Xamarin.AndroidX.Core" Version="1.16.0.3" />
+  </ItemGroup>
+
 </Project>

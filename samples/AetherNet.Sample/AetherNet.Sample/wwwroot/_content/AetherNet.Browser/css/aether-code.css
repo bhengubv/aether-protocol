@@ -1,0 +1,228 @@
+/* SPDX-License-Identifier: MIT */
+
+/*  Easing, defined where it can be seen.
+
+    These lived in the editor's scoped stylesheet, where Blazor rewrites :root to :root[b-t5i0f0otvb]
+    and it matches nothing at all. The variables were never defined, so every declaration using them
+    was invalid and thrown away — which is why the whole motion pass computed as "all 0s ease" and
+    changed nothing. Third time a scoped sheet has quietly served nothing tonight. */
+:root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/*  The pen's colouring.
+
+    Global on purpose. These spans are made by aether-code.js after Blazor has rendered, so they do
+    not carry a component's scope attribute; a scoped rule for them matches nothing at all. That is
+    exactly what happened — the rules sat in CardEditor.razor.css and were never once applied.
+
+    The palette is three colours, so syntax cannot be a rainbow — and it cannot be weight or size
+    either, because the caret lives in a second layer that has neither. What is left is opacity and a
+    band of colour behind a line, and it turns out that is enough.  */
+
+/*  Told apart without moving a single letter.
+
+    The pen is two layers: coloured text underneath, a transparent textarea on top holding the caret.
+    That only works while both layers have identical metrics — and the first version told tokens apart
+    by weight, which is exactly what breaks it. Measured on the phone: a bold heading came out 155px
+    in the coloured layer against 143px in the textarea, so the caret walked 13px away from the letters
+    by the end of the line.
+
+    So nothing here changes weight, size, spacing or slant. Hierarchy comes from the two properties
+    that cost no width at all: opacity, and a band of colour behind the line. A heading is the line
+    with the light behind it; the marks that make it a heading step back out of the way. */
+
+/* The two layers must agree exactly. 450 here against the textarea's 400 was one pixel of drift per
+   heading — small, but it is the same mistake as the thirteen, and it compounds along a long line. */
+.pen .ink, .pen .raw { font-weight: 450; }
+
+/* Everything a person typed to mean "this is a heading" rather than to be read. */
+.c-mark { opacity: .3; }
+.c-note { opacity: .42; }
+
+.pen.prose .c-h1,
+.pen.prose .c-h2,
+.pen.prose .c-h3 { border-radius: 3px; }
+
+/*  A heading is a field, in the palette's own words: "a card is a blue FIELD, not a white box with
+    blue writing on it". A pale wash behind the words said something else entirely — in every text
+    editor ever made a light band behind a line means it is selected, so the headings read as an
+    accident rather than as structure.
+
+    Three depths of the one colour, which is all a three-colour palette allows and turns out to be
+    all it needs. Background and colour are also the two properties that move nothing, so the caret
+    underneath stays exactly where the letters are.  */
+/*  The field is widened with a shadow rather than padding. Padding on an inline span pushes its own
+    text sideways, and the caret in the layer above does not move with it - which is the drift this
+    whole approach exists to avoid, reintroduced for the sake of a few pixels of breathing room. */
+.pen.prose .c-h1,
+.pen.prose .c-h2,
+.pen.prose .c-h3 { color: var(--on-surface, #fff); }
+
+.pen.prose .c-h1 { background: var(--surface, #2196F3);
+                   box-shadow: .3em 0 0 var(--surface, #2196F3), -.3em 0 0 var(--surface, #2196F3); }
+.pen.prose .c-h2 { background: rgba(33, 150, 243, .82);
+                   box-shadow: .3em 0 0 rgba(33, 150, 243, .82), -.3em 0 0 rgba(33, 150, 243, .82); }
+.pen.prose .c-h3 { background: rgba(33, 150, 243, .58);
+                   box-shadow: .3em 0 0 rgba(33, 150, 243, .58), -.3em 0 0 rgba(33, 150, 243, .58); }
+
+.pen.prose .c-said { background: rgba(33, 150, 243, .09); border-radius: 3px; }
+.pen.prose .c-num  { background: rgba(33, 150, 243, .09); border-radius: 3px; }
+.pen.prose .c-key  { opacity: .55; }
+
+/* The stylesheet is code and reads as code: the parts that are not values recede. */
+.pen:not(.prose) .c-said { opacity: .8; }
+.pen:not(.prose) .c-at   { opacity: .55; }
+.pen:not(.prose) .c-key  { opacity: 1; }
+.pen:not(.prose) .c-num  { opacity: .8; }
+.pen:not(.prose) .c-hue  { background: rgba(33, 150, 243, .14); border-radius: 3px; }
+
+/* The page is written; the stylesheet is coded. They are not the same instrument.
+
+   Both pens started identical: monospace, 0.82rem, white-space:pre and wrap="off". That is right for
+   CSS, where a line is a line and running off the edge is the author's business. It is wrong for
+   prose — every sentence ran past the right edge and had to be scrolled sideways to read, which is
+   not a thing anybody does while writing. And a paragraph set in Menlo reads as output, not as
+   something you are making.
+
+   So the document gets a reading face, a readable size, and wrapping. The ink layer and the textarea
+   must keep identical metrics or the caret drifts away from the letters, so every rule here applies
+   to both. */
+.pen.prose .ink, .pen.prose .raw {
+    font-family: var(--sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+    font-size: 0.95rem; line-height: 1.6;
+    white-space: pre-wrap; overflow-wrap: break-word; word-break: normal;
+    /* No cap and no scroll of its own: aether-code.js grows it to hold the text, and the page
+       scrolls once. A capped box inside a scrolling page is a drag that might move either. */
+    min-height: 260px;
+}
+
+/* Structure you can see at a glance, still without a second colour: the words carry the weight and
+   the marks that make them a heading step back out of the way. */
+.pen.prose .c-said { font-weight: 600; }
+.pen.prose .c-num  { font-weight: 700; font-style: italic; }
+.pen.prose .c-mark { opacity: .35; }
+.pen.prose .c-note { opacity: .45; }
+
+
+/*  ── The page being written ────────────────────────────────────────────────────
+
+    Global, and it has to be: every element in here is made by aether-page.js at runtime, so it
+    carries no component scope attribute and a scoped rule would match none of it. That is the same
+    trap the token colouring sat in for months.
+
+    This is a rich text editor, so a heading is an h2 and it is simply big. Nothing here has to match
+    the metrics of a second layer, because there is no second layer — what you are looking at is the
+    document, not a description of one.  */
+
+/*  The writing you are reading back is black, not blue.
+
+    Measured on the phone, blue body text on white is 3.12:1 — under the 4.5:1 that AA asks for text
+    you actually read, which the ui-ux-design skill anticipates: "use blue-on-white and blue-on-black
+    where pure black/white text feels harsh" means the blue is for accent and selection, and the body
+    is ink. So the paragraphs are black and the blue is spent where it earns its contrast: headings,
+    the accent marks, the things you can act on. This is more readable, not less. */
+.paper { color: #111; }
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .paper { color: #f2f2f2; }
+}
+
+/*  When the paper carries a look, it becomes that look: its ground, its ink, its display face. The
+    fallbacks are the app's own, so a surface with no look still reads. */
+.paper {
+    outline: none;
+    min-height: 300px;
+    padding: 4px 0 30px;
+    color: var(--ink, #111);
+    font-family: var(--body, inherit);
+    font-size: clamp(1rem, 4.3vw, 1.12rem);
+    line-height: var(--leading, 1.6);
+    caret-color: var(--accent, #2196F3);
+}
+
+/*  The whole editing area is the card. The toolbar used to be Aether's blue floating over the page;
+    on the look, everything here is the card's ground and the card's ink, and the controls belong to
+    the paper rather than hovering above it. */
+.studio[data-look] {
+    background: var(--paper, transparent);
+    color: var(--ink, #16232f);
+    margin: 0 -16px;
+    padding: 16px 16px 4px;
+    border-radius: 18px;
+}
+
+.paper > * { margin: 0 0 .8em; }
+
+.paper h1 { color: var(--ink, #2196F3); font-family: var(--display, inherit);
+            font-size: clamp(1.7rem, 8.6vw, 2.6rem); line-height: 1.02; letter-spacing: -.03em;
+            font-weight: 820; margin: .1em 0 .4em; }
+.paper h2 { font-family: var(--display, inherit); font-size: clamp(1.14rem, 5.4vw, 1.5rem); line-height: 1.2; letter-spacing: -.015em;
+            font-weight: 800; margin: 1.3em 0 .35em; }
+.paper h3 { color: var(--accent, #2196F3);
+            font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; font-weight: 800;
+            opacity: 1; margin: 1.7em 0 .55em; }
+
+.paper blockquote { margin: 1em 0; padding-left: .9em; border-left: 2px solid currentColor; opacity: .82; }
+.paper ul, .paper ol { padding-left: 1.15em; margin: .2em 0 .9em; }
+.paper li { margin-bottom: .28em; }
+
+.paper hr { border: 0; height: 1px; background: var(--rule, currentColor); opacity: 1; margin: 1.5em 0; }
+
+.paper figure { margin: 1.1em 0; }
+.paper figure img { display: block; width: 100%; max-height: 320px; object-fit: cover; border-radius: 12px; }
+.paper figcaption { font-size: .78rem; opacity: .6; padding-top: .45em; }
+
+/* An empty page says what to do with itself, once. */
+.paper > p:only-child:empty::before { content: "Your name"; opacity: .3; }
+
+
+/*  How a block is set, shown where it is set. These four have existed in the card model all along
+    and had no control and no appearance in any editor since the wizard went. */
+.paper [data-a="centre"] { text-align: center; }
+.paper [data-as="small"] { font-size: .78em; opacity: .75; }
+.paper [data-as="wide"] { margin-left: -4vw; margin-right: -4vw; }
+.paper figure[data-as="wide"] img { border-radius: 0; max-height: 380px; }
+
+/*  And the kinds that share a tag need telling apart while you are writing them. */
+.paper [data-k="kv"] { display: flex; justify-content: space-between; gap: 1em;
+                       border-bottom: 1px solid currentColor; padding-bottom: .35em; }
+.paper [data-k="tip"] { padding-left: .9em; border-left: 3px solid currentColor; opacity: .9; }
+.paper [data-k="link"] { display: inline-block; border: 1px solid currentColor;
+                         border-radius: 999px; padding: .5em 1.1em; font-weight: 700; }
+
+
+/*  The selection bubble. Appears over what you selected, points at it, disappears when you deselect.
+    This is the whole intuitive move: the tool comes to the text, the text does not go to a ribbon. */
+.sel-bubble {
+    position: fixed; top: 0; left: 0; z-index: 40;
+    display: flex; gap: 2px; padding: 4px;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto; scrollbar-width: none;
+    background: #1a1a1a; border-radius: 12px;
+    box-shadow: 0 6px 22px rgba(0,0,0,.28);
+    opacity: 0; pointer-events: none;
+    transition: opacity 140ms cubic-bezier(0.23,1,0.32,1);
+}
+.sel-bubble.on { opacity: 1; pointer-events: auto; }
+.sel-b {
+    min-width: 38px; height: 38px; padding: 0 12px; border: 0; border-radius: 9px;
+    background: transparent; color: #fff; font-size: .95rem; font-weight: 800; cursor: pointer;
+    white-space: nowrap;
+    transition: background 120ms ease, transform 120ms cubic-bezier(0.23,1,0.32,1);
+}
+/* B, I, U are single glyphs and their weight/slant IS the label; the word buttons are set plain. */
+.sel-b:nth-child(2) { font-style: italic; }
+.sel-b:nth-child(3) { text-decoration: underline; }
+.sel-b:active { transform: scale(0.9); background: rgba(255,255,255,.16); }
+.sel-bubble::-webkit-scrollbar { display: none; }
+
+/* The block settings are the second tier — the same bar, quieter, so bold reads louder than wide. */
+.sel-b.sel-set { font-size: .82rem; font-weight: 600; color: rgba(255,255,255,.72); }
+.sel-gap { flex: 0 0 auto; width: 1px; margin: 6px 5px; background: rgba(255,255,255,.22); }
+
+@media (prefers-reduced-motion: reduce) {
+    .sel-bubble { transition-property: opacity; }
+    .sel-b:active { transform: none; }
+}

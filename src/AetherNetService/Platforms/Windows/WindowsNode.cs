@@ -67,6 +67,8 @@ internal static class WindowsNode
 
         var node = NodeCore.Start(provider);
         _pipe = new PipeNodeServer(() => node, new OpenGrantStore(), logger: logs?.CreateLogger<PipeNodeServer>());
+        // The services that moved here from the app, on their own list, on this node.
+        ServicesCore.Start(provider, node, Directory);
         _pipe.Start();
 
         // Bring the radios up off the launch thread — from here the computer is hosting the mesh. AetherNet switched off:

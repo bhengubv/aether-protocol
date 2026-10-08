@@ -4,18 +4,30 @@ namespace AetherNet.Sample.Shared.Services;
 
 /// <summary>One finished recording: the bytes, what they are, and how long they run.</summary>
 /// <param name="Bytes">The whole clip, container and all — playable by anything that knows the type.</param>
-/// <param name="ContentType">One of the note types on <see cref="Data.ChatMessage"/>.</param>
+/// <param name="ContentType">One of the note types below.</param>
 /// <param name="Duration">How long it runs, so a bubble can say so before playing it.</param>
 public sealed record RecordedNote(byte[] Bytes, string ContentType, TimeSpan Duration)
 {
+    // The note types, spelled exactly as AetherNetService's ChatMessage spells them: the note crosses to the service
+    // with this as its content type, and that is how a chat knows what it is holding.
+
+    /// <summary>A voice note in Ogg Opus.</summary>
+    public const string VoiceNote = "audio/ogg";
+
+    /// <summary>A voice note in AAC, from a phone that cannot write Opus.</summary>
+    public const string VoiceNoteAac = "audio/mp4";
+
+    /// <summary>A short recorded clip with a picture.</summary>
+    public const string VideoNote = "video/mp4";
+
     /// <summary>
     /// A name for the content store. Content is addressed by hash, so this is only a label — but the
     /// extension has to match the container or a player asked to open it will refuse.
     /// </summary>
     public string SuggestedName => ContentType switch
     {
-        Data.ChatMessage.VideoNote => "note.mp4",
-        Data.ChatMessage.VoiceNoteAac => "note.m4a",
+        VideoNote => "note.mp4",
+        VoiceNoteAac => "note.m4a",
         _ => "note.ogg",
     };
 }
@@ -24,7 +36,7 @@ public sealed record RecordedNote(byte[] Bytes, string ContentType, TimeSpan Dur
 /// Recording a note, and nothing else.
 ///
 /// <para>
-/// Deliberately separate from <see cref="IAudioIo"/>, which is the live-call path. A call streams raw
+/// Deliberately separate from <c>IAudioIo</c>, the live-call path in AetherNetService. A call streams raw
 /// frames through a codec this app drives, because it must control latency to the millisecond. A note
 /// is a file: recorded whole into a real container, and played back by the platform's own player.
 /// Sharing one interface between them would force the note to give up its container, or the call to

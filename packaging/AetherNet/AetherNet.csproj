@@ -117,6 +117,26 @@
     <Compile Include="../../src/AetherNetNodeService.Windows/**/*.cs" Exclude="../../src/AetherNetNodeService.Windows/obj/**;../../src/AetherNetNodeService.Windows/bin/**" />
   </ItemGroup>
 
+  <!-- The classes that joined the node from the Aether app are .NET 10 only, as they are in the node's own projects:
+       Host's Services and Data, and twelve of the Android binding's files. -->
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net9.0'))">
+    <Compile Remove="../../src/AetherNetNodeService.Host/Services/**;../../src/AetherNetNodeService.Host/Data/**" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-android'">
+    <Compile Remove="../../src/AetherNetNodeService.Android/AetherCallService.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/AetherDeviceAdmin.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/AetherIncomingCall.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/AetherProximityLock.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/AndroidAppShareService.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/AndroidAudioIo.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/AndroidKeystoreVault.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/AndroidMulticastHold.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/AndroidVideoIo.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/GatewayService.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/LogcatLoggerProvider.cs" />
+    <Compile Remove="../../src/AetherNetNodeService.Android/ProvisioningModeActivity.cs" />
+  </ItemGroup>
+
   <!-- The browser's wwwroot, shipped as static web assets so a host app serves them. A page drawn inside an app
        links its scripts and typefaces by URL, and until 3.3.1 the package carried them only embedded in the
        assembly (for pages handed to a phone with no internet), so an app building on the package had nothing at
@@ -157,6 +177,10 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' or $(TargetFramework.StartsWith('net10.0-'))">
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
+    <PackageReference Include="Concentus" Version="2.2.2" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <PackageReference Include="Xamarin.AndroidX.Core" Version="1.16.0.3" />
   </ItemGroup>
 
 </Project>

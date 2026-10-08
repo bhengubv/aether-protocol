@@ -136,26 +136,8 @@
   </ItemGroup>
 
   <!-- Aether is a thin client of AetherNetService: on Android it binds the separate service app, on Windows it reaches
-       the service's named pipe and finds or starts it through its App Paths entry. The node client for both lives in
-       the AetherNet package's Android and Windows builds, referenced here directly because this head uses it. -->
-  <ItemGroup>
-    <PackageReference Include="AetherNet" Version="3.3.1" />
-  </ItemGroup>
-
-  <!-- NSec's [DllImport("libsodium")] needs a real Android libsodium.so. The transitive
-       libsodium NuGet ships no Android native, so the build otherwise bundles the Linux
-       aarch64 build (which needs libpthread.so.0 — absent on Android) and all crypto fails
-       to load on-device. This is our own arm64-v8a build of libsodium 1.0.20 (NDK r28,
-       ISC-licensed); see Platforms/Android/native/README.md for the reproducible build. -->
-  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <!-- Drop the libsodium NuGet's native assets on Android: it ships only desktop/Linux
-         .so files, and .NET-for-Android wrongly maps the Linux aarch64 build into
-         lib/arm64-v8a (hence XA4301 "already contains … ignoring", clobbering ours).
-         NSec's managed assembly still flows through normally. -->
-    <PackageReference Include="libsodium" Version="1.0.20.1" ExcludeAssets="native" />
-    <AndroidNativeLibrary Include="Platforms\Android\native\arm64-v8a\libsodium.so">
-      <Abi>arm64-v8a</Abi>
-    </AndroidNativeLibrary>
-  </ItemGroup>
+       the service's named pipe and finds or starts it through its App Paths entry. Its line to the service, the install
+       flow and the owner check are the app's own (Platforms/, and Cache/ in the shared project); no AetherNet package,
+       and none of its crypto, is in this app. -->
 
 </Project>

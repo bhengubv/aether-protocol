@@ -1,7 +1,7 @@
 @page "/lab/devices"
-@using AetherNet.Identity
-@using AetherNet.Security.Services
-@using AetherNet.Security.Sync
+@using AetherNet.Sample.Shared.Services.Lab
+@using DeviceState = AetherNet.Sample.Shared.Services.Lab.DevicesLabDemo.DeviceState
+@implements IDisposable
 
 @* Adding a device, and taking one away, with no directory to ask.
 
@@ -114,119 +114,33 @@
 </style>
 
 @code {
-    private byte[] _idPriv = Array.Empty<byte>();
-    private byte[] _idPub = Array.Empty<byte>();
-    private string _userTag = "…";
+    // The demo runs in AetherNetService; this page shows it and passes on what the person does. The identity keys
+    // stay there: this page only sees what each step proved.
+    private DevicesLabDemo _demo = null!;
 
-    private byte[] _bPub = Array.Empty<byte>();
-    private DeviceLink? _link;
-    private RevocationSet _peerRevs = default!;   // a contact's view — no directory, just verified records
+    private string _userTag => _demo.UserTag;
+    private DeviceState _bState => _demo.BState;
+    private string? _linkInfo => _demo.LinkInfo;
+    private string? _forgeLinkInfo => _demo.ForgeLinkInfo;
+    private string? _revInfo => _demo.RevInfo;
+    private string? _forgeRevInfo => _demo.ForgeRevInfo;
+    private string? _reconInfo => _demo.ReconInfo;
+    private IReadOnlyList<DevicesLabDemo.DeviceView> _devices => _demo.Devices;
 
-    private long _linkedAtMs, _revokedAtMs;
-
-    private enum DeviceState { Unlinked, Linked, Revoked }
-    private DeviceState _bState = DeviceState.Unlinked;
-
-    private string? _linkInfo, _forgeLinkInfo, _revInfo, _forgeRevInfo, _reconInfo;
-
-    private sealed record DeviceView(string Name, DeviceState State);
-    private IEnumerable<DeviceView> _devices = Array.Empty<DeviceView>();
-
-    protected override void OnInitialized() => Reset();
-
-    private void Reset()
+    protected override void OnInitialized()
     {
-        var (idPriv, idPub) = Ed25519SigningService.GenerateKeyPair();
-        _idPriv = idPriv; _idPub = idPub;
-        _userTag = AetherNetTag.FromPublicKey(idPub).Value;
-
-        var (_, bPub) = Ed25519SigningService.GenerateKeyPair();
-        _bPub = bPub;
-
-        // The contact only trusts what THIS identity key signed — that is all a RevocationSet admits.
-        _peerRevs = new RevocationSet(_idPub);
-
-        _bState = DeviceState.Unlinked;
-        _link = null;
-        _linkInfo = _forgeLinkInfo = _revInfo = _forgeRevInfo = _reconInfo = null;
-        RefreshDevices();
+        _demo = new DevicesLabDemo();
+        _demo.Changed += OnChanged;
     }
 
-    private void RefreshDevices() => _devices = new[]
-    {
-        new DeviceView("phone-A", DeviceState.Linked),   // the device you are on — the primary
-        new DeviceView("phone-B", _bState),
-    };
+    private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private void Link()
-    {
-        _linkedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        // The user's identity key signs phone-B's public key.
-        _link = DeviceLinkCodec.Create("phone-B", _bPub, _linkedAtMs, _idPriv);
-
-        // A different device verifies that signature before admitting the newcomer.
-        var admitted = DeviceLinkCodec.Verify(_link, _idPub);
-        var bytes = DeviceLinkCodec.Serialize(_link).Length;
-        _bState = admitted ? DeviceState.Linked : DeviceState.Unlinked;
-        _linkInfo = admitted
-            ? $"Signed & serialized ({bytes} bytes, sig {Hex(_link.Signature)}…). Another device verifies it against your identity key: admitted to the self set."
-            : "Verification failed.";
-        RefreshDevices();
-    }
-
-    private void ForgeLink()
-    {
-        // An attacker signs phone-B's key with their OWN identity key, hoping to add a device.
-        var (forgePriv, _) = Ed25519SigningService.GenerateKeyPair();
-        var forged = DeviceLinkCodec.Create("phone-B", _bPub, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), forgePriv);
-        var admitted = DeviceLinkCodec.Verify(forged, _idPub);
-        _forgeLinkInfo = admitted
-            ? "Forged link verified (BAD!)"
-            : "A link signed by any other key is rejected — only your identity key can admit a device.";
-    }
-
-    private void Revoke()
-    {
-        if (_link is null) return;
-        _revokedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        // The same identity key signs a revocation of phone-B.
-        var rev = DeviceRevocationCodec.Create("phone-B", _bPub, _revokedAtMs, "lost", _idPriv);
-
-        // Gossip it to the contact, who verifies the signature itself and drops the device.
-        var accepted = _peerRevs.Ingest(rev);
-        var revoked = _peerRevs.IsRevoked(_bPub);
-        _bState = revoked ? DeviceState.Revoked : _bState;
-        _revInfo = accepted && revoked
-            ? $"Contact ingested the revocation (verified locally) — phone-B is now revoked ({_peerRevs.Count} in its set). Any session keyed to it is refused."
-            : "Revocation not accepted.";
-        RefreshDevices();
-    }
-
-    private void ForgeRevoke()
-    {
-        // A forwarder tries to revoke phone-B with a key that is not the identity key.
-        var (attackerPriv, _) = Ed25519SigningService.GenerateKeyPair();
-        var forged = DeviceRevocationCodec.Create("phone-B", _bPub, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "spite", attackerPriv);
-        var accepted = _peerRevs.Ingest(forged);
-        _forgeRevInfo = accepted
-            ? "Forged revocation accepted (BAD!)"
-            : "A revocation signed by anyone but you is ignored — a forwarder can't revoke someone else's device.";
-    }
-
-    private void Reconcile()
-    {
-        // Membership as last-write-wins sync records for one item: a link, then a later revocation.
-        var t1 = _linkedAtMs != 0 ? _linkedAtMs : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 1000;
-        var t2 = _revokedAtMs != 0 ? _revokedAtMs : t1 + 1000;
-        var linkRec = new SyncRecord(Guid.NewGuid(), "phone-A", SyncOp.Upsert, "device:phone-B", 1, t1, Array.Empty<byte>());
-        var revRec = new SyncRecord(Guid.NewGuid(), "phone-A", SyncOp.Delete, "device:phone-B", 2, t2, Array.Empty<byte>());
-
-        var forward = SyncReconciler.Winner(new[] { linkRec, revRec }).Op;
-        var backward = SyncReconciler.Winner(new[] { revRec, linkRec }).Op;
-        _reconInfo = forward == backward
-            ? $"Fed in either order, the winner is the same record — {forward} — so every device converges on \"phone-B revoked\" with no coordinator."
-            : "Divergent — should never happen.";
-    }
+    private void Reset() => _demo.Reset();
+    private void Link() => _demo.Link();
+    private void ForgeLink() => _demo.ForgeLink();
+    private void Revoke() => _demo.Revoke();
+    private void ForgeRevoke() => _demo.ForgeRevoke();
+    private void Reconcile() => _demo.Reconcile();
 
     private static string StateLabel(DeviceState s) => s switch
     {
@@ -235,5 +149,9 @@
         _ => "not linked",
     };
 
-    private static string Hex(byte[] b) => Convert.ToHexString(b.AsSpan(0, 8));
+    public void Dispose()
+    {
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
+    }
 }

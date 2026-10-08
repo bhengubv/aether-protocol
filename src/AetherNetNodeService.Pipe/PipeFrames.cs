@@ -20,8 +20,14 @@ internal readonly record struct PipeFrame(byte Kind, int Id, byte[] Body);
 /// </summary>
 internal static class PipeFrames
 {
-    /// <summary>The kind of an answer. Calls are 1 and up, pushes 100 and up (<see cref="NodeOp"/>).</summary>
+    /// <summary>The kind of an answer. Calls are 1 and up, pushes 100 to 199 (<see cref="NodeOp"/>).</summary>
     public const byte Answer = 0;
+
+    /// <summary>
+    /// The kind of a call whose number is above 254, so does not fit in the kind's one byte: the number travels as the
+    /// body's first 4 bytes (little-endian), before the argument. A call numbered 254 or below travels as it always has.
+    /// </summary>
+    public const byte Wide = 255;
 
     /// <summary>The most one frame may carry. A message is far smaller; more than this is a broken peer.</summary>
     public const int MaxBody = 16 * 1024 * 1024;
@@ -73,6 +79,12 @@ internal static class PipeFrames
         await stream.ReadExactlyAsync(rest, cancellationToken).ConfigureAwait(false);
         return new PipeFrame(rest[0], BinaryPrimitives.ReadInt32LittleEndian(rest.AsSpan(1)), rest.AsSpan(HeadSize).ToArray());
     }
+
+    /// <summary>A call's number and argument, whichever way it travelled.</summary>
+    public static (int Op, byte[] Argument) Call(PipeFrame frame)
+        => frame.Kind == Wide && frame.Body.Length >= 4
+            ? (BinaryPrimitives.ReadInt32LittleEndian(frame.Body), frame.Body.AsSpan(4).ToArray())
+            : (frame.Kind, frame.Body);
 
     public static byte[] Ok(byte[] result)
     {

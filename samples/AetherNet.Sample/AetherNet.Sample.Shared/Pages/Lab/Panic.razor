@@ -1,5 +1,6 @@
 @page "/lab/panic"
-@using AetherNet.Security.Privacy
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
 
 @* The duress PIN that turns the keys to noise.
 
@@ -50,7 +51,7 @@
                 </div>
             }
         </div>
-        <div class="pan-more">+ up to @PanicWipe.MaxPreKeys one-time and @PanicWipe.MaxPreKeys signed pre-keys (@ExampleNames)</div>
+        <div class="pan-more">+ up to @_maxPreKeys one-time and @_maxPreKeys signed pre-keys (@ExampleNames)</div>
     </section>
 
     <section class="pan-unlock">
@@ -71,7 +72,7 @@
             {
                 <div class="pan-out-body">
                     <div class="pan-manifest">Wipe manifest: <b>@_manifestCount</b> key-store entries destroyed
-                        — @PanicWipe.IdentityKeyNames.Count identity keys and @(PanicWipe.MaxPreKeys * 2) numbered pre-keys.</div>
+                        — @_identityKeyCount identity keys and @(_maxPreKeys * 2) numbered pre-keys.</div>
                     <div class="pan-erase">
                         <div class="pan-erase-k">SecureErase on <span class="mono">@_erasedName</span> — overwritten with random, then zeroed:</div>
                         <div class="pan-erase-row"><span>before</span><span class="mono">@_eraseBefore…</span></div>
@@ -132,86 +133,40 @@
 </style>
 
 @code {
-    private string _duressPin = "";
-    private byte[]? _duressHash;
-    private string _hashHex = "";
-    private bool _armed;
+    // The demo runs in AetherNetService; this page shows it and passes on what the person does.
+    private PanicLabDemo _demo = null!;
 
-    private string _unlockPin = "";
+    private string _duressPin { get => _demo.DuressPin; set => _demo.DuressPin = value; }
+    private string _hashHex => _demo.HashHex;
+    private bool _armed => _demo.Armed;
+    private string _unlockPin { get => _demo.UnlockPin; set => _demo.UnlockPin = value; }
+    private IReadOnlyList<PanicLabDemo.EntryView> _store => _demo.Store;
+    private bool _wiped => _demo.Wiped;
+    private string? _outcome => _demo.Outcome;
+    private int _manifestCount => _demo.ManifestCount;
+    private string _erasedName => _demo.ErasedName;
+    private string _eraseBefore => _demo.EraseBefore;
+    private string _eraseAfter => _demo.EraseAfter;
+    private int _maxPreKeys => _demo.MaxPreKeys;
+    private int _identityKeyCount => _demo.IdentityKeyCount;
+    private string ExampleNames => _demo.ExampleNames;
 
-    private readonly List<Entry> _store = new();
-    private bool _wiped;
-    private string? _outcome;
-    private int _manifestCount;
-    private string _erasedName = "", _eraseBefore = "", _eraseAfter = "";
-
-    private sealed class Entry
+    protected override void OnInitialized()
     {
-        public required string Name { get; init; }
-        public required byte[] Material { get; init; }
-        public bool Alive { get; set; } = true;
+        _demo = new PanicLabDemo();
+        _demo.Changed += OnChanged;
     }
 
-    private string ExampleNames => $"{PanicWipe.PreKeyName(0)}, {PanicWipe.SignedPreKeyName(0)}, …";
+    private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    protected override void OnInitialized() => Reset();
+    private void Reset() => _demo.Reset();
+    private void Arm() => _demo.Arm();
+    private void Unlock() => _demo.Unlock();
+    private static string Preview(PanicLabDemo.EntryView e) => e.Preview;
 
-    private void Reset()
+    public void Dispose()
     {
-        _duressPin = ""; _duressHash = null; _hashHex = ""; _armed = false;
-        _unlockPin = ""; _wiped = false; _outcome = null;
-        _store.Clear();
-        // The real identity manifest, each entry filled with random demo bytes standing in for a key.
-        foreach (var name in PanicWipe.IdentityKeyNames)
-            _store.Add(new Entry { Name = name, Material = Rand(32) });
-    }
-
-    private void Arm()
-    {
-        if (string.IsNullOrWhiteSpace(_duressPin)) return;
-        // Kept only as its SHA-256 — the PIN never lands on disk.
-        _duressHash = PanicWipe.DuressPinHash(_duressPin);
-        _hashHex = Convert.ToHexString(_duressHash);
-        _armed = true;
-        _outcome = null;
-    }
-
-    private void Unlock()
-    {
-        if (_duressHash is null) return;
-        // Constant-time compare of the entered PIN against the stored duress hash.
-        if (PanicWipe.VerifyDuressPin(_unlockPin, _duressHash))
-            Wipe();
-        else
-            _outcome = "Unlocked normally. This was not the duress PIN, so the keys are intact.";
-    }
-
-    private void Wipe()
-    {
-        // Prove the erase on the first entry: snapshot it, erase it, snapshot again.
-        var first = _store[0];
-        _erasedName = first.Name;
-        _eraseBefore = Convert.ToHexString(first.Material.AsSpan(0, 8));
-
-        foreach (var e in _store)
-        {
-            // Real secure-erase: overwrite with random, then zero. Best-effort, defence in depth.
-            PanicWipe.SecureErase(e.Material);
-            e.Alive = false;
-        }
-
-        _eraseAfter = Convert.ToHexString(first.Material.AsSpan(0, 8));
-        _manifestCount = PanicWipe.IdentityKeyNames.Count + PanicWipe.MaxPreKeys * 2;
-        _wiped = true;
-        _outcome = "Duress PIN entered — the identity has been wiped.";
-    }
-
-    private string Preview(Entry e) => Convert.ToHexString(e.Material.AsSpan(0, 4));
-
-    private static byte[] Rand(int n)
-    {
-        var b = new byte[n];
-        Random.Shared.NextBytes(b);
-        return b;
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
     }
 }

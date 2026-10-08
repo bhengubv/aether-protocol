@@ -1,16 +1,21 @@
 ﻿using Microsoft.Extensions.Logging;
-using AetherNet.Browser;
-using AetherNet.Content;
-using AetherNet.Content.Sqlite;
-using AetherNet.Sample.Shared.Data;
+using AetherNet.Sample.Shared.Cache;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Services;
-using AetherNetNodeService.Host;
 using ZXing.Net.Maui;
 using ZXing.Net.Maui.Controls;
 
 namespace AetherNet.Sample;
 
+/// <summary>
+/// The app's start-up: it starts the app, and calls AetherNetService.
+/// </summary>
+/// <remarks>
+/// Aether is a thin client. Everything it shows comes from AetherNetService, a separate app (a service on a computer),
+/// through one menu of requests (<c>NodeOp</c>): the classes its pages are handed keep their names, and each of their
+/// members is one line on that menu. What is here is what only the app can do — its screen, its camera and
+/// microphone, the phone's share sheet and file picker, and getting AetherNetService onto the device when it is not.
+/// </remarks>
 public static class MauiProgram
 {
     /// <summary>The separate AetherNetService app this app connects to for its identity (Android's package).</summary>
@@ -30,44 +35,31 @@ public static class MauiProgram
         // Add device-specific services used by the AetherNet.Sample.Shared project
         builder.Services.AddSingleton<IFormFactor, FormFactor>();
 
-        // Everything durable lives beside the app's own data, so it survives a restart and goes away
-        // cleanly when the app is uninstalled.
-        var dataDir = FileSystem.AppDataDirectory;
-        builder.Services.AddSingleton(_ => new AetherStore(Path.Combine(dataDir, "aether.db")));
-        // CircleDirectory and ProxyDirectory take their persistence as a seam (AetherNet.Mesh); the
-        // device's AetherStore implements both, so they read/write the same on-device SQLite database.
-        builder.Services.AddSingleton<IPeerRoutingKeyStore>(sp => sp.GetRequiredService<AetherStore>());
-        builder.Services.AddSingleton<IProxyDirectoryStore>(sp => sp.GetRequiredService<AetherStore>());
-        builder.Services.AddSingleton<IContentStore>(_ => new SqliteContentStore(Path.Combine(dataDir, "content.db")));
-
-        // The identity key is sealed by the phone's secure hardware where there is any.
+        // The app's line to AetherNetService: a bind on a phone, its named pipe on a computer. The same line says whether
+        // AetherNetService is on the device at all, for the install flow below.
 #if ANDROID
-        builder.Services.AddSingleton<ISecretVault>(_ =>
-            new AetherNet.Sample.Platforms.Android.AndroidKeystoreVault(Path.Combine(dataDir, "vault")));
+        builder.Services.AddSingleton<AetherNet.Sample.Platforms.Android.AndroidServiceCall>();
+        builder.Services.AddSingleton<IServiceCall>(sp => sp.GetRequiredService<AetherNet.Sample.Platforms.Android.AndroidServiceCall>());
+#elif WINDOWS
+        builder.Services.AddSingleton<AetherNet.Sample.Platforms.Windows.WindowsServiceCall>();
+        builder.Services.AddSingleton<IServiceCall>(sp => sp.GetRequiredService<AetherNet.Sample.Platforms.Windows.WindowsServiceCall>());
 #else
-        builder.Services.AddSingleton<ISecretVault>(_ => new FileSecretVault(Path.Combine(dataDir, "vault")));
+        // AetherNetService does not run on this device (an iPhone, a Mac), and the line says so to whatever asks.
+        builder.Services.AddSingleton<IServiceCall, NoServiceCall>();
 #endif
-        // Aether runs no radios of its own. On Android the radios belong to AetherNetService — so ask the node what
-        // it has, rather than this app, which has none. Asking itself told somebody holding a Pixel that radios only
-        // exist on a phone, and the setup wizard then never offered the permission its radios were waiting for.
-        builder.Services.AddSingleton<IRadioSetup>(sp =>
-            sp.GetService<AetherNetNodeService.IAetherNodeClient>() is { } node
-                ? new AetherNetNodeService.Client.NodeRadioSetup(
-                    node, sp.GetService<AetherNetNodeService.Client.IAetherNetServiceSettings>())
-                : new NullRadioSetup());
 
-#if ANDROID || WINDOWS
-        // The device's identity belongs to AetherNetService — a separate app, with no UI. Aether is a thin
-        // client: it never mints and never holds a key. It connects to the service and asks: by binding on a
-        // phone, by AetherNetService's named pipe on a computer (NodeConnector).
+        // The menu, and every class the pages are handed that answers from it.
+        builder.Services.AddServiceMenu();
+        // The node itself, as the pages that ask it directly see it: its link, its radios, its switch.
         builder.Services.AddSingleton<AetherNetNodeService.IAetherNodeClient>(sp =>
-            new AetherNetNodeService.Client.BoundNodeClient(NodeConnector(), ConnectionLog(sp)));
-        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
-            new AetherNetNodeService.Client.NodeClientIdentity(sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>()));
-#endif
+            new AetherNetNodeService.NodeFromService(sp.GetRequiredService<ServiceMenu>()));
+
+        // A call on this app's screen: the service's call drives the camera and the pictures here.
+        builder.Services.AddSingleton<CallScreen>();
+
 #if ANDROID
-        // Backup: the phone confirms its owner (its own fingerprint, PIN or pattern screen), then this app asks
-        // the service for the 24 words and shows them. Restore is not available from here yet.
+        // Backup: the phone confirms its owner (its own fingerprint, PIN or pattern screen), then this app asks the
+        // service for the 24 words and shows them. Restore is not available from here yet.
         builder.Services.AddSingleton<AetherNetNodeService.Client.IOwnerCheck>(_ =>
             new AetherNetNodeService.Android.AndroidOwnerCheck(() => Microsoft.Maui.ApplicationModel.Platform.CurrentActivity));
         // AetherNetService has no screen to ask for the radios' permission from, so this app offers the way to its
@@ -78,12 +70,12 @@ public static class MauiProgram
         // And when the phone does not have AetherNetService at all — Touch My Blood hands over Aether alone — Aether asks
         // for it before anything else: from SleptOn, checked to be AetherNetService signed like Aether, and given to the
         // phone's own installer for the person to confirm.
-        builder.Services.AddSingleton(_ =>
+        builder.Services.AddSingleton(sp =>
         {
             var context = global::Android.App.Application.Context;
             void Log(string line) => global::Android.Util.Log.Info("AetherInstall", line);
             return new AetherNetNodeService.Client.NodeInstallFlow(
-                ServiceConnector(new AetherNetNodeService.Android.AndroidNodeConnector(context, AetherNetServicePackage)),
+                ServiceConnector(sp.GetRequiredService<AetherNet.Sample.Platforms.Android.AndroidServiceCall>()),
                 new AetherNetNodeService.Client.SleptOnPackageStore(new HttpClient(), AetherNetServicePackage, StoreApi()),
                 new AetherNetNodeService.Android.AndroidNodePackageVerifier(context, AetherNetServicePackage),
                 new AetherNetNodeService.Android.AndroidNodePackageInstaller(context, Log),
@@ -106,7 +98,7 @@ public static class MauiProgram
             var log = sp.GetService<ILoggerFactory>()?.CreateLogger("AetherInstall");
             void Log(string line) => log?.LogInformation("{Line}", line);
             return new AetherNetNodeService.Client.NodeInstallFlow(
-                ServiceConnector(new AetherNetNodeService.Pipe.PipeNodeConnector(new AetherNetNodeService.Windows.WindowsNodeLauncher())),
+                ServiceConnector(sp.GetRequiredService<AetherNet.Sample.Platforms.Windows.WindowsServiceCall>()),
                 new AetherNetNodeService.Client.SleptOnPackageStore(new HttpClient(), AetherNetServicePackage, StoreApi(), platform: "windows"),
                 new AetherNetNodeService.Windows.WindowsNodePackageVerifier(allowUnsigned: IsDebugBuild),
                 new AetherNetNodeService.Windows.WindowsNodePackageInstaller(Log),
@@ -114,291 +106,39 @@ public static class MauiProgram
         });
 #endif
 #if ANDROID || WINDOWS
+        // The 24 words are the node's, asked for only after the owner check above says yes.
         builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
-            new AetherNetNodeService.Client.NodeClientRecovery(
-                sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>(),
+            new AetherNet.Identity.NodeIdentityRecoveryFromService(
+                sp.GetRequiredService<ServiceMenu>(),
                 sp.GetRequiredService<AetherNetNodeService.Client.IOwnerCheck>()));
-#else
-        // No AetherNetService to connect to on this head (iOS, Mac), so the node runs in-process. This app does not
-        // mint an identity — it asks, and the node mints only if this device has never had one.
-        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityStore>(sp =>
-            new VaultNodeIdentityStore(sp.GetRequiredService<ISecretVault>()));
-        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
-            new AetherNet.Identity.NodeIdentity(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
-        // Identity portability over the SAME device store, so the recovery phrase restores the exact tag
-        // this device shows. Powers the "Back up your identity" card in Settings.
-        builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
-            new AetherNet.Identity.NodeIdentityRecovery(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
 #endif
-        builder.Services.AddSingleton<IIdentityService, IdentityService>();
 
-        // The panic-wipe trigger: a duress PIN, or a direct Wipe() call, erases the identity key
-        // (via ISecretVault.Remove) and the whole local database (AetherStore.WipeAll).
-        builder.Services.AddSingleton<PanicWipeService>();
-
-        // Memorable names for tags, persisted in this device's own SQLite settings.
-        builder.Services.AddSingleton<AetherNet.Identity.IPetnameStore>(sp =>
-            new AetherStorePetnameStore(sp.GetRequiredService<AetherStore>()));
-        builder.Services.AddSingleton(sp =>
-            new AetherNet.Identity.PetnameRegistry(sp.GetRequiredService<AetherNet.Identity.IPetnameStore>()));
-
-        // The people this device knows, and the add/be-added handshake.
-        builder.Services.AddSingleton<ContactService>();
-        // ...handed to the node, so its radios know whom to reach (a node with no radios ignores it).
-        builder.Services.AddSingleton<NodeContactSync>();
+        // A scanned invite and a tap arrive at the activity, which the system builds rather than the container; these
+        // are where it hands them over (see the start-up below).
         builder.Services.AddSingleton<InviteLinks>();
         builder.Services.AddSingleton<Taps>();
 
-        // Real end-to-end encrypted messaging over the radio: Signal's X3DH + double ratchet, with
-        // pre-key bundles exchanged over the mesh itself.
-        // Sessions are kept in the device database, so a conversation survives the app closing. Without
-        // this the ratchet starts from nothing on every launch and two phones diverge into separate
-        // sessions for the same pair — which fails every message on its authentication tag and reads
-        // exactly like broken crypto.
-        builder.Services.AddSingleton<AetherNet.Security.Services.ISignalSessionBlobStore>(sp =>
-            new StoredSignalSessions(sp.GetRequiredService<AetherStore>()));
-        builder.Services.AddSingleton<AetherNet.Security.Services.ISignalProtocolService>(sp =>
-            new AetherNet.Security.Services.SignalProtocolService(
-                sp.GetRequiredService<ILogger<AetherNet.Security.Services.SignalProtocolService>>(),
-                sp.GetRequiredService<AetherNet.Security.Services.ISignalSessionBlobStore>()));
-        builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
-            new AetherNet.PreKeys.PreKeyExchangeService(
-                new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
-                    sp.GetRequiredService<IRadioMesh>())));
-
-        // The reliable messaging core, shared with every host of the protocol. Chat and group ride this
-        // now instead of a hand-rolled copy: sealing (Signal, over the app's one session store via the
-        // envelope cipher), the outbox, retries, delivery receipts and the queue-never-plaintext rule all
-        // live here once. The transport is the app's own radio; routing is one hop because the radio has
-        // exactly one link and a third node carries anything further (the relay). Rotating ERIDs are the
-        // resolver's job — inbound, the dispatcher turns them back into stable tags before the core keys
-        // the ratchet on them.
-        builder.Services.AddSingleton<AetherNet.Messaging.IMessageEnvelopeCipher>(sp =>
-            new AetherNet.Messaging.SignalMessageEnvelopeCipher(
-                sp.GetRequiredService<AetherNet.Security.Services.ISignalProtocolService>(),
-                sp.GetService<ILogger<AetherNet.Messaging.SignalMessageEnvelopeCipher>>()));
-        builder.Services.AddSingleton<AetherNet.Routing.IMeshSender>(sp =>
-            new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
-                sp.GetRequiredService<IRadioMesh>()));
-        builder.Services.AddSingleton<AetherNet.Routing.IRoutingService, OneHopRoutingService>();
-#if ANDROID || WINDOWS
-        // No mesh of its own: recognising contacts behind rotating addresses needs the routing key, which
-        // lives in AetherNetService. So this app recognises nobody and relays for nobody.
-        builder.Services.AddSingleton<AetherNet.Routing.IWireAddressResolver>(sp =>
-            new NoMeshWireAddressResolver(sp.GetRequiredService<IIdentityService>()));
-#else
-        builder.Services.AddSingleton<AetherNet.Routing.IWireAddressResolver>(sp =>
-            new CircleDirectoryWireResolver(sp.GetRequiredService<CircleDirectory>(),
-                sp.GetRequiredService<IIdentityService>()));
-#endif
-        // Delay-tolerant store-and-forward, wired at last. A message to someone who is not reachable right
-        // now is handed to this layer as a sealed bundle rather than left stuck: it is stored on disk (so
-        // it survives an app restart), delivered directly when the recipient reappears within its TTL, and
-        // replicated to a connected peer who can carry it nearer. The bundle store is a plain file-backed
-        // key/value store under the app's data directory; the mesh sender is the same one radio. There is
-        // no central relay in this — the backend fallback is deliberately OFF, decentralisation first.
-        builder.Services.AddSingleton<AetherNet.Dtn.IDtnService>(sp =>
-            new AetherNet.Dtn.DtnService(
-                sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
-                new AetherNet.Storage.KeyValueDtnBundleStore(
-                    new AetherNet.Storage.FileSystemKeyValueStore(Path.Combine(dataDir, "dtn"))),
-                logger: sp.GetService<ILogger<AetherNet.Dtn.DtnService>>()));
-
-#if ANDROID || WINDOWS
-        // Aether's messaging goes through AetherNetService: the service seals, holds and delivers; chat keeps
-        // its conversations and receipts. The node reports delivery back under chat's own message ids.
-        builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
-            new AetherNetNodeService.Client.NodeBackedMessaging(sp.GetRequiredService<AetherNetNodeService.IAetherNodeClient>()));
-#else
-        builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
-            new AetherNet.Messaging.MessagingService(
-                sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
-                sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
-                cipher: sp.GetRequiredService<AetherNet.Messaging.IMessageEnvelopeCipher>(),
-                dtn: sp.GetRequiredService<AetherNet.Dtn.IDtnService>(),
-                // DTN fallback ON so an unreachable recipient's message is carried, not dropped; backend
-                // relay OFF because a central relay is exactly the chokepoint this network refuses.
-                options: new AetherNet.Messaging.MessagingOptions { EnableDtnFallback = true, EnableBackendRelay = false },
-                logger: sp.GetService<ILogger<AetherNet.Messaging.MessagingService>>()));
-#endif
-        builder.Services.AddSingleton<AetherNet.Messaging.MeshInboundDispatcher>(sp =>
-            new AetherNet.Messaging.MeshInboundDispatcher(
-                sender: sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
-                messaging: sp.GetRequiredService<AetherNet.Messaging.IMessagingService>(),
-                routing: sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
-                resolver: sp.GetRequiredService<AetherNet.Routing.IWireAddressResolver>(),
-                dtn: sp.GetRequiredService<AetherNet.Dtn.IDtnService>(),
-                logger: sp.GetService<ILogger<AetherNet.Messaging.MeshInboundDispatcher>>()));
-
-        // Capability negotiation, wired at last. Two phones exchange, on first contact, the protocol
-        // features AND the transports each can carry (Hello/HelloAck), and keep the intersection — the
-        // library already does this and was simply never switched on here. The advertised set is the
-        // library defaults plus THIS device's own carrying radios, surveyed from the hardware, so a
-        // phone with Wi-Fi Aware silicon says so and one without it does not. The radio choice then
-        // prefers a transport the peer can actually receive on rather than the one that merely measures
-        // widest on this handset. The Hello/HelloAck handlers and the link/negotiated wiring are hung
-        // on in the "negotiation" warm-up below, where the mesh and dispatcher already exist.
-        builder.Services.AddSingleton<AetherNet.Handshake.IHandshakeService>(sp =>
-        {
-            var caps = new HashSet<string>(
-                AetherNet.Handshake.HandshakeService.DefaultCapabilities, StringComparer.Ordinal);
-            foreach (var radio in sp.GetRequiredService<IRadioInventory>().Survey())
-                if (radio.Carries &&
-                    AetherNet.Transport.Services.TransportCapability.TagFor(radio.Name) is { } tag)
-                    caps.Add(tag);
-
-            return new AetherNet.Handshake.HandshakeService(
-                sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
-                sp.GetService<ILogger<AetherNet.Handshake.HandshakeService>>(),
-                ourCapabilities: caps);
-        });
-
-        builder.Services.AddSingleton<ChatService>(sp => new ChatService(
-            sp.GetRequiredService<AetherStore>(),
-            sp.GetRequiredService<IIdentityService>(),
-            sp.GetRequiredService<AetherNet.Security.Services.ISignalProtocolService>(),
-            sp.GetRequiredService<AetherNet.PreKeys.IPreKeyExchangeService>(),
-            sp.GetRequiredService<AetherNet.Messaging.IMessagingService>(),
-            sp.GetRequiredService<AetherNet.Messaging.MeshInboundDispatcher>(),
-            sp.GetService<IRadioMesh>(),
-            sp.GetService<AttachmentService>(),
-            sp.GetService<CircleDirectory>(),
-            sp.GetService<ProxyDirectory>(),
-            sp.GetService<IAppShareService>(),
-            sp.GetService<IRelayHost>(),
-            sp.GetService<FastRadioService>(),
-            sp.GetService<ILoggerFactory>()));
-
-        // Emergency SOS on the real mesh — a reachable feature now, not just a Lab demo. Primed at
-        // warm-up (below) so it hears alerts before any screen is opened.
-        // Quiet help, as a screen sees it: a thin client over the node, which owns the session and the trail.
-        builder.Services.AddSingleton(sp => new QuietHelpService(
-            sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
-            sp.GetService<ILoggerFactory>()));
-
-        // Aether Aware, the same way: the node hears and names, this only shows what it was told.
-        builder.Services.AddSingleton(sp => new AwareService(
-            sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
-            sp.GetService<ILoggerFactory>()));
-
-        builder.Services.AddSingleton<SosService>(sp => new SosService(
-            sp.GetRequiredService<IIdentityService>(),
-            sp.GetService<IRadioMesh>(),
-            sp.GetService<ILoggerFactory>()));
-
-        // Watch together on the real mesh — WatchService wraps the sync engine with the actual radio.
-        // Primed at warm-up so a watch invite is heard before its player is ever opened.
-        builder.Services.AddSingleton<WatchService>(sp => new WatchService(
-            sp.GetRequiredService<IIdentityService>(),
-            sp.GetService<IRadioMesh>(),
-            sp.GetService<ILoggerFactory>()));
-
-        // Cast a video to a bigger screen. Two roads under one picker: a smart TV on the Wi-Fi driven over
-        // the open UPnP/DLNA standard (no Google Cast), or an Aether device over the mesh (which reuses the
-        // watch-together engine — and is how a TV that runs the Aether node service would appear too).
-#if ANDROID
-        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.IMulticastHold,
-            AetherNet.Sample.Platforms.Android.AndroidMulticastHold>();
-#else
-        // Only Android drops multicast to save battery; elsewhere there is nothing to hold.
-        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.IMulticastHold,
-            AetherNet.Sample.Shared.Services.Cast.NoMulticastHold>();
-#endif
-        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.DlnaCastService>(sp =>
-            new AetherNet.Sample.Shared.Services.Cast.DlnaCastService(
-                sp.GetService<AttachmentService>(),
-                sp.GetService<AetherNet.Sample.Shared.Services.Cast.IMulticastHold>(),
-                sp.GetService<ILogger<AetherNet.Sample.Shared.Services.Cast.DlnaCastService>>()));
-        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.CastService>(sp =>
-            new AetherNet.Sample.Shared.Services.Cast.CastService(
-                sp.GetRequiredService<ContactService>(),
-                sp.GetRequiredService<WatchService>(),
-                sp.GetRequiredService<AetherNet.Sample.Shared.Services.Cast.DlnaCastService>(),
-                sp.GetService<IRadioMesh>(),
-                sp.GetService<ILogger<AetherNet.Sample.Shared.Services.Cast.CastService>>()));
-
-        // Aether AS a screen: a UPnP MediaRenderer so any caster on the Wi-Fi (another Aether phone, a PC,
-        // a TV's "play to") can send a video to THIS phone — no third-party renderer app, no Google. This
-        // is also the software a TV dongle running Aether would use to be a cast target.
-        builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.Cast.UpnpRendererService>(sp =>
-            new AetherNet.Sample.Shared.Services.Cast.UpnpRendererService(
-                sp.GetService<AetherNet.Sample.Shared.Services.Cast.IMulticastHold>(),
-                sp.GetService<ILogger<AetherNet.Sample.Shared.Services.Cast.UpnpRendererService>>()));
-
-        // The carry loop for delay-tolerant delivery. It re-attempts delivery + sweeps expired bundles on
-        // a gentle cadence and the instant a peer appears, and bridges a bundle delivered to us back into
-        // the reliable core to be decrypted and shown in chat. Primed at warm-up so a message left for us
-        // while we were away is picked up as soon as we are back on the mesh.
-        builder.Services.AddSingleton<DtnCarrierService>(sp => new DtnCarrierService(
-            sp.GetRequiredService<AetherNet.Dtn.IDtnService>(),
-            sp.GetRequiredService<AetherNet.Messaging.IMessagingService>(),
-            sp.GetRequiredService<IIdentityService>(),
-            sp.GetService<IRadioMesh>(),
-            sp.GetService<ILogger<DtnCarrierService>>()));
-
-        // Who, out of everyone broadcasting nearby, this phone already knows. Nothing else can answer
-        // that question about a rotating address, and without an answer the only way to find out is
-        // to dial a stranger and see who picks up. Where there is an AetherNetService that is its job, not this app's.
-#if !ANDROID && !WINDOWS
-        builder.Services.AddSingleton<CircleDirectory>();
-#endif
-
-        // Which phone in the Circle is carrying traffic for the others, and where to reach it. There
-        // is no directory to look this up in by design — the address arrives from a contact, inside
-        // their session, or not at all.
-        // What this device actually has, measured against everything AetherNet can use.
-        builder.Services.AddSingleton<IRadioInventory, NullRadioInventory>();
         // What the person chose in Settings, applied to the shell as well as the page.
 #if ANDROID
         builder.Services.AddSingleton<IAppTheme, AetherNet.Sample.Platforms.Android.AndroidAppTheme>();
 #else
         builder.Services.AddSingleton<IAppTheme, NullAppTheme>();
 #endif
-        builder.Services.AddSingleton<ProxyDirectory>();
 
-        // The app carries itself: a mesh that needs a store to spread has a single point of
-        // failure standing in front of its very first step.
-#if ANDROID
-        builder.Services.AddSingleton<IAppShareService, AetherNet.Sample.Platforms.Android.AndroidAppShareService>();
-#else
-        // Handing the app over is handing over an installable package — a phone's.
-        builder.Services.AddSingleton<IAppShareService, NoAppShare>();
-#endif
-
-        // Touch My Blood: the phone becomes an NFC tag for as long as somebody is offering, and the
-        // handout is the small web server that the tap points at. One singleton each — the tap is
-        // armed and disarmed by the screen, and the handout expires on its own.
+        // Touch My Blood: the phone becomes an NFC tag for as long as somebody is offering. The tap is armed and
+        // disarmed by the screen; what it points at is AetherNetService's handout.
 #if ANDROID
         builder.Services.AddSingleton<ITapShare, AetherNet.Sample.Platforms.Android.AndroidTapShare>();
 #else
         builder.Services.AddSingleton<ITapShare, NoTapShare>();
 #endif
-        builder.Services.AddSingleton<AppHandout>();
-#if ANDROID
-        builder.Services.AddSingleton<AetherNet.Sample.Platforms.Android.GatewayService>(sp =>
-            new AetherNet.Sample.Platforms.Android.GatewayService(
-                sp.GetRequiredService<ProxyDirectory>(),
-                // Resolved when it is called, not when it is built — chat holds the gateway, so
-                // asking for chat here would be two singletons each waiting on the other.
-                (url, ct) => sp.GetRequiredService<ChatService>().OfferProxyToCircleAsync(url, ct),
-                sp.GetService<ILogger<AetherNet.Sample.Platforms.Android.GatewayService>>()));
-        builder.Services.AddSingleton<IRelayHost>(sp =>
-            sp.GetRequiredService<AetherNet.Sample.Platforms.Android.GatewayService>());
-#endif
 
-        // The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
-        // transfer resumes across a dropped link and works on a radio far too slow for a call.
-        builder.Services.AddSingleton<AttachmentService>();
-
-        // Brings the whole product up before the app opens — see WarmUpService. Singleton, because a
-        // second warm-up would be a second set of radios coming up underneath the first.
-        builder.Services.AddSingleton<WarmUpService>();
-
-        // Recording a note. The microphone and camera are physical, so like the call path this is real
-        // only on the phone; elsewhere it says no rather than recording nothing.
+        // Recording a note. The microphone and camera are physical, so this is real only on the phone; elsewhere it
+        // says no rather than recording nothing. A call holds the microphone, so the recorder asks the call screen.
 #if ANDROID
         builder.Services.AddSingleton<IMediaCapture>(sp =>
-            new AetherNet.Sample.Platforms.Android.AndroidMediaCapture(sp.GetService<IAudioIo>()));
+            new AetherNet.Sample.Platforms.Android.AndroidMediaCapture(
+                () => sp.GetRequiredService<CallScreen>().OnCall));
 #else
         builder.Services.AddSingleton<IMediaCapture, NullMediaCapture>();
 #endif
@@ -416,69 +156,17 @@ public static class MauiProgram
         // the Blazor UI, decodes with ZXing (no ML Kit), and hands the aether:// invite back.
         builder.Services.AddSingleton<AetherNet.Sample.Shared.Services.IQrScanner, MauiQrScanner>();
 
-        // 1:1 voice. The microphone is physical, so it only exists on the phone; everywhere else the
-        // call service is constructible but honestly says it cannot place one.
-#if ANDROID
-        builder.Services.AddSingleton<IAudioIo, AetherNet.Sample.Platforms.Android.AndroidAudioIo>();
-#else
-        builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
-#endif
-        // Wi-Fi Direct is a radio, and the radios belong to AetherNetService.
-        builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
-
-        // Live video, for every head there is and every head there will be.
-        //
-        // This was a native Android implementation: camera2 into a MediaCodec surface, decoded onto
-        // TextureViews layered UNDER the WebView. It served exactly one platform, it could never serve
-        // the web head, and it had no path to iOS at all — which is the whole reason MAUI Blazor
-        // Hybrid exists. It also spent its life fighting its host, since seeing a native view through
-        // a WebView means making the entire page transparent.
-        //
-        // WebCodecs and getUserMedia do the same job in the layer the app already shares. Measured in
-        // the live WebView on both test handsets before committing to it: secure context, camera
-        // reachable, VideoEncoder and VideoDecoder present, H.264 Baseline supported at the size and
-        // bitrate a call actually needs.
-        // Frames do not go through the JavaScript bridge. They go over a WebSocket to a server inside
-        // this app, on loopback — measured, because the bridge saturates at about four frames a second
-        // each way on a Redmi Note 9 and then stops answering at all.
+        // Live video, on this app's screen: the camera and the pictures are WebCodecs and getUserMedia in the page,
+        // and frames go over a WebSocket to a server inside this app, on loopback — measured, because the JavaScript
+        // bridge saturates at about four frames a second each way on a Redmi Note 9 and then stops answering at all.
+        // The call screen above carries them to and from AetherNetService.
         builder.Services.AddSingleton<IVideoBridge, LoopbackVideoBridge>();
         builder.Services.AddSingleton<IVideoIo>(sp => new WebVideoIo(sp.GetService<IVideoBridge>()));
-        builder.Services.AddSingleton<CallService>();
-
-        // A call with more than two people in it. Built the same way group chat is — several 1:1
-        // calls rather than a group key — and capped by the number of decoders this phone has, not by
-        // the radio. See GroupCallService and PROTOCOL_SPEC §10.10.
-        builder.Services.AddSingleton<GroupCallService>();
-
-        // The live in-process AetherNet mesh that the demo UI drives.
-        builder.Services.AddScoped<AetherDemoService>();
-
-        // The pages this device hosts. Written on the phone, kept in its own database, served from
-        // here — a person's AetherTag is the domain and each page is a path under it.
-        // AetherView. The browser is a library; this app fills its two seams with a phone's
-        // answers — the device database, and the real radios — and hosts the component.
-        builder.Services.AddSingleton<ICardStore, AetherStoreCardStore>();
-        builder.Services.AddSingleton<IMeshLink, RadioMeshLink>();
-        builder.Services.AddAetherBrowser();
 
         // Reading a file that shipped inside the APK. Used to put the example card on the phone the
         // first time the AetherNet tab is opened — see HandedCard.
         builder.Services.AddSingleton<HandedCard.OpenPackaged>(
             _ => async named => await FileSystem.OpenAppPackageFileAsync(named));
-
-        // No radio mesh in this app. On Android the radios run in AetherNetService, which this app connects
-        // to; on other heads there are none. Anything that would have used a radio queues honestly.
-        builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();
-        builder.Services.AddSingleton<ICircleContacts, StoreCircleContacts>();
-        builder.Services.AddSingleton<FastRadioService>();
-
-#if !ANDROID && !WINDOWS
-        // No AetherNetService on this head (iOS, Mac), so the node runs in-process: identity, messaging and presence
-        // reach the UI through the same IAetherNodeClient contract (docs/aether-node-service.md).
-        builder.Services.AddSingleton<INodeMessaging, SampleNodeMessaging>();
-        builder.Services.AddSingleton<INodeLinkSource, SampleNodeLinkSource>();
-        builder.Services.AddAetherNode();
-#endif
 
         builder.Services.AddMauiBlazorWebView();
 
@@ -496,227 +184,52 @@ public static class MauiProgram
 
         var app = builder.Build();
 
+        // The app starts, then calls the service: from here the service's call can reach this app's camera and screen,
+        // and AetherNetService is asked for while the page is still loading.
+        _ = app.Services.GetRequiredService<CallScreen>().StartAsync();
+        _ = ReachAsync(app.Services);
+
 #if WINDOWS && DEBUG
         // The end-to-end chat test's hooks on a computer — a folder a test drops commands into (see E2eHooks).
         AetherNet.Sample.Platforms.Windows.E2eHooks.Start(app.Services);
 #endif
 
-        // Warm the device-backed singletons off the UI thread. In Blazor Hybrid the .NET dispatcher,
-        // the WebView thread and the Android main thread are one thread, so a service CONSTRUCTOR that
-        // touches the disk — opening SQLite, unsealing the identity key from the Keystore — runs on the
-        // UI thread the moment a page @injects it. Constructing them here first means the page resolves
-        // an object that is already built. (See docs/DOTNET_MAUI_DOS_AND_DONTS.md — blocking ctors are
-        // the recurring freeze in this stack.)
-        // Each service is warmed on its own. One shared try/catch meant a single service that would
-        // not build took the whole warm-up with it — including the tracing hooks below — and the app
-        // then ran with no voice on the radio at all, which reads exactly like a dead radio. Chasing
-        // that cost a full device session.
-        _ = Task.Run(() =>
+        // Published where the Android activity can reach it. An activity is built by the system
+        // rather than by the container, so a scanned invite has no other way in — and until this
+        // existed it had no way in at all.
+        Warm("invites", () =>
         {
-            Warm("store", () => app.Services.GetService<AetherStore>());
-            Warm("identity", () => app.Services.GetService<IIdentityService>());
-            Warm("cards", () => app.Services.GetService<IContentStore>());
-            Warm("contacts", () => app.Services.GetService<ContactService>());
+            var invites = app.Services.GetService<InviteLinks>();
+            InviteLinks.Current = invites;
+            Taps.Current = app.Services.GetService<Taps>();
 
-            // Tell the node who this app's contacts are, so its radios start reaching them — and again whenever
-            // the list changes. On Android this is what brings AetherNetService's radios to the right people.
-            Warm("node contacts", () => app.Services.GetService<NodeContactSync>()?.SyncInBackground());
-
-            // Published where the Android activity can reach it. An activity is built by the system
-            // rather than by the container, so a scanned invite has no other way in — and until this
-            // existed it had no way in at all.
-            Warm("invites", () =>
-            {
-                var invites = app.Services.GetService<InviteLinks>();
-                InviteLinks.Current = invites;
-                Taps.Current = app.Services.GetService<Taps>();
-
-                // A scan that launched the app cold delivered its link before any of this existed.
+            // A scan that launched the app cold delivered its link before any of this existed.
 #if ANDROID
-                invites?.Deliver(MainActivity.ConsumePendingLink());
+            invites?.Deliver(MainActivity.ConsumePendingLink());
 #endif
-            });
-
-            // Constructing these is what subscribes them to the radio, so a message can arrive, and a
-            // call can ring, before the user has opened anything.
-            // Constructing this is what subscribes it to the radio, so a voice note can start arriving
-            // before anyone opens the conversation it belongs to.
-            Warm("attachments", () =>
-            {
-                var attachments = app.Services.GetService<AttachmentService>();
-#if ANDROID
-                if (attachments is not null)
-                    attachments.Trace += m => global::Android.Util.Log.Info("AetherAtt", m);
-#endif
-            });
-
-            Warm("handout", () =>
-            {
-                var handout = app.Services.GetService<AppHandout>();
-#if ANDROID
-                // The serving side used to raise its lines for the screen alone. That is a voice only
-                // one listener can hear, and it left every grep of the log blank while the phone was
-                // actually working — which is how "nothing was served" and "I cannot see what was
-                // served" got confused for each other, repeatedly.
-                if (handout is not null)
-                    handout.Say += m => global::Android.Util.Log.Info("AetherGive", m);
-#endif
-            });
-
-            Warm("chat", () =>
-            {
-                var chat = app.Services.GetService<ChatService>();
-#if ANDROID
-                // Put the message path in the system log next to the radio's own lines, so a receipt
-                // that never comes back can be told apart from one that was never sent.
-                if (chat is not null)
-                    chat.Trace += m => global::Android.Util.Log.Info("AetherChat", m);
-#endif
-            });
-
-            // The one inbound pump for the messaging plane: raw radio bytes → the library dispatcher →
-            // the reliable core (Data/Ack) and the app's registered kinds (ping, circle, proxy, handoff,
-            // pre-keys). Wired after chat is warmed, so ChatService has registered those handlers before
-            // the first packet can arrive. Constructing the dispatcher also constructs the messaging core;
-            // chat subscribed to its events when it was built above.
-            Warm("inbound", () =>
-            {
-                var dispatcher = app.Services.GetService<AetherNet.Messaging.MeshInboundDispatcher>();
-                var radio = app.Services.GetService<IRadioMesh>();
-                if (dispatcher is not null && radio is not null)
-                    radio.PacketReceived += bytes => _ = dispatcher.OnBytesAsync(radio.PeerTag, bytes);
-            });
-
-            // Capability negotiation on the wire. On first contact the two phones swap the transports
-            // each can carry and keep the intersection; the radio choice then prefers one the peer can
-            // also hear. Wired here rather than injected because the handshake depends on the sender that
-            // depends on the mesh — the mesh cannot depend back on it without a cycle — so this is the
-            // seam that closes the loop, exactly like the inbound pump above. After "inbound", so the
-            // dispatcher already routes and chat's own kinds are registered.
-            Warm("negotiation", () =>
-            {
-                var handshake = app.Services.GetService<AetherNet.Handshake.IHandshakeService>();
-                var dispatcher = app.Services.GetService<AetherNet.Messaging.MeshInboundDispatcher>();
-                var radio = app.Services.GetService<IRadioMesh>();
-                if (handshake is null || dispatcher is null || radio is null) return;
-
-                // Inbound Hello/HelloAck → negotiate. NormalizeInbound has already turned any rotating
-                // ERID source back into the stable tag, so what is recorded is keyed by who the peer is.
-                dispatcher.Register(AetherNet.Protocol.PacketType.Hello,
-                    (packet, ct) => handshake.HandleHelloAsync(packet, ct));
-                dispatcher.Register(AetherNet.Protocol.PacketType.HelloAck,
-                    (packet, ct) => handshake.HandleHelloAckAsync(packet, ct));
-
-                // First contact opens the handshake — say hello the instant a peer links.
-                radio.PeerLinked += peer => _ = handshake.InitiateAsync(peer);
-
-                // Negotiation done → hand the mesh the transports this peer shares (already the
-                // intersection), so RadioChoice can prefer one both ends carry.
-                handshake.PeerNegotiated += (_, caps) =>
-                {
-                    var transports = caps.Capabilities
-                        .Where(AetherNet.Transport.Services.TransportCapability.IsTransport)
-                        .ToHashSet(StringComparer.Ordinal);
-                    radio.NotePeerTransports(caps.PeerUhid, transports);
-                };
-
-#if ANDROID
-                handshake.PeerNegotiated += (_, caps) => global::Android.Util.Log.Info(
-                    "AetherNeg", $"negotiated with {caps.PeerUhid}: [{string.Join(", ", caps.Capabilities)}]");
-#endif
-            });
-
-            Warm("calls", () =>
-            {
-                var calls = app.Services.GetService<CallService>();
-#if ANDROID
-                if (calls is not null)
-                    calls.Trace += m => global::Android.Util.Log.Info("AetherVoice", m);
-#endif
-            });
-
-            // Constructing this is what subscribes it to the radio, so a group call can ring before
-            // anyone has opened the group it belongs to.
-            Warm("group calls", () =>
-            {
-                var group = app.Services.GetService<GroupCallService>();
-#if ANDROID
-                if (group is not null)
-                    group.Trace += m => global::Android.Util.Log.Info("AetherGroupVoice", m);
-#endif
-            });
-
-            // Priming the SOS service subscribes it to the radio, so an emergency broadcast from someone
-            // nearby is heard even before its screen has ever been opened — the whole point of an alert.
-            Warm("sos", () => app.Services.GetService<SosService>()?.Prime());
-
-            // Constructing WatchService subscribes it to the radio, so a "watch together" invite arrives
-            // even before its player is opened.
-            Warm("watch", () => app.Services.GetService<WatchService>());
-
-            // Priming the DTN carrier starts the store-and-forward loop and subscribes it to the radio,
-            // so a message left for us while we were away is picked up the moment we are back — and one
-            // we are carrying for an absent friend moves on as soon as a peer appears.
-            Warm("carry", () => app.Services.GetService<DtnCarrierService>()?.Prime());
-
-            // Cast discovery — put its trace on logcat so a failed TV search can be read, not guessed.
-            Warm("cast", () =>
-            {
-                var dlna = app.Services.GetService<AetherNet.Sample.Shared.Services.Cast.DlnaCastService>();
-#if ANDROID
-                if (dlna is not null)
-                    dlna.Trace += m => global::Android.Util.Log.Info("AetherCast", m);
-#endif
-            });
-
-            // Start advertising this phone as a castable screen, so another device on the Wi-Fi can send to
-            // it. Named by device model (not the AetherTag) so the LAN never learns an identity.
-            Warm("renderer", () =>
-            {
-                var rend = app.Services.GetService<AetherNet.Sample.Shared.Services.Cast.UpnpRendererService>();
-                var me = app.Services.GetService<IIdentityService>();
-                if (rend is null || me is null) return;
-#if ANDROID
-                rend.Trace += m => global::Android.Util.Log.Info("AetherCast", m);
-#endif
-                var model = Microsoft.Maui.Devices.DeviceInfo.Current.Model;
-                var name = string.IsNullOrWhiteSpace(model) ? "Aether" : $"Aether — {model}";
-                rend.Start(me.AetherTag, name);
-            });
-
-            // The Wi-Fi Direct radio finds its own peers and settles who hosts on its own, so there is
-            // nothing here to start. Resolving the directory is the point: recognising a contact
-            // behind a rotating address is what keeps the radio from dialling strangers, and it must
-            // be loaded before the first beacon is seen rather than on the discovery path.
-            Warm("circle", () => app.Services.GetService<CircleDirectory>());
-
-            // The fast radio's own commentary, next to the radio's. Which group this phone decided on,
-            // and whether it hosted or joined it, is the first thing to check when two phones that
-            // should be talking are not.
-            Warm("fast-radio", () =>
-            {
-                var fast = app.Services.GetService<FastRadioService>();
-#if ANDROID
-                if (fast is not null)
-                {
-                    // Trace fires every pass of the radio loop, including the passes where nothing has
-                    // changed, because the screen wants a live answer. Logcat does not — written out
-                    // each time, it evicts the tag and takes the lines that mattered with it. The
-                    // service already suppresses repeats before its own logger; this is the same rule
-                    // for the platform log.
-                    var lastSaid = "";
-                    fast.Trace += m =>
-                    {
-                        if (string.Equals(m, lastSaid, StringComparison.Ordinal)) return;
-                        lastSaid = m;
-                        global::Android.Util.Log.Info("AetherFast", m);
-                    };
-                }
-#endif
-            });
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// Reach AetherNetService as the app starts. Not reaching it is not this method's to show: the first screen asks
+    /// again, and says why when it cannot.
+    /// </summary>
+    private static async Task ReachAsync(IServiceProvider services)
+    {
+        try
+        {
+            await services.GetRequiredService<IServiceCall>().ConnectAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+#if ANDROID
+            global::Android.Util.Log.Warn("AetherLine", $"AetherNetService not reached at start: {ex.Message}");
+#else
+            System.Diagnostics.Debug.WriteLine($"Aether: AetherNetService not reached at start: {ex.Message}");
+#endif
+        }
     }
 
     /// <summary>
@@ -745,27 +258,6 @@ public static class MauiProgram
 #endif
         }
     }
-
-#if ANDROID || WINDOWS
-    /// <summary>How this head reaches AetherNetService: a bind on a phone, its named pipe on a computer.</summary>
-    private static AetherNetNodeService.Client.INodeConnector NodeConnector() =>
-#if ANDROID
-        new AetherNetNodeService.Android.AndroidNodeConnector(global::Android.App.Application.Context, AetherNetServicePackage);
-#else
-        new AetherNetNodeService.Pipe.PipeNodeConnector(new AetherNetNodeService.Windows.WindowsNodeLauncher());
-#endif
-
-    /// <summary>
-    /// Where the connection says what happens to it — that AetherNetService went away, how many tries it took to reach it
-    /// again. On a phone that is always logcat, Release too: it is the first thing read when messages stop arriving.
-    /// </summary>
-    private static ILogger ConnectionLog(IServiceProvider services) =>
-#if ANDROID
-        new AetherNet.Sample.Platforms.Android.LogcatLoggerProvider().CreateLogger("BoundNodeClient");
-#else
-        services.GetRequiredService<ILoggerFactory>().CreateLogger("BoundNodeClient");
-#endif
-#endif
 
 #if WINDOWS
     /// <summary>The handle of Aether's window, for Windows Hello to ask over; 0 while there is none.</summary>

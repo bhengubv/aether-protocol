@@ -1,6 +1,6 @@
 @page "/lab/market"
-@using AetherNet.Market
 @using AetherNet.Market.Models
+@using AetherNet.Sample.Shared.Services.Lab
 @implements IDisposable
 
 @* A demonstration surface for AetherNet.Market — the offline P2P marketplace and its two-sided
@@ -155,132 +155,48 @@
 </div>
 
 @code {
-    // The real marketplace service — in-memory, real logic, no infrastructure.
-    private readonly InMemoryMarketService _market = new();
+    // The marketplace runs in AetherNetService; this page shows it and passes on what the person does.
+    private MarketLabDemo _demo = null!;
 
-    // Two fixed demo identities so a trade has a seller and a buyer.
-    private const string SellerUhid = "aether:themba:01";
-    private readonly string _buyerUhid = "aether:you:02";
+    private string _buyerUhid => _demo.BuyerUhid;
 
     // Post-a-listing form.
-    private string _title = "Second-hand bicycle";
-    private string _desc = "Well-kept mountain bike, small frame";
-    private decimal _price = 850;
-    private string _geohash = "ke7fqr";
-    private MarketCategory _category = MarketCategory.Goods;
+    private string _title { get => _demo.Title; set => _demo.Title = value; }
+    private string _desc { get => _demo.Desc; set => _demo.Desc = value; }
+    private decimal _price { get => _demo.Price; set => _demo.Price = value; }
+    private string _geohash { get => _demo.GeoHash; set => _demo.GeoHash = value; }
+    private MarketCategory _category { get => _demo.Category; set => _demo.Category = value; }
 
     // Browse / search.
-    private string _center = "ke7fqr";
-    private int _radius = 2;
-    private string _query = "";
-    private string _searchCategory = "";
+    private string _center { get => _demo.Center; set => _demo.Center = value; }
+    private int _radius { get => _demo.Radius; set => _demo.Radius = value; }
+    private string _query { get => _demo.Query; set => _demo.Query = value; }
+    private string _searchCategory { get => _demo.SearchCategory; set => _demo.SearchCategory = value; }
 
-    private IReadOnlyList<MarketListing> _results = Array.Empty<MarketListing>();
-    private string _resultLabel = "All listings";
+    private IReadOnlyList<MarketListing> _results => _demo.Results;
+    private string _resultLabel => _demo.ResultLabel;
+    private MarketListing? _selected => _demo.Selected;
+    private TradeEscrow? _escrow => _demo.Escrow;
+    private IReadOnlyList<string> _log => _demo.Log;
+    private bool CanPost => _demo.CanPost;
 
-    private MarketListing? _selected;
-    private TradeEscrow? _escrow;
-
-    private readonly List<string> _log = new();
-
-    private bool CanPost => !string.IsNullOrWhiteSpace(_title) && !string.IsNullOrWhiteSpace(_geohash) && _price > 0;
-
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        _market.ListingReceived += OnListing;
-
-        // Seed a few neighbourhood listings so browsing and search have something to find.
-        await _market.CreateListingAsync(SellerUhid, "Second-hand bicycle",
-            "Well-kept mountain bike, small frame", 850m, "ke7fqr", MarketCategory.Goods);
-        await _market.CreateListingAsync("aether:lindiwe:03", "Weekend plumbing",
-            "Blocked drains, taps and geysers — same-day", 450m, "ke7fqx", MarketCategory.Services);
-        await _market.CreateListingAsync("aether:sbu:04", "Grade 10 maths tutoring",
-            "Two afternoons a week, your place or mine", 200m, "ke7fpp", MarketCategory.Labour);
-
-        await ShowAll();
+        _demo = new MarketLabDemo();
+        _demo.Changed += OnChanged;
     }
 
-    private void OnListing(object? _, MarketListing l) =>
-        Log($"listing dropped: “{l.Title}” R{l.PriceZAR:0} @ {l.GeoHash} ({l.Category}) by {Petname(l.SellerUhid)}");
+    private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private async Task ShowAll()
-    {
-        // An empty search query matches every (non-expired) listing — the honest "everything the
-        // node holds", independent of any one geohash, so a freshly-posted listing always shows.
-        _results = await _market.SearchAsync("", null);
-        _resultLabel = $"All listings ({_results.Count})";
-        StateHasChanged();
-    }
-
-    private async Task Post()
-    {
-        if (!CanPost) return;
-        var listing = await _market.CreateListingAsync(SellerUhid, _title.Trim(), _desc.Trim(),
-            _price, _geohash.Trim(), _category);
-        _title = ""; _desc = "";
-        await ShowAll();
-        Select(listing);
-    }
-
-    private async Task BrowseNearby()
-    {
-        var center = _center.Trim();
-        var radius = Math.Clamp(_radius, 1, 6);
-        _results = await _market.BrowseNearbyAsync(center, radius);
-        var prefixLen = Math.Max(1, center.Length - radius + 1);
-        var prefix = center[..Math.Min(prefixLen, center.Length)];
-        _resultLabel = $"Near {center} (±{radius}) — prefix “{prefix}”: {_results.Count} found";
-        Log($"browse {center} ±{radius} → {_results.Count} listing(s) inside geohash prefix “{prefix}”");
-    }
-
-    private async Task Search()
-    {
-        MarketCategory? cat = string.IsNullOrEmpty(_searchCategory) ? null : Enum.Parse<MarketCategory>(_searchCategory);
-        _results = await _market.SearchAsync(_query.Trim(), cat);
-        _resultLabel = $"Search “{_query.Trim()}”{(cat is null ? "" : $" in {cat}")}: {_results.Count} found";
-        Log($"search “{_query.Trim()}”{(cat is null ? "" : $" ({cat})")} → {_results.Count} match(es)");
-    }
-
-    private void Select(MarketListing l)
-    {
-        _selected = l;
-        _escrow = null;
-        StateHasChanged();
-    }
-
-    private async Task Initiate()
-    {
-        if (_selected is null) return;
-        _escrow = await _market.InitiateTradeAsync(_selected, _buyerUhid);
-        Log($"escrow {Short(_escrow.EscrowId)} opened for “{_selected.Title}” → {_escrow.State}");
-    }
-
-    private async Task BuyerConfirm()
-    {
-        if (_escrow is null) return;
-        _escrow = await _market.ConfirmTradeAsync(_escrow, TradeRole.Buyer);
-        Log($"buyer confirmed → {_escrow.State}");
-    }
-
-    private async Task SellerConfirm()
-    {
-        if (_escrow is null) return;
-        _escrow = await _market.ConfirmTradeAsync(_escrow, TradeRole.Seller);
-        Log($"seller confirmed → {_escrow.State}");
-    }
-
-    private async Task Dispute()
-    {
-        if (_escrow is null) return;
-        await _market.DisputeAsync(_escrow, "item not as described");
-        Log($"dispute raised → {_escrow.State}");
-    }
-
-    private void ResetTrade()
-    {
-        _escrow = null;
-        StateHasChanged();
-    }
+    private Task Post() => _demo.Post();
+    private Task BrowseNearby() => _demo.BrowseNearby();
+    private Task Search() => _demo.Search();
+    private void Select(MarketListing l) => _demo.Select(l.ListingId);
+    private Task Initiate() => _demo.Initiate();
+    private Task BuyerConfirm() => _demo.BuyerConfirm();
+    private Task SellerConfirm() => _demo.SellerConfirm();
+    private Task Dispute() => _demo.Dispute();
+    private void ResetTrade() => _demo.ResetTrade();
 
     // ── the escrow stepper ──
     private sealed record Step(string Label, TradeState Reached);
@@ -295,20 +211,13 @@
 
     private string? StepClass(Step step)
     {
-        if (_escrow is null) return null;
-        if (_escrow.State == TradeState.Disputed) return step.Reached == TradeState.Initiated ? "done" : null;
+        if (_escrow is not { } escrow) return null;
+        if (escrow.State == TradeState.Disputed) return step.Reached == TradeState.Initiated ? "done" : null;
         var order = new[] { TradeState.Initiated, TradeState.BuyerConfirmed, TradeState.SellerConfirmed, TradeState.Complete };
-        var current = Array.IndexOf(order, _escrow.State);
+        var current = Array.IndexOf(order, escrow.State);
         var mine = Array.IndexOf(order, step.Reached);
         if (mine <= current) return mine == current ? "on" : "done";
         return null;
-    }
-
-    private void Log(string text)
-    {
-        _log.Add(text);
-        if (_log.Count > 120) _log.RemoveRange(0, _log.Count - 120);
-        StateHasChanged();
     }
 
     private static string Short(Guid id) => id.ToString()[..8];
@@ -321,7 +230,11 @@
             : uhid;
     }
 
-    public void Dispose() => _market.ListingReceived -= OnListing;
+    public void Dispose()
+    {
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
+    }
 }
 
 <style>

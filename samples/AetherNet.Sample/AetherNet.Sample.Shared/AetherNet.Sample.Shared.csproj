@@ -13,39 +13,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
-    <!-- The device database: identity, contacts, settings (see Data/AetherStore.cs). -->
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
-    <!-- QR generation only (MIT). Scanning is the phone's own camera app via the aether:// scheme —
-         no camera permission, no scanning SDK, nothing from Google Play Services. -->
-    <PackageReference Include="QRCoder" Version="1.6.0" />
-    <!-- Opus, in pure managed C# (BSD-3-Clause). The protocol library deliberately ships no codec —
-         IVoiceCodec is a seam the host fills — and this is what fills it here. Managed rather than a
-         native libopus build because it needs no NDK toolchain, no per-ABI artefacts, and no second
-         package: one APK, same as every other radio in this app. -->
-    <PackageReference Include="Concentus" Version="2.2.2" />
+    <!-- The menu: every request the app can make of AetherNetService, and every push it sends back. The same file
+         the service is built from, so the two can never disagree about a number. -->
+    <Compile Include="../../../src/AetherNetNodeService.Ipc/NodeOp.cs" Link="Cache/NodeOp.cs" />
   </ItemGroup>
 
-  <!-- Carried inside the assembly as well as served from wwwroot, because the same bytes are needed
-       two ways: linked by the app's own pages, and embedded into a page handed to a phone that has no
-       internet at all. One file on disk, two deliveries.
-
-       The typefaces are SIL Open Font License 1.1 (Instrument Serif, Newsreader) — the licence text
-       ships beside them in wwwroot/fonts/OFL-1.1.txt, as the licence requires. -->
-  <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: SQLite < 3.50.2, reachable only by executing
-       attacker-controlled SQL. SQLitePCLRaw has not shipped a patched bundle yet. This app runs only
-       internal, fully-parameterized SQL over local device data. Same justification as
-       AetherNet.Map.Sqlite / AetherNet.Content.Sqlite; TRACKED to bump when a patched bundle ships. -->
-
-  <!-- AetherNet, from the published package: one reference, one assembly. Everything the sample drives - the mesh,
-       the node contract and its client, messaging, storage, the mesh browser and its cards, content and its SQLite
-       store, voice, BitTorrent and its gateway, the FMHY catalogue, Forge, Vault, Cartography, Market, Tipping,
-       Space, Map and Streaming - is inside it. The Shared RCL is referenced by both heads, so the MAUI app and the
-       Web app both get it with no per-head re-wiring. Built the way anybody else builds on AetherNet: from NuGet,
-       not from this repo's src/. The browser's scripts and typefaces arrive with it, at _content/AetherNet.Browser/. -->
   <ItemGroup>
-    <PackageReference Include="AetherNet" Version="3.3.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
   </ItemGroup>
+
+  <!-- No AetherNet package: the app is a thin client. Everything its pages show comes from AetherNetService through the
+       menu above; the browser's scripts and typefaces are the app's own, in the app's wwwroot at
+       _content/AetherNet.Browser/, the address its pages have always used. -->
 
 </Project>

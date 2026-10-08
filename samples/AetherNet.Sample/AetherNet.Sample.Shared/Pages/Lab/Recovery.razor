@@ -1,8 +1,6 @@
 @page "/lab/recovery"
-@using AetherNet.Identity
-@using AetherNet.Security.Backup
-@using AetherNet.Security.Services
-@using AetherNet.Security.Models
+@using AetherNet.Sample.Shared.Services.Lab
+@implements IDisposable
 
 @* The identity is the words. Nothing else holds it.
 
@@ -109,77 +107,35 @@
 </style>
 
 @code {
-    private byte[] _priv = Array.Empty<byte>();
-    private string _tagA = "…";
-    private string _phrase = "";
-    private string[] _words = Array.Empty<string>();
+    // The demo runs in AetherNetService; this page shows it and passes on what the person does. The private key
+    // stays there: this page only ever has the words and the tags.
+    private RecoveryLabDemo _demo = null!;
 
-    private string _entered = "";
-    private bool _valid;
+    private string _tagA => _demo.TagA;
+    private string[] _words => _demo.Words.ToArray();
+    private string _entered => _demo.Entered;
+    private bool _valid => _demo.Valid;
+    private string? _result => _demo.Result;
+    private string? _tagB => _demo.TagB;
+    private bool _match => _demo.Match;
 
-    private string? _result, _tagB;
-    private bool _match;
-
-    protected override void OnInitialized() => Generate();
-
-    private void Generate()
+    protected override void OnInitialized()
     {
-        var (priv, pub) = Ed25519SigningService.GenerateKeyPair();
-        _priv = priv;
-        _tagA = AetherNetTag.FromPublicKey(pub).Value;
-
-        // The identity → its 24 words. This is the entire backup.
-        _phrase = IdentityBackup.ToRecoveryPhrase(_priv);
-        _words = _phrase.Split(' ');
-
-        ResetPhrase();
-        _result = null;
-        _tagB = null;
+        _demo = new RecoveryLabDemo();
+        _demo.Changed += OnChanged;
     }
 
-    private void ResetPhrase()
-    {
-        _entered = _phrase;
-        _valid = Bip39Mnemonic.IsValid(_entered);
-        _result = null;
-        _tagB = null;
-    }
+    private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    // A plausible transcription slip: one letter off in one word. The checksum will not forgive it.
-    private void CorruptOne()
-    {
-        var w = _phrase.Split(' ');
-        var last = w[^1];
-        var ch = last[^1] == 'z' ? 'a' : (char)(last[^1] + 1);
-        w[^1] = last[..^1] + ch;
-        _entered = string.Join(' ', w);
-        _valid = Bip39Mnemonic.IsValid(_entered);
-    }
+    private void Generate() => _demo.Generate();
+    private void ResetPhrase() => _demo.ResetPhrase();
+    private void CorruptOne() => _demo.CorruptOne();
+    private void Recover() => _demo.Recover();
+    private void OnEntered(ChangeEventArgs e) => _demo.Entered = e.Value?.ToString() ?? "";
 
-    private void OnEntered(ChangeEventArgs e)
+    public void Dispose()
     {
-        _entered = e.Value?.ToString() ?? "";
-        _valid = Bip39Mnemonic.IsValid(_entered);
-    }
-
-    private void Recover()
-    {
-        _valid = Bip39Mnemonic.IsValid(_entered);
-        try
-        {
-            // The whole restore: 24 words back into a full key pair on a device that stored nothing.
-            KeyPair kp = IdentityBackup.FromRecoveryPhrase(_entered);
-            _tagB = AetherNetTag.FromPublicKey(kp.PublicKey).Value;
-            _match = string.Equals(_tagA, _tagB, StringComparison.Ordinal);
-            _result = _match
-                ? "Same tag. No server and no custodian were involved — the words alone rebuilt the identity."
-                : "The phrase was valid but encodes a different identity — a different tag entirely.";
-        }
-        catch (FormatException ex)
-        {
-            _tagB = null;
-            _match = false;
-            _result = $"Rejected: {ex.Message} A wrong word is caught, not silently turned into someone else.";
-        }
+        _demo.Changed -= OnChanged;
+        _demo.Dispose();
     }
 }

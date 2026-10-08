@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The node hosts the mesh, so it holds the radio permissions the sample used to. Only the mesh-relevant
-     subset: no camera / microphone / NFC / call permissions — those features do not live in the node. -->
+<!-- The node hosts the mesh, so it holds the radio permissions the sample used to. It holds calls too, now that
+     the app's classes joined it, so the call's as well: the microphone, the ring and the call's foreground service.
+     No camera and no NFC: those belong to the app's screens. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -43,10 +44,49 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- A call records while the app is not on screen; Android 14 refuses that without this. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- An incoming call has to be able to take over the screen, including over the lock screen. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Lets the phone's own "let it always run in the background?" prompt be raised for AetherNetService. A connected
          app raises it; the phone only checks that AetherNetService declares this, so the service needs no screen. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- 1:1 voice. The microphone is only ever opened for the duration of a call, and MODIFY_AUDIO_SETTINGS
+         is what lets the call route to the earpiece and follow the in-call volume keys. Not required:
+         a phone with no microphone is still a perfectly good mesh node. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- LoRa, over an external USB module. Not required: a phone without USB host is still a perfectly good mesh node. -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
+    <!-- Handing Aether to the phone next to this one: the radios and the handout are the node's, and what they hand
+         over is Aether's own package, which Android 11 and later only lets the node see when it says which app. -->
+    <queries>
+        <package android:name="com.bhengubv.aethernet" />
+    </queries>
+    <!-- And Aether arriving from a phone nearby ends at Android's own installer prompt; this is what lets the node
+         reach it. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <!-- And when a phone nearby hands Aether over, the copy waits in the cache for the phone's own installer, which
+             is given read access to that one file through this, and to nothing else. Its own authority: two apps cannot
+             share one. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.bhengubv.aethernetservice.share"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
+    </application>
 </manifest>

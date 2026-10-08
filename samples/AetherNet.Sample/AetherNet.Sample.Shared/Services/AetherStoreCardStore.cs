@@ -1,79 +1,16 @@
-// SPDX-License-Identifier: MIT
-
-using AetherNet.Browser;
-using AetherNet.Sample.Shared.Data;
+// The app's side of AetherNetService's menu (NodeOp), made from the service's own signatures. Every member is one
+// line on the menu: the work is done in the service, and what a page reads is what the service last said.
 
 namespace AetherNet.Sample.Shared.Services;
 
-/// <summary>
-/// Where this app keeps cards: the device's own database.
-///
-/// <para>
-/// One of the two seams <c>AetherNet.Browser</c> leaves for its host, and the whole of this one is
-/// below. The browser has no idea what SQLite is; this app has no idea how a card is signed. That
-/// division is what lets the same browser be one tab here and the system browser on Circle OS, where
-/// the answer to "where do things live" is something else entirely.
-/// </para>
-/// </summary>
-public sealed class AetherStoreCardStore : ICardStore
+public sealed class AetherStoreCardStore
 {
-    /// <summary>Where the owner's pages live in settings.</summary>
-    public const string PagesKey = "my_pages";
-
-    /// <summary>Where the owner's decks live in settings.</summary>
-    public const string DecksKey = "my_decks";
-
-    /// <summary>Where the addresses this device is still trying to reach live in settings.</summary>
-    public const string WantedKey = "my_wanted";
-
-    /// <summary>Where the owner's name lives. Theirs, and this app's to keep — not the browser's.</summary>
     public const string NameKey = "my_name";
-
-    /// <summary>The single card this app kept before a device hosted pages.</summary>
-    /// <remarks>
-    /// Read once, never written. Somebody upgrading should find what they wrote at their front door
-    /// rather than find it gone — and the migration belongs here, with the storage, rather than in a
-    /// library that never knew the old shape.
-    /// </remarks>
     public const string OldCardKey = "my_card";
+    private readonly global::AetherNet.Sample.Shared.Cache.ServiceMenu _menu;
 
-    private readonly AetherStore _store;
-
-    public AetherStoreCardStore(AetherStore store) =>
-        _store = store ?? throw new ArgumentNullException(nameof(store));
-
-    public string? GetPages() => _store.GetSetting(PagesKey) ?? Inherited();
-
-    public void SetPages(string json) => _store.SetSetting(PagesKey, json);
-
-    public string? GetDecks() => _store.GetSetting(DecksKey);
-
-    public void SetDecks(string json) => _store.SetSetting(DecksKey, json);
-
-    public string? GetWanted() => _store.GetSetting(WantedKey);
-
-    public void SetWanted(string json) => _store.SetSetting(WantedKey, json);
-
-    public string? GetOwnerName() => _store.GetSetting(NameKey);
-
-    public void HoldCard(HeldCard card) => _store.HoldCard(card);
-
-    public IReadOnlyList<HeldCard> GetHeldCards() => _store.GetHeldCards();
-
-    public bool HoldsCard(string address) => _store.HoldsCard(address);
-
-    public bool DropCard(string address) => _store.DropCard(address);
-
-    /// <summary>The old single card, as a set of pages with one page in it.</summary>
-    /// <remarks>
-    /// Read, not moved: the old value stays where it is, so a downgrade still finds it.
-    /// </remarks>
-    private string? Inherited()
+    public AetherStoreCardStore(global::AetherNet.Sample.Shared.Cache.ServiceMenu menu)
     {
-        var old = _store.GetSetting(OldCardKey);
-        if (string.IsNullOrWhiteSpace(old)) return null;
-        if (CardDocument.Parse(old) is not { } card) return null;
-
-        return $"[{{\"name\":\"{MyPages.Home}\",\"v\":0,\"live\":false,\"doc\":{card.ToJson()}}}]";
+        _menu = menu;
     }
 }

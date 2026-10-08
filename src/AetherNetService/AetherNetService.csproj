@@ -66,6 +66,11 @@
     <PackageReference Include="AetherNet" Version="3.3.1" />
   </ItemGroup>
 
+  <!-- What the classes moved in from the app relied on there: the mesh types without a per-file using. -->
+  <ItemGroup>
+    <Using Include="AetherNet.Mesh" />
+  </ItemGroup>
+
   <!-- Windows' own sealing of the key for the person signed in. The named pipe, the App Paths entry and the
        computer's radios are inside the AetherNet package's Windows build. -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">

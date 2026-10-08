@@ -7,22 +7,7 @@
          Watched on a P30 Lite 2026-08-15: two uninstalls, and a blob with a 1970 timestamp and the old
          key name kept reappearing. Backing up an identity is only meaningful with the recovery phrase
          that regenerates it, never by copying bytes the device can no longer decrypt. -->
-    <application android:networkSecurityConfig="@xml/network_security_config" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true">
-        <!--
-          Handing the app to somebody standing next to you needs the APK to leave this process, and a
-          file:// URI has been refused since Android 7. The provider is how the system installer is
-          given read access to one file in one directory, and nothing else.
-        -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="com.bhengubv.aethernet.share"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/share_paths" />
-        </provider>
-    </application>
+    <application android:networkSecurityConfig="@xml/network_security_config" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true" />
     <!-- Android 11 and later hide other apps unless an app says which ones it talks to. Aether talks to one:
          AetherNetService, by its bind action. Without this Android reported it as not installed and blocked
          the bind ("AppsFilter … BLOCKED") — invisible on the Android 10 P30, total on an Android 16 phone. -->
@@ -35,7 +20,7 @@
              and only this lets the phone start it again. -->
         <package android:name="com.huawei.systemmanager" />
     </queries>
-    <!-- Offering somebody the app ends at Android's own installer prompt; this is what lets us reach it. -->
+    <!-- Getting AetherNetService onto the phone ends at Android's own installer prompt; this is what lets us reach it. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -44,64 +29,21 @@
          install, nothing to ask; without it Android refuses the sheet. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
-    <!-- Wi-Fi Direct radio. NEARBY_WIFI_DEVICES (Android 13+) declares neverForLocation so we
-         don't ask for location on modern phones; ACCESS_FINE_LOCATION is only needed for P2P
-         discovery on Android 12 and older, hence maxSdkVersion. -->
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
-    <!-- Casting to a TV: SSDP discovery is multicast, and Android's Wi-Fi chip filters multicast to
-         save power unless the app holds a MulticastLock — which needs this permission. -->
-    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32" />
-    <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
-
-
-    <!-- Wi-Fi Aware. Not required: no phone this project has ships the HAL (PROTOCOL_SPEC §5.6), and
-         a phone without it is still a perfectly good mesh node — it simply uses another radio. The
-         permissions Aware needs (NEARBY_WIFI_DEVICES, CHANGE_NETWORK_STATE, and location below API
-         33) are the same ones Wi-Fi Direct already asks for above. -->
-    <uses-feature android:name="android.hardware.wifi.aware" android:required="false" />
-
-    <!-- BLE radio. SCAN/CONNECT/ADVERTISE for Android 12+; legacy BLUETOOTH/ADMIN for ≤11.
-         BLUETOOTH_SCAN declares neverForLocation so we don't ask for location on 12+. -->
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
-    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
-
-    <!-- Holding the mesh link while the app is off-screen. Android cuts Bluetooth for background
-         apps — measured on the P30: the link survives indefinitely with the app in front and dies a
-         couple of minutes after it is not — so a connection that must outlive the screen has to be
-         owned by a foreground service. connectedDevice is the type that covers exactly this. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <!-- A call records while the app is not on screen; Android 14 refuses that without this. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- An incoming call has to be able to take over the screen, including over the lock screen. -->
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Blanks the screen while the phone is held to an ear during a call. -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-    <!-- NFC (tap-to-pair, Touch My Blood) and LoRa (external USB module) radios.
+    <!-- NFC (tap-to-pair, Touch My Blood).
 
          Host card emulation is what lets this phone answer a tap from a phone with nothing installed
          — it presents itself as an NFC Forum Type 4 Tag, which every handset already knows how to
          read. Both are required="false": a phone without the hardware simply does not offer the
-         feature, and is never shown a capability its silicon lacks. -->
+         feature, and is never shown a capability its silicon lacks. The radios — Wi-Fi Direct, Wi-Fi
+         Aware, Bluetooth, LoRa — and what keeps them up are AetherNetService's, and its manifest holds
+         their permissions. -->
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <uses-feature android:name="android.hardware.nfc.hce" android:required="false" />
-    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
-    <!-- 1:1 voice. The microphone is only ever opened for the duration of a call, and MODIFY_AUDIO_SETTINGS
-         is what lets the call route to the earpiece and follow the in-call volume keys. Not required:
-         a phone with no microphone is still a perfectly good mesh node. -->
+    <!-- Voice and video notes, recorded here, and the page's own camera and microphone for the picture in a call.
+         The call's sound is AetherNetService's. Not required: a phone with no microphone is still a perfectly
+         good mesh node. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />

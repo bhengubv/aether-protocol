@@ -1,154 +1,47 @@
-// SPDX-License-Identifier: MIT
-
-using AetherNet.Models;
-using AetherNet.Protocol;
-using AetherNet.Routing;
-using AetherNet.Sos;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
+// The app's side of AetherNetService's menu (NodeOp), made from the service's own signatures. Every member is one
+// line on the menu: the work is done in the service, and what a page reads is what the service last said.
 
 namespace AetherNet.Sample.Shared.Services;
 
-/// <summary>
-/// Emergency SOS, over the same mesh everything else rides.
-///
-/// <para>
-/// The protocol library owns the hard part — <see cref="SosBroadcastService"/> floods an alert with an
-/// extended TTL at maximum priority, every node re-broadcasts until the TTL is spent, duplicates are
-/// suppressed, and signed acknowledgements flow back so the sender learns its true reach. This is only
-/// the phone's half: it hands that service the REAL mesh (not the Lab's in-process one), feeds it the
-/// SOS and ack packets that arrive off the radio, and keeps the one alert a screen needs to draw.
-/// </para>
-///
-/// <para>
-/// Deliberately honest: a mesh is best-effort, so the screen shows how many devices have actually
-/// acknowledged rather than promising the message got through. Marking safe is the only thing that
-/// stops an alert — an acknowledgement never does.
-/// </para>
-/// </summary>
-public sealed class SosService : IDisposable
+public sealed class SosService
 {
-    private readonly IIdentityService _me;
-    private readonly IRadioMesh? _radio;
-    private readonly ILogger _log;
+    private readonly global::AetherNet.Sample.Shared.Cache.ServiceMenu _menu;
 
-    private SosBroadcastService? _sos;
-    private bool _disposed;
-
-    public SosService(IIdentityService me, IRadioMesh? radio = null, ILoggerFactory? loggerFactory = null)
+    public SosService(global::AetherNet.Sample.Shared.Cache.ServiceMenu menu)
     {
-        _me = me ?? throw new ArgumentNullException(nameof(me));
-        _radio = radio;
-        _log = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<SosService>();
-
-        if (_radio is not null) _radio.PacketReceived += OnPacket;
+        _menu = menu;
+        _menu.Told += OnTold;
     }
 
-    /// <summary>Something a screen would redraw — a new alert, an acknowledgement, a resolution.</summary>
-    public event Action? Changed;
+    private Shown Now => _menu.Held<Shown>(global::AetherNetNodeService.Ipc.NodeOp.GetSos, global::AetherNetNodeService.Ipc.NodeOp.EventSos);
+    public global::System.Collections.Generic.IReadOnlyList<global::AetherNet.Models.SosAlert> Active => Now.Active;
+    public bool CanSend => Now.CanSend;
 
-    /// <summary>An SOS arrived from somebody nearby.</summary>
-    public event Action<SosAlert>? Received;
-
-    /// <summary>A device confirmed it received one of OUR alerts — proof the emergency reached someone.</summary>
-    public event Action<SosAcknowledgement>? Acknowledged;
-
-    /// <summary>An alert was marked resolved — the source is safe.</summary>
-    public event Action<Guid>? Resolved;
-
-    /// <summary>Every alert this phone currently considers active (ours and others').</summary>
-    public IReadOnlyList<SosAlert> Active => _sos?.GetActiveAlerts() ?? Array.Empty<SosAlert>();
-
-    /// <summary>Whether this phone can actually put an SOS on the air.</summary>
-    public bool CanSend => _radio is not null;
-
-    /// <summary>
-    /// Broadcast "I need help" to everyone in range. Floods the mesh; returns false only if the abuse
-    /// rate-limit is spent.
-    /// </summary>
-    public async Task<bool> SendNearbyAsync(string? message, CancellationToken cancellationToken = default)
+    public async global::System.Threading.Tasks.Task MarkSafeAsync(global::System.Guid id)
     {
-        try
+        await _menu.CallAsync(global::AetherNetNodeService.Ipc.NodeOp.SosMarkSafe, new { id }); _menu.Forget(global::AetherNetNodeService.Ipc.NodeOp.EventSos);
+    }
+
+    public async global::System.Threading.Tasks.Task<bool> SendNearbyAsync(string? message, global::System.Threading.CancellationToken cancellationToken = default)
+    {
+        var answer = await _menu.CallAsync<bool>(global::AetherNetNodeService.Ipc.NodeOp.SosSendNearby, new { message }, cancellationToken: cancellationToken); _menu.Forget(global::AetherNetNodeService.Ipc.NodeOp.EventSos);
+        return answer;
+    }
+
+    public event global::System.Action? Changed;
+
+    private void OnTold(global::AetherNetNodeService.Ipc.NodeOp op, byte[] body)
+    {
+        switch (op)
         {
-            // No GPS is wired here yet, so location goes as unknown (0,0) — the flood does not depend on
-            // it; it is metadata a responder can use if the sender fills it later.
-            var ok = await Sos().BroadcastSosAsync("sos", message, 0, 0, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-            T(ok ? "SOS sent to everyone nearby" : "SOS refused — too many in the last hour");
-            Raise();
-            return ok;
-        }
-        catch (Exception ex) { _log.LogWarning(ex, "Could not send an SOS"); return false; }
-    }
-
-    /// <summary>Mark one of our alerts resolved — the only thing that stops it.</summary>
-    public async Task MarkSafeAsync(Guid id)
-    {
-        try { await Sos().ResolveAsync(id).ConfigureAwait(false); T("marked safe"); Raise(); }
-        catch (Exception ex) { Trouble(ex, "an SOS could not be resolved"); }
-    }
-
-    /// <summary>Bring the service up now, so it hears alerts before a screen is ever opened.</summary>
-    public void Prime() => _ = Sos();
-
-    private SosBroadcastService Sos()
-    {
-        if (_sos is not null) return _sos;
-
-        IMeshSender sender = _radio is not null
-            ? new RadioMeshSender(_me.AetherTag, _radio)
-            : new NullMeshSender(_me.AetherTag);
-
-        var sos = new SosBroadcastService(sender);
-        sos.SosReceived += (_, a) => { Received?.Invoke(a); Raise(); };
-        sos.SosAcknowledged += (_, ack) => { Acknowledged?.Invoke(ack); Raise(); };
-        sos.SosResolved += (_, id) => { Resolved?.Invoke(id); Raise(); };
-        return _sos = sos;
-    }
-
-    private void OnPacket(byte[] bytes)
-    {
-        MeshPacket packet;
-        try { packet = PacketSerializer.Deserialize(bytes); }
-        catch { return; }
-
-        if (packet.Type == PacketType.SosBroadcast) _ = Pump(packet, ack: false);
-        else if (packet.Type == PacketType.SosAck) _ = Pump(packet, ack: true);
-    }
-
-    private async Task Pump(MeshPacket packet, bool ack)
-    {
-        try
-        {
-            if (ack) await Sos().HandleAckAsync(packet).ConfigureAwait(false);
-            else await Sos().HandleAsync(packet).ConfigureAwait(false);
-        }
-        catch (Exception ex) { Trouble(ex, "an SOS from somebody nearby could not be handled"); }
-    }
-
-    private int _unhandled;
-
-    /// <summary>
-    /// Say that a packet could not be handled the first time, and then rarely, with a count. One is a peer sending
-    /// nonsense and must not shout; every single one is this feature being deaf, and only the count tells them apart.
-    /// </summary>
-    private void Trouble(Exception ex, string what)
-    {
-        var failed = System.Threading.Interlocked.Increment(ref _unhandled);
-        if (failed == 1 || failed % 100 == 0)
-        {
-            _log.LogWarning(ex, "{What} ({Count} so far)", what, failed);
+            case global::AetherNetNodeService.Ipc.NodeOp.EventSos: Changed?.Invoke(); break;
         }
     }
 
-    private void T(string message) => _log.LogInformation("[SOS] {Message}", message);
-    private void Raise() => Changed?.Invoke();
-
-    public void Dispose()
+    // What the service last said this holds.
+    private sealed class Shown
     {
-        if (_disposed) return;
-        _disposed = true;
-        if (_radio is not null) _radio.PacketReceived -= OnPacket;
-        _sos?.Dispose();
+        public global::System.Collections.Generic.IReadOnlyList<global::AetherNet.Models.SosAlert> Active { get; init; } = default!;
+        public bool CanSend { get; init; }
     }
 }
