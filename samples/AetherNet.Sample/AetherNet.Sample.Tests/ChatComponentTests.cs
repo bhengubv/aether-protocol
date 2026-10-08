@@ -1,12 +1,21 @@
 // SPDX-License-Identifier: MIT
 
-using AetherNet.Sample.Shared.Data;
+extern alias service;
+
 using AetherNet.Sample.Shared.Pages;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Tests.Fakes;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using service::AetherNetNodeService.Host;
+using service::AetherNetNodeService.Host.Tests.Fakes;
 using Xunit;
+using AetherStore = service::AetherNetNodeService.Host.Data.AetherStore;
+using CallService = service::AetherNetNodeService.Host.CallService;
+using ChatMessage = service::AetherNetNodeService.Host.Data.ChatMessage;
+using ContactService = service::AetherNetNodeService.Host.ContactService;
+using GroupCallService = service::AetherNetNodeService.Host.GroupCallService;
+using IRadioMesh = service::AetherNet.Mesh.IRadioMesh;
 
 namespace AetherNet.Sample.Tests;
 
@@ -17,6 +26,7 @@ namespace AetherNet.Sample.Tests;
 /// timestamps, and the send flow into the converged send path are exercised as rendered markup rather
 /// than asserted on the service alone.
 /// </summary>
+[Collection(ServiceInProcessCollection.Name)]
 public sealed class ChatComponentTests : IDisposable
 {
     private const string Me = "KXJB7-MN2P4";
@@ -38,12 +48,15 @@ public sealed class ChatComponentTests : IDisposable
 
         // The nine services Chat.razor @injects — the real ones where they construct cheaply from the
         // test fakes, so the component runs against genuine code, not hollow stand-ins. NavigationManager
-        // and IJSRuntime are provided by bUnit's TestContext.
-        _ctx.Services.AddSingleton(chat);
-        _ctx.Services.AddSingleton(new ContactService(_store, me, _radio));
-        _ctx.Services.AddSingleton(new CallService(me, signal, new NullAudioIo()));
-        _ctx.Services.AddSingleton(new GroupCallService(me, signal, new NullAudioIo()));
-        _ctx.Services.AddSingleton<IRadioMesh>(_radio);
+        // and IJSRuntime are provided by bUnit's TestContext. AetherNetService's ones are made on its side, and the
+        // page reaches them through the menu; the recorder and the file picker are the app's own.
+        var service = new ServiceCollection();
+        service.AddSingleton(chat);
+        service.AddSingleton(new ContactService(_store, me, _radio));
+        service.AddSingleton(new CallService(me, signal, new NullAudioIo()));
+        service.AddSingleton(new GroupCallService(me, signal, new NullAudioIo()));
+        service.AddSingleton<IRadioMesh>(_radio);
+        _ctx.Services.AddServiceInProcess(service);
         _ctx.Services.AddSingleton<IMediaCapture>(new NullMediaCapture());
         _ctx.Services.AddSingleton<IFilePicker>(new NullFilePicker());
     }

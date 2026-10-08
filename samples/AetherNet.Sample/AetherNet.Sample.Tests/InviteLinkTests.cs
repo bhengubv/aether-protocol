@@ -89,32 +89,4 @@ public class InviteLinkTests
         Assert.Equal(0, calls);
         Assert.Null(links.TakeWaiting());
     }
-
-    /// <summary>
-    /// The link the relay carries has to be one the contact list can actually use — the tag AND the
-    /// key, with the key genuinely deriving the tag. That is the whole reason the invite path matters
-    /// more than the typed-tag one.
-    /// </summary>
-    [Fact]
-    public void What_travels_is_a_tag_and_a_key_that_belongs_to_it()
-    {
-        Assert.True(ContactService.TryParseInvite(Invite, out var tag, out var key));
-
-        Assert.Equal("QQQEY-MSMP8", tag);
-        Assert.NotNull(key);
-        Assert.NotEmpty(key!);
-    }
-
-    /// <summary>
-    /// And a typed tag carries no key at all, which is exactly why it cannot bootstrap a radio link
-    /// on its own. Worth pinning so the difference between the two paths stays visible.
-    /// </summary>
-    [Fact]
-    public void A_typed_tag_carries_no_key()
-    {
-        Assert.True(ContactService.TryParseInvite("QQQEY-MSMP8", out var tag, out var key));
-
-        Assert.Equal("QQQEY-MSMP8", tag);
-        Assert.Null(key);
-    }
 }

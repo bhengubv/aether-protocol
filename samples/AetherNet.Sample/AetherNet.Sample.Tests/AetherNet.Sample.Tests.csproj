@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <!-- bUnit renders the Blazor components (Chat.razor et al.) from the referenced Shared assembly,
          so the UI layer — the day-divider/timestamps, the send flow into the converged ChatService —
@@ -37,5 +37,26 @@
          expose it project-wide so the tests resolve the relocated types. -->
     <Using Include="AetherNet.Mesh" />
   </ItemGroup>
+
+  <!--
+    The pages over the service. The app's pages are tested against AetherNetService's own classes, run in this test's
+    process behind the menu (Fakes/ServiceInProcess.cs). The service's tests bring the service, and the fakes those page
+    tests build it from.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\tests\AetherNetNodeService.Host.Tests\AetherNetNodeService.Host.Tests.csproj" />
+  </ItemGroup>
+
+  <!--
+    The app keeps copies of the package's data types in the package's own namespaces (its cache layer), so the service's
+    assemblies come in under the alias "service": without it the same name would mean two types here.
+  -->
+  <Target Name="ServiceUnderItsOwnAlias" BeforeTargets="FindReferenceAssembliesForReferences;ResolveReferences">
+    <ItemGroup>
+      <ReferencePath Condition="$([System.String]::Copy('%(Filename)').StartsWith('AetherNet')) and '%(Filename)' != 'AetherNet.Sample.Shared'">
+        <Aliases>service</Aliases>
+      </ReferencePath>
+    </ItemGroup>
+  </Target>
 
 </Project>

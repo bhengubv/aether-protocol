@@ -1,17 +1,25 @@
 // SPDX-License-Identifier: MIT
 
-using AetherNet.Identity;
-using AetherNet.Mesh;
-using AetherNet.Sample.Shared.Data;
+extern alias service;
+
 using AetherNet.Sample.Shared.Pages;
 using AetherNet.Sample.Shared.Services;
 using AetherNet.Sample.Tests.Fakes;
-using AetherNetNodeService;
 using AetherNetNodeService.Client;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using service::AetherNet.Identity;
+using service::AetherNetNodeService;
+using service::AetherNetNodeService.Host;
+using service::AetherNetNodeService.Host.Data;
+using service::AetherNetNodeService.Host.Tests.Fakes;
 using Xunit;
-using RadioStatus = AetherNetNodeService.RadioStatus;   // what AetherNetService reports, not the mesh's own
+using AetherStore = service::AetherNetNodeService.Host.Data.AetherStore;
+using PanicWipeService = service::AetherNetNodeService.Host.PanicWipeService;
+using PermissionPage = global::AetherNetNodeService.PermissionPage;   // the page's own: its settings link takes it
+using ProxyDirectory = service::AetherNet.Mesh.ProxyDirectory;
+using RadioStatus = service::AetherNetNodeService.RadioStatus;   // what AetherNetService reports, not the mesh's own
+using ServicePermissionPage = service::AetherNetNodeService.PermissionPage;   // where AetherNetService says it is changed
 
 namespace AetherNet.Sample.Tests;
 
@@ -29,6 +37,7 @@ namespace AetherNet.Sample.Tests;
 /// app there, and shows what the service says rather than what this app last wrote down.
 /// </para>
 /// </summary>
+[Collection(ServiceInProcessCollection.Name)]
 public sealed class SettingsAetherNetServiceTests : IDisposable
 {
     private const string Me = "KXJB7-MN2P4";
@@ -45,13 +54,17 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
         _ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         // What Settings.razor @injects — real services where they build cheaply from the test fakes.
+        // AetherNetService's ones are made on its side, and the page reaches them through the menu; the theme is the
+        // app's own.
         var me = new FakeIdentity(Me);
-        _ctx.Services.AddSingleton(ConvergedChat.Build(_store, me, new FakeSignalProtocol(), new FakePreKeyExchange(), new FakeRadioMesh(Me)));
-        _ctx.Services.AddSingleton(new ProxyDirectory(_store));
-        _ctx.Services.AddSingleton(_store);
+        var service = new ServiceCollection();
+        service.AddSingleton(ConvergedChat.Build(_store, me, new FakeSignalProtocol(), new FakePreKeyExchange(), new FakeRadioMesh(Me)));
+        service.AddSingleton(new ProxyDirectory(_store));
+        service.AddSingleton(_store);
+        service.AddSingleton<IAetherNodeClient>(_node);
+        service.AddSingleton(new PanicWipeService(_store, new FakeVault()));
+        _ctx.Services.AddServiceInProcess(service);
         _ctx.Services.AddSingleton<IAppTheme>(new NullAppTheme());
-        _ctx.Services.AddSingleton<IAetherNodeClient>(_node);
-        _ctx.Services.AddSingleton(new PanicWipeService(_store, new FakeVault()));
     }
 
     public void Dispose()
@@ -174,10 +187,10 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
     // ── What keeps it running ───────────────────────────────────────────────────
 
     private static ServicePermission Battery(bool allowed) =>
-        new("Battery", allowed, "keep running in the background, free of the phone's battery limits") { Page = PermissionPage.Battery };
+        new("Battery", allowed, "keep running in the background, free of the phone's battery limits") { Page = ServicePermissionPage.Battery };
 
     private static ServicePermission AppLaunch() =>
-        new("App launch", false, "start again after the phone stops it") { Page = PermissionPage.AppLaunch, Known = false };
+        new("App launch", false, "start again after the phone stops it") { Page = ServicePermissionPage.AppLaunch, Known = false };
 
     /// <summary>
     /// A phone short of memory stops even a foreground service. The battery prompt is the phone's own, raised from here

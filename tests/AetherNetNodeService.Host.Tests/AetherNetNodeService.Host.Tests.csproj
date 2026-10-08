@@ -20,6 +20,9 @@
     <ProjectReference Include="../../src/AetherNetNodeService.Host/AetherNetNodeService.Host.csproj" />
     <ProjectReference Include="../../src/AetherNetNodeService/AetherNetNodeService.csproj" />
     <ProjectReference Include="../../src/AetherNet.Core/AetherNet.Core.csproj" />
+    <!-- The tests that came with the Aether app's classes resolve the mesh's types without a per-file using, as they
+         did there. -->
+    <Using Include="AetherNet.Mesh" />
   </ItemGroup>
 
 </Project>

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-using AetherNet.Identity;
+extern alias service;
+
 using AetherNet.Sample.Shared.Pages;
-using AetherNet.Sample.Shared.Services;
-using AetherNetNodeService;
+using AetherNet.Sample.Tests.Fakes;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using service::AetherNet.Identity;
+using service::AetherNetNodeService;
+using service::AetherNetNodeService.Host;
 using Xunit;
 
 namespace AetherNet.Sample.Tests;
@@ -14,6 +17,7 @@ namespace AetherNet.Sample.Tests;
 /// Aware's screen. A thin client: everything it shows comes from the node's one report, so these prove the screen
 /// says what the node said — in a person's words, and with the thing that matters at the top.
 /// </summary>
+[Collection(ServiceInProcessCollection.Name)]
 public class AwarePageTests : IDisposable
 {
     private readonly TestContext _ctx = new();
@@ -21,8 +25,11 @@ public class AwarePageTests : IDisposable
 
     public AwarePageTests()
     {
-        _ctx.Services.AddSingleton<IAetherNodeClient>(_node);
-        _ctx.Services.AddSingleton(sp => new AwareService(sp.GetService<IAetherNodeClient>()));
+        // AetherNetService's own Aware, over this test's node; the page reaches it through the menu, as on a phone.
+        var service = new ServiceCollection();
+        service.AddSingleton<IAetherNodeClient>(_node);
+        service.AddSingleton(sp => new AwareService(sp.GetService<IAetherNodeClient>()));
+        _ctx.Services.AddServiceInProcess(service);
     }
 
     private static DateTimeOffset Recently => DateTimeOffset.UtcNow.AddMinutes(-5);
@@ -130,7 +137,9 @@ public class AwarePageTests : IDisposable
     public void AHeadWithNoNodeSaysSoRatherThanShowingAnEmptyRoom()
     {
         using var ctx = new TestContext();
-        ctx.Services.AddSingleton(_ => new AwareService(null));
+        var service = new ServiceCollection();
+        service.AddSingleton(_ => new AwareService(null));
+        ctx.Services.AddServiceInProcess(service);
 
         var page = ctx.RenderComponent<Shared.Pages.Aware>();
 

@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-using AetherNet.Identity;
-using AetherNet.Sample.Shared.Data;
+extern alias service;
+
 using AetherNet.Sample.Shared.Pages;
-using AetherNet.Sample.Shared.Services;
-using AetherNetNodeService;
+using AetherNet.Sample.Tests.Fakes;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using service::AetherNet.Identity;
+using service::AetherNetNodeService;
+using service::AetherNetNodeService.Host;
+using service::AetherNetNodeService.Host.Data;
 using Xunit;
+using PermissionPage = global::AetherNetNodeService.PermissionPage;   // the page's own: its settings link takes it
 
 namespace AetherNet.Sample.Tests;
 
@@ -15,6 +19,7 @@ namespace AetherNet.Sample.Tests;
 /// Quiet help's screen. A thin client: everything it shows comes from the node's one report, and every tap is one
 /// call back to the node — so these prove the screen says what the node said, and asks for what the person tapped.
 /// </summary>
+[Collection(ServiceInProcessCollection.Name)]
 public class QuietHelpPageTests : IDisposable
 {
     private static readonly AetherNetTag Sipho = AetherNetTag.FromPublicKey([2, .. new byte[31]]);
@@ -28,9 +33,13 @@ public class QuietHelpPageTests : IDisposable
     public QuietHelpPageTests()
     {
         _store = new AetherStore(_db);
-        _ctx.Services.AddSingleton(_store);
-        _ctx.Services.AddSingleton<IAetherNodeClient>(_node);
-        _ctx.Services.AddSingleton(sp => new QuietHelpService(sp.GetService<IAetherNodeClient>()));
+
+        // AetherNetService's own Quiet help and store, over this test's node; the page reaches them through the menu.
+        var service = new ServiceCollection();
+        service.AddSingleton(_store);
+        service.AddSingleton<IAetherNodeClient>(_node);
+        service.AddSingleton(sp => new QuietHelpService(sp.GetService<IAetherNodeClient>()));
+        _ctx.Services.AddServiceInProcess(service);
     }
 
     [Fact]
@@ -184,8 +193,10 @@ public class QuietHelpPageTests : IDisposable
     public void WithNoNodeTheScreenSaysItNeedsTheService()
     {
         using var ctx = new TestContext();
-        ctx.Services.AddSingleton(_store);
-        ctx.Services.AddSingleton(_ => new QuietHelpService(node: null));
+        var service = new ServiceCollection();
+        service.AddSingleton(_store);
+        service.AddSingleton(_ => new QuietHelpService(node: null));
+        ctx.Services.AddServiceInProcess(service);
 
         var page = ctx.RenderComponent<QuietHelp>();
         Assert.Contains("needs AetherNetService", page.Markup);
