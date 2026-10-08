@@ -119,6 +119,32 @@ public sealed class ServiceMenu
         => body is { Length: > 0 } ? JsonSerializer.Deserialize<T>(body, Json)! : default!;
 
     /// <summary>
+    /// Until AetherNetService answers its menu. A service that has just started is reachable before its classes are
+    /// made, and says so ("still starting"); this asks again until it answers, for up to a minute.
+    /// </summary>
+    /// <exception cref="AetherNetNodeService.AetherNodeException">It did not answer within the minute, or said no.</exception>
+    public static async Task UntilAnsweringAsync(IServiceCall line, CancellationToken cancellationToken = default)
+    {
+        var until = DateTime.UtcNow + AnswerWithin;
+        while (true)
+        {
+            try
+            {
+                await line.CallAsync((int)NodeOp.GetWarmUp, null, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (AetherNetNodeService.AetherNodeException ex)
+                when (ex.Code == AetherNetNodeService.AetherNodeErrorCode.NodeUnavailable && DateTime.UtcNow < until)
+            {
+                await Task.Delay(AskAgainAfter, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static readonly TimeSpan AnswerWithin = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan AskAgainAfter = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
     /// A function a page hands to a request, answered here for every key the service will ask of it: the service
     /// cannot call back across the line, so it is sent the answers instead.
     /// </summary>

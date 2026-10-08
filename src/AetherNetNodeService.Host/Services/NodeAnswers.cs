@@ -3098,136 +3098,290 @@ public static class NodeAnswers
 
     private static void Listen()
     {
-        if (Find<global::AetherNetNodeService.Host.AetherDemoService>() is { } aetherDemoService)
+        try
         {
-            var x = aetherDemoService;
-            x.Changed += () => Tell(NodeOp.EventAetherDemo, () => null);
+            if (Find<global::AetherNetNodeService.Host.AetherDemoService>() is { } aetherDemoService)
+            {
+                var x = aetherDemoService;
+                x.Changed += () => Tell(NodeOp.EventAetherDemo, () => null);
+            }
         }
-        if (Find<global::AetherNetNodeService.Host.AppHandout>() is { } appHandout)
+        catch (Exception ex)
         {
-            var x = appHandout;
-            x.Changed += () => Tell(NodeOp.EventHandout, () => StateHandout(x));
-            x.Delivered += () => Tell(NodeOp.EventHandoutDelivered, () => null);
-            x.Say += (obj) => Tell(NodeOp.EventHandoutSay, () => obj);
+            _log?.LogWarning(ex, "AetherDemoService did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNetNodeService.Host.AppVideoIo>() is { } appVideoIo)
+        try
         {
-            var x = appVideoIo;
-            x.ForgetAsked += (obj) => Tell(NodeOp.EventAppVideoForgetAsked, () => obj);
-            x.PermissionAsked += (obj) => Tell(NodeOp.EventAppVideoPermissionAsked, () => obj);
-            x.PlayAsked += (from, encodedFrame) => Tell(NodeOp.EventAppVideoPlayAsked, () => new { from, encodedFrame });
-            x.ShowIncomingAsked += () => Tell(NodeOp.EventAppVideoShowIncomingAsked, () => null);
-            x.ShowRemoteAsked += (obj) => Tell(NodeOp.EventAppVideoShowRemoteAsked, () => obj);
-            x.SizeToLinkAsked += (strain, people) => Tell(NodeOp.EventAppVideoSizeToLinkAsked, () => new { strain, people });
-            x.StartAsked += (obj) => Tell(NodeOp.EventAppVideoStartAsked, () => obj);
-            x.StopAsked += () => Tell(NodeOp.EventAppVideoStopAsked, () => null);
-            x.StopSendingAsked += () => Tell(NodeOp.EventAppVideoStopSendingAsked, () => null);
-            x.SwitchCameraAsked += () => Tell(NodeOp.EventAppVideoSwitchCameraAsked, () => null);
-            x.TurnAsked += (who, degrees, videoWidth, videoHeight) => Tell(NodeOp.EventAppVideoTurnAsked, () => new { who, degrees, videoWidth, videoHeight });
+            if (Find<global::AetherNetNodeService.Host.AppHandout>() is { } appHandout)
+            {
+                var x = appHandout;
+                x.Changed += () => Tell(NodeOp.EventHandout, () => StateHandout(x));
+                x.Delivered += () => Tell(NodeOp.EventHandoutDelivered, () => null);
+                x.Say += (obj) => Tell(NodeOp.EventHandoutSay, () => obj);
+            }
         }
-        if (Find<global::AetherNetNodeService.Host.AttachmentService>() is { } attachmentService)
+        catch (Exception ex)
         {
-            var x = attachmentService;
-            x.Arrived += (obj) => Tell(NodeOp.EventAttachmentArrived, () => obj);
-            x.Progress += (arg1, arg2) => Tell(NodeOp.EventAttachmentProgress, () => new { arg1, arg2 });
+            _log?.LogWarning(ex, "AppHandout did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNetNodeService.Host.AwareService>() is { } awareService)
+        try
         {
-            var x = awareService;
-            x.Changed += () => Tell(NodeOp.EventAwareService, () => StateAwareService(x));
+            if (Find<global::AetherNetNodeService.Host.AppVideoIo>() is { } appVideoIo)
+            {
+                var x = appVideoIo;
+                x.ForgetAsked += (obj) => Tell(NodeOp.EventAppVideoForgetAsked, () => obj);
+                x.PermissionAsked += (obj) => Tell(NodeOp.EventAppVideoPermissionAsked, () => obj);
+                x.PlayAsked += (from, encodedFrame) => Tell(NodeOp.EventAppVideoPlayAsked, () => new { from, encodedFrame });
+                x.ShowIncomingAsked += () => Tell(NodeOp.EventAppVideoShowIncomingAsked, () => null);
+                x.ShowRemoteAsked += (obj) => Tell(NodeOp.EventAppVideoShowRemoteAsked, () => obj);
+                x.SizeToLinkAsked += (strain, people) => Tell(NodeOp.EventAppVideoSizeToLinkAsked, () => new { strain, people });
+                x.StartAsked += (obj) => Tell(NodeOp.EventAppVideoStartAsked, () => obj);
+                x.StopAsked += () => Tell(NodeOp.EventAppVideoStopAsked, () => null);
+                x.StopSendingAsked += () => Tell(NodeOp.EventAppVideoStopSendingAsked, () => null);
+                x.SwitchCameraAsked += () => Tell(NodeOp.EventAppVideoSwitchCameraAsked, () => null);
+                x.TurnAsked += (who, degrees, videoWidth, videoHeight) => Tell(NodeOp.EventAppVideoTurnAsked, () => new { who, degrees, videoWidth, videoHeight });
+            }
         }
-        if (Find<global::AetherNetNodeService.Host.CallService>() is { } callService)
+        catch (Exception ex)
         {
-            var x = callService;
-            x.Changed += () => Tell(NodeOp.EventCall, () => StateCall(x));
+            _log?.LogWarning(ex, "AppVideoIo did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNetNodeService.Host.ChatService>() is { } chatService)
+        try
         {
-            var x = chatService;
-            x.Changed += () => Tell(NodeOp.EventChat, () => StateChat(x));
-            x.HandoffArrived += (obj) => Tell(NodeOp.EventChatHandoffArrived, () => obj);
+            if (Find<global::AetherNetNodeService.Host.AttachmentService>() is { } attachmentService)
+            {
+                var x = attachmentService;
+                x.Arrived += (obj) => Tell(NodeOp.EventAttachmentArrived, () => obj);
+                x.Progress += (arg1, arg2) => Tell(NodeOp.EventAttachmentProgress, () => new { arg1, arg2 });
+            }
         }
-        if (Find<global::AetherNetNodeService.Host.ContactService>() is { } contactService)
+        catch (Exception ex)
         {
-            var x = contactService;
-            x.Changed += () => Tell(NodeOp.EventContact, () => StateContact(x));
+            _log?.LogWarning(ex, "AttachmentService did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNetNodeService.Host.GroupCallService>() is { } groupCallService)
+        try
         {
-            var x = groupCallService;
-            x.Changed += () => Tell(NodeOp.EventGroupCall, () => StateGroupCall(x));
+            if (Find<global::AetherNetNodeService.Host.AwareService>() is { } awareService)
+            {
+                var x = awareService;
+                x.Changed += () => Tell(NodeOp.EventAwareService, () => StateAwareService(x));
+            }
         }
-        if (Find<global::AetherNetNodeService.Host.QuietHelpService>() is { } quietHelpService)
+        catch (Exception ex)
         {
-            var x = quietHelpService;
-            x.Changed += () => Tell(NodeOp.EventQuietHelp, () => StateQuietHelp(x));
+            _log?.LogWarning(ex, "AwareService did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNetNodeService.Host.SosService>() is { } sosService)
+        try
         {
-            var x = sosService;
-            x.Changed += () => Tell(NodeOp.EventSos, () => StateSos(x));
+            if (Find<global::AetherNetNodeService.Host.CallService>() is { } callService)
+            {
+                var x = callService;
+                x.Changed += () => Tell(NodeOp.EventCall, () => StateCall(x));
+            }
         }
-        if (Find<global::AetherNetNodeService.Host.Cast.UpnpRendererService>() is { } upnpRendererService)
+        catch (Exception ex)
         {
-            var x = upnpRendererService;
-            x.PauseRequested += () => Tell(NodeOp.EventUpnpRendererPauseRequested, () => null);
-            x.PlayRequested += (arg1, arg2) => Tell(NodeOp.EventUpnpRendererPlayRequested, () => new { arg1, arg2 });
-            x.SeekRequested += (obj) => Tell(NodeOp.EventUpnpRendererSeekRequested, () => obj);
-            x.StopRequested += () => Tell(NodeOp.EventUpnpRendererStopRequested, () => null);
+            _log?.LogWarning(ex, "CallService did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNetNodeService.Host.WarmUpService>() is { } warmUpService)
+        try
         {
-            var x = warmUpService;
-            x.Changed += () => Tell(NodeOp.EventWarmUp, () => StateWarmUp(x));
+            if (Find<global::AetherNetNodeService.Host.ChatService>() is { } chatService)
+            {
+                var x = chatService;
+                x.Changed += () => Tell(NodeOp.EventChat, () => StateChat(x));
+                x.HandoffArrived += (obj) => Tell(NodeOp.EventChatHandoffArrived, () => obj);
+            }
         }
-        if (Find<global::AetherNetNodeService.Host.WatchService>() is { } watchService)
+        catch (Exception ex)
         {
-            var x = watchService;
-            x.Changed += () => Tell(NodeOp.EventWatch, () => StateWatch(x));
-            x.Invited += (obj) => Tell(NodeOp.EventWatchInvited, () => obj);
-            x.Reacted += (obj) => Tell(NodeOp.EventWatchReacted, () => obj);
-            x.Synced += (obj) => Tell(NodeOp.EventWatchSynced, () => obj);
+            _log?.LogWarning(ex, "ChatService did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNet.Mesh.IRadioMesh>() is { } iRadioMesh)
+        try
         {
-            var x = iRadioMesh;
-            x.Changed += () => Tell(NodeOp.EventRadioMesh, () => StateRadioMesh(x));
+            if (Find<global::AetherNetNodeService.Host.ContactService>() is { } contactService)
+            {
+                var x = contactService;
+                x.Changed += () => Tell(NodeOp.EventContact, () => StateContact(x));
+            }
         }
-        if (Find<global::AetherNet.Mesh.IWifiDirectGroup>() is { } iWifiDirectGroup)
+        catch (Exception ex)
         {
-            var x = iWifiDirectGroup;
-            x.Status += (obj) => Tell(NodeOp.EventWifiDirectGroupStatus, () => obj);
+            _log?.LogWarning(ex, "ContactService did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNet.Browser.MeshWebService>() is { } meshWebService)
+        try
         {
-            var x = meshWebService;
-            x.Changed += () => Tell(NodeOp.EventMeshWeb, () => StateMeshWeb(x));
-            x.Offered += (obj) => Tell(NodeOp.EventMeshWebOffered, () => obj);
+            if (Find<global::AetherNetNodeService.Host.GroupCallService>() is { } groupCallService)
+            {
+                var x = groupCallService;
+                x.Changed += () => Tell(NodeOp.EventGroupCall, () => StateGroupCall(x));
+            }
         }
-        if (Find<global::AetherNet.Browser.MyPages>() is { } myPages)
+        catch (Exception ex)
         {
-            var x = myPages;
-            x.Changed += () => Tell(NodeOp.EventMyPages, () => StateMyPages(x));
+            _log?.LogWarning(ex, "GroupCallService did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNet.Mesh.ProxyDirectory>() is { } proxyDirectory)
+        try
         {
-            var x = proxyDirectory;
-            x.Changed += () => Tell(NodeOp.EventProxies, () => StateProxies(x));
+            if (Find<global::AetherNetNodeService.Host.QuietHelpService>() is { } quietHelpService)
+            {
+                var x = quietHelpService;
+                x.Changed += () => Tell(NodeOp.EventQuietHelp, () => StateQuietHelp(x));
+            }
         }
-        if (Find<global::AetherNet.Browser.Deck>() is { } deck)
+        catch (Exception ex)
         {
-            var x = deck;
-            x.Changed += () => Tell(NodeOp.EventDeck, () => StateDeck(x));
+            _log?.LogWarning(ex, "QuietHelpService did not start, so what it says changed is not passed on");
         }
-        if (Find<global::AetherNet.Browser.Decks>() is { } decks)
+        try
         {
-            var x = decks;
-            x.Changed += () => Tell(NodeOp.EventDecks, () => StateDecks(x));
+            if (Find<global::AetherNetNodeService.Host.SosService>() is { } sosService)
+            {
+                var x = sosService;
+                x.Changed += () => Tell(NodeOp.EventSos, () => StateSos(x));
+            }
         }
-        if (Find<global::AetherNet.Browser.Wanted>() is { } wanted)
+        catch (Exception ex)
         {
-            var x = wanted;
-            x.Changed += () => Tell(NodeOp.EventWanted, () => StateWanted(x));
+            _log?.LogWarning(ex, "SosService did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNetNodeService.Host.Cast.UpnpRendererService>() is { } upnpRendererService)
+            {
+                var x = upnpRendererService;
+                x.PauseRequested += () => Tell(NodeOp.EventUpnpRendererPauseRequested, () => null);
+                x.PlayRequested += (arg1, arg2) => Tell(NodeOp.EventUpnpRendererPlayRequested, () => new { arg1, arg2 });
+                x.SeekRequested += (obj) => Tell(NodeOp.EventUpnpRendererSeekRequested, () => obj);
+                x.StopRequested += () => Tell(NodeOp.EventUpnpRendererStopRequested, () => null);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "UpnpRendererService did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNetNodeService.Host.WarmUpService>() is { } warmUpService)
+            {
+                var x = warmUpService;
+                x.Changed += () => Tell(NodeOp.EventWarmUp, () => StateWarmUp(x));
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "WarmUpService did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNetNodeService.Host.WatchService>() is { } watchService)
+            {
+                var x = watchService;
+                x.Changed += () => Tell(NodeOp.EventWatch, () => StateWatch(x));
+                x.Invited += (obj) => Tell(NodeOp.EventWatchInvited, () => obj);
+                x.Reacted += (obj) => Tell(NodeOp.EventWatchReacted, () => obj);
+                x.Synced += (obj) => Tell(NodeOp.EventWatchSynced, () => obj);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "WatchService did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNet.Mesh.IRadioMesh>() is { } iRadioMesh)
+            {
+                var x = iRadioMesh;
+                x.Changed += () => Tell(NodeOp.EventRadioMesh, () => StateRadioMesh(x));
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "IRadioMesh did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNet.Mesh.IWifiDirectGroup>() is { } iWifiDirectGroup)
+            {
+                var x = iWifiDirectGroup;
+                x.Status += (obj) => Tell(NodeOp.EventWifiDirectGroupStatus, () => obj);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "IWifiDirectGroup did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNet.Browser.MeshWebService>() is { } meshWebService)
+            {
+                var x = meshWebService;
+                x.Changed += () => Tell(NodeOp.EventMeshWeb, () => StateMeshWeb(x));
+                x.Offered += (obj) => Tell(NodeOp.EventMeshWebOffered, () => obj);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "MeshWebService did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNet.Browser.MyPages>() is { } myPages)
+            {
+                var x = myPages;
+                x.Changed += () => Tell(NodeOp.EventMyPages, () => StateMyPages(x));
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "MyPages did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNet.Mesh.ProxyDirectory>() is { } proxyDirectory)
+            {
+                var x = proxyDirectory;
+                x.Changed += () => Tell(NodeOp.EventProxies, () => StateProxies(x));
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "ProxyDirectory did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNet.Browser.Deck>() is { } deck)
+            {
+                var x = deck;
+                x.Changed += () => Tell(NodeOp.EventDeck, () => StateDeck(x));
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "Deck did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNet.Browser.Decks>() is { } decks)
+            {
+                var x = decks;
+                x.Changed += () => Tell(NodeOp.EventDecks, () => StateDecks(x));
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "Decks did not start, so what it says changed is not passed on");
+        }
+        try
+        {
+            if (Find<global::AetherNet.Browser.Wanted>() is { } wanted)
+            {
+                var x = wanted;
+                x.Changed += () => Tell(NodeOp.EventWanted, () => StateWanted(x));
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogWarning(ex, "Wanted did not start, so what it says changed is not passed on");
         }
     }
 

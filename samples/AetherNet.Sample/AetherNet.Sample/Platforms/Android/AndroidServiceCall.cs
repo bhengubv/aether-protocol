@@ -22,11 +22,15 @@ public sealed class AndroidServiceCall : IServiceCall, INodeConnector
     private IBinder? _service;
     private Callback? _callback;
 
+    // This binding's wait until the service answers: bound is not answering, since a service that has just started has
+    // its binder a moment before its classes.
+    private Task? _answering;
+
     public event Action<int, byte[]>? Told;
 
     public event Action? Connected;
 
-    public bool IsConnected => _service is { IsBinderAlive: true };
+    public bool IsConnected => _service is { IsBinderAlive: true } && _answering is { IsCompletedSuccessfully: true };
 
     // No MatchDefaultOnly: a service bound by its action carries no DEFAULT category, so that flag resolves nothing.
     public Task<bool> IsInstalledAsync(CancellationToken cancellationToken = default)
@@ -49,7 +53,22 @@ public sealed class AndroidServiceCall : IServiceCall, INodeConnector
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
-        => await BindAsync(cancellationToken).ConfigureAwait(false);
+    {
+        await BindAsync(cancellationToken).ConfigureAwait(false);
+
+        // A wait that gave up is tried afresh when asked again.
+        var answering = _answering;
+        if (answering is null || answering.IsFaulted || answering.IsCanceled)
+            _answering = answering = AnsweringAsync();
+        await answering.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // Answering now: say so, so whoever listens can ask for what it shows.
+    private async Task AnsweringAsync()
+    {
+        await ServiceMenu.UntilAnsweringAsync(this).ConfigureAwait(false);
+        Connected?.Invoke();
+    }
 
     public async Task<byte[]> CallAsync(int code, byte[]? args = null, CancellationToken cancellationToken = default)
     {
@@ -119,8 +138,8 @@ public sealed class AndroidServiceCall : IServiceCall, INodeConnector
             _binding.Release();
         }
 
-        // Said once the line is up, outside the lock, so whoever listens can call the service at once.
-        Connected?.Invoke();
+        // A fresh binding: wait, outside the lock, until the service answers it, and say so then.
+        _answering = AnsweringAsync();
         return service;
     }
 

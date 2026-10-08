@@ -33,11 +33,15 @@ public sealed class WindowsServiceCall : IServiceCall, INodeConnector
     private NamedPipeClientStream? _pipe;
     private int _next;
 
+    // This pipe's wait until the service answers: open is not answering, since a service that has just started opens
+    // its pipe a moment before its classes are made.
+    private Task? _answering;
+
     public event Action<int, byte[]>? Told;
 
     public event Action? Connected;
 
-    public bool IsConnected => _pipe is { IsConnected: true };
+    public bool IsConnected => _pipe is { IsConnected: true } && _answering is { IsCompletedSuccessfully: true };
 
     public Task<bool> IsInstalledAsync(CancellationToken cancellationToken = default) => Task.FromResult(Launcher.IsInstalled);
 
@@ -58,12 +62,27 @@ public sealed class WindowsServiceCall : IServiceCall, INodeConnector
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
-        => await OpenAsync(cancellationToken).ConfigureAwait(false);
+    {
+        await OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        // A wait that gave up is tried afresh when asked again.
+        var answering = _answering;
+        if (answering is null || answering.IsFaulted || answering.IsCanceled)
+            _answering = answering = AnsweringAsync();
+        await answering.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // Answering now: say so, so whoever listens can ask for what it shows.
+    private async Task AnsweringAsync()
+    {
+        await ServiceMenu.UntilAnsweringAsync(this).ConfigureAwait(false);
+        Connected?.Invoke();
+    }
 
     // The pipe answers on its own reader, never on the caller's thread, so waiting here cannot wait on itself.
     public byte[] Call(int code, byte[]? args = null)
     {
-        if (!IsConnected)
+        if (_pipe is not { IsConnected: true })
             throw new AetherNetNodeService.AetherNodeException(AetherNetNodeService.AetherNodeErrorCode.NodeUnavailable, "AetherNetService is not connected yet");
         return CallAsync(code, args).GetAwaiter().GetResult();
     }
@@ -118,8 +137,8 @@ public sealed class WindowsServiceCall : IServiceCall, INodeConnector
             _connecting.Release();
         }
 
-        // Said once the line is up, outside the lock, so whoever listens can call the service at once.
-        Connected?.Invoke();
+        // A fresh pipe: wait, outside the lock, until the service answers on it, and say so then.
+        _answering = AnsweringAsync();
         return opened;
     }
 

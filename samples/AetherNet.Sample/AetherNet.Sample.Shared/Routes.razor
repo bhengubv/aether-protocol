@@ -145,6 +145,10 @@ else
         {
             await InvokeAsync(StateHasChanged);
             await Line.ConnectAsync();
+
+            // Answering: draw what is behind. Said here as well as by the line, which may have said so before this
+            // screen was listening.
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {

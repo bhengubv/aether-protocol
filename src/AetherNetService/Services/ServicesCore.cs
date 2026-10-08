@@ -4,7 +4,6 @@ using AetherNet.Content;
 using AetherNet.Content.Sqlite;
 using AetherNetNodeService.Host;
 using AetherNetNodeService.Host.Data;
-using AetherNetNodeService.Host;
 using AetherNetNodeService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -46,16 +45,21 @@ internal static class ServicesCore
         services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
         services.AddSingleton(node);
 
+        // The node's own identity: these classes run in the node, where a key derived from it may be used. The client's
+        // stand-in an app holds refuses that by design, and with it chat, calls and the Circle did not start.
+        services.AddSingleton(nodeServices.GetRequiredService<AetherNet.Identity.INodeIdentity>());
+
         Add(services, Path.Combine(dir, "services"));
 
         var built = services.BuildServiceProvider();
         Services = built;
         _ = Task.Run(() =>
         {
-            Warm(built);
-
-            // Warm, they answer the menu: the apps' requests, and what they say changed.
+            // The menu first, so an app sees the warm-up as it happens rather than being told the service is still
+            // starting until it is over.
             NodeAnswers.Use(built);
+
+            Warm(built);
         });
         return built;
     }
@@ -79,9 +83,6 @@ internal static class ServicesCore
                 ? new AetherNetNodeService.Client.NodeRadioSetup(
                     client, sp.GetService<AetherNetNodeService.Client.IAetherNetServiceSettings>())
                 : new NullRadioSetup());
-        services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
-            new AetherNetNodeService.Client.NodeClientIdentity(sp.GetRequiredService<IAetherNodeClient>()));
-
         services.AddSingleton<IIdentityService, IdentityService>();
         services.AddSingleton<PanicWipeService>();
         services.AddSingleton<AetherNet.Identity.IPetnameStore>(sp =>

@@ -19,15 +19,18 @@ public interface IServiceCall
     /// <exception cref="AetherNetNodeService.AetherNodeException">Not connected yet (<c>NodeUnavailable</c>), or the service said no.</exception>
     byte[] Call(int code, byte[]? args = null);
 
-    /// <summary>Whether the app is connected to the service right now.</summary>
+    /// <summary>Whether the app is connected to the service right now, and the service answers.</summary>
     bool IsConnected { get; }
 
-    /// <summary>Connects to the service, if the app is not connected already.</summary>
+    /// <summary>
+    /// Connects to the service, if the app is not connected already, and waits until it answers: a service that has
+    /// just started is reachable a moment before it can.
+    /// </summary>
     Task ConnectAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The app reached the service: the first time, and again after the service went away and came back. Whatever the
-    /// app was told before may no longer be true.
+    /// The app reached the service and it answers: the first time, and again after the service went away and came
+    /// back. Whatever the app was told before may no longer be true.
     /// </summary>
     event Action? Connected;
 
