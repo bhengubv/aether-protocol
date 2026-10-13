@@ -60,7 +60,7 @@ base64 = "0.22"
 # Optional — gated by the `webrtc` feature so the default build stays free of
 # the native stack. Pinned to the 0.12 stable line (not the 0.20 *alpha*, which
 # is a sans-IO rewrite over the `rtc` umbrella crate with a different API).
-webrtc = { version = "0.12", optional = true }
+webrtc = { version = "0.17", optional = true }
 # Zero-copy byte buffers — the `webrtc` data-channel `send` API takes `&Bytes`.
 # Pulled only with the `webrtc` feature; bytes 1.x is a single compatible major,
 # so it resolves to the same crate version webrtc-rs uses.
