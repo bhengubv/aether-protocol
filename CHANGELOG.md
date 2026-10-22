@@ -10,6 +10,72 @@ see [VERSIONING.md](VERSIONING.md) for wire-break promotion rules.
 
 ## [Unreleased]
 
+## [3.4.0] — 2026-10-22
+
+**The node now does what the Aether app did.** Chat, calls and group calls, casting, Aware, SOS and Quiet help,
+the panic wipe, contacts, identity, provisioning and the Lab run inside the node — `AetherNetNodeService.Host` and
+its Android binding — and every member the app's pages use is one request on the node's menu, `NodeOp`. An app
+building on the package asks AetherNetService for all of it, over the binder on Android and the named pipe on
+Windows, and keeps only its screens and a cache. Compared member by member with 3.3.1's six DLLs, nothing is
+removed or renamed on any target: the .NET 10 targets add 166 public types (179 on Android), the .NET 9 targets
+add only the menu's new lines, and no number on the menu moves.
+
+### Added
+
+- **The menu grows from 24 lines to 506.** `NodeOp` keeps every number 3.3.1 had — the node's own requests, 1 to
+  18, and its pushes, 100 to 105 — and adds 415 requests and 67 pushes for the members of the classes that joined
+  the node. Pushes stay between 100 and 199; requests take every other number, up to 533.
+- **`NodeAnswers` answers them** (`Knows`, `AnswerAsync`), over the binder and the named pipe alike, after the
+  same grant check as the node's own requests, and raises `Told` with whatever changed, which both carry to the
+  app as pushes. On the pipe they are answered beside the node's own requests rather than in turn, so a request
+  that waits on a person — a call being answered — does not hold up the app's next one.
+- **The named pipe carries numbers above 254.** A call's kind is one byte, and 279 of the new numbers do not fit in
+  it. Such a call travels as kind 255 (`PipeFrames.Wide`) with its number in the body's first four bytes,
+  little-endian, ahead of the argument; `PipeFrames.Call` reads either form. A call numbered 254 or below travels
+  exactly as it did. The binder needed no change: its transaction code is already an `int`.
+- **The classes themselves, on .NET 10 only**, as in the node's own projects. On `net10.0` and both `net10.0-*`
+  targets: the Host's `Services` and `Data` — `ChatService`, `CallService`, `GroupCallService`, casting to DLNA and
+  UPnP renderers, `AwareService`, `SosService`, `QuietHelpService`, `PanicWipeService`, `ContactService`,
+  `IdentityService`, `Provisioning`, `AttachmentService`, `WatchService`, `WarmUpService`, an Opus voice codec, the
+  node's store (`AetherStore`) and the Lab's services. On `net10.0-android`, twelve Android pieces: the call
+  service and incoming-call screen, the device-admin receiver and provisioning activities, the proximity lock, app
+  share, audio and video I/O, the Keystore vault, the multicast hold, the gateway service and a logcat logger. The
+  `net9.0` targets carry what they carried in 3.3.1, and the longer menu.
+- **Two dependencies**, on the targets that use them: Concentus 2.2.2, a managed Opus codec, for calls' voice, on
+  the .NET 10 targets; and Xamarin.AndroidX.Core 1.16.0.3 on `net10.0-android`.
+
+### Changed
+
+- **The node answers from the start.** It answered its menu only once its whole warm-up was over, so an app asking
+  during it was told the node was still starting; now it answers at once. Each class it listens to is listened to
+  on its own, so one that will not start is logged and the rest are still heard. And the classes that joined from
+  the app take the node's own identity, not the one an app holds, which by design never gives out a key derived
+  from it — with the app's, chat, calls, group calls, the Circle and the fast radio did not start. Found on a P30.
+- **Nothing in the package is named a sample or a demo.** The classes that joined kept the app's words for them;
+  they were renamed before they first shipped, so no published name changes. The Lab's classes are
+  `XxxLabService` (`BreadcrumbsLabService`, `DtnLabService`, …), the three-node mesh behind the Lab's Mesh page is
+  `MeshLabService`, the Lab's adapters are `LabLocalNodeProvider` and `LabOfflineApiClient`, and the in-process
+  node's seams are `InProcessNodeLinkSource` and `InProcessNodeMessaging`. Comments that called the app "the
+  sample" now name the Aether app.
+
+### Apps: Aether and AetherNetService 1.4 (5)
+
+- **Aether is a thin client of AetherNetService.** Its pages ask the menu; it keeps its screens and a cache of what
+  the service last pushed. The app no longer carries AetherNet, SQLite, QRCoder, Concentus or libsodium, nor the
+  radios' permissions, which AetherNetService declares. **AetherNetService 1.4 builds on AetherNet 3.4.0**, so it
+  answers the whole menu.
+- **Updating from 1.3** keeps the phone's AetherTag, which AetherNetService holds. It does not bring across the
+  chats, contacts and settings the 1.3 app kept in its own database: AetherNetService starts with an empty store, so
+  the welcome screens show again. The 1.3 app's files stay in its folder, unused.
+- **The app is `src/Aether`,** no longer `samples/AetherNet.Sample`: projects Aether, Aether.Shared, Aether.Web and
+  Aether.Tests, and the APK carries `Aether.dll` and `Aether.Shared.dll`. Its application id, name and signing key
+  are unchanged, so 1.3 updates in place.
+- **Its main screen has one Android name for good,** `com.bhengubv.aethernet.MainActivity`. 1.3's was generated from
+  the old namespace (`crc64834c013ef060f0cf.MainActivity`), so this update changes it once; a launcher that keeps
+  shortcuts by name may need Aether's shortcut adding again.
+
+---
+
 ## [3.3.1] — 2026-10-07
 
 ### Fixed
