@@ -63,7 +63,7 @@
        messaging core and storage - and, on Android and Windows, the platform pieces below as well. The service is
        built the way anybody else would build on AetherNet: from NuGet, not from this repo's src/. -->
   <ItemGroup>
-    <PackageReference Include="AetherNet" Version="3.3.1" />
+    <PackageReference Include="AetherNet" Version="3.4.0" />
   </ItemGroup>
 
   <!-- What the classes moved in from the app relied on there: the mesh types without a per-file using. -->
