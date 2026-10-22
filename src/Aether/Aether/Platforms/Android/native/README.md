@@ -1,7 +1,8 @@
 # Android native libsodium
 
-`arm64-v8a/libsodium.so` is **our own build of libsodium 1.0.20** (ISC-licensed),
-cross-compiled for Android with NDK r28. It is committed here on purpose.
+`arm64-v8a/libsodium.so` and `armeabi-v7a/libsodium.so` are **our own builds of libsodium
+1.0.20** (ISC-licensed), cross-compiled for Android with NDK r28. They are committed here on
+purpose.
 
 ## Why this exists
 
@@ -26,7 +27,7 @@ makes NSec resolve to it instead of the Linux one.
 ## Verify the committed binary
 
 ```
-llvm-readelf -h  libsodium.so   # Class ELF64, Machine AArch64
+llvm-readelf -h  libsodium.so   # Class ELF64, Machine AArch64 (armeabi-v7a: ELF32, ARM)
 llvm-readelf -d  libsodium.so   # NEEDED: libdl.so, libc.so  — and NO libpthread.so.0
 ```
 
@@ -53,10 +54,12 @@ work with the Windows NDK + git-bash:
      sh + consistent coreutils).
    - `-j1` (git-bash `fork()` emulation is flaky under parallel make)
 
-Output: `src/libsodium/.libs/libsodium.so` → copied to `arm64-v8a/libsodium.so` here.
+Output: `src/libsodium/.libs/libsodium.so` → copied to `arm64-v8a/` (`android-armv8-a.sh`,
+2026-08-08) and `armeabi-v7a/` (`android-armv7-a.sh`, 2026-10-22) here. Both are libsodium's
+default minimal build (`--enable-minimal`), from the same signed `libsodium-1.0.20-stable`
+tarball.
 
 ## TODO (other ABIs)
 
-Only `arm64-v8a` is built (the P30 Lite benchmark). For full device coverage, build
-`armeabi-v7a`, `x86`, `x86_64` the same way (`android-armv7-a.sh`, `android-x86.sh`,
+`x86` and `x86_64` are not built. For emulators, build them the same way (`android-x86.sh`,
 `android-x86_64.sh`) and add matching `AndroidNativeLibrary` entries.

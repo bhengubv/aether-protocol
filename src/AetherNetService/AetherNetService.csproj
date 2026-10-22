@@ -20,8 +20,8 @@
     <!-- An app, not a library: it ships as an APK and must never go to NuGet. -->
     <IsPackable>false</IsPackable>
     <ApplicationId>com.bhengubv.aethernetservice</ApplicationId>
-    <ApplicationDisplayVersion>1.4</ApplicationDisplayVersion>
-    <ApplicationVersion>5</ApplicationVersion>
+    <ApplicationDisplayVersion>1.5</ApplicationDisplayVersion>
+    <ApplicationVersion>6</ApplicationVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
@@ -30,8 +30,16 @@
     <WindowsPackageType>None</WindowsPackageType>
   </PropertyGroup>
 
+  <!-- 32-bit as well as 64-bit: Wear OS watches and the cheapest phones run a 32-bit Android, and refuse an APK
+       that carries 64-bit code only. -->
   <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>android-arm64;android-arm</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <!-- And 32-bit Windows beside 64-bit: the restore carries both, and a publish picks one with -p:RuntimeIdentifier.
+       A plain build stays 64-bit. -->
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
   </PropertyGroup>
 
   <!-- AetherNetService wears Aether's logo. The two drawings are Aether's own, used from where they live rather
@@ -84,12 +92,15 @@
 
   <!-- The node mints and signs with the same NSec/libsodium the Aether app uses, so it needs the same real
        Android libsodium.so — the libsodium NuGet ships no working Android native. Reuse the Aether app's own
-       arm64-v8a build (ISC-licensed; see that project's Platforms/Android/native/README.md) rather than
-       copying the binary. Without this, GetTag/Sign fail at runtime on the phone. -->
+       arm64-v8a and armeabi-v7a builds (ISC-licensed; see that project's Platforms/Android/native/README.md)
+       rather than copying the binaries. Without this, GetTag/Sign fail at runtime on the phone. -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <PackageReference Include="libsodium" Version="1.0.20.1" ExcludeAssets="native" />
     <AndroidNativeLibrary Include="..\Aether\Aether\Platforms\Android\native\arm64-v8a\libsodium.so">
       <Abi>arm64-v8a</Abi>
+    </AndroidNativeLibrary>
+    <AndroidNativeLibrary Include="..\Aether\Aether\Platforms\Android\native\armeabi-v7a\libsodium.so">
+      <Abi>armeabi-v7a</Abi>
     </AndroidNativeLibrary>
   </ItemGroup>
 
