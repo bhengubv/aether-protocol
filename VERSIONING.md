@@ -1,14 +1,14 @@
 # Versioning policy — aether-protocol
 
-## Last published version: `3.3.1`
+## Last published version: `3.4.0`
 
 > **This number is what is ON nuget.org, not what is in the tree.** Step 1 of a release
 > bumps `<VersionPrefix>` in `Directory.Build.props`, and the rest (changelog, tag,
 > publish) can be days later - so a bumped `Directory.Build.props` AHEAD of this line is
-> the normal mid-release state and is NOT a stale document. Verified 2026-10-06:
-> `Directory.Build.props`, the newest tag `v3.3.1`, the newest `CHANGELOG.md` section
-> `[3.3.1]` and nuget.org's own index all agree on `3.3.1` - nothing in flight. Verified
-> 2026-10-07 from the feed, not from the word "pushed".
+> the normal mid-release state and is NOT a stale document. Verified 2026-10-22:
+> `Directory.Build.props`, the newest tag `v3.4.0`, the newest `CHANGELOG.md` section
+> `[3.4.0]` and nuget.org's own index all agree on `3.4.0` - nothing in flight. Verified
+> from the feed, not from the word "pushed".
 >
 > The old heading said "Current version", which is ambiguous between the two, and that
 > ambiguity cost real work: a correct `3.0.0` here was read as stale against a `3.1.0`
@@ -38,7 +38,7 @@ The project follows [Semantic Versioning 2.0.0](https://semver.org/).
 A pre-release is the same hand-run publish with a suffix on it - there is no CI to set it:
 ```bash
 dotnet pack packaging/AetherNet/AetherNet.csproj -c Release -p:VersionSuffix=alpha.1
-# Produces: AetherNet.3.3.1-alpha.1.nupkg
+# Produces: AetherNet.3.4.0-alpha.1.nupkg
 ```
 
 ### Stable release
@@ -97,7 +97,7 @@ of them moves forward by referencing `AetherNet` directly. They cannot be remove
 key cannot unlist - so do not describe them as gone.
 
 ```xml
-<VersionPrefix>3.3.1</VersionPrefix>
+<VersionPrefix>3.4.0</VersionPrefix>
 ```
 Bump it once.
 
