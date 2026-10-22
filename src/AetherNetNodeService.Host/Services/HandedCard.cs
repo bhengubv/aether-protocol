@@ -10,9 +10,9 @@ namespace AetherNetNodeService.Host;
 /// A finished page put on this phone, so there is something worth opening up.
 ///
 /// <para>
-/// <b>Why a sample app ships one.</b> A card lands on your phone from somebody else, you like it,
+/// <b>Why the Aether app ships one.</b> A card lands on your phone from somebody else, you like it,
 /// and you go and look at how it was made — that is the whole loop, and it is how a generation
-/// learned HTML and CSS off MySpace without anybody teaching them. A demo that only ever shows you
+/// learned HTML and CSS off MySpace without anybody teaching them. An app that only ever shows you
 /// pages you wrote yourself has removed the one part that does the teaching.
 /// </para>
 ///

@@ -14,7 +14,7 @@ using AetherNet.Mesh;
 namespace AetherNetNodeService.Host;
 
 /// <summary>
-/// Real messaging over the mesh. Not a demo surface: a message you type is end-to-end encrypted with
+/// Real messaging over the mesh. Not a Lab surface: a message you type is end-to-end encrypted with
 /// the Signal double ratchet, carried to the other phone over the radio, decrypted there, and stored
 /// on both devices. No server sees it, because there isn't one.
 ///

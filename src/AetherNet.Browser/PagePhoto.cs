@@ -9,7 +9,7 @@ namespace AetherNet.Browser;
 /// A picture is the difference between a page somebody reads and a page somebody remembers, and it is
 /// also the only thing on a card big enough to fail. Everything here is a limit, and every limit is
 /// set by the slowest link rather than the fastest — a photograph that arrives instantly over Wi-Fi
-/// Direct and never arrives at all over Bluetooth is a page that works on the demo and not on the
+/// Direct and never arrives at all over Bluetooth is a page that works on the bench and not on the
 /// street.
 /// </para>
 ///

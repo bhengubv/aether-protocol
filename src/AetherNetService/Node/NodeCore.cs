@@ -32,7 +32,7 @@ internal static class NodeCore
         services.AddSingleton<IIdentityService>(sp => new NodeIdentityService(sp.GetRequiredService<INodeIdentity>()));
 
         // The node's own persistence for the mesh directory seams. CircleDirectory and ProxyDirectory take
-        // these as a seam; the sample keeps them in SQLite, the node keeps them in small JSON files.
+        // these as a seam; the node keeps them in small JSON files.
         services.AddSingleton<NodeMeshStore>(new NodeMeshStore(dir));
         services.AddSingleton<IPeerRoutingKeyStore>(sp => sp.GetRequiredService<NodeMeshStore>());
         services.AddSingleton<IProxyDirectoryStore>(sp => sp.GetRequiredService<NodeMeshStore>());
@@ -49,7 +49,7 @@ internal static class NodeCore
                 sp.GetRequiredService<ILogger<SignalProtocolService>>(),
                 sp.GetRequiredService<ISignalSessionBlobStore>()));
 
-        // The reliable messaging core — the same wiring the sample uses, moved to where the mesh now lives.
+        // The reliable messaging core — the wiring the Aether app used, moved to where the mesh now lives.
         // Sealing (Signal), the outbox, retries, delivery receipts, DTN fallback ON, central relay OFF.
         services.AddSingleton<IMessageEnvelopeCipher>(sp =>
             new SignalMessageEnvelopeCipher(

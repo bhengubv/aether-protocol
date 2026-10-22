@@ -26,10 +26,10 @@
                     <option value="48">48 KB</option>
                 </select>
             </label>
-            <button class="btn ink" @onclick="() => _demo.Publish(_sizeKb)">Publish</button>
+            <button class="btn ink" @onclick="() => _lab.Publish(_sizeKb)">Publish</button>
         </div>
 
-        @if (_demo.Published is { } p)
+        @if (_lab.Published is { } p)
         {
             <div class="fil-out">
                 <div class="fil-grid">
@@ -50,22 +50,22 @@
             <span class="fil-chip"><span class="fil-sw b"></span>odd → Seeder B</span>
             <span class="fil-chip"><span class="fil-sw off"></span>not yet here</span>
         </div>
-        <button class="btn" @onclick="RunDownload" disabled="@_demo.Running">@(_demo.Running ? "Pulling…" : "Run the download")</button>
+        <button class="btn" @onclick="RunDownload" disabled="@_lab.Running">@(_lab.Running ? "Pulling…" : "Run the download")</button>
 
-        @if (_demo.Published is { } pp)
+        @if (_lab.Published is { } pp)
         {
-            var have = _demo.HaveSnapshot();
+            var have = _lab.HaveSnapshot();
             <div class="fil-bitmap">
                 @for (int i = 0; i < pp.ChunkCount; i++)
                 {
                     var got = i < have.Length && have[i];
-                    var cls = !got ? "off" : _demo.HolderOf(i) == "A" ? "a" : "b";
+                    var cls = !got ? "off" : _lab.HolderOf(i) == "A" ? "a" : "b";
                     <span class="fil-cell @cls" title="chunk @i"></span>
                 }
             </div>
         }
 
-        @if (_demo.Report is { } r)
+        @if (_lab.Report is { } r)
         {
             <div class="fil-out">
                 <div class="fil-verify @(r.Verified ? "ok" : "bad")">
@@ -87,9 +87,9 @@
     <section class="fil-card">
         <div class="fil-eyebrow">Chunk-shuffle — how the peers avoid stepping on each other</div>
         <p class="fil-note">The Self-Assembling Peer Interleaving session takes each peer's availability bitmap and hands out a random, non-overlapping subset — so two peers never fetch the same chunk in flight.</p>
-        <button class="btn ghost" @onclick="() => _demo.RunChunkShuffle()">Assign across two peers</button>
+        <button class="btn ghost" @onclick="() => _lab.RunChunkShuffle()">Assign across two peers</button>
 
-        @if (_demo.Shuffle is { } s)
+        @if (_lab.Shuffle is { } s)
         {
             <div class="fil-out">
                 <div class="fil-row"><span class="fil-k">Seeder A gets</span><span class="fil-v mono">[@string.Join(", ", s.AssignedA)]</span></div>
@@ -101,11 +101,11 @@
 
     @* ── Wire log ────────────────────────────────────────────────────────────── *@
     <section class="fil-log">
-        @foreach (var line in _demo.Log)
+        @foreach (var line in _lab.Log)
         {
             <div class="fil-line"><span class="fil-who">@line.Who</span><span class="fil-text">@line.Text</span></div>
         }
-        @if (_demo.Log.Count == 0)
+        @if (_lab.Log.Count == 0)
         {
             <div class="fil-line fil-empty">Publish a blob, then run the download. Every byte moves over the real content protocol.</div>
         }
@@ -113,20 +113,20 @@
 </div>
 
 @code {
-    private readonly FilesDemo _demo = new();
+    private readonly FilesLabService _lab = new();
     private int _sizeKb = 24;
 
     protected override void OnInitialized()
     {
-        _demo.Changed += OnChanged;
-        _demo.Publish(_sizeKb);
+        _lab.Changed += OnChanged;
+        _lab.Publish(_sizeKb);
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private async Task RunDownload() => await _demo.RunDownloadAsync();
+    private async Task RunDownload() => await _lab.RunDownloadAsync();
 
-    public void Dispose() { _demo.Changed -= OnChanged; _demo.Dispose(); }
+    public void Dispose() { _lab.Changed -= OnChanged; _lab.Dispose(); }
 }
 
 <style>

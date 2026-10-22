@@ -67,28 +67,28 @@ public enum NodeOp
     // ── The classes that joined the node from the Aether app: what its pages ask of them ──
 
     /// <summary>Request: Clears the wire log (keeps the mesh up).</summary>
-    AetherDemoClearLog = 19,
+    MeshLabClearLog = 19,
 
     /// <summary>Request: Alice rings Bob AND Charlie; both accept — a 3-way group call over the control plane.</summary>
-    AetherDemoGroupVideo = 20,
+    MeshLabGroupVideo = 20,
 
     /// <summary>Request: The three mesh nodes with their identity, AetherTag and detected peers.</summary>
-    AetherDemoNodes = 21,
+    MeshLabNodes = 21,
 
     /// <summary>Request: Alice rings Bob 1:1; Bob accepts; Alice hangs up — full call-control handshake.</summary>
-    AetherDemoOneToOneVideo = 22,
+    MeshLabOneToOneVideo = 22,
 
     /// <summary>Request: Alice publishes one message; it floods to every subscriber on the channel.</summary>
-    AetherDemoPublishGroupText = 23,
+    MeshLabPublishGroupText = 23,
 
     /// <summary>Request: A point-in-time snapshot of the wire log, oldest first.</summary>
-    AetherDemoSnapshot = 24,
+    MeshLabSnapshot = 24,
 
     /// <summary>Request: Stand up the mesh: generate identities, join the in-process network, wire each node's inbound dispatcher, and subscribe all three to the neighbourhood channel.</summary>
-    AetherDemoStart = 25,
+    MeshLabStart = 25,
 
     /// <summary>Request: Bob adds Alice by her shared AetherTag and verifies the tag really belongs to her key — then proves the same tag can't be forged onto an impostor's key.</summary>
-    AetherDemoVerifyAetherTag = 26,
+    MeshLabVerifyAetherTag = 26,
 
     /// <summary>Request: How many calls came in and were never answered — for a badge.</summary>
     StoreCountMissed = 27,
@@ -405,19 +405,19 @@ public enum NodeOp
     /// <summary>Request: What WatchService holds that a screen shows: Current, IsHost.</summary>
     GetWatch = 231,
 
-    /// <summary>Request: Start a fresh BreadcrumbsDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh BreadcrumbsLabService, as its page does when it opens.</summary>
     NewBreadcrumbs = 232,
 
-    /// <summary>Request: BreadcrumbsDemo.Devices.</summary>
+    /// <summary>Request: BreadcrumbsLabService.Devices.</summary>
     BreadcrumbsDevices = 233,
 
-    /// <summary>Request: BreadcrumbsDemo.Dispose.</summary>
+    /// <summary>Request: BreadcrumbsLabService.Dispose.</summary>
     BreadcrumbsDispose = 234,
 
     /// <summary>Request: Drop a note at the centre cell and let it propagate hop by hop.</summary>
     BreadcrumbsDrop = 235,
 
-    /// <summary>Request: BreadcrumbsDemo.Log.</summary>
+    /// <summary>Request: BreadcrumbsLabService.Log.</summary>
     BreadcrumbsLog = 236,
 
     /// <summary>Request: Every device sweeps its own store; expired notices are removed and their event fires.</summary>
@@ -429,25 +429,25 @@ public enum NodeOp
     /// <summary>Request: Cache a notice that was dropped ten days ago under a 72 h TTL — already expired.</summary>
     BreadcrumbsSeedStaleNotice = 239,
 
-    /// <summary>Request: What BreadcrumbsDemo holds that a screen shows: Busy, Current.</summary>
+    /// <summary>Request: What BreadcrumbsLabService holds that a screen shows: Busy, Current.</summary>
     GetBreadcrumbs = 240,
 
-    /// <summary>Request: Start a fresh BroadcastDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh BroadcastLabService, as its page does when it opens.</summary>
     NewBroadcast = 241,
 
-    /// <summary>Request: BroadcastDemo.ClearLog.</summary>
+    /// <summary>Request: BroadcastLabService.ClearLog.</summary>
     BroadcastClearLog = 242,
 
-    /// <summary>Request: BroadcastDemo.Dispose.</summary>
+    /// <summary>Request: BroadcastLabService.Dispose.</summary>
     BroadcastDispose = 243,
 
-    /// <summary>Request: BroadcastDemo.EndAsync.</summary>
+    /// <summary>Request: BroadcastLabService.EndAsync.</summary>
     BroadcastEnd = 244,
 
     /// <summary>Request: Alice starts broadcasting; the announce floods to every node.</summary>
     BroadcastGoLive = 245,
 
-    /// <summary>Request: BroadcastDemo.Nodes.</summary>
+    /// <summary>Request: BroadcastLabService.Nodes.</summary>
     BroadcastNodes = 246,
 
     /// <summary>Request: Alice ships the next segment to every current subscriber (or abandons it if the link collapsed).</summary>
@@ -456,52 +456,52 @@ public enum NodeOp
     /// <summary>Request: Feed the publisher's ABR controller a new measured link speed.</summary>
     BroadcastSetBandwidth = 248,
 
-    /// <summary>Request: BroadcastDemo.Snapshot.</summary>
+    /// <summary>Request: BroadcastLabService.Snapshot.</summary>
     BroadcastSnapshot = 249,
 
-    /// <summary>Request: BroadcastDemo.Start.</summary>
+    /// <summary>Request: BroadcastLabService.Start.</summary>
     BroadcastStart = 250,
 
     /// <summary>Request: A named viewer subscribes to Alice's stream.</summary>
     BroadcastSubscribe = 251,
 
-    /// <summary>Request: What BroadcastDemo holds that a screen shows: BandwidthKbps, CurrentRung, FloorKbps, IsLive, Ladder, SegmentsPushed, SubscriberCount, WillAbandon.</summary>
+    /// <summary>Request: What BroadcastLabService holds that a screen shows: BandwidthKbps, CurrentRung, FloorKbps, IsLive, Ladder, SegmentsPushed, SubscriberCount, WillAbandon.</summary>
     GetBroadcast = 252,
 
-    /// <summary>Request: Start a fresh DtnLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh DtnLabService, as its page does when it opens.</summary>
     NewDtnLab = 253,
 
-    /// <summary>Request: DtnLabDemo.Dispose.</summary>
+    /// <summary>Request: DtnLabService.Dispose.</summary>
     DtnLabDispose = 254,
 
-    /// <summary>Request: DtnLabDemo.ExpireDemoAsync.</summary>
-    DtnLabExpireDemo = 255,
+    /// <summary>Request: DtnLabService.ExpireAsync.</summary>
+    DtnLabExpire = 255,
 
-    /// <summary>Request: DtnLabDemo.LeaveMessageAsync.</summary>
+    /// <summary>Request: DtnLabService.LeaveMessageAsync.</summary>
     DtnLabLeaveMessage = 256,
 
-    /// <summary>Request: DtnLabDemo.Log.</summary>
+    /// <summary>Request: DtnLabService.Log.</summary>
     DtnLabLog = 257,
 
-    /// <summary>Request: DtnLabDemo.RecipientReturnsAsync.</summary>
+    /// <summary>Request: DtnLabService.RecipientReturnsAsync.</summary>
     DtnLabRecipientReturns = 258,
 
-    /// <summary>Request: DtnLabDemo.ReplicateAsync.</summary>
+    /// <summary>Request: DtnLabService.ReplicateAsync.</summary>
     DtnLabReplicate = 259,
 
-    /// <summary>Request: DtnLabDemo.Start.</summary>
+    /// <summary>Request: DtnLabService.Start.</summary>
     DtnLabStart = 260,
 
-    /// <summary>Request: What DtnLabDemo holds that a screen shows: HasMessage, RecipientOnline, View.</summary>
+    /// <summary>Request: What DtnLabService holds that a screen shows: HasMessage, RecipientOnline, View.</summary>
     GetDtnLab = 261,
 
-    /// <summary>Request: Start a fresh FilesDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh FilesLabService, as its page does when it opens.</summary>
     NewFiles = 262,
 
-    /// <summary>Request: FilesDemo.Dispose.</summary>
+    /// <summary>Request: FilesLabService.Dispose.</summary>
     FilesDispose = 263,
 
-    /// <summary>Request: FilesDemo.HaveSnapshot.</summary>
+    /// <summary>Request: FilesLabService.HaveSnapshot.</summary>
     FilesHaveSnapshot = 264,
 
     /// <summary>Request: Chunk index → which seeder holds it (even = A, odd = B).</summary>
@@ -516,16 +516,16 @@ public enum NodeOp
     /// <summary>Request: Build the mesh (Seeder A holds even chunks, Seeder B odd, Leecher none), then run the segmented downloader on the leecher.</summary>
     FilesRunDownload = 268,
 
-    /// <summary>Request: What FilesDemo holds that a screen shows: Log, Published, Report, Running, Shuffle.</summary>
+    /// <summary>Request: What FilesLabService holds that a screen shows: Log, Published, Report, Running, Shuffle.</summary>
     GetFiles = 269,
 
-    /// <summary>Request: Start a fresh FmhyDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh FmhyLabService, as its page does when it opens.</summary>
     NewFmhy = 270,
 
-    /// <summary>Request: FmhyDemo.Dispose.</summary>
+    /// <summary>Request: FmhyLabService.Dispose.</summary>
     FmhyDispose = 271,
 
-    /// <summary>Request: FmhyDemo.Filter.</summary>
+    /// <summary>Request: FmhyLabService.Filter.</summary>
     FmhyFilter = 272,
 
     /// <summary>Request: Load the bundled seed snapshot into both peers — discovery works immediately, offline.</summary>
@@ -537,49 +537,49 @@ public enum NodeOp
     /// <summary>Request: The online peer parses a fresh FMHY markdown dump (the real parser) and adopts it.</summary>
     FmhySyncOnline = 275,
 
-    /// <summary>Request: What FmhyDemo holds that a screen shows: Categories, CategoryFilter, Entries, Log, NewEntryReachedOffline, OfflineCount, OfflineSyncedAt, OnlineCount, OnlineSyncedAt, Starred, Trackers.</summary>
+    /// <summary>Request: What FmhyLabService holds that a screen shows: Categories, CategoryFilter, Entries, Log, NewEntryReachedOffline, OfflineCount, OfflineSyncedAt, OnlineCount, OnlineSyncedAt, Starred, Trackers.</summary>
     GetFmhy = 276,
 
-    /// <summary>Request: Start a fresh ForgeDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh ForgeLabService, as its page does when it opens.</summary>
     NewForge = 277,
 
-    /// <summary>Request: ForgeDemo.Dispose.</summary>
+    /// <summary>Request: ForgeLabService.Dispose.</summary>
     ForgeDispose = 278,
 
-    /// <summary>Request: ForgeDemo.FetchOnBAsync.</summary>
+    /// <summary>Request: ForgeLabService.FetchOnBAsync.</summary>
     ForgeFetchOnB = 279,
 
-    /// <summary>Request: ForgeDemo.Init.</summary>
+    /// <summary>Request: ForgeLabService.Init.</summary>
     ForgeInit = 280,
 
-    /// <summary>Request: ForgeDemo.LookupOnBAsync.</summary>
+    /// <summary>Request: ForgeLabService.LookupOnBAsync.</summary>
     ForgeLookupOnB = 281,
 
-    /// <summary>Request: ForgeDemo.PublishOnAAsync.</summary>
+    /// <summary>Request: ForgeLabService.PublishOnAAsync.</summary>
     ForgePublishOnA = 282,
 
     /// <summary>Request: Publish a small starter set on A so the caches and stats have something to show.</summary>
-    ForgeSeedSample = 283,
+    ForgeSeedStarterSet = 283,
 
-    /// <summary>Request: What ForgeDemo holds that a screen shows: LearnedByGossip, Log, StatsA, StatsB.</summary>
+    /// <summary>Request: What ForgeLabService holds that a screen shows: LearnedByGossip, Log, StatsA, StatsB.</summary>
     GetForge = 284,
 
-    /// <summary>Request: Start a fresh GroupVideoDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh GroupVideoLabService, as its page does when it opens.</summary>
     NewGroupVideo = 285,
 
     /// <summary>Request: Admit the next queued invitee over the control plane.</summary>
     GroupVideoAdmitNext = 286,
 
-    /// <summary>Request: GroupVideoDemo.ClearLog.</summary>
+    /// <summary>Request: GroupVideoLabService.ClearLog.</summary>
     GroupVideoClearLog = 287,
 
-    /// <summary>Request: GroupVideoDemo.Dispose.</summary>
+    /// <summary>Request: GroupVideoLabService.Dispose.</summary>
     GroupVideoDispose = 288,
 
     /// <summary>Request: The host's authoritative view of the call: roster, topology and relay.</summary>
     GroupVideoGroup = 289,
 
-    /// <summary>Request: GroupVideoDemo.HangupAsync.</summary>
+    /// <summary>Request: GroupVideoLabService.HangupAsync.</summary>
     GroupVideoHangup = 290,
 
     /// <summary>Request: The 1:1 leg's current state, or null if never rung.</summary>
@@ -591,22 +591,22 @@ public enum NodeOp
     /// <summary>Request: Alice rings Bob 1:1 with a codec/resolution offer; Bob answers; they negotiate.</summary>
     GroupVideoRingBob = 293,
 
-    /// <summary>Request: GroupVideoDemo.Snapshot.</summary>
+    /// <summary>Request: GroupVideoLabService.Snapshot.</summary>
     GroupVideoSnapshot = 294,
 
-    /// <summary>Request: GroupVideoDemo.Start.</summary>
+    /// <summary>Request: GroupVideoLabService.Start.</summary>
     GroupVideoStart = 295,
 
-    /// <summary>Request: What GroupVideoDemo holds that a screen shows: CallOpen, HasPending, NextInvitee, SfuThreshold.</summary>
+    /// <summary>Request: What GroupVideoLabService holds that a screen shows: CallOpen, HasPending, NextInvitee, SfuThreshold.</summary>
     GetGroupVideo = 296,
 
-    /// <summary>Request: Start a fresh MapDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh MapLabService, as its page does when it opens.</summary>
     NewMap = 297,
 
-    /// <summary>Request: MapDemo.ConfirmRamp.</summary>
+    /// <summary>Request: MapLabService.ConfirmRamp.</summary>
     MapConfirmRamp = 298,
 
-    /// <summary>Request: MapDemo.Downvote.</summary>
+    /// <summary>Request: MapLabService.Downvote.</summary>
     MapDownvote = 299,
 
     /// <summary>Request: Lerato, offline, sets DIFFERENT hours (the clash), adds a phone, tags card-accepted.</summary>
@@ -618,61 +618,61 @@ public enum NodeOp
     /// <summary>Request: The partition heals: each replica merges the other.</summary>
     MapMerge = 302,
 
-    /// <summary>Request: MapDemo.MoveQueryAsync.</summary>
+    /// <summary>Request: MapLabService.MoveQueryAsync.</summary>
     MapMoveQuery = 303,
 
-    /// <summary>Request: MapDemo.ProximityCells.</summary>
+    /// <summary>Request: MapLabService.ProximityCells.</summary>
     MapProximityCells = 304,
 
-    /// <summary>Request: MapDemo.ReconfirmRamp.</summary>
+    /// <summary>Request: MapLabService.ReconfirmRamp.</summary>
     MapReconfirmRamp = 305,
 
-    /// <summary>Request: MapDemo.Replica.</summary>
+    /// <summary>Request: MapLabService.Replica.</summary>
     MapReplica = 306,
 
-    /// <summary>Request: MapDemo.Reset.</summary>
+    /// <summary>Request: MapLabService.Reset.</summary>
     MapReset = 307,
 
     /// <summary>Request: An impostor forges a replica with a different owner key and tries to merge it in.</summary>
     MapTryImpostorMerge = 308,
 
-    /// <summary>Request: MapDemo.Upvote.</summary>
+    /// <summary>Request: MapLabService.Upvote.</summary>
     MapUpvote = 309,
 
-    /// <summary>Request: What MapDemo holds that a screen shows: HoursConflict, LeratoEdited, Log, Merged, Observed, OwnerKeyShort, ThaboEdited.</summary>
+    /// <summary>Request: What MapLabService holds that a screen shows: HoursConflict, LeratoEdited, Log, Merged, Observed, OwnerKeyShort, ThaboEdited.</summary>
     GetMap = 310,
 
-    /// <summary>Request: Start a fresh PoLLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh PoLLabService, as its page does when it opens.</summary>
     NewPoLLab = 311,
 
-    /// <summary>Request: PoLLabDemo.Log.</summary>
+    /// <summary>Request: PoLLabService.Log.</summary>
     PoLLabLog = 312,
 
-    /// <summary>Request: PoLLabDemo.SetSelfVouch.</summary>
+    /// <summary>Request: PoLLabService.SetSelfVouch.</summary>
     PoLLabSetSelfVouch = 313,
 
-    /// <summary>Request: PoLLabDemo.Start.</summary>
+    /// <summary>Request: PoLLabService.Start.</summary>
     PoLLabStart = 314,
 
-    /// <summary>Request: PoLLabDemo.Toggle.</summary>
+    /// <summary>Request: PoLLabService.Toggle.</summary>
     PoLLabToggle = 315,
 
-    /// <summary>Request: PoLLabDemo.ToggleTamper.</summary>
+    /// <summary>Request: PoLLabService.ToggleTamper.</summary>
     PoLLabToggleTamper = 316,
 
-    /// <summary>Request: What PoLLabDemo holds that a screen shows: EncounterGeohash, EncounterPlace, MinWeight, MinWitnesses, Rows, SelfVouch, SignableBodyHex, TimeBucket, Verdict.</summary>
+    /// <summary>Request: What PoLLabService holds that a screen shows: EncounterGeohash, EncounterPlace, MinWeight, MinWitnesses, Rows, SelfVouch, SignableBodyHex, TimeBucket, Verdict.</summary>
     GetPoLLab = 317,
 
-    /// <summary>Request: Start a fresh PttScreenShareDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh PttScreenShareLabService, as its page does when it opens.</summary>
     NewPttScreenShare = 318,
 
-    /// <summary>Request: PttScreenShareDemo.ClearLog.</summary>
+    /// <summary>Request: PttScreenShareLabService.ClearLog.</summary>
     PttScreenShareClearLog = 319,
 
-    /// <summary>Request: PttScreenShareDemo.Dispose.</summary>
+    /// <summary>Request: PttScreenShareLabService.Dispose.</summary>
     PttScreenShareDispose = 320,
 
-    /// <summary>Request: PttScreenShareDemo.Nodes.</summary>
+    /// <summary>Request: PttScreenShareLabService.Nodes.</summary>
     PttScreenShareNodes = 321,
 
     /// <summary>Request: Alice holds the button and sends a short PTT burst (voiced frames, then a silence tail) to Bob.</summary>
@@ -681,70 +681,70 @@ public enum NodeOp
     /// <summary>Request: Alice shares her screen to Bob — a keyframe then two delta frames.</summary>
     PttScreenShareShareScreen = 323,
 
-    /// <summary>Request: PttScreenShareDemo.Snapshot.</summary>
+    /// <summary>Request: PttScreenShareLabService.Snapshot.</summary>
     PttScreenShareSnapshot = 324,
 
-    /// <summary>Request: PttScreenShareDemo.Start.</summary>
+    /// <summary>Request: PttScreenShareLabService.Start.</summary>
     PttScreenShareStart = 325,
 
-    /// <summary>Request: What PttScreenShareDemo holds that a screen shows: LastHeader.</summary>
+    /// <summary>Request: What PttScreenShareLabService holds that a screen shows: LastHeader.</summary>
     GetPttScreenShare = 326,
 
-    /// <summary>Request: Start a fresh SosLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh SosLabService, as its page does when it opens.</summary>
     NewSosLab = 327,
 
-    /// <summary>Request: SosLabDemo.BroadcastNearbyAsync.</summary>
+    /// <summary>Request: SosLabService.BroadcastNearbyAsync.</summary>
     SosLabBroadcastNearby = 328,
 
-    /// <summary>Request: SosLabDemo.Dispose.</summary>
+    /// <summary>Request: SosLabService.Dispose.</summary>
     SosLabDispose = 329,
 
-    /// <summary>Request: SosLabDemo.Log.</summary>
+    /// <summary>Request: SosLabService.Log.</summary>
     SosLabLog = 330,
 
-    /// <summary>Request: SosLabDemo.MarkSafeAsync.</summary>
+    /// <summary>Request: SosLabService.MarkSafeAsync.</summary>
     SosLabMarkSafe = 331,
 
-    /// <summary>Request: SosLabDemo.Nodes.</summary>
+    /// <summary>Request: SosLabService.Nodes.</summary>
     SosLabNodes = 332,
 
-    /// <summary>Request: SosLabDemo.RateLimitAsync.</summary>
+    /// <summary>Request: SosLabService.RateLimitAsync.</summary>
     SosLabRateLimit = 333,
 
-    /// <summary>Request: SosLabDemo.Start.</summary>
+    /// <summary>Request: SosLabService.Start.</summary>
     SosLabStart = 334,
 
-    /// <summary>Request: SosLabDemo.StartCheckInAsync.</summary>
+    /// <summary>Request: SosLabService.StartCheckInAsync.</summary>
     SosLabStartCheckIn = 335,
 
-    /// <summary>Request: What SosLabDemo holds that a screen shows: DistinctReceptions, EscalationTable, LiveActive, LiveStatus, ReachCount, Responders, Suppressed, WireDeliveries.</summary>
+    /// <summary>Request: What SosLabService holds that a screen shows: DistinctReceptions, EscalationTable, LiveActive, LiveStatus, ReachCount, Responders, Suppressed, WireDeliveries.</summary>
     GetSosLab = 336,
 
-    /// <summary>Request: Start a fresh TippingLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh TippingLabService, as its page does when it opens.</summary>
     NewTippingLab = 337,
 
-    /// <summary>Request: TippingLabDemo.Dispose.</summary>
+    /// <summary>Request: TippingLabService.Dispose.</summary>
     TippingLabDispose = 338,
 
-    /// <summary>Request: TippingLabDemo.SendMeshTipAsync.</summary>
+    /// <summary>Request: TippingLabService.SendMeshTipAsync.</summary>
     TippingLabSendMeshTip = 339,
 
-    /// <summary>Request: TippingLabDemo.SetConsistencyAsync.</summary>
+    /// <summary>Request: TippingLabService.SetConsistencyAsync.</summary>
     TippingLabSetConsistency = 340,
 
-    /// <summary>Request: TippingLabDemo.Snapshot.</summary>
+    /// <summary>Request: TippingLabService.Snapshot.</summary>
     TippingLabSnapshot = 341,
 
-    /// <summary>Request: TippingLabDemo.StartAsync.</summary>
+    /// <summary>Request: TippingLabService.StartAsync.</summary>
     TippingLabStart = 342,
 
-    /// <summary>Request: TippingLabDemo.TipOnDeviceAsync.</summary>
+    /// <summary>Request: TippingLabService.TipOnDeviceAsync.</summary>
     TippingLabTipOnDevice = 343,
 
-    /// <summary>Request: What TippingLabDemo holds that a screen shows: Boost, DailyTotal, LastPacket, LastTipAccepted, PendingRewards, PendingTips, Policy, RecipientPetname, Settlements, Tier.</summary>
+    /// <summary>Request: What TippingLabService holds that a screen shows: Boost, DailyTotal, LastPacket, LastTipAccepted, PendingRewards, PendingTips, Policy, RecipientPetname, Settlements, Tier.</summary>
     GetTippingLab = 344,
 
-    /// <summary>Request: Start a fresh TorrentsDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh TorrentsLabService, as its page does when it opens.</summary>
     NewTorrents = 345,
 
     /// <summary>Request: Build a single-file v1 .torrent from text, parse it back to read the info-hash off the raw info bytes, assemble the magnet URI and prove it re-parses, then...</summary>
@@ -762,22 +762,22 @@ public enum NodeOp
     /// <summary>Request: Populate a RoutingTable for a fresh node id with random contacts, then show the k-closest to a target (XOR distance) — the Kademlia structure a DHT node...</summary>
     TorrentsShowRoutingTable = 350,
 
-    /// <summary>Request: What TorrentsDemo holds that a screen shows: Built, Dht, Export, Ingest, Log.</summary>
+    /// <summary>Request: What TorrentsLabService holds that a screen shows: Built, Dht, Export, Ingest, Log.</summary>
     GetTorrents = 351,
 
-    /// <summary>Request: Start a fresh VaultLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh VaultLabService, as its page does when it opens.</summary>
     NewVaultLab = 352,
 
     /// <summary>Request: Shard the secret with the real RS codec and lay each shard on its own peer.</summary>
     VaultLabBackup = 353,
 
-    /// <summary>Request: VaultLabDemo.Dispose.</summary>
+    /// <summary>Request: VaultLabService.Dispose.</summary>
     VaultLabDispose = 354,
 
     /// <summary>Request: Ask the mesh over the wire (PacketType 42) which peer holds a given shard.</summary>
     VaultLabLocateShard = 355,
 
-    /// <summary>Request: VaultLabDemo.Log.</summary>
+    /// <summary>Request: VaultLabService.Log.</summary>
     VaultLabLog = 356,
 
     /// <summary>Request: Restore redundancy without the dropped peers: reconstruct from survivors and re-encode a fresh full shard set, then place every shard on a live peer again.</summary>
@@ -795,25 +795,25 @@ public enum NodeOp
     /// <summary>Request: Toggle a peer (and therefore its one shard) between reachable and dark.</summary>
     VaultLabToggleShard = 361,
 
-    /// <summary>Request: What VaultLabDemo holds that a screen shows: HasBackup, Health, IntegrityOk, OnlineCount, Recovered, Secret.</summary>
+    /// <summary>Request: What VaultLabService holds that a screen shows: HasBackup, Health, IntegrityOk, OnlineCount, Recovered, Secret.</summary>
     GetVaultLab = 362,
 
-    /// <summary>Request: Set VaultLabDemo.Secret.</summary>
+    /// <summary>Request: Set VaultLabService.Secret.</summary>
     SetVaultLabSecret = 363,
 
-    /// <summary>Request: Start a fresh VicinityLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh VicinityLabService, as its page does when it opens.</summary>
     NewVicinityLab = 364,
 
     /// <summary>Request: A fresh witness vouches for the self-contained subject; the score climbs.</summary>
     VicinityLabAddVouch = 365,
 
-    /// <summary>Request: VicinityLabDemo.Dispose.</summary>
+    /// <summary>Request: VicinityLabService.Dispose.</summary>
     VicinityLabDispose = 366,
 
     /// <summary>Request: Report that someone the subject once vouched for has defected.</summary>
     VicinityLabReportDefection = 367,
 
-    /// <summary>Request: VicinityLabDemo.Snapshot.</summary>
+    /// <summary>Request: VicinityLabService.Snapshot.</summary>
     VicinityLabSnapshot = 368,
 
     /// <summary>Request: Stand up the two-node mesh and the self-contained ledger.</summary>
@@ -825,49 +825,49 @@ public enum NodeOp
     /// <summary>Request: The next witness issues a signed vicinity token to the subject over the real PoVTokenExchange packet; the subject verifies + counter-signs; the score climbs...</summary>
     VicinityLabVouchOverMesh = 371,
 
-    /// <summary>Request: What VicinityLabDemo holds that a screen shows: DefenceScore, DefenceSubjectPetname, HasSampleToken, LastAcceptedOnMesh, MeshScore, PristineVerify, SubjectUhid, TamperedVerify, WitnessesRemaining.</summary>
+    /// <summary>Request: What VicinityLabService holds that a screen shows: DefenceScore, DefenceSubjectPetname, HasLastToken, LastAcceptedOnMesh, MeshScore, PristineVerify, SubjectUhid, TamperedVerify, WitnessesRemaining.</summary>
     GetVicinityLab = 372,
 
-    /// <summary>Request: Start a fresh WatchTogetherDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh WatchTogetherLabService, as its page does when it opens.</summary>
     NewWatchTogether = 373,
 
-    /// <summary>Request: WatchTogetherDemo.ContributeAsync.</summary>
+    /// <summary>Request: WatchTogetherLabService.ContributeAsync.</summary>
     WatchTogetherContribute = 374,
 
-    /// <summary>Request: WatchTogetherDemo.Dispose.</summary>
+    /// <summary>Request: WatchTogetherLabService.Dispose.</summary>
     WatchTogetherDispose = 375,
 
     /// <summary>Request: Alice hosts; Bob and Charlie are invited and start following.</summary>
     WatchTogetherHostAndFollow = 376,
 
-    /// <summary>Request: WatchTogetherDemo.Nodes.</summary>
+    /// <summary>Request: WatchTogetherLabService.Nodes.</summary>
     WatchTogetherNodes = 377,
 
-    /// <summary>Request: WatchTogetherDemo.PauseAsync.</summary>
+    /// <summary>Request: WatchTogetherLabService.PauseAsync.</summary>
     WatchTogetherPause = 378,
 
-    /// <summary>Request: WatchTogetherDemo.PlayAsync.</summary>
+    /// <summary>Request: WatchTogetherLabService.PlayAsync.</summary>
     WatchTogetherPlay = 379,
 
     /// <summary>Request: A follower fires a reaction; it floods to everyone else in the room.</summary>
     WatchTogetherReact = 380,
 
-    /// <summary>Request: WatchTogetherDemo.SeekForwardAsync.</summary>
+    /// <summary>Request: WatchTogetherLabService.SeekForwardAsync.</summary>
     WatchTogetherSeekForward = 381,
 
-    /// <summary>Request: WatchTogetherDemo.SetSpeedAsync.</summary>
+    /// <summary>Request: WatchTogetherLabService.SetSpeedAsync.</summary>
     WatchTogetherSetSpeed = 382,
 
-    /// <summary>Request: WatchTogetherDemo.Snapshot.</summary>
+    /// <summary>Request: WatchTogetherLabService.Snapshot.</summary>
     WatchTogetherSnapshot = 383,
 
-    /// <summary>Request: WatchTogetherDemo.Start.</summary>
+    /// <summary>Request: WatchTogetherLabService.Start.</summary>
     WatchTogetherStart = 384,
 
     /// <summary>Request: Host opens a chip-in pool toward a shared cost.</summary>
     WatchTogetherStartChipIn = 385,
 
-    /// <summary>Request: What WatchTogetherDemo holds that a screen shows: HasPool, IsHosting, PoolCollected, PoolFunded, PoolTarget, Speed.</summary>
+    /// <summary>Request: What WatchTogetherLabService holds that a screen shows: HasPool, IsHosting, PoolCollected, PoolFunded, PoolTarget, Speed.</summary>
     GetWatchTogether = 386,
 
     /// <summary>Request: What IIdentityService holds that a screen shows: AetherTag, ProtectionDescription.</summary>
@@ -900,223 +900,223 @@ public enum NodeOp
     /// <summary>Request: What ProxyDirectory holds that a screen shows: Best, IsGateway.</summary>
     GetProxies = 396,
 
-    /// <summary>Request: Start a fresh DevicesLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh DevicesLabService, as its page does when it opens.</summary>
     NewDevicesLab = 397,
 
-    /// <summary>Request: DevicesLabDemo.ForgeLink.</summary>
+    /// <summary>Request: DevicesLabService.ForgeLink.</summary>
     DevicesLabForgeLink = 398,
 
-    /// <summary>Request: DevicesLabDemo.ForgeRevoke.</summary>
+    /// <summary>Request: DevicesLabService.ForgeRevoke.</summary>
     DevicesLabForgeRevoke = 399,
 
-    /// <summary>Request: DevicesLabDemo.Link.</summary>
+    /// <summary>Request: DevicesLabService.Link.</summary>
     DevicesLabLink = 400,
 
-    /// <summary>Request: DevicesLabDemo.Reconcile.</summary>
+    /// <summary>Request: DevicesLabService.Reconcile.</summary>
     DevicesLabReconcile = 401,
 
-    /// <summary>Request: DevicesLabDemo.Reset.</summary>
+    /// <summary>Request: DevicesLabService.Reset.</summary>
     DevicesLabReset = 402,
 
-    /// <summary>Request: DevicesLabDemo.Revoke.</summary>
+    /// <summary>Request: DevicesLabService.Revoke.</summary>
     DevicesLabRevoke = 403,
 
-    /// <summary>Request: What DevicesLabDemo holds that a screen shows: BState, Devices, ForgeLinkInfo, ForgeRevInfo, LinkInfo, ReconInfo, RevInfo, UserTag.</summary>
+    /// <summary>Request: What DevicesLabService holds that a screen shows: BState, Devices, ForgeLinkInfo, ForgeRevInfo, LinkInfo, ReconInfo, RevInfo, UserTag.</summary>
     GetDevicesLab = 404,
 
-    /// <summary>Request: Start a fresh DiagnosticsDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh DiagnosticsLabService, as its page does when it opens.</summary>
     NewDiagnostics = 405,
 
-    /// <summary>Request: DiagnosticsDemo.Derive.</summary>
+    /// <summary>Request: DiagnosticsLabService.Derive.</summary>
     DiagnosticsDerive = 406,
 
-    /// <summary>Request: DiagnosticsDemo.Issue.</summary>
+    /// <summary>Request: DiagnosticsLabService.Issue.</summary>
     DiagnosticsIssue = 407,
 
-    /// <summary>Request: DiagnosticsDemo.Prove.</summary>
+    /// <summary>Request: DiagnosticsLabService.Prove.</summary>
     DiagnosticsProve = 408,
 
-    /// <summary>Request: DiagnosticsDemo.Verify.</summary>
+    /// <summary>Request: DiagnosticsLabService.Verify.</summary>
     DiagnosticsVerify = 409,
 
-    /// <summary>Request: What DiagnosticsDemo holds that a screen shows: ChallengeIn, ChallengeOut, ExpectTag, IStart, PeerTag, ProofIn, ProofOut, Rv, VerifyOut.</summary>
+    /// <summary>Request: What DiagnosticsLabService holds that a screen shows: ChallengeIn, ChallengeOut, ExpectTag, IStart, PeerTag, ProofIn, ProofOut, Rv, VerifyOut.</summary>
     GetDiagnostics = 410,
 
-    /// <summary>Request: Set DiagnosticsDemo.ChallengeIn.</summary>
+    /// <summary>Request: Set DiagnosticsLabService.ChallengeIn.</summary>
     SetDiagnosticsChallengeIn = 411,
 
-    /// <summary>Request: Set DiagnosticsDemo.ExpectTag.</summary>
+    /// <summary>Request: Set DiagnosticsLabService.ExpectTag.</summary>
     SetDiagnosticsExpectTag = 412,
 
-    /// <summary>Request: Set DiagnosticsDemo.PeerTag.</summary>
+    /// <summary>Request: Set DiagnosticsLabService.PeerTag.</summary>
     SetDiagnosticsPeerTag = 413,
 
-    /// <summary>Request: Set DiagnosticsDemo.ProofIn.</summary>
+    /// <summary>Request: Set DiagnosticsLabService.ProofIn.</summary>
     SetDiagnosticsProofIn = 414,
 
-    /// <summary>Request: Start a fresh EridLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh EridLabService, as its page does when it opens.</summary>
     NewEridLab = 415,
 
-    /// <summary>Request: EridLabDemo.Back.</summary>
+    /// <summary>Request: EridLabService.Back.</summary>
     EridLabBack = 416,
 
-    /// <summary>Request: EridLabDemo.Forward.</summary>
+    /// <summary>Request: EridLabService.Forward.</summary>
     EridLabForward = 417,
 
-    /// <summary>Request: What EridLabDemo holds that a screen shows: AliceErid, Clock, EpochNow, History, PrevErid, ResolveNow, ResolvePrev, RotatesIn, WindowLabel.</summary>
+    /// <summary>Request: What EridLabService holds that a screen shows: AliceErid, Clock, EpochNow, History, PrevErid, ResolveNow, ResolvePrev, RotatesIn, WindowLabel.</summary>
     GetEridLab = 418,
 
-    /// <summary>Request: Start a fresh MarketLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh MarketLabService, as its page does when it opens.</summary>
     NewMarketLab = 419,
 
-    /// <summary>Request: MarketLabDemo.BrowseNearby.</summary>
+    /// <summary>Request: MarketLabService.BrowseNearby.</summary>
     MarketLabBrowseNearby = 420,
 
-    /// <summary>Request: MarketLabDemo.BuyerConfirm.</summary>
+    /// <summary>Request: MarketLabService.BuyerConfirm.</summary>
     MarketLabBuyerConfirm = 421,
 
-    /// <summary>Request: MarketLabDemo.Dispose.</summary>
+    /// <summary>Request: MarketLabService.Dispose.</summary>
     MarketLabDispose = 422,
 
-    /// <summary>Request: MarketLabDemo.Dispute.</summary>
+    /// <summary>Request: MarketLabService.Dispute.</summary>
     MarketLabDispute = 423,
 
-    /// <summary>Request: MarketLabDemo.Initiate.</summary>
+    /// <summary>Request: MarketLabService.Initiate.</summary>
     MarketLabInitiate = 424,
 
-    /// <summary>Request: MarketLabDemo.Post.</summary>
+    /// <summary>Request: MarketLabService.Post.</summary>
     MarketLabPost = 425,
 
-    /// <summary>Request: MarketLabDemo.ResetTrade.</summary>
+    /// <summary>Request: MarketLabService.ResetTrade.</summary>
     MarketLabResetTrade = 426,
 
-    /// <summary>Request: MarketLabDemo.Search.</summary>
+    /// <summary>Request: MarketLabService.Search.</summary>
     MarketLabSearch = 427,
 
     /// <summary>Request: Pick the listing with this id from what is showing.</summary>
     MarketLabSelect = 428,
 
-    /// <summary>Request: MarketLabDemo.SellerConfirm.</summary>
+    /// <summary>Request: MarketLabService.SellerConfirm.</summary>
     MarketLabSellerConfirm = 429,
 
-    /// <summary>Request: What MarketLabDemo holds that a screen shows: BuyerUhid, CanPost, Category, Center, Desc, Escrow, GeoHash, Log, Price, Query, Radius, ResultLabel, Results, SearchCategory, Selected, Title.</summary>
+    /// <summary>Request: What MarketLabService holds that a screen shows: BuyerUhid, CanPost, Category, Center, Desc, Escrow, GeoHash, Log, Price, Query, Radius, ResultLabel, Results, SearchCategory, Selected, Title.</summary>
     GetMarketLab = 430,
 
-    /// <summary>Request: Set MarketLabDemo.Category.</summary>
+    /// <summary>Request: Set MarketLabService.Category.</summary>
     SetMarketLabCategory = 431,
 
-    /// <summary>Request: Set MarketLabDemo.Center.</summary>
+    /// <summary>Request: Set MarketLabService.Center.</summary>
     SetMarketLabCenter = 432,
 
-    /// <summary>Request: Set MarketLabDemo.Desc.</summary>
+    /// <summary>Request: Set MarketLabService.Desc.</summary>
     SetMarketLabDesc = 433,
 
-    /// <summary>Request: Set MarketLabDemo.GeoHash.</summary>
+    /// <summary>Request: Set MarketLabService.GeoHash.</summary>
     SetMarketLabGeoHash = 434,
 
-    /// <summary>Request: Set MarketLabDemo.Price.</summary>
+    /// <summary>Request: Set MarketLabService.Price.</summary>
     SetMarketLabPrice = 435,
 
-    /// <summary>Request: Set MarketLabDemo.Query.</summary>
+    /// <summary>Request: Set MarketLabService.Query.</summary>
     SetMarketLabQuery = 436,
 
-    /// <summary>Request: Set MarketLabDemo.Radius.</summary>
+    /// <summary>Request: Set MarketLabService.Radius.</summary>
     SetMarketLabRadius = 437,
 
-    /// <summary>Request: Set MarketLabDemo.SearchCategory.</summary>
+    /// <summary>Request: Set MarketLabService.SearchCategory.</summary>
     SetMarketLabSearchCategory = 438,
 
-    /// <summary>Request: Set MarketLabDemo.Title.</summary>
+    /// <summary>Request: Set MarketLabService.Title.</summary>
     SetMarketLabTitle = 439,
 
-    /// <summary>Request: Start a fresh PanicLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh PanicLabService, as its page does when it opens.</summary>
     NewPanicLab = 440,
 
-    /// <summary>Request: PanicLabDemo.Arm.</summary>
+    /// <summary>Request: PanicLabService.Arm.</summary>
     PanicLabArm = 441,
 
-    /// <summary>Request: PanicLabDemo.Reset.</summary>
+    /// <summary>Request: PanicLabService.Reset.</summary>
     PanicLabReset = 442,
 
-    /// <summary>Request: PanicLabDemo.Unlock.</summary>
+    /// <summary>Request: PanicLabService.Unlock.</summary>
     PanicLabUnlock = 443,
 
-    /// <summary>Request: What PanicLabDemo holds that a screen shows: Armed, DuressPin, EraseAfter, EraseBefore, ErasedName, ExampleNames, HashHex, IdentityKeyCount, ManifestCount, MaxPreKeys, Outcome, Store, UnlockPin, Wiped.</summary>
+    /// <summary>Request: What PanicLabService holds that a screen shows: Armed, DuressPin, EraseAfter, EraseBefore, ErasedName, ExampleNames, HashHex, IdentityKeyCount, ManifestCount, MaxPreKeys, Outcome, Store, UnlockPin, Wiped.</summary>
     GetPanicLab = 444,
 
-    /// <summary>Request: Set PanicLabDemo.DuressPin.</summary>
+    /// <summary>Request: Set PanicLabService.DuressPin.</summary>
     SetPanicLabDuressPin = 445,
 
-    /// <summary>Request: Set PanicLabDemo.UnlockPin.</summary>
+    /// <summary>Request: Set PanicLabService.UnlockPin.</summary>
     SetPanicLabUnlockPin = 446,
 
-    /// <summary>Request: Start a fresh PetnamesLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh PetnamesLabService, as its page does when it opens.</summary>
     NewPetnamesLab = 447,
 
-    /// <summary>Request: PetnamesLabDemo.Gossip.</summary>
+    /// <summary>Request: PetnamesLabService.Gossip.</summary>
     PetnamesLabGossip = 448,
 
-    /// <summary>Request: PetnamesLabDemo.Pin.</summary>
+    /// <summary>Request: PetnamesLabService.Pin.</summary>
     PetnamesLabPin = 449,
 
-    /// <summary>Request: PetnamesLabDemo.ProposeAsPeer.</summary>
+    /// <summary>Request: PetnamesLabService.ProposeAsPeer.</summary>
     PetnamesLabProposeAsPeer = 450,
 
-    /// <summary>Request: PetnamesLabDemo.Reject.</summary>
+    /// <summary>Request: PetnamesLabService.Reject.</summary>
     PetnamesLabReject = 451,
 
-    /// <summary>Request: PetnamesLabDemo.Resolve.</summary>
+    /// <summary>Request: PetnamesLabService.Resolve.</summary>
     PetnamesLabResolve = 452,
 
-    /// <summary>Request: What PetnamesLabDemo holds that a screen shows: FormName, FormTag, GossipOut, Me, MyTag, Note, Peer, PeerTag, People, ResolveName, ResolveOut.</summary>
+    /// <summary>Request: What PetnamesLabService holds that a screen shows: FormName, FormTag, GossipOut, Me, MyTag, Note, Peer, PeerTag, People, ResolveName, ResolveOut.</summary>
     GetPetnamesLab = 453,
 
-    /// <summary>Request: Set PetnamesLabDemo.FormName.</summary>
+    /// <summary>Request: Set PetnamesLabService.FormName.</summary>
     SetPetnamesLabFormName = 454,
 
-    /// <summary>Request: Set PetnamesLabDemo.FormTag.</summary>
+    /// <summary>Request: Set PetnamesLabService.FormTag.</summary>
     SetPetnamesLabFormTag = 455,
 
-    /// <summary>Request: Set PetnamesLabDemo.ResolveName.</summary>
+    /// <summary>Request: Set PetnamesLabService.ResolveName.</summary>
     SetPetnamesLabResolveName = 456,
 
-    /// <summary>Request: Start a fresh RecoveryLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh RecoveryLabService, as its page does when it opens.</summary>
     NewRecoveryLab = 457,
 
-    /// <summary>Request: RecoveryLabDemo.CorruptOne.</summary>
+    /// <summary>Request: RecoveryLabService.CorruptOne.</summary>
     RecoveryLabCorruptOne = 458,
 
-    /// <summary>Request: RecoveryLabDemo.Generate.</summary>
+    /// <summary>Request: RecoveryLabService.Generate.</summary>
     RecoveryLabGenerate = 459,
 
-    /// <summary>Request: RecoveryLabDemo.Recover.</summary>
+    /// <summary>Request: RecoveryLabService.Recover.</summary>
     RecoveryLabRecover = 460,
 
-    /// <summary>Request: RecoveryLabDemo.ResetPhrase.</summary>
+    /// <summary>Request: RecoveryLabService.ResetPhrase.</summary>
     RecoveryLabResetPhrase = 461,
 
-    /// <summary>Request: What RecoveryLabDemo holds that a screen shows: Entered, Match, Result, TagA, TagB, Valid, Words.</summary>
+    /// <summary>Request: What RecoveryLabService holds that a screen shows: Entered, Match, Result, TagA, TagB, Valid, Words.</summary>
     GetRecoveryLab = 462,
 
     /// <summary>Request: The phrase as typed.</summary>
     SetRecoveryLabEntered = 463,
 
-    /// <summary>Request: Start a fresh SiteIdentityLabDemo, as its page does when it opens.</summary>
+    /// <summary>Request: Start a fresh SiteIdentityLabService, as its page does when it opens.</summary>
     NewSiteIdentityLab = 464,
 
-    /// <summary>Request: SiteIdentityLabDemo.AddRandom.</summary>
+    /// <summary>Request: SiteIdentityLabService.AddRandom.</summary>
     SiteIdentityLabAddRandom = 465,
 
-    /// <summary>Request: SiteIdentityLabDemo.AddTyped.</summary>
+    /// <summary>Request: SiteIdentityLabService.AddTyped.</summary>
     SiteIdentityLabAddTyped = 466,
 
-    /// <summary>Request: SiteIdentityLabDemo.RevisitAll.</summary>
+    /// <summary>Request: SiteIdentityLabService.RevisitAll.</summary>
     SiteIdentityLabRevisitAll = 467,
 
-    /// <summary>Request: What SiteIdentityLabDemo holds that a screen shows: AddNote, CanAddTyped, MasterTag, NewSite, Sites.</summary>
+    /// <summary>Request: What SiteIdentityLabService holds that a screen shows: AddNote, CanAddTyped, MasterTag, NewSite, Sites.</summary>
     GetSiteIdentityLab = 468,
 
-    /// <summary>Request: Set SiteIdentityLabDemo.NewSite.</summary>
+    /// <summary>Request: Set SiteIdentityLabService.NewSite.</summary>
     SetSiteIdentityLabNewSite = 469,
 
     /// <summary>Request: Attempts to parse an Aether Tag string.</summary>
@@ -1332,7 +1332,7 @@ public enum NodeOp
     // ── And what they tell the app changed ──
 
     /// <summary>Push: Raised whenever the log or node state changes; the UI re-renders on it.</summary>
-    EventAetherDemo = 106,
+    EventMeshLab = 106,
 
     /// <summary>Push: Raised when a phone starts taking it, and again when it finishes.</summary>
     EventHandout = 107,
@@ -1433,52 +1433,52 @@ public enum NodeOp
     /// <summary>Push: The host moved — play, pause or seek.</summary>
     EventWatchSynced = 139,
 
-    /// <summary>Push: BreadcrumbsDemo.Changed.</summary>
+    /// <summary>Push: BreadcrumbsLabService.Changed.</summary>
     EventBreadcrumbs = 140,
 
     /// <summary>Push: Raised whenever the log or node state changes; the page re-renders on it.</summary>
     EventBroadcast = 141,
 
-    /// <summary>Push: DtnLabDemo.Changed.</summary>
+    /// <summary>Push: DtnLabService.Changed.</summary>
     EventDtnLab = 142,
 
-    /// <summary>Push: FilesDemo.Changed.</summary>
+    /// <summary>Push: FilesLabService.Changed.</summary>
     EventFiles = 143,
 
-    /// <summary>Push: FmhyDemo.Changed.</summary>
+    /// <summary>Push: FmhyLabService.Changed.</summary>
     EventFmhy = 144,
 
-    /// <summary>Push: ForgeDemo.Changed.</summary>
+    /// <summary>Push: ForgeLabService.Changed.</summary>
     EventForge = 145,
 
-    /// <summary>Push: GroupVideoDemo.Changed.</summary>
+    /// <summary>Push: GroupVideoLabService.Changed.</summary>
     EventGroupVideo = 146,
 
-    /// <summary>Push: MapDemo.Changed.</summary>
+    /// <summary>Push: MapLabService.Changed.</summary>
     EventMap = 147,
 
-    /// <summary>Push: PoLLabDemo.Changed.</summary>
+    /// <summary>Push: PoLLabService.Changed.</summary>
     EventPoLLab = 148,
 
-    /// <summary>Push: PttScreenShareDemo.Changed.</summary>
+    /// <summary>Push: PttScreenShareLabService.Changed.</summary>
     EventPttScreenShare = 149,
 
-    /// <summary>Push: SosLabDemo.Changed.</summary>
+    /// <summary>Push: SosLabService.Changed.</summary>
     EventSosLab = 150,
 
-    /// <summary>Push: TippingLabDemo.Changed.</summary>
+    /// <summary>Push: TippingLabService.Changed.</summary>
     EventTippingLab = 151,
 
-    /// <summary>Push: TorrentsDemo.Changed.</summary>
+    /// <summary>Push: TorrentsLabService.Changed.</summary>
     EventTorrents = 152,
 
-    /// <summary>Push: VaultLabDemo.Changed.</summary>
+    /// <summary>Push: VaultLabService.Changed.</summary>
     EventVaultLab = 153,
 
     /// <summary>Push: Raised whenever the log or any score changes; the page re-renders on it.</summary>
     EventVicinityLab = 154,
 
-    /// <summary>Push: WatchTogetherDemo.Changed.</summary>
+    /// <summary>Push: WatchTogetherLabService.Changed.</summary>
     EventWatchTogether = 155,
 
     /// <summary>Push: Raised whenever the log or link state changes; the UI re-renders on it.</summary>

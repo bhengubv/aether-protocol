@@ -26,7 +26,7 @@ namespace AetherNet.Browser;
 ///
 /// <para>
 /// <b>Data, not markup.</b> This describes a card; it does not draw one. A host shows these however
-/// it likes — the sample shows them in a panel, an operating system might show them another way — and
+/// it likes — the Aether app shows them in a panel, an operating system might show them another way — and
 /// none of it is coupled to a screen.
 /// </para>
 /// </summary>

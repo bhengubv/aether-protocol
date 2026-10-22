@@ -2,7 +2,7 @@
 @using AetherNet.Sample.Shared.Services.Lab
 @implements IDisposable
 
-@* A demonstration surface for Proof-of-Vicinity — the anti-Sybil trust that lets an offline market
+@* A Lab surface for Proof-of-Vicinity — the anti-Sybil trust that lets an offline market
    tell one real neighbour from a thousand invented ones. Two halves: the real two-key exchange
    between two in-process nodes (PoVTokenExchangeService over PacketType.PoVTokenExchange), and the
    defences around it — a tampered token failing its signature, and a defection docking a voucher's
@@ -14,7 +14,7 @@
 <div class="vy">
     <header class="vy-head">
         <a class="vy-back" href="lab">← Lab</a>
-        <span class="vy-kicker">Economy · demo</span>
+        <span class="vy-kicker">Economy · Lab</span>
         <h1 class="vy-title">Proof-of-Vicinity</h1>
         <p class="vy-sub">Trust you cannot fake alone: two phones that are physically together
             countersign a token, and a profile earns standing by how many <b>distinct</b> people have
@@ -30,22 +30,22 @@
 
             <div class="vy-who">
                 <span class="vy-who-l">Profile</span>
-                <span class="vy-who-tag mono">@_demo.SubjectUhid</span>
+                <span class="vy-who-tag mono">@_lab.SubjectUhid</span>
             </div>
 
             <div class="vy-score">
                 <div class="vy-score-top">
-                    <span>@_demo.MeshScore.UniqueWitnesses distinct witness(es)</span>
-                    <span class="vy-score-w">weighted @_demo.MeshScore.WeightedScore.ToString("0.00")</span>
+                    <span>@_lab.MeshScore.UniqueWitnesses distinct witness(es)</span>
+                    <span class="vy-score-w">weighted @_lab.MeshScore.WeightedScore.ToString("0.00")</span>
                 </div>
-                <div class="vy-bar"><span style="width:@(Pct(_demo.MeshScore.WeightedScore))"></span></div>
+                <div class="vy-bar"><span style="width:@(Pct(_lab.MeshScore.WeightedScore))"></span></div>
             </div>
 
-            <button class="vy-btn block" @onclick="Vouch" disabled="@(_demo.WitnessesRemaining == 0)">
-                @(_demo.WitnessesRemaining == 0 ? "Both neighbours have vouched" : "A neighbour vouches in person")
+            <button class="vy-btn block" @onclick="Vouch" disabled="@(_lab.WitnessesRemaining == 0)">
+                @(_lab.WitnessesRemaining == 0 ? "Both neighbours have vouched" : "A neighbour vouches in person")
             </button>
 
-            @if (_demo.LastAcceptedOnMesh is { } t)
+            @if (_lab.LastAcceptedOnMesh is { } t)
             {
                 <div class="vy-tok">
                     <div class="vy-tok-h">token accepted</div>
@@ -69,25 +69,25 @@
 
             <div class="vy-who">
                 <span class="vy-who-l">Profile</span>
-                <span class="vy-who-tag mono">@_demo.DefenceSubjectPetname</span>
+                <span class="vy-who-tag mono">@_lab.DefenceSubjectPetname</span>
             </div>
 
             <div class="vy-score">
                 <div class="vy-score-top">
-                    <span>@_demo.DefenceScore.UniqueWitnesses distinct witness(es)</span>
-                    <span class="vy-score-w">weighted @_demo.DefenceScore.WeightedScore.ToString("0.00")</span>
+                    <span>@_lab.DefenceScore.UniqueWitnesses distinct witness(es)</span>
+                    <span class="vy-score-w">weighted @_lab.DefenceScore.WeightedScore.ToString("0.00")</span>
                 </div>
-                <div class="vy-bar"><span style="width:@(Pct(_demo.DefenceScore.WeightedScore))"></span></div>
+                <div class="vy-bar"><span style="width:@(Pct(_lab.DefenceScore.WeightedScore))"></span></div>
             </div>
 
-            @if (_demo.PristineVerify is not null || _demo.TamperedVerify is not null)
+            @if (_lab.PristineVerify is not null || _lab.TamperedVerify is not null)
             {
                 <div class="vy-verdicts">
-                    @if (_demo.PristineVerify is { } pv)
+                    @if (_lab.PristineVerify is { } pv)
                     {
                         <span class="vy-vd @(pv ? "ok" : "no")">real token: @(pv ? "VALID" : "REJECTED")</span>
                     }
-                    @if (_demo.TamperedVerify is { } tv)
+                    @if (_lab.TamperedVerify is { } tv)
                     {
                         <span class="vy-vd @(tv ? "ok" : "no")">tampered token: @(tv ? "VALID (BAD!)" : "REJECTED")</span>
                     }
@@ -96,8 +96,8 @@
 
             <div class="vy-acts">
                 <button class="vy-btn" @onclick="AddVouch">A neighbour vouches</button>
-                <button class="vy-btn ghost" @onclick="Tamper" disabled="@(!_demo.HasSampleToken)">Tamper the token</button>
-                <button class="vy-btn ghost" @onclick="Defect" disabled="@(_demo.DefenceScore.WeightedScore <= 0)">Report a defection (−20%)</button>
+                <button class="vy-btn ghost" @onclick="Tamper" disabled="@(!_lab.HasLastToken)">Tamper the token</button>
+                <button class="vy-btn ghost" @onclick="Defect" disabled="@(_lab.DefenceScore.WeightedScore <= 0)">Report a defection (−20%)</button>
             </div>
         </div>
     </section>
@@ -105,7 +105,7 @@
     <section class="vy-group">
         <div class="vy-glabel">Wire log</div>
         <div class="vy-log">
-            @foreach (var l in Enumerable.Reverse(_demo.Snapshot()))
+            @foreach (var l in Enumerable.Reverse(_lab.Snapshot()))
             {
                 <div class="vy-ll @(l.Emphasis ? "em" : null)">@l.Text</div>
             }
@@ -114,20 +114,20 @@
 </div>
 
 @code {
-    private readonly VicinityLabDemo _demo = new();
+    private readonly VicinityLabService _lab = new();
 
     protected override void OnInitialized()
     {
-        _demo.Changed += OnChanged;
-        _demo.Start();
+        _lab.Changed += OnChanged;
+        _lab.Start();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private Task Vouch() => _demo.VouchOverMeshAsync();
-    private Task AddVouch() => _demo.AddVouchAsync();
-    private Task Tamper() => _demo.TamperAsync();
-    private Task Defect() => _demo.ReportDefectionAsync();
+    private Task Vouch() => _lab.VouchOverMeshAsync();
+    private Task AddVouch() => _lab.AddVouchAsync();
+    private Task Tamper() => _lab.TamperAsync();
+    private Task Defect() => _lab.ReportDefectionAsync();
 
     private static string Pct(double weighted) => $"{Math.Clamp(weighted, 0, 1) * 100:0}%";
 
@@ -141,8 +141,8 @@
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }
 

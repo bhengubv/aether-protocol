@@ -1,6 +1,6 @@
 @page "/lab/devices"
 @using AetherNet.Sample.Shared.Services.Lab
-@using DeviceState = AetherNet.Sample.Shared.Services.Lab.DevicesLabDemo.DeviceState
+@using DeviceState = AetherNet.Sample.Shared.Services.Lab.DevicesLabService.DeviceState
 @implements IDisposable
 
 @* Adding a device, and taking one away, with no directory to ask.
@@ -82,7 +82,7 @@
     </section>
 
     <section class="dev-reset">
-        <button class="btn ghost" @onclick="Reset">Reset demo</button>
+        <button class="btn ghost" @onclick="Reset">Reset</button>
     </section>
 </div>
 
@@ -114,33 +114,33 @@
 </style>
 
 @code {
-    // The demo runs in AetherNetService; this page shows it and passes on what the person does. The identity keys
+    // The lab runs in AetherNetService; this page shows it and passes on what the person does. The identity keys
     // stay there: this page only sees what each step proved.
-    private DevicesLabDemo _demo = null!;
+    private DevicesLabService _lab = null!;
 
-    private string _userTag => _demo.UserTag;
-    private DeviceState _bState => _demo.BState;
-    private string? _linkInfo => _demo.LinkInfo;
-    private string? _forgeLinkInfo => _demo.ForgeLinkInfo;
-    private string? _revInfo => _demo.RevInfo;
-    private string? _forgeRevInfo => _demo.ForgeRevInfo;
-    private string? _reconInfo => _demo.ReconInfo;
-    private IReadOnlyList<DevicesLabDemo.DeviceView> _devices => _demo.Devices;
+    private string _userTag => _lab.UserTag;
+    private DeviceState _bState => _lab.BState;
+    private string? _linkInfo => _lab.LinkInfo;
+    private string? _forgeLinkInfo => _lab.ForgeLinkInfo;
+    private string? _revInfo => _lab.RevInfo;
+    private string? _forgeRevInfo => _lab.ForgeRevInfo;
+    private string? _reconInfo => _lab.ReconInfo;
+    private IReadOnlyList<DevicesLabService.DeviceView> _devices => _lab.Devices;
 
     protected override void OnInitialized()
     {
-        _demo = new DevicesLabDemo();
-        _demo.Changed += OnChanged;
+        _lab = new DevicesLabService();
+        _lab.Changed += OnChanged;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private void Reset() => _demo.Reset();
-    private void Link() => _demo.Link();
-    private void ForgeLink() => _demo.ForgeLink();
-    private void Revoke() => _demo.Revoke();
-    private void ForgeRevoke() => _demo.ForgeRevoke();
-    private void Reconcile() => _demo.Reconcile();
+    private void Reset() => _lab.Reset();
+    private void Link() => _lab.Link();
+    private void ForgeLink() => _lab.ForgeLink();
+    private void Revoke() => _lab.Revoke();
+    private void ForgeRevoke() => _lab.ForgeRevoke();
+    private void Reconcile() => _lab.Reconcile();
 
     private static string StateLabel(DeviceState s) => s switch
     {
@@ -151,7 +151,7 @@
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }

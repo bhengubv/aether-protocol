@@ -3,28 +3,28 @@
 @using AetherNet.Tipping.Models
 @implements IDisposable
 
-@* A demonstration surface for the tipping / creator-rewards path: the real mesh TipPacket
+@* A Lab surface for the tipping / creator-rewards path: the real mesh TipPacket
    (MeshTipService), the on-device SDPKT-settled client (TippingService + AetherRewardService), and
    the tipper's earned QoS preference (TipperQoSService) — all in-process. The protocol carries the
-   intent to credit; settlement here is drawn in play chips, because a demo must move no money. *@
+   intent to credit; settlement here is drawn in play chips, because a lab must move no money. *@
 
 <PageTitle>Lab — Tipping</PageTitle>
 
 <div class="tp">
     <header class="tp-head">
         <a class="tp-back" href="lab">← Lab</a>
-        <span class="tp-kicker">Economy · demo</span>
+        <span class="tp-kicker">Economy · Lab</span>
         <h1 class="tp-title">Tipping &amp; creator rewards</h1>
         <p class="tp-sub">Pay a relay for carrying your traffic. A tip is never a gate — a
             non-tipper always gets service — and a steady tipper earns a small routing preference.
-            <b>Every rand here is a demo rand.</b></p>
+            <b>Every rand here is a play rand.</b></p>
     </header>
 
     <section class="tp-group">
         <div class="tp-glabel">Send a tip over the mesh</div>
         <div class="tp-card tp-pad">
             <p class="tp-ex"><span class="mono">MeshTipService</span> puts a real, Ed25519-signed
-                <span class="mono">TipPacket</span> (type 24) on a two-node mesh; @_demo.RecipientPetname
+                <span class="mono">TipPacket</span> (type 24) on a two-node mesh; @_lab.RecipientPetname
                 verifies it and its wallet seam settles — in play money.</p>
 
             <div class="tp-amt">
@@ -33,20 +33,20 @@
                 <button class="tp-btn" @onclick="SendMesh">Send over mesh →</button>
             </div>
 
-            @if (_demo.LastPacket is { } p)
+            @if (_lab.LastPacket is { } p)
             {
                 <div class="tp-packet">
                     <span class="tp-chip">TipPacket · type @((int)p.Type)</span>
                     <span class="mono">envelope sig @p.Signature.Length B</span>
-                    <span class="mono">→ @_demo.RecipientPetname</span>
+                    <span class="mono">→ @_lab.RecipientPetname</span>
                 </div>
             }
 
-            @if (_demo.Settlements.Count > 0)
+            @if (_lab.Settlements.Count > 0)
             {
                 <div class="tp-ledger">
-                    <div class="tp-ledger-h">@(_demo.RecipientPetname)'s wallet · simulated</div>
-                    @foreach (var s in Enumerable.Reverse(_demo.Settlements))
+                    <div class="tp-ledger-h">@(_lab.RecipientPetname)'s wallet · simulated</div>
+                    @foreach (var s in Enumerable.Reverse(_lab.Settlements))
                     {
                         <div class="tp-lentry">
                             <span class="tp-lamt">+R@(s.AmountZar.ToString("0.00"))</span>
@@ -73,19 +73,19 @@
                 <button class="tp-btn" @onclick="QueueTip">Queue a tip</button>
             </div>
 
-            @if (_demo.Policy is { } pol)
+            @if (_lab.Policy is { } pol)
             {
                 <div class="tp-policy">Policy band: R@(pol.MinAmount.ToString("0.00"))–R@(pol.MaxAmount.ToString("0.00")),
                     daily cap R@(pol.DailyCapPerTipper.ToString("0.00")).</div>
             }
 
             <div class="tp-stats">
-                <div class="tp-stat"><span class="tp-sv">@_demo.PendingTips</span><span class="tp-sl">tips queued</span></div>
-                <div class="tp-stat"><span class="tp-sv">R@(_demo.DailyTotal.ToString("0.00"))</span><span class="tp-sl">tipped today</span></div>
-                <div class="tp-stat"><span class="tp-sv">@_demo.PendingRewards</span><span class="tp-sl">XP pending</span></div>
+                <div class="tp-stat"><span class="tp-sv">@_lab.PendingTips</span><span class="tp-sl">tips queued</span></div>
+                <div class="tp-stat"><span class="tp-sv">R@(_lab.DailyTotal.ToString("0.00"))</span><span class="tp-sl">tipped today</span></div>
+                <div class="tp-stat"><span class="tp-sv">@_lab.PendingRewards</span><span class="tp-sl">XP pending</span></div>
             </div>
 
-            @if (_demo.LastTipAccepted == false)
+            @if (_lab.LastTipAccepted == false)
             {
                 <div class="tp-note">Last tip was refused — outside policy or over the cap. Service is
                     unaffected; a tip is never an access gate.</div>
@@ -111,7 +111,7 @@
             <div class="tp-ladder">
                 @foreach (var rung in Ladder)
                 {
-                    <div class="tp-rung @(rung.Tier == _demo.Tier ? "on" : null)">
+                    <div class="tp-rung @(rung.Tier == _lab.Tier ? "on" : null)">
                         <span class="tp-rt">@rung.Tier</span>
                         <span class="tp-rr">@rung.Range</span>
                         <span class="tp-rb">+@rung.Boost</span>
@@ -119,14 +119,14 @@
                 }
             </div>
 
-            <div class="tp-qnow">Now: <b>@_demo.Tier</b> tier, routing-quality boost <b>+@_demo.Boost</b>.</div>
+            <div class="tp-qnow">Now: <b>@_lab.Tier</b> tier, routing-quality boost <b>+@_lab.Boost</b>.</div>
         </div>
     </section>
 
     <section class="tp-group">
         <div class="tp-glabel">Wire log</div>
         <div class="tp-log">
-            @foreach (var l in Enumerable.Reverse(_demo.Snapshot()))
+            @foreach (var l in Enumerable.Reverse(_lab.Snapshot()))
             {
                 <div class="tp-ll @(l.Emphasis ? "em" : null)">@l.Text</div>
             }
@@ -135,21 +135,21 @@
 </div>
 
 @code {
-    private readonly TippingLabDemo _demo = new();
+    private readonly TippingLabService _lab = new();
     private decimal _amount = 0.50m;
     private int _consistency = 60;
 
     protected override async Task OnInitializedAsync()
     {
-        _demo.Changed += OnChanged;
-        await _demo.StartAsync();
+        _lab.Changed += OnChanged;
+        await _lab.StartAsync();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private Task SendMesh() => _demo.SendMeshTipAsync(_amount);
-    private Task QueueTip() => _demo.TipOnDeviceAsync(_amount);
-    private Task ApplyConsistency() => _demo.SetConsistencyAsync((short)_consistency);
+    private Task SendMesh() => _lab.SendMeshTipAsync(_amount);
+    private Task QueueTip() => _lab.TipOnDeviceAsync(_amount);
+    private Task ApplyConsistency() => _lab.SetConsistencyAsync((short)_consistency);
 
     private sealed record Rung(QoSTier Tier, string Range, int Boost);
 
@@ -171,8 +171,8 @@
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }
 

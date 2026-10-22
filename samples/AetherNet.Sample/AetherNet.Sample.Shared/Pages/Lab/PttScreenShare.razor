@@ -42,9 +42,9 @@
     </section>
 
     <section class="pt-controls">
-        <button class="btn ink" @onclick="() => RunAsync(Demo.PushToTalkAsync)">Push to talk → Bob</button>
-        <button class="btn ink" @onclick="() => RunAsync(Demo.ShareScreenAsync)">Share screen → Bob</button>
-        <button class="btn" @onclick="() => Run(Demo.ClearLog)">Clear</button>
+        <button class="btn ink" @onclick="() => RunAsync(Lab.PushToTalkAsync)">Push to talk → Bob</button>
+        <button class="btn ink" @onclick="() => RunAsync(Lab.ShareScreenAsync)">Share screen → Bob</button>
+        <button class="btn" @onclick="() => Run(Lab.ClearLog)">Clear</button>
     </section>
 
     <section class="pt-hdr">
@@ -99,15 +99,15 @@
 </div>
 
 @code {
-    private readonly PttScreenShareDemo Demo = new();
-    private IReadOnlyList<PttScreenShareDemo.NodeView> _nodes = Array.Empty<PttScreenShareDemo.NodeView>();
-    private IReadOnlyList<PttScreenShareDemo.LogLine> _log = Array.Empty<PttScreenShareDemo.LogLine>();
-    private PttScreenShareDemo.HeaderView? _hdr;
+    private readonly PttScreenShareLabService Lab = new();
+    private IReadOnlyList<PttScreenShareLabService.NodeView> _nodes = Array.Empty<PttScreenShareLabService.NodeView>();
+    private IReadOnlyList<PttScreenShareLabService.LogLine> _log = Array.Empty<PttScreenShareLabService.LogLine>();
+    private PttScreenShareLabService.HeaderView? _hdr;
 
     protected override void OnInitialized()
     {
-        Demo.Changed += OnChanged;
-        Demo.Start();
+        Lab.Changed += OnChanged;
+        Lab.Start();
         Refresh();
     }
 
@@ -115,9 +115,9 @@
 
     private void Refresh()
     {
-        _nodes = Demo.Nodes();
-        _log = Demo.Snapshot();
-        _hdr = Demo.LastHeader;
+        _nodes = Lab.Nodes();
+        _log = Lab.Snapshot();
+        _hdr = Lab.LastHeader;
     }
 
     private void Run(Action act) => act();
@@ -125,8 +125,8 @@
 
     public void Dispose()
     {
-        Demo.Changed -= OnChanged;
-        Demo.Dispose();
+        Lab.Changed -= OnChanged;
+        Lab.Dispose();
     }
 }
 

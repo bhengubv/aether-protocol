@@ -11,7 +11,7 @@
    pseudonym anywhere else, and impossible to run backwards to the master.
 
    Below is the real SiteIdentityDerivation over a real NodeIdentity (its key minted into an in-memory
-   store for the demo). Derive the per-site handle for a few card origins from one master tag, revisit
+   store for the lab). Derive the per-site handle for a few card origins from one master tag, revisit
    to prove it is stable, and see that no two sites share anything to collude over. *@
 
 <div class="site">
@@ -119,30 +119,30 @@
 </style>
 
 @code {
-    // The demo runs in AetherNetService; this page shows it and passes on what the person does.
-    private SiteIdentityLabDemo _demo = null!;
+    // The lab runs in AetherNetService; this page shows it and passes on what the person does.
+    private SiteIdentityLabService _lab = null!;
 
-    private string _masterTag => _demo.MasterTag;
-    private IReadOnlyList<SiteIdentityLabDemo.SiteView> _sites => _demo.Sites;
-    private string _newSite { get => _demo.NewSite; set => _demo.NewSite = value; }
-    private string? _addNote => _demo.AddNote;
-    private bool CanAddTyped => _demo.CanAddTyped;
+    private string _masterTag => _lab.MasterTag;
+    private IReadOnlyList<SiteIdentityLabService.SiteView> _sites => _lab.Sites;
+    private string _newSite { get => _lab.NewSite; set => _lab.NewSite = value; }
+    private string? _addNote => _lab.AddNote;
+    private bool CanAddTyped => _lab.CanAddTyped;
 
     protected override void OnInitialized()
     {
-        _demo = new SiteIdentityLabDemo();
-        _demo.Changed += OnChanged;
+        _lab = new SiteIdentityLabService();
+        _lab.Changed += OnChanged;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private Task AddTyped() => _demo.AddTyped();
-    private Task AddRandom() => _demo.AddRandom();
-    private Task RevisitAll() => _demo.RevisitAll();
+    private Task AddTyped() => _lab.AddTyped();
+    private Task AddRandom() => _lab.AddRandom();
+    private Task RevisitAll() => _lab.RevisitAll();
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }

@@ -880,7 +880,7 @@ public sealed class MeshWebService
 
     private void RaiseChanged() => Changed?.Invoke();
 
-    // ─── Personas — the demo sites, no longer published ──────────────────────────
+    // ─── Personas — the persona sites, no longer published ──────────────────────────
     //
     // A device used to host one of three invented sites so that two phones showed visibly different
     // pages before anybody had written anything. It hosts what its owner wrote now, so none of this is

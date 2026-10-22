@@ -22,21 +22,21 @@
         <div class="fmh-peers">
             <div class="fmh-peer">
                 <div class="fmh-peer-top"><span class="fmh-dot on"></span><span class="fmh-peer-name">Online peer</span></div>
-                <div class="fmh-peer-count">@_demo.OnlineCount <span>entries</span></div>
-                <div class="fmh-peer-sub">@(_demo.OnlineSyncedAt is null ? "seed only" : "synced " + _demo.OnlineSyncedAt.Value.ToString("HH:mm:ss"))</div>
+                <div class="fmh-peer-count">@_lab.OnlineCount <span>entries</span></div>
+                <div class="fmh-peer-sub">@(_lab.OnlineSyncedAt is null ? "seed only" : "synced " + _lab.OnlineSyncedAt.Value.ToString("HH:mm:ss"))</div>
             </div>
             <div class="fmh-arrow">→</div>
             <div class="fmh-peer">
                 <div class="fmh-peer-top"><span class="fmh-dot off"></span><span class="fmh-peer-name">Offline peer</span></div>
-                <div class="fmh-peer-count">@_demo.OfflineCount <span>entries</span></div>
-                <div class="fmh-peer-sub">@(_demo.OfflineSyncedAt is null ? "no internet, ever" : "carried over the mesh")</div>
+                <div class="fmh-peer-count">@_lab.OfflineCount <span>entries</span></div>
+                <div class="fmh-peer-sub">@(_lab.OfflineSyncedAt is null ? "no internet, ever" : "carried over the mesh")</div>
             </div>
         </div>
         <div class="fmh-btns">
             <button class="btn ink" @onclick="SyncOnline">Sync the online peer</button>
             <button class="btn" @onclick="Propagate">Deliver to offline over mesh →</button>
         </div>
-        @if (_demo.NewEntryReachedOffline is { } name)
+        @if (_lab.NewEntryReachedOffline is { } name)
         {
             <div class="fmh-reached">⭐ “@name” reached the offline peer — no internet touched.</div>
         }
@@ -44,16 +44,16 @@
 
     @* ── Browse ────────────────────────────────────────────────────────────── *@
     <section class="fmh-card">
-        <div class="fmh-eyebrow">Browse the catalogue (@_demo.OnlineCount)</div>
+        <div class="fmh-eyebrow">Browse the catalogue (@_lab.OnlineCount)</div>
         <div class="fmh-cats">
-            <button class="fmh-cat @(string.IsNullOrEmpty(_demo.CategoryFilter) ? "on" : "")" @onclick="() => _demo.Filter(null)">All</button>
-            @foreach (var c in _demo.Categories)
+            <button class="fmh-cat @(string.IsNullOrEmpty(_lab.CategoryFilter) ? "on" : "")" @onclick="() => _lab.Filter(null)">All</button>
+            @foreach (var c in _lab.Categories)
             {
-                <button class="fmh-cat @(_demo.CategoryFilter == c ? "on" : "")" @onclick="() => _demo.Filter(c)">@c</button>
+                <button class="fmh-cat @(_lab.CategoryFilter == c ? "on" : "")" @onclick="() => _lab.Filter(c)">@c</button>
             }
         </div>
         <div class="fmh-list">
-            @foreach (var e in _demo.Entries)
+            @foreach (var e in _lab.Entries)
             {
                 <div class="fmh-entry">
                     <div class="fmh-entry-top">
@@ -65,7 +65,7 @@
                     @if (e.Mirrors.Length > 0) { <div class="fmh-entry-mir">@e.Mirrors.Length mirror(s)</div> }
                 </div>
             }
-            @if (_demo.Entries.Count == 0)
+            @if (_lab.Entries.Count == 0)
             {
                 <div class="fmh-empty">Nothing in this category.</div>
             }
@@ -77,17 +77,17 @@
         <div class="fmh-card fmh-half">
             <div class="fmh-eyebrow">Starred — highly recommended</div>
             <div class="fmh-list">
-                @foreach (var e in _demo.Starred)
+                @foreach (var e in _lab.Starred)
                 {
                     <div class="fmh-entry"><div class="fmh-entry-top"><span class="fmh-star">⭐</span><span class="fmh-entry-name">@e.Name</span><span class="fmh-entry-cat">@e.Category</span></div></div>
                 }
-                @if (_demo.Starred.Count == 0) { <div class="fmh-empty">No starred entries yet.</div> }
+                @if (_lab.Starred.Count == 0) { <div class="fmh-empty">No starred entries yet.</div> }
             </div>
         </div>
         <div class="fmh-card fmh-half">
             <div class="fmh-eyebrow">Tracker sources for mesh sharing</div>
             <div class="fmh-list">
-                @foreach (var t in _demo.Trackers)
+                @foreach (var t in _lab.Trackers)
                 {
                     <div class="fmh-entry"><div class="fmh-entry-top"><span class="fmh-entry-name">@t.Name</span></div><div class="fmh-entry-desc">@t.Description</div></div>
                 }
@@ -97,7 +97,7 @@
 
     @* ── Wire log ────────────────────────────────────────────────────────────── *@
     <section class="fmh-log">
-        @foreach (var line in _demo.Log)
+        @foreach (var line in _lab.Log)
         {
             <div class="fmh-line"><span class="fmh-who">@line.Who</span><span class="fmh-text">@line.Text</span></div>
         }
@@ -105,20 +105,20 @@
 </div>
 
 @code {
-    private readonly FmhyDemo _demo = new();
+    private readonly FmhyLabService _lab = new();
 
     protected override void OnInitialized()
     {
-        _demo.Changed += OnChanged;
-        _demo.LoadSeed();
+        _lab.Changed += OnChanged;
+        _lab.LoadSeed();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private async Task SyncOnline() => await _demo.SyncOnlineAsync();
-    private async Task Propagate() => await _demo.PropagateToOfflineAsync();
+    private async Task SyncOnline() => await _lab.SyncOnlineAsync();
+    private async Task Propagate() => await _lab.PropagateToOfflineAsync();
 
-    public void Dispose() { _demo.Changed -= OnChanged; _demo.Dispose(); }
+    public void Dispose() { _lab.Changed -= OnChanged; _lab.Dispose(); }
 }
 
 <style>

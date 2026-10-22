@@ -35,34 +35,34 @@
 @code {
     // The diagnostics run in AetherNetService, with this phone's real identity; this page shows them and passes on
     // what the person does.
-    private DiagnosticsDemo _demo = null!;
+    private DiagnosticsLabService _lab = null!;
 
-    private string _peerTag { get => _demo.PeerTag; set => _demo.PeerTag = value; }
-    private string _rv => _demo.Rv;
-    private string _iStart => _demo.IStart;
-    private string _challengeOut => _demo.ChallengeOut;
-    private string _challengeIn { get => _demo.ChallengeIn; set => _demo.ChallengeIn = value; }
-    private string _proofOut => _demo.ProofOut;
-    private string _proofIn { get => _demo.ProofIn; set => _demo.ProofIn = value; }
-    private string _expectTag { get => _demo.ExpectTag; set => _demo.ExpectTag = value; }
-    private string _verifyOut => _demo.VerifyOut;
+    private string _peerTag { get => _lab.PeerTag; set => _lab.PeerTag = value; }
+    private string _rv => _lab.Rv;
+    private string _iStart => _lab.IStart;
+    private string _challengeOut => _lab.ChallengeOut;
+    private string _challengeIn { get => _lab.ChallengeIn; set => _lab.ChallengeIn = value; }
+    private string _proofOut => _lab.ProofOut;
+    private string _proofIn { get => _lab.ProofIn; set => _lab.ProofIn = value; }
+    private string _expectTag { get => _lab.ExpectTag; set => _lab.ExpectTag = value; }
+    private string _verifyOut => _lab.VerifyOut;
 
     protected override void OnInitialized()
     {
-        _demo = new DiagnosticsDemo();
-        _demo.Changed += OnChanged;
+        _lab = new DiagnosticsLabService();
+        _lab.Changed += OnChanged;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private void Derive() => _demo.Derive();
-    private void Issue() => _demo.Issue();
-    private Task Prove() => _demo.Prove();
-    private void Verify() => _demo.Verify();
+    private void Derive() => _lab.Derive();
+    private void Issue() => _lab.Issue();
+    private Task Prove() => _lab.Prove();
+    private void Verify() => _lab.Verify();
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }

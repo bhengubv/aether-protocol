@@ -59,7 +59,7 @@ public sealed class VaultNodeIdentityStore : INodeIdentityStore
     /// <inheritdoc />
     public void Save(byte[] privateKey) => _vault.Set(KeyName, privateKey);
 
-    /// <summary>What earlier builds of this sample called it, when the app still minted its own.</summary>
+    /// <summary>What earlier builds of the Aether app called it, when the app still minted its own.</summary>
     private const string LegacyKeyName = "aether.identity.ed25519";
 
     /// <summary>

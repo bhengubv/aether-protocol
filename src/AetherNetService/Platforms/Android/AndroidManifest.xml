@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The node hosts the mesh, so it holds the radio permissions the sample used to. It holds calls too, now that
+<!-- The node hosts the mesh, so it holds the radio permissions the Aether app used to. It holds calls too, now that
      the app's classes joined it, so the call's as well: the microphone, the ring and the call's foreground service.
      No camera and no NFC: those belong to the app's screens. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">

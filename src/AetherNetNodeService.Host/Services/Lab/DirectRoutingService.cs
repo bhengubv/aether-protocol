@@ -8,13 +8,13 @@ using AetherNet.Mesh;
 namespace AetherNetNodeService.Host.Lab;
 
 /// <summary>
-/// A one-hop routing table for the in-process Lab meshes. Every node in these demos is a
+/// A one-hop routing table for the in-process Lab meshes. Every node in these labs is a
 /// direct neighbour of every other, so the next hop toward any destination simply <i>is</i>
 /// that destination — there is no multi-hop path to discover, and no RREQ/RREP round-trip to
 /// simulate. The streaming services (<c>StreamingService</c>, <c>WatchTogetherService</c>,
 /// <c>GroupVideoService</c>, <c>VideoCallService</c>) all ask this for a route and, finding one,
 /// <b>unicast</b> to a single subscriber / participant instead of falling back to a flood —
-/// which is what lets the demos show precise, addressed delivery (a viewer who never subscribed
+/// which is what lets the labs show precise, addressed delivery (a viewer who never subscribed
 /// gets nothing) rather than everyone hearing everything.
 /// </summary>
 internal sealed class DirectRoutingService : IRoutingService

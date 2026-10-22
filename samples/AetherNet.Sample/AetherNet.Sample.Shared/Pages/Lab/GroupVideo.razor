@@ -19,7 +19,7 @@
     <section class="gv-call">
         <div class="gv-call-top">
             <span class="gv-topo @(_group.IsSfu ? "sfu" : null)">@(_group.IsSfu ? "SFU" : "Full mesh")</span>
-            <span class="gv-count">@_group.ActiveCount / @Demo.SfuThreshold on the call</span>
+            <span class="gv-count">@_group.ActiveCount / @Lab.SfuThreshold on the call</span>
             @if (_group.IsSfu && _group.RelayName is not null)
             {
                 <span class="gv-relay">@_group.RelayName relays</span>
@@ -48,11 +48,11 @@
     </section>
 
     <section class="gv-controls">
-        <button class="btn ink" disabled="@Demo.CallOpen" @onclick="() => RunAsync(Demo.OpenCallAsync)">Open call</button>
-        <button class="btn ink" disabled="@(!Demo.CallOpen || !Demo.HasPending)" @onclick="() => RunAsync(Demo.AdmitNextAsync)">
+        <button class="btn ink" disabled="@Lab.CallOpen" @onclick="() => RunAsync(Lab.OpenCallAsync)">Open call</button>
+        <button class="btn ink" disabled="@(!Lab.CallOpen || !Lab.HasPending)" @onclick="() => RunAsync(Lab.AdmitNextAsync)">
             @AdmitLabel
         </button>
-        <button class="btn" @onclick="() => Run(Demo.ClearLog)">Clear</button>
+        <button class="btn" @onclick="() => Run(Lab.ClearLog)">Clear</button>
     </section>
 
     <section class="gv-1to1">
@@ -64,8 +64,8 @@
             }
         </div>
         <div class="gv-controls">
-            <button class="btn" disabled="@CallConnected" @onclick="() => RunAsync(Demo.RingBobAsync)">Ring Bob (1:1)</button>
-            <button class="btn" disabled="@CallEndedOrNull" @onclick="() => RunAsync(Demo.HangupAsync)">Hang up</button>
+            <button class="btn" disabled="@CallConnected" @onclick="() => RunAsync(Lab.RingBobAsync)">Ring Bob (1:1)</button>
+            <button class="btn" disabled="@CallEndedOrNull" @onclick="() => RunAsync(Lab.HangupAsync)">Hang up</button>
         </div>
     </section>
 
@@ -85,15 +85,15 @@
 </div>
 
 @code {
-    private readonly GroupVideoDemo Demo = new();
-    private GroupVideoDemo.GroupView _group = new(false, "FullMesh", null, 0, Array.Empty<GroupVideoDemo.ParticipantView>());
-    private GroupVideoDemo.CallView? _call;
-    private IReadOnlyList<GroupVideoDemo.LogLine> _log = Array.Empty<GroupVideoDemo.LogLine>();
+    private readonly GroupVideoLabService Lab = new();
+    private GroupVideoLabService.GroupView _group = new(false, "FullMesh", null, 0, Array.Empty<GroupVideoLabService.ParticipantView>());
+    private GroupVideoLabService.CallView? _call;
+    private IReadOnlyList<GroupVideoLabService.LogLine> _log = Array.Empty<GroupVideoLabService.LogLine>();
 
     protected override void OnInitialized()
     {
-        Demo.Changed += OnChanged;
-        Demo.Start();
+        Lab.Changed += OnChanged;
+        Lab.Start();
         Refresh();
     }
 
@@ -101,22 +101,22 @@
 
     private void Refresh()
     {
-        _group = Demo.Group();
-        _call = Demo.OneToOne();
-        _log = Demo.Snapshot();
+        _group = Lab.Group();
+        _call = Lab.OneToOne();
+        _log = Lab.Snapshot();
     }
 
     private bool CallConnected => _call is not null && _call.State == "Connected";
     private bool CallEndedOrNull => _call is null || _call.State == "Ended";
-    private string AdmitLabel => Demo.NextInvitee is null ? "All admitted" : $"Admit {Demo.NextInvitee}";
+    private string AdmitLabel => Lab.NextInvitee is null ? "All admitted" : $"Admit {Lab.NextInvitee}";
 
     private void Run(Action act) => act();
     private async Task RunAsync(Func<Task> act) => await act();
 
     public void Dispose()
     {
-        Demo.Changed -= OnChanged;
-        Demo.Dispose();
+        Lab.Changed -= OnChanged;
+        Lab.Dispose();
     }
 }
 

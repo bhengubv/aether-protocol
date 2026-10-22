@@ -16,7 +16,7 @@
     </header>
 
     <section class="sos-nodes">
-        @foreach (var n in _demo.Nodes())
+        @foreach (var n in _lab.Nodes())
         {
             <div class="sos-node @(n.Heard ? "heard" : null) @(n.IsOrigin ? "origin" : null)">
                 <span class="sos-pip"></span>
@@ -31,7 +31,7 @@
         <div class="sos-actions">
             <button class="btn ink" @onclick="Broadcast" disabled="@(_busy || string.IsNullOrWhiteSpace(_message))">Broadcast to everyone nearby</button>
             <button class="btn ghost" @onclick="RateLimit" disabled="@_busy">Test the rate limit</button>
-            @if (!_demo.LiveActive)
+            @if (!_lab.LiveActive)
             {
                 <button class="btn ghost" @onclick="CheckIn" disabled="@_busy">Start a check-in</button>
             }
@@ -45,19 +45,19 @@
     <section class="sos-panels">
         <div class="sos-panel">
             <div class="sos-panel-l">Reach</div>
-            <div class="sos-panel-n">@_demo.ReachCount</div>
-            <div class="sos-panel-s">@(_demo.ReachCount == 0 ? "no acknowledgements yet" : string.Join(", ", _demo.Responders))</div>
+            <div class="sos-panel-n">@_lab.ReachCount</div>
+            <div class="sos-panel-s">@(_lab.ReachCount == 0 ? "no acknowledgements yet" : string.Join(", ", _lab.Responders))</div>
         </div>
         <div class="sos-panel">
             <div class="sos-panel-l">Dedup</div>
-            <div class="sos-panel-n">@_demo.Suppressed</div>
-            <div class="sos-panel-s">refloods suppressed of @_demo.WireDeliveries wire deliveries (@_demo.DistinctReceptions distinct)</div>
+            <div class="sos-panel-n">@_lab.Suppressed</div>
+            <div class="sos-panel-s">refloods suppressed of @_lab.WireDeliveries wire deliveries (@_lab.DistinctReceptions distinct)</div>
         </div>
-        @if (_demo.LiveActive || _demo.LiveStatus != "idle")
+        @if (_lab.LiveActive || _lab.LiveStatus != "idle")
         {
             <div class="sos-panel wide">
                 <div class="sos-panel-l">Check-in lifecycle</div>
-                <div class="sos-panel-status">@_demo.LiveStatus</div>
+                <div class="sos-panel-status">@_lab.LiveStatus</div>
             </div>
         }
     </section>
@@ -66,7 +66,7 @@
         <div class="sos-eyebrow">Escalation policy — the pure, unit-tested decisions</div>
         <table class="sos-table">
             <tbody>
-                @foreach (var row in _demo.EscalationTable)
+                @foreach (var row in _lab.EscalationTable)
                 {
                     <tr>
                         <td class="sos-t-scn">@row.Scenario</td>
@@ -79,7 +79,7 @@
     </section>
 
     <section class="sos-log">
-        @foreach (var line in _demo.Log())
+        @foreach (var line in _lab.Log())
         {
             <div class="sos-line @(line.Strong ? "strong" : null)">@line.Text</div>
         }
@@ -87,23 +87,23 @@
 </div>
 
 @code {
-    private SosLabDemo _demo = null!;
+    private SosLabService _lab = null!;
     private bool _busy;
     private string _message = "Trapped near the river crossing — need help.";
 
     protected override void OnInitialized()
     {
-        _demo = new SosLabDemo();
-        _demo.Changed += OnChanged;
-        _demo.Start();
+        _lab = new SosLabService();
+        _lab.Changed += OnChanged;
+        _lab.Start();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private async Task Broadcast() => await Guard(() => _demo.BroadcastNearbyAsync(_message));
-    private async Task RateLimit() => await Guard(_demo.RateLimitAsync);
-    private async Task CheckIn()   => await Guard(_demo.StartCheckInAsync);
-    private async Task MarkSafe()  => await Guard(_demo.MarkSafeAsync);
+    private async Task Broadcast() => await Guard(() => _lab.BroadcastNearbyAsync(_message));
+    private async Task RateLimit() => await Guard(_lab.RateLimitAsync);
+    private async Task CheckIn()   => await Guard(_lab.StartCheckInAsync);
+    private async Task MarkSafe()  => await Guard(_lab.MarkSafeAsync);
 
     private async Task Guard(Func<Task> act)
     {
@@ -115,8 +115,8 @@
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }
 

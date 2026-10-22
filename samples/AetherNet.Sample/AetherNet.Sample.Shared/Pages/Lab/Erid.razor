@@ -137,33 +137,33 @@
 </style>
 
 @code {
-    // The demo runs in AetherNetService; this page shows it and passes on what the person does.
-    private EridLabDemo _demo = null!;
+    // The lab runs in AetherNetService; this page shows it and passes on what the person does.
+    private EridLabService _lab = null!;
 
-    private long _epoch => _demo.EpochNow;
-    private string? _resolveNow => _demo.ResolveNow;
-    private string? _resolvePrev => _demo.ResolvePrev;
-    private string? _prevErid => _demo.PrevErid;
-    private string AliceErid => _demo.AliceErid;
-    private string WindowLabel => _demo.WindowLabel;
-    private string Clock => _demo.Clock;
-    private string RotatesIn => _demo.RotatesIn;
-    private IReadOnlyList<EridLabDemo.Window> History() => _demo.History;
+    private long _epoch => _lab.EpochNow;
+    private string? _resolveNow => _lab.ResolveNow;
+    private string? _resolvePrev => _lab.ResolvePrev;
+    private string? _prevErid => _lab.PrevErid;
+    private string AliceErid => _lab.AliceErid;
+    private string WindowLabel => _lab.WindowLabel;
+    private string Clock => _lab.Clock;
+    private string RotatesIn => _lab.RotatesIn;
+    private IReadOnlyList<EridLabService.Window> History() => _lab.History;
 
     protected override void OnInitialized()
     {
-        _demo = new EridLabDemo();
-        _demo.Changed += OnChanged;
+        _lab = new EridLabService();
+        _lab.Changed += OnChanged;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private void Forward() => _demo.Forward();
-    private void Back() => _demo.Back();
+    private void Forward() => _lab.Forward();
+    private void Back() => _lab.Back();
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }

@@ -12,23 +12,23 @@
     <header class="vault-head">
         <a class="vault-back" href="lab">← Lab</a>
         <h1>Erasure-coded backup</h1>
-        <p>Shard a secret across peers with real Reed-Solomon (K=@VaultLabDemo.K / M=@VaultLabDemo.M). Recover from any @VaultLabDemo.K, even as peers go dark.</p>
+        <p>Shard a secret across peers with real Reed-Solomon (K=@VaultLabService.K / M=@VaultLabService.M). Recover from any @VaultLabService.K, even as peers go dark.</p>
     </header>
 
     <section class="vault-secret">
         <label class="vault-label">The secret to protect</label>
-        <textarea class="field-input vault-input" rows="2" @bind="_demo.Secret" @bind:event="oninput"></textarea>
+        <textarea class="field-input vault-input" rows="2" @bind="_lab.Secret" @bind:event="oninput"></textarea>
         <div class="vault-actions">
-            <button class="btn ink" @onclick="Backup" disabled="@_busy">@(_demo.HasBackup ? "Re-shard" : "Back it up")</button>
-            @if (_demo.HasBackup)
+            <button class="btn ink" @onclick="Backup" disabled="@_busy">@(_lab.HasBackup ? "Re-shard" : "Back it up")</button>
+            @if (_lab.HasBackup)
             {
                 <button class="btn ghost" @onclick="Recover" disabled="@_busy">Recover now</button>
-                <button class="btn ghost" @onclick="ReReplicate" disabled="@(_busy || _demo.OnlineCount < VaultLabDemo.K)">Re-replicate</button>
+                <button class="btn ghost" @onclick="ReReplicate" disabled="@(_busy || _lab.OnlineCount < VaultLabService.K)">Re-replicate</button>
             }
         </div>
     </section>
 
-    @if (_demo.HasBackup && _demo.Health is { } h)
+    @if (_lab.HasBackup && _lab.Health is { } h)
     {
         <section class="vault-health">
             <div class="vault-metric">
@@ -39,7 +39,7 @@
                 <span class="vault-status @(h.IsRecoverable ? "on" : "off")">
                     <span class="vault-disc"></span>@(h.IsRecoverable ? "recoverable" : "unrecoverable")
                 </span>
-                <span class="vault-metric-l">need any @VaultLabDemo.K of @VaultLabDemo.N</span>
+                <span class="vault-metric-l">need any @VaultLabService.K of @VaultLabService.N</span>
             </div>
             <div class="vault-metric">
                 <span class="vault-metric-n">@((int)Math.Round(h.RedundancyScore * 100))<span class="vault-metric-d">%</span></span>
@@ -48,7 +48,7 @@
         </section>
 
         <section class="vault-grid">
-            @foreach (var s in _demo.Shards())
+            @foreach (var s in _lab.Shards())
             {
                 <button class="vault-cell @(s.Online ? "live" : "dark")" @onclick="() => Toggle(s.Index)" disabled="@_busy" title="@s.Peer · @s.Hash8">
                     <span class="vault-cell-id">@(s.IsParity ? "P" : "D")@s.Index.ToString("00")</span>
@@ -59,10 +59,10 @@
         </section>
         <p class="vault-hint">Tap a shard to drop or restore its peer. Ten filled shards is the floor — the fourteenth through eleventh are pure headroom.</p>
 
-        @if (_demo.Recovered is { } rec)
+        @if (_lab.Recovered is { } rec)
         {
             <section class="vault-recovered">
-                <div class="vault-rec-label">Recovered @(_demo.IntegrityOk ? "· SHA-256 verified" : "· HASH MISMATCH")</div>
+                <div class="vault-rec-label">Recovered @(_lab.IntegrityOk ? "· SHA-256 verified" : "· HASH MISMATCH")</div>
                 <div class="vault-rec-body">@rec</div>
             </section>
         }
@@ -79,11 +79,11 @@
     }
 
     <section class="vault-log">
-        @foreach (var line in _demo.Log())
+        @foreach (var line in _lab.Log())
         {
             <div class="vault-line @(line.Strong ? "strong" : null)">@line.Text</div>
         }
-        @if (_demo.Log().Count == 0)
+        @if (_lab.Log().Count == 0)
         {
             <div class="vault-line vault-empty">Write a secret and back it up. The shards, and the maths that saves them, appear here.</div>
         }
@@ -91,24 +91,24 @@
 </div>
 
 @code {
-    private VaultLabDemo _demo = null!;
+    private VaultLabService _lab = null!;
     private bool _busy;
     private int _locate = 7;
 
     protected override void OnInitialized()
     {
-        _demo = new VaultLabDemo();
-        _demo.Changed += OnChanged;
-        _demo.Start();
+        _lab = new VaultLabService();
+        _lab.Changed += OnChanged;
+        _lab.Start();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private async Task Backup()   => await Guard(_demo.BackupAsync);
-    private async Task Recover()  => await Guard(_demo.RecoverAsync);
-    private async Task ReReplicate() => await Guard(_demo.ReReplicateAsync);
-    private async Task Toggle(int i) => await Guard(() => _demo.ToggleShardAsync(i));
-    private async Task Locate()   => await Guard(() => _demo.LocateShardAsync(_locate));
+    private async Task Backup()   => await Guard(_lab.BackupAsync);
+    private async Task Recover()  => await Guard(_lab.RecoverAsync);
+    private async Task ReReplicate() => await Guard(_lab.ReReplicateAsync);
+    private async Task Toggle(int i) => await Guard(() => _lab.ToggleShardAsync(i));
+    private async Task Locate()   => await Guard(() => _lab.LocateShardAsync(_locate));
 
     private async Task Guard(Func<Task> act)
     {
@@ -120,8 +120,8 @@
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }
 

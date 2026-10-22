@@ -12,11 +12,11 @@ using AetherNet.Mesh;
 namespace AetherNetNodeService.Host.Lab;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The host seams the /lab economy demos plug into. Every service the pages
+// The host seams the /lab economy pages plug into. Every service the pages
 // actually showcase is the real src implementation; these are only the small
 // adapters a host is expected to supply — the node's own identity, its backend
 // bridge, its route table, its wallet — filled here with the honest answers of a
-// single offline device so the demo needs no network, no server, and no money.
+// single offline device so the lab needs no network, no server, and no money.
 // None of them stands in for a service under test; each is a collaborator the
 // interface was written to have replaced.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,25 +25,25 @@ namespace AetherNetNodeService.Host.Lab;
 /// The one identity the tipping layer asks about — "who am I sending this from".
 /// A device has exactly one, fixed for the session, so the provider just hands it
 /// back. (In the real app this is the phone's keystore UHID; here it is a stable
-/// demo string.)
+/// placeholder string.)
 /// </summary>
-public sealed class DemoLocalNodeProvider : ILocalNodeProvider
+public sealed class LabLocalNodeProvider : ILocalNodeProvider
 {
     private readonly string _uhid;
 
-    public DemoLocalNodeProvider(string uhid) => _uhid = uhid;
+    public LabLocalNodeProvider(string uhid) => _uhid = uhid;
 
     public Task<string?> GetLocalUhidAsync() => Task.FromResult<string?>(_uhid);
 }
 
 /// <summary>
 /// The backend bridge, with the internet unplugged. Tipping is offline-first: a tip
-/// is queued on the device and settles later, when there is a signal — so a demo
+/// is queued on the device and settles later, when there is a signal — so a lab
 /// that never leaves the device correctly reports "nothing synced" from every sync
 /// call rather than pretending a server answered. The queue is the real thing; this
 /// is only the door it has not walked through yet.
 /// </summary>
-public sealed class DemoOfflineApiClient : IAetherApiClient
+public sealed class LabOfflineApiClient : IAetherApiClient
 {
     public Task<T?> RecordTipAsync<T>(object request) => Task.FromResult<T?>(default);
     public Task<int> BatchSyncTipsAsync(object request) => Task.FromResult(0);
@@ -63,7 +63,7 @@ public sealed class DemoOfflineApiClient : IAetherApiClient
 /// asks routing for a next hop and, finding none, floods the tip to every neighbour instead —
 /// which is exactly how a tip reaches a co-present peer that was never formally discovered. An
 /// empty table is not a stubbed-out router; it is the first-packet state of a real one, and the
-/// broadcast fallback is the path the demo means to exercise. Returning immediately also keeps the
+/// broadcast fallback is the path the lab means to exercise. Returning immediately also keeps the
 /// UI snappy — a real discovery would block on an RREQ round-trip that has no one to answer it.
 /// </summary>
 public sealed class BroadcastOnlyRoutingService : IRoutingService
@@ -87,7 +87,7 @@ public sealed class BroadcastOnlyRoutingService : IRoutingService
 /// <summary>
 /// The wallet, drawn on a whiteboard. The protocol carries a tip end-to-end and then asks the host,
 /// through this seam, what it is worth — and a real host would move ZAR into an SDPKT wallet here.
-/// This one only writes a line in a ledger it keeps in memory and announces it, so the demo can show
+/// This one only writes a line in a ledger it keeps in memory and announces it, so the lab can show
 /// the money side of a mesh tip landing without any money existing. Every entry is stamped
 /// <see cref="Ledger.Simulated"/> for exactly that reason.
 /// </summary>

@@ -17,7 +17,7 @@
     </header>
 
     <section class="dtn-lanes">
-        @foreach (var n in _demo.View)
+        @foreach (var n in _lab.View)
         {
             <div class="dtn-node @(n.Online ? null : "off")">
                 <div class="dtn-node-top">
@@ -48,15 +48,15 @@
     <section class="dtn-compose">
         <input class="field-input" @bind="_message" @bind:event="oninput" placeholder="A message for Zanele…" />
         <div class="dtn-actions">
-            <button class="btn ink" @onclick="Leave" disabled="@(_busy || _demo.HasMessage || string.IsNullOrWhiteSpace(_message))">Leave the message</button>
-            <button class="btn ghost" @onclick="Replicate" disabled="@(_busy || !_demo.HasMessage || _demo.RecipientOnline)">Replicate via carrier</button>
-            <button class="btn ghost" @onclick="Return" disabled="@(_busy || _demo.RecipientOnline)">Zanele returns</button>
+            <button class="btn ink" @onclick="Leave" disabled="@(_busy || _lab.HasMessage || string.IsNullOrWhiteSpace(_message))">Leave the message</button>
+            <button class="btn ghost" @onclick="Replicate" disabled="@(_busy || !_lab.HasMessage || _lab.RecipientOnline)">Replicate via carrier</button>
+            <button class="btn ghost" @onclick="Return" disabled="@(_busy || _lab.RecipientOnline)">Zanele returns</button>
             <button class="btn ghost" @onclick="Expire" disabled="@_busy">Expiry sweep</button>
         </div>
     </section>
 
     <section class="dtn-log">
-        @foreach (var line in _demo.Log())
+        @foreach (var line in _lab.Log())
         {
             <div class="dtn-line @(line.Strong ? "strong" : null)">@line.Text</div>
         }
@@ -64,23 +64,23 @@
 </div>
 
 @code {
-    private DtnLabDemo _demo = null!;
+    private DtnLabService _lab = null!;
     private bool _busy;
     private string _message = "The bridge is out — take the east path instead.";
 
     protected override void OnInitialized()
     {
-        _demo = new DtnLabDemo();
-        _demo.Changed += OnChanged;
-        _demo.Start();
+        _lab = new DtnLabService();
+        _lab.Changed += OnChanged;
+        _lab.Start();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private async Task Leave()     => await Guard(() => _demo.LeaveMessageAsync(_message));
-    private async Task Replicate() => await Guard(_demo.ReplicateAsync);
-    private async Task Return()    => await Guard(_demo.RecipientReturnsAsync);
-    private async Task Expire()    => await Guard(_demo.ExpireDemoAsync);
+    private async Task Leave()     => await Guard(() => _lab.LeaveMessageAsync(_message));
+    private async Task Replicate() => await Guard(_lab.ReplicateAsync);
+    private async Task Return()    => await Guard(_lab.RecipientReturnsAsync);
+    private async Task Expire()    => await Guard(_lab.ExpireAsync);
 
     private async Task Guard(Func<Task> act)
     {
@@ -92,8 +92,8 @@
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }
 

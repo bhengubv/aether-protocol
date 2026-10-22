@@ -11,7 +11,7 @@
    PanicWipe core — the hash, the verify, the secure-erase, and the manifest of every key-store entry a
    wipe must destroy — the same deterministic core every SDK ports.
 
-   It is a SIMULATION. The key material below is random demo bytes; nothing on your real device is
+   It is a SIMULATION. The key material below is random stand-in bytes; nothing on your real device is
    touched, armed, or erased. *@
 
 <div class="pan">
@@ -22,7 +22,7 @@
            with a manifest of everything a real wipe destroys. Simulated end to end.</p>
     </header>
 
-    <div class="pan-sim">Simulated — random demo bytes only. Nothing on this device is armed or erased.</div>
+    <div class="pan-sim">Simulated — random stand-in bytes only. Nothing on this device is armed or erased.</div>
 
     <section class="pan-arm">
         <div class="pan-sec-label">1 · Arm a duress PIN</div>
@@ -59,7 +59,7 @@
         <div class="pan-row">
             <input class="pan-input" type="text" inputmode="numeric" @bind="_unlockPin" @bind:event="oninput" placeholder="enter a PIN to unlock" />
             <button class="btn" @onclick="Unlock" disabled="@(!_armed || string.IsNullOrWhiteSpace(_unlockPin) || _wiped)">Unlock</button>
-            <button class="btn ghost" @onclick="Reset">Reset demo</button>
+            <button class="btn ghost" @onclick="Reset">Reset</button>
         </div>
         <div class="pan-hint">Any PIN unlocks normally; only the armed duress PIN triggers the wipe.</div>
     </section>
@@ -133,40 +133,40 @@
 </style>
 
 @code {
-    // The demo runs in AetherNetService; this page shows it and passes on what the person does.
-    private PanicLabDemo _demo = null!;
+    // The lab runs in AetherNetService; this page shows it and passes on what the person does.
+    private PanicLabService _lab = null!;
 
-    private string _duressPin { get => _demo.DuressPin; set => _demo.DuressPin = value; }
-    private string _hashHex => _demo.HashHex;
-    private bool _armed => _demo.Armed;
-    private string _unlockPin { get => _demo.UnlockPin; set => _demo.UnlockPin = value; }
-    private IReadOnlyList<PanicLabDemo.EntryView> _store => _demo.Store;
-    private bool _wiped => _demo.Wiped;
-    private string? _outcome => _demo.Outcome;
-    private int _manifestCount => _demo.ManifestCount;
-    private string _erasedName => _demo.ErasedName;
-    private string _eraseBefore => _demo.EraseBefore;
-    private string _eraseAfter => _demo.EraseAfter;
-    private int _maxPreKeys => _demo.MaxPreKeys;
-    private int _identityKeyCount => _demo.IdentityKeyCount;
-    private string ExampleNames => _demo.ExampleNames;
+    private string _duressPin { get => _lab.DuressPin; set => _lab.DuressPin = value; }
+    private string _hashHex => _lab.HashHex;
+    private bool _armed => _lab.Armed;
+    private string _unlockPin { get => _lab.UnlockPin; set => _lab.UnlockPin = value; }
+    private IReadOnlyList<PanicLabService.EntryView> _store => _lab.Store;
+    private bool _wiped => _lab.Wiped;
+    private string? _outcome => _lab.Outcome;
+    private int _manifestCount => _lab.ManifestCount;
+    private string _erasedName => _lab.ErasedName;
+    private string _eraseBefore => _lab.EraseBefore;
+    private string _eraseAfter => _lab.EraseAfter;
+    private int _maxPreKeys => _lab.MaxPreKeys;
+    private int _identityKeyCount => _lab.IdentityKeyCount;
+    private string ExampleNames => _lab.ExampleNames;
 
     protected override void OnInitialized()
     {
-        _demo = new PanicLabDemo();
-        _demo.Changed += OnChanged;
+        _lab = new PanicLabService();
+        _lab.Changed += OnChanged;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private void Reset() => _demo.Reset();
-    private void Arm() => _demo.Arm();
-    private void Unlock() => _demo.Unlock();
-    private static string Preview(PanicLabDemo.EntryView e) => e.Preview;
+    private void Reset() => _lab.Reset();
+    private void Arm() => _lab.Arm();
+    private void Unlock() => _lab.Unlock();
+    private static string Preview(PanicLabService.EntryView e) => e.Preview;
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }

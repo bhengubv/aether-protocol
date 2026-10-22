@@ -5,7 +5,7 @@ namespace AetherNet.Mesh;
 /// <summary>
 /// The persistence <see cref="CircleDirectory"/> needs from its host: the peer routing keys this device
 /// holds, learned inside established sessions and never on the wire. The store itself lives in the host
-/// — the sample keeps these rows in its on-device SQLite database — so the mesh only reads and writes
+/// — AetherNetService keeps these rows as small JSON files in its private directory — so the mesh only reads and writes
 /// them and owns no storage of its own.
 /// </summary>
 public interface IPeerRoutingKeyStore

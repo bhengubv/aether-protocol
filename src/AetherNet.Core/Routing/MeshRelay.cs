@@ -14,8 +14,8 @@ namespace AetherNet.Routing;
 /// all: <see cref="RoutingService"/> forwards only its own route-control packets, and
 /// <c>MessagingService</c> deliberately drops DATA not addressed to the local node ("forwarding is the
 /// routing layer's job"). Every host that wanted real relaying re-implemented it; the most complete
-/// version lived in the Android sample. This is that engine, promoted into the library so one tested
-/// implementation serves every host. (The sample's copy is superseded by this one and removed once the
+/// version lived in the Android app. This is that engine, promoted into the library so one tested
+/// implementation serves every host. (The app's copy is superseded by this one and removed once the
 /// app is migrated onto the shared <see cref="MeshInboundDispatcher"/>.)
 /// </para>
 ///

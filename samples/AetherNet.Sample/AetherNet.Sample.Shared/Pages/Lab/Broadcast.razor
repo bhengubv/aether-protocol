@@ -27,8 +27,8 @@
                 </div>
                 @if (n.IsPublisher)
                 {
-                    <div class="bc-node-stat">@(Demo.IsLive ? $"live · {Demo.SegmentsPushed} pushed" : "off air")</div>
-                    <div class="bc-node-sub">serving @Demo.SubscriberCount viewer(s)</div>
+                    <div class="bc-node-stat">@(Lab.IsLive ? $"live · {Lab.SegmentsPushed} pushed" : "off air")</div>
+                    <div class="bc-node-sub">serving @Lab.SubscriberCount viewer(s)</div>
                 }
                 else
                 {
@@ -37,33 +37,33 @@
                         else if (n.LastSeq < 0) { <span>subscribed · waiting</span> }
                         else { <span>#@n.LastSeq · @n.SegmentsSeen received</span> }
                     </div>
-                    <button class="bc-mini" disabled="@(!Demo.IsLive || n.Subscribed)"
-                            @onclick="() => RunAsync(() => Demo.SubscribeAsync(n.Name))">Subscribe</button>
+                    <button class="bc-mini" disabled="@(!Lab.IsLive || n.Subscribed)"
+                            @onclick="() => RunAsync(() => Lab.SubscribeAsync(n.Name))">Subscribe</button>
                 }
             </div>
         }
     </section>
 
     <section class="bc-controls">
-        <button class="btn ink" disabled="@Demo.IsLive" @onclick="() => RunAsync(Demo.GoLiveAsync)">Go live</button>
-        <button class="btn ink" disabled="@(!Demo.IsLive)" @onclick="() => RunAsync(Demo.PublishNextSegmentAsync)">Push a segment</button>
-        <button class="btn" disabled="@(!Demo.IsLive)" @onclick="() => RunAsync(Demo.EndAsync)">End</button>
-        <button class="btn" @onclick="() => Run(Demo.ClearLog)">Clear</button>
+        <button class="btn ink" disabled="@Lab.IsLive" @onclick="() => RunAsync(Lab.GoLiveAsync)">Go live</button>
+        <button class="btn ink" disabled="@(!Lab.IsLive)" @onclick="() => RunAsync(Lab.PublishNextSegmentAsync)">Push a segment</button>
+        <button class="btn" disabled="@(!Lab.IsLive)" @onclick="() => RunAsync(Lab.EndAsync)">End</button>
+        <button class="btn" @onclick="() => Run(Lab.ClearLog)">Clear</button>
     </section>
 
     <section class="bc-abr">
         <div class="bc-abr-head">
             <span class="bc-abr-title">Adaptive bitrate — Profile B (live)</span>
-            <span class="bc-abr-link @(Demo.WillAbandon ? "warn" : null)">link @Demo.BandwidthKbps Kbps</span>
+            <span class="bc-abr-link @(Lab.WillAbandon ? "warn" : null)">link @Lab.BandwidthKbps Kbps</span>
         </div>
 
         <input class="bc-range" type="range" min="50" max="12000" step="50"
-               value="@Demo.BandwidthKbps" @onchange="OnBandwidth" />
+               value="@Lab.BandwidthKbps" @onchange="OnBandwidth" />
 
         <div class="bc-ladder">
-            @foreach (var rung in Demo.Ladder)
+            @foreach (var rung in Lab.Ladder)
             {
-                var active = Demo.CurrentRung is not null && Demo.CurrentRung.Label == rung.Label;
+                var active = Lab.CurrentRung is not null && Lab.CurrentRung.Label == rung.Label;
                 <div class="bc-rung @(active ? "on" : null)">
                     <span class="bc-rung-q">@rung.VideoQuality</span>
                     <span class="bc-rung-l">@rung.Label</span>
@@ -73,8 +73,8 @@
             }
         </div>
         <div class="bc-floor">
-            Floor is @Demo.FloorKbps Kbps. Below it the publisher emits a StreamAbandon instead of a degraded segment —
-            @(Demo.WillAbandon ? "the next push will abandon." : "you are above it.")
+            Floor is @Lab.FloorKbps Kbps. Below it the publisher emits a StreamAbandon instead of a degraded segment —
+            @(Lab.WillAbandon ? "the next push will abandon." : "you are above it.")
         </div>
     </section>
 
@@ -94,14 +94,14 @@
 </div>
 
 @code {
-    private readonly BroadcastDemo Demo = new();
-    private IReadOnlyList<BroadcastDemo.NodeView> _nodes = Array.Empty<BroadcastDemo.NodeView>();
-    private IReadOnlyList<BroadcastDemo.LogLine> _log = Array.Empty<BroadcastDemo.LogLine>();
+    private readonly BroadcastLabService Lab = new();
+    private IReadOnlyList<BroadcastLabService.NodeView> _nodes = Array.Empty<BroadcastLabService.NodeView>();
+    private IReadOnlyList<BroadcastLabService.LogLine> _log = Array.Empty<BroadcastLabService.LogLine>();
 
     protected override void OnInitialized()
     {
-        Demo.Changed += OnChanged;
-        Demo.Start();
+        Lab.Changed += OnChanged;
+        Lab.Start();
         Refresh();
     }
 
@@ -109,8 +109,8 @@
 
     private void Refresh()
     {
-        _nodes = Demo.Nodes();
-        _log = Demo.Snapshot();
+        _nodes = Lab.Nodes();
+        _log = Lab.Snapshot();
     }
 
     private void Run(Action act) => act();
@@ -119,13 +119,13 @@
     private void OnBandwidth(ChangeEventArgs e)
     {
         if (long.TryParse(e.Value?.ToString(), out var kbps))
-            Demo.SetBandwidth(kbps);
+            Lab.SetBandwidth(kbps);
     }
 
     public void Dispose()
     {
-        Demo.Changed -= OnChanged;
-        Demo.Dispose();
+        Lab.Changed -= OnChanged;
+        Lab.Dispose();
     }
 }
 

@@ -30,7 +30,7 @@ namespace AetherNet.Transport.Wifi;
 ///
 /// <para>
 /// <b>How the two find each other.</b> Not by scanning, and not by asking anything on the network.
-/// Both phones already know where to meet — see <c>Meeting</c> in the sample — so the rendezvous
+/// Both phones already know where to meet — see <c>Meeting</c> — so the rendezvous
 /// becomes a multicast group, a port and a token, and the only devices that can compute any of it are
 /// the two that were handed each other's tags. Everything else on the LAN hears an opaque datagram
 /// addressed to nobody it knows and drops it.

@@ -21,7 +21,7 @@ namespace AetherNetNodeService.Host;
 /// </para>
 /// <para>
 /// <b>As the app called them.</b> Each answer calls the member the app's page called, with the same arguments; nothing
-/// is added between them. A Lab demo is made the way its page made it, by its own <c>New</c> request, and the latest
+/// is added between them. A Lab is made the way its page made it, by its own <c>New</c> request, and the latest
 /// one made is the one that answers.
 /// </para>
 /// </remarks>
@@ -36,14 +36,14 @@ public static class NodeAnswers
 
     private static readonly HashSet<NodeOp> Requests =
     [
-        NodeOp.AetherDemoClearLog,
-        NodeOp.AetherDemoGroupVideo,
-        NodeOp.AetherDemoNodes,
-        NodeOp.AetherDemoOneToOneVideo,
-        NodeOp.AetherDemoPublishGroupText,
-        NodeOp.AetherDemoSnapshot,
-        NodeOp.AetherDemoStart,
-        NodeOp.AetherDemoVerifyAetherTag,
+        NodeOp.MeshLabClearLog,
+        NodeOp.MeshLabGroupVideo,
+        NodeOp.MeshLabNodes,
+        NodeOp.MeshLabOneToOneVideo,
+        NodeOp.MeshLabPublishGroupText,
+        NodeOp.MeshLabSnapshot,
+        NodeOp.MeshLabStart,
+        NodeOp.MeshLabVerifyAetherTag,
         NodeOp.StoreCountMissed,
         NodeOp.StoreGetAccount,
         NodeOp.StoreGetCalls,
@@ -172,7 +172,7 @@ public static class NodeAnswers
         NodeOp.GetBroadcast,
         NodeOp.NewDtnLab,
         NodeOp.DtnLabDispose,
-        NodeOp.DtnLabExpireDemo,
+        NodeOp.DtnLabExpire,
         NodeOp.DtnLabLeaveMessage,
         NodeOp.DtnLabLog,
         NodeOp.DtnLabRecipientReturns,
@@ -200,7 +200,7 @@ public static class NodeAnswers
         NodeOp.ForgeInit,
         NodeOp.ForgeLookupOnB,
         NodeOp.ForgePublishOnA,
-        NodeOp.ForgeSeedSample,
+        NodeOp.ForgeSeedStarterSet,
         NodeOp.GetForge,
         NodeOp.NewGroupVideo,
         NodeOp.GroupVideoAdmitNext,
@@ -454,7 +454,7 @@ public static class NodeAnswers
     ];
 
     private static readonly object Gate = new();
-    private static readonly Dictionary<Type, object> Demos = [];
+    private static readonly Dictionary<Type, object> Labs = [];
     private static IServiceProvider? _services;
     private static ILogger? _log;
 
@@ -483,49 +483,49 @@ public static class NodeAnswers
         var a = Args.Of(argument);
         switch (op)
         {
-            case NodeOp.AetherDemoClearLog:
+            case NodeOp.MeshLabClearLog:
             {
-                Get<global::AetherNetNodeService.Host.AetherDemoService>().ClearLog();
+                Get<global::AetherNetNodeService.Host.MeshLabService>().ClearLog();
                 return [];
             }
 
-            case NodeOp.AetherDemoGroupVideo:
+            case NodeOp.MeshLabGroupVideo:
             {
-                await Get<global::AetherNetNodeService.Host.AetherDemoService>().GroupVideoAsync();
+                await Get<global::AetherNetNodeService.Host.MeshLabService>().GroupVideoAsync();
                 return [];
             }
 
-            case NodeOp.AetherDemoNodes:
+            case NodeOp.MeshLabNodes:
             {
-                return Bytes(Get<global::AetherNetNodeService.Host.AetherDemoService>().Nodes());
+                return Bytes(Get<global::AetherNetNodeService.Host.MeshLabService>().Nodes());
             }
 
-            case NodeOp.AetherDemoOneToOneVideo:
+            case NodeOp.MeshLabOneToOneVideo:
             {
-                await Get<global::AetherNetNodeService.Host.AetherDemoService>().OneToOneVideoAsync();
+                await Get<global::AetherNetNodeService.Host.MeshLabService>().OneToOneVideoAsync();
                 return [];
             }
 
-            case NodeOp.AetherDemoPublishGroupText:
+            case NodeOp.MeshLabPublishGroupText:
             {
-                await Get<global::AetherNetNodeService.Host.AetherDemoService>().PublishGroupTextAsync(a.Get<string>("message"));
+                await Get<global::AetherNetNodeService.Host.MeshLabService>().PublishGroupTextAsync(a.Get<string>("message"));
                 return [];
             }
 
-            case NodeOp.AetherDemoSnapshot:
+            case NodeOp.MeshLabSnapshot:
             {
-                return Bytes(Get<global::AetherNetNodeService.Host.AetherDemoService>().Snapshot());
+                return Bytes(Get<global::AetherNetNodeService.Host.MeshLabService>().Snapshot());
             }
 
-            case NodeOp.AetherDemoStart:
+            case NodeOp.MeshLabStart:
             {
-                Get<global::AetherNetNodeService.Host.AetherDemoService>().Start();
+                Get<global::AetherNetNodeService.Host.MeshLabService>().Start();
                 return [];
             }
 
-            case NodeOp.AetherDemoVerifyAetherTag:
+            case NodeOp.MeshLabVerifyAetherTag:
             {
-                Get<global::AetherNetNodeService.Host.AetherDemoService>().VerifyAetherTag();
+                Get<global::AetherNetNodeService.Host.MeshLabService>().VerifyAetherTag();
                 return [];
             }
 
@@ -1085,828 +1085,828 @@ public static class NodeAnswers
                 return Bytes(StateWatch(Get<global::AetherNetNodeService.Host.WatchService>()));
 
             case NodeOp.NewBreadcrumbs:
-                Start(new global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo(a.Get<double>("centerLat", -26.2041), a.Get<double>("centerLon", 28.0473)));
+                Start(new global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService(a.Get<double>("centerLat", -26.2041), a.Get<double>("centerLon", 28.0473)));
                 return [];
 
             case NodeOp.BreadcrumbsDevices:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo>().Devices());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService>().Devices());
             }
 
             case NodeOp.BreadcrumbsDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.BreadcrumbsDrop:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo>().DropAsync(a.Get<string>("note"), a.Get<global::AetherNet.Space.Models.BreadcrumbType>("type"), a.Get<int>("ttlHours"));
+                await Lab<global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService>().DropAsync(a.Get<string>("note"), a.Get<global::AetherNet.Space.Models.BreadcrumbType>("type"), a.Get<int>("ttlHours"));
                 return [];
             }
 
             case NodeOp.BreadcrumbsLog:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo>().Log());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService>().Log());
             }
 
             case NodeOp.BreadcrumbsPruneExpired:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo>().PruneExpired();
+                Lab<global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService>().PruneExpired();
                 return [];
             }
 
             case NodeOp.BreadcrumbsScanFromOrigin:
             {
-                return Bytes(await Demo<global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo>().ScanFromOriginAsync(a.Get<int>("radiusCells")));
+                return Bytes(await Lab<global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService>().ScanFromOriginAsync(a.Get<int>("radiusCells")));
             }
 
             case NodeOp.BreadcrumbsSeedStaleNotice:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo>().SeedStaleNoticeAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService>().SeedStaleNoticeAsync();
                 return [];
             }
 
             case NodeOp.GetBreadcrumbs:
-                return Bytes(StateBreadcrumbs(Demo<global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo>()));
+                return Bytes(StateBreadcrumbs(Lab<global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService>()));
 
             case NodeOp.NewBroadcast:
-                Start(new global::AetherNetNodeService.Host.Lab.BroadcastDemo(Get<global::Microsoft.Extensions.Logging.ILoggerFactory>()));
+                Start(new global::AetherNetNodeService.Host.Lab.BroadcastLabService(Get<global::Microsoft.Extensions.Logging.ILoggerFactory>()));
                 return [];
 
             case NodeOp.BroadcastClearLog:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().ClearLog();
+                Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().ClearLog();
                 return [];
             }
 
             case NodeOp.BroadcastDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.BroadcastEnd:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().EndAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().EndAsync();
                 return [];
             }
 
             case NodeOp.BroadcastGoLive:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().GoLiveAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().GoLiveAsync();
                 return [];
             }
 
             case NodeOp.BroadcastNodes:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().Nodes());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().Nodes());
             }
 
             case NodeOp.BroadcastPublishNextSegment:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().PublishNextSegmentAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().PublishNextSegmentAsync();
                 return [];
             }
 
             case NodeOp.BroadcastSetBandwidth:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().SetBandwidth(a.Get<long>("kbps"));
+                Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().SetBandwidth(a.Get<long>("kbps"));
                 return [];
             }
 
             case NodeOp.BroadcastSnapshot:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().Snapshot());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().Snapshot());
             }
 
             case NodeOp.BroadcastStart:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().Start();
+                Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().Start();
                 return [];
             }
 
             case NodeOp.BroadcastSubscribe:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>().SubscribeAsync(a.Get<string>("viewerName"));
+                await Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>().SubscribeAsync(a.Get<string>("viewerName"));
                 return [];
             }
 
             case NodeOp.GetBroadcast:
-                return Bytes(StateBroadcast(Demo<global::AetherNetNodeService.Host.Lab.BroadcastDemo>()));
+                return Bytes(StateBroadcast(Lab<global::AetherNetNodeService.Host.Lab.BroadcastLabService>()));
 
             case NodeOp.NewDtnLab:
-                Start(new global::AetherNetNodeService.Host.Lab.DtnLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.DtnLabService());
                 return [];
 
             case NodeOp.DtnLabDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DtnLabDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.DtnLabService>().Dispose();
                 return [];
             }
 
-            case NodeOp.DtnLabExpireDemo:
+            case NodeOp.DtnLabExpire:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.DtnLabDemo>().ExpireDemoAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.DtnLabService>().ExpireAsync();
                 return [];
             }
 
             case NodeOp.DtnLabLeaveMessage:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.DtnLabDemo>().LeaveMessageAsync(a.Get<string>("message"));
+                await Lab<global::AetherNetNodeService.Host.Lab.DtnLabService>().LeaveMessageAsync(a.Get<string>("message"));
                 return [];
             }
 
             case NodeOp.DtnLabLog:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.DtnLabDemo>().Log());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.DtnLabService>().Log());
             }
 
             case NodeOp.DtnLabRecipientReturns:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.DtnLabDemo>().RecipientReturnsAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.DtnLabService>().RecipientReturnsAsync();
                 return [];
             }
 
             case NodeOp.DtnLabReplicate:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.DtnLabDemo>().ReplicateAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.DtnLabService>().ReplicateAsync();
                 return [];
             }
 
             case NodeOp.DtnLabStart:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DtnLabDemo>().Start();
+                Lab<global::AetherNetNodeService.Host.Lab.DtnLabService>().Start();
                 return [];
             }
 
             case NodeOp.GetDtnLab:
-                return Bytes(StateDtnLab(Demo<global::AetherNetNodeService.Host.Lab.DtnLabDemo>()));
+                return Bytes(StateDtnLab(Lab<global::AetherNetNodeService.Host.Lab.DtnLabService>()));
 
             case NodeOp.NewFiles:
-                Start(new global::AetherNetNodeService.Host.Lab.FilesDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.FilesLabService());
                 return [];
 
             case NodeOp.FilesDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.FilesDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.FilesLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.FilesHaveSnapshot:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.FilesDemo>().HaveSnapshot());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.FilesLabService>().HaveSnapshot());
             }
 
             case NodeOp.FilesHolderOf:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.FilesDemo>().HolderOf(a.Get<int>("chunkIndex")));
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.FilesLabService>().HolderOf(a.Get<int>("chunkIndex")));
             }
 
             case NodeOp.FilesPublish:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.FilesDemo>().Publish(a.Get<int>("sizeKb"));
+                Lab<global::AetherNetNodeService.Host.Lab.FilesLabService>().Publish(a.Get<int>("sizeKb"));
                 return [];
             }
 
             case NodeOp.FilesRunChunkShuffle:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.FilesDemo>().RunChunkShuffle();
+                Lab<global::AetherNetNodeService.Host.Lab.FilesLabService>().RunChunkShuffle();
                 return [];
             }
 
             case NodeOp.FilesRunDownload:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.FilesDemo>().RunDownloadAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.FilesLabService>().RunDownloadAsync();
                 return [];
             }
 
             case NodeOp.GetFiles:
-                return Bytes(StateFiles(Demo<global::AetherNetNodeService.Host.Lab.FilesDemo>()));
+                return Bytes(StateFiles(Lab<global::AetherNetNodeService.Host.Lab.FilesLabService>()));
 
             case NodeOp.NewFmhy:
-                Start(new global::AetherNetNodeService.Host.Lab.FmhyDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.FmhyLabService());
                 return [];
 
             case NodeOp.FmhyDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.FmhyDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.FmhyLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.FmhyFilter:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.FmhyDemo>().Filter(a.Get<string?>("category"));
+                Lab<global::AetherNetNodeService.Host.Lab.FmhyLabService>().Filter(a.Get<string?>("category"));
                 return [];
             }
 
             case NodeOp.FmhyLoadSeed:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.FmhyDemo>().LoadSeed();
+                Lab<global::AetherNetNodeService.Host.Lab.FmhyLabService>().LoadSeed();
                 return [];
             }
 
             case NodeOp.FmhyPropagateToOffline:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.FmhyDemo>().PropagateToOfflineAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.FmhyLabService>().PropagateToOfflineAsync();
                 return [];
             }
 
             case NodeOp.FmhySyncOnline:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.FmhyDemo>().SyncOnlineAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.FmhyLabService>().SyncOnlineAsync();
                 return [];
             }
 
             case NodeOp.GetFmhy:
-                return Bytes(StateFmhy(Demo<global::AetherNetNodeService.Host.Lab.FmhyDemo>()));
+                return Bytes(StateFmhy(Lab<global::AetherNetNodeService.Host.Lab.FmhyLabService>()));
 
             case NodeOp.NewForge:
-                Start(new global::AetherNetNodeService.Host.Lab.ForgeDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.ForgeLabService());
                 return [];
 
             case NodeOp.ForgeDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.ForgeDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.ForgeLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.ForgeFetchOnB:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.ForgeDemo>().FetchOnBAsync(a.Get<string>("packageId"), a.Get<int>("times"));
+                await Lab<global::AetherNetNodeService.Host.Lab.ForgeLabService>().FetchOnBAsync(a.Get<string>("packageId"), a.Get<int>("times"));
                 return [];
             }
 
             case NodeOp.ForgeInit:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.ForgeDemo>().Init();
+                Lab<global::AetherNetNodeService.Host.Lab.ForgeLabService>().Init();
                 return [];
             }
 
             case NodeOp.ForgeLookupOnB:
             {
-                return Bytes(await Demo<global::AetherNetNodeService.Host.Lab.ForgeDemo>().LookupOnBAsync(a.Get<string>("packageId")));
+                return Bytes(await Lab<global::AetherNetNodeService.Host.Lab.ForgeLabService>().LookupOnBAsync(a.Get<string>("packageId")));
             }
 
             case NodeOp.ForgePublishOnA:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.ForgeDemo>().PublishOnAAsync(a.Get<string>("packageId"), a.Get<int>("sizeKb"));
+                await Lab<global::AetherNetNodeService.Host.Lab.ForgeLabService>().PublishOnAAsync(a.Get<string>("packageId"), a.Get<int>("sizeKb"));
                 return [];
             }
 
-            case NodeOp.ForgeSeedSample:
+            case NodeOp.ForgeSeedStarterSet:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.ForgeDemo>().SeedSampleAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.ForgeLabService>().SeedStarterSetAsync();
                 return [];
             }
 
             case NodeOp.GetForge:
-                return Bytes(StateForge(Demo<global::AetherNetNodeService.Host.Lab.ForgeDemo>()));
+                return Bytes(StateForge(Lab<global::AetherNetNodeService.Host.Lab.ForgeLabService>()));
 
             case NodeOp.NewGroupVideo:
-                Start(new global::AetherNetNodeService.Host.Lab.GroupVideoDemo(Get<global::Microsoft.Extensions.Logging.ILoggerFactory>()));
+                Start(new global::AetherNetNodeService.Host.Lab.GroupVideoLabService(Get<global::Microsoft.Extensions.Logging.ILoggerFactory>()));
                 return [];
 
             case NodeOp.GroupVideoAdmitNext:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().AdmitNextAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().AdmitNextAsync();
                 return [];
             }
 
             case NodeOp.GroupVideoClearLog:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().ClearLog();
+                Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().ClearLog();
                 return [];
             }
 
             case NodeOp.GroupVideoDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.GroupVideoGroup:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().Group());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().Group());
             }
 
             case NodeOp.GroupVideoHangup:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().HangupAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().HangupAsync();
                 return [];
             }
 
             case NodeOp.GroupVideoOneToOne:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().OneToOne());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().OneToOne());
             }
 
             case NodeOp.GroupVideoOpenCall:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().OpenCallAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().OpenCallAsync();
                 return [];
             }
 
             case NodeOp.GroupVideoRingBob:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().RingBobAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().RingBobAsync();
                 return [];
             }
 
             case NodeOp.GroupVideoSnapshot:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().Snapshot());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().Snapshot());
             }
 
             case NodeOp.GroupVideoStart:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>().Start();
+                Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>().Start();
                 return [];
             }
 
             case NodeOp.GetGroupVideo:
-                return Bytes(StateGroupVideo(Demo<global::AetherNetNodeService.Host.Lab.GroupVideoDemo>()));
+                return Bytes(StateGroupVideo(Lab<global::AetherNetNodeService.Host.Lab.GroupVideoLabService>()));
 
             case NodeOp.NewMap:
-                Start(new global::AetherNetNodeService.Host.Lab.MapDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.MapLabService());
                 return [];
 
             case NodeOp.MapConfirmRamp:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().ConfirmRamp();
+                Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().ConfirmRamp();
                 return [];
             }
 
             case NodeOp.MapDownvote:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().Downvote();
+                Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().Downvote();
                 return [];
             }
 
             case NodeOp.MapEditAsLerato:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().EditAsLerato();
+                Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().EditAsLerato();
                 return [];
             }
 
             case NodeOp.MapEditAsThabo:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().EditAsThabo();
+                Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().EditAsThabo();
                 return [];
             }
 
             case NodeOp.MapMerge:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().Merge();
+                Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().Merge();
                 return [];
             }
 
             case NodeOp.MapMoveQuery:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().MoveQueryAsync(a.Get<int>("row"), a.Get<int>("col"));
+                await Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().MoveQueryAsync(a.Get<int>("row"), a.Get<int>("col"));
                 return [];
             }
 
             case NodeOp.MapProximityCells:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().ProximityCells());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().ProximityCells());
             }
 
             case NodeOp.MapReconfirmRamp:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().ReconfirmRamp();
+                Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().ReconfirmRamp();
                 return [];
             }
 
             case NodeOp.MapReplica:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().Replica(a.Get<bool>("thabo")));
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().Replica(a.Get<bool>("thabo")));
             }
 
             case NodeOp.MapReset:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().Reset();
+                Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().Reset();
                 return [];
             }
 
             case NodeOp.MapTryImpostorMerge:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().TryImpostorMerge());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().TryImpostorMerge());
             }
 
             case NodeOp.MapUpvote:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MapDemo>().Upvote();
+                Lab<global::AetherNetNodeService.Host.Lab.MapLabService>().Upvote();
                 return [];
             }
 
             case NodeOp.GetMap:
-                return Bytes(StateMap(Demo<global::AetherNetNodeService.Host.Lab.MapDemo>()));
+                return Bytes(StateMap(Lab<global::AetherNetNodeService.Host.Lab.MapLabService>()));
 
             case NodeOp.NewPoLLab:
-                Start(new global::AetherNetNodeService.Host.Lab.PoLLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.PoLLabService());
                 return [];
 
             case NodeOp.PoLLabLog:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.PoLLabDemo>().Log());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.PoLLabService>().Log());
             }
 
             case NodeOp.PoLLabSetSelfVouch:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PoLLabDemo>().SetSelfVouch(a.Get<bool>("on"));
+                Lab<global::AetherNetNodeService.Host.Lab.PoLLabService>().SetSelfVouch(a.Get<bool>("on"));
                 return [];
             }
 
             case NodeOp.PoLLabStart:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PoLLabDemo>().Start();
+                Lab<global::AetherNetNodeService.Host.Lab.PoLLabService>().Start();
                 return [];
             }
 
             case NodeOp.PoLLabToggle:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PoLLabDemo>().Toggle(a.Get<string>("name"));
+                Lab<global::AetherNetNodeService.Host.Lab.PoLLabService>().Toggle(a.Get<string>("name"));
                 return [];
             }
 
             case NodeOp.PoLLabToggleTamper:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PoLLabDemo>().ToggleTamper(a.Get<string>("name"));
+                Lab<global::AetherNetNodeService.Host.Lab.PoLLabService>().ToggleTamper(a.Get<string>("name"));
                 return [];
             }
 
             case NodeOp.GetPoLLab:
-                return Bytes(StatePoLLab(Demo<global::AetherNetNodeService.Host.Lab.PoLLabDemo>()));
+                return Bytes(StatePoLLab(Lab<global::AetherNetNodeService.Host.Lab.PoLLabService>()));
 
             case NodeOp.NewPttScreenShare:
-                Start(new global::AetherNetNodeService.Host.Lab.PttScreenShareDemo(Get<global::Microsoft.Extensions.Logging.ILoggerFactory>()));
+                Start(new global::AetherNetNodeService.Host.Lab.PttScreenShareLabService(Get<global::Microsoft.Extensions.Logging.ILoggerFactory>()));
                 return [];
 
             case NodeOp.PttScreenShareClearLog:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PttScreenShareDemo>().ClearLog();
+                Lab<global::AetherNetNodeService.Host.Lab.PttScreenShareLabService>().ClearLog();
                 return [];
             }
 
             case NodeOp.PttScreenShareDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PttScreenShareDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.PttScreenShareLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.PttScreenShareNodes:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.PttScreenShareDemo>().Nodes());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.PttScreenShareLabService>().Nodes());
             }
 
             case NodeOp.PttScreenSharePushToTalk:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.PttScreenShareDemo>().PushToTalkAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.PttScreenShareLabService>().PushToTalkAsync();
                 return [];
             }
 
             case NodeOp.PttScreenShareShareScreen:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.PttScreenShareDemo>().ShareScreenAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.PttScreenShareLabService>().ShareScreenAsync();
                 return [];
             }
 
             case NodeOp.PttScreenShareSnapshot:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.PttScreenShareDemo>().Snapshot());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.PttScreenShareLabService>().Snapshot());
             }
 
             case NodeOp.PttScreenShareStart:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PttScreenShareDemo>().Start();
+                Lab<global::AetherNetNodeService.Host.Lab.PttScreenShareLabService>().Start();
                 return [];
             }
 
             case NodeOp.GetPttScreenShare:
-                return Bytes(StatePttScreenShare(Demo<global::AetherNetNodeService.Host.Lab.PttScreenShareDemo>()));
+                return Bytes(StatePttScreenShare(Lab<global::AetherNetNodeService.Host.Lab.PttScreenShareLabService>()));
 
             case NodeOp.NewSosLab:
-                Start(new global::AetherNetNodeService.Host.Lab.SosLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.SosLabService());
                 return [];
 
             case NodeOp.SosLabBroadcastNearby:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.SosLabDemo>().BroadcastNearbyAsync(a.Get<string>("message"));
+                await Lab<global::AetherNetNodeService.Host.Lab.SosLabService>().BroadcastNearbyAsync(a.Get<string>("message"));
                 return [];
             }
 
             case NodeOp.SosLabDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.SosLabDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.SosLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.SosLabLog:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.SosLabDemo>().Log());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.SosLabService>().Log());
             }
 
             case NodeOp.SosLabMarkSafe:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.SosLabDemo>().MarkSafeAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.SosLabService>().MarkSafeAsync();
                 return [];
             }
 
             case NodeOp.SosLabNodes:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.SosLabDemo>().Nodes());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.SosLabService>().Nodes());
             }
 
             case NodeOp.SosLabRateLimit:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.SosLabDemo>().RateLimitAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.SosLabService>().RateLimitAsync();
                 return [];
             }
 
             case NodeOp.SosLabStart:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.SosLabDemo>().Start();
+                Lab<global::AetherNetNodeService.Host.Lab.SosLabService>().Start();
                 return [];
             }
 
             case NodeOp.SosLabStartCheckIn:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.SosLabDemo>().StartCheckInAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.SosLabService>().StartCheckInAsync();
                 return [];
             }
 
             case NodeOp.GetSosLab:
-                return Bytes(StateSosLab(Demo<global::AetherNetNodeService.Host.Lab.SosLabDemo>()));
+                return Bytes(StateSosLab(Lab<global::AetherNetNodeService.Host.Lab.SosLabService>()));
 
             case NodeOp.NewTippingLab:
-                Start(new global::AetherNetNodeService.Host.Lab.TippingLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.TippingLabService());
                 return [];
 
             case NodeOp.TippingLabDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.TippingLabDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.TippingLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.TippingLabSendMeshTip:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.TippingLabDemo>().SendMeshTipAsync(a.Get<decimal>("amount"));
+                await Lab<global::AetherNetNodeService.Host.Lab.TippingLabService>().SendMeshTipAsync(a.Get<decimal>("amount"));
                 return [];
             }
 
             case NodeOp.TippingLabSetConsistency:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.TippingLabDemo>().SetConsistencyAsync(a.Get<short>("score"));
+                await Lab<global::AetherNetNodeService.Host.Lab.TippingLabService>().SetConsistencyAsync(a.Get<short>("score"));
                 return [];
             }
 
             case NodeOp.TippingLabSnapshot:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.TippingLabDemo>().Snapshot());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.TippingLabService>().Snapshot());
             }
 
             case NodeOp.TippingLabStart:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.TippingLabDemo>().StartAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.TippingLabService>().StartAsync();
                 return [];
             }
 
             case NodeOp.TippingLabTipOnDevice:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.TippingLabDemo>().TipOnDeviceAsync(a.Get<decimal>("amount"));
+                await Lab<global::AetherNetNodeService.Host.Lab.TippingLabService>().TipOnDeviceAsync(a.Get<decimal>("amount"));
                 return [];
             }
 
             case NodeOp.GetTippingLab:
-                return Bytes(StateTippingLab(Demo<global::AetherNetNodeService.Host.Lab.TippingLabDemo>()));
+                return Bytes(StateTippingLab(Lab<global::AetherNetNodeService.Host.Lab.TippingLabService>()));
 
             case NodeOp.NewTorrents:
-                Start(new global::AetherNetNodeService.Host.Lab.TorrentsDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.TorrentsLabService());
                 return [];
 
             case NodeOp.TorrentsBuildTorrent:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.TorrentsDemo>().BuildTorrent(a.Get<string>("name"), a.Get<string>("text"), a.Get<string?>("tracker"));
+                Lab<global::AetherNetNodeService.Host.Lab.TorrentsLabService>().BuildTorrent(a.Get<string>("name"), a.Get<string>("text"), a.Get<string?>("tracker"));
                 return [];
             }
 
             case NodeOp.TorrentsIngestIntoMesh:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.TorrentsDemo>().IngestIntoMeshAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.TorrentsLabService>().IngestIntoMeshAsync();
                 return [];
             }
 
             case NodeOp.TorrentsReSeedAsTorrent:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.TorrentsDemo>().ReSeedAsTorrent(a.Get<string>("contentName"), a.Get<string>("body"));
+                Lab<global::AetherNetNodeService.Host.Lab.TorrentsLabService>().ReSeedAsTorrent(a.Get<string>("contentName"), a.Get<string>("body"));
                 return [];
             }
 
             case NodeOp.TorrentsRunLiveDht:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.TorrentsDemo>().RunLiveDhtAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.TorrentsLabService>().RunLiveDhtAsync();
                 return [];
             }
 
             case NodeOp.TorrentsShowRoutingTable:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.TorrentsDemo>().ShowRoutingTable();
+                Lab<global::AetherNetNodeService.Host.Lab.TorrentsLabService>().ShowRoutingTable();
                 return [];
             }
 
             case NodeOp.GetTorrents:
-                return Bytes(StateTorrents(Demo<global::AetherNetNodeService.Host.Lab.TorrentsDemo>()));
+                return Bytes(StateTorrents(Lab<global::AetherNetNodeService.Host.Lab.TorrentsLabService>()));
 
             case NodeOp.NewVaultLab:
-                Start(new global::AetherNetNodeService.Host.Lab.VaultLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.VaultLabService());
                 return [];
 
             case NodeOp.VaultLabBackup:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().BackupAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().BackupAsync();
                 return [];
             }
 
             case NodeOp.VaultLabDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.VaultLabLocateShard:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().LocateShardAsync(a.Get<int>("index"));
+                await Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().LocateShardAsync(a.Get<int>("index"));
                 return [];
             }
 
             case NodeOp.VaultLabLog:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().Log());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().Log());
             }
 
             case NodeOp.VaultLabReReplicate:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().ReReplicateAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().ReReplicateAsync();
                 return [];
             }
 
             case NodeOp.VaultLabRecover:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().RecoverAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().RecoverAsync();
                 return [];
             }
 
             case NodeOp.VaultLabShards:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().Shards());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().Shards());
             }
 
             case NodeOp.VaultLabStart:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().Start();
+                Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().Start();
                 return [];
             }
 
             case NodeOp.VaultLabToggleShard:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().ToggleShardAsync(a.Get<int>("index"));
+                await Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().ToggleShardAsync(a.Get<int>("index"));
                 return [];
             }
 
             case NodeOp.GetVaultLab:
-                return Bytes(StateVaultLab(Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>()));
+                return Bytes(StateVaultLab(Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>()));
 
             case NodeOp.SetVaultLabSecret:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.VaultLabDemo>().Secret = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.VaultLabService>().Secret = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.NewVicinityLab:
-                Start(new global::AetherNetNodeService.Host.Lab.VicinityLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.VicinityLabService());
                 return [];
 
             case NodeOp.VicinityLabAddVouch:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.VicinityLabDemo>().AddVouchAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.VicinityLabService>().AddVouchAsync();
                 return [];
             }
 
             case NodeOp.VicinityLabDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.VicinityLabDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.VicinityLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.VicinityLabReportDefection:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.VicinityLabDemo>().ReportDefectionAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.VicinityLabService>().ReportDefectionAsync();
                 return [];
             }
 
             case NodeOp.VicinityLabSnapshot:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.VicinityLabDemo>().Snapshot());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.VicinityLabService>().Snapshot());
             }
 
             case NodeOp.VicinityLabStart:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.VicinityLabDemo>().Start();
+                Lab<global::AetherNetNodeService.Host.Lab.VicinityLabService>().Start();
                 return [];
             }
 
             case NodeOp.VicinityLabTamper:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.VicinityLabDemo>().TamperAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.VicinityLabService>().TamperAsync();
                 return [];
             }
 
             case NodeOp.VicinityLabVouchOverMesh:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.VicinityLabDemo>().VouchOverMeshAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.VicinityLabService>().VouchOverMeshAsync();
                 return [];
             }
 
             case NodeOp.GetVicinityLab:
-                return Bytes(StateVicinityLab(Demo<global::AetherNetNodeService.Host.Lab.VicinityLabDemo>()));
+                return Bytes(StateVicinityLab(Lab<global::AetherNetNodeService.Host.Lab.VicinityLabService>()));
 
             case NodeOp.NewWatchTogether:
-                Start(new global::AetherNetNodeService.Host.Lab.WatchTogetherDemo(Get<global::Microsoft.Extensions.Logging.ILoggerFactory>()));
+                Start(new global::AetherNetNodeService.Host.Lab.WatchTogetherLabService(Get<global::Microsoft.Extensions.Logging.ILoggerFactory>()));
                 return [];
 
             case NodeOp.WatchTogetherContribute:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().ContributeAsync(a.Get<string>("followerName"), a.Get<decimal>("amount"));
+                await Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().ContributeAsync(a.Get<string>("followerName"), a.Get<decimal>("amount"));
                 return [];
             }
 
             case NodeOp.WatchTogetherDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.WatchTogetherHostAndFollow:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().HostAndFollowAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().HostAndFollowAsync();
                 return [];
             }
 
             case NodeOp.WatchTogetherNodes:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().Nodes());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().Nodes());
             }
 
             case NodeOp.WatchTogetherPause:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().PauseAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().PauseAsync();
                 return [];
             }
 
             case NodeOp.WatchTogetherPlay:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().PlayAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().PlayAsync();
                 return [];
             }
 
             case NodeOp.WatchTogetherReact:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().ReactAsync(a.Get<string>("followerName"), a.Get<string>("reaction"));
+                await Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().ReactAsync(a.Get<string>("followerName"), a.Get<string>("reaction"));
                 return [];
             }
 
             case NodeOp.WatchTogetherSeekForward:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().SeekForwardAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().SeekForwardAsync();
                 return [];
             }
 
             case NodeOp.WatchTogetherSetSpeed:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().SetSpeedAsync(a.Get<double>("speed"));
+                await Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().SetSpeedAsync(a.Get<double>("speed"));
                 return [];
             }
 
             case NodeOp.WatchTogetherSnapshot:
             {
-                return Bytes(Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().Snapshot());
+                return Bytes(Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().Snapshot());
             }
 
             case NodeOp.WatchTogetherStart:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().Start();
+                Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().Start();
                 return [];
             }
 
             case NodeOp.WatchTogetherStartChipIn:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>().StartChipInAsync();
+                await Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>().StartChipInAsync();
                 return [];
             }
 
             case NodeOp.GetWatchTogether:
-                return Bytes(StateWatchTogether(Demo<global::AetherNetNodeService.Host.Lab.WatchTogetherDemo>()));
+                return Bytes(StateWatchTogether(Lab<global::AetherNetNodeService.Host.Lab.WatchTogetherLabService>()));
 
             case NodeOp.GetIdentity:
                 return Bytes(StateIdentity(Get<global::AetherNet.Mesh.IIdentityService>()));
@@ -2029,400 +2029,400 @@ public static class NodeAnswers
                 return Bytes(StateProxies(Get<global::AetherNet.Mesh.ProxyDirectory>()));
 
             case NodeOp.NewDevicesLab:
-                Start(new global::AetherNetNodeService.Host.Lab.DevicesLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.DevicesLabService());
                 return [];
 
             case NodeOp.DevicesLabForgeLink:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DevicesLabDemo>().ForgeLink();
+                Lab<global::AetherNetNodeService.Host.Lab.DevicesLabService>().ForgeLink();
                 return [];
             }
 
             case NodeOp.DevicesLabForgeRevoke:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DevicesLabDemo>().ForgeRevoke();
+                Lab<global::AetherNetNodeService.Host.Lab.DevicesLabService>().ForgeRevoke();
                 return [];
             }
 
             case NodeOp.DevicesLabLink:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DevicesLabDemo>().Link();
+                Lab<global::AetherNetNodeService.Host.Lab.DevicesLabService>().Link();
                 return [];
             }
 
             case NodeOp.DevicesLabReconcile:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DevicesLabDemo>().Reconcile();
+                Lab<global::AetherNetNodeService.Host.Lab.DevicesLabService>().Reconcile();
                 return [];
             }
 
             case NodeOp.DevicesLabReset:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DevicesLabDemo>().Reset();
+                Lab<global::AetherNetNodeService.Host.Lab.DevicesLabService>().Reset();
                 return [];
             }
 
             case NodeOp.DevicesLabRevoke:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DevicesLabDemo>().Revoke();
+                Lab<global::AetherNetNodeService.Host.Lab.DevicesLabService>().Revoke();
                 return [];
             }
 
             case NodeOp.GetDevicesLab:
-                return Bytes(StateDevicesLab(Demo<global::AetherNetNodeService.Host.Lab.DevicesLabDemo>()));
+                return Bytes(StateDevicesLab(Lab<global::AetherNetNodeService.Host.Lab.DevicesLabService>()));
 
             case NodeOp.NewDiagnostics:
-                Start(new global::AetherNetNodeService.Host.Lab.DiagnosticsDemo(Get<global::AetherNet.Mesh.IIdentityService>(), Get<global::AetherNet.Identity.INodeIdentity>()));
+                Start(new global::AetherNetNodeService.Host.Lab.DiagnosticsLabService(Get<global::AetherNet.Mesh.IIdentityService>(), Get<global::AetherNet.Identity.INodeIdentity>()));
                 return [];
 
             case NodeOp.DiagnosticsDerive:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DiagnosticsDemo>().Derive();
+                Lab<global::AetherNetNodeService.Host.Lab.DiagnosticsLabService>().Derive();
                 return [];
             }
 
             case NodeOp.DiagnosticsIssue:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DiagnosticsDemo>().Issue();
+                Lab<global::AetherNetNodeService.Host.Lab.DiagnosticsLabService>().Issue();
                 return [];
             }
 
             case NodeOp.DiagnosticsProve:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.DiagnosticsDemo>().Prove();
+                await Lab<global::AetherNetNodeService.Host.Lab.DiagnosticsLabService>().Prove();
                 return [];
             }
 
             case NodeOp.DiagnosticsVerify:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DiagnosticsDemo>().Verify();
+                Lab<global::AetherNetNodeService.Host.Lab.DiagnosticsLabService>().Verify();
                 return [];
             }
 
             case NodeOp.GetDiagnostics:
-                return Bytes(StateDiagnostics(Demo<global::AetherNetNodeService.Host.Lab.DiagnosticsDemo>()));
+                return Bytes(StateDiagnostics(Lab<global::AetherNetNodeService.Host.Lab.DiagnosticsLabService>()));
 
             case NodeOp.SetDiagnosticsChallengeIn:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DiagnosticsDemo>().ChallengeIn = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.DiagnosticsLabService>().ChallengeIn = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetDiagnosticsExpectTag:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DiagnosticsDemo>().ExpectTag = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.DiagnosticsLabService>().ExpectTag = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetDiagnosticsPeerTag:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DiagnosticsDemo>().PeerTag = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.DiagnosticsLabService>().PeerTag = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetDiagnosticsProofIn:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.DiagnosticsDemo>().ProofIn = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.DiagnosticsLabService>().ProofIn = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.NewEridLab:
-                Start(new global::AetherNetNodeService.Host.Lab.EridLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.EridLabService());
                 return [];
 
             case NodeOp.EridLabBack:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.EridLabDemo>().Back();
+                Lab<global::AetherNetNodeService.Host.Lab.EridLabService>().Back();
                 return [];
             }
 
             case NodeOp.EridLabForward:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.EridLabDemo>().Forward();
+                Lab<global::AetherNetNodeService.Host.Lab.EridLabService>().Forward();
                 return [];
             }
 
             case NodeOp.GetEridLab:
-                return Bytes(StateEridLab(Demo<global::AetherNetNodeService.Host.Lab.EridLabDemo>()));
+                return Bytes(StateEridLab(Lab<global::AetherNetNodeService.Host.Lab.EridLabService>()));
 
             case NodeOp.NewMarketLab:
-                Start(new global::AetherNetNodeService.Host.Lab.MarketLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.MarketLabService());
                 return [];
 
             case NodeOp.MarketLabBrowseNearby:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().BrowseNearby();
+                await Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().BrowseNearby();
                 return [];
             }
 
             case NodeOp.MarketLabBuyerConfirm:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().BuyerConfirm();
+                await Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().BuyerConfirm();
                 return [];
             }
 
             case NodeOp.MarketLabDispose:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Dispose();
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Dispose();
                 return [];
             }
 
             case NodeOp.MarketLabDispute:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Dispute();
+                await Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Dispute();
                 return [];
             }
 
             case NodeOp.MarketLabInitiate:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Initiate();
+                await Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Initiate();
                 return [];
             }
 
             case NodeOp.MarketLabPost:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Post();
+                await Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Post();
                 return [];
             }
 
             case NodeOp.MarketLabResetTrade:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().ResetTrade();
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().ResetTrade();
                 return [];
             }
 
             case NodeOp.MarketLabSearch:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Search();
+                await Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Search();
                 return [];
             }
 
             case NodeOp.MarketLabSelect:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Select(a.Get<global::System.Guid>("listingId"));
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Select(a.Get<global::System.Guid>("listingId"));
                 return [];
             }
 
             case NodeOp.MarketLabSellerConfirm:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().SellerConfirm();
+                await Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().SellerConfirm();
                 return [];
             }
 
             case NodeOp.GetMarketLab:
-                return Bytes(StateMarketLab(Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>()));
+                return Bytes(StateMarketLab(Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>()));
 
             case NodeOp.SetMarketLabCategory:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Category = a.Get<global::AetherNet.Market.Models.MarketCategory>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Category = a.Get<global::AetherNet.Market.Models.MarketCategory>("value");
                 return [];
             }
 
             case NodeOp.SetMarketLabCenter:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Center = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Center = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetMarketLabDesc:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Desc = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Desc = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetMarketLabGeoHash:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().GeoHash = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().GeoHash = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetMarketLabPrice:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Price = a.Get<decimal>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Price = a.Get<decimal>("value");
                 return [];
             }
 
             case NodeOp.SetMarketLabQuery:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Query = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Query = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetMarketLabRadius:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Radius = a.Get<int>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Radius = a.Get<int>("value");
                 return [];
             }
 
             case NodeOp.SetMarketLabSearchCategory:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().SearchCategory = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().SearchCategory = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetMarketLabTitle:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.MarketLabDemo>().Title = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.MarketLabService>().Title = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.NewPanicLab:
-                Start(new global::AetherNetNodeService.Host.Lab.PanicLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.PanicLabService());
                 return [];
 
             case NodeOp.PanicLabArm:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PanicLabDemo>().Arm();
+                Lab<global::AetherNetNodeService.Host.Lab.PanicLabService>().Arm();
                 return [];
             }
 
             case NodeOp.PanicLabReset:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PanicLabDemo>().Reset();
+                Lab<global::AetherNetNodeService.Host.Lab.PanicLabService>().Reset();
                 return [];
             }
 
             case NodeOp.PanicLabUnlock:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PanicLabDemo>().Unlock();
+                Lab<global::AetherNetNodeService.Host.Lab.PanicLabService>().Unlock();
                 return [];
             }
 
             case NodeOp.GetPanicLab:
-                return Bytes(StatePanicLab(Demo<global::AetherNetNodeService.Host.Lab.PanicLabDemo>()));
+                return Bytes(StatePanicLab(Lab<global::AetherNetNodeService.Host.Lab.PanicLabService>()));
 
             case NodeOp.SetPanicLabDuressPin:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PanicLabDemo>().DuressPin = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.PanicLabService>().DuressPin = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetPanicLabUnlockPin:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PanicLabDemo>().UnlockPin = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.PanicLabService>().UnlockPin = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.NewPetnamesLab:
-                Start(new global::AetherNetNodeService.Host.Lab.PetnamesLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.PetnamesLabService());
                 return [];
 
             case NodeOp.PetnamesLabGossip:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PetnamesLabDemo>().Gossip();
+                Lab<global::AetherNetNodeService.Host.Lab.PetnamesLabService>().Gossip();
                 return [];
             }
 
             case NodeOp.PetnamesLabPin:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PetnamesLabDemo>().Pin();
+                Lab<global::AetherNetNodeService.Host.Lab.PetnamesLabService>().Pin();
                 return [];
             }
 
             case NodeOp.PetnamesLabProposeAsPeer:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PetnamesLabDemo>().ProposeAsPeer();
+                Lab<global::AetherNetNodeService.Host.Lab.PetnamesLabService>().ProposeAsPeer();
                 return [];
             }
 
             case NodeOp.PetnamesLabReject:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PetnamesLabDemo>().Reject(a.Get<string>("tag"));
+                Lab<global::AetherNetNodeService.Host.Lab.PetnamesLabService>().Reject(a.Get<string>("tag"));
                 return [];
             }
 
             case NodeOp.PetnamesLabResolve:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PetnamesLabDemo>().Resolve();
+                Lab<global::AetherNetNodeService.Host.Lab.PetnamesLabService>().Resolve();
                 return [];
             }
 
             case NodeOp.GetPetnamesLab:
-                return Bytes(StatePetnamesLab(Demo<global::AetherNetNodeService.Host.Lab.PetnamesLabDemo>()));
+                return Bytes(StatePetnamesLab(Lab<global::AetherNetNodeService.Host.Lab.PetnamesLabService>()));
 
             case NodeOp.SetPetnamesLabFormName:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PetnamesLabDemo>().FormName = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.PetnamesLabService>().FormName = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetPetnamesLabFormTag:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PetnamesLabDemo>().FormTag = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.PetnamesLabService>().FormTag = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.SetPetnamesLabResolveName:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.PetnamesLabDemo>().ResolveName = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.PetnamesLabService>().ResolveName = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.NewRecoveryLab:
-                Start(new global::AetherNetNodeService.Host.Lab.RecoveryLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.RecoveryLabService());
                 return [];
 
             case NodeOp.RecoveryLabCorruptOne:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.RecoveryLabDemo>().CorruptOne();
+                Lab<global::AetherNetNodeService.Host.Lab.RecoveryLabService>().CorruptOne();
                 return [];
             }
 
             case NodeOp.RecoveryLabGenerate:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.RecoveryLabDemo>().Generate();
+                Lab<global::AetherNetNodeService.Host.Lab.RecoveryLabService>().Generate();
                 return [];
             }
 
             case NodeOp.RecoveryLabRecover:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.RecoveryLabDemo>().Recover();
+                Lab<global::AetherNetNodeService.Host.Lab.RecoveryLabService>().Recover();
                 return [];
             }
 
             case NodeOp.RecoveryLabResetPhrase:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.RecoveryLabDemo>().ResetPhrase();
+                Lab<global::AetherNetNodeService.Host.Lab.RecoveryLabService>().ResetPhrase();
                 return [];
             }
 
             case NodeOp.GetRecoveryLab:
-                return Bytes(StateRecoveryLab(Demo<global::AetherNetNodeService.Host.Lab.RecoveryLabDemo>()));
+                return Bytes(StateRecoveryLab(Lab<global::AetherNetNodeService.Host.Lab.RecoveryLabService>()));
 
             case NodeOp.SetRecoveryLabEntered:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.RecoveryLabDemo>().Entered = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.RecoveryLabService>().Entered = a.Get<string>("value");
                 return [];
             }
 
             case NodeOp.NewSiteIdentityLab:
-                Start(new global::AetherNetNodeService.Host.Lab.SiteIdentityLabDemo());
+                Start(new global::AetherNetNodeService.Host.Lab.SiteIdentityLabService());
                 return [];
 
             case NodeOp.SiteIdentityLabAddRandom:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.SiteIdentityLabDemo>().AddRandom();
+                await Lab<global::AetherNetNodeService.Host.Lab.SiteIdentityLabService>().AddRandom();
                 return [];
             }
 
             case NodeOp.SiteIdentityLabAddTyped:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.SiteIdentityLabDemo>().AddTyped();
+                await Lab<global::AetherNetNodeService.Host.Lab.SiteIdentityLabService>().AddTyped();
                 return [];
             }
 
             case NodeOp.SiteIdentityLabRevisitAll:
             {
-                await Demo<global::AetherNetNodeService.Host.Lab.SiteIdentityLabDemo>().RevisitAll();
+                await Lab<global::AetherNetNodeService.Host.Lab.SiteIdentityLabService>().RevisitAll();
                 return [];
             }
 
             case NodeOp.GetSiteIdentityLab:
-                return Bytes(StateSiteIdentityLab(Demo<global::AetherNetNodeService.Host.Lab.SiteIdentityLabDemo>()));
+                return Bytes(StateSiteIdentityLab(Lab<global::AetherNetNodeService.Host.Lab.SiteIdentityLabService>()));
 
             case NodeOp.SetSiteIdentityLabNewSite:
             {
-                Demo<global::AetherNetNodeService.Host.Lab.SiteIdentityLabDemo>().NewSite = a.Get<string>("value");
+                Lab<global::AetherNetNodeService.Host.Lab.SiteIdentityLabService>().NewSite = a.Get<string>("value");
                 return [];
             }
 
@@ -2769,13 +2769,13 @@ public static class NodeAnswers
         x.IsHost,
     };
 
-    private static object StateBreadcrumbs(global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo x) => new
+    private static object StateBreadcrumbs(global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService x) => new
     {
         x.Busy,
         x.Current,
     };
 
-    private static object StateBroadcast(global::AetherNetNodeService.Host.Lab.BroadcastDemo x) => new
+    private static object StateBroadcast(global::AetherNetNodeService.Host.Lab.BroadcastLabService x) => new
     {
         x.BandwidthKbps,
         x.CurrentRung,
@@ -2787,14 +2787,14 @@ public static class NodeAnswers
         x.WillAbandon,
     };
 
-    private static object StateDtnLab(global::AetherNetNodeService.Host.Lab.DtnLabDemo x) => new
+    private static object StateDtnLab(global::AetherNetNodeService.Host.Lab.DtnLabService x) => new
     {
         x.HasMessage,
         x.RecipientOnline,
         x.View,
     };
 
-    private static object StateFiles(global::AetherNetNodeService.Host.Lab.FilesDemo x) => new
+    private static object StateFiles(global::AetherNetNodeService.Host.Lab.FilesLabService x) => new
     {
         x.Log,
         x.Published,
@@ -2803,7 +2803,7 @@ public static class NodeAnswers
         x.Shuffle,
     };
 
-    private static object StateFmhy(global::AetherNetNodeService.Host.Lab.FmhyDemo x) => new
+    private static object StateFmhy(global::AetherNetNodeService.Host.Lab.FmhyLabService x) => new
     {
         x.Categories,
         x.CategoryFilter,
@@ -2818,7 +2818,7 @@ public static class NodeAnswers
         x.Trackers,
     };
 
-    private static object StateForge(global::AetherNetNodeService.Host.Lab.ForgeDemo x) => new
+    private static object StateForge(global::AetherNetNodeService.Host.Lab.ForgeLabService x) => new
     {
         x.LearnedByGossip,
         x.Log,
@@ -2826,7 +2826,7 @@ public static class NodeAnswers
         x.StatsB,
     };
 
-    private static object StateGroupVideo(global::AetherNetNodeService.Host.Lab.GroupVideoDemo x) => new
+    private static object StateGroupVideo(global::AetherNetNodeService.Host.Lab.GroupVideoLabService x) => new
     {
         x.CallOpen,
         x.HasPending,
@@ -2834,7 +2834,7 @@ public static class NodeAnswers
         x.SfuThreshold,
     };
 
-    private static object StateMap(global::AetherNetNodeService.Host.Lab.MapDemo x) => new
+    private static object StateMap(global::AetherNetNodeService.Host.Lab.MapLabService x) => new
     {
         x.HoursConflict,
         x.LeratoEdited,
@@ -2845,7 +2845,7 @@ public static class NodeAnswers
         x.ThaboEdited,
     };
 
-    private static object StatePoLLab(global::AetherNetNodeService.Host.Lab.PoLLabDemo x) => new
+    private static object StatePoLLab(global::AetherNetNodeService.Host.Lab.PoLLabService x) => new
     {
         x.EncounterGeohash,
         x.EncounterPlace,
@@ -2858,12 +2858,12 @@ public static class NodeAnswers
         x.Verdict,
     };
 
-    private static object StatePttScreenShare(global::AetherNetNodeService.Host.Lab.PttScreenShareDemo x) => new
+    private static object StatePttScreenShare(global::AetherNetNodeService.Host.Lab.PttScreenShareLabService x) => new
     {
         x.LastHeader,
     };
 
-    private static object StateSosLab(global::AetherNetNodeService.Host.Lab.SosLabDemo x) => new
+    private static object StateSosLab(global::AetherNetNodeService.Host.Lab.SosLabService x) => new
     {
         x.DistinctReceptions,
         x.EscalationTable,
@@ -2875,7 +2875,7 @@ public static class NodeAnswers
         x.WireDeliveries,
     };
 
-    private static object StateTippingLab(global::AetherNetNodeService.Host.Lab.TippingLabDemo x) => new
+    private static object StateTippingLab(global::AetherNetNodeService.Host.Lab.TippingLabService x) => new
     {
         x.Boost,
         x.DailyTotal,
@@ -2889,7 +2889,7 @@ public static class NodeAnswers
         x.Tier,
     };
 
-    private static object StateTorrents(global::AetherNetNodeService.Host.Lab.TorrentsDemo x) => new
+    private static object StateTorrents(global::AetherNetNodeService.Host.Lab.TorrentsLabService x) => new
     {
         x.Built,
         x.Dht,
@@ -2898,7 +2898,7 @@ public static class NodeAnswers
         x.Log,
     };
 
-    private static object StateVaultLab(global::AetherNetNodeService.Host.Lab.VaultLabDemo x) => new
+    private static object StateVaultLab(global::AetherNetNodeService.Host.Lab.VaultLabService x) => new
     {
         x.HasBackup,
         x.Health,
@@ -2908,11 +2908,11 @@ public static class NodeAnswers
         x.Secret,
     };
 
-    private static object StateVicinityLab(global::AetherNetNodeService.Host.Lab.VicinityLabDemo x) => new
+    private static object StateVicinityLab(global::AetherNetNodeService.Host.Lab.VicinityLabService x) => new
     {
         x.DefenceScore,
         x.DefenceSubjectPetname,
-        x.HasSampleToken,
+        x.HasLastToken,
         x.LastAcceptedOnMesh,
         x.MeshScore,
         x.PristineVerify,
@@ -2921,7 +2921,7 @@ public static class NodeAnswers
         x.WitnessesRemaining,
     };
 
-    private static object StateWatchTogether(global::AetherNetNodeService.Host.Lab.WatchTogetherDemo x) => new
+    private static object StateWatchTogether(global::AetherNetNodeService.Host.Lab.WatchTogetherLabService x) => new
     {
         x.HasPool,
         x.IsHosting,
@@ -2968,7 +2968,7 @@ public static class NodeAnswers
         x.IsGateway,
     };
 
-    private static object StateDevicesLab(global::AetherNetNodeService.Host.Lab.DevicesLabDemo x) => new
+    private static object StateDevicesLab(global::AetherNetNodeService.Host.Lab.DevicesLabService x) => new
     {
         x.BState,
         x.Devices,
@@ -2980,7 +2980,7 @@ public static class NodeAnswers
         x.UserTag,
     };
 
-    private static object StateDiagnostics(global::AetherNetNodeService.Host.Lab.DiagnosticsDemo x) => new
+    private static object StateDiagnostics(global::AetherNetNodeService.Host.Lab.DiagnosticsLabService x) => new
     {
         x.ChallengeIn,
         x.ChallengeOut,
@@ -2993,7 +2993,7 @@ public static class NodeAnswers
         x.VerifyOut,
     };
 
-    private static object StateEridLab(global::AetherNetNodeService.Host.Lab.EridLabDemo x) => new
+    private static object StateEridLab(global::AetherNetNodeService.Host.Lab.EridLabService x) => new
     {
         x.AliceErid,
         x.Clock,
@@ -3006,7 +3006,7 @@ public static class NodeAnswers
         x.WindowLabel,
     };
 
-    private static object StateMarketLab(global::AetherNetNodeService.Host.Lab.MarketLabDemo x) => new
+    private static object StateMarketLab(global::AetherNetNodeService.Host.Lab.MarketLabService x) => new
     {
         x.BuyerUhid,
         x.CanPost,
@@ -3026,7 +3026,7 @@ public static class NodeAnswers
         x.Title,
     };
 
-    private static object StatePanicLab(global::AetherNetNodeService.Host.Lab.PanicLabDemo x) => new
+    private static object StatePanicLab(global::AetherNetNodeService.Host.Lab.PanicLabService x) => new
     {
         x.Armed,
         x.DuressPin,
@@ -3044,7 +3044,7 @@ public static class NodeAnswers
         x.Wiped,
     };
 
-    private static object StatePetnamesLab(global::AetherNetNodeService.Host.Lab.PetnamesLabDemo x) => new
+    private static object StatePetnamesLab(global::AetherNetNodeService.Host.Lab.PetnamesLabService x) => new
     {
         x.FormName,
         x.FormTag,
@@ -3059,7 +3059,7 @@ public static class NodeAnswers
         x.ResolveOut,
     };
 
-    private static object StateRecoveryLab(global::AetherNetNodeService.Host.Lab.RecoveryLabDemo x) => new
+    private static object StateRecoveryLab(global::AetherNetNodeService.Host.Lab.RecoveryLabService x) => new
     {
         x.Entered,
         x.Match,
@@ -3070,7 +3070,7 @@ public static class NodeAnswers
         x.Words,
     };
 
-    private static object StateSiteIdentityLab(global::AetherNetNodeService.Host.Lab.SiteIdentityLabDemo x) => new
+    private static object StateSiteIdentityLab(global::AetherNetNodeService.Host.Lab.SiteIdentityLabService x) => new
     {
         x.AddNote,
         x.CanAddTyped,
@@ -3100,15 +3100,15 @@ public static class NodeAnswers
     {
         try
         {
-            if (Find<global::AetherNetNodeService.Host.AetherDemoService>() is { } aetherDemoService)
+            if (Find<global::AetherNetNodeService.Host.MeshLabService>() is { } meshLabService)
             {
-                var x = aetherDemoService;
-                x.Changed += () => Tell(NodeOp.EventAetherDemo, () => null);
+                var x = meshLabService;
+                x.Changed += () => Tell(NodeOp.EventMeshLab, () => null);
             }
         }
         catch (Exception ex)
         {
-            _log?.LogWarning(ex, "AetherDemoService did not start, so what it says changed is not passed on");
+            _log?.LogWarning(ex, "MeshLabService did not start, so what it says changed is not passed on");
         }
         try
         {
@@ -3385,13 +3385,13 @@ public static class NodeAnswers
         }
     }
 
-    private static void Start(object demo)
+    private static void Start(object lab)
     {
         object? previous;
         lock (Gate)
         {
-            Demos.TryGetValue(demo.GetType(), out previous);
-            Demos[demo.GetType()] = demo;
+            Labs.TryGetValue(lab.GetType(), out previous);
+            Labs[lab.GetType()] = lab;
         }
 
         if (previous is IDisposable done)
@@ -3399,90 +3399,90 @@ public static class NodeAnswers
             done.Dispose();
         }
 
-        switch (demo)
+        switch (lab)
         {
-            case global::AetherNetNodeService.Host.Lab.BreadcrumbsDemo x:
+            case global::AetherNetNodeService.Host.Lab.BreadcrumbsLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventBreadcrumbs, () => StateBreadcrumbs(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.BroadcastDemo x:
+            case global::AetherNetNodeService.Host.Lab.BroadcastLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventBroadcast, () => StateBroadcast(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.DtnLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.DtnLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventDtnLab, () => StateDtnLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.FilesDemo x:
+            case global::AetherNetNodeService.Host.Lab.FilesLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventFiles, () => StateFiles(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.FmhyDemo x:
+            case global::AetherNetNodeService.Host.Lab.FmhyLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventFmhy, () => StateFmhy(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.ForgeDemo x:
+            case global::AetherNetNodeService.Host.Lab.ForgeLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventForge, () => StateForge(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.GroupVideoDemo x:
+            case global::AetherNetNodeService.Host.Lab.GroupVideoLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventGroupVideo, () => StateGroupVideo(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.MapDemo x:
+            case global::AetherNetNodeService.Host.Lab.MapLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventMap, () => StateMap(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.PoLLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.PoLLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventPoLLab, () => StatePoLLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.PttScreenShareDemo x:
+            case global::AetherNetNodeService.Host.Lab.PttScreenShareLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventPttScreenShare, () => StatePttScreenShare(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.SosLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.SosLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventSosLab, () => StateSosLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.TippingLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.TippingLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventTippingLab, () => StateTippingLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.TorrentsDemo x:
+            case global::AetherNetNodeService.Host.Lab.TorrentsLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventTorrents, () => StateTorrents(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.VaultLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.VaultLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventVaultLab, () => StateVaultLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.VicinityLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.VicinityLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventVicinityLab, () => StateVicinityLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.WatchTogetherDemo x:
+            case global::AetherNetNodeService.Host.Lab.WatchTogetherLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventWatchTogether, () => StateWatchTogether(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.DevicesLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.DevicesLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventDevicesLab, () => StateDevicesLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.DiagnosticsDemo x:
+            case global::AetherNetNodeService.Host.Lab.DiagnosticsLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventDiagnostics, () => StateDiagnostics(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.EridLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.EridLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventEridLab, () => StateEridLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.MarketLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.MarketLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventMarketLab, () => StateMarketLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.PanicLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.PanicLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventPanicLab, () => StatePanicLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.PetnamesLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.PetnamesLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventPetnamesLab, () => StatePetnamesLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.RecoveryLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.RecoveryLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventRecoveryLab, () => StateRecoveryLab(x));
                 break;
-            case global::AetherNetNodeService.Host.Lab.SiteIdentityLabDemo x:
+            case global::AetherNetNodeService.Host.Lab.SiteIdentityLabService x:
                 x.Changed += () => TellIfCurrent(x, NodeOp.EventSiteIdentityLab, () => StateSiteIdentityLab(x));
                 break;
         }
     }
 
-    private static T Demo<T>() where T : class
+    private static T Lab<T>() where T : class
     {
         lock (Gate)
         {
-            if (Demos.TryGetValue(typeof(T), out var demo))
+            if (Labs.TryGetValue(typeof(T), out var lab))
             {
-                return (T)demo;
+                return (T)lab;
             }
         }
 
@@ -3501,11 +3501,11 @@ public static class NodeAnswers
             ? key => said.TryGetValue(key, out var answer) ? answer : default
             : null;
 
-    private static void TellIfCurrent(object demo, NodeOp op, Func<object?> payload)
+    private static void TellIfCurrent(object lab, NodeOp op, Func<object?> payload)
     {
         lock (Gate)
         {
-            if (!Demos.TryGetValue(demo.GetType(), out var current) || !ReferenceEquals(current, demo))
+            if (!Labs.TryGetValue(lab.GetType(), out var current) || !ReferenceEquals(current, lab))
             {
                 return;
             }

@@ -29,7 +29,7 @@
                 </select>
             </label>
             <button class="btn ink" @onclick="Publish">Publish on A</button>
-            <button class="btn ghost" @onclick="Seed">Seed a sample set</button>
+            <button class="btn ghost" @onclick="Seed">Seed a starter set</button>
         </div>
     </section>
 
@@ -98,11 +98,11 @@
 
     @* ── Wire log ────────────────────────────────────────────────────────────── *@
     <section class="frg-log">
-        @foreach (var line in _demo.Log)
+        @foreach (var line in _lab.Log)
         {
             <div class="frg-line"><span class="frg-who">@line.Who</span><span class="frg-text">@line.Text</span></div>
         }
-        @if (_demo.Log.Count == 0)
+        @if (_lab.Log.Count == 0)
         {
             <div class="frg-line frg-empty">Bringing the two nodes up…</div>
         }
@@ -110,7 +110,7 @@
 </div>
 
 @code {
-    private readonly ForgeDemo _demo = new();
+    private readonly ForgeLabService _lab = new();
 
     private string _pkg = "npm:lodash@4.17.21";
     private int _sizeKb = 8;
@@ -120,29 +120,29 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _demo.Changed += OnChanged;
-        _demo.Init();
+        _lab.Changed += OnChanged;
+        _lab.Init();
         // Auto-populate so the caches and stats have something to show on arrival; guarded so a
-        // first-render hiccup never takes the page down — the "Seed a sample set" button is still there.
-        try { await _demo.SeedSampleAsync(); }
+        // first-render hiccup never takes the page down — the "Seed a starter set" button is still there.
+        try { await _lab.SeedStarterSetAsync(); }
         catch { /* the page renders fine empty; the user can seed manually */ }
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private async Task Publish() => await _demo.PublishOnAAsync(_pkg, _sizeKb);
-    private async Task Seed() => await _demo.SeedSampleAsync();
+    private async Task Publish() => await _lab.PublishOnAAsync(_pkg, _sizeKb);
+    private async Task Seed() => await _lab.SeedStarterSetAsync();
 
     private async Task Lookup()
     {
-        _lookupResult = await _demo.LookupOnBAsync(_lookupPkg);
+        _lookupResult = await _lab.LookupOnBAsync(_lookupPkg);
         _lookupDone = true;
     }
 
     private async Task Serve()
     {
-        await _demo.FetchOnBAsync(_lookupPkg, 3);
-        _lookupResult = await _demo.LookupOnBAsync(_lookupPkg);
+        await _lab.FetchOnBAsync(_lookupPkg, 3);
+        _lookupResult = await _lab.LookupOnBAsync(_lookupPkg);
         _lookupDone = true;
     }
 
@@ -150,11 +150,11 @@
     // entries can be tagged "via mesh".
     private (string Name, ForgeStats? Stats, IReadOnlyCollection<string>? Gossiped, bool Slate)[] Nodes() => new[]
     {
-        ("Node A — publisher", _demo.StatsA, (IReadOnlyCollection<string>?)null, false),
-        ("Node B — mirror", _demo.StatsB, (IReadOnlyCollection<string>?)_demo.LearnedByGossip, true),
+        ("Node A — publisher", _lab.StatsA, (IReadOnlyCollection<string>?)null, false),
+        ("Node B — mirror", _lab.StatsB, (IReadOnlyCollection<string>?)_lab.LearnedByGossip, true),
     };
 
-    public void Dispose() { _demo.Changed -= OnChanged; _demo.Dispose(); }
+    public void Dispose() { _lab.Changed -= OnChanged; _lab.Dispose(); }
 }
 
 <style>

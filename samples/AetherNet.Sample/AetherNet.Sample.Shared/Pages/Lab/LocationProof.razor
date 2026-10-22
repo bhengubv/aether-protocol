@@ -15,31 +15,31 @@
         <p>Witnesses co-sign where you are; a reputation-weighted quorum verifies it. Self-vouching and Sybils rejected.</p>
     </header>
 
-    <section class="pol-verdict @(_demo.Verdict.IsValid ? "valid" : "invalid")">
+    <section class="pol-verdict @(_lab.Verdict.IsValid ? "valid" : "invalid")">
         <div class="pol-verdict-top">
             <span class="pol-disc"></span>
-            <span class="pol-verdict-word">@(_demo.Verdict.IsValid ? "Location proven" : "Not proven")</span>
+            <span class="pol-verdict-word">@(_lab.Verdict.IsValid ? "Location proven" : "Not proven")</span>
         </div>
         <div class="pol-verdict-metrics">
-            <span><b>@_demo.Verdict.DistinctWitnesses</b> / @_demo.MinWitnesses distinct witnesses</span>
-            <span><b>@_demo.Verdict.TotalWeight.ToString("0.00")</b> / @_demo.MinWeight.ToString("0.00") weight</span>
+            <span><b>@_lab.Verdict.DistinctWitnesses</b> / @_lab.MinWitnesses distinct witnesses</span>
+            <span><b>@_lab.Verdict.TotalWeight.ToString("0.00")</b> / @_lab.MinWeight.ToString("0.00") weight</span>
         </div>
-        @if (!_demo.Verdict.IsValid && _demo.Verdict.Reason is { } reason)
+        @if (!_lab.Verdict.IsValid && _lab.Verdict.Reason is { } reason)
         {
             <div class="pol-reason">@reason</div>
         }
     </section>
 
     <section class="pol-encounter">
-        <span>Encounter: geohash <b class="tag-mono">@_demo.EncounterGeohash</b> · @_demo.EncounterPlace · time bucket <b class="tag-mono">@_demo.TimeBucket</b></span>
+        <span>Encounter: geohash <b class="tag-mono">@_lab.EncounterGeohash</b> · @_lab.EncounterPlace · time bucket <b class="tag-mono">@_lab.TimeBucket</b></span>
     </section>
 
     <section class="pol-witnesses">
         <div class="pol-eyebrow">Nearby witnesses — tap to collect a co-signed attestation</div>
-        @foreach (var w in _demo.Rows)
+        @foreach (var w in _lab.Rows)
         {
             <div class="pol-row @(w.Collected ? "in" : null)">
-                <button class="pol-pick" @onclick="() => _demo.Toggle(w.Name)">
+                <button class="pol-pick" @onclick="() => _lab.Toggle(w.Name)">
                     <span class="pol-check @(w.Collected ? "on" : null)"></span>
                     <span class="pol-name">@w.Name</span>
                 </button>
@@ -53,7 +53,7 @@
                 </span>
                 @if (w.Known)
                 {
-                    <button class="pol-tamper @(w.Tampered ? "on" : null)" @onclick="() => _demo.ToggleTamper(w.Name)" title="flip a byte of this witness's signature">
+                    <button class="pol-tamper @(w.Tampered ? "on" : null)" @onclick="() => _lab.ToggleTamper(w.Name)" title="flip a byte of this witness's signature">
                         @(w.Tampered ? "tampered" : "tamper")
                     </button>
                 }
@@ -62,26 +62,26 @@
     </section>
 
     <section class="pol-self">
-        <button class="pol-selfbtn @(_demo.SelfVouch ? "on" : null)" @onclick="() => _demo.SetSelfVouch(!_demo.SelfVouch)">
-            <span class="pol-check @(_demo.SelfVouch ? "on" : null)"></span>
+        <button class="pol-selfbtn @(_lab.SelfVouch ? "on" : null)" @onclick="() => _lab.SetSelfVouch(!_lab.SelfVouch)">
+            <span class="pol-check @(_lab.SelfVouch ? "on" : null)"></span>
             <span>Add a self-vouch (the subject witnesses itself)</span>
         </button>
-        @if (_demo.SelfVouch)
+        @if (_lab.SelfVouch)
         {
             <span class="pol-self-note">Included above — and dropped by the verifier: a node cannot witness itself, so it never counts.</span>
         }
     </section>
 
-    @if (!string.IsNullOrEmpty(_demo.SignableBodyHex))
+    @if (!string.IsNullOrEmpty(_lab.SignableBodyHex))
     {
         <section class="pol-body">
             <div class="pol-eyebrow">The canonical bytes both parties sign</div>
-            <div class="pol-body-hex tag-mono">@Trunc(_demo.SignableBodyHex)</div>
+            <div class="pol-body-hex tag-mono">@Trunc(_lab.SignableBodyHex)</div>
         </section>
     }
 
     <section class="pol-log">
-        @foreach (var line in _demo.Log())
+        @foreach (var line in _lab.Log())
         {
             <div class="pol-line">@line.Text</div>
         }
@@ -89,20 +89,20 @@
 </div>
 
 @code {
-    private PoLLabDemo _demo = null!;
+    private PoLLabService _lab = null!;
 
     protected override void OnInitialized()
     {
-        _demo = new PoLLabDemo();
-        _demo.Changed += OnChanged;
-        _demo.Start();
+        _lab = new PoLLabService();
+        _lab.Changed += OnChanged;
+        _lab.Start();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
     private static string Trunc(string hex) => hex.Length <= 96 ? hex : hex[..96] + "…";
 
-    public void Dispose() => _demo.Changed -= OnChanged;
+    public void Dispose() => _lab.Changed -= OnChanged;
 }
 
 <style>

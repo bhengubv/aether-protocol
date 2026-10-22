@@ -38,45 +38,45 @@
     </section>
 
     <section class="wt-controls">
-        <button class="btn ink" disabled="@_hosting" @onclick="() => RunAsync(Demo.HostAndFollowAsync)">Host &amp; follow</button>
-        <button class="btn ink" disabled="@(!_hosting)" @onclick="() => RunAsync(Demo.PlayAsync)">Play</button>
-        <button class="btn" disabled="@(!_hosting)" @onclick="() => RunAsync(Demo.PauseAsync)">Pause</button>
-        <button class="btn" disabled="@(!_hosting)" @onclick="() => RunAsync(Demo.SeekForwardAsync)">Seek +30s</button>
+        <button class="btn ink" disabled="@_hosting" @onclick="() => RunAsync(Lab.HostAndFollowAsync)">Host &amp; follow</button>
+        <button class="btn ink" disabled="@(!_hosting)" @onclick="() => RunAsync(Lab.PlayAsync)">Play</button>
+        <button class="btn" disabled="@(!_hosting)" @onclick="() => RunAsync(Lab.PauseAsync)">Pause</button>
+        <button class="btn" disabled="@(!_hosting)" @onclick="() => RunAsync(Lab.SeekForwardAsync)">Seek +30s</button>
     </section>
 
     <section class="wt-controls">
         <span class="wt-label">Speed</span>
         @foreach (var s in _speeds)
         {
-            <button class="btn wt-seg @(Demo.Speed == s ? "on" : null)" disabled="@(!_hosting)"
-                    @onclick="() => RunAsync(() => Demo.SetSpeedAsync(s))">×@(s.ToString("0.##"))</button>
+            <button class="btn wt-seg @(Lab.Speed == s ? "on" : null)" disabled="@(!_hosting)"
+                    @onclick="() => RunAsync(() => Lab.SetSpeedAsync(s))">×@(s.ToString("0.##"))</button>
         }
     </section>
 
     <section class="wt-controls">
         <span class="wt-label">React</span>
-        <button class="btn" disabled="@(!_hosting)" @onclick='() => RunAsync(() => Demo.ReactAsync("Bob", "👏"))'>Bob 👏</button>
-        <button class="btn" disabled="@(!_hosting)" @onclick='() => RunAsync(() => Demo.ReactAsync("Charlie", "⚽"))'>Charlie ⚽</button>
+        <button class="btn" disabled="@(!_hosting)" @onclick='() => RunAsync(() => Lab.ReactAsync("Bob", "👏"))'>Bob 👏</button>
+        <button class="btn" disabled="@(!_hosting)" @onclick='() => RunAsync(() => Lab.ReactAsync("Charlie", "⚽"))'>Charlie ⚽</button>
     </section>
 
     <section class="wt-chip">
         <div class="wt-chip-head">
             <span class="wt-chip-title">Chip in for the stream</span>
-            @if (Demo.HasPool)
+            @if (Lab.HasPool)
             {
-                <span class="wt-chip-amt @(Demo.PoolFunded ? "done" : null)">R@(Demo.PoolCollected.ToString("0")) / R@(Demo.PoolTarget.ToString("0"))@(Demo.PoolFunded ? " · funded" : "")</span>
+                <span class="wt-chip-amt @(Lab.PoolFunded ? "done" : null)">R@(Lab.PoolCollected.ToString("0")) / R@(Lab.PoolTarget.ToString("0"))@(Lab.PoolFunded ? " · funded" : "")</span>
             }
         </div>
-        @if (!Demo.HasPool)
+        @if (!Lab.HasPool)
         {
-            <button class="btn" disabled="@(!_hosting)" @onclick="() => RunAsync(Demo.StartChipInAsync)">Open a chip-in (R150)</button>
+            <button class="btn" disabled="@(!_hosting)" @onclick="() => RunAsync(Lab.StartChipInAsync)">Open a chip-in (R150)</button>
         }
         else
         {
             <div class="wt-chip-bar"><div class="wt-chip-fill" style="width:@(Pct)%"></div></div>
             <div class="wt-controls">
-                <button class="btn" disabled="@Demo.PoolFunded" @onclick='() => RunAsync(() => Demo.ContributeAsync("Bob", 50m))'>Bob +R50</button>
-                <button class="btn" disabled="@Demo.PoolFunded" @onclick='() => RunAsync(() => Demo.ContributeAsync("Charlie", 50m))'>Charlie +R50</button>
+                <button class="btn" disabled="@Lab.PoolFunded" @onclick='() => RunAsync(() => Lab.ContributeAsync("Bob", 50m))'>Bob +R50</button>
+                <button class="btn" disabled="@Lab.PoolFunded" @onclick='() => RunAsync(() => Lab.ContributeAsync("Charlie", 50m))'>Charlie +R50</button>
             </div>
         }
     </section>
@@ -97,16 +97,16 @@
 </div>
 
 @code {
-    private readonly WatchTogetherDemo Demo = new();
-    private IReadOnlyList<WatchTogetherDemo.NodeView> _nodes = Array.Empty<WatchTogetherDemo.NodeView>();
-    private IReadOnlyList<WatchTogetherDemo.LogLine> _log = Array.Empty<WatchTogetherDemo.LogLine>();
+    private readonly WatchTogetherLabService Lab = new();
+    private IReadOnlyList<WatchTogetherLabService.NodeView> _nodes = Array.Empty<WatchTogetherLabService.NodeView>();
+    private IReadOnlyList<WatchTogetherLabService.LogLine> _log = Array.Empty<WatchTogetherLabService.LogLine>();
     private readonly double[] _speeds = { 1.0, 1.5, 2.0 };
     private bool _hosting;
 
     protected override void OnInitialized()
     {
-        Demo.Changed += OnChanged;
-        Demo.Start();
+        Lab.Changed += OnChanged;
+        Lab.Start();
         Refresh();
     }
 
@@ -114,12 +114,12 @@
 
     private void Refresh()
     {
-        _nodes = Demo.Nodes();
-        _log = Demo.Snapshot();
-        _hosting = Demo.IsHosting;
+        _nodes = Lab.Nodes();
+        _log = Lab.Snapshot();
+        _hosting = Lab.IsHosting;
     }
 
-    private int Pct => Demo.PoolTarget <= 0 ? 0 : (int)Math.Min(100, decimal.ToDouble(Demo.PoolCollected / Demo.PoolTarget * 100));
+    private int Pct => Lab.PoolTarget <= 0 ? 0 : (int)Math.Min(100, decimal.ToDouble(Lab.PoolCollected / Lab.PoolTarget * 100));
 
     private async Task RunAsync(Func<Task> act) => await act();
 
@@ -132,8 +132,8 @@
 
     public void Dispose()
     {
-        Demo.Changed -= OnChanged;
-        Demo.Dispose();
+        Lab.Changed -= OnChanged;
+        Lab.Dispose();
     }
 }
 

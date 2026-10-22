@@ -36,7 +36,7 @@ public sealed class ServiceMenu
     }
 
     /// <summary>
-    /// The menu, for what a page makes for itself with <c>new</c> (a Lab demo) rather than being handed.
+    /// The menu, for what a page makes for itself with <c>new</c> (a Lab) rather than being handed.
     /// </summary>
     public static ServiceMenu? Current { get; private set; }
 

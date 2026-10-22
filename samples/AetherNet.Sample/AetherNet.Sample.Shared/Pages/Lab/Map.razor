@@ -2,7 +2,7 @@
 @using AetherNet.Sample.Shared.Services.Lab
 @implements IDisposable
 
-@* An offline neighbourhood map with no server in it. Two people hold the same storefront; the demo cuts
+@* An offline neighbourhood map with no server in it. Two people hold the same storefront; the lab cuts
    the link, lets each edit while the other can't be reached, then heals the partition and merges. The
    two replicas land on identical state — because the map is a field-level CRDT, not a shared document.
    Edits to different attributes both survive; a real clash on the same attribute resolves to the higher
@@ -19,8 +19,8 @@
 
     <section class="mp-section">
         <div class="mp-eyebrow">Partition &amp; converge</div>
-        <div class="mp-status @(_demo.Merged ? "merged" : "split")">
-            @if (_demo.Merged)
+        <div class="mp-status @(_lab.Merged ? "merged" : "split")">
+            @if (_lab.Merged)
             {
                 <span>Synced — both replicas are identical.</span>
             }
@@ -33,8 +33,8 @@
         <div class="mp-replicas">
             @foreach (var rep in new[] { (Name: "Thabo", Thabo: true), (Name: "Lerato", Thabo: false) })
             {
-                var v = _demo.Replica(rep.Thabo);
-                <div class="mp-rep @(rep.Thabo ? "a" : "b") @(_demo.Merged ? "merged" : null)">
+                var v = _lab.Replica(rep.Thabo);
+                <div class="mp-rep @(rep.Thabo ? "a" : "b") @(_lab.Merged ? "merged" : null)">
                     <div class="mp-rep-top">
                         <span class="mp-rep-dot"></span>
                         <span class="mp-rep-name">@rep.Name</span>
@@ -61,20 +61,20 @@
             }
         </div>
 
-        @if (_demo.HoursConflict is { } hc)
+        @if (_lab.HoursConflict is { } hc)
         {
             <div class="mp-clash">
                 <div class="mp-clash-title">Same field, two edits — “hours”</div>
                 <div class="mp-clash-rows">
-                    <div class="mp-clash-row @(!hc.WinnerIsLerato && _demo.Merged ? "win" : null)">
+                    <div class="mp-clash-row @(!hc.WinnerIsLerato && _lab.Merged ? "win" : null)">
                         <span class="mp-clash-who">Thabo</span><span class="mp-clash-val">@hc.ValueT</span><span class="mp-clash-clk">@ShortClock(hc.ClockT)</span>
                     </div>
-                    <div class="mp-clash-row @(hc.WinnerIsLerato && _demo.Merged ? "win" : null)">
+                    <div class="mp-clash-row @(hc.WinnerIsLerato && _lab.Merged ? "win" : null)">
                         <span class="mp-clash-who">Lerato</span><span class="mp-clash-val">@hc.ValueL</span><span class="mp-clash-clk">@ShortClock(hc.ClockL)</span>
                     </div>
                 </div>
                 <div class="mp-clash-note">
-                    @(_demo.Merged
+                    @(_lab.Merged
                         ? $"Resolved to the higher HLC — {(hc.WinnerIsLerato ? "Lerato" : "Thabo")} wins, deterministically, on both devices."
                         : "Both still hold their own value. On merge the higher Hybrid Logical Clock wins.")
                 </div>
@@ -82,9 +82,9 @@
         }
 
         <div class="mp-controls">
-            <button class="btn ink" disabled="@(_demo.ThaboEdited || _demo.Merged)" @onclick="() => _demo.EditAsThabo()">Thabo edits (offline)</button>
-            <button class="btn ink" disabled="@(_demo.LeratoEdited || _demo.Merged)" @onclick="() => _demo.EditAsLerato()">Lerato edits (offline)</button>
-            <button class="btn" disabled="@(_demo.Merged || (!_demo.ThaboEdited && !_demo.LeratoEdited))" @onclick="() => _demo.Merge()">Sync &amp; merge</button>
+            <button class="btn ink" disabled="@(_lab.ThaboEdited || _lab.Merged)" @onclick="() => _lab.EditAsThabo()">Thabo edits (offline)</button>
+            <button class="btn ink" disabled="@(_lab.LeratoEdited || _lab.Merged)" @onclick="() => _lab.EditAsLerato()">Lerato edits (offline)</button>
+            <button class="btn" disabled="@(_lab.Merged || (!_lab.ThaboEdited && !_lab.LeratoEdited))" @onclick="() => _lab.Merge()">Sync &amp; merge</button>
             <button class="btn ghost" @onclick="ResetAll">Reset</button>
         </div>
     </section>
@@ -95,7 +95,7 @@
             <div class="mp-auth-card">
                 <div class="mp-auth-mode">Owner-authoritative</div>
                 <div class="mp-auth-what">Kopano Spaza · storefront</div>
-                <div class="mp-auth-key">owner key <span class="mp-mono">@_demo.OwnerKeyShort…</span></div>
+                <div class="mp-auth-key">owner key <span class="mp-mono">@_lab.OwnerKeyShort…</span></div>
                 <p class="mp-auth-note">The owner key is part of the feature's genesis identity. A replica that claims a different owner can't be merged in — the join refuses it before any field changes.</p>
                 <button class="btn ghost" @onclick="Impostor">Impostor tries to merge</button>
                 @if (_impostorTried)
@@ -108,7 +108,7 @@
             <div class="mp-auth-card">
                 <div class="mp-auth-mode">Observed-consensus</div>
                 <div class="mp-auth-what">Kerb ramp · sidewalk feature</div>
-                @{ var ob = _demo.Observed; }
+                @{ var ob = _lab.Observed; }
                 <div class="mp-obs-row">
                     <span class="mp-obs-field">ramp present</span>
                     <span class="mp-badge @(ob.Confirmed ? "on" : null)">@(ob.Confirmed ? "confirmed" : $"{ob.Witnesses}/{ob.Threshold}")</span>
@@ -125,10 +125,10 @@
                 }
                 <p class="mp-auth-note">Confidence is the count of <b>distinct</b> witnesses (a grow-only set), so one device can't inflate it by attesting twice. Sentiment is a separate anonymous tally: <b>@ob.Sentiment</b>.</p>
                 <div class="mp-obs-btns">
-                    <button class="btn ghost" @onclick="() => _demo.ConfirmRamp()">A neighbour confirms</button>
-                    <button class="btn ghost" @onclick="() => _demo.ReconfirmRamp()">Same one re-confirms</button>
-                    <button class="btn ghost" @onclick="() => _demo.Upvote()">▲</button>
-                    <button class="btn ghost" @onclick="() => _demo.Downvote()">▼</button>
+                    <button class="btn ghost" @onclick="() => _lab.ConfirmRamp()">A neighbour confirms</button>
+                    <button class="btn ghost" @onclick="() => _lab.ReconfirmRamp()">Same one re-confirms</button>
+                    <button class="btn ghost" @onclick="() => _lab.Upvote()">▲</button>
+                    <button class="btn ghost" @onclick="() => _lab.Downvote()">▼</button>
                 </div>
             </div>
         </div>
@@ -138,7 +138,7 @@
         <div class="mp-eyebrow">Proximity — cell + 8 neighbours</div>
         <p class="mp-prox-note">Tap a cell to query around it. A geohash proximity query returns features in that cell and the eight touching it — the tinted ring — over a real geohash-indexed store.</p>
         <div class="mp-prox">
-            @foreach (var c in _demo.ProximityCells())
+            @foreach (var c in _lab.ProximityCells())
             {
                 <button class="mp-cell @(c.InRing ? "ring" : null) @(c.IsCenter ? "center" : null)" @onclick="() => Move(c.Row, c.Col)" title="@c.Cell">
                     @if (c.Poi is { } name)
@@ -152,7 +152,7 @@
     </section>
 
     <section class="mp-log">
-        @foreach (var line in _demo.Log)
+        @foreach (var line in _lab.Log)
         {
             <div class="mp-line">@line</div>
         }
@@ -160,29 +160,29 @@
 </div>
 
 @code {
-    private MapDemo _demo = default!;
+    private MapLabService _lab = default!;
     private bool _impostorTried, _impostorRejected;
 
     protected override void OnInitialized()
     {
-        _demo = new MapDemo();
-        _demo.Changed += OnChanged;
+        _lab = new MapLabService();
+        _lab.Changed += OnChanged;
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private async Task Move(int r, int c) => await _demo.MoveQueryAsync(r, c);
+    private async Task Move(int r, int c) => await _lab.MoveQueryAsync(r, c);
 
     private void Impostor()
     {
-        _impostorRejected = _demo.TryImpostorMerge();
+        _impostorRejected = _lab.TryImpostorMerge();
         _impostorTried = true;
     }
 
     private void ResetAll()
     {
         _impostorTried = false;
-        _demo.Reset();
+        _lab.Reset();
     }
 
     private static string ShortClock(string hlc)
@@ -191,7 +191,7 @@
         return p.Length == 3 ? $"{p[2]}·{p[1]}" : hlc; // node · counter (physical ms dropped for legibility)
     }
 
-    public void Dispose() => _demo.Changed -= OnChanged;
+    public void Dispose() => _lab.Changed -= OnChanged;
 }
 
 <style>

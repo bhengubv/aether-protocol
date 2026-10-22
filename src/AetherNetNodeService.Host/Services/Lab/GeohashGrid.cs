@@ -6,7 +6,7 @@ using AetherNet.Mesh;
 namespace AetherNetNodeService.Host.Lab;
 
 /// <summary>
-/// A small rectangular block of <b>real</b> geohash cells, laid out as a grid a demo can draw. The cells
+/// A small rectangular block of <b>real</b> geohash cells, laid out as a grid a lab can draw. The cells
 /// are not invented: the centre is <see cref="Geohash.Encode"/>d from a coordinate, and every other cell
 /// is reached by walking <see cref="Geohash.Adjacent"/> east/west along the centre row and north/south
 /// down each column — so a step on the grid is a step on the actual geohash lattice, and the Chebyshev
@@ -59,7 +59,7 @@ public sealed class GeohashGrid
     public int Cols { get; }
     public int Precision { get; }
 
-    /// <summary>The centre cell's grid index — where a demo drops its origin.</summary>
+    /// <summary>The centre cell's grid index — where a lab drops its origin.</summary>
     public (int Row, int Col) Center => (Rows / 2, Cols / 2);
 
     /// <summary>The geohash of the cell at (<paramref name="row"/>, <paramref name="col"/>).</summary>

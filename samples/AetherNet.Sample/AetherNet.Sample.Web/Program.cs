@@ -26,7 +26,7 @@ builder.Services.AddSingleton(sp => new AwareService(
     sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
     sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()));
 
-// Durable state for this host. The Web head is a demo surface, so it keeps its database beside the
+// Durable state for this host. The Web head is not a phone, so it keeps its database beside the
 // app rather than in a phone's private storage.
 var dataDir = Path.Combine(AppContext.BaseDirectory, "aether-data");
 Directory.CreateDirectory(dataDir);
@@ -157,10 +157,10 @@ builder.Services.AddSingleton<CallService>();
 builder.Services.AddSingleton<GroupCallService>();
 
 
-// The live in-process AetherNet mesh that the demo UI drives. Singleton on the server: the
+// The live in-process AetherNet mesh that the Lab UI drives. Singleton on the server: the
 // InProcess transport uses a process-wide registry, so one shared mesh avoids UHID collisions
 // between Blazor's prerender and interactive renders (and between browser circuits).
-builder.Services.AddSingleton<AetherDemoService>();
+builder.Services.AddSingleton<MeshLabService>();
 
 // The pages this device hosts, written here and served from here.
 // AetherView. Singleton so prerender and interactive renders share one node.
@@ -173,8 +173,8 @@ builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();
 
 // The Aether Node Service, in-process — same as the phone head. The UI reaches identity, messaging and
 // presence through IAetherNodeClient; on this head presence is simply always offline (no radios).
-builder.Services.AddSingleton<INodeMessaging, SampleNodeMessaging>();
-builder.Services.AddSingleton<INodeLinkSource, SampleNodeLinkSource>();
+builder.Services.AddSingleton<INodeMessaging, InProcessNodeMessaging>();
+builder.Services.AddSingleton<INodeLinkSource, InProcessNodeLinkSource>();
 builder.Services.AddAetherNode();
 
 var app = builder.Build();

@@ -25,7 +25,7 @@
             <button class="btn ink" @onclick="Build">Build .torrent</button>
         </div>
 
-        @if (_demo.Built is { } b)
+        @if (_lab.Built is { } b)
         {
             <div class="tor-out">
                 <div class="tor-row"><span class="tor-k">v1 info-hash</span><span class="tor-v mono">@b.InfoHashV1</span></div>
@@ -44,9 +44,9 @@
     <section class="tor-card">
         <div class="tor-eyebrow">Ingest into the mesh — SHA-256 chunks</div>
         <p class="tor-note">The gateway re-hashes the torrent's bytes into content-addressed chunks so offline peers can pull and reassemble them over AetherNet's own protocol.</p>
-        <button class="btn" @onclick="Ingest" disabled="@(_demo.Built is null)">Ingest into mesh →</button>
+        <button class="btn" @onclick="Ingest" disabled="@(_lab.Built is null)">Ingest into mesh →</button>
 
-        @if (_demo.Ingest is { } g)
+        @if (_lab.Ingest is { } g)
         {
             <div class="tor-out">
                 <div class="tor-grid">
@@ -75,7 +75,7 @@
             <input class="field-input" @bind="_seedBody" placeholder="content that lived on the mesh first" />
             <button class="btn ghost" @onclick="ReSeed">Package as .torrent →</button>
         </div>
-        @if (_demo.Export is { } e)
+        @if (_lab.Export is { } e)
         {
             <div class="tor-out">
                 <div class="tor-row"><span class="tor-k">v1 info-hash</span><span class="tor-v mono">@e.InfoHashV1</span></div>
@@ -91,10 +91,10 @@
     <section class="tor-card">
         <div class="tor-eyebrow">Mainline DHT (BEP-5)</div>
         <div class="tor-btns">
-            <button class="btn ghost" @onclick="() => _demo.ShowRoutingTable()">Show a routing table</button>
+            <button class="btn ghost" @onclick="() => _lab.ShowRoutingTable()">Show a routing table</button>
             <button class="btn ghost" @onclick="RunDht">Run two live nodes</button>
         </div>
-        @if (_demo.Dht is { Contacts: > 0 } d)
+        @if (_lab.Dht is { Contacts: > 0 } d)
         {
             <div class="tor-out">
                 <div class="tor-grid">
@@ -117,11 +117,11 @@
 
     @* ── Wire log ────────────────────────────────────────────────────────────── *@
     <section class="tor-log">
-        @foreach (var line in _demo.Log)
+        @foreach (var line in _lab.Log)
         {
             <div class="tor-line"><span class="tor-who">@line.Who</span><span class="tor-text">@line.Text</span></div>
         }
-        @if (_demo.Log.Count == 0)
+        @if (_lab.Log.Count == 0)
         {
             <div class="tor-line tor-empty">Build a torrent to begin. Each step drives the real BitTorrent stack.</div>
         }
@@ -129,7 +129,7 @@
 </div>
 
 @code {
-    private readonly TorrentsDemo _demo = new();
+    private readonly TorrentsLabService _lab = new();
 
     private string _name = "field-notes.txt";
     private string _body = "The mesh carries its own catalogue. This note is about to become a torrent, then a set of mesh chunks, then a torrent again.";
@@ -137,18 +137,18 @@
     private string _seedName = "mesh-note.bin";
     private string _seedBody = "content that lived on the mesh first";
 
-    protected override void OnInitialized() => _demo.Changed += OnChanged;
+    protected override void OnInitialized() => _lab.Changed += OnChanged;
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private void Build() => _demo.BuildTorrent(_name, _body, _tracker);
-    private async Task Ingest() => await _demo.IngestIntoMeshAsync();
-    private void ReSeed() => _demo.ReSeedAsTorrent(_seedName, _seedBody);
-    private async Task RunDht() => await _demo.RunLiveDhtAsync();
+    private void Build() => _lab.BuildTorrent(_name, _body, _tracker);
+    private async Task Ingest() => await _lab.IngestIntoMeshAsync();
+    private void ReSeed() => _lab.ReSeedAsTorrent(_seedName, _seedBody);
+    private async Task RunDht() => await _lab.RunLiveDhtAsync();
 
     private static string Trunc(string hex) => string.IsNullOrEmpty(hex) ? "—" : hex.Length <= 16 ? hex : hex[..16] + "…";
 
-    public void Dispose() => _demo.Changed -= OnChanged;
+    public void Dispose() => _lab.Changed -= OnChanged;
 }
 
 <style>

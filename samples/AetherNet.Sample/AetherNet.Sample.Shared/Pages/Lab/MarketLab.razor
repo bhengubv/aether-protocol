@@ -3,18 +3,18 @@
 @using AetherNet.Sample.Shared.Services.Lab
 @implements IDisposable
 
-@* A demonstration surface for AetherNet.Market — the offline P2P marketplace and its two-sided
+@* A Lab surface for AetherNet.Market — the offline P2P marketplace and its two-sided
    escrow — driving the real InMemoryMarketService in-process. Nothing here reaches a server or a
    store: a listing is a geo-pinned drop, browsing is a geohash prefix match, and a trade is a
    little state machine both sides push forward together. It is the economy layer, kept plainly a
-   demo — the prices are rand, but no rand moves. *@
+   simulation — the prices are rand, but no rand moves. *@
 
 <PageTitle>Lab — Marketplace</PageTitle>
 
 <div class="mk">
     <header class="mk-head">
         <a class="mk-back" href="lab">← Lab</a>
-        <span class="mk-kicker">Economy · demo</span>
+        <span class="mk-kicker">Economy · Lab</span>
         <h1 class="mk-title">Marketplace &amp; escrow</h1>
         <p class="mk-sub">Post a rand-priced, geo-pinned listing; browse what is near; then run a
             two-sided escrow trade — the real <span class="mono">InMemoryMarketService</span>, no server.</p>
@@ -156,47 +156,47 @@
 
 @code {
     // The marketplace runs in AetherNetService; this page shows it and passes on what the person does.
-    private MarketLabDemo _demo = null!;
+    private MarketLabService _lab = null!;
 
-    private string _buyerUhid => _demo.BuyerUhid;
+    private string _buyerUhid => _lab.BuyerUhid;
 
     // Post-a-listing form.
-    private string _title { get => _demo.Title; set => _demo.Title = value; }
-    private string _desc { get => _demo.Desc; set => _demo.Desc = value; }
-    private decimal _price { get => _demo.Price; set => _demo.Price = value; }
-    private string _geohash { get => _demo.GeoHash; set => _demo.GeoHash = value; }
-    private MarketCategory _category { get => _demo.Category; set => _demo.Category = value; }
+    private string _title { get => _lab.Title; set => _lab.Title = value; }
+    private string _desc { get => _lab.Desc; set => _lab.Desc = value; }
+    private decimal _price { get => _lab.Price; set => _lab.Price = value; }
+    private string _geohash { get => _lab.GeoHash; set => _lab.GeoHash = value; }
+    private MarketCategory _category { get => _lab.Category; set => _lab.Category = value; }
 
     // Browse / search.
-    private string _center { get => _demo.Center; set => _demo.Center = value; }
-    private int _radius { get => _demo.Radius; set => _demo.Radius = value; }
-    private string _query { get => _demo.Query; set => _demo.Query = value; }
-    private string _searchCategory { get => _demo.SearchCategory; set => _demo.SearchCategory = value; }
+    private string _center { get => _lab.Center; set => _lab.Center = value; }
+    private int _radius { get => _lab.Radius; set => _lab.Radius = value; }
+    private string _query { get => _lab.Query; set => _lab.Query = value; }
+    private string _searchCategory { get => _lab.SearchCategory; set => _lab.SearchCategory = value; }
 
-    private IReadOnlyList<MarketListing> _results => _demo.Results;
-    private string _resultLabel => _demo.ResultLabel;
-    private MarketListing? _selected => _demo.Selected;
-    private TradeEscrow? _escrow => _demo.Escrow;
-    private IReadOnlyList<string> _log => _demo.Log;
-    private bool CanPost => _demo.CanPost;
+    private IReadOnlyList<MarketListing> _results => _lab.Results;
+    private string _resultLabel => _lab.ResultLabel;
+    private MarketListing? _selected => _lab.Selected;
+    private TradeEscrow? _escrow => _lab.Escrow;
+    private IReadOnlyList<string> _log => _lab.Log;
+    private bool CanPost => _lab.CanPost;
 
     protected override void OnInitialized()
     {
-        _demo = new MarketLabDemo();
-        _demo.Changed += OnChanged;
+        _lab = new MarketLabService();
+        _lab.Changed += OnChanged;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private Task Post() => _demo.Post();
-    private Task BrowseNearby() => _demo.BrowseNearby();
-    private Task Search() => _demo.Search();
-    private void Select(MarketListing l) => _demo.Select(l.ListingId);
-    private Task Initiate() => _demo.Initiate();
-    private Task BuyerConfirm() => _demo.BuyerConfirm();
-    private Task SellerConfirm() => _demo.SellerConfirm();
-    private Task Dispute() => _demo.Dispute();
-    private void ResetTrade() => _demo.ResetTrade();
+    private Task Post() => _lab.Post();
+    private Task BrowseNearby() => _lab.BrowseNearby();
+    private Task Search() => _lab.Search();
+    private void Select(MarketListing l) => _lab.Select(l.ListingId);
+    private Task Initiate() => _lab.Initiate();
+    private Task BuyerConfirm() => _lab.BuyerConfirm();
+    private Task SellerConfirm() => _lab.SellerConfirm();
+    private Task Dispute() => _lab.Dispute();
+    private void ResetTrade() => _lab.ResetTrade();
 
     // ── the escrow stepper ──
     private sealed record Step(string Label, TradeState Reached);
@@ -232,8 +232,8 @@
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }
 

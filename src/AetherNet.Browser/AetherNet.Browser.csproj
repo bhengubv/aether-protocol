@@ -6,7 +6,7 @@
     Everything needed to browse, author, hold and hand on AetherNet cards, with no assumptions about
     the app doing the hosting. Drop <AetherBrowser /> anywhere and it works: it has no routes of its
     own, no dependency on a shell, and every place it touches the device is an interface the host
-    fills. That is what lets the same component be one tab in a sample app today and the system
+    fills. That is what lets the same component be one tab in a phone app today and the system
     browser on Circle OS later.
   -->
 

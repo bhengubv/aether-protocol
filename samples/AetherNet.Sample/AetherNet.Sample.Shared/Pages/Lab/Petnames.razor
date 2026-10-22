@@ -137,39 +137,39 @@
 </style>
 
 @code {
-    // The demo runs in AetherNetService; this page shows it and passes on what the person does.
-    private PetnamesLabDemo _demo = null!;
+    // The lab runs in AetherNetService; this page shows it and passes on what the person does.
+    private PetnamesLabService _lab = null!;
 
-    private PetnamesLabDemo.Registry _me => _demo.Me;
-    private PetnamesLabDemo.Registry _peer => _demo.Peer;
-    private IReadOnlyList<string> _people => _demo.People;
-    private string _formTag { get => _demo.FormTag; set => _demo.FormTag = value; }
-    private string _formName { get => _demo.FormName; set => _demo.FormName = value; }
-    private string _resolveName { get => _demo.ResolveName; set => _demo.ResolveName = value; }
-    private string _resolveOut => _demo.ResolveOut;
-    private string? _note => _demo.Note;
-    private string? _gossipOut => _demo.GossipOut;
+    private PetnamesLabService.Registry _me => _lab.Me;
+    private PetnamesLabService.Registry _peer => _lab.Peer;
+    private IReadOnlyList<string> _people => _lab.People;
+    private string _formTag { get => _lab.FormTag; set => _lab.FormTag = value; }
+    private string _formName { get => _lab.FormName; set => _lab.FormName = value; }
+    private string _resolveName { get => _lab.ResolveName; set => _lab.ResolveName = value; }
+    private string _resolveOut => _lab.ResolveOut;
+    private string? _note => _lab.Note;
+    private string? _gossipOut => _lab.GossipOut;
 
     protected override void OnInitialized()
     {
-        _demo = new PetnamesLabDemo();
-        _demo.Changed += OnChanged;
+        _lab = new PetnamesLabService();
+        _lab.Changed += OnChanged;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private void Pin() => _demo.Pin();
-    private void ProposeAsPeer() => _demo.ProposeAsPeer();
-    private void Reject(string tag) => _demo.Reject(tag);
-    private void Resolve() => _demo.Resolve();
-    private void Gossip() => _demo.Gossip();
+    private void Pin() => _lab.Pin();
+    private void ProposeAsPeer() => _lab.ProposeAsPeer();
+    private void Reject(string tag) => _lab.Reject(tag);
+    private void Resolve() => _lab.Resolve();
+    private void Gossip() => _lab.Gossip();
 
-    private static bool IsPin(PetnamesLabDemo.Binding p) => p.Pinned;
-    private static string Badge(PetnamesLabDemo.Binding p) => p.Badge;
+    private static bool IsPin(PetnamesLabService.Binding p) => p.Pinned;
+    private static string Badge(PetnamesLabService.Binding p) => p.Badge;
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }

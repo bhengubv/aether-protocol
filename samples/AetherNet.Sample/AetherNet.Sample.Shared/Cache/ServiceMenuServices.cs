@@ -9,7 +9,7 @@ public static class ServiceMenuServices
     public static IServiceCollection AddServiceMenu(this IServiceCollection services)
     {
         services.AddSingleton<ServiceMenu>();
-        services.AddSingleton<global::AetherNet.Sample.Shared.Services.AetherDemoService>();
+        services.AddSingleton<global::AetherNet.Sample.Shared.Services.MeshLabService>();
         services.AddSingleton<global::AetherNet.Sample.Shared.Data.AetherStore>();
         services.AddSingleton<global::AetherNet.Sample.Shared.Services.AppHandout>();
         services.AddSingleton<global::AetherNet.Sample.Shared.Services.AttachmentService>();

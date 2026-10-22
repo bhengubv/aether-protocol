@@ -13,7 +13,7 @@ namespace AetherNet.Transport.Android;
 /// silicon, so this drives an external module over the Android USB-host serial interface — the
 /// same one AetherNet's <c>LoRaSerialTransportService</c> uses. Availability is real (it reflects
 /// whether a USB serial/LoRa dongle is plugged in); the framed byte path matches the other radios.
-/// On the demo phones there's no module, so the chip shows as unavailable — device-proof needs one.
+/// On the test phones there's no module, so the chip shows as unavailable — device-proof needs one.
 /// </summary>
 public sealed class AndroidLoRaTransportService : IRadio, IDisposable
 {
@@ -93,7 +93,7 @@ public sealed class AndroidLoRaTransportService : IRadio, IDisposable
         }
         // Open the CDC serial endpoint, configure the LoRa modem, then run a framed read loop and
         // write via SendAsync — identical framing to the other radios. Left to complete against a
-        // real module (none on the demo phones), so it isn't claimed as verified.
+        // real module (none on the test phones), so it isn't claimed as verified.
         //
         // The one thing decided already is WHERE to listen: _address, derived from the meeting above,
         // so whenever this is finished it is finished against the same rule as every other radio and

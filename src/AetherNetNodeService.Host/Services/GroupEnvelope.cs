@@ -32,7 +32,7 @@ public sealed class GroupEnvelope
 
     /// <summary>
     /// The author's signature over this contribution. Nothing populates it yet — provenance is a
-    /// rule the sample does not meet, and the tests that assert it are red on purpose.
+    /// rule this code does not meet yet, and the tests that assert it are red on purpose.
     /// <para>
     /// It matters because attribution that cannot be checked is not attribution. A member's phone is
     /// told who wrote a message; without a signature it has no way to confirm it, and no third phone

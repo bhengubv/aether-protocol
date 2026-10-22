@@ -107,35 +107,35 @@
 </style>
 
 @code {
-    // The demo runs in AetherNetService; this page shows it and passes on what the person does. The private key
+    // The lab runs in AetherNetService; this page shows it and passes on what the person does. The private key
     // stays there: this page only ever has the words and the tags.
-    private RecoveryLabDemo _demo = null!;
+    private RecoveryLabService _lab = null!;
 
-    private string _tagA => _demo.TagA;
-    private string[] _words => _demo.Words.ToArray();
-    private string _entered => _demo.Entered;
-    private bool _valid => _demo.Valid;
-    private string? _result => _demo.Result;
-    private string? _tagB => _demo.TagB;
-    private bool _match => _demo.Match;
+    private string _tagA => _lab.TagA;
+    private string[] _words => _lab.Words.ToArray();
+    private string _entered => _lab.Entered;
+    private bool _valid => _lab.Valid;
+    private string? _result => _lab.Result;
+    private string? _tagB => _lab.TagB;
+    private bool _match => _lab.Match;
 
     protected override void OnInitialized()
     {
-        _demo = new RecoveryLabDemo();
-        _demo.Changed += OnChanged;
+        _lab = new RecoveryLabService();
+        _lab.Changed += OnChanged;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private void Generate() => _demo.Generate();
-    private void ResetPhrase() => _demo.ResetPhrase();
-    private void CorruptOne() => _demo.CorruptOne();
-    private void Recover() => _demo.Recover();
-    private void OnEntered(ChangeEventArgs e) => _demo.Entered = e.Value?.ToString() ?? "";
+    private void Generate() => _lab.Generate();
+    private void ResetPhrase() => _lab.ResetPhrase();
+    private void CorruptOne() => _lab.CorruptOne();
+    private void Recover() => _lab.Recover();
+    private void OnEntered(ChangeEventArgs e) => _lab.Entered = e.Value?.ToString() ?? "";
 
     public void Dispose()
     {
-        _demo.Changed -= OnChanged;
-        _demo.Dispose();
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
     }
 }

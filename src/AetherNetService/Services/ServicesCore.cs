@@ -229,7 +229,7 @@ internal static class ServicesCore
         services.AddSingleton<IVideoIo>(sp => sp.GetRequiredService<AppVideoIo>());
         services.AddSingleton<CallService>();
         services.AddSingleton<GroupCallService>();
-        services.AddScoped<AetherDemoService>();
+        services.AddScoped<MeshLabService>();
         services.AddSingleton<ICardStore, AetherStoreCardStore>();
         services.AddSingleton<IMeshLink, RadioMeshLink>();
         services.AddAetherBrowser();

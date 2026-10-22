@@ -7,7 +7,7 @@ namespace AetherNetService;
 /// <summary>
 /// The node's own persistence for the two mesh directory seams: the peer routing keys it has learned inside
 /// established sessions (<see cref="IPeerRoutingKeyStore"/>), and the gateway flags plus contact roster the
-/// proxy directory reads (<see cref="IProxyDirectoryStore"/>). The sample keeps these rows in its SQLite
+/// proxy directory reads (<see cref="IProxyDirectoryStore"/>). The Aether app kept these rows in its SQLite
 /// database; the node keeps them as small JSON files in its own private directory, so the mesh owns no
 /// storage of its own and a restart does not make the node forget who it can recognise behind a rotating
 /// address.

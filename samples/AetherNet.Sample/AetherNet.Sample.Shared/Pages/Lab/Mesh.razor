@@ -1,7 +1,7 @@
 @page "/lab/mesh"
 @using AetherNet.Sample.Shared.Services
 @implements IDisposable
-@inject AetherDemoService Demo
+@inject MeshLabService Lab
 
 @* Three phones in a room, in-process. Alice, Bob and Charlie are real Ed25519 identities on the real
    channel and video-call-control services over an in-process byte transport — the same code the eight
@@ -44,10 +44,10 @@
     </section>
 
     <section class="mesh-controls">
-        <button class="btn ink" @onclick="() => Run(() => Demo.VerifyAetherTag())">Add Alice by tag → verify</button>
-        <button class="btn ink" @onclick="() => RunAsync(() => Demo.OneToOneVideoAsync())">1:1 video call</button>
-        <button class="btn ink" @onclick="() => RunAsync(() => Demo.GroupVideoAsync())">3-way group call</button>
-        <button class="btn" @onclick="() => Run(() => Demo.ClearLog())">Clear</button>
+        <button class="btn ink" @onclick="() => Run(() => Lab.VerifyAetherTag())">Add Alice by tag → verify</button>
+        <button class="btn ink" @onclick="() => RunAsync(() => Lab.OneToOneVideoAsync())">1:1 video call</button>
+        <button class="btn ink" @onclick="() => RunAsync(() => Lab.GroupVideoAsync())">3-way group call</button>
+        <button class="btn" @onclick="() => Run(() => Lab.ClearLog())">Clear</button>
     </section>
 
     <section class="mesh-publish">
@@ -97,14 +97,14 @@
 </style>
 
 @code {
-    private IReadOnlyList<AetherDemoService.NodeView> _nodes = Array.Empty<AetherDemoService.NodeView>();
-    private IReadOnlyList<AetherDemoService.LogLine> _log = Array.Empty<AetherDemoService.LogLine>();
+    private IReadOnlyList<MeshLabService.NodeView> _nodes = Array.Empty<MeshLabService.NodeView>();
+    private IReadOnlyList<MeshLabService.LogLine> _log = Array.Empty<MeshLabService.LogLine>();
     private string _message = "";
 
     protected override void OnInitialized()
     {
-        Demo.Changed += OnChanged;
-        Demo.Start();       // idempotent — one mesh per session
+        Lab.Changed += OnChanged;
+        Lab.Start();       // idempotent — one mesh per session
         Refresh();
     }
 
@@ -112,8 +112,8 @@
 
     private void Refresh()
     {
-        _nodes = Demo.Nodes();
-        _log = Demo.Snapshot();
+        _nodes = Lab.Nodes();
+        _log = Lab.Snapshot();
     }
 
     private void Run(Action act) { act(); }
@@ -125,7 +125,7 @@
         if (string.IsNullOrWhiteSpace(_message)) return;
         var msg = _message;
         _message = "";
-        await Demo.PublishGroupTextAsync(msg);
+        await Lab.PublishGroupTextAsync(msg);
     }
 
     private async Task OnKey(KeyboardEventArgs e)
@@ -133,5 +133,5 @@
         if (e.Key == "Enter") await Publish();
     }
 
-    public void Dispose() => Demo.Changed -= OnChanged;
+    public void Dispose() => Lab.Changed -= OnChanged;
 }

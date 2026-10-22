@@ -10,7 +10,7 @@ using AetherNet.Mesh;
 namespace AetherNetNodeService.Host;
 
 /// <summary>
-/// Makes delay-tolerant delivery a real feature instead of a Lab demo: a message to someone who is not
+/// Makes delay-tolerant delivery a real feature instead of a Lab exercise: a message to someone who is not
 /// reachable right now is no longer stuck on your phone forever. The reliable core already hands such a
 /// message to the DTN layer as a sealed bundle (its store-and-forward fallback); this service gives that
 /// layer a heartbeat and closes the loop on the receiving end.
