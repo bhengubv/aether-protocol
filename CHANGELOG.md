@@ -64,15 +64,15 @@ add only the menu's new lines, and no number on the menu moves.
   the service last pushed. The app no longer carries AetherNet, SQLite, QRCoder, Concentus or libsodium, nor the
   radios' permissions, which AetherNetService declares. **AetherNetService 1.4 builds on AetherNet 3.4.0**, so it
   answers the whole menu.
-- **Updating from 1.3** keeps the phone's AetherTag, which AetherNetService holds. It does not bring across the
-  chats, contacts and settings the 1.3 app kept in its own database: AetherNetService starts with an empty store, so
-  the welcome screens show again. The 1.3 app's files stay in its folder, unused.
+- **Updating from 1.3 or earlier** keeps the phone's AetherTag, which AetherNetService holds. It does not bring
+  across the chats, contacts and settings the older app kept in its own database: AetherNetService starts with an
+  empty store, so the welcome screens show again. The older app's files stay in its folder, unused.
 - **The app is `src/Aether`,** no longer `samples/AetherNet.Sample`: projects Aether, Aether.Shared, Aether.Web and
   Aether.Tests, and the APK carries `Aether.dll` and `Aether.Shared.dll`. Its application id, name and signing key
-  are unchanged, so 1.3 updates in place.
-- **Its main screen has one Android name for good,** `com.bhengubv.aethernet.MainActivity`. 1.3's was generated from
-  the old namespace (`crc64834c013ef060f0cf.MainActivity`), so this update changes it once; a launcher that keeps
-  shortcuts by name may need Aether's shortcut adding again.
+  are unchanged, so an older Aether updates in place.
+- **Its main screen has one Android name for good,** `com.bhengubv.aethernet.MainActivity`. 1.2's and 1.3's was
+  generated from the old namespace (`crc64834c013ef060f0cf.MainActivity`), so this update changes it once; a launcher
+  that keeps shortcuts by name may need Aether's shortcut adding again.
 
 ---
 
