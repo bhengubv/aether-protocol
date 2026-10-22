@@ -11,7 +11,12 @@ namespace Aether;
 // AdjustResize, not the default pan: when the keyboard opens the page must get shorter, not slide
 // upwards. Panning pushes the conversation header off the top of the screen, so you lose sight of
 // who you are talking to and whether the chat is encrypted at exactly the moment you are typing.
-[Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTask, WindowSoftInputMode = SoftInput.AdjustResize, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
+//
+// The Java name is fixed, as the NFC services' are. Left to the build, it is made from a hash of the
+// namespace and the assembly and changes whenever either does: moving the app to Aether alone turned
+// crc64834c013ef060f0cf.MainActivity into crc64c3723b94be855826.MainActivity. And this is the name a
+// home-screen shortcut points at, and the one `adb shell am start -n` needs.
+[Activity(Name = "com.bhengubv.aethernet.MainActivity", Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTask, WindowSoftInputMode = SoftInput.AdjustResize, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 // Scanning an Aether invite with the phone's own camera app opens Aether directly — which is why we
 // need no camera permission and no scanning SDK of our own.
 [IntentFilter(

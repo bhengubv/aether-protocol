@@ -12,7 +12,7 @@ namespace Aether.Platforms.Android;
 /// <para>
 /// Driven over adb, and everything it does is logged under <c>AetherE2E</c> so the script can read the outcome:
 /// <code>
-///   adb shell am start -n com.bhengubv.aethernet/&lt;activity&gt; --es e2e whoami
+///   adb shell am start -n com.bhengubv.aethernet/.MainActivity --es e2e whoami
 ///   adb shell am start -n …  --es e2e add  --es tag XXXXX-XXXXX
 ///   adb shell am start -n …  --es e2e send --es tag XXXXX-XXXXX --es text "hello"
 /// </code>
