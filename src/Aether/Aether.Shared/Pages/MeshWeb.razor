@@ -1,0 +1,62 @@
+@page "/meshweb"
+@using AetherNet.Browser
+@using Aether.Shared.Services
+@implements IDisposable
+@inject ChatService Chat
+@inject NavigationManager Nav
+@inject MeshWebService Mesh
+@inject MyPages Mine
+@inject IServiceProvider Services
+
+<PageTitle>Aether — AetherNet</PageTitle>
+
+@* The AetherNet tab is the mesh browser, and nothing more.
+   Everything below the component belongs to AetherNet.Browser — the card model, the renderer, the
+   editor, the deck, the wire. This app supplies a phone's answers to its two seams and gets out of
+   the way, which is what makes the same component liftable into a browser of its own. *@
+<AetherBrowser Start="@Start" Open="@Opening" OnReading="Reading" />
+
+@code {
+    private string? _reading;
+
+    /// <summary>Which view to open on, when the app has just sent us here for a reason.</summary>
+    private string? Start =>
+        Nav.Uri.Contains("mine=1", StringComparison.Ordinal) ? "mine" : null;
+
+    /// <summary>A card somebody handed us in a conversation, if that is why we are here.</summary>
+    private string? Opening =>
+        Chat.TakeArriving() is { Kind: Handoff.Kind.Card } handed ? handed.Target : null;
+
+    /// <summary>
+    /// Put the example page on the phone the first time this tab is opened.
+    /// </summary>
+    /// <remarks>
+    /// A card somebody handed you is the thing worth opening up — see <see cref="HandedCard"/>. It
+    /// seeds only when the fixture is present, so a plain checkout starts with nothing extra.
+    /// </remarks>
+    protected override async Task OnInitializedAsync()
+    {
+        if (Services.GetService(typeof(HandedCard.OpenPackaged)) is not HandedCard.OpenPackaged open)
+            return;
+
+        try
+        {
+            await HandedCard.SeedAsync(Mesh, Mine, open);
+        }
+        catch (Exception)
+        {
+            // No fixture on this head. Everything else works exactly the same.
+        }
+    }
+
+    protected override void OnInitialized() =>
+        // Touch phones with somebody and they land where you are standing. The browser tells us what
+        // it is showing; turning that into a handoff is this app's business, not the browser's.
+        Chat.Holding = () => Task.FromResult(_reading is { Length: > 0 } address
+            ? Handoff.Describe($"/meshweb?a={Uri.EscapeDataString(address)}", null, null)
+            : Handoff.Describe("/meshweb", null, null));
+
+    private void Reading(string address) => _reading = address;
+
+    public void Dispose() => Chat.Holding = null;
+}

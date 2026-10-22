@@ -1,0 +1,599 @@
+@using Aether.Shared.Services
+@using AetherNet.Voice.Models
+@implements IDisposable
+@inject CallService Calls
+
+@*
+    The call, full screen, over everything.
+
+    A call used to be a strip at the top of a chat. That is enough to prove the audio works and not
+    enough to use: no way to tell how long you have been talking, no way to mute, no way to get the
+    phone off the loudspeaker. Every other phone on earth gives you those three, so their absence is
+    not minimalism, it is a missing feature.
+*@
+@if (Calls.Current is { State: CallState.Connected } && Calls.IsMinimised)
+{
+    @* Put away, not ended. A slim bar so the call is never something you have lost. *@
+    <button class="call-bar" @onclick="Restore">
+        <span class="cb-dot"></span>
+        <span class="cb-who">@Peer</span>
+        <span class="cb-time"><CallDuration Idle="Connected" /></span>
+        <span class="cb-back">Tap to return</span>
+    </button>
+}
+else if (Calls.Current is { } call && call.State is CallState.Outgoing or CallState.Incoming or CallState.Connected)
+{
+    <div class="call-screen @(call.State == CallState.Incoming ? "is-ringing" : null)">
+        @* With a camera on, the picture IS the screen — it is drawn on native surfaces behind this
+           overlay, so everything but the controls has to get out of its way. Painting the usual
+           avatar and background over it would hide the very thing the call is now for. *@
+        @* Only once connected: minimising a call that is still ringing would hide the only thing
+           there is to act on. *@
+        @if (call.State == CallState.Connected)
+        {
+            <button class="call-min @ChromeClass" @onclick="Minimise" aria-label="Minimise the call" title="Minimise">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+        }
+
+        @* The picture, as ordinary elements.
+           These used to be native Android views layered UNDER the WebView, which is why the whole
+           page had to be made transparent to see them — and why the app bar and tab bar had to be
+           hidden, and why anything that went wrong in that chain showed a blank screen instead of a
+           missing picture. Here they lay out with the controls like anything else. *@
+        @* Rendered for the whole of a connected call, not only while a picture is showing.
+           The module attaches the camera to #aether-local, and that element only existed once video
+           was already on — which is only true AFTER the camera has started. So the camera opened,
+           found nowhere to go, and gave itself up. Whether anything is visible is a class; whether
+           there is somewhere to draw is not negotiable.
+
+           Tapping anywhere on the picture brings the controls back, the way every other video call
+           on the phone behaves. *@
+        @if (call.State == CallState.Connected)
+        {
+            <div class="call-video @(ShowingVideo ? null : "idle") @(Swapped ? "swapped" : null)"
+                 @onclick="Wake">
+
+                @* Their picture. When their camera is off this is where they still belong — an avatar
+                   with their tag, not a black rectangle where a person used to be. *@
+                <div class="cv-main @(Calls.TheirVideoOn || Calls.VideoOn ? null : "off")">
+                    <canvas id="@RemoteId" class="cv-canvas @(Calls.TheirVideoOn ? null : "off")"></canvas>
+                    @if (!Calls.TheirVideoOn && ShowingVideo)
+                    {
+                        <div class="cv-away">
+                            <div class="call-av" style="background:@TagPalette.For(Peer)">@TagPalette.Initial(Peer)</div>
+                            <div class="cv-away-who">@Peer</div>
+                            <div class="cv-away-why">Camera off</div>
+                        </div>
+                    }
+                </div>
+
+                @* This phone's own picture. Mirrored, and ONLY here: a person expects their own face
+                   to behave like a mirror, and the far end must receive them the right way round.
+                   Applying one identical rotation to both was the whole of "the video is reversed".
+
+                   Tapping it swaps the two, which is the one gesture everybody already knows. *@
+                <video id="aether-local" class="cv-self @(Calls.VideoOn ? null : "off")"
+                       autoplay muted playsinline
+                       @onclick="Swap" @onclick:stopPropagation="true"></video>
+            </div>
+        }
+
+        @if (Calls.LinkIsStruggling)
+        {
+            <div class="call-weak">Weak signal</div>
+        }
+
+        <div class="call-who @(ShowingVideo ? "hidden" : null)">
+            <div class="call-av" style="background:@TagPalette.For(Peer)">@TagPalette.Initial(Peer)</div>
+            <div class="call-tag">@Peer</div>
+            <div class="call-state"><CallDuration Idle="@Waiting(call)" /></div>
+        </div>
+
+        @if (call.State == CallState.Connected)
+        {
+            <div class="call-actions @ChromeClass">
+                <button class="cbtn @(Calls.IsMuted ? "on" : null)" @onclick="ToggleMute"
+                        title="@(Calls.IsMuted ? "Unmute" : "Mute")">
+                    @if (Calls.IsMuted)
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 3l18 18"/><path d="M9 9v3a3 3 0 0 0 5.1 2.1"/><path d="M15 10V5a3 3 0 0 0-6 0v1"/><path d="M19 10a7 7 0 0 1-1.8 4.7M5 10a7 7 0 0 0 11 5.7"/></svg>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/></svg>
+                    }
+                    <span>@(Calls.IsMuted ? "Muted" : "Mute")</span>
+                </button>
+
+                @if (Calls.CanSwitchSpeaker)
+                {
+                    <button class="cbtn @(Calls.SpeakerphoneOn ? "on" : null)" @onclick="ToggleSpeaker"
+                            title="@(Calls.SpeakerphoneOn ? "Switch to earpiece" : "Switch to speaker")">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/>@if (Calls.SpeakerphoneOn) {<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>}</svg>
+                        <span>@(Calls.SpeakerphoneOn ? "Speaker" : "Earpiece")</span>
+                    </button>
+                }
+
+                @* The camera is only offered on a radio that can carry it. On a link that cannot,
+                   video does not degrade — it freezes and takes the working audio down with it, so
+                   the button says why rather than disappearing without explanation. *@
+                <button class="cbtn @(Calls.VideoOn ? "on" : null)"
+                        disabled="@(!Calls.CanSendVideo && !Calls.VideoOn)"
+                        @onclick="ToggleVideo"
+                        title="@(Calls.CanSendVideo || Calls.VideoOn
+                            ? (Calls.VideoOn ? "Turn the camera off" : "Turn the camera on")
+                            : Calls.CannotSendVideoReason)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" />
+                        @if (!Calls.VideoOn) { <path d="M3 3l18 18" /> }
+                    </svg>
+                    <span>@(Calls.VideoOn ? "Camera on" : "Camera")</span>
+                </button>
+
+                @if (Calls.VideoOn)
+                {
+                    <button class="cbtn" @onclick="Flip" title="Front or back camera">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>
+                        <span>Flip</span>
+                    </button>
+                }
+            </div>
+        }
+
+        @* A layer whose only job is to bring the controls back.
+           The wake tap used to rely on landing on the picture, which means it depended on which child
+           element happened to be under the finger and on that element not having pointer-events
+           disabled. When it failed there was no way back: the controls were opacity 0 and untappable,
+           and that includes Hang up — a call with no way to end it. A dedicated layer cannot miss. *@
+        @if (ShowingVideo && !_chromeUp)
+        {
+            <div class="call-wake" @onclick="Wake"></div>
+        }
+
+        <div class="call-end @(call.State == CallState.Connected ? "connected" : null) @ChromeClass">
+            @if (call.State == CallState.Incoming)
+            {
+                <button class="cend answer" @onclick="Answer">Answer</button>
+                <button class="cend decline" @onclick="Decline">Decline</button>
+            }
+            else
+            {
+                <button class="cend decline wide" @onclick="HangUp">Hang up</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private string Peer => Calls.PeerTag ?? "";
+
+    protected override void OnInitialized() => Calls.Changed += OnChanged;
+
+    /// <summary>
+    /// Redraw when something about the call actually changes — NOT on a clock.
+    ///
+    /// <para>
+    /// The running time used to tick here, re-rendering the whole screen once a second for the whole
+    /// call. In Blazor an <c>@@onclick</c> is dispatched by a handler id that a re-render replaces, so
+    /// a tap landing in the same instant as a tick was silently dropped. The duration now lives in
+    /// <c>CallDuration</c>, which re-renders alone, and the buttons here are built once and left
+    /// alone.
+    /// </para>
+    /// </summary>
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        // A new call must never open behind the minimised bar of the last one.
+        if (Calls.Current is null)
+        {
+            _connectedAt = null;
+            Swapped = false;
+            _chromeUp = true;
+            _idle?.Cancel();
+        }
+        else if (Calls.Current is { State: CallState.Connected } && _connectedAt is null)
+            _connectedAt = DateTime.UtcNow;
+
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Put the call away without ending it.
+    ///
+    /// <para>
+    /// The call keeps running — that is what the foreground service is for — and a bar stays on
+    /// screen to get back to it. Without this the call screen was a trap: it covered everything for
+    /// as long as the call lasted, and the only way out of it was to hang up.
+    /// </para>
+    /// </summary>
+    private void Minimise() => Calls.SetMinimised(true);
+
+    private void Restore() => Calls.SetMinimised(false);
+
+    private static string Waiting(VoiceCallSession call) => call.State switch
+    {
+        CallState.Outgoing => "Calling…",
+        CallState.Incoming => "is calling",
+        CallState.Connected => "Connected",
+        _ => "",
+    };
+
+    private void ToggleMute() => Calls.SetMuted(!Calls.IsMuted);
+
+    /// <summary>
+    /// Turn the camera on or off. Failing to start leaves the voice call untouched — a camera that
+    /// will not open must never take a working call down with it.
+    /// </summary>
+    private async Task ToggleVideo() => await Calls.SetVideoAsync(!Calls.VideoOn);
+
+    private void Flip() => Calls.SwitchCamera();
+
+    /// <summary>True when either camera is on, and there is therefore a picture to lay out.</summary>
+    private bool ShowingVideo => Calls.VideoOn || Calls.TheirVideoOn;
+
+    // ── the chrome gets out of the way ────────────────────────────────────
+
+    /// <summary>Whether the buttons are on screen. Only ever false while a picture is showing.</summary>
+    private bool _chromeUp = true;
+
+    private CancellationTokenSource? _idle;
+
+    /// <summary>
+    /// How long the controls stay up after a tap.
+    /// </summary>
+    /// <remarks>
+    /// Long enough to find the button you meant, short enough that the picture is not permanently
+    /// obscured by four buttons across somebody's face. Every other video call on the phone does this;
+    /// leaving them up forever is the thing that reads as unfinished.
+    /// </remarks>
+    private static readonly TimeSpan ChromeIdle = TimeSpan.FromSeconds(4);
+
+    /// <summary>Controls are only ever hidden over a picture — on a voice call they stay put.</summary>
+    private string? ChromeClass => ShowingVideo && !_chromeUp ? "away" : null;
+
+    /// <summary>A tap anywhere on the picture brings them back and restarts the clock.</summary>
+    private void Wake()
+    {
+        _chromeUp = true;
+        StartIdleTimer();
+        StateHasChanged();
+    }
+
+    private void StartIdleTimer()
+    {
+        _idle?.Cancel();
+        _idle?.Dispose();
+
+        if (!ShowingVideo) { _idle = null; return; }
+
+        var cts = new CancellationTokenSource();
+        _idle = cts;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(ChromeIdle, cts.Token);
+                await InvokeAsync(() => { _chromeUp = false; StateHasChanged(); });
+            }
+            catch (OperationCanceledException) { /* tapped again, or the call ended */ }
+        });
+    }
+
+    // ── which picture is the big one ──────────────────────────────────────
+
+    /// <summary>
+    /// Whether the small picture and the big one have been swapped.
+    /// </summary>
+    /// <remarks>
+    /// Tapping your own picture to make it the large one is the one gesture in a video call that
+    /// everybody already knows. It costs a CSS class here because both pictures are ordinary
+    /// elements — under the old native overlay it would have meant re-parenting surfaces.
+    /// </remarks>
+    private bool Swapped { get; set; }
+
+    private void Swap()
+    {
+        // Nothing to swap with if only one camera is on.
+        if (!Calls.VideoOn || !Calls.TheirVideoOn) { Wake(); return; }
+
+        Swapped = !Swapped;
+        Wake();
+    }
+
+    /// <summary>
+    /// The element the far end's frames are drawn on. Must match what the module builds its id from.
+    /// </summary>
+    private string RemoteId => "aether-remote-" + Safe(Peer);
+
+    /// <summary>An AetherTag is already safe for an id; anything else might not be.</summary>
+    private static string Safe(string who)
+        => new(who.Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').ToArray());
+    private void ToggleSpeaker() => Calls.SpeakerphoneOn = !Calls.SpeakerphoneOn;
+
+    /// <summary>
+    /// When this call connected here, so <see cref="HangUp"/> can ignore the tap that answered it.
+    /// </summary>
+    private DateTime? _connectedAt;
+
+    /// <summary>
+    /// How long Hang up ignores taps after a call connects.
+    ///
+    /// <para>
+    /// Measured on device: the Answer button on the incoming screen sat at the same pixels as Hang up
+    /// on the connected screen that replaces it. Answering therefore put a destructive control
+    /// directly under a finger that was already there — and a call answered at 19:50:53 ended at
+    /// 19:50:54, by the answerer, for no reason anyone could see.
+    /// </para>
+    ///
+    /// <para>
+    /// The layout no longer overlaps, which is the real fix. This is the belt: a lingering finger, a
+    /// touch bounce, or an impatient second tap must not end a call somebody just took. Deliberately
+    /// short — a call must always be endable, and this only ever swallows a tap that arrived before a
+    /// human could have decided to send it.
+    /// </para>
+    /// </summary>
+    private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(900);
+
+    private Task Answer() => Calls.AnswerAsync();
+    private Task Decline() => Calls.DeclineAsync();
+
+    private Task HangUp()
+    {
+        if (_connectedAt is { } at && DateTime.UtcNow - at < Settle) return Task.CompletedTask;
+        return Calls.HangUpAsync();
+    }
+
+    /// <summary>
+    /// Bring the controls up whenever a picture appears or disappears, and start the clock.
+    /// </summary>
+    /// <remarks>
+    /// A camera going on is exactly the moment somebody wants to see the buttons — to flip the
+    /// camera, or to turn it straight back off.
+    /// </remarks>
+    private bool _wasShowingVideo;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (ShowingVideo == _wasShowingVideo) return;
+
+        _wasShowingVideo = ShowingVideo;
+        _chromeUp = true;
+        StartIdleTimer();
+    }
+
+    public void Dispose()
+    {
+        Calls.Changed -= OnChanged;
+        _idle?.Cancel();
+        _idle?.Dispose();
+    }
+}
+
+<style>
+    .call-min {
+        position: absolute; top: 18px; left: 14px;
+        appearance: none; border: none; background: transparent; color: var(--ink-2);
+        width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .call-min svg { width: 26px; height: 26px; }
+    .call-min:active { background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); }
+
+    /* The minimised call. Pinned above the tab bar so it is always reachable and never in the way. */
+    .call-bar {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 950;
+        appearance: none; border: none; cursor: pointer; width: 100%;
+        display: flex; align-items: center; gap: 10px;
+        padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));
+        background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1.5px solid var(--on-surface-2); font-size: 0.9rem;
+    }
+    .cb-dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: cbpulse 1.6s ease-in-out infinite; }
+    @@keyframes cbpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .cb-who { font-family: var(--mono); font-weight: 700; }
+    .cb-time { font-variant-numeric: tabular-nums; opacity: 0.9; }
+    .cb-back { margin-left: auto; opacity: 0.85; }
+
+    /* Over everything, including the tab bar — a call is the only thing happening while it happens. */
+    .call-screen {
+        position: fixed; inset: 0; z-index: 900;
+        background: var(--bg);
+        display: flex; flex-direction: column; align-items: center;
+        padding: 12vh 24px 8vh;
+    }
+
+    .call-who { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 1 1 auto; }
+
+    /* The picture is an element in this screen now, so it simply covers what is behind it — the call
+       screen is already fixed and full-bleed. Nothing outside this component needs to know.
+
+       What used to be here was a cascade of transparency: the call screen, then html, body and .app,
+       then visibility:hidden on the app bar, the viewport and the tab bar. All of it existed for one
+       reason — the video was drawn on native views layered UNDER the WebView, so the entire page had
+       to be made see-through to reveal them. That is what made a failure anywhere in the chain show a
+       blank screen rather than a missing picture, and it is why the page background had to be put
+       back afterwards by hand. None of it is needed once the picture lays out with the controls. */
+    .call-who.hidden { display: none; }
+
+    .call-video { position: absolute; inset: 0; overflow: hidden; background: #000; }
+
+    /* Present, so the camera has somewhere to attach, but taking up no space and catching no taps
+       until there is actually a picture. */
+    .call-video.idle { background: transparent; pointer-events: none; }
+    .cv-main.off { display: none; }
+
+    /* Both pictures fade in rather than appearing. A hard cut from an avatar to a live camera is the
+       single most obvious tell that something is homemade. */
+    .cv-main, .cv-self { animation: cvfade 220ms ease-out; }
+    @@keyframes cvfade { from { opacity: 0; } to { opacity: 1; } }
+
+    /* The far end fills the screen. object-fit does the fitting the rotation matrices used to get
+       wrong — cover crops to fill without ever distorting, whatever shape arrives. */
+    .cv-main { position: absolute; inset: 0; }
+    .cv-canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cv-canvas.off { display: none; }
+
+    /* Their camera is off. They are still on the call, so they still get a face — a black rectangle
+       where a person was is the thing that makes a call feel dead. */
+    .cv-away {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+        background: var(--bg);
+    }
+    .cv-away-who { font-family: var(--mono); font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+    .cv-away-why { font-size: 0.9rem; color: var(--ink-2); }
+
+    /* This phone's own picture, in the corner. Mirrored, and ONLY here: a person expects their own
+       face to behave like a mirror, and the far end must receive them the right way round. */
+    .cv-self {
+        position: absolute; right: 14px;
+        top: calc(14px + env(safe-area-inset-top, 0px));
+        width: 27vw; max-width: 132px; aspect-ratio: 9 / 16;
+        object-fit: cover; border-radius: 16px;
+        background: #111; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+        transform: scaleX(-1);
+        cursor: pointer;
+        transition: width 180ms ease, border-radius 180ms ease, inset 180ms ease;
+    }
+    .cv-self.off { display: none; }
+    .cv-self:active { filter: brightness(1.08); }
+
+    /* Tapped: the two trade places. Both are ordinary elements, so this is a class rather than the
+       surface re-parenting the native overlay would have needed. */
+    .call-video.swapped .cv-self {
+        inset: 0; top: 0; right: 0;
+        width: 100%; max-width: none; aspect-ratio: auto; height: 100%;
+        border-radius: 0; box-shadow: none;
+    }
+    .call-video.swapped .cv-main {
+        inset: auto 14px auto auto;
+        top: calc(14px + env(safe-area-inset-top, 0px));
+        width: 27vw; max-width: 132px; aspect-ratio: 9 / 16;
+        border-radius: 16px; overflow: hidden;
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+    }
+    .call-video.swapped .cv-away { gap: 6px; }
+    .call-video.swapped .cv-away .call-av { width: 44px; height: 44px; font-size: 1.1rem; }
+    .call-video.swapped .cv-away-who, .call-video.swapped .cv-away-why { display: none; }
+
+    /* The controls get out of the way of the picture, and come back on a tap. Four buttons parked
+       permanently across somebody's face is the thing that reads as unfinished. */
+    .call-actions, .call-end, .call-min { transition: opacity 200ms ease, transform 200ms ease; }
+    .call-actions.away { opacity: 0; pointer-events: none; transform: translateY(12px); }
+    .call-min.away { opacity: 0; pointer-events: none; }
+
+    /* Above the picture and below nothing. It exists only while the controls are away, so it can
+       never swallow a tap meant for a button. */
+    .call-wake { position: absolute; inset: 0; z-index: 3; background: transparent; }
+
+    /* Hang up fades with the rest but never stops being tappable.
+       Everything else can be brought back with a tap; ending a call is the one thing a person must
+       be able to do at the moment they decide to, and hunting for an invisible control to reveal
+       another control is not that. */
+    .call-end.away { opacity: 0.001; pointer-events: auto; transform: translateY(12px); }
+    .call-end.away:active { opacity: 1; }
+
+    /* Measured, not guessed: this app has adjusted the picture and shut the camera on a struggling
+       link for a while now, and told the person nothing. A call that quietly gets worse with no
+       explanation reads as a broken app; two words read as a bad signal, which is the truth. */
+    .call-weak {
+        position: absolute; left: 50%; transform: translateX(-50%);
+        top: calc(18px + env(safe-area-inset-top, 0px));
+        padding: 6px 14px; border-radius: 999px;
+        background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(6px);
+        color: #fff; font-size: 0.8rem; font-weight: 650; letter-spacing: 0.02em;
+        animation: cvfade 220ms ease-out;
+    }
+    /* With a picture behind them the controls stop being page furniture and become an overlay, so
+       they dock to the bottom edge the way every other video call on the phone does. Floating them
+       in the middle of the frame — which is where 8vh of margin and a 42px nudge put them — lands
+       them squarely across the face of whoever you are talking to. */
+    .call-screen:has(.call-who.hidden) {
+        justify-content: flex-end; padding: 0;
+    }
+    .call-screen:has(.call-who.hidden) .call-actions {
+        margin: 0 0 14px; padding: 0 16px; width: 100%;
+    }
+    .call-screen:has(.call-who.hidden) .call-end {
+        margin-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    }
+    /* The hide transform has to win over the docking one, or hidden controls slide the wrong way. */
+    .call-screen:has(.call-who.hidden) .call-end:not(.away) { transform: none; }
+    /* One scrim for both rows rather than a slab behind each: a gradient keeps the bottom of the
+       picture visible while still guaranteeing the controls have something to read against, whatever
+       the camera happens to be pointing at. */
+    /* The scrim sits OVER the picture and under the controls.
+       It was at z-index -1, which put it behind the video entirely — so against a bright wall the
+       white labels were painted straight onto the picture and became unreadable. A control you
+       cannot read is worse than one that is in the way. */
+    .call-screen:has(.call-who.hidden)::after {
+        content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 46vh;
+        background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.5) 42%, transparent 100%);
+        pointer-events: none; z-index: 1;
+    }
+    .call-screen:has(.call-who.hidden) .call-actions,
+    .call-screen:has(.call-who.hidden) .call-end,
+    .call-screen:has(.call-who.hidden) .call-min,
+    .call-weak { z-index: 2; }
+    .call-screen:has(.call-who.hidden) .cbtn {
+        background: rgba(18, 18, 20, 0.58); border-color: rgba(255, 255, 255, 0.26); color: #fff;
+        backdrop-filter: blur(10px);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    }
+    .call-screen:has(.call-who.hidden) .cbtn.on {
+        background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; border-color: var(--brand); color: #fff;
+    }
+
+    /* The minimise chevron sits on the picture too, so it needs its own readability. */
+    .call-screen:has(.call-who.hidden) .call-min {
+        color: #fff; background: rgba(0, 0, 0, 0.35); backdrop-filter: blur(6px);
+    }
+    .call-av {
+        width: 108px; height: 108px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-weight: 750; font-size: 2.6rem;
+    }
+    .call-tag { font-family: var(--mono); font-size: 1.35rem; font-weight: 700; color: var(--ink); }
+    .call-state { font-size: 1rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+    /* A ringing call breathes, so it reads as waiting rather than stuck. */
+    .is-ringing .call-av { animation: callpulse 1.6s ease-in-out infinite; }
+    @@keyframes callpulse {
+        0%, 100% { box-shadow: 0 0 0 0 var(--brand-tint); }
+        50%      { box-shadow: 0 0 0 18px transparent; }
+    }
+
+    /* Sized to the narrowest phone we ship to, not to the widest.
+       Four fixed 96px buttons plus their padding wants 582px; a 360px phone has 360, so Mute ran off
+       one edge and Flip off the other the moment turning the camera on added a fourth. Nothing said
+       so — the row simply overflowed, and two controls became unreachable. */
+    .call-actions {
+        display: flex; gap: 8px; margin-bottom: 8vh;
+        max-width: 100%; justify-content: center; flex-wrap: wrap;
+    }
+    .cbtn {
+        appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface);
+        color: var(--ink-2); border-radius: 18px; padding: 12px 8px;
+        flex: 1 1 68px; min-width: 0; max-width: 100px;
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
+        font-size: 0.78rem; font-weight: 650; cursor: pointer;
+    }
+    .cbtn svg { width: 24px; height: 24px; flex: none; }
+    .cbtn span { text-align: center; line-height: 1.15; }
+    .cbtn.on { background: var(--brand-tint); border-color: var(--brand); color: var(--brand); }
+    .cbtn:active { transform: scale(0.97); }
+
+    /* Answer and Hang up belong to different screens that replace each other, so they must never
+       occupy the same pixels — answering would otherwise leave a finger resting on Hang up. The
+       connected screen's control sits well below where the ringing screen's pair was. */
+    .call-end.connected { transform: translateY(42px); }
+    .call-end { display: flex; gap: 16px; }
+    .cend {
+        appearance: none; border: none; border-radius: 999px;
+        padding: 16px 30px; font-size: 1rem; font-weight: 700; color: #fff; cursor: pointer;
+    }
+    .cend.wide { padding-left: 52px; padding-right: 52px; }
+    .answer { background: #1f9d55; }
+    .decline { background: var(--brand-deep); }
+    .cend:active { transform: scale(0.98); }
+</style>

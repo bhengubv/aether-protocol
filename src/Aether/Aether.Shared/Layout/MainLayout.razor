@@ -1,0 +1,240 @@
+@inherits LayoutComponentBase
+@using Aether.Shared.Data
+@using Aether.Shared.Services
+@using AetherNet.Voice.Models
+@using AetherNet.Streaming.Models
+@implements IDisposable
+@inject AetherStore Store
+@inject CallService Calls
+@inject NavigationManager Nav
+@inject ContactService Contacts
+@inject InviteLinks Invites
+@using Microsoft.AspNetCore.Components.Routing
+@inject Taps Tapped
+@inject ChatService Chat
+@inject IVideoIo Video
+@inject IJSRuntime JS
+@inject WatchService Watch
+
+<div class="app">
+    <header class="appbar">
+        <span class="brand">
+            <span class="glyph"></span>Aether
+        </span>
+    </header>
+
+    @* A ringing phone has to be answerable from wherever you are. This lived inside the conversation
+       with the caller, so a call only rang if you already happened to have their chat open — which is
+       the one moment you least need telling. *@
+    @* The whole call now lives in CallOverlay — full screen, with a duration, mute and a speaker
+       toggle. This was a strip at the top of the chat, which was enough to prove audio worked and not
+       enough to use. *@
+    <CallOverlay />
+    <GroupCallOverlay />
+
+    @* This phone is a castable screen — when something on the Wi-Fi casts to it, this covers the display
+       and plays it, wherever you are, like an incoming call. *@
+    <CastReceiver />
+
+    @* A watch-together invite can arrive wherever you are, like a call — so it lives in the shell, not
+       on one page. Join opens the synced player; Later dismisses it. *@
+    @if (_watchInvite is { } inv)
+    {
+        <div class="watch-invite">
+            <span class="wi-text">▶ Watch “@inv.Title” together</span>
+            <span class="wi-actions">
+                <button class="wi-join" @onclick="() => JoinWatch(inv)">Join</button>
+                <button class="wi-no" @onclick="() => _watchInvite = null">Later</button>
+            </span>
+        </div>
+    }
+
+    <main class="viewport">
+        @Body
+    </main>
+
+    <nav class="tabbar">
+        <NavLink class="tab" href="" Match="NavLinkMatch.All">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/></svg>
+            <span>Chats</span>
+        </NavLink>
+        <NavLink class="tab" href="nearby">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 5.6M17.5 19a5.5 5.5 0 0 0-3-4.9"/></svg>
+            <span>People</span>
+        </NavLink>
+        <NavLink class="tab" href="meshweb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+            <span>AetherNet</span>
+        </NavLink>
+        <NavLink class="tab" href="you">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+            <span>You</span>
+        </NavLink>
+        @* Settings is its own destination now, not a gear hidden on the profile: You is who you are,
+           Settings is how the app behaves, and five tabs fit the bar. Lab stays OFF it — the protocol
+           showcase lives under Settings → Developer, a deliberate detour rather than an everyday tab. *@
+        <NavLink class="tab" href="settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Settings</span>
+        </NavLink>
+    </nav>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    /// Setup is not optional: until the device is actually on AetherNet, every route lands on the
+    /// wizard. Nothing else in the app makes sense before that.
+    protected override void OnInitialized()
+    {
+        Calls.Changed += OnCallChanged;
+        Watch.Invited += OnWatchInvited;
+
+        // Somebody scanned an invite. This is the only path that carries a public key, and until it
+        // was wired the link was parsed, validated and thrown away — so a scan added nobody, and two
+        // phones that had never met could never obtain the keys they need to find each other on the
+        // radio at all.
+        Invites.Arrived += OnInvite;
+        OnInvite(Invites.TakeWaiting());
+
+        // Touch phones with somebody you have added and what they are looking at opens here. The
+        // reader has to speak first — a tap is one-way, so only the phone that did the touching knows
+        // who it touched — which is why this asks rather than waits.
+        Tapped.Touched += OnTouched;
+        OnTouched(Tapped.TakeWaiting());
+
+        Chat.HandoffArrived += OnHandedTo;
+
+        // Kept current so there is always an answer to "what are you holding?". A route rather than
+        // an object: the far side has the mesh too and can fetch whatever the route names.
+        Chat.WhereIAm = Here();
+        Nav.LocationChanged += OnMoved;
+
+        // The warm-up gate was here, and being here was the bug: this layout has to be ACTIVATED
+        // before its OnInitialized can run, and activating it builds the database, chat, calls and
+        // video — the very work the warm-up screen exists to cover. The screen could not appear until
+        // the wait was over. It now lives above the router in Routes.razor, where nothing has to be
+        // constructed for it to decide.
+
+        // Setup is not optional either: until the device is actually on AetherNet, every route lands
+        // on the wizard. Nothing else in the app makes sense before that.
+        if (Store.GetFlag(SetupKeys.Complete)) return;
+
+        var path = Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+        var page = path.Split('?')[0];
+        if (!page.StartsWith("welcome", StringComparison.OrdinalIgnoreCase))
+            Nav.NavigateTo("welcome", replace: true);
+    }
+
+    /// <summary>
+    /// Hand the video device the page it lives in.
+    /// </summary>
+    /// <remarks>
+    /// After the first render, because that is the first moment JavaScript can be called at all on a
+    /// server-rendered head. The device is a singleton and the runtime is scoped, so it cannot be
+    /// injected into it — the page has to give it over, and the shell is the page that is always there.
+    /// </remarks>
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // InvokeAsync is the renderer's dispatcher, which is the thread an Android WebView insists
+        // every JavaScript call happens on. Frames arrive on radio threads, so without this the
+        // busiest path in the app was calling the WebView from the wrong thread twenty times a second.
+        if (firstRender && Video is WebVideoIo web) web.Attach(JS, InvokeAsync);
+    }
+
+    private void OnCallChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>Somebody nearby started watching and invited this phone — surface it wherever we are.</summary>
+    private WatchSession? _watchInvite;
+
+    private void OnWatchInvited(WatchSession s) => _ = InvokeAsync(() =>
+    {
+        _watchInvite = s;
+        StateHasChanged();
+    });
+
+    private async Task JoinWatch(WatchSession s)
+    {
+        _watchInvite = null;
+        await Watch.FollowAsync(s.Id);
+        Nav.NavigateTo("watch");
+    }
+
+    /// <summary>
+    /// Add whoever the invite names, wherever the person happens to be in the app.
+    /// </summary>
+    /// <remarks>
+    /// Handled in the shell rather than on the add-a-person page, because a scan arrives from outside
+    /// the app entirely — usually straight from the phone's own camera app onto whatever screen was
+    /// last open. Requiring a particular page to be in front would put the handler exactly where the
+    /// link never lands.
+    /// </remarks>
+    private void OnInvite(string? link)
+    {
+        if (string.IsNullOrWhiteSpace(link)) return;
+
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await Contacts.AddAsync(link, via: "invite");
+                StateHasChanged();
+            }
+            catch (Exception)
+            {
+                // A bad invite is not worth interrupting anyone over; AddAsync already refuses a tag
+                // the key does not derive.
+            }
+        });
+    }
+
+    // Answering and declining moved to CallOverlay, which owns the whole call now. The call no longer
+    // navigates anywhere on answer: it covers the screen, so there is nothing underneath to arrange.
+
+    /// <summary>Where this phone is standing, as a route the other side can be told to walk to.</summary>
+    private string Here() => "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+
+    private void OnMoved(object? sender, LocationChangedEventArgs e) => Chat.WhereIAm = Here();
+
+    /// <summary>We touched somebody. Ask them what they have open.</summary>
+    private void OnTouched(string? aetherTag)
+    {
+        if (string.IsNullOrWhiteSpace(aetherTag)) return;
+        _ = Chat.AskForHandoffAsync(aetherTag);
+    }
+
+    /// <summary>They answered. Stand where they were standing.</summary>
+    private void OnHandedTo(string route) => _ = InvokeAsync(() =>
+    {
+        // No prompt and no confirmation. Between two people who have already added each other there
+        // is nothing to ask permission for, and asking would turn a gesture into a form.
+        Nav.NavigateTo(route);
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        Calls.Changed -= OnCallChanged;
+        Watch.Invited -= OnWatchInvited;
+        Invites.Arrived -= OnInvite;
+        Tapped.Touched -= OnTouched;
+        Chat.HandoffArrived -= OnHandedTo;
+        Nav.LocationChanged -= OnMoved;
+    }
+}
+
+<style>
+    /* A watch-together invite banner, pinned under the app bar wherever you are. */
+    .watch-invite { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 12px 16px; background: var(--brand); color: #fff; }
+    .watch-invite .wi-text { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .watch-invite .wi-actions { flex: 0 0 auto; display: flex; gap: 8px; }
+    .watch-invite button { appearance: none; border: none; border-radius: 999px; padding: 8px 16px;
+        font-weight: 750; cursor: pointer; }
+    .watch-invite .wi-join { background: #fff; color: var(--brand); }
+    .watch-invite .wi-no { background: rgba(255,255,255,.2); color: #fff; }
+</style>

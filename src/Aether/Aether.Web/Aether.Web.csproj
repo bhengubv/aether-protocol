@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Named outright, as Aether.Shared is: the repo's Directory.Build.props would make this AetherNet.Web. -->
+    <AssemblyName>Aether.Web</AssemblyName>
+    <PackageId>Aether.Web</PackageId>
+    <RootNamespace>Aether.Web</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aether.Shared\Aether.Shared.csproj" />
+    <!-- The mesh implementation moved to src/AetherNet.Mesh (referenced transitively via Shared);
+         expose it project-wide so Program.cs and the Web components resolve the relocated types. -->
+    <Using Include="AetherNet.Mesh" />
+  </ItemGroup>
+
+</Project>

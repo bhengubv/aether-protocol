@@ -1,0 +1,16 @@
+@page "/mycard"
+@using Aether.Shared.Services
+@inject MyPages Mine
+@inject NavigationManager Nav
+
+@* Where the one card a person had used to be edited.
+
+   A device hosts pages now — its tag is a domain and each page is a path under it — so this route
+   leads to the front door rather than to a second editor writing into a store nothing reads any more.
+   Kept rather than removed because it is an address somebody may already have followed. *@
+
+@code {
+    protected override void OnInitialized() =>
+        Nav.NavigateTo(Mine.Get(MyPages.Home) is null ? "/meshweb?mine=1" : "/page/" + MyPages.Home,
+            replace: true);
+}

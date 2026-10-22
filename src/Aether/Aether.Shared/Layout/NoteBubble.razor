@@ -1,0 +1,246 @@
+@using Aether.Shared.Data
+@using Aether.Shared.Services
+@inject AttachmentService Attachments
+@inject WatchService Watch
+@inject NavigationManager Nav
+@implements IDisposable
+
+@*
+    A message that is somebody talking.
+
+    The bytes are not in the message — it names them by content hash, and they arrive separately, in
+    chunks. So this has three states, and all three are real: waiting for the bytes, holding them, and
+    having given up on them. A bubble that could only draw the last one would leave a note that is
+    still crossing a slow radio looking like a note that failed.
+
+    Playback is the browser's own media element rather than anything native. A finished note is a file
+    in a real container, and every WebView on every head can already play one — which also means the
+    web head plays notes it could never have recorded.
+*@
+
+<div class="note @Kind">
+    @if (_source is not null && (Message.IsVideoNote || Message.IsVoiceNote || Message.IsPhoto))
+    {
+        @if (Message.IsVideoNote)
+        {
+            <video class="nplayer" controls playsinline preload="metadata" src="@_source"></video>
+            @* Both phones already hold these bytes (by hash), so they can play the very same video in
+               step — the "dish" the watch-together engine was hiding in the Lab. *@
+            <div class="nrow">
+                <button class="nwatch" @onclick="WatchTogether">▶ Watch together</button>
+                @* Send it to a bigger screen — a TV on the Wi-Fi, or another Aether device. *@
+                <button class="nwatch" @onclick="CastTo">📺 Cast</button>
+            </div>
+        }
+        else if (Message.IsVoiceNote)
+        {
+            <audio class="nplayer" controls preload="metadata" src="@_source"></audio>
+        }
+        else
+        {
+            @* A shared picture, shown right there — the whole point is that you see it, not open it. *@
+            <img class="nimg" src="@_source" alt="Shared photo" />
+        }
+    }
+    else
+    {
+        @* Still arriving, or a file the phone cannot draw — one calm row either way. *@
+        <div class="npending @(_source is not null ? "here" : null)">
+            <span class="nicon">
+                @if (Message.IsVideoNote)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                }
+                else if (Message.IsPhoto)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                }
+                else if (Message.IsFile)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+                }
+            </span>
+
+            <span class="nmid">
+                <span class="nwhat">@Label</span>
+                <span class="nstate">@Describe()</span>
+            </span>
+
+            @if (_progress > 0 && _progress < 1)
+            {
+                <span class="nbar"><span class="nfill" style="width:@((int)(_progress * 100))%"></span></span>
+            }
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Message.Body))
+    {
+        <div class="ncaption">@Message.Body</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ChatMessage Message { get; set; } = default!;
+
+    /// <summary>The css class for this bubble's kind — voice, video, photo or file.</summary>
+    private string Kind => Message.IsVideoNote ? "video"
+        : Message.IsPhoto ? "photo"
+        : Message.IsFile ? "file"
+        : "voice";
+
+    /// <summary>What to call it, in a word a person would use.</summary>
+    private string Label => Message.IsVideoNote ? "Video note"
+        : Message.IsPhoto ? "Photo"
+        : Message.IsFile ? "File"
+        : "Voice note";
+
+    /// <summary>A data URI holding the whole note, once every chunk of it is here.</summary>
+    private string? _source;
+
+    private double _progress;
+    private bool _disposed;
+    private string? _watching;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // The bubble is reused as the list re-renders, so only start over when it is a different note.
+        if (_watching == Message.AttachmentHash) return;
+
+        _watching = Message.AttachmentHash;
+        _source = null;
+        _progress = 0;
+
+        await LoadAsync();
+    }
+
+    protected override void OnInitialized()
+    {
+        Attachments.Arrived += OnArrived;
+        Attachments.Progress += OnProgress;
+    }
+
+    /// <summary>
+    /// Try to build the player. Nothing happens until every chunk is here — a note is played whole,
+    /// and half of one is not worth showing.
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        if (_disposed || string.IsNullOrEmpty(Message.AttachmentHash)) return;
+
+        try
+        {
+            var bytes = await Attachments.GetAsync(Message.AttachmentHash);
+            if (bytes is null)
+            {
+                _progress = await Attachments.ProgressOfAsync(Message.AttachmentHash);
+                return;
+            }
+
+            // Handing the bytes to the media element directly, rather than through a URL it would have
+            // to fetch. There is no server here to fetch from — the note only ever existed on two
+            // phones — so the data URI is not a shortcut, it is the only honest way to do this.
+            _source = "data:" + (Message.AttachmentType ?? "application/octet-stream")
+                + ";base64," + Convert.ToBase64String(bytes);
+            _progress = 1;   // it is all here — a file card reads its size, not "receiving"
+        }
+        catch
+        {
+            // A note that cannot be read stays as a pending bubble rather than an error. It may still
+            // be on its way, and the person can ask for it again.
+            _source = null;
+        }
+    }
+
+    private void OnArrived(string hash)
+    {
+        if (_disposed || hash != Message.AttachmentHash) return;
+
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    private void OnProgress(string hash, double fraction)
+    {
+        if (_disposed || hash != Message.AttachmentHash || _source is not null) return;
+
+        _progress = fraction;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>What is happening, in the words somebody would actually use.</summary>
+    private string Describe()
+    {
+        if (Message.AttachmentBytes <= 0) return "waiting";
+
+        var size = Message.AttachmentBytes < 1024 * 1024
+            ? (Message.AttachmentBytes / 1024) + " KB"
+            : (Message.AttachmentBytes / (1024.0 * 1024)).ToString("0.0") + " MB";
+
+        return _progress switch
+        {
+            <= 0 => Message.Mine ? "sending · " + size : "receiving · " + size,
+            >= 1 => size,
+            _ => (int)(_progress * 100) + "% · " + size,
+        };
+    }
+
+    /// <summary>Start watching this video together — both ends already hold the bytes, so it only syncs.</summary>
+    private async Task WatchTogether()
+    {
+        if (string.IsNullOrEmpty(Message.AttachmentHash)) return;
+        var title = string.IsNullOrWhiteSpace(Message.Body) ? "Video" : Message.Body;
+        if (await Watch.HostAsync(Message.AttachmentHash, title) is not null)
+            Nav.NavigateTo("/watch");
+    }
+
+    /// <summary>Cast this video to a bigger screen — pick a TV on the Wi-Fi or an Aether device.</summary>
+    private void CastTo()
+    {
+        if (string.IsNullOrEmpty(Message.AttachmentHash)) return;
+        var title = string.IsNullOrWhiteSpace(Message.Body) ? "Video" : Message.Body;
+        var type = Message.AttachmentType ?? "video/mp4";
+        Nav.NavigateTo($"/cast/{Message.AttachmentHash}?type={Uri.EscapeDataString(type)}&title={Uri.EscapeDataString(title)}");
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Attachments.Arrived -= OnArrived;
+        Attachments.Progress -= OnProgress;
+    }
+}
+
+<style>
+    .note { display: flex; flex-direction: column; gap: 6px; min-width: 200px; }
+
+    .nplayer { width: 100%; max-width: 260px; display: block; }
+    .note.video .nplayer { max-width: 220px; border-radius: 12px; background: #000; }
+
+    /* A shared photo, shown big enough to read in the thread without taking it over. */
+    .nimg { width: 100%; max-width: 240px; border-radius: 12px; display: block; background: var(--surface-2); }
+
+    .npending { display: flex; align-items: center; gap: 10px; padding: 2px 0; }
+    .nicon { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); color: var(--ink-2); }
+    .nicon svg { width: 16px; height: 16px; }
+
+    .nmid { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .nwhat { font-weight: 650; font-size: 0.9rem; }
+    .nstate { font-size: 0.76rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+    .nbar { flex: 1 1 auto; height: 3px; border-radius: 2px; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); overflow: hidden; min-width: 40px; }
+    .nfill { display: block; height: 100%; background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; transition: width 0.25s linear; }
+
+    .ncaption { font-size: 0.95rem; }
+
+    .nrow { display: flex; flex-wrap: wrap; gap: 6px; }
+    .nwatch { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+        border-radius: 10px; padding: 7px 12px; font-weight: 700; font-size: 0.82rem; cursor: pointer;
+        align-self: flex-start; }
+</style>

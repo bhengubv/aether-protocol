@@ -1,0 +1,134 @@
+@page "/nearby"
+@using Aether.Shared.Data
+@using Aether.Shared.Services
+@implements IDisposable
+@inject ContactService Contacts
+@inject IIdentityService Me
+@inject IRadioMesh Radio
+@inject NavigationManager Nav
+
+<PageTitle>Aether — people</PageTitle>
+
+@* People, and nothing about radios.
+
+   BBM never asked which radio. You got somebody's PIN, you typed it, and it worked — everything hard
+   happened out of sight. This screen used to open with "Connect over: Wi-Fi Direct / Wi-Fi Aware /
+   Internet / NFC / LoRa", a paragraph about mid-range chipsets, and a button asking the person to
+   connect a phone near them. That is the plumbing, handed to somebody who asked for a conversation.
+
+   So: every radio tries at once, all the time, and the widest one that got through carries. Nobody
+   picks, nobody is told which, and nobody taps anything to make it happen. What is left on screen is
+   who you know and whether they can hear you. *@
+<div class="nearby">
+    <div class="mine">
+        <span class="mine-label">You are</span>
+        <span class="mine-tag">@Me.AetherTag</span>
+        <span class="mine-say">Read it out, or show them the code — that is how somebody adds you.</span>
+    </div>
+
+    <div class="people">
+        @foreach (var p in _people)
+        {
+            <button class="prow" @onclick="@(() => Nav.NavigateTo($"chat/{p.Tag}"))">
+                <span class="av" style="background:@TagPalette.For(p.Tag)">
+                    @TagPalette.Initial(p.Tag)@if (Here(p)) { <span class="near"></span> }
+                </span>
+                <span class="pmid">
+                    <span class="pname">@Contacts.DisplayName(p.Tag)</span>
+                    @* When you've named someone, keep their tag in view underneath — the name is for you,
+                       the tag is who they actually are, and you may still want to read it out. *@
+                    @if (Contacts.HasName(p.Tag)) { <span class="ptag">@p.Tag</span> }
+                    <span class="pstat @(Here(p) ? "on" : null)">@State(p)</span>
+                </span>
+                <span class="msg">Message</span>
+            </button>
+        }
+        @if (_people.Count == 0)
+        {
+            <div class="none">Nobody yet. Add someone and they appear here.</div>
+        }
+    </div>
+
+    <button class="connect" @onclick='() => Nav.NavigateTo("add")'>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Add someone by their AetherTag</span>
+    </button>
+</div>
+
+@code {
+    private IReadOnlyList<ContactRecord> _people = Array.Empty<ContactRecord>();
+
+    protected override void OnInitialized()
+    {
+        Contacts.Changed += OnChanged;
+        Radio.Changed += OnChanged;
+        _people = Contacts.Contacts;
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() => { _people = Contacts.Contacts; StateHasChanged(); });
+
+    /// <summary>Whether this person can hear us at this moment, over any radio at all.</summary>
+    private bool Here(ContactRecord c) => Radio.IsLinked && Radio.PeerTag == c.Tag;
+
+    /// <summary>
+    /// Where this person stands, in the words somebody would use.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// "Waiting for them" was the app's own internal state on a person's screen: it meant an add had
+    /// been sent and no reply had come, which is a fact about a protocol, not about a person. And it
+    /// was permanent — the reply could only arrive over a link that could not form — so the words a
+    /// person read were both jargon and untrue.
+    /// </para>
+    /// <para>
+    /// Nothing here mentions a radio. Which one carried is the system's business and changes without
+    /// warning; whether somebody can hear you is the only part that is yours.
+    /// </para>
+    /// </remarks>
+    private string State(ContactRecord c) =>
+        Here(c) ? "available"
+        : c.IsMutual ? "not nearby right now"
+        : c.IsIncoming ? "wants to add you"
+        : "invite sent";
+
+    public void Dispose() { Contacts.Changed -= OnChanged; Radio.Changed -= OnChanged; }
+}
+
+<style>
+    .nearby { max-width: 720px; margin: 0 auto; }
+
+    /* Your own tag, first thing. Swapping PINs is how this starts, and it cannot start if you have to
+       go looking for yours. */
+    .mine { display: flex; flex-direction: column; gap: 2px; padding: 6px 4px 18px; }
+    .mine-label { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+    .mine-tag { font-family: var(--mono); font-size: 1.6rem; font-weight: 750; letter-spacing: 0.02em; color: var(--ink); }
+    .mine-say { font-size: 0.82rem; color: var(--ink-3); line-height: 1.45; }
+
+    .people { display: flex; flex-direction: column; }
+    .prow { appearance: none; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 13px; padding: 11px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+    .prow:active { background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); }
+
+    .av { position: relative; flex: 0 0 auto; width: 50px; height: 50px; border-radius: 50%; background: var(--brand-deep); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 750; font-size: 1.2rem; }
+    .near { position: absolute; right: -1px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); color: #fff; --ink: #fff; --ink-2: #fff; --ink-3: #fff; border: 3px solid var(--bg); }
+
+    .pmid { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .pname { font-weight: 680; font-size: 1.02rem; color: var(--ink); }
+    /* The tag under a name: the real identity, quiet and monospaced so it reads as an address. */
+    .ptag { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-3); letter-spacing: 0.02em; }
+
+    /* Quiet unless they are actually there. A row that shouts in blue whatever it says teaches
+       somebody to stop reading it. */
+    .pstat { font-size: 0.8rem; color: var(--ink-3); font-weight: 600; }
+    .pstat.on { color: var(--brand); }
+
+    .msg { flex: 0 0 auto; font-size: 0.82rem; font-weight: 700; color: var(--brand); background: var(--brand-tint); padding: 7px 13px; border-radius: 999px; }
+    .none { color: var(--ink-3); font-style: italic; padding: 18px 6px; }
+
+    .connect {
+        width: 100%; margin-top: 18px; appearance: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        background: transparent; border: 1.5px dashed var(--line); color: var(--ink-2);
+        border-radius: 14px; padding: 15px; font-weight: 650; font-size: 0.95rem;
+    }
+    .connect:hover { border-color: var(--brand); color: var(--brand); }
+    .connect svg { width: 20px; height: 20px; }
+</style>

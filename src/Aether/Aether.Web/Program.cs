@@ -1,0 +1,201 @@
+using AetherNet.Browser;
+using AetherNet.Content;
+using AetherNet.Content.Sqlite;
+using Aether.Web.Components;
+using Aether.Shared.Data;
+using Aether.Shared.Services;
+using Aether.Web.Services;
+using AetherNetNodeService.Host;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+// Add device-specific services used by the Aether.Shared project
+builder.Services.AddSingleton<IFormFactor, FormFactor>();
+
+// Quiet help's screen, which on this head reports that it needs AetherNetService: there is no node here to carry it.
+builder.Services.AddSingleton(sp => new QuietHelpService(
+    sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
+    sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()));
+
+// And Aware, which on this head has no radios to hear with and says so.
+builder.Services.AddSingleton(sp => new AwareService(
+    sp.GetService<AetherNetNodeService.IAetherNodeClient>(),
+    sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()));
+
+// Durable state for this host. The Web head is not a phone, so it keeps its database beside the
+// app rather than in a phone's private storage.
+var dataDir = Path.Combine(AppContext.BaseDirectory, "aether-data");
+Directory.CreateDirectory(dataDir);
+builder.Services.AddSingleton(_ => new AetherStore(Path.Combine(dataDir, "aether.db")));
+// CircleDirectory and ProxyDirectory take their persistence as a seam (AetherNet.Mesh); the device's
+// AetherStore implements both, so they read/write the same on-device SQLite database.
+builder.Services.AddSingleton<IPeerRoutingKeyStore>(sp => sp.GetRequiredService<AetherStore>());
+builder.Services.AddSingleton<IProxyDirectoryStore>(sp => sp.GetRequiredService<AetherStore>());
+builder.Services.AddSingleton<IContentStore>(_ => new SqliteContentStore(Path.Combine(dataDir, "content.db")));
+builder.Services.AddSingleton<ISecretVault>(_ => new FileSecretVault(Path.Combine(dataDir, "vault")));
+
+// This device's node identity. The app asks for it rather than minting one — the identity belongs to
+// the device, not to whichever app happened to run first.
+builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityStore>(sp =>
+    new VaultNodeIdentityStore(sp.GetRequiredService<ISecretVault>()));
+builder.Services.AddSingleton<AetherNet.Identity.INodeIdentity>(sp =>
+    new AetherNet.Identity.NodeIdentity(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
+// Identity portability over the SAME store, so the recovery phrase restores this device's exact tag.
+builder.Services.AddSingleton<AetherNet.Identity.INodeIdentityRecovery>(sp =>
+    new AetherNet.Identity.NodeIdentityRecovery(sp.GetRequiredService<AetherNet.Identity.INodeIdentityStore>()));
+builder.Services.AddSingleton<IIdentityService, IdentityService>();
+
+// The panic-wipe trigger: a duress PIN, or a direct Wipe() call, erases the identity key
+// (via ISecretVault.Remove) and the whole local database (AetherStore.WipeAll).
+builder.Services.AddSingleton<PanicWipeService>();
+
+// Memorable names for tags, persisted in this device's own SQLite settings.
+builder.Services.AddSingleton<AetherNet.Identity.IPetnameStore>(sp =>
+    new AetherStorePetnameStore(sp.GetRequiredService<AetherStore>()));
+builder.Services.AddSingleton(sp =>
+    new AetherNet.Identity.PetnameRegistry(sp.GetRequiredService<AetherNet.Identity.IPetnameStore>()));
+
+// The people this device knows, and the add/be-added handshake.
+builder.Services.AddSingleton<ContactService>();
+
+// Where a scanned or pasted aether:// invite arrives. The shell subscribes to it, so it has to exist
+// on every head — this was registered on the phone only, and the web head simply refused to render.
+builder.Services.AddSingleton<InviteLinks>();
+builder.Services.AddSingleton<Taps>();
+
+// Same real messaging stack as the phone. This host has no radio, so messages stay pending —
+// honestly queued rather than pretending to send.
+// Sessions live in the device database so a conversation survives a restart. Without it both
+// sides rebuild as X3DH initiator and diverge into two ratchets for one pair.
+builder.Services.AddSingleton<AetherNet.Security.Services.ISignalSessionBlobStore>(sp =>
+    new StoredSignalSessions(sp.GetRequiredService<AetherStore>()));
+builder.Services.AddSingleton<AetherNet.Security.Services.ISignalProtocolService>(sp =>
+    new AetherNet.Security.Services.SignalProtocolService(
+        sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AetherNet.Security.Services.SignalProtocolService>>(),
+        sp.GetRequiredService<AetherNet.Security.Services.ISignalSessionBlobStore>()));
+builder.Services.AddSingleton<AetherNet.PreKeys.IPreKeyExchangeService>(sp =>
+    new AetherNet.PreKeys.PreKeyExchangeService(
+        new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
+            sp.GetRequiredService<IRadioMesh>())));
+builder.Services.AddSingleton<CircleDirectory>();
+builder.Services.AddSingleton<IRadioInventory, NullRadioInventory>();
+builder.Services.AddSingleton<IAppTheme, NullAppTheme>();
+builder.Services.AddSingleton<ProxyDirectory>();
+builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
+builder.Services.AddSingleton<ICircleContacts, StoreCircleContacts>();
+builder.Services.AddSingleton<FastRadioService>();
+
+// The reliable messaging core — the same one the phone runs. This host has no radio, so RadioMeshSender
+// over NullRadioMesh means every send queues honestly rather than pretending. Chat and group are the
+// domain adapter on top; there is no inbound pump to wire because no packets ever arrive here.
+builder.Services.AddSingleton<AetherNet.Messaging.IMessageEnvelopeCipher>(sp =>
+    new AetherNet.Messaging.SignalMessageEnvelopeCipher(
+        sp.GetRequiredService<AetherNet.Security.Services.ISignalProtocolService>(),
+        sp.GetService<Microsoft.Extensions.Logging.ILogger<AetherNet.Messaging.SignalMessageEnvelopeCipher>>()));
+builder.Services.AddSingleton<AetherNet.Routing.IMeshSender>(sp =>
+    new RadioMeshSender(sp.GetRequiredService<IIdentityService>().AetherTag,
+        sp.GetRequiredService<IRadioMesh>()));
+builder.Services.AddSingleton<AetherNet.Routing.IRoutingService, OneHopRoutingService>();
+builder.Services.AddSingleton<AetherNet.Routing.IWireAddressResolver>(sp =>
+    new CircleDirectoryWireResolver(sp.GetRequiredService<CircleDirectory>(),
+        sp.GetRequiredService<IIdentityService>()));
+builder.Services.AddSingleton<AetherNet.Messaging.IMessagingService>(sp =>
+    new AetherNet.Messaging.MessagingService(
+        sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
+        sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
+        cipher: sp.GetRequiredService<AetherNet.Messaging.IMessageEnvelopeCipher>(),
+        logger: sp.GetService<Microsoft.Extensions.Logging.ILogger<AetherNet.Messaging.MessagingService>>()));
+builder.Services.AddSingleton<AetherNet.Messaging.MeshInboundDispatcher>(sp =>
+    new AetherNet.Messaging.MeshInboundDispatcher(
+        sender: sp.GetRequiredService<AetherNet.Routing.IMeshSender>(),
+        messaging: sp.GetRequiredService<AetherNet.Messaging.IMessagingService>(),
+        routing: sp.GetRequiredService<AetherNet.Routing.IRoutingService>(),
+        resolver: sp.GetRequiredService<AetherNet.Routing.IWireAddressResolver>(),
+        logger: sp.GetService<Microsoft.Extensions.Logging.ILogger<AetherNet.Messaging.MeshInboundDispatcher>>()));
+
+builder.Services.AddSingleton<ChatService>();
+
+// The bytes behind a message — a voice note, a picture. Content-addressed and chunked, so a
+// transfer resumes across a dropped link and works on a radio far too slow for a call.
+builder.Services.AddSingleton<AttachmentService>();
+builder.Services.AddSingleton<WarmUpService>();
+
+// Radios are physical; this host has none, so setup says so honestly.
+builder.Services.AddSingleton<IRadioSetup, NullRadioSetup>();
+
+// So is a microphone. The call service exists here so the UI compiles and can explain itself, but it
+// will always say a call is impossible rather than pretending to place one.
+builder.Services.AddSingleton<IAudioIo, NullAudioIo>();
+
+// Video, on the other hand, now works here too — it is WebCodecs and getUserMedia in the Shared
+// project rather than anything native, so the web head gets the same implementation the phone does.
+// A singleton, like every other device service — the call services that own it are singletons, and a
+// scoped one makes the container refuse to build at all. The page hands it a JS runtime when it
+// appears, which is what MainLayout does.
+// No loopback bridge here, and deliberately: this head's page and its server are different machines,
+// so a socket to 127.0.0.1 on the server would reach the wrong one entirely. Video falls back to
+// JavaScript interop, which is what it has always used.
+// Touch My Blood is a phone handing another phone the app. A server has neither an APK of its own
+// nor an NFC chip, so both say so plainly and the screen shows why rather than a button that fails.
+builder.Services.AddSingleton<IAppShareService, NoAppShare>();
+builder.Services.AddSingleton<ITapShare, NoTapShare>();
+builder.Services.AddSingleton<AppHandout>();
+builder.Services.AddSingleton<IVideoBridge, NoVideoBridge>();
+builder.Services.AddSingleton<IVideoIo>(sp => new WebVideoIo(sp.GetService<IVideoBridge>()));
+
+// And no microphone means no notes to record either. Playing one back works everywhere, though —
+// that is the browser's own media element, not a radio.
+builder.Services.AddSingleton<IMediaCapture, NullMediaCapture>();
+// No native file chooser on the web head yet — the button hides itself rather than doing nothing.
+builder.Services.AddSingleton<IFilePicker, NullFilePicker>();
+builder.Services.AddSingleton<IWifiDirectGroup, NullWifiDirectGroup>();
+builder.Services.AddSingleton<CallService>();
+builder.Services.AddSingleton<GroupCallService>();
+
+
+// The live in-process AetherNet mesh that the Lab UI drives. Singleton on the server: the
+// InProcess transport uses a process-wide registry, so one shared mesh avoids UHID collisions
+// between Blazor's prerender and interactive renders (and between browser circuits).
+builder.Services.AddSingleton<MeshLabService>();
+
+// The pages this device hosts, written here and served from here.
+// AetherView. Singleton so prerender and interactive renders share one node.
+builder.Services.AddSingleton<ICardStore, AetherStoreCardStore>();
+builder.Services.AddSingleton<IMeshLink, RadioMeshLink>();
+builder.Services.AddAetherBrowser();
+
+// Radios are physical; the Web host has none.
+builder.Services.AddSingleton<IRadioMesh, NullRadioMesh>();
+
+// The Aether Node Service, in-process — same as the phone head. The UI reaches identity, messaging and
+// presence through IAetherNodeClient; on this head presence is simply always offline (no radios).
+builder.Services.AddSingleton<INodeMessaging, InProcessNodeMessaging>();
+builder.Services.AddSingleton<INodeLinkSource, InProcessNodeLinkSource>();
+builder.Services.AddAetherNode();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    app.UseHsts();
+}
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseHttpsRedirection();
+
+app.UseAntiforgery();
+
+app.MapStaticAssets();
+
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(
+        typeof(Aether.Shared._Imports).Assembly);
+
+app.Run();

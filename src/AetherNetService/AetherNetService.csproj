@@ -38,8 +38,8 @@
        than copied; the ground colour must stay the same as Aether's MauiIcon. With no launcher entry, the icon
        shows wherever the phone names the app — App info, its permission page, the list of apps. -->
   <ItemGroup>
-    <MauiIcon Include="..\..\samples\AetherNet.Sample\AetherNet.Sample\Resources\AppIcon\appicon.svg"
-              ForegroundFile="..\..\samples\AetherNet.Sample\AetherNet.Sample\Resources\AppIcon\appiconfg.svg"
+    <MauiIcon Include="..\Aether\Aether\Resources\AppIcon\appicon.svg"
+              ForegroundFile="..\Aether\Aether\Resources\AppIcon\appiconfg.svg"
               Color="#16232f" />
   </ItemGroup>
 
@@ -88,7 +88,7 @@
        copying the binary. Without this, GetTag/Sign fail at runtime on the phone. -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <PackageReference Include="libsodium" Version="1.0.20.1" ExcludeAssets="native" />
-    <AndroidNativeLibrary Include="..\..\samples\AetherNet.Sample\AetherNet.Sample\Platforms\Android\native\arm64-v8a\libsodium.so">
+    <AndroidNativeLibrary Include="..\Aether\Aether\Platforms\Android\native\arm64-v8a\libsodium.so">
       <Abi>arm64-v8a</Abi>
     </AndroidNativeLibrary>
   </ItemGroup>

@@ -9,7 +9,7 @@
         "http.server",
         "8799",
         "--directory",
-        "samples/AetherNet.Sample/.fixtures"
+        "src/Aether/.fixtures"
       ],
       "port": 8799
     },
@@ -19,7 +19,7 @@
       "runtimeArgs": [
         "run",
         "--project",
-        "samples/AetherNet.Sample/AetherNet.Sample.Web/AetherNet.Sample.Web.csproj",
+        "src/Aether/Aether.Web/Aether.Web.csproj",
         "--urls",
         "http://localhost:5290"
       ],

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>Aether</title>
+    <base href="/" />
+    <!-- No Bootstrap: Aether has its own design system in app.css, and Bootstrap's generic class
+         names (.row, .card, .btn, .nav) silently override ours — .row's flex-wrap was stacking the
+         chat list. Removed rather than fought. -->
+    <link rel="stylesheet" href="_content/Aether.Shared/app.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="Aether.styles.css" />
+    <link rel="stylesheet" href="_content/AetherNet.Browser/css/aether-code.css" />
+    <link rel="icon" href="data:,">
+</head>
+
+<body>
+
+    <!-- First thing in the body, deliberately.
+
+         A choice of Light or Dark has to be on the document before anything paints, or the boot
+         screen comes up in the phone's theme and the app changes colour underneath the person a
+         second later — the exact flash the single ground colour was introduced to remove. Blazor
+         cannot do it: it is not running yet. So the choice is mirrored into localStorage when it is
+         made, and read back here, synchronously, ahead of the first frame. -->
+    <script>
+        window.aetherTheme = function (theme) {
+            try {
+                if (theme && theme !== 'system') {
+                    document.documentElement.setAttribute('data-theme', theme);
+                    localStorage.setItem('aether-theme', theme);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    localStorage.removeItem('aether-theme');
+                }
+            } catch (e) { }
+        };
+        try { window.aetherTheme(localStorage.getItem('aether-theme')); } catch (e) { }
+    </script>
+
+    <div class="status-bar-safe-area"></div>
+
+    <!--
+        The app opening, showing what it is.
+
+        "Loading..." is the app admitting it has nothing to say, and on a phone the .NET runtime takes
+        a second or two to start — so that admission was the first thing anyone ever saw. This uses the
+        wait instead of apologising for it: a mesh assembling itself, which is literally what the app
+        does the moment it is running. Nodes arrive, links draw between them, and packets move.
+
+        Deliberately NOT a splash: nothing to dismiss, nothing to sign into, and not one frame of delay
+        added to make it visible. It is on screen exactly as long as the runtime takes. Everything is
+        inline because it must paint before any stylesheet has been fetched, and it repeats the few
+        colour tokens it needs rather than waiting on app.css.
+    -->
+    <div id="app">
+        <div class="boot" aria-label="Aether is starting">
+            <div class="boot-stage">
+                <svg class="boot-mesh" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Links first, so nodes sit on top of them. Each draws itself, staggered, so the
+                         mesh looks discovered rather than declared. -->
+                    <g class="lnk" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+                        <line x1="120" y1="120" x2="120" y2="34"  style="--d:.05s" />
+                        <line x1="120" y1="120" x2="60"  y2="70"  style="--d:.18s" />
+                        <line x1="120" y1="120" x2="180" y2="68"  style="--d:.31s" />
+                        <line x1="120" y1="120" x2="44"  y2="160" style="--d:.44s" />
+                        <line x1="120" y1="120" x2="196" y2="156" style="--d:.57s" />
+                        <line x1="120" y1="120" x2="120" y2="210" style="--d:.70s" />
+                        <!-- Peripheral links: without these it is a star, and a star has a centre
+                             everything depends on. A mesh does not. -->
+                        <line x1="60"  y1="70"  x2="120" y2="34"  style="--d:.83s" />
+                        <line x1="120" y1="34"  x2="180" y2="68"  style="--d:.92s" />
+                        <line x1="44"  y1="160" x2="120" y2="210" style="--d:1.01s" />
+                        <line x1="120" y1="210" x2="196" y2="156" style="--d:1.10s" />
+                    </g>
+
+                    <!-- Packets, travelling the links. Proof the mesh is for something. -->
+                    <g fill="currentColor" class="pkt">
+                        <circle r="3.2">
+                            <animateMotion dur="1.9s" repeatCount="indefinite" begin="1.2s"
+                                           path="M120,120 L120,34" />
+                        </circle>
+                        <circle r="3.2">
+                            <animateMotion dur="2.3s" repeatCount="indefinite" begin="1.7s"
+                                           path="M196,156 L120,120" />
+                        </circle>
+                        <circle r="3.2">
+                            <animateMotion dur="2.1s" repeatCount="indefinite" begin="2.2s"
+                                           path="M44,160 L120,210" />
+                        </circle>
+                    </g>
+
+                    <!-- The other phones. -->
+                    <g class="nd" fill="currentColor">
+                        <circle cx="120" cy="34"  r="7" style="--d:.10s" />
+                        <circle cx="60"  cy="70"  r="7" style="--d:.23s" />
+                        <circle cx="180" cy="68"  r="7" style="--d:.36s" />
+                        <circle cx="44"  cy="160" r="7" style="--d:.49s" />
+                        <circle cx="196" cy="156" r="7" style="--d:.62s" />
+                        <circle cx="120" cy="210" r="7" style="--d:.75s" />
+                    </g>
+
+                    <!-- This one. Larger, ringed, and breathing — you are a node like any other, and
+                         you are the one holding the phone. -->
+                    <circle class="me-ring" cx="120" cy="120" r="17" stroke="currentColor" stroke-width="2" />
+                    <circle class="me" cx="120" cy="120" r="9" fill="currentColor" />
+                </svg>
+            </div>
+
+            <div class="boot-name">Aether</div>
+            <!-- "no towers" was the one claim here the app itself contradicts: the very next screen
+                 lists Mobile data among the radios that carry, and mobile data is a tower. The point
+                 was never that no tower is ever touched — it is that nothing depends on one, which is
+                 what "no network needed" says without being disproved two seconds later. -->
+            <div class="boot-sub">no accounts · nobody in the middle · no network needed</div>
+        </div>
+    </div>
+
+    <style>
+        /* Three states, the same three app.css has: light is the base, the phone's dark overrides it
+           unless an explicit light choice says otherwise, and a stamped data-theme beats both. Without
+           the third, somebody who chose Light on a dark phone got a dark boot screen and a light app. */
+        .boot { --b-bg: #ffffff; --b-ink: #2196F3; --b-dim: #2196F3; --b-brand: #2196F3; }
+
+        @media (prefers-color-scheme: dark) {
+            /* app.css's --bg exactly. It was #0f1720, two shades off, so the app changed colour
+               underneath the person at the moment Blazor took over. */
+            :root:not([data-theme="light"]) .boot { --b-bg: #000000; --b-ink: #ffffff; --b-dim: #ffffff; }
+        }
+
+        :root[data-theme="light"] .boot { --b-bg: #ffffff; --b-ink: #2196F3; --b-dim: #2196F3; }
+        :root[data-theme="dark"]  .boot { --b-bg: #000000; --b-ink: #ffffff; --b-dim: #ffffff; }
+
+        .boot {
+            position: fixed; inset: 0; background: var(--b-bg); overflow: hidden;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+        }
+
+        .boot-stage { width: min(62vw, 240px); aspect-ratio: 1; color: var(--b-brand); }
+        .boot-mesh { width: 100%; height: 100%; overflow: visible; }
+
+        /* Each link draws itself. 200 comfortably exceeds the longest line here, so one dash covers
+           any of them and they can share a keyframe. */
+        .lnk line {
+            stroke-dasharray: 200; stroke-dashoffset: 200; opacity: .55;
+            animation: draw .55s ease-out forwards; animation-delay: var(--d);
+        }
+        @keyframes draw { to { stroke-dashoffset: 0; } }
+
+        .nd circle {
+            transform-box: fill-box; transform-origin: center; transform: scale(0); opacity: 0;
+            animation: pop .42s cubic-bezier(.2, 1.5, .4, 1) forwards; animation-delay: var(--d);
+        }
+        @keyframes pop { to { transform: scale(1); opacity: 1; } }
+
+        .me, .me-ring { transform-box: fill-box; transform-origin: center; }
+        .me-ring { opacity: .35; animation: breathe 2.6s ease-in-out infinite; }
+        @keyframes breathe {
+            0%, 100% { transform: scale(1);    opacity: .35; }
+            50%      { transform: scale(1.25); opacity: .08; }
+        }
+
+        .pkt circle { opacity: .9; }
+
+        .boot-name {
+            margin-top: 26px; font-size: 1.9rem; font-weight: 830; letter-spacing: -0.03em;
+            color: var(--b-ink);
+            opacity: 0; animation: rise .6s ease-out .55s forwards;
+        }
+        .boot-sub {
+            font-size: .82rem; color: var(--b-dim); text-align: center; padding: 0 24px;
+            opacity: 0; animation: rise .6s ease-out .8s forwards;
+        }
+        @keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+
+        /* Someone who has asked for less movement gets the finished picture, immediately. */
+        @media (prefers-reduced-motion: reduce) {
+            .lnk line { stroke-dashoffset: 0; animation: none; }
+            .nd circle { transform: none; opacity: 1; animation: none; }
+            .me-ring { animation: none; }
+            .pkt { display: none; }
+            .boot-name, .boot-sub { opacity: 1; animation: none; }
+        }
+    </style>
+
+    <!-- The on-screen keyboard does not change 100vh, so a full-height screen keeps its old size and
+         one end of it — the conversation header or the composer — ends up behind the keyboard. The
+         visual viewport is the only thing that reports the area you can actually see, so publish its
+         height and let the layout use that instead. -->
+    <script>
+        (function () {
+            var vv = window.visualViewport;
+            if (!vv) return;
+            function apply() {
+                // Height alone is not enough: Android also *pans* the window, which slides a
+                // top-anchored screen off the top of the display. offsetTop is how far it slid.
+                document.documentElement.style.setProperty('--vvh', vv.height + 'px');
+                document.documentElement.style.setProperty('--vvt', vv.offsetTop + 'px');
+            }
+            vv.addEventListener('resize', apply);
+            vv.addEventListener('scroll', apply);
+            apply();
+        })();
+    </script>
+
+    <!-- A conversation is read from the bottom: the newest message is the one you want, so the thread
+         always opens and stays at the end rather than at the first thing ever said. -->
+    <script>
+        // Where you are in a thread, as a fraction of the whole. A fraction rather than a pixel count
+        // because the phone it is handed to is a different size, and pixels would land somebody
+        // somewhere else entirely.
+        window.aetherScrollFraction = function (el) {
+            if (!el) return 0;
+            var room = el.scrollHeight - el.clientHeight;
+            return room > 0 ? Math.max(0, Math.min(1, el.scrollTop / room)) : 0;
+        };
+        window.aetherScrollToFraction = function (el, f) {
+            if (!el) return;
+            var room = el.scrollHeight - el.clientHeight;
+            el.scrollTop = room > 0 ? room * Math.max(0, Math.min(1, f || 0)) : 0;
+        };
+        window.aetherScrollToEnd = function (el) { if (el) el.scrollTop = el.scrollHeight; };
+    </script>
+
+    <!-- The masthead painter. Raw WebGL, no library — see wwwroot/js/aether-shader.js. -->
+    <script src="_content/AetherNet.Browser/js/aether-shader.js"></script>
+
+    <!-- Choosing a photograph and shrinking it to something a radio can carry. -->
+    <script src="_content/AetherNet.Browser/js/aether-photo.js"></script>
+
+    <!-- Writing with the formatting visible — see wwwroot/js/aether-write.js. -->
+    <script src="_content/AetherNet.Browser/js/aether-write.js"></script>
+
+    <!-- The stylesheet editor's colouring. No library: a card renders with no network, so an editor
+         that needs a CDN is one that does not work where this app is used. See js/aether-code.js. -->
+    <script src="_content/AetherNet.Browser/js/aether-page.js"></script>
+    <script src="_content/AetherNet.Browser/js/aether-code.js"></script>
+
+    <!-- The host half of the card protocol: a rendered card asks to be followed, and says how tall
+         it is. Both are checked here as well as inside the page. -->
+    <script src="_content/AetherNet.Browser/js/aether-card.js"></script>
+
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+
+</body>
+
+</html>

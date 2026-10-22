@@ -1,0 +1,63 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    <!-- No Bootstrap: Aether has its own design system in app.css, and Bootstrap's generic class
+         names (.row, .card, .btn, .nav) silently override ours. Kept both heads identical. -->
+    <link rel="stylesheet" href="_content/Aether.Shared/app.css" />
+    <link rel="stylesheet" href="Aether.Web.styles.css" />
+    <ImportMap />
+    <link rel="icon" type="image/svg+xml" href="_content/Aether.Shared/favicon.svg" />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+
+<body>
+    <Routes @rendermode="InteractiveServer" />
+    <ReconnectModal />
+    <script>
+        // A conversation is read from the bottom — keep the newest message in view.
+        // Where you are in a thread, as a fraction of the whole. A fraction rather than a pixel count
+        // because the phone it is handed to is a different size, and pixels would land somebody
+        // somewhere else entirely.
+        window.aetherScrollFraction = function (el) {
+            if (!el) return 0;
+            var room = el.scrollHeight - el.clientHeight;
+            return room > 0 ? Math.max(0, Math.min(1, el.scrollTop / room)) : 0;
+        };
+        window.aetherScrollToFraction = function (el, f) {
+            if (!el) return;
+            var room = el.scrollHeight - el.clientHeight;
+            el.scrollTop = room > 0 ? room * Math.max(0, Math.min(1, f || 0)) : 0;
+        };
+        window.aetherScrollToEnd = function (el) { if (el) el.scrollTop = el.scrollHeight; };
+    </script>
+    @* The browser library's own scripts. They were missing here, so on this head the look previews
+       never painted, a photograph could not be chosen and writing had no formatting — the library
+       looked broken when it was simply never loaded. A host that drops <AetherBrowser /> in needs
+       these four, and this head is the example of a host doing it. *@
+
+    <!-- The background painter. Raw WebGL, no library — see wwwroot/js/aether-shader.js. -->
+    <script src="_content/AetherNet.Browser/js/aether-shader.js"></script>
+
+    <!-- Choosing a photograph and shrinking it to something a radio can carry. -->
+    <script src="_content/AetherNet.Browser/js/aether-photo.js"></script>
+
+    <!-- Writing with the formatting visible — see wwwroot/js/aether-write.js. -->
+    <script src="_content/AetherNet.Browser/js/aether-write.js"></script>
+
+    <!-- The stylesheet editor's colouring. No library: a card renders with no network, so an editor
+         that needs a CDN is one that does not work where this app is used. See js/aether-code.js. -->
+    <script src="_content/AetherNet.Browser/js/aether-code.js"></script>
+
+    <!-- The host half of the card protocol: a rendered card asks to be followed, and says how tall
+         it is. Both are checked here as well as inside the page. -->
+    <script src="_content/AetherNet.Browser/js/aether-card.js"></script>
+
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>

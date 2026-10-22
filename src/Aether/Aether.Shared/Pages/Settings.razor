@@ -1,0 +1,623 @@
+@page "/settings"
+@using System.Linq
+@using Aether.Shared.Data
+@using Aether.Shared.Services
+@using AetherNetNodeService
+@using AetherNetNodeService.Client
+@using Microsoft.Extensions.DependencyInjection
+@inject IJSRuntime JS
+@inject IServiceProvider Services
+@inject ProxyDirectory Proxies
+@inject ChatService Chat
+@inject NavigationManager Nav
+@inject AetherStore Store
+@inject IAppTheme Shell
+@inject IAetherNodeClient Node
+@inject PanicWipeService Panic
+@implements IDisposable
+@implements IAetherNodeEvents
+
+@* How the app behaves — configuration, kept apart from who you are (that is Profile, the You tab). This
+   is the home settings finally has: everything that governs the app rather than describes you lives here,
+   and it has room to grow, which a profile card never did. *@
+
+<PageTitle>Aether — settings</PageTitle>
+
+<div class="you">
+    <h1 class="scr-title">Settings</h1>
+
+    @* Safety first, and near the top on purpose: an emergency broadcast that floods every Aether phone
+       in range with no towers and no account. Its own screen holds the confirm + reach + "mark safe". *@
+    <section class="group">
+        <div class="glabel">Safety</div>
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/sos"))">
+            <span class="about-body">
+                <span class="about-t">Emergency SOS</span>
+                <span class="about-s">Broadcast to every phone in range — no towers, no signal needed</span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+    </section>
+
+    @* The gap the whole split was for: the identity had no way off the phone. Now it does — a recovery
+       phrase, derived from the key already here, never sent anywhere. *@
+    <section class="group">
+        <div class="glabel">Account &amp; identity</div>
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/backup"))">
+            <span class="about-body">
+                <span class="about-t">Back up your identity</span>
+                <span class="about-s">@(_backedUp
+                    ? "Backed up — your 24 words are written down"
+                    : "24 words that restore you on a new phone — the only way back if you lose this one")</span>
+            </span>
+            <span class="chev">@(_backedUp ? "✓" : "→")</span>
+        </button>
+    </section>
+
+    <section class="group">
+        <div class="glabel">Appearance</div>
+        <div class="seg">
+            <button class="seg-btn @(_theme == "light" ? "on" : null)" @onclick='() => SetTheme("light")'>Light</button>
+            <button class="seg-btn @(_theme == "dark" ? "on" : null)" @onclick='() => SetTheme("dark")'>Dark</button>
+            <button class="seg-btn @(_theme == "system" ? "on" : null)" @onclick='() => SetTheme("system")'>System</button>
+        </div>
+    </section>
+
+    @* The second leg, in the only place it can honestly live: a switch the person owns. Carrying
+       somebody else's traffic spends their battery and their data bundle, so it is never on quietly. *@
+    <section class="group">
+        <div class="glabel">Relay for your Circle</div>
+        <button class="about" @onclick="ToggleGateway" disabled="@_busy">
+            <span class="about-body">
+                <span class="about-t">@(Proxies.IsGateway ? "This phone is relaying" : "Relay for your Circle")</span>
+                <span class="about-s">@GatewayDetail</span>
+            </span>
+            <span class="chev">@(Proxies.IsGateway ? "on" : "off")</span>
+        </button>
+    </section>
+
+    @* AetherNet — the nearby-radio mesh — is a choice. Off, the phone runs over the internet only and never
+       wakes the physical radios; on, phones near you reach each other with no towers and no accounts. On a
+       phone with AetherNetService the radios are the service's, so the switch is too — for every app on the
+       phone, and it shows what the service says. Elsewhere it applies at launch, and asks for a reopen. *@
+    <section class="group">
+        <div class="glabel">AetherNet</div>
+        <button class="about" @onclick="ToggleAetherNet" disabled="@(_switchingTo is not null)">
+            <span class="about-body">
+                <span class="about-t">@(AetherNetOn ? "AetherNet is on" : "AetherNet is off")</span>
+                <span class="about-s">@AetherNetDetail</span>
+            </span>
+            <span class="chev">@(AetherNetOn ? "on" : "off")</span>
+        </button>
+
+        @* And each radio, one by one, under the one switch for all of them. Every radio is on until the person switches it
+           off, and each says both what it does on and what is lost off — their choice, made knowing both. The radios
+           are AetherNetService's, so like the switch above they are the same for every app on the device. *@
+        @if (OnService && _link.Radios.Count > 0)
+        {
+            @foreach (var radio in _link.Radios)
+            {
+                var words = RadioWords.For(radio.Name);
+                <button class="about radio" @onclick="() => ToggleRadio(radio)" disabled="@(_radioSwitching is not null)">
+                    <span class="about-body">
+                        <span class="about-t">@words.Name</span>
+                        <span class="about-s">@RadioLine(radio, words)</span>
+                    </span>
+                    <span class="chev">@(radio.On ? "on" : "off")</span>
+                </button>
+            }
+            @if (_radioProblem is { } problem)
+            {
+                <div class="about"><span class="about-body"><span class="about-s">@problem</span></span></div>
+            }
+        }
+
+        @* Quiet help sits here, under the radios it rides on: it is the one part of Aether that puts something on
+           the air on purpose, and only when the person asks. The screen itself says what each choice means. *@
+        @* Aware sits with Quiet help, under the radios: both are about what the phone can hear around it. *@
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/aware"))">
+            <span class="about-body">
+                <span class="about-t">Aware</span>
+                <span class="about-s">
+                    What is around you, and whether any of it is keeping up with you. Nothing leaves this phone.
+                </span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+
+        <button class="about" @onclick="@(() => Nav.NavigateTo("/quiet-help"))">
+            <span class="about-body">
+                <span class="about-t">Quiet help</span>
+                <span class="about-s">
+                    Ask the people you choose for help without a sound, and let them follow where you are until you
+                    say you are safe.
+                </span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+
+        @* AetherNetService's permissions, always on show. It has no screen of its own, so this is where a person sees
+           what it has been allowed: the same list as its page in the phone's settings, which each line opens. Only
+           that page can change them — the phone keeps permissions per app, and one app cannot grant another's. *@
+        @if (_serviceSettings is not null)
+        {
+            if (_link.Permissions.Count > 0)
+            {
+                foreach (var permission in _link.Permissions)
+                {
+                    <button class="about" @onclick="() => OpenServicePage(permission)">
+                        <span class="about-body">
+                            <span class="about-t">@permission.Name</span>
+                            <span class="about-s">@PermissionLine(permission)</span>
+                        </span>
+                        <span class="chev">@(permission.Known && permission.Allowed ? "✓" : "→")</span>
+                    </button>
+                }
+            }
+            else if (_aetherNet && WaitingOnPermission)
+            {
+                @* An older AetherNetService lists no permissions, only the radio one is holding back. *@
+                <button class="about" @onclick="OpenServiceSettings">
+                    <span class="about-body">
+                        <span class="about-t">Let AetherNet find phones nearby</span>
+                        <span class="about-s">@PermissionDetail</span>
+                    </span>
+                    <span class="chev">→</span>
+                </button>
+            }
+            else
+            {
+                <button class="about" @onclick="OpenServiceSettings">
+                    <span class="about-body">
+                        <span class="about-t">@_serviceSettings.WayThere</span>
+                        <span class="about-s">@(_settingsFailed ? NoSettingsPage : _serviceSettings.Where)</span>
+                    </span>
+                    <span class="chev">→</span>
+                </button>
+            }
+        }
+    </section>
+
+    @* Read-only: whether this phone is reaching anyone right now and over which radio. NOT a picker —
+       nobody chooses a transport, the widest linked radio carries — this only says what is happening. *@
+    <section class="group">
+        <div class="glabel">Connectivity</div>
+        <div class="about">
+            <span class="about-body">
+                <span class="about-t">@(_link.Linked ? $"Connected — over {_link.Radio}" : "Not connected")</span>
+                <span class="about-s">@(_link.Linked
+                    ? "messages go straight to the phone you're linked with"
+                    : "messages wait here until someone you've added is nearby")</span>
+            </span>
+            <span class="chev">@($"{_link.Available}/{_link.Total}")</span>
+        </div>
+    </section>
+
+    @* Handing somebody the app with no store in the middle. It goes to people you have already added,
+       because a stranger you can hand a forty-megabyte package to is a stranger with your attention. *@
+    <section class="group">
+        <div class="glabel">Share Aether</div>
+        @if (Chat.CanShareApp)
+        {
+            <button class="about" @onclick="@(() => Nav.NavigateTo("/share"))">
+                <span class="about-body">
+                    <span class="about-t">Touch My Blood</span>
+                    <span class="about-s">give Aether to a friend next to you — they need nothing on their phone</span>
+                </span>
+                <span class="chev">→</span>
+            </button>
+
+            @foreach (var contact in Chat.MutualContacts)
+            {
+                <button class="about" @onclick="() => ShareWith(contact)" disabled="@_busy">
+                    <span class="about-body">
+                        <span class="about-t">Send Aether to @contact</span>
+                        <span class="about-s">@ShareSize — over the mesh, no app store</span>
+                    </span>
+                    <span class="chev">→</span>
+                </button>
+            }
+            @if (Chat.MutualContacts.Count == 0)
+            {
+                <div class="about"><span class="about-body">
+                    <span class="about-t">Nobody to share with yet</span>
+                    <span class="about-s">add someone first — then you can hand them the app</span>
+                </span></div>
+            }
+        }
+        else
+        {
+            <div class="about"><span class="about-body">
+                <span class="about-t">Not available on this phone</span>
+                <span class="about-s">@Chat.CannotShareAppReason</span>
+            </span></div>
+        }
+    </section>
+
+    @* The protocol showcase, off the everyday tab bar and here instead: a deliberate detour into every
+       capability the substrate carries, not a permanent fifth of the bar. *@
+    <section class="group">
+        <div class="glabel">Developer</div>
+        <button class="about" @onclick="@(() => Nav.NavigateTo("lab"))">
+            <span class="about-body">
+                <span class="about-t">Lab</span>
+                <span class="about-s">every capability the protocol carries, driven live in-process</span>
+            </span>
+            <span class="chev">→</span>
+        </button>
+    </section>
+
+    <section class="group">
+        <div class="glabel">About</div>
+        <a class="about" href="https://github.com/bhengubv/aether-protocol" target="_blank" rel="noopener">
+            <span class="about-body">
+                <span class="about-t">Aether runs on AetherNet</span>
+                <span class="about-s">an open, serverless mesh protocol</span>
+            </span>
+            <span class="chev">↗</span>
+        </a>
+    </section>
+
+    @* The local half of a panic wipe, made reachable at last: AetherStore.WipeAll() erases every
+       contact, message, session and setting and VACUUMs the file, so the app returns to setup. Two taps
+       because one is an accident, and the warning is in the words — the palette stays three colours. *@
+    <section class="group">
+        <div class="glabel">Danger zone</div>
+        <button class="about" @onclick="EraseAll">
+            <span class="about-body">
+                <span class="about-t">@(_armWipe ? "Tap again to erase everything" : "Erase all data on this phone")</span>
+                <span class="about-s">@(_armWipe
+                    ? "this cannot be undone"
+                    : "every contact, message, setting and your identity key — back to a fresh install")</span>
+            </span>
+            <span class="chev">@(_armWipe ? "‼" : "⌫")</span>
+        </button>
+    </section>
+</div>
+
+@code {
+    private bool _busy;
+    private string? _shareNote;
+    private bool _backedUp;
+    private bool _armWipe;
+
+    /// <summary>The device's link/presence, read through the node contract (IAetherNodeClient) rather
+    /// than the radio directly — the app dogfooding its own node's presence slice.</summary>
+    private NodeLinkStatus _link = NodeLinkStatus.Offline;
+    private IDisposable? _nodeSub;
+
+    /// <summary>Whether AetherNet (the nearby-radio mesh) is switched on. Default on — absent means on,
+    /// only an explicit "0" is off — so a device that pre-dates the setting keeps the mesh it had.</summary>
+    private bool _aetherNet;
+
+    /// <summary>The value the app actually launched with — the radios are gated at launch, so a change
+    /// only takes effect on the next open, and the card says so rather than lying.</summary>
+    private bool _aetherNetLaunched;
+
+    /// <summary>On a phone with AetherNetService the radios are the service's, and so is the switch.</summary>
+    private bool OnService => _serviceSettings is not null;
+
+    /// <summary>What this device is called in what the page says.</summary>
+    private string Device => _serviceSettings?.Device ?? "phone";
+
+    /// <summary>The radio being switched, and to what, while AetherNetService restarts to apply it; null when settled.</summary>
+    private (string Radio, bool On)? _radioSwitching;
+
+    /// <summary>Why the last radio switch did not take, in words for the person.</summary>
+    private string? _radioProblem;
+
+    /// <summary>
+    /// One radio as a line: how it stands now, then what it does on and what is lost off — both, every time, so the
+    /// person can switch it knowing what follows.
+    /// </summary>
+    private string RadioLine(AetherNetNodeService.RadioStatus radio, RadioWords words)
+    {
+        if (_radioSwitching is { } switching && switching.Radio == radio.Name)
+            return $"switching {(switching.On ? "on" : "off")} — AetherNetService is restarting its radios";
+
+        var now = !radio.On ? "Switched off"
+            : words.Nearby && !AetherNetOn ? "Off while AetherNet is off"
+            : radio.Linked ? "On — carrying messages now"
+            : radio.Available ? "On"
+            : radio.Reason is { Length: > 0 } why ? $"On, but {why}"
+            : "On, but it cannot come up here";
+        return $"{now}. On, it {words.On}. Off, {words.Off}.";
+    }
+
+    /// <summary>Whether AetherNet's nearby radios are on — AetherNetService's word, where there is one.</summary>
+    private bool AetherNetOn => OnService ? _link.NearbyOn : _aetherNet;
+
+    /// <summary>What the switch was turned to, while AetherNetService restarts to apply it; null when settled.</summary>
+    private bool? _switchingTo;
+
+    /// <summary>Why the last turn of the switch did not take, in words for the person.</summary>
+    private string? _switchProblem;
+
+    /// <summary>How long AetherNetService is given to come back with the new setting.</summary>
+    private static readonly TimeSpan SwitchWithin = TimeSpan.FromSeconds(30);
+
+    private string AetherNetDetail =>
+        _switchProblem
+        ?? (_switchingTo is { } to ? $"switching {(to ? "on" : "off")} — AetherNetService is restarting its radios"
+            : OnService
+                ? AetherNetOn
+                    ? "nearby radios reach people around you — no towers, no accounts"
+                    : $"internet only, for every app on this {Device} — the nearby radios stay off until you switch this on"
+            : _aetherNet != _aetherNetLaunched
+                ? "reopen Aether for this to take effect"
+                : _aetherNet
+                    ? "nearby radios reach people around you — no towers, no accounts"
+                    : "internet only — the nearby radios stay off until you switch this on");
+
+    /// <summary>AetherNetService's page in the phone's settings — only on a phone where there is such a page.</summary>
+    private IAetherNetServiceSettings? _serviceSettings;
+
+    /// <summary>The phone would not open that page when asked.</summary>
+    private bool _settingsFailed;
+
+    /// <summary>Whether any radio is held back only by the permission AetherNetService has not been given.</summary>
+    private bool WaitingOnPermission => _link.Radios.Any(r => r.NeedsPermission);
+
+    private const string NoSettingsPage = "this phone would not open its settings — find AetherNetService under Settings → Apps";
+
+    private string PermissionDetail => _settingsFailed
+        ? NoSettingsPage
+        : $"allow {_serviceSettings!.PermissionName} for AetherNetService — until you do, it only finds people on your Wi-Fi";
+
+    /// <summary>One of AetherNetService's permissions as a line: whether it is allowed, and what it is for.</summary>
+    private string PermissionLine(ServicePermission permission) => _settingsFailed
+        ? NoSettingsPage
+        : !permission.Known
+            ? permission.How is { Length: > 0 } how
+                ? $"the phone does not say — {how}, so it can {permission.For}"
+                : $"the phone does not say — turn its switches on there so AetherNetService can {permission.For}"
+            : permission.Allowed
+                ? $"allowed — AetherNetService can {permission.For}"
+                : $"not allowed — allow it so AetherNetService can {permission.For}";
+
+    /// <summary>
+    /// The page where that permission is changed: the phone's battery prompt, or its maker's App launch page, where it
+    /// has one, and AetherNetService's App info for the rest — and for anything already allowed, where it can be seen.
+    /// </summary>
+    private void OpenServicePage(ServicePermission permission) =>
+        _settingsFailed = !(_serviceSettings?.Open(permission.Known && permission.Allowed ? PermissionPage.AppInfo : permission.Page) ?? false);
+
+    private void OpenServiceSettings() => _settingsFailed = !(_serviceSettings?.Open() ?? false);
+
+    private string GatewayDetail => _shareNote
+        ?? (Proxies.IsGateway ? "your Circle can reach each other through this phone"
+            : Proxies.Best is { } via ? $"currently relaying through {via}"
+            : "lets people with no data reach each other through yours");
+
+    private string ShareSize => Chat.AppShareSizeBytes > 0
+        ? $"{Chat.AppShareSizeBytes / (1024 * 1024)} MB"
+        : "the app itself";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Proxies.Changed += OnChanged;
+        _theme = Store.GetSetting(SetupKeys.Theme) ?? "system";
+        _backedUp = Store.GetAccount().RecoveryBackedUp;
+        _aetherNet = _aetherNetLaunched = Store.GetSetting(SetupKeys.AetherNet) != "0";
+
+        // Only a head that talks to AetherNetService registers one; elsewhere there is no page to send anyone to.
+        _serviceSettings = Services.GetService<IAetherNetServiceSettings>();
+
+        // Presence now comes through the node contract — the app is a client of its own node.
+        _nodeSub = Node.Subscribe(this);
+        try { _link = await Node.GetLinkAsync(); }
+        catch { _link = NodeLinkStatus.Offline; }
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    // IAetherNodeEvents — the node pushes link changes (and inbound/grant, unused here) to this page.
+    void IAetherNodeEvents.OnLinkChanged(NodeLinkStatus status)
+    {
+        _link = status;
+        if (_switchingTo == status.NearbyOn) _switchingTo = null;   // the restarted service says it took
+        if (_radioSwitching is { } switching && status.Radios.Any(r => r.Name == switching.Radio && r.On == switching.On))
+            _radioSwitching = null;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    void IAetherNodeEvents.OnInbound(InboundMessage message) { }
+
+    void IAetherNodeEvents.OnGrantChanged(GrantState state) { }
+
+    public void Dispose()
+    {
+        Proxies.Changed -= OnChanged;
+        _nodeSub?.Dispose();
+    }
+
+    /// <summary>
+    /// Erase everything this device holds and return it to setup. Two taps — the first only arms the
+    /// second — because a one-tap wipe is an accident waiting to happen.
+    /// </summary>
+    private void EraseAll()
+    {
+        if (!_armWipe) { _armWipe = true; return; }
+        // The real panic wipe, not just a database clear: this destroys the identity key in the vault
+        // AND every local row. Clearing the database alone (the old behaviour) left the one secret whose
+        // loss is the whole point — the identity private key — sitting in the keystore, so a wiped phone
+        // was still cryptographically you. Wipe() sweeps the key first, then the rest.
+        Panic.Wipe();
+        // A device with no identity row lands on the setup wizard; force a reload so Routes re-decides.
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+
+    private async Task ToggleGateway()
+    {
+        _busy = true;
+        try { await Chat.SetRelayingAsync(!Proxies.IsGateway); }
+        finally { _busy = false; }
+    }
+
+    /// <summary>
+    /// Switch AetherNet (the nearby-radio mesh) on or off. On a phone with AetherNetService the service does it, for
+    /// every app on the phone: it restarts to apply it, and the card says so until the service comes back saying it
+    /// took. Elsewhere it is this app's own setting, applied at launch (see WarmUpService), and the card says that.
+    /// </summary>
+    private async Task ToggleAetherNet()
+    {
+        if (!OnService)
+        {
+            _aetherNet = !_aetherNet;
+            Store.SetFlag(SetupKeys.AetherNet, _aetherNet);
+            return;
+        }
+
+        if (_switchingTo is not null) return;
+        var to = !_link.NearbyOn;
+        _switchingTo = to;
+        _switchProblem = null;
+
+        try
+        {
+            await Node.SetNearbyAsync(to);
+
+            // AetherNetService restarts to apply it. Ask until the one that comes back says it took.
+            var until = DateTime.UtcNow + SwitchWithin;
+            while (_switchingTo is not null && DateTime.UtcNow < until)
+            {
+                try
+                {
+                    var link = await Node.GetLinkAsync();
+                    if (link.NearbyOn == to)
+                    {
+                        _link = link;
+                        break;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Still restarting — the next ask reaches the new one.
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+
+            if (_link.NearbyOn == to)
+            {
+                // This app's own record agrees with the phone's, for the steps that read it at launch.
+                _aetherNet = to;
+                Store.SetFlag(SetupKeys.AetherNet, to);
+            }
+            else
+            {
+                _switchProblem = "AetherNetService has not come back yet — look again in a moment";
+            }
+        }
+        catch (AetherNodeException ex) when (ex.Code == AetherNodeErrorCode.Internal)
+        {
+            _switchProblem = "this AetherNetService cannot switch its radios — update it, then try again";
+        }
+        catch (Exception)
+        {
+            _switchProblem = "AetherNetService did not answer — try again in a moment";
+        }
+        finally
+        {
+            _switchingTo = null;
+        }
+    }
+
+    /// <summary>
+    /// Switch one of AetherNetService's radios on or off, for every app on the device. The service restarts to apply
+    /// it, and the line says so until the service comes back saying it took.
+    /// </summary>
+    private async Task ToggleRadio(AetherNetNodeService.RadioStatus radio)
+    {
+        if (_radioSwitching is not null) return;
+        var to = !radio.On;
+        _radioSwitching = (radio.Name, to);
+        _radioProblem = null;
+
+        try
+        {
+            await Node.SetRadioAsync(radio.Name, to);
+
+            // AetherNetService restarts to apply it. Ask until the one that comes back says it took.
+            var until = DateTime.UtcNow + SwitchWithin;
+            while (_radioSwitching is not null && DateTime.UtcNow < until)
+            {
+                try
+                {
+                    var link = await Node.GetLinkAsync();
+                    if (link.Radios.Any(r => r.Name == radio.Name && r.On == to))
+                    {
+                        _link = link;
+                        break;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Still restarting — the next ask reaches the new one.
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+
+            if (!_link.Radios.Any(r => r.Name == radio.Name && r.On == to))
+                _radioProblem = "AetherNetService has not come back yet — look again in a moment";
+        }
+        catch (Exception ex) when (ex is NotSupportedException
+            || ex is AetherNodeException { Code: AetherNodeErrorCode.Internal })
+        {
+            _radioProblem = "this AetherNetService cannot switch one radio at a time — update it, then try again";
+        }
+        catch (Exception)
+        {
+            _radioProblem = "AetherNetService did not answer — try again in a moment";
+        }
+        finally
+        {
+            _radioSwitching = null;
+        }
+    }
+
+    private async Task ShareWith(string tag)
+    {
+        _busy = true;
+        try
+        {
+            _shareNote = await Chat.ShareAppAsync(tag)
+                ? $"sending Aether to {tag}"
+                : "could not start the share";
+        }
+        finally { _busy = false; }
+    }
+
+    /// <summary>What the person chose, read back from the store rather than assumed.</summary>
+    private string _theme = "system";
+
+    private async Task SetTheme(string theme)
+    {
+        _theme = theme;
+        Store.SetSetting(SetupKeys.Theme, theme);
+
+        // The shell as well as the page. See IAppTheme — data-theme reaches the document and nothing
+        // behind it, and what is behind it is what somebody sees for the first second of every launch.
+        Shell.Apply(theme);
+
+        try { await JS.InvokeVoidAsync("aetherTheme", theme); } catch { }
+    }
+}
+
+<style>
+    .you { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+
+    .group { display: flex; flex-direction: column; gap: 10px; }
+    .glabel { font-size: 0.68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
+
+    .seg { display: flex; gap: 6px; background: var(--surface-2); color: var(--on-surface-2); --ink: var(--on-surface-2); --ink-2: var(--on-surface-2); --ink-3: var(--on-surface-2); --brand: var(--on-surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 5px; }
+    .seg-btn { flex: 1 1 0; appearance: none; border: none; background: transparent; color: var(--ink-2); font-weight: 650; font-size: 0.92rem; padding: 10px 0; border-radius: 8px; cursor: pointer; }
+    .seg-btn.on { background: var(--pick-bg); color: var(--pick-ink); border-radius: 8px; font-weight: 750; }
+
+    .about { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); color: var(--on-surface); --ink: var(--on-surface); --ink-2: var(--on-surface); --ink-3: var(--on-surface); --brand: var(--on-surface); --line: rgba(255,255,255,.35); border: 1px solid var(--line); border-radius: 14px; padding: 15px 17px; box-shadow: var(--shadow-sm); }
+    .about-body { display: flex; flex-direction: column; gap: 2px; }
+    .about-t { font-weight: 700; color: var(--ink); font-size: 0.98rem; }
+    .about-s { font-size: 0.82rem; color: var(--ink-2); }
+    .chev { color: var(--ink-3); font-size: 1.2rem; font-weight: 700; }
+</style>

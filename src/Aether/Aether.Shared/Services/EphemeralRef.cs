@@ -1,0 +1,10 @@
+// The app's side of AetherNetService's menu (NodeOp), made from the service's own signatures. Every member is one
+// line on the menu: the work is done in the service, and what a page reads is what the service last said.
+
+namespace Aether.Shared.Services;
+
+public record EphemeralRef(int Kind, long WindowMs)
+{
+    public const char Start = '';
+    public const char Field = '';
+}

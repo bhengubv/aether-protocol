@@ -1,0 +1,148 @@
+@page "/lab/site-identity"
+@using Aether.Shared.Services.Lab
+@implements IDisposable
+
+@* One person, a different face at every door.
+
+   If a card could read your real AetherTag, every site you opened could log that one identifier and any
+   two of them could join their logs into a single trail — the exact surveillance the mesh exists to
+   deny. So a site never sees the master tag. It sees a pseudonym derived from (this device's identity,
+   that site) and nothing else: the same at that one site every time you return, unrelated to your
+   pseudonym anywhere else, and impossible to run backwards to the master.
+
+   Below is the real SiteIdentityDerivation over a real NodeIdentity (its key minted into an in-memory
+   store for the lab). Derive the per-site handle for a few card origins from one master tag, revisit
+   to prove it is stable, and see that no two sites share anything to collude over. *@
+
+<div class="site">
+    <header class="site-head">
+        <a class="site-back" href="lab">← Lab</a>
+        <h1>Per-site identity</h1>
+        <p>One master identity becomes a different, unlinkable pseudonym at every card origin — stable
+           where you return, unrelated across sites, and never revealing the master.</p>
+    </header>
+
+    <section class="site-master card">
+        <div class="site-master-label">Your master identity — held on the device, shown to no site</div>
+        <div class="site-master-tag">@_masterTag</div>
+        <div class="site-master-note">Every handle below is derived from this. None of them can be run back to it.</div>
+    </section>
+
+    <section class="site-add">
+        <input class="site-input" @bind="_newSite" @bind:event="oninput" placeholder="a card author's AetherTag, e.g. KXJB7-MN2P4" />
+        <button class="btn" @onclick="AddTyped" disabled="@(!CanAddTyped)">Visit site</button>
+        <button class="btn ghost" @onclick="AddRandom">Random site</button>
+    </section>
+    @if (_addNote is not null)
+    {
+        <div class="site-note">@_addNote</div>
+    }
+
+    <section class="site-list">
+        @foreach (var s in _sites)
+        {
+            <div class="site-row">
+                <div class="site-row-l">
+                    <span class="site-row-name">@s.Name</span>
+                    <span class="site-row-tag">site @s.SiteTag</span>
+                </div>
+                <div class="site-row-arrow">sees you as</div>
+                <div class="site-row-r">
+                    <span class="site-row-pseud">@s.Pseudonym</span>
+                    <span class="site-row-sec">
+                        @if (s.Recognised)
+                        {
+                            <span class="ok">✓ same handle on return</span>
+                        }
+                        else
+                        {
+                            <span>site secret · 32 bytes · stays on device</span>
+                        }
+                    </span>
+                </div>
+            </div>
+        }
+        @if (_sites.Count == 0)
+        {
+            <div class="site-empty">No sites visited yet. Add one above.</div>
+        }
+    </section>
+
+    <section class="site-actions">
+        <button class="btn ghost" @onclick="RevisitAll" disabled="@(_sites.Count == 0)">Revisit every site</button>
+    </section>
+
+    <p class="site-foot">Each pseudonym is a tag-shaped hash of a purpose-bound key the node derives for
+        that one site — deterministic per site, so a returning reader is recognised, yet computationally
+        unrelated to the master and to every other site's handle. Two sites comparing their logs find no
+        shared identifier to join on.</p>
+</div>
+
+<style>
+    .site { padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+    .site-back { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; text-decoration: none; }
+    .site-head h1 { margin: 8px 0 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; color: var(--ink); }
+    .site-head p { margin: 6px 0 0; font-size: 14px; font-weight: 500; line-height: 1.5; color: var(--ink); opacity: .72; }
+
+    .site-master { padding: 15px 18px; display: flex; flex-direction: column; gap: 5px; }
+    .site-master-label { font-size: 12px; font-weight: 700; color: var(--ink); opacity: .85; }
+    .site-master-tag { font-family: var(--mono); font-size: clamp(20px, 6vw, 28px); font-weight: 800; letter-spacing: 2px; color: var(--ink); word-break: break-all; }
+    .site-master-note { font-size: 12.5px; font-weight: 500; color: var(--ink); opacity: .82; }
+
+    .site-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .site-input { flex: 1 1 240px; min-width: 0; font: inherit; font-size: 14px; font-family: var(--mono);
+        color: var(--ink); background: transparent; border: 1.5px solid var(--line); border-radius: 12px; padding: 11px 13px; }
+    .site-input::placeholder { color: var(--ink); opacity: .4; }
+    .site-note { font-size: 12.5px; font-weight: 600; color: var(--ink); opacity: .8; }
+
+    .site-list { display: flex; flex-direction: column; gap: 8px; }
+    .site-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px;
+        border: 1.5px solid var(--line-card); border-radius: 14px; padding: 12px 14px; }
+    .site-row-l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .site-row-name { font-size: 14px; font-weight: 800; color: var(--ink); word-break: break-word; }
+    .site-row-tag { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--ink); opacity: .55; word-break: break-all; }
+    .site-row-arrow { font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--ink); opacity: .45; text-align: center; }
+    .site-row-r { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: right; }
+    .site-row-pseud { font-family: var(--mono); font-size: 15px; font-weight: 800; letter-spacing: 1px; color: var(--brand); word-break: break-all; }
+    .site-row-sec { font-size: 11px; font-weight: 600; color: var(--ink); opacity: .6; }
+    .site-row-sec .ok { color: var(--brand); opacity: 1; }
+    .site-empty { color: var(--ink); opacity: .5; font-style: italic; font-size: 13px; padding: 6px 2px; }
+
+    .site-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .site-foot { margin: 2px 0 0; font-size: 12.5px; font-weight: 500; line-height: 1.5; color: var(--ink); opacity: .7; }
+
+    @@media (max-width: 460px) {
+        .site-row { grid-template-columns: 1fr; }
+        .site-row-r { text-align: left; }
+        .site-row-arrow { text-align: left; }
+    }
+</style>
+
+@code {
+    // The lab runs in AetherNetService; this page shows it and passes on what the person does.
+    private SiteIdentityLabService _lab = null!;
+
+    private string _masterTag => _lab.MasterTag;
+    private IReadOnlyList<SiteIdentityLabService.SiteView> _sites => _lab.Sites;
+    private string _newSite { get => _lab.NewSite; set => _lab.NewSite = value; }
+    private string? _addNote => _lab.AddNote;
+    private bool CanAddTyped => _lab.CanAddTyped;
+
+    protected override void OnInitialized()
+    {
+        _lab = new SiteIdentityLabService();
+        _lab.Changed += OnChanged;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private Task AddTyped() => _lab.AddTyped();
+    private Task AddRandom() => _lab.AddRandom();
+    private Task RevisitAll() => _lab.RevisitAll();
+
+    public void Dispose()
+    {
+        _lab.Changed -= OnChanged;
+        _lab.Dispose();
+    }
+}
