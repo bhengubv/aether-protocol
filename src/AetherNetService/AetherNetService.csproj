@@ -36,6 +36,13 @@
     <RuntimeIdentifiers>android-arm64;android-arm</RuntimeIdentifiers>
   </PropertyGroup>
 
+  <!-- One architecture per APK, as Aether does it: -p:AetherAbi=android-arm64 or android-arm. Not RuntimeIdentifier on
+       the command line: built that way, the APK's Java side expected native entry points the build never generated
+       (3 exported instead of 672, MainApplication's missing), and the service died on start with UnsatisfiedLinkError. -->
+  <PropertyGroup Condition="'$(AetherAbi)' != '' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <RuntimeIdentifiers>$(AetherAbi)</RuntimeIdentifiers>
+  </PropertyGroup>
+
   <!-- And 32-bit Windows beside 64-bit: the restore carries both, and a publish picks one with -p:RuntimeIdentifier.
        A plain build stays 64-bit. -->
   <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
