@@ -83,6 +83,13 @@
     <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
   </PropertyGroup>
 
+  <!-- One architecture per APK: -p:AetherAbi=android-arm64 builds the 64-bit APK, android-arm the 32-bit one. It is
+       set here, in Aether's own list, because RuntimeIdentifier(s) given on the command line also reach Aether.Shared,
+       which is built for no runtime, and break it (NETSDK1047, then MSB3030). -->
+  <PropertyGroup Condition="'$(AetherAbi)' != '' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <RuntimeIdentifiers>$(AetherAbi)</RuntimeIdentifiers>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(Configuration)' == 'Release' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <RunAOTCompilation>true</RunAOTCompilation>
