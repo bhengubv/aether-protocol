@@ -252,10 +252,11 @@ killed for memory, crashed, or updated — connects again by itself:
   `com.bhengubv.aethernet.service.BIND`), declared only by AetherNetService; a
   consumer declares none. Calls are Binder transactions carrying `NodeWire`
   payloads (`AetherNetNodeService.Ipc`), not AIDL.
-  - It is built for 64-bit and 32-bit ARM (`arm64-v8a`, `armeabi-v7a`) since 1.5:
-    Wear OS watches and the cheapest phones run a 32-bit Android and refuse an APK
-    with 64-bit code only. Android 7.0 or later (`minSdkVersion` 24). NSec's
-    libsodium is our own build for each, in `src/Aether/Aether/Platforms/Android/native/`.
+  - Since 1.5 it comes as a 64-bit (`arm64-v8a`) and a 32-bit (`armeabi-v7a`) APK,
+    as Aether does: Wear OS watches and the cheapest phones run a 32-bit Android
+    and refuse an APK with 64-bit code only. Android 7.0 or later
+    (`minSdkVersion` 24). NSec's libsodium is our own build for each, in
+    `src/Aether/Aether/Platforms/Android/native/`.
   - A consumer targeting Android 11+ must declare the service in its manifest's
     `<queries>` (`<package android:name="com.bhengubv.aethernetservice"/>` and the
     `BIND` action), or Android hides it: the bind is refused as "BLOCKED" and the

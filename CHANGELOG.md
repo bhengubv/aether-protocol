@@ -73,11 +73,12 @@ add only the menu's new lines, and no number on the menu moves.
 - **Its main screen has one Android name for good,** `com.bhengubv.aethernet.MainActivity`. 1.2's and 1.3's was
   generated from the old namespace (`crc64834c013ef060f0cf.MainActivity`), so this update changes it once; a launcher
   that keeps shortcuts by name may need Aether's shortcut adding again.
-- **AetherNetService 1.5 (6), added on 2026-10-22: 32-bit as well as 64-bit.** Wear OS watches and the cheapest
+- **1.5 (6), added on 2026-10-22: every app in a 64-bit and a 32-bit build.** Wear OS watches and the cheapest
   phones run a 32-bit Android and refuse an APK with 64-bit code only, and every AetherNetService before it, 1.1 to
-  1.4, carried `arm64-v8a` alone. 1.5 adds `armeabi-v7a`, with our own 32-bit build of libsodium beside the 64-bit
-  one, and there is a 32-bit Windows setup, `AetherNetService-Setup-1.5-x86.exe`. Nothing else changed; the 64-bit
-  Windows setup stays 1.4.
+  1.4, carried `arm64-v8a` alone. 1.5 is six files, one architecture each: Aether and AetherNetService as `-64bit`
+  (`arm64-v8a`) and `-32bit` (`armeabi-v7a`) APKs, and AetherNetService's Windows setup as `-64bit` (x64) and
+  `-32bit` (x86). AetherNetService's 32-bit APK carries our own 32-bit build of libsodium, beside the 64-bit one.
+  Nothing else changed from 1.4.
 
 ---
 
