@@ -719,7 +719,7 @@ second in each direction**. A radio either clears that both ways or it cannot
 carry a call. There is no partial credit — 45/sec is a call that breaks up.
 
 Measured 2026-08-20, Redmi Note 9 (merlin, MT6768, Android 12) ↔ Huawei P30 lite
-(Kirin 710, Android 10), during live calls in `samples/AetherNet.Sample`:
+(Kirin 710, Android 10), during live calls in `src/Aether`:
 
 | Radio | Measured | Against the 50/s bar | Role |
 |---|---|---|---|

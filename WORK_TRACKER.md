@@ -144,7 +144,7 @@ Map correction: every H **primitive** already exists and most are fixture-proven
 ## Verification (every code item)
 
 ```bash
-dotnet build samples/AetherNet.Sample/AetherNet.Sample/AetherNet.Sample.csproj -c Debug -f net10.0-android -m:1 -p:EmbedAssembliesIntoApk=true
+dotnet build src/Aether/Aether/Aether.csproj -c Debug -f net10.0-android -m:1 -p:EmbedAssembliesIntoApk=true
 ```
 
 Tests beside the existing suites (`WantedTests`, `CardTextTests`, `fixtures/*`). Verify on the P30

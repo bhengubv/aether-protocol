@@ -9,7 +9,7 @@ from Fieldwatch's tests; 30 are ours, for ported code Fieldwatch has no test for
 and not from Fieldwatch at all (its product half — the key, the message, both advert containers, the triggers, the
 session and the guardians' side). Quiet help's service and app halves are tested in their own projects
 (`AetherNetNodeService.Help.Tests`, `AetherNetNodeService.Ipc.Tests`, `AetherNetNodeService.Host.Tests`,
-`AetherNet.Sample.Tests`). Deliberate breaks — the "moving with you" distance allowance, the AirTag-on-an-iPhone rule,
+`Aether.Tests`). Deliberate breaks — the "moving with you" distance allowance, the AirTag-on-an-iPhone rule,
 Quiet help's check on altered messages and its ignoring of older ones — each turned tests red before being undone.
 
 ## Code
