@@ -133,6 +133,12 @@ public static class MauiProgram
         builder.Services.AddSingleton<ITapShare, NoTapShare>();
 #endif
 
+        // The phone's own switches a radio can be waiting on — Bluetooth, Location, NFC, the networks. AetherNetService
+        // says which; it has no screen to take anybody there, so the welcome does.
+#if ANDROID
+        builder.Services.AddSingleton<IPhoneSettings, Aether.Platforms.Android.AndroidPhoneSettings>();
+#endif
+
         // Recording a note. The microphone and camera are physical, so this is real only on the phone; elsewhere it
         // says no rather than recording nothing. A call holds the microphone, so the recorder asks the call screen.
 #if ANDROID

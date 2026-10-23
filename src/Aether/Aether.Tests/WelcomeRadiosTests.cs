@@ -3,6 +3,7 @@
 extern alias service;
 
 using Aether.Shared.Pages;
+using Aether.Shared.Services;
 using Aether.Tests.Fakes;
 using AetherNetNodeService.Client;
 using Bunit;
@@ -26,6 +27,12 @@ namespace Aether.Tests;
 /// the person is. Asked of AetherNetService instead, the request found no page to open there, and Allow did nothing at
 /// all (Aether 1.4 and 1.5; seen on a P30, 2026-10-23).
 /// </para>
+///
+/// <para>
+/// A radio switched off at the phone offers Switch on, the way to the phone's own page for that switch — Bluetooth,
+/// Location, NFC, the networks — and it did nothing for the same reason. Unless no switch on this phone would help: the
+/// internet waiting on somebody in the Circle to relay offers nothing, and says it is waiting.
+/// </para>
 /// </summary>
 [Collection(ServiceInProcessCollection.Name)]
 public sealed class WelcomeRadiosTests : IDisposable
@@ -36,6 +43,7 @@ public sealed class WelcomeRadiosTests : IDisposable
     private readonly AetherStore _store = AetherStore.InMemory();
     private readonly FakeNode _node = new();
     private readonly FakeServiceSettings _settings = new();
+    private readonly FakePhoneSettings _phone = new();
 
     public WelcomeRadiosTests()
     {
@@ -64,6 +72,13 @@ public sealed class WelcomeRadiosTests : IDisposable
     /// <summary>The same radios once the permission is allowed.</summary>
     private static NodeLinkStatus Allowed() =>
         new(true, "BLE", [new RadioStatus("Wi-Fi Direct", true, false, 0), new RadioStatus("BLE", true, true, 1_000_000)]);
+
+    /// <summary>A radio held back by a switch at the phone, in AetherNetService's words.</summary>
+    private static RadioStatus Off(string name, string why) => new(name, false, false, 0) { Reason = why, Fixable = true };
+
+    /// <summary>The radio's button, once nothing the last press started is still running.</summary>
+    private static void Settled(IRenderedComponent<Welcome> cut, string radio) =>
+        cut.WaitForAssertion(() => Assert.False(Card(cut, radio).QuerySelector("button.r-btn")?.HasAttribute("disabled") ?? false));
 
     /// <summary>The welcome, walked to its radios: past the hello, the AetherTag and the AetherNet switch.</summary>
     private IRenderedComponent<Welcome> AtTheRadios()
@@ -129,6 +144,98 @@ public sealed class WelcomeRadiosTests : IDisposable
         Card(cut, "Wi-Fi Direct").QuerySelector("button.r-btn")!.Click();
 
         cut.WaitForAssertion(() => Assert.Contains("find AetherNetService under Settings, then Apps", cut.Markup));
+    }
+
+    [Fact]
+    public void Switch_on_opens_the_phone_page_for_the_switch_the_radio_waits_on()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _ctx.Services.AddSingleton<IPhoneSettings>(_phone);
+        _node.Link = new(false, null,
+        [
+            Off("BLE", "Bluetooth is switched off"),
+            Off("Wi-Fi Direct", "Android needs Location switched on to find phones over Wi-Fi"),
+            Off("NFC", "NFC is switched off"),
+            Off("Internet", "no internet on this phone"),
+        ]);
+        var cut = AtTheRadios();
+
+        foreach (var radio in new[] { "BLE", "Wi-Fi Direct", "NFC", "Internet" })
+        {
+            var button = Card(cut, radio).QuerySelector("button.r-btn")!;
+            Assert.Equal("Switch on", button.TextContent);
+            button.Click();
+            Settled(cut, radio);
+        }
+
+        Assert.Equal([PhoneSetting.Bluetooth, PhoneSetting.Location, PhoneSetting.Nfc, PhoneSetting.Internet], _phone.Opened);
+        Assert.Empty(_settings.Pages);   // none of them is AetherNetService's page
+    }
+
+    [Fact]
+    public void The_internet_waiting_on_a_relay_offers_nothing_to_switch_on()
+    {
+        _ctx.Services.AddSingleton<IPhoneSettings>(_phone);
+        _node.Link = new(false, null, [Off("Internet", "nobody in your Circle is offering to relay yet")]);
+        var cut = AtTheRadios();
+
+        var internet = Card(cut, "Internet");
+        Assert.Null(internet.QuerySelector("button.r-btn"));
+        Assert.Equal("waiting", internet.QuerySelector(".r-pill")!.TextContent);
+    }
+
+    /// <summary>
+    /// AetherNetService hears nothing when Bluetooth is switched on at the phone, so coming back to the app is what has
+    /// the radios asked again.
+    /// </summary>
+    [Fact]
+    public void Back_in_the_app_the_radios_are_asked_again()
+    {
+        _ctx.Services.AddSingleton<IPhoneSettings>(_phone);
+        _node.Link = new(false, null, [Off("BLE", "Bluetooth is switched off")]);
+        var cut = AtTheRadios();
+        Card(cut, "BLE").QuerySelector("button.r-btn")!.Click();
+        Settled(cut, "BLE");
+
+        _node.Link = new(true, "BLE", [new RadioStatus("BLE", true, true, 1_000_000)]);   // switched on; nothing pushed
+        Assert.Equal("switched off", Card(cut, "BLE").QuerySelector(".r-pill")!.TextContent);
+
+        _phone.ComeBack();
+
+        cut.WaitForAssertion(() => Assert.Equal("ready", Card(cut, "BLE").QuerySelector(".r-pill")!.TextContent));
+    }
+
+    [Fact]
+    public void When_the_phone_will_not_open_a_switch_the_person_is_told_where_it_is()
+    {
+        _phone.Opens = false;
+        _ctx.Services.AddSingleton<IPhoneSettings>(_phone);
+        _node.Link = new(false, null, [Off("NFC", "NFC is switched off")]);
+        var cut = AtTheRadios();
+
+        Card(cut, "NFC").QuerySelector("button.r-btn")!.Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("switch it on from the phone", cut.Markup));
+    }
+
+    /// <summary>The phone's own switches, recording which page was asked for.</summary>
+    private sealed class FakePhoneSettings : IPhoneSettings
+    {
+        /// <summary>Which pages were asked for, in order.</summary>
+        public List<PhoneSetting> Opened { get; } = [];
+
+        public bool Opens { get; set; } = true;
+
+        public event Action? Back;
+
+        public bool Open(PhoneSetting setting)
+        {
+            Opened.Add(setting);
+            return Opens;
+        }
+
+        /// <summary>The person returns to the app.</summary>
+        public void ComeBack() => Back?.Invoke();
     }
 
     /// <summary>AetherNetService's settings page, counting how often it was opened.</summary>
