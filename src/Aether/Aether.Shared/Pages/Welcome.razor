@@ -212,12 +212,19 @@
         StateHasChanged();
         try
         {
-            // A radio's permission is allowed on AetherNetService's own page in the phone's settings, and a switched-off
-            // radio is switched on on the phone's own page for it. AetherNetService has no screen to take anybody to
-            // either, and one app cannot grant another's permission, so both are opened here, where the person is.
-            // Asked of the service instead, the request found no page to open and the button did nothing (1.4, 1.5).
-            if (radio.State == RadioState.NeedsPermission
-                && Services.GetService<AetherNetNodeService.Client.IAetherNetServiceSettings>() is { } serviceSettings)
+            // Both buttons have AetherNetService put up the phone's own prompt over this page — its "Allow?", or its
+            // switch for Bluetooth, NFC or the networks — because the radios and what they need are the service's, and
+            // the phone asks only for the app whose screen asks. The person stays here; back from the prompt, the radios
+            // are asked again. Asked of the service through the menu, the button did nothing (1.4, 1.5); opening the
+            // service's page in the phone's settings left the person to find the switch there (1.6 as first built).
+            var serviceSettings = Services.GetService<AetherNetNodeService.Client.IAetherNetServiceSettings>();
+            if ((radio.State is RadioState.NeedsPermission or RadioState.NeedsSystemToggle)
+                && serviceSettings?.Ask(radio.Name) == true)
+            {
+                _couldNotOpen = null;
+            }
+            // An AetherNetService that cannot ask (1.5 and older): the page where it is done, opened from here.
+            else if (radio.State == RadioState.NeedsPermission && serviceSettings is not null)
             {
                 _couldNotOpen = serviceSettings.Open(AetherNetNodeService.PermissionPage.AppInfo) ? null : NoServicePage;
             }
@@ -235,8 +242,9 @@
     }
 
     /// <summary>
-    /// The phone's switch a radio is waiting on, read from what AetherNetService says is wrong — or null for the
-    /// internet waiting on somebody in the Circle to relay, which no switch on this phone changes.
+    /// The phone's switch a radio is waiting on, read from what AetherNetService says is wrong — for an AetherNetService
+    /// that cannot put up the phone's prompt itself — or null for the internet waiting on somebody in the Circle to
+    /// relay, which no switch on this phone changes.
     /// </summary>
     private static PhoneSetting? SwitchFor(RadioStatus radio)
     {
@@ -263,14 +271,14 @@
 
     private static string Label(RadioStatus radio) => WaitsOnOthers(radio) ? "waiting" : Label(radio.State);
 
-    // The phone tells no app when one of AetherNetService's permissions is allowed on its own page; the service looks
-    // again every few seconds and pushes its link when that changes. So back from that page, the radios show what was
-    // allowed with nothing pressed.
+    // The phone tells no app when one of AetherNetService's permissions is allowed, at its prompt or on its page; the
+    // service looks again every few seconds and pushes its link when that changes. So the radios show what was allowed
+    // with nothing pressed.
     void AetherNetNodeService.IAetherNodeEvents.OnLinkChanged(AetherNetNodeService.NodeLinkStatus status) =>
         _ = InvokeAsync(RecheckRadios);
 
     // Nor does the service hear when Bluetooth, Location, NFC or the networks are switched, so the radios are asked
-    // again whenever the person comes back to the app — from the phone's page for that switch, or from anywhere.
+    // again whenever the person comes back to the app — from the phone's prompt or page for that switch, or from anywhere.
     private void OnBack() => _ = InvokeAsync(RecheckRadios);
 
     void AetherNetNodeService.IAetherNodeEvents.OnInbound(AetherNetNodeService.InboundMessage message) { }

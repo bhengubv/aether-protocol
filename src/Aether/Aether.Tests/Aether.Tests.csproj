@@ -51,6 +51,14 @@
   </ItemGroup>
 
   <!--
+    And what AetherNetService's AskActivity asks the phone for when a radio's button is tapped: the service app's own
+    code, with no phone in it, compiled in here because the service app has no test project of its own.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\AetherNetService\Node\RadioAsk.cs" Link="Service\RadioAsk.cs" />
+  </ItemGroup>
+
+  <!--
     The app keeps copies of the package's data types in the package's own namespaces (its cache layer), so the service's
     assemblies come in under the alias "service": without it the same name would mean two types here.
   -->

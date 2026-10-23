@@ -6,23 +6,58 @@ using AetherNetNodeService.Client;
 namespace AetherNetNodeService.Android;
 
 /// <summary>
-/// The Android <see cref="IAetherNetServiceSettings"/>: opens Android's own "App info" page for AetherNetService,
-/// where Permissions is one tap away. It is the phone's screen, not one of ours — AetherNetService still has no UI,
-/// and nothing is granted without the person tapping Allow there.
+/// The Android <see cref="IAetherNetServiceSettings"/>: the phone's own prompts for AetherNetService's radios, put up
+/// over this app by AetherNetService's see-through AskActivity, and Android's own "App info" page for AetherNetService,
+/// where Permissions is one tap away. Both are the phone's screens, not ours, and nothing is granted without the person
+/// tapping Allow on them.
 /// </summary>
 public sealed class AndroidAetherNetServiceSettings : IAetherNetServiceSettings
 {
+    /// <summary>AetherNetService's see-through screen that puts up the phone's prompts, and what it is told.</summary>
+    private const string AskActivity = "com.bhengubv.aethernetservice.AskActivity";
+    private const string RadioExtra = "radio";
+    private const int AskRequest = 0x4153;
+
     private readonly Context _context;
     private readonly string _servicePackage;
+    private readonly Func<global::Android.App.Activity?>? _screen;
 
     /// <param name="context">An application context.</param>
     /// <param name="servicePackage">AetherNetService's package name.</param>
-    public AndroidAetherNetServiceSettings(Context context, string servicePackage)
+    /// <param name="screen">The screen the person is on, which the phone's prompts come up over.</param>
+    public AndroidAetherNetServiceSettings(Context context, string servicePackage, Func<global::Android.App.Activity?>? screen = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _servicePackage = string.IsNullOrWhiteSpace(servicePackage)
             ? throw new ArgumentException("AetherNetService's package name is needed.", nameof(servicePackage))
             : servicePackage;
+        _screen = screen;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Started for a result from the screen the person is on, so the prompt comes up over it, they never leave it, and
+    /// the phone tells AetherNetService which app asked — it answers only one signed like itself. An AetherNetService
+    /// from before 1.6 has no such screen: then this is false and the caller opens App info.
+    /// </remarks>
+    public bool Ask(string radio)
+    {
+        if (_screen?.Invoke() is not { } screen) return false;
+        try
+        {
+            var intent = new Intent().SetComponent(new ComponentName(_servicePackage, AskActivity));
+            intent.PutExtra(RadioExtra, radio);
+            screen.StartActivityForResult(intent, AskRequest);
+            return true;
+        }
+        catch (ActivityNotFoundException)
+        {
+            return false;   // an AetherNetService from before it could ask
+        }
+        catch (Java.Lang.SecurityException)
+        {
+            return false;
+        }
     }
 
     /// <inheritdoc />

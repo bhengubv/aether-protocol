@@ -62,11 +62,12 @@ public static class MauiProgram
         // service for the 24 words and shows them. Restore is not available from here yet.
         builder.Services.AddSingleton<AetherNetNodeService.Client.IOwnerCheck>(_ =>
             new AetherNetNodeService.Android.AndroidOwnerCheck(() => Microsoft.Maui.ApplicationModel.Platform.CurrentActivity));
-        // AetherNetService has no screen to ask for the radios' permission from, so this app offers the way to its
-        // page in the phone's settings; the person allows it there, once.
+        // The radios' permissions and switches are AetherNetService's, so it puts up the phone's own prompt for them,
+        // over whatever screen of this app the person is on; its page in the phone's settings is the way to the rest.
         builder.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(_ =>
             new AetherNetNodeService.Android.AndroidAetherNetServiceSettings(
-                global::Android.App.Application.Context, AetherNetServicePackage));
+                global::Android.App.Application.Context, AetherNetServicePackage,
+                () => Microsoft.Maui.ApplicationModel.Platform.CurrentActivity));
         // And when the phone does not have AetherNetService at all — Touch My Blood hands over Aether alone — Aether asks
         // for it before anything else: from SleptOn, checked to be AetherNetService signed like Aether, and given to the
         // phone's own installer for the person to confirm.
@@ -133,8 +134,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<ITapShare, NoTapShare>();
 #endif
 
-        // The phone's own switches a radio can be waiting on — Bluetooth, Location, NFC, the networks. AetherNetService
-        // says which; it has no screen to take anybody there, so the welcome does.
+        // The phone's own pages for the switches a radio can be waiting on — Bluetooth, Location, NFC, the networks — for
+        // an AetherNetService that cannot put up the phone's prompt itself; and word when the person is back in the app.
 #if ANDROID
         builder.Services.AddSingleton<IPhoneSettings, Aether.Platforms.Android.AndroidPhoneSettings>();
 #endif

@@ -22,16 +22,17 @@ namespace Aether.Tests;
 /// The welcome's radios, on a phone where they are AetherNetService's.
 ///
 /// <para>
-/// A radio held back by a permission offers Allow. AetherNetService has no screen to ask from, and the phone keeps a
-/// permission per app, so Allow is the way to the service's own page in the phone's settings — opened by the app, where
-/// the person is. Asked of AetherNetService instead, the request found no page to open there, and Allow did nothing at
-/// all (Aether 1.4 and 1.5; seen on a P30, 2026-10-23).
+/// A radio held back by a permission offers Allow, and a radio switched off at the phone offers Switch on. Either one has
+/// AetherNetService put up the phone's own prompt over the welcome — its "Allow?", its switch — and nothing more: the
+/// phone keeps a permission per app and asks only for the app whose screen asks, so the prompt is the service's. Asked of
+/// AetherNetService through the menu, both buttons did nothing at all (Aether 1.4 and 1.5; seen on a P30, 2026-10-23);
+/// then Allow opened the service's App info and left the person to find the switch there (1.6 as first built).
 /// </para>
 ///
 /// <para>
-/// A radio switched off at the phone offers Switch on, the way to the phone's own page for that switch — Bluetooth,
-/// Location, NFC, the networks — and it did nothing for the same reason. Unless no switch on this phone would help: the
-/// internet waiting on somebody in the Circle to relay offers nothing, and says it is waiting.
+/// An AetherNetService from before it could ask (1.5 and older) still gets a way there: its page in the phone's settings
+/// for a permission, the phone's own page for a switch. And where no switch on this phone would help — the internet
+/// waiting on somebody in the Circle to relay — nothing is offered, and the radio says it is waiting.
 /// </para>
 /// </summary>
 [Collection(ServiceInProcessCollection.Name)]
@@ -97,7 +98,7 @@ public sealed class WelcomeRadiosTests : IDisposable
         cut.FindAll(".radio").Single(c => c.QuerySelector(".r-name")?.TextContent == name);
 
     [Fact]
-    public void Allow_opens_AetherNetService_page_in_the_phone_settings()
+    public void Allow_has_AetherNetService_put_up_the_phones_prompt_over_the_welcome()
     {
         _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
         _node.Link = Waiting();
@@ -106,6 +107,21 @@ public sealed class WelcomeRadiosTests : IDisposable
         var allow = Card(cut, "Wi-Fi Direct").QuerySelector("button.r-btn")!;
         Assert.Equal("Allow", allow.TextContent);
         allow.Click();
+
+        Assert.Equal(["Wi-Fi Direct"], _settings.Asked);
+        Assert.Empty(_settings.Pages);   // nothing opened in the phone's settings
+        Assert.Equal("Switch on your radios", cut.Find(".pane h1").TextContent);
+    }
+
+    [Fact]
+    public void With_an_AetherNetService_that_cannot_ask_Allow_opens_its_page_in_the_phone_settings()
+    {
+        _settings.Asks = false;
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Waiting();
+        var cut = AtTheRadios();
+
+        Card(cut, "Wi-Fi Direct").QuerySelector("button.r-btn")!.Click();
 
         Assert.Equal([PermissionPage.AppInfo], _settings.Pages);
     }
@@ -136,6 +152,7 @@ public sealed class WelcomeRadiosTests : IDisposable
     [Fact]
     public void When_the_phone_will_not_open_the_page_the_person_is_told_where_it_is()
     {
+        _settings.Asks = false;
         _settings.Opens = false;
         _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
         _node.Link = Waiting();
@@ -146,20 +163,18 @@ public sealed class WelcomeRadiosTests : IDisposable
         cut.WaitForAssertion(() => Assert.Contains("find AetherNetService under Settings, then Apps", cut.Markup));
     }
 
-    [Fact]
-    public void Switch_on_opens_the_phone_page_for_the_switch_the_radio_waits_on()
-    {
-        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
-        _ctx.Services.AddSingleton<IPhoneSettings>(_phone);
-        _node.Link = new(false, null,
-        [
-            Off("BLE", "Bluetooth is switched off"),
-            Off("Wi-Fi Direct", "Android needs Location switched on to find phones over Wi-Fi"),
-            Off("NFC", "NFC is switched off"),
-            Off("Internet", "no internet on this phone"),
-        ]);
-        var cut = AtTheRadios();
+    /// <summary>Four radios each waiting on a switch at the phone, in AetherNetService's words.</summary>
+    private static NodeLinkStatus SwitchedOff() => new(false, null,
+    [
+        Off("BLE", "Bluetooth is switched off"),
+        Off("Wi-Fi Direct", "Android needs Location switched on to find phones over Wi-Fi"),
+        Off("NFC", "NFC is switched off"),
+        Off("Internet", "no internet on this phone"),
+    ]);
 
+    /// <summary>Taps Switch on for each of <see cref="SwitchedOff"/>'s radios, one after the other.</summary>
+    private static void SwitchOnEach(IRenderedComponent<Welcome> cut)
+    {
         foreach (var radio in new[] { "BLE", "Wi-Fi Direct", "NFC", "Internet" })
         {
             var button = Card(cut, radio).QuerySelector("button.r-btn")!;
@@ -167,6 +182,33 @@ public sealed class WelcomeRadiosTests : IDisposable
             button.Click();
             Settled(cut, radio);
         }
+    }
+
+    [Fact]
+    public void Switch_on_has_AetherNetService_put_up_the_phones_switch_over_the_welcome()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _ctx.Services.AddSingleton<IPhoneSettings>(_phone);
+        _node.Link = SwitchedOff();
+        var cut = AtTheRadios();
+
+        SwitchOnEach(cut);
+
+        Assert.Equal(["BLE", "Wi-Fi Direct", "NFC", "Internet"], _settings.Asked);
+        Assert.Empty(_phone.Opened);     // no page of the phone's settings
+        Assert.Empty(_settings.Pages);   // nor AetherNetService's
+    }
+
+    [Fact]
+    public void With_an_AetherNetService_that_cannot_ask_Switch_on_opens_the_phone_page_for_the_switch()
+    {
+        _settings.Asks = false;
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _ctx.Services.AddSingleton<IPhoneSettings>(_phone);
+        _node.Link = SwitchedOff();
+        var cut = AtTheRadios();
+
+        SwitchOnEach(cut);
 
         Assert.Equal([PhoneSetting.Bluetooth, PhoneSetting.Location, PhoneSetting.Nfc, PhoneSetting.Internet], _phone.Opened);
         Assert.Empty(_settings.Pages);   // none of them is AetherNetService's page
@@ -238,14 +280,29 @@ public sealed class WelcomeRadiosTests : IDisposable
         public void ComeBack() => Back?.Invoke();
     }
 
-    /// <summary>AetherNetService's settings page, counting how often it was opened.</summary>
+    /// <summary>
+    /// AetherNetService's settings: the phone's prompts it puts up, by radio, and its page, counting how often it was
+    /// opened.
+    /// </summary>
     private sealed class FakeServiceSettings : IAetherNetServiceSettings
     {
         public int Opened { get; private set; }
 
         public bool Opens { get; set; } = true;
 
+        /// <summary>Whether this AetherNetService can put up the phone's prompt; one from 1.5 or older cannot.</summary>
+        public bool Asks { get; set; } = true;
+
+        /// <summary>The radios a prompt was put up for, in order.</summary>
+        public List<string> Asked { get; } = [];
+
         public string PermissionName => "Location";
+
+        public bool Ask(string radio)
+        {
+            Asked.Add(radio);
+            return Asks;
+        }
 
         /// <summary>Which pages were asked for, in order.</summary>
         public List<PermissionPage> Pages { get; } = [];

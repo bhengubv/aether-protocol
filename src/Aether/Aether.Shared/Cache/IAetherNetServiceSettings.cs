@@ -8,12 +8,21 @@ namespace AetherNetNodeService.Client;
 /// is a client of AetherNetService, and its Settings manage the service's settings as well as its own.
 /// </summary>
 /// <remarks>
-/// AetherNetService has no screen, so it can never put up the phone's "Allow?" prompt itself; and the phone keeps a
-/// permission per app, so an app cannot grant one to another. The app the person is using offers the way there
-/// instead, and they allow it once. <see cref="RadioStatus.NeedsPermission"/> says when that is needed.
+/// The phone keeps a permission per app, so an app cannot grant one to another, and it puts up its "Allow?" prompt only
+/// for the app whose screen asks. So for a radio, the app the person is using has AetherNetService put the prompt up
+/// over it (<see cref="Ask"/>); its page in the phone's settings is the way to everything else, and the way there when
+/// an AetherNetService cannot ask. <see cref="RadioStatus.NeedsPermission"/> says when a radio needs it.
 /// </remarks>
 public interface IAetherNetServiceSettings
 {
+    /// <summary>
+    /// Have AetherNetService put up the phone's own prompt for what <paramref name="radio"/> still needs, over the screen
+    /// the person is on: the phone's "Allow?" for a permission, or its own switch for Bluetooth, NFC, Wi-Fi or the
+    /// internet. False when it cannot — an AetherNetService from before it could (1.5 and older), or a device with no
+    /// such prompt — and the caller opens a page instead.
+    /// </summary>
+    bool Ask(string radio) => false;
+
     /// <summary>
     /// What the permission is called on this phone's settings page — "Nearby devices", or "Location" on older
     /// phones — so the words the person is told to look for are the words they will see.

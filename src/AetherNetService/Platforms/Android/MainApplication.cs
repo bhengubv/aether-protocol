@@ -6,8 +6,9 @@ namespace AetherNetService;
 
 /// <summary>
 /// The Android head. MAUI builds the app (<see cref="MauiProgram"/>); once it has, the node is published to the apps
-/// that bind and the radios come up (<see cref="AndroidNode"/>). There is no activity and no page, so there is nothing
-/// for the phone to open.
+/// that bind and the radios come up (<see cref="AndroidNode"/>). There is no page and nothing in the launcher: the one
+/// activity, <see cref="AskActivity"/>, is see-through and only puts up the phone's own prompts for the radios, over
+/// the app that asked.
 /// </summary>
 // Aether's logo, generated from Aether's own drawings (MauiIcon in the project file). Set here, not in the manifest:
 // this attribute wins over the manifest's <application> element.

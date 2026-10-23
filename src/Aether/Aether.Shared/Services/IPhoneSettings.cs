@@ -7,9 +7,10 @@ namespace Aether.Shared.Services;
 /// them, and word when the person is back in the app.
 /// </summary>
 /// <remarks>
-/// AetherNetService says what each of its radios is waiting on, but it has no screen to take anybody anywhere: the app
-/// the person is using does that. And the phone tells no app when one of these is switched, so coming back is said
-/// too — what the radios need is asked again then.
+/// AetherNetService puts up the phone's own prompt for a switch over the app (IAetherNetServiceSettings.Ask); one from
+/// before it could (1.5 and older) only says what each radio is waiting on, and then the app the person is using opens
+/// the phone's page. And the phone tells no app when one of these is switched, so coming back is said too — what the
+/// radios need is asked again then.
 /// </remarks>
 public interface IPhoneSettings
 {
