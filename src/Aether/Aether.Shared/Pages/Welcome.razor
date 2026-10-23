@@ -10,6 +10,8 @@
 @inject AetherStore Store
 @inject NavigationManager Nav
 @inject IServiceProvider Services
+@implements IDisposable
+@implements AetherNetNodeService.IAetherNodeEvents
 
 <PageTitle>Aether — set up</PageTitle>
 
@@ -68,11 +70,16 @@
                             <div class="r-detail">@r.Detail</div>
                             @if (r.ActionLabel is { } action)
                             {
-                                <button class="r-btn" disabled="@_busy" @onclick="() => Fix(r.Name)">@action</button>
+                                <button class="r-btn" disabled="@_busy" @onclick="() => Fix(r)">@action</button>
                             }
                         </div>
                     }
                 </div>
+
+                @if (_settingsFailed)
+                {
+                    <p class="warn">This phone would not open its settings — find AetherNetService under Settings, then Apps, and allow it there.</p>
+                }
 
                 @if (_blocking)
                 {
@@ -142,6 +149,10 @@
     private string _theirTag = "";
     private string? _addError;
     private string? _added;
+    private IDisposable? _nodeSub;
+
+    /// <summary>The phone would not open AetherNetService's page when Allow asked for it.</summary>
+    private bool _settingsFailed;
 
     private bool _blocking => _step == Step.Radios && _radios.Any(r => r.IsBlocking);
 
@@ -156,6 +167,7 @@
     {
         _gateway = Store.GetFlag(SetupKeys.GatewayEnabled);
         _aetherNet = Store.GetSetting(SetupKeys.AetherNet) != "0";   // default on
+        _nodeSub = Services.GetService<AetherNetNodeService.IAetherNodeClient>()?.Subscribe(this);
         await RefreshRadios();
     }
 
@@ -185,18 +197,54 @@
         StateHasChanged();
     }
 
-    private async Task Fix(string radioName)
+    private async Task Fix(RadioStatus radio)
     {
         if (_busy) return;
         _busy = true;
         StateHasChanged();
         try
         {
-            await Radios.RequestAsync(radioName);
+            // A radio's permission is allowed on AetherNetService's own page in the phone's settings: the service has
+            // no screen to ask from, and one app cannot grant another's. So that page is opened here, where the person
+            // is. Asked of the service instead, the request found no page to open there and Allow did nothing (1.4, 1.5).
+            if (radio.State == RadioState.NeedsPermission
+                && Services.GetService<AetherNetNodeService.Client.IAetherNetServiceSettings>() is { } serviceSettings)
+            {
+                _settingsFailed = !serviceSettings.Open(AetherNetNodeService.PermissionPage.AppInfo);
+            }
+            else
+            {
+                await Radios.RequestAsync(radio.Name);
+            }
             await RefreshRadios();
         }
         finally { _busy = false; }
     }
+
+    // The phone tells no app when one of AetherNetService's permissions is allowed on its own page; the service looks
+    // again every few seconds and pushes its link when that changes. So back from that page, the radios show what was
+    // allowed with nothing pressed.
+    void AetherNetNodeService.IAetherNodeEvents.OnLinkChanged(AetherNetNodeService.NodeLinkStatus status) =>
+        _ = InvokeAsync(RecheckRadios);
+
+    void AetherNetNodeService.IAetherNodeEvents.OnInbound(AetherNetNodeService.InboundMessage message) { }
+
+    void AetherNetNodeService.IAetherNodeEvents.OnGrantChanged(AetherNetNodeService.GrantState state) { }
+
+    private async Task RecheckRadios()
+    {
+        try
+        {
+            await RefreshRadios();
+        }
+        catch (Exception ex)
+        {
+            // The page keeps what it last showed; the next change, or the next press, asks again.
+            Services.GetService<ILogger<Welcome>>()?.LogInformation(ex, "AetherNetService did not say how its radios stand");
+        }
+    }
+
+    public void Dispose() => _nodeSub?.Dispose();
 
     private async Task AddFirst()
     {
