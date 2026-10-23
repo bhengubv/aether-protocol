@@ -247,7 +247,9 @@ killed for memory, crashed, or updated — connects again by itself:
   app that asks it are the same split everywhere. Only the pipe between them is the
   system's own.
 - **Android:** the Node Service is **AetherNetService** — its own app,
-  `com.bhengubv.aethernetservice`, with no launcher and no screen. It exposes one
+  `com.bhengubv.aethernetservice`, with no launcher and no screen of its own: its
+  one activity, since 1.6, is see-through and only puts up the phone's prompts
+  (below). It exposes one
   exported bound `Service`, `com.bhengubv.aethernet.service` (action
   `com.bhengubv.aethernet.service.BIND`), declared only by AetherNetService; a
   consumer declares none. Calls are Binder transactions carrying `NodeWire`
@@ -261,20 +263,37 @@ killed for memory, crashed, or updated — connects again by itself:
     `<queries>` (`<package android:name="com.bhengubv.aethernetservice"/>` and the
     `BIND` action), or Android hides it: the bind is refused as "BLOCKED" and the
     consumer sees no service at all.
-  - The radios' runtime permission belongs to AetherNetService, and a service with
-    no screen can never show the phone's "Allow?" prompt; the phone keeps permissions
-    per app, so a consumer cannot grant it either. The consumer shows the
-    service's permissions from `NodeLinkStatus.Permissions` — always, not only while
-    one is missing — and each opens AetherNetService's own page in the phone's
-    settings (`IAetherNetServiceSettings`; on Android
-    `AndroidAetherNetServiceSettings`), where the person allows it once — "Nearby
-    devices" on Android 13+, "Nearby devices and Location" on 12, "Location" before;
-    "Notifications" from 13. Until then only the Wi-Fi the phone is already on carries
+  - The radios' runtime permission belongs to AetherNetService. The phone keeps
+    permissions per app and puts up its "Allow?" prompt only for the app whose screen
+    asks, so a consumer cannot grant it. Since 1.6 the consumer has AetherNetService
+    ask, right where the person is: `IAetherNetServiceSettings.Ask` starts
+    AetherNetService's see-through `AskActivity` for a result over the consumer's own
+    screen, and it puts up the phone's own prompt for what is missing — the "Allow?"
+    for a radio, for Aware or Quiet help, or for a permission in the consumer's
+    Settings ("Nearby devices" on Android 13+, "Nearby devices" and "Location" on 12,
+    "Location" before; "Notifications" from 13), the "turn on Bluetooth?" dialog, or,
+    from Android 10, the phone's panel for NFC, Wi-Fi or the internet. It draws
+    nothing of its own, answers only an app signed like it (`CallingPackage`), and
+    closes when the prompt does. Location is always asked for precise and approximate
+    together: from Android 12 the phone answers a request for precise alone with
+    nothing at all. What is asked for, per name and Android version, is `RadioAsk`.
+  - Two things still open a page, because the phone has no prompt for them: a
+    permission denied with "don't ask again" opens AetherNetService's App info, and
+    Location switched off opens the phone's Location page (there is no Location
+    prompt without Google's services). Location "all the time" is asked for like the
+    rest, and from Android 11 the phone answers by taking the person to its own page
+    for that one choice. A permission already allowed opens App info, the one place
+    it can be changed. An AetherNetService from 1.5 or older has no `AskActivity`;
+    then the consumer opens its App info (`IAetherNetServiceSettings.Open`; on
+    Android `AndroidAetherNetServiceSettings`). The consumer shows the service's
+    permissions from `NodeLinkStatus.Permissions` — always, not only while one is
+    missing. Until they are allowed only the Wi-Fi the phone is already on carries
     traffic.
   - The phone tells an app nothing when one of its permissions is allowed, so while
     one is missing the service looks again every 3 s (`PermissionWatch`); when it is
-    allowed, the service brings up the radio it held back — no restart — and pushes
-    the new report to every connected app.
+    allowed, the service brings up the radio it held back — no restart — starts Aware
+    if Aware was waiting on it (since 1.6), and pushes the new report to every
+    connected app.
   - Two more keep the service running, and the list carries them with the page each
     is changed on (`ServicePermission.Page`). "Battery": the consumer raises the
     phone's own prompt to let AetherNetService always run in the background — the
@@ -396,8 +415,9 @@ installed processes:
   `NodeBackedMessaging`, `NodeClientIdentity`, `NodeClientRecovery`, `IOwnerCheck`,
   `IAetherNetServiceSettings`.
 - `src/AetherNetService` — **AetherNetService**, the service app, a MAUI app with an
-  Android head and a Windows head: no UI; it owns the identity, the radios and the
-  Signal sessions (`NodeCore`, the same on both).
+  Android head and a Windows head: no UI of its own (on Android, one see-through
+  screen for the phone's prompts, since 1.6); it owns the identity, the radios and
+  the Signal sessions (`NodeCore`, the same on both).
 - The sample app (**Aether**) is a thin client of it on Android and on Windows.
 
 **Verified on two phones** (Huawei P30 lite, Android 10; a Pixel on Circle OS,
@@ -437,14 +457,35 @@ Android 16), 2026-09-30:
   came down (38 MB, 8 s), passed the signing check, and the phone's installer
   opened — first asking to allow installs from Aether.
 
+**Verified on the P30**, 2026-10-23, Aether and AetherNetService 1.6, from clean
+installs of the 64-bit and the 32-bit pairs:
+
+- Allow on the welcome's radios, Settings' Location line, and "Put it right" on
+  Aware and on Quiet help each put the phone's own "Allow AetherNetService to
+  access this device's location?" over the page they are on, asking for precise
+  and approximate together; Deny left each still asking, and the next tap asked
+  again;
+- allowed from Aware's "Put it right": 3 s later the service had brought up
+  Bluetooth, Wi-Fi and NFC without a restart (`PermissionWatch`) and started Aware,
+  which showed what was around on the page still open;
+- after "Deny & don't ask again", Allow opened AetherNetService's App info, and
+  Back returned to the welcome;
+- with NFC switched off, Switch on put up the phone's NFC panel over the welcome;
+  switched on there, NFC showed ready;
+- only Aether can open the see-through screen: started from adb, it closes without
+  asking;
+- Aether's home and its five tabs show with their layout; 1.5's, installed the
+  same way, showed without it.
+
 **Built, not yet run on a phone:**
 
 - radios asking for their permission before touching their stacks (the fix for
   AetherNetService dying on some cold starts on the Pixel);
 - Aether recovering when AetherNetService dies as it starts;
-- a permission allowed on the phone bringing its radio up without a restart
-  (`PermissionWatch`);
-- the AetherNet switch in the setup wizard.
+- the AetherNet switch in the setup wizard;
+- 1.6 on Android 12 and later (precise with approximate location, Nearby devices,
+  Notifications, "all the time"), and Switch on for Bluetooth, Wi-Fi, Location and
+  the internet.
 
 **Open:**
 

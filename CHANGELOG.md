@@ -79,16 +79,25 @@ add only the menu's new lines, and no number on the menu moves.
   (`arm64-v8a`) and `-32bit` (`armeabi-v7a`) APKs, and AetherNetService's Windows setup as `-64bit` (x64) and
   `-32bit` (x86). AetherNetService's 32-bit APK carries our own 32-bit build of libsodium, beside the 64-bit one.
   Nothing else changed from 1.4.
-- **1.6 (7), added on 2026-10-23: the welcome's radio buttons work, and Aether's home has its layout again.** Allow
-  and Switch on did nothing in 1.4 and 1.5. Now AetherNetService puts up the phone's own prompt over the welcome:
-  Android's "Allow?" for the permission a radio is missing, its "turn on Bluetooth?", or, from Android 10, its panel
-  for NFC, Wi-Fi or the internet. It does so from one see-through screen, `AskActivity`, which answers only an app
-  signed like it; Aether opens it for a result (`IAetherNetServiceSettings.Ask`), and what it asks for, per radio and
-  Android version, is `RadioAsk`. Two things still open the phone's settings, because the phone has no prompt for
-  them: a permission denied with "don't ask again" (AetherNetService's App info), and Location switched off (no
-  Location prompt without Google's services). And Aether 1.4 and 1.5 showed their home unstyled: they were built
-  with `MainLayout`'s scoped styles left in `obj` from before the rename, under a scope id the code no longer used.
-  1.6 is built with the right ones; no code changed for that.
+- **1.6 (7), added on 2026-10-23: the phone's own prompts, right where you are, and Aether's home has its layout
+  again.** Allow and Switch on on the welcome's radios did nothing in 1.4 and 1.5, and Settings' permission lines and
+  "Put it right" on Aware and Quiet help opened AetherNetService's App info. Now each has AetherNetService put up the
+  phone's own prompt over the page: Android's "Allow?" for what is missing, its "turn on Bluetooth?", or, from
+  Android 10, its panel for NFC, Wi-Fi or the internet. It does so from one see-through screen, `AskActivity`, which
+  answers only an app signed like it; Aether opens it for a result (`IAetherNetServiceSettings.Ask`) with a radio,
+  "Aware", "Quiet help" or a permission's name, and what is asked for, per name and Android version, is `RadioAsk`.
+  Location is asked for precise and approximate together, and AetherNetService declares `ACCESS_COARSE_LOCATION`:
+  from Android 12 the phone answers a request for precise alone with nothing at all. Two things still open the
+  phone's settings, because the phone has no prompt for them: a permission denied with "don't ask again"
+  (AetherNetService's App info), and Location switched off (no Location prompt without Google's services); a
+  permission already allowed opens App info, where it can be changed. Aware starts listening as soon as its
+  permission is allowed, as the mesh's radios do, rather than at the service's next start (`PermissionAllowed` on
+  `MeshNodeLinkSource`). When AetherNetService does not answer, Aether
+  says so in words and logs the exception, which it used to show — a release build's resource key. And Aether 1.4
+  and 1.5 showed their home unstyled: they were built with `MainLayout`'s scoped styles left in `obj` from before the
+  rename, under a scope id the code no longer used; 1.6 is built with the right ones. The six files are built from
+  `9fdb4ea`. 1.6 was first put on the release page from `ca9f019`, with only the welcome changed; those six files
+  are kept there, renamed `-ca9f019`.
 
 ---
 
