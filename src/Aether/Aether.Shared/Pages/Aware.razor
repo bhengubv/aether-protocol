@@ -62,7 +62,7 @@
                         <span class="about-s">
                             @(_settingsFailed
                                 ? "This phone would not open its settings — find AetherNetService under Settings, then Apps, and allow it there."
-                                : "Opens AetherNetService's own page on this phone. Allow what it asks for there, then come back.")
+                                : "The phone asks you, right here, for what Aware needs.")
                         </span>
                     </span>
                     <span class="chev">→</span>
@@ -187,7 +187,10 @@
 
     private void Redraw() => InvokeAsync(StateHasChanged);
 
-    private void OpenServicePage() => _settingsFailed = !(_serviceSettings?.Open(PermissionPage.AppInfo) ?? false);
+    // The phone's own prompt for what Aware is missing — its permission, or Bluetooth switched on — put up over this
+    // screen by AetherNetService. One from before it could (1.5 and older): its App info page, as before.
+    private void OpenServicePage() => _settingsFailed = _serviceSettings?.Ask("Aware") != true
+        && !(_serviceSettings?.Open(PermissionPage.AppInfo) ?? false);
 
     /// <summary>What kind of thing it is, unless that is already the whole of its name.</summary>
     private static string Kind(AwareThing thing)

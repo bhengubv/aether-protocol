@@ -9,19 +9,22 @@ namespace AetherNetNodeService.Client;
 /// </summary>
 /// <remarks>
 /// The phone keeps a permission per app, so an app cannot grant one to another, and it puts up its "Allow?" prompt only
-/// for the app whose screen asks. So for a radio, the app the person is using has AetherNetService put the prompt up
-/// over it (<see cref="Ask"/>); its page in the phone's settings is the way to everything else, and the way there when
-/// an AetherNetService cannot ask. <see cref="RadioStatus.NeedsPermission"/> says when a radio needs it.
+/// for the app whose screen asks. So the app the person is using has AetherNetService put the prompt up over it
+/// (<see cref="Ask"/>) — for a radio, for Aware or Quiet help, for a permission Settings lists; its page in the phone's
+/// settings is the way to everything else, and the way there when an AetherNetService cannot ask.
+/// <see cref="RadioStatus.NeedsPermission"/> says when a radio needs it.
 /// </remarks>
 public interface IAetherNetServiceSettings
 {
     /// <summary>
-    /// Have AetherNetService put up the phone's own prompt for what <paramref name="radio"/> still needs, over the screen
+    /// Have AetherNetService put up the phone's own prompt for what <paramref name="what"/> still needs, over the screen
     /// the person is on: the phone's "Allow?" for a permission, or its own switch for Bluetooth, NFC, Wi-Fi or the
-    /// internet. False when it cannot — an AetherNetService from before it could (1.5 and older), or a device with no
-    /// such prompt — and the caller opens a page instead.
+    /// internet. <paramref name="what"/> is a radio by the name AetherNetService gives it ("BLE", "Wi-Fi Direct"),
+    /// "Aware", "Quiet help", or one of its permissions by the name the phone gives it (<see cref="ServicePermission.Name"/>).
+    /// False when it cannot — an AetherNetService from before it could (1.5 and older), or a device with no such prompt —
+    /// and the caller opens a page instead.
     /// </summary>
-    bool Ask(string radio) => false;
+    bool Ask(string what) => false;
 
     /// <summary>
     /// What the permission is called on this phone's settings page — "Nearby devices", or "Location" on older

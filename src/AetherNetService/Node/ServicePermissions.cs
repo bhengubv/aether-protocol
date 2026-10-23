@@ -7,7 +7,8 @@ namespace AetherNetService;
 /// <summary>
 /// The permissions the phone keeps for AetherNetService — the ones a person allows or refuses on the phone's own pages
 /// — and whether each is allowed right now. A connected app shows this list in its own settings, because
-/// AetherNetService has no screen to show it on.
+/// AetherNetService has no screen to show it on; a line not allowed yet has the phone's own prompt put up for it, by
+/// name (<see cref="AskActivity"/>, <see cref="RadioAsk"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -30,28 +31,28 @@ internal static class ServicePermissions
 
         if (OperatingSystem.IsAndroidVersionAtLeast(33))
         {
-            list.Add(new("Nearby devices", Granted(global::Android.Manifest.Permission.NearbyWifiDevices) && Bluetooth,
+            list.Add(new(RadioAsk.NearbyDevices, Granted(global::Android.Manifest.Permission.NearbyWifiDevices) && Bluetooth,
                 "find phones near you, over Wi-Fi and Bluetooth"));
 
             // From 13 the mesh no longer needs this — finding phones nearby stopped meaning "may track where you
             // are", which is why the radio permissions say neverForLocation. Aether Aware does need it: where you
             // are is what goes out when you ask for help quietly, and noticing a tag that moves with you means
             // comparing its trail against where this phone has been. Saying no leaves everything else working.
-            list.Add(new("Location", Granted(global::Android.Manifest.Permission.AccessFineLocation),
+            list.Add(new(RadioAsk.Location, Granted(global::Android.Manifest.Permission.AccessFineLocation),
                 "send where you are when you ask for help quietly, and notice a tracker moving with you"));
 
-            list.Add(new("Notifications", Granted(global::Android.Manifest.Permission.PostNotifications),
+            list.Add(new(RadioAsk.Notifications, Granted(global::Android.Manifest.Permission.PostNotifications),
                 "show that it is keeping you reachable"));
         }
         else if (OperatingSystem.IsAndroidVersionAtLeast(31))
         {
-            list.Add(new("Nearby devices", Bluetooth, "find phones near you over Bluetooth"));
-            list.Add(new("Location", Granted(global::Android.Manifest.Permission.AccessFineLocation),
+            list.Add(new(RadioAsk.NearbyDevices, Bluetooth, "find phones near you over Bluetooth"));
+            list.Add(new(RadioAsk.Location, Granted(global::Android.Manifest.Permission.AccessFineLocation),
                 "find phones near you over Wi-Fi"));
         }
         else
         {
-            list.Add(new("Location", Granted(global::Android.Manifest.Permission.AccessFineLocation),
+            list.Add(new(RadioAsk.Location, Granted(global::Android.Manifest.Permission.AccessFineLocation),
                 "find phones near you, over Wi-Fi and Bluetooth"));
         }
 
@@ -62,7 +63,7 @@ internal static class ServicePermissions
         if (OperatingSystem.IsAndroidVersionAtLeast(31))
         {
             list.Add(new(
-                "Location all the time",
+                RadioAsk.LocationAllTheTime,
                 Granted(global::Android.Manifest.Permission.AccessBackgroundLocation),
                 "know where you are with nothing on screen — which is when you need help")
             {

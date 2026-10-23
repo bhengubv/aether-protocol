@@ -13,9 +13,10 @@ using Log = Android.Util.Log;
 namespace AetherNetService;
 
 /// <summary>
-/// The phone's own prompt for one of the radios, put up over the app the person is using: Android's "Allow?" for a
-/// permission the radio is missing, its "turn on Bluetooth?", or its panel for NFC, Wi-Fi or the internet. Nothing of
-/// ours is drawn — the screen is see-through, and it closes as soon as the phone's prompt does.
+/// The phone's own prompt, put up over the app the person is using, for one of the radios, for Aware or Quiet help, or
+/// for one of AetherNetService's permissions as an app's settings list them (<see cref="RadioAsk"/>): Android's
+/// "Allow?" for a permission still missing, its "turn on Bluetooth?", or its panel for NFC, Wi-Fi or the internet.
+/// Nothing of ours is drawn — the screen is see-through, and it closes as soon as the phone's prompt does.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,7 +28,8 @@ namespace AetherNetService;
 /// Only an app signed like this one is answered — Aether, which starts this for a result so the phone says who asked.
 /// Two things still leave the app, because the phone has no prompt for them: a permission the person told it never to
 /// ask about again (it would answer no by itself, so its App info page is opened, the one place left), and Location
-/// switched off (no prompt without Google's services, so its page is opened).
+/// switched off (no prompt without Google's services, so its page is opened). Location "all the time" is asked for
+/// like any other, and from Android 11 the phone answers by taking the person to its own page for that one choice.
 /// </para>
 /// </remarks>
 [Activity(
@@ -40,7 +42,11 @@ namespace AetherNetService;
         | ConfigChanges.Density)]
 public sealed class AskActivity : Activity
 {
-    /// <summary>The radio, by the name AetherNetService gives it — "BLE", "Wi-Fi Direct", "NFC", "Internet".</summary>
+    /// <summary>
+    /// What to ask for: a radio, by the name AetherNetService gives it ("BLE", "Wi-Fi Direct", "NFC", "Internet"),
+    /// "Aware", "Quiet help", or a permission by the name the phone gives it ("Location", "Nearby devices"). Called
+    /// "radio" because radios came first, and an Aether that asks for one still says it so.
+    /// </summary>
     public const string RadioExtra = "radio";
 
     private const int Prompt = 1;
@@ -73,9 +79,7 @@ public sealed class AskActivity : Activity
 
     private bool AskPermission(string? radio)
     {
-        var missing = RadioAsk.Permissions(radio, (int)Build.VERSION.SdkInt)
-            .Where(p => CheckSelfPermission(p) != Permission.Granted)
-            .ToArray();
+        var missing = RadioAsk.Missing(radio, (int)Build.VERSION.SdkInt, p => CheckSelfPermission(p) == Permission.Granted);
         if (missing.Length == 0) return false;
 
         var asked = GetSharedPreferences("ask", FileCreationMode.Private)!;

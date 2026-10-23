@@ -28,8 +28,9 @@ namespace Aether.Tests;
 ///
 /// <para>
 /// AetherNetService has no screen of its own, so Aether's settings are where a person sees what it has been allowed —
-/// always, not only while something is missing. Each line opens the service's page in the phone's settings, the only
-/// place a permission can change: the phone keeps permissions per app, and one app cannot grant another's.
+/// always, not only while something is missing. A line not allowed yet has AetherNetService put up the phone's own
+/// prompt for it, over this page: the phone keeps permissions per app, and one app cannot grant another's. A line
+/// already allowed, and every line with an AetherNetService that cannot ask, opens its page in the phone's settings.
 /// </para>
 ///
 /// <para>
@@ -105,15 +106,29 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
         Assert.Equal("→", notifications.QuerySelector(".chev")!.TextContent);
     }
 
+    /// <summary>The line asks the phone for that permission by its name, right here — nothing opens, nobody leaves.</summary>
     [Fact]
-    public void A_permission_opens_AetherNetService_page_in_the_phone_settings()
+    public void A_permission_not_allowed_has_AetherNetService_put_up_the_phones_prompt_for_it()
     {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Holding(Nearby(true), Notifications(false));
+
+        Row(_ctx.RenderComponent<Settings>(), "Notifications").Click();
+
+        Assert.Equal(["Notifications"], _settings.Asked);
+        Assert.Equal(0, _settings.Opened);
+    }
+
+    [Fact]
+    public void With_an_AetherNetService_that_cannot_ask_a_permission_opens_its_page_in_the_phone_settings()
+    {
+        _settings.Asks = false;
         _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
         _node.Link = Holding(Nearby(false));
 
         Row(_ctx.RenderComponent<Settings>(), "Nearby devices").Click();
 
-        Assert.Equal(1, _settings.Opened);
+        Assert.Equal(new[] { PermissionPage.AppInfo }, _settings.Pages);
     }
 
     /// <summary>
@@ -131,6 +146,7 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
         Assert.StartsWith("allowed", Row(cut, "Notifications").QuerySelector(".about-s")!.TextContent);
         Row(cut, "Nearby devices").Click();
         Assert.Equal(1, _settings.Opened);
+        Assert.Empty(_settings.Asked);   // allowed already: nothing to ask the phone for
     }
 
     [Fact]
@@ -174,6 +190,7 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
     [Fact]
     public void A_phone_that_will_not_open_its_settings_says_where_to_look()
     {
+        _settings.Asks = false;
         _settings.Opens = false;
         _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
         _node.Link = Holding(Nearby(false));
@@ -207,6 +224,7 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
         Row(cut, "App launch").Click();
 
         Assert.Equal(new[] { PermissionPage.Battery, PermissionPage.AppLaunch }, _settings.Pages);
+        Assert.Empty(_settings.Asked);   // the battery prompt is already the phone's own, and App launch has none
         var appLaunch = Row(cut, "App launch");
         Assert.Equal("the phone does not say — turn its switches on there so AetherNetService can start again after the phone stops it",
             appLaunch.QuerySelector(".about-s")!.TextContent);
@@ -438,7 +456,19 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
 
         public bool Opens { get; set; } = true;
 
+        /// <summary>Whether this AetherNetService can put up the phone's prompt; one from 1.5 or older cannot.</summary>
+        public bool Asks { get; set; } = true;
+
+        /// <summary>What a prompt was put up for, in order.</summary>
+        public List<string> Asked { get; } = [];
+
         public string PermissionName => "Nearby devices";
+
+        public bool Ask(string what)
+        {
+            Asked.Add(what);
+            return Asks;
+        }
 
         /// <summary>Which pages were asked for, in order.</summary>
         public List<PermissionPage> Pages { get; } = [];

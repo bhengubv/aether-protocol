@@ -6,14 +6,14 @@ using AetherNetNodeService.Client;
 namespace AetherNetNodeService.Android;
 
 /// <summary>
-/// The Android <see cref="IAetherNetServiceSettings"/>: the phone's own prompts for AetherNetService's radios, put up
-/// over this app by AetherNetService's see-through AskActivity, and Android's own "App info" page for AetherNetService,
-/// where Permissions is one tap away. Both are the phone's screens, not ours, and nothing is granted without the person
-/// tapping Allow on them.
+/// The Android <see cref="IAetherNetServiceSettings"/>: the phone's own prompts for AetherNetService's radios and
+/// permissions, put up over this app by AetherNetService's see-through AskActivity, and Android's own "App info" page
+/// for AetherNetService, where Permissions is one tap away. Both are the phone's screens, not ours, and nothing is
+/// granted without the person tapping Allow on them.
 /// </summary>
 public sealed class AndroidAetherNetServiceSettings : IAetherNetServiceSettings
 {
-    /// <summary>AetherNetService's see-through screen that puts up the phone's prompts, and what it is told.</summary>
+    /// <summary>AetherNetService's see-through screen that puts up the phone's prompts, and what it is told to ask for.</summary>
     private const string AskActivity = "com.bhengubv.aethernetservice.AskActivity";
     private const string RadioExtra = "radio";
     private const int AskRequest = 0x4153;
@@ -40,13 +40,13 @@ public sealed class AndroidAetherNetServiceSettings : IAetherNetServiceSettings
     /// the phone tells AetherNetService which app asked — it answers only one signed like itself. An AetherNetService
     /// from before 1.6 has no such screen: then this is false and the caller opens App info.
     /// </remarks>
-    public bool Ask(string radio)
+    public bool Ask(string what)
     {
         if (_screen?.Invoke() is not { } screen) return false;
         try
         {
             var intent = new Intent().SetComponent(new ComponentName(_servicePackage, AskActivity));
-            intent.PutExtra(RadioExtra, radio);
+            intent.PutExtra(RadioExtra, what);
             screen.StartActivityForResult(intent, AskRequest);
             return true;
         }

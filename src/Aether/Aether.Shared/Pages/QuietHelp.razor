@@ -54,7 +54,7 @@
                         <span class="about-s">
                             @(_settingsFailed
                                 ? "This phone would not open its settings — find AetherNetService under Settings, then Apps, and allow it there."
-                                : "Opens AetherNetService's own page on this phone. Allow what it asks for there, then come back — nothing else to do.")
+                                : "The phone asks you, right here, for what phones next to you need to hear you — nothing else to do.")
                         </span>
                     </span>
                     <span class="chev">→</span>
@@ -212,10 +212,12 @@
     private bool _settingsFailed;
 
     /// <summary>
-    /// AetherNetService's own page in the phone's settings, where its permissions are. Only that page can change
-    /// them — a phone keeps permissions per app, and one app cannot grant another's.
+    /// The phone's own prompt for what the nearby half is missing — the permission to advertise, or Bluetooth switched
+    /// on — put up over this screen by AetherNetService, because a phone keeps permissions per app and one app cannot
+    /// grant another's. One from before it could (1.5 and older): its own page in the phone's settings, as before.
     /// </summary>
-    private void OpenServicePage() => _settingsFailed = !(_serviceSettings?.Open(PermissionPage.AppInfo) ?? false);
+    private void OpenServicePage() => _settingsFailed = _serviceSettings?.Ask("Quiet help") != true
+        && !(_serviceSettings?.Open(PermissionPage.AppInfo) ?? false);
 
     private HelpState Mine => Help.Mine;
 

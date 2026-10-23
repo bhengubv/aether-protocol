@@ -137,8 +137,9 @@
         </button>
 
         @* AetherNetService's permissions, always on show. It has no screen of its own, so this is where a person sees
-           what it has been allowed: the same list as its page in the phone's settings, which each line opens. Only
-           that page can change them — the phone keeps permissions per app, and one app cannot grant another's. *@
+           what it has been allowed: the same list as its page in the phone's settings. A line not allowed yet has
+           AetherNetService put up the phone's own prompt for it, right here — the phone keeps permissions per app,
+           and one app cannot grant another's; a line already allowed opens that page, where it can be changed. *@
         @if (_serviceSettings is not null)
         {
             if (_link.Permissions.Count > 0)
@@ -376,11 +377,22 @@
                 : $"not allowed — allow it so AetherNetService can {permission.For}";
 
     /// <summary>
-    /// The page where that permission is changed: the phone's battery prompt, or its maker's App launch page, where it
-    /// has one, and AetherNetService's App info for the rest — and for anything already allowed, where it can be seen.
+    /// A permission not allowed yet: the phone's own prompt for it, put up over this page by AetherNetService, by the
+    /// name the phone gives it. The battery prompt and the maker's App launch page are their own pages, and anything
+    /// already allowed opens AetherNetService's App info, where it can be seen and changed. An AetherNetService that
+    /// cannot put a prompt up (1.5 and older) gets its App info for the rest, as before.
     /// </summary>
-    private void OpenServicePage(ServicePermission permission) =>
-        _settingsFailed = !(_serviceSettings?.Open(permission.Known && permission.Allowed ? PermissionPage.AppInfo : permission.Page) ?? false);
+    private void OpenServicePage(ServicePermission permission)
+    {
+        var allowed = permission.Known && permission.Allowed;
+        if (!allowed && permission.Page == PermissionPage.AppInfo && _serviceSettings?.Ask(permission.Name) == true)
+        {
+            _settingsFailed = false;
+            return;
+        }
+
+        _settingsFailed = !(_serviceSettings?.Open(allowed ? PermissionPage.AppInfo : permission.Page) ?? false);
+    }
 
     private void OpenServiceSettings() => _settingsFailed = !(_serviceSettings?.Open() ?? false);
 

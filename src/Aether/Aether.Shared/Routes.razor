@@ -4,6 +4,7 @@
 @using Aether.Shared.Services
 @using AetherNetNodeService.Client
 @using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
 @implements IDisposable
 @inject WarmUpService Warm
 @inject AetherStore Store
@@ -93,6 +94,9 @@ else
     /// <summary>Why AetherNetService could not be reached, the last time it was tried; null while trying.</summary>
     private string? _unreached;
 
+    /// <summary>What a person is told when it does not answer: the likeliest reason, in their words.</summary>
+    public const string Unreached = "AetherNetService did not answer — the phone may have stopped it to save memory.";
+
     private bool _reaching;
 
     protected override void OnInitialized()
@@ -152,7 +156,10 @@ else
         }
         catch (Exception ex)
         {
-            _unreached = $"AetherNetService did not answer: {ex.Message}";
+            // The exception is for the log. Shown, a release build put its resource key on the screen
+            // ("Exception_WasThrown, Java.Lang.Exception") when the P30 stopped AetherNetService for memory.
+            Services.GetService<ILogger<Routes>>()?.LogWarning(ex, "AetherNetService did not answer");
+            _unreached = Unreached;
             await InvokeAsync(StateHasChanged);
         }
         finally

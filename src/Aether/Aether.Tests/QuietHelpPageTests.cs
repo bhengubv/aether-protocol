@@ -352,8 +352,31 @@ public class QuietHelpPageTests : IDisposable
         Assert.Contains("needs permission to find devices nearby", page.Markup);
         Assert.Contains("still works", page.Markup);
 
-        // One tap opens AetherNetService's own page, because only that page can grant its permissions.
+        // One tap has AetherNetService put up the phone's own prompt for what the nearby half needs, over this screen:
+        // the phone grants a permission only to the app whose screen asks, and nobody here goes looking for settings.
         page.FindAll("button.about").First(b => b.TextContent.Contains("Put it right")).Click();
+        Assert.Equal("Quiet help", settings.Asked);
+        Assert.Null(settings.Opened);
+    }
+
+    [Fact]
+    public void WithAnAetherNetServiceThatCannotAskPutItRightOpensItsOwnPage()
+    {
+        var settings = new FakeServiceSettings { Asks = false };
+        _ctx.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(settings);
+        _node.Report = new HelpReport
+        {
+            Mine = new HelpState
+            {
+                Guardians = [new HelpGuardian(Sipho, "Sipho")],
+                NearbyWhy = "needs permission to find devices nearby",
+                NearbyFixable = true,
+            },
+        };
+
+        var page = _ctx.RenderComponent<QuietHelp>();
+        page.FindAll("button.about").First(b => b.TextContent.Contains("Put it right")).Click();
+
         Assert.Equal(PermissionPage.AppInfo, settings.Opened);
     }
 
@@ -373,6 +396,18 @@ public class QuietHelpPageTests : IDisposable
     private sealed class FakeServiceSettings : AetherNetNodeService.Client.IAetherNetServiceSettings
     {
         public PermissionPage? Opened { get; private set; }
+
+        /// <summary>Whether this AetherNetService can put up the phone's prompt; one from 1.5 or older cannot.</summary>
+        public bool Asks { get; init; } = true;
+
+        /// <summary>What the phone's prompt was last put up for.</summary>
+        public string? Asked { get; private set; }
+
+        public bool Ask(string what)
+        {
+            Asked = what;
+            return Asks;
+        }
 
         public string PermissionName => "nearby devices";
 

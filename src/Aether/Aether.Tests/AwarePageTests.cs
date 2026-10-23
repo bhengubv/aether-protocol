@@ -10,6 +10,7 @@ using service::AetherNet.Identity;
 using service::AetherNetNodeService;
 using service::AetherNetNodeService.Host;
 using Xunit;
+using PermissionPage = global::AetherNetNodeService.PermissionPage;   // the page's own: its settings link takes it
 
 namespace Aether.Tests;
 
@@ -109,6 +110,38 @@ public class AwarePageTests : IDisposable
         Assert.Contains("carry on exactly as they are", page.Markup);
     }
 
+    /// <summary>
+    /// "Put it right" has AetherNetService put up the phone's own prompt for what Aware is missing, over this screen —
+    /// its permission, or Bluetooth switched on — rather than sending the person to look for it in the phone's settings.
+    /// </summary>
+    [Fact]
+    public void PutItRightHasThePhoneAskRightHereForWhatAwareNeeds()
+    {
+        var settings = new FakeServiceSettings();
+        _ctx.Services.AddSingleton<global::AetherNetNodeService.Client.IAetherNetServiceSettings>(settings);
+        _node.Report = new AwareReport { On = false, Why = "needs permission to find devices nearby", Fixable = true };
+
+        var page = _ctx.RenderComponent<Shared.Pages.Aware>();
+        Assert.Contains("The phone asks you, right here", page.Markup);
+        page.FindAll("button.about").First(b => b.TextContent.Contains("Put it right")).Click();
+
+        Assert.Equal("Aware", settings.Asked);
+        Assert.Null(settings.Opened);
+    }
+
+    [Fact]
+    public void WithAnAetherNetServiceThatCannotAskPutItRightOpensItsOwnPage()
+    {
+        var settings = new FakeServiceSettings { Asks = false };
+        _ctx.Services.AddSingleton<global::AetherNetNodeService.Client.IAetherNetServiceSettings>(settings);
+        _node.Report = new AwareReport { On = false, Why = "needs permission to find devices nearby", Fixable = true };
+
+        var page = _ctx.RenderComponent<Shared.Pages.Aware>();
+        page.FindAll("button.about").First(b => b.TextContent.Contains("Put it right")).Click();
+
+        Assert.Equal(PermissionPage.AppInfo, settings.Opened);
+    }
+
     [Fact]
     public void WithNothingFollowingYouThereIsNoAlarmAtAll()
     {
@@ -164,6 +197,37 @@ public class AwarePageTests : IDisposable
     {
         _ctx.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>AetherNetService's settings as the page reaches them, remembering what it was asked for.</summary>
+    private sealed class FakeServiceSettings : global::AetherNetNodeService.Client.IAetherNetServiceSettings
+    {
+        /// <summary>Whether this AetherNetService can put up the phone's prompt; one from 1.5 or older cannot.</summary>
+        public bool Asks { get; init; } = true;
+
+        public string? Asked { get; private set; }
+
+        public PermissionPage? Opened { get; private set; }
+
+        public string PermissionName => "nearby devices";
+
+        public bool Ask(string what)
+        {
+            Asked = what;
+            return Asks;
+        }
+
+        public bool Open()
+        {
+            Opened = PermissionPage.AppInfo;
+            return true;
+        }
+
+        public bool Open(PermissionPage page)
+        {
+            Opened = page;
+            return true;
+        }
     }
 
     private sealed class FakeNode : IAetherNodeClient

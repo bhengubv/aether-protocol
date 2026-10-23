@@ -22,11 +22,17 @@
          and never ask for this. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!-- Approximate, declared beside precise because from Android 12 the phone answers a request for precise alone with
+         nothing at all: no prompt, just a no. AetherNetService always asks for the two together (RadioAsk), and the
+         person can pick either; what the radios check is still precise. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- And "all the time", because the help is wanted with the phone in a pocket and nothing on screen. From
          Android 12 a foreground service started while the app is in the background is refused location outright —
          and AetherNetService, having no screen, is always in the background. Holding this is the exemption. Android
-         will not put it in a dialog: the person chooses "Allow all the time" on the service's own page, which is
-         where the app sends them. Refused, everything else still works and the position simply stays unknown. -->
+         will not put it in a dialog: asked for it (AskActivity), the phone takes the person to its own page for the
+         service's location, where they choose "Allow all the time". Refused, everything else still works and the
+         position simply stays unknown. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
     <uses-feature android:name="android.hardware.wifi.aware" android:required="false" />
