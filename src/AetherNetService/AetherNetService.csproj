@@ -20,8 +20,8 @@
     <!-- An app, not a library: it ships as an APK and must never go to NuGet. -->
     <IsPackable>false</IsPackable>
     <ApplicationId>com.bhengubv.aethernetservice</ApplicationId>
-    <ApplicationDisplayVersion>1.5</ApplicationDisplayVersion>
-    <ApplicationVersion>6</ApplicationVersion>
+    <ApplicationDisplayVersion>1.6</ApplicationDisplayVersion>
+    <ApplicationVersion>7</ApplicationVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
