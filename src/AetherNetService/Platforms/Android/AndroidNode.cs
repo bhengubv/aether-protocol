@@ -133,6 +133,12 @@ internal static class AndroidNode
                         if (aware.Battery is { } battery) help.UpdateBattery(battery);
                     };
                     aware.Start();
+
+                    // Allowed later — on the phone's prompt from Aware's "Put it right", or on its page — Aware starts
+                    // then, as the mesh's radios do, rather than at the service's next start. Start is a no-op once
+                    // it is listening, and checks the permission itself.
+                    if (provider.GetRequiredService<INodeLinkSource>() is MeshNodeLinkSource link)
+                        link.PermissionAllowed += aware.Start;
                 }
                 else
                 {

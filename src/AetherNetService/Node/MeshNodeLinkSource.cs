@@ -47,6 +47,12 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
 
     public event Action? Changed;
 
+    /// <summary>
+    /// A permission that was missing has been allowed — on the phone's prompt, or its page. Raised whether or not the
+    /// nearby radios are switched on: what else was waiting on it, Aware, decides for itself.
+    /// </summary>
+    public event Action? PermissionAllowed;
+
     public NodeLinkStatus Current
     {
         get
@@ -80,12 +86,14 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
                 var now = string.Join(", ", _permissions.Current.Select(p => $"{p.Name} {(p.Allowed ? "allowed" : "not allowed")}"));
                 _logger?.LogInformation("permissions changed: {Permissions}", now);
 
-                if (_permissions.NewlyAllowed && _nearby is not { On: false })
+                var allowed = _permissions.NewlyAllowed;
+                if (allowed && _nearby is not { On: false })
                 {
                     _logger?.LogInformation("a permission was allowed — bringing up the radios it held back");
                     _radio.Link();
                 }
 
+                if (allowed) PermissionAllowed?.Invoke();
                 Changed?.Invoke();
             }
 
