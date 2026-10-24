@@ -25,4 +25,10 @@
     <Using Include="AetherNet.Mesh" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- AetherNetService's own report of its radios, which every app shows. The service is a MAUI app, so its file is
+         compiled here to be tested: linked, never copied. -->
+    <Compile Include="../../src/AetherNetService/Node/MeshNodeLinkSource.cs" Link="Service/MeshNodeLinkSource.cs" />
+  </ItemGroup>
+
 </Project>

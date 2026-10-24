@@ -128,6 +128,10 @@ internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.
         }
     }
 
+    /// <summary>
+    /// Stop listening, and the help advert with it: the service's own shutdown. A Quiet help session that ends takes
+    /// only its advert off the air (<see cref="IHelpRadio.Stop"/> below).
+    /// </summary>
     public void Stop()
     {
         lock (_gate)
@@ -239,6 +243,22 @@ internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.
                 .Build()!;
             _legacy = new LegacyAdvert(this);
             advertiser.StartAdvertising(settings, data, _legacy);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Only the advert. Quiet help calls this once the person is safe, and Aware listens on: the same scan is how this
+    /// phone hears anyone else's call for help, and what it names around the person. This used to be Aware's own Stop,
+    /// so a session that ended left the phone deaf to both until the service started again.
+    /// </remarks>
+    void IHelpRadio.Stop()
+    {
+        var onAir = _legacy is not null || _extended is not null;
+        StopAdvertising();
+        if (onAir)
+        {
+            _log?.LogInformation("Quiet help is off the air; Aether Aware listens on");
         }
     }
 

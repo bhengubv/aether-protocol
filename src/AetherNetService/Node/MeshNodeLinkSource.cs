@@ -64,7 +64,7 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
                 var linked = _radio.IsLinked && string.Equals(r.Name, carrying, StringComparison.Ordinal);
                 radios.Add(new AetherNetNodeService.RadioStatus(r.Name, r.Available, linked, linked ? _radio.LinkBandwidthBps : 0)
                 {
-                    Reason = r.Available ? null : r.Reason,
+                    Reason = r.Available ? null : Why(r),
                     Fixable = !r.Available && r.Fixable,
                     NeedsPermission = r.NeedsPermission,
                 });
@@ -75,6 +75,17 @@ internal sealed class MeshNodeLinkSource : INodeLinkSource
             };
         }
     }
+
+    /// <summary>The radios' own words for a permission not yet allowed (Wi-Fi Direct's and Wi-Fi Aware's say just this).</summary>
+    internal const string AwaitsPermission = "needs permission to find phones nearby";
+
+    /// <summary>
+    /// What a radio that cannot be used waits on first. A permission comes before a switch: Allow asks for it, and the
+    /// phone's switch is asked for only once it is allowed. Bluetooth says its switch first, so a phone with Bluetooth
+    /// off and the permission not yet allowed showed "Bluetooth is switched off" over an Allow that asked for the
+    /// permission (the welcome, P30, 2026-10-24). Once it is allowed, the radio's own words say the switch, under Switch on.
+    /// </summary>
+    private static string? Why(RadioInfo radio) => radio.NeedsPermission ? AwaitsPermission : radio.Reason;
 
     private void Look()
     {
