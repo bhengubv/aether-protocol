@@ -246,22 +246,7 @@
     /// that cannot put up the phone's prompt itself — or null for the internet waiting on somebody in the Circle to
     /// relay, which no switch on this phone changes.
     /// </summary>
-    private static PhoneSetting? SwitchFor(RadioStatus radio)
-    {
-        var why = radio.Detail ?? "";
-        if (radio.Name == "Internet")
-            return why.StartsWith("no internet", StringComparison.OrdinalIgnoreCase) ? PhoneSetting.Internet : null;
-
-        // Below Android 12 Bluetooth, and below 13 Wi-Fi Direct and Wi-Fi Aware, find nobody with Location off.
-        if (why.Contains("location", StringComparison.OrdinalIgnoreCase)) return PhoneSetting.Location;
-
-        return radio.Name switch
-        {
-            "BLE" => PhoneSetting.Bluetooth,
-            "NFC" => PhoneSetting.Nfc,
-            _ => PhoneSetting.Settings,
-        };
-    }
+    private static PhoneSetting? SwitchFor(RadioStatus radio) => PhoneSwitches.For(radio.Name, radio.Detail);
 
     /// <summary>Switched off, but by nobody on this phone: the internet, until somebody in the Circle offers to relay.</summary>
     private static bool WaitsOnOthers(RadioStatus radio) =>

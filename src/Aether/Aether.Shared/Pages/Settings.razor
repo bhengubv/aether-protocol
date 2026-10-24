@@ -105,6 +105,20 @@
                     </span>
                     <span class="chev">@(radio.On ? "on" : "off")</span>
                 </button>
+                @* Held back by a switch at the phone: AetherNetService puts the phone's own prompt for it up over this
+                   page, as the welcome's Switch on does. The line above only said so (1.6 as first built). *@
+                @if (_serviceSettings is not null && WaitsOnSwitch(radio, words))
+                {
+                    <button class="about" @onclick="() => SwitchOn(radio)">
+                        <span class="about-body">
+                            <span class="about-t">Switch on</span>
+                            <span class="about-s">@(_switchFailed == radio.Name
+                                ? NoSwitchPage
+                                : "The phone asks you, right here, for the switch it is waiting on — nothing else to do.")</span>
+                        </span>
+                        <span class="chev">→</span>
+                    </button>
+                }
             }
             @if (_radioProblem is { } problem)
             {
@@ -328,6 +342,57 @@
     /// <summary>Whether AetherNet's nearby radios are on — AetherNetService's word, where there is one.</summary>
     private bool AetherNetOn => OnService ? _link.NearbyOn : _aetherNet;
 
+    /// <summary>The phone's own pages for its switches; null on a head with none.</summary>
+    private IPhoneSettings? _phone;
+
+    /// <summary>The radio whose Switch on found no page this phone would open.</summary>
+    private string? _switchFailed;
+
+    private const string NoSwitchPage = "this phone would not open its settings — switch it on from the phone's Settings";
+
+    /// <summary>
+    /// Switched on here, but held back by a switch at the phone — Bluetooth, Location, NFC, the networks — which the
+    /// phone's own prompt puts right. Not a permission (its line below asks for that), not the AetherNet switch above,
+    /// and not the internet waiting on somebody in the Circle to relay, which no switch on this phone changes.
+    /// </summary>
+    private bool WaitsOnSwitch(AetherNetNodeService.RadioStatus radio, RadioWords words) =>
+        radio.On && !radio.Available && radio.Fixable && !radio.NeedsPermission
+        && (AetherNetOn || !words.Nearby)
+        && PhoneSwitches.For(radio.Name, radio.Reason) is not null;
+
+    /// <summary>
+    /// AetherNetService puts the phone's own prompt for the switch up over this page — its "turn on Bluetooth?", its
+    /// panel for NFC or the networks. One that cannot ask (1.5 and older): the phone's own page for that switch.
+    /// </summary>
+    private void SwitchOn(AetherNetNodeService.RadioStatus radio)
+    {
+        if (_serviceSettings?.Ask(radio.Name) == true)
+        {
+            _switchFailed = null;
+            return;
+        }
+
+        _switchFailed = _phone is not null && PhoneSwitches.For(radio.Name, radio.Reason) is { } setting && _phone.Open(setting)
+            ? null
+            : radio.Name;
+    }
+
+    // Back from the phone's prompt or page for a switch, or from anywhere, AetherNetService is asked again: the phone
+    // tells no app when Bluetooth, Location, NFC or the networks are switched.
+    private void OnBack() => _ = InvokeAsync(async () =>
+    {
+        try
+        {
+            _link = await Node.GetLinkAsync();
+        }
+        catch (Exception)
+        {
+            return;   // the page keeps what it last showed, and the service's next push puts it right
+        }
+
+        StateHasChanged();
+    });
+
     /// <summary>What the switch was turned to, while AetherNetService restarts to apply it; null when settled.</summary>
     private bool? _switchingTo;
 
@@ -414,6 +479,8 @@
 
         // Only a head that talks to AetherNetService registers one; elsewhere there is no page to send anyone to.
         _serviceSettings = Services.GetService<IAetherNetServiceSettings>();
+        _phone = Services.GetService<IPhoneSettings>();
+        if (_phone is not null) _phone.Back += OnBack;
 
         // Presence now comes through the node contract — the app is a client of its own node.
         _nodeSub = Node.Subscribe(this);
@@ -441,6 +508,7 @@
     {
         Proxies.Changed -= OnChanged;
         _nodeSub?.Dispose();
+        if (_phone is not null) _phone.Back -= OnBack;
     }
 
     /// <summary>

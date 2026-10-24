@@ -52,6 +52,7 @@ internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.
     private BluetoothLeAdvertiser? _advertiser;
     private LegacyAdvert? _legacy;
     private ExtendedAdvert? _extended;
+    private BluetoothSwitch? _bluetoothSwitch;
     private WifiManager? _wifi;
     private LocationManager? _locations;
     private Fix? _fix;
@@ -85,6 +86,12 @@ internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.
     /// <summary>Raised when what was heard changed enough for a screen to redraw.</summary>
     public event Action? Changed;
 
+    /// <summary>
+    /// Raised when Bluetooth is switched on or off — at the phone's prompt from a "Put it right", or anywhere else. What
+    /// Quiet help can put on the air changes with it, and nothing in Quiet help hears that by itself.
+    /// </summary>
+    public event Action? Switched;
+
     /// <summary>Start listening. Says plainly when it cannot, rather than looking as though it is working.</summary>
     public void Start()
     {
@@ -105,6 +112,7 @@ internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.
         _wifi = AndroidApp.Context.GetSystemService(Context.WifiService) as WifiManager;
         _running = true;
 
+        WatchBluetooth();
         StartBluetooth();
         StartPosition();
         ReadBattery();
@@ -132,19 +140,8 @@ internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.
             _running = false;
         }
 
-        try
-        {
-            if (_scanCallback is not null)
-            {
-                _scanner?.StopScan(_scanCallback);
-            }
-        }
-        catch (Exception ex)
-        {
-            _log?.LogDebug(ex, "stopping the Aware scan");
-        }
-
-        StopAdvertising();
+        UnwatchBluetooth();
+        StopBluetooth();
         StopPosition();
         _pump?.Dispose();
         _pump = null;
@@ -350,6 +347,106 @@ internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.
         {
             _log?.LogWarning(ex, "Aether Aware could not listen to Bluetooth");
         }
+    }
+
+    /// <summary>
+    /// The scan and the advert let go of, and forgotten. Android ends both when Bluetooth goes off and never starts
+    /// them again, so new ones are made when it is back.
+    /// </summary>
+    private void StopBluetooth()
+    {
+        var scan = _scanCallback;
+        _scanCallback = null;
+        try
+        {
+            if (scan is not null)
+            {
+                _scanner?.StopScan(scan);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogDebug(ex, "stopping the Aware scan");
+        }
+
+        _scanner = null;
+        StopAdvertising();
+        _advertiser = null;
+    }
+
+    /// <summary>
+    /// Hear Bluetooth being switched, as the mesh's own Bluetooth does. Without it, Aware went on saying it was
+    /// listening once Bluetooth was off, and heard nothing over Bluetooth after it was back on (P30, 2026-10-24: not one
+    /// Bluetooth device for minutes, where there had been a dozen).
+    /// </summary>
+    private void WatchBluetooth()
+    {
+        if (_bluetoothSwitch is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            _bluetoothSwitch = new BluetoothSwitch(this);
+            AndroidApp.Context.RegisterReceiver(_bluetoothSwitch, new IntentFilter(BluetoothAdapter.ActionStateChanged));
+        }
+        catch (Exception ex)
+        {
+            _bluetoothSwitch = null;
+            _log?.LogWarning(ex, "Aether Aware will not hear Bluetooth being switched back on");
+        }
+    }
+
+    private void UnwatchBluetooth()
+    {
+        var watching = _bluetoothSwitch;
+        _bluetoothSwitch = null;
+        if (watching is null)
+        {
+            return;
+        }
+
+        try
+        {
+            AndroidApp.Context.UnregisterReceiver(watching);
+        }
+        catch (Exception ex)
+        {
+            _log?.LogDebug(ex, "no longer hearing Bluetooth being switched");
+        }
+    }
+
+    private void OnBluetooth(global::Android.Bluetooth.State state)
+    {
+        switch (state)
+        {
+            // Let go while it is going, as the mesh's Bluetooth does: by the time it is off, the stack is already gone.
+            case global::Android.Bluetooth.State.TurningOff:
+                StopBluetooth();
+                return;
+
+            case global::Android.Bluetooth.State.Off:
+                StopBluetooth();
+                _log?.LogInformation("Aether Aware: Bluetooth is off, so nothing is heard over it");
+                break;
+
+            case global::Android.Bluetooth.State.On:
+                if (_running && !_disposed && _scanCallback is null)
+                {
+                    _log?.LogInformation("Aether Aware: Bluetooth is back");
+                    StartBluetooth();
+                }
+
+                break;
+
+            default:
+                return;
+        }
+
+        // Said at once rather than at the next pump, so a screen showing Aware or Quiet help redraws as it happens.
+        Changed?.Invoke();
+        Switched?.Invoke();
     }
 
     private static string ScanPermission => OperatingSystem.IsAndroidVersionAtLeast(31)
@@ -575,13 +672,18 @@ internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.
     {
         get
         {
-            var listening = _scanCallback is not null;
-            var why = listening ? null : (Why(HelpAdvertForm.AetherNet128Pair) ?? "Aether Aware is not listening");
+            // A scan Android is still running, not one that was asked for once: Android ends it when Bluetooth goes
+            // off, and that read as listening, with nothing heard and nothing offered to put it right.
+            var bluetoothOff = _adapter?.IsEnabled == false;
+            var listening = _running && _scanCallback is not null && !bluetoothOff;
             if (listening)
             {
                 return Report(null, fixable: false);
             }
 
+            var why = bluetoothOff
+                ? "Bluetooth is off, so nothing is heard over it"
+                : Why(HelpAdvertForm.AetherNet128Pair) ?? "Aether Aware is not listening";
             return Report(why, CanBeAllowed);
         }
     }
@@ -995,6 +1097,21 @@ internal sealed class AndroidAwareRadio : IHelpRadio, AetherNetNodeService.Host.
 
         public override void OnScanFailed(ScanFailure errorCode)
             => owner._log?.LogWarning("Aether Aware: Bluetooth refused the scan ({Why})", errorCode);
+    }
+
+    /// <summary>Bluetooth being switched on or off, from anywhere on the phone.</summary>
+    private sealed class BluetoothSwitch(AndroidAwareRadio owner) : BroadcastReceiver
+    {
+        public override void OnReceive(Context? context, Intent? intent)
+        {
+            if (intent?.Action != BluetoothAdapter.ActionStateChanged)
+            {
+                return;
+            }
+
+            owner.OnBluetooth((global::Android.Bluetooth.State)intent.GetIntExtra(
+                BluetoothAdapter.ExtraState, (int)global::Android.Bluetooth.State.Off));
+        }
     }
 
     /// <summary>This phone's own position, which "moving with you" measures against.</summary>

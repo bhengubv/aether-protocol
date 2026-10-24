@@ -134,6 +134,13 @@ internal static class AndroidNode
                     };
                     aware.Start();
 
+                    // Bluetooth switched on or off changes what Quiet help can put on the air, and nothing in Quiet
+                    // help hears it: asked again then, so a screen showing it redraws by itself. After the phone's "turn
+                    // on Bluetooth?" from Quiet help's "Put it right", the open screen went on saying it was off (P30,
+                    // 2026-10-24).
+                    aware.Switched += () => _ = ServicesCore.Services?
+                        .GetService<AetherNetNodeService.Host.QuietHelpService>()?.RefreshAsync();
+
                     // Allowed later — on the phone's prompt from Aware's "Put it right", or on its page — Aware starts
                     // then, as the mesh's radios do, rather than at the service's next start. Start is a no-op once
                     // it is listening, and checks the permission itself.

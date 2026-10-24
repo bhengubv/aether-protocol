@@ -4,6 +4,7 @@
 @using AetherNetNodeService
 @using AetherNetNodeService.Client
 @using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
 @implements IDisposable
 @inject QuietHelpService Help
 @inject AetherStore Store
@@ -210,6 +211,7 @@
     private bool _busy;
     private IAetherNetServiceSettings? _serviceSettings;
     private bool _settingsFailed;
+    private IPhoneSettings? _phone;
 
     /// <summary>
     /// The phone's own prompt for what the nearby half is missing — the permission to advertise, or Bluetooth switched
@@ -247,10 +249,33 @@
     protected override async Task OnInitializedAsync()
     {
         _serviceSettings = Services.GetService<IAetherNetServiceSettings>();
+        _phone = Services.GetService<IPhoneSettings>();
+        if (_phone is not null) _phone.Back += OnBack;
         Help.Changed += OnChanged;
         Help.Listen();
         Contacts = Store.GetContacts();
         await Help.RefreshAsync();
+    }
+
+    // Back from the phone's prompt that "Put it right" put up, or from anywhere, the node is asked again: the phone tells
+    // no app when a permission is allowed or Bluetooth switched on. After Allow, this screen went on saying "Bluetooth is
+    // off" until it was opened again (P30, 2026-10-24).
+    private void OnBack() => _ = InvokeAsync(Recheck);
+
+    private async Task Recheck()
+    {
+        try
+        {
+            await Help.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            // The screen keeps what it last showed; the next change, or the next press, asks again.
+            Services.GetService<ILogger<QuietHelp>>()?.LogInformation(ex, "AetherNetService did not say how Quiet help stands");
+            return;
+        }
+
+        StateHasChanged();
     }
 
     private HelpGuardian? Chosen(string tag)
@@ -387,5 +412,9 @@
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    public void Dispose() => Help.Changed -= OnChanged;
+    public void Dispose()
+    {
+        Help.Changed -= OnChanged;
+        if (_phone is not null) _phone.Back -= OnBack;
+    }
 }

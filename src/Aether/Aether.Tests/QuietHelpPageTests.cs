@@ -381,6 +381,50 @@ public class QuietHelpPageTests : IDisposable
     }
 
     [Fact]
+    public void BackFromThePhonesPromptTheScreenShowsWhatItPutRight()
+    {
+        // After Allow on the phone's "turn on Bluetooth?", the open screen went on saying Bluetooth was off until it was
+        // opened again (P30, 2026-10-24). The phone tells no app, so coming back is what has the node asked again.
+        var phone = new FakePhoneSettings();
+        _ctx.Services.AddSingleton<Aether.Shared.Services.IPhoneSettings>(phone);
+        _ctx.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(new FakeServiceSettings());
+        _node.Report = new HelpReport
+        {
+            Mine = new HelpState
+            {
+                Guardians = [new HelpGuardian(Sipho, "Sipho")],
+                NearbyWhy = "Bluetooth is off, or this phone cannot advertise",
+                NearbyFixable = true,
+            },
+        };
+        var page = _ctx.RenderComponent<QuietHelp>();
+        page.FindAll("button.about").First(b => b.TextContent.Contains("Put it right")).Click();
+
+        // Switched on at the prompt; nothing pushed.
+        _node.Report = new HelpReport { Mine = new HelpState { Guardians = [new HelpGuardian(Sipho, "Sipho")] } };
+        Assert.Contains("Phones next to you cannot hear you yet", page.Markup);
+
+        phone.ComeBack();
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.DoesNotContain("Phones next to you cannot hear you yet", page.Markup);
+            Assert.DoesNotContain("Put it right", page.Markup);
+        });
+    }
+
+    /// <summary>The phone's own switches, and word when the person is back in the app.</summary>
+    private sealed class FakePhoneSettings : Aether.Shared.Services.IPhoneSettings
+    {
+        public event Action? Back;
+
+        public bool Open(Aether.Shared.Services.PhoneSetting setting) => true;
+
+        /// <summary>The person returns to the app.</summary>
+        public void ComeBack() => Back?.Invoke();
+    }
+
+    [Fact]
     public void TheScreenSaysNothingAboutNearbyPhonesWhenTheyCanHear()
     {
         _ctx.Services.AddSingleton<AetherNetNodeService.Client.IAetherNetServiceSettings>(new FakeServiceSettings());

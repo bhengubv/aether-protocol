@@ -32,3 +32,28 @@ public enum PhoneSetting
     /// <summary>Wi-Fi and mobile data.</summary>
     Internet,
 }
+
+/// <summary>Which of the phone's switches one of AetherNetService's radios is waiting on.</summary>
+public static class PhoneSwitches
+{
+    /// <summary>
+    /// The phone's switch a radio is waiting on, read from what AetherNetService says is wrong (<paramref name="why"/>),
+    /// or null for the internet waiting on somebody in the Circle to relay, which no switch on this phone changes.
+    /// </summary>
+    public static PhoneSetting? For(string radio, string? why)
+    {
+        why ??= "";
+        if (radio == "Internet")
+            return why.StartsWith("no internet", StringComparison.OrdinalIgnoreCase) ? PhoneSetting.Internet : null;
+
+        // Below Android 12 Bluetooth, and below 13 Wi-Fi Direct and Wi-Fi Aware, find nobody with Location off.
+        if (why.Contains("location", StringComparison.OrdinalIgnoreCase)) return PhoneSetting.Location;
+
+        return radio switch
+        {
+            "BLE" => PhoneSetting.Bluetooth,
+            "NFC" => PhoneSetting.Nfc,
+            _ => PhoneSetting.Settings,
+        };
+    }
+}

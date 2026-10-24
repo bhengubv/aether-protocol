@@ -416,6 +416,112 @@ public sealed class SettingsAetherNetServiceTests : IDisposable
         Assert.Equal("on", Row(cut, "Bluetooth").QuerySelector(".chev")!.TextContent);
     }
 
+    /// <summary>A radio switched on here and held back by a switch at the phone, in AetherNetService's words.</summary>
+    private static RadioStatus AtThePhone(string name, string why) => new(name, false, false, 0) { Reason = why, Fixable = true };
+
+    /// <summary>The line straight under a radio's own, where its Switch on goes.</summary>
+    private static AngleSharp.Dom.IElement? Under(IRenderedComponent<Settings> cut, string radio) =>
+        Row(cut, radio).NextElementSibling is { } next && next.QuerySelector(".about-t")?.TextContent == "Switch on" ? next : null;
+
+    /// <summary>
+    /// "On, but Bluetooth is switched off", and nothing to do about it here (P30, 2026-10-24). Now Switch on has
+    /// AetherNetService put the phone's own prompt up over this page, as the welcome's does.
+    /// </summary>
+    [Fact]
+    public void A_radio_waiting_on_a_switch_at_the_phone_offers_Switch_on_in_place()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Radios(AtThePhone("BLE", "Bluetooth is switched off"));
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Assert.StartsWith("On, but Bluetooth is switched off.", Row(cut, "Bluetooth").QuerySelector(".about-s")!.TextContent);
+        Under(cut, "Bluetooth")!.Click();
+
+        Assert.Equal(["BLE"], _settings.Asked);
+        Assert.Equal(0, _settings.Opened);       // nothing opened in the phone's settings
+        Assert.Empty(_node.RadiosSwitched);      // and the radio's own switch left as it was
+    }
+
+    [Fact]
+    public void With_an_AetherNetService_that_cannot_ask_Switch_on_opens_the_phone_page_for_the_switch()
+    {
+        _settings.Asks = false;
+        var phone = new FakePhoneSettings();
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _ctx.Services.AddSingleton<IPhoneSettings>(phone);
+        _node.Link = Radios(AtThePhone("BLE", "Bluetooth is switched off"), AtThePhone("NFC", "NFC is switched off"));
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Under(cut, "Bluetooth")!.Click();
+        Under(cut, "Tap to add")!.Click();
+
+        Assert.Equal([PhoneSetting.Bluetooth, PhoneSetting.Nfc], phone.Opened);
+    }
+
+    /// <summary>
+    /// Only a switch at the phone: a permission has its own line, a radio the person switched off or the AetherNet switch
+    /// holds down is theirs to switch here, and the internet waiting on a relay waits on nobody on this phone.
+    /// </summary>
+    [Fact]
+    public void Switch_on_is_offered_only_for_a_switch_at_the_phone()
+    {
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _node.Link = Radios(
+            Waiting("BLE"),
+            AtThePhone("NFC", "NFC is switched off") with { On = false },
+            AtThePhone("Internet", "nobody in your Circle is offering to relay yet"),
+            new RadioStatus("Wi-Fi Direct", true, false, 0));
+        var cut = _ctx.RenderComponent<Settings>();
+
+        Assert.Null(Under(cut, "Bluetooth"));
+        Assert.Null(Under(cut, "Tap to add"));
+        Assert.Null(Under(cut, "Internet relay"));
+        Assert.Null(Under(cut, "Wi-Fi Direct"));
+
+        _node.Push(Radios(AtThePhone("BLE", "Bluetooth is switched off")) with { NearbyOn = false });
+        cut.WaitForAssertion(() => Assert.StartsWith("Off while AetherNet is off.", Row(cut, "Bluetooth").QuerySelector(".about-s")!.TextContent));
+        Assert.Null(Under(cut, "Bluetooth"));
+    }
+
+    /// <summary>Back from the phone's prompt for a switch, AetherNetService is asked again, with nothing pushed.</summary>
+    [Fact]
+    public void Back_in_the_app_the_radios_are_asked_again()
+    {
+        var phone = new FakePhoneSettings();
+        _ctx.Services.AddSingleton<IAetherNetServiceSettings>(_settings);
+        _ctx.Services.AddSingleton<IPhoneSettings>(phone);
+        _node.Link = Radios(AtThePhone("BLE", "Bluetooth is switched off"));
+        var cut = _ctx.RenderComponent<Settings>();
+        Under(cut, "Bluetooth")!.Click();
+
+        _node.Link = Radios(new RadioStatus("BLE", true, false, 0));   // switched on at the prompt; nothing pushed
+        phone.ComeBack();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.StartsWith("On.", Row(cut, "Bluetooth").QuerySelector(".about-s")!.TextContent);
+            Assert.Null(Under(cut, "Bluetooth"));
+        });
+    }
+
+    /// <summary>The phone's own switches, recording which page was asked for.</summary>
+    private sealed class FakePhoneSettings : IPhoneSettings
+    {
+        /// <summary>Which pages were asked for, in order.</summary>
+        public List<PhoneSetting> Opened { get; } = [];
+
+        public event Action? Back;
+
+        public bool Open(PhoneSetting setting)
+        {
+            Opened.Add(setting);
+            return true;
+        }
+
+        /// <summary>The person returns to the app.</summary>
+        public void ComeBack() => Back?.Invoke();
+    }
+
     /// <summary>A head with no AetherNetService has no radios of the service's to switch.</summary>
     [Fact]
     public void Without_AetherNetService_there_are_no_radio_switches()
